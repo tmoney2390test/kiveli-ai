@@ -17,14 +17,13 @@ alter table public.together_profiles
   add column if not exists active_companion_instance_id uuid references public.together_character_instances(id) on delete set null;
 
 update public.together_profiles profile
-set active_companion_instance_id = selected.id
-from lateral (
+set active_companion_instance_id = (
   select instance.id
   from public.together_character_instances instance
   where instance.user_id = profile.user_id
   order by (instance.contact_added_at is not null) desc, instance.met_at asc, instance.created_at asc
   limit 1
-) selected
+)
 where profile.active_companion_instance_id is null;
 
 create index if not exists together_instances_user_met_at_idx
