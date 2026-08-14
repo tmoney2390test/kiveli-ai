@@ -20,7 +20,8 @@ export const markProactiveOpened = (proactiveMessageId: string) => invoke('toget
 export const introduction = <T>(action: 'preview'|'accept'|'complete', choice?: string) => invoke<T>('together-introduction', { action, choice });
 export const reportMessage = (messageId: string, reason: string, detail = '') => invoke('together-report', { messageId, reason, detail });
 export const manageAccount = <T>(input: Record<string, unknown>) => invoke<T>('together-account', input);
-export const chooseActivity = <T>(activity:'riverwalk'|'open_mic'|'rooftop_movie',choice:'accept'|'defer') => invoke<T>('together-activity',{activity,choice});
+export const createSharedPlan = <T>(input:{activity:string;characterInstanceId:string;scheduledFor:string;requestId:string;note?:string}) => invoke<T>('together-activity',{action:'create',...input});
+export const cancelSharedPlan = <T>(planId:string) => invoke<T>('together-activity',{action:'cancel',planId});
 export const resolveRelationshipMilestone = (milestoneId:string,action:'accept'|'defer'|'stay_friends'|'talk_it_out'|'give_space') => invoke<{snapshot:Snapshot}>('together-relationship',{milestoneId,action});
 export const manageConversation = <T>(input: Record<string, unknown>) => invoke<T>('together-conversation', input);
 export const manageMedia = <T>(input: Record<string, unknown>) => invoke<T>('together-media', input);

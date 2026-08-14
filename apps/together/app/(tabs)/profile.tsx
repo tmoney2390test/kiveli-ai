@@ -35,7 +35,7 @@ export default function CompanionProfile() {
 
     <View style={styles.primaryActions}>
       <GradientButton label={`Talk to ${template.name}`} icon={<MessageCircle size={18} color="#fff" />} onPress={() => router.push('/chat')} />
-      <Pressable onPress={() => router.push('/(tabs)/dates')} style={styles.plan}><CalendarDays size={18} color={colors.warm} /><Text style={styles.planText}>Plan something</Text></Pressable>
+      <Pressable onPress={() => router.push('/chat?plan=1')} style={styles.plan}><CalendarDays size={18} color={colors.warm} /><Text style={styles.planText}>Plan something</Text></Pressable>
     </View>
 
     <Pressable disabled={!location} onPress={() => location && router.push(`/location/${location.slug}` as never)} accessibilityRole={location ? 'button' : undefined}>

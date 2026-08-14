@@ -37,7 +37,7 @@ export function buildCompanionLife(snapshot: Snapshot, now = new Date(), compani
     relationship: snapshot.relationships.find((item) => item.character_instance_id === companion.id),
     relationshipDay: Math.max(1, Math.floor((now.getTime() - new Date(companion.met_at || companion.contact_added_at || now.toISOString()).getTime()) / 86400000) + 1),
     location,
-    recentEvents: snapshot.lifeEvents.filter((event) => event.character_instance_id === companion.id).filter((event) => event.user_should_know !== false).sort((left,right)=>new Date(right.starts_at).getTime()-new Date(left.starts_at).getTime()).slice(0, 8),
+    recentEvents: snapshot.lifeEvents.filter((event) => event.character_instance_id === companion.id).filter((event) => event.user_should_know !== false&&new Date(event.starts_at).getTime()<=now.getTime()).sort((left,right)=>new Date(right.starts_at).getTime()-new Date(left.starts_at).getTime()).slice(0, 8),
     upcomingSchedule,
     proactiveMessages: snapshot.proactiveMessages.filter((message) => message.character_instance_id === companion.id).sort((left,right)=>new Date(right.eligible_at??0).getTime()-new Date(left.eligible_at??0).getTime()),
     dates: snapshot.dates.filter((item) => item.character_instance_id === companion.id).sort((left,right)=>dateRank(left.status)-dateRank(right.status)||new Date(right.completed_at??0).getTime()-new Date(left.completed_at??0).getTime()),

@@ -25,6 +25,7 @@ export default function Home() {
   const catchUpEvents = recentEvents.filter((event) => Date.now() - new Date(event.starts_at).getTime() < 72 * 3600000).slice(0, 2);
   const date = dates[0];
   const plannedDate = dates.find((item) => ['active', 'upcoming', 'unlocked', 'deferred'].includes(item.status));
+  const sharedPlan = snapshot.lifeEvents.filter((event)=>event.character_instance_id===companion.id&&event.event_type==='shared_plan'&&event.metadata?.planStatus!=='cancelled'&&new Date(event.starts_at).getTime()>Date.now()).sort((left,right)=>new Date(left.starts_at).getTime()-new Date(right.starts_at).getTime())[0];
   const openCompanion = async () => {
     if (latestProactive?.status === 'sent') await markProactiveOpened(latestProactive.id).catch(() => undefined);
     router.push('/chat');
@@ -46,7 +47,7 @@ export default function Home() {
     {relationshipCue ? <Pressable onPress={() => router.push('/chat')} style={({pressed})=>[styles.relationshipCue,pressed&&styles.pressed]}><View style={[styles.relationshipIcon,relationshipCue.tone==='tense'&&styles.relationshipIconTense]}><Heart size={18} color={relationshipCue.tone==='tense'?colors.warm:colors.rose}/></View><View style={{flex:1}}><Text style={styles.relationshipLabel}>{relationshipCue.label}</Text><Text style={styles.relationshipDetail}>{pendingMilestone?pendingMilestone.title:relationshipCue.detail}</Text></View>{pendingMilestone?<View style={styles.choicePill}><Text style={styles.choicePillText}>Your choice</Text></View>:<ChevronRight size={18} color={colors.muted}/>}</Pressable> : null}
 
     <View style={styles.actions}>
-      <ActionTile title={plannedDate?.status === 'active' ? 'Continue date' : 'Plan something'} onPress={() => plannedDate ? router.push(`/date/${plannedDate.id}` as never) : router.push('/(tabs)/dates')} icon={<CalendarDays color={colors.warm} size={21} />} />
+      <ActionTile title={plannedDate?.status === 'active' ? 'Continue date' : sharedPlan ? 'View your plan' : 'Plan something'} onPress={() => plannedDate?.status==='active' ? router.push(`/date/${plannedDate.id}` as never) : sharedPlan ? router.push('/(tabs)/dates') : router.push('/chat?plan=1')} icon={<CalendarDays color={colors.warm} size={21} />} />
       <ActionTile title="Memories" onPress={() => router.push('/memories')} icon={<Sparkles color={colors.violet} size={21} />} />
     </View>
 
@@ -67,8 +68,9 @@ export default function Home() {
     <SectionHeader title="Today" action="View world" onAction={() => router.push('/(tabs)/worlds')} />
     <GlassCard style={styles.todayCard}>
       {upcomingSchedule.map((item, index) => <View key={`${item.id}-${item.start_minute}`}><TimelineItem icon={<Coffee size={16} color={colors.warm} />} title={item.activity} detail={item.locationName} time={formatScheduleTime(item.startsAt)} />{index < upcomingSchedule.length - 1 ? <View style={styles.rule} /> : null}</View>)}
+      {sharedPlan ? <><View style={upcomingSchedule.length ? styles.rule : undefined}/><TimelineItem icon={<CalendarDays size={16} color={colors.warm}/>} title={sharedPlan.title} detail={snapshot.locations.find((item)=>item.id===sharedPlan.location_id)?.name??'City Life'} time={new Date(sharedPlan.starts_at).toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})}/></> : null}
       {date ? <><View style={upcomingSchedule.length ? styles.rule : undefined} /><TimelineItem icon={<CalendarDays size={16} color={colors.violet} />} title={date.together_date_templates.name} detail={date.status === 'locked' ? 'Keep getting closer to unlock it' : date.scheduled_for ? new Date(date.scheduled_for).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}) : 'Ready when you are'} time={date.status === 'locked' ? 'LOCKED' : 'PLAN'} /></> : null}
-      {!upcomingSchedule.length && !date ? <Text style={styles.emptySchedule}>Nothing else is scheduled right now. The day is still unfolding.</Text> : null}
+      {!upcomingSchedule.length && !date && !sharedPlan ? <Text style={styles.emptySchedule}>Nothing else is scheduled right now. The day is still unfolding.</Text> : null}
     </GlassCard>
 
     <SectionHeader title="Recent moments" action="View all" onAction={() => router.push('/(tabs)/moments')} />
