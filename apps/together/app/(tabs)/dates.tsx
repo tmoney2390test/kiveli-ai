@@ -2,16 +2,19 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { CalendarDays, LockKeyhole, Sparkles } from 'lucide-react-native';
-import { characterAssets, cityLifeAsset } from '../../src/assets';
+import { characterAssets } from '../../src/assets';
 import { Body, GlassCard, LoadingSkeleton, PageTitle, Screen, SectionHeader } from '../../src/components';
 import { colors, radius, spacing } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
+import { buildCompanionLife } from '../../src/lib/companionLife';
 
 export default function Dates() {
   const snapshot = useTogether((state) => state.snapshot);
   if (!snapshot) return <LoadingSkeleton />;
-  const dinner = snapshot.dates[0];
+  const life = buildCompanionLife(snapshot);
+  const dinner = life?.dates[0];
   const unlocked = dinner?.status !== 'locked';
+  const companionName = life?.companion.together_character_templates.name ?? 'your companion';
 
   return <Screen>
     <View style={styles.header}><View><PageTitle>Dates</PageTitle><Text style={styles.subtitle}>Shared experiences, remembered.</Text></View><View style={styles.dateCount}><CalendarDays size={16} color={colors.rose} /><Text style={styles.dateCountText}>{dinner?.status === 'completed' ? '1 MEMORY' : '1 POSSIBILITY'}</Text></View></View>
@@ -19,24 +22,15 @@ export default function Dates() {
 
     <SectionHeader title={dinner?.status === 'completed' ? 'A shared memory' : unlocked ? 'Your next night out' : 'When the time feels right'} />
     <Pressable disabled={!unlocked} onPress={() => router.push(`/date/${dinner!.id}`)} style={({ pressed }) => [styles.hero, !unlocked && styles.lockedHero, pressed && unlocked && styles.pressed]}>
-      <Image source={characterAssets.maya} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" />
+      <Image source={characterAssets[life?.companion.together_character_versions.portrait_asset_key ?? 'maya'] ?? characterAssets.maya} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" />
       <View style={styles.shade} />
       <View style={styles.heroHeader}><Text style={styles.heroKicker}>{dinner?.status === 'completed' ? 'YOUR FIRST DATE' : 'DINNER AT JUNIPER'}</Text>{unlocked ? <View style={styles.availablePill}><View style={styles.availableDot} /><Text style={styles.availableText}>{dinner?.status === 'completed' ? 'COMPLETED' : 'AVAILABLE'}</Text></View> : null}</View>
-      <View style={styles.heroText}><Text style={styles.dateTitle}>Dinner at Juniper</Text><Text style={styles.dateMeta}>{dinner?.status === 'locked' ? 'A little anticipation is part of it.' : dinner?.status === 'completed' ? 'A night you will both remember.' : 'Saturday · 7:00 PM'}</Text>{!unlocked ? <View style={styles.lock}><LockKeyhole size={13} color="#D2CBD5" /><Text style={styles.lockText}>Keep getting to know Maya</Text></View> : <Text style={styles.tapHint}>Tap to {dinner?.status === 'completed' ? 'revisit the memory' : 'begin your date'}</Text>}</View>
+      <View style={styles.heroText}><Text style={styles.dateTitle}>{dinner?.together_date_templates.name ?? 'Shared experience'}</Text><Text style={styles.dateMeta}>{dinner?.status === 'locked' ? 'A little anticipation is part of it.' : dinner?.status === 'completed' ? 'A night you will both remember.' : dinner?.scheduled_for ? new Date(dinner.scheduled_for).toLocaleString(undefined,{weekday:'long',hour:'numeric',minute:'2-digit'}) : 'Ready when you are'}</Text>{!unlocked ? <View style={styles.lock}><LockKeyhole size={13} color="#D2CBD5" /><Text style={styles.lockText}>Keep getting to know {companionName}</Text></View> : <Text style={styles.tapHint}>Tap to {dinner?.status === 'completed' ? 'revisit the memory' : 'begin your date'}</Text>}</View>
     </Pressable>
-
-    <SectionHeader title="More ways to connect" action="Coming soon" />
-    <ActivityCard title="Walk at Riverwalk" mood="Romantic" detail="An unhurried evening by the water" />
-    <ActivityCard title="Rooftop Movie" mood="Easygoing" detail="Blankets, city lights, and a bad movie" />
-    <ActivityCard title="Live Music Night" mood="Electric" detail="A little louder than either of you expected" />
 
     <SectionHeader title="Past dates" />
     {dinner?.status === 'completed' ? <GlassCard style={styles.memory}><Sparkles size={18} color={colors.rose} /><View style={{ flex: 1 }}><Text style={styles.memoryTitle}>Dinner at Juniper</Text><Body muted>Your first date is now part of your shared history.</Body></View></GlassCard> : <View style={styles.emptyPast}><Text style={styles.emptyPastTitle}>Your first shared night is still ahead.</Text><Text style={styles.emptyPastCopy}>Completed dates become a part of your visual timeline.</Text></View>}
   </Screen>;
-}
-
-function ActivityCard({ title, mood, detail }: { title: string; mood: string; detail: string }) {
-  return <View style={styles.activity}><Image source={cityLifeAsset} style={styles.thumb} contentFit="cover" /><View style={{ flex: 1 }}><Text style={styles.activityTitle}>{title}</Text><Text style={styles.activityDetail}>{detail}</Text><Text style={styles.mood}>{mood}</Text></View><LockKeyhole size={16} color={colors.dimmed} /></View>;
 }
 
 const styles = StyleSheet.create({
@@ -62,11 +56,6 @@ const styles = StyleSheet.create({
   lock: { flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 12 },
   lockText: { color: '#D2CBD5', fontSize: 12 },
   tapHint: { color: '#FFC6D9', fontSize: 12, fontWeight: '700', marginTop: 12 },
-  activity: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: 9 },
-  thumb: { width: 76, height: 62, borderRadius: radius.sm },
-  activityTitle: { color: colors.text, fontWeight: '800' },
-  activityDetail: { color: colors.muted, fontSize: 11, marginTop: 3 },
-  mood: { color: colors.rose, fontSize: 11, marginTop: 5, fontWeight: '700' },
   memory: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   memoryTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 19, marginBottom: 4 },
   emptyPast: { borderRadius: radius.md, backgroundColor: colors.surface, padding: spacing.md, borderWidth: 1, borderColor: colors.border },

@@ -38,6 +38,7 @@ serve(async (request, correlationId) => {
   for (const instance of instances) await db.from('together_relationship_states').upsert({ character_instance_id: instance.id, user_id: user.id }, { onConflict: 'character_instance_id', ignoreDuplicates: true });
   const maya = instances.find((item) => item.character_template_id === TOGETHER_IDS.maya);
   if (!maya) throw new AppError('INTERNAL_ERROR', 'Maya could not enter City Life.', 500, true);
+  await db.from('together_profiles').update({ active_companion_instance_id: maya.id, updated_at: now }).eq('user_id', user.id).is('active_companion_instance_id', null);
 
   const { data: conversation } = await db.from('together_conversations').select('id').eq('user_id', user.id).eq('character_instance_id', maya.id).is('archived_at', null).maybeSingle();
   if (!conversation) await db.from('together_conversations').insert({ user_id: user.id, character_instance_id: maya.id, kind: 'first_meeting', title: 'Juniper Café' });

@@ -6,7 +6,9 @@ type LifeRunInput = { db: SupabaseClient; userId: string; characterInstanceId?: 
 type EventRow = Record<string, any>;
 
 export async function runLifeSimulation({ db, userId, characterInstanceId, now = new Date(), evaluateProactive = true, trigger }: LifeRunInput): Promise<Record<string, unknown>> {
-  const simulateEvents = trigger === 'conversation_continued';
+  // Routine state resolution is cheap; meaningful events are materialized only
+  // by a continued conversation or the protected background dispatcher.
+  const simulateEvents = trigger === 'conversation_continued' || trigger === 'scheduled_dispatch';
   const instanceQuery = db.from('together_character_instances').select('*,together_character_templates(name,slug)').eq('user_id', userId);
   const { data: instance } = await (characterInstanceId ? instanceQuery.eq('id', characterInstanceId) : instanceQuery.eq('character_template_id', TOGETHER_IDS.maya)).maybeSingle();
   if (!instance) throw new AppError('NOT_FOUND', 'That character is unavailable.', 404);
@@ -30,7 +32,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   if (relationship.error) throw new AppError('INTERNAL_ERROR', 'Relationship state is unavailable.', 500, true);
 
   const scheduleState = resolveLifeState((schedules.data ?? []) as Array<Record<string, unknown>>, now);
-  const eventCandidates = simulateEvents ? selectEventCandidates(eventSimulationStart, now, templates.data ?? [], String(instance.simulation_seed), recentEvents.data ?? []) : [];
+  const eventCandidates = simulateEvents ? selectEventCandidates(eventSimulationStart, now, templates.data ?? [], String(instance.simulation_seed), recentEvents.data ?? [], schedules.data ?? []) : [];
   const instanceByTemplate = new Map((allInstances.data ?? []).map((item) => [String(item.character_template_id), String(item.id)]));
   const created: EventRow[] = [];
   for (const candidate of eventCandidates) {
@@ -52,7 +54,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
       resulting_state_changes: template.state_effects,
       user_should_know: template.user_visibility !== 'hidden',
       proactive_message_appropriate: template.proactive_eligible,
-      metadata: { source: 'lazy_simulation', probability: template.probability },
+      metadata: { source: trigger, probability: template.probability },
     }, { onConflict: 'character_instance_id,simulation_key', ignoreDuplicates: true }).select('*').maybeSingle();
     if (!error && data) created.push(data);
   }
@@ -148,7 +150,7 @@ async function sendPushNotifications(db: SupabaseClient, userId: string, charact
   } catch (error) { console.warn('Together push delivery unavailable', error instanceof Error ? error.message : 'unknown_error'); }
 }
 
-function selectEventCandidates(last: Date, now: Date, templates: EventRow[], seed: string, recent: EventRow[]): Array<{ template: EventRow; occurredAt: string; simulationKey: string }> {
+function selectEventCandidates(last: Date, now: Date, templates: EventRow[], seed: string, recent: EventRow[], schedules: EventRow[]): Array<{ template: EventRow; occurredAt: string; simulationKey: string }> {
   if (!templates.length || now <= last) return [];
   const output: Array<{ template: EventRow; occurredAt: string; simulationKey: string }> = [];
   const recentTemplateDates = new Map(recent.map((item) => [String(item.event_template_id), new Date(item.starts_at).getTime()]));
@@ -157,19 +159,33 @@ function selectEventCandidates(last: Date, now: Date, templates: EventRow[], see
   let inspected = 0;
   while (cursor <= lastDay && inspected++ < 31) {
     const day = cursor.toISOString().slice(0, 10);
-    const occurred = new Date(cursor); occurred.setUTCHours(10 + stableHash(`${seed}:hour:${day}`) % 11, stableHash(`${seed}:minute:${day}`) % 60, 0, 0);
-    if (occurred > last && occurred <= now) {
+    if (cursor <= now) {
       const ranked = [...templates].sort((a, b) => stableHash(`${seed}:${day}:${a.id}`) - stableHash(`${seed}:${day}:${b.id}`));
       const selected = ranked.find((template) => {
         const repeatedRecently = recentTemplateDates.has(String(template.id)) && occurred.getTime() - Number(recentTemplateDates.get(String(template.id))) < 72 * 3600000;
         const roll = (stableHash(`${seed}:chance:${day}:${template.id}`) % 10000) / 10000;
         return !repeatedRecently && Number(template.significance) >= .45 && roll < Number(template.probability ?? 0);
       });
-      if (selected) output.push({ template: selected, occurredAt: occurred.toISOString(), simulationKey: `${day}:${selected.id}` });
+      if (selected) {
+        const occurred = scheduledOccurrence(cursor, selected, schedules, seed);
+        if (occurred > last && occurred <= now) output.push({ template: selected, occurredAt: occurred.toISOString(), simulationKey: `${day}:${selected.id}` });
+      }
     }
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return output.sort((a, b) => Number(b.template.significance) - Number(a.template.significance)).slice(0, 2).sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+}
+
+function scheduledOccurrence(day: Date, template: EventRow, schedules: EventRow[], seed: string): Date {
+  const matching = schedules.filter((entry) => Number(entry.day_of_week) === day.getUTCDay() && String(entry.location_id) === String(template.default_location_id) && Number(entry.end_minute) - Number(entry.start_minute) >= 20);
+  const entry = matching[stableHash(`${seed}:${day.toISOString().slice(0, 10)}:${template.id}:schedule`) % matching.length];
+  const result = new Date(day);
+  if (entry) {
+    const span = Math.max(1, Number(entry.end_minute) - Number(entry.start_minute) - 15);
+    const minute = Number(entry.start_minute) + stableHash(`${seed}:${template.id}:${day.toISOString().slice(0, 10)}`) % span;
+    result.setUTCHours(Math.floor(minute / 60), minute % 60, 0, 0);
+  } else result.setUTCHours(12 + stableHash(`${seed}:hour:${template.id}:${day.toISOString().slice(0, 10)}`) % 7, 0, 0, 0);
+  return result;
 }
 
 function applyEventInfluence(life: Record<string, any>, event?: EventRow): Record<string, any> {

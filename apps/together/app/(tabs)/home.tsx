@@ -1,10 +1,11 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { Bell, CalendarDays, ChevronRight, Coffee, Heart, MapPin, Mic, Sparkles } from 'lucide-react-native';
+import { Bell, CalendarDays, ChevronRight, Coffee, Heart, Mic, Sparkles } from 'lucide-react-native';
 import { ActionTile, CharacterHero, EmptyState, ErrorState, GlassCard, GradientButton, LoadingSkeleton, MessagePreview, MomentCarousel, PageTitle, Screen, SectionHeader } from '../../src/components';
 import { colors, radius, spacing } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { markProactiveOpened } from '../../src/lib/api';
+import { buildCompanionLife, formatScheduleTime } from '../../src/lib/companionLife';
 
 export default function Home() {
   const { snapshot, loading, error, refresh } = useTogether();
@@ -12,17 +13,17 @@ export default function Home() {
   if (error && !snapshot) return <ErrorState message={error} onRetry={() => void refresh()} />;
   if (!snapshot) return <EmptyState title="Your story is waiting" body="Complete onboarding to enter City Life." />;
 
-  const maya = snapshot.characters.find((item) => item.together_character_templates.slug === 'maya');
-  if (!maya) return <ErrorState message="Maya could not be found in City Life." onRetry={() => void refresh()} />;
-  const location = snapshot.locations.find((item) => item.id === maya.current_location_id)?.name ?? 'City Life';
-  const relationship = snapshot.relationships.find((item) => item.character_instance_id === maya.id);
-  const relationshipCue = snapshot.relationshipCues?.[maya.id];
-  const pendingMilestone = snapshot.relationshipMilestones?.find((item) => item.character_instance_id === maya.id);
-  const mayaEvents = snapshot.lifeEvents.filter((event) => !event.character_instance_id || event.character_instance_id === maya.id);
-  const latestProactive = snapshot.proactiveMessages.find((message) => !message.character_instance_id || message.character_instance_id === maya.id);
-  const latest = latestProactive?.content ?? mayaEvents[0]?.narrative_summary ?? 'Maya is waiting to hear how your day is going.';
-  const catchUpEvents = mayaEvents.filter((event) => event.user_should_know !== false && Date.now() - new Date(event.starts_at).getTime() < 72 * 3600000).slice(0, 2);
-  const date = snapshot.dates[0];
+  const life = buildCompanionLife(snapshot);
+  if (!life) return <ErrorState message="Your companion could not be found in City Life." onRetry={() => void refresh()} />;
+  const { companion, relationshipDay, location: currentLocation, recentEvents, upcomingSchedule, proactiveMessages, dates } = life;
+  const name = companion.together_character_templates.name;
+  const location = currentLocation?.name ?? 'City Life';
+  const relationshipCue = snapshot.relationshipCues?.[companion.id];
+  const pendingMilestone = snapshot.relationshipMilestones?.find((item) => item.character_instance_id === companion.id);
+  const latestProactive = proactiveMessages[0];
+  const latest = latestProactive?.content ?? recentEvents[0]?.narrative_summary ?? `${name} is waiting to hear how your day is going.`;
+  const catchUpEvents = recentEvents.filter((event) => Date.now() - new Date(event.starts_at).getTime() < 72 * 3600000).slice(0, 2);
+  const date = dates[0];
   const openMaya = async () => {
     if (latestProactive?.status === 'sent') await markProactiveOpened(latestProactive.id).catch(() => undefined);
     router.push('/chat');
@@ -33,13 +34,13 @@ export default function Home() {
       <View>
         <Text style={styles.brand}>Kivelle.AI</Text>
         <PageTitle>Your life together</PageTitle>
-        <View style={styles.dayLine}><View style={styles.liveDot} /><Text style={styles.context}>Day {Math.max(1, relationship?.conversation_count ?? 1)} · {labelStage(maya.relationship_stage)}</Text></View>
+        <View style={styles.dayLine}><View style={styles.liveDot} /><Text style={styles.context}>Day {relationshipDay} · {labelStage(companion.relationship_stage)}</Text></View>
       </View>
       <Pressable accessibilityLabel="Open settings" onPress={() => router.push('/settings')} style={({ pressed }) => [styles.icon, pressed && styles.pressed]}><Bell color={colors.text} size={20} /></Pressable>
     </View>
 
-    <CharacterHero character={maya} location={location} onPress={() => router.push('/(tabs)/profile')} />
-    <GradientButton label="Talk to Maya" onPress={() => router.push('/chat')} />
+    <CharacterHero character={companion} location={location} onPress={() => router.push('/(tabs)/profile')} />
+    <GradientButton label={`Talk to ${name}`} onPress={() => router.push('/chat')} />
 
     {relationshipCue ? <Pressable onPress={() => router.push('/chat')} style={({pressed})=>[styles.relationshipCue,pressed&&styles.pressed]}><View style={[styles.relationshipIcon,relationshipCue.tone==='tense'&&styles.relationshipIconTense]}><Heart size={18} color={relationshipCue.tone==='tense'?colors.warm:colors.rose}/></View><View style={{flex:1}}><Text style={styles.relationshipLabel}>{relationshipCue.label}</Text><Text style={styles.relationshipDetail}>{pendingMilestone?pendingMilestone.title:relationshipCue.detail}</Text></View>{pendingMilestone?<View style={styles.choicePill}><Text style={styles.choicePillText}>Your choice</Text></View>:<ChevronRight size={18} color={colors.muted}/>}</Pressable> : null}
 
@@ -65,11 +66,9 @@ export default function Home() {
 
     <SectionHeader title="Today" action="View world" onAction={() => router.push('/(tabs)/worlds')} />
     <GlassCard style={styles.todayCard}>
-      <TimelineItem icon={<Coffee size={16} color={colors.warm} />} title="Maya finishes work" detail="Photography Studio" time="5:30 PM" />
-      <View style={styles.rule} />
-      <TimelineItem icon={<MapPin size={16} color={colors.rose} />} title="Open Mic at Juniper" detail="Something happening in the city" time="8:00 PM" />
-      <View style={styles.rule} />
-      <TimelineItem icon={<CalendarDays size={16} color={colors.violet} />} title={date?.status === 'locked' ? 'Dinner at Juniper' : 'A shared date'} detail={date?.status === 'locked' ? 'Keep getting closer to unlock it' : 'Saturday, 7:00 PM'} time={date?.status === 'locked' ? 'LOCKED' : 'UP NEXT'} />
+      {upcomingSchedule.map((item, index) => <View key={`${item.id}-${item.start_minute}`}><TimelineItem icon={<Coffee size={16} color={colors.warm} />} title={item.activity} detail={item.locationName} time={formatScheduleTime(item.startsAt)} />{index < upcomingSchedule.length - 1 ? <View style={styles.rule} /> : null}</View>)}
+      {date ? <><View style={upcomingSchedule.length ? styles.rule : undefined} /><TimelineItem icon={<CalendarDays size={16} color={colors.violet} />} title={date.together_date_templates.name} detail={date.status === 'locked' ? 'Keep getting closer to unlock it' : date.scheduled_for ? new Date(date.scheduled_for).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}) : 'Ready when you are'} time={date.status === 'locked' ? 'LOCKED' : 'PLAN'} /></> : null}
+      {!upcomingSchedule.length && !date ? <Text style={styles.emptySchedule}>Nothing else is scheduled right now. The day is still unfolding.</Text> : null}
     </GlassCard>
 
     <SectionHeader title="Recent moments" action="View all" onAction={() => router.push('/(tabs)/moments')} />
@@ -119,6 +118,7 @@ const styles = StyleSheet.create({
   timelineTitle: { color: colors.text, fontSize: 14, fontWeight: '800' },
   timelineDetail: { color: colors.muted, fontSize: 11, marginTop: 2 },
   time: { color: colors.dimmed, fontSize: 10, fontWeight: '800' },
+  emptySchedule:{color:colors.muted,fontSize:12,lineHeight:18,paddingVertical:10},
   rule: { height: 1, marginLeft: 43, backgroundColor: colors.border },
   storyEmpty: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(241,103,154,.08)', borderRadius: radius.lg, borderWidth: 1, borderColor: 'rgba(241,103,154,.20)', padding: spacing.md },
   storyTitle: { color: colors.text, fontSize: 14, fontWeight: '800' },

@@ -6,25 +6,26 @@ import { characterAssets } from '../../src/assets';
 import { Body, EmptyState, GlassCard, GradientButton, LoadingSkeleton, MoodBadge, RelationshipBadge, Screen, SectionHeader } from '../../src/components';
 import { colors, radius, spacing } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
+import { buildCompanionLife } from '../../src/lib/companionLife';
 
 export default function CompanionProfile() {
   const snapshot = useTogether((state) => state.snapshot);
   if (!snapshot) return <LoadingSkeleton label="Finding your companion…" />;
-  const maya = snapshot.characters.find((character) => character.together_character_templates.slug === 'maya');
-  if (!maya) return <EmptyState title="Your companion is waiting" body="Finish your first visit to Juniper Café to meet Maya." />;
+  const life = buildCompanionLife(snapshot);
+  if (!life) return <EmptyState title="Your companion is waiting" body="Finish your first visit to City Life to meet them." />;
+  const { companion: maya, relationshipDay, location: lifeLocation, dates } = life;
   const template = maya.together_character_templates;
-  const location = snapshot.locations.find((item) => item.id === maya.current_location_id)?.name ?? 'Juniper City';
-  const relationship = snapshot.relationships.find((item) => item.character_instance_id === maya.id);
-  const date = snapshot.dates[0];
+  const location = lifeLocation?.name ?? 'City Life';
+  const date = dates[0];
   return <Screen contentStyle={{ paddingTop: 0 }}>
-    <View style={styles.hero}><Image source={characterAssets.maya} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" /><View style={styles.shade}/><View style={styles.heroCopy}><Text style={styles.kicker}>YOUR COMPANION</Text><Text style={styles.name}>{template.name}</Text><Text style={styles.job}>{template.occupation} · {template.age}</Text><View style={styles.badges}><MoodBadge mood={maya.current_mood}/><RelationshipBadge stage={maya.relationship_stage}/></View></View></View>
+    <View style={styles.hero}><Image source={characterAssets[maya.together_character_versions.portrait_asset_key] ?? characterAssets[maya.together_character_templates.slug] ?? characterAssets.maya} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" /><View style={styles.shade}/><View style={styles.heroCopy}><Text style={styles.kicker}>YOUR COMPANION</Text><Text style={styles.name}>{template.name}</Text><Text style={styles.job}>{template.occupation} · {template.age}</Text><View style={styles.badges}><MoodBadge mood={maya.current_mood}/><RelationshipBadge stage={maya.relationship_stage}/></View></View></View>
     <View style={styles.primaryActions}><GradientButton label={`Talk to ${template.name}`} icon={<MessageCircle size={18} color="#fff"/>} onPress={() => router.push('/chat')} /><Pressable onPress={() => router.push('/(tabs)/dates')} style={styles.plan}><CalendarDays size={18} color={colors.warm}/><Text style={styles.planText}>Plan something</Text></Pressable></View>
     <GlassCard style={styles.status}><View style={styles.statusIcon}><MapPin size={17} color={colors.warm}/></View><View style={{flex:1}}><Text style={styles.statusLabel}>RIGHT NOW</Text><Text style={styles.statusTitle}>{location}</Text><Text style={styles.statusCopy}>{maya.current_activity}</Text></View><ChevronRight size={18} color={colors.muted}/></GlassCard>
     <SectionHeader title={`About ${template.name}`} />
     <Body muted>{template.biography}</Body>
-    <View style={styles.traits}>{['Playful', 'Creative', 'Independent', 'Warm'].map((trait) => <View key={trait} style={styles.trait}><Text style={styles.traitText}>{trait}</Text></View>)}</View>
-    <View style={styles.info}><Info icon={<Clock3 size={16} color={colors.violet}/>} label="Your connection" value={`Day ${Math.max(1, relationship?.conversation_count ?? 1)} · ${stageLabel(maya.relationship_stage)}`}/><View style={styles.rule}/><Info icon={<Sparkles size={16} color={colors.rose}/>} label="Shared moments" value={snapshot.moments.length ? `${snapshot.moments.length} worth keeping` : 'The first one is waiting'}/><View style={styles.rule}/><Info icon={<CalendarDays size={16} color={colors.warm}/>} label="Next experience" value={date?.status === 'locked' ? 'Dinner at Juniper · getting closer' : 'Dinner at Juniper'}/></View>
-    <View style={styles.links}><Pressable onPress={() => router.push('/memories')} style={styles.link}><Text style={styles.linkTitle}>What Maya remembers</Text><Text style={styles.linkCopy}>View and control the information that shapes your story.</Text><View style={styles.linkChevron}><ChevronRight size={19} color={colors.rose}/></View></Pressable><Pressable onPress={() => router.push('/account')} style={styles.link}><Text style={styles.linkTitle}>Your Kivelle profile</Text><Text style={styles.linkCopy}>Account, privacy, and experience preferences.</Text><View style={styles.linkChevron}><ChevronRight size={19} color={colors.rose}/></View></Pressable></View>
+    <View style={styles.traits}>{template && maya.together_character_versions.interests.slice(0,4).map((trait) => <View key={trait} style={styles.trait}><Text style={styles.traitText}>{trait}</Text></View>)}</View>
+    <View style={styles.info}><Info icon={<Clock3 size={16} color={colors.violet}/>} label="Your connection" value={`Day ${relationshipDay} · ${stageLabel(maya.relationship_stage)}`}/><View style={styles.rule}/><Info icon={<Sparkles size={16} color={colors.rose}/>} label="Shared moments" value={snapshot.moments.length ? `${snapshot.moments.length} worth keeping` : 'The first one is waiting'}/><View style={styles.rule}/><Info icon={<CalendarDays size={16} color={colors.warm}/>} label="Next experience" value={date?.status === 'locked' ? `${date.together_date_templates.name} · getting closer` : date?.together_date_templates.name ?? 'Nothing planned yet'}/></View>
+    <View style={styles.links}><Pressable onPress={() => router.push('/memories')} style={styles.link}><Text style={styles.linkTitle}>What {template.name} remembers</Text><Text style={styles.linkCopy}>View and control the information that shapes your story.</Text><View style={styles.linkChevron}><ChevronRight size={19} color={colors.rose}/></View></Pressable><Pressable onPress={() => router.push('/account')} style={styles.link}><Text style={styles.linkTitle}>Your Kivelle profile</Text><Text style={styles.linkCopy}>Account, privacy, and experience preferences.</Text><View style={styles.linkChevron}><ChevronRight size={19} color={colors.rose}/></View></Pressable></View>
   </Screen>;
 }
 function Info({icon,label,value}:{icon:React.ReactNode;label:string;value:string}) { return <View style={styles.infoRow}><View style={styles.infoIcon}>{icon}</View><View style={{flex:1}}><Text style={styles.infoLabel}>{label}</Text><Text style={styles.infoValue}>{value}</Text></View></View>; }
