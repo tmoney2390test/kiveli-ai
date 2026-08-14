@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
-import { ArrowUpRight, ChevronRight, Compass, PartyPopper, Sparkles } from 'lucide-react-native';
+import { ArrowUpRight, ChevronRight, Clock3, Compass, PartyPopper, Sparkles } from 'lucide-react-native';
 import { cityLifeAsset } from '../../src/assets';
 import { EventCard, GlassCard, LoadingSkeleton, PageTitle, Screen, SectionHeader, WorldCharacterCard, WorldHero } from '../../src/components';
 import { colors, radius, spacing } from '../../src/theme';
@@ -14,12 +14,18 @@ export default function Worlds() {
   const mayaMet = snapshot.characters.find((item) => item.together_character_templates.slug === 'maya')?.contact_added_at;
 
   return <Screen>
-    <View style={styles.heading}><View><PageTitle>Worlds</PageTitle><Text style={styles.subtitle}>A living city around you.</Text></View><View style={styles.cityBadge}><Compass size={15} color={colors.violet} /><Text style={styles.cityBadgeText}>CITY LIFE</Text></View></View>
+    <View style={styles.heading}><View><PageTitle>Your world</PageTitle><Text style={styles.subtitle}>A living city around you.</Text></View><View style={styles.cityBadge}><Compass size={15} color={colors.violet} /><Text style={styles.cityBadgeText}>CITY LIFE</Text></View></View>
     <WorldHero source={cityLifeAsset} title="City Life" subtitle="People, places, and stories moving in real time." />
 
     <SectionHeader title="Around the city" action="Explore" />
     <GlassCard style={styles.characterCard}>
       {snapshot.characters.map((character, index) => <View key={character.id}>{index > 0 ? <View style={styles.rule} /> : null}<WorldCharacterCard character={character} location={snapshot.locations.find((item) => item.id === character.current_location_id)?.name} onPress={() => character.together_character_templates.slug === 'maya' ? router.push('/character/maya') : character.together_character_templates.slug === 'chloe' && character.introduced_at ? router.push('/chat?character=chloe') : undefined} /></View>)}
+    </GlassCard>
+
+    <SectionHeader title="Maya’s day" action="See her profile" onAction={() => router.push('/(tabs)/profile')} />
+    <GlassCard style={styles.dayCard}>
+      <View style={styles.dayTime}><View style={styles.dayDot}/><View style={{flex:1}}><Text style={styles.dayTitle}>Right now · {snapshot.locations.find((item) => item.id === snapshot.characters.find((item) => item.together_character_templates.slug === 'maya')?.current_location_id)?.name ?? 'City Life'}</Text><Text style={styles.dayCopy}>{snapshot.characters.find((item) => item.together_character_templates.slug === 'maya')?.current_activity ?? 'Finding her rhythm today.'}</Text></View><Clock3 size={17} color={colors.rose}/></View>
+      <View style={styles.dayRule}/><Text style={styles.dayNext}>Later: Juniper Café, then a quiet night in.</Text>
     </GlassCard>
 
     <SectionHeader title="Tonight" action="Full calendar" />
@@ -44,6 +50,13 @@ const styles = StyleSheet.create({
   characterCard: { paddingVertical: 4 },
   rule: { height: 1, backgroundColor: colors.border, marginLeft: 56 },
   eventCard: { paddingVertical: 6 },
+  dayCard:{gap:11},
+  dayTime:{flexDirection:'row',alignItems:'center',gap:10},
+  dayDot:{width:9,height:9,borderRadius:5,backgroundColor:colors.rose,shadowColor:colors.rose,shadowOpacity:.7,shadowRadius:5},
+  dayTitle:{color:colors.text,fontSize:13,fontWeight:'800'},
+  dayCopy:{color:colors.muted,fontSize:11,marginTop:3},
+  dayRule:{height:1,backgroundColor:colors.border,marginLeft:19},
+  dayNext:{color:colors.muted,fontSize:12,marginLeft:19},
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   location: { width: '48%', height: 170, borderRadius: radius.lg, overflow: 'hidden', justifyContent: 'space-between', padding: 13, borderWidth: 1, borderColor: colors.border },
   locationPressed: { transform: [{ scale: .975 }], opacity: .9 },

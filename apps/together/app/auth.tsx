@@ -38,7 +38,7 @@ export default function Auth() {
 
   return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <Screen contentStyle={{ minHeight: '100%', maxWidth: 560, justifyContent: 'center' }}><View style={{ gap: spacing.lg }}>
-      <Text style={styles.brand}>Together</Text><PageTitle>Welcome back.</PageTitle><Body muted>City Life kept moving. Let’s see what Maya has been up to.</Body>
+      <Text style={styles.brand}>Kivelle.AI</Text><PageTitle>Welcome back.</PageTitle><Body muted>More than a conversation. See what Maya has been up to.</Body>
       <TextInput value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder="Email" placeholderTextColor={colors.muted} style={styles.input} />
       <View style={styles.password}><TextInput value={password} onChangeText={setPassword} autoCapitalize="none" autoComplete="current-password" secureTextEntry={!visible} placeholder="Password" placeholderTextColor={colors.muted} style={[styles.input, { flex: 1, borderWidth: 0 }]} /><Pressable accessibilityLabel={visible ? 'Hide password' : 'Show password'} onPress={() => setVisible(!visible)} style={{ padding: 14 }}>{visible ? <EyeOff color={colors.text} /> : <Eye color={colors.text} />}</Pressable></View>
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}{notice ? <Text style={{ color: colors.success }}>{notice}</Text> : null}
