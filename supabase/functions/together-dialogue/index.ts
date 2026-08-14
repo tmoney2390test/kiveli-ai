@@ -4,6 +4,7 @@ import { parseBody } from '../_shared/body.ts';
 import { corsHeaders, errorResponse } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { ConfiguredConversationAnalysisProvider, ConfiguredDialogueProvider, ConfiguredEmbeddingProvider, ConfiguredModerationProvider, dialogueProviderName } from '../_shared/together-ai.ts';
+import { classifyContent, routeDialogueProvider } from '../_shared/kivelle-intelligence.ts';
 import { clampRelationship, nextRelationshipMilestone, resolveLifeState, summarizeConversation, TOGETHER_IDS, track } from '../_shared/together.ts';
 import { runLifeSimulation } from '../_shared/together-life.ts';
 
@@ -32,8 +33,9 @@ Deno.serve(async (request) => {
     }
 
     const inputSafety = await moderation.check(input.message);
+    const contentClassification = classifyContent(input.message);
     const characterName = String((conversation.together_character_instances as Record<string, any>).together_character_templates?.name ?? 'Maya');
-    const scriptedBoundary = boundaryResponse(input.message, characterName);
+    const scriptedBoundary = boundaryResponse(input.message, characterName, contentClassification);
     if (scriptedBoundary || !inputSafety.allowed) {
       const boundary = scriptedBoundary ?? { text: `${characterName} pauses. “I’m not comfortable taking the conversation in that direction. We can change the subject.”`, storeOriginal: false, category: 'moderated_input' };
       const { data: boundaryUserMessage, error: boundaryUserError } = await db.from('together_messages').insert({ conversation_id: input.conversationId, user_id: user.id, character_instance_id: input.characterInstanceId, role: 'user', content: boundary.storeOriginal ? input.message : '[Message withheld by safety controls]', client_request_id: input.clientRequestId, delivery_status: 'complete', provider_metadata: { safety_redirected: true } }).select('*').single();
@@ -77,8 +79,13 @@ Deno.serve(async (request) => {
       await db.from('together_memories').update({ last_recalled_at: now.toISOString() }).in('id', recalledIds).eq('user_id', user.id);
       await track(db, user.id, 'memory_recalled', { characterInstanceId: input.characterInstanceId, count: recalledIds.length });
     }
+    const profileResult = await db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id', user.id).maybeSingle();
+    const adultEligible = Boolean(profileResult.data?.age_verified_at) && Number(characterTemplate.age ?? 0) >= 18;
+    const requestedMode = adultEligible ? profileResult.data?.content_preferences?.contentMode ?? 'standard' : 'standard';
+    const route = routeDialogueProvider(dialogueProviderName(), requestedMode);
+    const characterVersion = instance.together_character_versions as Record<string, unknown>;
     const dialogueContext = {
-      character: characterTemplate,
+      character: { ...characterTemplate, personality_config: characterVersion?.personality_config, communication_style: characterVersion?.communication_style, boundaries: characterVersion?.boundaries },
       life,
       relationship: { ...relationshipResult.data, relationship_stage: instance.relationship_stage },
       progression: milestoneResult.data,
@@ -88,9 +95,10 @@ Deno.serve(async (request) => {
       conversationSummary: typeof conversation.summary === 'string' ? conversation.summary : '',
       recent: (recentResult.data ?? []).reverse().map((item) => ({ role: item.role, content: item.content })),
       userMessage: input.message,
+      contentMode: route.resolvedMode,
     };
-    if (dialogueProviderName() === 'gemini') {
-      return streamGeminiDialogue({ db, user, input, conversation, instance, relationship: relationshipResult.data, userMessage, context: dialogueContext, correlationId });
+    if (dialogueProviderName() !== 'deterministic') {
+      return streamDialogue({ db, user, input, conversation, instance, relationship: relationshipResult.data, userMessage, context: dialogueContext, correlationId });
     }
     const responseText = await dialogue.generate(dialogueContext);
     const outputSafety = await moderation.check(responseText);
@@ -131,7 +139,9 @@ function selectRelevantMemoryRows(query: string, stored: Array<Record<string, un
   return [...rows.values()].sort((a, b) => Number(b.pinned) - Number(a.pinned) || Number(b.importance ?? 0) - Number(a.importance ?? 0)).slice(0, 10);
 }
 
-function boundaryResponse(message: string, characterName: string): { text: string; storeOriginal: boolean; category: string } | null {
+function boundaryResponse(message: string, characterName: string, classification: ReturnType<typeof classifyContent>): { text: string; storeOriginal: boolean; category: string } | null {
+  if (classification.sexual && classification.minorRelated) return { text: `${characterName}’s expression turns serious. “No. I won’t engage with sexual content involving anyone under 18.”`, storeOriginal: false, category: 'sexual_minors' };
+  if (classification.sexual && classification.coercive) return { text: `${characterName} pauses. “I’m not going to engage with sexual pressure, coercion, or anything without clear consent.”`, storeOriginal: false, category: 'sexual_coercion' };
   const explicit = /\b(nudes?|naked|strip|tits?|boobs?|breasts?|sex|sexual|horny|pussy|dick|cock|fuck(?:ing)?|ass)\b/i.test(message);
   if (!explicit) return null;
   const minor = /\b(minors?|children?|underage|teen(?:ager)?s?|young girls?|young boys?)\b/i.test(message);
@@ -139,7 +149,7 @@ function boundaryResponse(message: string, characterName: string): { text: strin
   return { text: `${characterName} raises an eyebrow. “Bold—but I’m not doing nude photos. You can flirt with me, but keep it non-explicit.”`, storeOriginal: true, category: 'sexual_explicit' };
 }
 
-function streamGeminiDialogue({ db, user, input, conversation, instance, relationship, userMessage, context, correlationId }: { db: any; user: { id: string }; input: z.infer<typeof schema>; conversation: Record<string, unknown>; instance: Record<string, unknown>; relationship: Record<string, unknown>; userMessage: Record<string, unknown>; context: Parameters<ConfiguredDialogueProvider['generate']>[0]; correlationId: string }): Response {
+function streamDialogue({ db, user, input, conversation, instance, relationship, userMessage, context, correlationId }: { db: any; user: { id: string }; input: z.infer<typeof schema>; conversation: Record<string, unknown>; instance: Record<string, unknown>; relationship: Record<string, unknown>; userMessage: Record<string, unknown>; context: Parameters<ConfiguredDialogueProvider['generate']>[0]; correlationId: string }): Response {
   const stream = new ReadableStream({
     async start(controller) {
       const emit = (data: Record<string, unknown>) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
@@ -152,8 +162,9 @@ function streamGeminiDialogue({ db, user, input, conversation, instance, relatio
         }
         if (!content.trim()) throw new AppError('PROVIDER_UNAVAILABLE', 'Maya needs a moment before replying.', 503, true);
 
-        // Gemini applies the configured source safety settings before tokens are emitted.
-        const { data: assistantMessage, error: assistantError } = await db.from('together_messages').insert({ conversation_id: input.conversationId, user_id: user.id, character_instance_id: input.characterInstanceId, role: 'assistant', content, delivery_status: 'complete', provider_metadata: { provider: 'gemini', model: Deno.env.get('TOGETHER_GEMINI_MODEL') ?? Deno.env.get('GEMINI_EXPLANATION_MODEL') ?? 'configured-default', streamed: true } }).select('*').single();
+        // The configured provider applies source safety settings before tokens are emitted.
+        const provider = dialogueProviderName();
+        const { data: assistantMessage, error: assistantError } = await db.from('together_messages').insert({ conversation_id: input.conversationId, user_id: user.id, character_instance_id: input.characterInstanceId, role: 'assistant', content, delivery_status: 'complete', provider_metadata: { provider, model: provider === 'openai' ? (Deno.env.get('KIVELLE_DIALOGUE_MODEL') ?? Deno.env.get('TOGETHER_DIALOGUE_MODEL') ?? 'configured-default') : (Deno.env.get('TOGETHER_GEMINI_MODEL') ?? Deno.env.get('GEMINI_EXPLANATION_MODEL') ?? 'configured-default'), streamed: true } }).select('*').single();
         if (assistantError || !assistantMessage) throw new AppError('INTERNAL_ERROR', 'Maya replied, but the response could not be saved.', 500, true);
         await safelyApplyConversationEffects(db, user.id, input.characterInstanceId, input.conversationId, String(userMessage.id), input.message, content, relationship, String(instance.relationship_stage), correlationId);
         await db.from('together_conversations').update({ last_message_at: assistantMessage.created_at, updated_at: assistantMessage.created_at, kind: conversation.kind === 'first_meeting' ? 'direct' : conversation.kind }).eq('id', input.conversationId);

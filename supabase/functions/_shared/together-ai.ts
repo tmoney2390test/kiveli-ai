@@ -1,5 +1,6 @@
 import { AppError } from './types.ts';
 import { extractMemories, extractOpenThread, normalizeContinuityKey, threadAnswered, type MemoryCandidate, type OpenThreadCandidate } from './together.ts';
+import { buildCompanionPrompt } from './kivelle-intelligence.ts';
 
 export type DialogueContext = { character: Record<string, unknown>; life: Record<string, unknown>; relationship: Record<string, unknown>; progression?: Record<string, unknown>|null; memories: string[]; threads: string[]; social: string[]; conversationSummary?: string; recent: Array<{ role: string; content: string }>; userMessage: string };
 export interface DialogueProvider { generate(context: DialogueContext): Promise<string>; stream(context: DialogueContext): AsyncIterable<string>; }
@@ -30,7 +31,7 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
       const googleKey = geminiKey();
       return googleKey ? generateGemini(context, googleKey) : fallbackDialogue(context);
     }
-    const response = await fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: model('TOGETHER_DIALOGUE_MODEL', 'gpt-5-mini'), input: prompt(context), max_output_tokens: 260 }) });
+    const response = await fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: model('KIVELLE_DIALOGUE_MODEL', model('TOGETHER_DIALOGUE_MODEL', 'gpt-5-mini')), input: buildCompanionPrompt(context), max_output_tokens: responseTokenBudget(context) }) });
     if (!response.ok) {
       console.warn('Together dialogue provider failed', response.status, await response.text());
       if (response.status === 429) throw new AppError('RATE_LIMITED', 'Maya needs a moment before replying.', 429, true);
@@ -43,7 +44,12 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
 
   async *stream(context: DialogueContext): AsyncIterable<string> {
     const key = geminiKey();
-    if (!key || apiKey()) {
+    const openAIKey = apiKey();
+    if (openAIKey) {
+      let emitted = false;
+      try { for await (const token of streamOpenAI(context, openAIKey)) { emitted = true; yield token; } return; } catch { if (emitted) throw new Error('OpenAI stream interrupted.'); yield* textChunks(await this.generate(context)); return; }
+    }
+    if (!key) {
       yield* textChunks(await this.generate(context));
       return;
     }
@@ -60,6 +66,12 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
       yield* textChunks(await this.generate(context));
     }
   }
+}
+
+async function* streamOpenAI(context: DialogueContext, key: string): AsyncIterable<string> {
+  const response = await fetch('https://api.openai.com/v1/responses', { method:'POST', headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'}, body:JSON.stringify({model:model('KIVELLE_DIALOGUE_MODEL',model('TOGETHER_DIALOGUE_MODEL','gpt-5-mini')),input:buildCompanionPrompt(context),max_output_tokens:responseTokenBudget(context),stream:true}) });
+  if (!response.ok || !response.body) throw new Error(`OpenAI stream failed (${response.status})`);
+  for await (const data of sseData(response.body)) { const event=JSON.parse(data) as { type?:string; delta?:string }; if(event.type==='response.output_text.delta' && event.delta) yield event.delta; }
 }
 
 export class ConfiguredEmbeddingProvider implements EmbeddingProvider {
@@ -226,8 +238,8 @@ async function generateGemini(context: DialogueContext, key: string): Promise<st
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt(context) }] }],
-          generationConfig: { temperature: 0.82, maxOutputTokens: 260, topP: 0.9 },
+          contents: [{ role: 'user', parts: [{ text: buildCompanionPrompt(context) }] }],
+          generationConfig: { temperature: 0.82, maxOutputTokens: responseTokenBudget(context), topP: 0.9 },
           safetySettings: [
             { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
             { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
@@ -257,8 +269,8 @@ async function* streamGemini(context: DialogueContext, key: string): AsyncIterab
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt(context) }] }],
-        generationConfig: { temperature: 0.82, maxOutputTokens: 260, topP: 0.9 },
+        contents: [{ role: 'user', parts: [{ text: buildCompanionPrompt(context) }] }],
+        generationConfig: { temperature: 0.82, maxOutputTokens: responseTokenBudget(context), topP: 0.9 },
         safetySettings: [
           { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
           { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
@@ -296,6 +308,14 @@ async function* sseData(body: ReadableStream<Uint8Array>): AsyncIterable<string>
 
 function* textChunks(content: string): Iterable<string> {
   yield* content.match(/\S+\s*/g) ?? [content];
+}
+
+function responseTokenBudget(context: DialogueContext): number {
+  const messageLength = context.userMessage.length;
+  if (messageLength < 45) return 100;
+  if (messageLength > 700 || /\b(story|tell me about|why|how did)\b/i.test(context.userMessage)) return 520;
+  if (context.progression || /\b(date|relationship|sorry|hurt|love)\b/i.test(context.userMessage)) return 380;
+  return 220;
 }
 
 async function embedGemini(text: string, key: string): Promise<number[] | null> {
