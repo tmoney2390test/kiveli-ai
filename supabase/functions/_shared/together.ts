@@ -159,7 +159,7 @@ export async function track(db: SupabaseClient, userId: string, eventName: strin
 }
 
 export async function buildSnapshot(db: SupabaseClient, userId: string): Promise<Record<string, unknown>> {
-  const [profile, worlds, locations, instances, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities] = await Promise.all([
+  const [profile, worlds, locations, instances, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia] = await Promise.all([
     db.from('together_profiles').select('*').eq('user_id', userId).maybeSingle(),
     db.from('together_worlds').select('*').eq('published', true),
     db.from('together_locations').select('*'),
@@ -179,10 +179,11 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
     db.from('together_story_arc_instances').select('*,together_story_arc_templates(slug,title,priority,chapters)').eq('user_id', userId).in('status', ['active','paused']).order('updated_at', { ascending: false }),
     db.from('together_trip_templates').select('*').eq('active', true),
     db.from('together_photo_opportunities').select('*').eq('active', true),
+    db.from('together_generated_media').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(60),
   ]);
-  const failed = [profile, worlds, locations, instances, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities].find((result) => result.error);
+  const failed = [profile, worlds, locations, instances, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia].find((result) => result.error);
   if (failed?.error) throw new AppError('INTERNAL_ERROR', 'Together could not load your world.', 500, true);
   const stageByInstance = new Map((instances.data ?? []).map((instance) => [instance.id, instance.relationship_stage]));
   const relationshipCues = Object.fromEntries((relationships.data ?? []).map((relationship) => [relationship.character_instance_id, describeRelationshipCue({ ...relationship, relationship_stage: stageByInstance.get(relationship.character_instance_id) })]));
-  return { profile: profile.data, worlds: worlds.data ?? [], locations: locations.data ?? [], characters: instances.data ?? [], schedules: schedules.data ?? [], relationships: relationships.data ?? [], relationshipMilestones: milestones.data ?? [], relationshipCues, dates: dates.data ?? [], moments: moments.data ?? [], memories: memories.data ?? [], openThreads: threads.data ?? [], conversations: conversations.data ?? [], lifeEvents: events.data ?? [], proactiveMessages: proactive.data ?? [], storyArcs: storyArcs.data ?? [], trips: trips.data ?? [], photoOpportunities: photoOpportunities.data ?? [], entitlements: entitlements.data, notificationPreferences: preferences.data };
+  return { profile: profile.data, worlds: worlds.data ?? [], locations: locations.data ?? [], characters: instances.data ?? [], schedules: schedules.data ?? [], relationships: relationships.data ?? [], relationshipMilestones: milestones.data ?? [], relationshipCues, dates: dates.data ?? [], moments: moments.data ?? [], memories: memories.data ?? [], openThreads: threads.data ?? [], conversations: conversations.data ?? [], lifeEvents: events.data ?? [], proactiveMessages: proactive.data ?? [], storyArcs: storyArcs.data ?? [], trips: trips.data ?? [], photoOpportunities: photoOpportunities.data ?? [], generatedMedia: generatedMedia.data ?? [], entitlements: entitlements.data, notificationPreferences: preferences.data };
 }

@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { Bell, CalendarDays, ChevronRight, Coffee, Heart, Mic, Sparkles } from 'lucide-react-native';
+import { Bell, CalendarDays, ChevronRight, Coffee, Heart, Sparkles } from 'lucide-react-native';
 import { ActionTile, CharacterHero, EmptyState, ErrorState, GlassCard, GradientButton, LoadingSkeleton, MessagePreview, MomentCarousel, PageTitle, Screen, SectionHeader } from '../../src/components';
 import { colors, radius, spacing } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
@@ -24,7 +24,7 @@ export default function Home() {
   const latest = latestProactive?.content ?? recentEvents[0]?.narrative_summary ?? `${name} is waiting to hear how your day is going.`;
   const catchUpEvents = recentEvents.filter((event) => Date.now() - new Date(event.starts_at).getTime() < 72 * 3600000).slice(0, 2);
   const date = dates[0];
-  const openMaya = async () => {
+  const openCompanion = async () => {
     if (latestProactive?.status === 'sent') await markProactiveOpened(latestProactive.id).catch(() => undefined);
     router.push('/chat');
   };
@@ -45,7 +45,6 @@ export default function Home() {
     {relationshipCue ? <Pressable onPress={() => router.push('/chat')} style={({pressed})=>[styles.relationshipCue,pressed&&styles.pressed]}><View style={[styles.relationshipIcon,relationshipCue.tone==='tense'&&styles.relationshipIconTense]}><Heart size={18} color={relationshipCue.tone==='tense'?colors.warm:colors.rose}/></View><View style={{flex:1}}><Text style={styles.relationshipLabel}>{relationshipCue.label}</Text><Text style={styles.relationshipDetail}>{pendingMilestone?pendingMilestone.title:relationshipCue.detail}</Text></View>{pendingMilestone?<View style={styles.choicePill}><Text style={styles.choicePillText}>Your choice</Text></View>:<ChevronRight size={18} color={colors.muted}/>}</Pressable> : null}
 
     <View style={styles.actions}>
-      <ActionTile title="Voice note" subtitle="Coming soon" disabled icon={<Mic color={colors.dimmed} size={21} />} />
       <ActionTile title="Plan something" onPress={() => router.push('/(tabs)/dates')} icon={<CalendarDays color={colors.warm} size={21} />} />
       <ActionTile title="Memories" onPress={() => router.push('/memories')} icon={<Sparkles color={colors.violet} size={21} />} />
     </View>
@@ -74,8 +73,8 @@ export default function Home() {
     <SectionHeader title="Recent moments" action="View all" onAction={() => router.push('/(tabs)/moments')} />
     {snapshot.moments.length ? <MomentCarousel moments={snapshot.moments} onPress={() => router.push('/(tabs)/moments')} /> : <Pressable onPress={() => router.push('/chat')} style={styles.storyEmpty}><Sparkles size={18} color={colors.rose} /><View style={{ flex: 1 }}><Text style={styles.storyTitle}>The first chapter is waiting</Text><Text style={styles.storyCopy}>The moments that matter will collect here.</Text></View><ChevronRight color={colors.muted} size={18} /></Pressable>}
 
-    <SectionHeader title={latestProactive ? 'New from Maya' : 'From Maya'} />
-    <MessagePreview content={latest} time={latestProactive ? relativeTime(latestProactive.eligible_at ?? new Date().toISOString()) : `At ${location}`} onPress={() => void openMaya()} />
+    <SectionHeader title={latestProactive ? `New from ${name}` : `From ${name}`} />
+    <MessagePreview content={latest} time={latestProactive ? relativeTime(latestProactive.eligible_at ?? new Date().toISOString()) : `At ${location}`} onPress={() => void openCompanion()} />
   </Screen>;
 }
 

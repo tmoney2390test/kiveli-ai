@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { contentModeAllows, providerCapabilities } from './kivelle-intelligence.ts';
 
 type Row = Record<string, any>;
 const stageOrder = ['stranger','acquaintance','friend','flirting','dating','exclusive','long_term'];
@@ -63,7 +64,7 @@ async function materializeArcChapter(db: SupabaseClient, userId: string, instanc
 
 function contentEligible(template: Row, relationship: Row, now: Date, contentMode: string): { eligible: boolean; reasons: string[] } {
   const conditions = template.conditions && typeof template.conditions === 'object' ? template.conditions as Row : {};
-  if (!contentModeAllows(String(template.content_level ?? 'standard'), contentMode)) return { eligible: false, reasons: ['Content mode is not eligible.'] };
+  if (!contentModeAllows(String(template.content_level ?? 'standard') as any, contentMode as any, providerCapabilities.openai)) return { eligible: false, reasons: ['Content mode is not eligible.'] };
   if (conditions.minRelationshipStage && stageIndex(String(relationship.relationship_stage ?? 'stranger')) < stageIndex(String(conditions.minRelationshipStage))) return { eligible: false, reasons: ['Relationship stage is too early.'] };
   if (conditions.maxConflict !== undefined && Number(relationship.conflict ?? 0) > Number(conditions.maxConflict)) return { eligible: false, reasons: ['Conflict is too high.'] };
   if (Array.isArray(conditions.daysOfWeek) && !conditions.daysOfWeek.includes(now.getDay())) return { eligible: false, reasons: ['Not scheduled for today.'] };
@@ -72,7 +73,6 @@ function contentEligible(template: Row, relationship: Row, now: Date, contentMod
 }
 
 function arcEligible(template: Row, relationship: Row): boolean { return !template.min_relationship_stage || stageIndex(String(relationship.relationship_stage ?? 'stranger')) >= stageIndex(String(template.min_relationship_stage)); }
-function contentModeAllows(level: string, mode: string): boolean { const rank: Record<string, number> = { standard: 0, romance: 1, mature: 2, explicit: 3 }; return (rank[level] ?? 0) <= (rank[mode] ?? 0) && level !== 'explicit'; }
 function stageIndex(value: string): number { return Math.max(0, stageOrder.indexOf(value)); }
 function scaleScore(scale: string): number { return scale === 'major' ? .9 : scale === 'meaningful' ? .7 : scale === 'normal' ? .42 : .2; }
 function stableUnit(value: string): number { let hash = 2166136261; for (const char of value) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); } return (hash >>> 0) / 4294967295; }
