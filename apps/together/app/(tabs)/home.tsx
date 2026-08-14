@@ -24,6 +24,7 @@ export default function Home() {
   const latest = latestProactive?.content ?? recentEvents[0]?.narrative_summary ?? `${name} is waiting to hear how your day is going.`;
   const catchUpEvents = recentEvents.filter((event) => Date.now() - new Date(event.starts_at).getTime() < 72 * 3600000).slice(0, 2);
   const date = dates[0];
+  const plannedDate = dates.find((item) => ['active', 'upcoming', 'unlocked', 'deferred'].includes(item.status));
   const openCompanion = async () => {
     if (latestProactive?.status === 'sent') await markProactiveOpened(latestProactive.id).catch(() => undefined);
     router.push('/chat');
@@ -45,7 +46,7 @@ export default function Home() {
     {relationshipCue ? <Pressable onPress={() => router.push('/chat')} style={({pressed})=>[styles.relationshipCue,pressed&&styles.pressed]}><View style={[styles.relationshipIcon,relationshipCue.tone==='tense'&&styles.relationshipIconTense]}><Heart size={18} color={relationshipCue.tone==='tense'?colors.warm:colors.rose}/></View><View style={{flex:1}}><Text style={styles.relationshipLabel}>{relationshipCue.label}</Text><Text style={styles.relationshipDetail}>{pendingMilestone?pendingMilestone.title:relationshipCue.detail}</Text></View>{pendingMilestone?<View style={styles.choicePill}><Text style={styles.choicePillText}>Your choice</Text></View>:<ChevronRight size={18} color={colors.muted}/>}</Pressable> : null}
 
     <View style={styles.actions}>
-      <ActionTile title="Plan something" onPress={() => router.push('/(tabs)/dates')} icon={<CalendarDays color={colors.warm} size={21} />} />
+      <ActionTile title={plannedDate?.status === 'active' ? 'Continue date' : 'Plan something'} onPress={() => plannedDate ? router.push(`/date/${plannedDate.id}` as never) : router.push('/(tabs)/dates')} icon={<CalendarDays color={colors.warm} size={21} />} />
       <ActionTile title="Memories" onPress={() => router.push('/memories')} icon={<Sparkles color={colors.violet} size={21} />} />
     </View>
 
