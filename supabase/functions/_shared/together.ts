@@ -194,11 +194,12 @@ export async function track(db: SupabaseClient, userId: string, eventName: strin
 }
 
 export async function buildSnapshot(db: SupabaseClient, userId: string): Promise<Record<string, unknown>> {
-  const [profile, worlds, locations, instances, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia] = await Promise.all([
+  const [profile, worlds, locations, instances, discoverable, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia] = await Promise.all([
     db.from('together_profiles').select('*').eq('user_id', userId).maybeSingle(),
     db.from('together_worlds').select('*').eq('published', true),
     db.from('together_locations').select('*'),
     db.from('together_character_instances').select('*, together_character_templates(*), together_character_versions(*)').eq('user_id', userId),
+    db.from('together_character_templates').select('*,together_character_versions(*)').eq('published',true).eq('can_be_selected',true).order('name'),
     db.from('together_schedule_templates').select('*'),
     db.from('together_relationship_states').select('*').eq('user_id', userId),
     db.from('together_relationship_milestones').select('*').eq('user_id', userId).eq('status', 'pending').order('created_at', { ascending: true }),
@@ -216,8 +217,8 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
     db.from('together_photo_opportunities').select('*').eq('active', true),
     db.from('together_generated_media').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(60),
   ]);
-  const failed = [profile, worlds, locations, instances, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia].find((result) => result.error);
-  if (failed?.error) throw new AppError('INTERNAL_ERROR', 'Together could not load your world.', 500, true);
+  const failed = [profile, worlds, locations, instances, discoverable, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia].find((result) => result.error);
+  if (failed?.error) throw new AppError('INTERNAL_ERROR', 'Kivelle could not load your world.', 500, true);
   const stageByInstance = new Map((instances.data ?? []).map((instance) => [instance.id, instance.relationship_stage]));
   const relationshipCues = Object.fromEntries((relationships.data ?? []).map((relationship) => [relationship.character_instance_id, describeRelationshipCue({ ...relationship, relationship_stage: stageByInstance.get(relationship.character_instance_id) })]));
   const conversationMetadata = (conversations.data ?? []).map((conversation) => ({ ...conversation, message_count: Number(conversation.together_messages?.[0]?.count ?? 0), unread: Boolean(conversation.last_assistant_message_at && (!conversation.last_read_at || new Date(conversation.last_assistant_message_at) > new Date(conversation.last_read_at))) }));
@@ -226,5 +227,6 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
   const signed=readyPaths.length?await db.storage.from('together-user-media').createSignedUrls(readyPaths,3600):{data:[]};
   const urlByPath=new Map((signed.data??[]).map((item)=>[item.path,item.signedUrl]));
   const mediaPayload=mediaRows.map((item)=>({...item,signed_url:item.storage_path?urlByPath.get(item.storage_path)??null:null}));
-  return { profile: profile.data, worlds: worlds.data ?? [], locations: locations.data ?? [], characters: instances.data ?? [], schedules: schedules.data ?? [], relationships: relationships.data ?? [], relationshipMilestones: milestones.data ?? [], relationshipCues, dates: dates.data ?? [], moments: moments.data ?? [], memories: memories.data ?? [], openThreads: threads.data ?? [], conversations: conversationMetadata, lifeEvents: events.data ?? [], proactiveMessages: proactive.data ?? [], storyArcs: storyArcs.data ?? [], trips: trips.data ?? [], photoOpportunities: photoOpportunities.data ?? [], generatedMedia: mediaPayload, entitlements: entitlements.data, notificationPreferences: preferences.data };
+  const discoverableCharacters=(discoverable.data??[]).map((template)=>({...template,together_character_versions:(template.together_character_versions??[]).find((version:Record<string,unknown>)=>Number(version.version)===Number(template.current_published_version))??template.together_character_versions?.[0]??null}));
+  return { profile: profile.data, worlds: worlds.data ?? [], locations: locations.data ?? [], characters: instances.data ?? [], discoverableCharacters, schedules: schedules.data ?? [], relationships: relationships.data ?? [], relationshipMilestones: milestones.data ?? [], relationshipCues, dates: dates.data ?? [], moments: moments.data ?? [], memories: memories.data ?? [], openThreads: threads.data ?? [], conversations: conversationMetadata, lifeEvents: events.data ?? [], proactiveMessages: proactive.data ?? [], storyArcs: storyArcs.data ?? [], trips: trips.data ?? [], photoOpportunities: photoOpportunities.data ?? [], generatedMedia: mediaPayload, entitlements: entitlements.data, notificationPreferences: preferences.data };
 }

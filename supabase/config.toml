@@ -58,3 +58,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.together-media-dispatch]
 verify_jwt = false
+[functions.together-companion]
+verify_jwt = false

@@ -26,6 +26,7 @@ create table if not exists public.together_destructive_action_audit(
   result_status text not null check(result_status in ('completed','failed')),created_at timestamptz not null default now()
 );
 alter table public.together_destructive_action_audit enable row level security;
+drop policy if exists "Users read their destructive action audit" on public.together_destructive_action_audit;
 create policy "Users read their destructive action audit" on public.together_destructive_action_audit for select using(auth.uid()=user_id);
 
 create table if not exists public.together_storage_cleanup_jobs(

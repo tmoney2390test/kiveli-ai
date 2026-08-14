@@ -12,7 +12,9 @@ export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POS
   return payload.data;
 }
 export const loadSnapshot = () => invoke<Snapshot>('together-bootstrap', undefined, 'GET');
-export const bootstrap = (input: {ageConfirmed:true;displayName?:string;interests:string[];goals:Array<'Dating'|'Friendship'|'Stories'|'Social worlds'>}) => invoke<Snapshot>('together-bootstrap', input);
+export const bootstrap = (input: {ageConfirmed:true;displayName?:string;characterTemplateId?:string;interests:string[];goals:Array<'Dating'|'Friendship'|'Stories'|'Social worlds'>}) => invoke<Snapshot>('together-bootstrap', input);
+export const setActiveCompanion = (characterInstanceId:string, source:'home_switcher'|'discover_profile'|'companion_manager'='home_switcher') => invoke<Snapshot>('together-companion',{action:'set_active',characterInstanceId,source});
+export const meetCompanion = (characterTemplateId:string, source:'onboarding'|'discover_profile'='discover_profile') => invoke<Snapshot>('together-companion',{action:'meet',characterTemplateId,source});
 export const mutateMemory = (input: Record<string,unknown>) => invoke('together-memory', input);
 export const mutateDate = <T>(input: Record<string,unknown>) => invoke<T>('together-date', input);
 export const simulate = (characterInstanceId?: string) => invoke('together-simulate', { characterInstanceId, evaluateProactive: true });

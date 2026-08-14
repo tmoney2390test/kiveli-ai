@@ -15,6 +15,7 @@ export default function ConversationControls() {
   const [busy, setBusy] = useState(false);
   if (!snapshot) return <EmptyState title="Relationships unavailable" body="Reload Kivelle and try again." />;
   const selected = snapshot.characters.find((item) => item.id === resetId);
+  const meaningful = snapshot.characters.filter((item) => item.contact_added_at || item.introduced_at || item.relationship_stage !== 'stranger' || snapshot.conversations.some((conversation) => conversation.character_instance_id === item.id && (conversation.message_count ?? 0) > 0));
 
   const reset = async (characterId: string, mode: 'memory'|'relationship'|'full') => {
     const target = snapshot.characters.find((item) => item.id === characterId);
@@ -22,7 +23,7 @@ export default function ConversationControls() {
     try {
       await manageConversation({ action: 'reset', characterInstanceId: characterId, mode });
       await refresh();
-      if (mode === 'full' && target) router.replace(`/chat?character=${target.together_character_templates.slug}` as never);
+      if (mode === 'full' && target) router.replace(`/(tabs)/chat-tab?character=${target.together_character_templates.slug}` as never);
     } catch (caught) {
       Alert.alert('Reset unavailable', caught instanceof Error ? caught.message : 'Nothing was changed.');
     } finally {
@@ -36,7 +37,7 @@ export default function ConversationControls() {
     <View style={styles.header}><Pressable accessibilityLabel="Back" onPress={() => router.back()}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Conversations & resets</PageTitle></View>
     <Text style={styles.lead}>A conversation is not the relationship. Choose exactly what you want to change.</Text>
     <SectionHeader title="Your companions" />
-    {snapshot.characters.map((character) => {
+    {meaningful.map((character) => {
       const name = character.together_character_templates.name;
       const conversations = snapshot.conversations.filter((item) => item.character_instance_id === character.id).length;
       const memories = snapshot.memories.filter((item) => item.character_instance_id === character.id).length;

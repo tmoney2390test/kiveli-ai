@@ -1,7 +1,7 @@
 import { Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, BellRing, Heart, Pin, Sparkles, Trash2, UserRound } from 'lucide-react-native';
-import { EmptyState, PageTitle, Screen } from '../src/components';
+import { CharacterAvatar, EmptyState, PageTitle, Screen } from '../src/components';
 import { colors, radius } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
 import { manageConversation, mutateMemory } from '../src/lib/api';
@@ -16,6 +16,7 @@ export default function Memories() {
   const { character: slug } = useLocalSearchParams<{ character?: string }>();
   const { snapshot, refresh } = useTogether();
   const companion = slug ? snapshot?.characters.find((item) => item.together_character_templates.slug === slug) : snapshot ? activeCompanion(snapshot) : undefined;
+  const connections=(snapshot?.characters??[]).filter((item)=>item.contact_added_at||item.introduced_at||snapshot?.memories.some((memory)=>memory.character_instance_id===item.id));
   const name = companion?.together_character_templates.name ?? 'Your companion';
   const memories = (snapshot?.memories ?? []).filter((memory) => memory.character_instance_id === companion?.id);
   const categories = snapshot?.profile?.memory_categories ?? {};
@@ -26,6 +27,7 @@ export default function Memories() {
   const forgetAll = () => companion && confirmAction({ title: `Forget what ${name} remembers?`, message: `${name} will stop using saved facts, preferences, emotional context, and pending follow-ups. Your relationship progress, Moments, Dates, and conversation history will remain.`, confirmLabel: 'Forget memories', destructive: true, onConfirm: () => manageConversation({ action: 'reset', characterInstanceId: companion.id, mode: 'memory' }).then(refresh) });
   return <Screen>
     <View style={styles.header}><Pressable onPress={() => router.back()}><ArrowLeft color={colors.text} /></Pressable><PageTitle>What {name} remembers</PageTitle></View>
+    {connections.length>1?<View style={{flexDirection:'row',gap:7,flexWrap:'wrap'}}>{connections.map((item)=><Pressable key={item.id} onPress={()=>router.replace(`/memories?character=${item.together_character_templates.slug}` as never)} style={{flexDirection:'row',alignItems:'center',gap:7,paddingHorizontal:10,paddingVertical:7,borderRadius:radius.pill,backgroundColor:item.id===companion?.id?'rgba(232,93,140,.12)':colors.surface,borderWidth:1,borderColor:item.id===companion?.id?colors.rose:colors.border}}><CharacterAvatar slug={item.together_character_templates.slug} name={item.together_character_templates.name} size={30}/><Text style={{color:colors.text,fontSize:11,fontWeight:'800'}}>{item.together_character_templates.name}</Text></Pressable>)}</View>:null}
     {memories.length ? tabs.map(([label,types]) => { const group = memories.filter((memory) => types.includes(memory.memory_type as never)); if (!group.length) return null; return <View key={label} style={{ gap: 8 }}><Text style={styles.section}>{label}</Text>{group.map((memory) => <View key={memory.id} style={styles.memory}><Pressable onPress={() => menu(memory)} style={styles.memoryMain}><MemoryIcon type={memory.memory_type} /><Text style={styles.text}>{memory.canonical_text}</Text>{memory.pinned ? <Pin size={14} color={colors.rose} fill={colors.rose} /> : null}<Text style={styles.date}>{new Date(memory.updated_at).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</Text></Pressable>{Platform.OS === 'web' ? <View style={styles.memoryActions}><Pressable onPress={() => void update('pin',memory)}><Text style={styles.memoryAction}>{memory.pinned?'Unpin':'Pin'}</Text></Pressable><Pressable onPress={() => edit(memory)}><Text style={styles.memoryAction}>Edit</Text></Pressable><Pressable onPress={() => void update('forget',memory)}><Text style={[styles.memoryAction,{color:colors.danger}]}>Forget</Text></Pressable></View> : null}</View>)}</View>; }) : <EmptyState title={`${name} is listening`} body="Meaningful details you share will appear here. You stay in control: edit, pin, or forget any memory." />}
     <Text style={styles.section}>Memory preferences</Text>
     {categoryControls.map(([key,label]) => <View key={key} style={styles.control}><Text style={styles.text}>{label}</Text><Switch value={categories[key] !== false} onValueChange={(value) => void toggleCategory(key,value)} trackColor={{ false: colors.elevated, true: colors.rose }} /></View>)}

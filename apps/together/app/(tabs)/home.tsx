@@ -1,23 +1,25 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
-import { Bell, CalendarDays, ChevronRight, Coffee, Heart, Sparkles } from 'lucide-react-native';
-import { ActionTile, CharacterHero, EmptyState, ErrorState, GlassCard, GradientButton, LoadingSkeleton, MessagePreview, MomentCarousel, PageTitle, Screen, SectionHeader } from '../../src/components';
+import { router as expoRouter } from 'expo-router';
+import { CalendarDays, ChevronRight, Coffee, Heart, Sparkles, UserRound } from 'lucide-react-native';
+import { ActionTile, CharacterHero, CompanionSwitcher, EmptyState, ErrorState, GlassCard, GradientButton, LoadingSkeleton, MessagePreview, MomentCarousel, Screen, SectionHeader } from '../../src/components';
 import { colors, radius, spacing } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { markProactiveOpened } from '../../src/lib/api';
 import { buildCompanionLife, formatScheduleTime } from '../../src/lib/companionLife';
 
+const router=expoRouter as unknown as {push:(href:string)=>void};
+
 export default function Home() {
   const { snapshot, loading, error, refresh } = useTogether();
   if (loading && !snapshot) return <LoadingSkeleton />;
   if (error && !snapshot) return <ErrorState message={error} onRetry={() => void refresh()} />;
-  if (!snapshot) return <EmptyState title="Your story is waiting" body="Complete onboarding to enter City Life." />;
+  if (!snapshot) return <EmptyState title="Your story is waiting" body="Complete onboarding to enter Juniper City." />;
 
   const life = buildCompanionLife(snapshot);
-  if (!life) return <ErrorState message="Your companion could not be found in City Life." onRetry={() => void refresh()} />;
+  if (!life) return <ErrorState message="Your companion could not be found in Juniper City." onRetry={() => void refresh()} />;
   const { companion, relationshipDay, location: currentLocation, recentEvents, upcomingSchedule, proactiveMessages, dates } = life;
   const name = companion.together_character_templates.name;
-  const location = currentLocation?.name ?? 'City Life';
+  const location = currentLocation?.name ?? 'Juniper City';
   const relationshipCue = snapshot.relationshipCues?.[companion.id];
   const pendingMilestone = snapshot.relationshipMilestones?.find((item) => item.character_instance_id === companion.id);
   const latestProactive = proactiveMessages[0];
@@ -28,26 +30,22 @@ export default function Home() {
   const sharedPlan = snapshot.lifeEvents.filter((event)=>event.character_instance_id===companion.id&&event.event_type==='shared_plan'&&event.metadata?.planStatus!=='cancelled'&&new Date(event.starts_at).getTime()>Date.now()).sort((left,right)=>new Date(left.starts_at).getTime()-new Date(right.starts_at).getTime())[0];
   const openCompanion = async () => {
     if (latestProactive?.status === 'sent') await markProactiveOpened(latestProactive.id).catch(() => undefined);
-    router.push('/chat');
+    router.push('/(tabs)/chat-tab');
   };
 
   return <Screen contentStyle={styles.content}>
     <View style={styles.top}>
-      <View>
-        <Text style={styles.brand}>Kivelle.AI</Text>
-        <PageTitle>Your life together</PageTitle>
-        <View style={styles.dayLine}><View style={styles.liveDot} /><Text style={styles.context}>Day {relationshipDay} · {labelStage(companion.relationship_stage)}</Text></View>
-      </View>
-      <Pressable accessibilityLabel="Open settings" onPress={() => router.push('/settings')} style={({ pressed }) => [styles.icon, pressed && styles.pressed]}><Bell color={colors.text} size={20} /></Pressable>
+      <View style={{gap:8}}><Text style={styles.brand}>Kivelle.AI</Text><CompanionSwitcher active={companion}/><View style={styles.dayLine}><View style={styles.liveDot} /><Text style={styles.context}>Day {relationshipDay} · {labelStage(companion.relationship_stage)}</Text></View></View>
+      <Pressable accessibilityLabel="Open your settings" onPress={() => router.push('/settings')} style={({ pressed }) => [styles.icon, pressed && styles.pressed]}><UserRound color={colors.text} size={20} /></Pressable>
     </View>
 
-    <CharacterHero character={companion} location={location} onPress={() => router.push('/(tabs)/profile')} />
-    <GradientButton label={`Talk to ${name}`} onPress={() => router.push('/chat')} />
+    <CharacterHero character={companion} location={location} onPress={() => router.push(`/character/${companion.together_character_templates.slug}` as never)} />
+    <GradientButton label={`Talk to ${name}`} onPress={() => router.push('/(tabs)/chat-tab')} />
 
-    {relationshipCue ? <Pressable onPress={() => router.push('/chat')} style={({pressed})=>[styles.relationshipCue,pressed&&styles.pressed]}><View style={[styles.relationshipIcon,relationshipCue.tone==='tense'&&styles.relationshipIconTense]}><Heart size={18} color={relationshipCue.tone==='tense'?colors.warm:colors.rose}/></View><View style={{flex:1}}><Text style={styles.relationshipLabel}>{relationshipCue.label}</Text><Text style={styles.relationshipDetail}>{pendingMilestone?pendingMilestone.title:relationshipCue.detail}</Text></View>{pendingMilestone?<View style={styles.choicePill}><Text style={styles.choicePillText}>Your choice</Text></View>:<ChevronRight size={18} color={colors.muted}/>}</Pressable> : null}
+    {relationshipCue ? <Pressable onPress={() => router.push('/(tabs)/chat-tab')} style={({pressed})=>[styles.relationshipCue,pressed&&styles.pressed]}><View style={[styles.relationshipIcon,relationshipCue.tone==='tense'&&styles.relationshipIconTense]}><Heart size={18} color={relationshipCue.tone==='tense'?colors.warm:colors.rose}/></View><View style={{flex:1}}><Text style={styles.relationshipLabel}>{relationshipCue.label}</Text><Text style={styles.relationshipDetail}>{pendingMilestone?pendingMilestone.title:relationshipCue.detail}</Text></View>{pendingMilestone?<View style={styles.choicePill}><Text style={styles.choicePillText}>Your choice</Text></View>:<ChevronRight size={18} color={colors.muted}/>}</Pressable> : null}
 
     <View style={styles.actions}>
-      <ActionTile title={plannedDate?.status === 'active' ? 'Continue date' : sharedPlan ? 'View your plan' : 'Plan something'} onPress={() => plannedDate?.status==='active' ? router.push(`/date/${plannedDate.id}` as never) : sharedPlan ? router.push('/(tabs)/dates') : router.push('/chat?plan=1')} icon={<CalendarDays color={colors.warm} size={21} />} />
+      <ActionTile title={plannedDate?.status === 'active' ? 'Continue date' : sharedPlan ? 'View your plan' : 'Plan something'} onPress={() => plannedDate?.status==='active' ? router.push(`/date/${plannedDate.id}` as never) : sharedPlan ? router.push('/(tabs)/dates') : router.push('/(tabs)/chat-tab?plan=1')} icon={<CalendarDays color={colors.warm} size={21} />} />
       <ActionTile title="Memories" onPress={() => router.push('/memories')} icon={<Sparkles color={colors.violet} size={21} />} />
     </View>
 
@@ -56,7 +54,7 @@ export default function Home() {
       <GlassCard style={styles.catchUpCard}>
         {catchUpEvents.map((event, index) => <View key={event.id}>
           {index ? <View style={styles.rule} /> : null}
-          <Pressable onPress={() => router.push('/chat')} style={({ pressed }) => [styles.catchUpEvent, pressed && styles.pressed]}>
+          <Pressable onPress={() => router.push('/(tabs)/chat-tab')} style={({ pressed }) => [styles.catchUpEvent, pressed && styles.pressed]}>
             <View style={styles.eventDot}><Sparkles size={14} color={colors.rose} /></View>
             <View style={{ flex: 1 }}><Text style={styles.timelineTitle}>{event.title}</Text><Text style={styles.eventSummary}>{event.narrative_summary}</Text></View>
             <Text style={styles.eventTime}>{relativeTime(event.starts_at)}</Text>
@@ -74,7 +72,7 @@ export default function Home() {
     </GlassCard>
 
     <SectionHeader title="Recent moments" action="View all" onAction={() => router.push('/(tabs)/moments')} />
-    {snapshot.moments.length ? <MomentCarousel moments={snapshot.moments} onPress={() => router.push('/(tabs)/moments')} /> : <Pressable onPress={() => router.push('/chat')} style={styles.storyEmpty}><Sparkles size={18} color={colors.rose} /><View style={{ flex: 1 }}><Text style={styles.storyTitle}>The first chapter is waiting</Text><Text style={styles.storyCopy}>The moments that matter will collect here.</Text></View><ChevronRight color={colors.muted} size={18} /></Pressable>}
+    {snapshot.moments.length ? <MomentCarousel moments={snapshot.moments} onPress={() => router.push('/(tabs)/moments')} /> : <Pressable onPress={() => router.push('/(tabs)/chat-tab')} style={styles.storyEmpty}><Sparkles size={18} color={colors.rose} /><View style={{ flex: 1 }}><Text style={styles.storyTitle}>The first chapter is waiting</Text><Text style={styles.storyCopy}>The moments that matter will collect here.</Text></View><ChevronRight color={colors.muted} size={18} /></Pressable>}
 
     <SectionHeader title={latestProactive ? `New from ${name}` : `From ${name}`} />
     <MessagePreview content={latest} time={latestProactive ? relativeTime(latestProactive.eligible_at ?? new Date().toISOString()) : `At ${location}`} onPress={() => void openCompanion()} />

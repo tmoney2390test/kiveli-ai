@@ -30,7 +30,7 @@ export function buildCompanionLife(snapshot: Snapshot, now = new Date(), compani
   const upcomingSchedule = snapshot.schedules.filter((item) => item.character_version_id === companion.character_version_id && item.day_of_week === now.getDay() && item.start_minute > now.getHours() * 60 + now.getMinutes()).sort((a, b) => a.start_minute - b.start_minute).slice(0, 3).map((item) => {
     const startsAt = new Date(year, month, date, Math.floor(item.start_minute / 60), item.start_minute % 60);
     const endsAt = new Date(year, month, date, Math.floor(item.end_minute / 60), item.end_minute % 60);
-    return { ...item, startsAt, endsAt, locationName: snapshot.locations.find((place) => place.id === item.location_id)?.name ?? 'City Life' };
+    return { ...item, startsAt, endsAt, locationName: snapshot.locations.find((place) => place.id === item.location_id)?.name ?? 'Juniper City' };
   });
   return {
     companion,

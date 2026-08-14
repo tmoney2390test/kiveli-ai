@@ -18,5 +18,6 @@ create table if not exists public.together_generated_media(
 );
 create index if not exists together_generated_media_character_idx on public.together_generated_media(user_id,character_instance_id,created_at desc);
 alter table public.together_generated_media enable row level security;
+drop policy if exists "Users read their generated media" on public.together_generated_media;
 create policy "Users read their generated media" on public.together_generated_media for select using (auth.uid()=user_id);
 comment on table public.together_generated_media is 'Canonical media references. Generation requires a configured server-side image provider; rows may safely remain queued.';

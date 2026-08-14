@@ -12,7 +12,7 @@ export default function CompanionProfile() {
   const snapshot = useTogether((state) => state.snapshot);
   if (!snapshot) return <LoadingSkeleton label="Finding your companion..." />;
   const life = buildCompanionLife(snapshot);
-  if (!life) return <EmptyState title="Your companion is waiting" body="Finish your first visit to City Life to meet them." />;
+  if (!life) return <EmptyState title="Your companion is waiting" body="Finish your first visit to Juniper City to meet them." />;
 
   const { companion, relationshipDay, location, dates, moments, activeStories } = life;
   const template = companion.together_character_templates;
@@ -41,7 +41,7 @@ export default function CompanionProfile() {
     <Pressable disabled={!location} onPress={() => location && router.push(`/location/${location.slug}` as never)} accessibilityRole={location ? 'button' : undefined}>
       <GlassCard style={styles.status}>
         <View style={styles.statusIcon}><MapPin size={17} color={colors.warm} /></View>
-        <View style={{ flex: 1 }}><Text style={styles.statusLabel}>RIGHT NOW</Text><Text style={styles.statusTitle}>{location?.name ?? 'City Life'}</Text><Text style={styles.statusCopy}>{companion.current_activity}</Text></View>
+        <View style={{ flex: 1 }}><Text style={styles.statusLabel}>RIGHT NOW</Text><Text style={styles.statusTitle}>{location?.name ?? 'Juniper City'}</Text><Text style={styles.statusCopy}>{companion.current_activity}</Text></View>
         {location ? <ChevronRight size={18} color={colors.muted} /> : null}
       </GlassCard>
     </Pressable>

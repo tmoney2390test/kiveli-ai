@@ -10,6 +10,12 @@ alter table public.together_event_templates
   add column if not exists followups text[] not null default '{}';
 
 alter table public.together_event_templates
+  drop constraint if exists together_event_templates_category_check,
+  drop constraint if exists together_event_templates_tone_check,
+  drop constraint if exists together_event_templates_scale_check,
+  drop constraint if exists together_event_templates_content_level_check;
+
+alter table public.together_event_templates
   add constraint together_event_templates_category_check check(category in ('ordinary','work','social','relationship','family','personal','discovery','celebration','conflict','opportunity','setback','health','weather','world','romance','intimacy','travel')) not valid,
   add constraint together_event_templates_tone_check check(tone in ('mundane','funny','positive','awkward','stressful','exciting','romantic','emotional','surprising')) not valid,
   add constraint together_event_templates_scale_check check(scale in ('micro','normal','meaningful','major')) not valid,
@@ -60,6 +66,7 @@ create index if not exists together_content_usage_recent_idx on public.together_
 
 alter table public.together_date_sessions drop constraint if exists together_date_sessions_current_phase_check;
 alter table public.together_date_sessions drop constraint if exists together_date_sessions_phase_index_check;
+alter table public.together_date_sessions drop constraint if exists together_date_sessions_phase_index_nonnegative;
 alter table public.together_date_sessions add constraint together_date_sessions_phase_index_nonnegative check(phase_index >= 0) not valid;
 alter table public.together_date_sessions validate constraint together_date_sessions_phase_index_nonnegative;
 
@@ -68,6 +75,11 @@ alter table public.together_story_arc_instances enable row level security;
 alter table public.together_trip_templates enable row level security;
 alter table public.together_photo_opportunities enable row level security;
 alter table public.together_content_usage enable row level security;
+drop policy if exists "Published story arcs are readable" on public.together_story_arc_templates;
+drop policy if exists "Users read their story arcs" on public.together_story_arc_instances;
+drop policy if exists "Users read their content usage" on public.together_content_usage;
+drop policy if exists "Published trips are readable" on public.together_trip_templates;
+drop policy if exists "Published photo hooks are readable" on public.together_photo_opportunities;
 create policy "Published story arcs are readable" on public.together_story_arc_templates for select using (active);
 create policy "Users read their story arcs" on public.together_story_arc_instances for select using (auth.uid()=user_id);
 create policy "Users read their content usage" on public.together_content_usage for select using (auth.uid()=user_id);

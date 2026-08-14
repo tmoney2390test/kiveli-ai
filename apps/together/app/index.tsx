@@ -19,7 +19,7 @@ export default function Index() {
       else await refresh();
     }).catch(() => refresh()).finally(() => setResuming(false));
   }, [session, snapshot, loading, refresh, setSnapshot]);
-  if (authLoading || loading || resuming || (session && !snapshot && !attempted.current)) return <LoadingSkeleton label="Opening City Life…" />;
+  if (authLoading || loading || resuming || (session && !snapshot && !attempted.current)) return <LoadingSkeleton label="Opening Juniper City…" />;
   if (!session) return <Redirect href="/onboarding" />;
   if (!snapshot?.profile) return <Redirect href="/onboarding" />;
   return <Redirect href="/home" />;

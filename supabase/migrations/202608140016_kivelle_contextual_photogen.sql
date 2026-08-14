@@ -24,6 +24,7 @@ alter table public.together_generated_media
 alter table public.together_generated_media drop constraint if exists together_generated_media_content_level_check;
 alter table public.together_generated_media add constraint together_generated_media_content_level_check
   check(content_level in ('standard','romance','suggestive','mature','explicit'));
+alter table public.together_generated_media drop constraint if exists together_generated_media_attempt_count_check;
 alter table public.together_generated_media add constraint together_generated_media_attempt_count_check check(attempt_count between 0 and 5) not valid;
 alter table public.together_generated_media validate constraint together_generated_media_attempt_count_check;
 
