@@ -149,6 +149,41 @@ export function summarizeConversation(turns: Array<{ role: string; content: stri
   return summary.length <= limit ? summary : `${summary.slice(0, limit - 1).trimEnd()}…`;
 }
 
+type ConversationContinuitySummary = {
+  version: 1;
+  topics: string[];
+  recentContext: string;
+  emotionalContext?: string;
+  unresolvedConversationPoints: string[];
+  sharedJokesOrReferences: string[];
+  storyReferences: string[];
+  updatedThroughMessageId?: string;
+};
+
+export function mergeConversationSummary(previousValue: string, turns: Array<{ id?: string; role: string; content: string }>): string {
+  let previous: Partial<ConversationContinuitySummary> = {};
+  try { previous = JSON.parse(previousValue) as Partial<ConversationContinuitySummary>; } catch { if (previousValue.trim()) previous.recentContext = previousValue.trim(); }
+  const recent = summarizeConversation(turns, 760);
+  const userTurns = turns.filter((turn) => turn.role === 'user').map((turn) => turn.content.trim());
+  const allText = turns.map((turn) => turn.content).join(' ');
+  const emotional = allText.match(/\b(?:nervous|excited|upset|happy|sad|worried|stressed|proud|angry|afraid|hopeful)\b/gi) ?? [];
+  const questions = userTurns.filter((text) => text.endsWith('?')).slice(-2);
+  const jokes = turns.filter((turn) => /\b(?:haha|lol|joke|teas(?:e|ing)|😂|😄)\b/i.test(turn.content)).map((turn) => turn.content.trim()).slice(-2);
+  const topics = [...new Set([...(previous.topics ?? []), ...userTurns.map((text) => text.split(/[.!?]/)[0]?.trim()).filter(Boolean)])].slice(-6);
+  const priorContext = String(previous.recentContext ?? '').slice(-520);
+  const summary: ConversationContinuitySummary = {
+    version: 1,
+    topics: topics.map((item) => item.slice(0, 100)),
+    recentContext: [priorContext, recent].filter(Boolean).join('\n').slice(-1100),
+    emotionalContext: emotional.length ? `Recent emotional cues: ${[...new Set(emotional.map((item) => item.toLowerCase()))].slice(-5).join(', ')}.` : previous.emotionalContext,
+    unresolvedConversationPoints: [...(previous.unresolvedConversationPoints ?? []), ...questions].slice(-4).map((item) => item.slice(0, 180)),
+    sharedJokesOrReferences: [...(previous.sharedJokesOrReferences ?? []), ...jokes].slice(-3).map((item) => item.slice(0, 180)),
+    storyReferences: (previous.storyReferences ?? []).slice(-4),
+    updatedThroughMessageId: turns.at(-1)?.id ?? previous.updatedThroughMessageId,
+  };
+  return JSON.stringify(summary);
+}
+
 function cleanContinuityObject(value: string): string {
   return value.trim().replace(/\s+(?:a lot|so much|though)$/i, '').toLowerCase();
 }
@@ -171,7 +206,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
     db.from('together_moments').select('*').eq('user_id', userId).order('occurred_at', { ascending: false }).limit(30),
     db.from('together_memories').select('*').eq('user_id', userId).eq('status', 'active').order('pinned', { ascending: false }).order('importance', { ascending: false }).limit(100),
     db.from('together_open_threads').select('*').eq('user_id', userId).is('resolved_at', null),
-    db.from('together_conversations').select('*').eq('user_id', userId).order('last_message_at', { ascending: false, nullsFirst: false }),
+    db.from('together_conversations').select('*,together_messages(count)').eq('user_id', userId).order('last_message_at', { ascending: false, nullsFirst: false }),
     db.from('together_life_events').select('*').eq('user_id', userId).order('starts_at', { ascending: false }).limit(20),
     db.from('together_proactive_messages').select('*').eq('user_id', userId).in('status', ['queued','sent']).lte('eligible_at', new Date().toISOString()).order('eligible_at', { ascending: false }).limit(10),
     db.from('together_entitlements').select('*').eq('user_id', userId).maybeSingle(),
@@ -185,5 +220,6 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
   if (failed?.error) throw new AppError('INTERNAL_ERROR', 'Together could not load your world.', 500, true);
   const stageByInstance = new Map((instances.data ?? []).map((instance) => [instance.id, instance.relationship_stage]));
   const relationshipCues = Object.fromEntries((relationships.data ?? []).map((relationship) => [relationship.character_instance_id, describeRelationshipCue({ ...relationship, relationship_stage: stageByInstance.get(relationship.character_instance_id) })]));
-  return { profile: profile.data, worlds: worlds.data ?? [], locations: locations.data ?? [], characters: instances.data ?? [], schedules: schedules.data ?? [], relationships: relationships.data ?? [], relationshipMilestones: milestones.data ?? [], relationshipCues, dates: dates.data ?? [], moments: moments.data ?? [], memories: memories.data ?? [], openThreads: threads.data ?? [], conversations: conversations.data ?? [], lifeEvents: events.data ?? [], proactiveMessages: proactive.data ?? [], storyArcs: storyArcs.data ?? [], trips: trips.data ?? [], photoOpportunities: photoOpportunities.data ?? [], generatedMedia: generatedMedia.data ?? [], entitlements: entitlements.data, notificationPreferences: preferences.data };
+  const conversationMetadata = (conversations.data ?? []).map((conversation) => ({ ...conversation, message_count: Number(conversation.together_messages?.[0]?.count ?? 0), unread: Boolean(conversation.last_assistant_message_at && (!conversation.last_read_at || new Date(conversation.last_assistant_message_at) > new Date(conversation.last_read_at))) }));
+  return { profile: profile.data, worlds: worlds.data ?? [], locations: locations.data ?? [], characters: instances.data ?? [], schedules: schedules.data ?? [], relationships: relationships.data ?? [], relationshipMilestones: milestones.data ?? [], relationshipCues, dates: dates.data ?? [], moments: moments.data ?? [], memories: memories.data ?? [], openThreads: threads.data ?? [], conversations: conversationMetadata, lifeEvents: events.data ?? [], proactiveMessages: proactive.data ?? [], storyArcs: storyArcs.data ?? [], trips: trips.data ?? [], photoOpportunities: photoOpportunities.data ?? [], generatedMedia: generatedMedia.data ?? [], entitlements: entitlements.data, notificationPreferences: preferences.data };
 }

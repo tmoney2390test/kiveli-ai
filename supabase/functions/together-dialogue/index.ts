@@ -5,8 +5,9 @@ import { corsHeaders, errorResponse } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { ConfiguredConversationAnalysisProvider, ConfiguredDialogueProvider, ConfiguredEmbeddingProvider, ConfiguredModerationProvider, dialogueProviderName } from '../_shared/together-ai.ts';
 import { classifyContent, routeDialogueProvider } from '../_shared/kivelle-intelligence.ts';
-import { clampRelationship, nextRelationshipMilestone, resolveLifeState, summarizeConversation, TOGETHER_IDS, track } from '../_shared/together.ts';
+import { clampRelationship, mergeConversationSummary, nextRelationshipMilestone, resolveLifeState, TOGETHER_IDS, track } from '../_shared/together.ts';
 import { runLifeSimulation } from '../_shared/together-life.ts';
+import { getActiveConversation } from '../_shared/together-conversation.ts';
 
 const schema = z.object({ conversationId: z.string().uuid(), message: z.string().trim().min(1).max(4000), clientRequestId: z.string().min(8).max(100), characterInstanceId: z.string().uuid() });
 const dialogue = new ConfiguredDialogueProvider();
@@ -24,6 +25,8 @@ Deno.serve(async (request) => {
     const input = await parseBody(request, schema);
     const { data: conversation } = await db.from('together_conversations').select('*,together_character_instances!inner(*,together_character_templates(*),together_character_versions(*))').eq('id', input.conversationId).eq('user_id', user.id).eq('character_instance_id', input.characterInstanceId).maybeSingle();
     if (!conversation) throw new AppError('NOT_FOUND', 'That conversation is unavailable.', 404);
+    const activeConversation = await getActiveConversation(db, user.id, input.characterInstanceId);
+    if (conversation.archived_at || activeConversation?.id !== conversation.id) throw new AppError('CONVERSATION_ARCHIVED', 'This conversation is no longer active.', 409, true);
 
     const existing = await db.from('together_messages').select('*').eq('conversation_id', input.conversationId).eq('client_request_id', input.clientRequestId).maybeSingle();
     if (existing.data) {
@@ -105,7 +108,7 @@ Deno.serve(async (request) => {
     const safeText = outputSafety.allowed ? responseText : "I want to answer thoughtfully, but I need to steer this conversation somewhere safer. We can talk about what you're feeling without crossing that line.";
     if (!outputSafety.allowed) await db.from('together_safety_events').insert({ user_id: user.id, character_instance_id: input.characterInstanceId, direction: 'output', categories: outputSafety.categories, action: 'replaced' });
     const { data: assistantMessage, error: assistantError } = await db.from('together_messages').insert({ conversation_id: input.conversationId, user_id: user.id, character_instance_id: input.characterInstanceId, role: 'assistant', content: safeText, delivery_status: 'complete', provider_metadata: { provider: dialogueProviderName(), model: Deno.env.get('TOGETHER_DIALOGUE_MODEL') ?? Deno.env.get('TOGETHER_GEMINI_MODEL') ?? 'configured-default' } }).select('*').single();
-    if (assistantError || !assistantMessage) throw new AppError('INTERNAL_ERROR', 'Maya replied, but the response could not be saved.', 500, true);
+    if (assistantError || !assistantMessage) throw new AppError('INTERNAL_ERROR', `${String(characterTemplate.name ?? 'Your companion')} replied, but the response could not be saved.`, 500, true);
     await safelyApplyConversationEffects(db, user.id, input.characterInstanceId, input.conversationId, userMessage.id, input.message, safeText, relationshipResult.data, String(instance.relationship_stage), correlationId);
     await db.from('together_conversations').update({ last_message_at: assistantMessage.created_at, updated_at: assistantMessage.created_at, kind: conversation.kind === 'first_meeting' ? 'direct' : conversation.kind }).eq('id', input.conversationId);
     await track(db, user.id, 'message_sent', { characterInstanceId: input.characterInstanceId });
@@ -160,12 +163,12 @@ function streamDialogue({ db, user, input, conversation, instance, relationship,
           content += token;
           emit({ type: 'token', token });
         }
-        if (!content.trim()) throw new AppError('PROVIDER_UNAVAILABLE', 'Maya needs a moment before replying.', 503, true);
+        if (!content.trim()) throw new AppError('PROVIDER_UNAVAILABLE', 'Your companion needs a moment before replying.', 503, true);
 
         // The configured provider applies source safety settings before tokens are emitted.
         const provider = dialogueProviderName();
         const { data: assistantMessage, error: assistantError } = await db.from('together_messages').insert({ conversation_id: input.conversationId, user_id: user.id, character_instance_id: input.characterInstanceId, role: 'assistant', content, delivery_status: 'complete', provider_metadata: { provider, model: provider === 'openai' ? (Deno.env.get('KIVELLE_DIALOGUE_MODEL') ?? Deno.env.get('TOGETHER_DIALOGUE_MODEL') ?? 'configured-default') : (Deno.env.get('TOGETHER_GEMINI_MODEL') ?? Deno.env.get('GEMINI_EXPLANATION_MODEL') ?? 'configured-default'), streamed: true } }).select('*').single();
-        if (assistantError || !assistantMessage) throw new AppError('INTERNAL_ERROR', 'Maya replied, but the response could not be saved.', 500, true);
+        if (assistantError || !assistantMessage) throw new AppError('INTERNAL_ERROR', 'Your companion replied, but the response could not be saved.', 500, true);
         await safelyApplyConversationEffects(db, user.id, input.characterInstanceId, input.conversationId, String(userMessage.id), input.message, content, relationship, String(instance.relationship_stage), correlationId);
         await db.from('together_conversations').update({ last_message_at: assistantMessage.created_at, updated_at: assistantMessage.created_at, kind: conversation.kind === 'first_meeting' ? 'direct' : conversation.kind }).eq('id', input.conversationId);
         await track(db, user.id, 'message_sent', { characterInstanceId: input.characterInstanceId });
@@ -173,7 +176,7 @@ function streamDialogue({ db, user, input, conversation, instance, relationship,
         emit({ type: 'done', message: assistantMessage });
       } catch (error) {
         console.error(JSON.stringify({ level: 'error', correlationId, message: error instanceof Error ? error.message : 'Unknown stream error' }));
-        const appError = error instanceof AppError ? error : new AppError('PROVIDER_UNAVAILABLE', 'Maya needs a moment before replying.', 503, true);
+        const appError = error instanceof AppError ? error : new AppError('PROVIDER_UNAVAILABLE', 'Your companion needs a moment before replying.', 503, true);
         emit({ type: 'error', error: { code: appError.code, message: appError.message, retryable: appError.retryable } });
       } finally {
         controller.close();
@@ -270,10 +273,13 @@ async function ensureRelationshipMilestone(db: any, userId: string, instanceId: 
 
 async function updateConversationSummary(db: any, userId: string, conversationId: string, conversationCount: number): Promise<void> {
   if (conversationCount !== 1 && conversationCount % 4 !== 0) return;
-  const { data: messages, error } = await db.from('together_messages').select('role,content,created_at').eq('user_id', userId).eq('conversation_id', conversationId).order('created_at', { ascending: false }).limit(24);
+  const { data: conversation } = await db.from('together_conversations').select('summary,summary_through,summary_message_count').eq('id', conversationId).eq('user_id', userId).maybeSingle();
+  let query = db.from('together_messages').select('id,role,content,created_at').eq('user_id', userId).eq('conversation_id', conversationId).order('created_at', { ascending: true }).limit(80);
+  if (conversation?.summary_through) query = query.gt('created_at', conversation.summary_through);
+  const { data: messages, error } = await query;
   if (error || !messages?.length) return;
-  const ordered = messages.reverse();
-  const summary = summarizeConversation(ordered);
-  const through = ordered.at(-1)?.created_at ?? new Date().toISOString();
-  await db.from('together_conversations').update({ summary, summary_through: through, summary_message_count: ordered.length, updated_at: new Date().toISOString() }).eq('id', conversationId).eq('user_id', userId);
+  const previous = String(conversation?.summary ?? '').trim();
+  const summary = mergeConversationSummary(previous, messages);
+  const through = messages.at(-1)?.created_at ?? new Date().toISOString();
+  await db.from('together_conversations').update({ summary, summary_through: through, summary_message_count: Number(conversation?.summary_message_count ?? 0) + messages.length, updated_at: new Date().toISOString() }).eq('id', conversationId).eq('user_id', userId).is('archived_at', null);
 }

@@ -1,0 +1,16 @@
+begin;
+select plan(12);
+select has_column('public','together_conversations','last_read_at','Conversation read position is stored');
+select has_column('public','together_conversations','last_assistant_message_at','Latest assistant activity is stored');
+select has_index('public','together_conversations','together_conversations_one_active_direct_idx','One-active-conversation invariant is indexed');
+select has_index('public','together_conversations','together_conversations_history_idx','Conversation history lookup is indexed');
+select has_index('public','together_messages','together_messages_page_idx','Message pagination is indexed');
+select has_table('public','together_destructive_action_audit','Destructive operations have content-free audit records');
+select has_table('public','together_storage_cleanup_jobs','Failed media cleanup can be retried');
+select has_function('public','kivelle_start_conversation',array['uuid','uuid'],'New conversation is transactional');
+select has_function('public','kivelle_reset_companion',array['uuid','uuid','text'],'Companion resets are transactional');
+select has_function('public','kivelle_delete_conversation',array['uuid','uuid'],'Transcript deletion is transactional');
+select trigger_is('public','together_messages','together_message_active_conversation_guard','public','kivelle_reject_archived_conversation_message','Archived conversations reject message inserts');
+select trigger_is('public','together_messages','together_message_reference_cleanup','public','kivelle_prune_deleted_message_references','Deleted message references are removed from Moments');
+select * from finish();
+rollback;

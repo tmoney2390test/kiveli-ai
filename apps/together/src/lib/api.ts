@@ -22,19 +22,20 @@ export const reportMessage = (messageId: string, reason: string, detail = '') =>
 export const manageAccount = <T>(input: Record<string, unknown>) => invoke<T>('together-account', input);
 export const chooseActivity = <T>(activity:'riverwalk'|'open_mic'|'rooftop_movie',choice:'accept'|'defer') => invoke<T>('together-activity',{activity,choice});
 export const resolveRelationshipMilestone = (milestoneId:string,action:'accept'|'defer'|'stay_friends'|'talk_it_out'|'give_space') => invoke<{snapshot:Snapshot}>('together-relationship',{milestoneId,action});
+export const manageConversation = <T>(input: Record<string, unknown>) => invoke<T>('together-conversation', input);
 
 export async function createTogetherAccount(email: string, password: string): Promise<void> {
   const response = await fetch(`${supabaseUrl}/functions/v1/together-signup`, { method: 'POST', headers: { apikey: supabasePublishableKey, Authorization: `Bearer ${supabasePublishableKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
   const payload = await response.json().catch(() => ({})) as { error?: { message?: string; code?: string; retryable?: boolean } };
-  if (!response.ok) throw new ApiError(payload.error?.message ?? 'Your Together account could not be created.', payload.error?.code, payload.error?.retryable);
+  if (!response.ok) throw new ApiError(payload.error?.message ?? 'Your Kivelle account could not be created.', payload.error?.code, payload.error?.retryable);
 }
 
 export async function sendDialogue(input: {conversationId:string;characterInstanceId:string;message:string;clientRequestId:string}, onToken: (token:string)=>void): Promise<Message> {
   const response = await fetch(`${supabaseUrl}/functions/v1/together-dialogue`, { method: 'POST', headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
-  if (!response.ok) { const error = await response.json().catch(() => ({})); throw new ApiError(error.error?.message ?? 'Maya could not reply.', error.error?.code, error.error?.retryable); }
+  if (!response.ok) { const error = await response.json().catch(() => ({})); throw new ApiError(error.error?.message ?? 'Your companion could not reply.', error.error?.code, error.error?.retryable); }
   if (!response.body) throw new ApiError('The response stream ended early.', 'STREAM_INTERRUPTED', true);
   const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''; let final: Message | null = null;
-  while (true) { const { value, done } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const events = buffer.split('\n\n'); buffer = events.pop() ?? ''; for (const event of events) { const line = event.split('\n').find((item) => item.startsWith('data: ')); if (!line) continue; const data = JSON.parse(line.slice(6)); if (data.type === 'token') onToken(data.token); if (data.type === 'done') final = data.message; if (data.type === 'error') throw new ApiError(data.error?.message ?? 'Maya could not finish her reply.', data.error?.code ?? 'STREAM_INTERRUPTED', Boolean(data.error?.retryable)); } }
-  if (!final) throw new ApiError('Maya’s reply was interrupted. Try again.', 'STREAM_INTERRUPTED', true);
+  while (true) { const { value, done } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const events = buffer.split('\n\n'); buffer = events.pop() ?? ''; for (const event of events) { const line = event.split('\n').find((item) => item.startsWith('data: ')); if (!line) continue; const data = JSON.parse(line.slice(6)); if (data.type === 'token') onToken(data.token); if (data.type === 'done') final = data.message; if (data.type === 'error') throw new ApiError(data.error?.message ?? 'Your companion could not finish the reply.', data.error?.code ?? 'STREAM_INTERRUPTED', Boolean(data.error?.retryable)); } }
+  if (!final) throw new ApiError('The reply was interrupted. Try again.', 'STREAM_INTERRUPTED', true);
   return final;
 }

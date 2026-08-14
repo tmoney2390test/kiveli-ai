@@ -52,3 +52,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.together-relationship]
 verify_jwt = false
+[functions.together-conversation]
+verify_jwt = false

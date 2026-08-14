@@ -4,6 +4,7 @@ import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { buildSnapshot, resolveLifeState, TOGETHER_IDS, track } from '../_shared/together.ts';
+import { getActiveConversation } from '../_shared/together-conversation.ts';
 
 const schema = z.object({
   ageConfirmed: z.literal(true),
@@ -40,8 +41,7 @@ serve(async (request, correlationId) => {
   if (!maya) throw new AppError('INTERNAL_ERROR', 'Maya could not enter City Life.', 500, true);
   await db.from('together_profiles').update({ active_companion_instance_id: maya.id, updated_at: now }).eq('user_id', user.id).is('active_companion_instance_id', null);
 
-  const { data: conversation } = await db.from('together_conversations').select('id').eq('user_id', user.id).eq('character_instance_id', maya.id).is('archived_at', null).maybeSingle();
-  if (!conversation) await db.from('together_conversations').insert({ user_id: user.id, character_instance_id: maya.id, kind: 'first_meeting', title: 'Juniper Café' });
+  await getActiveConversation(db, user.id, maya.id, true);
   const { data: dateTemplates } = await db.from('together_date_templates').select('id').eq('active', true);
   for (const template of dateTemplates ?? []) await db.from('together_date_sessions').upsert({ user_id: user.id, character_instance_id: maya.id, date_template_id: template.id, status: String(template.id) === TOGETHER_IDS.dinner ? 'locked' : 'locked' }, { onConflict: 'user_id,character_instance_id,date_template_id', ignoreDuplicates: true });
   await db.from('together_notification_preferences').upsert({ user_id: user.id }, { onConflict: 'user_id', ignoreDuplicates: true });

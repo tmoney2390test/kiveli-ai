@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
 import { resolveLifeState, TOGETHER_IDS, track } from './together.ts';
 import { progressStoryArcs, rankEventTemplates } from './together-content.ts';
+import { getActiveConversation } from './together-conversation.ts';
 
 type LifeRunInput = { db: SupabaseClient; userId: string; characterInstanceId?: string; now?: Date; evaluateProactive?: boolean; trigger: 'conversation_continued' | 'home_opened' | 'scheduled_dispatch' };
 type EventRow = Record<string, any>;
@@ -23,7 +24,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
     db.from('together_schedule_templates').select('*,together_locations(name)').eq('character_version_id', instance.character_version_id),
     db.from('together_event_templates').select('*').eq('active', true).contains('participant_template_ids', [instance.character_template_id]),
     db.from('together_relationship_states').select('*').eq('character_instance_id', instance.id).single(),
-    db.from('together_conversations').select('id,last_message_at').eq('character_instance_id', instance.id).eq('user_id', userId).order('last_message_at', { ascending: false, nullsFirst: false }).limit(1).maybeSingle(),
+    getActiveConversation(db, userId, instance.id, true).then((data) => ({ data, error: null })),
     db.from('together_notification_preferences').select('*').eq('user_id', userId).maybeSingle(),
     db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id', userId).maybeSingle(),
     db.from('together_life_events').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).gte('starts_at', recentCutoff).order('starts_at', { ascending: false }).limit(20),

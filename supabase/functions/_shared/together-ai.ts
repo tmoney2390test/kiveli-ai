@@ -34,7 +34,7 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
     const response = await fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: model('KIVELLE_DIALOGUE_MODEL', model('TOGETHER_DIALOGUE_MODEL', 'gpt-5-mini')), input: buildCompanionPrompt(context), max_output_tokens: responseTokenBudget(context) }) });
     if (!response.ok) {
       console.warn('Together dialogue provider failed', response.status, await response.text());
-      if (response.status === 429) throw new AppError('RATE_LIMITED', 'Maya needs a moment before replying.', 429, true);
+      if (response.status === 429) throw new AppError('RATE_LIMITED', 'Your companion needs a moment before replying.', 429, true);
       return fallbackDialogue(context);
     }
     const data = await response.json();
