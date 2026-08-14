@@ -61,11 +61,11 @@ export function describeRelationshipCue(state: Record<string, unknown>): { label
   return { label: 'A first impression', detail: 'Your shared story is just beginning.', tone: 'steady' };
 }
 
-export function nextDatePhase(current: string): { phase: string; index: number; completed: boolean } {
-  const index = phaseOrder.indexOf(current as typeof phaseOrder[number]);
+export function nextDatePhase(current: string, phases: Array<{ id: string }> = phaseOrder.map((id) => ({ id }))): { phase: string; index: number; completed: boolean } {
+  const index = phases.findIndex((phase) => phase.id === current);
   if (index < 0) throw new AppError('VALIDATION_FAILED', 'This date is in an invalid phase.', 400);
-  if (index === phaseOrder.length - 1) return { phase: 'resolution', index, completed: true };
-  return { phase: phaseOrder[index + 1]!, index: index + 1, completed: index + 1 === phaseOrder.length - 1 };
+  if (index === phases.length - 1) return { phase: phases[index]!.id, index, completed: true };
+  return { phase: phases[index + 1]!.id, index: index + 1, completed: index + 1 === phases.length - 1 };
 }
 
 export function resolveLifeState(rows: Array<Record<string, unknown>>, now = new Date()): { locationId: string; location: string; activity: string; availability: string; mood: string; energy: string } {
@@ -159,7 +159,7 @@ export async function track(db: SupabaseClient, userId: string, eventName: strin
 }
 
 export async function buildSnapshot(db: SupabaseClient, userId: string): Promise<Record<string, unknown>> {
-  const [profile, worlds, locations, instances, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, proactive, entitlements, preferences] = await Promise.all([
+  const [profile, worlds, locations, instances, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities] = await Promise.all([
     db.from('together_profiles').select('*').eq('user_id', userId).maybeSingle(),
     db.from('together_worlds').select('*').eq('published', true),
     db.from('together_locations').select('*'),
@@ -176,10 +176,13 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
     db.from('together_proactive_messages').select('*').eq('user_id', userId).in('status', ['queued','sent']).lte('eligible_at', new Date().toISOString()).order('eligible_at', { ascending: false }).limit(10),
     db.from('together_entitlements').select('*').eq('user_id', userId).maybeSingle(),
     db.from('together_notification_preferences').select('*').eq('user_id', userId).maybeSingle(),
+    db.from('together_story_arc_instances').select('*,together_story_arc_templates(slug,title,priority,chapters)').eq('user_id', userId).in('status', ['active','paused']).order('updated_at', { ascending: false }),
+    db.from('together_trip_templates').select('*').eq('active', true),
+    db.from('together_photo_opportunities').select('*').eq('active', true),
   ]);
-  const failed = [profile, worlds, locations, instances, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, proactive, entitlements, preferences].find((result) => result.error);
+  const failed = [profile, worlds, locations, instances, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities].find((result) => result.error);
   if (failed?.error) throw new AppError('INTERNAL_ERROR', 'Together could not load your world.', 500, true);
   const stageByInstance = new Map((instances.data ?? []).map((instance) => [instance.id, instance.relationship_stage]));
   const relationshipCues = Object.fromEntries((relationships.data ?? []).map((relationship) => [relationship.character_instance_id, describeRelationshipCue({ ...relationship, relationship_stage: stageByInstance.get(relationship.character_instance_id) })]));
-  return { profile: profile.data, worlds: worlds.data ?? [], locations: locations.data ?? [], characters: instances.data ?? [], schedules: schedules.data ?? [], relationships: relationships.data ?? [], relationshipMilestones: milestones.data ?? [], relationshipCues, dates: dates.data ?? [], moments: moments.data ?? [], memories: memories.data ?? [], openThreads: threads.data ?? [], conversations: conversations.data ?? [], lifeEvents: events.data ?? [], proactiveMessages: proactive.data ?? [], entitlements: entitlements.data, notificationPreferences: preferences.data };
+  return { profile: profile.data, worlds: worlds.data ?? [], locations: locations.data ?? [], characters: instances.data ?? [], schedules: schedules.data ?? [], relationships: relationships.data ?? [], relationshipMilestones: milestones.data ?? [], relationshipCues, dates: dates.data ?? [], moments: moments.data ?? [], memories: memories.data ?? [], openThreads: threads.data ?? [], conversations: conversations.data ?? [], lifeEvents: events.data ?? [], proactiveMessages: proactive.data ?? [], storyArcs: storyArcs.data ?? [], trips: trips.data ?? [], photoOpportunities: photoOpportunities.data ?? [], entitlements: entitlements.data, notificationPreferences: preferences.data };
 }

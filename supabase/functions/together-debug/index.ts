@@ -4,8 +4,9 @@ import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { buildSnapshot } from '../_shared/together.ts';
+import { runLifeSimulation } from '../_shared/together-life.ts';
 
-const schema = z.object({ action: z.enum(['inspect','adjust_relationship']), characterInstanceId: z.string().uuid().optional(), changes: z.record(z.string(), z.number()).optional() });
+const schema = z.object({ action: z.enum(['inspect','adjust_relationship','content_inspect','simulate_content']), characterInstanceId: z.string().uuid().optional(), changes: z.record(z.string(), z.number()).optional(), days: z.number().int().min(1).max(30).optional() });
 
 serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
@@ -18,6 +19,22 @@ serve(async (request, correlationId) => {
     const changes = Object.fromEntries(Object.entries(input.changes).filter(([key]) => permitted.includes(key)).map(([key,value]) => [key, Math.max(0, Math.min(100, Math.round(value)))]));
     const { error } = await db.from('together_relationship_states').update({ ...changes, updated_at: new Date().toISOString() }).eq('character_instance_id', input.characterInstanceId).eq('user_id', user.id);
     if (error) throw new AppError('INTERNAL_ERROR', 'Debug adjustment failed.', 500);
+  }
+  if (input.action === 'simulate_content') {
+    if (!input.characterInstanceId) throw new AppError('VALIDATION_FAILED', 'Choose a character to simulate.', 400);
+    const days = input.days ?? 1;
+    const { data: instance } = await db.from('together_character_instances').select('last_event_simulated_at,last_simulated_at').eq('id', input.characterInstanceId).eq('user_id', user.id).single();
+    let cursor = new Date(instance?.last_event_simulated_at ?? instance?.last_simulated_at ?? new Date().toISOString());
+    for (let day = 0; day < days; day++) { cursor = new Date(cursor.getTime() + 24 * 3600000); await runLifeSimulation({ db, userId: user.id, characterInstanceId: input.characterInstanceId, now: cursor, evaluateProactive: false, trigger: 'conversation_continued' }); }
+  }
+  if (input.action === 'content_inspect') {
+    const [templates, arcs, activeArcs, usage] = await Promise.all([
+      db.from('together_event_templates').select('id,name,category,tone,scale,content_level,probability,significance,active').eq('active', true).order('category').limit(500),
+      db.from('together_story_arc_templates').select('slug,title,priority,chapters,cooldown_days').eq('active', true).order('priority'),
+      input.characterInstanceId ? db.from('together_story_arc_instances').select('*').eq('user_id', user.id).eq('character_instance_id', input.characterInstanceId).order('updated_at', { ascending: false }) : Promise.resolve({ data: [] }),
+      input.characterInstanceId ? db.from('together_content_usage').select('*').eq('user_id', user.id).eq('character_instance_id', input.characterInstanceId).order('used_at', { ascending: false }).limit(50) : Promise.resolve({ data: [] }),
+    ]);
+    return json({ data: { templates: templates.data ?? [], arcs: arcs.data ?? [], activeArcs: activeArcs.data ?? [], recentUsage: usage.data ?? [] }, correlationId }, 200, correlationId);
   }
   const snapshot = await buildSnapshot(db, user.id);
   return json({ data: { ...snapshot, aiContext: { note: 'Structured context preview. Credentials and provider secrets are intentionally excluded.' } }, correlationId }, 200, correlationId);

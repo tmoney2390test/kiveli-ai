@@ -20,6 +20,23 @@ export interface CharacterLifeState{location:string;activity:string;availability
 export interface LifeEventTemplate{id:string;title:string;type:string;significance:number;location:string;participants:string[];proactiveEligible:boolean;summary:string}
 export interface SimulatedLifeEvent extends LifeEventTemplate{occurredAt:string;userVisible:boolean}
 
+export const lifeEventCategories=['ordinary','work','social','relationship','family','personal','discovery','celebration','conflict','opportunity','setback','health','weather','world','romance','intimacy','travel'] as const;
+export type LifeEventCategory=typeof lifeEventCategories[number];
+export const eventTones=['mundane','funny','positive','awkward','stressful','exciting','romantic','emotional','surprising'] as const;
+export type EventTone=typeof eventTones[number];
+export const eventScales=['micro','normal','meaningful','major'] as const;
+export type EventScale=typeof eventScales[number];
+export const contentLevels=['standard','romance','mature','explicit'] as const;
+export type ContentLevel=typeof contentLevels[number];
+export interface ContentConditions{minRelationshipStage?:RelationshipStage;maxRelationshipStage?:RelationshipStage;minMetrics?:Partial<RelationshipMetrics>;maxConflict?:number;requiredCharactersIntroduced?:string[];requiredLocations?:string[];requiredMemories?:string[];requiredArcState?:string;timeOfDay?:string[];daysOfWeek?:number[];contentMode?:ContentLevel[];cooldownDays?:number}
+export interface ContentEffects{relationship?:Partial<RelationshipMetrics>;mood?:Record<string,number>;availability?:string;createMoment?:boolean;openThread?:{topic:string;importance?:number};unlockContent?:string[];beginArc?:string;advanceArc?:string;photoOpportunity?:string}
+export interface RichLifeEventTemplate extends LifeEventTemplate{category:LifeEventCategory;tone:EventTone;scale:EventScale;contentLevel:ContentLevel;conditions?:ContentConditions;effects?:ContentEffects;locationTags?:string[];narrativeSeed?:string;followups?:string[]}
+export interface StoryArcChapter{id:string;title:string;triggerConditions?:ContentConditions;eventTemplateIds?:string[];possibleNextChapterIds?:string[];userVisibility:'hidden'|'contextual'|'visible';mayTriggerProactiveMessage:boolean;mayCreateMoment:boolean;narrativeSeed:string;minimumHoursBeforeNext?:number}
+export interface StoryArcTemplate{id:string;slug:string;title:string;category:string;eligibleCharacters:string[];minRelationshipStage?:RelationshipStage;prerequisites?:ContentConditions;chapters:StoryArcChapter[];cooldownDays?:number;repeatable:boolean;priority:'minor'|'major'}
+export interface ActiveStoryArc{id:string;templateId:string;currentChapterId:string;status:'active'|'paused'|'completed';nextEligibleAt?:string;startedAt:string;completedAt?:string}
+export interface ContentSelectionContext{now:Date;relationship:RelationshipState;characterSlug:string;locationTags:string[];contentMode:ContentLevel;recentTemplateIds:string[];recentCategories:LifeEventCategory[];activeArcIds:string[];seed:string}
+export interface ScoredContentCandidate{template:RichLifeEventTemplate;score:number;reasons:string[]}
+
 export const datePhases=['arrival','ordering','early_conversation','personal_conversation','unexpected_moment','dessert','after_date','resolution'] as const;
 export type DatePhase=typeof datePhases[number];
 export interface DateSessionState{id:string;phase:DatePhase;phaseIndex:number;status:'upcoming'|'active'|'completed'|'deferred';choices:string[]}

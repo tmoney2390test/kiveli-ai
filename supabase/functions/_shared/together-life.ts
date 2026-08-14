@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
 import { resolveLifeState, TOGETHER_IDS, track } from './together.ts';
+import { progressStoryArcs, rankEventTemplates } from './together-content.ts';
 
 type LifeRunInput = { db: SupabaseClient; userId: string; characterInstanceId?: string; now?: Date; evaluateProactive?: boolean; trigger: 'conversation_continued' | 'home_opened' | 'scheduled_dispatch' };
 type EventRow = Record<string, any>;
@@ -18,21 +19,24 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const lastEventSimulation = new Date(instance.last_event_simulated_at ?? instance.created_at ?? now.toISOString());
   const eventSimulationStart = Number.isNaN(lastEventSimulation.getTime()) || lastEventSimulation > now ? now : lastEventSimulation;
   const recentCutoff = new Date(now.getTime() - 72 * 3600000).toISOString();
-  const [schedules, templates, relationship, latestConversation, preferences, recentEvents, recentProactive, memories, allInstances] = await Promise.all([
+  const [schedules, templates, relationship, latestConversation, preferences, profile, recentEvents, recentProactive, memories, allInstances] = await Promise.all([
     db.from('together_schedule_templates').select('*,together_locations(name)').eq('character_version_id', instance.character_version_id),
     db.from('together_event_templates').select('*').eq('active', true).contains('participant_template_ids', [instance.character_template_id]),
     db.from('together_relationship_states').select('*').eq('character_instance_id', instance.id).single(),
     db.from('together_conversations').select('id,last_message_at').eq('character_instance_id', instance.id).eq('user_id', userId).order('last_message_at', { ascending: false, nullsFirst: false }).limit(1).maybeSingle(),
     db.from('together_notification_preferences').select('*').eq('user_id', userId).maybeSingle(),
+    db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id', userId).maybeSingle(),
     db.from('together_life_events').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).gte('starts_at', recentCutoff).order('starts_at', { ascending: false }).limit(20),
     db.from('together_proactive_messages').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).order('created_at', { ascending: false }).limit(10),
     db.from('together_memories').select('canonical_text,memory_type,pinned,importance,sensitivity_category').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status', 'active').neq('sensitivity_category', 'sensitive').order('pinned', { ascending: false }).order('importance', { ascending: false }).limit(8),
     db.from('together_character_instances').select('id,character_template_id').eq('user_id', userId),
   ]);
   if (relationship.error) throw new AppError('INTERNAL_ERROR', 'Relationship state is unavailable.', 500, true);
+  await unlockEligibleDateSessions(db, userId, instance, relationship.data, now);
 
   const scheduleState = resolveLifeState((schedules.data ?? []) as Array<Record<string, unknown>>, now);
-  const eventCandidates = simulateEvents ? selectEventCandidates(eventSimulationStart, now, templates.data ?? [], String(instance.simulation_seed), recentEvents.data ?? [], schedules.data ?? []) : [];
+  const requestedContentMode = profile.data?.age_verified_at ? String(profile.data?.content_preferences?.contentMode ?? 'standard') : 'standard';
+  const eventCandidates = simulateEvents ? selectEventCandidates(eventSimulationStart, now, templates.data ?? [], String(instance.simulation_seed), recentEvents.data ?? [], schedules.data ?? [], relationship.data, instance.current_location_id, requestedContentMode) : [];
   const instanceByTemplate = new Map((allInstances.data ?? []).map((item) => [String(item.character_template_id), String(item.id)]));
   const created: EventRow[] = [];
   for (const candidate of eventCandidates) {
@@ -44,7 +48,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
       event_template_id: template.id,
       simulation_key: candidate.simulationKey,
       event_type: template.event_type,
-      title: template.name,
+      title: template.metadata?.display_title ?? template.name,
       narrative_summary: template.narrative_summary,
       participant_instance_ids: participantIds.length ? participantIds : [instance.id],
       location_id: template.default_location_id,
@@ -54,9 +58,17 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
       resulting_state_changes: template.state_effects,
       user_should_know: template.user_visibility !== 'hidden',
       proactive_message_appropriate: template.proactive_eligible,
-      metadata: { source: trigger, probability: template.probability },
+      metadata: { source: trigger, probability: template.probability, category: template.category ?? template.event_type, tone: template.tone ?? 'mundane', scale: template.scale ?? 'normal', content_level: template.content_level ?? 'standard', content_template_name: template.name },
     }, { onConflict: 'character_instance_id,simulation_key', ignoreDuplicates: true }).select('*').maybeSingle();
-    if (!error && data) created.push(data);
+    if (!error && data) {
+      created.push(data);
+      await db.from('together_content_usage').insert({ user_id: userId, character_instance_id: instance.id, content_kind: 'event', content_key: String(template.id), used_at: candidate.occurredAt, metadata: { category: template.category ?? template.event_type } });
+    }
+  }
+  if (simulateEvents) {
+    const arcEvents = await progressStoryArcs({ db, userId, instance, relationship: relationship.data, now, seed: String(instance.simulation_seed) }).catch((error) => { console.warn('Together story arc progression unavailable', error instanceof Error ? error.message : 'unknown_error'); return [] as EventRow[]; });
+    created.push(...arcEvents);
+    for (const event of arcEvents) await db.from('together_content_usage').insert({ user_id: userId, character_instance_id: instance.id, content_kind: 'arc', content_key: String(event.metadata?.arc_slug ?? event.story_arc_instance_id ?? event.id), used_at: event.starts_at, metadata: { chapter_id: event.metadata?.chapter_id } });
   }
 
   const influential = [...created, ...(recentEvents.data ?? [])].filter((event) => now.getTime() - new Date(event.starts_at).getTime() <= 6 * 3600000).sort((a, b) => Number(b.significance) - Number(a.significance))[0];
@@ -150,7 +162,7 @@ async function sendPushNotifications(db: SupabaseClient, userId: string, charact
   } catch (error) { console.warn('Together push delivery unavailable', error instanceof Error ? error.message : 'unknown_error'); }
 }
 
-function selectEventCandidates(last: Date, now: Date, templates: EventRow[], seed: string, recent: EventRow[], schedules: EventRow[]): Array<{ template: EventRow; occurredAt: string; simulationKey: string }> {
+function selectEventCandidates(last: Date, now: Date, templates: EventRow[], seed: string, recent: EventRow[], schedules: EventRow[], relationship: EventRow, locationId?: string | null, contentMode = 'standard'): Array<{ template: EventRow; occurredAt: string; simulationKey: string }> {
   if (!templates.length || now <= last) return [];
   const output: Array<{ template: EventRow; occurredAt: string; simulationKey: string }> = [];
   const recentTemplateDates = new Map(recent.map((item) => [String(item.event_template_id), new Date(item.starts_at).getTime()]));
@@ -160,11 +172,13 @@ function selectEventCandidates(last: Date, now: Date, templates: EventRow[], see
   while (cursor <= lastDay && inspected++ < 31) {
     const day = cursor.toISOString().slice(0, 10);
     if (cursor <= now) {
-      const ranked = [...templates].sort((a, b) => stableHash(`${seed}:${day}:${a.id}`) - stableHash(`${seed}:${day}:${b.id}`));
+      const ranked = rankEventTemplates({ templates, relationship, recentEvents: recent, now: cursor, seed: `${seed}:${day}`, contentMode, locationId });
       const selected = ranked.find((template) => {
+        const occurred = scheduledOccurrence(cursor, template, schedules, seed);
         const repeatedRecently = recentTemplateDates.has(String(template.id)) && occurred.getTime() - Number(recentTemplateDates.get(String(template.id))) < 72 * 3600000;
         const roll = (stableHash(`${seed}:chance:${day}:${template.id}`) % 10000) / 10000;
-        return !repeatedRecently && Number(template.significance) >= .45 && roll < Number(template.probability ?? 0);
+        const probability = Number(template.probability ?? 0) * (template.scale === 'micro' ? 1.15 : 1);
+        return !repeatedRecently && roll < probability;
       });
       if (selected) {
         const occurred = scheduledOccurrence(cursor, selected, schedules, seed);
@@ -231,3 +245,20 @@ function parseMinute(value: string): number { const [hour = '0', minute = '0'] =
 function localMinute(now: Date, timezone: string): number { try { const parts = new Intl.DateTimeFormat('en-US', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now); return Number(parts.find((part) => part.type === 'hour')?.value ?? 0) * 60 + Number(parts.find((part) => part.type === 'minute')?.value ?? 0); } catch { return now.getUTCHours() * 60 + now.getUTCMinutes(); } }
 function memoryCallback(memory: string): string { return memory.replace(/^User's\s+/i, 'your ').replace(/^User\s+(?:likes|dislikes|feels|has|is)\s+/i, '').replace(/[.!]$/, '').slice(0, 80); }
 function stableHash(value: string): number { let hash = 2166136261; for (const char of value) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); } return hash >>> 0; }
+
+async function unlockEligibleDateSessions(db: SupabaseClient, userId: string, instance: EventRow, relationship: EventRow, now: Date): Promise<void> {
+  const { data: sessions } = await db.from('together_date_sessions').select('id,together_date_templates(unlock_rules)').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status', 'locked');
+  for (const session of sessions ?? []) {
+    const rules = (session.together_date_templates as EventRow | null)?.unlock_rules ?? {};
+    const stages = Array.isArray(rules.allowed_stages) ? rules.allowed_stages : [];
+    const eligible = (!stages.length || stages.includes(instance.relationship_stage)) &&
+      Number(relationship.familiarity ?? 0) >= Number(rules.familiarity ?? 0) &&
+      Number(relationship.trust ?? 0) >= Number(rules.trust ?? 0) &&
+      Number(relationship.attraction ?? 0) >= Number(rules.attraction ?? 0) &&
+      Number(relationship.comfort ?? 0) >= Number(rules.comfort ?? 0) &&
+      Number(relationship.conflict ?? 0) <= Number(rules.max_conflict ?? 45);
+    if (!eligible) continue;
+    const { data } = await db.from('together_date_sessions').update({ status: 'unlocked', updated_at: now.toISOString() }).eq('id', session.id).eq('status', 'locked').select('id').maybeSingle();
+    if (data) await track(db, userId, 'date_unlocked', { dateSessionId: data.id });
+  }
+}

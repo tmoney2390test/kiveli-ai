@@ -8,7 +8,7 @@ import { clampRelationship, nextDatePhase, TOGETHER_IDS, track } from '../_share
 const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('start'), sessionId: z.string().uuid() }),
   z.object({ action: z.literal('defer'), sessionId: z.string().uuid() }),
-  z.object({ action: z.literal('choose'), sessionId: z.string().uuid(), choiceId: z.string().min(1).max(80), choiceText: z.string().min(1).max(160) }),
+  z.object({ action: z.literal('choose'), sessionId: z.string().uuid(), choiceId: z.string().min(1).max(80), choiceText: z.string().min(1).max(1000), freeText: z.boolean().optional() }),
 ]);
 
 serve(async (request, correlationId) => {
@@ -33,30 +33,32 @@ serve(async (request, correlationId) => {
   if (session.status !== 'active') throw new AppError('CONFLICT', 'Start the date before making a choice.', 409);
   const phases = session.together_date_templates.phases as Array<{ id: string; choices: Array<{ id: string; label: string }> }>;
   const phase = phases.find((item) => item.id === session.current_phase);
-  if (!phase?.choices.some((choice) => choice.id === input.choiceId)) throw new AppError('VALIDATION_FAILED', 'That choice is not available in this scene.', 400);
+  const isFreeText = input.choiceId === 'say_something' && input.freeText === true;
+  if (!isFreeText && !phase?.choices.some((choice) => choice.id === input.choiceId)) throw new AppError('VALIDATION_FAILED', 'That choice is not available in this scene.', 400);
   const impacts: Record<string, Record<string, number>> = { 'listen-carefully': { trust: 5, comfort: 4, respect: 4 }, 'share-honestly': { trust: 4, comfort: 5, familiarity: 4 }, 'share-dessert': { attraction: 4, affinity: 3 }, 'riverwalk': { attraction: 5, romantic_interest: 5 }, 'order-rescue': { comfort: 3, affinity: 3 }, 'airport-callback': { familiarity: 3, affinity: 3 } };
   const impact = impacts[input.choiceId] ?? { familiarity: 2, affinity: 2 };
   const { error: choiceError } = await db.from('together_date_choices').insert({ date_session_id: session.id, user_id: user.id, phase: session.current_phase, choice_id: input.choiceId, choice_text: input.choiceText, relationship_impact: impact, narrative_result: narrative(input.choiceId) });
   if (choiceError?.code === '23505') throw new AppError('CONFLICT', 'You already chose in this scene.', 409);
   if (choiceError) throw new AppError('INTERNAL_ERROR', 'Could not save that choice.', 500, true);
-  const next = nextDatePhase(session.current_phase);
-  const state = { ...(session.state ?? {}), [session.current_phase]: input.choiceId };
+  const next = nextDatePhase(session.current_phase, phases);
+  const state = { ...(session.state ?? {}), [session.current_phase]: isFreeText ? { choice: input.choiceId, text: input.choiceText } : input.choiceId };
   if (!next.completed) {
     const { data } = await db.from('together_date_sessions').update({ current_phase: next.phase, phase_index: next.index, state, updated_at: new Date().toISOString() }).eq('id', session.id).select('*,together_date_templates(*)').single();
     return json({ data: { session: data, narrative: narrative(input.choiceId), completed: false }, correlationId }, 200, correlationId);
   }
   const completedAt = new Date().toISOString();
-  await db.from('together_date_sessions').update({ status: 'completed', current_phase: 'resolution', phase_index: 7, state, completed_at: completedAt, updated_at: completedAt }).eq('id', session.id);
+  const templateName = String(session.together_date_templates.name ?? 'Shared date');
+  await db.from('together_date_sessions').update({ status: 'completed', current_phase: next.phase, phase_index: next.index, state, completed_at: completedAt, updated_at: completedAt }).eq('id', session.id);
   const { data: relation } = await db.from('together_relationship_states').select('*').eq('character_instance_id', session.character_instance_id).single();
   const totalImpact = { trust: 7, comfort: 7, attraction: 8, affinity: 7, familiarity: 8, romantic_interest: 6 };
   const changed = clampRelationship(relation ?? {}, totalImpact, 8);
   await db.from('together_relationship_states').update({ ...changed, recent_direction: 'improving', updated_at: completedAt }).eq('character_instance_id', session.character_instance_id);
   await db.from('together_character_instances').update({ relationship_stage: 'dating', updated_at: completedAt }).eq('id', session.character_instance_id).in('relationship_stage', ['friend','flirting']);
-  const { data: memory } = await db.from('together_memories').upsert({ user_id: user.id, character_instance_id: session.character_instance_id, memory_type: 'episodic', canonical_text: 'User and Maya shared their first dinner date at Juniper Café.', dedupe_key: 'episodic:first-dinner-at-juniper', importance: .96, confidence: 1, sensitivity_category: 'none', status: 'active', metadata: { dateSessionId: session.id, choices: state } }, { onConflict: 'character_instance_id,dedupe_key' }).select('id').single();
-  const { data: moment } = await db.from('together_moments').insert({ user_id: user.id, character_instance_id: session.character_instance_id, title: 'First Dinner at Juniper', occurred_at: completedAt, location_id: TOGETHER_IDS.juniper, summary: "Your first real date with Maya. The conversation got deeper, the spicy roll caused trouble, and neither of you seemed eager for the night to end.", participant_instance_ids: [session.character_instance_id], linked_memory_ids: memory ? [memory.id] : [], relationship_impact: totalImpact, media: [{ asset: 'maya-portrait' }], moment_type: 'date' }).select('*').single();
+  const { data: memory } = await db.from('together_memories').upsert({ user_id: user.id, character_instance_id: session.character_instance_id, memory_type: 'episodic', canonical_text: `User and their companion shared ${templateName}.`, dedupe_key: `episodic:${session.date_template_id}`, importance: .96, confidence: 1, sensitivity_category: 'none', status: 'active', metadata: { dateSessionId: session.id, dateTemplateId: session.date_template_id, choices: state } }, { onConflict: 'character_instance_id,dedupe_key' }).select('id').single();
+  const { data: moment } = await db.from('together_moments').insert({ user_id: user.id, character_instance_id: session.character_instance_id, title: templateName, occurred_at: completedAt, location_id: session.together_date_templates.location_id ?? TOGETHER_IDS.juniper, summary: `A shared ${templateName.toLowerCase()} became part of your story together.`, participant_instance_ids: [session.character_instance_id], linked_memory_ids: memory ? [memory.id] : [], relationship_impact: totalImpact, media: [{ asset: 'maya-portrait' }], moment_type: 'date' }).select('*').single();
   await track(db, user.id, 'date_completed', { dateSessionId: session.id });
   if (moment) await track(db, user.id, 'moment_created', { momentId: moment.id, type: 'date' });
-  return json({ data: { session: { ...session, status: 'completed', current_phase: 'resolution', completed_at: completedAt }, narrative: 'The evening settles into one of those memories that already feels like an inside story.', completed: true, moment }, correlationId }, 200, correlationId);
+  return json({ data: { session: { ...session, status: 'completed', current_phase: next.phase, phase_index: next.index, completed_at: completedAt }, narrative: 'The experience settles into one of those memories that already feels like an inside story.', completed: true, moment }, correlationId }, 200, correlationId);
 });
 
 function narrative(choiceId: string): string {

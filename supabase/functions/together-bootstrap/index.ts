@@ -42,7 +42,8 @@ serve(async (request, correlationId) => {
 
   const { data: conversation } = await db.from('together_conversations').select('id').eq('user_id', user.id).eq('character_instance_id', maya.id).is('archived_at', null).maybeSingle();
   if (!conversation) await db.from('together_conversations').insert({ user_id: user.id, character_instance_id: maya.id, kind: 'first_meeting', title: 'Juniper Café' });
-  await db.from('together_date_sessions').upsert({ user_id: user.id, character_instance_id: maya.id, date_template_id: TOGETHER_IDS.dinner, status: 'locked' }, { onConflict: 'user_id,character_instance_id,date_template_id', ignoreDuplicates: true });
+  const { data: dateTemplates } = await db.from('together_date_templates').select('id').eq('active', true);
+  for (const template of dateTemplates ?? []) await db.from('together_date_sessions').upsert({ user_id: user.id, character_instance_id: maya.id, date_template_id: template.id, status: String(template.id) === TOGETHER_IDS.dinner ? 'locked' : 'locked' }, { onConflict: 'user_id,character_instance_id,date_template_id', ignoreDuplicates: true });
   await db.from('together_notification_preferences').upsert({ user_id: user.id }, { onConflict: 'user_id', ignoreDuplicates: true });
   await db.from('together_entitlements').upsert({ user_id: user.id, revenuecat_app_user_id: user.id }, { onConflict: 'user_id', ignoreDuplicates: true });
 

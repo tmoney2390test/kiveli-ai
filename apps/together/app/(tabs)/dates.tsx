@@ -12,9 +12,10 @@ export default function Dates() {
   const snapshot = useTogether((state) => state.snapshot);
   if (!snapshot) return <LoadingSkeleton />;
   const life = buildCompanionLife(snapshot);
-  const dinner = life?.dates[0];
+  const dinner = life?.dates.find((date) => date.together_date_templates.id === '15000000-0000-4000-8000-000000000001') ?? life?.dates[0];
   const unlocked = dinner?.status !== 'locked';
   const companionName = life?.companion.together_character_templates.name ?? 'your companion';
+  const moreDates = life?.dates.filter((date) => date.id !== dinner?.id).sort((left,right) => Number(right.status === 'unlocked') - Number(left.status === 'unlocked')).slice(0, 6) ?? [];
 
   return <Screen>
     <View style={styles.header}><View><PageTitle>Dates</PageTitle><Text style={styles.subtitle}>Shared experiences, remembered.</Text></View><View style={styles.dateCount}><CalendarDays size={16} color={colors.rose} /><Text style={styles.dateCountText}>{dinner?.status === 'completed' ? '1 MEMORY' : '1 POSSIBILITY'}</Text></View></View>
@@ -30,6 +31,8 @@ export default function Dates() {
 
     <SectionHeader title="Past dates" />
     {dinner?.status === 'completed' ? <GlassCard style={styles.memory}><Sparkles size={18} color={colors.rose} /><View style={{ flex: 1 }}><Text style={styles.memoryTitle}>Dinner at Juniper</Text><Body muted>Your first date is now part of your shared history.</Body></View></GlassCard> : <View style={styles.emptyPast}><Text style={styles.emptyPastTitle}>Your first shared night is still ahead.</Text><Text style={styles.emptyPastCopy}>Completed dates become a part of your visual timeline.</Text></View>}
+    <SectionHeader title="More experiences" action={`${life?.dates.length ?? 0} in City Life`} />
+    <View style={styles.moreList}>{moreDates.map((date) => { const isReady = date.status === 'unlocked' || date.status === 'upcoming' || date.status === 'deferred'; return <Pressable key={date.id} disabled={!isReady} onPress={() => router.push(`/date/${date.id}`)} style={({pressed}) => [styles.moreDate, !isReady && styles.moreDateLocked, pressed && isReady && styles.pressed]}><View style={styles.moreIcon}>{isReady ? <Sparkles size={16} color={colors.rose} /> : <LockKeyhole size={15} color={colors.muted} />}</View><View style={{flex:1}}><Text style={styles.moreTitle}>{date.together_date_templates.name}</Text><Text style={styles.moreCopy}>{isReady ? 'Ready when the time feels right.' : 'Unlocks as your shared story grows.'}</Text></View></Pressable>;})}</View>
   </Screen>;
 }
 
@@ -61,4 +64,5 @@ const styles = StyleSheet.create({
   emptyPast: { borderRadius: radius.md, backgroundColor: colors.surface, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
   emptyPastTitle: { color: colors.text, fontWeight: '800' },
   emptyPastCopy: { color: colors.muted, fontSize: 12, marginTop: 4, lineHeight: 18 },
+  moreList:{gap:9},moreDate:{flexDirection:'row',alignItems:'center',gap:11,padding:12,borderRadius:radius.md,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border},moreDateLocked:{opacity:.62},moreIcon:{width:32,height:32,borderRadius:16,backgroundColor:'rgba(241,103,154,.10)',alignItems:'center',justifyContent:'center'},moreTitle:{color:colors.text,fontWeight:'800',fontSize:14},moreCopy:{color:colors.muted,fontSize:11,marginTop:3},
 });
