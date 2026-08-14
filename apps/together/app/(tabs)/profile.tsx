@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { CalendarDays, ChevronRight, Clock3, MapPin, MessageCircle, Sparkles } from 'lucide-react-native';
 import { characterAssets } from '../../src/assets';
-import { Body, EmptyState, GlassCard, GradientButton, LoadingSkeleton, MoodBadge, RelationshipBadge, Screen, SectionHeader } from '../../src/components';
+import { Body, EmptyState, GlassCard, GradientButton, LoadingSkeleton, MediaGallery, MoodBadge, RelationshipBadge, Screen, SectionHeader } from '../../src/components';
 import { colors, radius, spacing } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { buildCompanionLife } from '../../src/lib/companionLife';
@@ -19,6 +19,7 @@ export default function CompanionProfile() {
   const portrait = characterAssets[companion.together_character_versions.portrait_asset_key] ?? characterAssets[template.slug];
   const nextDate = dates.find((date) => date.status !== 'completed');
   const activeStory = activeStories[0];
+  const companionMedia=(snapshot.generatedMedia??[]).filter((item)=>item.character_instance_id===companion.id);
 
   return <Screen contentStyle={{ paddingTop: 0 }}>
     <View style={styles.hero}>
@@ -56,6 +57,9 @@ export default function CompanionProfile() {
       <View style={styles.rule} />
       <Info icon={<CalendarDays size={16} color={colors.warm} />} label="Next experience" value={nextDate?.status === 'locked' ? `${nextDate.together_date_templates.name} · getting closer` : nextDate?.together_date_templates.name ?? 'Nothing planned yet'} />
     </View>
+
+    <SectionHeader title={`${template.name}'s Gallery`} />
+    <MediaGallery media={companionMedia} emptyText={`Photos ${template.name} sends and the ones from your Dates will collect here.`}/>
 
     {activeStory ? <Pressable onPress={() => router.push(`/story/${activeStory.id}` as never)} style={styles.story}><Text style={styles.statusLabel}>CURRENT STORY</Text><Text style={styles.storyTitle}>{activeStory.together_story_arc_templates?.title ?? 'A story in motion'}</Text><Text style={styles.statusCopy}>See what has unfolded so far.</Text><ChevronRight style={styles.storyChevron} size={18} color={colors.rose} /></Pressable> : null}
 

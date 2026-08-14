@@ -23,6 +23,7 @@ export const manageAccount = <T>(input: Record<string, unknown>) => invoke<T>('t
 export const chooseActivity = <T>(activity:'riverwalk'|'open_mic'|'rooftop_movie',choice:'accept'|'defer') => invoke<T>('together-activity',{activity,choice});
 export const resolveRelationshipMilestone = (milestoneId:string,action:'accept'|'defer'|'stay_friends'|'talk_it_out'|'give_space') => invoke<{snapshot:Snapshot}>('together-relationship',{milestoneId,action});
 export const manageConversation = <T>(input: Record<string, unknown>) => invoke<T>('together-conversation', input);
+export const manageMedia = <T>(input: Record<string, unknown>) => invoke<T>('together-media', input);
 
 export async function createTogetherAccount(email: string, password: string): Promise<void> {
   const response = await fetch(`${supabaseUrl}/functions/v1/together-signup`, { method: 'POST', headers: { apikey: supabasePublishableKey, Authorization: `Bearer ${supabasePublishableKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });

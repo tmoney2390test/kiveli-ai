@@ -3,6 +3,7 @@ import { AppError } from './types.ts';
 import { resolveLifeState, TOGETHER_IDS, track } from './together.ts';
 import { progressStoryArcs, rankEventTemplates } from './together-content.ts';
 import { getActiveConversation } from './together-conversation.ts';
+import { kickMediaDispatcher, queueMediaRequest } from './together-media.ts';
 
 type LifeRunInput = { db: SupabaseClient; userId: string; characterInstanceId?: string; now?: Date; evaluateProactive?: boolean; trigger: 'conversation_continued' | 'home_opened' | 'scheduled_dispatch' };
 type EventRow = Record<string, any>;
@@ -69,7 +70,12 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   if (simulateEvents) {
     const arcEvents = await progressStoryArcs({ db, userId, instance, relationship: relationship.data, now, seed: String(instance.simulation_seed) }).catch((error) => { console.warn('Together story arc progression unavailable', error instanceof Error ? error.message : 'unknown_error'); return [] as EventRow[]; });
     created.push(...arcEvents);
-    for (const event of arcEvents) await db.from('together_content_usage').insert({ user_id: userId, character_instance_id: instance.id, content_kind: 'arc', content_key: String(event.metadata?.arc_slug ?? event.story_arc_instance_id ?? event.id), used_at: event.starts_at, metadata: { chapter_id: event.metadata?.chapter_id } });
+    for (const event of arcEvents) {
+      await db.from('together_content_usage').insert({ user_id: userId, character_instance_id: instance.id, content_kind: 'arc', content_key: String(event.metadata?.arc_slug ?? event.story_arc_instance_id ?? event.id), used_at: event.starts_at, metadata: { chapter_id: event.metadata?.chapter_id } });
+      if(event.user_should_know&&Number(event.significance)>=.8){
+        EdgeRuntime.waitUntil(queueMediaRequest(db,{userId,characterInstanceId:String(instance.id),source:'story',lifeEventId:String(event.id),storyArcId:String(event.story_arc_instance_id),idempotencyKey:`story:${event.story_arc_instance_id}:${event.metadata?.chapter_id??event.id}`}).then((media)=>media?kickMediaDispatcher():undefined).catch((error)=>console.warn('Together story photo unavailable',error instanceof Error?error.message:'unknown_error')));
+      }
+    }
   }
 
   const influential = [...created, ...(recentEvents.data ?? [])].filter((event) => now.getTime() - new Date(event.starts_at).getTime() <= 6 * 3600000).sort((a, b) => Number(b.significance) - Number(a.significance))[0];
@@ -150,8 +156,22 @@ async function deliverMessage(db: SupabaseClient, userId: string, instance: Even
     }
   }
   const { data: delivered } = await db.from('together_proactive_messages').update({ status: 'sent', sent_message_id: sentMessageId, updated_at: now.toISOString() }).eq('id', proactive.id).eq('user_id', userId).eq('status', 'queued').select('*').maybeSingle();
+  if (delivered?.life_event_id && sentMessageId && conversation?.id) {
+    const { data: event } = await db.from('together_life_events').select('*').eq('id', delivered.life_event_id).eq('user_id', userId).maybeSingle();
+    if (event && shouldOfferAutomaticPhoto(event)) {
+      try {
+        const media = await queueMediaRequest(db, { userId, characterInstanceId: String(instance.id), source: 'life_event', conversationId: String(conversation.id), messageId: sentMessageId, lifeEventId: String(event.id), idempotencyKey: `life:${event.id}` });
+        if (media) EdgeRuntime.waitUntil(kickMediaDispatcher());
+      } catch (error) { console.warn('Together contextual life photo unavailable', error instanceof Error ? error.message : 'unknown_error'); }
+    }
+  }
   if (delivered && prefs.push_enabled) await sendPushNotifications(db, userId, String((instance.together_character_templates as EventRow | undefined)?.name ?? 'Maya'), delivered);
   return delivered ?? proactive;
+}
+
+function shouldOfferAutomaticPhoto(event:EventRow):boolean {
+  if(!event.user_should_know||Number(event.significance??0)<.58)return false;
+  return /coffee|caf[eé]|photo|shoot|rooftop|movie|gallery|birthday|trip|riverwalk|concert|open mic|outfit/i.test(`${event.title} ${event.narrative_summary}`);
 }
 
 async function sendPushNotifications(db: SupabaseClient, userId: string, characterName: string, proactive: EventRow): Promise<void> {

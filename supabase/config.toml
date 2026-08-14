@@ -54,3 +54,7 @@ verify_jwt = false
 verify_jwt = false
 [functions.together-conversation]
 verify_jwt = false
+[functions.together-media]
+verify_jwt = false
+[functions.together-media-dispatch]
+verify_jwt = false

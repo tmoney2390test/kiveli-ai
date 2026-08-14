@@ -8,6 +8,7 @@ import { classifyContent, routeDialogueProvider } from '../_shared/kivelle-intel
 import { clampRelationship, mergeConversationSummary, nextRelationshipMilestone, resolveLifeState, TOGETHER_IDS, track } from '../_shared/together.ts';
 import { runLifeSimulation } from '../_shared/together-life.ts';
 import { getActiveConversation } from '../_shared/together-conversation.ts';
+import { kickMediaDispatcher, queueMediaRequest } from '../_shared/together-media.ts';
 
 const schema = z.object({ conversationId: z.string().uuid(), message: z.string().trim().min(1).max(4000), clientRequestId: z.string().min(8).max(100), characterInstanceId: z.string().uuid() });
 const dialogue = new ConfiguredDialogueProvider();
@@ -60,7 +61,7 @@ Deno.serve(async (request) => {
       console.error(JSON.stringify({ level: 'error', correlationId, operation: 'lazy_conversation_simulation', message: error instanceof Error ? error.message : 'unknown_error' }));
     });
     const queryEmbedding = await embeddings.embed(input.message);
-    const [relationshipResult, milestoneResult, memoriesResult, semanticResult, threadsResult, recentResult, schedulesResult, eventsResult] = await Promise.all([
+    const [relationshipResult, milestoneResult, memoriesResult, semanticResult, threadsResult, recentResult, schedulesResult, eventsResult, mediaResult] = await Promise.all([
       db.from('together_relationship_states').select('*').eq('character_instance_id', input.characterInstanceId).single(),
       db.from('together_relationship_milestones').select('kind,title,body,prompt').eq('character_instance_id', input.characterInstanceId).eq('status', 'pending').maybeSingle(),
       db.from('together_memories').select('*').eq('character_instance_id', input.characterInstanceId).eq('status', 'active').order('pinned', { ascending: false }).order('importance', { ascending: false }).limit(20),
@@ -69,6 +70,7 @@ Deno.serve(async (request) => {
       db.from('together_messages').select('role,content,created_at').eq('conversation_id', input.conversationId).order('created_at', { ascending: false }).limit(18),
       db.from('together_schedule_templates').select('*,together_locations(name)').eq('character_version_id', String(instance.character_version_id)),
       db.from('together_life_events').select('narrative_summary').eq('character_instance_id', input.characterInstanceId).order('starts_at', { ascending: false }).limit(3),
+      db.from('together_generated_media').select('metadata,created_at').eq('user_id', user.id).eq('character_instance_id', input.characterInstanceId).eq('status', 'ready').gte('created_at', new Date(Date.now() - 86400000).toISOString()).order('created_at', { ascending: false }).limit(4),
     ]);
     if (relationshipResult.error) throw new AppError('INTERNAL_ERROR', 'Relationship state is unavailable.', 500, true);
     const life = resolveLifeState((schedulesResult.data ?? []) as Array<Record<string, unknown>>);
@@ -95,6 +97,7 @@ Deno.serve(async (request) => {
       memories: relevantMemoryRows.map((item) => String(item.canonical_text)).slice(0, 10),
       threads: (threadsResult.data ?? []).map((item) => `${item.follow_up_eligible || (item.expected_at && new Date(item.expected_at) <= now) ? 'Eligible follow-up: ' : ''}${item.topic}`),
       social: (eventsResult.data ?? []).map((item) => item.narrative_summary),
+      recentMedia: (mediaResult.data ?? []).map((item) => `${new Date(item.created_at).toLocaleString()}: ${String(item.metadata?.sceneSummary ?? 'A recent shared photo.')}`),
       conversationSummary: typeof conversation.summary === 'string' ? conversation.summary : '',
       recent: (recentResult.data ?? []).reverse().map((item) => ({ role: item.role, content: item.content })),
       userMessage: input.message,
@@ -111,6 +114,7 @@ Deno.serve(async (request) => {
     if (assistantError || !assistantMessage) throw new AppError('INTERNAL_ERROR', `${String(characterTemplate.name ?? 'Your companion')} replied, but the response could not be saved.`, 500, true);
     await safelyApplyConversationEffects(db, user.id, input.characterInstanceId, input.conversationId, userMessage.id, input.message, safeText, relationshipResult.data, String(instance.relationship_stage), correlationId);
     await db.from('together_conversations').update({ last_message_at: assistantMessage.created_at, updated_at: assistantMessage.created_at, kind: conversation.kind === 'first_meeting' ? 'direct' : conversation.kind }).eq('id', input.conversationId);
+    await safelyQueueConversationPhoto(db, user.id, input, String(assistantMessage.id), correlationId);
     await track(db, user.id, 'message_sent', { characterInstanceId: input.characterInstanceId });
     await track(db, user.id, 'character_response_received', { characterInstanceId: input.characterInstanceId });
     return streamText(safeText, assistantMessage, correlationId);
@@ -171,6 +175,7 @@ function streamDialogue({ db, user, input, conversation, instance, relationship,
         if (assistantError || !assistantMessage) throw new AppError('INTERNAL_ERROR', 'Your companion replied, but the response could not be saved.', 500, true);
         await safelyApplyConversationEffects(db, user.id, input.characterInstanceId, input.conversationId, String(userMessage.id), input.message, content, relationship, String(instance.relationship_stage), correlationId);
         await db.from('together_conversations').update({ last_message_at: assistantMessage.created_at, updated_at: assistantMessage.created_at, kind: conversation.kind === 'first_meeting' ? 'direct' : conversation.kind }).eq('id', input.conversationId);
+        await safelyQueueConversationPhoto(db, user.id, input, String(assistantMessage.id), correlationId);
         await track(db, user.id, 'message_sent', { characterInstanceId: input.characterInstanceId });
         await track(db, user.id, 'character_response_received', { characterInstanceId: input.characterInstanceId });
         emit({ type: 'done', message: assistantMessage });
@@ -191,6 +196,15 @@ async function safelyApplyConversationEffects(db: any, userId: string, instanceI
     await applyConversationEffects(db, userId, instanceId, conversationId, sourceMessageId, userText, assistantText, current, stage);
   } catch (error) {
     console.error(JSON.stringify({ level: 'error', correlationId, operation: 'together_continuity', message: error instanceof Error ? error.message : 'Unknown continuity error' }));
+  }
+}
+
+async function safelyQueueConversationPhoto(db:any,userId:string,input:z.infer<typeof schema>,assistantMessageId:string,correlationId:string):Promise<void>{
+  try {
+    const media=await queueMediaRequest(db,{userId,characterInstanceId:input.characterInstanceId,source:'user_request',conversationId:input.conversationId,messageId:assistantMessageId,requestText:input.message,idempotencyKey:`dialogue:${assistantMessageId}`});
+    if(media)EdgeRuntime.waitUntil(kickMediaDispatcher());
+  } catch(error) {
+    console.error(JSON.stringify({level:'warn',operation:'queue_conversation_photo',correlationId,message:error instanceof Error?error.message:'unknown_error'}));
   }
 }
 

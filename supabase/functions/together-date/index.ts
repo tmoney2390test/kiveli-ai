@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { kickMediaDispatcher, queueMediaRequest } from '../_shared/together-media.ts';
 import { authenticated, enforceRateLimit } from '../_shared/context.ts';
 import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
@@ -59,6 +60,7 @@ serve(async (request, correlationId) => {
   const { data: moment } = await db.from('together_moments').insert({ user_id: user.id, character_instance_id: session.character_instance_id, title: templateName, occurred_at: completedAt, location_id: session.together_date_templates.location_id ?? TOGETHER_IDS.juniper, summary: `A shared ${templateName.toLowerCase()} became part of your story together.`, participant_instance_ids: [session.character_instance_id], linked_memory_ids: memory ? [memory.id] : [], relationship_impact: totalImpact, relationship_stage_at_creation: characterInstance?.relationship_stage ?? null, date_session_id: session.id, media: [], moment_type: 'date' }).select('*').single();
   await track(db, user.id, 'date_completed', { dateSessionId: session.id });
   if (moment) await track(db, user.id, 'moment_created', { momentId: moment.id, type: 'date' });
+  if(moment)EdgeRuntime.waitUntil(queueMediaRequest(db,{userId:user.id,characterInstanceId:session.character_instance_id,source:'date',dateSessionId:session.id,momentId:moment.id,idempotencyKey:`date:${session.id}:completion`}).then((media)=>media?kickMediaDispatcher():undefined).catch((error)=>console.warn('Together date photo unavailable',error instanceof Error?error.message:'unknown_error')));
   return json({ data: { session: { ...session, status: 'completed', current_phase: next.phase, phase_index: next.index, completed_at: completedAt }, narrative: 'The experience settles into one of those memories that already feels like an inside story.', completed: true, moment }, correlationId }, 200, correlationId);
 });
 
