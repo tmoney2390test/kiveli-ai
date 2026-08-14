@@ -1,0 +1,10 @@
+node_modules/
+.expo/
+dist/
+dist-*/
+coverage/
+.env
+.env.local
+apps/together/android/
+apps/together/ios/
+apps/together/.together-web-*.log

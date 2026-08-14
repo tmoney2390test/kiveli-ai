@@ -1,0 +1,54 @@
+project_id = "together-ai"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+
+[realtime]
+enabled = true
+
+[auth]
+enabled = true
+site_url = "http://localhost:8082"
+additional_redirect_urls = ["together://auth/callback", "http://localhost:8082/auth/callback", "http://localhost:8082/reset-password"]
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+
+[functions.together-bootstrap]
+verify_jwt = false
+[functions.together-dialogue]
+verify_jwt = false
+[functions.together-memory]
+verify_jwt = false
+[functions.together-date]
+verify_jwt = false
+[functions.together-introduction]
+verify_jwt = false
+[functions.together-simulate]
+verify_jwt = false
+[functions.together-report]
+verify_jwt = false
+[functions.together-debug]
+verify_jwt = false
+[functions.together-notifications]
+verify_jwt = false
+[functions.together-signup]
+verify_jwt = false
+[functions.together-life-dispatch]
+verify_jwt = false
+[functions.together-account]
+verify_jwt = false
+[functions.together-activity]
+verify_jwt = false
+[functions.together-relationship]
+verify_jwt = false

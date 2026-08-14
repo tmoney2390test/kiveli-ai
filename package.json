@@ -1,0 +1,24 @@
+{
+  "name": "together-ai",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.16.0",
+  "engines": { "node": ">=22.13.0" },
+  "scripts": {
+    "web": "pnpm --filter @together/app web",
+    "web:build": "pnpm --filter @together/app web:build",
+    "typecheck": "pnpm --filter @together/app typecheck && pnpm --filter @together/domain typecheck",
+    "test": "pnpm --filter @together/app test && pnpm --filter @together/domain test",
+    "lint": "eslint .",
+    "supabase:test": "supabase test db"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.1",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
+    "supabase": "^2.111.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.47.0"
+  }
+}
