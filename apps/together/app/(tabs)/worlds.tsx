@@ -8,6 +8,7 @@ import { colors, radius, spacing } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { buildCompanionLife, formatScheduleTime } from '../../src/lib/companionLife';
 import { charactersForWorld, locationsForWorld, mediaForWorld, worldAccessLabel, worldForLocation } from '../../src/lib/place';
+import { selectPortraitVersion } from '../../src/lib/selectors';
 
 const router=expoRouter as unknown as {push:(href:string)=>void};
 
@@ -36,7 +37,7 @@ export default function Worlds() {
     {!currentlyHere?<GlassCard style={styles.awayCard}><View style={styles.awayIcon}><MapPin size={18} color={colors.violet}/></View><View style={{flex:1}}><Text style={styles.awayTitle}>{companionName} is currently in {currentWorld?.name??'another world'}</Text><Text style={styles.awayCopy}>You’re browsing {selectedWorld.name}. Exploring a world never moves {companionName} or changes their current day.</Text></View><Pressable onPress={()=>router.push(`/(tabs)/chat-tab?character=${handle}&draft=${encodeURIComponent(`What would you think about visiting ${selectedWorld.name} together?`)}`)} style={styles.visitButton}><Text style={styles.visitText}>Talk about visiting</Text></Pressable></GlassCard>:null}
 
     <SectionHeader title={currentlyHere?'People around you':'People in this world'} action="Explore people" onAction={()=>router.push('/(tabs)/singles')} />
-    {selectedCharacters.length?<GlassCard style={styles.characterCard}>{selectedCharacters.map((character, index) => {const characterWorld=worldForLocation(snapshot,character.current_location_id);const characterHandle=character.together_character_templates.public_handle??character.together_character_templates.slug;return <View key={character.id}>{index > 0 ? <View style={styles.rule} /> : null}<WorldCharacterCard character={character} location={characterWorld?.id===selectedWorld.id?snapshot.locations.find((item) => item.id === character.current_location_id)?.name:`Currently in ${characterWorld?.name??'another world'}`} onPress={() => router.push(`/character/${characterHandle}` as never)} /></View>})}</GlassCard>:<GlassCard><Text style={styles.dayCopy}>No companions are available here yet.</Text></GlassCard>}
+    {selectedCharacters.length?<GlassCard style={styles.characterCard}>{selectedCharacters.map((character, index) => {const characterWorld=worldForLocation(snapshot,character.current_location_id);const characterHandle=character.together_character_templates.public_handle??character.together_character_templates.slug;return <View key={character.id}>{index > 0 ? <View style={styles.rule} /> : null}<WorldCharacterCard character={character} portraitVersion={selectPortraitVersion(snapshot,character)} location={characterWorld?.id===selectedWorld.id?snapshot.locations.find((item) => item.id === character.current_location_id)?.name:`Currently in ${characterWorld?.name??'another world'}`} onPress={() => router.push(`/character/${characterHandle}` as never)} /></View>})}</GlassCard>:<GlassCard><Text style={styles.dayCopy}>No companions are available here yet.</Text></GlassCard>}
 
     {currentlyHere?<>
       <SectionHeader title={`${companionName}'s day`} action="See profile" onAction={() => router.push(`/character/${handle}` as never)} />
