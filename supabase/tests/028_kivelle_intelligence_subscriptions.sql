@@ -13,10 +13,10 @@ select has_table('public','together_credit_ledger','Every credit mutation has a 
 select has_column('public','together_credit_ledger','idempotency_key','Credit mutations are idempotent');
 select ok((select relrowsecurity from pg_class where oid='public.together_credit_accounts'::regclass),'Credit accounts use RLS');
 select ok((select relrowsecurity from pg_class where oid='public.together_credit_ledger'::regclass),'Credit ledger uses RLS');
-select has_function('public','kivelle_grant_permanent_credits',array['uuid','integer','text','text','text','text','jsonb'],'Permanent credit grants are atomic');
-select has_function('public','kivelle_grant_subscription_credits',array['uuid','integer','integer','text','text','jsonb'],'Subscription grants enforce rollover caps atomically');
-select has_function('public','kivelle_spend_credits',array['uuid','integer','text','text','text','jsonb'],'Credit spending is atomic');
-select has_function('public','kivelle_refund_credit_transaction',array['uuid','uuid','text','jsonb'],'Credit refunds restore the original buckets');
+select ok(to_regprocedure('public.kivelle_grant_permanent_credits(uuid,integer,text,text,text,text,jsonb)') is not null,'Permanent credit grants are atomic');
+select ok(to_regprocedure('public.kivelle_grant_subscription_credits(uuid,integer,integer,text,text,jsonb)') is not null,'Subscription grants enforce rollover caps atomically');
+select ok(to_regprocedure('public.kivelle_spend_credits(uuid,integer,text,text,text,jsonb)') is not null,'Credit spending is atomic');
+select ok(to_regprocedure('public.kivelle_refund_credit_transaction(uuid,uuid,text,jsonb)') is not null,'Credit refunds restore the original buckets');
 select ok(exists(select 1 from pg_constraint where conrelid='public.together_credit_ledger'::regclass and contype='u' and pg_get_constraintdef(oid) ilike '%user_id%idempotency_key%'),'Credit ledger prevents duplicate user/idempotency mutations');
 select ok(exists(select 1 from pg_constraint where conrelid='public.together_entitlements'::regclass and pg_get_constraintdef(oid) ilike '%kivelle_plus%' and pg_get_constraintdef(oid) ilike '%kivelle_max%'),'Entitlement tier constraint recognizes the three Kivelle tiers');
 select has_column('public','together_entitlements','billing_provider','Entitlements can record the authoritative billing provider');
