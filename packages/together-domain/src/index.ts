@@ -13,3 +13,4 @@ export*from'./personas';
 export*from'./content';
 export*from'./media';
 export*from'./conversation';
+export*from'./prompting';
