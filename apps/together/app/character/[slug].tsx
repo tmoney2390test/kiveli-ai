@@ -48,7 +48,7 @@ export default function CharacterProfile(){
       {error?<Text style={styles.error}>{error}</Text>:null}
       {canTalk?<GradientButton disabled={busy} label={busy?'Opening your story…':instance?`Talk to ${template.name}`:`Meet ${template.name}`} onPress={()=>void act()}/>:<View style={styles.notMet}><MapPin size={18} color={colors.muted}/><Text style={styles.notMetText}>You haven’t been introduced yet. Their story will unfold through people, places, and events in their world.</Text></View>}
       {known&&instance&&!active&&selectable?<Pressable disabled={busy} onPress={async()=>{setBusy(true);try{setSnapshot(await setActiveCompanion(instance.id,'discover_profile'));}finally{setBusy(false);}}} style={styles.secondary}><Check size={16} color={colors.rose}/><Text style={styles.secondaryText}>Make {template.name} active on Home</Text></Pressable>:null}
-      {known&&instance?<View style={styles.links}><Pressable onPress={()=>router.push(`/memories?character=${handle}` as never)}><Text style={styles.link}>What {template.name} remembers</Text></Pressable><Pressable onPress={()=>router.push('/(tabs)/moments')}><Text style={styles.link}>Shared moments</Text></Pressable></View>:null}
+      {known&&instance?<View style={styles.links}><Pressable onPress={()=>router.push(`/memories?character=${handle}` as never)}><Text style={styles.link}>What {template.name} remembers</Text></Pressable><Pressable onPress={()=>router.push(`/(tabs)/moments?character=${handle}` as never)}><Text style={styles.link}>Shared moments</Text></Pressable></View>:null}
     </View>
   </Screen>;
 }
