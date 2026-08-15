@@ -1,14 +1,16 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router as expoRouter } from 'expo-router';
-import { CalendarDays, ChevronRight, Coffee, Heart, Sparkles, UserRound } from 'lucide-react-native';
+import { CalendarDays, ChevronRight, Coffee, Heart, MessageCircle, Sparkles, UserRound } from 'lucide-react-native';
 import { ActionTile, CharacterHero, CompanionSwitcher, EmptyState, ErrorState, GlassCard, GradientButton, LoadingSkeleton, MessagePreview, MomentCarousel, Screen, SectionHeader } from '../../src/components';
 import { colors, radius, spacing } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { markProactiveOpened } from '../../src/lib/api';
 import { buildCompanionLife, formatScheduleTime } from '../../src/lib/companionLife';
 import { worldForLocation } from '../../src/lib/place';
+import { selectPortraitVersion } from '../../src/lib/selectors';
 
 const router=expoRouter as unknown as {push:(href:string)=>void};
+type HomeFocus={kind:'choice'|'active'|'message'|'story'|'next';kicker:string;title:string;body:string;action:string;route:string;entityId?:string};
 
 export default function Home() {
   const { snapshot, loading, error, refresh } = useTogether();
@@ -20,20 +22,26 @@ export default function Home() {
   if (!life) return <Screen contentStyle={styles.emptyLife}><EmptyState title={`Start ${snapshot.activePersona?.display_name ?? 'your'}'s Kivelle Life`} body="Meet an official companion or create someone original. This Life will keep its own relationships, memories, plans, and history."/><GradientButton label="Choose who to meet" onPress={()=>router.push('/(tabs)/singles')}/></Screen>;
   const { companion, relationshipDay, location: currentLocation, recentEvents, upcomingSchedule, proactiveMessages, dates } = life;
   const name = companion.together_character_templates.name;
+  const handle=companion.together_character_templates.public_handle??companion.together_character_templates.slug;
+  const portraitVersion=selectPortraitVersion(snapshot,companion);
   const currentWorld=worldForLocation(snapshot,companion.current_location_id);const location = currentLocation?.name ?? currentWorld?.name ?? 'Current place';
   const relationshipCue = snapshot.relationshipCues?.[companion.id];
   const pendingMilestone = snapshot.relationshipMilestones?.find((item) => item.character_instance_id === companion.id);
-  const latestProactive = proactiveMessages[0];
-  const latest = latestProactive?.content ?? recentEvents[0]?.narrative_summary ?? `${name} is waiting to hear how your day is going.`;
-  const latestSourceTitle=latestProactive?`New from ${name}`:recentEvents[0]?`${name}'s day`:'Continue your conversation';
+  const latestProactive = proactiveMessages.find((item)=>item.status==='sent')??proactiveMessages[0];
   const catchUpEvents = recentEvents.filter((event) => Date.now() - new Date(event.starts_at).getTime() < 72 * 3600000).slice(0, 2);
-  const date = dates[0];
-  const plannedDate = dates.find((item) => ['active', 'upcoming', 'unlocked', 'deferred'].includes(item.status));
-  const sharedPlan = (snapshot.sharedPlans??[]).filter((plan)=>plan.character_instance_id===companion.id&&(plan.status==='active'||plan.status==='scheduled'&&new Date(plan.starts_at).getTime()>Date.now())).sort((left,right)=>new Date(left.starts_at).getTime()-new Date(right.starts_at).getTime())[0];
-  const openCompanion = async () => {
-    if (latestProactive?.status === 'sent') await markProactiveOpened(latestProactive.id).catch(() => undefined);
-    router.push('/(tabs)/chat-tab');
-  };
+  const activeDate=dates.find((item)=>item.status==='active');
+  const nextDate=dates.filter((item)=>item.status==='upcoming'&&item.scheduled_for&&new Date(item.scheduled_for).getTime()>Date.now()).sort((a,b)=>new Date(a.scheduled_for!).getTime()-new Date(b.scheduled_for!).getTime())[0];
+  const activePlan=(snapshot.sharedPlans??[]).find((plan)=>plan.character_instance_id===companion.id&&(plan.status==='active'||plan.status==='scheduled'&&new Date(plan.starts_at)<=new Date()&&new Date(plan.ends_at)>new Date()));
+  const nextPlan=(snapshot.sharedPlans??[]).filter((plan)=>plan.character_instance_id===companion.id&&plan.status==='scheduled'&&new Date(plan.starts_at).getTime()>Date.now()).sort((left,right)=>new Date(left.starts_at).getTime()-new Date(right.starts_at).getTime())[0];
+  const activeStory=(snapshot.storyArcs??[]).find((arc)=>arc.character_instance_id===companion.id&&arc.status==='active');
+  const focus:HomeFocus|undefined=pendingMilestone?{kind:'choice',kicker:'YOUR CHOICE IS WAITING',title:pendingMilestone.title,body:pendingMilestone.body,action:'Continue in Chat',route:'/(tabs)/chat-tab'}:activeDate?{kind:'active',kicker:'TOGETHER NOW',title:activeDate.together_date_templates.name,body:`Continue your shared experience with ${name}.`,action:'Continue date',route:`/date/${activeDate.id}`,entityId:activeDate.id}:activePlan?{kind:'active',kicker:'TOGETHER NOW',title:activePlan.title,body:`You and ${name} are together at ${snapshot.locations.find((item)=>item.id===activePlan.location_id)?.name??location}.`,action:'View plan',route:`/plan/${activePlan.id}`,entityId:activePlan.id}:latestProactive?{kind:'message',kicker:`NEW FROM ${name.toUpperCase()}`,title:'They reached out',body:latestProactive.content,action:`Reply to ${name}`,route:'/(tabs)/chat-tab'}:activeStory?{kind:'story',kicker:'STORY DEVELOPING',title:activeStory.together_story_arc_templates?.title??'Something is unfolding',body:`A new part of ${name}'s life is in motion.`,action:'See what is happening',route:`/story/${activeStory.id}`,entityId:activeStory.id}:nextPlan?{kind:'next',kicker:'NEXT TOGETHER',title:nextPlan.title,body:`${new Date(nextPlan.starts_at).toLocaleString([],{weekday:'long',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} · ${snapshot.locations.find((item)=>item.id===nextPlan.location_id)?.name??currentWorld?.name??'Current world'}`,action:'View plan',route:`/plan/${nextPlan.id}`,entityId:nextPlan.id}:nextDate?{kind:'next',kicker:'NEXT TOGETHER',title:nextDate.together_date_templates.name,body:`${new Date(nextDate.scheduled_for!).toLocaleString([],{weekday:'long',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}`,action:'View date',route:`/date/${nextDate.id}`,entityId:nextDate.id}:undefined;
+  const openFocus=async()=>{if(focus?.kind==='message'&&latestProactive?.status==='sent')await markProactiveOpened(latestProactive.id).catch(()=>undefined);if(focus)router.push(focus.route);};
+  const latest = recentEvents[0]?.narrative_summary ?? `${name} is waiting to hear how your day is going.`;
+  const latestSourceTitle=recentEvents[0]?`${name}'s day`:'Continue your conversation';
+  const showPlanInToday=nextPlan&&focus?.entityId!==nextPlan.id;
+  const showDateInToday=nextDate&&focus?.entityId!==nextDate.id;
+  const alternateLife=snapshot.activeContinuity?.kind==='alternate';
+  const portraitVersions=Object.fromEntries(snapshot.characters.map((item)=>[item.id,selectPortraitVersion(snapshot,item)]));
 
   return <Screen contentStyle={styles.content}>
     <View style={styles.top}>
@@ -41,14 +49,17 @@ export default function Home() {
       <Pressable accessibilityLabel="Open your settings" onPress={() => router.push('/settings')} style={({ pressed }) => [styles.icon, pressed && styles.pressed]}><UserRound color={colors.text} size={20} /></Pressable>
     </View>
 
-    <CharacterHero character={companion} location={location} onPress={() => router.push(`/character/${companion.together_character_templates.slug}` as never)} />
-    <GradientButton label={`Talk to ${name}`} onPress={() => router.push('/(tabs)/chat-tab')} />
+    {alternateLife?<Pressable onPress={()=>router.push('/personas')} style={styles.lifeChip}><UserRound size={13} color={colors.violet}/><Text style={styles.lifeChipText}>AS {(snapshot.activePersona?.display_name??'YOU').toUpperCase()} · ALTERNATE LIFE</Text><ChevronRight size={13} color={colors.muted}/></Pressable>:null}
 
-    {relationshipCue ? <Pressable onPress={() => router.push('/(tabs)/chat-tab')} style={({pressed})=>[styles.relationshipCue,pressed&&styles.pressed]}><View style={[styles.relationshipIcon,relationshipCue.tone==='tense'&&styles.relationshipIconTense]}><Heart size={18} color={relationshipCue.tone==='tense'?colors.warm:colors.rose}/></View><View style={{flex:1}}><Text style={styles.relationshipLabel}>{relationshipCue.label}</Text><Text style={styles.relationshipDetail}>{pendingMilestone?pendingMilestone.title:relationshipCue.detail}</Text></View>{pendingMilestone?<View style={styles.choicePill}><Text style={styles.choicePillText}>Your choice</Text></View>:<ChevronRight size={18} color={colors.muted}/>}</Pressable> : null}
+    <CharacterHero character={companion} portraitVersion={portraitVersion} location={location} onPress={() => router.push(`/character/${handle}` as never)} />
+
+    {focus?<Pressable onPress={()=>void openFocus()} style={({pressed})=>[styles.focusCard,focus.kind==='active'&&styles.focusActive,focus.kind==='choice'&&styles.focusChoice,pressed&&styles.pressed]}><View style={styles.focusTop}><Text style={styles.focusKicker}>{focus.kicker}</Text><ChevronRight size={18} color={colors.rose}/></View><Text style={styles.focusTitle}>{focus.title}</Text><Text style={styles.focusBody} numberOfLines={focus.kind==='message'?3:4}>{focus.body}</Text><View style={styles.focusAction}><Text style={styles.focusActionText}>{focus.action}</Text></View></Pressable>:<GradientButton label={`Talk to ${name}`} onPress={() => router.push('/(tabs)/chat-tab')} />}
+
+    {!pendingMilestone&&relationshipCue ? <Pressable onPress={() => router.push('/(tabs)/chat-tab')} style={({pressed})=>[styles.relationshipCue,pressed&&styles.pressed]}><View style={[styles.relationshipIcon,relationshipCue.tone==='tense'&&styles.relationshipIconTense]}><Heart size={18} color={relationshipCue.tone==='tense'?colors.warm:colors.rose}/></View><View style={{flex:1}}><Text style={styles.relationshipLabel}>{relationshipCue.label}</Text><Text style={styles.relationshipDetail}>{relationshipCue.detail}</Text></View><ChevronRight size={18} color={colors.muted}/></Pressable> : null}
 
     <View style={styles.actions}>
-      <ActionTile title={plannedDate?.status === 'active' ? 'Continue date' : sharedPlan ? sharedPlan.status==='active'?`Together now · ${sharedPlan.title}`:`${new Date(sharedPlan.starts_at).toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'})} · ${sharedPlan.title}` : 'Plan something'} onPress={() => plannedDate?.status==='active' ? router.push(`/date/${plannedDate.id}` as never) : sharedPlan ? router.push(`/plan/${sharedPlan.id}` as never) : router.push('/(tabs)/chat-tab?plan=1')} icon={<CalendarDays color={colors.warm} size={21} />} />
-      <ActionTile title="Memories" onPress={() => router.push('/memories')} icon={<Sparkles color={colors.violet} size={21} />} />
+      <ActionTile title={nextPlan||nextDate?'Plan something else':'Plan something'} onPress={() => router.push('/(tabs)/chat-tab?plan=1')} icon={<CalendarDays color={colors.warm} size={21} />} />
+      <ActionTile title="Memories" onPress={() => router.push(`/memories?character=${handle}`)} icon={<Sparkles color={colors.violet} size={21} />} />
     </View>
 
     {catchUpEvents.length ? <>
@@ -68,16 +79,15 @@ export default function Home() {
     <SectionHeader title="Today" action="View world" onAction={() => router.push('/(tabs)/worlds')} />
     <GlassCard style={styles.todayCard}>
       {upcomingSchedule.map((item, index) => <View key={`${item.id}-${item.start_minute}`}><TimelineItem icon={<Coffee size={16} color={colors.warm} />} title={item.activity} detail={item.locationName} time={formatScheduleTime(item.startsAt)} />{index < upcomingSchedule.length - 1 ? <View style={styles.rule} /> : null}</View>)}
-      {sharedPlan ? <><View style={upcomingSchedule.length ? styles.rule : undefined}/><TimelineItem icon={<CalendarDays size={16} color={colors.warm}/>} title={sharedPlan.title} detail={snapshot.locations.find((item)=>item.id===sharedPlan.location_id)?.name??currentWorld?.name??'Current place'} time={new Date(sharedPlan.starts_at).toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})}/></> : null}
-      {date ? <><View style={upcomingSchedule.length ? styles.rule : undefined} /><TimelineItem icon={<CalendarDays size={16} color={colors.violet} />} title={date.together_date_templates.name} detail={date.status === 'locked' ? 'Keep getting closer to unlock it' : date.scheduled_for ? new Date(date.scheduled_for).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}) : 'Ready when you are'} time={date.status === 'locked' ? 'LOCKED' : 'PLAN'} /></> : null}
-      {!upcomingSchedule.length && !date && !sharedPlan ? <Text style={styles.emptySchedule}>Nothing else is scheduled right now. The day is still unfolding.</Text> : null}
+      {showPlanInToday ? <><View style={upcomingSchedule.length ? styles.rule : undefined}/><TimelineItem icon={<CalendarDays size={16} color={colors.warm}/>} title={nextPlan.title} detail={snapshot.locations.find((item)=>item.id===nextPlan.location_id)?.name??currentWorld?.name??'Current place'} time={new Date(nextPlan.starts_at).toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})}/></> : null}
+      {showDateInToday ? <><View style={upcomingSchedule.length||showPlanInToday ? styles.rule : undefined} /><TimelineItem icon={<CalendarDays size={16} color={colors.violet} />} title={nextDate.together_date_templates.name} detail={new Date(nextDate.scheduled_for!).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})} time={new Date(nextDate.scheduled_for!).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} /></> : null}
+      {!upcomingSchedule.length && !showDateInToday && !showPlanInToday ? <Text style={styles.emptySchedule}>Nothing else is scheduled right now. The day is still unfolding.</Text> : null}
     </GlassCard>
 
     <SectionHeader title="Recent moments" action="View all" onAction={() => router.push('/(tabs)/moments')} />
-    {life.moments.length ? <MomentCarousel moments={life.moments} onPress={() => router.push('/(tabs)/moments')} /> : <Pressable onPress={() => router.push('/(tabs)/chat-tab')} style={styles.storyEmpty}><Sparkles size={18} color={colors.rose} /><View style={{ flex: 1 }}><Text style={styles.storyTitle}>Your story with {name} is just beginning</Text><Text style={styles.storyCopy}>The moments that matter between you will collect here.</Text></View><ChevronRight color={colors.muted} size={18} /></Pressable>}
+    {life.moments.length ? <MomentCarousel moments={life.moments} characters={snapshot.characters} portraitVersions={portraitVersions} onPress={() => router.push('/(tabs)/moments')} /> : <Pressable onPress={() => router.push('/(tabs)/chat-tab')} style={styles.storyEmpty}><Sparkles size={18} color={colors.rose} /><View style={{ flex: 1 }}><Text style={styles.storyTitle}>Your story with {name} is just beginning</Text><Text style={styles.storyCopy}>The moments that matter between you will collect here.</Text></View><ChevronRight color={colors.muted} size={18} /></Pressable>}
 
-    <SectionHeader title={latestSourceTitle} />
-    <MessagePreview content={latest} time={latestProactive ? relativeTime(latestProactive.eligible_at ?? new Date().toISOString()) : `At ${location}`} onPress={() => void openCompanion()} />
+    {focus?.kind!=='message'?<><SectionHeader title={latestSourceTitle} /><MessagePreview content={latest} time={`At ${location}`} onPress={() => router.push('/(tabs)/chat-tab')} /></>:null}
   </Screen>;
 }
 
@@ -108,7 +118,18 @@ const styles = StyleSheet.create({
   context: { color: colors.rose, fontSize: 13, fontWeight: '700' },
   brand: { color: colors.rose, fontFamily: 'Georgia', fontSize: 18, fontWeight: '700', marginBottom: 4 },
   icon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  pressed: { transform: [{ scale: .94 }], opacity: .8 },
+  pressed: { transform: [{ scale: .97 }], opacity: .84 },
+  lifeChip:{alignSelf:'flex-start',flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:10,paddingVertical:7,borderRadius:radius.pill,backgroundColor:'rgba(154,104,255,.09)',borderWidth:1,borderColor:'rgba(154,104,255,.24)'},
+  lifeChipText:{color:'#D7C2FF',fontSize:9,fontWeight:'900',letterSpacing:.8},
+  focusCard:{gap:7,padding:16,borderRadius:radius.xl,backgroundColor:'rgba(241,103,154,.08)',borderWidth:1,borderColor:'rgba(241,103,154,.28)'},
+  focusActive:{backgroundColor:'rgba(242,162,127,.09)',borderColor:'rgba(242,162,127,.30)'},
+  focusChoice:{backgroundColor:'rgba(154,104,255,.09)',borderColor:'rgba(154,104,255,.30)'},
+  focusTop:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},
+  focusKicker:{color:colors.rose,fontSize:9,fontWeight:'900',letterSpacing:1.1},
+  focusTitle:{fontFamily:'Georgia',color:colors.text,fontSize:24},
+  focusBody:{color:colors.muted,fontSize:12,lineHeight:18},
+  focusAction:{alignSelf:'flex-start',marginTop:3,paddingHorizontal:10,paddingVertical:7,borderRadius:radius.pill,backgroundColor:colors.rose},
+  focusActionText:{color:'#fff',fontSize:10,fontWeight:'900'},
   actions: { flexDirection: 'row', gap: 9 },
   catchUpCard: { paddingVertical: 5 },
   catchUpEvent: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, paddingVertical: 11 },
@@ -131,6 +152,4 @@ const styles = StyleSheet.create({
   relationshipIconTense:{backgroundColor:'rgba(242,162,127,.12)'},
   relationshipLabel:{color:colors.text,fontSize:13,fontWeight:'900'},
   relationshipDetail:{color:colors.muted,fontSize:11,lineHeight:16,marginTop:2},
-  choicePill:{paddingHorizontal:9,paddingVertical:6,borderRadius:radius.pill,backgroundColor:colors.rose},
-  choicePillText:{color:'#fff',fontSize:9,fontWeight:'900'},
 });
