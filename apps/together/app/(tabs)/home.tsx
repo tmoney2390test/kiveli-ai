@@ -8,6 +8,7 @@ import { markProactiveOpened } from '../../src/lib/api';
 import { buildCompanionLife, formatScheduleTime } from '../../src/lib/companionLife';
 import { worldForLocation } from '../../src/lib/place';
 import { selectPortraitVersion } from '../../src/lib/selectors';
+import type { DateSession, LifeEvent, RelationshipMilestone, SharedPlan, StoryArcInstance } from '../../src/types';
 
 const router=expoRouter as unknown as {push:(href:string)=>void};
 type HomeFocus={kind:'choice'|'active'|'message'|'story'|'next';kicker:string;title:string;body:string;action:string;route:string;entityId?:string};
@@ -91,7 +92,8 @@ export default function Home() {
   </Screen>;
 }
 
-function buildHomeFocus(input:{pendingMilestone?:{title:string;body:string};activeDate?:{id:string;together_date_templates:{name:string}};activePlan?:{id:string;title:string;location_id?:string|null};latestProactive?:{content:string};activeStory?:{id:string;together_story_arc_templates?:{title:string}};nextPlan?:{id:string;title:string;starts_at:string;location_id?:string|null};nextDate?:{id:string;scheduled_for:string|null;together_date_templates:{name:string}};name:string;location:string;currentWorldName?:string;locations:Array<{id:string;name:string}>}):HomeFocus|undefined{
+type HomeFocusInput={pendingMilestone?:RelationshipMilestone;activeDate?:DateSession;activePlan?:SharedPlan;latestProactive?:{content:string};activeStory?:StoryArcInstance;nextPlan?:SharedPlan;nextDate?:DateSession;name:string;location:string;currentWorldName?:string;locations:Array<{id:string;name:string}>};
+function buildHomeFocus(input:HomeFocusInput):HomeFocus|undefined{
   if(input.pendingMilestone)return{kind:'choice',kicker:'YOUR CHOICE IS WAITING',title:input.pendingMilestone.title,body:input.pendingMilestone.body,action:'Continue in Chat',route:'/(tabs)/chat-tab'};
   if(input.activeDate)return{kind:'active',kicker:'TOGETHER NOW',title:input.activeDate.together_date_templates.name,body:`Continue your shared experience with ${input.name}.`,action:'Continue date',route:`/date/${input.activeDate.id}`,entityId:input.activeDate.id};
   if(input.activePlan)return{kind:'active',kicker:'TOGETHER NOW',title:input.activePlan.title,body:`You and ${input.name} are together at ${input.locations.find((item)=>item.id===input.activePlan?.location_id)?.name??input.location}.`,action:'View plan',route:`/plan/${input.activePlan.id}`,entityId:input.activePlan.id};
@@ -154,7 +156,7 @@ const styles = StyleSheet.create({
   time: { color: colors.dimmed, fontSize: 10, fontWeight: '800' },
   emptySchedule:{color:colors.muted,fontSize:12,lineHeight:18,paddingVertical:10},
   rule: { height: 1, marginLeft: 43, backgroundColor: colors.border },
-  storyEmpty: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(241,103,154,.08)', borderRadius: radius.lg, borderWidth: 1, borderColor:'rgba(241,103,154,.20)', padding: spacing.md },
+  storyEmpty: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(241,103,154,.08)', borderRadius: radius.lg, borderWidth: 1,borderColor:'rgba(241,103,154,.20)',padding:spacing.md },
   storyTitle: { color: colors.text, fontSize: 14, fontWeight: '800' },
   storyCopy: { color: colors.muted, fontSize: 12, marginTop: 3 },
   relationshipCue:{flexDirection:'row',alignItems:'center',gap:11,padding:13,borderRadius:radius.lg,backgroundColor:'rgba(241,103,154,.07)',borderWidth:1,borderColor:'rgba(241,103,154,.18)'},
