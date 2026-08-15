@@ -1,6 +1,67 @@
-export const entitlementKeys=['maya_relationship','text_basic','memory_basic','city_life','dinner_juniper','text_expanded','memory_long_term','proactive_messages','moments_expanded','voice_notes','contextual_images','multiple_relationships','premium_models','group_interactions']as const;
+export const entitlementKeys=[
+  'relationship_core','chat_core','memory_core','juniper_world','plans_dates_moments','custom_companion_basic',
+  'chat_unlimited','memory_deep','history_expanded','all_standard_worlds','proactive_messages','multiple_lives','multiple_custom_companions','priority_media','director_selective',
+  'memory_deepest','history_max','director_default','early_access_worlds','highest_priority_media','social_scenes_enhanced','voice_priority',
+  // Legacy keys retained while older content gates and rows are migrated.
+  'maya_relationship','text_basic','memory_basic','city_life','dinner_juniper','text_expanded','memory_long_term','moments_expanded','voice_notes','contextual_images','multiple_relationships','premium_models','group_interactions',
+]as const;
 export type EntitlementKey=typeof entitlementKeys[number];
-export type SubscriptionTier='free'|'together_plus'|'unlimited';
-const tierEntitlements:Record<SubscriptionTier,readonly EntitlementKey[]>={free:['maya_relationship','text_basic','memory_basic','city_life','dinner_juniper'],together_plus:['maya_relationship','text_basic','memory_basic','city_life','dinner_juniper','text_expanded','memory_long_term','proactive_messages','moments_expanded','voice_notes','contextual_images'],unlimited:entitlementKeys};
-export function entitlementsForTier(tier:SubscriptionTier):ReadonlySet<EntitlementKey>{return new Set(tierEntitlements[tier]);}
-export function hasEntitlement(tier:SubscriptionTier,key:EntitlementKey):boolean{return tierEntitlements[tier].includes(key);}
+export const subscriptionTiers=['free','kivelle_plus','kivelle_max']as const;
+export type SubscriptionTier=typeof subscriptionTiers[number];
+export type LegacySubscriptionTier='together_plus'|'unlimited';
+export type IntelligenceProfile='core'|'deep'|'director';
+export type MediaQueuePriority='standard'|'priority'|'highest';
+export type CreditAction='companion_photo'|'photo_edit'|'photo_variant'|'premium_photo'|'creator_appearance_set'|'short_video'|'voice_minute';
+
+export type KivelleCapabilities={
+  tier:SubscriptionTier;
+  displayName:'Kivelle Free'|'Kivelle+'|'Kivelle Max';
+  monthlyPriceUsd:number;
+  chatDailyLimit:number|null;
+  intelligenceProfile:IntelligenceProfile;
+  memoryRetrievalBudget:number;
+  recentTurnBudget:number;
+  historyRetrievalBudget:number;
+  directorPolicy:'major_only'|'meaningful'|'normal_and_up';
+  maxLives:number;
+  maxCustomCompanions:number;
+  worldAccess:'free'|'all_standard';
+  earlyWorldAccess:boolean;
+  monthlyCreditGrant:number;
+  subscriptionCreditRolloverCap:number;
+  welcomeCredits:number;
+  mediaQueue:MediaQueuePriority;
+  entitlements:readonly EntitlementKey[];
+};
+
+const legacy:Record<LegacySubscriptionTier,SubscriptionTier>={together_plus:'kivelle_plus',unlimited:'kivelle_max'};
+export function normalizeSubscriptionTier(value:unknown):SubscriptionTier{
+  const tier=String(value??'free');
+  if(subscriptionTiers.includes(tier as SubscriptionTier))return tier as SubscriptionTier;
+  return legacy[tier as LegacySubscriptionTier]??'free';
+}
+
+const freeEntitlements:readonly EntitlementKey[]=[
+  'relationship_core','chat_core','memory_core','juniper_world','plans_dates_moments','custom_companion_basic',
+  'maya_relationship','text_basic','memory_basic','city_life','dinner_juniper',
+];
+const plusEntitlements:readonly EntitlementKey[]=[...freeEntitlements,
+  'chat_unlimited','memory_deep','history_expanded','all_standard_worlds','proactive_messages','multiple_lives','multiple_custom_companions','priority_media','director_selective',
+  'text_expanded','memory_long_term','moments_expanded','voice_notes','contextual_images','multiple_relationships',
+];
+const maxEntitlements:readonly EntitlementKey[]=[...plusEntitlements,
+  'memory_deepest','history_max','director_default','early_access_worlds','highest_priority_media','social_scenes_enhanced','voice_priority',
+  'premium_models','group_interactions',
+];
+
+export const subscriptionCatalog:Record<SubscriptionTier,KivelleCapabilities>={
+  free:{tier:'free',displayName:'Kivelle Free',monthlyPriceUsd:0,chatDailyLimit:40,intelligenceProfile:'core',memoryRetrievalBudget:6,recentTurnBudget:10,historyRetrievalBudget:1,directorPolicy:'major_only',maxLives:1,maxCustomCompanions:1,worldAccess:'free',earlyWorldAccess:false,monthlyCreditGrant:0,subscriptionCreditRolloverCap:0,welcomeCredits:50,mediaQueue:'standard',entitlements:freeEntitlements},
+  kivelle_plus:{tier:'kivelle_plus',displayName:'Kivelle+',monthlyPriceUsd:14.99,chatDailyLimit:null,intelligenceProfile:'deep',memoryRetrievalBudget:12,recentTurnBudget:18,historyRetrievalBudget:3,directorPolicy:'meaningful',maxLives:3,maxCustomCompanions:5,worldAccess:'all_standard',earlyWorldAccess:false,monthlyCreditGrant:500,subscriptionCreditRolloverCap:1000,welcomeCredits:50,mediaQueue:'priority',entitlements:plusEntitlements},
+  kivelle_max:{tier:'kivelle_max',displayName:'Kivelle Max',monthlyPriceUsd:29.99,chatDailyLimit:null,intelligenceProfile:'director',memoryRetrievalBudget:20,recentTurnBudget:28,historyRetrievalBudget:6,directorPolicy:'normal_and_up',maxLives:10,maxCustomCompanions:20,worldAccess:'all_standard',earlyWorldAccess:true,monthlyCreditGrant:1500,subscriptionCreditRolloverCap:3000,welcomeCredits:50,mediaQueue:'highest',entitlements:maxEntitlements},
+};
+
+export const creditCosts:Record<CreditAction,number>={companion_photo:10,photo_edit:10,photo_variant:10,premium_photo:20,creator_appearance_set:40,short_video:125,voice_minute:8};
+export function capabilitiesForTier(tier:SubscriptionTier|LegacySubscriptionTier|string):KivelleCapabilities{return subscriptionCatalog[normalizeSubscriptionTier(tier)];}
+export function entitlementsForTier(tier:SubscriptionTier|LegacySubscriptionTier|string):ReadonlySet<EntitlementKey>{return new Set(capabilitiesForTier(tier).entitlements);}
+export function hasEntitlement(tier:SubscriptionTier|LegacySubscriptionTier|string,key:EntitlementKey):boolean{return capabilitiesForTier(tier).entitlements.includes(key);}
+export function creditCost(action:CreditAction):number{return creditCosts[action];}
