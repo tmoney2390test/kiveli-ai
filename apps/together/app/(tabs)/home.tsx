@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router as expoRouter } from 'expo-router';
-import { CalendarDays, ChevronRight, Coffee, Heart, MessageCircle, Sparkles, UserRound } from 'lucide-react-native';
+import { CalendarDays, ChevronRight, Coffee, Heart, Sparkles, UserRound } from 'lucide-react-native';
 import { ActionTile, CharacterHero, CompanionSwitcher, EmptyState, ErrorState, GlassCard, GradientButton, LoadingSkeleton, MessagePreview, MomentCarousel, Screen, SectionHeader } from '../../src/components';
 import { colors, radius, spacing } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
@@ -27,7 +27,7 @@ export default function Home() {
   const currentWorld=worldForLocation(snapshot,companion.current_location_id);const location = currentLocation?.name ?? currentWorld?.name ?? 'Current place';
   const relationshipCue = snapshot.relationshipCues?.[companion.id];
   const pendingMilestone = snapshot.relationshipMilestones?.find((item) => item.character_instance_id === companion.id);
-  const latestProactive = proactiveMessages.find((item)=>item.status==='sent')??proactiveMessages[0];
+  const latestProactive = proactiveMessages.find((item)=>item.status==='sent');
   const catchUpEvents = recentEvents.filter((event) => Date.now() - new Date(event.starts_at).getTime() < 72 * 3600000).slice(0, 2);
   const activeDate=dates.find((item)=>item.status==='active');
   const nextDate=dates.filter((item)=>item.status==='upcoming'&&item.scheduled_for&&new Date(item.scheduled_for).getTime()>Date.now()).sort((a,b)=>new Date(a.scheduled_for!).getTime()-new Date(b.scheduled_for!).getTime())[0];
