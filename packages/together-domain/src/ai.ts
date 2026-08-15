@@ -1,4 +1,4 @@
-import type{DialogueContext,MemoryCandidate,PostConversationProposal}from'./types';
+import type { DialogueContext, MemoryCandidate, PostConversationProposal } from './types.ts';
 
 export interface DialogueProvider{stream(context:DialogueContext):AsyncIterable<string>}
 export interface MemoryExtractionProvider{extract(input:{userMessage:string;assistantMessage:string}):Promise<MemoryCandidate[]>}

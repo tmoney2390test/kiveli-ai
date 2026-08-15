@@ -1,4 +1,4 @@
-import type{CharacterLifeState,LifeEventTemplate,ScheduleEntry,SimulatedLifeEvent}from'./types';
+import type { CharacterLifeState, LifeEventTemplate, ScheduleEntry, SimulatedLifeEvent } from './types.ts';
 
 export type LifeSimulationTrigger='conversation_continued'|'home_opened'|'scheduled_dispatch';
 export function shouldMaterializeLifeEvents(trigger:LifeSimulationTrigger):boolean{return trigger==='conversation_continued';}

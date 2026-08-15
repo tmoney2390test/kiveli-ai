@@ -1,11 +1,11 @@
-import{z}from'zod';
-import{authenticated,enforceRateLimit}from'../_shared/context.ts';
-import{parseBody}from'../_shared/body.ts';
-import{json,serve}from'../_shared/http.ts';
-import{AppError}from'../_shared/types.ts';
-import{activeContinuity,continuityById}from'../_shared/together-continuity.ts';
-import{buildSnapshot,track}from'../_shared/together.ts';
-import{enforceLifeLimit,resolveSubscriptionState}from'../_shared/kivelle-subscription.ts';
+import { z } from 'zod';
+import { authenticated, enforceRateLimit } from '../_shared/context.ts';
+import { parseBody } from '../_shared/body.ts';
+import { json, serve } from '../_shared/http.ts';
+import { AppError } from '../_shared/types.ts';
+import { activeContinuity, continuityById } from '../_shared/together-continuity.ts';
+import { buildSnapshot, track } from '../_shared/together.ts';
+import { enforceLifeLimit, resolveSubscriptionState } from '../_shared/kivelle-subscription.ts';
 
 const personaFields={displayName:z.string().trim().min(1).max(50),pronouns:z.string().trim().max(40).nullable().optional(),age:z.number().int().min(18).max(120).nullable().optional(),occupation:z.string().trim().max(100).nullable().optional(),biography:z.string().trim().max(1000).nullable().optional(),interests:z.array(z.string().trim().min(1).max(40)).max(12).default([]),communicationConfig:z.record(z.string(),z.unknown()).default({}),metadata:z.record(z.string(),z.unknown()).default({})};
 const schema=z.discriminatedUnion('action',[

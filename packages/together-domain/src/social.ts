@@ -1,4 +1,4 @@
-import type{KnowledgeFact,KnowledgeTransfer}from'./types';
+import type { KnowledgeFact, KnowledgeTransfer } from './types.ts';
 
 export function transferKnowledge(fact:KnowledgeFact,input:{fromInstanceId:string;toInstanceId:string;eventId:string;reason:string;allowSensitive:boolean;now?:Date}):KnowledgeTransfer|null{
   if(fact.ownerInstanceId!==input.fromInstanceId)return null;
