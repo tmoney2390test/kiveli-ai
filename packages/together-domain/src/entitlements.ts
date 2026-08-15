@@ -36,7 +36,7 @@ export type KivelleCapabilities={
 
 const legacy:Record<LegacySubscriptionTier,SubscriptionTier>={together_plus:'kivelle_plus',unlimited:'kivelle_max'};
 export function normalizeSubscriptionTier(value:unknown):SubscriptionTier{
-  const tier=String(value??'free');
+  const tier=typeof value==='string'?value:'free';
   if(subscriptionTiers.includes(tier as SubscriptionTier))return tier as SubscriptionTier;
   return legacy[tier as LegacySubscriptionTier]??'free';
 }
@@ -61,7 +61,7 @@ export const subscriptionCatalog:Record<SubscriptionTier,KivelleCapabilities>={
 };
 
 export const creditCosts:Record<CreditAction,number>={companion_photo:10,photo_edit:10,photo_variant:10,premium_photo:20,creator_appearance_set:40,short_video:125,voice_minute:8};
-export function capabilitiesForTier(tier:SubscriptionTier|LegacySubscriptionTier|string):KivelleCapabilities{return subscriptionCatalog[normalizeSubscriptionTier(tier)];}
-export function entitlementsForTier(tier:SubscriptionTier|LegacySubscriptionTier|string):ReadonlySet<EntitlementKey>{return new Set(capabilitiesForTier(tier).entitlements);}
-export function hasEntitlement(tier:SubscriptionTier|LegacySubscriptionTier|string,key:EntitlementKey):boolean{return capabilitiesForTier(tier).entitlements.includes(key);}
+export function capabilitiesForTier(tier:string):KivelleCapabilities{return subscriptionCatalog[normalizeSubscriptionTier(tier)];}
+export function entitlementsForTier(tier:string):ReadonlySet<EntitlementKey>{return new Set(capabilitiesForTier(tier).entitlements);}
+export function hasEntitlement(tier:string,key:EntitlementKey):boolean{return capabilitiesForTier(tier).entitlements.includes(key);}
 export function creditCost(action:CreditAction):number{return creditCosts[action];}
