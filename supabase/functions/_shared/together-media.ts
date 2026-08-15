@@ -17,6 +17,11 @@ export async function queueMediaRequest(db:SupabaseClient,input:QueueMediaInput)
     if(error||!updated)throw new AppError('INTERNAL_ERROR','The photo charge could not be attached safely.',500,true);
     return updated;
   }catch(error){
+    if(error instanceof AppError&&error.code==='INSUFFICIENT_CREDITS'){
+      const nextMetadata={...metadata,creditRequestId:input.idempotencyKey??null,creditCost:10,creditAction:'companion_photo',creditRefunded:false,needsCredits:true};
+      const{data:failed}=await db.from('together_generated_media').update({status:'failed',failure_code:'insufficient_credits',failure_reason_safe:'This photo uses 10 Kivelle Credits. Add credits and retry.',metadata:nextMetadata,next_attempt_at:null,claimed_at:null,updated_at:new Date().toISOString()}).eq('id',String(media.id)).eq('user_id',input.userId).eq('status','queued').select('*').single();
+      return failed??media;
+    }
     if(charged)await refundCredits(db,{userId:input.userId,transactionId:charged.transactionId,idempotencyKey:`refund:${charged.transactionId}`,metadata:{reason:'media_queue_setup_failed',mediaId:String(media.id)}});
     await db.from('together_generated_media').delete().eq('id',String(media.id)).eq('user_id',input.userId).eq('status','queued');
     throw error;
