@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ChevronDown, Search, Sparkles } from 'lucide-react-native';
 import { CharacterAvatar, EmptyState, GlassCard, MomentCard, PageTitle, Screen } from '../../src/components';
 import { colors, radius } from '../../src/theme';
@@ -13,11 +13,13 @@ type Filter = typeof filters[number];
 
 export default function MomentsTab() {
   const snapshot = useTogether((state) => state.snapshot);
+  const params=useLocalSearchParams<{character?:string}>();
   const active = snapshot ? selectActiveCompanion(snapshot) : undefined;
   const companions = snapshot?.characters.filter((item) => item.contact_added_at || item.introduced_at) ?? [];
-  const [companionId, setCompanionId] = useState<string>(() => active?.id ?? 'all');
+  const requested=companions.find((item)=>item.together_character_templates.slug===params.character||item.together_character_templates.public_handle===params.character||item.id===params.character);
+  const [companionId, setCompanionId] = useState<string>(() => requested?.id??active?.id ?? 'all');
   const [showCompanions,setShowCompanions]=useState(false);
-  useEffect(()=>{if(active?.id)setCompanionId(active.id);},[active?.id]);
+  useEffect(()=>{if(requested?.id)setCompanionId(requested.id);else if(active?.id)setCompanionId(active.id);},[active?.id,requested?.id]);
   const [filter, setFilter] = useState<Filter>('All');
   const [query, setQuery] = useState('');
   const moments = snapshot ? companionId === 'all' ? snapshot.moments : selectCompanionMoments(snapshot, companionId) : [];
