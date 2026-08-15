@@ -3,12 +3,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 import { ArrowLeft, Check, MapPin, Sparkles } from 'lucide-react-native';
-import { characterAssets } from '../../src/assets';
-import { Body, CharacterAvatar, EmptyState, GradientButton, LoadingSkeleton, MoodBadge, RelationshipBadge, Screen } from '../../src/components';
+import { Body, CharacterAvatar, EmptyState, GradientButton, LoadingSkeleton, MoodBadge, RelationshipBadge, Screen, resolveCharacterPortraitSource } from '../../src/components';
 import { meetCompanion, setActiveCompanion } from '../../src/lib/api';
 import { colors, radius, spacing } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { worldForLocation } from '../../src/lib/place';
+import { selectPortraitVersion } from '../../src/lib/selectors';
 
 export default function CharacterProfile(){
   const{slug,intro}=useLocalSearchParams<{slug:string;intro?:string}>();
@@ -19,9 +19,10 @@ export default function CharacterProfile(){
   const instance=snapshot.characters.find((item)=>item.together_character_templates.slug===slug||item.together_character_templates.public_handle===slug||item.character_template_id===slug);
   const discoverable=snapshot.discoverableCharacters?.find((item)=>item.slug===slug||item.public_handle===slug||item.id===slug);
   const template=instance?.together_character_templates??discoverable;
-  const version=instance?.together_character_versions??discoverable?.together_character_versions;
-  if(!template||!version)return <EmptyState title="You haven’t crossed paths yet" body="Some people enter your world through introductions and shared events." action="Back to Discover" onAction={()=>router.replace('/(tabs)/singles')}/>;
-  const asset=characterAssets[version.portrait_asset_key]??characterAssets[template.slug];
+  const baseVersion=instance?.together_character_versions??discoverable?.together_character_versions;
+  if(!template||!baseVersion)return <EmptyState title="You haven’t crossed paths yet" body="Some people enter your world through introductions and shared events." action="Back to Discover" onAction={()=>router.replace('/(tabs)/singles')}/>;
+  const version=instance?selectPortraitVersion(snapshot,instance):baseVersion;
+  const asset=resolveCharacterPortraitSource(template,version,template.slug);
   const known=Boolean(instance&&(instance.contact_added_at||instance.introduced_at));
   const selectable=Boolean(template.can_be_selected);
   const active=instance?.id===snapshot.activeContinuity?.active_companion_instance_id;
@@ -35,7 +36,7 @@ export default function CharacterProfile(){
   const handle=template.public_handle??template.slug;const act=async()=>{setBusy(true);setError('');try{if(!instance){setSnapshot(await meetCompanion(template.id));router.replace(`/(tabs)/chat-tab?character=${handle}` as never);return;}if(selectable&&!active)setSnapshot(await setActiveCompanion(instance.id,'discover_profile'));router.push(`/(tabs)/chat-tab?character=${handle}` as never);}catch(caught){setError(caught instanceof Error?caught.message:'Could not continue right now.');}finally{setBusy(false);}};
   const canTalk=selectable||known;
   return <Screen contentStyle={{padding:0}}>
-    <View style={styles.hero}>{asset?<Image source={asset} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top"/>:<View style={styles.fallback}><CharacterAvatar slug={template.slug} name={template.name} size={150}/></View>}<Pressable onPress={()=>router.back()} style={styles.back}><ArrowLeft color="#fff"/></Pressable><View style={styles.shade}/><View style={styles.title}><Text style={styles.name}>{template.name}</Text><Text style={styles.job}>{template.occupation}</Text></View></View>
+    <View style={styles.hero}>{asset?<Image source={asset} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top"/>:<View style={styles.fallback}><CharacterAvatar slug={template.slug} name={template.name} template={template} version={version} size={150}/></View>}<Pressable onPress={()=>router.back()} style={styles.back}><ArrowLeft color="#fff"/></Pressable><View style={styles.shade}/><View style={styles.title}><Text style={styles.name}>{template.name}</Text><Text style={styles.job}>{template.occupation}</Text></View></View>
     <View style={styles.body}>
       {intro==='1'?<View style={styles.welcome}><Sparkles size={18} color={colors.rose}/><View style={{flex:1}}><Text style={styles.welcomeTitle}>Your story starts here</Text><Text style={styles.welcomeCopy}>Say hello in your own words. {template.name} will remember what matters.</Text></View></View>:null}
       <View style={styles.badges}>{instance?<MoodBadge mood={instance.current_mood}/>:null}{instance&&known?<RelationshipBadge stage={instance.relationship_stage}/>:<Text style={styles.newBadge}>NEW CONNECTION</Text>}</View>
@@ -47,7 +48,7 @@ export default function CharacterProfile(){
       {error?<Text style={styles.error}>{error}</Text>:null}
       {canTalk?<GradientButton disabled={busy} label={busy?'Opening your story…':instance?`Talk to ${template.name}`:`Meet ${template.name}`} onPress={()=>void act()}/>:<View style={styles.notMet}><MapPin size={18} color={colors.muted}/><Text style={styles.notMetText}>You haven’t been introduced yet. Their story will unfold through people, places, and events in their world.</Text></View>}
       {known&&instance&&!active&&selectable?<Pressable disabled={busy} onPress={async()=>{setBusy(true);try{setSnapshot(await setActiveCompanion(instance.id,'discover_profile'));}finally{setBusy(false);}}} style={styles.secondary}><Check size={16} color={colors.rose}/><Text style={styles.secondaryText}>Make {template.name} active on Home</Text></Pressable>:null}
-      {known&&instance?<View style={styles.links}><Pressable onPress={()=>router.push(`/memories?character=${template.slug}` as never)}><Text style={styles.link}>What {template.name} remembers</Text></Pressable><Pressable onPress={()=>router.push('/(tabs)/moments')}><Text style={styles.link}>Shared moments</Text></Pressable></View>:null}
+      {known&&instance?<View style={styles.links}><Pressable onPress={()=>router.push(`/memories?character=${handle}` as never)}><Text style={styles.link}>What {template.name} remembers</Text></Pressable><Pressable onPress={()=>router.push('/(tabs)/moments')}><Text style={styles.link}>Shared moments</Text></Pressable></View>:null}
     </View>
   </Screen>;
 }
