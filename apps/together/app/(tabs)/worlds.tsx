@@ -2,7 +2,7 @@ import{useEffect,useState}from'react';
 import{Pressable,ScrollView,StyleSheet,Text,View}from'react-native';
 import{router,useLocalSearchParams}from'expo-router';
 import{Image}from'expo-image';
-import{ChevronRight,Compass,MapPin,Sparkles,Users}from'lucide-react-native';
+import{ChevronRight,Compass,MapPin,Sparkles}from'lucide-react-native';
 import{worldHeroAsset}from'../../src/assets';
 import{CharacterCard,EmptyState,GlassCard,LoadingSkeleton,Screen,SectionHeader,WorldHero}from'../../src/components';
 import{colors,radius}from'../../src/theme';
@@ -25,7 +25,6 @@ export default function WorldsTab(){
   const selectedWorld=worlds.find((item)=>item.id===browsedWorldId)??companionWorld??worlds[0];
   const profile=worldProfile(selectedWorld);
   const selectedLocations=locationsForWorld(snapshot,selectedWorld.id);
-  const rootLocations=selectedLocations.filter((item)=>!item.parent_location_id).sort((a,b)=>(a.sort_order??0)-(b.sort_order??0));
   const selectedCharacters=charactersForWorld(snapshot,selectedWorld.id);
   const currentlyHere=Boolean(companionWorld&&companionWorld.id===selectedWorld.id);
   const day=currentlyHere&&life?life.upcomingSchedule.slice(0,4):[];
