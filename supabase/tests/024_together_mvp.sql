@@ -12,10 +12,10 @@ select has_table('public','together_knowledge_transfers','Together knowledge tra
 select has_table('public','together_date_sessions','Together dates exist');
 select has_table('public','together_moments','Together moments exist');
 select has_table('public','together_entitlements','Together entitlements exist');
-select row_eq('select name,age,occupation from public.together_character_templates where slug=''maya''',row('Maya',26,'Photographer')::record,'Maya seed is stable');
-select results_eq('select count(*)::bigint from public.together_character_templates where published',array[3::bigint],'Three initial characters are published');
-select results_eq('select count(*)::bigint from public.together_locations',array[6::bigint],'Six City Life locations exist');
-select results_eq('select count(*)::bigint from public.together_date_templates where active',array[1::bigint],'One active MVP date exists');
+select row_eq('select name,age,occupation from public.together_character_templates where slug=''maya''',row('Maya'::text,26::integer,'Photographer'::text),'Maya seed is stable');
+select results_eq('select count(*)::bigint from public.together_character_templates where published and slug in (''maya'',''chloe'',''alex'')',array[3::bigint],'Three original launch characters remain published');
+select results_eq('select count(*)::bigint from public.together_locations where id in (''11000000-0000-4000-8000-000000000001'',''11000000-0000-4000-8000-000000000002'',''11000000-0000-4000-8000-000000000003'',''11000000-0000-4000-8000-000000000004'',''11000000-0000-4000-8000-000000000005'',''11000000-0000-4000-8000-000000000006'')',array[6::bigint],'Six original City Life locations remain available');
+select results_eq('select count(*)::bigint from public.together_date_templates where id=''15000000-0000-4000-8000-000000000001'' and active',array[1::bigint],'The MVP dinner date remains active');
 select is((select current_published_version from public.together_character_templates where slug='maya'),1,'Maya template pins version one');
 select ok((select relrowsecurity from pg_class where oid='public.together_memories'::regclass),'Memory RLS is enabled');
 select ok((select relrowsecurity from pg_class where oid='public.together_character_instances'::regclass),'Instance RLS is enabled');
