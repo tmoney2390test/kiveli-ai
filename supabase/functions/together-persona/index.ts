@@ -5,6 +5,7 @@ import{json,serve}from'../_shared/http.ts';
 import{AppError}from'../_shared/types.ts';
 import{activeContinuity,continuityById}from'../_shared/together-continuity.ts';
 import{buildSnapshot,track}from'../_shared/together.ts';
+import{enforceLifeLimit,resolveSubscriptionState}from'../_shared/kivelle-subscription.ts';
 
 const personaFields={displayName:z.string().trim().min(1).max(50),pronouns:z.string().trim().max(40).nullable().optional(),age:z.number().int().min(18).max(120).nullable().optional(),occupation:z.string().trim().max(100).nullable().optional(),biography:z.string().trim().max(1000).nullable().optional(),interests:z.array(z.string().trim().min(1).max(40)).max(12).default([]),communicationConfig:z.record(z.string(),z.unknown()).default({}),metadata:z.record(z.string(),z.unknown()).default({})};
 const schema=z.discriminatedUnion('action',[
@@ -26,8 +27,9 @@ serve(async(request,correlationId)=>{
     const{data,error}=await db.from('together_user_personas').update(changes).eq('id',input.personaId).eq('user_id',user.id).select('*').single();if(error||!data)throw new AppError('NOT_FOUND','That Persona could not be updated.',404);await track(db,user.id,'persona_updated',{persona_id:data.id});return json({data,correlationId},200,correlationId);
   }
   if(input.action==='start_life'){
+    const subscription=await resolveSubscriptionState(db,user.id);await enforceLifeLimit(db,user.id,subscription.capabilities);
     const{data:persona}=await db.from('together_user_personas').select('*').eq('id',input.personaId).eq('user_id',user.id).maybeSingle();if(!persona)throw new AppError('NOT_FOUND','That Persona is unavailable.',404);
-    const{data,error}=await db.from('together_continuities').insert({user_id:user.id,persona_id:persona.id,kind:'alternate',title:input.title??`${persona.display_name}'s Life`,metadata:{createdFrom:'persona_picker',contextVersion:1}}).select('*,together_user_personas(*)').single();if(error||!data)throw new AppError('INTERNAL_ERROR','That Alternate Life could not be started.',500,true);await db.from('together_profiles').update({active_continuity_id:data.id,active_companion_instance_id:null,updated_at:now}).eq('user_id',user.id);await track(db,user.id,'alternate_life_created',{continuity_id:data.id,persona_id:persona.id});return json({data:await buildSnapshot(db,user.id),correlationId},201,correlationId);
+    const{data,error}=await db.from('together_continuities').insert({user_id:user.id,persona_id:persona.id,kind:'alternate',title:input.title??`${persona.display_name}'s Life`,metadata:{createdFrom:'persona_picker',contextVersion:1}}).select('*,together_user_personas(*)').single();if(error||!data)throw new AppError('INTERNAL_ERROR','That Alternate Life could not be started.',500,true);await db.from('together_profiles').update({active_continuity_id:data.id,active_companion_instance_id:null,updated_at:now}).eq('user_id',user.id);await track(db,user.id,'alternate_life_created',{continuity_id:data.id,persona_id:persona.id,tier:subscription.tier});return json({data:await buildSnapshot(db,user.id),correlationId},201,correlationId);
   }
   if(input.action==='switch_life'){
     const continuity=await continuityById(db,user.id,input.continuityId);if(!continuity)throw new AppError('NOT_FOUND','That Kivelle Life is unavailable.',404);await db.from('together_profiles').update({active_continuity_id:continuity.id,active_companion_instance_id:continuity.active_companion_instance_id??null,updated_at:now}).eq('user_id',user.id);await track(db,user.id,'continuity_switched',{continuity_id:continuity.id,kind:continuity.kind});return json({data:await buildSnapshot(db,user.id),correlationId},200,correlationId);
