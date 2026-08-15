@@ -3,6 +3,7 @@ import { worldForLocation } from './place';
 
 export function selectActiveCompanion(snapshot: Snapshot, companionId?: string): CharacterInstance | undefined {
   return snapshot.characters.find((item) => item.id === companionId)
+    ?? snapshot.characters.find((item) => item.id === snapshot.activeContinuity?.active_companion_instance_id)
     ?? snapshot.characters.find((item) => item.id === snapshot.profile?.active_companion_instance_id)
     ?? snapshot.characters.find((item) => Boolean(item.contact_added_at || item.introduced_at))
     ?? snapshot.characters[0];

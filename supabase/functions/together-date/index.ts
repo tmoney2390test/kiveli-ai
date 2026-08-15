@@ -7,6 +7,7 @@ import { AppError } from '../_shared/types.ts';
 import { clampRelationship, nextDatePhase, relationshipMetrics, track } from '../_shared/together.ts';
 import { dateChoiceImpact } from '../../../packages/together-domain/src/index.ts';
 import { waitUntil } from '../_shared/background.ts';
+import {activeContinuity}from'../_shared/together-continuity.ts';
 
 const schema = z.discriminatedUnion('action', [
   z.object({ action:z.literal('availability'),characterInstanceId:z.string().uuid(),worldId:z.string().uuid() }),
@@ -19,19 +20,20 @@ serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
   await enforceRateLimit(db, user.id, 'together_date', 80, 3600);
   const input = await parseBody(request, schema);
+  const continuity=await activeContinuity(db,user.id);
   if(input.action==='availability'){
     const[{data:instance},{data:relationship},{data:templates},{data:sessions}]=await Promise.all([
-      db.from('together_character_instances').select('id,relationship_stage').eq('id',input.characterInstanceId).eq('user_id',user.id).maybeSingle(),
+      db.from('together_character_instances').select('id,relationship_stage').eq('id',input.characterInstanceId).eq('user_id',user.id).eq('continuity_id',continuity.id).maybeSingle(),
       db.from('together_relationship_states').select('*').eq('character_instance_id',input.characterInstanceId).eq('user_id',user.id).maybeSingle(),
       db.from('together_date_templates').select('*').eq('world_id',input.worldId).eq('active',true).order('created_at'),
-      db.from('together_date_sessions').select('*').eq('character_instance_id',input.characterInstanceId).eq('user_id',user.id),
+      db.from('together_date_sessions').select('*').eq('character_instance_id',input.characterInstanceId).eq('user_id',user.id).eq('continuity_id',continuity.id),
     ]);
     if(!instance)throw new AppError('NOT_FOUND','That companion is unavailable.',404);
     const byTemplate=new Map((sessions??[]).map((session:Record<string,unknown>)=>[String(session.date_template_id),session]));
     const availability=(templates??[]).map((template:Record<string,unknown>)=>{const session=byTemplate.get(String(template.id));const available=dateRulesPass(template.unlock_rules as Record<string,unknown>|undefined,{...relationship,relationship_stage:instance.relationship_stage});return{template,sessionId:session?.id??null,status:session?.status??(available?'available':'locked')};});
     return json({data:availability,correlationId},200,correlationId);
   }
-  const { data: session } = await db.from('together_date_sessions').select('*,together_date_templates(*)').eq('id', input.sessionId).eq('user_id', user.id).maybeSingle();
+  const { data: session } = await db.from('together_date_sessions').select('*,together_date_templates(*)').eq('id', input.sessionId).eq('user_id', user.id).eq('continuity_id',continuity.id).maybeSingle();
   if (!session) throw new AppError('NOT_FOUND', 'That date is unavailable.', 404);
   if (input.action === 'defer') {
     if (!['unlocked','upcoming'].includes(session.status)) throw new AppError('CONFLICT', 'This date cannot be deferred now.', 409);

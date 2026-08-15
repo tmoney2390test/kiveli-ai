@@ -29,7 +29,7 @@ export default function Chat() {
   const showLeft = width >= 1080;
   const showRight = width >= 920;
   const { snapshot, refresh, setSnapshot, applyServerDelta } = useTogether();
-  const character = params.character ? snapshot?.characters.find((item) => item.together_character_templates.slug === params.character) : snapshot ? activeCompanion(snapshot) : undefined;
+  const character = params.character ? snapshot?.characters.find((item) => item.together_character_templates.slug === params.character||item.together_character_templates.public_handle===params.character||item.character_template_id===params.character) : snapshot ? activeCompanion(snapshot) : undefined;
   const slug = character?.together_character_templates.slug ?? '';
   const conversation = snapshot&&character ? activeConversationFor(snapshot.conversations,character.id) : undefined;
   const [messages, setMessages] = useState<Message[]>([]);

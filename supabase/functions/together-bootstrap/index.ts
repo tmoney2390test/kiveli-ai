@@ -5,6 +5,7 @@ import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { buildSnapshot, resolveLifeState, track } from '../_shared/together.ts';
 import { getActiveConversation } from '../_shared/together-conversation.ts';
+import { ensureMainContinuity } from '../_shared/together-continuity.ts';
 
 const schema = z.object({
   ageConfirmed: z.literal(true),
@@ -47,16 +48,17 @@ serve(async (request, correlationId) => {
   let experienceTimezone='UTC';try{new Intl.DateTimeFormat('en-US',{timeZone:input.experienceTimezone}).format(new Date());experienceTimezone=input.experienceTimezone;}catch{/* use UTC */}
   const { error: profileError } = await db.from('together_profiles').upsert({ user_id: user.id, display_name: input.displayName ?? user.user_metadata?.display_name ?? user.email?.split('@')[0] ?? 'You', age_verified_at: now, interests: input.interests, experience_goals: input.goals, experience_timezone:experienceTimezone, onboarding_completed_at: now, updated_at: now }, { onConflict: 'user_id' });
   if (profileError) throw new AppError('INTERNAL_ERROR', 'Could not start your Kivelle story.', 500, true);
+  const continuity=await ensureMainContinuity(db,user.id);
 
   const meeting=(selectedTemplate.first_meeting??{}) as Record<string,unknown>;
   const meetingLocationId=typeof meeting.location_id==='string'?meeting.location_id:null;
   if(!meetingLocationId)throw new AppError('CONFLICT','That companion does not have a published first-meeting place yet.',409);
   const{data:meetingLocation}=await db.from('together_locations').select('id,world_id,together_worlds(slug,timezone,default_arrival_location_id)').eq('id',meetingLocationId).maybeSingle();
   if(!meetingLocation)throw new AppError('CONFLICT','That first-meeting place is unavailable.',409);
-  let{data:companion}=await db.from('together_character_instances').select('id,character_template_id').eq('user_id',user.id).eq('character_template_id',selectedTemplate.id).maybeSingle();
-  if(!companion){const created=await db.from('together_character_instances').insert({user_id:user.id,character_template_id:selectedTemplate.id,character_version_id:selectedVersion.id,relationship_stage:'stranger',current_mood:String(meeting.mood??'curious'),current_location_id:meetingLocation.id,current_activity:String(meeting.companion_activity??'meeting someone new'),current_energy:'medium',introduced_at:now,contact_added_at:now,metadata:{first_meeting_title:meeting.title??null},updated_at:now}).select('id,character_template_id').single();if(created.error||!created.data)throw new AppError('INTERNAL_ERROR',`Could not prepare your first meeting with ${selectedTemplate.name}.`,500,true);companion=created.data;}
+  let{data:companion}=await db.from('together_character_instances').select('id,character_template_id').eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_template_id',selectedTemplate.id).maybeSingle();
+  if(!companion){const created=await db.from('together_character_instances').insert({user_id:user.id,continuity_id:continuity.id,character_template_id:selectedTemplate.id,character_version_id:selectedVersion.id,relationship_stage:'stranger',current_mood:String(meeting.mood??'curious'),current_location_id:meetingLocation.id,current_activity:String(meeting.companion_activity??'meeting someone new'),current_energy:'medium',introduced_at:now,contact_added_at:now,metadata:{first_meeting_title:meeting.title??null},updated_at:now}).select('id,character_template_id').single();if(created.error||!created.data)throw new AppError('INTERNAL_ERROR',`Could not prepare your first meeting with ${selectedTemplate.name}.`,500,true);companion=created.data;}
   await db.from('together_relationship_states').upsert({ character_instance_id: companion.id, user_id: user.id }, { onConflict: 'character_instance_id', ignoreDuplicates: true });
-  await db.from('together_profiles').update({ active_companion_instance_id: companion.id, updated_at: now }).eq('user_id', user.id);
+  await Promise.all([db.from('together_continuities').update({active_companion_instance_id:companion.id,updated_at:now}).eq('id',continuity.id).eq('user_id',user.id),db.from('together_profiles').update({ active_companion_instance_id: companion.id,active_continuity_id:continuity.id, updated_at: now }).eq('user_id', user.id)]);
 
   const conversation=await getActiveConversation(db, user.id, companion.id, true);
   if(conversation?.id&&typeof meeting.opening_line==='string'){const{count}=await db.from('together_messages').select('id',{count:'exact',head:true}).eq('conversation_id',conversation.id).eq('user_id',user.id);if(!count)await db.from('together_messages').insert({conversation_id:conversation.id,user_id:user.id,character_instance_id:companion.id,role:'assistant',content:meeting.opening_line,delivery_status:'complete'});}

@@ -6,6 +6,7 @@ import { AppError } from '../_shared/types.ts';
 import { kickMediaDispatcher, queueMediaRequest } from '../_shared/together-media.ts';
 import { track } from '../_shared/together.ts';
 import { waitUntil } from '../_shared/background.ts';
+import {activeContinuity,requireInstanceInActiveContinuity}from'../_shared/together-continuity.ts';
 
 const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('request'),characterInstanceId:z.string().uuid(),source:z.enum(['user_request','life_event','date','moment','story']).default('user_request'),conversationId:z.string().uuid().optional(),messageId:z.string().uuid().optional(),lifeEventId:z.string().uuid().optional(),dateSessionId:z.string().uuid().optional(),momentId:z.string().uuid().optional(),storyArcId:z.string().uuid().optional(),requestText:z.string().trim().max(400).optional(),idempotencyKey:z.string().trim().min(8).max(120).optional()}),
@@ -19,6 +20,7 @@ serve(async(request,correlationId)=>{
   const {user,db}=await authenticated(request);
   const input=await parseBody(request,schema);
   if(input.action==='request'){
+    await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId);
     await enforceRateLimit(db,user.id,'together_media_request',15,86400);
     const media=await queueMediaRequest(db,{userId:user.id,characterInstanceId:input.characterInstanceId,source:input.source,conversationId:input.conversationId,messageId:input.messageId,lifeEventId:input.lifeEventId,dateSessionId:input.dateSessionId,momentId:input.momentId,storyArcId:input.storyArcId,requestText:input.requestText,idempotencyKey:input.idempotencyKey,force:true});
     if(media)waitUntil(kickMediaDispatcher());
@@ -29,7 +31,7 @@ serve(async(request,correlationId)=>{
     if(error)throw new AppError('INTERNAL_ERROR','Photo preferences could not be saved.',500,true);
     return json({data:{saved:true},correlationId},200,correlationId);
   }
-  const {data:media}=await db.from('together_generated_media').select('*').eq('id',input.mediaId).eq('user_id',user.id).maybeSingle();
+  const continuity=await activeContinuity(db,user.id),{data:media}=await db.from('together_generated_media').select('*').eq('id',input.mediaId).eq('user_id',user.id).eq('continuity_id',continuity.id).maybeSingle();
   if(!media)throw new AppError('NOT_FOUND','That photo is unavailable.',404);
   if(input.action==='status'){
     let signedUrl:string|null=null;

@@ -15,7 +15,7 @@ const categoryControls: Array<[string,string]> = [['semantic','About you'],['pre
 export default function Memories() {
   const { character: slug } = useLocalSearchParams<{ character?: string }>();
   const { snapshot, refresh } = useTogether();
-  const companion = slug ? snapshot?.characters.find((item) => item.together_character_templates.slug === slug) : snapshot ? activeCompanion(snapshot) : undefined;
+  const companion = slug ? snapshot?.characters.find((item) => item.together_character_templates.slug === slug||item.together_character_templates.public_handle===slug||item.character_template_id===slug) : snapshot ? activeCompanion(snapshot) : undefined;
   const connections=(snapshot?.characters??[]).filter((item)=>item.contact_added_at||item.introduced_at||snapshot?.memories.some((memory)=>memory.character_instance_id===item.id));
   const name = companion?.together_character_templates.name ?? 'Your companion';
   const memories = (snapshot?.memories ?? []).filter((memory) => memory.character_instance_id === companion?.id);

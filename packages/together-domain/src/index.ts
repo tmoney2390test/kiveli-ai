@@ -9,6 +9,7 @@ export*from'./ai';
 export*from'./analytics';
 export*from'./entitlements';
 export*from'./continuity';
+export*from'./personas';
 export*from'./content';
 export*from'./media';
 export*from'./conversation';

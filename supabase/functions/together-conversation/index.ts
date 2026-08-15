@@ -4,6 +4,7 @@ import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { track } from '../_shared/together.ts';
+import {activeContinuity,requireInstanceInActiveContinuity}from'../_shared/together-continuity.ts';
 
 const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('new'), characterInstanceId: z.string().uuid() }),
@@ -20,6 +21,7 @@ const schema = z.discriminatedUnion('action', [
 serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
   const input = await parseBody(request, schema);
+  const continuity=await activeContinuity(db,user.id);if('characterInstanceId'in input)await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId);
   await enforceRateLimit(db, user.id, `together_conversation_${input.action}`, input.action === 'search' ? 40 : 20, 3600);
 
   if (input.action === 'new') {
@@ -41,7 +43,7 @@ serve(async (request, correlationId) => {
   }
 
   if (input.action === 'messages') {
-    const owned = await ownedConversation(db, user.id, input.conversationId);
+    const owned = await ownedConversation(db, user.id,continuity.id,input.conversationId);
     if (input.anchorMessageId && !input.before) {
       const { data: anchor } = await db.from('together_messages').select('id,created_at').eq('id', input.anchorMessageId).eq('conversation_id', owned.id).eq('user_id', user.id).maybeSingle();
       if (!anchor) throw new AppError('NOT_FOUND', 'That search result is no longer available.', 404);
@@ -83,7 +85,7 @@ serve(async (request, correlationId) => {
     return json({ data, correlationId }, 200, correlationId);
   }
 
-  const conversation = await ownedConversation(db, user.id, input.conversationId);
+  const conversation = await ownedConversation(db, user.id,continuity.id,input.conversationId);
   if (input.action === 'read') {
     const now = new Date().toISOString();
     await db.from('together_conversations').update({ last_read_at: now }).eq('id', conversation.id).eq('user_id', user.id);
@@ -113,8 +115,8 @@ serve(async (request, correlationId) => {
   return json({ data: deleted, correlationId }, 200, correlationId);
 });
 
-async function ownedConversation(db: any, userId: string, conversationId: string): Promise<Record<string, any>> {
-  const { data } = await db.from('together_conversations').select('*').eq('id', conversationId).eq('user_id', userId).maybeSingle();
+async function ownedConversation(db: any, userId: string,continuityId:string, conversationId: string): Promise<Record<string, any>> {
+  const { data } = await db.from('together_conversations').select('*').eq('id', conversationId).eq('user_id', userId).eq('continuity_id',continuityId).maybeSingle();
   if (!data) throw new AppError('NOT_FOUND', 'That conversation is unavailable.', 404);
   return data;
 }

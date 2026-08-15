@@ -4,6 +4,7 @@ import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { TOGETHER_IDS, track } from '../_shared/together.ts';
+import { activeContinuity } from '../_shared/together-continuity.ts';
 
 const schema = z.object({ action: z.enum(['preview','accept','complete']), choice: z.string().max(120).optional() });
 
@@ -11,7 +12,8 @@ serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
   await enforceRateLimit(db, user.id, 'together_introduction', 30, 3600);
   const input = await parseBody(request, schema);
-  const { data: instances } = await db.from('together_character_instances').select('*').eq('user_id', user.id).in('character_template_id', [TOGETHER_IDS.maya, TOGETHER_IDS.chloe]);
+  const continuity=await activeContinuity(db,user.id);
+  const { data: instances } = await db.from('together_character_instances').select('*').eq('user_id', user.id).eq('continuity_id',continuity.id).in('character_template_id', [TOGETHER_IDS.maya, TOGETHER_IDS.chloe]);
   const maya = instances?.find((item) => item.character_template_id === TOGETHER_IDS.maya);
   const chloe = instances?.find((item) => item.character_template_id === TOGETHER_IDS.chloe);
   if (!maya || !chloe) throw new AppError('NOT_FOUND', 'The introduction is not available.', 404);

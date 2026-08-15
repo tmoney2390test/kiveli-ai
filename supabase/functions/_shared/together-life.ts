@@ -1,12 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
-import { resolveLifeState, TOGETHER_IDS, track } from './together.ts';
+import { resolveLifeState, track } from './together.ts';
 import { progressStoryArcs, rankEventTemplates } from './together-content.ts';
 import { getActiveConversation } from './together-conversation.ts';
 import { kickMediaDispatcher, queueMediaRequest } from './together-media.ts';
 import { eventIsActive, experienceClock } from './kivelle-time.ts';
 import { resolveCharacterBaseLocation, resolvePlaceContext } from './together-place.ts';
 import { waitUntil } from './background.ts';
+import { activeContinuity } from './together-continuity.ts';
 
 type LifeRunInput = { db: SupabaseClient; userId: string; characterInstanceId?: string; now?: Date; evaluateProactive?: boolean; trigger: 'conversation_continued' | 'home_opened' | 'scheduled_dispatch' };
 type EventRow = Record<string, any>;
@@ -15,8 +16,9 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   // Routine state resolution is cheap; meaningful events are materialized only
   // by a continued conversation or the protected background dispatcher.
   const simulateEvents = trigger === 'conversation_continued' || trigger === 'scheduled_dispatch';
-  const instanceQuery = db.from('together_character_instances').select('*,together_character_templates(name,slug)').eq('user_id', userId);
-  const { data: instance } = await (characterInstanceId ? instanceQuery.eq('id', characterInstanceId) : instanceQuery.eq('character_template_id', TOGETHER_IDS.maya)).maybeSingle();
+  const fallbackContinuity=characterInstanceId?null:await activeContinuity(db,userId);const resolvedInstanceId=characterInstanceId??fallbackContinuity?.active_companion_instance_id;
+  if(!resolvedInstanceId)throw new AppError('CONFLICT','Choose a companion before simulating this Kivelle Life.',409);
+  const { data: instance } = await db.from('together_character_instances').select('*,together_character_templates(name,slug)').eq('user_id', userId).eq('id', resolvedInstanceId).maybeSingle();
   if (!instance) throw new AppError('NOT_FOUND', 'That character is unavailable.', 404);
   const currentPlace=instance.current_location_id?await resolvePlaceContext({db,locationId:String(instance.current_location_id),now,userId,characterInstanceId:String(instance.id)}).catch(()=>null):null;
   let currentWorldId=currentPlace?.world.id;
@@ -38,7 +40,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
     db.from('together_life_events').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).gte('starts_at', recentCutoff).order('starts_at', { ascending: false }).limit(20),
     db.from('together_proactive_messages').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).order('created_at', { ascending: false }).limit(10),
     db.from('together_memories').select('canonical_text,memory_type,pinned,importance,sensitivity_category').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status', 'active').neq('sensitivity_category', 'sensitive').order('pinned', { ascending: false }).order('importance', { ascending: false }).limit(8),
-    db.from('together_character_instances').select('id,character_template_id').eq('user_id', userId),
+    db.from('together_character_instances').select('id,character_template_id').eq('user_id', userId).eq('continuity_id',instance.continuity_id),
     db.from('together_shared_plans').select('*,together_locations(name)').eq('user_id', userId).eq('character_instance_id', instance.id).order('starts_at', { ascending: true }),
   ]);
   if (relationship.error) throw new AppError('INTERNAL_ERROR', 'Relationship state is unavailable.', 500, true);
