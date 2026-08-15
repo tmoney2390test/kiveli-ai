@@ -8,7 +8,7 @@ import { markProactiveOpened } from '../../src/lib/api';
 import { buildCompanionLife, formatScheduleTime } from '../../src/lib/companionLife';
 import { worldForLocation } from '../../src/lib/place';
 import { selectPortraitVersion } from '../../src/lib/selectors';
-import type { DateSession, LifeEvent, RelationshipMilestone, SharedPlan, StoryArcInstance } from '../../src/types';
+import type { DateSession, RelationshipMilestone, SharedPlan, StoryArcInstance } from '../../src/types';
 
 const router=expoRouter as unknown as {push:(href:string)=>void};
 type HomeFocus={kind:'choice'|'active'|'message'|'story'|'next';kicker:string;title:string;body:string;action:string;route:string;entityId?:string};
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   time: { color: colors.dimmed, fontSize: 10, fontWeight: '800' },
   emptySchedule:{color:colors.muted,fontSize:12,lineHeight:18,paddingVertical:10},
   rule: { height: 1, marginLeft: 43, backgroundColor: colors.border },
-  storyEmpty: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(241,103,154,.08)', borderRadius: radius.lg, borderWidth: 1,borderColor:'rgba(241,103,154,.20)',padding:spacing.md },
+  storyEmpty: { flexDirection: 'row', alignItems:'center',gap:12,backgroundColor:'rgba(241,103,154,.08)',borderRadius:radius.lg,borderWidth:1,borderColor:'rgba(241,103,154,.20)',padding:spacing.md },
   storyTitle: { color: colors.text, fontSize: 14, fontWeight: '800' },
   storyCopy: { color: colors.muted, fontSize: 12, marginTop: 3 },
   relationshipCue:{flexDirection:'row',alignItems:'center',gap:11,padding:13,borderRadius:radius.lg,backgroundColor:'rgba(241,103,154,.07)',borderWidth:1,borderColor:'rgba(241,103,154,.18)'},
