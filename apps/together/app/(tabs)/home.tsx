@@ -34,15 +34,7 @@ export default function Home() {
   const activePlan=(snapshot.sharedPlans??[]).find((plan)=>plan.character_instance_id===companion.id&&(plan.status==='active'||plan.status==='scheduled'&&new Date(plan.starts_at)<=new Date()&&new Date(plan.ends_at)>new Date()));
   const nextPlan=(snapshot.sharedPlans??[]).filter((plan)=>plan.character_instance_id===companion.id&&plan.status==='scheduled'&&new Date(plan.starts_at).getTime()>Date.now()).sort((left,right)=>new Date(left.starts_at).getTime()-new Date(right.starts_at).getTime())[0];
   const activeStory=(snapshot.storyArcs??[]).find((arc)=>arc.character_instance_id===companion.id&&arc.status==='active');
-  let focus:HomeFocus|undefined;
-  if(pendingMilestone)focus={kind:'choice',kicker:'YOUR CHOICE IS WAITING',title:pendingMilestone.title,body:pendingMilestone.body,action:'Continue in Chat',route:'/(tabs)/chat-tab'};
-  else if(activeDate)focus={kind:'active',kicker:'TOGETHER NOW',title:activeDate.together_date_templates.name,body:`Continue your shared experience with ${name}.`,action:'Continue date',route:`/date/${activeDate.id}`,entityId:activeDate.id};
-  else if(activePlan)focus={kind:'active',kicker:'TOGETHER NOW',title:activePlan.title,body:`You and ${name} are together at ${snapshot.locations.find((item)=>item.id===activePlan.location_id)?.name??location}.`,action:'View plan',route:`/plan/${activePlan.id}`,entityId:activePlan.id};
-  else if(latestProactive)focus={kind:'message',kicker:`NEW FROM ${name.toUpperCase()}`,title:'They reached out',body:latestProactive.content,action:`Reply to ${name}`,route:'/(tabs)/chat-tab'};
-  else if(activeStory)focus={kind:'story',kicker:'STORY DEVELOPING',title:activeStory.together_story_arc_templates?.title??'Something is unfolding',body:`A new part of ${name}'s life is in motion.`,action:'See what is happening',route:`/story/${activeStory.id}`,entityId:activeStory.id};
-  else if(nextPlan)focus={kind:'next',kicker:'NEXT TOGETHER',title:nextPlan.title,body:`${new Date(nextPlan.starts_at).toLocaleString([],{weekday:'long',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} · ${snapshot.locations.find((item)=>item.id===nextPlan.location_id)?.name??currentWorld?.name??'Current world'}`,action:'View plan',route:`/plan/${nextPlan.id}`,entityId:nextPlan.id};
-  else if(nextDate)focus={kind:'next',kicker:'NEXT TOGETHER',title:nextDate.together_date_templates.name,body:new Date(nextDate.scheduled_for!).toLocaleString([],{weekday:'long',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}),action:'View date',route:`/date/${nextDate.id}`,entityId:nextDate.id};
-  const primaryFocus=focus;
+  const primaryFocus=buildHomeFocus({pendingMilestone,activeDate,activePlan,latestProactive,activeStory,nextPlan,nextDate,name,location,currentWorldName:currentWorld?.name,locations:snapshot.locations});
   const openFocus=async()=>{if(primaryFocus?.kind==='message'&&latestProactive?.status==='sent')await markProactiveOpened(latestProactive.id).catch(()=>undefined);if(primaryFocus)router.push(primaryFocus.route);};
   const latest = recentEvents[0]?.narrative_summary ?? `${name} is waiting to hear how your day is going.`;
   const latestSourceTitle=recentEvents[0]?`${name}'s day`:'Continue your conversation';
@@ -99,6 +91,16 @@ export default function Home() {
   </Screen>;
 }
 
+function buildHomeFocus(input:{pendingMilestone?:{title:string;body:string};activeDate?:{id:string;together_date_templates:{name:string}};activePlan?:{id:string;title:string;location_id?:string|null};latestProactive?:{content:string};activeStory?:{id:string;together_story_arc_templates?:{title:string}};nextPlan?:{id:string;title:string;starts_at:string;location_id?:string|null};nextDate?:{id:string;scheduled_for:string|null;together_date_templates:{name:string}};name:string;location:string;currentWorldName?:string;locations:Array<{id:string;name:string}>}):HomeFocus|undefined{
+  if(input.pendingMilestone)return{kind:'choice',kicker:'YOUR CHOICE IS WAITING',title:input.pendingMilestone.title,body:input.pendingMilestone.body,action:'Continue in Chat',route:'/(tabs)/chat-tab'};
+  if(input.activeDate)return{kind:'active',kicker:'TOGETHER NOW',title:input.activeDate.together_date_templates.name,body:`Continue your shared experience with ${input.name}.`,action:'Continue date',route:`/date/${input.activeDate.id}`,entityId:input.activeDate.id};
+  if(input.activePlan)return{kind:'active',kicker:'TOGETHER NOW',title:input.activePlan.title,body:`You and ${input.name} are together at ${input.locations.find((item)=>item.id===input.activePlan?.location_id)?.name??input.location}.`,action:'View plan',route:`/plan/${input.activePlan.id}`,entityId:input.activePlan.id};
+  if(input.latestProactive)return{kind:'message',kicker:`NEW FROM ${input.name.toUpperCase()}`,title:'They reached out',body:input.latestProactive.content,action:`Reply to ${input.name}`,route:'/(tabs)/chat-tab'};
+  if(input.activeStory)return{kind:'story',kicker:'STORY DEVELOPING',title:input.activeStory.together_story_arc_templates?.title??'Something is unfolding',body:`A new part of ${input.name}'s life is in motion.`,action:'See what is happening',route:`/story/${input.activeStory.id}`,entityId:input.activeStory.id};
+  if(input.nextPlan)return{kind:'next',kicker:'NEXT TOGETHER',title:input.nextPlan.title,body:`${new Date(input.nextPlan.starts_at).toLocaleString([],{weekday:'long',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} · ${input.locations.find((item)=>item.id===input.nextPlan?.location_id)?.name??input.currentWorldName??'Current world'}`,action:'View plan',route:`/plan/${input.nextPlan.id}`,entityId:input.nextPlan.id};
+  if(input.nextDate?.scheduled_for)return{kind:'next',kicker:'NEXT TOGETHER',title:input.nextDate.together_date_templates.name,body:new Date(input.nextDate.scheduled_for).toLocaleString([],{weekday:'long',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}),action:'View date',route:`/date/${input.nextDate.id}`,entityId:input.nextDate.id};
+  return undefined;
+}
 function TimelineItem({ icon, title, detail, time }: { icon: React.ReactNode; title: string; detail: string; time: string }) {
   return <View style={styles.timelineItem}><View style={styles.timelineIcon}>{icon}</View><View style={{ flex: 1 }}><Text style={styles.timelineTitle}>{title}</Text><Text style={styles.timelineDetail}>{detail}</Text></View><Text style={styles.time}>{time}</Text></View>;
 }
@@ -152,7 +154,7 @@ const styles = StyleSheet.create({
   time: { color: colors.dimmed, fontSize: 10, fontWeight: '800' },
   emptySchedule:{color:colors.muted,fontSize:12,lineHeight:18,paddingVertical:10},
   rule: { height: 1, marginLeft: 43, backgroundColor: colors.border },
-  storyEmpty: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(241,103,154,.08)', borderRadius: radius.lg, borderWidth: 1, borderColor: 'rgba(241,103,154,.20)', padding: spacing.md },
+  storyEmpty: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(241,103,154,.08)', borderRadius: radius.lg, borderWidth: 1, borderColor:'rgba(241,103,154,.20)', padding: spacing.md },
   storyTitle: { color: colors.text, fontSize: 14, fontWeight: '800' },
   storyCopy: { color: colors.muted, fontSize: 12, marginTop: 3 },
   relationshipCue:{flexDirection:'row',alignItems:'center',gap:11,padding:13,borderRadius:radius.lg,backgroundColor:'rgba(241,103,154,.07)',borderWidth:1,borderColor:'rgba(241,103,154,.18)'},
