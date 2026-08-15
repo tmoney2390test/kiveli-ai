@@ -23,6 +23,7 @@ export default function WorldsTab(){
   if(!snapshot)return <LoadingSkeleton/>;
   if(!worlds.length)return <EmptyState title="Worlds are being prepared" body="Kivelle couldn't find a published world yet."/>;
   const selectedWorld=worlds.find((item)=>item.id===browsedWorldId)??companionWorld??worlds[0];
+  if(!selectedWorld)return <LoadingSkeleton/>;
   const profile=worldProfile(selectedWorld);
   const selectedLocations=locationsForWorld(snapshot,selectedWorld.id);
   const selectedCharacters=charactersForWorld(snapshot,selectedWorld.id);
