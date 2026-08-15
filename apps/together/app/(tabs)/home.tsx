@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   hero: { height: 372, borderRadius: 28, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(248,241,234,.16)', backgroundColor: colors.elevated, shadowColor: '#000', shadowOpacity: .28, shadowRadius: 20, shadowOffset: { width: 0, height: 10 } },
   heroFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#30203B' },
   heroFallbackText: { fontFamily: 'Georgia', fontSize: 128, color: 'rgba(248,241,234,.28)' },
-  heroWash: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(8,7,12,.08)' },
+  heroWash: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(8,7,12,.08)' },
   heroScrimSoft: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '58%', backgroundColor: 'rgba(7,6,11,.42)' },
   heroScrimDeep: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '34%', backgroundColor: 'rgba(6,5,10,.56)' },
   heroContent: { flex: 1, justifyContent: 'space-between', padding: 14 },
