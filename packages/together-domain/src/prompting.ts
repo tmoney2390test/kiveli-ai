@@ -41,14 +41,15 @@ export function compileRelationshipStance(relationship:RelationshipLike,reflecti
 
 export function compileCharacterGoals(input:{occupation?:string;currentActivity?:string;bible?:Record<string,unknown>;activeStory?:{title?:string;chapterTitle?:string;knownSummary?:string}|null;reflection?:ReflectionLike;recentLifeEvents?:Array<{title?:string;summary?:string}>}):CharacterGoals{
   const bible=input.bible??{};
-  const ambitions=strings(bible.ambitions??bible.goals);
-  const concerns=strings(bible.concerns??bible.currentConcerns);
+  const ambitions=strings(bible['ambitions']??bible['goals']);
+  const concerns=strings(bible['concerns']??bible['currentConcerns']);
   const activeStory=input.activeStory;
   if(activeStory?.title){return{currentGoal:`Move through ${activeStory.title}${activeStory.chapterTitle?` (${activeStory.chapterTitle})`:''} without inventing future story outcomes.`,currentConcern:input.reflection?.unresolvedTension?.[0]??activeStory.knownSummary??'The current story is still unresolved.',mediumTermAmbition:ambitions[0]??occupationAmbition(input.occupation),source:'story'};}
-  const currentGoal=strings(bible.currentGoals)[0]??(input.currentActivity?`Handle the current part of the day: ${input.currentActivity}.`:occupationGoal(input.occupation));
+  const currentGoals=strings(bible['currentGoals']);
+  const currentGoal=currentGoals[0]??(input.currentActivity?`Handle the current part of the day: ${input.currentActivity}.`:occupationGoal(input.occupation));
   const currentConcern=input.reflection?.unresolvedTension?.[0]??concerns[0]??input.recentLifeEvents?.[0]?.summary??'No specific current concern is established.';
   const mediumTermAmbition=ambitions[0]??occupationAmbition(input.occupation);
-  const source=strings(bible.currentGoals).length||ambitions.length?'bible':input.reflection?.unresolvedTension?.length?'relationship':'life';
+  const source:CharacterGoals['source']=currentGoals.length||ambitions.length?'bible':input.reflection?.unresolvedTension?.length?'relationship':'life';
   return{currentGoal,currentConcern,mediumTermAmbition,source};
 }
 
@@ -70,8 +71,8 @@ export function compileResponseBrief(input:{message:string;interactionQuality:Pr
   const initiative:ResponseBrief['initiative']=input.interactionQuality==='trivial'?'low':input.interactionQuality==='major_relationship_event'||input.activeStory?'high':'medium';
   const callbackCandidate=input.openThread??input.nextCommitment??input.activeStory;
   const askQuestion=!/\?$/.test(input.message.trim())&&input.interactionQuality!=='trivial'&&(mode==='supportive'||mode==='vulnerable'||mode==='practical')&&antiRepetitionGuidance(input.recentAssistantMessages??[]).every((line)=>!line.includes('Do not end'));
-  const actionCandidate:ResponseBrief['actionCandidate']=mode==='practical'&&/\b(plan|schedule|cancel|reschedule)\b/.test(lower)?'plan':input.openThread&&/\b(went|finished|done|over)\b/.test(lower)?'memory_followup':input.interactionQuality==='major_relationship_event'?'relationship':input.activeStory?'story':'none';
-  return{mode,emotionalPosture:emotionalPosture(mode,input.relationshipStance),initiative,callbackCandidate,selfDisclosure:meaningful?(input.relationshipStance.stage==='stranger'?'small':'moderate'):'none',shouldAskQuestion:askQuestion,actionCandidate,avoid:antiRepetitionGuidance(input.recentAssistantMessages??[]),autonomy:'Contribute an independent reaction before accommodating the user. Agreement is optional; honesty and character consistency matter more than approval.'};
+  const actionCandidate:NonNullable<ResponseBrief['actionCandidate']>=mode==='practical'&&/\b(plan|schedule|cancel|reschedule)\b/.test(lower)?'plan':input.openThread&&/\b(went|finished|done|over)\b/.test(lower)?'memory_followup':input.interactionQuality==='major_relationship_event'?'relationship':input.activeStory?'story':'none';
+  return{mode,emotionalPosture:emotionalPosture(mode,input.relationshipStance),initiative,...(callbackCandidate?{callbackCandidate}:{}),selfDisclosure:meaningful?(input.relationshipStance.stage==='stranger'?'small':'moderate'):'none',shouldAskQuestion:askQuestion,actionCandidate,avoid:antiRepetitionGuidance(input.recentAssistantMessages??[]),autonomy:'Contribute an independent reaction before accommodating the user. Agreement is optional; honesty and character consistency matter more than approval.'};
 }
 
 export function shouldUseDirector(policy:DirectorPolicy,quality:PromptInteractionQuality,input?:{pendingMilestone?:boolean;activeConflict?:boolean;activeStory?:boolean}):boolean{
