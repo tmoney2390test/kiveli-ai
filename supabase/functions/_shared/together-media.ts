@@ -85,13 +85,31 @@ export class GeminiImageProvider implements ImageGenerationProvider {
     const parts:Array<Record<string,unknown>>=[{text:buildImagePrompt(request)}];
     for(const reference of request.referenceImages.slice(0,2))parts.push({inline_data:{mime_type:reference.contentType,data:uint8ToBase64(reference.bytes)}});
     const imageSize=request.qualityTier==='economy'?'512':'1K';
+    const aspectRatio={
+      '1:1':'ASPECT_RATIO_ONE_BY_ONE',
+      '4:5':'ASPECT_RATIO_FOUR_BY_FIVE',
+      '16:9':'ASPECT_RATIO_SIXTEEN_BY_NINE',
+    }[request.composition.aspectRatio];
+    const providerImageSize=imageSize==='512'?'IMAGE_SIZE_FIVE_TWELVE':'IMAGE_SIZE_ONE_K';
     const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),90000);
     try{
-      const response=await fetch(`https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(this.model)}:generateContent`,{method:'POST',headers:{'x-goog-api-key':this.apiKey,'Content-Type':'application/json'},body:JSON.stringify({contents:[{role:'user',parts}],generationConfig:{responseModalities:['IMAGE'],responseFormat:{image:{aspectRatio:request.composition.aspectRatio,imageSize}}}}),signal:controller.signal});
-      const payload=await response.json().catch(()=>({})) as {responseId?:string;candidates?:Array<{content?:{parts?:Array<{inlineData?:{data?:string;mimeType?:string};inline_data?:{data?:string;mime_type?:string}}>}}>;error?:{message?:string}};
+      const response=await fetch(`https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(this.model)}:generateContent`,{method:'POST',headers:{'x-goog-api-key':this.apiKey,'Content-Type':'application/json'},body:JSON.stringify({contents:[{role:'user',parts}],generationConfig:{responseModalities:['IMAGE'],responseFormat:{image:{aspectRatio,imageSize:providerImageSize}}}}),signal:controller.signal});
+      const payload=await response.json().catch(()=>({})) as {responseId?:string;candidates?:Array<{content?:{parts?:Array<{inlineData?:{data?:string;mimeType?:string};inline_data?:{data?:string;mime_type?:string}}>}}>;error?:{message?:string;code?:number;status?:string}};
       const output=payload.candidates?.[0]?.content?.parts?.find((part)=>part.inlineData?.data||part.inline_data?.data);
       const data=output?.inlineData?.data??output?.inline_data?.data;const contentType=output?.inlineData?.mimeType??output?.inline_data?.mime_type??'image/png';
-      if(!response.ok||!data)throw new AppError(response.status===429?'RATE_LIMITED':'PROVIDER_UNAVAILABLE',response.status===429?'Photo requests are busy right now. Try again soon.':'The photo could not be taken right now.',response.status===429?429:503,true);
+      if(!response.ok||!data){
+        const diagnostic={provider:this.id,model:this.model,httpStatus:response.status,providerStatus:payload.error?.status,providerCode:payload.error?.code,message:payload.error?.message?.replace(/[\r\n]+/g,' ').slice(0,240),hasCandidate:Boolean(payload.candidates?.length)};
+        console.error('Gemini image generation failed',diagnostic);
+        if(response.status===429){
+          const quotaBlocked=/quota|billing/i.test(payload.error?.message??'')||payload.error?.status==='RESOURCE_EXHAUSTED';
+          if(quotaBlocked)throw new AppError('PROVIDER_QUOTA','Photos are unavailable until provider capacity is restored.',503,false);
+          throw new AppError('RATE_LIMITED','Photo requests are busy right now. Try again soon.',429,true);
+        }
+        if(response.status===401||response.status===403)throw new AppError('PROVIDER_AUTH','The photo provider needs attention.',503,true);
+        if(response.status===404)throw new AppError('PROVIDER_MODEL','The configured photo model is unavailable.',503,true);
+        if(response.status===400)throw new AppError('PROVIDER_REQUEST_INVALID','The photo request could not be processed.',503,true);
+        throw new AppError('PROVIDER_UNAVAILABLE','The photo could not be taken right now.',503,true);
+      }
       const binary=atob(data);const bytes=Uint8Array.from(binary,(character)=>character.charCodeAt(0));const [width,height]=request.composition.aspectRatio==='16:9'?[1024,576]:request.composition.aspectRatio==='4:5'?[819,1024]:[1024,1024];
       return{bytes,contentType,width:imageSize==='512'?Math.round(width/2):width,height:imageSize==='512'?Math.round(height/2):height,providerRequestId:payload.responseId,model:this.model};
     }catch(error){if(error instanceof AppError)throw error;throw new AppError('PROVIDER_UNAVAILABLE','The photo could not be taken right now.',503,true);}finally{clearTimeout(timeout);}

@@ -5,14 +5,23 @@ import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { buildSnapshot } from '../_shared/together.ts';
 import { runLifeSimulation } from '../_shared/together-life.ts';
+import { buildKivelleConversationContext } from '../_shared/kivelle-conversation-context.ts';
 
-const schema = z.object({ action: z.enum(['inspect','adjust_relationship','content_inspect','simulate_content']), characterInstanceId: z.string().uuid().optional(), changes: z.record(z.string(), z.number()).optional(), days: z.number().int().min(1).max(30).optional() });
+const schema = z.object({ action: z.enum(['inspect','inspect_context','adjust_relationship','content_inspect','simulate_content']), characterInstanceId: z.string().uuid().optional(), message:z.string().max(4000).optional(), changes: z.record(z.string(), z.number()).optional(), days: z.number().int().min(1).max(30).optional() });
 
 serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
   const allowed = (Deno.env.get('TOGETHER_DEBUG_USER_IDS') ?? '').split(',').map((id) => id.trim()).filter(Boolean);
   if (!allowed.includes(user.id) && user.app_metadata?.together_internal !== true) throw new AppError('FORBIDDEN', 'Internal build access is required.', 403);
   const input = await parseBody(request, schema);
+  if(input.action==='inspect_context'){
+    if(!input.characterInstanceId)throw new AppError('VALIDATION_FAILED','Choose a character.',400);
+    const[{data:instance},{data:conversation}]=await Promise.all([db.from('together_character_instances').select('*,together_character_templates(*),together_character_versions(*)').eq('id',input.characterInstanceId).eq('user_id',user.id).maybeSingle(),db.from('together_conversations').select('*').eq('character_instance_id',input.characterInstanceId).eq('user_id',user.id).is('archived_at',null).order('created_at',{ascending:false}).limit(1).maybeSingle()]);
+    if(!instance||!conversation)throw new AppError('NOT_FOUND','That conversation is unavailable.',404);
+    const lifeRun=await runLifeSimulation({db,userId:user.id,characterInstanceId:instance.id,trigger:'home_opened',evaluateProactive:false});
+    const context=await buildKivelleConversationContext({db,userId:user.id,instance,conversation,userMessage:input.message??'What is happening right now?',lifeRun});
+    return json({data:{...context,debug:{...context.debug,note:'Credentials, provider secrets, embeddings, and sensitive memories are excluded.'}},correlationId},200,correlationId);
+  }
   if (input.action === 'adjust_relationship') {
     if (!input.characterInstanceId || !input.changes) throw new AppError('VALIDATION_FAILED', 'Choose a character and changes.', 400);
     const permitted = ['trust','comfort','attraction','affinity','familiarity','respect','conflict','romantic_interest','commitment'];

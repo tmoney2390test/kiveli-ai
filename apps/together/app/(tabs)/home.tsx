@@ -13,7 +13,7 @@ export default function Home() {
   const { snapshot, loading, error, refresh } = useTogether();
   if (loading && !snapshot) return <LoadingSkeleton />;
   if (error && !snapshot) return <ErrorState message={error} onRetry={() => void refresh()} />;
-  if (!snapshot) return <EmptyState title="Your story is waiting" body="Complete onboarding to enter Juniper City." />;
+  if (!snapshot) return <EmptyState title="Opening City Life" body="Your companion and first conversation are being prepared automatically." />;
 
   const life = buildCompanionLife(snapshot);
   if (!life) return <ErrorState message="Your companion could not be found in Juniper City." onRetry={() => void refresh()} />;
@@ -27,7 +27,7 @@ export default function Home() {
   const catchUpEvents = recentEvents.filter((event) => Date.now() - new Date(event.starts_at).getTime() < 72 * 3600000).slice(0, 2);
   const date = dates[0];
   const plannedDate = dates.find((item) => ['active', 'upcoming', 'unlocked', 'deferred'].includes(item.status));
-  const sharedPlan = snapshot.lifeEvents.filter((event)=>event.character_instance_id===companion.id&&event.event_type==='shared_plan'&&event.metadata?.planStatus!=='cancelled'&&new Date(event.starts_at).getTime()>Date.now()).sort((left,right)=>new Date(left.starts_at).getTime()-new Date(right.starts_at).getTime())[0];
+  const sharedPlan = (snapshot.sharedPlans??[]).filter((plan)=>plan.character_instance_id===companion.id&&plan.status==='scheduled'&&new Date(plan.starts_at).getTime()>Date.now()).sort((left,right)=>new Date(left.starts_at).getTime()-new Date(right.starts_at).getTime())[0];
   const openCompanion = async () => {
     if (latestProactive?.status === 'sent') await markProactiveOpened(latestProactive.id).catch(() => undefined);
     router.push('/(tabs)/chat-tab');
@@ -45,7 +45,7 @@ export default function Home() {
     {relationshipCue ? <Pressable onPress={() => router.push('/(tabs)/chat-tab')} style={({pressed})=>[styles.relationshipCue,pressed&&styles.pressed]}><View style={[styles.relationshipIcon,relationshipCue.tone==='tense'&&styles.relationshipIconTense]}><Heart size={18} color={relationshipCue.tone==='tense'?colors.warm:colors.rose}/></View><View style={{flex:1}}><Text style={styles.relationshipLabel}>{relationshipCue.label}</Text><Text style={styles.relationshipDetail}>{pendingMilestone?pendingMilestone.title:relationshipCue.detail}</Text></View>{pendingMilestone?<View style={styles.choicePill}><Text style={styles.choicePillText}>Your choice</Text></View>:<ChevronRight size={18} color={colors.muted}/>}</Pressable> : null}
 
     <View style={styles.actions}>
-      <ActionTile title={plannedDate?.status === 'active' ? 'Continue date' : sharedPlan ? 'View your plan' : 'Plan something'} onPress={() => plannedDate?.status==='active' ? router.push(`/date/${plannedDate.id}` as never) : sharedPlan ? router.push('/(tabs)/dates') : router.push('/(tabs)/chat-tab?plan=1')} icon={<CalendarDays color={colors.warm} size={21} />} />
+      <ActionTile title={plannedDate?.status === 'active' ? 'Continue date' : sharedPlan ? 'View your plan' : 'Plan something'} onPress={() => plannedDate?.status==='active' ? router.push(`/date/${plannedDate.id}` as never) : sharedPlan ? router.push(`/plan/${sharedPlan.id}` as never) : router.push('/(tabs)/chat-tab?plan=1')} icon={<CalendarDays color={colors.warm} size={21} />} />
       <ActionTile title="Memories" onPress={() => router.push('/memories')} icon={<Sparkles color={colors.violet} size={21} />} />
     </View>
 

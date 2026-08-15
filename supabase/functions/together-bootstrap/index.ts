@@ -12,11 +12,14 @@ const schema = z.object({
   characterTemplateId: z.string().uuid().optional(),
   interests: z.array(z.string().trim().min(1).max(40)).max(10).default([]),
   goals: z.array(z.enum(['Dating','Friendship','Stories','Social worlds'])).max(4).default([]),
+  experienceTimezone:z.string().trim().min(1).max(80).default('UTC'),
 });
 
 serve(async (request, correlationId) => {
   if (request.method === 'GET') {
     const { user, db } = await authenticated(request);
+    const requestedTimezone=request.headers.get('x-kivelle-timezone');
+    if(requestedTimezone){try{new Intl.DateTimeFormat('en-US',{timeZone:requestedTimezone}).format(new Date());const updatedAt=new Date().toISOString();await Promise.all([db.from('together_profiles').update({experience_timezone:requestedTimezone,updated_at:updatedAt}).eq('user_id',user.id),db.from('together_notification_preferences').update({timezone:requestedTimezone,updated_at:updatedAt}).eq('user_id',user.id)]);}catch{/* ignore malformed client timezone */}}
     return json({ data: await buildSnapshot(db, user.id), correlationId }, 200, correlationId);
   }
   const { user, db } = await authenticated(request);
@@ -39,7 +42,8 @@ serve(async (request, correlationId) => {
     .eq('version', selectedTemplate.current_published_version)
     .maybeSingle();
   if (selectedVersionError || !selectedVersion) throw new AppError('INTERNAL_ERROR', 'That companion is not ready to meet yet.', 500, true);
-  const { error: profileError } = await db.from('together_profiles').upsert({ user_id: user.id, display_name: input.displayName ?? user.user_metadata?.display_name ?? user.email?.split('@')[0] ?? 'You', age_verified_at: now, interests: input.interests, experience_goals: input.goals, onboarding_completed_at: now, updated_at: now }, { onConflict: 'user_id' });
+  let experienceTimezone='UTC';try{new Intl.DateTimeFormat('en-US',{timeZone:input.experienceTimezone}).format(new Date());experienceTimezone=input.experienceTimezone;}catch{/* use UTC */}
+  const { error: profileError } = await db.from('together_profiles').upsert({ user_id: user.id, display_name: input.displayName ?? user.user_metadata?.display_name ?? user.email?.split('@')[0] ?? 'You', age_verified_at: now, interests: input.interests, experience_goals: input.goals, experience_timezone:experienceTimezone, onboarding_completed_at: now, updated_at: now }, { onConflict: 'user_id' });
   if (profileError) throw new AppError('INTERNAL_ERROR', 'Could not start your Kivelle story.', 500, true);
 
   const templates = [
@@ -61,12 +65,12 @@ serve(async (request, correlationId) => {
   await getActiveConversation(db, user.id, companion.id, true);
   const { data: dateTemplates } = await db.from('together_date_templates').select('id').eq('active', true);
   for (const template of dateTemplates ?? []) await db.from('together_date_sessions').upsert({ user_id: user.id, character_instance_id: companion.id, date_template_id: template.id, status: 'locked' }, { onConflict: 'user_id,character_instance_id,date_template_id', ignoreDuplicates: true });
-  await db.from('together_notification_preferences').upsert({ user_id: user.id }, { onConflict: 'user_id', ignoreDuplicates: true });
+  await db.from('together_notification_preferences').upsert({ user_id: user.id, timezone:experienceTimezone }, { onConflict: 'user_id' });
   await db.from('together_entitlements').upsert({ user_id: user.id, revenuecat_app_user_id: user.id }, { onConflict: 'user_id', ignoreDuplicates: true });
 
   const { data: schedules } = await db.from('together_schedule_templates').select('*,together_locations(name)').eq('character_version_id', selectedVersion.id);
   const life = schedules?.length
-    ? resolveLifeState(schedules as Array<Record<string, unknown>>)
+    ? resolveLifeState(schedules as Array<Record<string, unknown>>,new Date(),experienceTimezone)
     : { mood: 'curious', locationId: TOGETHER_IDS.juniper, activity: 'waiting for coffee', energy: 'medium' };
   await db.from('together_character_instances').update({ current_mood: life.mood, current_location_id: life.locationId, current_activity: life.activity, current_energy: life.energy, last_simulated_at: now, updated_at: now }).eq('id', companion.id);
   await track(db, user.id, 'onboarding_started', { world: 'juniper-city' });

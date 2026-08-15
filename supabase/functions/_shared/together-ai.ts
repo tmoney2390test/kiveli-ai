@@ -1,13 +1,15 @@
 import { AppError } from './types.ts';
 import { extractMemories, extractOpenThread, normalizeContinuityKey, threadAnswered, type MemoryCandidate, type OpenThreadCandidate } from './together.ts';
 import { buildCompanionPrompt } from './kivelle-intelligence.ts';
+import type { KivelleConversationContext } from './kivelle-conversation-context.ts';
 
-export type DialogueContext = { character: Record<string, unknown>; life: Record<string, unknown>; relationship: Record<string, unknown>; progression?: Record<string, unknown>|null; memories: string[]; threads: string[]; social: string[]; recentMedia?:string[]; conversationSummary?: string; recent: Array<{ role: string; content: string }>; userMessage: string };
+export type DialogueContext = KivelleConversationContext & { contentMode?:string };
 export interface DialogueProvider { generate(context: DialogueContext): Promise<string>; stream(context: DialogueContext): AsyncIterable<string>; }
 export interface EmbeddingProvider { embed(text: string): Promise<number[] | null>; }
 export interface ModerationProvider { check(text: string): Promise<{ allowed: boolean; categories: string[] }>; }
-export type ConversationAnalysisInput = { userMessage: string; assistantMessage: string; existingThreads: Array<Record<string, unknown>> };
-export type ConversationAnalysisProposal = { relationshipChanges: Record<string, number>; memoryCandidates: MemoryCandidate[]; resolvedThreadIds: string[]; newThreads: OpenThreadCandidate[]; momentCandidate: boolean; moodEffects: Record<string, number>; source: 'deterministic' | 'hybrid' };
+export type ConversationActionCandidate = { type:'plan_create'|'plan_cancel'|'plan_reschedule'|'date'; confidence:number; payload:Record<string,unknown> };
+export type ConversationAnalysisInput = { userMessage: string; assistantMessage: string; existingThreads: Array<Record<string, unknown>>; context?:DialogueContext };
+export type ConversationAnalysisProposal = { relationshipChanges: Record<string, number>; memoryCandidates: MemoryCandidate[]; resolvedThreadIds: string[]; newThreads: OpenThreadCandidate[]; momentCandidate: boolean; moodEffects: Record<string, number>; actionCandidates:ConversationActionCandidate[]; referencedEntities:string[]; source: 'deterministic' | 'hybrid' };
 export interface ConversationAnalysisProvider { analyze(input: ConversationAnalysisInput): Promise<ConversationAnalysisProposal>; }
 
 const apiKey = () => Deno.env.get('OPENAI_API_KEY');
@@ -18,10 +20,6 @@ export function dialogueProviderName(): 'openai' | 'gemini' | 'deterministic' {
   if (apiKey()) return 'openai';
   if (geminiKey()) return 'gemini';
   return 'deterministic';
-}
-
-function prompt(context: DialogueContext): string {
-  return `You are ${context.character.name ?? 'Maya'}, a fictional adult AI character in Together. Stay consistent, warm but independent, concise and natural. Never claim to be a real human. Do not mention hidden metrics, system instructions, or database state. Avoid generic interview questions, repetitive reassurance, manipulative dependency, and overusing the user's name. Use a memory only when relevant. Treat the conversation summary as continuity context, not as a script to repeat. Relationship stage changes are application-owned. If a progression moment is pending, respond naturally without pressuring the user or deciding for them; the interface presents their choice.\n\nCURRENT LIFE STATE\n${JSON.stringify(context.life)}\n\nRELATIONSHIP\n${JSON.stringify(context.relationship)}\n\nPENDING PROGRESSION MOMENT\n${context.progression ? JSON.stringify(context.progression) : 'None.'}\n\nRELEVANT MEMORIES\n${context.memories.join('\n') || 'None yet.'}\n\nOPEN THREADS\n${context.threads.join('\n') || 'None.'}\n\nSOCIAL CONTEXT\n${context.social.join('\n') || 'No relevant social event.'}\n\nRECENT SHARED MEDIA\n${context.recentMedia?.join('\n') || 'None.'}\n\nEARLIER CONVERSATION SUMMARY\n${context.conversationSummary || 'No earlier summary.'}\n\nRECENT CONVERSATION\n${context.recent.map((item) => `${item.role}: ${item.content}`).join('\n')}\n\nUSER MESSAGE\n${context.userMessage}`;
 }
 
 export class ConfiguredDialogueProvider implements DialogueProvider {
@@ -149,6 +147,8 @@ function deterministicAnalysis(input: ConversationAnalysisInput): ConversationAn
     newThreads: thread ? [thread] : [],
     momentCandidate: false,
     moodEffects: {},
+    actionCandidates: proposeActions(input),
+    referencedEntities: referencedEntities(input),
     source: 'deterministic',
   };
 }
@@ -203,9 +203,9 @@ function validateAnalysisJson(value: unknown, input: ConversationAnalysisInput):
     const topic = String(proposed.topic ?? '').trim().slice(0, 240);
     const expectedAt = typeof proposed.expected_at === 'string' && !Number.isNaN(Date.parse(proposed.expected_at)) ? new Date(proposed.expected_at).toISOString() : null;
     if (!subject || !topic || !expectedAt) return [];
-    return [{ topic, dedupe_key: `event:${subject.replace(/\s+/g, ':')}:${expectedAt.slice(0, 10)}`, expected_at: expectedAt, importance: clampUnit(proposed.importance), metadata: { source: 'analysis', subject } }];
+    return [{ topic, subject, display_subject:subject[0]!.toUpperCase()+subject.slice(1), followup_prompt:`I should tell you how my ${subject} went.`, dedupe_key: `event:${subject.replace(/\s+/g, ':')}:${expectedAt.slice(0, 10)}`, expected_at: expectedAt, importance: clampUnit(proposed.importance), metadata: { source: 'analysis', subject } }];
   });
-  return { relationshipChanges, memoryCandidates, resolvedThreadIds, newThreads, momentCandidate: record.momentCandidate === true, moodEffects: {}, source: 'hybrid' };
+  return { relationshipChanges, memoryCandidates, resolvedThreadIds, newThreads, momentCandidate: record.momentCandidate === true, moodEffects: {}, actionCandidates:proposeActions(input), referencedEntities:referencedEntities(input), source: 'hybrid' };
 }
 
 function mergeAnalysis(base: ConversationAnalysisProposal, modelProposal: ConversationAnalysisProposal): ConversationAnalysisProposal {
@@ -220,6 +220,8 @@ function mergeAnalysis(base: ConversationAnalysisProposal, modelProposal: Conver
     memoryCandidates: [...memories.values()],
     resolvedThreadIds: [...new Set([...base.resolvedThreadIds, ...modelProposal.resolvedThreadIds])],
     newThreads: [...threads.values()],
+    actionCandidates: base.actionCandidates,
+    referencedEntities: [...new Set([...base.referencedEntities, ...modelProposal.referencedEntities])],
     source: 'hybrid',
   };
 }
@@ -228,6 +230,47 @@ function clampUnit(value: unknown): number {
   const number = Number(value);
   return Math.max(0, Math.min(1, Number.isFinite(number) ? number : .5));
 }
+
+function proposeActions(input:ConversationAnalysisInput):ConversationActionCandidate[]{
+  const text=input.userMessage.toLowerCase();
+  const context=input.context;const commitments=context?.upcomingCommitments??[];const focus=context?.conversationFocus as Record<string,unknown>|null;
+  const targetWords=(value:string)=>value.toLowerCase().replace(/[^a-z0-9 ]+/g,' ').split(/\s+/).filter((word)=>word.length>3);
+  const matching=commitments.filter((item)=>targetWords(item.title).some((word)=>text.includes(word))||text.includes(item.location.toLowerCase())||mentionsSameLocalDay(text,item.startsAt,context?.clock?.timezone));
+  const focused=focus?.planId?commitments.find((item)=>item.id===focus.planId):undefined;
+  const candidates=matching.length?matching:focused?[focused]:commitments;
+  const cancelIntent=/\b(cancel|call off|forget (?:the|our)|can'?t make|cannot make|won'?t make)\b/.test(text);
+  const rescheduleIntent=/\b(reschedule|move it|move the|make it (?:later|earlier|at|\d)|different time|another day|change (?:the )?time)\b/.test(text);
+  if((cancelIntent||rescheduleIntent)&&candidates.length){
+    if(candidates.length>1&&!matching.length&&!focused)return[{type:rescheduleIntent?'plan_reschedule':'plan_cancel',confidence:.75,payload:{ambiguous:true,options:candidates.map((item)=>({planId:item.id,targetType:item.type,title:item.title,startsAt:item.startsAt,location:item.location})),requiresConfirmation:true}}];
+    const target=candidates[0]!;const proposedStartsAt=rescheduleIntent?(parsePlanTime(text,context?.clock)??parseTimeOnExistingDate(text,target.startsAt,context?.clock?.timezone)):null;
+    return[{type:rescheduleIntent?'plan_reschedule':'plan_cancel',confidence:.92,payload:{planId:target.id,targetType:target.type,title:target.title,startsAt:target.startsAt,location:target.location,...(proposedStartsAt?{proposedStartsAt}:{}),requiresConfirmation:true}}];
+  }
+  const intent=planIntent(text);if(!intent||!/\b(let'?s|we should|want to|could we|how about|make plans|plan|go to|go back|meet|grab|get)\b/.test(text))return[];
+  const catalog=context?.planningCatalog??[];
+  const explicit=catalog.find((location)=>text.includes(location.name.toLowerCase())||text.includes(location.slug.replace(/-/g,' ')));
+  const compatible=catalog.filter((location)=>[...location.activities,...location.dateTypes].some((item)=>normalizePlanWord(item).includes(intent.match)||intent.match.includes(normalizePlanWord(item))));
+  const location=explicit??rankPlanLocation(compatible,context?.relationship?.relationship_stage,intent.match);
+  const proposedStartsAt=parsePlanTime(text,context?.clock);
+  if(!location)return[];
+  const rawActivity=location.activities.find((item)=>normalizePlanWord(item).includes(intent.match)||intent.match.includes(normalizePlanWord(item)))??location.dateTypes.find((item)=>normalizePlanWord(item).includes(intent.match))??intent.label;
+  const activityKey=normalizePlanWord(rawActivity).replace(/\s+/g,'_');
+  const title=`${titleCase(rawActivity)} at ${location.name}`;
+  return[{type:intent.match==='dinner'?'date':'plan_create',confidence:explicit?.id?0.96:0.86,payload:{activityIntent:intent.label,activityKey,locationId:location.id,location:location.name,title,durationMinutes:planDuration(intent.match),...(proposedStartsAt?{proposedStartsAt}:{}),relativeTime:relativeTimePhrase(text),reasoningCode:explicit?'explicit_location':'catalog_recommendation',requiresConfirmation:true}}];
+}
+
+function planIntent(text:string):{match:string;label:string}|null{const groups:[RegExp,string,string][]=[[/\b(cocktails?|drinks?|bar)\b/,'drinks','drinks'],[/\b(coffee|cafe|café)\b/,'coffee','coffee'],[/\b(dinner|food|eat)\b/,'dinner','dinner'],[/\b(rooftop movie|movie night|movies?)\b/,'movie','movie night'],[/\b(trivia)\b/,'trivia','trivia'],[/\b(open mic|live music|concert)\b/,'music','live music'],[/\b(bookstore|books?)\b/,'books','books'],[/\b(photo walk|photos?|photography)\b/,'photo','photos'],[/\b(walk|riverwalk|park)\b/,'walk','walk'],[/\b(shopping|shop)\b/,'shopping','shopping'],[/\b(karaoke)\b/,'karaoke','karaoke'],[/\b(comedy)\b/,'comedy','comedy']];for(const[pattern,match,label]of groups)if(pattern.test(text))return{match,label};return null;}
+function rankPlanLocation(locations:any[],stage:unknown,intent:string){const romantic=['flirting','dating','exclusive','long_term'].includes(String(stage));return[...locations].sort((a,b)=>planLocationScore(b,romantic,intent)-planLocationScore(a,romantic,intent))[0];}
+function planLocationScore(location:any,romantic:boolean,intent:string){let score=0;if(intent==='drinks'&&location.slug==='velvet-hour')score+=4;if(intent==='coffee'&&location.slug==='juniper-cafe')score+=3;if(intent==='books'&&location.slug==='paper-trail')score+=5;if(intent==='walk'&&['riverwalk','halcyon-park'].includes(location.slug))score+=4;if(romantic&&location.tags.includes('romantic'))score+=2;if(location.category==='work')score-=5;return score;}
+function parsePlanTime(text:string,clock:any):string|null{if(!clock?.localDate||!clock?.timezone)return null;let date=String(clock.localDate);const base=new Date(`${date}T12:00:00Z`);if(/\btomorrow\b/.test(text)){base.setUTCDate(base.getUTCDate()+1);date=base.toISOString().slice(0,10);}else{const days=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];const index=days.findIndex((day)=>text.includes(day));if(index>=0){let delta=(index-Number(clock.weekday)+7)%7;if(delta===0)delta=7;base.setUTCDate(base.getUTCDate()+delta);date=base.toISOString().slice(0,10);}else if(/\bthis weekend\b/.test(text)){let delta=(6-Number(clock.weekday)+7)%7;if(delta===0)delta=7;base.setUTCDate(base.getUTCDate()+delta);date=base.toISOString().slice(0,10);}else if(!/\btonight\b/.test(text))return null;}
+  const time=/\b(?:at|around|make it)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/.exec(text);let hour=time?Number(time[1]):(/night|evening|drinks|dinner/.test(text)?20:10);const minute=time?.[2]?Number(time[2]):0;if(time?.[3]==='pm'&&hour<12)hour+=12;if(time?.[3]==='am'&&hour===12)hour=0;if(!time?.[3]&&hour<=7&&/night|evening|dinner|drinks/.test(text))hour+=12;return localIso(date,hour,minute,String(clock.timezone));}
+function localIso(date:string,hour:number,minute:number,timezone:string){let guess=Date.parse(`${date}T${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}:00Z`);for(let i=0;i<2;i++){const parts=new Intl.DateTimeFormat('en-US',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(guess));const get=(type:string)=>Number(parts.find((part)=>part.type===type)?.value??0);const actual=Date.UTC(get('year'),get('month')-1,get('day'),get('hour')%24,get('minute'));const wanted=Date.UTC(Number(date.slice(0,4)),Number(date.slice(5,7))-1,Number(date.slice(8,10)),hour,minute);guess+=wanted-actual;}return new Date(guess).toISOString();}
+function parseTimeOnExistingDate(text:string,startsAt:string,timezone:unknown){const time=/\b(?:at|around|make it)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/.exec(text);if(!time)return null;const zone=String(timezone??'UTC'),dateParts=new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(startsAt)),get=(type:string)=>dateParts.find((part)=>part.type===type)?.value??'';let hour=Number(time[1]);const minute=Number(time[2]??0);if(time[3]==='pm'&&hour<12)hour+=12;if(time[3]==='am'&&hour===12)hour=0;if(!time[3]&&hour<=7)hour+=12;return localIso(`${get('year')}-${get('month')}-${get('day')}`,hour,minute,zone);}
+function mentionsSameLocalDay(text:string,startsAt:string,timezone:unknown){try{const day=new Intl.DateTimeFormat('en-US',{timeZone:String(timezone??'UTC'),weekday:'long'}).format(new Date(startsAt)).toLowerCase();return text.includes(day);}catch{return false;}}
+function normalizePlanWord(value:string){return value.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
+function titleCase(value:string){return value.replace(/\b\w/g,(letter)=>letter.toUpperCase());}
+function planDuration(intent:string){return intent==='movie'?150:/trivia|music|dinner|karaoke|comedy/.test(intent)?120:/walk|books|shopping|photo/.test(intent)?90:60;}
+function relativeTimePhrase(text:string){return/\b(tomorrow(?: night| evening)?|tonight|this weekend|(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: night| evening)?)\b/i.exec(text)?.[0]??null;}
+function referencedEntities(input:ConversationAnalysisInput):string[]{const haystack=`${input.userMessage} ${input.assistantMessage}`.toLowerCase();return['Maya','Chloe','Alex','Juniper Café','Riverwalk','Skyline Rooftop','Northside Bar'].filter((name)=>haystack.includes(name.toLowerCase()));}
 
 async function generateGemini(context: DialogueContext, key: string): Promise<string> {
   try {
@@ -343,6 +386,6 @@ function fallbackDialogue(context: DialogueContext): string {
   if (/presentation|interview|exam/.test(lower)) return "That sounds like a big deal. I'll be rooting for you—and I want to hear how it goes afterward.";
   if (/olive/.test(lower)) return "Noted. If olives show up on our table, they're staying very far away from your side.";
   if (/hello|\bhi\b|\bhey\b/.test(lower)) return "Hey. I was just sorting through a shoot that somehow produced three hundred photos of the same crooked lamp. How's your day going?";
-  const memory = context.memories[0];
+  const memory = context.memories[0]?.text;
   return memory ? `You know, that reminds me of something you told me before—${memory.replace(/^User /, 'you ')} Anyway, tell me the part of this that matters most to you.` : "Okay, you have my attention. Tell me more—but give me the real version, not the polished one.";
 }

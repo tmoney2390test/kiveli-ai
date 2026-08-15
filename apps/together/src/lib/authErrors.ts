@@ -1,5 +1,5 @@
 const messages: Record<string, string> = {
-  email_not_confirmed: 'Confirm your email before signing in. You can resend the confirmation below.',
+  email_not_confirmed: 'This account could not be activated automatically. Try signing in once more.',
   invalid_credentials: 'That email or password is incorrect.',
   user_not_found: 'That email or password is incorrect.',
   over_email_send_rate_limit: 'Please wait a moment before requesting another email.',

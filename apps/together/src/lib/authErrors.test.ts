@@ -6,8 +6,8 @@ describe('authErrorMessage', () => {
     expect(authErrorMessage('invalid_credentials', 'fallback')).toBe('That email or password is incorrect.');
   });
 
-  it('explains how an unconfirmed account can recover', () => {
-    expect(authErrorMessage('email_not_confirmed', 'fallback')).toContain('resend the confirmation');
+  it('does not send users into an email-confirmation flow', () => {
+    expect(authErrorMessage('email_not_confirmed', 'fallback')).toContain('activated automatically');
   });
 
   it('preserves unexpected provider messages for diagnosis', () => {

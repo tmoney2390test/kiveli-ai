@@ -11,3 +11,4 @@ export*from'./entitlements';
 export*from'./continuity';
 export*from'./content';
 export*from'./media';
+export*from'./conversation';

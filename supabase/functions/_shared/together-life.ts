@@ -4,6 +4,7 @@ import { resolveLifeState, TOGETHER_IDS, track } from './together.ts';
 import { progressStoryArcs, rankEventTemplates } from './together-content.ts';
 import { getActiveConversation } from './together-conversation.ts';
 import { kickMediaDispatcher, queueMediaRequest } from './together-media.ts';
+import { eventIsActive } from './kivelle-time.ts';
 
 type LifeRunInput = { db: SupabaseClient; userId: string; characterInstanceId?: string; now?: Date; evaluateProactive?: boolean; trigger: 'conversation_continued' | 'home_opened' | 'scheduled_dispatch' };
 type EventRow = Record<string, any>;
@@ -21,22 +22,27 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const lastEventSimulation = new Date(instance.last_event_simulated_at ?? instance.created_at ?? now.toISOString());
   const eventSimulationStart = Number.isNaN(lastEventSimulation.getTime()) || lastEventSimulation > now ? now : lastEventSimulation;
   const recentCutoff = new Date(now.getTime() - 72 * 3600000).toISOString();
-  const [schedules, templates, relationship, latestConversation, preferences, profile, recentEvents, recentProactive, memories, allInstances] = await Promise.all([
+  const [schedules, templates, relationship, latestConversation, preferences, profile, recentEvents, recentProactive, memories, allInstances, sharedPlans] = await Promise.all([
     db.from('together_schedule_templates').select('*,together_locations(name)').eq('character_version_id', instance.character_version_id),
     db.from('together_event_templates').select('*').eq('active', true).contains('participant_template_ids', [instance.character_template_id]),
     db.from('together_relationship_states').select('*').eq('character_instance_id', instance.id).single(),
     getActiveConversation(db, userId, instance.id, true).then((data) => ({ data, error: null })),
     db.from('together_notification_preferences').select('*').eq('user_id', userId).maybeSingle(),
-    db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id', userId).maybeSingle(),
+    db.from('together_profiles').select('age_verified_at,content_preferences,experience_timezone').eq('user_id', userId).maybeSingle(),
     db.from('together_life_events').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).gte('starts_at', recentCutoff).order('starts_at', { ascending: false }).limit(20),
     db.from('together_proactive_messages').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).order('created_at', { ascending: false }).limit(10),
     db.from('together_memories').select('canonical_text,memory_type,pinned,importance,sensitivity_category').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status', 'active').neq('sensitivity_category', 'sensitive').order('pinned', { ascending: false }).order('importance', { ascending: false }).limit(8),
     db.from('together_character_instances').select('id,character_template_id').eq('user_id', userId),
+    db.from('together_shared_plans').select('*,together_locations(name)').eq('user_id', userId).eq('character_instance_id', instance.id).order('starts_at', { ascending: true }),
   ]);
   if (relationship.error) throw new AppError('INTERNAL_ERROR', 'Relationship state is unavailable.', 500, true);
   await unlockEligibleDateSessions(db, userId, instance, relationship.data, now);
 
-  const scheduleState = resolveLifeState((schedules.data ?? []) as Array<Record<string, unknown>>, now);
+  const timezone = String(profile.data?.experience_timezone ?? preferences.data?.timezone ?? 'UTC');
+  const scheduleState = resolveLifeState((schedules.data ?? []) as Array<Record<string, unknown>>, now, timezone);
+  const progressed=await db.rpc('kivelle_progress_shared_plans',{p_user_id:userId,p_character_instance_id:instance.id,p_now:now.toISOString()});
+  if(progressed.error)throw new AppError('INTERNAL_ERROR','Shared plans could not advance safely.',500,true);
+  const canonicalPlans=(progressed.data??sharedPlans.data??[])as EventRow[];
   const requestedContentMode = profile.data?.age_verified_at ? String(profile.data?.content_preferences?.contentMode ?? 'standard') : 'standard';
   const eventCandidates = simulateEvents ? selectEventCandidates(eventSimulationStart, now, templates.data ?? [], String(instance.simulation_seed), recentEvents.data ?? [], schedules.data ?? [], relationship.data, instance.current_location_id, requestedContentMode) : [];
   const instanceByTemplate = new Map((allInstances.data ?? []).map((item) => [String(item.character_template_id), String(item.id)]));
@@ -78,7 +84,9 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
     }
   }
 
-  const influential = [...created, ...(recentEvents.data ?? [])].filter((event) => now.getTime() - new Date(event.starts_at).getTime() <= 6 * 3600000).sort((a, b) => Number(b.significance) - Number(a.significance))[0];
+  const activePlanRow = canonicalPlans.filter((plan)=>plan.status==='active'&&new Date(plan.starts_at)<=now&&new Date(plan.ends_at)>now).sort((a,b)=>Number(b.metadata?.significance??0)-Number(a.metadata?.significance??0))[0];
+  const activePlan=activePlanRow?{id:activePlanRow.id,event_type:'shared_plan_active',title:activePlanRow.title,narrative_summary:`spending time with you at ${activePlanRow.title}`,location_id:activePlanRow.location_id,significance:Number(activePlanRow.metadata?.significance??.5),starts_at:activePlanRow.starts_at,ends_at:activePlanRow.ends_at,resulting_state_changes:{sharedActivity:activePlanRow.activity_key},metadata:{canonicalPlanId:activePlanRow.id}}:null;
+  const influential = [activePlan, ...created, ...(recentEvents.data ?? [])].filter((event): event is EventRow => Boolean(event) && eventIsActive(event, now)).sort((a, b) => Number(b.significance) - Number(a.significance))[0];
   const life = applyEventInfluence(scheduleState, influential);
   await db.from('together_character_instances').update({ current_location_id: life.locationId, current_activity: life.activity, current_mood: life.mood, current_energy: life.energy, last_simulated_at: now.toISOString(), ...(simulateEvents ? { last_event_simulated_at: now.toISOString() } : {}), updated_at: now.toISOString() }).eq('id', instance.id).eq('user_id', userId);
 
@@ -90,14 +98,14 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   } else if (evaluateProactive) {
     proactive = await deliverDueMessage(db, userId, instance, latestConversation.data, prefs, now);
     if (!proactive) {
-      proactive = await createProactiveCandidate({ db, userId, instance, relationship: relationship.data, conversation: latestConversation.data, prefs, now, dueThreads: dueThreads ?? [], events: [...created, ...(recentEvents.data ?? [])], recentProactive: recentProactive.data ?? [], memory: memories.data?.[0]?.canonical_text });
+      proactive = await createProactiveCandidate({ db, userId, instance, relationship: relationship.data, conversation: latestConversation.data, prefs, now, dueThreads: dueThreads ?? [], events: [...created, ...(recentEvents.data ?? [])], plans:canonicalPlans, recentProactive: recentProactive.data ?? [], memory: memories.data?.[0]?.canonical_text });
     }
   }
 
-  return { state: life, events: created, proactiveMessage: proactive, eligibleThreads: dueThreads ?? [], elapsedDays: Math.max(0, Math.floor((now.getTime() - eventSimulationStart.getTime()) / 86400000)), eventsSimulated: simulateEvents };
+  return { state: life, activeEvent: influential ?? null, events: created, proactiveMessage: proactive, eligibleThreads: dueThreads ?? [], elapsedDays: Math.max(0, Math.floor((now.getTime() - eventSimulationStart.getTime()) / 86400000)), eventsSimulated: simulateEvents, timezone };
 }
 
-async function createProactiveCandidate(input: { db: SupabaseClient; userId: string; instance: EventRow; relationship: EventRow; conversation: EventRow | null; prefs: EventRow; now: Date; dueThreads: EventRow[]; events: EventRow[]; recentProactive: EventRow[]; memory?: string }): Promise<EventRow | null> {
+async function createProactiveCandidate(input: { db: SupabaseClient; userId: string; instance: EventRow; relationship: EventRow; conversation: EventRow | null; prefs: EventRow; now: Date; dueThreads: EventRow[]; events: EventRow[]; plans:EventRow[]; recentProactive: EventRow[]; memory?: string }): Promise<EventRow | null> {
   const { db, userId, instance, relationship, conversation, prefs, now } = input;
   if (!instance.contact_added_at && !instance.introduced_at) return null;
   if (relationship?.active_major_conflict || Number(relationship?.conflict ?? 0) > 60) return null;
@@ -120,12 +128,22 @@ async function createProactiveCandidate(input: { db: SupabaseClient; userId: str
     reason = `Follow-up: ${subject}`;
     openThreadId = String(dueThread.id);
   } else {
-    source = input.events.filter((event) => event.proactive_message_appropriate && Number(event.significance) >= .55 && now.getTime() - new Date(event.starts_at).getTime() <= 48 * 3600000).sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime())[0] ?? null;
+    const upcomingPlan=input.plans.filter((plan)=>plan.status==='scheduled').map((plan)=>({plan,hours:(new Date(plan.starts_at).getTime()-now.getTime())/3600000})).find((item)=>item.hours>=2&&item.hours<=4);
+    const completedPlan=input.plans.filter((plan)=>plan.status==='completed'&&Number(plan.metadata?.significance??0)>=.65&&plan.completed_at&&now.getTime()-new Date(plan.completed_at).getTime()<=24*3600000).sort((a,b)=>new Date(b.completed_at).getTime()-new Date(a.completed_at).getTime())[0];
+    if(upcomingPlan&&hoursSinceConversation>=2&&stableHash(`${instance.simulation_seed}:plan-reminder:${upcomingPlan.plan.id}`)%100<55){
+      dedupeKey=`plan:pre:${upcomingPlan.plan.id}`;content=`I'm wrapping up before ${upcomingPlan.plan.title}. Still good for ${new Date(upcomingPlan.plan.starts_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:String(prefs.timezone??'UTC')})}?`;reason=`Upcoming plan: ${upcomingPlan.plan.title}`;
+    }else if(completedPlan&&hoursSinceConversation>=5&&stableHash(`${instance.simulation_seed}:plan-callback:${completedPlan.id}`)%100<40){
+      dedupeKey=`plan:post:${completedPlan.id}`;content=`Okay, ${completedPlan.title} was a good call.`;reason=`Completed plan: ${completedPlan.title}`;
+    }
+    if(dedupeKey){/* plan-aware proactive selected */}
+    else{
+    source = input.events.filter((event) => event.proactive_message_appropriate && Number(event.significance) >= .55 && new Date(event.starts_at).getTime() <= now.getTime() && now.getTime() - new Date(event.starts_at).getTime() <= 48 * 3600000 && event.metadata?.planStatus !== 'cancelled').sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime())[0] ?? null;
     if (!source || hoursSinceConversation < 5 || !shouldInitiateEventMessage(source, String(instance.relationship_stage), hoursSinceConversation, String(instance.simulation_seed))) return null;
     dedupeKey = `event:${source.id}`;
     content = composeProactiveMessage({ eventTitle: String(source.title), eventSummary: String(source.narrative_summary), memory: input.memory });
     reason = `Life event: ${source.title}`;
     lifeEventId = String(source.id);
+    }
   }
   const existing = await db.from('together_proactive_messages').select('id').eq('user_id', userId).eq('character_instance_id', instance.id).eq('dedupe_key', dedupeKey).maybeSingle();
   if (existing.data) return null;
@@ -134,7 +152,7 @@ async function createProactiveCandidate(input: { db: SupabaseClient; userId: str
   const eligibleAt = quiet ? nextDeliveryTime(now, String(prefs.quiet_hours_start ?? '23:00'), String(prefs.quiet_hours_end ?? '08:00'), String(prefs.timezone ?? 'UTC')) : now;
   const { data, error } = await db.from('together_proactive_messages').insert({ user_id: userId, character_instance_id: instance.id, life_event_id: lifeEventId, open_thread_id: openThreadId, dedupe_key: dedupeKey, content, reason, eligible_at: eligibleAt.toISOString(), expires_at: new Date(eligibleAt.getTime() + 30 * 3600000).toISOString(), conversation_id: conversation?.id ?? null, context: { relationship_stage: instance.relationship_stage, quiet_hours_deferred: quiet } }).select('*').single();
   if (error || !data) return null;
-  await track(db, userId, 'proactive_message_created', { proactiveMessageId: data.id, source: openThreadId ? 'open_thread' : 'life_event', deferred: quiet });
+  await track(db, userId, 'proactive_message_created', { proactiveMessageId: data.id, source: openThreadId ? 'open_thread' : reason.startsWith('Upcoming plan')?'shared_plan_pre':reason.startsWith('Completed plan')?'shared_plan_post':'life_event', deferred: quiet });
   if (quiet) return data;
   return deliverMessage(db, userId, instance, conversation, prefs, data, now);
 }
@@ -229,7 +247,8 @@ function applyEventInfluence(life: Record<string, any>, event?: EventRow): Recor
   const mood = effects.mood && typeof effects.mood === 'object' ? Object.entries(effects.mood).sort((a, b) => Number(b[1]) - Number(a[1]))[0]?.[0] : null;
   const levels = ['low', 'medium', 'high'];
   const energyIndex = Math.max(0, Math.min(2, levels.indexOf(String(life.energy)) + Number(effects.energy ?? 0)));
-  return { ...life, mood: mood ?? life.mood, energy: levels[energyIndex], activity: event.event_type === 'work' ? String(event.narrative_summary).replace(/^Maya\s+/i, '').replace(/[.]$/, '') : life.activity };
+  const eventActivity = ['work','shared_plan','shared_plan_active'].includes(String(event.event_type)) ? String(event.narrative_summary).replace(/^Maya\s+/i, '').replace(/[.]$/, '') : life.activity;
+  return { ...life, locationId:event.location_id ?? life.locationId, mood: mood ?? life.mood, energy: levels[energyIndex], activity: eventActivity };
 }
 
 function shouldInitiateEventMessage(event: EventRow, stage: string, hoursSinceConversation: number, seed: string): boolean {

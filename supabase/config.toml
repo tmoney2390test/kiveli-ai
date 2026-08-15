@@ -50,6 +50,8 @@ verify_jwt = false
 verify_jwt = false
 [functions.together-activity]
 verify_jwt = false
+[functions.together-plan]
+verify_jwt = false
 [functions.together-relationship]
 verify_jwt = false
 [functions.together-conversation]
