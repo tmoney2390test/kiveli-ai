@@ -1,6 +1,6 @@
-import type{SupabaseClient}from'@supabase/supabase-js';
-import{AppError}from'./types.ts';
-import{capabilitiesForTier,creditCost,entitlementsForTier,normalizeSubscriptionTier,type CreditAction,type KivelleCapabilities,type SubscriptionTier}from'../../../packages/together-domain/src/index.ts';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { AppError } from './types.ts';
+import { capabilitiesForTier, creditCost, entitlementsForTier, normalizeSubscriptionTier, type CreditAction, type KivelleCapabilities, type SubscriptionTier } from '../../../packages/together-domain/src/index.ts';
 
 type CreditBalance={permanentBalance:number;subscriptionBalance:number;total:number};
 export type KivelleSubscriptionState={tier:SubscriptionTier;capabilities:KivelleCapabilities;creditBalance:CreditBalance;entitlementKeys:string[];billing:{provider?:string|null;productKey?:string|null;periodStart?:string|null;periodEnd?:string|null;expiresAt?:string|null}};

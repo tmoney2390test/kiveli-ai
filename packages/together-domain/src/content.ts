@@ -1,4 +1,4 @@
-import { relationshipStages, type ActiveStoryArc, type ContentConditions, type ContentSelectionContext, type EventScale, type RichLifeEventTemplate, type ScoredContentCandidate, type StoryArcTemplate } from './types';
+import { relationshipStages, type ActiveStoryArc, type ContentConditions, type ContentSelectionContext, type EventScale, type RichLifeEventTemplate, type ScoredContentCandidate, type StoryArcTemplate } from './types.ts';
 
 const stageRank = new Map(relationshipStages.map((stage, index) => [stage, index]));
 const scaleWeight: Record<EventScale, number> = { micro: .18, normal: .42, meaningful: .7, major: .9 };

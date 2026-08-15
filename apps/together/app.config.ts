@@ -10,5 +10,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   web: { bundler: 'metro', output: 'static', favicon: './assets/icon.png' },
   plugins: ['expo-router','expo-secure-store','expo-system-ui','expo-notifications','expo-image-picker',['expo-splash-screen',{image:'./assets/icon.png',imageWidth:180,resizeMode:'contain',backgroundColor:'#080B13'}]],
   experiments: { typedRoutes: true },
-  extra: { eas: { projectId: process.env.EXPO_PUBLIC_TOGETHER_EAS_PROJECT_ID } },
+  extra: {
+    eas: {
+      projectId: process.env.EXPO_PUBLIC_TOGETHER_EAS_PROJECT_ID ?? 'ffa20139-6b44-425f-9370-ea451e1061ba',
+    },
+  },
 });

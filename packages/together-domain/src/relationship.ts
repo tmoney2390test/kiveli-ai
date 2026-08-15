@@ -1,4 +1,4 @@
-import{relationshipMetricNames,relationshipStages,type InteractionQuality,type RelationshipChangeSource,type RelationshipMetrics,type RelationshipMilestoneProposal,type RelationshipStage,type RelationshipState}from'./types';
+import { relationshipMetricNames, relationshipStages, type InteractionQuality, type RelationshipChangeSource, type RelationshipMetrics, type RelationshipMilestoneProposal, type RelationshipStage, type RelationshipState } from './types.ts';
 
 export const defaultRelationship:RelationshipState={stage:'stranger',trust:8,comfort:6,attraction:8,affinity:8,familiarity:0,respect:10,conflict:0,romantic_interest:0,commitment:0,conversationCount:0,conversationSessionCount:0,meaningfulInteractionCount:0,activeMajorConflict:false,romanceEnabled:true};
 const maxDelta:Record<RelationshipChangeSource,number>={ordinary_chat:2,meaningful_disclosure:4,date:8,life_event:3,introduction:3,debug:100};

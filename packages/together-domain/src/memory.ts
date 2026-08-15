@@ -1,4 +1,4 @@
-import type{MemoryCandidate,MemoryRecord,MemoryType}from'./types';
+import type { MemoryCandidate, MemoryRecord, MemoryType } from './types.ts';
 
 export function canonicalMemoryKey(type:MemoryType,text:string):string{return`${type}:${normalize(text)}`;}
 export function extractMemoryCandidates(message:string):MemoryCandidate[]{

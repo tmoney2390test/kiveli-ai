@@ -1,4 +1,4 @@
-import type{OpenThread}from'./types';
+import type { OpenThread } from './types.ts';
 
 export function extractOpenThreads(message:string,now=new Date()):OpenThread[]{
   const presentation=/\b(?:i\s+)?(?:have|got|give|giving)\s+(?:a\s+)?(?:huge|big|important)?\s*(presentation|interview|exam|appointment)\s+(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.exec(message);

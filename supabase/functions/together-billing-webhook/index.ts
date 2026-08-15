@@ -1,11 +1,11 @@
-import{z}from'zod';
-import{adminClient,serverEnv}from'../_shared/context.ts';
-import{parseBody}from'../_shared/body.ts';
-import{json,serve}from'../_shared/http.ts';
-import{AppError}from'../_shared/types.ts';
-import{entitlementsForTier,normalizeSubscriptionTier}from'../../../packages/together-domain/src/index.ts';
-import{resolveSubscriptionState}from'../_shared/kivelle-subscription.ts';
-import{track}from'../_shared/together.ts';
+import { z } from 'zod';
+import { adminClient, serverEnv } from '../_shared/context.ts';
+import { parseBody } from '../_shared/body.ts';
+import { json, serve } from '../_shared/http.ts';
+import { AppError } from '../_shared/types.ts';
+import { entitlementsForTier, normalizeSubscriptionTier } from '../../../packages/together-domain/src/index.ts';
+import { resolveSubscriptionState } from '../_shared/kivelle-subscription.ts';
+import { track } from '../_shared/together.ts';
 
 const schema=z.object({eventId:z.string().trim().min(6).max(200),eventType:z.enum(['subscription_updated','subscription_cancelled','credit_purchase']),provider:z.string().trim().min(1).max(80).default('configured'),userId:z.string().uuid(),tier:z.enum(['free','kivelle_plus','kivelle_max','together_plus','unlimited']).optional(),productKey:z.string().trim().max(160).optional(),periodStart:z.string().datetime().optional(),periodEnd:z.string().datetime().optional(),expiresAt:z.string().datetime().nullable().optional(),creditAmount:z.number().int().positive().max(100000).optional(),metadata:z.record(z.string(),z.unknown()).default({})});
 

@@ -1,4 +1,4 @@
-import{datePhases,type DatePhase,type DateSessionState,type RelationshipMetrics}from'./types';
+import { datePhases, type DatePhase, type DateSessionState, type RelationshipMetrics } from './types.ts';
 
 export function startDate(id:string):DateSessionState{return{id,phase:'arrival',phaseIndex:0,status:'active',choices:[]};}
 export function advanceDate(session:DateSessionState,choiceId:string):DateSessionState{

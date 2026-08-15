@@ -1,4 +1,4 @@
-import{shouldUseDirector,type DirectorPolicy,type PromptInteractionQuality,type ResponseBrief}from'../../../packages/together-domain/src/index.ts';
+import { shouldUseDirector, type DirectorPolicy, type PromptInteractionQuality, type ResponseBrief } from '../../../packages/together-domain/src/index.ts';
 
 type DirectorContext={
   character?:Record<string,unknown>;
