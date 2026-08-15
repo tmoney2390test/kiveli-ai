@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { capabilitiesForTier, normalizeSubscriptionTier } from '../../../packages/together-domain/src/index.ts';
 import { AppError } from './types.ts';
 import { experienceClock } from './kivelle-time.ts';
 
@@ -44,14 +45,17 @@ export async function resolveCharacterBaseLocation(input:{db:SupabaseClient;char
 
 export async function resolveWorldAccess(input:{db:SupabaseClient;userId:string;worldId:string}):Promise<'available'|'locked'|'included'|'owned'>{
   const [{data:world},{data:userWorld},{data:entitlements}]=await Promise.all([
-    input.db.from('together_worlds').select('access_type,entitlement_key,published').eq('id',input.worldId).maybeSingle(),
+    input.db.from('together_worlds').select('access_type,entitlement_key,published,metadata').eq('id',input.worldId).maybeSingle(),
     input.db.from('together_user_worlds').select('access_status').eq('user_id',input.userId).eq('world_id',input.worldId).maybeSingle(),
-    input.db.from('together_entitlements').select('entitlement_keys').eq('user_id',input.userId).maybeSingle(),
+    input.db.from('together_entitlements').select('tier,entitlement_keys').eq('user_id',input.userId).maybeSingle(),
   ]);
   if(!world?.published)return'locked';
   if(userWorld?.access_status==='unlocked')return world.access_type==='free'?'included':'owned';
   if(world.access_type==='free')return'included';
+  const capabilities=capabilitiesForTier(normalizeSubscriptionTier(entitlements?.tier));
   if(world.entitlement_key&&(entitlements?.entitlement_keys??[]).includes(world.entitlement_key))return'owned';
+  if(world.access_type==='subscription'&&capabilities.worldAccess==='all_standard')return'included';
+  if(world.access_type==='premium'&&capabilities.earlyWorldAccess&&Boolean((world.metadata as Record<string,unknown>|null)?.early_access))return'included';
   return userWorld?.access_status==='available'?'available':'locked';
 }
 

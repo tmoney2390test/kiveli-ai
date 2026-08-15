@@ -33,6 +33,7 @@ export const manageConversation = <T>(input: Record<string, unknown>) => invoke<
 export const manageMedia = <T>(input: Record<string, unknown>) => invoke<T>('together-media', input);
 export const managePersona = <T>(input:Record<string,unknown>) => invoke<T>('together-persona',input);
 export const manageCreator = <T>(input:Record<string,unknown>) => invoke<T>('together-creator',input);
+export const manageSubscription = <T>(input?:Record<string,unknown>) => input?invoke<T>('together-subscription',input):invoke<T>('together-subscription',undefined,'GET');
 
 export async function createTogetherAccount(email: string, password: string): Promise<void> {
   const response = await fetch(`${supabaseUrl}/functions/v1/together-signup`, { method: 'POST', headers: { apikey: supabasePublishableKey, Authorization: `Bearer ${supabasePublishableKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });

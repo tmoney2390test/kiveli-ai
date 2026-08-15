@@ -28,8 +28,18 @@ jobs:
       - run: pnpm edge:typecheck
       - run: pnpm --filter @together/app web:build
       - run: pnpm exec supabase start
-      - run: pnpm supabase:test
+      - name: Run database tests
+        shell: bash
+        run: set -o pipefail; pnpm supabase:test 2>&1 | tee /tmp/kivelle-db-test.log
         env:
           SUPABASE_DB_PASSWORD: postgres
+      - name: Upload database test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kivelle-db-test-log
+          path: /tmp/kivelle-db-test.log
+          if-no-files-found: ignore
+          retention-days: 3
       - if: always()
         run: pnpm exec supabase stop --no-backup

@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+import { capabilitiesForTier, normalizeSubscriptionTier } from '../../../packages/together-domain/src/index.ts';
 import { AppError } from './types.ts';
 
 function env(name: string): string {
@@ -39,9 +40,17 @@ export async function requireAdmin(userId: string, db: SupabaseClient): Promise<
 }
 
 export async function enforceRateLimit(db: SupabaseClient, subject: string, action: string, limit: number, windowSeconds: number): Promise<void> {
+  if(action==='together_dialogue')await enforceDialoguePlanLimit(db,subject);
   const { data, error } = await db.rpc('consume_rate_limit', { p_subject: subject, p_action: action, p_limit: limit, p_window_seconds: windowSeconds });
   if (error) throw new AppError('INTERNAL_ERROR', 'Rate limit validation failed.', 500);
   if (!data) throw new AppError('RATE_LIMITED', 'Too many requests. Try again later.', 429, true);
+}
+
+async function enforceDialoguePlanLimit(db:SupabaseClient,userId:string):Promise<void>{
+  const{data:entitlement,error}=await db.from('together_entitlements').select('tier').eq('user_id',userId).maybeSingle();if(error)throw new AppError('INTERNAL_ERROR','Subscription status could not be checked.',500,true);
+  const capabilities=capabilitiesForTier(normalizeSubscriptionTier(entitlement?.tier));if(capabilities.chatDailyLimit===null)return;
+  const start=new Date();start.setUTCHours(0,0,0,0);const{count,error:countError}=await db.from('together_messages').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('role','user').gte('created_at',start.toISOString());if(countError)throw new AppError('INTERNAL_ERROR','Daily chat allowance could not be checked.',500,true);
+  if(Number(count??0)>=capabilities.chatDailyLimit)throw new AppError('PLAN_LIMIT_REACHED',`Kivelle Free includes ${capabilities.chatDailyLimit} messages per day. Upgrade to Kivelle+ or Max for unlimited conversations.`,429);
 }
 
 export function serverEnv(name: string): string { return env(name); }

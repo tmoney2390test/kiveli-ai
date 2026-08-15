@@ -1,0 +1,8 @@
+export type SubscriptionTier='free'|'kivelle_plus'|'kivelle_max';
+export type SubscriptionPlan={tier:SubscriptionTier;displayName:string;monthlyPriceUsd:number;chatDailyLimit:number|null;intelligenceProfile:'core'|'deep'|'director';memoryRetrievalBudget:number;historyRetrievalBudget:number;maxLives:number;maxCustomCompanions:number;worldAccess:'free'|'all_standard';earlyWorldAccess:boolean;monthlyCreditGrant:number;subscriptionCreditRolloverCap:number;mediaQueue:'standard'|'priority'|'highest'};
+export type CreditBalance={permanentBalance:number;subscriptionBalance:number;total:number};
+export type SubscriptionStatus={tier:SubscriptionTier;capabilities:SubscriptionPlan&{recentTurnBudget?:number;directorPolicy?:string;welcomeCredits?:number};creditBalance:CreditBalance;entitlementKeys:string[];billing:{provider?:string|null;productKey?:string|null;periodStart?:string|null;periodEnd?:string|null;expiresAt?:string|null};catalog:SubscriptionPlan[];creditCosts:Record<string,number>;billingConfigured:{kivelle_plus:boolean;kivelle_max:boolean;credits:boolean;portal:boolean}};
+
+export const tierOrder:SubscriptionTier[]=['free','kivelle_plus','kivelle_max'];
+export function tierDescription(tier:SubscriptionTier):string{return tier==='free'?'Meet someone and experience a full Kivelle relationship in free worlds.':tier==='kivelle_plus'?'Deeper continuity, standard worlds, more Lives and companions, and monthly media credits.':'The deepest Kivelle context, Director intelligence, highest limits, priority media, and early access.';}
+export function intelligenceLabel(profile:string):string{return profile==='director'?'Kivelle Director':profile==='deep'?'Deep continuity':'Core continuity';}
