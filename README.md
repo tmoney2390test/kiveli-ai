@@ -28,7 +28,7 @@ Credits meter variable-cost generation rather than relationship actions. Chat, r
 
 ## Billing provider boundary
 
-Kivelle does not assume a specific payment vendor. The app reads subscription state from `together_entitlements`; only the signed `together-billing-webhook` should synchronize paid entitlement state from the billing system.
+Kivelle does not assume a specific payment vendor. The app reads subscription state from `together_entitlements`; only the shared-secret-authenticated `together-billing-webhook` should synchronize paid entitlement state from the billing system. If the selected billing provider supports cryptographic webhook signatures, verify those at the provider adapter before forwarding a normalized event to this internal boundary.
 
 Configure these **Edge Function secrets** when a payment provider is connected:
 
@@ -42,7 +42,7 @@ KIVELLE_BILLING_PORTAL_URL=
 
 Checkout URLs may contain `{user_id}` and `{email}` placeholders. Only HTTPS URLs are returned to the client. Until these secrets are configured the plan screen remains functional for status/credits but clearly reports that checkout is not configured rather than faking a purchase.
 
-The provider webhook sends `x-kivelle-billing-secret` and a normalized event body to `together-billing-webhook` for `subscription_updated`, `subscription_cancelled`, or `credit_purchase`. Credit purchases are permanent and idempotent; subscription grants are tied to the billing-period start when available and fall back to a calendar cycle only when no billing period exists.
+The provider adapter sends `x-kivelle-billing-secret` and a normalized event body to `together-billing-webhook` for `subscription_updated`, `subscription_cancelled`, or `credit_purchase`. Credit purchases are permanent and idempotent; subscription grants are tied to the billing-period start when available and fall back to a calendar cycle only when no billing period exists.
 
 ## AI provider configuration
 
