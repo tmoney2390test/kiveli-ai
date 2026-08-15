@@ -42,11 +42,12 @@ export default function Home() {
   else if(activeStory)focus={kind:'story',kicker:'STORY DEVELOPING',title:activeStory.together_story_arc_templates?.title??'Something is unfolding',body:`A new part of ${name}'s life is in motion.`,action:'See what is happening',route:`/story/${activeStory.id}`,entityId:activeStory.id};
   else if(nextPlan)focus={kind:'next',kicker:'NEXT TOGETHER',title:nextPlan.title,body:`${new Date(nextPlan.starts_at).toLocaleString([],{weekday:'long',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} · ${snapshot.locations.find((item)=>item.id===nextPlan.location_id)?.name??currentWorld?.name??'Current world'}`,action:'View plan',route:`/plan/${nextPlan.id}`,entityId:nextPlan.id};
   else if(nextDate)focus={kind:'next',kicker:'NEXT TOGETHER',title:nextDate.together_date_templates.name,body:new Date(nextDate.scheduled_for!).toLocaleString([],{weekday:'long',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}),action:'View date',route:`/date/${nextDate.id}`,entityId:nextDate.id};
-  const openFocus=async()=>{if(focus?.kind==='message'&&latestProactive?.status==='sent')await markProactiveOpened(latestProactive.id).catch(()=>undefined);if(focus)router.push(focus.route);};
+  const primaryFocus=focus;
+  const openFocus=async()=>{if(primaryFocus?.kind==='message'&&latestProactive?.status==='sent')await markProactiveOpened(latestProactive.id).catch(()=>undefined);if(primaryFocus)router.push(primaryFocus.route);};
   const latest = recentEvents[0]?.narrative_summary ?? `${name} is waiting to hear how your day is going.`;
   const latestSourceTitle=recentEvents[0]?`${name}'s day`:'Continue your conversation';
-  const showPlanInToday=nextPlan&&focus?.entityId!==nextPlan.id;
-  const showDateInToday=nextDate&&focus?.entityId!==nextDate.id;
+  const showPlanInToday=nextPlan&&primaryFocus?.entityId!==nextPlan.id;
+  const showDateInToday=nextDate&&primaryFocus?.entityId!==nextDate.id;
   const alternateLife=snapshot.activeContinuity?.kind==='alternate';
   const portraitVersions=Object.fromEntries(snapshot.characters.map((item)=>[item.id,selectPortraitVersion(snapshot,item)]));
 
@@ -60,7 +61,7 @@ export default function Home() {
 
     <CharacterHero character={companion} portraitVersion={portraitVersion} location={location} onPress={() => router.push(`/character/${handle}` as never)} />
 
-    {focus?<Pressable onPress={()=>void openFocus()} style={({pressed})=>[styles.focusCard,focus?.kind==='active'&&styles.focusActive,focus?.kind==='choice'&&styles.focusChoice,pressed&&styles.pressed]}><View style={styles.focusTop}><Text style={styles.focusKicker}>{focus.kicker}</Text><ChevronRight size={18} color={colors.rose}/></View><Text style={styles.focusTitle}>{focus.title}</Text><Text style={styles.focusBody} numberOfLines={focus.kind==='message'?3:4}>{focus.body}</Text><View style={styles.focusAction}><Text style={styles.focusActionText}>{focus.action}</Text></View></Pressable>:<GradientButton label={`Talk to ${name}`} onPress={() => router.push('/(tabs)/chat-tab')} />}
+    {primaryFocus?<Pressable onPress={()=>void openFocus()} style={({pressed})=>[styles.focusCard,primaryFocus.kind==='active'&&styles.focusActive,primaryFocus.kind==='choice'&&styles.focusChoice,pressed&&styles.pressed]}><View style={styles.focusTop}><Text style={styles.focusKicker}>{primaryFocus.kicker}</Text><ChevronRight size={18} color={colors.rose}/></View><Text style={styles.focusTitle}>{primaryFocus.title}</Text><Text style={styles.focusBody} numberOfLines={primaryFocus.kind==='message'?3:4}>{primaryFocus.body}</Text><View style={styles.focusAction}><Text style={styles.focusActionText}>{primaryFocus.action}</Text></View></Pressable>:<GradientButton label={`Talk to ${name}`} onPress={() => router.push('/(tabs)/chat-tab')} />}
 
     {!pendingMilestone&&relationshipCue ? <Pressable onPress={() => router.push('/(tabs)/chat-tab')} style={({pressed})=>[styles.relationshipCue,pressed&&styles.pressed]}><View style={[styles.relationshipIcon,relationshipCue.tone==='tense'&&styles.relationshipIconTense]}><Heart size={18} color={relationshipCue.tone==='tense'?colors.warm:colors.rose}/></View><View style={{flex:1}}><Text style={styles.relationshipLabel}>{relationshipCue.label}</Text><Text style={styles.relationshipDetail}>{relationshipCue.detail}</Text></View><ChevronRight size={18} color={colors.muted}/></Pressable> : null}
 
@@ -94,7 +95,7 @@ export default function Home() {
     <SectionHeader title="Recent moments" action="View all" onAction={() => router.push('/(tabs)/moments')} />
     {life.moments.length ? <MomentCarousel moments={life.moments} characters={snapshot.characters} portraitVersions={portraitVersions} onPress={() => router.push('/(tabs)/moments')} /> : <Pressable onPress={() => router.push('/(tabs)/chat-tab')} style={styles.storyEmpty}><Sparkles size={18} color={colors.rose} /><View style={{ flex: 1 }}><Text style={styles.storyTitle}>Your story with {name} is just beginning</Text><Text style={styles.storyCopy}>The moments that matter between you will collect here.</Text></View><ChevronRight color={colors.muted} size={18} /></Pressable>}
 
-    {focus?.kind!=='message'?<><SectionHeader title={latestSourceTitle} /><MessagePreview content={latest} time={`At ${location}`} onPress={() => router.push('/(tabs)/chat-tab')} /></>:null}
+    {primaryFocus?.kind!=='message'?<><SectionHeader title={latestSourceTitle} /><MessagePreview content={latest} time={`At ${location}`} onPress={() => router.push('/(tabs)/chat-tab')} /></>:null}
   </Screen>;
 }
 
