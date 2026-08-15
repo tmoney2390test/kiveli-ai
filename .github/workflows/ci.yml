@@ -17,8 +17,19 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm guard:starter-content
+      - run: pnpm edge:typecheck
       - run: pnpm --filter @together/app web:build
+      - run: pnpm exec supabase start
+      - run: pnpm supabase:test
+        env:
+          SUPABASE_DB_PASSWORD: postgres
+      - if: always()
+        run: pnpm exec supabase stop --no-backup

@@ -6,7 +6,7 @@ export const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 };
 
-export function json(data: unknown, status = 200, correlationId = crypto.randomUUID()): Response {
+export function json(data: unknown, status = 200, correlationId: string = crypto.randomUUID()): Response {
   return new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-Correlation-ID': correlationId } });
 }
 

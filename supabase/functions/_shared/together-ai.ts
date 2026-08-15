@@ -139,7 +139,7 @@ function deterministicAnalysis(input: ConversationAnalysisInput): ConversationAn
   const meaningful = memoryCandidates.length > 0 || Boolean(thread);
   const tense = /\b(shut up|don'?t care|whatever|you(?:'re| are) annoying|hate talking to you|leave me alone)\b/i.test(input.userMessage);
   const repairing = /\b(i(?:'m| am) sorry|i apologize|can we talk|i didn'?t mean that|make this right)\b/i.test(input.userMessage);
-  const relationshipChanges = tense ? { trust: -3, comfort: -3, affinity: -2, respect: -2, conflict: 4 } : repairing ? { trust: 2, comfort: 1, respect: 2, conflict: -4 } : meaningful ? { trust: 3, comfort: 2, familiarity: 3, affinity: 2, attraction: 1, respect: 1 } : { trust: 1, comfort: 1, familiarity: 2, affinity: 1 };
+  const relationshipChanges:Record<string,number> = tense ? { trust: -3, comfort: -3, affinity: -2, respect: -2, conflict: 4 } : repairing ? { trust: 2, comfort: 1, respect: 2, conflict: -4 } : meaningful ? { trust: 3, comfort: 2, familiarity: 3, affinity: 2, attraction: 1, respect: 1 } : { trust: 1, comfort: 1, familiarity: 2, affinity: 1 };
   return {
     relationshipChanges,
     memoryCandidates,
@@ -239,20 +239,32 @@ function proposeActions(input:ConversationAnalysisInput):ConversationActionCandi
   const focused=focus?.planId?commitments.find((item)=>item.id===focus.planId):undefined;
   const candidates=matching.length?matching:focused?[focused]:commitments;
   const cancelIntent=/\b(cancel|call off|forget (?:the|our)|can'?t make|cannot make|won'?t make)\b/.test(text);
-  const rescheduleIntent=/\b(reschedule|move it|move the|make it (?:later|earlier|at|\d)|different time|another day|change (?:the )?time)\b/.test(text);
+  const rescheduleIntent=/\b(reschedule|move it|move the|make it (?:later|earlier|at|\d)|different time|another day|change (?:the )?time|(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday) instead)\b/.test(text);
   if((cancelIntent||rescheduleIntent)&&candidates.length){
     if(candidates.length>1&&!matching.length&&!focused)return[{type:rescheduleIntent?'plan_reschedule':'plan_cancel',confidence:.75,payload:{ambiguous:true,options:candidates.map((item)=>({planId:item.id,targetType:item.type,title:item.title,startsAt:item.startsAt,location:item.location})),requiresConfirmation:true}}];
     const target=candidates[0]!;const proposedStartsAt=rescheduleIntent?(parsePlanTime(text,context?.clock)??parseTimeOnExistingDate(text,target.startsAt,context?.clock?.timezone)):null;
     return[{type:rescheduleIntent?'plan_reschedule':'plan_cancel',confidence:.92,payload:{planId:target.id,targetType:target.type,title:target.title,startsAt:target.startsAt,location:target.location,...(proposedStartsAt?{proposedStartsAt}:{}),requiresConfirmation:true}}];
   }
-  const intent=planIntent(text);if(!intent||!/\b(let'?s|we should|want to|could we|how about|make plans|plan|go to|go back|meet|grab|get)\b/.test(text))return[];
+  const intent=planIntent(text),planningWords=/\b(let'?s|we should|want to|could we|how about|make plans|plan|go to|go back|meet|grab|get|do something)\b/.test(text);
   const catalog=context?.planningCatalog??[];
   const explicit=catalog.find((location)=>text.includes(location.name.toLowerCase())||text.includes(location.slug.replace(/-/g,' ')));
-  const compatible=catalog.filter((location)=>[...location.activities,...location.dateTypes].some((item)=>normalizePlanWord(item).includes(intent.match)||intent.match.includes(normalizePlanWord(item))));
+  const locationEdit=Boolean(focused)&&(/\b(somewhere|place|quieter|louder|different venue|go back|instead)\b/.test(text)||Boolean(explicit));
+  const activityEdit=Boolean(focused)&&Boolean(intent)&&/\b(instead|rather|do dinner|do coffee|do drinks)\b/.test(text);
+  if((locationEdit||activityEdit)&&focused){
+    const quiet=/\bquiet|quieter\b/.test(text);
+    const alternate=explicit??rankPlanLocation(catalog.filter((item)=>item.id!==focus?.locationId&&(!quiet||item.privacy==='quiet'||item.tags.includes('quiet')||['bookstore','cafe','park'].includes(item.category))),context?.relationship?.relationship_stage,intent?.match??String(focus?.activityKey??''));
+    if(!alternate)return[];
+    const activity=activityEdit&&intent?([...alternate.activities,...alternate.dateTypes].find((item)=>normalizePlanWord(item).includes(intent.match)||intent.match.includes(normalizePlanWord(item)))??alternate.activities[0]):([...alternate.activities,...alternate.dateTypes].find((item)=>normalizePlanWord(item).replace(/\s+/g,'_')===focus?.activityKey)??alternate.activities[0]);
+    if(!activity)return[];
+    return[{type:'plan_reschedule',confidence:explicit?.id ? .9 : .82,payload:{planId:focused.id,targetType:focused.type,title:focused.title,startsAt:focused.startsAt,proposedStartsAt:focused.startsAt,location:focused.location,proposedLocationId:alternate.id,proposedLocation:alternate.name,proposedActivityKey:normalizePlanWord(activity).replace(/\s+/g,'_'),proposedTitle:`${titleCase(activity)} at ${alternate.name}`,reasoningCode:quiet?'quieter_place':'conversational_edit',requiresConfirmation:true}}];
+  }
+  if(!intent){if(planningWords&&/\b(tonight|tomorrow|this weekend|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/.test(text))return[{type:'plan_create',confidence:.78,payload:{needsCompanionPick:true,suggestedStartsAt:parsePlanTime(text,context?.clock),relativeTime:relativeTimePhrase(text),title:'Let your companion pick',reasoningCode:'progressive_missing_activity',requiresConfirmation:true}}];return[];}
+  if(!planningWords)return[];
+  const compatible=catalog.filter((location:any)=>[...location.activities,...location.dateTypes].some((item:string)=>normalizePlanWord(item).includes(intent.match)||intent.match.includes(normalizePlanWord(item))));
   const location=explicit??rankPlanLocation(compatible,context?.relationship?.relationship_stage,intent.match);
   const proposedStartsAt=parsePlanTime(text,context?.clock);
   if(!location)return[];
-  const rawActivity=location.activities.find((item)=>normalizePlanWord(item).includes(intent.match)||intent.match.includes(normalizePlanWord(item)))??location.dateTypes.find((item)=>normalizePlanWord(item).includes(intent.match))??intent.label;
+  const rawActivity=location.activities.find((item:string)=>normalizePlanWord(item).includes(intent.match)||intent.match.includes(normalizePlanWord(item)))??location.dateTypes.find((item:string)=>normalizePlanWord(item).includes(intent.match))??intent.label;
   const activityKey=normalizePlanWord(rawActivity).replace(/\s+/g,'_');
   const title=`${titleCase(rawActivity)} at ${location.name}`;
   return[{type:intent.match==='dinner'?'date':'plan_create',confidence:explicit?.id?0.96:0.86,payload:{activityIntent:intent.label,activityKey,locationId:location.id,location:location.name,title,durationMinutes:planDuration(intent.match),...(proposedStartsAt?{proposedStartsAt}:{}),relativeTime:relativeTimePhrase(text),reasoningCode:explicit?'explicit_location':'catalog_recommendation',requiresConfirmation:true}}];
@@ -270,7 +282,7 @@ function normalizePlanWord(value:string){return value.toLowerCase().replace(/[^a
 function titleCase(value:string){return value.replace(/\b\w/g,(letter)=>letter.toUpperCase());}
 function planDuration(intent:string){return intent==='movie'?150:/trivia|music|dinner|karaoke|comedy/.test(intent)?120:/walk|books|shopping|photo/.test(intent)?90:60;}
 function relativeTimePhrase(text:string){return/\b(tomorrow(?: night| evening)?|tonight|this weekend|(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: night| evening)?)\b/i.exec(text)?.[0]??null;}
-function referencedEntities(input:ConversationAnalysisInput):string[]{const haystack=`${input.userMessage} ${input.assistantMessage}`.toLowerCase();return['Maya','Chloe','Alex','Juniper Café','Riverwalk','Skyline Rooftop','Northside Bar'].filter((name)=>haystack.includes(name.toLowerCase()));}
+function referencedEntities(input:ConversationAnalysisInput):string[]{const haystack=`${input.userMessage} ${input.assistantMessage}`.toLowerCase();const context=input.context;const candidates=[context?.character?.name,context?.place?.world.name,context?.place?.location.name,...(context?.place?.ancestry??[]).map((item)=>item.name),...(context?.planningCatalog??[]).map((item)=>item.name),...(context?.social??[]).map((item)=>item.name)].filter((value):value is string=>typeof value==='string'&&Boolean(value));return[...new Set(candidates)].filter((name)=>haystack.includes(name.toLowerCase()));}
 
 async function generateGemini(context: DialogueContext, key: string): Promise<string> {
   try {

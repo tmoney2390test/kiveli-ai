@@ -6,6 +6,7 @@ import { colors, radius, spacing } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { markProactiveOpened } from '../../src/lib/api';
 import { buildCompanionLife, formatScheduleTime } from '../../src/lib/companionLife';
+import { worldForLocation } from '../../src/lib/place';
 
 const router=expoRouter as unknown as {push:(href:string)=>void};
 
@@ -13,21 +14,22 @@ export default function Home() {
   const { snapshot, loading, error, refresh } = useTogether();
   if (loading && !snapshot) return <LoadingSkeleton />;
   if (error && !snapshot) return <ErrorState message={error} onRetry={() => void refresh()} />;
-  if (!snapshot) return <EmptyState title="Opening City Life" body="Your companion and first conversation are being prepared automatically." />;
+  if (!snapshot) return <EmptyState title="Opening your world" body="Your companion and first conversation are being prepared automatically." />;
 
   const life = buildCompanionLife(snapshot);
-  if (!life) return <ErrorState message="Your companion could not be found in Juniper City." onRetry={() => void refresh()} />;
+  if (!life) return <ErrorState message="Your companion could not be found in their current world." onRetry={() => void refresh()} />;
   const { companion, relationshipDay, location: currentLocation, recentEvents, upcomingSchedule, proactiveMessages, dates } = life;
   const name = companion.together_character_templates.name;
-  const location = currentLocation?.name ?? 'Juniper City';
+  const currentWorld=worldForLocation(snapshot,companion.current_location_id);const location = currentLocation?.name ?? currentWorld?.name ?? 'Current place';
   const relationshipCue = snapshot.relationshipCues?.[companion.id];
   const pendingMilestone = snapshot.relationshipMilestones?.find((item) => item.character_instance_id === companion.id);
   const latestProactive = proactiveMessages[0];
   const latest = latestProactive?.content ?? recentEvents[0]?.narrative_summary ?? `${name} is waiting to hear how your day is going.`;
+  const latestSourceTitle=latestProactive?`New from ${name}`:recentEvents[0]?`${name}'s day`:'Continue your conversation';
   const catchUpEvents = recentEvents.filter((event) => Date.now() - new Date(event.starts_at).getTime() < 72 * 3600000).slice(0, 2);
   const date = dates[0];
   const plannedDate = dates.find((item) => ['active', 'upcoming', 'unlocked', 'deferred'].includes(item.status));
-  const sharedPlan = (snapshot.sharedPlans??[]).filter((plan)=>plan.character_instance_id===companion.id&&plan.status==='scheduled'&&new Date(plan.starts_at).getTime()>Date.now()).sort((left,right)=>new Date(left.starts_at).getTime()-new Date(right.starts_at).getTime())[0];
+  const sharedPlan = (snapshot.sharedPlans??[]).filter((plan)=>plan.character_instance_id===companion.id&&(plan.status==='active'||plan.status==='scheduled'&&new Date(plan.starts_at).getTime()>Date.now())).sort((left,right)=>new Date(left.starts_at).getTime()-new Date(right.starts_at).getTime())[0];
   const openCompanion = async () => {
     if (latestProactive?.status === 'sent') await markProactiveOpened(latestProactive.id).catch(() => undefined);
     router.push('/(tabs)/chat-tab');
@@ -45,7 +47,7 @@ export default function Home() {
     {relationshipCue ? <Pressable onPress={() => router.push('/(tabs)/chat-tab')} style={({pressed})=>[styles.relationshipCue,pressed&&styles.pressed]}><View style={[styles.relationshipIcon,relationshipCue.tone==='tense'&&styles.relationshipIconTense]}><Heart size={18} color={relationshipCue.tone==='tense'?colors.warm:colors.rose}/></View><View style={{flex:1}}><Text style={styles.relationshipLabel}>{relationshipCue.label}</Text><Text style={styles.relationshipDetail}>{pendingMilestone?pendingMilestone.title:relationshipCue.detail}</Text></View>{pendingMilestone?<View style={styles.choicePill}><Text style={styles.choicePillText}>Your choice</Text></View>:<ChevronRight size={18} color={colors.muted}/>}</Pressable> : null}
 
     <View style={styles.actions}>
-      <ActionTile title={plannedDate?.status === 'active' ? 'Continue date' : sharedPlan ? 'View your plan' : 'Plan something'} onPress={() => plannedDate?.status==='active' ? router.push(`/date/${plannedDate.id}` as never) : sharedPlan ? router.push(`/plan/${sharedPlan.id}` as never) : router.push('/(tabs)/chat-tab?plan=1')} icon={<CalendarDays color={colors.warm} size={21} />} />
+      <ActionTile title={plannedDate?.status === 'active' ? 'Continue date' : sharedPlan ? sharedPlan.status==='active'?`Together now · ${sharedPlan.title}`:`${new Date(sharedPlan.starts_at).toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'})} · ${sharedPlan.title}` : 'Plan something'} onPress={() => plannedDate?.status==='active' ? router.push(`/date/${plannedDate.id}` as never) : sharedPlan ? router.push(`/plan/${sharedPlan.id}` as never) : router.push('/(tabs)/chat-tab?plan=1')} icon={<CalendarDays color={colors.warm} size={21} />} />
       <ActionTile title="Memories" onPress={() => router.push('/memories')} icon={<Sparkles color={colors.violet} size={21} />} />
     </View>
 
@@ -66,15 +68,15 @@ export default function Home() {
     <SectionHeader title="Today" action="View world" onAction={() => router.push('/(tabs)/worlds')} />
     <GlassCard style={styles.todayCard}>
       {upcomingSchedule.map((item, index) => <View key={`${item.id}-${item.start_minute}`}><TimelineItem icon={<Coffee size={16} color={colors.warm} />} title={item.activity} detail={item.locationName} time={formatScheduleTime(item.startsAt)} />{index < upcomingSchedule.length - 1 ? <View style={styles.rule} /> : null}</View>)}
-      {sharedPlan ? <><View style={upcomingSchedule.length ? styles.rule : undefined}/><TimelineItem icon={<CalendarDays size={16} color={colors.warm}/>} title={sharedPlan.title} detail={snapshot.locations.find((item)=>item.id===sharedPlan.location_id)?.name??'City Life'} time={new Date(sharedPlan.starts_at).toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})}/></> : null}
+      {sharedPlan ? <><View style={upcomingSchedule.length ? styles.rule : undefined}/><TimelineItem icon={<CalendarDays size={16} color={colors.warm}/>} title={sharedPlan.title} detail={snapshot.locations.find((item)=>item.id===sharedPlan.location_id)?.name??currentWorld?.name??'Current place'} time={new Date(sharedPlan.starts_at).toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})}/></> : null}
       {date ? <><View style={upcomingSchedule.length ? styles.rule : undefined} /><TimelineItem icon={<CalendarDays size={16} color={colors.violet} />} title={date.together_date_templates.name} detail={date.status === 'locked' ? 'Keep getting closer to unlock it' : date.scheduled_for ? new Date(date.scheduled_for).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}) : 'Ready when you are'} time={date.status === 'locked' ? 'LOCKED' : 'PLAN'} /></> : null}
       {!upcomingSchedule.length && !date && !sharedPlan ? <Text style={styles.emptySchedule}>Nothing else is scheduled right now. The day is still unfolding.</Text> : null}
     </GlassCard>
 
     <SectionHeader title="Recent moments" action="View all" onAction={() => router.push('/(tabs)/moments')} />
-    {snapshot.moments.length ? <MomentCarousel moments={snapshot.moments} onPress={() => router.push('/(tabs)/moments')} /> : <Pressable onPress={() => router.push('/(tabs)/chat-tab')} style={styles.storyEmpty}><Sparkles size={18} color={colors.rose} /><View style={{ flex: 1 }}><Text style={styles.storyTitle}>The first chapter is waiting</Text><Text style={styles.storyCopy}>The moments that matter will collect here.</Text></View><ChevronRight color={colors.muted} size={18} /></Pressable>}
+    {life.moments.length ? <MomentCarousel moments={life.moments} onPress={() => router.push('/(tabs)/moments')} /> : <Pressable onPress={() => router.push('/(tabs)/chat-tab')} style={styles.storyEmpty}><Sparkles size={18} color={colors.rose} /><View style={{ flex: 1 }}><Text style={styles.storyTitle}>Your story with {name} is just beginning</Text><Text style={styles.storyCopy}>The moments that matter between you will collect here.</Text></View><ChevronRight color={colors.muted} size={18} /></Pressable>}
 
-    <SectionHeader title={latestProactive ? `New from ${name}` : `From ${name}`} />
+    <SectionHeader title={latestSourceTitle} />
     <MessagePreview content={latest} time={latestProactive ? relativeTime(latestProactive.eligible_at ?? new Date().toISOString()) : `At ${location}`} onPress={() => void openCompanion()} />
   </Screen>;
 }

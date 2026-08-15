@@ -5,6 +5,7 @@ import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { canonicalRequestForMedia, kickMediaDispatcher, routeImageProvider } from '../_shared/together-media.ts';
 import { track } from '../_shared/together.ts';
+import { waitUntil } from '../_shared/background.ts';
 
 const schema=z.object({limit:z.number().int().min(1).max(10).default(3)});
 
@@ -43,6 +44,6 @@ serve(async(request,correlationId)=>{
       console.error(JSON.stringify({level:'error',operation:'together_media_dispatch',mediaId:job.id,correlationId,message:error instanceof Error?error.message:'unknown_error'}));
     }
   }
-  if(results.requeued>0)EdgeRuntime.waitUntil(kickMediaDispatcher());
+  if(results.requeued>0)waitUntil(kickMediaDispatcher());
   return json({data:results,correlationId},200,correlationId);
 });

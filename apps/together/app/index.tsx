@@ -22,11 +22,11 @@ export default function Index() {
         setSnapshot(existing);
         setNeedsCompanion(!existing.profile);
       })
-      .catch((caught) => setError(caught instanceof Error ? caught.message : 'Kivelle could not open Juniper City.'))
+      .catch((caught) => setError(caught instanceof Error ? caught.message : 'Kivelle could not open your world.'))
       .finally(() => setLoading(false));
   }, [session, setSnapshot]);
 
-  if (authLoading || loading || (session && !snapshot && !error)) return <LoadingSkeleton label="Opening Juniper City…" />;
+  if (authLoading || loading || (session && !snapshot && !error)) return <LoadingSkeleton label="Opening your world…" />;
   if (error) return <ErrorState message={error} />;
   if (!session) return <Redirect href="/auth" />;
   if (needsCompanion || !snapshot?.profile) return <Redirect href="/choose-companion" />;

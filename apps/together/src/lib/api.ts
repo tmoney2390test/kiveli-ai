@@ -1,5 +1,5 @@
 import { supabase, supabasePublishableKey, supabaseUrl } from './supabase';
-import type { Message, Snapshot } from '../types';
+import type { Message, Snapshot, SnapshotDelta } from '../types';
 
 export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false) { super(message); } }
 type Envelope<T> = { data: T; correlationId: string };
@@ -38,12 +38,12 @@ export async function createTogetherAccount(email: string, password: string): Pr
   if (!response.ok) throw new ApiError(payload.error?.message ?? 'Your Kivelle account could not be created.', payload.error?.code, payload.error?.retryable);
 }
 
-export async function sendDialogue(input: {conversationId:string;characterInstanceId:string;message:string;clientRequestId:string;focusPlanId?:string}, onToken: (token:string)=>void): Promise<Message> {
+export async function sendDialogue(input: {conversationId:string;characterInstanceId:string;message:string;clientRequestId:string;focusPlanId?:string}, onToken: (token:string)=>void): Promise<{message:Message;delta?:SnapshotDelta}> {
   const response = await fetch(`${supabaseUrl}/functions/v1/together-dialogue`, { method: 'POST', headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
   if (!response.ok) { const error = await response.json().catch(() => ({})); throw new ApiError(error.error?.message ?? 'Your companion could not reply.', error.error?.code, error.error?.retryable); }
   if (!response.body) throw new ApiError('The response stream ended early.', 'STREAM_INTERRUPTED', true);
-  const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''; let final: Message | null = null;
-  while (true) { const { value, done } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const events = buffer.split('\n\n'); buffer = events.pop() ?? ''; for (const event of events) { const line = event.split('\n').find((item) => item.startsWith('data: ')); if (!line) continue; const data = JSON.parse(line.slice(6)); if (data.type === 'token') onToken(data.token); if (data.type === 'done') final = data.message; if (data.type === 'error') throw new ApiError(data.error?.message ?? 'Your companion could not finish the reply.', data.error?.code ?? 'STREAM_INTERRUPTED', Boolean(data.error?.retryable)); } }
+  const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''; let final: Message | null = null; let delta:SnapshotDelta|undefined;
+  while (true) { const { value, done } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const events = buffer.split('\n\n'); buffer = events.pop() ?? ''; for (const event of events) { const line = event.split('\n').find((item) => item.startsWith('data: ')); if (!line) continue; const data = JSON.parse(line.slice(6)); if (data.type === 'token') onToken(data.token); if (data.type === 'done') {final = data.message;delta=data.delta;} if (data.type === 'error') throw new ApiError(data.error?.message ?? 'Your companion could not finish the reply.', data.error?.code ?? 'STREAM_INTERRUPTED', Boolean(data.error?.retryable)); } }
   if (!final) throw new ApiError('The reply was interrupted. Try again.', 'STREAM_INTERRUPTED', true);
-  return final;
+  return {message:final,...(delta?{delta}:{})};
 }

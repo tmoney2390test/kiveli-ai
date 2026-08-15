@@ -5,11 +5,14 @@ import { corsHeaders, errorResponse } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { ConfiguredConversationAnalysisProvider, ConfiguredDialogueProvider, ConfiguredEmbeddingProvider, ConfiguredModerationProvider, dialogueProviderName } from '../_shared/together-ai.ts';
 import { classifyContent, routeDialogueProvider } from '../_shared/kivelle-intelligence.ts';
-import { clampRelationship, mergeConversationSummary, nextRelationshipMilestone, TOGETHER_IDS, track } from '../_shared/together.ts';
+import { mergeConversationSummary, nextRelationshipMilestone, relationshipMetrics, track } from '../_shared/together.ts';
+import { applyInteractionProposal, classifyInteractionQuality, type RelationshipState } from '../../../packages/together-domain/src/index.ts';
+import { presentRelationshipMilestone } from '../_shared/together-relationship-presentation.ts';
 import { runLifeSimulation } from '../_shared/together-life.ts';
 import { buildKivelleConversationContext } from '../_shared/kivelle-conversation-context.ts';
 import { getActiveConversation } from '../_shared/together-conversation.ts';
 import { kickMediaDispatcher, queueMediaRequest } from '../_shared/together-media.ts';
+import { waitUntil } from '../_shared/background.ts';
 import { writeConversationEvent } from '../_shared/together-plans.ts';
 
 const schema = z.object({ conversationId: z.string().uuid(), message: z.string().trim().min(1).max(4000), clientRequestId: z.string().min(8).max(100), characterInstanceId: z.string().uuid(), focusPlanId:z.string().uuid().optional() });
@@ -44,7 +47,7 @@ Deno.serve(async (request) => {
 
     const inputSafety = await moderation.check(input.message);
     const contentClassification = classifyContent(input.message);
-    const characterName = String((conversation.together_character_instances as Record<string, any>).together_character_templates?.name ?? 'Maya');
+    const characterName = String((conversation.together_character_instances as Record<string, any>).together_character_templates?.name ?? 'Companion');
     const scriptedBoundary = boundaryResponse(input.message, characterName, contentClassification);
     if (scriptedBoundary || !inputSafety.allowed) {
       const boundary = scriptedBoundary ?? { text: `${characterName} pauses. “I’m not comfortable taking the conversation in that direction. We can change the subject.”`, storeOriginal: false, category: 'moderated_input' };
@@ -66,7 +69,7 @@ Deno.serve(async (request) => {
     const now = new Date();
     const lifeRun = await runLifeSimulation({ db, userId:user.id, characterInstanceId:input.characterInstanceId, now, evaluateProactive:false, trigger:'conversation_continued' }).catch((error) => {
       console.error(JSON.stringify({ level:'error', correlationId, operation:'lazy_conversation_simulation', message:error instanceof Error?error.message:'unknown_error' }));
-      return { state:{ locationId:instance.current_location_id, location:'City Life', activity:instance.current_activity, mood:instance.current_mood, energy:instance.current_energy, availability:'available' }, activeEvent:null };
+      return { state:{ locationId:instance.current_location_id, location:'Current place', activity:instance.current_activity, mood:instance.current_mood, energy:instance.current_energy, availability:'available' }, activeEvent:null };
     });
     const queryEmbedding = await embeddings.embed(input.message);
     const semanticResult = queryEmbedding ? await db.rpc('together_match_memories_server', { p_user_id:user.id, p_character_instance_id:input.characterInstanceId, p_embedding:queryEmbedding, p_limit:8 }) : { data:[], error:null };
@@ -141,7 +144,7 @@ function streamDialogue({ db, user, input, conversation, instance, relationship,
         await safelyQueueConversationPhoto(db, user.id, input, String(assistantMessage.id), correlationId);
         await track(db, user.id, 'message_sent', { characterInstanceId: input.characterInstanceId });
         await track(db, user.id, 'character_response_received', { characterInstanceId: input.characterInstanceId });
-        emit({ type: 'done', message: assistantMessage });
+        emit({ type: 'done', message: assistantMessage, delta:await collectDialogueDelta(db,user.id,input.characterInstanceId,input.conversationId) });
       } catch (error) {
         console.error(JSON.stringify({ level: 'error', correlationId, message: error instanceof Error ? error.message : 'Unknown stream error' }));
         const appError = error instanceof AppError ? error : new AppError('PROVIDER_UNAVAILABLE', 'Your companion needs a moment before replying.', 503, true);
@@ -165,26 +168,33 @@ async function safelyApplyConversationEffects(db: any, userId: string, instanceI
 async function safelyQueueConversationPhoto(db:any,userId:string,input:z.infer<typeof schema>,assistantMessageId:string,correlationId:string):Promise<void>{
   try {
     const media=await queueMediaRequest(db,{userId,characterInstanceId:input.characterInstanceId,source:'user_request',conversationId:input.conversationId,messageId:assistantMessageId,requestText:input.message,idempotencyKey:`dialogue:${assistantMessageId}`});
-    if(media)EdgeRuntime.waitUntil(kickMediaDispatcher());
+    if(media)waitUntil(kickMediaDispatcher());
   } catch(error) {
     console.error(JSON.stringify({level:'warn',operation:'queue_conversation_photo',correlationId,message:error instanceof Error?error.message:'unknown_error'}));
   }
 }
 
 async function applyConversationEffects(db: any, userId: string, instanceId: string, conversationId: string, sourceMessageId: string, assistantMessageId:string, userText: string, assistantText: string, current: Record<string, unknown>, stage: string, context:Parameters<ConfiguredDialogueProvider['generate']>[0]): Promise<void> {
-  const [{ data: profile }, { data: existingThreads }, { data: conversationRow }] = await Promise.all([
-    db.from('together_profiles').select('memory_categories').eq('user_id', userId).maybeSingle(),
+  const [{ data: profile }, { data: existingThreads }, { data: conversationRow }, recentTurns] = await Promise.all([
+    db.from('together_profiles').select('memory_categories,content_preferences').eq('user_id', userId).maybeSingle(),
     db.from('together_open_threads').select('*').eq('user_id', userId).eq('character_instance_id', instanceId).is('resolved_at', null).limit(20),
     db.from('together_conversations').select('metadata').eq('user_id',userId).eq('id',conversationId).maybeSingle(),
+    db.from('together_messages').select('content').eq('user_id',userId).eq('conversation_id',conversationId).eq('role','user').gte('created_at',new Date(Date.now()-30*60000).toISOString()).order('created_at',{ascending:false}).limit(12),
   ]);
   const proposal = await analysis.analyze({ userMessage: userText, assistantMessage: assistantText, existingThreads: existingThreads ?? [], context });
   const enabled = (profile?.memory_categories ?? {}) as Record<string, boolean>;
-  const meaningful = proposal.memoryCandidates.length > 0 || proposal.newThreads.length > 0;
-  const next = clampRelationship(current, proposal.relationshipChanges, meaningful ? 4 : 2);
-  const conversationCount = Number(current.conversation_count ?? 0) + 1;
-  const totalDirection = Object.values(proposal.relationshipChanges).reduce((sum, value) => sum + Number(value || 0), 0);
+  const interactionQuality=classifyInteractionQuality(userText,{hasMemory:proposal.memoryCandidates.length>0,hasOpenThread:proposal.newThreads.length>0,repair:Number(proposal.relationshipChanges.conflict??0)<0});
+  const romanceEnabled=(profile?.content_preferences as Record<string,unknown>|undefined)?.romanceEnabled!==false;
+  const romanticSignal=/\b(flirt|kiss|date|romantic|attracted|beautiful|gorgeous|crush|love you)\b/i.test(`${userText} ${assistantText}`);
+  const recentLowSignalTurns=(recentTurns.data??[]).filter((turn:Record<string,unknown>)=>classifyInteractionQuality(String(turn.content??''))==='trivial').length;
+  const domainCurrent=toDomainRelationship(current,stage,romanceEnabled);
+  const domainNext=applyInteractionProposal(domainCurrent,proposal.relationshipChanges,interactionQuality,{recentLowSignalTurns,romanceEnabled,romanticSignal});
+  const next=Object.fromEntries(relationshipMetrics.map((metric)=>[metric,domainNext[metric]]));
+  const conversationCount = Number(current.interaction_turn_count ?? current.conversation_count ?? 0) + 1;
+  const meaningfulCount=Number(current.meaningful_interaction_count??0)+(interactionQuality==='meaningful'?1:0);
+  const totalDirection = relationshipMetrics.reduce((sum,metric)=>sum+Number(next[metric]??0)-Number(current[metric]??0),0);
   const recentDirection = totalDirection > 1 ? 'improving' : totalDirection < -1 ? 'strained' : 'steady';
-  await db.from('together_relationship_states').update({ ...next, conversation_count: conversationCount, recent_direction: recentDirection, updated_at: new Date().toISOString() }).eq('character_instance_id', instanceId);
+  await db.from('together_relationship_states').update({ ...next, conversation_count: conversationCount, interaction_turn_count:conversationCount, meaningful_interaction_count:meaningfulCount, last_interaction_quality:interactionQuality, last_relationship_delta:Object.fromEntries(relationshipMetrics.map((metric)=>[metric,Number(next[metric]??0)-Number(current[metric]??0)])), recent_direction: recentDirection, updated_at: new Date().toISOString() }).eq('character_instance_id', instanceId);
   await db.from('together_character_instances').update({ updated_at: new Date().toISOString() }).eq('id', instanceId);
   for (const candidate of proposal.memoryCandidates) {
     if (enabled[candidate.memory_type] === false) continue;
@@ -229,24 +239,55 @@ async function applyConversationEffects(db: any, userId: string, instanceId: str
   const focus=actionFocus?.payload.planId?{type:'plan',planId:actionFocus.payload.planId,updatedAt:new Date().toISOString(),sourceMessageId}:actionFocus?.payload.locationId?{type:'location',locationId:actionFocus.payload.locationId,label:actionFocus.payload.location,updatedAt:new Date().toISOString(),sourceMessageId}:focusEntity?{type:'entity',label:focusEntity,updatedAt:new Date().toISOString(),sourceMessageId}:context.activeStory?{type:'story',label:String(context.activeStory.title),updatedAt:new Date().toISOString(),sourceMessageId}:null;
   if(focus)await db.from('together_conversations').update({metadata:{...(conversationRow?.metadata??{}),focus}}).eq('user_id',userId).eq('id',conversationId);
   await updateConversationSummary(db, userId, conversationId, conversationCount);
-  const updated = { ...current, ...next, conversation_count: conversationCount, relationship_stage: stage };
+  const updated = { ...current, ...next, conversation_count: conversationCount, interaction_turn_count:conversationCount, meaningful_interaction_count:meaningfulCount,relationship_stage: stage,romance_enabled:romanceEnabled };
   await ensureRelationshipMilestone(db, userId, instanceId, sourceMessageId, updated);
 }
+
+async function collectDialogueDelta(db:any,userId:string,characterInstanceId:string,conversationId:string){
+  const [character,relationship,conversation,memories,openThreads,milestones,actions,events,plans,dates,lifeEvents,stories]=await Promise.all([
+    db.from('together_character_instances').select('*,together_character_templates(*),together_character_versions(*)').eq('id',characterInstanceId).eq('user_id',userId).maybeSingle(),
+    db.from('together_relationship_states').select('*').eq('character_instance_id',characterInstanceId).eq('user_id',userId).maybeSingle(),
+    db.from('together_conversations').select('*').eq('id',conversationId).eq('user_id',userId).maybeSingle(),
+    db.from('together_memories').select('*').eq('character_instance_id',characterInstanceId).eq('user_id',userId).eq('status','active').order('pinned',{ascending:false}).order('updated_at',{ascending:false}).limit(100),
+    db.from('together_open_threads').select('*').eq('character_instance_id',characterInstanceId).eq('user_id',userId).is('resolved_at',null).limit(30),
+    db.from('together_relationship_milestones').select('*').eq('character_instance_id',characterInstanceId).eq('user_id',userId).eq('status','pending'),
+    db.from('together_conversation_actions').select('*').eq('conversation_id',conversationId).eq('character_instance_id',characterInstanceId).eq('user_id',userId).eq('status','pending'),
+    db.from('together_conversation_events').select('*').eq('conversation_id',conversationId).eq('character_instance_id',characterInstanceId).eq('user_id',userId).order('created_at',{ascending:false}).limit(30),
+    db.from('together_shared_plans').select('*').eq('character_instance_id',characterInstanceId).eq('user_id',userId).in('status',['proposed','scheduled','active']).order('starts_at').limit(20),
+    db.from('together_date_sessions').select('*,together_date_templates(*)').eq('character_instance_id',characterInstanceId).eq('user_id',userId).in('status',['unlocked','upcoming','active','deferred']),
+    db.from('together_life_events').select('*').eq('character_instance_id',characterInstanceId).eq('user_id',userId).order('starts_at',{ascending:false}).limit(20),
+    db.from('together_story_arc_instances').select('*,together_story_arc_templates(*)').eq('character_instance_id',characterInstanceId).eq('user_id',userId).eq('status','active'),
+  ]);
+  return{characterInstanceId,character:character.data,relationship:relationship.data,conversation:conversation.data,memories:memories.data??[],openThreads:openThreads.data??[],relationshipMilestones:milestones.data??[],conversationActions:actions.data??[],conversationEvents:events.data??[],sharedPlans:plans.data??[],dates:dates.data??[],lifeEvents:lifeEvents.data??[],storyArcs:stories.data??[]};
+}
+
+function toDomainRelationship(state:Record<string,unknown>,stage:string,romanceEnabled:boolean):RelationshipState{return{stage:stage as RelationshipState['stage'],trust:Number(state.trust??0),comfort:Number(state.comfort??0),attraction:Number(state.attraction??0),affinity:Number(state.affinity??0),familiarity:Number(state.familiarity??0),respect:Number(state.respect??0),conflict:Number(state.conflict??0),romantic_interest:Number(state.romantic_interest??0),commitment:Number(state.commitment??0),conversationCount:Number(state.interaction_turn_count??state.conversation_count??0),conversationSessionCount:Number(state.conversation_session_count??1),meaningfulInteractionCount:Number(state.meaningful_interaction_count??0),activeMajorConflict:Boolean(state.active_major_conflict),romanceEnabled};}
 
 async function ensureRelationshipMilestone(db: any, userId: string, instanceId: string, sourceMessageId: string, state: Record<string, unknown>): Promise<void> {
   const proposal = nextRelationshipMilestone(state);
   if (!proposal) return;
+  const {data:instance}=await db.from('together_character_instances').select('current_location_id,together_character_templates(name)').eq('id',instanceId).eq('user_id',userId).maybeSingle();
+  const companionName=String((instance?.together_character_templates as Record<string,unknown>|undefined)?.name??'Your companion');
+  let dateTemplate:Record<string,unknown>|null=null;
   if (proposal.kind === 'first_date_invitation') {
-    const { data: date } = await db.from('together_date_sessions').select('status').eq('user_id', userId).eq('character_instance_id', instanceId).eq('date_template_id', TOGETHER_IDS.dinner).maybeSingle();
-    if (!date || !['locked','deferred'].includes(String(date.status))) return;
+    const{data:location}=instance?.current_location_id?await db.from('together_locations').select('world_id').eq('id',instance.current_location_id).maybeSingle():{data:null};
+    let templates=db.from('together_date_templates').select('*').eq('active',true);
+    if(location?.world_id)templates=templates.eq('world_id',location.world_id);
+    const{data:availableTemplates}=await templates.order('created_at',{ascending:true}).limit(20);
+    dateTemplate=(availableTemplates??[]).find((template:Record<string,unknown>)=>dateUnlockRulesPass(template.unlock_rules as Record<string,unknown>|undefined,state))??null;
+    if(!dateTemplate)return;
+    const{data:date}=await db.from('together_date_sessions').select('id,status').eq('user_id',userId).eq('character_instance_id',instanceId).eq('date_template_id',dateTemplate.id).maybeSingle();
+    if(!date)await db.from('together_date_sessions').insert({user_id:userId,character_instance_id:instanceId,date_template_id:dateTemplate.id,status:'locked'});
+    else if(!['locked','deferred'].includes(String(date.status)))return;
   }
+  const presented=presentRelationshipMilestone(proposal,{companionName,experienceTitle:dateTemplate?String(dateTemplate.name):undefined});
   const { data: pending } = await db.from('together_relationship_milestones').select('*').eq('character_instance_id', instanceId).eq('status', 'pending').maybeSingle();
   if (pending) {
     if (proposal.kind !== 'repair' || pending.kind === 'repair') return;
     const now = new Date().toISOString();
     await db.from('together_relationship_milestones').update({ status: 'deferred', deferred_until: new Date(Date.now() + 86400000).toISOString(), resolved_at: now, updated_at: now, metadata: { ...(pending.metadata ?? {}), interrupted_by_repair: true } }).eq('id', pending.id).eq('status', 'pending');
   }
-  const conversationCount = Number(state.conversation_count ?? 0);
+  const conversationCount = Number(state.meaningful_interaction_count ?? state.conversation_count ?? 0);
   const eligibilityKey = proposal.kind === 'repair' ? `repair:${proposal.fromStage}:${Math.floor(conversationCount / 5)}` : `${proposal.kind}:${proposal.fromStage}`;
   const { data: existing } = await db.from('together_relationship_milestones').select('*').eq('character_instance_id', instanceId).eq('eligibility_key', eligibilityKey).maybeSingle();
   if (existing?.status === 'declined' || existing?.status === 'accepted' || existing?.status === 'completed') return;
@@ -257,9 +298,11 @@ async function ensureRelationshipMilestone(db: any, userId: string, instanceId: 
     await track(db, userId, 'relationship_milestone_created', { milestoneId: existing.id, kind: proposal.kind, resumed: true });
     return;
   }
-  const { data: created, error } = await db.from('together_relationship_milestones').insert({ user_id: userId, character_instance_id: instanceId, kind: proposal.kind, from_stage: proposal.fromStage, to_stage: proposal.toStage ?? null, eligibility_key: eligibilityKey, title: proposal.title, body: proposal.body, prompt: proposal.prompt, choices: proposal.choices, source_message_id: sourceMessageId }).select('id').single();
+  const { data: created, error } = await db.from('together_relationship_milestones').insert({ user_id: userId, character_instance_id: instanceId, kind: proposal.kind, from_stage: proposal.fromStage, to_stage: proposal.toStage ?? null, eligibility_key: eligibilityKey, title: presented.title, body: presented.body, prompt: presented.prompt, choices: presented.choices, source_message_id: sourceMessageId,metadata:{presentation_key:proposal.presentationKey,tone:proposal.tone,...(dateTemplate?{date_template_id:dateTemplate.id}:{} )} }).select('id').single();
   if (!error && created) await track(db, userId, 'relationship_milestone_created', { milestoneId: created.id, kind: proposal.kind });
 }
+
+function dateUnlockRulesPass(rules:Record<string,unknown>|undefined,state:Record<string,unknown>):boolean{if(!rules)return true;for(const metric of relationshipMetrics){if(rules[metric]!==undefined&&Number(state[metric]??0)<Number(rules[metric]))return false;}const stages=Array.isArray(rules.allowed_stages)?rules.allowed_stages.map(String):[];if(stages.length&&!stages.includes(String(state.relationship_stage??state.stage)))return false;return !(rules.no_major_conflict&&Boolean(state.active_major_conflict));}
 
 async function updateConversationSummary(db: any, userId: string, conversationId: string, conversationCount: number): Promise<void> {
   if (conversationCount !== 1 && conversationCount % 4 !== 0) return;

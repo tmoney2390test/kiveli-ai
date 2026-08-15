@@ -1,13 +1,15 @@
 import{describe,expect,it}from'vitest';
-import{buildPlanSlots,hasPlanConflict,isLocationOpen,recommendPlanOptions}from'./plans';
+import{buildPlanSlots,companionPick,hasPlanConflict,isLocationOpen,recommendPlanOptions,resolvePlanDraft}from'./plans';
 import type{Location,SharedPlan}from'../types';
 
-const locations:Location[]=[
+const locations=[
   {id:'velvet',name:'Velvet Hour',slug:'velvet-hour',description:'Quiet cocktail lounge.',category:'lounge',hours:{open:'17:00',close:'01:00'},possible_activities:['cocktails','music','conversation'],metadata:{tags:['nightlife','romantic'],date_types:['drinks']}},
   {id:'river',name:'Riverwalk',slug:'riverwalk',description:'Path beside the water.',category:'outdoors',possible_activities:['walk','photo walk'],metadata:{tags:['outdoors','quiet']}},
   {id:'bakery',name:'Moss & Crumb',slug:'moss-and-crumb',description:'Tiny bakery.',category:'bakery',hours:{open:'07:00',close:'16:00'},possible_activities:['pastry','coffee']},
+  {id:'arcade',name:'Pixel & Pint',slug:'pixel-and-pint',description:'A loud social arcade.',category:'arcade',hours:{open:'17:00',close:'01:00'},possible_activities:['arcade games','trivia'],metadata:{tags:['games','crowds','playful'],social_energy:'high'}},
+  {id:'books',name:'Paper Trail',slug:'paper-trail',description:'A quiet bookstore.',category:'bookstore',hours:{open:'09:00',close:'21:00'},possible_activities:['books','quiet browsing'],metadata:{tags:['books','quiet'],privacy:'quiet'}},
   {id:'studio',name:'Photography Studio',slug:'photography-studio',description:'Work.',category:'work',hours:{open:'08:00',close:'19:00'},possible_activities:['editing']},
-];
+] as unknown as Location[];
 const context={activity:'Editing photos at the studio',mood:'Creative',locationId:'studio',interests:['Photography'],relationshipStage:'friend',hour:14,locations};
 
 describe('native shared-plan recommendations',()=>{
@@ -15,6 +17,10 @@ describe('native shared-plan recommendations',()=>{
   it('keeps a location handoff scoped here',()=>{const options=recommendPlanOptions({...context,scopedLocationId:'velvet'});expect(options.length).toBeGreaterThan(0);expect(options.every((item)=>item.locationId==='velvet')).toBe(true);});
   it('returns global recommendations only after choose elsewhere',()=>{const options=recommendPlanOptions({...context,scopedLocationId:'velvet',chooseElsewhere:true});expect(options.some((item)=>item.locationId!=='velvet')).toBe(true);});
   it('does not let current work location dominate recommendations',()=>{expect(recommendPlanOptions(context)[0]?.locationId).not.toBe('studio');});
+  it('progressively resolves known location and activity without asking for them again',()=>{const result=resolvePlanDraft({companionId:'maya',locationId:'velvet',activityIntent:'drinks',source:'chat',confidence:{location:1,activity:1}},{...context,scopedLocationId:'velvet',schedules:[],plans:[],dates:[]});expect(result.option?.locationId).toBe('velvet');expect(result.missing).not.toContain('location');expect(result.slots[0]?.best).toBe(true);});
+  it('uses personality to make companion picks meaningfully different',()=>{const playful=companionPick({...context,personality:{playful:.95},interests:['games']}),thoughtful=companionPick({...context,personality:{thoughtful:.95,homebody:.9},interests:['books']});expect(playful?.locationId).toBe('arcade');expect(thoughtful?.locationId).toBe('books');});
+  it('does not rank a crowded activity first when the user dislikes crowds',()=>{const pick=companionPick({...context,userInterests:['games'],preferences:['User dislikes crowds'],personality:{playful:.9}});expect(pick?.locationId).not.toBe('arcade');});
+  it('penalizes recently repeated places for something different',()=>{const prior={id:'old',character_instance_id:'maya',title:'Riverwalk',activity_key:'walk',location_id:'river',starts_at:new Date().toISOString(),ends_at:new Date(Date.now()+3600000).toISOString(),status:'completed',source:'chat',created_at:new Date().toISOString(),updated_at:new Date().toISOString()}satisfies SharedPlan;expect(recommendPlanOptions({...context,intent:'different',previousPlans:[prior]})[0]?.locationId).not.toBe('river');});
 });
 
 describe('real scheduling validation',()=>{

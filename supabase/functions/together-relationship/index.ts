@@ -3,7 +3,7 @@ import { authenticated, enforceRateLimit } from '../_shared/context.ts';
 import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
-import { buildSnapshot, clampRelationship, TOGETHER_IDS, track } from '../_shared/together.ts';
+import { buildSnapshot, clampRelationship, track } from '../_shared/together.ts';
 
 const schema = z.object({ milestoneId: z.string().uuid(), action: z.enum(['accept','defer','stay_friends','talk_it_out','give_space']) });
 const stageOrder = ['stranger','acquaintance','friend','flirting','dating','exclusive','long_term'];
@@ -41,11 +41,13 @@ serve(async (request, correlationId) => {
   if (milestone.kind === 'repair') {
     const change = input.action === 'talk_it_out' ? { conflict: -8, trust: 2, respect: 2, comfort: 1 } : { conflict: -2, respect: 1 };
     const next = clampRelationship(relationship, change, 8);
-    await db.from('together_relationship_states').update({ ...next, active_major_conflict: input.action === 'talk_it_out' ? next.conflict > 45 : relationship.active_major_conflict, recent_direction: input.action === 'talk_it_out' ? 'repairing' : 'steady', updated_at: now.toISOString() }).eq('character_instance_id', instance.id);
+    await db.from('together_relationship_states').update({ ...next, active_major_conflict: input.action === 'talk_it_out' ? Number(next.conflict??relationship.conflict??0) > 45 : relationship.active_major_conflict, recent_direction: input.action === 'talk_it_out' ? 'repairing' : 'steady', updated_at: now.toISOString() }).eq('character_instance_id', instance.id);
   }
 
   if (milestone.kind === 'first_date_invitation' && input.action === 'accept') {
-    const { data: date } = await db.from('together_date_sessions').update({ status: 'unlocked', updated_at: now.toISOString() }).eq('user_id', user.id).eq('character_instance_id', instance.id).eq('date_template_id', TOGETHER_IDS.dinner).in('status', ['locked','deferred']).select('id').maybeSingle();
+    const dateTemplateId=String((milestone.metadata as Record<string,unknown>|null)?.date_template_id??'');
+    if(!dateTemplateId)throw new AppError('CONFLICT','The shared experience for this milestone is no longer available.',409);
+    const { data: date } = await db.from('together_date_sessions').update({ status: 'unlocked', updated_at: now.toISOString() }).eq('user_id', user.id).eq('character_instance_id', instance.id).eq('date_template_id', dateTemplateId).in('status', ['locked','deferred']).select('id').maybeSingle();
     if (date) await track(db, user.id, 'date_unlocked', { dateSessionId: date.id, source: 'relationship_milestone' });
   }
 

@@ -3,11 +3,12 @@ export type RelationshipMetricName=typeof relationshipMetricNames[number];
 export type RelationshipMetrics=Record<RelationshipMetricName,number>;
 export const relationshipStages=['stranger','acquaintance','friend','flirting','dating','exclusive','long_term'] as const;
 export type RelationshipStage=typeof relationshipStages[number];
-export interface RelationshipState extends RelationshipMetrics{stage:RelationshipStage;conversationCount:number;activeMajorConflict:boolean}
+export interface RelationshipState extends RelationshipMetrics{stage:RelationshipStage;conversationCount:number;conversationSessionCount?:number;meaningfulInteractionCount?:number;activeMajorConflict:boolean;romanceEnabled?:boolean}
 export type RelationshipChangeSource='ordinary_chat'|'meaningful_disclosure'|'date'|'life_event'|'introduction'|'debug';
+export type InteractionQuality='trivial'|'normal'|'meaningful'|'shared_experience'|'major_relationship_event';
 export const relationshipMilestoneKinds=['keep_in_touch','friendship_deepened','romantic_spark','first_date_invitation','repair'] as const;
 export type RelationshipMilestoneKind=typeof relationshipMilestoneKinds[number];
-export interface RelationshipMilestoneProposal{kind:RelationshipMilestoneKind;fromStage:RelationshipStage;toStage?:RelationshipStage;title:string;body:string;prompt:string;choices:Array<{id:string;label:string;tone:'primary'|'secondary'}>}
+export interface RelationshipMilestoneProposal{kind:RelationshipMilestoneKind;fromStage:RelationshipStage;toStage?:RelationshipStage;tone:string;presentationKey:string;context?:Record<string,unknown>}
 
 export const memoryTypes=['semantic','preference','episodic','relationship','emotional','open_thread'] as const;
 export type MemoryType=typeof memoryTypes[number];

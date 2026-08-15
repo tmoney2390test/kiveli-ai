@@ -4,7 +4,9 @@ import { resolveLifeState, TOGETHER_IDS, track } from './together.ts';
 import { progressStoryArcs, rankEventTemplates } from './together-content.ts';
 import { getActiveConversation } from './together-conversation.ts';
 import { kickMediaDispatcher, queueMediaRequest } from './together-media.ts';
-import { eventIsActive } from './kivelle-time.ts';
+import { eventIsActive, experienceClock } from './kivelle-time.ts';
+import { resolveCharacterBaseLocation, resolvePlaceContext } from './together-place.ts';
+import { waitUntil } from './background.ts';
 
 type LifeRunInput = { db: SupabaseClient; userId: string; characterInstanceId?: string; now?: Date; evaluateProactive?: boolean; trigger: 'conversation_continued' | 'home_opened' | 'scheduled_dispatch' };
 type EventRow = Record<string, any>;
@@ -16,6 +18,10 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const instanceQuery = db.from('together_character_instances').select('*,together_character_templates(name,slug)').eq('user_id', userId);
   const { data: instance } = await (characterInstanceId ? instanceQuery.eq('id', characterInstanceId) : instanceQuery.eq('character_template_id', TOGETHER_IDS.maya)).maybeSingle();
   if (!instance) throw new AppError('NOT_FOUND', 'That character is unavailable.', 404);
+  const currentPlace=instance.current_location_id?await resolvePlaceContext({db,locationId:String(instance.current_location_id),now,userId,characterInstanceId:String(instance.id)}).catch(()=>null):null;
+  let currentWorldId=currentPlace?.world.id;
+  if(!currentWorldId){const{data:presence}=await db.from('together_character_world_presence').select('world_id').eq('character_version_id',instance.character_version_id).neq('presence_type','unavailable').order('presence_type',{ascending:true}).limit(1).maybeSingle();currentWorldId=presence?.world_id?String(presence.world_id):undefined;}
+  const baseLocation=currentWorldId?await resolveCharacterBaseLocation({db,characterVersionId:String(instance.character_version_id),worldId:currentWorldId}):null;
 
   const last = new Date(instance.last_simulated_at);
   const simulationStart = Number.isNaN(last.getTime()) || last > now ? now : last;
@@ -23,8 +29,8 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const eventSimulationStart = Number.isNaN(lastEventSimulation.getTime()) || lastEventSimulation > now ? now : lastEventSimulation;
   const recentCutoff = new Date(now.getTime() - 72 * 3600000).toISOString();
   const [schedules, templates, relationship, latestConversation, preferences, profile, recentEvents, recentProactive, memories, allInstances, sharedPlans] = await Promise.all([
-    db.from('together_schedule_templates').select('*,together_locations(name)').eq('character_version_id', instance.character_version_id),
-    db.from('together_event_templates').select('*').eq('active', true).contains('participant_template_ids', [instance.character_template_id]),
+    db.from('together_schedule_templates').select('*,together_locations(name,world_id)').eq('character_version_id', instance.character_version_id),
+    db.from('together_event_templates').select('*,together_locations(world_id)').eq('active', true).contains('participant_template_ids', [instance.character_template_id]),
     db.from('together_relationship_states').select('*').eq('character_instance_id', instance.id).single(),
     getActiveConversation(db, userId, instance.id, true).then((data) => ({ data, error: null })),
     db.from('together_notification_preferences').select('*').eq('user_id', userId).maybeSingle(),
@@ -39,12 +45,14 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   await unlockEligibleDateSessions(db, userId, instance, relationship.data, now);
 
   const timezone = String(profile.data?.experience_timezone ?? preferences.data?.timezone ?? 'UTC');
-  const scheduleState = resolveLifeState((schedules.data ?? []) as Array<Record<string, unknown>>, now, timezone);
+  const worldSchedules=(schedules.data??[]).filter((row:EventRow)=>!currentWorldId||String(row.together_locations?.world_id??'')===currentWorldId);
+  const scheduleState = resolveLifeState(worldSchedules as Array<Record<string, unknown>>, now, currentPlace?.world.timezone??timezone,baseLocation?{locationId:String(baseLocation.id),location:String(baseLocation.name)}:currentPlace?{locationId:currentPlace.location.id,location:currentPlace.location.name}:undefined);
   const progressed=await db.rpc('kivelle_progress_shared_plans',{p_user_id:userId,p_character_instance_id:instance.id,p_now:now.toISOString()});
   if(progressed.error)throw new AppError('INTERNAL_ERROR','Shared plans could not advance safely.',500,true);
   const canonicalPlans=(progressed.data??sharedPlans.data??[])as EventRow[];
   const requestedContentMode = profile.data?.age_verified_at ? String(profile.data?.content_preferences?.contentMode ?? 'standard') : 'standard';
-  const eventCandidates = simulateEvents ? selectEventCandidates(eventSimulationStart, now, templates.data ?? [], String(instance.simulation_seed), recentEvents.data ?? [], schedules.data ?? [], relationship.data, instance.current_location_id, requestedContentMode) : [];
+  const worldTemplates=(templates.data??[]).filter((row:EventRow)=>row.world_id?String(row.world_id)===currentWorldId:!row.default_location_id||String(row.together_locations?.world_id??'')===currentWorldId);
+  const eventCandidates = simulateEvents ? selectEventCandidates(eventSimulationStart, now, worldTemplates, String(instance.simulation_seed), recentEvents.data ?? [], worldSchedules, relationship.data, instance.current_location_id, requestedContentMode,currentPlace?.world.timezone??timezone) : [];
   const instanceByTemplate = new Map((allInstances.data ?? []).map((item) => [String(item.character_template_id), String(item.id)]));
   const created: EventRow[] = [];
   for (const candidate of eventCandidates) {
@@ -74,12 +82,12 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
     }
   }
   if (simulateEvents) {
-    const arcEvents = await progressStoryArcs({ db, userId, instance, relationship: relationship.data, now, seed: String(instance.simulation_seed) }).catch((error) => { console.warn('Together story arc progression unavailable', error instanceof Error ? error.message : 'unknown_error'); return [] as EventRow[]; });
+    const arcEvents = await progressStoryArcs({ db, userId, instance, relationship: relationship.data, now, seed: String(instance.simulation_seed),currentWorldId }).catch((error) => { console.warn('Together story arc progression unavailable', error instanceof Error ? error.message : 'unknown_error'); return [] as EventRow[]; });
     created.push(...arcEvents);
     for (const event of arcEvents) {
       await db.from('together_content_usage').insert({ user_id: userId, character_instance_id: instance.id, content_kind: 'arc', content_key: String(event.metadata?.arc_slug ?? event.story_arc_instance_id ?? event.id), used_at: event.starts_at, metadata: { chapter_id: event.metadata?.chapter_id } });
       if(event.user_should_know&&Number(event.significance)>=.8){
-        EdgeRuntime.waitUntil(queueMediaRequest(db,{userId,characterInstanceId:String(instance.id),source:'story',lifeEventId:String(event.id),storyArcId:String(event.story_arc_instance_id),idempotencyKey:`story:${event.story_arc_instance_id}:${event.metadata?.chapter_id??event.id}`}).then((media)=>media?kickMediaDispatcher():undefined).catch((error)=>console.warn('Together story photo unavailable',error instanceof Error?error.message:'unknown_error')));
+        waitUntil(queueMediaRequest(db,{userId,characterInstanceId:String(instance.id),source:'story',lifeEventId:String(event.id),storyArcId:String(event.story_arc_instance_id),idempotencyKey:`story:${event.story_arc_instance_id}:${event.metadata?.chapter_id??event.id}`}).then((media)=>media?kickMediaDispatcher():undefined).catch((error)=>console.warn('Together story photo unavailable',error instanceof Error?error.message:'unknown_error')));
       }
     }
   }
@@ -88,7 +96,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const activePlan=activePlanRow?{id:activePlanRow.id,event_type:'shared_plan_active',title:activePlanRow.title,narrative_summary:`spending time with you at ${activePlanRow.title}`,location_id:activePlanRow.location_id,significance:Number(activePlanRow.metadata?.significance??.5),starts_at:activePlanRow.starts_at,ends_at:activePlanRow.ends_at,resulting_state_changes:{sharedActivity:activePlanRow.activity_key},metadata:{canonicalPlanId:activePlanRow.id}}:null;
   const influential = [activePlan, ...created, ...(recentEvents.data ?? [])].filter((event): event is EventRow => Boolean(event) && eventIsActive(event, now)).sort((a, b) => Number(b.significance) - Number(a.significance))[0];
   const life = applyEventInfluence(scheduleState, influential);
-  await db.from('together_character_instances').update({ current_location_id: life.locationId, current_activity: life.activity, current_mood: life.mood, current_energy: life.energy, last_simulated_at: now.toISOString(), ...(simulateEvents ? { last_event_simulated_at: now.toISOString() } : {}), updated_at: now.toISOString() }).eq('id', instance.id).eq('user_id', userId);
+  await db.from('together_character_instances').update({ ...(life.locationId?{current_location_id:life.locationId}:{}), current_activity: life.activity, current_mood: life.mood, current_energy: life.energy, last_simulated_at: now.toISOString(), ...(simulateEvents ? { last_event_simulated_at: now.toISOString() } : {}), updated_at: now.toISOString() }).eq('id', instance.id).eq('user_id', userId);
 
   const { data: dueThreads } = await db.from('together_open_threads').update({ follow_up_eligible: true, updated_at: now.toISOString() }).eq('user_id', userId).eq('character_instance_id', instance.id).is('resolved_at', null).lte('expected_at', now.toISOString()).select('*');
   const prefs = preferences.data ?? { character_initiated_messages: true, push_enabled: false, quiet_hours_start: '23:00', quiet_hours_end: '08:00', timezone: 'UTC' };
@@ -179,11 +187,11 @@ async function deliverMessage(db: SupabaseClient, userId: string, instance: Even
     if (event && shouldOfferAutomaticPhoto(event)) {
       try {
         const media = await queueMediaRequest(db, { userId, characterInstanceId: String(instance.id), source: 'life_event', conversationId: String(conversation.id), messageId: sentMessageId, lifeEventId: String(event.id), idempotencyKey: `life:${event.id}` });
-        if (media) EdgeRuntime.waitUntil(kickMediaDispatcher());
+        if (media) waitUntil(kickMediaDispatcher());
       } catch (error) { console.warn('Together contextual life photo unavailable', error instanceof Error ? error.message : 'unknown_error'); }
     }
   }
-  if (delivered && prefs.push_enabled) await sendPushNotifications(db, userId, String((instance.together_character_templates as EventRow | undefined)?.name ?? 'Maya'), delivered);
+  if (delivered && prefs.push_enabled) await sendPushNotifications(db, userId, String((instance.together_character_templates as EventRow | undefined)?.name ?? 'Kivelle'), delivered);
   return delivered ?? proactive;
 }
 
@@ -201,7 +209,7 @@ async function sendPushNotifications(db: SupabaseClient, userId: string, charact
   } catch (error) { console.warn('Together push delivery unavailable', error instanceof Error ? error.message : 'unknown_error'); }
 }
 
-function selectEventCandidates(last: Date, now: Date, templates: EventRow[], seed: string, recent: EventRow[], schedules: EventRow[], relationship: EventRow, locationId?: string | null, contentMode = 'standard'): Array<{ template: EventRow; occurredAt: string; simulationKey: string }> {
+function selectEventCandidates(last: Date, now: Date, templates: EventRow[], seed: string, recent: EventRow[], schedules: EventRow[], relationship: EventRow, locationId?: string | null, contentMode = 'standard',timezone='UTC'): Array<{ template: EventRow; occurredAt: string; simulationKey: string }> {
   if (!templates.length || now <= last) return [];
   const output: Array<{ template: EventRow; occurredAt: string; simulationKey: string }> = [];
   const recentTemplateDates = new Map(recent.map((item) => [String(item.event_template_id), new Date(item.starts_at).getTime()]));
@@ -213,14 +221,14 @@ function selectEventCandidates(last: Date, now: Date, templates: EventRow[], see
     if (cursor <= now) {
       const ranked = rankEventTemplates({ templates, relationship, recentEvents: recent, now: cursor, seed: `${seed}:${day}`, contentMode, locationId });
       const selected = ranked.find((template) => {
-        const occurred = scheduledOccurrence(cursor, template, schedules, seed);
+        const occurred = scheduledOccurrence(cursor, template, schedules, seed,timezone);
         const repeatedRecently = recentTemplateDates.has(String(template.id)) && occurred.getTime() - Number(recentTemplateDates.get(String(template.id))) < 72 * 3600000;
         const roll = (stableHash(`${seed}:chance:${day}:${template.id}`) % 10000) / 10000;
         const probability = Number(template.probability ?? 0) * (template.scale === 'micro' ? 1.15 : 1);
         return !repeatedRecently && roll < probability;
       });
       if (selected) {
-        const occurred = scheduledOccurrence(cursor, selected, schedules, seed);
+        const occurred = scheduledOccurrence(cursor, selected, schedules, seed,timezone);
         if (occurred > last && occurred <= now) output.push({ template: selected, occurredAt: occurred.toISOString(), simulationKey: `${day}:${selected.id}` });
       }
     }
@@ -229,17 +237,19 @@ function selectEventCandidates(last: Date, now: Date, templates: EventRow[], see
   return output.sort((a, b) => Number(b.template.significance) - Number(a.template.significance)).slice(0, 2).sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
 }
 
-function scheduledOccurrence(day: Date, template: EventRow, schedules: EventRow[], seed: string): Date {
-  const matching = schedules.filter((entry) => Number(entry.day_of_week) === day.getUTCDay() && String(entry.location_id) === String(template.default_location_id) && Number(entry.end_minute) - Number(entry.start_minute) >= 20);
+function scheduledOccurrence(day: Date, template: EventRow, schedules: EventRow[], seed: string,timezone='UTC'): Date {
+  const clock=experienceClock(timezone,day);
+  const matching = schedules.filter((entry) => Number(entry.day_of_week) === clock.weekday && String(entry.location_id) === String(template.default_location_id) && Number(entry.end_minute) - Number(entry.start_minute) >= 20);
   const entry = matching[stableHash(`${seed}:${day.toISOString().slice(0, 10)}:${template.id}:schedule`) % matching.length];
-  const result = new Date(day);
+  let minute=12*60+(stableHash(`${seed}:hour:${template.id}:${day.toISOString().slice(0,10)}`)%7)*60;
   if (entry) {
     const span = Math.max(1, Number(entry.end_minute) - Number(entry.start_minute) - 15);
-    const minute = Number(entry.start_minute) + stableHash(`${seed}:${template.id}:${day.toISOString().slice(0, 10)}`) % span;
-    result.setUTCHours(Math.floor(minute / 60), minute % 60, 0, 0);
-  } else result.setUTCHours(12 + stableHash(`${seed}:hour:${template.id}:${day.toISOString().slice(0, 10)}`) % 7, 0, 0, 0);
-  return result;
+    minute = Number(entry.start_minute) + stableHash(`${seed}:${template.id}:${day.toISOString().slice(0, 10)}`) % span;
+  }
+  return localMinuteOnDate(clock.localDate,minute,timezone);
 }
+
+function localMinuteOnDate(localDate:string,minute:number,timezone:string){const desired=Date.parse(`${localDate}T${String(Math.floor(minute/60)).padStart(2,'0')}:${String(minute%60).padStart(2,'0')}:00Z`);let candidate=new Date(desired);for(let attempt=0;attempt<2;attempt++){const actual=experienceClock(timezone,candidate),actualStamp=Date.parse(`${actual.localDate}T${actual.localTime}:00Z`);candidate=new Date(candidate.getTime()+desired-actualStamp);}return candidate;}
 
 function applyEventInfluence(life: Record<string, any>, event?: EventRow): Record<string, any> {
   if (!event) return life;
@@ -247,7 +257,9 @@ function applyEventInfluence(life: Record<string, any>, event?: EventRow): Recor
   const mood = effects.mood && typeof effects.mood === 'object' ? Object.entries(effects.mood).sort((a, b) => Number(b[1]) - Number(a[1]))[0]?.[0] : null;
   const levels = ['low', 'medium', 'high'];
   const energyIndex = Math.max(0, Math.min(2, levels.indexOf(String(life.energy)) + Number(effects.energy ?? 0)));
-  const eventActivity = ['work','shared_plan','shared_plan_active'].includes(String(event.event_type)) ? String(event.narrative_summary).replace(/^Maya\s+/i, '').replace(/[.]$/, '') : life.activity;
+  const companionName=String((event.metadata as EventRow|undefined)?.companion_name??'').trim();
+  const prefix=companionName?new RegExp(`^${companionName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\s+`,'i'):null;
+  const eventActivity = ['work','shared_plan','shared_plan_active'].includes(String(event.event_type)) ? String(event.narrative_summary).replace(prefix??/^$/,'').replace(/[.]$/, '') : life.activity;
   return { ...life, locationId:event.location_id ?? life.locationId, mood: mood ?? life.mood, energy: levels[energyIndex], activity: eventActivity };
 }
 
@@ -259,14 +271,7 @@ function shouldInitiateEventMessage(event: EventRow, stage: string, hoursSinceCo
 
 function composeProactiveMessage(input: { eventTitle?: string; eventSummary?: string; threadSubject?: string; memory?: string }): string {
   if (input.threadSubject) return `Hey—how did your ${input.threadSubject} go? You mentioned it was important.`;
-  const title = input.eventTitle ?? '';
-  if (/coffee with chloe/i.test(title)) return 'Chloe just tried to talk me into rooftop trivia. Her confidence is wildly outpacing our actual chances.';
-  if (/client cancels/i.test(title)) return 'My client canceled at the last minute, so I suddenly have an afternoon I did not plan for. Weirdly freeing.';
-  if (/stressful client/i.test(title)) return 'I survived a client who used the phrase “make it pop” six times. I deserve a very specific kind of coffee now.';
-  if (/successful photo/i.test(title)) return 'I just wrapped a shoot I’m actually proud of. There’s one frame I keep going back to.';
-  if (/old camera/i.test(title)) return 'I found an old camera while reorganizing, and now I have a mildly irresponsible weekend idea.';
-  if (/trivia/i.test(title)) return 'Alex is trying to recruit us for Northside trivia. I have concerns about how confident he is.';
-  if (/reminder of the user/i.test(title) && input.memory) return `Something on my photo walk reminded me of ${memoryCallback(input.memory)}. Not a dramatic story—just a nice little callback.`;
+  if (input.memory) return `Something today reminded me of ${memoryCallback(input.memory)}. Not a dramatic story—just a nice little callback.`;
   return input.eventSummary?.trim() || 'Something happened in the city today that I think you would appreciate.';
 }
 

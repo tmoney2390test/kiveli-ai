@@ -11,7 +11,7 @@ const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('create'),characterInstanceId:z.string().uuid(),activityKey:z.string().trim().min(1).max(120),locationId:z.string().uuid(),startsAt:z.string().datetime(),note:z.string().trim().max(1000).optional(),source,sourceConversationId:z.string().uuid().optional(),sourceMessageId:z.string().uuid().optional(),requestId:z.string().min(8).max(100),title:z.string().trim().max(160).optional(),durationMinutes:z.number().int().min(30).max(360).optional()}),
   z.object({action:z.literal('reschedule'),planId:z.string().uuid(),startsAt:z.string().datetime(),conversationId:z.string().uuid().optional()}),
   z.object({action:z.literal('cancel'),planId:z.string().uuid(),conversationId:z.string().uuid().optional()}),
-  z.object({action:z.literal('update'),planId:z.string().uuid(),note:z.string().trim().max(1000).optional(),locationId:z.string().uuid().optional(),conversationId:z.string().uuid().optional()}),
+  z.object({action:z.literal('update'),planId:z.string().uuid(),note:z.string().trim().max(1000).optional(),locationId:z.string().uuid().optional(),activityKey:z.string().trim().max(120).optional(),conversationId:z.string().uuid().optional()}),
   z.object({action:z.literal('list'),characterInstanceId:z.string().uuid().optional(),includeCancelled:z.boolean().optional()}),
   z.object({action:z.literal('get'),planId:z.string().uuid()}),
   z.object({action:z.literal('confirm_proposal'),candidateId:z.string().uuid(),startsAt:z.string().datetime().optional(),activityKey:z.string().trim().max(120).optional(),locationId:z.string().uuid().optional(),planId:z.string().uuid().optional()}),
@@ -40,7 +40,7 @@ serve(async(request,correlationId)=>{
     return json({data:result,correlationId},result.created?201:200,correlationId);
   }
   if(input.action==='reschedule')return json({data:await rescheduleSharedPlan(db,{userId:user.id,planId:input.planId,startsAt:input.startsAt,conversationId:input.conversationId}),correlationId},200,correlationId);
-  if(input.action==='update')return json({data:await updateSharedPlan(db,{userId:user.id,planId:input.planId,note:input.note,locationId:input.locationId,conversationId:input.conversationId}),correlationId},200,correlationId);
+  if(input.action==='update')return json({data:await updateSharedPlan(db,{userId:user.id,planId:input.planId,note:input.note,locationId:input.locationId,activityKey:input.activityKey,conversationId:input.conversationId}),correlationId},200,correlationId);
   if(input.action==='cancel')return json({data:await cancelSharedPlan(db,{userId:user.id,planId:input.planId,conversationId:input.conversationId}),correlationId},200,correlationId);
 
   const{data:candidate}=await db.from('together_conversation_actions').select('*').eq('id',input.candidateId).eq('user_id',user.id).eq('status','pending').maybeSingle();
@@ -78,8 +78,11 @@ serve(async(request,correlationId)=>{
     const planId=input.planId??String(payload.planId??payload.targetId??'');
     const startsAt=input.startsAt??(typeof payload.proposedStartsAt==='string'?payload.proposedStartsAt:undefined);
     if(!planId)throw new AppError('VALIDATION_FAILED','Choose which plan to change.',400);
-    if(!startsAt)throw new AppError('VALIDATION_FAILED','Choose a new date and time.',400);
-    result=await rescheduleSharedPlan(db,{userId:user.id,planId,startsAt,conversationId:candidate.conversation_id});
+    const proposedLocationId=input.locationId??(typeof payload.proposedLocationId==='string'?payload.proposedLocationId:undefined);
+    const proposedActivityKey=input.activityKey??(typeof payload.proposedActivityKey==='string'?payload.proposedActivityKey:undefined);
+    if(!startsAt&&!proposedLocationId&&!proposedActivityKey)throw new AppError('VALIDATION_FAILED','Choose what should change.',400);
+    if(startsAt)result=await rescheduleSharedPlan(db,{userId:user.id,planId,startsAt,conversationId:candidate.conversation_id});
+    if(proposedLocationId||proposedActivityKey)result=await updateSharedPlan(db,{userId:user.id,planId,locationId:proposedLocationId,activityKey:proposedActivityKey,conversationId:candidate.conversation_id});
   }else{
     const startsAt=input.startsAt??(typeof payload.proposedStartsAt==='string'?payload.proposedStartsAt:undefined);
     const activityKey=input.activityKey??String(payload.activityKey??'');

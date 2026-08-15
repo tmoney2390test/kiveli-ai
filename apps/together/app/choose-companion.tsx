@@ -10,13 +10,6 @@ import { quickStartProfile } from '../src/lib/quickStart';
 import { useTogether } from '../src/store/useTogether';
 import { colors, radius, spacing, typography } from '../src/theme';
 
-const firstChoices = ['maya', 'chloe', 'alex'];
-const hooks: Record<string, string> = {
-  maya: 'Playful · creative · warm',
-  chloe: 'Adventurous · witty · perceptive',
-  alex: 'Thoughtful · curious · dry humor',
-};
-
 export default function ChooseCompanion() {
   const params = useLocalSearchParams<{ adultConfirmed?: string }>();
   const { snapshot, setSnapshot, refresh, loading } = useTogether();
@@ -30,13 +23,11 @@ export default function ChooseCompanion() {
   }, [loading, refresh, snapshot]);
 
   const choices = useMemo(
-    () => firstChoices
-      .map((slug) => snapshot?.discoverableCharacters.find((item) => item.slug === slug))
-      .filter((item) => item !== undefined),
+    () => (snapshot?.discoverableCharacters ?? []).filter((item) => item.can_be_selected !== false),
     [snapshot],
   );
 
-  if (!snapshot) return <LoadingSkeleton label="Opening Juniper City…" />;
+  if (!snapshot) return <LoadingSkeleton label="Opening Kivelle…" />;
 
   const continueWithChoice = async () => {
     const selected = choices.find((item) => item.slug === selectedSlug);
@@ -68,7 +59,7 @@ export default function ChooseCompanion() {
       <Text style={styles.brand}>Kivelle.AI</Text>
       <View style={styles.kicker}><Sparkles size={13} color={colors.rose} /><Text style={styles.kickerText}>YOUR STORY STARTS HERE</Text></View>
       <Text style={styles.title}>Who catches your attention?</Text>
-      <Text style={styles.subtitle}>Choose who you want to message first. You can meet other people as Juniper City opens up.</Text>
+      <Text style={styles.subtitle}>Choose who you want to message first. Each person has their own life, places, and way of meeting you.</Text>
     </View>
 
     <View style={styles.people}>
@@ -89,7 +80,7 @@ export default function ChooseCompanion() {
               {chosen ? <View style={styles.selected}><Check size={13} color="#fff" /><Text style={styles.selectedText}>CHOSEN</Text></View> : null}
             </View>
             <Text style={styles.occupation}>{person.occupation}</Text>
-            <Text style={styles.hook}>{hooks[person.slug]}</Text>
+            <Text style={styles.hook}>{person.together_character_versions.interests.slice(0,3).join(' · ')}</Text>
             <Text style={styles.bio} numberOfLines={2}>{person.biography}</Text>
           </View>
         </Pressable>;

@@ -3,7 +3,7 @@ import { authenticated, enforceRateLimit } from '../_shared/context.ts';
 import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
-import { buildSnapshot, resolveLifeState, TOGETHER_IDS, track } from '../_shared/together.ts';
+import { buildSnapshot, resolveLifeState, track } from '../_shared/together.ts';
 import { getActiveConversation } from '../_shared/together-conversation.ts';
 
 const schema = z.object({
@@ -14,6 +14,7 @@ const schema = z.object({
   goals: z.array(z.enum(['Dating','Friendship','Stories','Social worlds'])).max(4).default([]),
   experienceTimezone:z.string().trim().min(1).max(80).default('UTC'),
 });
+const relationOne=(value:unknown):Record<string,unknown>|null=>{const row=Array.isArray(value)?value[0]:value;return row&&typeof row==='object'?row as Record<string,unknown>:null;};
 
 serve(async (request, correlationId) => {
   if (request.method === 'GET') {
@@ -26,10 +27,11 @@ serve(async (request, correlationId) => {
   await enforceRateLimit(db, user.id, 'together_bootstrap', 20, 3600);
   const input = await parseBody(request, schema);
   const now = new Date().toISOString();
-  const selectedTemplateId = input.characterTemplateId ?? TOGETHER_IDS.maya;
+  if(!input.characterTemplateId)throw new AppError('VALIDATION_ERROR','Choose an available companion to continue.',400);
+  const selectedTemplateId = input.characterTemplateId;
   const { data: selectedTemplate, error: selectedTemplateError } = await db
     .from('together_character_templates')
-    .select('id,name,slug,current_published_version,published,can_be_selected')
+    .select('id,name,slug,current_published_version,published,can_be_selected,first_meeting')
     .eq('id', selectedTemplateId)
     .eq('published', true)
     .eq('can_be_selected', true)
@@ -46,35 +48,31 @@ serve(async (request, correlationId) => {
   const { error: profileError } = await db.from('together_profiles').upsert({ user_id: user.id, display_name: input.displayName ?? user.user_metadata?.display_name ?? user.email?.split('@')[0] ?? 'You', age_verified_at: now, interests: input.interests, experience_goals: input.goals, experience_timezone:experienceTimezone, onboarding_completed_at: now, updated_at: now }, { onConflict: 'user_id' });
   if (profileError) throw new AppError('INTERNAL_ERROR', 'Could not start your Kivelle story.', 500, true);
 
-  const templates = [
-    { template: selectedTemplate.id, version: selectedVersion.id, mood: 'curious', location: TOGETHER_IDS.juniper, activity: 'waiting for coffee', introduced: now, contact: now },
-    { template: TOGETHER_IDS.chloe, version: TOGETHER_IDS.chloeVersion, mood: 'adventurous', location: TOGETHER_IDS.rooftop, activity: 'heading to Skyline Rooftop', introduced: null, contact: null },
-    { template: TOGETHER_IDS.alex, version: TOGETHER_IDS.alexVersion, mood: 'thoughtful', location: TOGETHER_IDS.riverwalk, activity: 'finishing a photo walk', introduced: null, contact: null },
-  ];
-  for (const character of templates) {
-    const { error } = await db.from('together_character_instances').upsert({ user_id: user.id, character_template_id: character.template, character_version_id: character.version, relationship_stage: 'stranger', current_mood: character.mood, current_location_id: character.location, current_activity: character.activity, current_energy: 'medium', introduced_at: character.introduced, contact_added_at: character.contact, updated_at: now }, { onConflict: 'user_id,character_template_id', ignoreDuplicates: true });
-    if (error) throw new AppError('INTERNAL_ERROR', 'Could not create your Juniper City characters.', 500, true);
-  }
-  const { data: instances, error: instanceError } = await db.from('together_character_instances').select('id,character_template_id').eq('user_id', user.id);
-  if (instanceError || !instances?.length) throw new AppError('INTERNAL_ERROR', 'Could not load your characters.', 500, true);
-  for (const instance of instances) await db.from('together_relationship_states').upsert({ character_instance_id: instance.id, user_id: user.id }, { onConflict: 'character_instance_id', ignoreDuplicates: true });
-  const companion = instances.find((item) => item.character_template_id === selectedTemplate.id);
-  if (!companion) throw new AppError('INTERNAL_ERROR', `${selectedTemplate.name} could not enter Juniper City.`, 500, true);
+  const meeting=(selectedTemplate.first_meeting??{}) as Record<string,unknown>;
+  const meetingLocationId=typeof meeting.location_id==='string'?meeting.location_id:null;
+  if(!meetingLocationId)throw new AppError('CONFLICT','That companion does not have a published first-meeting place yet.',409);
+  const{data:meetingLocation}=await db.from('together_locations').select('id,world_id,together_worlds(slug,timezone,default_arrival_location_id)').eq('id',meetingLocationId).maybeSingle();
+  if(!meetingLocation)throw new AppError('CONFLICT','That first-meeting place is unavailable.',409);
+  let{data:companion}=await db.from('together_character_instances').select('id,character_template_id').eq('user_id',user.id).eq('character_template_id',selectedTemplate.id).maybeSingle();
+  if(!companion){const created=await db.from('together_character_instances').insert({user_id:user.id,character_template_id:selectedTemplate.id,character_version_id:selectedVersion.id,relationship_stage:'stranger',current_mood:String(meeting.mood??'curious'),current_location_id:meetingLocation.id,current_activity:String(meeting.companion_activity??'meeting someone new'),current_energy:'medium',introduced_at:now,contact_added_at:now,metadata:{first_meeting_title:meeting.title??null},updated_at:now}).select('id,character_template_id').single();if(created.error||!created.data)throw new AppError('INTERNAL_ERROR',`Could not prepare your first meeting with ${selectedTemplate.name}.`,500,true);companion=created.data;}
+  await db.from('together_relationship_states').upsert({ character_instance_id: companion.id, user_id: user.id }, { onConflict: 'character_instance_id', ignoreDuplicates: true });
   await db.from('together_profiles').update({ active_companion_instance_id: companion.id, updated_at: now }).eq('user_id', user.id);
 
-  await getActiveConversation(db, user.id, companion.id, true);
-  const { data: dateTemplates } = await db.from('together_date_templates').select('id').eq('active', true);
-  for (const template of dateTemplates ?? []) await db.from('together_date_sessions').upsert({ user_id: user.id, character_instance_id: companion.id, date_template_id: template.id, status: 'locked' }, { onConflict: 'user_id,character_instance_id,date_template_id', ignoreDuplicates: true });
+  const conversation=await getActiveConversation(db, user.id, companion.id, true);
+  if(conversation?.id&&typeof meeting.opening_line==='string'){const{count}=await db.from('together_messages').select('id',{count:'exact',head:true}).eq('conversation_id',conversation.id).eq('user_id',user.id);if(!count)await db.from('together_messages').insert({conversation_id:conversation.id,user_id:user.id,character_instance_id:companion.id,role:'assistant',content:meeting.opening_line,delivery_status:'complete'});}
   await db.from('together_notification_preferences').upsert({ user_id: user.id, timezone:experienceTimezone }, { onConflict: 'user_id' });
   await db.from('together_entitlements').upsert({ user_id: user.id, revenuecat_app_user_id: user.id }, { onConflict: 'user_id', ignoreDuplicates: true });
+  const {data:freeWorlds}=await db.from('together_worlds').select('id').eq('published',true).eq('access_type','free');
+  for(const world of freeWorlds??[])await db.from('together_user_worlds').upsert({user_id:user.id,world_id:world.id,access_status:'unlocked',first_visited_at:world.id===meetingLocation.world_id?now:null,last_visited_at:world.id===meetingLocation.world_id?now:null,updated_at:now},{onConflict:'user_id,world_id',ignoreDuplicates:true});
 
-  const { data: schedules } = await db.from('together_schedule_templates').select('*,together_locations(name)').eq('character_version_id', selectedVersion.id);
+  const { data: schedules } = await db.from('together_schedule_templates').select('*,together_locations(name,world_id)').eq('character_version_id', selectedVersion.id);
   const life = schedules?.length
-    ? resolveLifeState(schedules as Array<Record<string, unknown>>,new Date(),experienceTimezone)
-    : { mood: 'curious', locationId: TOGETHER_IDS.juniper, activity: 'waiting for coffee', energy: 'medium' };
+    ? resolveLifeState((schedules as Array<Record<string, any>>).filter((row)=>String(row.together_locations?.world_id??'')===meetingLocation.world_id),new Date(),String(relationOne(meetingLocation.together_worlds)?.timezone??experienceTimezone),{locationId:meetingLocation.id,location:String(meeting.title??'First meeting')})
+    : { mood: String(meeting.mood??'curious'), locationId: meetingLocation.id, activity: String(meeting.companion_activity??'meeting someone new'), energy: 'medium' };
   await db.from('together_character_instances').update({ current_mood: life.mood, current_location_id: life.locationId, current_activity: life.activity, current_energy: life.energy, last_simulated_at: now, updated_at: now }).eq('id', companion.id);
-  await track(db, user.id, 'onboarding_started', { world: 'juniper-city' });
+  const meetingWorld=String(relationOne(meetingLocation.together_worlds)?.slug??meetingLocation.world_id);
+  await track(db, user.id, 'onboarding_started', { world: meetingWorld });
   await track(db, user.id, 'companion_selected', { character_template_id: selectedTemplate.id, character_slug: selectedTemplate.slug, source: 'onboarding' });
-  await track(db, user.id, 'onboarding_completed', { world: 'juniper-city', character_template_id: selectedTemplate.id });
+  await track(db, user.id, 'onboarding_completed', { world: meetingWorld, character_template_id: selectedTemplate.id });
   return json({ data: await buildSnapshot(db, user.id), correlationId }, 201, correlationId);
 });

@@ -1,11 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { eventIsActive, experienceClock, formatExperienceTime, type ExperienceClock } from './kivelle-time.ts';
+import { resolvePlaceContext, type PlaceContext } from './together-place.ts';
 
 type Row = Record<string, any>;
 
 export type ContextQueryIntent = 'general'|'schedule'|'plan'|'date'|'story'|'memory_overview'|'social'|'location'|'history';
-export type CurrentSceneContext = { locationId: string|null; location: string; activity: string; mood: string; energy: string; availability: string; source: 'active_event'|'schedule'; activeEvent?: { id:string; title:string; summary:string; endsAt?:string|null } };
+export type CurrentSceneContext = { locationId: string|null; location: string; activity: string; mood: string; energy: string; availability: string; source: 'active_date'|'active_plan'|'active_event'|'schedule'; activeEvent?: { id:string; title:string; summary:string; endsAt?:string|null }; activePlan?:{id:string;title:string;endsAt?:string|null};activeDate?:{id:string;title:string} };
 export type KivelleConversationContext = {
+  contentMode?:string;
   character: Row;
   clock: ExperienceClock;
   currentScene: CurrentSceneContext;
@@ -23,6 +25,7 @@ export type KivelleConversationContext = {
   social: Array<{ name:string; relationship:string; userHasMet:boolean }>;
   knownLifeEvents: Array<{ id:string; title:string; summary:string; startsAt:string }>;
   location: Row|null;
+  place: PlaceContext|null;
   recentMedia: Array<{ id:string; summary:string; createdAt:string; locationId?:string|null }>;
   sharedHistory: Array<{ id:string; type:'moment'|'date'|'plan'; title:string; summary:string; occurredAt:string }>;
   conversationSummary: string;
@@ -38,10 +41,10 @@ export function detectContextQueryIntent(message: string): ContextQueryIntent {
   if (/\b(remember|memories|what do you know about me|forgot)\b/.test(text)) return 'memory_overview';
   if (/\b(when|schedule|today|tomorrow|tonight|free|busy|available|what are you doing)\b/.test(text)) return 'schedule';
   if (/\b(plan|cancel|reschedule|move it|change our|make plans|do something)\b/.test(text)) return 'plan';
-  if (/\b(date|dinner|riverwalk|rooftop movie)\b/.test(text)) return 'date';
-  if (/\b(story|chapter|gallery|what happened next)\b/.test(text)) return 'story';
-  if (/\b(chloe|alex|friend|friends|people|who were you with)\b/.test(text)) return 'social';
-  if (/\b(where|location|juniper|rooftop|riverwalk|northside|studio)\b/.test(text)) return 'location';
+  if (/\b(date|dinner|shared experience)\b/.test(text)) return 'date';
+  if (/\b(story|chapter|what happened next)\b/.test(text)) return 'story';
+  if (/\b(friend|friends|people|who were you with)\b/.test(text)) return 'social';
+  if (/\b(where|location|neighborhood|nearby|what is this place)\b/.test(text)) return 'location';
   if (/\b(last time|before|our first|we did|history|moment)\b/.test(text)) return 'history';
   return 'general';
 }
@@ -53,7 +56,7 @@ export async function buildKivelleConversationContext(input: {
   const { db, userId, instance, conversation, userMessage } = input;
   const now = input.now ?? new Date();
   const intent = detectContextQueryIntent(userMessage);
-  const [profile, prefs, relationship, milestone, memories, threads, messages, schedules, events, plans, dates, stories, edges, instances, locations, media, moments] = await Promise.all([
+  const [profile, prefs, relationship, milestone, memories, threads, messages, schedules, events, plans, dates, stories, edges, instances, worlds, locations, media, moments] = await Promise.all([
     db.from('together_profiles').select('experience_timezone,interests,content_preferences').eq('user_id', userId).maybeSingle(),
     db.from('together_notification_preferences').select('timezone').eq('user_id', userId).maybeSingle(),
     db.from('together_relationship_states').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).single(),
@@ -61,48 +64,57 @@ export async function buildKivelleConversationContext(input: {
     db.from('together_memories').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status', 'active').order('pinned', { ascending:false }).order('importance', { ascending:false }).limit(intent === 'memory_overview' ? 40 : 20),
     db.from('together_open_threads').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).is('resolved_at', null).order('expected_at', { ascending:true, nullsFirst:false }).limit(10),
     db.from('together_messages').select('role,content,created_at').eq('conversation_id', conversation.id).order('created_at', { ascending:false }).limit(18),
-    db.from('together_schedule_templates').select('*,together_locations(name)').eq('character_version_id', instance.character_version_id),
+    db.from('together_schedule_templates').select('*,together_locations(name,world_id)').eq('character_version_id', instance.character_version_id),
     db.from('together_life_events').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).not('event_type','in','(shared_plan,legacy_shared_plan)').lte('starts_at', now.toISOString()).order('starts_at', { ascending:false }).limit(12),
     db.from('together_shared_plans').select('*,together_locations(name,slug)').eq('user_id', userId).eq('character_instance_id', instance.id).order('starts_at', { ascending:true }).limit(40),
     db.from('together_date_sessions').select('*,together_date_templates(*)').eq('user_id', userId).eq('character_instance_id', instance.id).order('updated_at', { ascending:false }).limit(20),
     db.from('together_story_arc_instances').select('*,together_story_arc_templates(slug,title,priority,chapters)').eq('user_id', userId).eq('character_instance_id', instance.id).in('status',['active','paused']).order('updated_at', { ascending:false }).limit(3),
     db.from('together_character_relationship_edges').select('*').or(`source_template_id.eq.${instance.character_template_id},target_template_id.eq.${instance.character_template_id}`),
     db.from('together_character_instances').select('id,character_template_id,introduced_at,together_character_templates(name)').eq('user_id', userId),
+    db.from('together_worlds').select('id,slug,name,access_type,entitlement_key').eq('published',true),
     db.from('together_locations').select('*'),
     db.from('together_generated_media').select('id,location_id,metadata,created_at').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status','ready').order('created_at', { ascending:false }).limit(6),
     db.from('together_moments').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).order('occurred_at', { ascending:false }).limit(intent === 'history' ? 20 : 6),
   ]);
   if (relationship.error) throw relationship.error;
-  const timezone = profile.data?.experience_timezone ?? prefs.data?.timezone ?? 'UTC';
-  const clock = experienceClock(timezone, now);
   const locationById = new Map((locations.data ?? []).map((item:Row) => [String(item.id), item]));
   const returnedState = (input.lifeRun.state ?? {}) as Row;
   const activeEvent = eventIsActive(input.lifeRun.activeEvent as Row | undefined, now) ? input.lifeRun.activeEvent as Row : null;
-  const locationId = String(activeEvent?.location_id ?? returnedState.locationId ?? instance.current_location_id ?? '') || null;
+  const activePlanRow=(plans.data??[]).find((plan:Row)=>plan.status==='active'&&new Date(plan.starts_at)<=now&&new Date(plan.ends_at)>now) as Row|undefined;
+  const activeDateRow=(dates.data??[]).find((date:Row)=>date.status==='active') as Row|undefined;
+  const locationId = String(activeDateRow?.together_date_templates?.location_id??activePlanRow?.location_id??activeEvent?.location_id ?? returnedState.locationId ?? instance.current_location_id ?? '') || null;
   const currentLocation = locationId ? locationById.get(locationId) ?? null : null;
+  const place=locationId?await resolvePlaceContext({db,locationId,now,userId,characterInstanceId:String(instance.id)}).catch(()=>null):null;
+  const requestedWorld=(worlds.data??[]).find((world:Row)=>userMessage.toLowerCase().includes(String(world.name).toLowerCase())||userMessage.toLowerCase().includes(String(world.slug).replace(/-/g,' ')));
+  const planningWorldId=String(requestedWorld?.id??place?.world.id??'');
+  const timezone = place?.world.timezone ?? profile.data?.experience_timezone ?? prefs.data?.timezone ?? 'UTC';
+  const clock = experienceClock(timezone, now);
   const currentScene: CurrentSceneContext = {
-    locationId, location: String(currentLocation?.name ?? returnedState.location ?? 'City Life'),
-    activity: String(activeEvent?.narrative_summary ?? returnedState.activity ?? instance.current_activity ?? 'taking care of a few things'),
+    locationId, location: String(place?.location.name ?? currentLocation?.name ?? returnedState.location ?? 'Current place'),
+    activity: String(activeDateRow?.together_date_templates?.name??activePlanRow?.title??activeEvent?.narrative_summary ?? returnedState.activity ?? instance.current_activity ?? 'taking care of a few things'),
     mood: String(returnedState.mood ?? instance.current_mood ?? 'content'), energy: String(returnedState.energy ?? instance.current_energy ?? 'medium'),
-    availability: String(returnedState.availability ?? 'available'), source: activeEvent ? 'active_event' : 'schedule',
+    availability: String(returnedState.availability ?? 'available'), source: activeDateRow?'active_date':activePlanRow?'active_plan':activeEvent ? 'active_event' : 'schedule',
+    ...(activeDateRow?{activeDate:{id:String(activeDateRow.id),title:String(activeDateRow.together_date_templates?.name??'Shared experience')}}:{}),
+    ...(activePlanRow?{activePlan:{id:String(activePlanRow.id),title:String(activePlanRow.title),endsAt:activePlanRow.ends_at??null}}:{}),
     ...(activeEvent ? { activeEvent:{ id:String(activeEvent.id), title:String(activeEvent.title), summary:String(activeEvent.narrative_summary), endsAt:activeEvent.ends_at ?? null } } : {}),
   };
   const memoryRows = selectMemories(userMessage, memories.data ?? [], input.semanticRows ?? [], intent);
   const plansView = (plans.data ?? []).map((plan:Row) => ({
     id:String(plan.id), title:String(plan.title), activityKey:String(plan.activity_key), status:String(plan.status), startsAt:String(plan.starts_at), endsAt:plan.ends_at ?? null,
     startsAtLabel:formatExperienceTime(String(plan.starts_at),timezone),endsAtLabel:formatExperienceTime(String(plan.ends_at),timezone),locationId:plan.location_id?String(plan.location_id):null,
-    location:String(plan.together_locations?.name ?? locationById.get(String(plan.location_id))?.name ?? 'City Life'), note:plan.note??null,summary:String(plan.metadata?.completionSummary ?? ''),
+    location:String(plan.together_locations?.name ?? locationById.get(String(plan.location_id))?.name ?? 'Current place'), note:plan.note??null,summary:String(plan.metadata?.completionSummary ?? ''),
   }));
   const activePlans = plansView.filter((plan) => ['scheduled','active'].includes(plan.status));
   const cancelledOrCompleted=plansView.filter((plan)=>['cancelled','completed'].includes(plan.status)).sort((a,b)=>new Date(b.startsAt).getTime()-new Date(a.startsAt).getTime()).slice(0,2);
   const contextualPlans=[...activePlans.slice(0,5),...cancelledOrCompleted];
-  const dateRows = dates.data ?? [];
+  const dateRows = await Promise.all((dates.data??[]).map(async(item:Row)=>{const dateLocationId=String(item.together_date_templates?.location_id??'');const datePlace=dateLocationId?await resolvePlaceContext({db,locationId:dateLocationId,now,userId,characterInstanceId:String(instance.id)}).catch(()=>null):null;return{...item,placeContext:datePlace};}));
   const upcomingDates = dateRows.filter((item:Row) => item.status === 'upcoming' && item.scheduled_for && new Date(item.scheduled_for) >= now);
   const commitments = dedupeCommitments([
     ...activePlans.filter((plan) => ['scheduled','active'].includes(plan.status)).map((plan) => ({ id:plan.id, type:'plan' as const, title:plan.title, startsAt:plan.startsAt, location:plan.location })),
-    ...upcomingDates.map((item:Row) => ({ id:String(item.id), type:'date' as const, title:String(item.together_date_templates?.name ?? 'Date'), startsAt:String(item.scheduled_for), location:String(locationById.get(String(item.together_date_templates?.location_id))?.name ?? 'City Life') })),
+    ...upcomingDates.map((item:Row) => ({ id:String(item.id), type:'date' as const, title:String(item.together_date_templates?.name ?? 'Date'), startsAt:String(item.scheduled_for), location:String(item.placeContext?.path??locationById.get(String(item.together_date_templates?.location_id))?.name??'Current place') })),
   ]).slice(0, 5);
-  const schedule = nextScheduleRows(schedules.data ?? [], clock, now, timezone, locationById).slice(0, 4);
+  const worldSchedules=(schedules.data??[]).filter((row:Row)=>!place||String(row.together_locations?.world_id??'')===place.world.id);
+  const schedule = nextScheduleRows(worldSchedules, clock, now, timezone, locationById).slice(0, 4);
   const instanceByTemplate = new Map((instances.data ?? []).map((item:Row) => [String(item.character_template_id), item]));
   const social = (edges.data ?? []).map((edge:Row) => {
     const otherId = String(edge.source_template_id) === String(instance.character_template_id) ? String(edge.target_template_id) : String(edge.source_template_id);
@@ -110,7 +122,7 @@ export async function buildKivelleConversationContext(input: {
     return { name:String(other?.together_character_templates?.name ?? 'Someone in the city'), relationship:String(edge.relationship_type ?? 'acquaintance'), userHasMet:Boolean(other?.introduced_at) };
   }).slice(0, 8);
   const activeStory = buildActiveStory(stories.data?.[0] ?? null);
-  const history = retrieveSharedHistory({ intent, moments: moments.data ?? [], dates: dateRows, plans: activePlans, now }).slice(0, intent === 'history' ? 12 : 5);
+  const history = retrieveSharedHistory({ intent, moments: moments.data ?? [], dates: dateRows, plans: plansView, now }).slice(0, intent === 'history' ? 12 : 5);
   if (memoryRows.length) {
     const recalledIds = memoryRows.map((item) => item.id).filter(Boolean);
     await db.from('together_memories').update({ last_recalled_at: now.toISOString() }).eq('user_id', userId).in('id', recalledIds);
@@ -119,12 +131,12 @@ export async function buildKivelleConversationContext(input: {
     character: { ...(instance.together_character_templates ?? {}), personality_config:instance.together_character_versions?.personality_config, communication_style:instance.together_character_versions?.communication_style, boundaries:instance.together_character_versions?.boundaries },
     clock, currentScene, life: currentScene, relationship:{...relationship.data,relationship_stage:instance.relationship_stage}, progression:milestone.data ?? null,
     upcomingSchedule:schedule, sharedPlans:contextualPlans, upcomingCommitments:commitments,
-    planningCatalog:(locations.data??[]).filter((item:Row)=>item.category!=='home'&&item.category!=='work').map((item:Row)=>({id:String(item.id),name:String(item.name),slug:String(item.slug),category:String(item.category),activities:(item.possible_activities??[]).map(String),hours:item.hours??null,tags:(item.metadata?.tags??[]).map(String),dateTypes:(item.metadata?.date_types??[]).map(String),socialEnergy:item.metadata?.social_energy,privacy:item.metadata?.privacy})),
+    planningCatalog:(locations.data??[]).filter((item:Row)=>(!planningWorldId||String(item.world_id)===planningWorldId)&&item.category!=='home'&&item.category!=='work').map((item:Row)=>({id:String(item.id),worldId:String(item.world_id),worldName:String((worlds.data??[]).find((world:Row)=>String(world.id)===String(item.world_id))?.name??''),name:String(item.name),slug:String(item.slug),category:String(item.category),activities:(item.possible_activities??[]).map(String),hours:item.hours??null,tags:(item.metadata?.tags??[]).map(String),dateTypes:(item.metadata?.date_types??[]).map(String),socialEnergy:item.metadata?.social_energy,privacy:item.metadata?.privacy})),
     dates:{ active:dateRows.find((item:Row)=>item.status==='active')??null, upcoming:upcomingDates.slice(0,4), unlocked:dateRows.filter((item:Row)=>['unlocked','deferred'].includes(item.status)).slice(0,4), recentCompleted:dateRows.filter((item:Row)=>item.status==='completed').slice(0,4) },
     activeStory, memories:memoryRows.map((item)=>({id:String(item.id),text:String(item.canonical_text),type:String(item.memory_type),pinned:Boolean(item.pinned),importance:Number(item.importance??0)})),
     openThreads:(threads.data??[]).map((thread:Row)=>threadContext(thread)), social,
     knownLifeEvents:(events.data??[]).filter((item:Row)=>item.user_should_know!==false).map((item:Row)=>({id:String(item.id),title:String(item.title),summary:String(item.narrative_summary),startsAt:String(item.starts_at)})).slice(0,6),
-    location:currentLocation,
+    location:currentLocation,place,
     recentMedia:(media.data??[]).map((item:Row)=>({id:String(item.id),summary:String(item.metadata?.sceneSummary??'A recent shared photo.'),createdAt:String(item.created_at),locationId:item.location_id})),
     sharedHistory:history, conversationSummary:typeof conversation.summary==='string'?conversation.summary:'', conversationFocus:resolveConversationFocus(conversation.metadata?.focus as Row|null,plansView,now),
     recent:(messages.data??[]).reverse().map((item:Row)=>({role:String(item.role),content:String(item.content)})), userMessage, queryIntent:intent,
@@ -151,4 +163,4 @@ function minutesLabel(value:number){const hour=Math.floor(value/60),minute=value
 function dedupeCommitments<T extends {type:'plan'|'date';title:string;startsAt:string}>(items:T[]):T[]{const seen=new Set<string>();return items.sort((a,b)=>new Date(a.startsAt).getTime()-new Date(b.startsAt).getTime()).filter((item)=>{const key=`${item.title.toLowerCase().replace(/[^a-z0-9]/g,'')}:${item.startsAt.slice(0,13)}`;if(seen.has(key))return false;seen.add(key);return true;});}
 function buildActiveStory(story:Row|null):Row|null{if(!story)return null;const chapters=story.together_story_arc_templates?.chapters??[];const chapter=chapters.find((item:Row)=>item.id===story.current_chapter_id);return{id:String(story.id),title:String(story.together_story_arc_templates?.title??'A story in progress'),chapterId:String(story.current_chapter_id),chapterTitle:String(chapter?.title??story.current_chapter_id),knownSummary:String(chapter?.narrativeSeed??chapter?.narrative_seed??'Something is unfolding.'),status:String(story.status)};}
 export function retrieveSharedHistory(input:{intent:ContextQueryIntent;moments:Row[];dates:Row[];plans:Array<{id:string;title:string;status:string;startsAt:string;summary:string}>;now:Date}){const rows=[...input.moments.map((item)=>({id:String(item.id),type:'moment' as const,title:String(item.title),summary:String(item.summary),occurredAt:String(item.occurred_at)})),...input.dates.filter((item)=>item.status==='completed').map((item)=>({id:String(item.id),type:'date' as const,title:String(item.together_date_templates?.name??'A shared date'),summary:String(item.state?.summary??'A date you experienced together.'),occurredAt:String(item.completed_at??item.updated_at)})),...input.plans.filter((item)=>item.status==='completed').map((item)=>({id:item.id,type:'plan' as const,title:item.title,summary:item.summary,occurredAt:item.startsAt}))];return rows.filter((item)=>new Date(item.occurredAt)<=input.now).sort((a,b)=>new Date(b.occurredAt).getTime()-new Date(a.occurredAt).getTime());}
-function resolveConversationFocus(focus:Row|null,plans:Row[],now:Date):Row|null{if(!focus)return null;const updated=new Date(String(focus.updatedAt??0));if(!Number.isFinite(updated.getTime())||now.getTime()-updated.getTime()>7*86400000)return null;if(focus.planId){const plan=plans.find((item)=>item.id===focus.planId);return plan?{type:'plan',planId:plan.id,title:plan.title,status:plan.status,startsAt:plan.startsAt,endsAt:plan.endsAt,location:plan.location,updatedAt:focus.updatedAt}:null;}return focus;}
+function resolveConversationFocus(focus:Row|null,plans:Row[],now:Date):Row|null{if(!focus)return null;const updated=new Date(String(focus.updatedAt??0));if(!Number.isFinite(updated.getTime())||now.getTime()-updated.getTime()>7*86400000)return null;if(focus.planId){const plan=plans.find((item)=>item.id===focus.planId);return plan?{type:'plan',planId:plan.id,title:plan.title,status:plan.status,startsAt:plan.startsAt,endsAt:plan.endsAt,locationId:plan.locationId,location:plan.location,activityKey:plan.activityKey,updatedAt:focus.updatedAt}:null;}return focus;}

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
 import { track } from './together.ts';
+import { placeContextSnapshot, resolvePlaceContext, type PlaceContext } from './together-place.ts';
 
 export type MediaSource = 'user_request'|'life_event'|'date'|'moment'|'story';
 export type MediaContentLevel = 'standard'|'romance'|'suggestive'|'mature'|'explicit';
@@ -12,7 +13,7 @@ export type CanonicalImageGenerationRequest = {
   companion:{templateId:string;versionId:string;name:string;age:number};
   visualIdentity:CompanionVisualIdentity;
   referenceImages:Array<{bytes:Uint8Array;contentType:string;name:string}>;
-  context:{location?:{id:string;name:string;description?:string;category?:string};activity?:string;mood?:string;timeOfDay?:string;lifeEvent?:Record<string,unknown>;date?:Record<string,unknown>;moment?:Record<string,unknown>;story?:Record<string,unknown>;outfitKey?:string};
+  context:{place?:PlaceContext;location?:{id:string;name:string;description?:string;category?:string};activity?:string;mood?:string;timeOfDay?:string;lifeEvent?:Record<string,unknown>;date?:Record<string,unknown>;plan?:Record<string,unknown>;moment?:Record<string,unknown>;story?:Record<string,unknown>;outfitKey?:string};
   composition:{shotType:ShotType;framing?:string;aspectRatio:string};
   contentLevel:MediaContentLevel;
   qualityTier:'economy'|'standard'|'premium';
@@ -58,7 +59,7 @@ export class OpenAIImageProvider implements ImageGenerationProvider {
       if(request.referenceImages.length){
         const form=new FormData();
         form.set('model',this.model);form.set('prompt',prompt);form.set('size',size);form.set('quality',quality);form.set('output_format','webp');form.set('input_fidelity','high');
-        for(const reference of request.referenceImages.slice(0,2))form.append('image[]',new Blob([reference.bytes],{type:reference.contentType}),reference.name);
+        for(const reference of request.referenceImages.slice(0,2))form.append('image[]',new Blob([reference.bytes.slice().buffer as ArrayBuffer],{type:reference.contentType}),reference.name);
         response=await fetch('https://api.openai.com/v1/images/edits',{method:'POST',headers:{Authorization:`Bearer ${this.apiKey}`},body:form,signal:controller.signal});
       }else{
         response=await fetch('https://api.openai.com/v1/images/generations',{method:'POST',headers:{Authorization:`Bearer ${this.apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model:this.model,prompt,size,quality,output_format:'webp',n:1}),signal:controller.signal});
@@ -143,14 +144,16 @@ function line(value:unknown,fallback='not specified'):string{return typeof value
 function list(value:unknown):string{return Array.isArray(value)?value.map(String).filter(Boolean).join(', '):'';}
 export function buildImagePrompt(request:CanonicalImageGenerationRequest):string {
   const identity=request.visualIdentity;
-  const location=request.context.location;
+  const place=request.context.place,location=request.context.location;
   const referenceRule=request.referenceImages.length?'This is the same fictional adult companion shown in the supplied identity reference.':'Use the canonical identity description exactly and keep it stable across images.';
   return [
     'IDENTITY',referenceRule,`${request.companion.name} is a fictional adult age ${request.companion.age}.`,line(identity.canonicalDescription),`Hair: ${line(identity.hair)}. Eyes: ${line(identity.eyes)}. Skin tone: ${line(identity.skinTone)}. Build: ${line(identity.build)}.`,`Identifying features: ${list(identity.identifyingFeatures)||'preserve the canonical identity'}.`,
-    'SCENE',location?`${location.name}. ${line(location.description,'A believable real environment consistent with this location.')}`:'A believable environment consistent with the current Kivelle world.',
+    'WORLD',place?`${place.world.name}. ${place.world.description}\nSetting: ${line(place.world.visualContext.setting)}. Architecture: ${list(place.world.visualContext.architecture)}. Climate: ${line(place.world.visualContext.climate)}. Recurring elements: ${list(place.world.visualContext.recurringElements)}. Avoid: ${list(place.world.visualContext.avoid)}.`:'Use the canonical current Kivelle world.',
+    'LOCATION PATH',place?.path??location?.name??'Current canonical place',
+    'EXACT LOCATION',place?`${place.location.visualContext.canonicalPrompt??place.location.description}. Materials: ${list(place.location.visualContext.materials)}. Lighting: ${list(place.location.visualContext.lighting)}. Visual anchors: ${list(place.location.visualContext.visualAnchors)}. Avoid: ${list(place.location.visualContext.avoid)}.`:location?`${location.name}. ${line(location.description,'A believable real environment consistent with this location.')}`:'A believable environment consistent with the current Kivelle world.',
     'ACTIVITY',line(request.context.activity,'a natural moment from the current day'),
     'MOOD',line(request.context.mood,'natural and relaxed'),
-    'TIME / LIGHTING',`${line(request.context.timeOfDay,'current local time')}; believable available light.`,
+    'TIME / LIGHTING',`${place?`${place.clock.weekday} ${place.clock.localTime} (${place.clock.timezone}), ${place.clock.daypart}`:line(request.context.timeOfDay,'current local time')}; believable available light.`,
     'WARDROBE',request.context.outfitKey?`Continue the established outfit ${request.context.outfitKey}.`:`Natural ${line(identity.fashionStyle,'contemporary')} clothing appropriate to the place and activity.`,
     'COMPOSITION',`${request.composition.shotType.replace('_',' ')} photo, ${request.composition.aspectRatio}, ${line(request.composition.framing,'grounded framing with useful environmental context')}.`,
     'CAMERA STYLE','Believable personal smartphone or camera photo, natural lighting, subtle imperfections, realistic environment, natural expression. Avoid glossy advertising, glamour-campaign staging, fantasy rendering, oversaturation, text, logos, extra fingers, and impossible mirror geometry.',
@@ -198,6 +201,7 @@ export async function queueMediaRequest(db:SupabaseClient,input:QueueMediaInput)
     locationId?db.from('together_locations').select('*').eq('id',locationId).maybeSingle():Promise.resolve({data:null}),
     db.from('together_photo_opportunities').select('*').eq('active',true),
   ]);
+  const place=locationId?await resolvePlaceContext({db,locationId,now,userId:input.userId,characterInstanceId:input.characterInstanceId}):null;
   const opportunity=scorePhotoOpportunities(opportunities??[],{locationSlug:String(location?.slug??''),relationshipStage:String(instance.relationship_stage),source:input.source,intent,recent:recent??[]});
   const requestedLevel:PhotoRequestIntent['requestedContentLevel']=intent.requestedContentLevel;
   const romanceAllowed=Boolean((profile.content_preferences as Record<string,unknown>)?.romanceEnabled!==false)&&['flirting','dating','exclusive','long_term'].includes(String(instance.relationship_stage));
@@ -206,9 +210,9 @@ export async function queueMediaRequest(db:SupabaseClient,input:QueueMediaInput)
   const shotType=intent.shotPreference??String(opportunity?.shot_type??(input.source==='user_request'?'selfie':'candid')) as ShotType;
   const aspectRatio=shotType==='scene'?'16:9':shotType==='selfie'||shotType==='full_body'?'4:5':'1:1';
   const qualityTier=input.source==='date'||input.source==='moment'||input.source==='story'?'premium':input.source==='user_request'?'standard':'economy';
-  const outfitKey=await resolveOutfitKey(db,input,instance,now);
-  const metadata={source:input.source,photoOpportunitySlug:opportunity?.slug??null,shotType,locationId:locationId??null,resolvedContentLevel:contentLevel,qualityTier,aspectRatio,requestKey:key,requestIntent:{subject:intent.subject,confidence:intent.confidence},requestHint:safeRequestText(input.requestText),sceneSummary:`${String(template.name)} ${shotType==='scene'?'shared a view from':'sent a photo while at'} ${String(location?.name??'City Life')} during ${String(instance.current_activity)}.`,activity:String(instance.current_activity),mood:String(instance.current_mood),timeOfDay:timeOfDay(now),outfitKey,relationshipStage:String(instance.relationship_stage),relationshipDirection:String(relationship?.recent_direction??'steady')};
-  const row={user_id:input.userId,character_instance_id:input.characterInstanceId,conversation_id:input.conversationId??null,message_id:input.messageId??null,life_event_id:input.lifeEventId??null,date_session_id:input.dateSessionId??null,moment_id:input.momentId??null,story_arc_id:input.storyArcId??null,location_id:locationId??null,media_type:'image',content_level:contentLevel,provider:configuredImageProvider()?.id??null,status:'queued',request_key:key,metadata};
+  const outfitKey=await resolveOutfitKey(db,input,instance,now,place);
+  const metadata={source:input.source,photoOpportunitySlug:opportunity?.slug??null,shotType,locationId:locationId??null,resolvedContentLevel:contentLevel,qualityTier,aspectRatio,requestKey:key,requestIntent:{subject:intent.subject,confidence:intent.confidence},requestHint:safeRequestText(input.requestText),sceneSummary:`${String(template.name)} ${shotType==='scene'?'shared a view from':'sent a photo while at'} ${String(place?.path??location?.name??'their current place')} during ${String(instance.current_activity)}.`,activity:String(instance.current_activity),mood:String(instance.current_mood),timeOfDay:place?.clock.daypart??timeOfDay(now),outfitKey,relationshipStage:String(instance.relationship_stage),relationshipDirection:String(relationship?.recent_direction??'steady'),placeContext:place?placeContextSnapshot(place):null};
+  const row={user_id:input.userId,character_instance_id:input.characterInstanceId,conversation_id:input.conversationId??null,message_id:input.messageId??null,life_event_id:input.lifeEventId??null,date_session_id:input.dateSessionId??null,moment_id:input.momentId??null,story_arc_id:input.storyArcId??null,world_id:place?.world.id??null,location_id:locationId??null,media_type:'image',content_level:contentLevel,provider:configuredImageProvider()?.id??null,status:'queued',request_key:key,metadata};
   const {data,error}=await db.from('together_generated_media').insert(row).select('*').single();
   if(error){const {data:race}=await db.from('together_generated_media').select('*').eq('user_id',input.userId).eq('request_key',key).maybeSingle();if(race)return race;throw new AppError('INTERNAL_ERROR','The photo request could not be queued.',500,true);}
   await track(db,input.userId,'media_queued',{mediaId:data.id,source:input.source,characterInstanceId:input.characterInstanceId,shotType,contentLevel});
@@ -231,13 +235,14 @@ export function scorePhotoOpportunities(rows:Array<Record<string,unknown>>,conte
   }).sort((a,b)=>b.score-a.score)[0]?.row??null;
 }
 
-async function resolveOutfitKey(db:SupabaseClient,input:QueueMediaInput,instance:Record<string,unknown>,now:Date):Promise<string>{
+async function resolveOutfitKey(db:SupabaseClient,input:QueueMediaInput,instance:Record<string,unknown>,now:Date,place:PlaceContext|null):Promise<string>{
   const linked=input.lifeEventId?await db.from('together_life_events').select('metadata').eq('id',input.lifeEventId).maybeSingle():null;
   const existing=(linked?.data?.metadata as Record<string,unknown>|undefined)?.outfitKey;
   if(typeof existing==='string')return existing;
   const day=now.toISOString().slice(0,10);
   const style=String(((instance.together_character_versions as Record<string,unknown>)?.visual_identity as Record<string,unknown>|undefined)?.fashionStyle??'city-casual').toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,32);
-  const key=`${day}-${style||'city-casual'}`;
+  const climate=String(place?.world.visualContext.climate??'temperate').toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,20);
+  const key=`${day}-${climate}-${style||'city-casual'}`;
   if(input.lifeEventId)await db.from('together_life_events').update({metadata:{...((linked?.data?.metadata??{}) as Record<string,unknown>),outfitKey:key}}).eq('id',input.lifeEventId).eq('user_id',input.userId);
   return key;
 }
@@ -252,10 +257,14 @@ export async function canonicalRequestForMedia(db:SupabaseClient,media:Record<st
   const meta=(media.metadata??{}) as Record<string,unknown>;
   const locationId=String(media.location_id??meta.locationId??'');
   const {data:location}=locationId?await db.from('together_locations').select('*').eq('id',locationId).maybeSingle():{data:null};
+  const snapshot=(meta.placeContext??null) as Record<string,any>|null;
+  const resolvedPlace=locationId?await resolvePlaceContext({db,locationId,userId:String(media.user_id),characterInstanceId:String(media.character_instance_id)}).catch(()=>null):null;
+  const historicalPlace=snapshot?{contextVersion:1 as const,world:{id:String(snapshot.worldId),slug:String(snapshot.worldSlug),name:String(snapshot.worldName),description:String(snapshot.worldDescription??''),timezone:String(snapshot.clock?.timezone??'UTC'),accessType:String(snapshot.worldAccessType??'historical'),visualContext:snapshot.worldVisualContext??{}},location:{id:String(snapshot.locationId),slug:String(snapshot.locationSlug),name:String(snapshot.locationName),description:String(snapshot.locationDescription??''),type:String(snapshot.locationType??'venue') as PlaceContext['location']['type'],category:String(snapshot.locationCategory??''),possibleActivities:Array.isArray(snapshot.locationPossibleActivities)?snapshot.locationPossibleActivities.map(String):[],visualContext:snapshot.locationVisualContext??{}},ancestry:Array.isArray(snapshot.ancestry)?snapshot.ancestry:[],path:String(snapshot.path??snapshot.locationName??'Historical place'),clock:snapshot.clock??{timezone:'UTC',localIso:'',weekday:'',localTime:'',daypart:'unknown'}} as PlaceContext:null;
+  const place=historicalPlace??resolvedPlace;
   const references:Array<{bytes:Uint8Array;contentType:string;name:string}>=[];
   const paths=Array.isArray(identity.referenceStoragePaths)?identity.referenceStoragePaths.map(String).slice(0,2):[];
   for(const path of paths){const {data}=await db.storage.from('kivelle-character-reference').download(path);if(data)references.push({bytes:new Uint8Array(await data.arrayBuffer()),contentType:data.type||'image/png',name:path.split('/').at(-1)??'reference.png'});}
-  return {mediaId:String(media.id),companion:{templateId:String(instance.character_template_id),versionId:String(instance.character_version_id),name:String(template.name),age:Number(template.age)},visualIdentity:{canonicalDescription:String(identity.canonicalDescription??template.biography??template.name),age:Number(identity.age??template.age),referenceStoragePaths:paths,hair:String(identity.hair??''),eyes:String(identity.eyes??''),skinTone:String(identity.skinTone??''),build:String(identity.build??''),approximateHeight:String(identity.approximateHeight??''),identifyingFeatures:Array.isArray(identity.identifyingFeatures)?identity.identifyingFeatures.map(String):[],tattoos:Array.isArray(identity.tattoos)?identity.tattoos.map(String):[],piercings:Array.isArray(identity.piercings)?identity.piercings.map(String):[],fashionStyle:String(identity.fashionStyle??''),recurringAccessories:Array.isArray(identity.recurringAccessories)?identity.recurringAccessories.map(String):[],visualDoNotChange:Array.isArray(identity.visualDoNotChange)?identity.visualDoNotChange.map(String):[],photoStyle:(identity.photoStyle??{}) as Record<string,unknown>},referenceImages:references,context:{location:location?{id:String(location.id),name:String(location.name),description:String(location.description),category:String(location.category)}:undefined,activity:String(meta.activity??instance.current_activity),mood:String(meta.mood??instance.current_mood),timeOfDay:String(meta.timeOfDay??timeOfDay()),outfitKey:String(meta.outfitKey??'')||undefined},composition:{shotType:String(meta.shotType??'candid') as ShotType,aspectRatio:String(meta.aspectRatio??'4:5')},contentLevel:String(media.content_level??'standard') as MediaContentLevel,qualityTier:String(meta.qualityTier??'standard') as CanonicalImageGenerationRequest['qualityTier']};
+  return {mediaId:String(media.id),companion:{templateId:String(instance.character_template_id),versionId:String(instance.character_version_id),name:String(template.name),age:Number(template.age)},visualIdentity:{canonicalDescription:String(identity.canonicalDescription??template.biography??template.name),age:Number(identity.age??template.age),referenceStoragePaths:paths,hair:String(identity.hair??''),eyes:String(identity.eyes??''),skinTone:String(identity.skinTone??''),build:String(identity.build??''),approximateHeight:String(identity.approximateHeight??''),identifyingFeatures:Array.isArray(identity.identifyingFeatures)?identity.identifyingFeatures.map(String):[],tattoos:Array.isArray(identity.tattoos)?identity.tattoos.map(String):[],piercings:Array.isArray(identity.piercings)?identity.piercings.map(String):[],fashionStyle:String(identity.fashionStyle??''),recurringAccessories:Array.isArray(identity.recurringAccessories)?identity.recurringAccessories.map(String):[],visualDoNotChange:Array.isArray(identity.visualDoNotChange)?identity.visualDoNotChange.map(String):[],photoStyle:(identity.photoStyle??{}) as Record<string,unknown>},referenceImages:references,context:{place:place??undefined,location:location?{id:String(location.id),name:String(location.name),description:String(location.description),category:String(location.category)}:undefined,activity:String(meta.activity??instance.current_activity),mood:String(meta.mood??instance.current_mood),timeOfDay:String(meta.timeOfDay??place?.clock.daypart??timeOfDay()),outfitKey:String(meta.outfitKey??'')||undefined},composition:{shotType:String(meta.shotType??'candid') as ShotType,aspectRatio:String(meta.aspectRatio??'4:5')},contentLevel:String(media.content_level??'standard') as MediaContentLevel,qualityTier:String(meta.qualityTier??'standard') as CanonicalImageGenerationRequest['qualityTier']};
 }
 
 export async function kickMediaDispatcher():Promise<void>{

@@ -10,6 +10,8 @@
     "typecheck": "pnpm --filter @together/app typecheck && pnpm --filter @together/domain typecheck",
     "test": "pnpm --filter @together/app test && pnpm --filter @together/domain test",
     "lint": "eslint .",
+    "guard:starter-content": "node scripts/check-starter-content.mjs",
+    "edge:typecheck": "node scripts/check-edge-functions.mjs",
     "supabase:test": "supabase test db"
   },
   "devDependencies": {

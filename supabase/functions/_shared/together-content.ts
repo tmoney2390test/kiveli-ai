@@ -7,7 +7,7 @@ const stageOrder = ['stranger','acquaintance','friend','flirting','dating','excl
 export function rankEventTemplates(input: { templates: Row[]; relationship: Row; recentEvents: Row[]; now: Date; seed: string; contentMode?: string; locationId?: string | null }): Row[] {
   const recentIds = new Set(input.recentEvents.map((event) => String(event.event_template_id)));
   const categories = input.recentEvents.map((event) => String(event.metadata?.category ?? event.event_type));
-  return input.templates.flatMap((template) => {
+  return input.templates.flatMap<Row>((template) => {
     const eligibility = contentEligible(template, input.relationship, input.now, input.contentMode ?? 'standard');
     if (!eligibility.eligible) return [];
     const repetition = recentIds.has(String(template.id)) ? .75 : 0;
@@ -19,8 +19,8 @@ export function rankEventTemplates(input: { templates: Row[]; relationship: Row;
   }).sort((a, b) => Number(b._content_score) - Number(a._content_score) || String(a.id).localeCompare(String(b.id)));
 }
 
-export async function progressStoryArcs(input: { db: SupabaseClient; userId: string; instance: Row; relationship: Row; now: Date; seed: string }): Promise<Row[]> {
-  const { db, userId, instance, relationship, now, seed } = input;
+export async function progressStoryArcs(input: { db: SupabaseClient; userId: string; instance: Row; relationship: Row; now: Date; seed: string; currentWorldId?:string }): Promise<Row[]> {
+  const { db, userId, instance, relationship, now, seed,currentWorldId } = input;
   const [activeResult, templatesResult] = await Promise.all([
     db.from('together_story_arc_instances').select('*,together_story_arc_templates(*)').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status', 'active').order('started_at'),
     db.from('together_story_arc_templates').select('*').eq('active', true).contains('eligible_template_ids', [instance.character_template_id]),
@@ -30,6 +30,7 @@ export async function progressStoryArcs(input: { db: SupabaseClient; userId: str
   for (const arc of active) {
     if (arc.next_eligible_at && new Date(arc.next_eligible_at) > now) continue;
     const template = arc.together_story_arc_templates as Row;
+    if(template.world_scope==='specific'&&String(template.specific_world_id)!==String(currentWorldId))continue;
     const chapters = Array.isArray(template?.chapters) ? template.chapters as Row[] : [];
     const index = chapters.findIndex((chapter) => String(chapter.id) === String(arc.current_chapter_id));
     if (index < 0) continue;
@@ -44,7 +45,7 @@ export async function progressStoryArcs(input: { db: SupabaseClient; userId: str
   const activeMajor = active.some((arc) => arc.priority === 'major');
   const activeMinor = active.filter((arc) => arc.priority === 'minor').length;
   if (activeMajor || activeMinor >= 2) return output;
-  const eligible = (templatesResult.data ?? []).filter((template) => arcEligible(template, relationship));
+  const eligible = (templatesResult.data ?? []).filter((template) => arcEligible(template, relationship)&&!(template.world_scope==='specific'&&String(template.specific_world_id)!==String(currentWorldId)));
   const selected = eligible.sort((a, b) => stableUnit(`${seed}:${now.toISOString().slice(0, 10)}:${a.slug}`) - stableUnit(`${seed}:${now.toISOString().slice(0, 10)}:${b.slug}`)).find((template) => stableUnit(`${seed}:arc:${template.slug}:${now.toISOString().slice(0, 10)}`) < (template.priority === 'major' ? .015 : .035));
   if (!selected) return output;
   const chapters = Array.isArray(selected.chapters) ? selected.chapters as Row[] : [];

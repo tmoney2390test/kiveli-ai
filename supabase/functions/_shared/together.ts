@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
 import { experienceClock } from './kivelle-time.ts';
+import { resolvePlaceContext } from './together-place.ts';
+import { applyRelationshipProposal, firstDateEligibility, nextRelationshipMilestone as selectRelationshipMilestone, relationshipCue, type RelationshipState } from '../../../packages/together-domain/src/index.ts';
 
 export const TOGETHER_IDS = {
   world: '10000000-0000-4000-8000-000000000001',
@@ -23,44 +25,26 @@ export const relationshipMetrics = ['trust','comfort','attraction','affinity','f
 const phaseOrder = ['arrival','ordering','early_conversation','personal_conversation','unexpected_moment','dessert','after_date','resolution'] as const;
 
 export function clampRelationship(current: Record<string, unknown>, proposal: Record<string, unknown>, limit = 2): Record<string, number> {
-  return Object.fromEntries(relationshipMetrics.map((metric) => {
-    const before = Number(current[metric] ?? 0);
-    const asked = Number(proposal[metric] ?? 0);
-    const delta = Math.max(-limit, Math.min(limit, Number.isFinite(asked) ? asked : 0));
-    return [metric, Math.max(0, Math.min(100, Math.round(before + delta)))];
-  }));
+  const source=limit>=8?'date':limit>=4?'meaningful_disclosure':'ordinary_chat';
+  const next=applyRelationshipProposal(toDomainRelationship(current),proposal,source);
+  return Object.fromEntries(relationshipMetrics.map((metric)=>[metric,next[metric]]));
 }
 
 export function firstDateEligible(state: Record<string, unknown>): boolean {
-  return Number(state.familiarity) >= 28 && Number(state.trust) >= 24 && Number(state.attraction) >= 22 &&
-    Number(state.conversation_count) >= 5 && !state.active_major_conflict && Number(state.conflict) <= 45 &&
-    ['friend','flirting'].includes(String(state.relationship_stage ?? state.stage));
+  return firstDateEligibility(toDomainRelationship(state)).eligible;
 }
 
-export type RelationshipMilestone = { kind: 'keep_in_touch'|'friendship_deepened'|'romantic_spark'|'first_date_invitation'|'repair'; fromStage: string; toStage?: string; title: string; body: string; prompt: string; choices: Array<{ id: string; label: string; tone: 'primary'|'secondary' }> };
+export type RelationshipMilestone = ReturnType<typeof selectRelationshipMilestone>;
 
 export function nextRelationshipMilestone(state: Record<string, unknown>): RelationshipMilestone | null {
-  const stage = String(state.relationship_stage ?? state.stage ?? 'stranger');
-  const conversations = Number(state.conversation_count ?? state.conversationCount ?? 0);
-  if (Boolean(state.active_major_conflict ?? state.activeMajorConflict) || Number(state.conflict ?? 0) > 45) return { kind: 'repair', fromStage: stage, title: 'Something feels unresolved', body: 'Maya would rather address the tension honestly than pretend it is not there.', prompt: 'How do you want to handle it?', choices: [{ id: 'talk_it_out', label: 'Talk it out', tone: 'primary' }, { id: 'give_space', label: 'Give her some space', tone: 'secondary' }] };
-  if (stage === 'stranger' && conversations >= 1) return { kind: 'keep_in_touch', fromStage: stage, toStage: 'acquaintance', title: 'Keep in touch?', body: 'Maya pauses before leaving, then offers a small smile. “I’d like to keep talking, if you would.”', prompt: 'What do you say?', choices: [{ id: 'accept', label: 'I’d like that', tone: 'primary' }, { id: 'defer', label: 'Let’s take it slowly', tone: 'secondary' }] };
-  if (stage === 'acquaintance' && conversations >= 5 && Number(state.familiarity) >= 15 && Number(state.trust) >= 14) return { kind: 'friendship_deepened', fromStage: stage, toStage: 'friend', title: 'This is becoming real', body: 'The conversation has started to feel less like chance meetings and more like an actual friendship.', prompt: 'How do you meet the moment?', choices: [{ id: 'accept', label: 'I feel it too', tone: 'primary' }, { id: 'defer', label: 'Keep getting to know each other', tone: 'secondary' }] };
-  if (stage === 'friend' && conversations >= 8 && Number(state.attraction) >= 18 && Number(state.comfort) >= 18) return { kind: 'romantic_spark', fromStage: stage, toStage: 'flirting', title: 'There’s a spark here', body: 'Maya lets a teasing moment linger, giving you room to decide whether this stays friendship or becomes something more.', prompt: 'Where do you want this to go?', choices: [{ id: 'accept', label: 'Lean into the spark', tone: 'primary' }, { id: 'stay_friends', label: 'Keep this as friendship', tone: 'secondary' }, { id: 'defer', label: 'Not yet', tone: 'secondary' }] };
-  if (firstDateEligible({ ...state, relationship_stage: stage })) return { kind: 'first_date_invitation', fromStage: stage, title: 'Dinner at Juniper?', body: 'Maya grins. “You’ve mentioned that place enough times. Are you actually going to take me?”', prompt: 'What do you say?', choices: [{ id: 'accept', label: 'Yes—let’s do it', tone: 'primary' }, { id: 'defer', label: 'Ask me again later', tone: 'secondary' }] };
-  return null;
+  return selectRelationshipMilestone(toDomainRelationship(state));
 }
 
 export function describeRelationshipCue(state: Record<string, unknown>): { label: string; detail: string; tone: 'warm'|'spark'|'tense'|'steady' } {
-  const stage = String(state.relationship_stage ?? state.stage ?? 'stranger');
-  if (Boolean(state.active_major_conflict ?? state.activeMajorConflict) || Number(state.conflict ?? 0) > 45) return { label: 'A little distance', detail: 'Something feels unresolved. An honest conversation could help.', tone: 'tense' };
-  if (stage === 'long_term') return { label: 'Deeply connected', detail: 'You have built a steady shared history together.', tone: 'warm' };
-  if (stage === 'exclusive') return { label: 'Choosing each other', detail: 'This relationship feels intentional and secure.', tone: 'warm' };
-  if (stage === 'dating') return { label: 'Growing closer', detail: 'Shared experiences are turning into something meaningful.', tone: 'warm' };
-  if (stage === 'flirting') return { label: 'There’s a spark', detail: 'The warmth between you has a playful romantic edge.', tone: 'spark' };
-  if (stage === 'friend') return { label: 'Easy closeness', detail: 'Trust is growing and Maya is opening up naturally.', tone: 'warm' };
-  if (stage === 'acquaintance') return { label: 'Getting acquainted', detail: 'You are beginning to understand each other.', tone: 'steady' };
-  return { label: 'A first impression', detail: 'Your shared story is just beginning.', tone: 'steady' };
+  return relationshipCue(toDomainRelationship(state));
 }
+
+function toDomainRelationship(state:Record<string,unknown>):RelationshipState{return{stage:String(state.relationship_stage??state.stage??'stranger') as RelationshipState['stage'],trust:Number(state.trust??0),comfort:Number(state.comfort??0),attraction:Number(state.attraction??0),affinity:Number(state.affinity??0),familiarity:Number(state.familiarity??0),respect:Number(state.respect??0),conflict:Number(state.conflict??0),romantic_interest:Number(state.romantic_interest??0),commitment:Number(state.commitment??0),conversationCount:Number(state.interaction_turn_count??state.conversation_count??state.conversationCount??0),conversationSessionCount:Number(state.conversation_session_count??state.conversationSessionCount??1),meaningfulInteractionCount:Number(state.meaningful_interaction_count??state.meaningfulInteractionCount??state.conversation_count??0),activeMajorConflict:Boolean(state.active_major_conflict??state.activeMajorConflict),romanceEnabled:state.romance_enabled===undefined?state.romanceEnabled!==false:Boolean(state.romance_enabled)};}
 
 export function nextDatePhase(current: string, phases: Array<{ id: string }> = phaseOrder.map((id) => ({ id }))): { phase: string; index: number; completed: boolean } {
   const index = phases.findIndex((phase) => phase.id === current);
@@ -69,13 +53,13 @@ export function nextDatePhase(current: string, phases: Array<{ id: string }> = p
   return { phase: phases[index + 1]!.id, index: index + 1, completed: index + 1 === phases.length - 1 };
 }
 
-export function resolveLifeState(rows: Array<Record<string, unknown>>, now = new Date(), timezone = 'UTC'): { locationId: string; location: string; activity: string; availability: string; mood: string; energy: string } {
+export function resolveLifeState(rows: Array<Record<string, unknown>>, now = new Date(), timezone = 'UTC', fallback?:{locationId:string;location:string}): { locationId: string; location: string; activity: string; availability: string; mood: string; energy: string } {
   const clock = experienceClock(timezone, now);
   const minute = clock.minuteOfDay;
   const row = rows.find((entry) => Number(entry.day_of_week) === clock.weekday && minute >= Number(entry.start_minute) && minute < Number(entry.end_minute));
-  if (!row) return { locationId: TOGETHER_IDS.apartment, location: "Maya's Apartment", activity: minute < 480 ? 'sleeping' : 'taking care of a few things', availability: minute < 480 ? 'busy' : 'available', mood: 'content', energy: minute > 1260 ? 'low' : 'medium' };
-  const location = (row.together_locations as Record<string, unknown> | null)?.name ?? 'City Life';
-  return { locationId: String(row.location_id ?? TOGETHER_IDS.apartment), location: String(location), activity: String(row.activity), availability: String(row.availability), mood: String(row.mood_influence ?? 'content'), energy: Number(row.energy_delta) > 0 ? 'high' : Number(row.energy_delta) < 0 ? 'low' : 'medium' };
+  if (!row) return { locationId: fallback?.locationId ?? '', location: fallback?.location ?? 'Current world', activity: minute < 480 ? 'sleeping' : 'taking care of a few things', availability: minute < 480 ? 'busy' : 'available', mood: 'content', energy: minute > 1260 ? 'low' : 'medium' };
+  const location = (row.together_locations as Record<string, unknown> | null)?.name ?? fallback?.location ?? 'Current place';
+  return { locationId: String(row.location_id ?? fallback?.locationId ?? ''), location: String(location), activity: String(row.activity), availability: String(row.availability), mood: String(row.mood_influence ?? 'content'), energy: Number(row.energy_delta) > 0 ? 'high' : Number(row.energy_delta) < 0 ? 'low' : 'medium' };
 }
 
 export type MemoryCandidate = { memory_type: string; canonical_text: string; dedupe_key: string; subject_key: string; importance: number; confidence: number; sensitivity_category: string; metadata: Record<string, unknown> };
@@ -175,7 +159,7 @@ export function mergeConversationSummary(previousValue: string, turns: Array<{ i
   const priorContext = String(previous.recentContext ?? '').slice(-520);
   const summary: ConversationContinuitySummary = {
     version: 1,
-    topics: topics.map((item) => item.slice(0, 100)),
+    topics: topics.filter((item):item is string=>typeof item==='string').map((item) => item.slice(0, 100)),
     recentContext: [priorContext, recent].filter(Boolean).join('\n').slice(-1100),
     emotionalContext: emotional.length ? `Recent emotional cues: ${[...new Set(emotional.map((item) => item.toLowerCase()))].slice(-5).join(', ')}.` : previous.emotionalContext,
     unresolvedConversationPoints: [...(previous.unresolvedConversationPoints ?? []), ...questions].slice(-4).map((item) => item.slice(0, 180)),
@@ -196,10 +180,12 @@ export async function track(db: SupabaseClient, userId: string, eventName: strin
 }
 
 export async function buildSnapshot(db: SupabaseClient, userId: string): Promise<Record<string, unknown>> {
-  const [profile, worlds, locations, instances, discoverable, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions] = await Promise.all([
+  const [profile, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions] = await Promise.all([
     db.from('together_profiles').select('*').eq('user_id', userId).maybeSingle(),
     db.from('together_worlds').select('*').eq('published', true),
     db.from('together_locations').select('*'),
+    db.from('together_user_worlds').select('*').eq('user_id',userId),
+    db.from('together_character_world_presence').select('*'),
     db.from('together_character_instances').select('*, together_character_templates(*), together_character_versions(*)').eq('user_id', userId),
     db.from('together_character_templates').select('*,together_character_versions(*)').eq('published',true).eq('can_be_selected',true).order('name'),
     db.from('together_schedule_templates').select('*'),
@@ -216,13 +202,13 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
     db.from('together_proactive_messages').select('*').eq('user_id', userId).in('status', ['queued','sent']).lte('eligible_at', new Date().toISOString()).order('eligible_at', { ascending: false }).limit(10),
     db.from('together_entitlements').select('*').eq('user_id', userId).maybeSingle(),
     db.from('together_notification_preferences').select('*').eq('user_id', userId).maybeSingle(),
-    db.from('together_story_arc_instances').select('*,together_story_arc_templates(slug,title,priority,chapters)').eq('user_id', userId).in('status', ['active','paused']).order('updated_at', { ascending: false }),
+    db.from('together_story_arc_instances').select('*,together_story_arc_templates(slug,title,priority,chapters,world_scope,specific_world_id)').eq('user_id', userId).in('status', ['active','paused']).order('updated_at', { ascending: false }),
     db.from('together_trip_templates').select('*').eq('active', true),
     db.from('together_photo_opportunities').select('*').eq('active', true),
     db.from('together_generated_media').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(60),
     db.from('together_conversation_actions').select('*').eq('user_id',userId).eq('status','pending').or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`).order('created_at',{ascending:false}).limit(20),
   ]);
-  const failed = [profile, worlds, locations, instances, discoverable, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions].find((result) => result.error);
+  const failed = [profile, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions].find((result) => result.error);
   if (failed?.error) throw new AppError('INTERNAL_ERROR', 'Kivelle could not load your world.', 500, true);
   const stageByInstance = new Map((instances.data ?? []).map((instance) => [instance.id, instance.relationship_stage]));
   const relationshipCues = Object.fromEntries((relationships.data ?? []).map((relationship) => [relationship.character_instance_id, describeRelationshipCue({ ...relationship, relationship_stage: stageByInstance.get(relationship.character_instance_id) })]));
@@ -233,5 +219,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
   const urlByPath=new Map((signed.data??[]).map((item)=>[item.path,item.signedUrl]));
   const mediaPayload=mediaRows.map((item)=>({...item,signed_url:item.storage_path?urlByPath.get(item.storage_path)??null:null}));
   const discoverableCharacters=(discoverable.data??[]).map((template)=>({...template,together_character_versions:(template.together_character_versions??[]).find((version:Record<string,unknown>)=>Number(version.version)===Number(template.current_published_version))??template.together_character_versions?.[0]??null}));
-  return { profile: profile.data, worlds: worlds.data ?? [], locations: locations.data ?? [], characters: instances.data ?? [], discoverableCharacters, schedules: schedules.data ?? [], relationships: relationships.data ?? [], relationshipMilestones: milestones.data ?? [], relationshipCues, dates: dates.data ?? [], moments: moments.data ?? [], memories: memories.data ?? [], openThreads: threads.data ?? [], conversations: conversationMetadata, sharedPlans:sharedPlans.data??[], conversationEvents:conversationEvents.data??[], lifeEvents: events.data ?? [], proactiveMessages: proactive.data ?? [], storyArcs: storyArcs.data ?? [], trips: trips.data ?? [], photoOpportunities: photoOpportunities.data ?? [], generatedMedia: mediaPayload, conversationActions:conversationActions.data??[], entitlements: entitlements.data, notificationPreferences: preferences.data };
+  const activeInstance=(instances.data??[]).find((item)=>item.id===profile.data?.active_companion_instance_id)??instances.data?.[0];
+  const currentPlaceContext=activeInstance?.current_location_id?await resolvePlaceContext({db,locationId:String(activeInstance.current_location_id),userId}).catch(()=>null):null;
+  return { profile: profile.data, worlds: worlds.data ?? [], userWorlds:userWorlds.data??[], characterWorldPresence:characterWorldPresence.data??[], currentPlaceContext, locations: locations.data ?? [], characters: instances.data ?? [], discoverableCharacters, schedules: schedules.data ?? [], relationships: relationships.data ?? [], relationshipMilestones: milestones.data ?? [], relationshipCues, dates: dates.data ?? [], moments: moments.data ?? [], memories: memories.data ?? [], openThreads: threads.data ?? [], conversations: conversationMetadata, sharedPlans:sharedPlans.data??[], conversationEvents:conversationEvents.data??[], lifeEvents: events.data ?? [], proactiveMessages: proactive.data ?? [], storyArcs: storyArcs.data ?? [], trips: trips.data ?? [], photoOpportunities: photoOpportunities.data ?? [], generatedMedia: mediaPayload, conversationActions:conversationActions.data??[], entitlements: entitlements.data, notificationPreferences: preferences.data };
 }
