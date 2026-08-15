@@ -1,0 +1,1 @@
+The base context implementation is preserved by git blob in the following commit.
