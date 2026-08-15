@@ -14,6 +14,7 @@ import { getActiveConversation } from '../_shared/together-conversation.ts';
 import { kickMediaDispatcher, queueMediaRequest } from '../_shared/together-media.ts';
 import { waitUntil } from '../_shared/background.ts';
 import { writeConversationEvent } from '../_shared/together-plans.ts';
+import { activeContinuity } from '../_shared/together-continuity.ts';
 
 const schema = z.object({ conversationId: z.string().uuid(), message: z.string().trim().min(1).max(4000), clientRequestId: z.string().min(8).max(100), characterInstanceId: z.string().uuid(), focusPlanId:z.string().uuid().optional() });
 const dialogue = new ConfiguredDialogueProvider();
@@ -29,7 +30,8 @@ Deno.serve(async (request) => {
     const { user, db } = await authenticated(request);
     await enforceRateLimit(db, user.id, 'together_dialogue', 80, 3600);
     const input = await parseBody(request, schema);
-    const { data: conversation } = await db.from('together_conversations').select('*,together_character_instances!inner(*,together_character_templates(*),together_character_versions(*))').eq('id', input.conversationId).eq('user_id', user.id).eq('character_instance_id', input.characterInstanceId).maybeSingle();
+    const continuity=await activeContinuity(db,user.id);
+    const { data: conversation } = await db.from('together_conversations').select('*,together_character_instances!inner(*,together_character_templates(*),together_character_versions(*))').eq('id', input.conversationId).eq('user_id', user.id).eq('continuity_id',continuity.id).eq('character_instance_id', input.characterInstanceId).maybeSingle();
     if (!conversation) throw new AppError('NOT_FOUND', 'That conversation is unavailable.', 404);
     const activeConversation = await getActiveConversation(db, user.id, input.characterInstanceId);
     if (conversation.archived_at || activeConversation?.id !== conversation.id) throw new AppError('CONVERSATION_ARCHIVED', 'This conversation is no longer active.', 409, true);

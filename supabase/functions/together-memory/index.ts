@@ -4,6 +4,7 @@ import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { track } from '../_shared/together.ts';
+import {activeContinuity}from'../_shared/together-continuity.ts';
 
 const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('edit'), memoryId: z.string().uuid(), text: z.string().trim().min(1).max(2000) }),
@@ -21,8 +22,8 @@ serve(async (request, correlationId) => {
     if (error) throw new AppError('INTERNAL_ERROR', 'Could not update memory preferences.', 500, true);
     return json({ data: { categories: input.categories }, correlationId }, 200, correlationId);
   }
-  const patch = input.action === 'edit' ? { canonical_text: input.text, updated_at: new Date().toISOString() } : input.action === 'forget' ? { status: 'forgotten', embedding: null, updated_at: new Date().toISOString() } : { pinned: input.pinned, updated_at: new Date().toISOString() };
-  const { data, error } = await db.from('together_memories').update(patch).eq('id', input.memoryId).eq('user_id', user.id).select('*').maybeSingle();
+  const continuity=await activeContinuity(db,user.id);const patch = input.action === 'edit' ? { canonical_text: input.text, updated_at: new Date().toISOString() } : input.action === 'forget' ? { status: 'forgotten', embedding: null, updated_at: new Date().toISOString() } : { pinned: input.pinned, updated_at: new Date().toISOString() };
+  const { data, error } = await db.from('together_memories').update(patch).eq('id', input.memoryId).eq('user_id', user.id).eq('continuity_id',continuity.id).select('*').maybeSingle();
   if (error) throw new AppError('INTERNAL_ERROR', 'Could not update that memory.', 500, true);
   if (!data) throw new AppError('NOT_FOUND', 'That memory no longer exists.', 404);
   await track(db, user.id, input.action === 'forget' ? 'memory_deleted' : input.action === 'edit' ? 'memory_edited' : 'memory_edited', { memoryId: input.memoryId, action: input.action });

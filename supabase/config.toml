@@ -62,3 +62,7 @@ verify_jwt = false
 verify_jwt = false
 [functions.together-companion]
 verify_jwt = false
+[functions.together-persona]
+verify_jwt = false
+[functions.together-creator]
+verify_jwt = false

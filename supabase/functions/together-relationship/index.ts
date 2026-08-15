@@ -4,6 +4,7 @@ import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { buildSnapshot, clampRelationship, track } from '../_shared/together.ts';
+import {activeContinuity}from'../_shared/together-continuity.ts';
 
 const schema = z.object({ milestoneId: z.string().uuid(), action: z.enum(['accept','defer','stay_friends','talk_it_out','give_space']) });
 const stageOrder = ['stranger','acquaintance','friend','flirting','dating','exclusive','long_term'];
@@ -12,7 +13,7 @@ serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
   await enforceRateLimit(db, user.id, 'together_relationship', 40, 3600);
   const input = await parseBody(request, schema);
-  const { data: milestone } = await db.from('together_relationship_milestones').select('*').eq('id', input.milestoneId).eq('user_id', user.id).maybeSingle();
+  const continuity=await activeContinuity(db,user.id);const { data: milestone } = await db.from('together_relationship_milestones').select('*').eq('id', input.milestoneId).eq('user_id', user.id).eq('continuity_id',continuity.id).maybeSingle();
   if (!milestone) throw new AppError('NOT_FOUND', 'That relationship moment is no longer available.', 404);
   if (milestone.status !== 'pending') throw new AppError('CONFLICT', 'That choice has already been handled.', 409);
   const choices = Array.isArray(milestone.choices) ? milestone.choices as Array<{ id?: string }> : [];

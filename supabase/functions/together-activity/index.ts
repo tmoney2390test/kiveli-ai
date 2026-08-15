@@ -7,6 +7,7 @@ import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { cancelSharedPlan, createSharedPlan, rescheduleSharedPlan } from '../_shared/together-plans.ts';
 import { TOGETHER_IDS } from '../_shared/together.ts';
+import { activeContinuity } from '../_shared/together-continuity.ts';
 
 const ids=['coffee_juniper','dinner_juniper','riverwalk','open_mic','rooftop_movie','northside_trivia','photo_walk']as const;
 const schema=z.union([
@@ -31,7 +32,7 @@ serve(async(request,correlationId)=>{
   if('action'in input&&input.action==='cancel')return json({data:await cancelSharedPlan(db,{userId:user.id,planId:input.planId}),correlationId},200,correlationId);
   if('choice'in input&&input.choice==='defer')return json({data:{accepted:false},correlationId},200,correlationId);
   const activity=input.activity,option=legacy[activity];let characterInstanceId:string,startsAt:string,requestId:string,note:string|undefined;
-  if('choice'in input){const{data:instance}=await db.from('together_character_instances').select('id').eq('user_id',user.id).eq('character_template_id',TOGETHER_IDS.maya).maybeSingle();if(!instance)throw new AppError('NOT_FOUND','That companion is unavailable.',404);characterInstanceId=instance.id;const next=new Date();next.setDate(next.getDate()+1);next.setHours(19,0,0,0);startsAt=next.toISOString();requestId=crypto.randomUUID();}
+  if('choice'in input){const continuity=await activeContinuity(db,user.id),{data:instance}=await db.from('together_character_instances').select('id').eq('id',continuity.active_companion_instance_id??'').eq('user_id',user.id).eq('continuity_id',continuity.id).maybeSingle();if(!instance)throw new AppError('NOT_FOUND','That companion is unavailable.',404);characterInstanceId=instance.id;const next=new Date();next.setDate(next.getDate()+1);next.setHours(19,0,0,0);startsAt=next.toISOString();requestId=crypto.randomUUID();}
   else{characterInstanceId=input.characterInstanceId;startsAt=input.scheduledFor;requestId=input.requestId;note=input.note;}
   const result=await createSharedPlan(db,{userId:user.id,characterInstanceId,activityKey:option.activityKey,locationId:option.locationId,startsAt,note,source:'manual_planner',requestId});return json({data:{accepted:true,...result},correlationId},result.created?201:200,correlationId);
 });

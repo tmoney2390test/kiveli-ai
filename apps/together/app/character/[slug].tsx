@@ -16,15 +16,15 @@ export default function CharacterProfile(){
   const[busy,setBusy]=useState(false);
   const[error,setError]=useState('');
   if(!snapshot)return <LoadingSkeleton/>;
-  const instance=snapshot.characters.find((item)=>item.together_character_templates.slug===slug);
-  const discoverable=snapshot.discoverableCharacters?.find((item)=>item.slug===slug);
+  const instance=snapshot.characters.find((item)=>item.together_character_templates.slug===slug||item.together_character_templates.public_handle===slug||item.character_template_id===slug);
+  const discoverable=snapshot.discoverableCharacters?.find((item)=>item.slug===slug||item.public_handle===slug||item.id===slug);
   const template=instance?.together_character_templates??discoverable;
   const version=instance?.together_character_versions??discoverable?.together_character_versions;
   if(!template||!version)return <EmptyState title="You haven’t crossed paths yet" body="Some people enter your world through introductions and shared events." action="Back to Discover" onAction={()=>router.replace('/(tabs)/singles')}/>;
   const asset=characterAssets[version.portrait_asset_key]??characterAssets[template.slug];
   const known=Boolean(instance&&(instance.contact_added_at||instance.introduced_at));
   const selectable=Boolean(template.can_be_selected);
-  const active=instance?.id===snapshot.profile?.active_companion_instance_id;
+  const active=instance?.id===snapshot.activeContinuity?.active_companion_instance_id;
   const locationRow=instance?snapshot.locations.find((item)=>item.id===instance.current_location_id):undefined;
   const world=instance?worldForLocation(snapshot,instance.current_location_id):undefined;
   const location=locationRow?.name??world?.name??'Current place';
@@ -32,7 +32,7 @@ export default function CharacterProfile(){
   const daysKnown=instance?Math.max(1,Math.floor((Date.now()-Date.parse(instance.met_at))/86_400_000)+1):0;
   const placesTogether=new Set(moments.map((item)=>item.location_id).filter(Boolean)).size;
   const upcoming=instance?snapshot.sharedPlans.filter((item)=>item.character_instance_id===instance.id&&['scheduled','active'].includes(item.status)).length:0;
-  const act=async()=>{setBusy(true);setError('');try{if(!instance){setSnapshot(await meetCompanion(template.id));router.replace(`/(tabs)/chat-tab?character=${template.slug}` as never);return;}if(selectable&&!active)setSnapshot(await setActiveCompanion(instance.id,'discover_profile'));router.push(`/(tabs)/chat-tab?character=${template.slug}` as never);}catch(caught){setError(caught instanceof Error?caught.message:'Could not continue right now.');}finally{setBusy(false);}};
+  const handle=template.public_handle??template.slug;const act=async()=>{setBusy(true);setError('');try{if(!instance){setSnapshot(await meetCompanion(template.id));router.replace(`/(tabs)/chat-tab?character=${handle}` as never);return;}if(selectable&&!active)setSnapshot(await setActiveCompanion(instance.id,'discover_profile'));router.push(`/(tabs)/chat-tab?character=${handle}` as never);}catch(caught){setError(caught instanceof Error?caught.message:'Could not continue right now.');}finally{setBusy(false);}};
   const canTalk=selectable||known;
   return <Screen contentStyle={{padding:0}}>
     <View style={styles.hero}>{asset?<Image source={asset} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top"/>:<View style={styles.fallback}><CharacterAvatar slug={template.slug} name={template.name} size={150}/></View>}<Pressable onPress={()=>router.back()} style={styles.back}><ArrowLeft color="#fff"/></Pressable><View style={styles.shade}/><View style={styles.title}><Text style={styles.name}>{template.name}</Text><Text style={styles.job}>{template.occupation}</Text></View></View>

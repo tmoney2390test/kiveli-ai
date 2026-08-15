@@ -14,7 +14,7 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('delete'), confirmation: z.literal('DELETE') }),
 ]);
 
-const exportTables = ['together_profiles', 'together_character_instances', 'together_relationship_states', 'together_relationship_milestones', 'together_conversations', 'together_messages', 'together_memories', 'together_open_threads', 'together_life_events', 'together_date_sessions', 'together_date_choices', 'together_moments', 'together_story_arc_instances', 'together_knowledge_transfers', 'together_generated_media', 'together_content_usage', 'together_notification_preferences', 'together_entitlements'] as const;
+const exportTables = ['together_profiles','together_user_personas','together_continuities','together_character_instances', 'together_relationship_states', 'together_relationship_milestones', 'together_conversations', 'together_messages', 'together_memories', 'together_open_threads', 'together_life_events','together_shared_plans', 'together_date_sessions', 'together_date_choices', 'together_moments', 'together_story_arc_instances', 'together_knowledge_transfers', 'together_generated_media', 'together_content_usage', 'together_notification_preferences', 'together_entitlements'] as const;
 
 serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
@@ -48,9 +48,11 @@ serve(async (request, correlationId) => {
     const results = await Promise.all(exportTables.map(async (table) => ({ table, result: await db.from(table).select('*').eq('user_id', user.id) })));
     const failed = results.find(({ result }) => result.error);
     if (failed?.result.error) throw new AppError('INTERNAL_ERROR', 'Your data export could not be prepared.', 500, true);
-    const data = Object.fromEntries(results.map(({ table, result }) => [table, result.data ?? []]));
+    const data = Object.fromEntries(results.map(({ table, result }) => [table, result.data ?? []])) as Record<string,Array<Record<string,unknown>>>;
+    const{data:createdTemplates}=await db.from('together_character_templates').select('*,together_character_versions(*)').eq('creator_id',user.id);
+    const lives=(data.together_continuities??[]).map((life)=>({continuity:life,persona:(data.together_user_personas??[]).find((persona)=>persona.id===life.persona_id)??null,companions:(data.together_character_instances??[]).filter((instance)=>instance.continuity_id===life.id).map((instance)=>({instance,relationship:(data.together_relationship_states??[]).find((row)=>row.character_instance_id===instance.id)??null,memories:(data.together_memories??[]).filter((row)=>row.character_instance_id===instance.id),plans:(data.together_shared_plans??[]).filter((row)=>row.character_instance_id===instance.id),dates:(data.together_date_sessions??[]).filter((row)=>row.character_instance_id===instance.id),moments:(data.together_moments??[]).filter((row)=>row.character_instance_id===instance.id),stories:(data.together_story_arc_instances??[]).filter((row)=>row.character_instance_id===instance.id),conversations:(data.together_conversations??[]).filter((row)=>row.character_instance_id===instance.id)}))}));
     await track(db, user.id, 'account_data_exported');
-    return json({ data: { exportedAt: new Date().toISOString(), account: { id: user.id, email: user.email ?? null }, data }, correlationId }, 200, correlationId);
+    return json({ data: { exportedAt: new Date().toISOString(), account: { id: user.id, email: user.email ?? null }, personas:data.together_user_personas??[],lives,createdCharacters:createdTemplates??[],raw:data }, correlationId }, 200, correlationId);
   }
 
   const { data: media } = await db.storage.from('together-user-media').list(user.id, { limit: 1000 });

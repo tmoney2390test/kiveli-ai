@@ -17,7 +17,7 @@ export default function Home() {
   if (!snapshot) return <EmptyState title="Opening your world" body="Your companion and first conversation are being prepared automatically." />;
 
   const life = buildCompanionLife(snapshot);
-  if (!life) return <ErrorState message="Your companion could not be found in their current world." onRetry={() => void refresh()} />;
+  if (!life) return <Screen contentStyle={styles.emptyLife}><EmptyState title={`Start ${snapshot.activePersona?.display_name ?? 'your'}'s Kivelle Life`} body="Meet an official companion or create someone original. This Life will keep its own relationships, memories, plans, and history."/><GradientButton label="Choose who to meet" onPress={()=>router.push('/(tabs)/singles')}/></Screen>;
   const { companion, relationshipDay, location: currentLocation, recentEvents, upcomingSchedule, proactiveMessages, dates } = life;
   const name = companion.together_character_templates.name;
   const currentWorld=worldForLocation(snapshot,companion.current_location_id);const location = currentLocation?.name ?? currentWorld?.name ?? 'Current place';
@@ -101,6 +101,7 @@ function relativeTime(value: string) {
 
 const styles = StyleSheet.create({
   content: { gap: spacing.lg },
+  emptyLife:{flex:1,justifyContent:'center',gap:spacing.lg},
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dayLine: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 6 },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.rose },

@@ -8,6 +8,7 @@ export type ContextQueryIntent = 'general'|'schedule'|'plan'|'date'|'story'|'mem
 export type CurrentSceneContext = { locationId: string|null; location: string; activity: string; mood: string; energy: string; availability: string; source: 'active_date'|'active_plan'|'active_event'|'schedule'; activeEvent?: { id:string; title:string; summary:string; endsAt?:string|null }; activePlan?:{id:string;title:string;endsAt?:string|null};activeDate?:{id:string;title:string} };
 export type KivelleConversationContext = {
   contentMode?:string;
+  persona: Row;
   character: Row;
   clock: ExperienceClock;
   currentScene: CurrentSceneContext;
@@ -56,8 +57,9 @@ export async function buildKivelleConversationContext(input: {
   const { db, userId, instance, conversation, userMessage } = input;
   const now = input.now ?? new Date();
   const intent = detectContextQueryIntent(userMessage);
-  const [profile, prefs, relationship, milestone, memories, threads, messages, schedules, events, plans, dates, stories, edges, instances, worlds, locations, media, moments] = await Promise.all([
+  const [profile, continuity, prefs, relationship, milestone, memories, threads, messages, schedules, events, plans, dates, stories, edges, instances, worlds, locations, media, moments] = await Promise.all([
     db.from('together_profiles').select('experience_timezone,interests,content_preferences').eq('user_id', userId).maybeSingle(),
+    db.from('together_continuities').select('id,kind,title,together_user_personas(*)').eq('id',instance.continuity_id).eq('user_id',userId).single(),
     db.from('together_notification_preferences').select('timezone').eq('user_id', userId).maybeSingle(),
     db.from('together_relationship_states').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).single(),
     db.from('together_relationship_milestones').select('id,kind,title,body,prompt,choices').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status', 'pending').maybeSingle(),
@@ -70,13 +72,14 @@ export async function buildKivelleConversationContext(input: {
     db.from('together_date_sessions').select('*,together_date_templates(*)').eq('user_id', userId).eq('character_instance_id', instance.id).order('updated_at', { ascending:false }).limit(20),
     db.from('together_story_arc_instances').select('*,together_story_arc_templates(slug,title,priority,chapters)').eq('user_id', userId).eq('character_instance_id', instance.id).in('status',['active','paused']).order('updated_at', { ascending:false }).limit(3),
     db.from('together_character_relationship_edges').select('*').or(`source_template_id.eq.${instance.character_template_id},target_template_id.eq.${instance.character_template_id}`),
-    db.from('together_character_instances').select('id,character_template_id,introduced_at,together_character_templates(name)').eq('user_id', userId),
+    db.from('together_character_instances').select('id,character_template_id,introduced_at,together_character_templates(name)').eq('user_id', userId).eq('continuity_id',instance.continuity_id),
     db.from('together_worlds').select('id,slug,name,access_type,entitlement_key').eq('published',true),
     db.from('together_locations').select('*'),
     db.from('together_generated_media').select('id,location_id,metadata,created_at').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status','ready').order('created_at', { ascending:false }).limit(6),
     db.from('together_moments').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).order('occurred_at', { ascending:false }).limit(intent === 'history' ? 20 : 6),
   ]);
   if (relationship.error) throw relationship.error;
+  if(continuity.error)throw continuity.error;
   const locationById = new Map((locations.data ?? []).map((item:Row) => [String(item.id), item]));
   const returnedState = (input.lifeRun.state ?? {}) as Row;
   const activeEvent = eventIsActive(input.lifeRun.activeEvent as Row | undefined, now) ? input.lifeRun.activeEvent as Row : null;
@@ -128,6 +131,7 @@ export async function buildKivelleConversationContext(input: {
     await db.from('together_memories').update({ last_recalled_at: now.toISOString() }).eq('user_id', userId).in('id', recalledIds);
   }
   return {
+    persona:Array.isArray(continuity.data.together_user_personas)?continuity.data.together_user_personas[0]:continuity.data.together_user_personas,
     character: { ...(instance.together_character_templates ?? {}), personality_config:instance.together_character_versions?.personality_config, communication_style:instance.together_character_versions?.communication_style, boundaries:instance.together_character_versions?.boundaries },
     clock, currentScene, life: currentScene, relationship:{...relationship.data,relationship_stage:instance.relationship_stage}, progression:milestone.data ?? null,
     upcomingSchedule:schedule, sharedPlans:contextualPlans, upcomingCommitments:commitments,
@@ -140,7 +144,7 @@ export async function buildKivelleConversationContext(input: {
     recentMedia:(media.data??[]).map((item:Row)=>({id:String(item.id),summary:String(item.metadata?.sceneSummary??'A recent shared photo.'),createdAt:String(item.created_at),locationId:item.location_id})),
     sharedHistory:history, conversationSummary:typeof conversation.summary==='string'?conversation.summary:'', conversationFocus:resolveConversationFocus(conversation.metadata?.focus as Row|null,plansView,now),
     recent:(messages.data??[]).reverse().map((item:Row)=>({role:String(item.role),content:String(item.content)})), userMessage, queryIntent:intent,
-    debug:{sources:['life-engine','schedule','shared-plans','dates','stories','memory','open-threads','social-graph','location','history'],limits:{memories:memoryRows.length,threads:(threads.data??[]).length,recentMessages:(messages.data??[]).length,history:history.length}},
+    debug:{sources:['persona','continuity','life-engine','schedule','shared-plans','dates','stories','memory','open-threads','social-graph','location','history'],limits:{memories:memoryRows.length,threads:(threads.data??[]).length,recentMessages:(messages.data??[]).length,history:history.length}},
   };
 }
 

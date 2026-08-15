@@ -24,8 +24,17 @@ export default function Debug(){
   return <Screen>
     <View style={styles.header}><Pressable onPress={()=>router.back()}><ArrowLeft color={colors.text}/></Pressable><PageTitle>Internal Tools</PageTitle></View>
     <Text style={styles.warning}>DEVELOPMENT / INTERNAL BUILDS ONLY</Text>
+    <SectionHeader title="Identity boundary"/>
+    <Data label="Active Persona" value={snapshot?.activePersona?.display_name}/>
+    <Data label="Active continuity" value={snapshot?.activeContinuity?.title}/>
+    <Data label="Continuity kind" value={snapshot?.activeContinuity?.kind}/>
+    <Data label="Continuity ID" value={snapshot?.activeContinuity?.id}/>
     <SectionHeader title={`${companion?.together_character_templates.name??'Active companion'} state`}/>
     <Data label="Active companion" value={companion?.together_character_templates.name}/>
+    <Data label="Character Template" value={companion?.character_template_id}/>
+    <Data label="Character Version" value={companion?.character_version_id}/>
+    <Data label="Creator" value={companion?.together_character_templates.creator_id?'User-created':'Official'}/>
+    <Data label="Memory / plan / Moment counts" value={life?`${life.memories.length} / ${life.plans.length} / ${life.moments.length}`:undefined}/>
     <Data label="Actual world" value={place?.world.name}/>
     <Data label="Current location" value={place?.location.name}/>
     <Data label="Place path" value={place?.path}/>

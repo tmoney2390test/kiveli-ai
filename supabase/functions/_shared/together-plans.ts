@@ -2,6 +2,7 @@ import { AppError } from './types.ts';
 import { experienceClock, safeTimezone } from './kivelle-time.ts';
 import { track } from './together.ts';
 import { resolvePlaceContext, resolveWorldAccess } from './together-place.ts';
+import {activeContinuity}from'./together-continuity.ts';
 
 export type PlanSource = 'chat'|'manual_planner'|'location'|'discover'|'date'|'story';
 
@@ -23,7 +24,8 @@ type CreatePlanInput = {
 const authoredDateActivities = new Set(['dinner','date night','movie night','rooftop movie','riverwalk sunset']);
 
 export async function createSharedPlan(db:any, input:CreatePlanInput) {
-  const { data:instance } = await db.from('together_character_instances').select('id,user_id,contact_added_at,character_version_id').eq('id',input.characterInstanceId).eq('user_id',input.userId).maybeSingle();
+  const continuity=await activeContinuity(db,input.userId);
+  const { data:instance } = await db.from('together_character_instances').select('id,user_id,contact_added_at,character_version_id').eq('id',input.characterInstanceId).eq('user_id',input.userId).eq('continuity_id',continuity.id).maybeSingle();
   if(!instance) throw new AppError('NOT_FOUND','That companion is unavailable.',404);
   if(!instance.contact_added_at) throw new AppError('CONFLICT','Get to know each other a little first.',409);
 
@@ -61,7 +63,7 @@ export async function createSharedPlan(db:any, input:CreatePlanInput) {
 }
 
 export async function rescheduleSharedPlan(db:any,input:{userId:string;planId:string;startsAt:string;conversationId?:string}){
-  const{data:plan}=await db.from('together_shared_plans').select('*,together_character_instances!inner(character_version_id),together_locations(*)').eq('id',input.planId).eq('user_id',input.userId).maybeSingle();
+  const continuity=await activeContinuity(db,input.userId),{data:plan}=await db.from('together_shared_plans').select('*,together_character_instances!inner(character_version_id),together_locations(*)').eq('id',input.planId).eq('user_id',input.userId).eq('continuity_id',continuity.id).maybeSingle();
   if(!plan)throw new AppError('NOT_FOUND','That plan could not be found.',404);
   if(!['proposed','scheduled'].includes(plan.status))throw new AppError('CONFLICT','That plan can no longer be rescheduled.',409,true);
   const start=new Date(input.startsAt);const duration=Math.max(30,(new Date(plan.ends_at).getTime()-new Date(plan.starts_at).getTime())/60000);const end=new Date(start.getTime()+duration*60000);
@@ -76,7 +78,7 @@ export async function rescheduleSharedPlan(db:any,input:{userId:string;planId:st
 }
 
 export async function updateSharedPlan(db:any,input:{userId:string;planId:string;note?:string;locationId?:string;activityKey?:string;conversationId?:string}){
-  const{data:plan}=await db.from('together_shared_plans').select('*,together_character_instances!inner(character_version_id)').eq('id',input.planId).eq('user_id',input.userId).maybeSingle();
+  const continuity=await activeContinuity(db,input.userId),{data:plan}=await db.from('together_shared_plans').select('*,together_character_instances!inner(character_version_id)').eq('id',input.planId).eq('user_id',input.userId).eq('continuity_id',continuity.id).maybeSingle();
   if(!plan)throw new AppError('NOT_FOUND','That plan could not be found.',404);
   if(!['proposed','scheduled'].includes(plan.status))throw new AppError('CONFLICT','That plan can no longer be changed.',409,true);
   const patch:Record<string,unknown>={updated_at:new Date().toISOString()};
@@ -89,7 +91,7 @@ export async function updateSharedPlan(db:any,input:{userId:string;planId:string
 }
 
 export async function cancelSharedPlan(db:any,input:{userId:string;planId:string;conversationId?:string}){
-  const{data:plan}=await db.from('together_shared_plans').select('*,together_locations(name)').eq('id',input.planId).eq('user_id',input.userId).maybeSingle();
+  const continuity=await activeContinuity(db,input.userId),{data:plan}=await db.from('together_shared_plans').select('*,together_locations(name)').eq('id',input.planId).eq('user_id',input.userId).eq('continuity_id',continuity.id).maybeSingle();
   if(!plan)throw new AppError('NOT_FOUND','That plan could not be found.',404);
   if(!['proposed','scheduled'].includes(plan.status))throw new AppError('CONFLICT','A plan that has started cannot be cancelled.',409,true);
   const now=new Date().toISOString();

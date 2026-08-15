@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
 import { experienceClock } from './kivelle-time.ts';
 import { resolvePlaceContext } from './together-place.ts';
+import { activeContinuity } from './together-continuity.ts';
 import { applyRelationshipProposal, firstDateEligibility, nextRelationshipMilestone as selectRelationshipMilestone, relationshipCue, type RelationshipState } from '../../../packages/together-domain/src/index.ts';
 
 export const TOGETHER_IDS = {
@@ -180,35 +181,38 @@ export async function track(db: SupabaseClient, userId: string, eventName: strin
 }
 
 export async function buildSnapshot(db: SupabaseClient, userId: string): Promise<Record<string, unknown>> {
-  const [profile, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions] = await Promise.all([
+  const continuity=await activeContinuity(db,userId);
+  const [profile, personas, continuities, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions] = await Promise.all([
     db.from('together_profiles').select('*').eq('user_id', userId).maybeSingle(),
+    db.from('together_user_personas').select('*').eq('user_id',userId).order('is_default',{ascending:false}).order('created_at'),
+    db.from('together_continuities').select('*,together_user_personas(*)').eq('user_id',userId).order('kind').order('created_at'),
     db.from('together_worlds').select('*').eq('published', true),
     db.from('together_locations').select('*'),
     db.from('together_user_worlds').select('*').eq('user_id',userId),
     db.from('together_character_world_presence').select('*'),
-    db.from('together_character_instances').select('*, together_character_templates(*), together_character_versions(*)').eq('user_id', userId),
-    db.from('together_character_templates').select('*,together_character_versions(*)').eq('published',true).eq('can_be_selected',true).order('name'),
+    db.from('together_character_instances').select('*, together_character_templates(*), together_character_versions(*)').eq('user_id', userId).eq('continuity_id',continuity.id),
+    db.from('together_character_templates').select('*,together_character_versions(*)').or(`and(published.eq.true,can_be_selected.eq.true),creator_id.eq.${userId}`).neq('lifecycle_status','archived').order('name'),
     db.from('together_schedule_templates').select('*'),
-    db.from('together_relationship_states').select('*').eq('user_id', userId),
-    db.from('together_relationship_milestones').select('*').eq('user_id', userId).eq('status', 'pending').order('created_at', { ascending: true }),
-    db.from('together_date_sessions').select('*, together_date_templates(*)').eq('user_id', userId),
-    db.from('together_moments').select('*').eq('user_id', userId).order('occurred_at', { ascending: false }).limit(30),
-    db.from('together_memories').select('*').eq('user_id', userId).eq('status', 'active').order('pinned', { ascending: false }).order('importance', { ascending: false }).limit(100),
-    db.from('together_open_threads').select('*').eq('user_id', userId).is('resolved_at', null),
-    db.from('together_conversations').select('*,together_messages(count)').eq('user_id', userId).order('last_message_at', { ascending: false, nullsFirst: false }),
-    db.from('together_life_events').select('*').eq('user_id', userId).order('starts_at', { ascending: false }).limit(20),
-    db.from('together_shared_plans').select('*').eq('user_id',userId).order('starts_at',{ascending:true}).limit(100),
-    db.from('together_conversation_events').select('*').eq('user_id',userId).order('created_at',{ascending:true}).limit(200),
-    db.from('together_proactive_messages').select('*').eq('user_id', userId).in('status', ['queued','sent']).lte('eligible_at', new Date().toISOString()).order('eligible_at', { ascending: false }).limit(10),
+    db.from('together_relationship_states').select('*').eq('user_id', userId).eq('continuity_id',continuity.id),
+    db.from('together_relationship_milestones').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).eq('status', 'pending').order('created_at', { ascending: true }),
+    db.from('together_date_sessions').select('*, together_date_templates(*)').eq('user_id', userId).eq('continuity_id',continuity.id),
+    db.from('together_moments').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).order('occurred_at', { ascending: false }).limit(30),
+    db.from('together_memories').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).eq('status', 'active').order('pinned', { ascending: false }).order('importance', { ascending: false }).limit(100),
+    db.from('together_open_threads').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).is('resolved_at', null),
+    db.from('together_conversations').select('*,together_messages(count)').eq('user_id', userId).eq('continuity_id',continuity.id).order('last_message_at', { ascending: false, nullsFirst: false }),
+    db.from('together_life_events').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).order('starts_at', { ascending: false }).limit(20),
+    db.from('together_shared_plans').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).order('starts_at',{ascending:true}).limit(100),
+    db.from('together_conversation_events').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).order('created_at',{ascending:true}).limit(200),
+    db.from('together_proactive_messages').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).in('status', ['queued','sent']).lte('eligible_at', new Date().toISOString()).order('eligible_at', { ascending: false }).limit(10),
     db.from('together_entitlements').select('*').eq('user_id', userId).maybeSingle(),
     db.from('together_notification_preferences').select('*').eq('user_id', userId).maybeSingle(),
-    db.from('together_story_arc_instances').select('*,together_story_arc_templates(slug,title,priority,chapters,world_scope,specific_world_id)').eq('user_id', userId).in('status', ['active','paused']).order('updated_at', { ascending: false }),
+    db.from('together_story_arc_instances').select('*,together_story_arc_templates(slug,title,priority,chapters,world_scope,specific_world_id)').eq('user_id', userId).eq('continuity_id',continuity.id).in('status', ['active','paused']).order('updated_at', { ascending: false }),
     db.from('together_trip_templates').select('*').eq('active', true),
     db.from('together_photo_opportunities').select('*').eq('active', true),
-    db.from('together_generated_media').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(60),
-    db.from('together_conversation_actions').select('*').eq('user_id',userId).eq('status','pending').or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`).order('created_at',{ascending:false}).limit(20),
+    db.from('together_generated_media').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).order('created_at', { ascending: false }).limit(60),
+    db.from('together_conversation_actions').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).eq('status','pending').or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`).order('created_at',{ascending:false}).limit(20),
   ]);
-  const failed = [profile, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions].find((result) => result.error);
+  const failed = [profile,personas,continuities, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions].find((result) => result.error);
   if (failed?.error) throw new AppError('INTERNAL_ERROR', 'Kivelle could not load your world.', 500, true);
   const stageByInstance = new Map((instances.data ?? []).map((instance) => [instance.id, instance.relationship_stage]));
   const relationshipCues = Object.fromEntries((relationships.data ?? []).map((relationship) => [relationship.character_instance_id, describeRelationshipCue({ ...relationship, relationship_stage: stageByInstance.get(relationship.character_instance_id) })]));
@@ -218,8 +222,12 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
   const signed=readyPaths.length?await db.storage.from('together-user-media').createSignedUrls(readyPaths,3600):{data:[]};
   const urlByPath=new Map((signed.data??[]).map((item)=>[item.path,item.signedUrl]));
   const mediaPayload=mediaRows.map((item)=>({...item,signed_url:item.storage_path?urlByPath.get(item.storage_path)??null:null}));
-  const discoverableCharacters=(discoverable.data??[]).map((template)=>({...template,together_character_versions:(template.together_character_versions??[]).find((version:Record<string,unknown>)=>Number(version.version)===Number(template.current_published_version))??template.together_character_versions?.[0]??null}));
-  const activeInstance=(instances.data??[]).find((item)=>item.id===profile.data?.active_companion_instance_id)??instances.data?.[0];
+  const currentCreatorVersions=(discoverable.data??[]).map((template)=>((template.together_character_versions??[]).find((version:Record<string,unknown>)=>Number(version.version)===Number(template.current_published_version))??template.together_character_versions?.[0]??null)as Record<string,any>|null).filter(Boolean)as Array<Record<string,any>>;
+  const referencePaths=[...new Set(currentCreatorVersions.flatMap((version)=>[...(Array.isArray(version.appearance_candidates)?version.appearance_candidates.map((candidate:Record<string,unknown>)=>String(candidate.storagePath??'')).filter(Boolean):[]),...(Array.isArray(version.visual_identity?.referenceStoragePaths)?version.visual_identity.referenceStoragePaths.map(String):[])]))];
+  const referenceSigned=referencePaths.length?await db.storage.from('kivelle-character-reference').createSignedUrls(referencePaths,3600):{data:[]};const referenceUrlByPath=new Map((referenceSigned.data??[]).map((item)=>[item.path,item.signedUrl]));
+  const discoverableCharacters=(discoverable.data??[]).map((template)=>{const selected=(template.together_character_versions??[]).find((version:Record<string,unknown>)=>Number(version.version)===Number(template.current_published_version))??template.together_character_versions?.[0]??null;if(!selected)return{...template,together_character_versions:null};const candidates=(Array.isArray(selected.appearance_candidates)?selected.appearance_candidates:[]).map((candidate:Record<string,unknown>)=>({...candidate,signedUrl:typeof candidate.storagePath==='string'?referenceUrlByPath.get(candidate.storagePath)??null:null}));const selectedId=String(selected.appearance_config?.selectedCandidateId??''),portraitPath=String(candidates.find((candidate:Record<string,unknown>)=>candidate.id===selectedId)?.storagePath??selected.visual_identity?.referenceStoragePaths?.[0]??'');return{...template,together_character_versions:{...selected,appearance_candidates:candidates,portrait_url:portraitPath?referenceUrlByPath.get(portraitPath)??null:null}};});
+  const activeInstance=(instances.data??[]).find((item)=>item.id===continuity.active_companion_instance_id)??instances.data?.[0];
   const currentPlaceContext=activeInstance?.current_location_id?await resolvePlaceContext({db,locationId:String(activeInstance.current_location_id),userId}).catch(()=>null):null;
-  return { profile: profile.data, worlds: worlds.data ?? [], userWorlds:userWorlds.data??[], characterWorldPresence:characterWorldPresence.data??[], currentPlaceContext, locations: locations.data ?? [], characters: instances.data ?? [], discoverableCharacters, schedules: schedules.data ?? [], relationships: relationships.data ?? [], relationshipMilestones: milestones.data ?? [], relationshipCues, dates: dates.data ?? [], moments: moments.data ?? [], memories: memories.data ?? [], openThreads: threads.data ?? [], conversations: conversationMetadata, sharedPlans:sharedPlans.data??[], conversationEvents:conversationEvents.data??[], lifeEvents: events.data ?? [], proactiveMessages: proactive.data ?? [], storyArcs: storyArcs.data ?? [], trips: trips.data ?? [], photoOpportunities: photoOpportunities.data ?? [], generatedMedia: mediaPayload, conversationActions:conversationActions.data??[], entitlements: entitlements.data, notificationPreferences: preferences.data };
+  const profilePayload=profile.data?{...profile.data,active_continuity_id:continuity.id,active_companion_instance_id:activeInstance?.id??null}:profile.data;
+  return { profile: profilePayload, activePersona:continuity.together_user_personas??null,activeContinuity:continuity,personas:personas.data??[],continuities:continuities.data??[],worlds: worlds.data ?? [], userWorlds:userWorlds.data??[], characterWorldPresence:characterWorldPresence.data??[], currentPlaceContext, locations: locations.data ?? [], characters: instances.data ?? [], discoverableCharacters, schedules: schedules.data ?? [], relationships: relationships.data ?? [], relationshipMilestones: milestones.data ?? [], relationshipCues, dates: dates.data ?? [], moments: moments.data ?? [], memories: memories.data ?? [], openThreads: threads.data ?? [], conversations: conversationMetadata, sharedPlans:sharedPlans.data??[], conversationEvents:conversationEvents.data??[], lifeEvents: events.data ?? [], proactiveMessages: proactive.data ?? [], storyArcs: storyArcs.data ?? [], trips: trips.data ?? [], photoOpportunities: photoOpportunities.data ?? [], generatedMedia: mediaPayload, conversationActions:conversationActions.data??[], entitlements: entitlements.data, notificationPreferences: preferences.data };
 }
