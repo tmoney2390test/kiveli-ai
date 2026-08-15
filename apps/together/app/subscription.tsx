@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Brain, Check, ChevronDown, Coins, CreditCard, Globe2, Sparkles, Users, Zap } from 'lucide-react-native';
+import { ArrowLeft, Check, ChevronDown, Coins, CreditCard, Sparkles, Zap } from 'lucide-react-native';
 import { GradientButton, LoadingSkeleton, PageTitle, Screen } from '../src/components';
 import { manageSubscription } from '../src/lib/api';
 import { intelligenceLabel, tierDescription, type SubscriptionPlan, type SubscriptionStatus, type SubscriptionTier } from '../src/lib/subscription';
@@ -19,13 +19,9 @@ export default function Subscription() {
   const load = async () => {
     setLoading(true);
     setError('');
-    try {
-      setState(await manageSubscription<SubscriptionStatus>());
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Subscription details could not be loaded.');
-    } finally {
-      setLoading(false);
-    }
+    try { setState(await manageSubscription<SubscriptionStatus>()); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : 'Subscription details could not be loaded.'); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { void load(); }, []);
@@ -34,10 +30,10 @@ export default function Subscription() {
   if (!state) return <Screen><View style={styles.header}><Pressable onPress={() => router.back()} style={styles.back}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Subscription & Credits</PageTitle></View><View style={styles.errorCard}><Text style={styles.error}>{error || 'Subscription details are unavailable.'}</Text><GradientButton label="Try again" onPress={() => void load()} /></View></Screen>;
 
   const current = state.catalog.find((plan) => plan.tier === state.tier) ?? state.capabilities;
-  const plus = state.catalog.find((plan) => plan.tier === 'kivelle_plus');
-  const max = state.catalog.find((plan) => plan.tier === 'kivelle_max');
-  const free = state.catalog.find((plan) => plan.tier === 'free');
-  const orderedPlans = [plus, max, free].filter((plan): plan is SubscriptionPlan => Boolean(plan));
+  const orderedPlans = (['kivelle_plus', 'kivelle_max', 'free'] as SubscriptionTier[])
+    .map((tier) => state.catalog.find((plan) => plan.tier === tier))
+    .filter((plan): plan is SubscriptionPlan => Boolean(plan));
+  const nextRefill = state.tier !== 'free' && state.billing.periodEnd ? formatDate(state.billing.periodEnd) : null;
 
   const checkout = async (tier: Exclude<SubscriptionTier, 'free'>) => {
     if (!state.billingConfigured[tier]) {
@@ -45,14 +41,9 @@ export default function Subscription() {
       return;
     }
     setBusy(tier);
-    try {
-      const result = await manageSubscription<{ url: string }>({ action: 'checkout', tier });
-      await Linking.openURL(result.url);
-    } catch (caught) {
-      Alert.alert('Could not open checkout', caught instanceof Error ? caught.message : 'Please try again.');
-    } finally {
-      setBusy('');
-    }
+    try { const result = await manageSubscription<{ url: string }>({ action: 'checkout', tier }); await Linking.openURL(result.url); }
+    catch (caught) { Alert.alert('Could not open checkout', caught instanceof Error ? caught.message : 'Please try again.'); }
+    finally { setBusy(''); }
   };
 
   const openAction = async (action: 'credits_checkout' | 'portal') => {
@@ -62,17 +53,10 @@ export default function Subscription() {
       return;
     }
     setBusy(action);
-    try {
-      const result = await manageSubscription<{ url: string }>({ action });
-      await Linking.openURL(result.url);
-    } catch (caught) {
-      Alert.alert('Could not open billing', caught instanceof Error ? caught.message : 'Please try again.');
-    } finally {
-      setBusy('');
-    }
+    try { const result = await manageSubscription<{ url: string }>({ action }); await Linking.openURL(result.url); }
+    catch (caught) { Alert.alert('Could not open billing', caught instanceof Error ? caught.message : 'Please try again.'); }
+    finally { setBusy(''); }
   };
-
-  const nextRefill = state.tier !== 'free' && state.billing.periodEnd ? formatDate(state.billing.periodEnd) : null;
 
   return <Screen contentStyle={styles.content}>
     <View style={styles.header}>
@@ -98,25 +82,25 @@ export default function Subscription() {
       </View>
     </View>
 
-    <BillingIntervalToggle onYearly={() => Alert.alert('Yearly billing is coming next', 'The screen is ready for yearly plans, but Kivelle will not invent a discount before yearly products are configured.')} />
+    <BillingIntervalToggle onYearly={() => Alert.alert('Yearly billing is coming next', 'The interface is ready for yearly plans, but Kivelle will not invent a discount before yearly products are configured.')} />
 
     <View style={styles.sectionHeading}>
       <View><Text style={styles.sectionKicker}>CHOOSE YOUR EXPERIENCE</Text><Text style={styles.sectionTitle}>Go deeper with Kivelle</Text></View>
       <Text style={styles.sectionHint}>Upgrade anytime</Text>
     </View>
 
-    <View style={styles.plans}>
-      {orderedPlans.map((plan) => <PlanCard
-        key={plan.tier}
-        plan={plan}
-        currentTier={state.tier}
-        busy={busy === plan.tier || busy === 'portal'}
-        billingConfigured={plan.tier === 'free' || state.billingConfigured[plan.tier]}
-        portalConfigured={state.billingConfigured.portal}
-        onChoose={() => plan.tier !== 'free' && void checkout(plan.tier)}
-        onManage={() => void openAction('portal')}
-      />)}
-    </View>
+    <View style={styles.plans}>{orderedPlans.map((plan) => {
+      const currentPlan = plan.tier === state.tier;
+      const downgrade = tierRank[plan.tier] < tierRank[state.tier];
+      const checkoutConfigured = plan.tier === 'free' ? true : state.billingConfigured[plan.tier];
+      const actionConfigured = downgrade ? state.billingConfigured.portal : checkoutConfigured;
+      const actionLabel = downgrade ? 'Manage plan' : plan.tier === 'kivelle_max' ? 'Upgrade to Kivelle Max' : plan.tier === 'kivelle_plus' ? 'Upgrade to Kivelle+' : '';
+      const actionBusy = busy === plan.tier || busy === 'portal';
+      return <PlanCard key={plan.tier} plan={plan} current={currentPlan} actionLabel={actionLabel} actionConfigured={actionConfigured} busy={actionBusy} onAction={() => {
+        if (downgrade) { void openAction('portal'); return; }
+        if (plan.tier !== 'free') void checkout(plan.tier);
+      }} />;
+    })}</View>
 
     <View style={styles.creditsPanel}>
       <View pointerEvents="none" style={styles.creditGlow} />
@@ -147,7 +131,7 @@ export default function Subscription() {
 
     <Pressable onPress={() => setCompareOpen((value) => !value)} style={styles.compareToggle}>
       <View><Text style={styles.compareTitle}>Compare plans</Text><Text style={styles.compareCopy}>See the differences across the full Kivelle experience.</Text></View>
-      <ChevronDown size={19} color={colors.muted} style={{ transform: [{ rotate: compareOpen ? '180deg' : '0deg' }] }} />
+      <View style={{ transform: [{ rotate: compareOpen ? '180deg' : '0deg' }] }}><ChevronDown size={19} color={colors.muted} /></View>
     </Pressable>
     {compareOpen ? <Comparison plans={state.catalog} /> : null}
 
@@ -158,29 +142,25 @@ export default function Subscription() {
 
 function BillingIntervalToggle({ onYearly }: { onYearly: () => void }) {
   return <View style={styles.billingWrap}>
-    <Pressable style={[styles.billingChoice, styles.billingChoiceActive]}><Text style={[styles.billingText, styles.billingTextActive]}>Monthly</Text></Pressable>
+    <View style={[styles.billingChoice, styles.billingChoiceActive]}><Text style={[styles.billingText, styles.billingTextActive]}>Monthly</Text></View>
     <Pressable onPress={onYearly} style={styles.billingChoice}><Text style={styles.billingText}>Yearly</Text><View style={styles.soonPill}><Text style={styles.soonText}>SOON</Text></View></Pressable>
   </View>;
 }
 
-function PlanCard({ plan, currentTier, busy, billingConfigured, portalConfigured, onChoose, onManage }: { plan: SubscriptionPlan; currentTier: SubscriptionTier; busy: boolean; billingConfigured: boolean; portalConfigured: boolean; onChoose: () => void; onManage: () => void }) {
-  const current = plan.tier === currentTier;
+function PlanCard({ plan, current, actionLabel, actionConfigured, busy, onAction }: { plan: SubscriptionPlan; current: boolean; actionLabel: string; actionConfigured: boolean; busy: boolean; onAction: () => void }) {
   const featured = plan.tier === 'kivelle_plus';
   const max = plan.tier === 'kivelle_max';
-  const downgrade = tierRank[plan.tier] < tierRank[currentTier];
-  const actionConfigured = downgrade ? portalConfigured : billingConfigured;
-  const actionLabel = downgrade ? 'Manage plan' : plan.tier === 'kivelle_max' ? 'Upgrade to Kivelle Max' : 'Upgrade to Kivelle+';
-  const features = plan.tier === 'free'
-    ? ['Core relationship continuity', '1 Life · 1 custom companion', 'Free worlds', 'Welcome credits included']
-    : [
-      plan.chatDailyLimit === null ? 'Unlimited chat' : 'Daily chat',
-      intelligenceLabel(plan.intelligenceProfile),
-      plan.worldAccess === 'all_standard' ? 'Standard subscription worlds' : 'Free worlds',
-      `${plan.maxLives} Lives · ${plan.maxCustomCompanions} custom companions`,
-      `${plan.monthlyCreditGrant.toLocaleString()} Kivelle Credits / month`,
-      plan.mediaQueue === 'highest' ? 'Highest media priority' : 'Priority media queue',
-      ...(plan.earlyWorldAccess ? ['Early access worlds'] : []),
-    ];
+  const features = plan.tier === 'free' ? [
+    'Core relationship continuity', '1 Life · 1 custom companion', 'Free worlds', 'Welcome credits included',
+  ] : [
+    plan.chatDailyLimit === null ? 'Unlimited chat' : 'Daily chat',
+    intelligenceLabel(plan.intelligenceProfile),
+    plan.worldAccess === 'all_standard' ? 'Standard subscription worlds' : 'Free worlds',
+    `${plan.maxLives} Lives · ${plan.maxCustomCompanions} custom companions`,
+    `${plan.monthlyCreditGrant.toLocaleString()} Kivelle Credits / month`,
+    plan.mediaQueue === 'highest' ? 'Highest media priority' : 'Priority media queue',
+    ...(plan.earlyWorldAccess ? ['Early access worlds'] : []),
+  ];
 
   return <View style={[styles.plan, featured && styles.planFeatured, max && styles.planMax, current && styles.planCurrent]}>
     {featured ? <View style={styles.popular}><Sparkles size={11} color="#fff" /><Text style={styles.popularText}>MOST POPULAR</Text></View> : null}
@@ -190,7 +170,7 @@ function PlanCard({ plan, currentTier, busy, billingConfigured, portalConfigured
     </View>
     <Text style={styles.planCopy}>{tierDescription(plan.tier)}</Text>
     <View style={styles.featureList}>{features.map((feature) => <View key={feature} style={styles.feature}><View style={styles.featureCheck}><Check size={11} color={featured ? '#FFB9D2' : max ? '#D8C1FF' : colors.success} /></View><Text style={styles.featureText}>{feature}</Text></View>)}</View>
-    {current ? <View style={styles.currentButton}><Check size={15} color={colors.success} /><Text style={styles.currentButtonText}>Current plan</Text></View> : plan.tier !== 'free' ? <GradientButton disabled={busy || !actionConfigured} label={busy ? 'Opening billing…' : actionConfigured ? actionLabel : 'Checkout not configured'} onPress={downgrade ? onManage : onChoose} /> : null}
+    {current ? <View style={styles.currentButton}><Check size={15} color={colors.success} /><Text style={styles.currentButtonText}>Current plan</Text></View> : actionLabel ? <GradientButton disabled={busy || !actionConfigured} label={busy ? 'Opening billing…' : actionConfigured ? actionLabel : 'Checkout not configured'} onPress={onAction} /> : null}
   </View>;
 }
 
@@ -199,7 +179,7 @@ function Comparison({ plans }: { plans: SubscriptionPlan[] }) {
   const plus = plans.find((plan) => plan.tier === 'kivelle_plus');
   const max = plans.find((plan) => plan.tier === 'kivelle_max');
   if (!free || !plus || !max) return null;
-  const rows = [
+  const rows: Array<[string, string, string, string]> = [
     ['Chat', free.chatDailyLimit === null ? 'Unlimited' : 'Daily limit', 'Unlimited', 'Unlimited'],
     ['Intelligence', intelligenceLabel(free.intelligenceProfile), intelligenceLabel(plus.intelligenceProfile), intelligenceLabel(max.intelligenceProfile)],
     ['Lives', String(free.maxLives), String(plus.maxLives), String(max.maxLives)],
@@ -215,7 +195,7 @@ function Comparison({ plans }: { plans: SubscriptionPlan[] }) {
 }
 
 function MiniStat({ label, value }: { label: string; value: string }) { return <View style={styles.miniStat}><Text style={styles.miniLabel}>{label}</Text><Text style={styles.miniValue}>{value}</Text></View>; }
-function Cost({ label, value }: { label: string; value: number }) { return <View style={styles.cost}><Text style={styles.costLabel}>{label}</Text><Text style={styles.costValue}><Coins size={11} color="#FFD29B" /> {value}</Text></View>; }
+function Cost({ label, value }: { label: string; value: number }) { return <View style={styles.cost}><Text style={styles.costLabel}>{label}</Text><View style={styles.costValueRow}><Coins size={11} color="#FFD29B" /><Text style={styles.costValue}>{value}</Text></View></View>; }
 function formatDate(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? 'At renewal' : date.toLocaleDateString([], { month: 'short', day: 'numeric' }); }
 
 const styles = StyleSheet.create({
@@ -258,8 +238,8 @@ const styles = StyleSheet.create({
   popularText: { color: '#fff', fontSize: 7, fontWeight: '900', letterSpacing: .7 },
   planTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
   planName: { color: colors.text, fontFamily: 'Georgia', fontSize: 27 },
-  planPrice: { color: featuredText(), fontFamily: 'Georgia', fontSize: 24, marginTop: 4 },
-  planPeriod: { color: colors.muted, fontFamily: undefined, fontSize: 10, fontWeight: '700' },
+  planPrice: { color: '#F4C4D5', fontFamily: 'Georgia', fontSize: 24, marginTop: 4 },
+  planPeriod: { color: colors.muted, fontSize: 10, fontWeight: '700' },
   activeBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: 'rgba(127,209,170,.11)', borderWidth: 1, borderColor: 'rgba(127,209,170,.24)' },
   activeBadgeText: { color: colors.success, fontSize: 8, fontWeight: '900', letterSpacing: .7 },
   maxBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: 'rgba(154,99,215,.12)' },
@@ -288,7 +268,8 @@ const styles = StyleSheet.create({
   costStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   cost: { flex: 1, minWidth: 145, padding: 10, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.035)' },
   costLabel: { color: colors.muted, fontSize: 9 },
-  costValue: { color: '#FFD3A9', fontSize: 11, fontWeight: '900', marginTop: 4 },
+  costValueRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  costValue: { color: '#FFD3A9', fontSize: 11, fontWeight: '900' },
   refundNote: { color: colors.dimmed, fontSize: 9, lineHeight: 14 },
   compareToggle: { minHeight: 62, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 15, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   compareTitle: { color: colors.text, fontSize: 13, fontWeight: '900' },
@@ -307,5 +288,3 @@ const styles = StyleSheet.create({
   errorCard: { gap: 14, padding: 18, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   error: { color: colors.danger, fontSize: 11, textAlign: 'center' },
 });
-
-function featuredText() { return '#F4C4D5'; }
