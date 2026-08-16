@@ -1,5 +1,5 @@
 import{describe,expect,it}from'vitest';
-import{buildPlanSlots,companionPick,hasPlanConflict,isLocationOpen,recommendPlanOptions,resolvePlanDraft}from'./plans';
+import{buildPlanSlots,companionPick,defaultPlanTimeFields,hasPlanConflict,isLocationOpen,localPlanDateValue,parseCustomPlanTime,recommendPlanOptions,resolvePlanDraft}from'./plans';
 import type{Location,SharedPlan}from'../types';
 
 const locations=[
@@ -25,6 +25,9 @@ describe('native shared-plan recommendations',()=>{
 
 describe('real scheduling validation',()=>{
   it('only offers future smart slots',()=>{const now=new Date('2026-08-14T20:30:00-04:00');const slots=buildPlanSlots(now);expect(slots.length).toBeGreaterThanOrEqual(2);expect(slots.every((slot)=>new Date(slot.value)>now)).toBe(true);});
+  it('keeps a viable late-evening suggestion on the same local calendar day',()=>{const now=new Date(2026,7,15,22,38);const option=recommendPlanOptions({...context,scopedLocationId:'velvet'})[0]!;const slots=buildPlanSlots({now,option,schedules:[],plans:[],dates:[]});expect(slots[0]).toBeDefined();const first=new Date(slots[0]!.value);expect(localPlanDateValue(first)).toBe(localPlanDateValue(now));expect(first.getTime()).toBeGreaterThan(now.getTime()+10*60000);});
+  it('defaults custom planning to the local day and next quarter-hour',()=>{const now=new Date(2026,7,15,22,38);expect(defaultPlanTimeFields(now)).toEqual({date:'2026-08-15',time:'23:15'});expect(localPlanDateValue(now)).toBe('2026-08-15');});
+  it('strictly rejects rolled-over custom dates and invalid times',()=>{expect(parseCustomPlanTime('2026-02-30','19:30')).toBeNull();expect(parseCustomPlanTime('2026-08-15','25:00')).toBeNull();expect(parseCustomPlanTime('2026-08-15','23:15')).not.toBeNull();});
   it('moves a suggestion until after a busy companion schedule',()=>{const now=new Date('2026-08-14T12:00:00-04:00');const option=recommendPlanOptions({...context,scopedLocationId:'velvet'})[0]!;const slots=buildPlanSlots({now,option,schedules:[{id:'work',character_version_id:'maya-v1',day_of_week:5,start_minute:540,end_minute:1200,location_id:'studio',activity:'client shoot',availability:'busy',energy_delta:0}],plans:[],dates:[]});expect(new Date(slots[0]!.value).getHours()).toBeGreaterThanOrEqual(20);expect(slots[0]?.reason).toContain('free');});
   it('rejects a bakery after closing',()=>{expect(isLocationOpen(locations[2]!,new Date('2026-08-15T20:00:00-04:00'),60)).toBe(false);});
   it('detects overlapping canonical plans',()=>{const plan={id:'one',character_instance_id:'maya',title:'Rooftop Movie',activity_key:'movie',location_id:'velvet',starts_at:'2026-08-16T00:00:00Z',ends_at:'2026-08-16T02:00:00Z',status:'scheduled',source:'chat',created_at:'2026-08-14T12:00:00Z',updated_at:'2026-08-14T12:00:00Z'}satisfies SharedPlan;expect(hasPlanConflict(new Date('2026-08-16T01:00:00Z'),90,[plan],[])?.title).toBe('Rooftop Movie');});
