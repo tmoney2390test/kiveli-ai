@@ -10,9 +10,9 @@ begin
   begin proposed:=(new.payload->>'proposedStartsAt')::timestamptz; exception when others then return new; end;
   select content into user_text from public.together_messages where conversation_id=new.conversation_id and role='user' order by created_at desc limit 1;
   if user_text is null then return new; end if;
-  location_id:=nullif(new.payload->>'locationId','')::uuid;
-  if location_id is null then location_id:=nullif(new.payload->>'proposedLocationId','')::uuid; end if;
-  plan_id:=nullif(coalesce(new.payload->>'planId',new.payload->>'targetId'),'')::uuid;
+  begin location_id:=nullif(new.payload->>'locationId','')::uuid; exception when others then location_id:=null; end;
+  if location_id is null then begin location_id:=nullif(new.payload->>'proposedLocationId','')::uuid; exception when others then location_id:=null; end; end if;
+  begin plan_id:=nullif(coalesce(new.payload->>'planId',new.payload->>'targetId'),'')::uuid; exception when others then plan_id:=null; end;
   if location_id is not null then select world.timezone into zone from public.together_locations location join public.together_worlds world on world.id=location.world_id where location.id=location_id; end if;
   if zone is null and plan_id is not null then select coalesce(world_timezone,'UTC') into zone from public.together_shared_plans where id=plan_id; end if;
   if zone is null then select world.timezone into zone from public.together_character_instances instance join public.together_locations location on location.id=instance.current_location_id join public.together_worlds world on world.id=location.world_id where instance.id=new.character_instance_id; end if;
@@ -28,7 +28,7 @@ begin
   if user_text~*'\m(morning)\M' then window_start:=(local_day+time '08:00') at time zone zone;window_end:=(local_day+time '12:00') at time zone zone;precision:='daypart';phrase:='morning';
   elsif user_text~*'\m(afternoon)\M' then window_start:=(local_day+time '12:00') at time zone zone;window_end:=(local_day+time '17:00') at time zone zone;precision:='daypart';phrase:='afternoon';
   elsif user_text~*'\m(evening)\M' then window_start:=(local_day+time '17:00') at time zone zone;window_end:=(local_day+time '22:00') at time zone zone;precision:='daypart';phrase:='evening';
-  elsif user_text~*'\m(tonight|night)\M' then window_start:=(local_day+time '19:00') at time zone zone;window_end:=(local_day+interval '1 day'+time '00:00') at time zone zone;precision:='daypart';phrase:=case when user_text~*'\mtonight\M' then 'tonight' else 'night' end;
+  elsif user_text~*'\m(tonight|night)\M' then window_start:=(local_day+time '19:00') at time zone zone;window_end:=((local_day+1)+time '00:00') at time zone zone;precision:='daypart';phrase:=case when user_text~*'\mtonight\M' then 'tonight' else 'night' end;
   elsif user_text~*'\m(this weekend|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\M' then window_start:=(local_day+time '09:00') at time zone zone;window_end:=(local_day+time '22:00') at time zone zone;precision:='day';phrase:=(regexp_match(user_text,'(?i)(this weekend|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)'))[1];
   else return new; end if;
   new.payload:=(new.payload-'proposedStartsAt')||jsonb_build_object('windowStartsAt',window_start,'windowEndsAt',window_end,'timePrecision',precision,'originalTimeExpression',coalesce(phrase,new.payload->>'relativeTime','that time'),'suggestedStartsAt',proposed);
