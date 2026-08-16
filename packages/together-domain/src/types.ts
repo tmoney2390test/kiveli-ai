@@ -3,12 +3,20 @@ export type RelationshipMetricName=typeof relationshipMetricNames[number];
 export type RelationshipMetrics=Record<RelationshipMetricName,number>;
 export const relationshipStages=['stranger','acquaintance','friend','flirting','dating','exclusive','long_term'] as const;
 export type RelationshipStage=typeof relationshipStages[number];
-export interface RelationshipState extends RelationshipMetrics{stage:RelationshipStage;conversationCount:number;conversationSessionCount?:number;meaningfulInteractionCount?:number;activeMajorConflict:boolean;romanceEnabled?:boolean}
+export type RomancePathStatus='open'|'friends_only';
+export type RelationshipHealth='strained'|'uncertain'|'steady'|'warm'|'close';
+export interface RelationshipState extends RelationshipMetrics{stage:RelationshipStage;conversationCount:number;conversationSessionCount?:number;meaningfulInteractionCount?:number;activeMajorConflict:boolean;romanceEnabled?:boolean;romancePathStatus?:RomancePathStatus;stageEnteredAt?:string;datingStartedAt?:string;exclusiveAt?:string;longTermAt?:string;lastMajorMilestoneAt?:string;relationshipDefiningDateSessionId?:string;datingInvitationAcceptedAt?:string;majorConflictStartedAt?:string;lastRepairCompletedAt?:string}
 export type RelationshipChangeSource='ordinary_chat'|'meaningful_disclosure'|'date'|'life_event'|'introduction'|'debug';
 export type InteractionQuality='trivial'|'normal'|'meaningful'|'shared_experience'|'major_relationship_event';
-export const relationshipMilestoneKinds=['keep_in_touch','friendship_deepened','romantic_spark','first_date_invitation','repair'] as const;
+export const relationshipMilestoneKinds=['keep_in_touch','friendship_deepened','romantic_spark','first_date_invitation','dating_start','exclusivity','long_term','repair'] as const;
 export type RelationshipMilestoneKind=typeof relationshipMilestoneKinds[number];
 export interface RelationshipMilestoneProposal{kind:RelationshipMilestoneKind;fromStage:RelationshipStage;toStage?:RelationshipStage;tone:string;presentationKey:string;context?:Record<string,unknown>}
+export const relationshipEvidenceTypes=['meaningful_conversation','romantic_signal','shared_plan_completed','date_completed','trip_completed','major_shared_moment','commitment_kept','commitment_missed','repair_completed','future_planning'] as const;
+export type RelationshipEvidenceType=typeof relationshipEvidenceTypes[number];
+export interface RelationshipEvidenceSummary{meaningfulConversations:number;romanticSignals:number;distinctActiveDays:number;progressionInteractions:number;sharedExperiences:number;positiveDates:number;completedTrips:number;majorSharedMoments:number;commitmentsKept:number;commitmentsMissed:number;repairsCompleted:number;futurePlanning:number;unresolvedMisses:number;sharedExperiencesAfterStage:number;futurePlanningAfterStage:number;repairsAfterMajorConflict:number;definingDateCompleted:boolean;definingDatePositive:boolean}
+export interface RelationshipPacingConfig{pace?:'slow'|'balanced'|'fast';romanceInitiative?:number;exclusivityPreference?:number;longTermOrientation?:number;needsTrustBeforeRomance?:number;needsComfortBeforeCommitment?:number;conflictSensitivity?:number}
+export interface RelationshipPresentationContext{availability?:string;energy?:string;mood?:string;activity?:string;activeCommitment?:boolean;waitingOnMissResolution?:boolean;now?:Date}
+export interface RelationshipProgressionEvaluation{stage:RelationshipStage;health:RelationshipHealth;nextMilestone:{kind:RelationshipMilestoneKind;eligible:boolean;presentationReady:boolean;blockers:string[];proposal:RelationshipMilestoneProposal}|null}
 
 export const memoryTypes=['semantic','preference','episodic','relationship','emotional','open_thread'] as const;
 export type MemoryType=typeof memoryTypes[number];
