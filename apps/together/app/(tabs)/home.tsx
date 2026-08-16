@@ -1,15 +1,14 @@
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { router as expoRouter } from 'expo-router';
-import { CalendarDays, ChevronRight, Coffee, Coins, MapPin, MessageCircle, Sparkles, UserRound } from 'lucide-react-native';
-import { ActionTile, CompanionSwitcher, EmptyState, ErrorState, GlassCard, GradientButton, LoadingSkeleton, MessagePreview, MoodBadge, MomentCarousel, Screen, SectionHeader } from '../../src/components';
+import { CalendarDays, ChevronRight, Clock3, Coins, Heart, Home as HomeIcon, MapPin, MessageCircle, Sparkles, UserRound } from 'lucide-react-native';
+import { CharacterAvatar, CompanionSwitcher, EmptyState, ErrorState, GradientButton, LoadingSkeleton, MomentCarousel, Screen, SectionHeader } from '../../src/components';
 import { characterAssets } from '../../src/assets';
-import { colors, radius, spacing } from '../../src/theme';
+import { colors, radius, spacing, typography } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { manageSubscription, markProactiveOpened } from '../../src/lib/api';
-import { buildCompanionLife, formatScheduleTime } from '../../src/lib/companionLife';
-import { worldForLocation } from '../../src/lib/place';
+import { buildHomeViewModel, type HomeTargetAction, type HomeTimelineItem } from '../../src/lib/homeViewModel';
 import type { CharacterInstance } from '../../src/types';
 import type { SubscriptionStatus } from '../../src/lib/subscription';
 
@@ -33,66 +32,60 @@ export default function Home() {
   if (error && !snapshot) return <ErrorState message={error} onRetry={() => void refresh()} />;
   if (!snapshot) return <EmptyState title="Opening your world" body="Your companion and first conversation are being prepared automatically." />;
 
-  const life = buildCompanionLife(snapshot);
-  if (!life) return <Screen contentStyle={styles.emptyLife}><EmptyState title={`Start ${snapshot.activePersona?.display_name ?? 'your'}'s Kivelle Life`} body="Meet an official companion or create someone original. This Life will keep its own relationships, memories, plans, and history." /><GradientButton label="Choose who to meet" onPress={() => router.push('/(tabs)/singles')} /></Screen>;
+  const model = buildHomeViewModel(snapshot);
+  if (!model) return <Screen contentStyle={styles.emptyLife}><EmptyState title={`Start ${snapshot.activePersona?.display_name ?? 'your'}'s Kivelle Life`} body="Meet an official companion or create someone original. This Life will keep its own relationships, memories, plans, and history." /><GradientButton label="Choose who to meet" onPress={() => router.push('/(tabs)/singles')} /></Screen>;
 
-  const { companion, relationshipDay, location: currentLocation, recentEvents, upcomingSchedule, proactiveMessages, dates } = life;
-  const name = companion.together_character_templates.name;
+  const { companion, message } = model;
   const handle = companion.together_character_templates.public_handle ?? companion.together_character_templates.slug;
-  const currentWorld = worldForLocation(snapshot, companion.current_location_id);
-  const location = currentLocation?.name ?? currentWorld?.name ?? 'Current place';
-  const relationshipCue = snapshot.relationshipCues?.[companion.id];
-  const pendingMilestone = snapshot.relationshipMilestones?.find((item) => item.character_instance_id === companion.id);
-  const latestProactive = proactiveMessages[0];
-  const latest = latestProactive?.content ?? recentEvents[0]?.narrative_summary ?? `${name} is waiting to hear how your day is going.`;
-  const latestSourceTitle = latestProactive ? `New from ${name}` : recentEvents[0] ? `${name}'s day` : 'Continue your conversation';
-  const catchUpEvents = recentEvents.filter((event) => Date.now() - new Date(event.starts_at).getTime() < 72 * 3600000).slice(0, 2);
-  const activeDate = dates.find((item) => item.status === 'active');
-  const plannedDate = dates.find((item) => ['active', 'upcoming', 'unlocked', 'deferred'].includes(item.status));
-  const sharedPlan = (snapshot.sharedPlans ?? [])
-    .filter((plan) => plan.character_instance_id === companion.id && (plan.status === 'active' || plan.status === 'scheduled' && new Date(plan.starts_at).getTime() > Date.now()))
-    .sort((left, right) => new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime())[0];
-  const activePlan = sharedPlan?.status === 'active' ? sharedPlan : undefined;
-  const todayPlan = sharedPlan?.status === 'scheduled' && isToday(sharedPlan.starts_at) ? sharedPlan : undefined;
-  const todayDate = dates.find((item) => item.status === 'upcoming' && item.scheduled_for && isToday(item.scheduled_for));
 
-  const openCompanion = async () => {
-    if (latestProactive?.status === 'sent') await markProactiveOpened(latestProactive.id).catch(() => undefined);
+  const openCompanion = async (proactiveMessageId?: string) => {
+    if (proactiveMessageId) await markProactiveOpened(proactiveMessageId).catch(() => undefined);
     router.push('/(tabs)/chat-tab');
   };
 
-  const heroAction = activeDate
-    ? { label: 'Continue date', onPress: () => router.push(`/date/${activeDate.id}`) }
-    : activePlan
-      ? { label: 'Continue together', onPress: () => router.push(`/plan/${activePlan.id}`) }
-      : pendingMilestone
-        ? { label: `Answer ${name}`, onPress: () => router.push('/(tabs)/chat-tab') }
-        : latestProactive?.status === 'sent'
-          ? { label: `Open ${name}'s message`, onPress: () => void openCompanion() }
-          : relationshipCue?.tone === 'tense'
-            ? { label: 'Talk it through', onPress: () => router.push('/(tabs)/chat-tab') }
-            : { label: `Talk to ${name}`, onPress: () => router.push('/(tabs)/chat-tab') };
-
-  const heroNotice = activeDate
-    ? `Together now · ${activeDate.together_date_templates.name}`
-    : activePlan
-      ? `Together now · ${activePlan.title}`
-      : pendingMilestone
-        ? pendingMilestone.title
-        : latestProactive?.status === 'sent'
-          ? `New message from ${name}`
-          : relationshipCue?.tone === 'tense'
-            ? relationshipCue.detail
-            : null;
+  const runAction = async (action: HomeTargetAction) => {
+    if (action.kind === 'chat') {
+      await openCompanion(action.proactiveMessageId);
+      return;
+    }
+    if (action.kind === 'plan') {
+      router.push(`/plan/${action.id}`);
+      return;
+    }
+    if (action.kind === 'date') {
+      router.push(`/date/${action.id}`);
+      return;
+    }
+    router.push('/(tabs)/chat-tab?plan=1');
+  };
 
   const openLocation = () => {
-    if (currentLocation && currentWorld) {
-      router.push(`/location/${currentLocation.slug}?world=${currentWorld.slug}`);
+    if (model.currentLocation && model.currentWorld) {
+      router.push(`/location/${model.currentLocation.slug}?world=${model.currentWorld.slug}`);
       return;
     }
     router.push('/(tabs)/worlds');
   };
-  const askAboutNow = () => router.push(`/(tabs)/chat-tab?draft=${encodeURIComponent(`How's ${lowerFirst(companion.current_activity)} going?`)}`);
+
+  const openTimelineItem = (item: HomeTimelineItem) => {
+    if (item.kind === 'plan') {
+      router.push(`/plan/${item.id.replace(/^plan:/, '')}`);
+      return;
+    }
+    if (item.kind === 'date') {
+      router.push(`/date/${item.id.replace(/^date:/, '')}`);
+      return;
+    }
+    if (item.locationId) {
+      const location = snapshot.locations.find((place) => place.id === item.locationId);
+      const world = location ? snapshot.worlds.find((entry) => entry.id === location.world_id) : undefined;
+      if (location && world) {
+        router.push(`/location/${location.slug}?world=${world.slug}`);
+        return;
+      }
+    }
+    if (item.kind === 'event') router.push('/(tabs)/chat-tab');
+  };
 
   return <Screen contentStyle={styles.content}>
     <View style={styles.top}>
@@ -105,79 +98,147 @@ export default function Home() {
 
     <HomeHero
       companion={companion}
-      relationshipDay={relationshipDay}
-      stage={labelStage(companion.relationship_stage)}
-      location={location}
-      notice={heroNotice}
-      actionLabel={heroAction.label}
-      onAction={heroAction.onPress}
+      relationshipDay={model.relationshipDay}
+      stage={model.hero.stage}
+      statusLine={model.hero.statusLine}
+      prompt={model.hero.prompt}
+      notice={model.hero.notice}
+      actionLabel={model.hero.action.label}
+      onAction={() => void runAction(model.hero.action)}
       onProfile={() => router.push(`/character/${handle}`)}
       onLocation={openLocation}
-      onActivity={askAboutNow}
     />
 
-    <View style={styles.actions}>
-      <ActionTile
-        title={plannedDate?.status === 'active' ? 'Continue date' : sharedPlan ? sharedPlan.status === 'active' ? `Together now · ${sharedPlan.title}` : `${new Date(sharedPlan.starts_at).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })} · ${sharedPlan.title}` : 'Plan something'}
-        onPress={() => plannedDate?.status === 'active' ? router.push(`/date/${plannedDate.id}`) : sharedPlan ? router.push(`/plan/${sharedPlan.id}`) : router.push('/(tabs)/chat-tab?plan=1')}
-        icon={<CalendarDays color={colors.warm} size={21} />}
+    {message ? <CompanionMessageCard
+      companion={companion}
+      content={message.content}
+      time={message.time}
+      onPress={() => void openCompanion(message.id)}
+    /> : null}
+
+    <View style={styles.worldHeader}>
+      <View style={styles.worldTitleRow}><Sparkles size={18} color={colors.rose} /><Text style={styles.worldTitle}>Your world</Text></View>
+    </View>
+    <View style={styles.worldGrid}>
+      <WorldCard
+        eyebrow={model.upcoming.eyebrow}
+        title={model.upcoming.title}
+        meta={model.upcoming.meta}
+        icon={<CalendarDays size={20} color={colors.warm} />}
+        onPress={() => void runAction(model.upcoming.action)}
       />
-      <ActionTile title="Memories" onPress={() => router.push(`/memories?character=${handle}`)} icon={<Sparkles color={colors.violet} size={21} />} />
+      <WorldCard
+        eyebrow={model.memory.eyebrow}
+        title={model.memory.title}
+        meta={model.memory.meta}
+        icon={<Heart size={20} color={colors.rose} />}
+        onPress={() => router.push(`/memories?character=${handle}`)}
+      />
     </View>
 
-    {catchUpEvents.length ? <>
-      <SectionHeader title="While you were away" />
-      <GlassCard style={styles.catchUpCard}>
-        {catchUpEvents.map((event, index) => <View key={event.id}>
-          {index ? <View style={styles.rule} /> : null}
-          <Pressable onPress={() => router.push('/(tabs)/chat-tab')} style={({ pressed }) => [styles.catchUpEvent, pressed && styles.pressed]}>
-            <View style={styles.eventDot}><Sparkles size={14} color={colors.rose} /></View>
-            <View style={{ flex: 1 }}><Text style={styles.timelineTitle}>{event.title}</Text><Text style={styles.eventSummary}>{event.narrative_summary}</Text></View>
-            <Text style={styles.eventTime}>{relativeTime(event.starts_at)}</Text>
-          </Pressable>
-        </View>)}
-      </GlassCard>
-    </> : null}
-
     <SectionHeader title="Today" action="View world" onAction={() => router.push('/(tabs)/worlds')} />
-    <GlassCard style={styles.todayCard}>
-      {upcomingSchedule.map((item, index) => <View key={`${item.id}-${item.start_minute}`}><TimelineItem icon={<Coffee size={16} color={colors.warm} />} title={item.activity} detail={item.locationName} time={formatScheduleTime(item.startsAt)} />{index < upcomingSchedule.length - 1 || todayPlan || todayDate ? <View style={styles.rule} /> : null}</View>)}
-      {todayPlan ? <><TimelineItem icon={<CalendarDays size={16} color={colors.warm} />} title={todayPlan.title} detail={snapshot.locations.find((item) => item.id === todayPlan.location_id)?.name ?? currentWorld?.name ?? 'Current place'} time={new Date(todayPlan.starts_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} />{todayDate ? <View style={styles.rule} /> : null}</> : null}
-      {todayDate ? <TimelineItem icon={<CalendarDays size={16} color={colors.violet} />} title={todayDate.together_date_templates.name} detail={todayDate.scheduled_for ? new Date(todayDate.scheduled_for).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'Ready when you are'} time="DATE" /> : null}
-      {!upcomingSchedule.length && !todayDate && !todayPlan ? <Text style={styles.emptySchedule}>Nothing else is scheduled right now. The day is still unfolding.</Text> : null}
-    </GlassCard>
+    <View style={styles.timelineCard}>
+      <View pointerEvents="none" style={styles.timelineRail} />
+      {model.timeline.map((item, index) => <View key={item.id}>
+        <HomeTimelineRow item={item} onPress={() => openTimelineItem(item)} />
+        {index < model.timeline.length - 1 ? <View style={styles.rule} /> : null}
+      </View>)}
+    </View>
 
-    <SectionHeader title="Recent moments" action="View all" onAction={() => router.push('/(tabs)/moments')} />
-    {life.moments.length ? <MomentCarousel moments={life.moments} onPress={() => router.push('/(tabs)/moments')} /> : <Pressable onPress={() => router.push('/(tabs)/chat-tab')} style={styles.storyEmpty}><Sparkles size={18} color={colors.rose} /><View style={{ flex: 1 }}><Text style={styles.storyTitle}>Your story with {name} is just beginning</Text><Text style={styles.storyCopy}>The moments that matter between you will collect here.</Text></View><ChevronRight color={colors.muted} size={18} /></Pressable>}
-
-    <SectionHeader title={latestSourceTitle} />
-    <MessagePreview content={latest} time={latestProactive ? relativeTime(latestProactive.eligible_at ?? new Date().toISOString()) : `At ${location}`} onPress={() => void openCompanion()} />
+    {model.recentMoments.length ? <>
+      <SectionHeader title="Recent moments" action="View all" onAction={() => router.push('/(tabs)/moments')} />
+      <MomentCarousel moments={model.recentMoments} onPress={() => router.push('/(tabs)/moments')} />
+    </> : null}
   </Screen>;
 }
 
-function HomeHero({ companion, relationshipDay, stage, location, notice, actionLabel, onAction, onProfile, onLocation, onActivity }: { companion: CharacterInstance; relationshipDay: number; stage: string; location: string; notice: string | null; actionLabel: string; onAction: () => void; onProfile: () => void; onLocation: () => void; onActivity: () => void }) {
+function HomeHero({ companion, relationshipDay, stage, statusLine, prompt, notice, actionLabel, onAction, onProfile, onLocation }: {
+  companion: CharacterInstance;
+  relationshipDay: number;
+  stage: string;
+  statusLine: string;
+  prompt: string;
+  notice: string | null;
+  actionLabel: string;
+  onAction: () => void;
+  onProfile: () => void;
+  onLocation: () => void;
+}) {
+  const { width } = useWindowDimensions();
+  const wide = width >= 720;
   const template = companion.together_character_templates;
   const asset = characterAssets[template.slug];
-  return <View style={styles.hero}>
+  return <View style={[styles.hero, wide && styles.heroWide]}>
     {asset ? <Image source={asset} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" /> : <View style={[StyleSheet.absoluteFill, styles.heroFallback]}><Text style={styles.heroFallbackText}>{template.name[0]}</Text></View>}
     <View pointerEvents="none" style={styles.heroWash} />
     <View pointerEvents="none" style={styles.heroScrimSoft} />
     <View pointerEvents="none" style={styles.heroScrimDeep} />
+    {wide ? <View pointerEvents="none" style={styles.heroWideScrim} /> : null}
     <View style={styles.heroContent}>
       <View style={styles.heroTopRow}>
         <CompanionSwitcher active={companion} variant="overlay" />
         <View style={styles.dayPill}><View style={styles.dayDot} /><Text style={styles.dayPillText}>DAY {relationshipDay} · {stage.toUpperCase()}</Text></View>
       </View>
-      <View style={styles.heroBottom}>
-        {notice ? <View style={styles.heroNotice}><Sparkles size={13} color="#FFD5E3" /><Text numberOfLines={1} style={styles.heroNoticeText}>{notice}</Text></View> : null}
-        <Pressable accessibilityLabel={`View ${template.name}'s profile`} onPress={onProfile}><Text style={styles.heroName}>{template.name}</Text></Pressable>
-        <MoodBadge mood={companion.current_mood} />
-        <Pressable onPress={onLocation} style={({ pressed }) => [styles.heroLocation, pressed && styles.heroRowPressed]}><MapPin size={16} color="#F1B28F" /><Text style={styles.heroLocationText}>{location}</Text><ChevronRight size={15} color="rgba(255,255,255,.68)" /></Pressable>
-        <Pressable onPress={onActivity} style={({ pressed }) => [styles.heroActivity, pressed && styles.heroRowPressed]}><Text numberOfLines={1} style={styles.heroActivityText}>{sentence(companion.current_activity)}</Text><ChevronRight size={15} color="rgba(255,255,255,.62)" /></Pressable>
+      <View style={[styles.heroBottom, wide && styles.heroBottomWide]}>
+        {notice ? <View style={styles.heroNotice}><Sparkles size={12} color="#FFD5E3" /><Text numberOfLines={1} style={styles.heroNoticeText}>{notice}</Text></View> : null}
+        <Pressable accessibilityLabel={`View ${template.name}'s profile`} onPress={onProfile}><Text style={[styles.heroName, wide && styles.heroNameWide]}>{template.name}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Open ${statusLine}`} onPress={onLocation} style={({ pressed }) => [styles.heroStatusRow, pressed && styles.heroRowPressed]}>
+          <MapPin size={15} color="#F1B28F" />
+          <Text numberOfLines={1} style={styles.heroStatusText}>{statusLine}</Text>
+          <ChevronRight size={14} color="rgba(255,255,255,.62)" />
+        </Pressable>
+        <Text numberOfLines={2} style={styles.heroPrompt}>{prompt}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel={actionLabel} onPress={onAction} style={({ pressed }) => [styles.heroAction, pressed && styles.heroActionPressed]}><MessageCircle size={18} color="#fff" /><Text style={styles.heroActionText}>{actionLabel}</Text></Pressable>
       </View>
     </View>
   </View>;
+}
+
+function CompanionMessageCard({ companion, content, time, onPress }: { companion: CharacterInstance; content: string; time: string; onPress: () => void }) {
+  const template = companion.together_character_templates;
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Open message from ${template.name}`} onPress={onPress} style={({ pressed }) => [styles.messageCard, pressed && styles.messageCardPressed]}>
+    <View style={styles.messageAvatarWrap}>
+      <CharacterAvatar slug={template.slug} name={template.name} size={44} ring />
+      <View style={styles.unreadDot} />
+    </View>
+    <View style={styles.messageBody}>
+      <View style={styles.messageTop}><Text style={styles.messageName}>{template.name}</Text><Text style={styles.messageTime}>{time}</Text></View>
+      <Text numberOfLines={2} style={styles.messageCopy}>{content}</Text>
+    </View>
+    <View style={styles.replyPill}><Text style={styles.replyText}>Reply</Text></View>
+  </Pressable>;
+}
+
+function WorldCard({ eyebrow, title, meta, icon, onPress }: { eyebrow: string; title: string; meta: string; icon: ReactNode; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${eyebrow}: ${title}`} onPress={onPress} style={({ pressed }) => [styles.worldCard, pressed && styles.worldCardPressed]}>
+    <View style={styles.worldCardTop}>
+      <View style={styles.worldCardIcon}>{icon}</View>
+      <ChevronRight size={17} color={colors.dimmed} />
+    </View>
+    <Text style={styles.worldEyebrow}>{eyebrow}</Text>
+    <Text numberOfLines={3} style={styles.worldCardTitle}>{title}</Text>
+    <Text numberOfLines={1} style={styles.worldMeta}>{meta}</Text>
+  </Pressable>;
+}
+
+function HomeTimelineRow({ item, onPress }: { item: HomeTimelineItem; onPress: () => void }) {
+  const icon = item.kind === 'now'
+    ? <HomeIcon size={16} color={colors.violet} />
+    : item.kind === 'plan'
+      ? <CalendarDays size={16} color={colors.warm} />
+      : item.kind === 'date'
+        ? <Heart size={16} color={colors.rose} />
+        : item.kind === 'event'
+          ? <Sparkles size={16} color={colors.rose} />
+          : <Clock3 size={16} color={colors.warm} />;
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${item.time}, ${item.title}${item.detail ? `, ${item.detail}` : ''}`} onPress={onPress} style={({ pressed }) => [styles.timelineRow, pressed && styles.timelineRowPressed]}>
+    <View style={[styles.timelineMarker, item.current && styles.timelineMarkerCurrent]}>{icon}</View>
+    <View style={styles.timelineBody}>
+      <Text numberOfLines={1} style={[styles.timelineTitle, item.current && styles.timelineTitleCurrent]}>{item.title}</Text>
+      {item.detail ? <Text numberOfLines={2} style={styles.timelineDetail}>{item.detail}</Text> : null}
+    </View>
+    <Text style={[styles.timelineTime, item.current && styles.timelineTimeCurrent]}>{item.time}</Text>
+  </Pressable>;
 }
 
 function CreditChip({ status }: { status: SubscriptionStatus | null }) {
@@ -191,40 +252,14 @@ function CreditChip({ status }: { status: SubscriptionStatus | null }) {
   </Pressable>;
 }
 
-function TimelineItem({ icon, title, detail, time }: { icon: React.ReactNode; title: string; detail: string; time: string }) {
-  return <View style={styles.timelineItem}><View style={styles.timelineIcon}>{icon}</View><View style={{ flex: 1 }}><Text style={styles.timelineTitle}>{title}</Text><Text style={styles.timelineDetail}>{detail}</Text></View><Text style={styles.time}>{time}</Text></View>;
-}
-
-function labelStage(stage: string) {
-  const labels: Record<string, string> = { stranger: 'Just met', acquaintance: 'Getting acquainted', friend: 'Getting closer', flirting: 'There’s a spark', dating: 'Dating', exclusive: 'Exclusive', long_term: 'Building a life' };
-  return labels[stage] ?? 'Getting closer';
-}
-
-function relativeTime(value: string) {
-  const minutes = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 60000));
-  if (minutes < 2) return 'Just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
-}
-
-function isToday(value: string) {
-  const date = new Date(value);
-  const now = new Date();
-  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
-}
-function sentence(value: string) { return value ? value[0]!.toUpperCase() + value.slice(1) : value; }
-function lowerFirst(value: string) { return value ? value[0]!.toLowerCase() + value.slice(1) : value; }
-
 const styles = StyleSheet.create({
-  content: { gap: 16, paddingBottom: 154 },
+  content: { gap: 15, paddingBottom: 154 },
   emptyLife: { flex: 1, justifyContent: 'center', gap: spacing.lg },
-  top: { minHeight: 44, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
+  top: { minHeight: 50, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   topActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 7, flexShrink: 1 },
-  brand: { color: colors.rose, fontFamily: 'Georgia', fontSize: 20, fontWeight: '700' },
+  brand: { color: colors.rose, fontFamily: typography.display, fontSize: 24, fontWeight: '700', letterSpacing: -.4 },
   icon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  creditChip: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 5, paddingLeft: 6, paddingRight: 8, borderRadius: radius.pill, backgroundColor: 'rgba(37,26,41,.94)', borderWidth: 1, borderColor: 'rgba(232,93,140,.27)', shadowColor: '#9B63D7', shadowOpacity: .14, shadowRadius: 10, shadowOffset: { width: 0, height: 5 } },
+  creditChip: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 5, paddingLeft: 6, paddingRight: 8, borderRadius: radius.pill, backgroundColor: 'rgba(37,26,41,.82)', borderWidth: 1, borderColor: 'rgba(232,93,140,.22)' },
   creditChipPressed: { opacity: .82, transform: [{ scale: .97 }] },
   creditDot: { width: 25, height: 25, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(233,160,127,.10)' },
   creditValue: { color: colors.text, fontSize: 10, fontWeight: '900' },
@@ -234,45 +269,68 @@ const styles = StyleSheet.create({
   tierPillText: { color: '#EACBDB', fontSize: 7, fontWeight: '900', letterSpacing: .5 },
   pressed: { transform: [{ scale: .96 }], opacity: .82 },
 
-  hero: { height: 372, borderRadius: 28, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(248,241,234,.16)', backgroundColor: colors.elevated, shadowColor: '#000', shadowOpacity: .28, shadowRadius: 20, shadowOffset: { width: 0, height: 10 } },
+  hero: { height: 318, borderRadius: 28, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(248,241,234,.15)', backgroundColor: colors.elevated, shadowColor: '#000', shadowOpacity: .3, shadowRadius: 20, shadowOffset: { width: 0, height: 10 } },
+  heroWide: { height: 330 },
   heroFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#30203B' },
-  heroFallbackText: { fontFamily: 'Georgia', fontSize: 128, color: 'rgba(248,241,234,.28)' },
-  heroWash: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(8,7,12,.08)' },
-  heroScrimSoft: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '58%', backgroundColor: 'rgba(7,6,11,.42)' },
-  heroScrimDeep: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '34%', backgroundColor: 'rgba(6,5,10,.56)' },
+  heroFallbackText: { fontFamily: typography.display, fontSize: 128, color: 'rgba(248,241,234,.28)' },
+  heroWash: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(8,7,12,.06)' },
+  heroScrimSoft: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '68%', backgroundColor: 'rgba(7,6,11,.35)' },
+  heroScrimDeep: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '48%', backgroundColor: 'rgba(6,5,10,.62)' },
+  heroWideScrim: { position: 'absolute', top: 0, right: 0, bottom: 0, width: '56%', backgroundColor: 'rgba(6,5,10,.69)' },
   heroContent: { flex: 1, justifyContent: 'space-between', padding: 14 },
   heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 },
-  dayPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 9, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: 'rgba(8,8,14,.58)', borderWidth: 1, borderColor: 'rgba(255,255,255,.16)' },
-  dayDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.rose },
-  dayPillText: { color: '#F8EAF0', fontSize: 8, fontWeight: '900', letterSpacing: .7 },
-  heroBottom: { gap: 8 },
-  heroNotice: { maxWidth: '90%', alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: 'rgba(232,93,140,.76)' },
-  heroNoticeText: { flexShrink: 1, color: '#fff', fontSize: 10, fontWeight: '900' },
-  heroName: { color: '#fff', fontFamily: 'Georgia', fontSize: 38, lineHeight: 42, fontWeight: '600', textShadowColor: 'rgba(0,0,0,.72)', textShadowRadius: 12 },
-  heroLocation: { alignSelf: 'flex-start', maxWidth: '100%', minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  heroLocationText: { flexShrink: 1, color: '#fff', fontSize: 14, fontWeight: '800', textShadowColor: '#000', textShadowRadius: 7 },
-  heroActivity: { alignSelf: 'flex-start', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 5, paddingRight: 5 },
-  heroActivityText: { flexShrink: 1, color: 'rgba(255,255,255,.88)', fontSize: 12, lineHeight: 17, fontWeight: '600', textShadowColor: '#000', textShadowRadius: 6 },
+  dayPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: 'rgba(8,8,14,.62)', borderWidth: 1, borderColor: 'rgba(255,255,255,.15)' },
+  dayDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.rose },
+  dayPillText: { color: '#F8EAF0', fontSize: 8, fontWeight: '900', letterSpacing: .75 },
+  heroBottom: { gap: 7 },
+  heroBottomWide: { width: '49%', alignSelf: 'flex-end', paddingRight: 8, paddingBottom: 8 },
+  heroNotice: { maxWidth: '92%', alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 9, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: 'rgba(232,93,140,.72)' },
+  heroNoticeText: { flexShrink: 1, color: '#fff', fontSize: 9, fontWeight: '900' },
+  heroName: { color: '#fff', fontFamily: typography.display, fontSize: 36, lineHeight: 39, fontWeight: '600', textShadowColor: 'rgba(0,0,0,.72)', textShadowRadius: 12 },
+  heroNameWide: { fontSize: 42, lineHeight: 45 },
+  heroStatusRow: { alignSelf: 'flex-start', maxWidth: '100%', minHeight: 25, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  heroStatusText: { flexShrink: 1, color: 'rgba(255,255,255,.92)', fontSize: 12, fontWeight: '700', textShadowColor: '#000', textShadowRadius: 7 },
+  heroPrompt: { maxWidth: 520, color: 'rgba(255,255,255,.88)', fontSize: 13, lineHeight: 18, fontWeight: '500', textShadowColor: '#000', textShadowRadius: 8 },
   heroRowPressed: { opacity: .74 },
-  heroAction: { minHeight: 46, marginTop: 2, borderRadius: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16, backgroundColor: 'rgba(232,93,140,.94)', borderWidth: 1, borderColor: 'rgba(255,255,255,.18)', shadowColor: colors.rose, shadowOpacity: .24, shadowRadius: 14, shadowOffset: { width: 0, height: 7 } },
+  heroAction: { minHeight: 48, marginTop: 2, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16, backgroundColor: 'rgba(232,93,140,.95)', borderWidth: 1, borderColor: 'rgba(255,255,255,.16)', shadowColor: colors.rose, shadowOpacity: .22, shadowRadius: 14, shadowOffset: { width: 0, height: 7 } },
   heroActionPressed: { transform: [{ scale: .988 }], opacity: .9 },
   heroActionText: { color: '#fff', fontSize: 14, fontWeight: '900' },
 
-  actions: { flexDirection: 'row', gap: 9 },
-  catchUpCard: { paddingVertical: 5 },
-  catchUpEvent: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, paddingVertical: 11 },
-  eventDot: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(241,103,154,.10)', alignItems: 'center', justifyContent: 'center' },
-  eventSummary: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 3 },
-  eventTime: { color: colors.dimmed, fontSize: 10, fontWeight: '800', paddingTop: 2 },
-  todayCard: { paddingVertical: 8 },
-  timelineItem: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 10 },
-  timelineIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center' },
-  timelineTitle: { color: colors.text, fontSize: 14, fontWeight: '800' },
-  timelineDetail: { color: colors.muted, fontSize: 11, marginTop: 2 },
-  time: { color: colors.dimmed, fontSize: 10, fontWeight: '800' },
-  emptySchedule: { color: colors.muted, fontSize: 12, lineHeight: 18, paddingVertical: 10 },
+  messageCard: { minHeight: 92, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, borderRadius: radius.lg, backgroundColor: 'rgba(21,19,28,.94)', borderWidth: 1, borderColor: 'rgba(248,241,234,.11)', shadowColor: '#000', shadowOpacity: .22, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } },
+  messageCardPressed: { transform: [{ scale: .992 }], opacity: .9 },
+  messageAvatarWrap: { position: 'relative' },
+  unreadDot: { position: 'absolute', right: -1, bottom: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: colors.rose, borderWidth: 2, borderColor: colors.surface },
+  messageBody: { flex: 1, minWidth: 0 },
+  messageTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  messageName: { color: colors.rose, fontSize: 14, fontWeight: '900' },
+  messageTime: { color: colors.dimmed, fontSize: 9, fontWeight: '700' },
+  messageCopy: { color: colors.text, fontSize: 13, lineHeight: 18, marginTop: 4 },
+  replyPill: { minHeight: 34, paddingHorizontal: 13, borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(232,93,140,.64)', alignItems: 'center', justifyContent: 'center' },
+  replyText: { color: colors.text, fontSize: 11, fontWeight: '800' },
+
+  worldHeader: { marginTop: 2 },
+  worldTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  worldTitle: { color: colors.text, fontFamily: typography.display, fontSize: 21, fontWeight: '600' },
+  worldGrid: { flexDirection: 'row', gap: 10 },
+  worldCard: { flex: 1, minWidth: 0, minHeight: 152, padding: 13, borderRadius: radius.lg, backgroundColor: 'rgba(21,19,28,.92)', borderWidth: 1, borderColor: colors.border, justifyContent: 'flex-start' },
+  worldCardPressed: { transform: [{ scale: .985 }], opacity: .88 },
+  worldCardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 11 },
+  worldCardIcon: { width: 38, height: 38, borderRadius: 13, backgroundColor: 'rgba(232,93,140,.09)', borderWidth: 1, borderColor: 'rgba(232,93,140,.15)', alignItems: 'center', justifyContent: 'center' },
+  worldEyebrow: { color: '#F0A9C1', fontSize: 8, fontWeight: '900', letterSpacing: 1.15 },
+  worldCardTitle: { color: colors.text, fontSize: 14, lineHeight: 18, fontWeight: '800', marginTop: 5 },
+  worldMeta: { color: colors.muted, fontSize: 10, marginTop: 7 },
+
+  timelineCard: { position: 'relative', overflow: 'hidden', borderRadius: radius.lg, backgroundColor: 'rgba(21,19,28,.92)', borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 5 },
+  timelineRail: { position: 'absolute', left: 28, top: 24, bottom: 24, width: 1, backgroundColor: 'rgba(232,93,140,.25)' },
+  timelineRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 8 },
+  timelineRowPressed: { opacity: .72 },
+  timelineMarker: { zIndex: 2, width: 32, height: 32, borderRadius: 16, backgroundColor: colors.elevated, borderWidth: 1, borderColor: 'rgba(248,241,234,.10)', alignItems: 'center', justifyContent: 'center' },
+  timelineMarkerCurrent: { borderColor: 'rgba(155,99,215,.46)', backgroundColor: 'rgba(155,99,215,.16)' },
+  timelineBody: { flex: 1, minWidth: 0 },
+  timelineTitle: { color: colors.text, fontSize: 13, fontWeight: '800' },
+  timelineTitleCurrent: { color: '#F1E6FF' },
+  timelineDetail: { color: colors.muted, fontSize: 10.5, lineHeight: 15, marginTop: 3 },
+  timelineTime: { color: colors.dimmed, fontSize: 9.5, fontWeight: '800' },
+  timelineTimeCurrent: { color: '#C7A5EF' },
   rule: { height: 1, marginLeft: 43, backgroundColor: colors.border },
-  storyEmpty: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(241,103,154,.08)', borderRadius: radius.lg, borderWidth: 1, borderColor: 'rgba(241,103,154,.20)', padding: spacing.md },
-  storyTitle: { color: colors.text, fontSize: 14, fontWeight: '800' },
-  storyCopy: { color: colors.muted, fontSize: 12, marginTop: 3 },
 });
