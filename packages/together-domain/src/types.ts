@@ -15,7 +15,7 @@ export const relationshipEvidenceTypes=['meaningful_conversation','romantic_sign
 export type RelationshipEvidenceType=typeof relationshipEvidenceTypes[number];
 export interface RelationshipEvidenceSummary{meaningfulConversations:number;romanticSignals:number;distinctActiveDays:number;progressionInteractions:number;sharedExperiences:number;positiveDates:number;completedTrips:number;majorSharedMoments:number;commitmentsKept:number;commitmentsMissed:number;repairsCompleted:number;futurePlanning:number;unresolvedMisses:number;sharedExperiencesAfterStage:number;futurePlanningAfterStage:number;repairsAfterMajorConflict:number;definingDateCompleted:boolean;definingDatePositive:boolean}
 export interface RelationshipPacingConfig{pace?:'slow'|'balanced'|'fast';romanceInitiative?:number;exclusivityPreference?:number;longTermOrientation?:number;needsTrustBeforeRomance?:number;needsComfortBeforeCommitment?:number;conflictSensitivity?:number}
-export interface RelationshipPresentationContext{availability?:'available'|'limited'|'busy'|string;energy?:'low'|'medium'|'high'|string;mood?:string;activity?:string;activeCommitment?:boolean;waitingOnMissResolution?:boolean;now?:Date}
+export interface RelationshipPresentationContext{availability?:string;energy?:string;mood?:string;activity?:string;activeCommitment?:boolean;waitingOnMissResolution?:boolean;now?:Date}
 export interface RelationshipProgressionEvaluation{stage:RelationshipStage;health:RelationshipHealth;nextMilestone:{kind:RelationshipMilestoneKind;eligible:boolean;presentationReady:boolean;blockers:string[];proposal:RelationshipMilestoneProposal}|null}
 
 export const memoryTypes=['semantic','preference','episodic','relationship','emotional','open_thread'] as const;
