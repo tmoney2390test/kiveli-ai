@@ -2,7 +2,7 @@ import{Pressable,StyleSheet,Text,View}from'react-native';
 import{router,useLocalSearchParams}from'expo-router';
 import{Image}from'expo-image';
 import{ArrowLeft,CalendarDays,MapPin,Sparkles}from'lucide-react-native';
-import{worldHeroAsset}from'../../src/assets';
+import{locationHeroAsset}from'../../src/assets';
 import{Body,EmptyState,GlassCard,GradientButton,LoadingSkeleton,MediaGallery,Screen,SectionHeader}from'../../src/components';
 import{colors,radius}from'../../src/theme';
 import{useTogether}from'../../src/store/useTogether';
@@ -12,13 +12,13 @@ export default function LocationDetail(){
   const{slug,world:worldSlug}=useLocalSearchParams<{slug:string;world?:string}>(),snapshot=useTogether((state)=>state.snapshot);
   if(!snapshot)return <LoadingSkeleton/>;
   const selectedWorld=snapshot.worlds.find((item)=>item.slug===worldSlug),location=snapshot.locations.find((item)=>item.slug===slug&&(!selectedWorld||item.world_id===selectedWorld.id));
-  if(!location)return <EmptyState title="Place unavailable" body="This place is not available in the selected world." action="Back to World" onAction={()=>router.replace('/(tabs)/worlds')}/>;
+  if(!location)return <EmptyState title="Place unavailable" body="This place is not available in the selected world." action="Back to Explore" onAction={()=>router.replace('/(tabs)/explore')}/>;
   const locationWorld=worldById(snapshot,location.world_id),ancestry=locationAncestry(snapshot,location.id),breadcrumb=[locationWorld?.name,...ancestry.map((item)=>item.name),location.name].filter(Boolean).join('  ›  ');
   const people=snapshot.characters.filter((item)=>item.current_location_id===location.id),active=snapshot.characters.find((item)=>item.id===snapshot.activeContinuity?.active_companion_instance_id),dates=snapshot.dates.filter((item)=>item.together_date_templates.location_id===location.id),events=snapshot.lifeEvents.filter((item)=>item.location_id===location.id).slice(0,3),moments=snapshot.moments.filter((item)=>item.location_id===location.id).slice(0,3),photos=(snapshot.generatedMedia??[]).filter((item)=>item.location_id===location.id),hero=photos.find((item)=>item.status==='ready'&&item.signed_url),upcoming=(snapshot.sharedPlans??[]).filter((plan)=>plan.location_id===location.id&&plan.status==='scheduled'&&new Date(plan.starts_at)>new Date()).sort((a,b)=>new Date(a.starts_at).getTime()-new Date(b.starts_at).getTime())[0];
   const handle=active?.together_character_templates.public_handle??active?.together_character_templates.slug;
   return <Screen>
-    <View style={styles.header}><Pressable accessibilityLabel="Back to World" onPress={()=>router.canGoBack()?router.back():router.replace(`/(tabs)/worlds?world=${locationWorld?.slug??''}`)} style={styles.back}><ArrowLeft size={19} color={colors.text}/></Pressable><Text style={styles.kicker}>{breadcrumb.toUpperCase()}</Text></View>
-    <Image source={hero?.signed_url?{uri:hero.signed_url}:worldHeroAsset(locationWorld?.slug)} style={styles.hero} contentFit="cover"/><Text style={styles.title}>{location.name}</Text><Body muted>{location.description}</Body>
+    <View style={styles.header}><Pressable accessibilityLabel="Back to Explore" onPress={()=>router.canGoBack()?router.back():router.replace(`/(tabs)/explore?world=${locationWorld?.slug??''}`)} style={styles.back}><ArrowLeft size={19} color={colors.text}/></Pressable><Text style={styles.kicker}>{breadcrumb.toUpperCase()}</Text></View>
+    <Image source={hero?.signed_url?{uri:hero.signed_url}:locationHeroAsset(locationWorld?.slug,location.slug)} style={styles.hero} contentFit="cover"/><Text style={styles.title}>{location.name}</Text><Body muted>{location.description}</Body>
     {upcoming?<Pressable onPress={()=>router.push(`/plan/${upcoming.id}` as never)} style={styles.upcoming}><CalendarDays size={18} color={colors.rose}/><View style={{flex:1}}><Text style={styles.upcomingKicker}>COMING UP</Text><Text style={styles.rowTitle}>{upcoming.title}</Text><Text style={styles.rowCopy}>{new Date(upcoming.starts_at).toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</Text></View></Pressable>:null}
     <View style={styles.actions}><GradientButton label={`${upcoming?'Plan something else here':'Plan something here'}${active?` with ${active.together_character_templates.name}`:''}`} onPress={()=>router.push(`/(tabs)/chat-tab?${handle?`character=${handle}&`:''}plan=1&location=${location.slug}&world=${locationWorld?.slug??''}` as never)}/><Pressable style={styles.ask} onPress={()=>router.push(`/(tabs)/chat-tab?${handle?`character=${handle}&`:''}draft=${encodeURIComponent(`What do you think about ${location.name} in ${locationWorld?.name??'this world'}?`)}` as never)}><Text style={styles.askText}>Ask about this place</Text></Pressable></View>
     {photos.length?<><SectionHeader title={`From ${location.name}`}/><MediaGallery media={photos}/></>:null}
