@@ -65,14 +65,22 @@ export function antiRepetitionGuidance(recentAssistantMessages:string[]):string[
 }
 
 export function compileResponseBrief(input:{message:string;interactionQuality:PromptInteractionQuality;relationshipStance:RelationshipStance;responseIntent?:string;openThread?:string;nextCommitment?:string;activeStory?:string;recentAssistantMessages?:string[]}):ResponseBrief{
-  const lower=input.message.toLowerCase();const intent=String(input.responseIntent??'casual');
-  const mode:ResponseBrief['mode']=/\b(sorry|apolog)/.test(lower)?'repair':/\b(hurt|angry|upset|fight|leave me alone)\b/.test(lower)?'conflicted':/\b(scared|sad|anxious|overwhelmed|terrible|rough day)\b/.test(lower)?'supportive':/\b(plan|when|where|schedule|cancel|reschedule)\b/.test(lower)?'practical':/\b(tell me|what happened|story|show me)\b/.test(lower)||input.activeStory?'storytelling':/\b(feel|honestly|afraid|personal|admit)\b/.test(lower)?'vulnerable':/\b(lol|haha|tease|joke)\b/.test(lower)||intent==='playful'?'playful':['flirty','romantic','affectionate'].includes(intent)?'affectionate':'casual';
+  const lower=input.message.toLowerCase();const intent=String(input.responseIntent??'casual');const recent=input.recentAssistantMessages??[];
+  const planRelevant=planCallbackRelevant(input.message,input.nextCommitment);
+  const threadRelevant=callbackMentionsCandidate(input.message,input.openThread);
+  const storyRelevant=storyCallbackRelevant(input.message,input.activeStory);
+  const mode:ResponseBrief['mode']=/\b(sorry|apolog)/.test(lower)?'repair':/\b(hurt|angry|upset|fight|leave me alone)\b/.test(lower)?'conflicted':/\b(scared|sad|anxious|overwhelmed|terrible|rough day)\b/.test(lower)?'supportive':(planRelevant||/\b(plan|schedule|cancel|reschedule)\b/.test(lower))?'practical':storyRelevant?'storytelling':/\b(feel|honestly|afraid|personal|admit)\b/.test(lower)?'vulnerable':/\b(lol|haha|tease|joke)\b/.test(lower)||intent==='playful'?'playful':['flirty','romantic','affectionate'].includes(intent)?'affectionate':'casual';
   const meaningful=input.interactionQuality==='meaningful'||input.interactionQuality==='shared_experience'||input.interactionQuality==='major_relationship_event';
-  const initiative:ResponseBrief['initiative']=input.interactionQuality==='trivial'?'low':input.interactionQuality==='major_relationship_event'||input.activeStory?'high':'medium';
-  const callbackCandidate=input.openThread??input.nextCommitment??input.activeStory;
-  const askQuestion=!/\?$/.test(input.message.trim())&&input.interactionQuality!=='trivial'&&(mode==='supportive'||mode==='vulnerable'||mode==='practical')&&antiRepetitionGuidance(input.recentAssistantMessages??[]).every((line)=>!line.includes('Do not end'));
-  const actionCandidate:NonNullable<ResponseBrief['actionCandidate']>=mode==='practical'&&/\b(plan|schedule|cancel|reschedule)\b/.test(lower)?'plan':input.openThread&&/\b(went|finished|done|over)\b/.test(lower)?'memory_followup':input.interactionQuality==='major_relationship_event'?'relationship':input.activeStory?'story':'none';
-  return{mode,emotionalPosture:emotionalPosture(mode,input.relationshipStance),initiative,...(callbackCandidate?{callbackCandidate}:{}),selfDisclosure:meaningful?(input.relationshipStance.stage==='stranger'?'small':'moderate'):'none',shouldAskQuestion:askQuestion,actionCandidate,avoid:antiRepetitionGuidance(input.recentAssistantMessages??[]),autonomy:'Contribute an independent reaction before accommodating the user. Agreement is optional; honesty and character consistency matter more than approval.'};
+  const initiative:ResponseBrief['initiative']=input.interactionQuality==='trivial'?'low':input.interactionQuality==='major_relationship_event'||storyRelevant?'high':'medium';
+  const callbackCandidate=threadRelevant?input.openThread:planRelevant?input.nextCommitment:storyRelevant?input.activeStory:undefined;
+  const askQuestion=!/\?$/.test(input.message.trim())&&input.interactionQuality!=='trivial'&&(mode==='supportive'||mode==='vulnerable'||mode==='practical')&&antiRepetitionGuidance(recent).every((line)=>!line.includes('Do not end'));
+  const actionCandidate:NonNullable<ResponseBrief['actionCandidate']>=mode==='practical'&&/\b(plan|schedule|cancel|reschedule)\b/.test(lower)?'plan':threadRelevant&&/\b(went|finished|done|over|happened|result|results)\b/.test(lower)?'memory_followup':input.interactionQuality==='major_relationship_event'?'relationship':storyRelevant?'story':'none';
+  const conceptualAvoid:string[]=[];
+  if(input.nextCommitment&&recentlyMentioned(input.nextCommitment,recent)&&!planRelevant)conceptualAvoid.push(`Do not bring up “${short(input.nextCommitment)}” again unless the user reopens that plan.`);
+  if(input.openThread&&recentlyMentioned(input.openThread,recent)&&!threadRelevant)conceptualAvoid.push(`Do not repeat the recent “${short(input.openThread)}” follow-up unless the user brings it back up.`);
+  if(input.activeStory&&recentlyMentioned(input.activeStory,recent)&&!storyRelevant)conceptualAvoid.push(`Keep “${short(input.activeStory)}” in the background unless the user returns to that story.`);
+  const avoid=[...conceptualAvoid,...antiRepetitionGuidance(recent)].slice(0,4);
+  return{mode,emotionalPosture:emotionalPosture(mode,input.relationshipStance),initiative,...(callbackCandidate?{callbackCandidate}:{}),selfDisclosure:meaningful?(input.relationshipStance.stage==='stranger'?'small':'moderate'):'none',shouldAskQuestion:askQuestion,actionCandidate,avoid,autonomy:'Contribute an independent reaction before accommodating the user. Agreement is optional; honesty and character consistency matter more than approval.'};
 }
 
 export function shouldUseDirector(policy:DirectorPolicy,quality:PromptInteractionQuality,input?:{pendingMilestone?:boolean;activeConflict?:boolean;activeStory?:boolean}):boolean{
@@ -82,6 +90,27 @@ export function shouldUseDirector(policy:DirectorPolicy,quality:PromptInteractio
   return quality==='major_relationship_event';
 }
 
+function planCallbackRelevant(message:string,candidate?:string):boolean{
+  if(!candidate)return false;
+  if(callbackMentionsCandidate(message,candidate))return true;
+  const lower=message.toLowerCase();
+  const direct=/\b(still on|still good|are we still|what time (?:are|were) we|when (?:are|were) we|where (?:are|were) we|cancel(?: our| the)?|reschedule(?: our| the)?|move it|move the plan|change our plan|change the time)\b/.test(lower);
+  const sharedPlan=/\b(our|we|us)\b[^.!?]{0,40}\b(plans?|schedule|meet|meeting|doing|going)\b|\b(plans?|schedule|meet|meeting)\b[^.!?]{0,40}\b(our|we|us)\b/.test(lower);
+  const sharedTime=/\b(tonight|tomorrow|this weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/.test(lower)&&/\b(we|us|our|meet|meeting|seeing each other)\b/.test(lower);
+  return direct||sharedPlan||sharedTime;
+}
+function storyCallbackRelevant(message:string,candidate?:string):boolean{return Boolean(candidate)&&(callbackMentionsCandidate(message,candidate)||/\b(story|chapter|what happened next|what happens next|continue (?:the |our )?story|pick up where we left off)\b/i.test(message));}
+function callbackMentionsCandidate(message:string,candidate?:string):boolean{
+  if(!candidate)return false;
+  const haystack=normalizePhrase(message),needle=normalizePhrase(candidate);if(!haystack||!needle)return false;
+  if(haystack.includes(needle))return true;
+  const tokens=callbackTokens(candidate);if(!tokens.length)return false;
+  const matches=tokens.filter((token)=>new RegExp(`\\b${escapeRegExp(token)}\\b`,'i').test(haystack)).length;
+  return tokens.length===1?matches===1:matches>=2;
+}
+function recentlyMentioned(candidate:string,recentAssistantMessages:string[]):boolean{return recentAssistantMessages.slice(-4).some((message)=>callbackMentionsCandidate(message,candidate));}
+function callbackTokens(value:string):string[]{const stop=new Set(['the','and','with','from','this','that','your','our','plan','plans','date','drinks','drink','coffee','dinner','movie','movies','walk','meeting','meet']);return[...new Set(normalizePhrase(value).split(' ').filter((token)=>token.length>2&&!stop.has(token)))];}
+function escapeRegExp(value:string):string{return value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
 function stageSummary(stage:string,closeness:number,tense:boolean,romanceEnabled:boolean){if(tense)return'The relationship matters, but unresolved tension is shaping the current interaction.';if(stage==='stranger')return'They have just met. Interest should come from curiosity rather than assumed closeness.';if(stage==='acquaintance')return'They recognize each other’s rhythms, but trust and intimacy are still being established.';if(stage==='friend')return romanceEnabled?'There is real trust and familiarity. Friendship is established; any romance still needs a genuine spark.':'There is real trust and familiarity, and the bond is clearly platonic.';if(stage==='flirting')return'There is mutual chemistry and playful tension, but the relationship is not yet an established partnership.';if(stage==='dating')return'They are intentionally dating and can draw naturally on shared romantic experiences.';if(stage==='exclusive')return'They have chosen exclusivity and expect more consistency from each other while remaining independent people.';if(stage==='long_term')return'They have substantial shared history and can speak from established trust, routines, and commitment.';return closeness>60?'They are comfortable and familiar with each other.':'Keep closeness proportional to what has actually happened.';}
 function emotionalPosture(mode:ResponseBrief['mode'],stance:RelationshipStance){if(mode==='repair'||mode==='conflicted')return stance.conflictPosture;if(mode==='supportive')return'Grounded and specific. Offer support without turning into a therapist or reflexively validating every interpretation.';if(mode==='vulnerable')return stance.vulnerabilityPosture;if(mode==='affectionate')return stance.affectionBoundary;return'Natural and present. Let mood, personality, and current circumstances shape the response.';}
 function occupationGoal(occupation?:string){return occupation?`Continue the ordinary responsibilities of being ${article(occupation)} ${occupation}.`:'Continue the character’s established day without inventing a new major objective.';}
