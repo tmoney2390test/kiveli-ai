@@ -5,14 +5,14 @@ export type CommitmentParticipationMode='live'|'flexible'|'ambient';
 export type CommitmentMissReason='user_absent'|'character_absent'|'system_failure'|'connection_failure'|'cancelled';
 
 export type CommitmentTimingInput={
-  status:CommitmentStatus|string;
+  status:string;
   startsAt?:string|null;
   endsAt?:string|null;
   windowStartsAt?:string|null;
   windowEndsAt?:string|null;
   graceEndsAt?:string|null;
   timezone?:string|null;
-  participationMode?:CommitmentParticipationMode|string|null;
+  participationMode?:string|null;
   userJoinedAt?:string|null;
   characterJoinedAt?:string|null;
 };
