@@ -12,6 +12,7 @@ export type CompanionLifeSnapshot = {
   proactiveMessages: Snapshot['proactiveMessages'];
   dates: Snapshot['dates'];
   moments: Snapshot['moments'];
+  memories: Snapshot['memories'];
   openThreads: Snapshot['openThreads'];
   activeStories: NonNullable<Snapshot['storyArcs']>;
   recentMedia: NonNullable<Snapshot['generatedMedia']>;
@@ -43,6 +44,7 @@ export function buildCompanionLife(snapshot: Snapshot, now = new Date(), compani
     proactiveMessages: scoped.proactiveMessages.sort((left,right)=>new Date(right.eligible_at??0).getTime()-new Date(left.eligible_at??0).getTime()),
     dates: scoped.dates.sort((left,right)=>dateRank(left.status)-dateRank(right.status)||new Date(right.completed_at??0).getTime()-new Date(left.completed_at??0).getTime()),
     moments: scoped.moments.sort((left,right)=>new Date(right.occurred_at).getTime()-new Date(left.occurred_at).getTime()),
+    memories: scoped.memories.sort((left,right)=>Number(right.pinned)-Number(left.pinned)||right.importance-left.importance||new Date(right.updated_at).getTime()-new Date(left.updated_at).getTime()),
     openThreads: scoped.threads.sort((left,right)=>Number(right.follow_up_eligible)-Number(left.follow_up_eligible)||new Date(left.expected_at??'9999-12-31').getTime()-new Date(right.expected_at??'9999-12-31').getTime()),
     activeStories:scoped.stories.filter((story)=>story.status==='active'),
     recentMedia:scoped.media.filter((media)=>media.status==='ready').sort((left,right)=>new Date(right.created_at).getTime()-new Date(left.created_at).getTime()),
