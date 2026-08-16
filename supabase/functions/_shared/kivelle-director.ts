@@ -9,6 +9,7 @@ type DirectorContext={
   activeStory?:Record<string,unknown>|null;
   openThreads?:Array<Record<string,unknown>>;
   upcomingCommitments?:Array<Record<string,unknown>>;
+  commitments?:Array<Record<string,unknown>>;
   sharedHistory?:Array<Record<string,unknown>>;
   recent?:Array<{role:string;content:string}>;
   userMessage:string;
@@ -59,6 +60,9 @@ ${JSON.stringify(context.currentScene??{})}
 
 ACTIVE STORY
 ${JSON.stringify(context.activeStory??null)}
+
+CANONICAL COMMITMENTS
+${JSON.stringify((context.commitments??[]).slice(0,4))}
 
 UPCOMING
 ${JSON.stringify((context.upcomingCommitments??[]).slice(0,3))}
