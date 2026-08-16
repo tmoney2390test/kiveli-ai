@@ -13,4 +13,4 @@ export function worldHeroAsset(slug?:string|null):ImageSource{if(!slug||slug==='
 
 // Location art deliberately resolves through one seam so authored location imagery can
 // replace the world fallback without changing Explore, World, Date, or Plan screens.
-export function locationHeroAsset(worldSlug?:string|null,_locationSlug?:string|null):ImageSource{return worldHeroAsset(worldSlug);}
+export function locationHeroAsset(worldSlug?:string|null,locationSlug?:string|null):ImageSource{void locationSlug;return worldHeroAsset(worldSlug);}
