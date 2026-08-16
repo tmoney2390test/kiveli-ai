@@ -88,10 +88,10 @@ export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeVi
   const relationshipCue = snapshot.relationshipCues?.[companion.id];
   const pendingMilestone = snapshot.relationshipMilestones?.find((item) => item.character_instance_id === companion.id && item.status === 'pending');
   const activeDate = dates.find((item) => item.status === 'active');
-  const activePlan = (snapshot.sharedPlans ?? [])
+  const activePlan = snapshot.sharedPlans
     .filter((plan) => plan.character_instance_id === companion.id && plan.status === 'active')
     .sort((left, right) => new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime())[0];
-  const nextPlan = (snapshot.sharedPlans ?? [])
+  const nextPlan = snapshot.sharedPlans
     .filter((plan) => plan.character_instance_id === companion.id && plan.status === 'scheduled' && new Date(plan.starts_at).getTime() > now.getTime())
     .sort((left, right) => new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime())[0];
   const nextDate = dates
@@ -128,15 +128,21 @@ export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeVi
             ? relationshipCue.detail
             : null;
 
-  const heroPrompt = heroNotice
-    ? heroNotice
-    : relationshipCue?.tone === 'warm' || relationshipCue?.tone === 'spark'
-      ? relationshipCue.detail
-      : restful
-        ? 'A quieter moment in the day.'
-        : currentSchedule?.availability === 'busy'
-          ? 'In the middle of something right now.'
-          : `${name}'s day is still unfolding.`;
+  const heroPrompt = activeDate
+    ? 'Your time together is already in progress.'
+    : activePlan
+      ? 'You have something happening together right now.'
+      : pendingMilestone
+        ? pendingMilestone.body
+        : unreadMessage
+          ? 'There is something new waiting for you.'
+          : relationshipCue?.tone === 'warm' || relationshipCue?.tone === 'spark' || relationshipCue?.tone === 'tense'
+            ? relationshipCue.detail
+            : restful
+              ? 'A quieter moment in the day.'
+              : currentSchedule?.availability === 'busy'
+                ? 'In the middle of something right now.'
+                : `${name}'s day is still unfolding.`;
 
   const upcoming = buildUpcomingCard({ activeDate, activePlan, nextPlan, nextDate, readyDate, timezone });
   const memory = selectHomeMemory(life.memories, now);
@@ -179,7 +185,7 @@ export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeVi
 }
 
 function buildUpcomingCard({ activeDate, activePlan, nextPlan, nextDate, readyDate, timezone }: {
-  activeDate: ReturnType<typeof buildCompanionLife> extends infer _T ? Snapshot['dates'][number] | undefined : never;
+  activeDate: Snapshot['dates'][number] | undefined;
   activePlan: Snapshot['sharedPlans'][number] | undefined;
   nextPlan: Snapshot['sharedPlans'][number] | undefined;
   nextDate: Snapshot['dates'][number] | undefined;
@@ -296,7 +302,7 @@ function buildTimeline({ snapshot, companion, recentEvents, currentLocation, cur
       sortMinute: item.start_minute,
     });
   }
-  for (const plan of snapshot.sharedPlans ?? []) {
+  for (const plan of snapshot.sharedPlans) {
     if (plan.character_instance_id !== companion.id || plan.status !== 'scheduled' || new Date(plan.starts_at).getTime() <= now.getTime()) continue;
     if (localDateKey(plan.starts_at, clock.timezone) !== clock.dateKey) continue;
     future.push({
@@ -325,7 +331,16 @@ function buildTimeline({ snapshot, companion, recentEvents, currentLocation, cur
 
   future.sort((left, right) => left.sortMinute - right.sortMinute);
   const remaining = Math.max(0, 3 - pastEvents.length);
-  return [...pastEvents, nowRow, ...future.slice(0, remaining).map(({ sortMinute: _sortMinute, ...item }) => item)].slice(0, 4);
+  const nextItems = future.slice(0, remaining).map<HomeTimelineItem>((candidate) => ({
+    id: candidate.id,
+    kind: candidate.kind,
+    title: candidate.title,
+    detail: candidate.detail,
+    time: candidate.time,
+    locationId: candidate.locationId,
+    current: candidate.current,
+  }));
+  return [...pastEvents, nowRow, ...nextItems].slice(0, 4);
 }
 
 export function labelStage(stage: string) {
