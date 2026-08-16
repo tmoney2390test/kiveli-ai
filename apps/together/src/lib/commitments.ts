@@ -1,0 +1,31 @@
+import{invoke}from'./api';
+
+export type CommitmentTimePrecision='exact'|'approximate'|'daypart'|'window'|'day';
+export type CommitmentTemporalState='future'|'today'|'imminent'|'en_route'|'active'|'grace'|'expired';
+export type CommitmentAttendance={id:string;participant_type:'user'|'character';joined_at:string;left_at?:string|null};
+export type MissResolution={id:string;status:'awaiting_explanation'|'explained'|'repaired'|'unresolved'|'resolved';miss_reason:'user_absent'|'character_absent'|'system_failure'|'connection_failure'|'cancelled';explanation?:string|null;impact_applied?:Record<string,number>;repair_impact?:Record<string,number>;metadata?:Record<string,unknown>};
+export type Commitment={id:string;character_instance_id:string;title:string;activity_key:string;world_id?:string|null;location_id?:string|null;starts_at?:string|null;ends_at?:string|null;window_starts_at?:string|null;window_ends_at?:string|null;time_precision?:CommitmentTimePrecision;world_timezone?:string|null;user_timezone?:string|null;original_time_expression?:string|null;participation_mode?:'live'|'flexible'|'ambient';grace_minutes?:number;grace_ends_at?:string|null;status:'proposed'|'scheduled'|'active'|'completed'|'missed'|'cancelled';missed_at?:string|null;miss_reason?:string|null;companion_state?:'expected'|'late'|'absent'|'cancelled';companion_eta_at?:string|null;companion_reason?:string|null;source?:string;note?:string|null;metadata?:Record<string,unknown>;temporalState?:CommitmentTemporalState;attendance?:{user:CommitmentAttendance|null;character:CommitmentAttendance|null};missResolution?:MissResolution|null;together_locations?:{id?:string;name?:string;slug?:string}|null;together_worlds?:{name?:string;slug?:string;timezone?:string}|null};
+
+export const getCommitment=(planId:string)=>invoke<Commitment>('together-plan',{action:'get',planId});
+export const joinCommitment=(planId:string,characterInstanceId:string)=>invoke<Commitment>('together-plan',{action:'join',planId,characterInstanceId});
+export const leaveCommitment=(planId:string)=>invoke<Commitment>('together-plan',{action:'leave',planId});
+export const explainMissedCommitment=(planId:string,characterInstanceId:string,explanation:string,conversationId?:string)=>invoke<Commitment>('together-plan',{action:'explain_miss',planId,characterInstanceId,explanation,conversationId});
+export const rescheduleCommitment=(planId:string,input:{startsAt?:string;windowStartsAt?:string;windowEndsAt?:string;timePrecision?:CommitmentTimePrecision;originalTimeExpression?:string;conversationId?:string})=>invoke<Commitment>('together-plan',{action:'reschedule',planId,...input});
+export const createCommitment=<T=unknown>(input:{characterInstanceId:string;activityKey:string;locationId:string;startsAt?:string;windowStartsAt?:string;windowEndsAt?:string;timePrecision?:CommitmentTimePrecision;originalTimeExpression?:string;participationMode?:'live'|'flexible'|'ambient';requestId:string;note?:string;title?:string;source?:'chat'|'manual_planner'|'location'|'discover'|'date'|'story';sourceConversationId?:string})=>invoke<T>('together-plan',{action:'create',source:'manual_planner',...input});
+
+export function commitmentTemporalState(plan:Commitment,now=new Date()):CommitmentTemporalState{
+ if(['completed','missed','cancelled'].includes(plan.status))return'expired';
+ const start=parse(plan.starts_at??plan.window_starts_at),end=parse(plan.ends_at??plan.window_ends_at),grace=parse(plan.grace_ends_at);if(!start)return'future';
+ const nowMs=now.getTime(),startMs=start.getTime(),endMs=end?.getTime()??startMs+90*60000;
+ if(nowMs>=endMs)return'expired';
+ if(nowMs>=startMs){if((plan.participation_mode??'live')==='live'&&!plan.attendance?.user&&nowMs<(grace?.getTime()??startMs+30*60000))return'grace';return'active';}
+ const until=startMs-nowMs;if(until<=20*60000)return'en_route';if(until<=90*60000)return'imminent';if(sameDay(start,now,plan.world_timezone??'UTC'))return'today';return'future';
+}
+export function commitmentTimeLabel(plan:Commitment,viewerTimezone?:string){
+ if(!plan.starts_at){if(plan.original_time_expression)return plan.original_time_expression;if(plan.window_starts_at&&plan.window_ends_at)return`${formatAt(plan.window_starts_at,plan.world_timezone)} – ${formatAt(plan.window_ends_at,plan.world_timezone)}`;return'Time not settled';}
+ const world=formatAt(plan.starts_at,plan.world_timezone),viewer=viewerTimezone&&viewerTimezone!==plan.world_timezone?formatAt(plan.starts_at,viewerTimezone):null;return viewer?`${world} · ${viewer} your time`:world;
+}
+export function commitmentStatusLabel(plan:Commitment){const state=plan.temporalState??commitmentTemporalState(plan);if(plan.status==='missed')return'MISSED';if(plan.status==='completed')return'COMPLETED';if(plan.status==='cancelled')return'CANCELLED';if(plan.status==='proposed')return'TIME TO SET';return state==='grace'?'WAITING FOR YOU':state==='en_route'?'STARTING SOON':state==='imminent'?'COMING UP':state==='today'?'TODAY':state==='active'?'HAPPENING NOW':'UPCOMING';}
+function parse(value?:string|null){if(!value)return null;const date=new Date(value);return Number.isFinite(date.getTime())?date:null;}
+function formatAt(value?:string|null,timezone?:string|null){if(!value)return'';try{return new Intl.DateTimeFormat(undefined,{timeZone:timezone||'UTC',weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(value));}catch{return new Date(value).toLocaleString();}}
+function sameDay(a:Date,b:Date,zone:string){try{const formatter=new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'});return formatter.format(a)===formatter.format(b);}catch{return a.toISOString().slice(0,10)===b.toISOString().slice(0,10);}}
