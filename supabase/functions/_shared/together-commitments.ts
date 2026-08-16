@@ -31,8 +31,10 @@ export async function joinCommitment(db:SupabaseClient,input:{userId:string;cont
   const starts=new Date(plan.starts_at),grace=new Date(plan.grace_ends_at??starts.getTime()+Number(plan.grace_minutes??30)*60000);
   if(now.getTime()<starts.getTime()-30*60000)throw new AppError('TOO_EARLY','This commitment is not ready to join yet.',409,true);
   if((plan.participation_mode??'live')==='live'&&now>grace)throw new AppError('PLAN_MISSED','The grace period for this commitment has ended.',409);
-  const{error}=await db.from('together_plan_attendance').upsert({user_id:input.userId,continuity_id:input.continuityId,plan_id:plan.id,participant_type:'user',character_instance_id:null,joined_at:now.toISOString(),left_at:null,source:input.source??'app',metadata:{joinedFrom:'client'}},{onConflict:'plan_id',ignoreDuplicates:false});
-  if(error)throw new AppError('INTERNAL_ERROR','Could not record your arrival.',500,true);
+  const{data:existing}=await db.from('together_plan_attendance').select('id').eq('plan_id',plan.id).eq('user_id',input.userId).eq('participant_type','user').maybeSingle();
+  const attendancePayload={user_id:input.userId,continuity_id:input.continuityId,plan_id:plan.id,participant_type:'user',character_instance_id:null,joined_at:now.toISOString(),left_at:null,source:input.source??'app',metadata:{joinedFrom:'client'}};
+  const attendanceWrite=existing?await db.from('together_plan_attendance').update({joined_at:now.toISOString(),left_at:null,source:input.source??'app',metadata:{joinedFrom:'client'},updated_at:now.toISOString()}).eq('id',existing.id).eq('user_id',input.userId):await db.from('together_plan_attendance').insert(attendancePayload);
+  if(attendanceWrite.error)throw new AppError('INTERNAL_ERROR','Could not record your arrival.',500,true);
   if(plan.status==='scheduled'&&now>=starts)await db.from('together_shared_plans').update({status:'active',updated_at:now.toISOString()}).eq('id',plan.id).eq('user_id',input.userId);
   await db.rpc('kivelle_progress_shared_plans',{p_user_id:input.userId,p_character_instance_id:input.characterInstanceId,p_now:now.toISOString()});
   if(plan.source_conversation_id)await writeConversationEvent(db,{userId:input.userId,characterInstanceId:input.characterInstanceId,conversationId:String(plan.source_conversation_id),eventType:'plan_joined',entityType:'shared_plan',entityId:String(plan.id),metadata:{title:plan.title,joinedAt:now.toISOString()}}).catch(()=>undefined);
