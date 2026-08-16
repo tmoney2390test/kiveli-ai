@@ -1,0 +1,1 @@
+Vesper City cinematic authored imagery used by Explore. Binary WebP assets are committed alongside this marker.
