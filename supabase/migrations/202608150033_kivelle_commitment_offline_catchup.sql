@@ -26,4 +26,16 @@ end $$;
 revoke all on function public.kivelle_catch_up_due_commitments(uuid,uuid,timestamptz) from public,anon,authenticated;
 grant execute on function public.kivelle_catch_up_due_commitments(uuid,uuid,timestamptz) to service_role;
 
+-- Preserve the public RPC name while forcing catch-up before its existing
+-- attendance-aware settlement logic. This keeps every caller consistent.
+alter function public.kivelle_progress_shared_plans(uuid,uuid,timestamptz) rename to kivelle_progress_shared_plans_core;
+create function public.kivelle_progress_shared_plans(p_user_id uuid,p_character_instance_id uuid,p_now timestamptz default now()) returns setof public.together_shared_plans language plpgsql security definer set search_path=public as $$
+begin
+  perform public.kivelle_catch_up_due_commitments(p_user_id,p_character_instance_id,p_now);
+  return query select * from public.kivelle_progress_shared_plans_core(p_user_id,p_character_instance_id,p_now);
+end $$;
+revoke all on function public.kivelle_progress_shared_plans(uuid,uuid,timestamptz) from public,anon,authenticated;
+grant execute on function public.kivelle_progress_shared_plans(uuid,uuid,timestamptz) to service_role;
+
+comment on function public.kivelle_catch_up_due_commitments(uuid,uuid,timestamptz) is 'Reconstructs companion arrival/absence for due commitments even when the user was offline at start time.';
 commit;
