@@ -8,17 +8,16 @@ import { colors } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { mutateDate } from '../../src/lib/api';
 import { activeCompanion } from '../../src/lib/companionLife';
-import { commitmentTimeLabel, type Commitment } from '../../src/lib/commitments';
-import type { DateSession, Moment } from '../../src/types';
+import { commitmentTimeLabel } from '../../src/lib/commitments';
+import type { DateSession, Moment, SharedPlan } from '../../src/types';
 
 const router = expoRouter as unknown as { push: (href: string) => void; replace: (href: string) => void; back: () => void };
-type CommitmentDateSession=DateSession&{shared_plan_id?:string|null};
 type ChoiceResult={session:DateSession;narrative:string;completed:boolean;moment?:Moment|null};
 export default function DateExperience(){
-  const{id}=useLocalSearchParams<{id:string}>();const{snapshot,refresh}=useTogether();const[session,setSession]=useState<CommitmentDateSession|undefined>(snapshot?.dates.find((item)=>item.id===id));const[busy,setBusy]=useState(false);const[narrative,setNarrative]=useState('');const[freeText,setFreeText]=useState('');
+  const{id}=useLocalSearchParams<{id:string}>();const{snapshot,refresh}=useTogether();const[session,setSession]=useState<DateSession|undefined>(snapshot?.dates.find((item)=>item.id===id));const[busy,setBusy]=useState(false);const[narrative,setNarrative]=useState('');const[freeText,setFreeText]=useState('');
   if(!snapshot||!session)return <LoadingSkeleton/>;
   const template=session.together_date_templates;const companion=activeCompanion(snapshot,session.character_instance_id);if(!companion)return <Screen><Body muted>We couldn't find the companion for this experience.</Body><GradientButton label="Back to Dates" onPress={()=>router.replace('/(tabs)/dates')}/></Screen>;
-  const linkedPlan=(session.shared_plan_id?snapshot.sharedPlans.find((item)=>item.id===session.shared_plan_id):undefined) as Commitment|undefined;
+  const linkedPlan:SharedPlan|undefined=session.shared_plan_id?snapshot.sharedPlans.find((item)=>item.id===session.shared_plan_id):undefined;
   const missed=linkedPlan?.status==='missed'||session.state?.commitmentMissed===true;
   const missedPlanId=linkedPlan?.id??(typeof session.state?.missedPlanId==='string'?session.state.missedPlanId:undefined);
   const total=Math.max(1,template.phases.length);const phase=template.phases[session.phase_index]??template.phases.at(-1)??{id:'resolution',title:'A shared memory',choices:[]};const location=snapshot.locations.find((item)=>item.id===template.location_id)?.name;const recentEvent=snapshot.lifeEvents.filter((event)=>event.character_instance_id===companion.id&&event.user_should_know!==false).sort((a,b)=>new Date(b.starts_at).getTime()-new Date(a.starts_at).getTime())[0];const choices=phase.choices.map((choice)=>contextualChoice(choice,companion.together_character_templates.name,recentEvent?.title));
