@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { router as expoRouter } from 'expo-router';
 import { CalendarDays, ChevronRight, Clock3, Coins, Heart, Home as HomeIcon, MapPin, MessageCircle, Sparkles, UserRound } from 'lucide-react-native';
@@ -35,8 +35,7 @@ export default function Home() {
   const model = buildHomeViewModel(snapshot);
   if (!model) return <Screen contentStyle={styles.emptyLife}><EmptyState title={`Start ${snapshot.activePersona?.display_name ?? 'your'}'s Kivelle Life`} body="Meet an official companion or create someone original. This Life will keep its own relationships, memories, plans, and history." /><GradientButton label="Choose who to meet" onPress={() => router.push('/(tabs)/singles')} /></Screen>;
 
-  const { companion } = model;
-  const name = companion.together_character_templates.name;
+  const { companion, message } = model;
   const handle = companion.together_character_templates.public_handle ?? companion.together_character_templates.slug;
 
   const openCompanion = async (proactiveMessageId?: string) => {
@@ -77,7 +76,7 @@ export default function Home() {
       router.push(`/date/${item.id.replace(/^date:/, '')}`);
       return;
     }
-    if (item.locationId && model.currentWorld) {
+    if (item.locationId) {
       const location = snapshot.locations.find((place) => place.id === item.locationId);
       const world = location ? snapshot.worlds.find((entry) => entry.id === location.world_id) : undefined;
       if (location && world) {
@@ -110,11 +109,11 @@ export default function Home() {
       onLocation={openLocation}
     />
 
-    {model.message ? <CompanionMessageCard
+    {message ? <CompanionMessageCard
       companion={companion}
-      content={model.message.content}
-      time={model.message.time}
-      onPress={() => void openCompanion(model.message?.id)}
+      content={message.content}
+      time={message.time}
+      onPress={() => void openCompanion(message.id)}
     /> : null}
 
     <View style={styles.worldHeader}>
@@ -210,8 +209,8 @@ function CompanionMessageCard({ companion, content, time, onPress }: { companion
   </Pressable>;
 }
 
-function WorldCard({ eyebrow, title, meta, icon, onPress }: { eyebrow: string; title: string; meta: string; icon: React.ReactNode; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.worldCard, pressed && styles.worldCardPressed]}>
+function WorldCard({ eyebrow, title, meta, icon, onPress }: { eyebrow: string; title: string; meta: string; icon: ReactNode; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${eyebrow}: ${title}`} onPress={onPress} style={({ pressed }) => [styles.worldCard, pressed && styles.worldCardPressed]}>
     <View style={styles.worldCardTop}>
       <View style={styles.worldCardIcon}>{icon}</View>
       <ChevronRight size={17} color={colors.dimmed} />
@@ -232,7 +231,7 @@ function HomeTimelineRow({ item, onPress }: { item: HomeTimelineItem; onPress: (
         : item.kind === 'event'
           ? <Sparkles size={16} color={colors.rose} />
           : <Clock3 size={16} color={colors.warm} />;
-  return <Pressable onPress={onPress} style={({ pressed }) => [styles.timelineRow, pressed && styles.timelineRowPressed]}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${item.time}, ${item.title}${item.detail ? `, ${item.detail}` : ''}`} onPress={onPress} style={({ pressed }) => [styles.timelineRow, pressed && styles.timelineRowPressed]}>
     <View style={[styles.timelineMarker, item.current && styles.timelineMarkerCurrent]}>{icon}</View>
     <View style={styles.timelineBody}>
       <Text numberOfLines={1} style={[styles.timelineTitle, item.current && styles.timelineTitleCurrent]}>{item.title}</Text>
