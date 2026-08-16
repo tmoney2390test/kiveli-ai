@@ -140,7 +140,7 @@ function planContextRelevant(message:string,context:any):boolean{
 function storyContextRelevant(message:string,activeStory:unknown):boolean{
   if(/\b(story|chapter|what happened next|what happens next|continue (?:the |our )?story|pick up where we left off|tell me a story)\b/i.test(message))return true;
   if(!activeStory||typeof activeStory!=='object')return false;
-  const row=activeStory as Record<string,unknown>;return[String(row.title??''),String(row.chapterTitle??'')].filter(Boolean).some((candidate)=>phraseRelevant(message,candidate));
+  const row=activeStory as Record<string,unknown>;return[String(row['title']??''),String(row['chapterTitle']??'')].filter(Boolean).some((candidate)=>phraseRelevant(message,candidate));
 }
 function phraseRelevant(message:string,candidate:string):boolean{const haystack=normalize(message),needle=normalize(candidate);if(!haystack||!needle)return false;if(haystack.includes(needle))return true;const tokens=needle.split(' ').filter((token)=>token.length>3&&!['with','from','this','that','your','plan','date','drinks','coffee','dinner','movie'].includes(token));if(!tokens.length)return false;const matches=tokens.filter((token)=>haystack.includes(token)).length;return tokens.length===1?matches===1:matches>=2;}
 function normalize(value:string):string{return value.toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();}
