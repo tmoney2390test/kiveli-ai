@@ -164,7 +164,7 @@ export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeVi
     currentWorld,
     hero: {
       stage: labelStage(companion.relationship_stage),
-      statusLine: `${locationLabel} Â· ${activityLabel}`,
+      statusLine: `${locationLabel} · ${activityLabel}`,
       prompt: heroPrompt,
       notice: heroNotice,
       action: heroAction,
@@ -368,7 +368,7 @@ export function labelStage(stage: string) {
     stranger: 'Just met',
     acquaintance: 'Getting acquainted',
     friend: 'Getting closer',
-    flirting: 'Thereâ€™s a spark',
+    flirting: 'There’s a spark',
     dating: 'Dating',
     exclusive: 'Exclusive',
     long_term: 'Building a life',
@@ -447,7 +447,7 @@ function formatTime(value: string | Date, timezone: string) {
 function formatWeekdayTime(value: string, timezone: string) {
   const date = new Date(value);
   const weekday = new Intl.DateTimeFormat('en-US', { timeZone: timezone, weekday: 'short' }).format(date);
-  return `${weekday} Â· ${formatTime(date, timezone)}`;
+  return `${weekday} · ${formatTime(date, timezone)}`;
 }
 
 function isWithinPlanWindow(plan: Snapshot['sharedPlans'][number], now: Date) {

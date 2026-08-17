@@ -140,13 +140,6 @@ export async function writeConversationEvent(db:any,input:{userId:string;charact
   return data??null;
 }
 
-export async function writeConversationEvent(db:any,input:{userId:string;characterInstanceId:string;conversationId:string;eventType:string;entityType:string;entityId:string;metadata?:Record<string,unknown>}){
-  const{data,error}=await db.from('together_conversation_events').insert({user_id:input.userId,character_instance_id:input.characterInstanceId,conversation_id:input.conversationId,event_type:input.eventType,entity_type:input.entityType,entity_id:input.entityId,metadata:input.metadata??{}}).select('*').single();
-  if(error?.code==='23505')return null;
-  if(error)console.warn('Conversation event could not be written',error.code);
-  return data??null;
-}
-
 async function focusConversationOnPlan(db:any,userId:string,conversationId:string,planId:string){const{data}=await db.from('together_conversations').select('metadata').eq('id',conversationId).eq('user_id',userId).maybeSingle();if(data)await db.from('together_conversations').update({metadata:{...(data.metadata??{}),focus:{type:'plan',planId,updatedAt:new Date().toISOString()}}}).eq('id',conversationId).eq('user_id',userId);}
 
 async function resolvePlanOption(db:any,locationId:string,activityValue:string,titleValue?:string,durationValue?:number){
