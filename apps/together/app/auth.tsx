@@ -7,11 +7,11 @@ import { GradientButton, Screen } from '../src/components';
 import { cityLifeAsset } from '../src/assets';
 import { colors, radius, typography } from '../src/theme';
 import { useAuth } from '../src/hooks/useAuth';
-import { loadSnapshot } from '../src/lib/api';
 import { useTogether } from '../src/store/useTogether';
+import { safeAppReturnPath } from '../src/lib/sessionRouting';
 
 export default function Auth() {
-  const params = useLocalSearchParams<{ mode?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; next?: string }>();
   const { width } = useWindowDimensions();
   const wide = width >= 760;
   const [creating, setCreating] = useState(params.mode !== 'signin');
@@ -23,7 +23,7 @@ export default function Auth() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const { signIn, signUp, requestPasswordReset } = useAuth();
-  const setSnapshot = useTogether((state) => state.setSnapshot);
+  const refresh = useTogether((state) => state.refresh);
 
   const switchMode = (nextCreating: boolean) => {
     setCreating(nextCreating);
@@ -51,12 +51,18 @@ export default function Auth() {
     try {
       if (creating) {
         await signUp(normalizedEmail, password);
-        const existing = await loadSnapshot();
-        setSnapshot(existing);
-        router.replace(existing.profile ? '/home' : '/choose-companion?adultConfirmed=1');
+        await refresh();
+        const state = useTogether.getState();
+        if (!state.snapshot) throw new Error(state.error ?? 'Kivelle could not open your world.');
+        const next = safeAppReturnPath(params.next);
+        router.replace(state.snapshot.profile ? (next ?? '/home') as never : '/choose-companion?adultConfirmed=1');
       } else {
         await signIn(normalizedEmail, password);
-        router.replace('/');
+        await refresh();
+        const state = useTogether.getState();
+        if (!state.snapshot) throw new Error(state.error ?? 'Kivelle could not open your world.');
+        const next = safeAppReturnPath(params.next);
+        router.replace(state.snapshot.profile ? (next ?? '/home') as never : '/choose-companion');
       }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : creating ? 'Account creation failed.' : 'Sign in failed.';

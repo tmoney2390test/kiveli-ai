@@ -24,10 +24,12 @@ type State={
   clear:()=>void;
 };
 const demoMode=__DEV__&&process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE==='true';
+let refreshRequest:Promise<void>|null=null;
+let refreshGeneration=0;
 export const useTogether=create<State>((set)=>{
   const patchSnapshot=(update:(snapshot:Snapshot)=>Snapshot)=>set((state)=>state.snapshot?{snapshot:update(state.snapshot),error:null}:state);
   return {snapshot:demoMode?demoSnapshot:null,browsedWorldId:null,loading:false,error:null,
-    setSnapshot:(snapshot)=>set({snapshot,error:null}),
+    setSnapshot:(snapshot)=>set({snapshot,loading:false,error:null}),
     setCoreState:(delta)=>patchSnapshot((snapshot)=>({...snapshot,...delta})),
     updateCompanion:(companion)=>patchSnapshot((snapshot)=>({...snapshot,characters:upsert(snapshot.characters,companion)})),
     updateRelationship:(relationship)=>patchSnapshot((snapshot)=>({...snapshot,relationships:upsert(snapshot.relationships,relationship,'character_instance_id')})),
@@ -56,8 +58,16 @@ export const useTogether=create<State>((set)=>{
       };
     }),
     setBrowsedWorldId:(browsedWorldId)=>set({browsedWorldId}),
-    refresh:async()=>{if(demoMode)return;set({loading:true,error:null});try{set({snapshot:await loadSnapshot(),loading:false});}catch(error){set({loading:false,error:error instanceof Error?error.message:'Could not load Kivelle.'});}},
-    clear:()=>set({snapshot:demoMode?demoSnapshot:null,browsedWorldId:null,error:null}),
+    refresh:async()=>{
+      if(demoMode)return;
+      if(refreshRequest)return refreshRequest;
+      const generation=refreshGeneration;
+      set({loading:true,error:null});
+      const request=(async()=>{try{const snapshot=await loadSnapshot();if(generation===refreshGeneration)set({snapshot,loading:false,error:null});}catch(error){if(generation===refreshGeneration)set({loading:false,error:error instanceof Error?error.message:'Could not load Kivelle.'});}finally{if(generation===refreshGeneration)refreshRequest=null;}})();
+      refreshRequest=request;
+      return request;
+    },
+    clear:()=>{refreshGeneration+=1;refreshRequest=null;set({snapshot:demoMode?demoSnapshot:null,browsedWorldId:null,loading:false,error:null});},
   };
 });
 
