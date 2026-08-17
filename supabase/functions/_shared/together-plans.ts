@@ -105,14 +105,32 @@ export async function updateSharedPlan(db:any,input:{userId:string;planId:string
 export async function cancelSharedPlan(db:any,input:{userId:string;planId:string;conversationId?:string}){
   const continuity=await activeContinuity(db,input.userId),{data:plan}=await db.from('together_shared_plans').select('*,together_locations(name)').eq('id',input.planId).eq('user_id',input.userId).eq('continuity_id',continuity.id).maybeSingle();
   if(!plan)throw new AppError('NOT_FOUND','That plan could not be found.',404);
-  if(!['proposed','scheduled'].includes(plan.status))throw new AppError('CONFLICT','A plan that has started cannot be cancelled.',409,true);
+  if(!['proposed','scheduled','active'].includes(plan.status))throw new AppError('CONFLICT','That plan is already over.',409,true);
   const now=new Date().toISOString();
   const{data:updated,error}=await db.from('together_shared_plans').update({status:'cancelled',cancelled_at:now,updated_at:now}).eq('id',plan.id).eq('user_id',input.userId).select('*').single();
   if(error||!updated)throw new AppError('INTERNAL_ERROR','The plan could not be cancelled.',500,true);
   const conversationId=input.conversationId??plan.source_conversation_id;
-  if(conversationId){await writeConversationEvent(db,{userId:input.userId,characterInstanceId:plan.character_instance_id,conversationId,eventType:'plan_cancelled',entityType:'shared_plan',entityId:plan.id,metadata:planCardMetadata(updated,plan.together_locations?.name)});await focusConversationOnPlan(db,input.userId,conversationId,plan.id);}
+  if(conversationId)await writeConversationEvent(db,{userId:input.userId,characterInstanceId:plan.character_instance_id,conversationId,eventType:'plan_cancelled',entityType:'shared_plan',entityId:plan.id,metadata:planCardMetadata(updated,plan.together_locations?.name)});
+  await clearCancelledPlanContext(db,{userId:input.userId,characterInstanceId:plan.character_instance_id,planId:plan.id,conversationId,now});
   await track(db,input.userId,'plan_cancelled',{planId:plan.id});
   return updated;
+}
+
+async function clearCancelledPlanContext(db:any,input:{userId:string;characterInstanceId:string;planId:string;conversationId?:string|null;now:string}){
+  const conversations=await db.from('together_conversations').select('id,metadata').eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).is('archived_at',null);
+  for(const conversation of conversations.data??[]){
+    const metadata={...(conversation.metadata??{})} as Record<string,any>;
+    let changed=false;
+    if(metadata.focus?.type==='plan'&&metadata.focus?.planId===input.planId){delete metadata.focus;changed=true;}
+    if(metadata.activeScene?.sourceEventId===input.planId){delete metadata.activeScene;changed=true;}
+    if(changed)await db.from('together_conversations').update({metadata}).eq('id',conversation.id).eq('user_id',input.userId);
+  }
+  const pending=await db.from('together_conversation_actions').select('id,payload').eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).eq('status','pending');
+  for(const action of pending.data??[]){
+    const payload=action.payload??{};
+    if(String(payload.planId??payload.targetId??'')===input.planId)await db.from('together_conversation_actions').update({status:'dismissed',updated_at:input.now}).eq('id',action.id).eq('user_id',input.userId);
+  }
+  await db.from('together_scene_sessions').update({ended_at:input.now,updated_at:input.now}).eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).eq('continuity_id',(await activeContinuity(db,input.userId)).id).eq('source','shared_plan').is('ended_at',null);
 }
 
 export async function writeConversationEvent(db:any,input:{userId:string;characterInstanceId:string;conversationId:string;eventType:string;entityType:string;entityId:string;metadata?:Record<string,unknown>}){

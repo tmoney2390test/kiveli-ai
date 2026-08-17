@@ -120,7 +120,7 @@ export async function buildKivelleConversationContext(input: {
     startsAtLabel:formatExperienceTime(String(plan.starts_at),timezone),endsAtLabel:formatExperienceTime(String(plan.ends_at),timezone),locationId:plan.location_id?String(plan.location_id):null,
     location:String(plan.together_locations?.name ?? locationById.get(String(plan.location_id))?.name ?? 'Current place'), note:plan.note??null,summary:String(plan.metadata?.completionSummary ?? ''),
   }));
-  const activePlans = plansView.filter((plan) => ['scheduled','active'].includes(plan.status));
+  const activePlans = plansView.filter((plan) => isCurrentPlan(plan, now));
   const cancelledOrCompleted=plansView.filter((plan)=>['cancelled','completed'].includes(plan.status)).sort((a,b)=>new Date(b.startsAt).getTime()-new Date(a.startsAt).getTime()).slice(0,2);
   const contextualPlans=[...activePlans.slice(0,5),...cancelledOrCompleted];
   const dateRows = await Promise.all((dates.data??[]).map(async(item:Row)=>{const dateLocationId=String(item.together_date_templates?.location_id??'');const datePlace=dateLocationId?await resolvePlaceContext({db,locationId:dateLocationId,now,userId,characterInstanceId:String(instance.id)}).catch(()=>null):null;return{...item,placeContext:datePlace};}));
@@ -178,6 +178,20 @@ function nextScheduleRows(rows:Row[],clock:ExperienceClock,now:Date,timezone:str
 }
 function minutesLabel(value:number){const hour=Math.floor(value/60),minute=value%60;return `${hour%12||12}:${String(minute).padStart(2,'0')} ${hour>=12?'PM':'AM'}`;}
 function dedupeCommitments<T extends {type:'plan'|'date';title:string;startsAt:string}>(items:T[]):T[]{const seen=new Set<string>();return items.sort((a,b)=>new Date(a.startsAt).getTime()-new Date(b.startsAt).getTime()).filter((item)=>{const key=`${item.title.toLowerCase().replace(/[^a-z0-9]/g,'')}:${item.startsAt.slice(0,13)}`;if(seen.has(key))return false;seen.add(key);return true;});}
+function isCurrentPlan(plan:{status:string;startsAt:string;endsAt?:string|null},now:Date){
+  if(plan.status==='scheduled'){
+    const ends=plan.endsAt?new Date(plan.endsAt).getTime():Number.NaN;
+    return !Number.isFinite(ends)||ends>now.getTime();
+  }
+  if(plan.status!=='active')return false;
+  const starts=new Date(plan.startsAt).getTime(),ends=new Date(String(plan.endsAt??'' )).getTime();
+  return Number.isFinite(starts)&&Number.isFinite(ends)&&starts<=now.getTime()&&now.getTime()<ends;
+}
+function isRelevantPlan(plan:{status:string;endsAt?:string|null},now:Date){
+  if(['cancelled','completed','missed'].includes(plan.status))return false;
+  const ends=plan.endsAt?new Date(plan.endsAt).getTime():Number.NaN;
+  return !Number.isFinite(ends)||ends>now.getTime();
+}
 function buildActiveStory(story:Row|null):Row|null{if(!story)return null;const chapters=story.together_story_arc_templates?.chapters??[];const chapter=chapters.find((item:Row)=>item.id===story.current_chapter_id);return{id:String(story.id),title:String(story.together_story_arc_templates?.title??'A story in progress'),chapterId:String(story.current_chapter_id),chapterTitle:String(chapter?.title??story.current_chapter_id),knownSummary:String(chapter?.narrativeSeed??chapter?.narrative_seed??'Something is unfolding.'),status:String(story.status)};}
 export function retrieveSharedHistory(input:{intent:ContextQueryIntent;moments:Row[];dates:Row[];plans:Array<{id:string;title:string;status:string;startsAt:string;summary:string}>;now:Date}){const rows=[...input.moments.map((item)=>({id:String(item.id),type:'moment' as const,title:String(item.title),summary:String(item.summary),occurredAt:String(item.occurred_at)})),...input.dates.filter((item)=>item.status==='completed').map((item)=>({id:String(item.id),type:'date' as const,title:String(item.together_date_templates?.name??'A shared date'),summary:String(item.state?.summary??'A date you experienced together.'),occurredAt:String(item.completed_at??item.updated_at)})),...input.plans.filter((item)=>item.status==='completed').map((item)=>({id:item.id,type:'plan' as const,title:item.title,summary:item.summary,occurredAt:item.startsAt}))];return rows.filter((item)=>new Date(item.occurredAt)<=input.now).sort((a,b)=>new Date(b.occurredAt).getTime()-new Date(a.occurredAt).getTime());}
-function resolveConversationFocus(focus:Row|null,plans:Row[],now:Date):Row|null{if(!focus)return null;const updated=new Date(String(focus.updatedAt??0));if(!Number.isFinite(updated.getTime())||now.getTime()-updated.getTime()>7*86400000)return null;if(focus.planId){const plan=plans.find((item)=>item.id===focus.planId);return plan?{type:'plan',planId:plan.id,title:plan.title,status:plan.status,startsAt:plan.startsAt,endsAt:plan.endsAt,locationId:plan.locationId,location:plan.location,activityKey:plan.activityKey,updatedAt:focus.updatedAt}:null;}return focus;}
+function resolveConversationFocus(focus:Row|null,plans:Row[],now:Date):Row|null{if(!focus)return null;const updated=new Date(String(focus.updatedAt??0));if(!Number.isFinite(updated.getTime())||now.getTime()-updated.getTime()>7*86400000)return null;if(focus.planId){const plan=plans.find((item)=>item.id===focus.planId);return plan&&isRelevantPlan(plan,now)?{type:'plan',planId:plan.id,title:plan.title,status:plan.status,startsAt:plan.startsAt,endsAt:plan.endsAt,locationId:plan.locationId,location:plan.location,activityKey:plan.activityKey,updatedAt:focus.updatedAt}:null;}return focus;}

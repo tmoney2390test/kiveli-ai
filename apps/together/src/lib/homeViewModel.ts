@@ -87,7 +87,7 @@ export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeVi
   const pendingMilestone = snapshot.relationshipMilestones?.find((item) => item.character_instance_id === companion.id && item.status === 'pending');
   const activeDate = dates.find((item) => item.status === 'active');
   const activePlan = snapshot.sharedPlans
-    .filter((plan) => plan.character_instance_id === companion.id && plan.status === 'active')
+    .filter((plan) => plan.character_instance_id === companion.id && plan.status === 'active' && isWithinPlanWindow(plan, now))
     .sort((left, right) => new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime())[0];
   const nextPlan = snapshot.sharedPlans
     .filter((plan) => plan.character_instance_id === companion.id && plan.status === 'scheduled' && new Date(plan.starts_at).getTime() > now.getTime())
@@ -434,6 +434,12 @@ function formatWeekdayTime(value: string, timezone: string) {
   const date = new Date(value);
   const weekday = new Intl.DateTimeFormat('en-US', { timeZone: timezone, weekday: 'short' }).format(date);
   return `${weekday} · ${formatTime(date, timezone)}`;
+}
+
+function isWithinPlanWindow(plan: Snapshot['sharedPlans'][number], now: Date) {
+  const starts = new Date(plan.starts_at).getTime();
+  const ends = new Date(plan.ends_at).getTime();
+  return Number.isFinite(starts) && Number.isFinite(ends) && starts <= now.getTime() && now.getTime() < ends;
 }
 
 function formatScheduleMinute(value:number){const hour24=Math.floor(value/60),minute=value%60,suffix=hour24>=12?'PM':'AM',hour=hour24%12||12;return`${hour}:${String(minute).padStart(2,'0')} ${suffix}`;}

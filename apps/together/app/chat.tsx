@@ -63,7 +63,7 @@ export default function Chat() {
   useEffect(()=>{if(params.plan==='1')setShowPlans(true);if(params.draft)setInput(params.draft);if(params.planId)setFocusPlanId(params.planId);},[params.plan,params.draft,params.planId]);
   useEffect(()=>{const focus=conversation?.metadata?.focus as Record<string,unknown>|undefined;if(!focusDismissed&&!focusPlanId&&focus?.type==='plan'&&typeof focus.planId==='string')setFocusPlanId(focus.planId);},[conversation?.id,conversation?.metadata,focusPlanId,focusDismissed]);
   const activeSceneMetadata=(conversation?.metadata?.activeScene??conversation?.metadata?.scene??null) as Record<string,unknown>|null;
-  const hasActiveCommitment=Boolean(snapshot&&character&&((snapshot.sharedPlans??[]).some((plan)=>plan.character_instance_id===character.id&&plan.status==='active')||(snapshot.dates??[]).some((date)=>date.character_instance_id===character.id&&date.status==='active')));
+  const hasActiveCommitment=Boolean(snapshot&&character&&((snapshot.sharedPlans??[]).some((plan)=>plan.character_instance_id===character.id&&isLivePlan(plan))||(snapshot.dates??[]).some((date)=>date.character_instance_id===character.id&&date.status==='active')));
   const isCoPresent=Boolean(activeSceneMetadata?.interactionMode==='co_present'||hasActiveCommitment);
   useEffect(()=>{
     if(!character?.id||!conversation?.id||!isCoPresent){setInteractionCandidates([]);setMovementCandidates([]);setInteractionScene(null);return;}
@@ -220,7 +220,19 @@ function RelationshipMomentCard({milestone,busy,onChoose}:{milestone:Relationshi
 function SuggestedReplies({prompts,interactions,onSelect,onInteraction}:{prompts:string[];interactions:InteractionCandidate[];onSelect:(value:string)=>void;onInteraction:(candidate:InteractionCandidate)=>void}) { return <View style={styles.suggestions}><Text style={styles.suggestionLabel}>YOU COULD SAY</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:8}}>{prompts.map((prompt)=><Pressable key={`message-${prompt}`} onPress={()=>onSelect(prompt)} style={styles.suggestion}><Text style={styles.suggestionText}>{prompt}</Text><ChevronRight size={14} color={colors.rose}/></Pressable>)}{interactions.map((candidate)=><Pressable key={`interaction-${candidate.id}`} accessibilityLabel={`${candidate.label}, shared scene action`} onPress={()=>onInteraction(candidate)} style={[styles.suggestion,styles.interactionSuggestion]}><Wand2 size={13} color={colors.warm}/><Text style={styles.suggestionText}>{candidate.label}</Text></Pressable>)}</ScrollView></View>; }
 function EmptyConversation({character,prompts,onPrompt}:{character:CharacterInstance;prompts:string[];onPrompt:(value:string)=>void}) { return <View style={styles.empty}><MessageCircle color={colors.rose}/><Text style={styles.emptyTitle}>The city is already in motion.</Text><Text style={styles.emptyCopy}>Start with what is actually happening around {character.together_character_templates.name}.</Text>{prompts.map((prompt)=><Pressable key={prompt} onPress={()=>onPrompt(prompt)} style={styles.emptyPrompt}><Text style={styles.suggestionText}>{prompt}</Text><ChevronRight size={15} color={colors.rose}/></Pressable>)}</View>; }
 
-function PlanFocusChip({plan,onOpen,onClose}:{plan?:SharedPlan;onOpen:(id:string)=>void;onClose:()=>void}){if(!plan)return null;return <View style={styles.focusChip}><Pressable accessibilityLabel={`Talking about ${plan.title}`} onPress={()=>onOpen(plan.id)} style={styles.focusChipMain}><MessageCircle size={13} color={colors.rose}/><Text style={styles.focusLabel}>Talking about</Text><Text numberOfLines={1} style={styles.focusTitle}>{plan.title} · {new Date(plan.starts_at).toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'})}</Text></Pressable><Pressable accessibilityLabel="Stop talking about this plan" onPress={onClose} style={styles.focusClose}><Text style={styles.focusCloseText}>×</Text></Pressable></View>}
+function PlanFocusChip({plan,onOpen,onClose}:{plan?:SharedPlan;onOpen:(id:string)=>void;onClose:()=>void}){if(!plan||!isRelevantFocusPlan(plan))return null;return <View style={styles.focusChip}><Pressable accessibilityLabel={`Talking about ${plan.title}`} onPress={()=>onOpen(plan.id)} style={styles.focusChipMain}><MessageCircle size={13} color={colors.rose}/><Text style={styles.focusLabel}>Talking about</Text><Text numberOfLines={1} style={styles.focusTitle}>{plan.title} · {new Date(plan.starts_at).toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'})}</Text></Pressable><Pressable accessibilityLabel="Stop talking about this plan" onPress={onClose} style={styles.focusClose}><Text style={styles.focusCloseText}>×</Text></Pressable></View>}
+
+function isLivePlan(plan:SharedPlan){
+  if(!['active','scheduled'].includes(plan.status))return false;
+  const starts=new Date(plan.starts_at).getTime(),ends=new Date(plan.ends_at).getTime(),now=Date.now();
+  return Number.isFinite(starts)&&Number.isFinite(ends)&&starts<=now&&now<ends;
+}
+
+function isRelevantFocusPlan(plan:SharedPlan){
+  if(['cancelled','completed','missed'].includes(plan.status))return false;
+  const ends=new Date(plan.ends_at).getTime();
+  return !Number.isFinite(ends)||ends>Date.now();
+}
 
 function LegacyComposer({character,compact,input,setInput,sending,onSend,onPlan,onPhoto,onInteraction,onMove,coPresent}:{character:CharacterInstance;compact:boolean;input:string;setInput:(value:string)=>void;sending:boolean;onSend:()=>void;onPlan:()=>void;onPhoto:()=>void;onInteraction:()=>void;onMove:()=>void;coPresent:boolean}) {
   const { width } = useWindowDimensions();
