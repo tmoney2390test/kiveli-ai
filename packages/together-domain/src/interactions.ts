@@ -179,6 +179,8 @@ const activityAliases: Record<string, string> = {
   'market': 'market', 'shopping': 'shopping', 'beach': 'beach', 'hiking': 'hiking', 'hike': 'hiking',
   'camping': 'campfire', 'campfire': 'campfire', 'stargazing': 'stargazing', 'skiing': 'ski_snow', 'snow': 'ski_snow',
   'trivia': 'trivia', 'comedy': 'comedy', 'movies': 'cinema', 'movie': 'cinema',
+  'sporting event': 'sports', 'sports game': 'sports', 'basketball game': 'sports', 'basketball': 'sports',
+  'hockey game': 'sports', 'hockey': 'sports', 'indoor soccer': 'sports', 'soccer': 'sports', 'boxing night': 'sports', 'boxing': 'sports',
 };
 
 export function normalizeActivityTag(value: string): string {
@@ -196,7 +198,7 @@ const packTerms: Record<string, string[]> = {
   park: ['park', 'garden', 'botanical'], scenic: ['riverwalk', 'waterfront', 'overlook', 'scenic', 'view'], hiking: ['hiking', 'trail', 'lookout'], beach: ['beach', 'coast', 'shore'],
   water_activity: ['boat', 'sailing', 'snorkel', 'lake', 'water'], home: ['home', 'apartment', 'residence'], workplace: ['work', 'studio', 'office', 'workspace'], transit: ['transit', 'station', 'train'],
   district: ['district', 'neighborhood'], theater: ['theater', 'theatre'], cooking: ['cooking', 'kitchen'], campfire: ['campfire', 'cabin'], stargazing: ['stargazing', 'observatory'], ski_snow: ['ski', 'snow'],
-  night_market: ['night market'], photography: ['photography', 'photo'], trivia: ['trivia'], comedy: ['comedy'],
+  night_market: ['night market'], photography: ['photography', 'photo'], trivia: ['trivia'], comedy: ['comedy'], sports: ['sports', 'sporting event', 'arena', 'basketball', 'hockey', 'soccer', 'boxing'],
 };
 
 export type InteractionPack = keyof typeof packTerms;
@@ -251,6 +253,7 @@ export const interactionPacks: Record<InteractionPack, InteractionDefinition[]> 
   photography: pack('photography', [['activity','Ask what caught their eye',['photography'],6],['activity','Help frame a shot',['photography'],8],['activity','Take a photo together',['photography'],5,{photoCandidate:true,momentCandidate:true}],['activity','Walk until something interesting appears',['photography','walking'],20,{sceneActivityKey:'photography'}]]),
   trivia: pack('trivia', [['activity','Join the team',['trivia'],12,{sceneActivityKey:'trivia'}],['social','Choose a category',['trivia'],5],['social','Compare answers',['trivia'],6],['activity','Celebrate a good round',['trivia'],5,{relationshipEvidenceType:'shared_experience'}]]),
   comedy: pack('comedy', [['activity','Find a table',['comedy'],8],['activity','Watch the set',['comedy'],20],['social','Trade reactions',['comedy'],6],['relationship','Stay to talk after',['comedy'],12,{relationshipEvidenceType:'shared_experience'}]]),
+  sports: pack('sports', [['activity','Find your section',['sports'],10,{sceneActivityKey:'arena_event'}],['social','Pick a side',['sports'],6],['social','Call the next play',['sports'],6],['share','Grab arena food',['sports','food'],12],['talk','React to the replay',['sports'],7],['media','Take a concourse photo',['sports','photography'],5,{photoCandidate:true,momentCandidate:true,mediaPolicy:'explicit'}],['relationship','Stay for the finish',['sports'],20,{mayExtendScene:true,relationshipEvidenceType:'shared_experience'}]]),
 };
 
 const allDefinitions = Object.values(interactionPacks).flat();

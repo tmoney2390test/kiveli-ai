@@ -1,5 +1,5 @@
 import{describe,expect,it}from'vitest';
-import{buildPlanSlots,companionPick,defaultPlanTimeFields,hasPlanConflict,isLocationOpen,localPlanDateValue,parseCustomPlanTime,recommendPlanOptions,resolvePlanDraft}from'./plans';
+import{buildPlanSlots,companionPick,defaultPlanTimeFields,hasPlanConflict,isLocationOpen,isVenueProgramTime,localPlanDateValue,parseCustomPlanTime,recommendPlanOptions,resolvePlanDraft}from'./plans';
 import type{Location,SharedPlan}from'../types';
 
 const locations=[
@@ -11,6 +11,27 @@ const locations=[
   {id:'studio',name:'Photography Studio',slug:'photography-studio',description:'Work.',category:'work',hours:{open:'08:00',close:'19:00'},possible_activities:['editing']},
 ] as unknown as Location[];
 const context={activity:'Editing photos at the studio',mood:'Creative',locationId:'studio',interests:['Photography'],relationshipStage:'friend',hour:14,locations};
+
+describe('venue programming',()=>{
+  const arena={id:'arena',world_id:'juniper',name:'Juniper Civic Arena',slug:'juniper-civic-arena',location_type:'venue',description:'Sports arena',category:'entertainment',hours:{open:'10:00',close:'23:59'},possible_activities:['basketball game'],metadata:{tags:['sports','arena'],event_programs:[{activityKey:'basketball_game',title:'Juniper Flight Basketball',daysOfWeek:[5,6],startTime:'19:30',durationMinutes:150,scheduleNote:'Tipoff is at 7:30 PM.'}]}} as Location;
+
+  it('aligns sports plans to the next canonical event start',()=>{
+    const option=recommendPlanOptions({...context,locations:[arena],scopedLocationId:'arena'})[0]!;
+    const slots=buildPlanSlots({now:new Date(2026,7,17,10,0),option});
+    expect(slots[0]).toBeDefined();
+    const start=new Date(slots[0]!.value);
+    expect(start.getDay()).toBe(5);
+    expect(start.getHours()).toBe(19);
+    expect(start.getMinutes()).toBe(30);
+    expect(option.durationMinutes).toBe(150);
+  });
+
+  it('rejects arbitrary times for a programmed event',()=>{
+    const option=recommendPlanOptions({...context,locations:[arena],scopedLocationId:'arena'})[0]!;
+    expect(isVenueProgramTime(option,new Date(2026,7,21,19,30))).toBe(true);
+    expect(isVenueProgramTime(option,new Date(2026,7,21,21,0))).toBe(false);
+  });
+});
 
 describe('native shared-plan recommendations',()=>{
   it('uses the world catalog rather than a fixed global list',()=>{const options=recommendPlanOptions(context);expect(options.some((item)=>item.activityKey==='photo_walk')).toBe(true);expect(options.some((item)=>item.locationId==='studio')).toBe(false);});

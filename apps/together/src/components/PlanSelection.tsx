@@ -7,13 +7,14 @@ import { DateTimeFields } from './DateTimeFields';
 import { locationHeroAsset } from '../assets';
 import { colors, radius } from '../theme';
 import type { CharacterInstance, ConversationAction, Snapshot } from '../types';
-import { companionPick, companionPickQuote, defaultPlanTimeFields, localPlanDateValue, parseCustomPlanTime, recommendPlanOptions, buildPlanSlots, type PlanDiscoveryIntent, type PlanOption, type PlanSlot } from '../lib/plans';
+import { companionPick, companionPickQuote, defaultPlanTimeFields, isVenueProgramTime, localPlanDateValue, parseCustomPlanTime, recommendPlanOptions, buildPlanSlots, type PlanDiscoveryIntent, type PlanOption, type PlanSlot } from '../lib/plans';
 import { locationsForWorld, worldForLocation } from '../lib/place';
 
 type Props = {
   snapshot: Snapshot;
   character: CharacterInstance;
   scopedLocationId?: string | null;
+  initialActivityKey?: string | null;
   repeatPlanId?: string;
   proposal?: ConversationAction;
   interests: string[];
@@ -23,7 +24,7 @@ type Props = {
 };
 
 /** The planning surface deliberately keeps one source of truth: selectedDateTime. */
-export function PlanSelection({ snapshot, character, scopedLocationId, repeatPlanId, proposal, interests, busy, onPlan, onClose }: Props) {
+export function PlanSelection({ snapshot, character, scopedLocationId, initialActivityKey, repeatPlanId, proposal, interests, busy, onPlan, onClose }: Props) {
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [selectedDateTime, setSelectedDateTime] = useState<string | null>(null);
   const [selectionSource, setSelectionSource] = useState<'recommended' | 'custom'>('recommended');
@@ -81,6 +82,7 @@ export function PlanSelection({ snapshot, character, scopedLocationId, repeatPla
     ? options.find((option) => option.locationId === proposalLocation && option.activityKey === proposalActivity)
       ?? options.find((option) => option.locationId === proposalLocation)
     : undefined;
+  const initialOption = initialActivityKey ? options.find((option) => option.activityKey === initialActivityKey || option.activityKey === initialActivityKey.replace(/[^a-z0-9]+/gi, '_').toLowerCase()) : undefined;
   const pick = companionPick(planContext);
   const choice = chooserOpen ? undefined : options.find((option) => option.id === selectedOptionId);
   const heroOptions = useMemo(() => {
@@ -106,11 +108,11 @@ export function PlanSelection({ snapshot, character, scopedLocationId, repeatPla
   const activeHeroIndex = choice ? Math.max(0, heroOptions.findIndex((option) => option.locationId === choice.locationId)) : heroIndex;
 
   useEffect(() => {
-    if (!selectedOptionId && !chooserOpen && (proposalOption || repeatPlan || pick || options[0])) {
-      const initial = proposalOption ?? (repeatPlan ? options.find((option) => option.locationId === repeatPlan.location_id && option.activityKey === repeatPlan.activity_key) : undefined) ?? pick ?? options[0];
+    if (!selectedOptionId && !chooserOpen && (proposalOption || initialOption || repeatPlan || pick || options[0])) {
+      const initial = proposalOption ?? initialOption ?? (repeatPlan ? options.find((option) => option.locationId === repeatPlan.location_id && option.activityKey === repeatPlan.activity_key) : undefined) ?? pick ?? options[0];
       if (initial) { setSelectedOptionId(initial.id); if (proposalOption) setChooserOpen(false); }
     }
-  }, [chooserOpen, options, pick?.id, proposalOption?.id, repeatPlan?.id, selectedOptionId]);
+  }, [chooserOpen, initialOption?.id, options, pick?.id, proposalOption?.id, repeatPlan?.id, selectedOptionId]);
 
   useEffect(() => {
     if (repeatPlan && !selectedOptionId) {
@@ -155,6 +157,7 @@ export function PlanSelection({ snapshot, character, scopedLocationId, repeatPla
     const value = parseCustomPlanTime(nextDate, nextTime);
     if (!value) { setSelectedDateTime(null); setSelectionSource('custom'); setValidation('Choose a valid date and time.'); return; }
     if (value.getTime() < Date.now() + 10 * 60_000) { setSelectedDateTime(null); setSelectionSource('custom'); setValidation('Choose a time at least 10 minutes from now.'); return; }
+    if (choice?.program && !isVenueProgramTime(choice, value)) { setSelectedDateTime(null); setSelectionSource('custom'); setValidation(`${choice.program.title} runs on its listed event nights at ${choice.program.startTime}.`); return; }
     setSelectedDateTime(value.toISOString()); setSelectionSource('custom'); setValidation('');
   };
   const resetSelection = () => {

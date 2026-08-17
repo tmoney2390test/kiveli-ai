@@ -35,7 +35,7 @@ export async function createSharedPlan(db:any, input:CreatePlanInput) {
   const start=new Date(input.startsAt);
   if(!Number.isFinite(start.getTime())) throw new AppError('VALIDATION_FAILED','Choose a valid date and time.',400);
   const end=new Date(start.getTime()+resolved.durationMinutes*60000);
-  await validateAvailability(db,{userId:input.userId,characterInstanceId:input.characterInstanceId,characterVersionId:instance.character_version_id,location:resolved.location,start,end});
+  await validateAvailability(db,{userId:input.userId,characterInstanceId:input.characterInstanceId,characterVersionId:instance.character_version_id,location:resolved.location,activityKey:resolved.activityKey,start,end});
 
   const { data:existing }=await db.from('together_shared_plans').select('*').eq('user_id',input.userId).eq('metadata->>requestId',input.requestId).maybeSingle();
   if(existing)return{kind:'shared_plan' as const,commitment:existing,created:false};
@@ -79,7 +79,7 @@ export async function rescheduleSharedPlan(db:any,input:{userId:string;planId:st
   if(!plan)throw new AppError('NOT_FOUND','That plan could not be found.',404);
   if(!['proposed','scheduled'].includes(plan.status))throw new AppError('CONFLICT','That plan can no longer be rescheduled.',409,true);
   const start=new Date(input.startsAt);const duration=Math.max(30,(new Date(plan.ends_at).getTime()-new Date(plan.starts_at).getTime())/60000);const end=new Date(start.getTime()+duration*60000);
-  await validateAvailability(db,{userId:input.userId,characterInstanceId:plan.character_instance_id,characterVersionId:plan.together_character_instances.character_version_id,location:plan.together_locations,start,end,excludePlanId:plan.id});
+  await validateAvailability(db,{userId:input.userId,characterInstanceId:plan.character_instance_id,characterVersionId:plan.together_character_instances.character_version_id,location:plan.together_locations,activityKey:plan.activity_key,start,end,excludePlanId:plan.id});
   const previousStartsAt=plan.starts_at;
   const{data:updated,error}=await db.from('together_shared_plans').update({starts_at:start.toISOString(),ends_at:end.toISOString(),status:'scheduled',updated_at:new Date().toISOString(),metadata:{...(plan.metadata??{}),rescheduledAt:new Date().toISOString()}}).eq('id',plan.id).eq('user_id',input.userId).select('*').single();
   if(error||!updated)throw new AppError('INTERNAL_ERROR','The plan could not be rescheduled.',500,true);
@@ -95,7 +95,7 @@ export async function updateSharedPlan(db:any,input:{userId:string;planId:string
   if(!['proposed','scheduled'].includes(plan.status))throw new AppError('CONFLICT','That plan can no longer be changed.',409,true);
   const patch:Record<string,unknown>={updated_at:new Date().toISOString()};
   if(input.note!==undefined)patch.note=input.note.trim()||null;
-  if(input.locationId||input.activityKey){const resolved=await resolvePlanOption(db,input.locationId??plan.location_id,input.activityKey??plan.activity_key);const start=new Date(plan.starts_at),end=new Date(start.getTime()+resolved.durationMinutes*60000);await validateAvailability(db,{userId:input.userId,characterInstanceId:plan.character_instance_id,characterVersionId:plan.together_character_instances.character_version_id,location:resolved.location,start,end,excludePlanId:plan.id});patch.location_id=resolved.location.id;patch.activity_key=resolved.activityKey;patch.title=resolved.title;patch.ends_at=end.toISOString();patch.metadata={...(plan.metadata??{}),durationMinutes:resolved.durationMinutes,significance:resolved.significance};}
+  if(input.locationId||input.activityKey){const resolved=await resolvePlanOption(db,input.locationId??plan.location_id,input.activityKey??plan.activity_key);const start=new Date(plan.starts_at),end=new Date(start.getTime()+resolved.durationMinutes*60000);await validateAvailability(db,{userId:input.userId,characterInstanceId:plan.character_instance_id,characterVersionId:plan.together_character_instances.character_version_id,location:resolved.location,activityKey:resolved.activityKey,start,end,excludePlanId:plan.id});patch.location_id=resolved.location.id;patch.activity_key=resolved.activityKey;patch.title=resolved.title;patch.ends_at=end.toISOString();patch.metadata={...(plan.metadata??{}),durationMinutes:resolved.durationMinutes,significance:resolved.significance};}
   const{data,error}=await db.from('together_shared_plans').update(patch).eq('id',plan.id).eq('user_id',input.userId).select('*').single();
   if(error||!data)throw new AppError('INTERNAL_ERROR','The plan could not be changed.',500,true);
   const conversationId=input.conversationId??plan.source_conversation_id;if(conversationId&&(input.locationId||input.activityKey)){const{data:place}=await db.from('together_locations').select('name').eq('id',data.location_id).maybeSingle();await writeConversationEvent(db,{userId:input.userId,characterInstanceId:plan.character_instance_id,conversationId,eventType:'plan_rescheduled',entityType:'shared_plan',entityId:plan.id,metadata:{...planCardMetadata(data,place?.name),previousLocationId:plan.location_id,previousActivityKey:plan.activity_key}});await focusConversationOnPlan(db,input.userId,conversationId,plan.id);}
@@ -151,15 +151,17 @@ async function resolvePlanOption(db:any,locationId:string,activityValue:string,t
   const activityKey=normalize(activityValue).replace(/\s+/g,'_');
   const activityLabel=activityKey.replace(/_/g,' ');
   if(!possible.includes(normalize(activityLabel))&&!dateTypes.includes(normalize(activityLabel)))throw new AppError('VALIDATION_FAILED',`${location.name} does not offer that activity.`,400);
-  const durationMinutes=Math.max(30,Math.min(360,durationValue??durationFor(activityLabel)));
+  const program=venuePrograms(metadata).find((item)=>normalize(item.activityKey)===normalize(activityKey));
+  const durationMinutes=Math.max(30,Math.min(360,program?.durationMinutes??durationValue??durationFor(activityLabel)));
   return{location,activityKey,title:titleValue?.trim().slice(0,160)||defaultTitle(activityLabel,location.name),durationMinutes,significance:significanceFor(activityLabel,metadata)};
 }
 
-async function validateAvailability(db:any,input:{userId:string;characterInstanceId:string;characterVersionId:string;location:any;start:Date;end:Date;excludePlanId?:string}){
+async function validateAvailability(db:any,input:{userId:string;characterInstanceId:string;characterVersionId:string;location:any;activityKey:string;start:Date;end:Date;excludePlanId?:string}){
   if(!Number.isFinite(input.start.getTime())||input.start.getTime()<Date.now()+10*60000)throw new AppError('VALIDATION_FAILED','Choose a time at least ten minutes from now.',400);
   if(input.start.getTime()>Date.now()+60*86400000)throw new AppError('VALIDATION_FAILED','Plans can be scheduled up to 60 days ahead.',400);
   const place=await resolvePlaceContext({db,locationId:String(input.location.id),userId:input.userId,characterInstanceId:input.characterInstanceId,now:input.start});
   const timezone=safeTimezone(place.world.timezone);
+  validateVenueProgram(input.location,input.activityKey,input.start,timezone);
   if(!locationIsOpen(input.location,input.start,input.end,timezone)){const close=parseMinute(input.location.hours?.close),duration=Math.max(30,(input.end.getTime()-input.start.getTime())/60000),latest=close===null?null:Math.max(0,close-duration);throw new AppError('LOCATION_CLOSED',latest===null||close===null?`${input.location.name} is closed at that time. Choose another time or place.`:`${input.location.name} closes at ${minuteLabel(close)}. Try ${minuteLabel(latest)} or choose another place.`,409,true);}
   let plans=db.from('together_shared_plans').select('id,title,starts_at,ends_at').eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).in('status',['proposed','scheduled','active']).lt('starts_at',input.end.toISOString()).gt('ends_at',input.start.toISOString());
   if(input.excludePlanId)plans=plans.neq('id',input.excludePlanId);
@@ -180,6 +182,17 @@ function locationIsOpen(location:any,start:Date,end:Date,timezone:string){
   return(startMinute>=open||startMinute<close)&&(endMinute>open||endMinute<=close);
 }
 
+function validateVenueProgram(location:any,activityKey:string,start:Date,timezone:string){
+  const program=venuePrograms(location.metadata??{}).find((item)=>normalize(item.activityKey)===normalize(activityKey));
+  if(!program)return;
+  const clock=experienceClock(timezone,start),scheduledMinute=parseMinute(program.startTime);
+  if(scheduledMinute!==null&&program.daysOfWeek.includes(clock.weekday)&&Math.abs(clock.minuteOfDay-scheduledMinute)<=15)return;
+  const days=program.daysOfWeek.map((day)=>['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][day]).filter(Boolean).join(' & ');
+  throw new AppError('EVENT_NOT_SCHEDULED',`${program.title} starts ${days} at ${minuteLabel(scheduledMinute??0)}. Choose that event time or another activity.`,409,true);
+}
+
+function venuePrograms(metadata:Record<string,unknown>){const raw=metadata.event_programs;if(!Array.isArray(raw))return[] as Array<{activityKey:string;title:string;daysOfWeek:number[];startTime:string;durationMinutes:number}>;return raw.flatMap((value)=>{if(!value||typeof value!=='object'||Array.isArray(value))return[];const item=value as Record<string,unknown>,activityKey=String(item.activityKey??''),title=String(item.title??''),startTime=String(item.startTime??''),daysOfWeek=Array.isArray(item.daysOfWeek)?item.daysOfWeek.map(Number).filter((day)=>Number.isInteger(day)&&day>=0&&day<=6):[],durationMinutes=Number(item.durationMinutes);return activityKey&&title&&parseMinute(startTime)!==null&&daysOfWeek.length?[{activityKey,title,startTime,daysOfWeek,durationMinutes:Number.isFinite(durationMinutes)?durationMinutes:120}]:[];});}
+
 async function matchingDateSession(db:any,userId:string,instanceId:string,locationId:string,activityKey:string){
   const label=activityKey.replace(/_/g,' ');
   if(![...authoredDateActivities].some((value)=>label.includes(value)))return null;
@@ -190,11 +203,10 @@ async function matchingDateSession(db:any,userId:string,instanceId:string,locati
 
 function planCardMetadata(plan:any,locationName?:string){return{title:plan.title,startsAt:plan.starts_at,endsAt:plan.ends_at,status:plan.status,worldId:plan.world_id,locationId:plan.location_id,location:locationName??'Current place',activityKey:plan.activity_key,note:plan.note??null};}
 function defaultTitle(activity:string,location:string){const label=activity.replace(/\b\w/g,(letter)=>letter.toUpperCase());if(/^(walk|shopping|books|records|art|photos|quiet browsing)$/i.test(activity))return`${label} at ${location}`;return`${label} at ${location}`;}
-function durationFor(activity:string){if(/movie/.test(activity))return 150;if(/trivia|music|dinner|karaoke|comedy/.test(activity))return 120;if(/walk|shopping|gallery|books|records|photos/.test(activity))return 90;if(/coffee|pastry/.test(activity))return 60;return 90;}
-function significanceFor(activity:string,metadata:Record<string,unknown>){if(/rooftop|romantic|celebration/.test(activity)||((metadata.tags as unknown[])??[]).includes('romantic'))return.72;if(/trivia|music|dinner|karaoke|gallery/.test(activity))return.55;if(/coffee|pastry|errands/.test(activity))return.35;return.48;}
+function durationFor(activity:string){if(/movie|basketball|hockey|soccer|boxing|sport/.test(activity))return 150;if(/trivia|music|dinner|karaoke|comedy/.test(activity))return 120;if(/walk|shopping|gallery|books|records|photos/.test(activity))return 90;if(/coffee|pastry/.test(activity))return 60;return 90;}
+function significanceFor(activity:string,metadata:Record<string,unknown>){if(/rooftop|romantic|celebration/.test(activity)||((metadata.tags as unknown[])??[]).includes('romantic'))return.72;if(/basketball|hockey|soccer|boxing|sport/.test(activity))return.62;if(/trivia|music|dinner|karaoke|gallery/.test(activity))return.55;if(/coffee|pastry|errands/.test(activity))return.35;return.48;}
 function parseMinute(value:unknown){const match=/^(\d{1,2}):(\d{2})$/.exec(String(value??''));if(!match)return null;return Number(match[1])*60+Number(match[2]);}
 function minuteLabel(value:number){const normalized=((value%1440)+1440)%1440,hour=Math.floor(normalized/60),minute=normalized%60;return`${hour%12||12}:${String(minute).padStart(2,'0')} ${hour>=12?'PM':'AM'}`;}
 function normalize(value:string){return value.toLowerCase().trim().replace(/[^a-z0-9]+/g,' ').trim();}
 function conversionSource(source:PlanSource){return source==='chat'?'chat_natural_language':source==='manual_planner'?'chat_manual':source;}
 async function trackPlanCreationSource(db:any,userId:string,source:PlanSource,metadata:Record<string,unknown>){if(source==='chat')await track(db,userId,'plan_created_from_chat',metadata);if(source==='location')await track(db,userId,'plan_created_from_location',metadata);}
-

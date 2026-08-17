@@ -45,6 +45,14 @@ describe('Interaction domain', () => {
     expect(after.some((item) => item.interactionKey === 'karaoke.sing_together')).toBe(true);
   });
 
+  it('resolves arena-specific actions from canonical sports content', () => {
+    const location = { id: 'arena', name: 'Any arena', category: 'arena', locationType: 'venue', possibleActivities: ['basketball game', 'hockey game'], metadata: { interactionPacks: ['sports'] } };
+    expect(inferInteractionPacks(location)).toContain('sports');
+    const candidates = resolveInteractions({ character: creativeCharacter, relationship, location, life: { availability: 'open' }, seed: 'arena-night' });
+    expect(candidates.some((item) => item.interactionKey === 'sports.pick_a_side')).toBe(true);
+    expect(candidates.some((item) => item.interactionKey === 'sports.take_a_concourse_photo')).toBe(true);
+  });
+
   it('strongly prefers the planned activity while the plan is fresh', () => {
     const location = { id: 'lucky-note', name: 'Any karaoke', category: 'karaoke', locationType: 'venue', possibleActivities: ['karaoke', 'drinks'] };
     const candidates = resolveInteractions({ character: creativeCharacter, relationship, location, life: { availability: 'open' }, activePlan: { id: 'plan', activityKey: 'karaoke', locationId: 'lucky-note', title: 'Karaoke at Lucky Note', startsAt: '2026-08-14T18:00:00Z', endsAt: '2026-08-14T20:00:00Z' }, seed: 'plan-karaoke' });

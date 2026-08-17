@@ -7,5 +7,9 @@ describe('Juniper City location art catalog',()=>{
     expect(juniperCityMappedLocationSlugs).toContain('maya-apartment');
     expect(juniperCityMappedLocationSlugs).toContain('meridian-fitness');
     expect(juniperCityMappedLocationSlugs).toContain('taqueria-lumen');
+    expect(juniperCityMappedLocationSlugs).toContain('juniper-civic-arena');
+    expect(juniperCityMappedLocationSlugs).toContain('photography-studio');
+    expect(juniperCityMappedLocationSlugs).toContain('skyline-rooftop');
+    expect(juniperCityMappedLocationSlugs).toContain('chloe-design-studio');
   });
 });
