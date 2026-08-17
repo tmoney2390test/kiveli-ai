@@ -1,0 +1,15 @@
+begin;
+select plan(10);
+select has_column('public','together_conversations','metadata','Conversation metadata can persist an active scene without a parallel table');
+select col_type_is('public','together_conversations','metadata','jsonb','Scene state uses mergeable JSON metadata');
+select has_column('public','together_character_instances','current_location_id','Character presence remains location-owned');
+select has_column('public','together_character_instances','current_activity','Character activity is available to the presence resolver');
+select has_column('public','together_character_instances','current_interruptibility','Joinability is canonical state');
+select has_column('public','together_character_schedule_events','location_id','Schedule presence resolves to a canonical location');
+select has_column('public','together_character_schedule_events','ends_at','Presence has a validity boundary');
+select has_column('public','together_date_sessions','status','Active dates can establish co-presence');
+select ok((select relrowsecurity from pg_class where oid='public.together_conversations'::regclass),'Conversation scene metadata remains user-isolated by RLS');
+select ok(exists(select 1 from pg_indexes where schemaname='public' and indexname='together_schedule_events_presence_idx'),'Presence resolution has a time-window index');
+select * from finish();
+rollback;
+

@@ -1,0 +1,425 @@
+/**
+ * The interaction domain deliberately contains no character or venue names.
+ * Content supplies places and people; this module resolves the small set of
+ * actions that make sense in their shared, canonical scene.
+ */
+
+export const interactionFamilies = ['talk', 'activity', 'move', 'share', 'social', 'media', 'relationship', 'leave'] as const;
+export type InteractionFamily = typeof interactionFamilies[number];
+
+export type InteractionStage = 'stranger' | 'acquaintance' | 'friend' | 'flirting' | 'dating' | 'exclusive' | 'long_term';
+
+export interface InteractionDefinition {
+  key: string;
+  family: InteractionFamily;
+  labels: { default: string };
+  activityTags?: string[];
+  locationTypes?: string[];
+  locationCategories?: string[];
+  objectTags?: string[];
+  durationMinutes?: number;
+  requirements?: {
+    minRelationshipStage?: InteractionStage;
+    maxRelationshipStage?: InteractionStage;
+    minAvailability?: 'open' | 'limited';
+    minMetrics?: Record<string, number>;
+    requiredActivityTags?: string[];
+    forbiddenActivityTags?: string[];
+    allowedCharacterRoles?: string[];
+    contentLevel?: 'general' | 'romance';
+  };
+  effects?: {
+    sceneActivityKey?: string;
+    relationshipEvidenceType?: string;
+    momentCandidate?: boolean;
+    photoCandidate?: boolean;
+    mayMoveCharacter?: boolean;
+    mayExtendScene?: boolean;
+  };
+  scoring?: { noveltyWeight?: number; personalityWeight?: number; relationshipWeight?: number; locationWeight?: number };
+}
+
+export interface InteractionCandidate {
+  id: string;
+  interactionKey: string;
+  family: InteractionFamily;
+  label: string;
+  durationMinutes?: number;
+  score: number;
+  reasonCodes: string[];
+  effects: Record<string, unknown>;
+  presentation?: { subtitle?: string; iconKey?: string; emphasis?: 'normal' | 'recommended' };
+}
+
+export interface InteractionLocation {
+  id: string;
+  name: string;
+  category?: string | null;
+  locationType?: string | null;
+  hours?: Record<string, unknown> | null;
+  possibleActivities?: string[] | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface InteractionWorld {
+  id?: string;
+  activityFamilies?: string[] | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface CharacterInteractionProfile {
+  preferredFamilies: InteractionFamily[];
+  preferredActivityTags: string[];
+  dislikedActivityTags: string[];
+  initiative: number;
+  competitiveness: number;
+  curiosity: number;
+  physicalActivity: number;
+  nightlife: number;
+  outdoors: number;
+  foodInterest: number;
+  creativeInterest: number;
+  socialComfort: number;
+  spontaneity: number;
+}
+
+export interface InteractionCharacter {
+  role?: string | null;
+  interests?: string[] | null;
+  occupation?: string | null;
+  personality?: Record<string, unknown> | null;
+  relationshipConfig?: Record<string, unknown> | null;
+  lifeConfig?: Record<string, unknown> | null;
+  boundaries?: Record<string, unknown> | null;
+}
+
+export interface InteractionRelationship {
+  stage: InteractionStage;
+  trust?: number;
+  comfort?: number;
+  attraction?: number;
+  affinity?: number;
+  familiarity?: number;
+  conflict?: number;
+  romanceEnabled?: boolean;
+}
+
+export interface InteractionSceneState {
+  id?: string;
+  focus?: string | null;
+  objectsInUse?: string[];
+  recentActionKeys?: string[];
+  selectedBy?: 'user' | 'character' | null;
+  currentActivityKey?: string | null;
+  activityLabel?: string | null;
+  expectedEndAt?: string | null;
+}
+
+export interface InteractionLife {
+  availability?: 'open' | 'limited' | 'busy' | 'unavailable';
+  interruptibility?: 'open' | 'limited' | 'busy' | 'unavailable';
+  energy?: string | null;
+  mood?: string | null;
+  expectedEndAt?: string | null;
+  now?: Date;
+}
+
+export interface InteractionResolveInput {
+  character: InteractionCharacter;
+  interactionProfile?: CharacterInteractionProfile;
+  relationship: InteractionRelationship;
+  world?: InteractionWorld | null;
+  location: InteractionLocation;
+  scene?: InteractionSceneState | null;
+  life?: InteractionLife | null;
+  nearbyLocations?: InteractionLocation[];
+  seed?: string;
+  limit?: number;
+}
+
+const stageOrder: InteractionStage[] = ['stranger', 'acquaintance', 'friend', 'flirting', 'dating', 'exclusive', 'long_term'];
+const stageIndex = (stage: string | undefined) => Math.max(0, stageOrder.indexOf(stage as InteractionStage));
+const word = (value: unknown) => typeof value === 'string' ? value.toLowerCase() : '';
+const words = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+const clamp = (value: number) => Math.max(0, Math.min(1, value));
+
+/** Central alias registry. Client and server use this function instead of local regexes. */
+const activityAliases: Record<string, string> = {
+  'photo walk': 'photography', 'photography': 'photography', 'photos': 'photography', 'photo': 'photography',
+  'garden walk': 'walking', 'river walk': 'walking', 'walk': 'walking', 'walking': 'walking',
+  'arcade games': 'arcade', 'games': 'arcade', 'gaming': 'arcade', 'arcade': 'arcade',
+  'cocktails': 'drinks', 'drink': 'drinks', 'drinks': 'drinks',
+  'live music': 'live_music', 'music': 'live_music', 'karaoke': 'karaoke',
+  'bookstore': 'books', 'books': 'books', 'reading': 'books',
+  'gallery': 'art_gallery', 'museum': 'art_gallery', 'art': 'art_gallery',
+  'gym': 'fitness', 'workout': 'fitness', 'running': 'fitness',
+  'coffee': 'cafe', 'cafÃ©': 'cafe', 'cafe': 'cafe',
+  'food': 'restaurant', 'dinner': 'restaurant', 'lunch': 'restaurant',
+  'market': 'market', 'shopping': 'shopping', 'beach': 'beach', 'hiking': 'hiking', 'hike': 'hiking',
+  'camping': 'campfire', 'campfire': 'campfire', 'stargazing': 'stargazing', 'skiing': 'ski_snow', 'snow': 'ski_snow',
+  'trivia': 'trivia', 'comedy': 'comedy', 'movies': 'cinema', 'movie': 'cinema',
+};
+
+export function normalizeActivityTag(value: string): string {
+  const normalized = value.toLowerCase().trim().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
+  const direct = activityAliases[normalized];
+  if (direct) return direct;
+  for (const [alias, canonical] of Object.entries(activityAliases)) if (normalized.includes(alias)) return canonical;
+  return normalized.replace(/\s+/g, '_');
+}
+
+const packTerms: Record<string, string[]> = {
+  cafe: ['cafe', 'coffee', 'pastry'], restaurant: ['restaurant', 'dinner', 'food', 'sushi', 'bistro'], bar: ['bar', 'cocktail', 'drinks', 'pub', 'lounge'],
+  karaoke: ['karaoke'], live_music: ['live music', 'concert', 'music venue'], arcade: ['arcade', 'gaming', 'games'], cinema: ['cinema', 'movie', 'film'],
+  books: ['book', 'reading'], art_gallery: ['gallery', 'museum', 'art'], fitness: ['fitness', 'gym', 'workout', 'running'], market: ['market', 'bazaar'], shopping: ['shopping', 'boutique', 'store'],
+  park: ['park', 'garden', 'botanical'], scenic: ['riverwalk', 'waterfront', 'overlook', 'scenic', 'view'], hiking: ['hiking', 'trail', 'lookout'], beach: ['beach', 'coast', 'shore'],
+  water_activity: ['boat', 'sailing', 'snorkel', 'lake', 'water'], home: ['home', 'apartment', 'residence'], workplace: ['work', 'studio', 'office', 'workspace'], transit: ['transit', 'station', 'train'],
+  district: ['district', 'neighborhood'], theater: ['theater', 'theatre'], cooking: ['cooking', 'kitchen'], campfire: ['campfire', 'cabin'], stargazing: ['stargazing', 'observatory'], ski_snow: ['ski', 'snow'],
+  night_market: ['night market'], photography: ['photography', 'photo'], trivia: ['trivia'], comedy: ['comedy'],
+};
+
+export type InteractionPack = keyof typeof packTerms;
+
+export function inferInteractionPacks(location: InteractionLocation, world?: InteractionWorld | null): InteractionPack[] {
+  const metadata = location.metadata ?? {};
+  const explicit = [...words(metadata['interactionPacks']), ...words(metadata['interaction_packs'])].map((item) => normalizeActivityTag(item));
+  const source = [location.category, location.locationType, ...(location.possibleActivities ?? []), ...words(metadata['tags']), ...(world?.activityFamilies ?? [])].map(word).join(' ').replace(/[_-]+/g, ' ');
+  const packs = new Set<InteractionPack>();
+  for (const item of explicit) if (item in packTerms) packs.add(item);
+  for (const [pack, terms] of Object.entries(packTerms)) if (terms.some((term) => source.includes(term))) packs.add(pack);
+  if (location.locationType === 'residence') packs.add('home');
+  if (location.locationType === 'transit') packs.add('transit');
+  if (location.locationType === 'district' || location.locationType === 'neighborhood') packs.add('district');
+  if (location.locationType === 'outdoor' || word(location.category).includes('outdoor')) packs.add('park');
+  if (!packs.size) packs.add('district');
+  return [...packs];
+}
+
+const definition = (key: string, family: InteractionFamily, label: string, tags: string[], durationMinutes: number, effects: InteractionDefinition['effects'] = {}, requirements?: InteractionDefinition['requirements']): InteractionDefinition => ({ key, family, labels: { default: label }, activityTags: tags, durationMinutes, effects, ...(requirements ? { requirements } : {}), scoring: { noveltyWeight: .35, personalityWeight: .45, relationshipWeight: .2, locationWeight: .5 } });
+const pack = (prefix: string, entries: Array<[InteractionFamily, string, string[], number, InteractionDefinition['effects']?, InteractionDefinition['requirements']?]>): InteractionDefinition[] => entries.map(([family, label, tags, duration, effects, requirements]) => definition(`${prefix}.${label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`, family, label, tags, duration, effects, requirements));
+
+// Packs are composable. A location can inherit as many as its data supports.
+export const interactionPacks: Record<InteractionPack, InteractionDefinition[]> = {
+  cafe: pack('cafe', [['activity','Sit together',['cafe'],20,{sceneActivityKey:'coffee_together'}],['activity','Order something',['cafe','food'],8],['share','Share something',['cafe'],5],['talk','Ask what they are working on',['workplace','creative'],5],['social','People-watch',['cafe','social'],15],['activity','Stay a little longer',['cafe'],20,{mayExtendScene:true}]]),
+  restaurant: pack('restaurant', [['activity','Look at the menu',['restaurant','food'],8],['activity','Let them choose',['restaurant','food'],6],['share','Pick something for each other',['restaurant','food'],8],['activity','Share food',['restaurant','food'],15],['relationship','Order dessert',['restaurant','food'],20,{}, {minRelationshipStage:'friend'}],['social','Toast together',['restaurant','drinks'],5,{relationshipEvidenceType:'shared_experience'}, {minRelationshipStage:'friend'}]]),
+  bar: pack('bar', [['activity','Grab a drink',['bar','drinks'],12,{sceneActivityKey:'drinks'}],['activity','Let them choose for you',['bar','drinks'],8],['activity','Find a booth',['bar','social'],10],['social','Use the jukebox',['bar','live_music'],6],['social','Toast together',['bar','drinks'],5,{relationshipEvidenceType:'shared_experience'}],['move','Go somewhere quieter',['bar'],12,{mayMoveCharacter:true}]]),
+  karaoke: pack('karaoke', [['activity','Pick a song',['karaoke'],6,{sceneActivityKey:'karaoke',mayExtendScene:true}],['activity','Sing together',['karaoke'],8,{sceneActivityKey:'karaoke',relationshipEvidenceType:'shared_experience',photoCandidate:true,momentCandidate:true},{minRelationshipStage:'friend'}],['activity','Let them pick your song',['karaoke'],5,{sceneActivityKey:'karaoke'}],['social','Cheer them on',['karaoke'],7,{sceneActivityKey:'karaoke'}],['activity','Do another song',['karaoke'],8,{sceneActivityKey:'karaoke',mayExtendScene:true}]]),
+  live_music: pack('live_music', [['activity','Find a spot together',['live_music'],8],['social','Talk about the set',['live_music','music'],6],['activity','Stay for another song',['live_music'],7,{mayExtendScene:true}],['media','Take a photo together',['live_music','photography'],4,{photoCandidate:true,momentCandidate:true}],['move','Step outside for a minute',['live_music'],8,{mayMoveCharacter:true}]]),
+  arcade: pack('arcade', [['activity','Challenge them',['arcade'],8,{sceneActivityKey:'arcade_game'}],['activity','Pick a co-op game',['arcade'],10,{sceneActivityKey:'arcade_game'}],['social','Ask for a rematch',['arcade'],8,{sceneActivityKey:'arcade_game'}],['social','Raise the stakes playfully',['arcade'],5,{relationshipEvidenceType:'shared_experience'},{minRelationshipStage:'friend'}],['activity','Visit the prize counter',['arcade'],6]]),
+  cinema: pack('cinema', [['activity','Pick a movie',['cinema'],8],['activity','Share snacks',['cinema','food'],6],['talk','Talk before it starts',['cinema'],8],['activity','Stay for the credits',['cinema'],10,{mayExtendScene:true}],['relationship','Talk about the ending',['cinema'],12,{relationshipEvidenceType:'shared_experience'}]]),
+  books: pack('books', [['activity','Browse together',['books'],18],['share','Recommend something',['books'],8],['share','Pick a book for them',['books'],8],['activity','Read a passage',['books'],6],['activity','Sit with coffee',['books','cafe'],20]]),
+  art_gallery: pack('art_gallery', [['activity','Pick a favorite',['art_gallery'],8],['talk','Ask what they see in it',['art_gallery'],8],['social','Disagree about a piece',['art_gallery'],9],['move','Move to another room',['art_gallery'],7,{mayMoveCharacter:true}],['media','Take a photo together',['art_gallery','photography'],4,{photoCandidate:true}]]),
+  fitness: pack('fitness', [['activity','Work out together',['fitness'],30,{sceneActivityKey:'fitness'}],['activity','Set a small challenge',['fitness'],10,{sceneActivityKey:'fitness'}],['social','Cool down together',['fitness'],12],['talk','Ask about their routine',['fitness'],6]]),
+  market: pack('market', [['activity','Browse the stalls',['market'],20],['activity','Try something new',['market','food'],10],['share','Pick out something together',['market','shopping'],12],['media','Take a photo together',['market','photography'],4,{photoCandidate:true}]]),
+  shopping: pack('shopping', [['activity','Browse together',['shopping'],20],['share','Ask their opinion',['shopping'],6],['activity','Pick something for each other',['shopping'],10],['activity','Find somewhere to sit',['shopping'],12]]),
+  park: pack('park', [['activity','Walk together',['park','walking'],24,{sceneActivityKey:'walking'}],['activity','Choose a path',['park','walking'],10],['activity','Sit down',['park'],15],['social','People-watch',['park'],15],['media','Take photos',['park','photography'],8,{photoCandidate:true,momentCandidate:true}],['activity','Have a picnic',['park','food'],35,{relationshipEvidenceType:'shared_experience'}]]),
+  scenic: pack('scenic', [['activity','Take in the view',['scenic'],12],['activity','Walk together',['scenic','walking'],24,{sceneActivityKey:'walking'}],['media','Take a photo together',['scenic','photography'],5,{photoCandidate:true,momentCandidate:true}],['relationship','Stay for sunset',['scenic'],30,{relationshipEvidenceType:'shared_experience',momentCandidate:true},{minRelationshipStage:'friend'}]]),
+  hiking: pack('hiking', [['activity','Choose the next trail',['hiking'],12],['activity','Keep walking',['hiking'],35,{sceneActivityKey:'hiking',mayExtendScene:true}],['activity','Take a break',['hiking'],15],['media','Take a photo together',['hiking','photography'],5,{photoCandidate:true,momentCandidate:true}],['move','Head back before dark',['hiking'],18,{mayMoveCharacter:true}]]),
+  beach: pack('beach', [['activity','Walk along the water',['beach','walking'],25,{sceneActivityKey:'beach_walk'}],['activity','Find a spot',['beach'],10],['activity','Watch the sunset',['beach','scenic'],30,{momentCandidate:true}],['media','Take a photo together',['beach','photography'],5,{photoCandidate:true,momentCandidate:true}]]),
+  water_activity: pack('water_activity', [['activity','Try the water',['water_activity'],30,{sceneActivityKey:'water_activity'}],['activity','Rent something together',['water_activity'],20],['activity','Sit by the water',['water_activity','scenic'],18],['media','Take a photo together',['water_activity','photography'],5,{photoCandidate:true}]]),
+  home: pack('home', [['activity','Put something on',['home','cinema'],20,{sceneActivityKey:'at_home'}],['activity','Cook together',['home','cooking'],45,{relationshipEvidenceType:'shared_experience'},{minRelationshipStage:'friend'}],['social','Choose music',['home','live_music'],8],['share','Look through photos',['home','photography'],14],['activity','Relax together',['home'],25]],),
+  workplace: pack('workplace', [['talk','Ask what they are working on',['workplace'],6],['activity','Look at the project',['workplace','creative'],10],['share','Give an opinion',['workplace'],7],['activity','Bring coffee',['workplace','cafe'],8],['activity','Wait until they are done',['workplace'],15]]),
+  transit: pack('transit', [['activity','Ride together',['transit'],18,{sceneActivityKey:'transit'}],['activity','Choose a stop',['transit'],6,{mayMoveCharacter:true}],['activity','Wait together',['transit'],10],['social','People-watch',['transit'],10],['relationship','Make a last-train decision',['transit'],7,{relationshipEvidenceType:'shared_experience'}]]),
+  district: pack('district', [['activity','Explore together',['district','walking'],20,{sceneActivityKey:'exploring'}],['talk','Ask where they want to go',['district'],5],['move','Find somewhere nearby',['district'],8,{mayMoveCharacter:true}],['social','Take a slower walk',['district','walking'],18]]),
+  theater: pack('theater', [['activity','Choose a show',['theater'],8],['activity','Find your seats',['theater'],7],['talk','Talk at intermission',['theater'],10],['relationship','Stay after to talk about it',['theater'],15,{relationshipEvidenceType:'shared_experience'}]]),
+  cooking: pack('cooking', [['activity','Cook together',['cooking'],45,{sceneActivityKey:'cooking',relationshipEvidenceType:'shared_experience'}],['activity','Pick a recipe',['cooking'],8],['share','Taste-test together',['cooking'],10],['social','Clean up together',['cooking'],12]]),
+  campfire: pack('campfire', [['activity','Build up the fire',['campfire'],10],['activity','Make something warm',['campfire','food'],12],['talk','Tell a story',['campfire'],16],['relationship','Stay out a little longer',['campfire'],25,{momentCandidate:true,relationshipEvidenceType:'shared_experience'},{minRelationshipStage:'friend'}]]),
+  stargazing: pack('stargazing', [['activity','Look for constellations',['stargazing'],16],['activity','Make a wish',['stargazing'],6],['talk','Talk about something real',['stargazing'],18,{relationshipEvidenceType:'meaningful_conversation'}],['media','Take a photo together',['stargazing','photography'],5,{photoCandidate:true,momentCandidate:true}]]),
+  ski_snow: pack('ski_snow', [['activity','Choose a run',['ski_snow'],8],['activity','Warm up together',['ski_snow'],15],['activity','Take a break',['ski_snow'],12],['media','Take a photo together',['ski_snow','photography'],5,{photoCandidate:true}]]),
+  night_market: pack('night_market', [['activity','Browse the stalls',['night_market','market'],20],['activity','Try a late snack',['night_market','food'],10],['share','Pick something for each other',['night_market','shopping'],10],['media','Take a photo together',['night_market','photography'],5,{photoCandidate:true}]]),
+  photography: pack('photography', [['activity','Ask what caught their eye',['photography'],6],['activity','Help frame a shot',['photography'],8],['activity','Take a photo together',['photography'],5,{photoCandidate:true,momentCandidate:true}],['activity','Walk until something interesting appears',['photography','walking'],20,{sceneActivityKey:'photography'}]]),
+  trivia: pack('trivia', [['activity','Join the team',['trivia'],12,{sceneActivityKey:'trivia'}],['social','Choose a category',['trivia'],5],['social','Compare answers',['trivia'],6],['activity','Celebrate a good round',['trivia'],5,{relationshipEvidenceType:'shared_experience'}]]),
+  comedy: pack('comedy', [['activity','Find a table',['comedy'],8],['activity','Watch the set',['comedy'],20],['social','Trade reactions',['comedy'],6],['relationship','Stay to talk after',['comedy'],12,{relationshipEvidenceType:'shared_experience'}]]),
+};
+
+const allDefinitions = Object.values(interactionPacks).flat();
+export const interactionDefinitions = new Map(allDefinitions.map((item) => [item.key, item]));
+
+export function deriveCharacterInteractionProfile(character: InteractionCharacter): CharacterInteractionProfile {
+  const personality = character.personality ?? {};
+  const relationship = character.relationshipConfig ?? {};
+  const life = character.lifeConfig ?? {};
+  const interests = (character.interests ?? []).map(normalizeActivityTag);
+  const text = `${interests.join(' ')} ${word(character.occupation)} ${JSON.stringify(life)}`.toLowerCase();
+  const numeric = (keys: string[], fallback: number) => clamp(keys.map((key) => Number(personality[key] ?? relationship[key] ?? life[key])).find(Number.isFinite) ?? fallback);
+  const affinity = (terms: string[]) => clamp(terms.some((term) => text.includes(term)) ? .82 : .34);
+  const profile: CharacterInteractionProfile = {
+    preferredFamilies: ['talk', 'activity', 'social'],
+    preferredActivityTags: interests,
+    dislikedActivityTags: words((character.boundaries ?? {})['dislikedActivities']).map(normalizeActivityTag),
+    initiative: numeric(['initiative', 'directness'], .5), competitiveness: numeric(['competitiveness'], affinity(['arcade', 'game', 'sport', 'trivia'])), curiosity: numeric(['curiosity', 'openness'], .55),
+    physicalActivity: affinity(['fitness', 'run', 'hiking', 'outdoor', 'ski']), nightlife: affinity(['nightlife', 'bar', 'music', 'karaoke', 'dance']), outdoors: affinity(['outdoor', 'hiking', 'park', 'beach', 'nature']),
+    foodInterest: affinity(['food', 'cooking', 'restaurant', 'coffee']), creativeInterest: affinity(['photo', 'art', 'design', 'music', 'book']), socialComfort: numeric(['socialEnergy', 'social_energy', 'warmth'], .55), spontaneity: numeric(['spontaneity'], .5),
+  };
+  if (profile.creativeInterest > .7) profile.preferredFamilies.push('media');
+  if (profile.socialComfort > .7) profile.preferredFamilies.push('social');
+  return profile;
+}
+
+export function resolveInteractions(input: InteractionResolveInput): InteractionCandidate[] {
+  const profile = input.interactionProfile ?? deriveCharacterInteractionProfile(input.character);
+  const packs = inferInteractionPacks(input.location, input.world);
+  const source = packs.flatMap((item) => interactionPacks[item] ?? []);
+  const recent = input.scene?.recentActionKeys ?? [];
+  const life = input.life ?? {};
+  const availableMinutes = life.expectedEndAt ? Math.max(0, (new Date(life.expectedEndAt).getTime() - (life.now ?? new Date()).getTime()) / 60000) : Infinity;
+  const results = source.flatMap((definition) => {
+    const eligibility = interactionEligible(definition, input, profile, availableMinutes);
+    if (!eligibility.eligible) return [];
+    const tags = definition.activityTags ?? [];
+    const repetition = recent.slice(-5).filter((key) => key === definition.key).length * .85 + (recent.slice(-2).some((key) => key === definition.key) ? .45 : 0);
+    const locationFit = tags.some((tag) => packs.includes(tag)) ? .58 : .26;
+    const preferenceFit = tags.reduce((score, tag) => score + tagProfileFit(tag, profile), 0) / Math.max(1, tags.length);
+    const relationshipFit = interactionRelationshipFit(definition, input.relationship);
+    const moodScore = moodFit(tags, life.mood, life.energy);
+    const stableNoise = (stableHash(`${input.seed ?? input.location.id}:${definition.key}:${recent.join('|')}`) % 17) / 500;
+    const score = Math.max(0, locationFit + preferenceFit * .52 + relationshipFit * .22 + moodScore * .12 + stableNoise - repetition);
+    return [{
+      id: definition.key, interactionKey: definition.key, family: definition.family, label: definition.labels.default, ...(definition.durationMinutes !== undefined ? { durationMinutes: definition.durationMinutes } : {}),
+      score, reasonCodes: [...eligibility.reasons, locationFit > .5 ? 'location_match' : 'location_flexible', preferenceFit > .62 ? 'character_fit' : 'variety', repetition ? 'repetition_penalty' : 'fresh'],
+      effects: { ...(definition.effects ?? {}) }, presentation: { iconKey: definition.family, emphasis: score > .95 ? 'recommended' as const : 'normal' as const },
+    }];
+  });
+  const chained = applyActionChains(results, input.scene, packs);
+  const unique = new Map<string, InteractionCandidate>();
+  for (const candidate of chained.sort((left, right) => right.score - left.score || left.interactionKey.localeCompare(right.interactionKey))) if (!unique.has(candidate.interactionKey)) unique.set(candidate.interactionKey, candidate);
+  const ordered = [...unique.values()].sort((left, right) => right.score - left.score || left.interactionKey.localeCompare(right.interactionKey));
+  // Preserve the strongest overall candidates while reserving room for each
+  // compatible pack. A park that also supports photography should not bury
+  // every photo interaction beneath five slightly different walking options.
+  const candidates: InteractionCandidate[] = [];
+  for (const interactionPack of packs) {
+    const compatible = ordered.find((candidate) => !candidates.some((chosen) => chosen.id === candidate.id) && (interactionDefinition(candidate.interactionKey)?.activityTags ?? []).includes(interactionPack));
+    if (compatible) candidates.push(compatible);
+    if (candidates.length >= (input.limit ?? 5)) break;
+  }
+  for (const candidate of ordered) {
+    if (candidates.length >= (input.limit ?? 5)) break;
+    if (!candidates.some((chosen) => chosen.id === candidate.id)) candidates.push(candidate);
+  }
+  return candidates.length ? candidates : fallbackInteractions(input, availableMinutes);
+}
+
+function interactionEligible(definition: InteractionDefinition, input: InteractionResolveInput, profile: CharacterInteractionProfile, availableMinutes: number) {
+  const requirements = definition.requirements;
+  const reasons = ['eligible'];
+  if (!requirements) return { eligible: true, reasons };
+  if (requirements.allowedCharacterRoles?.length && !requirements.allowedCharacterRoles.includes(input.character.role ?? '')) return { eligible: false, reasons: ['role'] };
+  if (requirements.minRelationshipStage && stageIndex(input.relationship.stage) < stageIndex(requirements.minRelationshipStage)) return { eligible: false, reasons: ['relationship_stage'] };
+  if (requirements.maxRelationshipStage && stageIndex(input.relationship.stage) > stageIndex(requirements.maxRelationshipStage)) return { eligible: false, reasons: ['relationship_stage'] };
+  if (requirements.contentLevel === 'romance' && input.relationship.romanceEnabled === false) return { eligible: false, reasons: ['romance_disabled'] };
+  if (requirements.minAvailability === 'open' && lifeLevel(input.life) !== 'open') return { eligible: false, reasons: ['availability'] };
+  if (requirements.minAvailability === 'limited' && ['busy', 'unavailable'].includes(lifeLevel(input.life))) return { eligible: false, reasons: ['availability'] };
+  if (definition.durationMinutes && availableMinutes < definition.durationMinutes + 3) return { eligible: false, reasons: ['schedule_pressure'] };
+  if ((definition.activityTags ?? []).some((tag) => profile.dislikedActivityTags.includes(tag))) return { eligible: false, reasons: ['character_boundary'] };
+  if (input.character.role === 'social_character' && definition.family === 'relationship') return { eligible: false, reasons: ['social_role'] };
+  return { eligible: true, reasons };
+}
+
+function lifeLevel(life: InteractionLife | null | undefined) { return life?.availability ?? life?.interruptibility ?? 'open'; }
+function tagProfileFit(tag: string, profile: CharacterInteractionProfile) {
+  if (profile.dislikedActivityTags.includes(tag)) return -1;
+  if (profile.preferredActivityTags.includes(tag)) return .92;
+  if (['photography', 'art_gallery', 'books', 'live_music'].includes(tag)) return profile.creativeInterest;
+  if (['park', 'scenic', 'hiking', 'beach', 'water_activity'].includes(tag)) return profile.outdoors;
+  if (['fitness', 'ski_snow'].includes(tag)) return profile.physicalActivity;
+  if (['bar', 'karaoke', 'live_music', 'night_market'].includes(tag)) return profile.nightlife;
+  if (['cafe', 'restaurant', 'market', 'cooking'].includes(tag)) return profile.foodInterest;
+  if (['arcade', 'trivia'].includes(tag)) return profile.competitiveness;
+  return .45;
+}
+function interactionRelationshipFit(definition: InteractionDefinition, relationship: InteractionRelationship) {
+  const stage = stageIndex(relationship.stage) / (stageOrder.length - 1);
+  if (definition.family === 'relationship') return stage;
+  if (definition.family === 'talk') return .65;
+  return .45 + (relationship.comfort ?? 35) / 200;
+}
+function moodFit(tags: string[], mood?: string | null, energy?: string | null) {
+  const text = `${mood ?? ''} ${energy ?? ''}`.toLowerCase();
+  if (/tired|low/.test(text) && tags.some((tag) => ['hiking', 'fitness', 'ski_snow'].includes(tag))) return -.65;
+  if (/playful|energized|high/.test(text) && tags.some((tag) => ['karaoke', 'arcade', 'trivia'].includes(tag))) return .3;
+  if (/quiet|reflective/.test(text) && tags.some((tag) => ['books', 'art_gallery', 'scenic'].includes(tag))) return .24;
+  return 0;
+}
+function applyActionChains(candidates: InteractionCandidate[], scene: InteractionSceneState | null | undefined, packs: InteractionPack[]) {
+  const recent = scene?.recentActionKeys ?? [];
+  const last = recent.at(-1) ?? '';
+  return candidates.map((candidate) => {
+    let bonus = 0;
+    if (last.includes('pick_a_song') && ['karaoke.sing_together', 'karaoke.let_them_pick_your_song', 'bar.grab_a_drink'].includes(candidate.interactionKey)) bonus = .55;
+    if (last.includes('sing_together') && ['bar.grab_a_drink', 'karaoke.do_another_song', 'live_music.take_a_photo_together'].includes(candidate.interactionKey)) bonus = .48;
+    if (last.includes('challenge_them') && ['arcade.ask_for_a_rematch', 'arcade.pick_a_co_op_game'].includes(candidate.interactionKey)) bonus = .5;
+    if (last.includes('take_a_photo') && candidate.family === 'move') bonus = .25;
+    if (scene?.focus === 'karaoke' && packs.includes('karaoke') && candidate.interactionKey.startsWith('karaoke.')) bonus += .16;
+    return bonus ? { ...candidate, score: candidate.score + bonus, reasonCodes: [...candidate.reasonCodes, 'scene_chain'] } : candidate;
+  });
+}
+function fallbackInteractions(input: InteractionResolveInput, availableMinutes: number): InteractionCandidate[] {
+  const fallback = [definition('scene.talk', 'talk', 'Talk for a while', [], 8), definition('scene.look_around', 'activity', 'Look around together', [], 10), definition('scene.leave', 'leave', 'Head out', [], 1, { mayMoveCharacter: true })];
+  return fallback.filter((item) => !item.durationMinutes || availableMinutes >= item.durationMinutes).map((item, index) => ({ id: item.key, interactionKey: item.key, family: item.family, label: item.labels.default, ...(item.durationMinutes !== undefined ? { durationMinutes: item.durationMinutes } : {}), score: .4 - index * .04, reasonCodes: ['safe_fallback'], effects: { ...(item.effects ?? {}) }, presentation: { iconKey: item.family } }));
+}
+
+export function resolveMovementDestinations(input: InteractionResolveInput): InteractionCandidate[] {
+  const currentPacks = inferInteractionPacks(input.location, input.world);
+  return (input.nearbyLocations ?? []).filter((location) => location.id !== input.location.id && locationOpenForInteraction(location, input.life?.now ?? new Date())).map((location) => {
+    const destinationPacks = inferInteractionPacks(location, input.world);
+    const shared = destinationPacks.filter((pack) => currentPacks.includes(pack)).length;
+    const profile = input.interactionProfile ?? deriveCharacterInteractionProfile(input.character);
+    const activityFit = destinationPacks.reduce((sum, pack) => sum + tagProfileFit(pack, profile), 0) / Math.max(1, destinationPacks.length);
+    const score = .42 + shared * .12 + activityFit * .35 + (stableHash(`${input.seed ?? input.location.id}:${location.id}`) % 9) / 1000;
+    return { id: `move:${location.id}`, interactionKey: `move:${location.id}`, family: 'move' as const, label: `Go to ${location.name}`, durationMinutes: 12, score, reasonCodes: [shared ? 'nearby_related' : 'nearby', activityFit > .62 ? 'character_fit' : 'variety'], effects: { mayMoveCharacter: true, destinationLocationId: location.id }, presentation: { iconKey: 'move' } };
+  }).sort((left, right) => right.score - left.score || left.id.localeCompare(right.id)).slice(0, 5);
+}
+
+export function applyInteractionSceneState(state: InteractionSceneState | null | undefined, candidate: Pick<InteractionCandidate, 'interactionKey' | 'effects' | 'label'>): InteractionSceneState {
+  const previous = state ?? {};
+  const recent = [...(previous.recentActionKeys ?? []), candidate.interactionKey].slice(-10);
+  const activity = typeof candidate.effects['sceneActivityKey'] === 'string' ? candidate.effects['sceneActivityKey'] : previous.currentActivityKey ?? null;
+  const focus = candidate.interactionKey.split('.')[0] ?? previous.focus ?? null;
+  return { ...previous, focus, currentActivityKey: activity, activityLabel: candidate.label, recentActionKeys: recent, selectedBy: candidate.interactionKey.includes('let_them_pick') ? 'character' : 'user' };
+}
+
+/**
+ * Recognises only clear, affirmative scene commands. This is deliberately a
+ * matcher over server-resolved candidates: free text can select a currently
+ * valid action, but it can never invent an interaction or bypass its rules.
+ */
+export function matchInteractionIntent(text: string, candidates: InteractionCandidate[]): InteractionCandidate | null {
+  const normalized = text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!normalized || /\b(don'?t|do not|never mind|maybe later|not now)\b/.test(normalized)) return null;
+  const affirmative = /\b(let s|lets|let us|we should|i want to|i d like to|i would like to|go ahead|do it|yes let s|yes lets)\b/.test(normalized);
+  if (!affirmative) return null;
+  const normalizedLabel = (value: string) => value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const aliases: Record<string, string[]> = {
+    'sing together': ['sing with you', 'sing with them', 'do a duet'],
+    'take a photo together': ['take a picture together', 'get a photo together'],
+    'walk together': ['go for a walk', 'take a walk'],
+    'grab a drink': ['get a drink', 'have a drink'],
+    'browse together': ['look around together'],
+  };
+  const matches = candidates.filter((candidate) => {
+    const label = normalizedLabel(candidate.label);
+    if (normalized.includes(label)) return true;
+    return (aliases[label] ?? []).some((alias) => normalized.includes(alias));
+  });
+  return matches.sort((left, right) => right.score - left.score || left.interactionKey.localeCompare(right.interactionKey))[0] ?? null;
+}
+
+export function interactionDefinition(key: string) { return interactionDefinitions.get(key) ?? null; }
+function locationOpenForInteraction(location: InteractionLocation, now: Date) {
+  const hours = location.hours;
+  if (!hours || !Object.keys(hours).length) return true;
+  const day = new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(now).toLowerCase().slice(0, 3);
+  const raw = hours[day] ?? hours['default'] ?? hours;
+  if (raw === 'closed' || (typeof raw === 'object' && raw !== null && (raw as Record<string, unknown>)['closed'] === true)) return false;
+  const record = typeof raw === 'object' && raw !== null ? raw as Record<string, unknown> : null;
+  const openValue = record?.['open'] ?? record?.['opensAt'];
+  const closeValue = record?.['close'] ?? record?.['closesAt'];
+  const text = typeof raw === 'string' ? raw : `${typeof openValue === 'string' ? openValue : ''}-${typeof closeValue === 'string' ? closeValue : ''}`;
+  const match = text.match(/(\d{1,2})(?::(\d{2}))?\s*-\s*(\d{1,2})(?::(\d{2}))?/);
+  if (!match) return true;
+  const current = now.getHours() * 60 + now.getMinutes(), open = Number(match[1]) * 60 + Number(match[2] ?? 0), close = Number(match[3]) * 60 + Number(match[4] ?? 0);
+  return close < open ? current >= open || current <= close : current >= open && current <= close;
+}
+function stableHash(value: string) { let hash = 2166136261; for (const char of value) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); } return hash >>> 0; }
+

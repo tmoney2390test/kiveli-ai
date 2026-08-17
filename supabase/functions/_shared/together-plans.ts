@@ -51,8 +51,20 @@ export async function createSharedPlan(db:any, input:CreatePlanInput) {
   }
 
   const metadata={requestId:input.requestId,durationMinutes:resolved.durationMinutes,significance:resolved.significance,completionSummary:`User and their companion spent time together for ${resolved.title}.`,locationSlug:resolved.location.slug};
-  const {data:plan,error}=await db.from('together_shared_plans').insert({user_id:input.userId,character_instance_id:input.characterInstanceId,title:resolved.title,activity_key:resolved.activityKey,world_id:resolved.location.world_id,location_id:resolved.location.id,starts_at:start.toISOString(),ends_at:end.toISOString(),status:'scheduled',source:input.source,source_conversation_id:input.sourceConversationId??null,source_message_id:input.sourceMessageId??null,note:input.note?.trim()||null,metadata}).select('*').single();
+  // Send every required commitment field explicitly. PostgREST can materialize
+  // omitted JSON properties as NULL rather than applying the SQL default, which
+  // would reject an otherwise valid plan after the commitment migrations added
+  // these NOT NULL columns.
+  const {data:plan,error}=await db.from('together_shared_plans').insert({user_id:input.userId,continuity_id:continuity.id,character_instance_id:input.characterInstanceId,title:resolved.title,activity_key:resolved.activityKey,world_id:resolved.location.world_id,location_id:resolved.location.id,starts_at:start.toISOString(),ends_at:end.toISOString(),status:'scheduled',source:input.source,source_conversation_id:input.sourceConversationId??null,source_message_id:input.sourceMessageId??null,note:input.note?.trim()||null,metadata,time_precision:'exact',participation_mode:'live',grace_minutes:30,companion_state:'expected'}).select('*').single();
   if(error||!plan){
+    console.error('Shared plan creation failed',{
+      code:error?.code,
+      details:error?.details,
+      hint:error?.hint,
+      characterInstanceId:input.characterInstanceId,
+      locationId:resolved.location.id,
+      source:input.source,
+    });
     if(error?.code==='23505'){const{data:duplicate}=await db.from('together_shared_plans').select('*').eq('user_id',input.userId).eq('metadata->>requestId',input.requestId).maybeSingle();if(duplicate)return{kind:'shared_plan' as const,commitment:duplicate,created:false};}
     throw new AppError('INTERNAL_ERROR','The plan could not be saved. Try again.',500,true);
   }
@@ -167,3 +179,4 @@ function minuteLabel(value:number){const normalized=((value%1440)+1440)%1440,hou
 function normalize(value:string){return value.toLowerCase().trim().replace(/[^a-z0-9]+/g,' ').trim();}
 function conversionSource(source:PlanSource){return source==='chat'?'chat_natural_language':source==='manual_planner'?'chat_manual':source;}
 async function trackPlanCreationSource(db:any,userId:string,source:PlanSource,metadata:Record<string,unknown>){if(source==='chat')await track(db,userId,'plan_created_from_chat',metadata);if(source==='location')await track(db,userId,'plan_created_from_location',metadata);}
+

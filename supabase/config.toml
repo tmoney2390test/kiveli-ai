@@ -52,6 +52,8 @@ verify_jwt = false
 verify_jwt = false
 [functions.together-plan]
 verify_jwt = false
+[functions.together-interaction]
+verify_jwt = false
 [functions.together-relationship]
 verify_jwt = false
 [functions.together-conversation]
@@ -66,3 +68,4 @@ verify_jwt = false
 verify_jwt = false
 [functions.together-creator]
 verify_jwt = false
+

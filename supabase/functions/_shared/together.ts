@@ -133,7 +133,7 @@ export function summarizeConversation(turns: Array<{ role: string; content: stri
   const userDetails = clean.filter((turn) => turn.role === 'user').map((turn) => turn.content).slice(-4);
   const characterDetails = clean.filter((turn) => turn.role === 'assistant').map((turn) => turn.content).slice(-3);
   const summary = [userDetails.length ? `User shared: ${userDetails.join(' | ')}` : '', characterDetails.length ? `Character responded: ${characterDetails.join(' | ')}` : ''].filter(Boolean).join('\n');
-  return summary.length <= limit ? summary : `${summary.slice(0, limit - 1).trimEnd()}…`;
+  return summary.length <= limit ? summary : `${summary.slice(0, limit - 1).trimEnd()}â€¦`;
 }
 
 type ConversationContinuitySummary = {
@@ -155,7 +155,7 @@ export function mergeConversationSummary(previousValue: string, turns: Array<{ i
   const allText = turns.map((turn) => turn.content).join(' ');
   const emotional = allText.match(/\b(?:nervous|excited|upset|happy|sad|worried|stressed|proud|angry|afraid|hopeful)\b/gi) ?? [];
   const questions = userTurns.filter((text) => text.endsWith('?')).slice(-2);
-  const jokes = turns.filter((turn) => /\b(?:haha|lol|joke|teas(?:e|ing)|😂|😄)\b/i.test(turn.content)).map((turn) => turn.content.trim()).slice(-2);
+  const jokes = turns.filter((turn) => /\b(?:haha|lol|joke|teas(?:e|ing)|ðŸ˜‚|ðŸ˜„)\b/i.test(turn.content)).map((turn) => turn.content.trim()).slice(-2);
   const topics = [...new Set([...(previous.topics ?? []), ...userTurns.map((text) => text.split(/[.!?]/)[0]?.trim()).filter(Boolean)])].slice(-6);
   const priorContext = String(previous.recentContext ?? '').slice(-520);
   const summary: ConversationContinuitySummary = {
@@ -182,7 +182,7 @@ export async function track(db: SupabaseClient, userId: string, eventName: strin
 
 export async function buildSnapshot(db: SupabaseClient, userId: string): Promise<Record<string, unknown>> {
   const continuity=await activeContinuity(db,userId);
-  const [profile, personas, continuities, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions] = await Promise.all([
+  const [profile, personas, continuities, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, schedules, scheduleEvents, relationships, milestones, dates, moments, memories, threads, conversations, sceneSessions, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions] = await Promise.all([
     db.from('together_profiles').select('*').eq('user_id', userId).maybeSingle(),
     db.from('together_user_personas').select('*').eq('user_id',userId).order('is_default',{ascending:false}).order('created_at'),
     db.from('together_continuities').select('*,together_user_personas(*)').eq('user_id',userId).order('kind').order('created_at'),
@@ -193,6 +193,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
     db.from('together_character_instances').select('*, together_character_templates(*), together_character_versions(*)').eq('user_id', userId).eq('continuity_id',continuity.id),
     db.from('together_character_templates').select('*,together_character_versions(*)').or(`and(published.eq.true,can_be_selected.eq.true),creator_id.eq.${userId}`).neq('lifecycle_status','archived').order('name'),
     db.from('together_schedule_templates').select('*'),
+    db.from('together_character_schedule_events').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).gte('ends_at',new Date(Date.now()-86400000).toISOString()).lte('starts_at',new Date(Date.now()+8*86400000).toISOString()).order('starts_at').limit(800),
     db.from('together_relationship_states').select('*').eq('user_id', userId).eq('continuity_id',continuity.id),
     db.from('together_relationship_milestones').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).eq('status', 'pending').order('created_at', { ascending: true }),
     db.from('together_date_sessions').select('*, together_date_templates(*)').eq('user_id', userId).eq('continuity_id',continuity.id),
@@ -200,6 +201,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
     db.from('together_memories').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).eq('status', 'active').order('pinned', { ascending: false }).order('importance', { ascending: false }).limit(100),
     db.from('together_open_threads').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).is('resolved_at', null),
     db.from('together_conversations').select('*,together_messages(count)').eq('user_id', userId).eq('continuity_id',continuity.id).order('last_message_at', { ascending: false, nullsFirst: false }),
+    db.from('together_scene_sessions').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).is('ended_at',null).order('started_at',{ascending:false}).limit(24),
     db.from('together_life_events').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).order('starts_at', { ascending: false }).limit(20),
     db.from('together_shared_plans').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).order('starts_at',{ascending:true}).limit(100),
     db.from('together_conversation_events').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).order('created_at',{ascending:true}).limit(200),
@@ -212,9 +214,24 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
     db.from('together_generated_media').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).order('created_at', { ascending: false }).limit(60),
     db.from('together_conversation_actions').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).eq('status','pending').or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`).order('created_at',{ascending:false}).limit(20),
   ]);
-  const failed = [profile,personas,continuities, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, schedules, relationships, milestones, dates, moments, memories, threads, conversations, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions].find((result) => result.error);
+  const failed = [profile,personas,continuities, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, schedules, scheduleEvents, relationships, milestones, dates, moments, memories, threads, conversations, sceneSessions, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions].find((result) => result.error);
   if (failed?.error) throw new AppError('INTERNAL_ERROR', 'Kivelle could not load your world.', 500, true);
-  const stageByInstance = new Map((instances.data ?? []).map((instance) => [instance.id, instance.relationship_stage]));
+  const now=Date.now();
+  const activeScenes=(sceneSessions.data??[]).filter((scene:Record<string,unknown>)=>{
+    const expected=scene.expected_end_at?new Date(String(scene.expected_end_at)).getTime():new Date(String(scene.started_at)).getTime()+3*60*60*1000;
+    return Number.isFinite(expected)&&expected>now;
+  });
+  const sceneByInstance=new Map(activeScenes.map((scene:Record<string,unknown>)=>[String(scene.character_instance_id),scene]));
+  // Scene state is an active, user-entered layer over passive schedule state.
+  // The persisted character row stays schedule-owned; snapshot consumers see
+  // the shared scene without mutating the character just to render a screen.
+  const visibleInstances=(instances.data??[]).map((instance:Record<string,unknown>)=>{
+    const scene=sceneByInstance.get(String(instance.id));
+    if(!scene)return instance;
+    const sceneState=(scene.state??{}) as Record<string,unknown>;
+    return {...instance,current_location_id:scene.location_id,current_activity:String(sceneState.activityLabel??scene.activity_key??instance.current_activity??'together'),current_interruptibility:'open',current_presence_source:'scene'};
+  });
+  const stageByInstance = new Map(visibleInstances.map((instance) => [instance.id, instance.relationship_stage]));
   const relationshipCues = Object.fromEntries((relationships.data ?? []).map((relationship) => [relationship.character_instance_id, describeRelationshipCue({ ...relationship, relationship_stage: stageByInstance.get(relationship.character_instance_id) })]));
   const conversationMetadata = (conversations.data ?? []).map((conversation) => ({ ...conversation, message_count: Number(conversation.together_messages?.[0]?.count ?? 0), unread: Boolean(conversation.last_assistant_message_at && (!conversation.last_read_at || new Date(conversation.last_assistant_message_at) > new Date(conversation.last_read_at))) }));
   const mediaRows=generatedMedia.data??[];
@@ -226,8 +243,9 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
   const referencePaths=[...new Set(currentCreatorVersions.flatMap((version)=>[...(Array.isArray(version.appearance_candidates)?version.appearance_candidates.map((candidate:Record<string,unknown>)=>String(candidate.storagePath??'')).filter(Boolean):[]),...(Array.isArray(version.visual_identity?.referenceStoragePaths)?version.visual_identity.referenceStoragePaths.map(String):[])]))];
   const referenceSigned=referencePaths.length?await db.storage.from('kivelle-character-reference').createSignedUrls(referencePaths,3600):{data:[]};const referenceUrlByPath=new Map((referenceSigned.data??[]).map((item)=>[item.path,item.signedUrl]));
   const discoverableCharacters=(discoverable.data??[]).map((template)=>{const selected=(template.together_character_versions??[]).find((version:Record<string,unknown>)=>Number(version.version)===Number(template.current_published_version))??template.together_character_versions?.[0]??null;if(!selected)return{...template,together_character_versions:null};const candidates=(Array.isArray(selected.appearance_candidates)?selected.appearance_candidates:[]).map((candidate:Record<string,unknown>)=>({...candidate,signedUrl:typeof candidate.storagePath==='string'?referenceUrlByPath.get(candidate.storagePath)??null:null}));const selectedId=String(selected.appearance_config?.selectedCandidateId??''),portraitPath=String(candidates.find((candidate:Record<string,unknown>)=>candidate.id===selectedId)?.storagePath??selected.visual_identity?.referenceStoragePaths?.[0]??'');return{...template,together_character_versions:{...selected,appearance_candidates:candidates,portrait_url:portraitPath?referenceUrlByPath.get(portraitPath)??null:null}};});
-  const activeInstance=(instances.data??[]).find((item)=>item.id===continuity.active_companion_instance_id)??instances.data?.[0];
+  const activeInstance=visibleInstances.find((item)=>item.id===continuity.active_companion_instance_id)??visibleInstances[0];
   const currentPlaceContext=activeInstance?.current_location_id?await resolvePlaceContext({db,locationId:String(activeInstance.current_location_id),userId}).catch(()=>null):null;
   const profilePayload=profile.data?{...profile.data,active_continuity_id:continuity.id,active_companion_instance_id:activeInstance?.id??null}:profile.data;
-  return { profile: profilePayload, activePersona:continuity.together_user_personas??null,activeContinuity:continuity,personas:personas.data??[],continuities:continuities.data??[],worlds: worlds.data ?? [], userWorlds:userWorlds.data??[], characterWorldPresence:characterWorldPresence.data??[], currentPlaceContext, locations: locations.data ?? [], characters: instances.data ?? [], discoverableCharacters, schedules: schedules.data ?? [], relationships: relationships.data ?? [], relationshipMilestones: milestones.data ?? [], relationshipCues, dates: dates.data ?? [], moments: moments.data ?? [], memories: memories.data ?? [], openThreads: threads.data ?? [], conversations: conversationMetadata, sharedPlans:sharedPlans.data??[], conversationEvents:conversationEvents.data??[], lifeEvents: events.data ?? [], proactiveMessages: proactive.data ?? [], storyArcs: storyArcs.data ?? [], trips: trips.data ?? [], photoOpportunities: photoOpportunities.data ?? [], generatedMedia: mediaPayload, conversationActions:conversationActions.data??[], entitlements: entitlements.data, notificationPreferences: preferences.data };
+  return { profile: profilePayload, activePersona:continuity.together_user_personas??null,activeContinuity:continuity,personas:personas.data??[],continuities:continuities.data??[],worlds: worlds.data ?? [], userWorlds:userWorlds.data??[], characterWorldPresence:characterWorldPresence.data??[], currentPlaceContext, locations: locations.data ?? [], characters: visibleInstances, discoverableCharacters, schedules: schedules.data ?? [], scheduleEvents:(scheduleEvents.data??[]).filter((event)=>!event.metadata?.suppressedByPlanId), relationships: relationships.data ?? [], relationshipMilestones: milestones.data ?? [], relationshipCues, dates: dates.data ?? [], moments: moments.data ?? [], memories: memories.data ?? [], openThreads: threads.data ?? [], conversations: conversationMetadata, sceneSessions:activeScenes, sharedPlans:sharedPlans.data??[], conversationEvents:conversationEvents.data??[], lifeEvents: events.data ?? [], proactiveMessages: proactive.data ?? [], storyArcs: storyArcs.data ?? [], trips: trips.data ?? [], photoOpportunities: photoOpportunities.data ?? [], generatedMedia: mediaPayload, conversationActions:conversationActions.data??[], entitlements: entitlements.data, notificationPreferences: preferences.data };
 }
+

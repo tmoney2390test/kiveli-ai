@@ -1,11 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { eventIsActive, experienceClock, formatExperienceTime, type ExperienceClock } from './kivelle-time.ts';
 import { resolvePlaceContext, type PlaceContext } from './together-place.ts';
+import { resolveActiveConversationScene } from './together-conversation.ts';
 
 type Row = Record<string, any>;
 
 export type ContextQueryIntent = 'general'|'schedule'|'plan'|'date'|'story'|'memory_overview'|'social'|'location'|'history';
-export type CurrentSceneContext = { locationId: string|null; location: string; activity: string; mood: string; energy: string; availability: string; source: 'active_date'|'active_plan'|'active_event'|'schedule'; activeEvent?: { id:string; title:string; summary:string; endsAt?:string|null }; activePlan?:{id:string;title:string;endsAt?:string|null};activeDate?:{id:string;title:string} };
+export type CurrentSceneContext = { locationId: string|null; location: string; activity: string; mood: string; energy: string; availability: string; interruptibility?:string; scheduleEventId?:string; sceneSessionId?:string; lastInteractionKey?:string; startedAt?:string; expectedEndAt?:string; nextObligation?:{title:string;startsAt:string;location?:string|null}; entryReason?:'direct_chat'|'scheduled'|'user_drop_in'|'invited'|'continued_chat'|'shared_plan'|'active_date'; interactionMode:'remote'|'co_present'; sceneBehavior:{acknowledgeArrival:boolean;activityAwareness:boolean;departurePressure:boolean}; source: 'active_date'|'active_plan'|'active_event'|'scene'|'schedule'|'life_engine'|'character_state'; activeEvent?: { id:string; title:string; summary:string; endsAt?:string|null }; activePlan?:{id:string;title:string;endsAt?:string|null};activeDate?:{id:string;title:string} };
 export type KivelleConversationContext = {
   contentMode?:string;
   persona: Row;
@@ -66,7 +67,7 @@ export async function buildKivelleConversationContext(input: {
     db.from('together_memories').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status', 'active').order('pinned', { ascending:false }).order('importance', { ascending:false }).limit(intent === 'memory_overview' ? 40 : 20),
     db.from('together_open_threads').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).is('resolved_at', null).order('expected_at', { ascending:true, nullsFirst:false }).limit(10),
     db.from('together_messages').select('role,content,created_at').eq('conversation_id', conversation.id).order('created_at', { ascending:false }).limit(18),
-    db.from('together_schedule_templates').select('*,together_locations(name,world_id)').eq('character_version_id', instance.character_version_id),
+    db.from('together_character_schedule_events').select('*,together_locations(name,world_id)').eq('user_id',userId).eq('character_instance_id',instance.id).gte('ends_at',now.toISOString()).lte('starts_at',new Date(now.getTime()+7*86400000).toISOString()).order('starts_at').limit(80),
     db.from('together_life_events').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).not('event_type','in','(shared_plan,legacy_shared_plan)').lte('starts_at', now.toISOString()).order('starts_at', { ascending:false }).limit(12),
     db.from('together_shared_plans').select('*,together_locations(name,slug)').eq('user_id', userId).eq('character_instance_id', instance.id).order('starts_at', { ascending:true }).limit(40),
     db.from('together_date_sessions').select('*,together_date_templates(*)').eq('user_id', userId).eq('character_instance_id', instance.id).order('updated_at', { ascending:false }).limit(20),
@@ -85,18 +86,30 @@ export async function buildKivelleConversationContext(input: {
   const activeEvent = eventIsActive(input.lifeRun.activeEvent as Row | undefined, now) ? input.lifeRun.activeEvent as Row : null;
   const activePlanRow=(plans.data??[]).find((plan:Row)=>plan.status==='active'&&new Date(plan.starts_at)<=now&&new Date(plan.ends_at)>now) as Row|undefined;
   const activeDateRow=(dates.data??[]).find((date:Row)=>date.status==='active') as Row|undefined;
-  const locationId = String(activeDateRow?.together_date_templates?.location_id??activePlanRow?.location_id??activeEvent?.location_id ?? returnedState.locationId ?? instance.current_location_id ?? '') || null;
+  const storedScene=(conversation.metadata?.activeScene??conversation.metadata?.scene??{}) as Row;
+  const storedSceneLocation=storedScene.interactionMode==='co_present'?storedScene.locationId:null;
+  const locationId = String(activeDateRow?.together_date_templates?.location_id??activePlanRow?.location_id??activeEvent?.location_id ?? storedSceneLocation ?? returnedState.locationId ?? instance.current_location_id ?? '') || null;
   const currentLocation = locationId ? locationById.get(locationId) ?? null : null;
   const place=locationId?await resolvePlaceContext({db,locationId,now,userId,characterInstanceId:String(instance.id)}).catch(()=>null):null;
   const requestedWorld=(worlds.data??[]).find((world:Row)=>userMessage.toLowerCase().includes(String(world.name).toLowerCase())||userMessage.toLowerCase().includes(String(world.slug).replace(/-/g,' ')));
   const planningWorldId=String(requestedWorld?.id??place?.world.id??'');
   const timezone = place?.world.timezone ?? profile.data?.experience_timezone ?? prefs.data?.timezone ?? 'UTC';
   const clock = experienceClock(timezone, now);
+  const presence=(input.lifeRun.presence??{}) as Row;
+  const resolvedConversationScene=await resolveActiveConversationScene({db,userId,conversation,characterInstanceId:String(instance.id),now});
+  const conversationScene=(resolvedConversationScene.scene??{}) as Row;
+  const interactionMode:CurrentSceneContext['interactionMode']=(resolvedConversationScene.scene||activeDateRow||activePlanRow)?'co_present':'remote';
+  const entryReason:CurrentSceneContext['entryReason']=activeDateRow?'active_date':activePlanRow?'shared_plan':conversationScene.entryReason??'direct_chat';
+  const departureAt=activePlanRow?.ends_at??conversationScene.validUntil??presence.expectedEndAt??activeDateRow?.completed_at;
+  const departurePressure=Boolean(departureAt&&new Date(String(departureAt)).getTime()-now.getTime()<20*60000);
   const currentScene: CurrentSceneContext = {
     locationId, location: String(place?.location.name ?? currentLocation?.name ?? returnedState.location ?? 'Current place'),
-    activity: String(activeDateRow?.together_date_templates?.name??activePlanRow?.title??activeEvent?.narrative_summary ?? returnedState.activity ?? instance.current_activity ?? 'taking care of a few things'),
+    activity: String(activeDateRow?.together_date_templates?.name??activePlanRow?.title??conversationScene.activityKey??activeEvent?.narrative_summary ?? returnedState.activity ?? instance.current_activity ?? 'taking care of a few things'),
     mood: String(returnedState.mood ?? instance.current_mood ?? 'content'), energy: String(returnedState.energy ?? instance.current_energy ?? 'medium'),
-    availability: String(returnedState.availability ?? 'available'), source: activeDateRow?'active_date':activePlanRow?'active_plan':activeEvent ? 'active_event' : 'schedule',
+    availability: String(returnedState.availability ?? 'available'), interruptibility:String(presence.interruptibility??returnedState.interruptibility??'open'),
+    ...(presence.scheduleEventId?{scheduleEventId:String(presence.scheduleEventId)}:{}),...(conversationScene.sceneSessionId?{sceneSessionId:String(conversationScene.sceneSessionId)}:{}),...(conversationScene.lastInteractionKey?{lastInteractionKey:String(conversationScene.lastInteractionKey)}:{}),...(presence.activityStartedAt?{startedAt:String(presence.activityStartedAt)}:{}),...((conversationScene.validUntil??presence.expectedEndAt)?{expectedEndAt:String(conversationScene.validUntil??presence.expectedEndAt)}:{}),
+    ...(presence.nextEvent?{nextObligation:{title:String(presence.nextEvent.title),startsAt:String(presence.nextEvent.startsAt),location:locationById.get(String(presence.nextEvent.locationId))?.name??null}}:{}),
+    entryReason,interactionMode,sceneBehavior:{acknowledgeArrival:interactionMode==='co_present'&&entryReason==='user_drop_in'&&!conversationScene.arrivalAcknowledgedAt,activityAwareness:interactionMode==='co_present'||Boolean(activeEvent),departurePressure}, source: activeDateRow?'active_date':activePlanRow?'active_plan':activeEvent ? 'active_event' : presence.source==='scene'?'scene':presence.source==='schedule'?'schedule':'character_state',
     ...(activeDateRow?{activeDate:{id:String(activeDateRow.id),title:String(activeDateRow.together_date_templates?.name??'Shared experience')}}:{}),
     ...(activePlanRow?{activePlan:{id:String(activePlanRow.id),title:String(activePlanRow.title),endsAt:activePlanRow.ends_at??null}}:{}),
     ...(activeEvent ? { activeEvent:{ id:String(activeEvent.id), title:String(activeEvent.title), summary:String(activeEvent.narrative_summary), endsAt:activeEvent.ends_at ?? null } } : {}),
@@ -117,7 +130,7 @@ export async function buildKivelleConversationContext(input: {
     ...upcomingDates.map((item:Row) => ({ id:String(item.id), type:'date' as const, title:String(item.together_date_templates?.name ?? 'Date'), startsAt:String(item.scheduled_for), location:String(item.placeContext?.path??locationById.get(String(item.together_date_templates?.location_id))?.name??'Current place') })),
   ]).slice(0, 5);
   const worldSchedules=(schedules.data??[]).filter((row:Row)=>!place||String(row.together_locations?.world_id??'')===place.world.id);
-  const schedule = nextScheduleRows(worldSchedules, clock, now, timezone, locationById).slice(0, 4);
+  const schedule = worldSchedules.filter((row:Row)=>new Date(row.starts_at)>now&&row.visibility!=='hidden').slice(0,4).map((row:Row)=>({startsAt:String(row.starts_at),label:String(row.metadata?.activityLabel??row.title),location:String(row.together_locations?.name??locationById.get(String(row.location_id))?.name??'Current place'),availability:String(row.interruptibility??'open')}));
   const instanceByTemplate = new Map((instances.data ?? []).map((item:Row) => [String(item.character_template_id), item]));
   const social = (edges.data ?? []).map((edge:Row) => {
     const otherId = String(edge.source_template_id) === String(instance.character_template_id) ? String(edge.target_template_id) : String(edge.source_template_id);
@@ -160,7 +173,7 @@ function threadContext(thread:Row){const subject=String(thread.subject??thread.m
 
 function nextScheduleRows(rows:Row[],clock:ExperienceClock,now:Date,timezone:string,locations:Map<string,Row>){
   const candidates: Array<{ startsAt:string;label:string;location:string;availability:string;rank:number }> = [];
-  for(let dayOffset=0;dayOffset<7;dayOffset++)for(const row of rows){const day=(clock.weekday+dayOffset)%7;if(Number(row.day_of_week)!==day)continue;const rank=dayOffset*1440+Number(row.start_minute)-clock.minuteOfDay;if(rank<=0)continue;candidates.push({startsAt:`${dayOffset===0?'Today':dayOffset===1?'Tomorrow':`In ${dayOffset} days`} · ${minutesLabel(Number(row.start_minute))}`,label:String(row.activity),location:String(row.together_locations?.name??locations.get(String(row.location_id))?.name??'City Life'),availability:String(row.availability),rank});}
+  for(let dayOffset=0;dayOffset<7;dayOffset++)for(const row of rows){const day=(clock.weekday+dayOffset)%7;if(Number(row.day_of_week)!==day)continue;const rank=dayOffset*1440+Number(row.start_minute)-clock.minuteOfDay;if(rank<=0)continue;candidates.push({startsAt:`${dayOffset===0?'Today':dayOffset===1?'Tomorrow':`In ${dayOffset} days`} Â· ${minutesLabel(Number(row.start_minute))}`,label:String(row.activity),location:String(row.together_locations?.name??locations.get(String(row.location_id))?.name??'City Life'),availability:String(row.availability),rank});}
   void now;void timezone;return candidates.sort((a,b)=>a.rank-b.rank).map(({rank,...item})=>item);
 }
 function minutesLabel(value:number){const hour=Math.floor(value/60),minute=value%60;return `${hour%12||12}:${String(minute).padStart(2,'0')} ${hour>=12?'PM':'AM'}`;}
@@ -168,3 +181,4 @@ function dedupeCommitments<T extends {type:'plan'|'date';title:string;startsAt:s
 function buildActiveStory(story:Row|null):Row|null{if(!story)return null;const chapters=story.together_story_arc_templates?.chapters??[];const chapter=chapters.find((item:Row)=>item.id===story.current_chapter_id);return{id:String(story.id),title:String(story.together_story_arc_templates?.title??'A story in progress'),chapterId:String(story.current_chapter_id),chapterTitle:String(chapter?.title??story.current_chapter_id),knownSummary:String(chapter?.narrativeSeed??chapter?.narrative_seed??'Something is unfolding.'),status:String(story.status)};}
 export function retrieveSharedHistory(input:{intent:ContextQueryIntent;moments:Row[];dates:Row[];plans:Array<{id:string;title:string;status:string;startsAt:string;summary:string}>;now:Date}){const rows=[...input.moments.map((item)=>({id:String(item.id),type:'moment' as const,title:String(item.title),summary:String(item.summary),occurredAt:String(item.occurred_at)})),...input.dates.filter((item)=>item.status==='completed').map((item)=>({id:String(item.id),type:'date' as const,title:String(item.together_date_templates?.name??'A shared date'),summary:String(item.state?.summary??'A date you experienced together.'),occurredAt:String(item.completed_at??item.updated_at)})),...input.plans.filter((item)=>item.status==='completed').map((item)=>({id:item.id,type:'plan' as const,title:item.title,summary:item.summary,occurredAt:item.startsAt}))];return rows.filter((item)=>new Date(item.occurredAt)<=input.now).sort((a,b)=>new Date(b.occurredAt).getTime()-new Date(a.occurredAt).getTime());}
 function resolveConversationFocus(focus:Row|null,plans:Row[],now:Date):Row|null{if(!focus)return null;const updated=new Date(String(focus.updatedAt??0));if(!Number.isFinite(updated.getTime())||now.getTime()-updated.getTime()>7*86400000)return null;if(focus.planId){const plan=plans.find((item)=>item.id===focus.planId);return plan?{type:'plan',planId:plan.id,title:plan.title,status:plan.status,startsAt:plan.startsAt,endsAt:plan.endsAt,locationId:plan.locationId,location:plan.location,activityKey:plan.activityKey,updatedAt:focus.updatedAt}:null;}return focus;}
+

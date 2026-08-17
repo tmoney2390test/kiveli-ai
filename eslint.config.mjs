@@ -3,7 +3,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['**/node_modules/**', '**/dist/**', '**/dist-*/**', '**/.expo/**', 'supabase/functions/**/*.ts', 'apps/together/babel.config.js', 'apps/together/metro.config.js'] },
+  { ignores: ['**/node_modules/**', '**/dist/**', '**/dist-*/**', '**/.expo/**', 'supabase/functions/**/*.ts', 'scripts/simulate-life-engine.ts', 'apps/together/babel.config.js', 'apps/together/metro.config.js'] },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
@@ -19,3 +19,4 @@ export default tseslint.config(
   { files: ['**/tests/**/*.ts'], rules: { '@typescript-eslint/require-await': 'off' } },
   { files: ['**/*.{js,mjs,cjs}'], ...tseslint.configs.disableTypeChecked }
 );
+

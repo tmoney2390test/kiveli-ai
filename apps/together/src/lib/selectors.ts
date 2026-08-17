@@ -1,4 +1,4 @@
-import type { CharacterInstance, CharacterVersion, Snapshot } from '../types';
+import type { CharacterInstance, Snapshot } from '../types';
 import { worldForLocation } from './place';
 
 export function selectActiveCompanion(snapshot: Snapshot, companionId?: string): CharacterInstance | undefined {
@@ -7,11 +7,6 @@ export function selectActiveCompanion(snapshot: Snapshot, companionId?: string):
     ?? snapshot.characters.find((item) => item.id === snapshot.profile?.active_companion_instance_id)
     ?? snapshot.characters.find((item) => Boolean(item.contact_added_at || item.introduced_at))
     ?? snapshot.characters[0];
-}
-
-export function selectPortraitVersion(snapshot: Snapshot, character: CharacterInstance): CharacterVersion {
-  return snapshot.discoverableCharacters.find((item) => item.id === character.character_template_id)?.together_character_versions
-    ?? character.together_character_versions;
 }
 
 export const selectCompanionRelationship = (snapshot: Snapshot, companionId: string) => snapshot.relationships.find((item) => item.character_instance_id === companionId);

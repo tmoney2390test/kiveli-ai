@@ -1,6 +1,7 @@
 import type { CharacterInstance, Location, Memory, Moment, Snapshot, World } from '../types';
 import { buildCompanionLife } from './companionLife';
 import { worldForLocation } from './place';
+import { currentScheduleEvent, getScheduleEventPresentation, getScheduleHint, nextVisibleScheduleEvents } from './lifePresentation';
 
 export type HomeTargetAction =
   | { kind: 'chat'; label: string; proactiveMessageId?: string }
@@ -66,8 +67,9 @@ export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeVi
 
   const { companion, relationshipDay, recentEvents, dates } = life;
   const name = companion.together_character_templates.name;
-  const currentLocation = snapshot.locations.find((item) => item.id === companion.current_location_id);
-  const currentWorld = worldForLocation(snapshot, companion.current_location_id);
+  const currentEvent=currentScheduleEvent(snapshot.scheduleEvents,companion.id,now,companion.current_schedule_event_id);
+  const currentLocation = snapshot.locations.find((item) => item.id === (currentEvent?.location_id??companion.current_location_id));
+  const currentWorld = worldForLocation(snapshot, currentLocation?.id ?? companion.current_location_id);
   const timezone = currentWorld?.timezone || snapshot.profile?.experience_timezone || 'UTC';
   const clock = zonedClock(now, timezone);
   const homePresence = currentWorld
@@ -75,12 +77,8 @@ export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeVi
     : undefined;
   const atHome = Boolean(currentLocation && currentLocation.location_type === 'residence' && homePresence?.home_location_id === currentLocation.id);
   const locationLabel = atHome ? 'At home' : currentLocation ? `At ${currentLocation.name}` : currentWorld ? `In ${currentWorld.name}` : 'In the world';
-  const activityLabel = humanizeActivity(companion.current_activity);
-  const currentSchedule = snapshot.schedules.find((item) => item.character_version_id === companion.character_version_id
-    && item.day_of_week === clock.weekday
-    && item.start_minute <= clock.minuteOfDay
-    && item.end_minute > clock.minuteOfDay
-    && (!currentWorld || worldForLocation(snapshot, item.location_id)?.id === currentWorld.id));
+  const activityLabel = currentEvent?getScheduleEventPresentation(currentEvent).activity:humanizeActivity(companion.current_activity);
+  const interruptibility=currentEvent?.interruptibility??companion.current_interruptibility??'open';
 
   const unreadMessage = life.proactiveMessages
     .filter((item) => item.status === 'sent' && (!item.eligible_at || new Date(item.eligible_at).getTime() <= now.getTime()))
@@ -112,14 +110,14 @@ export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeVi
             ? { kind: 'chat', label: 'Talk it through' }
             : restful && atHome
               ? { kind: 'chat', label: `Keep ${name} company` }
-              : currentSchedule?.availability === 'busy'
+              : ['busy','unavailable'].includes(interruptibility)
                 ? { kind: 'chat', label: `Check in with ${name}` }
                 : { kind: 'chat', label: `Talk to ${name}` };
 
   const heroNotice = activeDate
-    ? `Together now · ${activeDate.together_date_templates.name}`
+    ? `Together now Â· ${activeDate.together_date_templates.name}`
     : activePlan
-      ? `Together now · ${activePlan.title}`
+      ? `Together now Â· ${activePlan.title}`
       : pendingMilestone
         ? pendingMilestone.title
         : unreadMessage
@@ -140,7 +138,7 @@ export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeVi
             ? relationshipCue.detail
             : restful
               ? 'A quieter moment in the day.'
-              : currentSchedule?.availability === 'busy'
+              : ['busy','unavailable'].includes(interruptibility)
                 ? 'In the middle of something right now.'
                 : `${name}'s day is still unfolding.`;
 
@@ -165,7 +163,7 @@ export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeVi
     currentWorld,
     hero: {
       stage: labelStage(companion.relationship_stage),
-      statusLine: `${locationLabel} · ${activityLabel}`,
+      statusLine: `${locationLabel} Â· ${activityLabel}`,
       prompt: heroPrompt,
       notice: heroNotice,
       action: heroAction,
@@ -289,18 +287,26 @@ function buildTimeline({ snapshot, companion, recentEvents, currentLocation, cur
   };
 
   const future: FutureTimelineCandidate[] = [];
-  for (const item of snapshot.schedules) {
-    if (item.character_version_id !== companion.character_version_id || item.day_of_week !== clock.weekday || item.start_minute <= clock.minuteOfDay) continue;
-    if (currentWorld && worldForLocation(snapshot, item.location_id)?.id !== currentWorld.id) continue;
+  const persistedSchedule=nextVisibleScheduleEvents(snapshot.scheduleEvents,companion.id,now);
+  for (const item of persistedSchedule) {
+    if (localDateKey(item.starts_at,clock.timezone)!==clock.dateKey) continue;
+    const hint=getScheduleHint(item);if(!hint)continue;
     future.push({
-      id: `schedule:${item.id}:${item.start_minute}`,
+      id: `schedule:${item.id}`,
       kind: 'schedule',
-      title: humanizeActivity(item.activity),
+      title: hint,
       detail: snapshot.locations.find((location) => location.id === item.location_id)?.name ?? currentWorld?.name ?? 'Current place',
-      time: formatScheduleMinute(item.start_minute),
+      time: formatTime(item.starts_at,clock.timezone),
       locationId: item.location_id,
-      sortMinute: item.start_minute,
+      sortMinute: minuteInZone(item.starts_at,clock.timezone),
     });
+  }
+  if(!persistedSchedule.length){
+    for(const item of snapshot.schedules){
+      if(item.character_version_id!==companion.character_version_id||item.day_of_week!==clock.weekday||item.start_minute<=clock.minuteOfDay)continue;
+      if(currentWorld&&worldForLocation(snapshot,item.location_id)?.id!==currentWorld.id)continue;
+      future.push({id:`legacy-schedule:${item.id}:${item.start_minute}`,kind:'schedule',title:humanizeActivity(item.activity),detail:snapshot.locations.find((location)=>location.id===item.location_id)?.name??currentWorld?.name??'Current place',time:formatScheduleMinute(item.start_minute),locationId:item.location_id,sortMinute:item.start_minute});
+    }
   }
   for (const plan of snapshot.sharedPlans) {
     if (plan.character_instance_id !== companion.id || plan.status !== 'scheduled' || new Date(plan.starts_at).getTime() <= now.getTime()) continue;
@@ -348,7 +354,7 @@ export function labelStage(stage: string) {
     stranger: 'Just met',
     acquaintance: 'Getting acquainted',
     friend: 'Getting closer',
-    flirting: 'There’s a spark',
+    flirting: 'Thereâ€™s a spark',
     dating: 'Dating',
     exclusive: 'Exclusive',
     long_term: 'Building a life',
@@ -427,16 +433,10 @@ function formatTime(value: string | Date, timezone: string) {
 function formatWeekdayTime(value: string, timezone: string) {
   const date = new Date(value);
   const weekday = new Intl.DateTimeFormat('en-US', { timeZone: timezone, weekday: 'short' }).format(date);
-  return `${weekday} · ${formatTime(date, timezone)}`;
+  return `${weekday} Â· ${formatTime(date, timezone)}`;
 }
 
-function formatScheduleMinute(value: number) {
-  const hour24 = Math.floor(value / 60);
-  const minute = value % 60;
-  const suffix = hour24 >= 12 ? 'PM' : 'AM';
-  const hour = hour24 % 12 || 12;
-  return `${hour}:${String(minute).padStart(2, '0')} ${suffix}`;
-}
+function formatScheduleMinute(value:number){const hour24=Math.floor(value/60),minute=value%60,suffix=hour24>=12?'PM':'AM',hour=hour24%12||12;return`${hour}:${String(minute).padStart(2,'0')} ${suffix}`;}
 
 function relativeTime(value: string, now: Date) {
   const minutes = Math.max(0, Math.round((now.getTime() - new Date(value).getTime()) / 60000));
@@ -446,3 +446,4 @@ function relativeTime(value: string, now: Date) {
   if (hours < 24) return `${hours}h ago`;
   return `${Math.round(hours / 24)}d ago`;
 }
+
