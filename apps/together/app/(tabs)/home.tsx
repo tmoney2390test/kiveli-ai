@@ -10,7 +10,7 @@ import { HomeTimeline } from '../../src/components/home/HomeTimeline';
 import { HomeWorldSection } from '../../src/components/home/HomeWorldSection';
 import { colors, spacing, typography } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
-import { manageSubscription, markProactiveOpened } from '../../src/lib/api';
+import { manageSubscription, markProactiveOpened, simulate } from '../../src/lib/api';
 import { buildHomeViewModel, type HomeTargetAction, type HomeTimelineItem } from '../../src/lib/homeViewModel';
 import { getCompanionMedia, getCurrentScenePresentation, getMemoryPresentation, getRelationshipPresentation, getWorldHook, selectFeaturedMemory } from '../../src/lib/homePresentation';
 import { locationHeroAsset } from '../../src/assets';
@@ -25,6 +25,7 @@ export default function Home() {
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
   const { width } = useWindowDimensions();
   const hasSnapshot = Boolean(snapshot);
+  const activeCompanionId=snapshot?.activeContinuity?.active_companion_instance_id??snapshot?.profile?.active_companion_instance_id;
 
   useEffect(() => {
     if (!hasSnapshot) return;
@@ -32,6 +33,10 @@ export default function Home() {
     void manageSubscription<SubscriptionStatus>().then((next) => { if (mounted) setSubscription(next); }).catch(() => undefined);
     return () => { mounted = false; };
   }, [hasSnapshot]);
+
+  const activeCompanion=snapshot?.characters.find((item)=>item.id===activeCompanionId);
+  const simulationStale=!activeCompanion||Date.now()-new Date(activeCompanion.last_simulated_at).getTime()>2*60000||!(snapshot?.scheduleEvents??[]).some((item)=>item.character_instance_id===activeCompanionId&&new Date(item.ends_at)>new Date());
+  useEffect(()=>{if(!activeCompanionId||!simulationStale)return;let cancelled=false;void simulate(activeCompanionId).then(()=>cancelled?undefined:refresh()).catch(()=>undefined);return()=>{cancelled=true;};},[activeCompanionId,refresh,simulationStale]);
 
   if (loading && !snapshot) return <CinematicHomeLoading />;
   if (error && !snapshot) return <HomeError message={error} onRetry={() => void refresh()} />;

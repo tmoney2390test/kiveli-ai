@@ -10,13 +10,14 @@ import { applyInteractionProposal, classifyInteractionQuality, type Relationship
 import { presentRelationshipMilestone } from '../_shared/together-relationship-presentation.ts';
 import { runLifeSimulation } from '../_shared/together-life.ts';
 import { buildKivelleConversationContext } from '../_shared/kivelle-conversation-context.ts';
-import { getActiveConversation } from '../_shared/together-conversation.ts';
+import { acknowledgeConversationScene, getActiveConversation, mergeConversationSceneMetadata, resolveActiveConversationScene } from '../_shared/together-conversation.ts';
 import { kickMediaDispatcher, queueMediaRequest } from '../_shared/together-media.ts';
 import { waitUntil } from '../_shared/background.ts';
 import { writeConversationEvent } from '../_shared/together-plans.ts';
 import { activeContinuity } from '../_shared/together-continuity.ts';
+import { extendScheduleForConversation } from '../_shared/together-schedule.ts';
 
-const schema = z.object({ conversationId: z.string().uuid(), message: z.string().trim().min(1).max(4000), clientRequestId: z.string().min(8).max(100), characterInstanceId: z.string().uuid(), focusPlanId:z.string().uuid().optional() });
+const schema = z.object({ conversationId: z.string().uuid(), message: z.string().trim().min(1).max(4000), clientRequestId: z.string().min(8).max(100), characterInstanceId: z.string().uuid(), focusPlanId:z.string().uuid().optional(), entryContext:z.object({entryReason:z.literal('user_drop_in'),locationId:z.string().uuid(),scheduleEventId:z.string().uuid().optional()}).optional() });
 const dialogue = new ConfiguredDialogueProvider();
 const moderation = new ConfiguredModerationProvider();
 const embeddings = new ConfiguredEmbeddingProvider();
@@ -59,6 +60,7 @@ Deno.serve(async (request) => {
       if (boundaryError || !boundaryMessage) throw new AppError('INTERNAL_ERROR', `${characterName} could not respond.`, 500, true);
       await db.from('together_safety_events').insert({ user_id: user.id, character_instance_id: input.characterInstanceId, direction: 'input', categories: [...new Set([...inputSafety.categories, boundary.category])], action: 'redirected' });
       await db.from('together_conversations').update({ last_message_at: boundaryMessage.created_at, updated_at: boundaryMessage.created_at, kind: conversation.kind === 'first_meeting' ? 'direct' : conversation.kind }).eq('id', input.conversationId);
+      await acknowledgeArrival(db,user.id,conversation,String(boundaryMessage.created_at));
       await track(db, user.id, 'message_sent', { characterInstanceId: input.characterInstanceId, safetyRedirected: true });
       await track(db, user.id, 'character_response_received', { characterInstanceId: input.characterInstanceId, safetyRedirected: true });
       return streamText(boundary.text, boundaryMessage, correlationId);
@@ -73,8 +75,17 @@ Deno.serve(async (request) => {
       console.error(JSON.stringify({ level:'error', correlationId, operation:'lazy_conversation_simulation', message:error instanceof Error?error.message:'unknown_error' }));
       return { state:{ locationId:instance.current_location_id, location:'Current place', activity:instance.current_activity, mood:instance.current_mood, energy:instance.current_energy, availability:'available' }, activeEvent:null };
     });
+    const presence=(((lifeRun as Record<string,unknown>).presence)??{}) as Record<string,any>;
+    const sceneResolution=await resolveActiveConversationScene({db,userId:user.id,conversation,characterInstanceId:input.characterInstanceId,now});
+    if(sceneResolution.expired){conversation.metadata=mergeConversationSceneMetadata((conversation.metadata??{}) as Record<string,any>,null);await db.from('together_conversations').update({metadata:conversation.metadata,updated_at:now.toISOString()}).eq('id',conversation.id).eq('user_id',user.id);await track(db,user.id,'scene_expired',{characterInstanceId:input.characterInstanceId});}
+    else if(sceneResolution.scene){conversation.metadata=mergeConversationSceneMetadata((conversation.metadata??{}) as Record<string,any>,sceneResolution.scene);}
+    const activeScene=(conversation.metadata?.activeScene??{}) as Record<string,any>;
+    const extended=await extendScheduleForConversation({db,userId:user.id,characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,scheduleEventId:typeof activeScene.scheduleEventId==='string'?activeScene.scheduleEventId:undefined,now}).catch(()=>null);
+    if(extended)await track(db,user.id,'scene_extended_past_schedule_boundary',{characterInstanceId:input.characterInstanceId,scheduleEventId:activeScene.scheduleEventId});
     const queryEmbedding = await embeddings.embed(input.message);
     const semanticResult = queryEmbedding ? await db.rpc('together_match_memories_server', { p_user_id:user.id, p_character_instance_id:input.characterInstanceId, p_embedding:queryEmbedding, p_limit:8 }) : { data:[], error:null };
+    const refreshedScene=await resolveActiveConversationScene({db,userId:user.id,conversation,characterInstanceId:input.characterInstanceId,now});
+    if(refreshedScene.expired){conversation.metadata=mergeConversationSceneMetadata((conversation.metadata??{}) as Record<string,any>,null);await db.from('together_conversations').update({metadata:conversation.metadata,updated_at:now.toISOString()}).eq('id',conversation.id).eq('user_id',user.id);await track(db,user.id,'scene_expired',{characterInstanceId:input.characterInstanceId});}else if(refreshedScene.scene)conversation.metadata=mergeConversationSceneMetadata((conversation.metadata??{}) as Record<string,any>,refreshedScene.scene);
     const dialogueContext = await buildKivelleConversationContext({ db, userId:user.id, instance, conversation, userMessage:input.message, lifeRun, semanticRows:semanticResult.data??[], now });
     const profileResult = await db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id', user.id).maybeSingle();
     const adultEligible = Boolean(profileResult.data?.age_verified_at) && Number(dialogueContext.character.age ?? 0) >= 18;
@@ -94,6 +105,7 @@ Deno.serve(async (request) => {
     if (assistantError || !assistantMessage) throw new AppError('INTERNAL_ERROR', `${String(characterTemplate.name ?? 'Your companion')} replied, but the response could not be saved.`, 500, true);
     await safelyApplyConversationEffects(db, user.id, input.characterInstanceId, input.conversationId, userMessage.id, String(assistantMessage.id), input.message, safeText, relationshipResult.data, String(instance.relationship_stage), dialogueContext, correlationId);
     await db.from('together_conversations').update({ last_message_at: assistantMessage.created_at, updated_at: assistantMessage.created_at, kind: conversation.kind === 'first_meeting' ? 'direct' : conversation.kind }).eq('id', input.conversationId);
+    await acknowledgeArrival(db,user.id,conversation,String(assistantMessage.created_at));
     await safelyQueueConversationPhoto(db, user.id, input, String(assistantMessage.id), correlationId);
     await track(db, user.id, 'message_sent', { characterInstanceId: input.characterInstanceId });
     await track(db, user.id, 'character_response_received', { characterInstanceId: input.characterInstanceId });
@@ -143,6 +155,7 @@ function streamDialogue({ db, user, input, conversation, instance, relationship,
         if (assistantError || !assistantMessage) throw new AppError('INTERNAL_ERROR', 'Your companion replied, but the response could not be saved.', 500, true);
         await safelyApplyConversationEffects(db, user.id, input.characterInstanceId, input.conversationId, String(userMessage.id), String(assistantMessage.id), input.message, content, relationship, String(instance.relationship_stage), context, correlationId);
         await db.from('together_conversations').update({ last_message_at: assistantMessage.created_at, updated_at: assistantMessage.created_at, kind: conversation.kind === 'first_meeting' ? 'direct' : conversation.kind }).eq('id', input.conversationId);
+        await acknowledgeArrival(db,user.id,conversation,String(assistantMessage.created_at));
         await safelyQueueConversationPhoto(db, user.id, input, String(assistantMessage.id), correlationId);
         await track(db, user.id, 'message_sent', { characterInstanceId: input.characterInstanceId });
         await track(db, user.id, 'character_response_received', { characterInstanceId: input.characterInstanceId });
@@ -157,6 +170,14 @@ function streamDialogue({ db, user, input, conversation, instance, relationship,
     },
   });
   return new Response(stream, { status: 200, headers: { ...corsHeaders, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', 'X-Accel-Buffering': 'no', 'X-Correlation-ID': correlationId } });
+}
+
+async function acknowledgeArrival(db:any,userId:string,conversation:Record<string,any>,at:string){
+  const result=acknowledgeConversationScene((conversation.metadata??{}) as Record<string,any>,at);
+  if(!result.acknowledged)return;
+  conversation.metadata=result.metadata;
+  await db.from('together_conversations').update({metadata:result.metadata,updated_at:at}).eq('id',conversation.id).eq('user_id',userId);
+  await track(db,userId,'scene_arrival_acknowledged',{characterInstanceId:conversation.character_instance_id});
 }
 
 async function safelyApplyConversationEffects(db: any, userId: string, instanceId: string, conversationId: string, sourceMessageId: string, assistantMessageId:string, userText: string, assistantText: string, current: Record<string, unknown>, stage: string, context:Parameters<ConfiguredDialogueProvider['generate']>[0], correlationId: string): Promise<void> {

@@ -110,7 +110,12 @@ serve(async(request,correlationId)=>{
     if(startsAt)result=await rescheduleSharedPlan(db,{userId:user.id,planId,startsAt,conversationId:candidate.conversation_id});
     if(proposedLocationId||proposedActivityKey)result=await updateSharedPlan(db,{userId:user.id,planId,locationId:proposedLocationId,activityKey:proposedActivityKey,conversationId:candidate.conversation_id});
   }else{
-    const startsAt=input.startsAt??(typeof payload.proposedStartsAt==='string'?payload.proposedStartsAt:undefined);
+    // Older action rows and the time-language trigger may expose the inferred
+    // time as suggestedStartsAt rather than proposedStartsAt. If there is no
+    // explicit planning window, accepting that suggestion keeps the final
+    // confirmation idempotent instead of failing with a misleading "choose a
+    // time" error. A real window still requires the user-selected exact time.
+    const startsAt=input.startsAt??(typeof payload.proposedStartsAt==='string'?payload.proposedStartsAt:undefined)??((!payload.windowStartsAt&&!payload.windowEndsAt&&typeof payload.suggestedStartsAt==='string')?payload.suggestedStartsAt:undefined);
     const windowStartsAt=input.windowStartsAt??(typeof payload.windowStartsAt==='string'?payload.windowStartsAt:undefined),windowEndsAt=input.windowEndsAt??(typeof payload.windowEndsAt==='string'?payload.windowEndsAt:undefined);
     const candidatePrecision=input.timePrecision??(typeof payload.timePrecision==='string'&&['exact','approximate','daypart','window','day'].includes(payload.timePrecision)?payload.timePrecision as 'exact'|'approximate'|'daypart'|'window'|'day':undefined);
     const activityKey=input.activityKey??String(payload.activityKey??''),locationId=input.locationId??String(payload.locationId??'');if(!activityKey||!locationId)throw new AppError('VALIDATION_FAILED','Choose an activity and place before saving.',400);

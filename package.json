@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "guard:starter-content": "node scripts/check-starter-content.mjs",
     "edge:typecheck": "node scripts/check-edge-functions.mjs",
-    "supabase:test": "supabase test db"
+    "supabase:test": "supabase test db",
+    "life:simulate": "node --experimental-strip-types scripts/simulate-life-engine.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

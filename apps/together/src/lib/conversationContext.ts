@@ -1,9 +1,12 @@
-import type { CharacterInstance, SharedPlan, Snapshot } from '../types';
+import type { CharacterInstance, InteractionMode, SceneEntryReason, SharedPlan, Snapshot } from '../types';
 import { worldForLocation } from './place';
 
 type Commitment={id:string;title:string;startsAt:string;endsAt?:string;kind:'plan'|'date';location?:string};
 export type ClientConversationContext={
-  scene:{location:string;activity:string;summary:string;source:'active_event'|'character_state';activeEventId?:string;mediaUrl?:string;localTime:string;worldName?:string};
+  interactionMode:InteractionMode;
+  entryReason:SceneEntryReason;
+  sceneBehavior:{acknowledgeArrival:boolean;activityAwareness:boolean;departurePressure:boolean};
+  scene:{locationId?:string;location:string;activity:string;summary:string;source:'active_event'|'character_state';activeEventId?:string;mediaUrl?:string;localTime:string;worldName?:string};
   nextCommitment?:Commitment;
   activePlan?:Commitment;
   activeDate?:Commitment;
@@ -31,7 +34,7 @@ export function buildClientConversationContext(snapshot:Snapshot,character:Chara
   const hoursUntil=nextCommitment?(new Date(nextCommitment.startsAt).getTime()-now.getTime())/3600000:Infinity;
   const startingSoon=nextCommitment&&hoursUntil>=0&&hoursUntil<=12?{...nextCommitment,hoursUntil}:undefined;
   const activePlan=activePlanRow?planCommitment(activePlanRow,snapshot):undefined;
-  const activeDate=activeDateRow?{id:activeDateRow.id,title:activeDateRow.together_date_templates.name,startsAt:activeDateRow.scheduled_for??activeDateRow.completed_at??now.toISOString(),kind:'date' as const,location:snapshot.locations.find((item)=>item.id===activeDateRow.together_date_templates.location_id)?.name}:undefined;
+  const activeDate=activeDateRow?{id:activeDateRow.id,title:activeDateRow.together_date_templates.name,startsAt:activeDateRow.scheduled_for??activeDateRow.completed_at??now.toISOString(),endsAt:activeDateRow.completed_at??undefined,kind:'date' as const,location:snapshot.locations.find((item)=>item.id===activeDateRow.together_date_templates.location_id)?.name}:undefined;
   const recentRow=characterPlans.filter((plan)=>plan.status==='completed'&&new Date(plan.ends_at).getTime()<=now.getTime()&&new Date(plan.ends_at).getTime()>now.getTime()-7*86400000).sort((a,b)=>new Date(b.ends_at).getTime()-new Date(a.ends_at).getTime())[0];
   const recentPlan=recentRow?{...planCommitment(recentRow,snapshot),completedAt:recentRow.completed_at??recentRow.ends_at}:undefined;
   const activeStory=(snapshot.storyArcs??[]).find((item)=>item.character_instance_id===character.id&&item.status==='active');
@@ -40,12 +43,21 @@ export function buildClientConversationContext(snapshot:Snapshot,character:Chara
   const subject=openThread?.display_subject??openThread?.subject??String(openThread?.topic??'').match(/user's\s+([a-z ]+)/i)?.[1]?.replace(/\s+went.*$/i,'')??'something important';
   const thread=openThread?{label:subject,prompt:openThread.followup_prompt??`I should tell you how my ${subject.toLowerCase()} went.`}:undefined;
   const activeCommitment=activePlan??activeDate;
-  const prompts=smartReplies({character,location:sceneLocation,thread,nextCommitment,activePlan:activeCommitment,startingSoon,recentPlan,storyTitle:activeStory?.together_story_arc_templates?.title,now});
-  return{scene:{location:sceneLocation,activity:activeCommitment?.title??activeEvent?.title??character.current_activity,summary:activeCommitment?`You and ${character.together_character_templates.name} are together for ${activeCommitment.title}.`:activeEvent?.narrative_summary??`${character.together_character_templates.name} is ${character.current_activity}.`,source:activeCommitment||activeEvent?'active_event':'character_state',activeEventId:activeEvent?.id,mediaUrl:media?.signed_url??undefined,localTime,worldName:sceneWorld?.name},nextCommitment,activePlan,activeDate,startingSoon,recentPlan,story:activeStory?{title:activeStory.together_story_arc_templates?.title??'A story in progress',chapter:chapter?.title??activeStory.current_chapter_id}:undefined,thread,prompts};
+  const conversation=snapshot.conversations.find((item)=>item.character_instance_id===character.id&&!item.archived_at);
+  const storedScene=readSceneMetadata(conversation?.metadata?.activeScene);
+  const storedValid=Boolean(storedScene?.interactionMode==='co_present'&&(!storedScene.validUntil||new Date(storedScene.validUntil)>now));
+  const interactionMode:InteractionMode=activePlan||activeDate||storedValid?'co_present':'remote';
+  const entryReason:SceneEntryReason=activeDate?'active_date':activePlan?'shared_plan':storedValid?(storedScene?.entryReason??'continued_scene'):'direct_chat';
+  const acknowledgeArrival=interactionMode==='co_present'&&entryReason==='user_drop_in'&&!storedScene?.arrivalAcknowledgedAt;
+  const departurePressure=Boolean(activeCommitment?.endsAt&&new Date(activeCommitment.endsAt).getTime()-now.getTime()<20*60000);
+  const prompts=smartReplies({character,location:sceneLocation,thread,nextCommitment,activePlan:activeCommitment,startingSoon,recentPlan,storyTitle:activeStory?.together_story_arc_templates?.title,now,interactionMode});
+  return{interactionMode,entryReason,sceneBehavior:{acknowledgeArrival,activityAwareness:interactionMode==='co_present'||Boolean(activeEvent),departurePressure},scene:{locationId:activeLocationId??undefined,location:sceneLocation,activity:activeCommitment?.title??activeEvent?.title??character.current_activity,summary:interactionMode==='co_present'?`You are together at ${sceneLocation} while ${character.together_character_templates.name} is ${character.current_activity}.`:activeEvent?.narrative_summary??`${character.together_character_templates.name} is ${character.current_activity}.`,source:activeCommitment||activeEvent?'active_event':'character_state',activeEventId:activeEvent?.id,mediaUrl:media?.signed_url??undefined,localTime,worldName:sceneWorld?.name},nextCommitment,activePlan,activeDate,startingSoon,recentPlan,story:activeStory?{title:activeStory.together_story_arc_templates?.title??'A story in progress',chapter:chapter?.title??activeStory.current_chapter_id}:undefined,thread,prompts};
 }
 
 function formatWorldTime(now:Date,timezone?:string){try{return new Intl.DateTimeFormat(undefined,{hour:'numeric',minute:'2-digit',timeZone:timezone||'UTC'}).format(now);}catch{return now.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}}
-function smartReplies(input:{character:CharacterInstance;location:string;thread?:{prompt:string};nextCommitment?:Commitment;activePlan?:Commitment;startingSoon?:Commitment&{hoursUntil:number};recentPlan?:Commitment;storyTitle?:string;now:Date}):string[]{
+function readSceneMetadata(value:unknown):{interactionMode?:InteractionMode;entryReason?:SceneEntryReason;arrivalAcknowledgedAt?:string;validUntil?:string}|null{if(!value||typeof value!=='object')return null;const row=value as Record<string,unknown>;return{interactionMode:row.interactionMode==='co_present'?'co_present':'remote',entryReason:typeof row.entryReason==='string'?row.entryReason as SceneEntryReason:undefined,arrivalAcknowledgedAt:typeof row.arrivalAcknowledgedAt==='string'?row.arrivalAcknowledgedAt:undefined,validUntil:typeof row.validUntil==='string'?row.validUntil:undefined};}
+function smartReplies(input:{character:CharacterInstance;location:string;thread?:{prompt:string};nextCommitment?:Commitment;activePlan?:Commitment;startingSoon?:Commitment&{hoursUntil:number};recentPlan?:Commitment;storyTitle?:string;now:Date;interactionMode:InteractionMode}):string[]{
+  if(input.interactionMode==='co_present')return[`What are you taking pictures of?`,`I was nearby.`,`Mind if I hang out for a bit?`];
   if(input.activePlan)return[`This is actually a good call.`,`What should we do next here?`,`Remember this part.`];
   if(input.startingSoon)return[input.startingSoon.hoursUntil<=4?`Still good for ${new Date(input.startingSoon.startsAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}?`:`I'm looking forward to ${input.startingSoon.title}.`,`What should we get there?`,`How is your day looking before we go?`];
   if(input.nextCommitment){const hours=(new Date(input.nextCommitment.startsAt).getTime()-input.now.getTime())/3600000;return hours<=48?[`Still good for ${hours<=24?'tomorrow':input.nextCommitment.title}?`,'Should we figure out the details?',`What time are you free beforehand?`]:[`I'm looking forward to ${input.nextCommitment.title}.`,`What should we know before we go?`,`Should we add anything to the plan?`];}

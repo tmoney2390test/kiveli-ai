@@ -8,7 +8,10 @@ import{CharacterCard,EmptyState,GlassCard,LoadingSkeleton,Screen,SectionHeader,W
 import{colors,radius}from'../../src/theme';
 import{useTogether}from'../../src/store/useTogether';
 import{buildCompanionLife,formatScheduleTime}from'../../src/lib/companionLife';
-import{charactersForWorld,locationsForWorld,worldForLocation}from'../../src/lib/place';
+import{charactersConnectedToWorld,charactersCurrentlyInWorld,locationsForWorld,worldForLocation}from'../../src/lib/place';
+import{currentScheduleEvent,getInterruptibilityPresentation,getScheduleEventPresentation}from'../../src/lib/lifePresentation';
+
+const presenceStyles=StyleSheet.create({rightNow:{flexDirection:'row',alignItems:'center',gap:10,padding:13,borderRadius:radius.lg,backgroundColor:'rgba(241,103,154,.08)',borderWidth:1,borderColor:'rgba(241,103,154,.24)'},rightNowDot:{width:9,height:9,borderRadius:5,backgroundColor:'#47D7A1'},rightNowKicker:{color:colors.rose,fontSize:8,fontWeight:'900',letterSpacing:1.1},rightNowTitle:{color:colors.text,fontSize:13,fontWeight:'900',marginTop:3},rightNowCopy:{color:colors.muted,fontSize:10,marginTop:3},rightNowAction:{flexDirection:'row',alignItems:'center',gap:2},rightNowActionText:{color:colors.rose,fontSize:10,fontWeight:'900'}});
 
 export default function WorldsTab(){
   const params=useLocalSearchParams<{world?:string}>();
@@ -17,7 +20,7 @@ export default function WorldsTab(){
   const worlds=snapshot?.worlds.filter((item)=>item.published).sort((a,b)=>a.sort_order-b.sort_order)??[];
   const life=snapshot?buildCompanionLife(snapshot):undefined;
   const companion=life?.companion;
-  const companionWorld=snapshot&&companion?worldForLocation(snapshot,companion.current_location_id):undefined;
+  const companionWorld=snapshot&&life?.location?worldForLocation(snapshot,life.location.id):snapshot&&companion?worldForLocation(snapshot,companion.current_location_id):undefined;
   useEffect(()=>{if(!snapshot)return;const requested=worlds.find((item)=>item.slug===params.world);if(requested)setBrowsedWorldId(requested.id);},[params.world,snapshot,worlds]);
   if(loading&&!snapshot)return <LoadingSkeleton/>;
   if(!snapshot)return <LoadingSkeleton/>;
@@ -26,7 +29,11 @@ export default function WorldsTab(){
   if(!selectedWorld)return <LoadingSkeleton/>;
   const profile=worldProfile(selectedWorld);
   const selectedLocations=locationsForWorld(snapshot,selectedWorld.id);
-  const selectedCharacters=charactersForWorld(snapshot,selectedWorld.id);
+  const selectedCharacters=charactersConnectedToWorld(snapshot,selectedWorld.id);
+  const rightNowCompanion=companion&&charactersCurrentlyInWorld(snapshot,selectedWorld.id,new Date()).find((item)=>item.id===companion.id);
+  const rightNowEvent=rightNowCompanion?currentScheduleEvent(snapshot.scheduleEvents,rightNowCompanion.id,new Date(),rightNowCompanion.current_schedule_event_id):undefined;
+  const rightNowLocationId=rightNowEvent?.location_id??rightNowCompanion?.current_location_id??null;
+  const rightNowLocation=rightNowLocationId?snapshot.locations.find((item)=>item.id===rightNowLocationId):undefined;
   const currentlyHere=Boolean(companionWorld&&companionWorld.id===selectedWorld.id);
   const day=currentlyHere&&life?life.upcomingSchedule.slice(0,4):[];
   const worldEvents=currentlyHere?life?.recentEvents.filter((event)=>{const location=snapshot.locations.find((item)=>item.id===event.location_id);return location?.world_id===selectedWorld.id;}).slice(0,3)??[]:[];
@@ -45,9 +52,10 @@ export default function WorldsTab(){
 
     <GlassCard style={styles.identity}><View style={styles.identityTop}><View style={{flex:1}}><Text style={styles.identityKicker}>{profile.rhythm.toUpperCase()} RHYTHM · {profile.mobility.toUpperCase()}</Text><Text style={styles.identityTitle}>{worldFantasy(selectedWorld)}</Text></View><Compass color={colors.violet}/></View><Text style={styles.identityCopy}>{selectedWorld.activity_families?.length?selectedWorld.activity_families.slice(0,6).join(' · '):selectedWorld.description}</Text></GlassCard>
 
+    {rightNowCompanion&&rightNowLocation?<View style={presenceStyles.rightNow}><View style={presenceStyles.rightNowDot}/><View style={{flex:1}}><Text style={presenceStyles.rightNowKicker}>RIGHT NOW</Text><Text style={presenceStyles.rightNowTitle}>{rightNowCompanion.together_character_templates.name} is at {rightNowLocation.name}</Text><Text style={presenceStyles.rightNowCopy}>{rightNowEvent?getScheduleEventPresentation(rightNowEvent).activity:rightNowCompanion.current_activity} · {getInterruptibilityPresentation(rightNowEvent?.interruptibility??rightNowCompanion.current_interruptibility??'open').label}</Text></View><Pressable onPress={()=>router.push(`/location/${rightNowLocation.slug}?world=${selectedWorld.slug}` as never)} style={presenceStyles.rightNowAction}><Text style={presenceStyles.rightNowActionText}>See {rightNowCompanion.together_character_templates.name}</Text><ChevronRight size={15} color={colors.rose}/></Pressable></View>:null}
     {!currentlyHere&&companion?<View style={styles.awayCard}><View style={styles.awayIcon}><MapPin size={18} color={colors.rose}/></View><View style={{flex:1}}><Text style={styles.awayKicker}>{companion.together_character_templates.name.toUpperCase()} ISN'T HERE YET</Text><Text style={styles.awayTitle}>{companion.together_character_templates.name} is currently in {companionWorld?.name??'their current world'}.</Text><Text style={styles.awayCopy}>{profile.role==='destination'?`Turn ${selectedWorld.name} into a real trip instead of teleporting there.`:`Plan a visit and ${companion.together_character_templates.name}'s schedule, stories, photos, and memories can adapt to ${selectedWorld.name}.`}</Text><Pressable onPress={()=>router.push(`/(tabs)/chat-tab?character=${companion.together_character_templates.public_handle??companion.together_character_templates.slug}&draft=${encodeURIComponent(profile.role==='destination'?`We should take a trip to ${selectedWorld.name}.`:`We should visit ${selectedWorld.name} together.`)}` as never)} style={styles.awayAction}><Text style={styles.awayActionText}>{profile.role==='destination'?'Plan a trip':'Plan a visit'}</Text><ChevronRight size={16} color={colors.rose}/></Pressable></View></View>:null}
 
-    {currentlyHere&&companion?<><SectionHeader title={`${companion.together_character_templates.name}'s day`}/><GlassCard style={styles.timeline}><Text style={styles.location}>{snapshot.currentPlaceContext?.path??life?.location?.name??selectedWorld.name}</Text><Text style={styles.activity}>{companion.current_activity} · {companion.current_mood}</Text>{day.length?<View style={styles.schedule}>{day.map((item)=><View key={`${item.id}-${item.start_minute}`} style={styles.scheduleRow}><Text style={styles.time}>{formatScheduleTime(item.startsAt)}</Text><View style={{flex:1}}><Text style={styles.scheduleTitle}>{item.activity}</Text><Text style={styles.scheduleMeta}>{item.locationName}</Text></View></View>)}</View>:<Text style={styles.empty}>Nothing else is fixed yet. The day can still change.</Text>}</GlassCard></>:null}
+    {currentlyHere&&companion?<><SectionHeader title={`${companion.together_character_templates.name}'s day`}/><GlassCard style={styles.timeline}><Text style={styles.location}>{snapshot.currentPlaceContext?.path??life?.location?.name??selectedWorld.name}</Text><Text style={styles.activity}>{companion.current_activity} · {companion.current_mood}</Text>{day.length?<View style={styles.schedule}>{day.map((item)=><View key={item.id} style={styles.scheduleRow}><Text style={styles.time}>{formatScheduleTime(item.startsAt,selectedWorld.timezone)}</Text><View style={{flex:1}}><Text style={styles.scheduleTitle}>{item.activity}</Text><Text style={styles.scheduleMeta}>{item.locationName}</Text></View></View>)}</View>:<Text style={styles.empty}>Nothing else is known yet. The day can still change.</Text>}</GlassCard></>:null}
 
     <SectionHeader title="Places" action={`${selectedLocations.length} mapped`} onAction={()=>router.push(`/world/places?world=${selectedWorld.slug}` as never)}/>
     <View style={styles.places}>{topLocations.map((location)=><Pressable key={location.id} onPress={()=>router.push(`/location/${location.slug}?world=${selectedWorld.slug}` as never)} style={styles.placeCard}><Image source={worldHeroAsset(selectedWorld.slug)} style={styles.placeImage} contentFit="cover"/><View style={styles.placeShade}/><View style={styles.placeCopy}><Text style={styles.placeType}>{location.location_type.toUpperCase()}</Text><Text style={styles.placeName}>{location.name}</Text><Text style={styles.placeMeta} numberOfLines={1}>{location.possible_activities.slice(0,2).join(' · ')}</Text></View></Pressable>)}</View>

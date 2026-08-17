@@ -1,6 +1,7 @@
-import type { CharacterInstance, ScheduleItem, Snapshot } from '../types';
+import type { CharacterInstance, CharacterScheduleEvent, Snapshot } from '../types';
 import { worldForLocation } from './place';
 import { selectActiveCompanion, selectCompanionLife } from './selectors';
+import { currentScheduleEvent, getScheduleHint, nextVisibleScheduleEvents } from './lifePresentation';
 
 export type CompanionLifeSnapshot = {
   companion: CharacterInstance;
@@ -8,7 +9,7 @@ export type CompanionLifeSnapshot = {
   relationshipDay: number;
   location: Snapshot['locations'][number] | undefined;
   recentEvents: Snapshot['lifeEvents'];
-  upcomingSchedule: Array<ScheduleItem & { locationName: string; startsAt: Date; endsAt: Date }>;
+  upcomingSchedule: Array<CharacterScheduleEvent & { locationName: string; startsAt: Date; endsAt: Date; activity:string }>;
   proactiveMessages: Snapshot['proactiveMessages'];
   dates: Snapshot['dates'];
   moments: Snapshot['moments'];
@@ -26,14 +27,10 @@ export function buildCompanionLife(snapshot: Snapshot, now = new Date(), compani
   const companion = activeCompanion(snapshot, companionId);
   if (!companion) return undefined;
   const scoped = selectCompanionLife(snapshot, companion.id);
-  const location = snapshot.locations.find((item) => item.id === companion.current_location_id);
-  const currentWorld=worldForLocation(snapshot,companion.current_location_id);
-  const date = now.getDate(), month = now.getMonth(), year = now.getFullYear();
-  const upcomingSchedule = snapshot.schedules.filter((item) => item.character_version_id === companion.character_version_id && item.day_of_week === now.getDay() && item.start_minute > now.getHours() * 60 + now.getMinutes() && (!currentWorld||worldForLocation(snapshot,item.location_id)?.id===currentWorld.id)).sort((a, b) => a.start_minute - b.start_minute).slice(0, 3).map((item) => {
-    const startsAt = new Date(year, month, date, Math.floor(item.start_minute / 60), item.start_minute % 60);
-    const endsAt = new Date(year, month, date, Math.floor(item.end_minute / 60), item.end_minute % 60);
-    return { ...item, startsAt, endsAt, locationName: snapshot.locations.find((place) => place.id === item.location_id)?.name ?? currentWorld?.name ?? 'Current world' };
-  });
+  const currentEvent=currentScheduleEvent(snapshot.scheduleEvents,companion.id,now,companion.current_schedule_event_id);
+  const location = snapshot.locations.find((item) => item.id === (currentEvent?.location_id??companion.current_location_id));
+  const currentWorld=worldForLocation(snapshot,location?.id??companion.current_location_id);
+  const upcomingSchedule = nextVisibleScheduleEvents(snapshot.scheduleEvents,companion.id,now).slice(0,3).map((item)=>({ ...item, startsAt:new Date(item.starts_at), endsAt:new Date(item.ends_at), activity:getScheduleHint(item)??item.title, locationName:snapshot.locations.find((place)=>place.id===item.location_id)?.name??currentWorld?.name??'Current world' }));
   return {
     companion,
     relationship: scoped.relationship,
@@ -51,5 +48,5 @@ export function buildCompanionLife(snapshot: Snapshot, now = new Date(), compani
   };
 }
 
-export function formatScheduleTime(value: Date): string { return value.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
+export function formatScheduleTime(value: Date,timezone?:string): string { return value.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit',...(timezone?{timeZone:timezone}:{}) }); }
 function dateRank(status:string){return ({active:0,upcoming:1,unlocked:2,deferred:2,locked:3,completed:4} as Record<string,number>)[status]??5;}

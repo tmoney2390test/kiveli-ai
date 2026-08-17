@@ -32,6 +32,9 @@ const failures = [];
 for (const scanRoot of scanRoots) {
   for (const file of filesUnder(resolve(root, scanRoot))) {
     const name = relative(root, file).replaceAll('\\', '/');
+    // Fixtures and regression tests are allowed to name authored starter
+    // content. The guard protects runtime/domain implementation modules.
+    if (name.endsWith('.test.ts')) continue;
     if (allowlist.has(name)) continue;
     const source = readFileSync(file, 'utf8');
     const matches = [...source.matchAll(forbidden)];

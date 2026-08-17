@@ -8,7 +8,7 @@ const entries = readdirSync(functionsRoot, { withFileTypes: true })
   .filter((entry) => entry.isDirectory() && !entry.name.startsWith('_'))
   .map((entry) => resolve(functionsRoot, entry.name, 'index.ts'));
 
-const result = spawnSync('deno', ['check', '--sloppy-imports', '--config', resolve(functionsRoot, 'deno.json'), ...entries], {
+const result = spawnSync('deno', ['check', '--no-lock', '--unstable-sloppy-imports', '--config', resolve(functionsRoot, 'deno.json'), ...entries], {
   cwd: root,
   encoding: 'utf8',
   shell: process.platform === 'win32',

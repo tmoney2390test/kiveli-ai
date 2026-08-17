@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildClientPlaceContext, charactersForWorld, locationsForWorld, nearbyLocations, placePath, worldAccessLabel } from './place';
+import { buildClientPlaceContext, charactersForWorld, charactersCurrentlyAtLocation, charactersCurrentlyInWorld, locationsForWorld, nearbyLocations, placePath, worldAccessLabel } from './place';
 import type { Snapshot } from '../types';
 
 const world=(id:string,name:string,access_type:'free'|'premium'='free')=>({id,slug:name.toLowerCase().replaceAll(' ','-'),name,description:`${name} description`,access_type,timezone:id==='tokyo'?'Asia/Tokyo':'America/New_York',sort_order:0,featured:true,published:true,visual_context:{setting:name},metadata:{}} as const);
@@ -11,4 +11,5 @@ describe('canonical place selectors',()=>{
   it('makes every free world available without Juniper hardcoding',()=>{expect(worldAccessLabel(snapshot,world('second-free','Second Free'))).toBe('FREE');expect(worldAccessLabel(snapshot,snapshot.worlds[1]!)).toBe('PREMIUM');});
   it('uses the configured world timezone',()=>{expect(buildClientPlaceContext(snapshot,'arcade',new Date('2026-08-15T12:00:00Z'))?.clock.localTime).toBe('21:00');});
   it('finds nearby places through hierarchy without crossing worlds',()=>{const withSibling={...snapshot,locations:[...snapshot.locations,{...snapshot.locations[1]!,id:'paper',name:'Paper Trail'}]};expect(nearbyLocations(withSibling,'velvet').map((item)=>item.name)).toEqual(['Alder District','Paper Trail']);});
+  it('separates connected characters from physical presence',()=>{const connected={...snapshot,characterWorldPresence:[...snapshot.characterWorldPresence!,{id:'tokyo-presence',character_version_id:'maya-v',world_id:'tokyo',presence_type:'visitor' as const,familiarity:0,visited_count:0,metadata:{}}]} as Snapshot;expect(charactersForWorld(connected,'tokyo')).toHaveLength(1);expect(charactersCurrentlyInWorld(connected,'tokyo')).toHaveLength(0);expect(charactersCurrentlyAtLocation(connected,'velvet')).toHaveLength(1);});
 });

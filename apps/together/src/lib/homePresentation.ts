@@ -1,5 +1,6 @@
 import type { CharacterInstance, GeneratedMedia, Memory, Snapshot } from '../types';
 import type { HomeViewModel } from './homeViewModel';
+import { getInterruptibilityPresentation } from './lifePresentation';
 
 export type CompanionMediaItem = {
   id: string;
@@ -37,7 +38,7 @@ export function getCurrentScenePresentation(model: HomeViewModel): CurrentSceneP
     heading,
     activity,
     location,
-    quote: model.message?.content ?? sceneQuote(name, model.companion.current_activity),
+    quote: model.message?.content ?? (model.companion.current_interruptibility&&model.companion.current_interruptibility!=='open'?getInterruptibilityPresentation(model.companion.current_interruptibility).label:sceneQuote(name, model.companion.current_activity)),
   };
 }
 
