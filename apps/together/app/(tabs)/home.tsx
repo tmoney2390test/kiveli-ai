@@ -95,7 +95,7 @@ export default function Home() {
 
   return <Screen contentStyle={styles.content}>
     <View pointerEvents="none" style={styles.ambientGlow} />
-    <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push('/subscription')} onProfile={() => router.push('/(tabs)/profile')} />
+    <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push('/subscription')} onProfile={() => router.push('/settings')} />
     <CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} relationshipDay={model.relationshipDay} stage={model.hero.stage} eyebrow={scene.eyebrow} heading={scene.heading} activity={scene.activity} location={scene.location} quote={scene.quote} notice={model.hero.notice} onContinue={() => void openCompanion()} onProfile={() => router.push(`/character/${handle}`)} onLocation={openLocation} />
     {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions} world={selectedWorld} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onViewWorld={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/worlds?world=${selectedWorld.slug}`); }} /> : null}
     <FromCompanionSection name={template.name} items={media} fallbackSource={portraitSource} onViewAll={() => router.push('/(tabs)/moments')} onOpen={(item) => router.push(item.locked ? '/subscription' : `/media/${item.id}`)} onAsk={() => router.push(`/(tabs)/chat-tab?draft=${encodeURIComponent('Send me a photo from where you are.')}`)} />
