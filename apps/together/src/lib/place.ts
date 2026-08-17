@@ -1,4 +1,4 @@
-import type { CharacterInstance, Location, PlaceContext, Snapshot, World } from '../types';
+import type { CharacterInstance, CharacterTemplate, CharacterVersion, CharacterWorldPresence, Location, PlaceContext, Snapshot, World } from '../types';
 import { currentScheduleEvent } from './lifePresentation';
 
 export function worldById(snapshot:Snapshot,worldId?:string|null){return worldId?snapshot.worlds.find((world)=>world.id===worldId):undefined;}
@@ -10,6 +10,44 @@ export function nearbyLocations(snapshot:Snapshot,locationId:string){const locat
 export function locationAncestry(snapshot:Snapshot,locationId:string){const result:Location[]=[];const visited=new Set<string>();let location=locationById(snapshot,locationId);while(location?.parent_location_id){if(visited.has(location.parent_location_id)||visited.size>16)break;visited.add(location.parent_location_id);const parent=locationById(snapshot,location.parent_location_id);if(!parent||parent.world_id!==location.world_id)break;result.unshift(parent);location=parent;}return result;}
 export function placePath(snapshot:Snapshot,locationId:string){const location=locationById(snapshot,locationId);if(!location)return'';const world=worldById(snapshot,location.world_id);return[world?.name,...locationAncestry(snapshot,locationId).map((item)=>item.name),location.name].filter(Boolean).join(' → ');}
 export function buildClientPlaceContext(snapshot:Snapshot,locationId:string,now=new Date()):PlaceContext|undefined{const location=locationById(snapshot,locationId),world=worldById(snapshot,location?.world_id);if(!location||!world)return undefined;const timezone=world.timezone||'UTC';const parts=new Intl.DateTimeFormat('en-US',{timeZone:timezone,weekday:'long',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now);const part=(key:string)=>parts.find((item)=>item.type===key)?.value??'';const hour=Number(part('hour'));const explicitNearby=location.canonical_lore?.nearbyLocationSlugs??[];const nearby=(explicitNearby.length?explicitNearby.map((slug)=>snapshot.locations.find((item)=>item.world_id===world.id&&item.slug===slug)).filter((item):item is Location=>Boolean(item)):nearbyLocations(snapshot,locationId)).slice(0,8);return{contextVersion:1,world:{id:world.id,slug:world.slug,name:world.name,description:world.description,timezone,accessType:world.access_type,visualContext:world.visual_context??{}},location:{id:location.id,slug:location.slug,name:location.name,type:location.location_type,description:location.description,category:location.category,hours:location.hours??null,possibleActivities:location.possible_activities,visualContext:location.canonical_visual_context??{},lore:location.canonical_lore??{}},ancestry:locationAncestry(snapshot,locationId).map((item)=>({id:item.id,slug:item.slug,name:item.name,type:item.location_type,description:item.description,lore:item.canonical_lore??{}})),nearby:nearby.map((item)=>({id:item.id,slug:item.slug,name:item.name,type:item.location_type,category:item.category,description:item.description,possibleActivities:item.possible_activities})),path:placePath(snapshot,locationId),clock:{timezone,localIso:`${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`,weekday:part('weekday'),localTime:`${part('hour')}:${part('minute')}`,daypart:hour<5?'overnight':hour<12?'morning':hour<17?'afternoon':hour<22?'evening':'late_night'}};}
+
+export type WorldCharacterCatalogEntry={
+  template:CharacterTemplate;
+  version:CharacterVersion;
+  instance?:CharacterInstance;
+  presence?:CharacterWorldPresence;
+};
+
+/** Published people connected to a world, whether or not the current Life has met them yet. */
+export function characterCatalogForWorld(snapshot:Snapshot,worldId:string):WorldCharacterCatalogEntry[]{
+  const instancesByTemplate=new Map(snapshot.characters.map((instance)=>[instance.character_template_id,instance]));
+  const presenceByVersion=new Map((snapshot.characterWorldPresence??[])
+    .filter((presence)=>presence.world_id===worldId&&presence.presence_type!=='unavailable')
+    .map((presence)=>[presence.character_version_id,presence]));
+
+  return(snapshot.discoverableCharacters??[])
+    .filter((template)=>template.can_be_selected!==false&&!['draft','archived'].includes(String(template.lifecycle_status??'published')))
+    .flatMap((template):WorldCharacterCatalogEntry[]=>{
+      const version=template.together_character_versions;
+      if(!version)return[];
+      const instance=instancesByTemplate.get(template.id);
+      const instanceWorld=instance?worldForLocation(snapshot,instance.current_location_id)?.id:undefined;
+      const presence=presenceByVersion.get(version.id);
+      const authoredWorld=template.first_meeting?.world_id;
+      if(instanceWorld!==worldId&&!presence&&authoredWorld!==worldId)return[];
+      return[{template,version,instance,presence}];
+    })
+    .sort((left,right)=>{
+      const leftEstablished=Boolean(left.instance?.contact_added_at||left.instance?.introduced_at);
+      const rightEstablished=Boolean(right.instance?.contact_added_at||right.instance?.introduced_at);
+      const leftFeatured=left.template.discovery_metadata?.featured===true;
+      const rightFeatured=right.template.discovery_metadata?.featured===true;
+      return Number(rightEstablished)-Number(leftEstablished)
+        ||Number(rightFeatured)-Number(leftFeatured)
+        ||left.template.name.localeCompare(right.template.name);
+    });
+}
+
 export function charactersConnectedToWorld(snapshot:Snapshot,worldId:string){const allowedVersions=new Set((snapshot.characterWorldPresence??[]).filter((presence)=>presence.world_id===worldId&&presence.presence_type!=='unavailable').map((presence)=>presence.character_version_id));return snapshot.characters.filter((character)=>worldForLocation(snapshot,character.current_location_id)?.id===worldId||allowedVersions.has(character.character_version_id));}
 export function charactersCurrentlyAtLocation(snapshot:Snapshot,locationId:string,now=new Date()){return snapshot.characters.filter((character)=>{const event=currentScheduleEvent(snapshot.scheduleEvents,character.id,now,character.current_schedule_event_id);const actual=event?.location_id??character.current_location_id;return actual===locationId&&event?.activity_key!=='travel'&&character.current_interruptibility!=='unavailable';});}
 export function charactersCurrentlyInWorld(snapshot:Snapshot,worldId:string,now=new Date()){return snapshot.characters.filter((character)=>worldForLocation(snapshot,(currentScheduleEvent(snapshot.scheduleEvents,character.id,now,character.current_schedule_event_id)?.location_id??character.current_location_id))?.id===worldId&&currentScheduleEvent(snapshot.scheduleEvents,character.id,now,character.current_schedule_event_id)?.activity_key!=='travel');}

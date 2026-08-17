@@ -1,5 +1,6 @@
 import type { CharacterInstance, CharacterTemplate, Location, Snapshot } from '../types';
 import { recommendPlanOptions, type PlanContext, type PlanOption } from './plans';
+import { characterCatalogForWorld } from './place';
 
 export type ExploreCategoryId='coffee'|'nightlife'|'dining'|'quiet'|'entertainment';
 export type ExploreRecommendation={id:'tonight'|'companion'|'different'|'liked';title:string;subtitle:string;option:PlanOption;location:Location};
@@ -36,5 +37,5 @@ function featureLocations(locations:Location[],priorityIds:string[]){const score
 function hasArtPriority(slug:string){return['velvet-hour','riverwalk','pixel-and-pint','paper-trail','moss-and-crumb','juniper-civic-arena'].includes(slug);}
 function isBrowsableLocation(location:Location){return!['room','zone','transit'].includes(location.location_type)&&location.category!=='home'&&location.category!=='work'&&location.metadata?.private!==true;}
 function matchesCategory(location:Location,category:ExploreCategoryId){const tags=Array.isArray(location.metadata?.tags)?location.metadata.tags:[];const words=`${location.category} ${location.possible_activities.join(' ')} ${tags.join(' ')}`.toLowerCase();if(category==='coffee')return/coffee|cafe|bakery|pastry|brunch/.test(words);if(category==='nightlife')return/bar|lounge|nightlife|cocktail|music|karaoke|comedy|drinks/.test(words);if(category==='dining')return/restaurant|dinner|food|taco|brunch/.test(words);if(category==='quiet')return/quiet|book|park|gallery|walk|outdoor|reading|coffee/.test(words);return/entertainment|cinema|movie|arcade|games|music|comedy|karaoke|trivia|sport|arena|basketball|hockey|soccer|boxing/.test(words);}
-function peopleForWorld(snapshot:Snapshot,worldId:string):CharacterTemplate[]{return snapshot.discoverableCharacters.filter((template)=>{const instance=snapshot.characters.find((item)=>item.character_template_id===template.id);const instanceWorld=instance?snapshot.locations.find((location)=>location.id===instance.current_location_id)?.world_id:null;return instanceWorld===worldId||template.first_meeting?.world_id===worldId;});}
+function peopleForWorld(snapshot:Snapshot,worldId:string):CharacterTemplate[]{return characterCatalogForWorld(snapshot,worldId).map((entry)=>entry.template);}
 function friendly(value:string){return value.replace(/_/g,' ').replace(/\b\w/g,(letter)=>letter.toUpperCase())}

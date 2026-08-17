@@ -64,7 +64,11 @@ export default function CharacterProfile() {
   const selectable = Boolean(template.can_be_selected);
   const active = instance?.id === snapshot.activeContinuity?.active_companion_instance_id;
   const locationRow = instance ? snapshot.locations.find((item) => item.id === instance.current_location_id) : undefined;
-  const world = instance ? worldForLocation(snapshot, instance.current_location_id) : undefined;
+  const authoredPresence = !instance ? snapshot.characterWorldPresence?.find((item) => item.character_version_id === version.id && item.presence_type !== 'unavailable') : undefined;
+  const world = instance
+    ? worldForLocation(snapshot, instance.current_location_id)
+    : snapshot.worlds.find((item) => item.id === (template.first_meeting?.world_id ?? authoredPresence?.world_id));
+  const meetingLocation = !instance ? snapshot.locations.find((item) => item.id === template.first_meeting?.location_id) : undefined;
   const location = locationRow?.name ?? world?.name ?? 'Current place';
   const moments = instance ? snapshot.moments.filter((item) => item.character_instance_id === instance.id) : [];
   const relationship = instance ? snapshot.relationships.find((item) => item.character_instance_id === instance.id) : undefined;
@@ -154,6 +158,8 @@ export default function CharacterProfile() {
             <Info label="Right now" value={instance.current_activity} />
             <Info label="Location" value={location} />
           </> : null}
+          {world ? <Info label={instance ? 'World' : 'Lives in'} value={world.name} /> : null}
+          {!instance && meetingLocation ? <Info label="Where you could meet" value={meetingLocation.name} /> : null}
           <Info label="Occupation" value={template.occupation} />
           <Info label="Interests" value={(version.interests ?? []).join(', ') || 'Still discovering'} />
         </View>
