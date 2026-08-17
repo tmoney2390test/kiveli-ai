@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Check, MessageCircle, Sparkles } from 'lucide-react-native';
-import { CharacterAvatar, GradientButton, LoadingSkeleton, Screen, resolveCharacterPortraitSource } from '../src/components';
+import { CharacterAvatar, GradientButton, LoadingSkeleton, Screen, SpiceBadge, resolveCharacterPortraitSource } from '../src/components';
 import { bootstrap } from '../src/lib/api';
 import { quickStartProfile } from '../src/lib/quickStart';
 import { useTogether } from '../src/store/useTogether';
@@ -73,7 +73,7 @@ export default function ChooseCompanion() {
           onPress={() => { setSelectedSlug(person.slug); setError(''); }}
           style={({ pressed }) => [styles.person, chosen && styles.personSelected, pressed && styles.personPressed]}
         >
-          <View style={styles.portraitWrap}>{portrait?<Image source={portrait} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top"/>:<CharacterAvatar name={person.name} template={person} version={person.together_character_versions} size={82}/>}</View>
+          <View style={styles.portraitWrap}>{portrait?<Image source={portrait} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top"/>:<CharacterAvatar name={person.name} template={person} version={person.together_character_versions} size={82}/>}<SpiceBadge level={person.spice_level} overlay compact /></View>
           <View style={styles.personCopy}>
             <View style={styles.personTop}>
               <Text style={styles.name}>{person.name}</Text>

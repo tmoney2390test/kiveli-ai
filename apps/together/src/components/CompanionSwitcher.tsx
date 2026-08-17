@@ -3,6 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Check, ChevronDown, Plus, X } from 'lucide-react-native';
 import { CharacterAvatar } from './ui';
+import { SpiceBadge } from './SpiceBadge';
 import { colors, radius, spacing } from '../theme';
 import { setActiveCompanion } from '../lib/api';
 import { useTogether } from '../store/useTogether';
@@ -57,7 +58,7 @@ export function CompanionSwitcher({ active, variant = 'default' }: { active: Cha
             <Pressable onPress={() => setOpen(false)} style={styles.close}><X size={20} color={colors.text} /></Pressable>
           </View>
           {companions.map((item) => <Pressable key={item.id} disabled={Boolean(busy)} onPress={() => void choose(item)} style={styles.row}>
-            <CharacterAvatar slug={item.together_character_templates.slug} name={item.together_character_templates.name} size={50} />
+            <View style={styles.avatar}><CharacterAvatar slug={item.together_character_templates.slug} name={item.together_character_templates.name} size={50} /><SpiceBadge level={item.together_character_templates.spice_level} overlay compact /></View>
             <View style={{ flex: 1 }}><Text style={styles.rowName}>{item.together_character_templates.name}</Text><Text style={styles.meta}>{busy === item.id ? 'Switching…' : item.current_activity}</Text></View>
             {item.id === active.id ? <Check color={colors.rose} /> : null}
           </Pressable>)}
@@ -82,6 +83,7 @@ const styles = StyleSheet.create({
   copy: { color: colors.muted, fontSize: 12, marginTop: 4 },
   close: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: radius.md, backgroundColor: colors.elevated },
+  avatar: { width: 50, height: 50, position: 'relative' },
   rowName: { color: colors.text, fontSize: 16, fontWeight: '800' },
   meta: { color: colors.muted, fontSize: 11, marginTop: 3 },
   discover: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 50, marginTop: 6, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },

@@ -3,6 +3,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimen
 import { ChevronLeft, ChevronRight, MapPin, Sparkles } from 'lucide-react-native';
 import { resolveCharacterPortraitSource } from '../ui';
 import { DetailPreservingArtwork } from '../DetailPreservingArtwork';
+import { SpiceBadge } from '../SpiceBadge';
 import { colors, radius, typography } from '../../theme';
 import type { FeaturedCompanion } from '../../lib/featuredCompanions';
 import type { World } from '../../types';
@@ -56,6 +57,7 @@ function CompanionCard({ companion, width, onPress }: { companion: FeaturedCompa
     {source ? <DetailPreservingArtwork accessibilityLabel={`${companion.name}, ${companion.occupation}`} source={source} contentPosition="top" dim={.10} /> : <View style={[StyleSheet.absoluteFill, styles.fallback]}><Text style={styles.fallbackInitial}>{companion.name[0]}</Text></View>}
     <View style={styles.cardShade} />
     <View style={styles.badge}><Sparkles size={11} color="#FFE1A8" /><Text style={styles.badgeText}>{label}</Text></View>
+    <SpiceBadge level={companion.spice_level} overlay />
     <View style={styles.cardCopy}>
       <Text numberOfLines={1} style={styles.name}>{companion.name} <Text style={styles.age}>{companion.age}</Text></Text>
       <Text numberOfLines={1} style={styles.occupation}>{companion.occupation}</Text>

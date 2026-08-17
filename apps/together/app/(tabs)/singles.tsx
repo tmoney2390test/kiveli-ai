@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { ArrowUpRight, CalendarDays, LockKeyhole, Palmtree, Plus, Sparkles, UserRound } from 'lucide-react-native';
-import { CharacterAvatar, EmptyState, LoadingSkeleton, PageTitle, Screen, SectionHeader } from '../../src/components';
+import { CharacterAvatar, EmptyState, LoadingSkeleton, PageTitle, Screen, SectionHeader, SpiceBadge } from '../../src/components';
 import { listCreatorDrafts } from '../../src/lib/api';
 import { selectPortraitVersion } from '../../src/lib/selectors';
 import { useTogether } from '../../src/store/useTogether';
@@ -85,6 +85,7 @@ function DraftPerson({ draft }: { draft: CreatorDraft }) {
     <View style={styles.draftPortrait}>
       {draft.portraitUrl ? <Image source={{ uri: draft.portraitUrl }} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" /> : <UserRound size={28} color={colors.rose} />}
       <View style={styles.draftBadge}><Text style={styles.draftBadgeText}>DRAFT</Text></View>
+      <SpiceBadge level={draft.connection_config.spiceLevel} overlay compact />
     </View>
     <View style={{ flex: 1 }}>
       <Text style={styles.personName}>{identity.name || 'New companion'}{identity.age ? `, ${identity.age}` : ''}</Text>
@@ -110,7 +111,7 @@ function Person({ template, snapshot }: { template: Snapshot['discoverableCharac
   const handle = template.public_handle ?? template.slug;
   const portraitVersion = instance ? selectPortraitVersion(snapshot, instance) : template.together_character_versions;
   return <Pressable accessibilityRole="button" accessibilityLabel={action} onPress={() => router.push(`/character/${handle}` as never)} style={({ pressed }) => [styles.person, pressed && styles.pressed]}>
-    <CharacterAvatar slug={template.slug} name={template.name} template={template} version={portraitVersion} size={76} />
+    <View style={styles.personPortrait}><CharacterAvatar slug={template.slug} name={template.name} template={template} version={portraitVersion} size={76} /><SpiceBadge level={template.spice_level} overlay compact /></View>
     <View style={{ flex: 1 }}>
       <Text style={styles.personName}>{template.name}, {template.age}</Text>
       <Text style={styles.personMeta}>{template.occupation} · {world}</Text>
@@ -153,6 +154,7 @@ const styles = StyleSheet.create({
   stack: { gap: 10 }, person: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 13, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   personName: { fontFamily: 'Georgia', fontSize: 21, color: colors.text }, personMeta: { color: colors.rose, fontSize: 11, fontWeight: '700', marginTop: 2 }, summary: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 5 }, interests: { color: colors.text, fontSize: 10, marginTop: 5 }, action: { color: colors.rose, fontSize: 11, fontWeight: '900', marginTop: 7 },
   draftPortrait: { width: 76, height: 90, borderRadius: radius.md, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.elevated }, draftBadge: { position: 'absolute', left: 5, bottom: 5, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8, backgroundColor: 'rgba(8,11,19,.82)' }, draftBadgeText: { color: '#fff', fontSize: 7, fontWeight: '900', letterSpacing: .7 },
+  personPortrait: { width: 76, height: 76, position: 'relative' },
   progressTrack: { height: 3, marginTop: 9, borderRadius: 2, overflow: 'hidden', backgroundColor: colors.border }, progressFill: { height: 3, backgroundColor: colors.rose }, progressMeta: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }, stepCopy: { color: colors.dimmed, fontSize: 8, textTransform: 'capitalize' },
   skeleton: { opacity: .65 }, skeletonLine: { height: 9, borderRadius: 5, backgroundColor: colors.elevated },
   experience: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, locked: { opacity: .68 }, icon: { width: 43, height: 43, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.elevated }, kicker: { color: colors.rose, fontSize: 9, fontWeight: '900', letterSpacing: 1 }, experienceTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 20, marginTop: 3 }, pressed: { opacity: .86, transform: [{ scale: .985 }] },

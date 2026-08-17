@@ -35,6 +35,7 @@ const connectionSchema = z.object({
   pace: z.number().min(0).max(1).default(.45),
   affection: z.number().min(0).max(1).default(.55),
   initiative: z.number().min(0).max(1).default(.55),
+  spiceLevel: z.union([z.literal(1), z.literal(2), z.literal(3)]).default(2),
   conflictStyle: z.enum(['gentle', 'direct', 'reflective', 'needs_space']).default('reflective'),
   boundaries: z.array(z.string().trim().min(2).max(120)).max(8).default([]),
 });
@@ -287,7 +288,7 @@ async function serializeDraft(db: Db, draft: Record<string, any>, includeContext
     const legacyPath = Array.isArray(draft.appearance_config?.referenceStoragePaths) ? String(draft.appearance_config.referenceStoragePaths[0] ?? '') : '';
     if (legacyPath) portraitUrl = (await db.storage.from('kivelle-character-reference').createSignedUrl(legacyPath, 3600)).data?.signedUrl ?? null;
   }
-  const base = { ...draft, assets: serializedAssets, portraitUrl };
+  const base = { ...draft, connection_config: connectionSchema.parse(draft.connection_config ?? {}), assets: serializedAssets, portraitUrl };
   if (!includeContext) return base;
   const [world, locations] = await Promise.all([
     db.from('together_worlds').select('id,name,slug,timezone,access_type').eq('id', draft.world_id).maybeSingle(),
@@ -423,7 +424,7 @@ function normalizeCommunication(proposal: CharacterDraftProposal) {
 
 function normalizeConnection(proposal: CharacterDraftProposal) {
   const pace = String(proposal.relationshipStyle?.pace ?? '').includes('slow') ? .3 : .5;
-  return { pace, affection: Number(proposal.relationshipStyle?.affection ?? proposal.personality.warmth), initiative: Number(proposal.relationshipStyle?.initiative ?? proposal.personality.spontaneity * .5 + .25), conflictStyle: proposal.personality.directness >= .7 ? 'direct' : 'reflective', boundaries: [] };
+  return { pace, affection: Number(proposal.relationshipStyle?.affection ?? proposal.personality.warmth), initiative: Number(proposal.relationshipStyle?.initiative ?? proposal.personality.spontaneity * .5 + .25), spiceLevel: 2, conflictStyle: proposal.personality.directness >= .7 ? 'direct' : 'reflective', boundaries: [] };
 }
 
 function proposalFromDraft(draft: Record<string, any>): CharacterDraftProposal {
