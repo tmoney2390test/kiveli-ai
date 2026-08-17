@@ -3,8 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Check, MessageCircle, Sparkles } from 'lucide-react-native';
-import { GradientButton, LoadingSkeleton, Screen } from '../src/components';
-import { characterAssets } from '../src/assets';
+import { CharacterAvatar, GradientButton, LoadingSkeleton, Screen, resolveCharacterPortraitSource } from '../src/components';
 import { bootstrap } from '../src/lib/api';
 import { quickStartProfile } from '../src/lib/quickStart';
 import { useTogether } from '../src/store/useTogether';
@@ -44,7 +43,7 @@ export default function ChooseCompanion() {
     try {
       const next = await bootstrap(quickStartProfile(selected.id));
       setSnapshot(next);
-      router.replace(`/chat?character=${selected.slug}` as never);
+      router.replace(`/chat?character=${selected.public_handle??selected.slug}` as never);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Your first conversation could not be prepared.');
     } finally {
@@ -65,6 +64,7 @@ export default function ChooseCompanion() {
     <View style={styles.people}>
       {choices.map((person) => {
         const chosen = selectedSlug === person.slug;
+        const portrait=resolveCharacterPortraitSource(person,person.together_character_versions,person.slug);
         return <Pressable
           key={person.id}
           accessibilityRole="radio"
@@ -73,7 +73,7 @@ export default function ChooseCompanion() {
           onPress={() => { setSelectedSlug(person.slug); setError(''); }}
           style={({ pressed }) => [styles.person, chosen && styles.personSelected, pressed && styles.personPressed]}
         >
-          <Image source={characterAssets[person.slug]} style={styles.portrait} contentFit="cover" contentPosition="top" />
+          <View style={styles.portraitWrap}>{portrait?<Image source={portrait} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top"/>:<CharacterAvatar name={person.name} template={person} version={person.together_character_versions} size={82}/>}</View>
           <View style={styles.personCopy}>
             <View style={styles.personTop}>
               <Text style={styles.name}>{person.name}</Text>
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
   person: { minHeight: 112, flexDirection: 'row', overflow: 'hidden', borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   personSelected: { borderColor: colors.rose, backgroundColor: 'rgba(232,93,140,.08)' },
   personPressed: { transform: [{ scale: .992 }], opacity: .94 },
-  portrait: { width: 102, alignSelf: 'stretch', backgroundColor: colors.elevated },
+  portraitWrap:{width:102,alignSelf:'stretch',alignItems:'center',justifyContent:'center',overflow:'hidden',backgroundColor:colors.elevated},
   personCopy: { flex: 1, justifyContent: 'center', paddingHorizontal: 13, paddingVertical: 10 },
   personTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   name: { fontFamily: typography.display, color: colors.text, fontSize: 23, fontWeight: '600' },
