@@ -66,7 +66,7 @@ export default function Home() {
 
   const openCompanion = async (proactiveMessageId?: string) => {
     if (proactiveMessageId) await markProactiveOpened(proactiveMessageId).catch(() => undefined);
-    router.push('/(tabs)/chat-tab');
+    router.push(`/(tabs)/chat-tab?character=${encodeURIComponent(handle)}`);
   };
   const runAction = async (action: HomeTargetAction) => {
     if (action.kind === 'chat') return openCompanion(action.proactiveMessageId);
@@ -92,7 +92,7 @@ export default function Home() {
   return <Screen contentStyle={styles.content}>
     <View pointerEvents="none" style={styles.ambientGlow} />
     <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push('/subscription')} onProfile={() => router.push('/(tabs)/profile')} />
-    <CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} relationshipDay={model.relationshipDay} stage={model.hero.stage} eyebrow={scene.eyebrow} heading={scene.heading} activity={scene.activity} location={scene.location} quote={scene.quote} notice={model.hero.notice} onContinue={() => void runAction(model.hero.action)} onProfile={() => router.push(`/character/${handle}`)} onLocation={openLocation} />
+    <CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} relationshipDay={model.relationshipDay} stage={model.hero.stage} eyebrow={scene.eyebrow} heading={scene.heading} activity={scene.activity} location={scene.location} quote={scene.quote} notice={model.hero.notice} onContinue={() => void openCompanion()} onProfile={() => router.push(`/character/${handle}`)} onLocation={openLocation} />
     <FromCompanionSection name={template.name} items={media} fallbackSource={portraitSource} onViewAll={() => router.push('/(tabs)/moments')} onOpen={(item) => router.push(item.locked ? '/subscription' : `/media/${item.id}`)} onAsk={() => router.push(`/(tabs)/chat-tab?draft=${encodeURIComponent('Send me a photo from where you are.')}`)} />
     <HomeWorldSection wide={wideCards} upcoming={{ eyebrow: model.upcoming.eyebrow, title: model.upcoming.title, meta: model.upcoming.meta }} relationship={{ eyebrow: `YOU + ${template.name.toUpperCase()}`, title: relationship.headline, meta: relationship.detail }} hook={getWorldHook(model)} memory={memory} upcomingSource={upcomingSource} relationshipSource={portraitSource} onUpcoming={() => void runAction(model.upcoming.action)} onRelationship={() => router.push(`/character/${handle}`)} />
     <HomeTimeline title={timelineTitle} items={model.timeline} onViewWorld={() => router.push('/(tabs)/worlds')} onOpen={openTimelineItem} />

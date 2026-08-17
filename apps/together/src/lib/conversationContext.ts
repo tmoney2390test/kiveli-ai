@@ -20,7 +20,7 @@ export type ClientConversationContext={
 export function buildClientConversationContext(snapshot:Snapshot,character:CharacterInstance,now=new Date()):ClientConversationContext{
   const location=snapshot.locations.find((item)=>item.id===character.current_location_id)?.name??worldForLocation(snapshot,character.current_location_id)?.name??'Current place';
   const characterPlans=(snapshot.sharedPlans??[]).filter((plan)=>plan.character_instance_id===character.id);
-  const activePlanRow=characterPlans.find((plan)=>plan.status==='active'||(plan.status==='scheduled'&&new Date(plan.starts_at)<=now&&new Date(plan.ends_at)>now));
+  const activePlanRow=characterPlans.find((plan)=>isActivePlan(plan,now));
   const activeDateRow=snapshot.dates.find((date)=>date.character_instance_id===character.id&&date.status==='active');
   const activeEvent=snapshot.lifeEvents.filter((event)=>event.character_instance_id===character.id&&event.metadata?.planStatus!=='cancelled'&&Boolean(event.ends_at)&&new Date(event.starts_at).getTime()<=now.getTime()&&new Date(event.ends_at!).getTime()>=now.getTime()).sort((a,b)=>Number(b.significance??0)-Number(a.significance??0))[0];
   const activeLocationId=activePlanRow?.location_id??activeDateRow?.together_date_templates.location_id??activeEvent?.location_id??character.current_location_id;
@@ -72,4 +72,5 @@ function smartReplies(input:{character:CharacterInstance;location:string;thread?
 }
 
 function planCommitment(plan:SharedPlan,snapshot:Snapshot):Commitment{return{id:plan.id,title:plan.title,startsAt:plan.starts_at,endsAt:plan.ends_at,kind:'plan',location:snapshot.locations.find((item)=>item.id===plan.location_id)?.name};}
+function isActivePlan(plan:SharedPlan,now:Date){if(!['active','scheduled'].includes(plan.status))return false;const starts=new Date(plan.starts_at).getTime(),ends=new Date(plan.ends_at).getTime();return Number.isFinite(starts)&&Number.isFinite(ends)&&starts<=now.getTime()&&now.getTime()<ends;}
 

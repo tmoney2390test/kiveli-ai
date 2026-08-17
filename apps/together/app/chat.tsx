@@ -63,7 +63,7 @@ export default function Chat() {
   useEffect(()=>{if(params.plan==='1')setShowPlans(true);if(params.draft)setInput(params.draft);if(params.planId)setFocusPlanId(params.planId);},[params.plan,params.draft,params.planId]);
   useEffect(()=>{const focus=conversation?.metadata?.focus as Record<string,unknown>|undefined;if(!focusDismissed&&!focusPlanId&&focus?.type==='plan'&&typeof focus.planId==='string')setFocusPlanId(focus.planId);},[conversation?.id,conversation?.metadata,focusPlanId,focusDismissed]);
   const activeSceneMetadata=(conversation?.metadata?.activeScene??conversation?.metadata?.scene??null) as Record<string,unknown>|null;
-  const hasActiveCommitment=Boolean(snapshot&&character&&((snapshot.sharedPlans??[]).some((plan)=>plan.character_instance_id===character.id&&plan.status==='active')||(snapshot.dates??[]).some((date)=>date.character_instance_id===character.id&&date.status==='active')));
+  const hasActiveCommitment=Boolean(snapshot&&character&&((snapshot.sharedPlans??[]).some((plan)=>plan.character_instance_id===character.id&&isLivePlan(plan))||(snapshot.dates??[]).some((date)=>date.character_instance_id===character.id&&date.status==='active')));
   const isCoPresent=Boolean(activeSceneMetadata?.interactionMode==='co_present'||hasActiveCommitment);
   useEffect(()=>{
     if(!character?.id||!conversation?.id||!isCoPresent){setInteractionCandidates([]);setMovementCandidates([]);setInteractionScene(null);return;}
@@ -166,7 +166,7 @@ export default function Chat() {
       {showLeft ? <LeftRail snapshot={snapshot} active={slug} /> : null}
       <View style={styles.conversation}>
         <ChatHeader character={character} location={location} relationshipStage={character.relationship_stage} onMenu={()=>setShowConversationMenu((value)=>!value)} />
-        {!showRight&&chatContext.nextCommitment?<Pressable onPress={()=>chatContext.nextCommitment?.kind==='plan'&&router.push(`/plan/${chatContext.nextCommitment.id}` as never)} style={styles.mobileCommitment}><CalendarDays size={14} color={colors.rose}/><Text style={styles.mobileCommitmentText} numberOfLin…12047 tokens truncated…}}><Text style={styles.railKicker}>{title}</Text>{children}</View>; }
+        {!showRight&&chatContext.nextCommitment?<Pressable onPress={()=>chatContext.nextCommitment?.kind==='plan'&&router.push(`/plan/${chatContext.nextCommitment.id}` as never)} style={styles.mobileCommitment}><CalendarDays size={14} color={colors.rose}/><Text style={styles.mobileCommitmentText} numberOfLines={1}…12180 tokens truncated…}}><Text style={styles.railKicker}>{title}</Text>{children}</View>; }
 function ContextLine({icon,title,body}:{icon:React.ReactNode;title:string;body:string}) { return <View style={styles.contextLine}>{icon}<View style={{flex:1}}><Text style={styles.contextLineTitle}>{title}</Text><Text style={styles.contextCopy}>{body}</Text></View></View>; }
 
 function relationshipLabel(stage:string){return({stranger:'You just met',acquaintance:'Getting acquainted',friend:'A real friendship',flirting:'There is a spark',dating:'You are dating',exclusive:'Choosing each other',long_term:'Building a life'} as Record<string,string>)[stage]??'Getting closer';}
