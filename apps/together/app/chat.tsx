@@ -30,7 +30,9 @@ export default function Chat() {
   const showLeft = width >= 1080;
   const showRight = width >= 920;
   const { snapshot, refresh, setSnapshot, updateCompanion, applyServerDelta } = useTogether();
-  const character = params.character ? snapshot?.characters.find((item) => item.together_character_templates.slug === params.character||item.together_character_templates.public_handle===params.character||item.character_template_id===params.character) : snapshot ? activeCompanion(snapshot) : undefined;
+  const focusedPlan = params.planId && snapshot ? snapshot.sharedPlans?.find((item) => item.id === params.planId) : undefined;
+  const requestedCharacter = params.character && snapshot ? snapshot.characters.find((item) => item.together_character_templates.slug === params.character||item.together_character_templates.public_handle===params.character||item.character_template_id===params.character) : undefined;
+  const character = snapshot ? (focusedPlan ? snapshot.characters.find((item) => item.id === focusedPlan.character_instance_id) ?? requestedCharacter : requestedCharacter ?? activeCompanion(snapshot)) : undefined;
   const slug = character?.together_character_templates.slug ?? '';
   const conversation = snapshot&&character ? activeConversationFor(snapshot.conversations,character.id) : undefined;
   const [messages, setMessages] = useState<Message[]>([]);
