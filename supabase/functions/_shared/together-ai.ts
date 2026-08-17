@@ -4,6 +4,7 @@ import { buildCompanionPrompt } from './kivelle-intelligence.ts';
 import type { KivelleConversationContext } from './kivelle-conversation-context.ts';
 import type { PlaceOpinionCandidate } from './kivelle-place-perspective.ts';
 import { deterministicPlaceOpinionCandidates as derivePlaceOpinionCandidates, validatePlaceOpinionCandidates as validateDerivedPlaceOpinionCandidates } from '../../../packages/together-domain/src/place-opinion-analysis.ts';
+import { detectFlirtSignal, scoreConversationEngagement } from '../../../packages/together-domain/src/relationship.ts';
 
 export type DialogueContext = KivelleConversationContext & { contentMode?:string };
 export interface DialogueProvider { generate(context: DialogueContext): Promise<string>; stream(context: DialogueContext): AsyncIterable<string>; }
@@ -11,7 +12,7 @@ export interface EmbeddingProvider { embed(text: string): Promise<number[] | nul
 export interface ModerationProvider { check(text: string): Promise<{ allowed: boolean; categories: string[] }>; }
 export type ConversationActionCandidate = { type:'plan_create'|'plan_cancel'|'plan_reschedule'|'date'; confidence:number; payload:Record<string,unknown> };
 export type ConversationAnalysisInput = { userMessage: string; assistantMessage: string; existingThreads: Array<Record<string, unknown>>; context?:DialogueContext };
-export type ConversationAnalysisProposal = { relationshipChanges: Record<string, number>; memoryCandidates: MemoryCandidate[]; resolvedThreadIds: string[]; newThreads: OpenThreadCandidate[]; momentCandidate: boolean; moodEffects: Record<string, number>; actionCandidates:ConversationActionCandidate[]; placeOpinionCandidates:PlaceOpinionCandidate[]; referencedEntities:string[]; mentionedMemoryIds:string[]; reinforcedMemoryIds:string[]; correctedMemorySubjects:string[]; source: 'deterministic' | 'hybrid' };
+export type ConversationAnalysisProposal = { relationshipChanges: Record<string, number>; chemistry:{userFlirtSignal:number;characterFlirtSignal:number;mutualChemistry:number;heatDelta:number}; memoryCandidates: MemoryCandidate[]; resolvedThreadIds: string[]; newThreads: OpenThreadCandidate[]; momentCandidate: boolean; moodEffects: Record<string, number>; actionCandidates:ConversationActionCandidate[]; placeOpinionCandidates:PlaceOpinionCandidate[]; referencedEntities:string[]; mentionedMemoryIds:string[]; reinforcedMemoryIds:string[]; correctedMemorySubjects:string[]; source: 'deterministic' | 'hybrid' };
 export interface ConversationAnalysisProvider { analyze(input: ConversationAnalysisInput): Promise<ConversationAnalysisProposal>; }
 
 const apiKey = () => Deno.env.get('OPENAI_API_KEY');
@@ -138,12 +139,14 @@ export class ConfiguredConversationAnalysisProvider implements ConversationAnaly
 function deterministicAnalysis(input: ConversationAnalysisInput): ConversationAnalysisProposal {
   const memoryCandidates = extractMemories(input.userMessage);
   const thread = extractOpenThread(input.userMessage);
-  const meaningful = memoryCandidates.length > 0 || Boolean(thread);
+  const precedingAssistantMessage=[...(input.context?.recent??[])].reverse().find((turn)=>turn.role==='assistant')?.content;const engagement=scoreConversationEngagement({message:input.userMessage,...(precedingAssistantMessage?{precedingAssistantMessage}:{}),memoryWorthy:memoryCandidates.length>0||Boolean(thread)});
   const tense = /\b(shut up|don'?t care|whatever|you(?:'re| are) annoying|hate talking to you|leave me alone)\b/i.test(input.userMessage);
   const repairing = /\b(i(?:'m| am) sorry|i apologize|can we talk|i didn'?t mean that|make this right)\b/i.test(input.userMessage);
-  const relationshipChanges:Record<string,number> = tense ? { trust: -3, comfort: -3, affinity: -2, respect: -2, conflict: 4 } : repairing ? { trust: 2, comfort: 1, respect: 2, conflict: -4 } : meaningful ? { trust: 3, comfort: 2, familiarity: 3, affinity: 2, attraction: 1, respect: 1 } : { trust: 1, comfort: 1, familiarity: 2, affinity: 1 };
+  const userFlirt=detectFlirtSignal(input.userMessage),characterFlirt=detectFlirtSignal(input.assistantMessage),mutual=userFlirt.kind==='rejection'?0:Math.min(userFlirt.strength,characterFlirt.strength);
+  const relationshipChanges:Record<string,number> = tense ? { trust: -3, comfort: -3, affinity: -2, respect: -2, conflict: 4 } : repairing ? { trust: 2, comfort: 1, respect: 2, conflict: -4 } : engagement.relationshipSignificant ? { trust: 3, comfort: 2, familiarity: 3, affinity: 2, respect: 1 } : engagement.quality==='trivial'?{}:{ trust: 1, comfort: 1, familiarity: memoryCandidates.length?2:1, affinity: 1,...(userFlirt.strength>=.35?{attraction:1,romantic_interest:1}:{}) };
   return {
     relationshipChanges,
+    chemistry:{userFlirtSignal:userFlirt.strength,characterFlirtSignal:characterFlirt.strength,mutualChemistry:mutual,heatDelta:0},
     memoryCandidates,
     resolvedThreadIds: input.existingThreads.filter((item) => threadAnswered(item, input.userMessage)).map((item) => String(item.id)),
     newThreads: thread ? [thread] : [],
@@ -186,9 +189,9 @@ ALLOWED PLACES FOR OPINION EVIDENCE
 ${JSON.stringify(allowedPlaces(input).map((place)=>({placeRef:place.slug,name:place.name,current:place.current,existingView:place.existingView})))}
 
 Return this shape:
-{"relationshipChanges":{"trust":0,"comfort":0,"attraction":0,"affinity":0,"familiarity":0,"respect":0,"conflict":0,"romantic_interest":0,"commitment":0},"memoryCandidates":[{"memory_type":"semantic|preference|episodic|relationship|emotional","canonical_text":"User ...","subject_key":"stable topic key","importance":0.0,"confidence":0.0,"sensitivity_category":"none|personal|sensitive","metadata":{}}],"placeOpinionCandidates":[{"placeRef":"allowed-place-slug","sentiment":0.0,"confidence":0.0,"summary":"Durable neutral summary of the companion's expressed view.","tags":[],"favoriteDetails":[],"dislikedDetails":[],"reasoningCode":"explicit_character_opinion|opinion_changed|shared_experience_reaction"}],"resolvedThreadIds":[],"newThreads":[{"topic":"Ask how ... went.","subject":"presentation","expected_at":"ISO timestamp or null","importance":0.0}],"mentionedMemoryIds":[],"reinforcedMemoryIds":[],"correctedMemorySubjects":[],"momentCandidate":false,"moodEffects":{}}
+{"relationshipChanges":{"trust":0,"comfort":0,"attraction":0,"affinity":0,"familiarity":0,"respect":0,"conflict":0,"romantic_interest":0,"commitment":0},"chemistry":{"userFlirtSignal":0.0,"characterFlirtSignal":0.0,"mutualChemistry":0.0,"heatDelta":0},"memoryCandidates":[{"memory_type":"semantic|preference|episodic|relationship|emotional","canonical_text":"User ...","subject_key":"stable topic key","importance":0.0,"confidence":0.0,"sensitivity_category":"none|personal|sensitive","metadata":{}}],"placeOpinionCandidates":[{"placeRef":"allowed-place-slug","sentiment":0.0,"confidence":0.0,"summary":"Durable neutral summary of the companion's expressed view.","tags":[],"favoriteDetails":[],"dislikedDetails":[],"reasoningCode":"explicit_character_opinion|opinion_changed|shared_experience_reaction"}],"resolvedThreadIds":[],"newThreads":[{"topic":"Ask how ... went.","subject":"presentation","expected_at":"ISO timestamp or null","importance":0.0}],"mentionedMemoryIds":[],"reinforcedMemoryIds":[],"correctedMemorySubjects":[],"momentCandidate":false,"moodEffects":{}}
 
-Rules: relationship deltas must be integers from -4 to 4. Ordinary chat should be 0 to 2. Never infer private facts. Do not create a memory from the character response. A correction must use the same subject_key as the earlier fact. Mentioned/reinforced memory IDs must be from the available list and only if the assistant actually referenced them. Resolve only an eligible thread that this user message actually answers. A place opinion candidate is allowed only when the CHARACTER RESPONSE explicitly expresses or changes a durable personal view of one listed place. Never turn the user's opinion, objective venue description, or a passing observation into the companion's opinion. Use only an allowed placeRef and never invent an ID.`;
+Rules: relationship deltas must be integers from -4 to 4. Ordinary chat should be 0 to 2. Memory-worthiness is not relationship significance: an ordinary preference or biographical fact may become memory but must not receive vulnerability-level trust/comfort changes. Chemistry signals are 0 to 1 and require actual romantic/flirt evidence; generic positivity such as "you're cool", "nice", or "you're funny" is not flirting. Never infer private facts. Do not create a memory from the character response. A correction must use the same subject_key as the earlier fact. Mentioned/reinforced memory IDs must be from the available list and only if the assistant actually referenced them. Resolve only an eligible thread that this user message actually answers. A place opinion candidate is allowed only when the CHARACTER RESPONSE explicitly expresses or changes a durable personal view of one listed place. Never turn the user's opinion, objective venue description, or a passing observation into the companion's opinion. Use only an allowed placeRef and never invent an ID.`;
 }
 
 function validateAnalysisJson(value: unknown, input: ConversationAnalysisInput): ConversationAnalysisProposal {
@@ -222,7 +225,8 @@ function validateAnalysisJson(value: unknown, input: ConversationAnalysisInput):
   const available=new Set([...(input.context?.memoryContext?.silent??[]),...(input.context?.memoryContext?.callbacks??[]),...(input.context?.memoryContext?.directRecall??[])].map((item:any)=>String(item.id)));
   const ids=(value:unknown)=>Array.isArray(value)?value.map(String).filter((id)=>available.has(id)).slice(0,5):[];
   const placeOpinionCandidates=validatePlaceOpinionCandidates(record.placeOpinionCandidates,input);
-  return { relationshipChanges, memoryCandidates, resolvedThreadIds, newThreads, momentCandidate: record.momentCandidate === true, moodEffects: {}, actionCandidates:proposeActions(input),placeOpinionCandidates, referencedEntities:referencedEntities(input),mentionedMemoryIds:ids(record.mentionedMemoryIds),reinforcedMemoryIds:ids(record.reinforcedMemoryIds),correctedMemorySubjects:Array.isArray(record.correctedMemorySubjects)?record.correctedMemorySubjects.map(String).slice(0,4):[], source: 'hybrid' };
+  const chemistryRow=record.chemistry&&typeof record.chemistry==='object'?record.chemistry as Record<string,unknown>:{};const chemistry={userFlirtSignal:clampUnit(chemistryRow.userFlirtSignal),characterFlirtSignal:clampUnit(chemistryRow.characterFlirtSignal),mutualChemistry:clampUnit(chemistryRow.mutualChemistry),heatDelta:Math.max(-12,Math.min(16,Number(chemistryRow.heatDelta??0)||0))};
+  return { relationshipChanges,chemistry, memoryCandidates, resolvedThreadIds, newThreads, momentCandidate: record.momentCandidate === true, moodEffects: {}, actionCandidates:proposeActions(input),placeOpinionCandidates, referencedEntities:referencedEntities(input),mentionedMemoryIds:ids(record.mentionedMemoryIds),reinforcedMemoryIds:ids(record.reinforcedMemoryIds),correctedMemorySubjects:Array.isArray(record.correctedMemorySubjects)?record.correctedMemorySubjects.map(String).slice(0,4):[], source: 'hybrid' };
 }
 
 function mergeAnalysis(base: ConversationAnalysisProposal, modelProposal: ConversationAnalysisProposal): ConversationAnalysisProposal {
@@ -243,6 +247,7 @@ function mergeAnalysis(base: ConversationAnalysisProposal, modelProposal: Conver
     mentionedMemoryIds:[...new Set([...base.mentionedMemoryIds,...modelProposal.mentionedMemoryIds])],
     reinforcedMemoryIds:[...new Set([...base.reinforcedMemoryIds,...modelProposal.reinforcedMemoryIds])],
     correctedMemorySubjects:[...new Set([...base.correctedMemorySubjects,...modelProposal.correctedMemorySubjects])],
+    chemistry:{userFlirtSignal:Math.max(base.chemistry.userFlirtSignal,modelProposal.chemistry.userFlirtSignal),characterFlirtSignal:Math.max(base.chemistry.characterFlirtSignal,modelProposal.chemistry.characterFlirtSignal),mutualChemistry:Math.max(base.chemistry.mutualChemistry,modelProposal.chemistry.mutualChemistry),heatDelta:modelProposal.chemistry.heatDelta},
     source: 'hybrid',
   };
 }

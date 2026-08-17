@@ -1,6 +1,9 @@
-import { relationshipMetricNames, relationshipStages, type InteractionQuality, type RelationshipChangeSource, type RelationshipEvidenceSummary, type RelationshipHealth, type RelationshipMetrics, type RelationshipMilestoneProposal, type RelationshipPacingConfig, type RelationshipPresentationContext, type RelationshipProgressionEvaluation, type RelationshipStage, type RelationshipState } from './types.ts';
+import { relationshipMetricNames, relationshipStages, type ChemistryBand, type ChemistrySignal, type ChemistryUpdate, type ChemistryUpdateInput, type ConversationEngagementEvaluation, type ConversationEngagementInput, type FlirtExpressionStyle, type InteractionQuality, type RelationshipChangeSource, type RelationshipEvidenceSummary, type RelationshipHealth, type RelationshipMetrics, type RelationshipMilestoneProposal, type RelationshipPacingConfig, type RelationshipPresentationContext, type RelationshipProgressionEvaluation, type RelationshipStage, type RelationshipState, type SpiceLevel } from './types.ts';
 
-export const defaultRelationship:RelationshipState={stage:'stranger',trust:8,comfort:6,attraction:8,affinity:8,familiarity:0,respect:10,conflict:0,romantic_interest:0,commitment:0,conversationCount:0,conversationSessionCount:0,meaningfulInteractionCount:0,activeMajorConflict:false,romanceEnabled:true,romancePathStatus:'open'};
+export const STRANGER_ENGAGEMENT_THRESHOLD=6;
+export const STRANGER_GENUINE_TURN_THRESHOLD=3;
+export const TRIVIAL_ENGAGEMENT_CAP=1.75;
+export const defaultRelationship:RelationshipState={stage:'stranger',trust:8,comfort:6,attraction:8,affinity:8,familiarity:0,respect:10,conflict:0,romantic_interest:0,commitment:0,conversationCount:0,conversationSessionCount:0,meaningfulInteractionCount:0,engagementScore:0,genuineBackAndForthTurns:0,trivialEngagementScore:0,chemistryHeat:0,physicalTension:0,userFlirtSignals:0,characterFlirtSignals:0,mutualFlirtSignals:0,attractionAcknowledged:false,activeMajorConflict:false,romanceEnabled:true,romancePathStatus:'open'};
 const maxDelta:Record<RelationshipChangeSource,number>={ordinary_chat:2,meaningful_disclosure:4,date:8,life_event:3,introduction:3,debug:100};
 const qualityLimit:Record<InteractionQuality,number>={trivial:0,normal:1,meaningful:4,shared_experience:8,major_relationship_event:10};
 
@@ -16,13 +19,63 @@ export function applyInteractionProposal(state:RelationshipState,proposal:Partia
 }
 function applyBoundedChanges(state:RelationshipState,proposal:Partial<RelationshipMetrics>,limit:number):RelationshipState{const next={...state};for(const metric of relationshipMetricNames){const requested=Number(proposal[metric]??0);const delta=Math.max(-limit,Math.min(limit,Number.isFinite(requested)?requested:0));next[metric]=clampMetric(state[metric]+delta);}return next;}
 
-export function classifyInteractionQuality(message:string,signals:{hasMemory?:boolean;hasOpenThread?:boolean;repair?:boolean;sharedExperience?:boolean;majorEvent?:boolean}={}):InteractionQuality{
-  const text=message.trim().toLowerCase();
-  if(signals.majorEvent)return'major_relationship_event';
-  if(signals.sharedExperience)return'shared_experience';
-  if(signals.hasMemory||signals.hasOpenThread||signals.repair||/\b(i feel|i'm scared|i am scared|i need to tell you|i've never told|i am worried|i'm worried|thank you for|i was wrong|i'm sorry)\b/.test(text))return'meaningful';
-  if(text.length<24&&/^(hey|hi|hello|lol|lmao|cool|yeah|yep|nope|what'?s up|sup|ok|okay|nice|haha)[!?.\s]*$/.test(text))return'trivial';
-  return'normal';
+const trivialAcknowledgment=/^(?:hey|hi|hello|lol|lmao|cool|yeah|yea|yep|nope|sure|k|ok|okay|nice|haha|sup|what'?s up)[!?.\s]*$/i;
+const relationshipDisclosure=/\b(i feel|i'm scared|i am scared|i need to tell you|i've never told|i am worried|i'm worried|thank you for|i was wrong|i'm sorry|i don't usually tell|rough breakup|make this easy to talk|nervous about|afraid that)\b/i;
+const question=/\?|\b(who|what|when|where|why|how|which|would|could|do you|are you|did you|will you|have you|tell me)\b/i;
+
+export function scoreConversationEngagement(input:ConversationEngagementInput):ConversationEngagementEvaluation{
+  const text=input.message.trim();const lower=text.toLowerCase();const recent=input.recentUserMessages??[];
+  if(input.majorEvent)return{quality:'major_relationship_event',score:4,trivialScore:0,genuineTurn:true,directlyResponsive:true,newInformation:true,relationshipSignificant:true,reasonCodes:['major_event']};
+  if(input.sharedExperience)return{quality:'shared_experience',score:3,trivialScore:0,genuineTurn:true,directlyResponsive:true,newInformation:true,relationshipSignificant:true,reasonCodes:['shared_experience']};
+  const preceding=String(input.precedingAssistantMessage??'').trim();const precedingQuestion=question.test(preceding);
+  const repeated=recent.filter((item)=>normalizeEngagementText(item)===normalizeEngagementText(text)).length;
+  const trivial=trivialAcknowledgment.test(text);const contextualYesNo=trivial&&precedingQuestion&&/^(?:yeah|yea|yep|nope|sure|ok|okay)[!?.\s]*$/i.test(text);
+  const tokens=lower.replace(/[^a-z0-9']+/g,' ').split(/\s+/).filter(Boolean);const newInformation=!trivial&&tokens.some((token)=>token.length>2&&!['probably','maybe','really','just','think','guess'].includes(token));
+  const significant=Boolean(input.relationshipSignificant||input.repair||relationshipDisclosure.test(lower));
+  if(significant)return{quality:'meaningful',score:2,trivialScore:0,genuineTurn:true,directlyResponsive:precedingQuestion,newInformation:true,relationshipSignificant:true,reasonCodes:[input.repair?'repair':'personal_depth']};
+  if(trivial&&!contextualYesNo){const score=repeated===0?.28:repeated===1?.14:repeated===2?.06:0;return{quality:'trivial',score,trivialScore:score,genuineTurn:false,directlyResponsive:false,newInformation:false,relationshipSignificant:false,reasonCodes:[repeated?'repeated_acknowledgment':'generic_acknowledgment']};}
+  if(contextualYesNo){const score=repeated>=2?.45:.72;return{quality:'normal',score,trivialScore:0,genuineTurn:true,directlyResponsive:true,newInformation:false,relationshipSignificant:false,reasonCodes:['contextual_short_answer']};}
+  if(precedingQuestion&&newInformation){const score=text.length<40?1:1.15;return{quality:'normal',score,trivialScore:0,genuineTurn:true,directlyResponsive:true,newInformation:true,relationshipSignificant:false,reasonCodes:['direct_answer','new_information']};}
+  if(input.memoryWorthy)return{quality:'normal',score:1,trivialScore:0,genuineTurn:true,directlyResponsive:precedingQuestion,newInformation:true,relationshipSignificant:false,reasonCodes:['ordinary_personal_fact']};
+  return{quality:'normal',score:newInformation?1:.7,trivialScore:0,genuineTurn:true,directlyResponsive:precedingQuestion,newInformation,relationshipSignificant:false,reasonCodes:[newInformation?'conversation_contribution':'responsive_contribution']};
+}
+
+export function applyConversationEngagement(state:RelationshipState,evaluation:ConversationEngagementEvaluation):RelationshipState{
+  const priorTrivial=Math.max(0,Number(state.trivialEngagementScore??0));
+  const acceptedTrivial=Math.min(evaluation.trivialScore,Math.max(0,TRIVIAL_ENGAGEMENT_CAP-priorTrivial));
+  const contribution=evaluation.trivialScore>0?acceptedTrivial:evaluation.score;
+  return{...state,engagementScore:round2(Math.max(0,Number(state.engagementScore??0))+contribution),trivialEngagementScore:round2(Math.min(TRIVIAL_ENGAGEMENT_CAP,priorTrivial+acceptedTrivial)),genuineBackAndForthTurns:Math.max(0,Number(state.genuineBackAndForthTurns??0))+(evaluation.genuineTurn?1:0)};
+}
+
+export function strangerEngagementEligibility(state:{engagementScore?:number;genuineBackAndForthTurns?:number}):{eligible:boolean;blockers:string[]}{const blockers:string[]=[];if(Number(state.engagementScore??0)<STRANGER_ENGAGEMENT_THRESHOLD)blockers.push('needs_more_engagement');if(Number(state.genuineBackAndForthTurns??0)<STRANGER_GENUINE_TURN_THRESHOLD)blockers.push('needs_more_reciprocal_turns');return{eligible:!blockers.length,blockers};}
+
+export function classifyInteractionQuality(message:string,signals:{hasMemory?:boolean;hasOpenThread?:boolean;repair?:boolean;sharedExperience?:boolean;majorEvent?:boolean;precedingAssistantMessage?:string;recentUserMessages?:string[];relationshipSignificant?:boolean}={}):InteractionQuality{return scoreConversationEngagement({message,...(signals.precedingAssistantMessage!==undefined?{precedingAssistantMessage:signals.precedingAssistantMessage}:{}),...(signals.recentUserMessages!==undefined?{recentUserMessages:signals.recentUserMessages}:{}),...(signals.hasMemory!==undefined||signals.hasOpenThread!==undefined?{memoryWorthy:Boolean(signals.hasMemory||signals.hasOpenThread)}:{}),...(signals.relationshipSignificant!==undefined?{relationshipSignificant:signals.relationshipSignificant}:{}),...(signals.repair!==undefined?{repair:signals.repair}:{}),...(signals.sharedExperience!==undefined?{sharedExperience:signals.sharedExperience}:{}),...(signals.majorEvent!==undefined?{majorEvent:signals.majorEvent}:{})}).quality;}
+
+export function detectFlirtSignal(text:string):ChemistrySignal{
+  const value=text.trim().toLowerCase();if(!value)return{strength:0,kind:'none',reasonCodes:[]};
+  if(/\b(just friends|stay friends|not interested|stop flirting|don't flirt|do not flirt|no romance)\b/.test(value))return{strength:1,kind:'rejection',reasonCodes:['explicit_rejection']};
+  if(/\b(i(?: am|'m) (?:really )?(?:attracted to|into) you|i want to kiss you|kiss me|you turn me on|more than friends|i have a crush on you)\b/.test(value))return{strength:.95,kind:'attraction',reasonCodes:['direct_attraction']};
+  if(/\b(are you single|would you date me|go on a date|take you out|date with me)\b/.test(value))return{strength:.8,kind:'date',reasonCodes:['romantic_interest']};
+  if(/\b(beautiful|gorgeous|stunning|sexy|handsome|hot|attractive)\b/.test(value))return{strength:.65,kind:'compliment',reasonCodes:['appearance_compliment']};
+  if(/\b(flirt|kiss|cuddle|hold your hand|miss you|thinking about you)\b/.test(value))return{strength:.55,kind:'affectionate',reasonCodes:['affectionate_language']};
+  if(/\b(bet you can't|prove it|make me|dangerous|trouble|tempting)\b/.test(value)&&/\b(you|we|us)\b/.test(value))return{strength:.4,kind:'teasing',reasonCodes:['charged_teasing']};
+  return{strength:0,kind:'none',reasonCodes:[]};
+}
+
+export function chemistryBand(heat:number):ChemistryBand{return heat>=80?'electric':heat>=58?'strong':heat>=30?'flirty':heat>=10?'little':'none';}
+export function spiceChemistryMultiplier(level:SpiceLevel):number{return level===1?.6:level===3?1.8:1;}
+export function deriveFlirtExpressionStyle(personality:Record<string,unknown>={}):FlirtExpressionStyle{const score=(key:string)=>Number(personality[key]??0);if(score('playfulness')>=.65||score('humor')>=.7)return'playful';if(score('competitiveness')>=.65)return'competitive';if(score('directness')>=.68)return'direct';if(score('spontaneity')>=.72||score('adventurousness')>=.68)return'adventurous';if(score('warmth')>=.65)return'warm';return'subtle';}
+export function canInitiateFlirt(input:{state:RelationshipState;spiceLevel:SpiceLevel;personality?:Record<string,unknown>;contextFit?:number}):boolean{if(input.state.romanceEnabled===false||input.state.romancePathStatus==='friends_only'||input.state.activeMajorConflict)return false;const heat=Number(input.state.chemistryHeat??0),context=Math.max(0,Math.min(1,input.contextFit??.5)),initiative=Number(input.personality?.['initiative']??input.personality?.['directness']??.5);if(input.spiceLevel===3)return context>=.45&&(heat>=8||initiative>=.65);if(input.spiceLevel===2)return context>=.55&&(heat>=22||['friend','flirting','dating','exclusive','long_term'].includes(input.state.stage));return context>=.65&&heat>=38&&Number(input.state.trust)>=18&&!['stranger'].includes(input.state.stage);}
+export function classifyChemistryResponseIntent(input:{message:string;state:RelationshipState;spiceLevel:SpiceLevel;personality?:Record<string,unknown>;contextFit?:number}):'flirty'|'playful'|undefined{const signal=detectFlirtSignal(input.message);if(signal.kind==='rejection'||input.state.romanceEnabled===false||input.state.romancePathStatus==='friends_only')return undefined;if(signal.strength>=.35)return'flirty';const playful=/\b(lol|haha|bet|dare|prove it|trouble|tease|competitive)\b/i.test(input.message);if(playful&&canInitiateFlirt(input))return input.spiceLevel===3&&Number(input.state.chemistryHeat??0)>=8?'flirty':'playful';return undefined;}
+export function updateChemistry(input:ChemistryUpdateInput):ChemistryUpdate{
+  const now=input.now??new Date(),state=input.state,romanceActive=state.romanceEnabled!==false&&state.romancePathStatus!=='friends_only';const prior=Math.max(0,Math.min(100,Number(state.chemistryHeat??0)));
+  const last=state.lastChemistryChangeAt?new Date(state.lastChemistryChangeAt):null;const elapsedDays=last&&Number.isFinite(last.getTime())?Math.max(0,(now.getTime()-last.getTime())/86400000):0;const cooled=Math.max(0,prior-Math.min(12,elapsedDays*.65));
+  const user=input.userSignal,character=input.characterSignal,mutual=user.kind==='rejection'?0:Math.min(user.strength,character.strength);let delta=0;const reasons:string[]=[];
+  if(!romanceActive){delta=-Math.max(2,cooled*.35);reasons.push('romance_suppressed');}
+  else if(user.kind==='rejection'){delta=-Math.max(8,cooled*.45);reasons.push('interest_rejected');}
+  else{const context=Math.max(0,Math.min(1,input.contextFit??.65));delta=(user.strength*2.5+mutual*4.5+Math.max(0,character.strength-user.strength)*.8)*spiceChemistryMultiplier(input.spiceLevel)*context;if(user.strength===0&&character.strength>.25){delta=-Math.min(2,cooled*.08);reasons.push('not_reciprocated');}else if(mutual>.2)reasons.push('mutual_flirtation');else if(user.strength>.2)reasons.push('user_interest');}
+  if(Number(state.conflict)>45)delta-=3;const heat=round2(Math.max(0,Math.min(100,cooled+delta)));const tension=round2(Math.max(0,Math.min(100,Number(state.physicalTension??0)+(mutual*5*spiceChemistryMultiplier(input.spiceLevel))+(delta<0?delta*.5:0))));const signalAt=user.strength>.2||character.strength>.2?now.toISOString():state.lastFlirtSignalAt;
+  const nextState={...state,chemistryHeat:heat};return{chemistryHeat:heat,physicalTension:tension,userFlirtSignals:Number(state.userFlirtSignals??0)+(user.strength>=.35?1:0),characterFlirtSignals:Number(state.characterFlirtSignals??0)+(character.strength>=.35?1:0),mutualFlirtSignals:Number(state.mutualFlirtSignals??0)+(mutual>=.3?1:0),attractionAcknowledged:Boolean(state.attractionAcknowledged)||(heat>=45&&Math.max(user.strength,character.strength)>=.65),...(Math.abs(heat-prior)>=.01?{lastChemistryChangeAt:now.toISOString()}:state.lastChemistryChangeAt?{lastChemistryChangeAt:state.lastChemistryChangeAt}:{}),...(signalAt?{lastFlirtSignalAt:signalAt}:{}),heatDelta:round2(heat-prior),canInitiateFlirt:canInitiateFlirt({state:nextState,spiceLevel:input.spiceLevel,...(input.personality?{personality:input.personality}:{}),...(input.contextFit!==undefined?{contextFit:input.contextFit}:{})}),expressionStyle:deriveFlirtExpressionStyle(input.personality),band:chemistryBand(heat),reasonCodes:reasons};
 }
 
 export function recordConversation(state:RelationshipState):RelationshipState{return{...state,conversationCount:state.conversationCount+1};}
@@ -37,7 +90,7 @@ export function describeRelationship(state:RelationshipState):string{if(state.ac
 export function nextRelationshipMilestone(state:RelationshipState):RelationshipMilestoneProposal|null{
   const count=progressionCount(state);
   if(state.activeMajorConflict||state.conflict>45)return{kind:'repair',fromStage:state.stage,tone:'honest',presentationKey:'relationship.repair'};
-  if(state.stage==='stranger'&&count>=1)return{kind:'keep_in_touch',fromStage:'stranger',toStage:'acquaintance',tone:'warm_slightly_vulnerable',presentationKey:'relationship.keep_in_touch'};
+  if(state.stage==='stranger'&&strangerEngagementEligibility(state).eligible)return{kind:'keep_in_touch',fromStage:'stranger',toStage:'acquaintance',tone:'warm_slightly_vulnerable',presentationKey:'relationship.keep_in_touch'};
   if(state.stage==='acquaintance'&&count>=5&&state.familiarity>=15&&state.trust>=14)return{kind:'friendship_deepened',fromStage:'acquaintance',toStage:'friend',tone:'warm',presentationKey:'relationship.friendship_deepened'};
   if(state.romanceEnabled!==false&&state.romancePathStatus!=='friends_only'&&state.stage==='friend'&&count>=8&&state.attraction>=18&&state.comfort>=18)return{kind:'romantic_spark',fromStage:'friend',toStage:'flirting',tone:'playful_open',presentationKey:'relationship.romantic_spark'};
   if(firstDateEligibility(state).eligible)return{kind:'first_date_invitation',fromStage:state.stage,tone:'inviting',presentationKey:'relationship.first_date_invitation'};
@@ -72,7 +125,7 @@ export function evaluateRelationshipProgression(input:{state:RelationshipState;e
   let proposal:RelationshipMilestoneProposal|null=null;const blockers:string[]=[];
   if(state.activeMajorConflict||state.conflict>45)proposal={kind:'repair',fromStage:state.stage,tone:'honest',presentationKey:'relationship.repair'};
   else if(state.stage==='stranger'){
-    if(evidence.progressionInteractions>=1)proposal={kind:'keep_in_touch',fromStage:'stranger',toStage:'acquaintance',tone:'warm_slightly_vulnerable',presentationKey:'relationship.keep_in_touch'};else blockers.push('needs_meaningful_interaction');
+    const engagement=strangerEngagementEligibility({engagementScore:Number(evidence.engagementScore??state.engagementScore??0),genuineBackAndForthTurns:Number(evidence.genuineBackAndForthTurns??state.genuineBackAndForthTurns??0)});blockers.push(...engagement.blockers);if(!blockers.length)proposal={kind:'keep_in_touch',fromStage:'stranger',toStage:'acquaintance',tone:'warm_slightly_vulnerable',presentationKey:'relationship.keep_in_touch'};
   }else if(state.stage==='acquaintance'){
     if(state.trust<14)blockers.push('needs_more_trust');if(state.familiarity<15)blockers.push('needs_more_familiarity');if(evidence.progressionInteractions<3)blockers.push('needs_more_shared_history');if(evidence.distinctActiveDays<friendshipDays)blockers.push('needs_more_time');
     if(!blockers.length)proposal={kind:'friendship_deepened',fromStage:'acquaintance',toStage:'friend',tone:'warm',presentationKey:'relationship.friendship_deepened'};
@@ -97,5 +150,7 @@ export function evaluateRelationshipProgression(input:{state:RelationshipState;e
 }
 
 function elapsedDays(value?:string,now=new Date()):number{if(!value)return 0;const date=new Date(value);if(Number.isNaN(date.getTime()))return 0;return Math.max(0,(now.getTime()-date.getTime())/86400000);}
+function normalizeEngagementText(value:string):string{return value.toLowerCase().replace(/[^a-z0-9']+/g,' ').trim();}
+function round2(value:number):number{return Math.round(value*100)/100;}
 
-export function relationshipCue(state:RelationshipState):{label:string;detail:string;tone:'warm'|'spark'|'tense'|'steady'}{if(state.activeMajorConflict||state.conflict>45)return{label:'A little distance',detail:'Something feels unresolved. An honest conversation could help.',tone:'tense'};if(state.stage==='long_term')return{label:'Deeply connected',detail:'You have built a steady shared history together.',tone:'warm'};if(state.stage==='exclusive')return{label:'Choosing each other',detail:'This relationship feels intentional and secure.',tone:'warm'};if(state.stage==='dating')return{label:'Growing closer',detail:'Shared experiences are turning into something meaningful.',tone:'warm'};if(state.stage==='flirting')return{label:'There\u2019s a spark',detail:'The warmth between you has a playful romantic edge.',tone:'spark'};if(state.stage==='friend')return{label:'Easy closeness',detail:'Trust is growing and they are opening up naturally.',tone:'warm'};if(state.stage==='acquaintance')return{label:'Getting acquainted',detail:'You are beginning to understand each other.',tone:'steady'};return{label:'A first impression',detail:'Your shared story is just beginning.',tone:'steady'};}
+export function relationshipCue(state:RelationshipState):{label:string;detail:string;tone:'warm'|'spark'|'tense'|'steady'}{if(state.activeMajorConflict||state.conflict>45)return{label:'A little distance',detail:'Something feels unresolved. An honest conversation could help.',tone:'tense'};if(state.stage==='long_term')return{label:'Deeply connected',detail:'You have built a steady shared history together.',tone:'warm'};if(state.stage==='exclusive')return{label:'Choosing each other',detail:'This relationship feels intentional and secure.',tone:'warm'};if(state.stage==='dating')return{label:'Growing closer',detail:'Shared experiences are turning into something meaningful.',tone:'warm'};if(state.stage==='flirting')return{label:'There\u2019s a spark',detail:'The relationship now has a recognized playful romantic direction.',tone:'spark'};if(state.stage==='friend')return{label:'Easy closeness',detail:'Trust is growing and they are opening up naturally.',tone:'warm'};const heat=Number(state.chemistryHeat??0);if(heat>=80)return{label:'Electric chemistry',detail:'The attraction is hard to miss, even though your shared history is still developing.',tone:'spark'};if(heat>=58)return{label:'Strong chemistry',detail:'There is clear tension here without any assumption of commitment.',tone:'spark'};if(heat>=30)return{label:'Flirty energy',detail:'Getting to know each other has picked up a playful edge.',tone:'spark'};if(heat>=10)return{label:'A little chemistry',detail:'There is a hint of attraction beneath the conversation.',tone:'spark'};if(state.stage==='acquaintance')return{label:'Getting acquainted',detail:'You are beginning to understand each other.',tone:'steady'};return{label:'A first impression',detail:'Your shared story is just beginning.',tone:'steady'};}

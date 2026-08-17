@@ -5,9 +5,8 @@ import { corsHeaders, errorResponse } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { ConfiguredConversationAnalysisProvider, ConfiguredDialogueProvider, ConfiguredEmbeddingProvider, ConfiguredModerationProvider, dialogueProviderName } from '../_shared/together-ai.ts';
 import { classifyContent, routeDialogueProvider } from '../_shared/kivelle-intelligence.ts';
-import { mergeConversationSummary, nextRelationshipMilestone, relationshipMetrics, track } from '../_shared/together.ts';
-import { applyInteractionProposal, classifyInteractionQuality, type RelationshipState } from '../../../packages/together-domain/src/index.ts';
-import { presentRelationshipMilestone } from '../_shared/together-relationship-presentation.ts';
+import { mergeConversationSummary, relationshipMetrics, track } from '../_shared/together.ts';
+import { applyConversationEngagement, applyInteractionProposal, detectFlirtSignal, scoreConversationEngagement, updateChemistry, type ChemistrySignal, type RelationshipState, type SpiceLevel } from '../../../packages/together-domain/src/index.ts';
 import { runLifeSimulation } from '../_shared/together-life.ts';
 import { buildKivelleConversationContext } from '../_shared/kivelle-conversation-context.ts';
 import { acknowledgeConversationScene, getActiveConversation, mergeConversationSceneMetadata, resolveActiveConversationScene } from '../_shared/together-conversation.ts';
@@ -208,7 +207,7 @@ async function applyConversationEffects(db: any, userId: string, instanceId: str
     db.from('together_open_threads').select('*').eq('user_id', userId).eq('character_instance_id', instanceId).is('resolved_at', null).limit(20),
     db.from('together_conversations').select('metadata').eq('user_id',userId).eq('id',conversationId).maybeSingle(),
     db.from('together_messages').select('content').eq('user_id',userId).eq('conversation_id',conversationId).eq('role','user').gte('created_at',new Date(Date.now()-30*60000).toISOString()).order('created_at',{ascending:false}).limit(12),
-    db.from('together_character_instances').select('character_version_id,continuity_id').eq('id',instanceId).eq('user_id',userId).maybeSingle(),
+    db.from('together_character_instances').select('character_version_id,continuity_id,together_character_templates(spice_level),together_character_versions(personality_config,relationship_config)').eq('id',instanceId).eq('user_id',userId).maybeSingle(),
   ]);
   const proposal = await analysis.analyze({ userMessage: userText, assistantMessage: assistantText, existingThreads: existingThreads ?? [], context });
   const analysisNow=new Date();
@@ -227,18 +226,19 @@ async function applyConversationEffects(db: any, userId: string, instanceId: str
     await recordChatPlaceOpinions({db,userId,continuityId:String(instanceRow.continuity_id),characterInstanceId:instanceId,characterVersionId:String(instanceRow.character_version_id),conversationId,assistantMessageId,candidates:proposal.placeOpinionCandidates,places:opinionPlaces,now:analysisNow});
   }
   const enabled = (profile?.memory_categories ?? {}) as Record<string, boolean>;
-  const interactionQuality=classifyInteractionQuality(userText,{hasMemory:proposal.memoryCandidates.length>0,hasOpenThread:proposal.newThreads.length>0,repair:Number(proposal.relationshipChanges.conflict??0)<0});
+  const precedingAssistantMessage=[...(context.recent??[])].reverse().find((turn:Record<string,unknown>)=>turn.role==='assistant')?.content;const recentUserMessages=(recentTurns.data??[]).map((turn:Record<string,unknown>)=>String(turn.content??'')).reverse();if(recentUserMessages.at(-1)?.trim()===userText.trim())recentUserMessages.pop();
+  const engagement=scoreConversationEngagement({message:userText,...(precedingAssistantMessage?{precedingAssistantMessage:String(precedingAssistantMessage)}:{}),recentUserMessages,memoryWorthy:proposal.memoryCandidates.length>0||proposal.newThreads.length>0,repair:Number(proposal.relationshipChanges.conflict??0)<0});const interactionQuality=engagement.quality;
   const romanceEnabled=(profile?.content_preferences as Record<string,unknown>|undefined)?.romanceEnabled!==false;
-  const romanticSignal=/\b(flirt|kiss|date|romantic|attracted|beautiful|gorgeous|crush|love you)\b/i.test(`${userText} ${assistantText}`);
-  const recentLowSignalTurns=(recentTurns.data??[]).filter((turn:Record<string,unknown>)=>classifyInteractionQuality(String(turn.content??''))==='trivial').length;
+  const userFlirt=validatedChemistrySignal(proposal.chemistry?.userFlirtSignal,detectFlirtSignal(userText));const characterFlirt=validatedChemistrySignal(proposal.chemistry?.characterFlirtSignal,detectFlirtSignal(assistantText));const romanticSignal=userFlirt.strength>=.35||characterFlirt.strength>=.35;
+  const recentLowSignalTurns=(recentTurns.data??[]).filter((turn:Record<string,unknown>)=>scoreConversationEngagement({message:String(turn.content??'')}).quality==='trivial').length;
   const domainCurrent=toDomainRelationship(current,stage,romanceEnabled);
-  const domainNext=applyInteractionProposal(domainCurrent,proposal.relationshipChanges,interactionQuality,{recentLowSignalTurns,romanceEnabled,romanticSignal});
-  const next=Object.fromEntries(relationshipMetrics.map((metric)=>[metric,domainNext[metric]]));
+  const relationshipNext=applyInteractionProposal(domainCurrent,proposal.relationshipChanges,interactionQuality,{recentLowSignalTurns,romanceEnabled,romanticSignal});const engagedNext=applyConversationEngagement(relationshipNext,engagement);const template=instanceRow?.together_character_templates as Record<string,unknown>|null;const version=instanceRow?.together_character_versions as Record<string,unknown>|null;const spiceLevel=normalizeSpiceLevel(template?.spice_level);const personality=(version?.personality_config??{}) as Record<string,unknown>;const chemistry=updateChemistry({state:engagedNext,spiceLevel,userSignal:userFlirt,characterSignal:characterFlirt,personality,contextFit:chemistryContextFit(context.currentScene),now:analysisNow});
+  const domainNext={...engagedNext,chemistryHeat:chemistry.chemistryHeat,physicalTension:chemistry.physicalTension,userFlirtSignals:chemistry.userFlirtSignals,characterFlirtSignals:chemistry.characterFlirtSignals,mutualFlirtSignals:chemistry.mutualFlirtSignals,attractionAcknowledged:chemistry.attractionAcknowledged,...(chemistry.lastChemistryChangeAt?{lastChemistryChangeAt:chemistry.lastChemistryChangeAt}:{}),...(chemistry.lastFlirtSignalAt?{lastFlirtSignalAt:chemistry.lastFlirtSignalAt}:{})};const next=Object.fromEntries(relationshipMetrics.map((metric)=>[metric,domainNext[metric]]));
   const conversationCount = Number(current.interaction_turn_count ?? current.conversation_count ?? 0) + 1;
-  const meaningfulCount=Number(current.meaningful_interaction_count??0)+(interactionQuality==='meaningful'?1:0);
+  const meaningfulCount=Number(current.meaningful_interaction_count??0)+(engagement.relationshipSignificant?1:0);
   const totalDirection = relationshipMetrics.reduce((sum,metric)=>sum+Number(next[metric]??0)-Number(current[metric]??0),0);
   const recentDirection = totalDirection > 1 ? 'improving' : totalDirection < -1 ? 'strained' : 'steady';
-  await db.from('together_relationship_states').update({ ...next, conversation_count: conversationCount, interaction_turn_count:conversationCount, meaningful_interaction_count:meaningfulCount, last_interaction_quality:interactionQuality, last_relationship_delta:Object.fromEntries(relationshipMetrics.map((metric)=>[metric,Number(next[metric]??0)-Number(current[metric]??0)])), recent_direction: recentDirection, updated_at: new Date().toISOString() }).eq('character_instance_id', instanceId);
+  await db.from('together_relationship_states').update({ ...next, conversation_count: conversationCount, interaction_turn_count:conversationCount, meaningful_interaction_count:meaningfulCount,engagement_score:domainNext.engagementScore,genuine_back_and_forth_turns:domainNext.genuineBackAndForthTurns,trivial_engagement_score:domainNext.trivialEngagementScore,chemistry_heat:chemistry.chemistryHeat,physical_tension:chemistry.physicalTension,user_flirt_signals:chemistry.userFlirtSignals,character_flirt_signals:chemistry.characterFlirtSignals,mutual_flirt_signals:chemistry.mutualFlirtSignals,attraction_acknowledged:chemistry.attractionAcknowledged,last_chemistry_change_at:chemistry.lastChemistryChangeAt??current.last_chemistry_change_at??null,last_flirt_signal_at:chemistry.lastFlirtSignalAt??current.last_flirt_signal_at??null, last_interaction_quality:interactionQuality, last_relationship_delta:Object.fromEntries(relationshipMetrics.map((metric)=>[metric,Number(next[metric]??0)-Number(current[metric]??0)])), recent_direction: recentDirection, updated_at: new Date().toISOString() }).eq('character_instance_id', instanceId);
   await db.from('together_character_instances').update({ updated_at: new Date().toISOString() }).eq('id', instanceId);
   for (const candidate of proposal.memoryCandidates) {
     if (enabled[candidate.memory_type] === false) continue;
@@ -288,8 +288,8 @@ async function applyConversationEffects(db: any, userId: string, instanceId: str
   const focus=actionFocus?.payload.planId?{type:'plan',planId:actionFocus.payload.planId,updatedAt:new Date().toISOString(),sourceMessageId}:actionFocus?.payload.locationId?{type:'location',locationId:actionFocus.payload.locationId,label:actionFocus.payload.location,updatedAt:new Date().toISOString(),sourceMessageId}:focusEntity?{type:'entity',label:focusEntity,updatedAt:new Date().toISOString(),sourceMessageId}:context.activeStory?{type:'story',label:String(context.activeStory.title),updatedAt:new Date().toISOString(),sourceMessageId}:null;
   if(focus)await db.from('together_conversations').update({metadata:{...(conversationRow?.metadata??{}),focus}}).eq('user_id',userId).eq('id',conversationId);
   await updateConversationSummary(db, userId, conversationId, conversationCount);
-  const updated = { ...current, ...next, conversation_count: conversationCount, interaction_turn_count:conversationCount, meaningful_interaction_count:meaningfulCount,relationship_stage: stage,romance_enabled:romanceEnabled };
-  await ensureRelationshipMilestone(db, userId, instanceId, sourceMessageId, updated);
+  // The relationship-state trigger invokes the canonical SQL evaluator. Do not
+  // create milestones through a second compatibility path here.
 }
 
 async function collectDialogueDelta(db:any,userId:string,characterInstanceId:string,conversationId:string){
@@ -311,48 +311,11 @@ async function collectDialogueDelta(db:any,userId:string,characterInstanceId:str
   return{characterInstanceId,character:character.data,relationship:relationship.data,conversation:conversation.data,memories:memories.data??[],openThreads:openThreads.data??[],relationshipMilestones:milestones.data??[],conversationActions:actions.data??[],conversationEvents:events.data??[],sharedPlans:plans.data??[],dates:dates.data??[],lifeEvents:lifeEvents.data??[],storyArcs:stories.data??[],relationshipPlaces:relationshipPlaces.data??[]};
 }
 
-function toDomainRelationship(state:Record<string,unknown>,stage:string,romanceEnabled:boolean):RelationshipState{return{stage:stage as RelationshipState['stage'],trust:Number(state.trust??0),comfort:Number(state.comfort??0),attraction:Number(state.attraction??0),affinity:Number(state.affinity??0),familiarity:Number(state.familiarity??0),respect:Number(state.respect??0),conflict:Number(state.conflict??0),romantic_interest:Number(state.romantic_interest??0),commitment:Number(state.commitment??0),conversationCount:Number(state.interaction_turn_count??state.conversation_count??0),conversationSessionCount:Number(state.conversation_session_count??1),meaningfulInteractionCount:Number(state.meaningful_interaction_count??0),activeMajorConflict:Boolean(state.active_major_conflict),romanceEnabled};}
+function toDomainRelationship(state:Record<string,unknown>,stage:string,romanceEnabled:boolean):RelationshipState{return{stage:stage as RelationshipState['stage'],trust:Number(state.trust??0),comfort:Number(state.comfort??0),attraction:Number(state.attraction??0),affinity:Number(state.affinity??0),familiarity:Number(state.familiarity??0),respect:Number(state.respect??0),conflict:Number(state.conflict??0),romantic_interest:Number(state.romantic_interest??0),commitment:Number(state.commitment??0),conversationCount:Number(state.interaction_turn_count??state.conversation_count??0),conversationSessionCount:Number(state.conversation_session_count??1),meaningfulInteractionCount:Number(state.meaningful_interaction_count??0),engagementScore:Number(state.engagement_score??0),genuineBackAndForthTurns:Number(state.genuine_back_and_forth_turns??0),trivialEngagementScore:Number(state.trivial_engagement_score??0),chemistryHeat:Number(state.chemistry_heat??0),physicalTension:Number(state.physical_tension??0),userFlirtSignals:Number(state.user_flirt_signals??0),characterFlirtSignals:Number(state.character_flirt_signals??0),mutualFlirtSignals:Number(state.mutual_flirt_signals??0),attractionAcknowledged:Boolean(state.attraction_acknowledged),...(state.last_chemistry_change_at?{lastChemistryChangeAt:String(state.last_chemistry_change_at)}:{}),...(state.last_flirt_signal_at?{lastFlirtSignalAt:String(state.last_flirt_signal_at)}:{}),activeMajorConflict:Boolean(state.active_major_conflict),romanceEnabled,romancePathStatus:String(state.romance_path_status??'open') as RelationshipState['romancePathStatus']};}
 
-async function ensureRelationshipMilestone(db: any, userId: string, instanceId: string, sourceMessageId: string, state: Record<string, unknown>): Promise<void> {
-  const proposal = nextRelationshipMilestone(state);
-  if (!proposal) return;
-  const {data:instance}=await db.from('together_character_instances').select('current_location_id,together_character_templates(name)').eq('id',instanceId).eq('user_id',userId).maybeSingle();
-  const companionName=String((instance?.together_character_templates as Record<string,unknown>|undefined)?.name??'Your companion');
-  let dateTemplate:Record<string,unknown>|null=null;
-  if (proposal.kind === 'first_date_invitation') {
-    const{data:location}=instance?.current_location_id?await db.from('together_locations').select('world_id').eq('id',instance.current_location_id).maybeSingle():{data:null};
-    let templates=db.from('together_date_templates').select('*').eq('active',true);
-    if(location?.world_id)templates=templates.eq('world_id',location.world_id);
-    const{data:availableTemplates}=await templates.order('created_at',{ascending:true}).limit(20);
-    dateTemplate=(availableTemplates??[]).find((template:Record<string,unknown>)=>dateUnlockRulesPass(template.unlock_rules as Record<string,unknown>|undefined,state))??null;
-    if(!dateTemplate)return;
-    const{data:date}=await db.from('together_date_sessions').select('id,status').eq('user_id',userId).eq('character_instance_id',instanceId).eq('date_template_id',dateTemplate.id).maybeSingle();
-    if(!date)await db.from('together_date_sessions').insert({user_id:userId,character_instance_id:instanceId,date_template_id:dateTemplate.id,status:'locked'});
-    else if(!['locked','deferred'].includes(String(date.status)))return;
-  }
-  const presented=presentRelationshipMilestone(proposal,{companionName,experienceTitle:dateTemplate?String(dateTemplate.name):undefined});
-  const { data: pending } = await db.from('together_relationship_milestones').select('*').eq('character_instance_id', instanceId).eq('status', 'pending').maybeSingle();
-  if (pending) {
-    if (proposal.kind !== 'repair' || pending.kind === 'repair') return;
-    const now = new Date().toISOString();
-    await db.from('together_relationship_milestones').update({ status: 'deferred', deferred_until: new Date(Date.now() + 86400000).toISOString(), resolved_at: now, updated_at: now, metadata: { ...(pending.metadata ?? {}), interrupted_by_repair: true } }).eq('id', pending.id).eq('status', 'pending');
-  }
-  const conversationCount = Number(state.meaningful_interaction_count ?? state.conversation_count ?? 0);
-  const eligibilityKey = proposal.kind === 'repair' ? `repair:${proposal.fromStage}:${Math.floor(conversationCount / 5)}` : `${proposal.kind}:${proposal.fromStage}`;
-  const { data: existing } = await db.from('together_relationship_milestones').select('*').eq('character_instance_id', instanceId).eq('eligibility_key', eligibilityKey).maybeSingle();
-  if (existing?.status === 'declined' || existing?.status === 'accepted' || existing?.status === 'completed') return;
-  const now = new Date();
-  if (existing?.status === 'deferred') {
-    if (existing.deferred_until && new Date(existing.deferred_until) > now) return;
-    await db.from('together_relationship_milestones').update({ status: 'pending', chosen_action: null, deferred_until: null, resolved_at: null, source_message_id: sourceMessageId, updated_at: now.toISOString() }).eq('id', existing.id);
-    await track(db, userId, 'relationship_milestone_created', { milestoneId: existing.id, kind: proposal.kind, resumed: true });
-    return;
-  }
-  const { data: created, error } = await db.from('together_relationship_milestones').insert({ user_id: userId, character_instance_id: instanceId, kind: proposal.kind, from_stage: proposal.fromStage, to_stage: proposal.toStage ?? null, eligibility_key: eligibilityKey, title: presented.title, body: presented.body, prompt: presented.prompt, choices: presented.choices, source_message_id: sourceMessageId,metadata:{presentation_key:proposal.presentationKey,tone:proposal.tone,...(dateTemplate?{date_template_id:dateTemplate.id}:{} )} }).select('id').single();
-  if (!error && created) await track(db, userId, 'relationship_milestone_created', { milestoneId: created.id, kind: proposal.kind });
-}
-
-function dateUnlockRulesPass(rules:Record<string,unknown>|undefined,state:Record<string,unknown>):boolean{if(!rules)return true;for(const metric of relationshipMetrics){if(rules[metric]!==undefined&&Number(state[metric]??0)<Number(rules[metric]))return false;}const stages=Array.isArray(rules.allowed_stages)?rules.allowed_stages.map(String):[];if(stages.length&&!stages.includes(String(state.relationship_stage??state.stage)))return false;return !(rules.no_major_conflict&&Boolean(state.active_major_conflict));}
+function normalizeSpiceLevel(value:unknown):SpiceLevel{const level=Number(value);return level===1||level===3?level:2;}
+function validatedChemistrySignal(value:unknown,fallback:ChemistrySignal):ChemistrySignal{if(typeof value!=='number'||!Number.isFinite(value))return fallback;const strength=Math.max(0,Math.min(1,value));return strength>fallback.strength?{strength,kind:strength>=.8?'attraction':strength>=.5?'teasing':'interest',reasonCodes:['analysis_signal']}:fallback;}
+function chemistryContextFit(scene:Record<string,unknown>|undefined):number{const activity=String(scene?.activity??'').toLowerCase(),interruptibility=String(scene?.interruptibility??scene?.availability??'open');if(interruptibility==='busy'||interruptibility==='unavailable'||/\b(work|meeting|sleep|driving|appointment|casework)\b/.test(activity))return.2;if(/\b(date|drinks|karaoke|dancing|dinner|rooftop|walk|music)\b/.test(activity))return.85;return interruptibility==='limited'?.45:.65;}
 
 async function updateConversationSummary(db: any, userId: string, conversationId: string, conversationCount: number): Promise<void> {
   if (conversationCount !== 1 && conversationCount % 4 !== 0) return;

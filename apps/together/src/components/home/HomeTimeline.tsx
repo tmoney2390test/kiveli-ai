@@ -6,7 +6,7 @@ import { SectionTitle } from './FromCompanionSection';
 
 export function HomeTimeline({ title, items, onViewWorld, onOpen }: { title: string; items: HomeTimelineItem[]; onViewWorld: () => void; onOpen: (item: HomeTimelineItem) => void }) {
   return <View style={styles.section}>
-    <SectionTitle title={title} action="View world" onAction={onViewWorld} />
+    <SectionTitle title={title} action="Explore" onAction={onViewWorld} />
     {items.length ? <View style={styles.timeline}><View pointerEvents="none" style={styles.rail} />{items.map((item) => <TimelineEvent key={item.id} item={item} onPress={() => onOpen(item)} />)}</View> : <View style={styles.empty}><Sparkles size={18} color={colors.rose} /><View><Text style={styles.emptyTitle}>The rest of the day is open</Text><Text style={styles.emptyCopy}>Start a conversation and see where it goes.</Text></View></View>}
   </View>;
 }

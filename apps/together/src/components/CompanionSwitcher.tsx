@@ -3,6 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Check, ChevronDown, Plus, X } from 'lucide-react-native';
 import { CharacterAvatar } from './ui';
+import { FrostedBackdrop, FrostedSurface } from './FrostedGlass';
 import { SpiceBadge } from './SpiceBadge';
 import { colors, radius, spacing } from '../theme';
 import { setActiveCompanion } from '../lib/api';
@@ -52,7 +53,9 @@ export function CompanionSwitcher({ active, variant = 'default' }: { active: Cha
 
     <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
       <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
-        <Pressable style={styles.sheet} onPress={() => undefined}>
+        <FrostedBackdrop />
+        <Pressable style={styles.sheetFrame} onPress={() => undefined}>
+        <FrostedSurface style={styles.sheet}>
           <View style={styles.heading}>
             <View><Text style={styles.title}>Your companions</Text><Text style={styles.copy}>Choose whose relationship is in focus.</Text></View>
             <Pressable onPress={() => setOpen(false)} style={styles.close}><X size={20} color={colors.text} /></Pressable>
@@ -63,6 +66,7 @@ export function CompanionSwitcher({ active, variant = 'default' }: { active: Cha
             {item.id === active.id ? <Check color={colors.rose} /> : null}
           </Pressable>)}
           <Pressable onPress={() => { setOpen(false); router.push('/(tabs)/singles'); }} style={styles.discover}><Plus size={18} color={colors.rose} /><Text style={styles.discoverText}>Discover someone new</Text></Pressable>
+        </FrostedSurface>
         </Pressable>
       </Pressable>
     </Modal>
@@ -76,8 +80,9 @@ const styles = StyleSheet.create({
   label: { fontSize: 8, color: colors.dimmed, fontWeight: '900', letterSpacing: 1.1 },
   name: { fontSize: 14, color: colors.text, fontWeight: '800' },
   nameOverlay: { color: '#fff', fontSize: 13 },
-  backdrop: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: 'rgba(0,0,0,.68)' },
-  sheet: { width: '100%', maxWidth: 500, gap: 8, padding: spacing.lg, borderRadius: radius.xl, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderBright },
+  backdrop: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  sheetFrame: { width: '100%', maxWidth: 500 },
+  sheet: { width: '100%', gap: 8, padding: spacing.lg, borderRadius: radius.xl, borderColor: colors.borderBright },
   heading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 },
   title: { fontFamily: 'Georgia', fontSize: 26, color: colors.text },
   copy: { color: colors.muted, fontSize: 12, marginTop: 4 },

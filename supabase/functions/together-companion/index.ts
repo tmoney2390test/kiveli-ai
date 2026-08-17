@@ -10,6 +10,7 @@ import {activeContinuity} from '../_shared/together-continuity.ts';
 const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('set_active'),characterInstanceId:z.string().uuid(),source:z.enum(['home_switcher','discover_profile','companion_manager']).default('home_switcher')}),
   z.object({action:z.literal('meet'),characterTemplateId:z.string().uuid(),source:z.enum(['onboarding','discover_profile']).default('discover_profile')}),
+  z.object({action:z.literal('set_favorite'),characterTemplateId:z.string().uuid(),favorite:z.boolean(),source:z.enum(['home_featured','discover']).default('home_featured')}),
 ]);
 const relationOne=(value:unknown):Record<string,unknown>|null=>{const row=Array.isArray(value)?value[0]:value;return row&&typeof row==='object'?row as Record<string,unknown>:null;};
 
@@ -19,6 +20,21 @@ serve(async(request,correlationId)=>{
   const input=await parseBody(request,schema);
   const now=new Date().toISOString();
   const continuity=await activeContinuity(db,user.id);
+
+  if(input.action==='set_favorite'){
+    const{data:template}=await db.from('together_character_templates').select('id,published,can_be_selected,creator_id,visibility,lifecycle_status').eq('id',input.characterTemplateId).maybeSingle();
+    const officialAvailable=Boolean(template?.published&&template?.can_be_selected);
+    const privateCreation=Boolean(template?.creator_id===user.id&&template?.visibility==='private'&&['ready','published'].includes(String(template?.lifecycle_status)));
+    if(!template||(!officialAvailable&&!privateCreation))throw new AppError('NOT_FOUND','That companion is not available to favorite.',404);
+    const mutation=input.favorite
+      ?await db.from('together_character_favorites').upsert({user_id:user.id,character_template_id:template.id},{onConflict:'user_id,character_template_id'})
+      :await db.from('together_character_favorites').delete().eq('user_id',user.id).eq('character_template_id',template.id);
+    if(mutation.error)throw new AppError('INTERNAL_ERROR','Your favorite could not be saved.',500,true);
+    const{data:favorites,error}=await db.from('together_character_favorites').select('character_template_id').eq('user_id',user.id).order('created_at',{ascending:false});
+    if(error)throw new AppError('INTERNAL_ERROR','Your favorites could not be refreshed.',500,true);
+    await track(db,user.id,input.favorite?'character_favorited':'character_unfavorited',{character_template_id:template.id,source:input.source});
+    return json({data:{characterTemplateId:template.id,favorite:input.favorite,favoriteCharacterTemplateIds:(favorites??[]).map((item)=>String(item.character_template_id))},correlationId},200,correlationId);
+  }
 
   if(input.action==='set_active'){
     const{data:target}=await db.from('together_character_instances').select('id,contact_added_at,introduced_at,together_character_templates(can_be_selected)').eq('id',input.characterInstanceId).eq('user_id',user.id).eq('continuity_id',continuity.id).maybeSingle();

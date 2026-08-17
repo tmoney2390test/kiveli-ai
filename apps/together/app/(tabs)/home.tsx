@@ -11,7 +11,7 @@ import { HomeTimeline } from '../../src/components/home/HomeTimeline';
 import { HomeWorldSection } from '../../src/components/home/HomeWorldSection';
 import { colors, spacing, typography } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
-import { manageSubscription, markProactiveOpened, simulate } from '../../src/lib/api';
+import { manageSubscription, markProactiveOpened, setCharacterFavorite, simulate } from '../../src/lib/api';
 import { buildHomeViewModel, type HomeTargetAction, type HomeTimelineItem } from '../../src/lib/homeViewModel';
 import { getCompanionMedia, getCurrentScenePresentation, getMemoryPresentation, getRelationshipPresentation, getWorldHook, selectFeaturedMemory } from '../../src/lib/homePresentation';
 import { locationHeroAsset } from '../../src/assets';
@@ -23,7 +23,7 @@ import type { Snapshot } from '../../src/types';
 const router = expoRouter as unknown as { push: (href: string) => void };
 
 export default function Home() {
-  const { snapshot, loading, error, refresh, browsedWorldId, setBrowsedWorldId } = useTogether();
+  const { snapshot, loading, error, refresh, browsedWorldId, setBrowsedWorldId, setCoreState } = useTogether();
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
   const { width } = useWindowDimensions();
   const hasSnapshot = Boolean(snapshot);
@@ -80,7 +80,7 @@ export default function Home() {
   };
   const openLocation = () => {
     if (model.currentLocation && model.currentWorld) return router.push(`/location/${model.currentLocation.slug}?world=${model.currentWorld.slug}`);
-    router.push('/(tabs)/worlds');
+    router.push('/(tabs)/explore');
   };
   const openTimelineItem = (item: HomeTimelineItem) => {
     if (item.kind === 'plan') return router.push(`/plan/${item.id.replace(/^plan:/, '')}`);
@@ -92,15 +92,27 @@ export default function Home() {
     }
     if (item.kind === 'event') router.push('/(tabs)/chat-tab');
   };
+  const toggleFavorite = async (item: typeof featuredCompanions[number], favorite: boolean) => {
+    const previous = snapshot.favoriteCharacterTemplateIds ?? [];
+    const optimistic = favorite ? [...new Set([...previous, item.id])] : previous.filter((id) => id !== item.id);
+    setCoreState({ favoriteCharacterTemplateIds: optimistic });
+    try {
+      const result = await setCharacterFavorite(item.id, favorite, 'home_featured');
+      setCoreState({ favoriteCharacterTemplateIds: result.favoriteCharacterTemplateIds });
+    } catch (favoriteError) {
+      setCoreState({ favoriteCharacterTemplateIds: previous });
+      throw favoriteError;
+    }
+  };
 
   return <Screen contentStyle={styles.content}>
     <View pointerEvents="none" style={styles.ambientGlow} />
     <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push('/subscription')} onProfile={() => router.push('/settings')} />
     <CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} relationshipDay={model.relationshipDay} stage={model.hero.stage} eyebrow={scene.eyebrow} heading={scene.heading} activity={scene.activity} location={scene.location} quote={scene.quote} notice={model.hero.notice} onContinue={() => void openCompanion()} onProfile={() => router.push(`/character/${handle}`)} onLocation={openLocation} />
-    {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions} world={selectedWorld} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onViewWorld={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/worlds?world=${selectedWorld.slug}`); }} /> : null}
+    {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions} world={selectedWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onViewWorld={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/explore?world=${selectedWorld.slug}`); }} onViewAll={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/singles?world=${selectedWorld.slug}`); }} onToggleFavorite={toggleFavorite} /> : null}
     <FromCompanionSection name={template.name} items={media} fallbackSource={portraitSource} onViewAll={() => router.push('/(tabs)/moments')} onOpen={(item) => router.push(item.locked ? '/subscription' : `/media/${item.id}`)} onAsk={() => router.push(`/(tabs)/chat-tab?draft=${encodeURIComponent('Send me a photo from where you are.')}`)} />
     <HomeWorldSection wide={wideCards} upcoming={{ eyebrow: model.upcoming.eyebrow, title: model.upcoming.title, meta: model.upcoming.meta }} relationship={{ eyebrow: `YOU + ${template.name.toUpperCase()}`, title: relationship.headline, meta: relationship.detail }} hook={getWorldHook(model)} memory={memory} upcomingSource={upcomingSource} relationshipSource={portraitSource} onUpcoming={() => void runAction(model.upcoming.action)} onRelationship={() => router.push(`/character/${handle}`)} />
-    <HomeTimeline title={timelineTitle} items={model.timeline} onViewWorld={() => router.push('/(tabs)/worlds')} onOpen={openTimelineItem} />
+    <HomeTimeline title={timelineTitle} items={model.timeline} onViewWorld={() => router.push('/(tabs)/explore')} onOpen={openTimelineItem} />
     {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Text onPress={() => router.push('/(tabs)/moments')} style={styles.sectionAction}>View all →</Text></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} preserveImageDetails onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}
   </Screen>;
 }

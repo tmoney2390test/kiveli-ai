@@ -37,7 +37,7 @@ import { useAuth } from '../src/hooks/useAuth';
 import { activeCompanion } from '../src/lib/companionLife';
 import { manageAccount } from '../src/lib/api';
 import { supabase } from '../src/lib/supabase';
-import { GradientButton, LoadingSkeleton } from '../src/components';
+import { FrostedBackdrop, FrostedSurface, GradientButton, LoadingSkeleton } from '../src/components';
 
 type SettingsSection = 'profile' | 'account' | 'identity' | 'experience' | 'relationships' | 'privacy';
 
@@ -140,10 +140,11 @@ export default function Settings() {
   const modalHeight = desktop ? Math.min(820, Math.max(620, height - 64)) : height;
 
   return <View style={styles.backdrop}>
+    <FrostedBackdrop intensity={32} />
     <View pointerEvents="none" style={styles.ambientOne} />
     <View pointerEvents="none" style={styles.ambientTwo} />
     <Pressable accessibilityLabel="Close settings" onPress={close} style={StyleSheet.absoluteFill} />
-    <View style={[styles.modal, desktop ? styles.modalDesktop : styles.modalMobile, { height: modalHeight }]}>
+    <FrostedSurface intensity={78} style={[styles.modal, desktop ? styles.modalDesktop : styles.modalMobile, { height: modalHeight }]}>
       <View style={styles.header}>
         <View style={styles.brandMark}><Text style={styles.brandInitial}>{(name || 'Y')[0]?.toUpperCase()}</Text></View>
         <View style={styles.headerCopy}>
@@ -175,7 +176,7 @@ export default function Settings() {
           </>}
         </ScrollView>
       </View>
-    </View>
+    </FrostedSurface>
   </View>;
 }
 
@@ -266,12 +267,11 @@ function InfoCard({ title, children }: { title: string; children: ReactNode }) {
 function splitList(value: string, limit: number) { return value.split(',').map((item) => item.trim()).filter(Boolean).slice(0, limit); }
 function subscriptionLabel(tier?: string | null) { if (tier === 'kivelle_max' || tier === 'unlimited') return 'Kivelle Max'; if (tier === 'kivelle_plus' || tier === 'together_plus') return 'Kivelle+'; return 'Kivelle Free'; }
 
-const webBlur = Platform.OS === 'web' ? ({ backdropFilter: 'blur(28px)' } as never) : {};
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(4,3,8,.78)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   ambientOne: { position: 'absolute', width: 520, height: 520, borderRadius: 260, backgroundColor: 'rgba(142,73,190,.16)', top: -170, right: -90, ...(Platform.OS === 'web' ? ({ filter: 'blur(70px)' } as never) : {}) },
   ambientTwo: { position: 'absolute', width: 440, height: 440, borderRadius: 220, backgroundColor: 'rgba(221,82,132,.12)', bottom: -180, left: -80, ...(Platform.OS === 'web' ? ({ filter: 'blur(80px)' } as never) : {}) },
-  modal: { width: '100%', backgroundColor: 'rgba(17,15,23,.98)', overflow: 'hidden', borderColor: 'rgba(255,255,255,.16)', ...webBlur },
+  modal: { width: '100%', backgroundColor: 'rgba(17,15,23,.72)', overflow: 'hidden', borderColor: 'rgba(255,255,255,.16)' },
   modalDesktop: { maxWidth: 1180, borderRadius: 30, borderWidth: 1, shadowColor: '#000', shadowOpacity: .6, shadowRadius: 45, shadowOffset: { width: 0, height: 24 } },
   modalMobile: { borderRadius: 0 },
   header: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: 'rgba(255,255,255,.018)' },

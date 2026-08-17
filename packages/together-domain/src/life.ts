@@ -41,7 +41,7 @@ export function composeProactiveMessage(input:{eventTitle?:string;eventSummary?:
   if(/reminder of the user/i.test(title)&&input.memory)return`Something on my photo walk reminded me of what you said about ${memoryCallback(input.memory)}. Not a dramatic story—just a nice little callback.`;
   return input.eventSummary?.trim()||'Something happened in the city today that I think you would appreciate.';
 }
-function fallback(timestamp:Date):ScheduleEntry{return{dayOfWeek:timestamp.getDay(),startMinute:0,endMinute:1440,location:'Current place',activity:timestamp.getHours()<8?'sleeping':timestamp.getHours()>21?'winding down':'taking care of a few things',availability:timestamp.getHours()<8?'busy':'available',energyDelta:0};}
+function fallback(timestamp:Date):ScheduleEntry{return{dayOfWeek:timestamp.getDay(),startMinute:0,endMinute:1440,location:'Current place',activity:timestamp.getHours()<8?'sleeping':'having unstructured time',availability:timestamp.getHours()<8?'busy':'available',energyDelta:0};}
 function hash(value:string):number{let result=2166136261;for(let index=0;index<value.length;index++){result^=value.charCodeAt(index);result=Math.imul(result,16777619);}return result>>>0;}
 function parseMinute(value:string):number{const[hour='0',minute='0']=value.split(':');return Number(hour)*60+Number(minute);}
 function localMinute(now:Date,timezone:string):number{try{const parts=new Intl.DateTimeFormat('en-US',{timeZone:timezone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now);return Number(parts.find((part)=>part.type==='hour')?.value??0)*60+Number(parts.find((part)=>part.type==='minute')?.value??0);}catch{return now.getUTCHours()*60+now.getUTCMinutes();}}

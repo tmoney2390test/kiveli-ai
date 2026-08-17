@@ -1,6 +1,6 @@
 import { Platform, useWindowDimensions } from 'react-native';
-import { Tabs } from 'expo-router';
-import { Compass, Globe2, Home, Images, MessageCircle } from 'lucide-react-native';
+import { router, Tabs } from 'expo-router';
+import { Compass, Crown, Home, Images, MessageCircle } from 'lucide-react-native';
 
 const web = Platform.OS === 'web';
 
@@ -40,8 +40,8 @@ export default function TabsLayout() {
     <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: ({ color, size, focused }) => <Home color={color} size={focused ? size + 1 : size} fill={focused ? 'rgba(239,82,137,.13)' : 'transparent'} /> }} />
     <Tabs.Screen name="explore" options={{ title: 'Discover', tabBarIcon: ({ color, size, focused }) => <Compass color={color} size={focused ? size + 2 : size} /> }} />
     <Tabs.Screen name="chat-tab" options={{ title: 'Chat', tabBarIcon: ({ color, size, focused }) => <MessageCircle color={color} size={focused ? size + 2 : size} fill={focused ? 'rgba(239,82,137,.13)' : 'transparent'} /> }} />
-    <Tabs.Screen name="worlds" options={{ title: 'World', tabBarIcon: ({ color, size, focused }) => <Globe2 color={color} size={focused ? size + 1 : size} /> }} />
     <Tabs.Screen name="moments" options={{ title: 'Moments', tabBarIcon: ({ color, size, focused }) => <Images color={color} size={focused ? size + 1 : size} /> }} />
+    <Tabs.Screen name="upgrade" listeners={{ tabPress: (event) => { event.preventDefault(); router.push('/subscription'); } }} options={{ title: 'Upgrade', tabBarActiveTintColor: '#F3C67D', tabBarIcon: ({ color, size, focused }) => <Crown color={focused ? '#F3C67D' : color} size={focused ? size + 2 : size} /> }} />
     <Tabs.Screen name="dates" options={{ href: null }} />
     <Tabs.Screen name="profile" options={{ href: null }} />
     <Tabs.Screen name="singles" options={{ href: null }} />

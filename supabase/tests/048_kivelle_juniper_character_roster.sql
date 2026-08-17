@@ -40,18 +40,18 @@ select ok(
   not exists(
     select 1 from public.together_character_versions version
     where version.id::text ~ '^13000000-0000-4000-8000-0000000001(0[1-9]|1[0-9]|2[0-3])$'
-      and not exists(select 1 from public.together_schedule_templates schedule where schedule.character_version_id=version.id)
+      and exists(select 1 from public.together_schedule_templates schedule where schedule.character_version_id=version.id and schedule.metadata->>'source'='juniper_character_roster')
   ),
-  'Every roster character has authored recurring schedule coverage'
+  'Legacy roster-wide full-day schedule templates are retired'
 );
 
 select ok(
   not exists(
     select 1 from public.together_character_versions version
     where version.id::text ~ '^13000000-0000-4000-8000-0000000001(0[1-9]|1[0-9]|2[0-3])$'
-      and (select count(*) from public.together_character_activity_templates activity where activity.character_version_id=version.id)<2
+      and (select count(*) from public.together_character_activity_templates activity where activity.character_version_id=version.id)<10
   ),
-  'Every roster character participates in the generated Life Engine'
+  'Every roster character has a ten-option generated activity bank'
 );
 
 select is(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { featuredCompanionsForWorld } from './featuredCompanions';
+import { featuredCompanionRail, featuredCompanionsForWorld } from './featuredCompanions';
 import type { Snapshot } from '../types';
 
 const version = (id: string) => ({ id, portrait_asset_key: id, interests: [], personality_config: {} });
@@ -19,5 +19,11 @@ describe('featured companions', () => {
     const visitor = { ...template('visitor', 'elsewhere'), first_meeting: undefined };
     const withVisitor = { ...snapshot, discoverableCharacters: [...snapshot.discoverableCharacters, visitor], characterWorldPresence: [{ id: 'presence', character_version_id: visitor.together_character_versions.id, world_id: 'juniper', presence_type: 'visitor', familiarity: 0, visited_count: 0, metadata: {} }] } as unknown as Snapshot;
     expect(featuredCompanionsForWorld(withVisitor, 'juniper').map((item) => item.id)).toContain('visitor');
+  });
+
+  it('caps the Home rail at ten without truncating the full world catalog', () => {
+    const roster = Array.from({ length: 14 }, (_, index) => template(`person-${index}`, 'juniper'));
+    expect(featuredCompanionRail(roster)).toHaveLength(10);
+    expect(roster).toHaveLength(14);
   });
 });

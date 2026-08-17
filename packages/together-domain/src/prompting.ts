@@ -1,3 +1,5 @@
+import { chemistryBand, deriveFlirtExpressionStyle } from './relationship.ts';
+
 export type PromptInteractionQuality='trivial'|'normal'|'meaningful'|'shared_experience'|'major_relationship_event';
 export type DirectorPolicy='major_only'|'meaningful'|'normal_and_up';
 export type RelationshipStance={
@@ -7,6 +9,9 @@ export type RelationshipStance={
   vulnerabilityPosture:string;
   conflictPosture:string;
   autonomyRule:string;
+  chemistryPosture:string;
+  flirtInitiative:'suppressed'|'low'|'moderate'|'high';
+  flirtExpression:string;
 };
 export type CharacterGoals={currentGoal:string;currentConcern:string;mediumTermAmbition:string;source:'story'|'bible'|'relationship'|'life'};
 export type ResponseBrief={
@@ -22,7 +27,7 @@ export type ResponseBrief={
 };
 
 type ReflectionLike={companionView?:string;relationshipSummary?:string;unresolvedTension?:string[];recurringDynamics?:string[];sharedReferences?:string[];emotionalExpectations?:string[]};
-type RelationshipLike={stage?:string;relationship_stage?:string;trust?:number;comfort?:number;attraction?:number;affinity?:number;familiarity?:number;respect?:number;conflict?:number;romantic_interest?:number;commitment?:number;active_major_conflict?:boolean;romanceEnabled?:boolean;romance_enabled?:boolean};
+type RelationshipLike={stage?:string;relationship_stage?:string;trust?:number;comfort?:number;attraction?:number;affinity?:number;familiarity?:number;respect?:number;conflict?:number;romantic_interest?:number;commitment?:number;chemistryHeat?:number;chemistry_heat?:number;spiceLevel?:number;spice_level?:number;romancePathStatus?:string;romance_path_status?:string;personality?:Record<string,unknown>;active_major_conflict?:boolean;romanceEnabled?:boolean;romance_enabled?:boolean};
 
 export function compileRelationshipStance(relationship:RelationshipLike,reflection:ReflectionLike={}):RelationshipStance{
   const stage=String(relationship.relationship_stage??relationship.stage??'stranger');
@@ -32,11 +37,15 @@ export function compileRelationshipStance(relationship:RelationshipLike,reflecti
   const familiarity=number(relationship.familiarity);
   const closeness=average(trust,comfort,familiarity);
   const summary=reflection.companionView?.trim()||reflection.relationshipSummary?.trim()||stageSummary(stage,closeness,tense,romanceEnabled);
-  const affectionBoundary=!romanceEnabled?'Keep affection clearly platonic. Friendship may deepen without turning romantic.':stage==='stranger'||stage==='acquaintance'?'Warmth and curiosity are appropriate; romantic certainty, possessiveness, and commitment language are premature.':stage==='friend'?'Affection may be warm and personal. Romantic escalation requires an actual romantic signal or application-controlled milestone.':stage==='flirting'?'A spark can be acknowledged through teasing, attraction, and selective vulnerability. Do not speak as if exclusivity or commitment already exists.':stage==='dating'?'Romantic affection is established, but keep commitment proportional to what has actually happened.':stage==='exclusive'||stage==='long_term'?'Established affection and shared-history callbacks are natural. Keep the character independent rather than fused with the user.':'Keep affection proportional to canonical relationship history.';
+  const friendsOnly=String(relationship.romance_path_status??relationship.romancePathStatus??'open')==='friends_only';
+  const heat=number(relationship.chemistry_heat??relationship.chemistryHeat),spice=Math.max(1,Math.min(3,number(relationship.spice_level??relationship.spiceLevel)||2)),band=chemistryBand(heat),style=deriveFlirtExpressionStyle(relationship.personality??{});
+  const affectionBoundary=!romanceEnabled||friendsOnly?'Keep affection clearly platonic. Friendship may deepen without turning romantic.':stage==='stranger'?'They have just met. Attraction, teasing, compliments, and romantic subtext may emerge if chemistry supports it, but trust, possessiveness, dependency, commitment, and shared history must never be assumed.':stage==='acquaintance'?'They are still establishing trust. Attraction may already be obvious, but chemistry does not imply attachment, exclusivity, or commitment.':stage==='friend'?'Affection may be warm and personal. Romantic escalation requires mutual romantic evidence or an application-controlled milestone.':stage==='flirting'?'A spark can be acknowledged through teasing, attraction, and selective vulnerability. Do not speak as if exclusivity or commitment already exists.':stage==='dating'?'Romantic affection is established, but keep commitment proportional to what has actually happened.':stage==='exclusive'||stage==='long_term'?'Established affection and shared-history callbacks are natural. Keep the character independent rather than fused with the user.':'Keep affection proportional to canonical relationship history.';
   const vulnerabilityPosture=comfort>=65&&trust>=60?'Comfortable sharing meaningful feelings when relevant, without turning every exchange into a confession.':comfort>=35&&trust>=30?'Can reveal small personal truths and uncertainty, but still protects more vulnerable parts of their life.':'Still guarded. Let trust be earned through real interactions rather than instant disclosure.';
   const conflictPosture=tense?'There is unresolved tension. Do not reset to effortless warmth. Acknowledge the strain, keep dignity, and allow repair only when the conversation earns it.':conflict>=20?'Some friction remains. The character can be warm without pretending the disagreement never happened.':'No major unresolved conflict is controlling the interaction.';
   const attractionNote=romanceEnabled&&attraction>=60&&commitment<35?' Attraction is stronger than commitment; chemistry must not be mistaken for promises.':'';
-  return{stage,summary:`${summary}${attractionNote}`.trim(),affectionBoundary,vulnerabilityPosture,conflictPosture,autonomyRule:'Maintain an independent point of view. The character may disagree, decline, be busy, prefer something else, redirect, tease, or leave a question unanswered without becoming cold or punitive.'};
+  const chemistryPosture=!romanceEnabled||friendsOnly?'Romantic chemistry is non-actionable. Do not initiate or repeatedly test the boundary.':band==='none'?'No established chemistry. Keep romantic expression proportional to actual signals.':band==='little'?'There is a hint of chemistry. Let it affect subtext occasionally rather than naming it.':band==='flirty'?'Flirty energy is present. It may shape teasing or attention without taking over unrelated conversation.':band==='strong'?'Strong chemistry is present. Express it naturally when relevant without converting it into promises or attachment.':'Chemistry feels electric. It can be bold when context and mutual signals fit, while commitment remains governed only by relationship stage.';
+  const personalityInitiative=number(relationship.personality?.['initiative']??relationship.personality?.['directness']);const flirtInitiative:RelationshipStance['flirtInitiative']=!romanceEnabled||friendsOnly?'suppressed':spice===3&&(heat>=8||personalityInitiative>=.65)?'high':spice===2&&heat>=20?'moderate':spice===1&&heat<38?'low':heat>=35?'moderate':'low';
+  return{stage,summary:`${summary}${attractionNote}`.trim(),affectionBoundary,vulnerabilityPosture,conflictPosture,chemistryPosture,flirtInitiative,flirtExpression:`Express attraction in a ${style} way when appropriate; do not turn spice into a generic personality.`,autonomyRule:'Maintain an independent point of view. The character may disagree, decline, be busy, prefer something else, redirect, tease, or leave a question unanswered without becoming cold or punitive.'};
 }
 
 export function compileCharacterGoals(input:{occupation?:string;currentActivity?:string;bible?:Record<string,unknown>;activeStory?:{title?:string;chapterTitle?:string;knownSummary?:string}|null;reflection?:ReflectionLike;recentLifeEvents?:Array<{title?:string;summary?:string}>}):CharacterGoals{

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
-import { ArrowUpRight, CalendarDays, LockKeyhole, Palmtree, Plus, Sparkles, UserRound } from 'lucide-react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { ArrowUpRight, CalendarDays, LockKeyhole, Palmtree, Plus, Sparkles, Star, UserRound } from 'lucide-react-native';
 import { CharacterAvatar, EmptyState, LoadingSkeleton, PageTitle, Screen, SectionHeader, SpiceBadge } from '../../src/components';
-import { listCreatorDrafts } from '../../src/lib/api';
+import { listCreatorDrafts, setCharacterFavorite } from '../../src/lib/api';
+import { characterCatalogForWorld } from '../../src/lib/place';
 import { selectPortraitVersion } from '../../src/lib/selectors';
 import { useTogether } from '../../src/store/useTogether';
 import { colors, radius } from '../../src/theme';
@@ -16,6 +17,7 @@ const creatorSteps = ['identity', 'appearance', 'personality', 'life', 'connecti
 
 export default function Discover() {
   const snapshot = useTogether((state) => state.snapshot);
+  const { world: worldSlug } = useLocalSearchParams<{world?: string}>();
   const [tab, setTab] = useState<Tab>('People');
   const [drafts, setDrafts] = useState<CreatorDraft[]>([]);
   const [draftsLoading, setDraftsLoading] = useState(true);
@@ -35,10 +37,11 @@ export default function Discover() {
   useEffect(() => { void loadDrafts(); }, [loadDrafts]);
 
   if (!snapshot) return <LoadingSkeleton label="Curating people and experiences…" />;
+  const selectedWorld = worldSlug ? snapshot.worlds.find((world) => world.slug === worldSlug) : undefined;
   return <Screen>
     <View>
       <PageTitle>Discover</PageTitle>
-      <Text style={styles.subtitle}>Meet someone new, or find something meaningful to do together.</Text>
+      <Text style={styles.subtitle}>{selectedWorld ? `Meet every available character connected to ${selectedWorld.name}.` : 'Meet someone new, or find something meaningful to do together.'}</Text>
     </View>
     <Pressable accessibilityRole="button" accessibilityLabel="Create someone" onPress={() => router.push('/create/companion')} style={styles.create}>
       <Sparkles size={19} color="#fff" />
@@ -52,22 +55,24 @@ export default function Discover() {
       {(['People', 'Experiences'] as const).map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} onPress={() => setTab(item)} style={[styles.tab, tab === item && styles.tabSelected]}><Text style={[styles.tabText, tab === item && styles.tabTextSelected]}>{item}</Text></Pressable>)}
     </View>
     {tab === 'People'
-      ? <People snapshot={snapshot} drafts={drafts} draftsLoading={draftsLoading} />
+      ? <People snapshot={snapshot} drafts={drafts} draftsLoading={draftsLoading} worldId={selectedWorld?.id} />
       : <Experiences snapshot={snapshot} />}
   </Screen>;
 }
 
-function People({ snapshot, drafts, draftsLoading }: { snapshot: Snapshot; drafts: CreatorDraft[]; draftsLoading: boolean }) {
+function People({ snapshot, drafts, draftsLoading, worldId }: { snapshot: Snapshot; drafts: CreatorDraft[]; draftsLoading: boolean; worldId?: string }) {
   const legacyDraftIds = useMemo(() => new Set(drafts.map((draft) => draft.legacy_template_id).filter(Boolean)), [drafts]);
-  const creations = (snapshot.discoverableCharacters ?? []).filter((item) => Boolean(item.creator_id) && !legacyDraftIds.has(item.id));
-  const official = (snapshot.discoverableCharacters ?? []).filter((item) => !item.creator_id);
-  if (!official.length && !creations.length && !drafts.length && !draftsLoading) return <EmptyState title="New people are on the way" body="Your current relationships are still waiting on Home." />;
+  const worldCharacterIds = useMemo(() => worldId ? new Set(characterCatalogForWorld(snapshot, worldId).map((entry) => entry.template.id)) : null, [snapshot, worldId]);
+  const visibleDrafts = worldId ? drafts.filter((draft) => draft.world_id === worldId) : drafts;
+  const creations = (snapshot.discoverableCharacters ?? []).filter((item) => Boolean(item.creator_id) && !legacyDraftIds.has(item.id) && (!worldCharacterIds || worldCharacterIds.has(item.id)));
+  const official = (snapshot.discoverableCharacters ?? []).filter((item) => !item.creator_id && (!worldCharacterIds || worldCharacterIds.has(item.id)));
+  if (!official.length && !creations.length && !visibleDrafts.length && !draftsLoading) return <EmptyState title="New people are on the way" body="Your current relationships are still waiting on Home." />;
   return <>
-    {drafts.length || creations.length || draftsLoading ? <>
-      <SectionHeader title="Your creations" action={`${drafts.length + creations.length}`} />
+    {visibleDrafts.length || creations.length || draftsLoading ? <>
+      <SectionHeader title="Your creations" action={`${visibleDrafts.length + creations.length}`} />
       <View style={styles.stack}>
-        {draftsLoading && !drafts.length ? <DraftSkeleton /> : null}
-        {drafts.map((draft) => <DraftPerson key={draft.id} draft={draft} />)}
+        {draftsLoading && !visibleDrafts.length ? <DraftSkeleton /> : null}
+        {visibleDrafts.map((draft) => <DraftPerson key={draft.id} draft={draft} />)}
         {creations.map((template) => <Person key={template.id} template={template} snapshot={snapshot} />)}
       </View>
     </> : null}
@@ -102,6 +107,8 @@ function DraftSkeleton() {
 }
 
 function Person({ template, snapshot }: { template: Snapshot['discoverableCharacters'][number]; snapshot: Snapshot }) {
+  const setCoreState = useTogether((state) => state.setCoreState);
+  const [savingFavorite, setSavingFavorite] = useState(false);
   const instance = snapshot.characters.find((item) => item.character_template_id === template.id);
   const active = instance?.id === snapshot.activeContinuity?.active_companion_instance_id;
   const established = Boolean(instance?.contact_added_at || instance?.introduced_at);
@@ -110,10 +117,26 @@ function Person({ template, snapshot }: { template: Snapshot['discoverableCharac
   const world = snapshot.worlds.find((item) => item.id === worldId)?.name ?? 'Available world';
   const handle = template.public_handle ?? template.slug;
   const portraitVersion = instance ? selectPortraitVersion(snapshot, instance) : template.together_character_versions;
+  const favorite = (snapshot.favoriteCharacterTemplateIds ?? []).includes(template.id);
+  const toggleFavorite = async () => {
+    if (savingFavorite) return;
+    const previous = snapshot.favoriteCharacterTemplateIds ?? [];
+    const next = favorite ? previous.filter((id) => id !== template.id) : [...new Set([...previous, template.id])];
+    setSavingFavorite(true);
+    setCoreState({ favoriteCharacterTemplateIds: next });
+    try {
+      const result = await setCharacterFavorite(template.id, !favorite, 'discover');
+      setCoreState({ favoriteCharacterTemplateIds: result.favoriteCharacterTemplateIds });
+    } catch {
+      setCoreState({ favoriteCharacterTemplateIds: previous });
+    } finally {
+      setSavingFavorite(false);
+    }
+  };
   return <Pressable accessibilityRole="button" accessibilityLabel={action} onPress={() => router.push(`/character/${handle}` as never)} style={({ pressed }) => [styles.person, pressed && styles.pressed]}>
     <View style={styles.personPortrait}><CharacterAvatar slug={template.slug} name={template.name} template={template} version={portraitVersion} size={76} /><SpiceBadge level={template.spice_level} overlay compact /></View>
     <View style={{ flex: 1 }}>
-      <Text style={styles.personName}>{template.name}, {template.age}</Text>
+      <View style={styles.personNameRow}><Text numberOfLines={1} style={styles.personName}>{template.name}, {template.age}</Text><Pressable accessibilityRole="button" accessibilityLabel={`${favorite ? 'Remove' : 'Add'} ${template.name} ${favorite ? 'from' : 'to'} favorites`} accessibilityState={{selected:favorite,disabled:savingFavorite}} disabled={savingFavorite} hitSlop={8} onPress={(event)=>{event.stopPropagation();void toggleFavorite();}} style={({pressed})=>[styles.favorite,favorite&&styles.favoriteActive,(pressed||savingFavorite)&&styles.favoritePressed]}><Star size={17} color={favorite?'#FFD27A':colors.muted} fill={favorite?'#FFD27A':'transparent'}/></Pressable></View>
       <Text style={styles.personMeta}>{template.occupation} · {world}</Text>
       <Text style={styles.summary} numberOfLines={2}>{template.biography}</Text>
       <Text style={styles.interests}>{(template.together_character_versions?.interests ?? []).slice(0, 3).join(' · ')}</Text>
@@ -152,7 +175,8 @@ const styles = StyleSheet.create({
   tabs: { flexDirection: 'row', gap: 7, padding: 4, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
   tab: { flex: 1, minHeight: 40, justifyContent: 'center', alignItems: 'center', borderRadius: radius.sm }, tabSelected: { backgroundColor: colors.rose }, tabText: { color: colors.muted, fontSize: 12, fontWeight: '800' }, tabTextSelected: { color: '#fff' },
   stack: { gap: 10 }, person: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 13, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  personName: { fontFamily: 'Georgia', fontSize: 21, color: colors.text }, personMeta: { color: colors.rose, fontSize: 11, fontWeight: '700', marginTop: 2 }, summary: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 5 }, interests: { color: colors.text, fontSize: 10, marginTop: 5 }, action: { color: colors.rose, fontSize: 11, fontWeight: '900', marginTop: 7 },
+  personNameRow:{flexDirection:'row',alignItems:'center',gap:8}, personName: { flex:1,fontFamily: 'Georgia', fontSize: 21, color: colors.text }, personMeta: { color: colors.rose, fontSize: 11, fontWeight: '700', marginTop: 2 }, summary: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 5 }, interests: { color: colors.text, fontSize: 10, marginTop: 5 }, action: { color: colors.rose, fontSize: 11, fontWeight: '900', marginTop: 7 },
+  favorite:{width:34,height:34,borderRadius:17,alignItems:'center',justifyContent:'center',backgroundColor:colors.elevated,borderWidth:1,borderColor:colors.border},favoriteActive:{backgroundColor:'rgba(126,84,24,.20)',borderColor:'rgba(255,210,122,.42)'},favoritePressed:{opacity:.65,transform:[{scale:.94}]},
   draftPortrait: { width: 76, height: 90, borderRadius: radius.md, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.elevated }, draftBadge: { position: 'absolute', left: 5, bottom: 5, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8, backgroundColor: 'rgba(8,11,19,.82)' }, draftBadgeText: { color: '#fff', fontSize: 7, fontWeight: '900', letterSpacing: .7 },
   personPortrait: { width: 76, height: 76, position: 'relative' },
   progressTrack: { height: 3, marginTop: 9, borderRadius: 2, overflow: 'hidden', backgroundColor: colors.border }, progressFill: { height: 3, backgroundColor: colors.rose }, progressMeta: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }, stepCopy: { color: colors.dimmed, fontSize: 8, textTransform: 'capitalize' },

@@ -7,9 +7,27 @@ export type Interruptibility=typeof interruptibilityLevels[number];
 export type OccupationPattern='fixed_weekdays'|'shifts'|'freelance'|'hybrid'|'remote'|'student'|'unemployed'|'custom';
 
 export interface TimeRange { startMinute:number; endMinute:number }
+export interface OccupationScheduleBlock {
+  key:string;
+  title:string;
+  activityKey?:string;
+  workDays:number[];
+  startRange:TimeRange;
+  durationMinutes:[number,number];
+  primaryLocationId?:string;
+  primaryLocationSlug?:string;
+  locationCategories?:string[];
+  activityVariants?:string[];
+  breakPolicy?:'none'|'meal';
+  probability?:number;
+  recoverySleepMinutes?:[number,number];
+  visibility?:ScheduleVisibility;
+  interruptibility?:Interruptibility;
+  metadata?:Record<string,unknown>;
+}
 export interface CharacterLifeProfile {
   version:number;
-  occupation?:{title:string;primaryLocationId?:string;primaryLocationSlug?:string;workPattern:OccupationPattern;flexibility:number;workDays?:number[];startRange?:TimeRange;durationMinutes?:[number,number]};
+  occupation?:{title:string;primaryLocationId?:string;primaryLocationSlug?:string;workPattern:OccupationPattern;flexibility:number;workDays?:number[];startRange?:TimeRange;durationMinutes?:[number,number];activityVariants?:string[];breakPolicy?:'none'|'meal';scheduleBlocks?:OccupationScheduleBlock[]};
   sleep:{preferredBedtime:TimeRange;preferredWakeTime:TimeRange;variabilityMinutes:number;weekendShiftMinutes?:number};
   lifestyle:{social:number;adventurous:number;spontaneous:number;fitness:number;nightlife:number;outdoors:number;homebody:number;creativity:number};
   interests:string[];
@@ -26,7 +44,8 @@ export interface ActivityTemplate {
   preferredWeeklyFrequency:[number,number]; maximumWeeklyFrequency:number; minimumGapHours:number;
   energyRequirement?:'low'|'medium'|'high'; socialRequirement?:'solo'|'social'|'either';
   priority:Exclude<SchedulePriority,'user_commitment'|'hard_obligation'>; visibility:ScheduleVisibility;
-  interruptibility:Interruptibility; activityLabel?:string;
+  interruptibility:Interruptibility; activityLabel?:string; upcomingHint?:string;
+  outcomeEligible?:boolean; outcomeProbability?:number; outcomeVariants?:string[]; rare?:boolean;
 }
 export interface ScheduleBlock {
   id?:string; activityKey:string; title:string; locationId:string|null; startsAt:string; endsAt:string;
@@ -67,14 +86,17 @@ export function generateScheduleWindow(input:ScheduleGenerationInput):ScheduleBl
     const normalized=resolveConflicts(daily).sort((a,b)=>a.startsAt.localeCompare(b.startsAt));
     output.push(...normalized);history.push(...normalized);
   }
-  return insertTravel(output.sort((a,b)=>a.startsAt.localeCompare(b.startsAt)),input,input.fromLocalDate,`${input.seed}:window`);
+  // Overnight work and recovery blocks can cross into the next local date.
+  // Resolve the full window once more so the following day's sleep/routine can
+  // never overlap a carried obligation.
+  return insertTravel(resolveConflicts(output).sort((a,b)=>a.startsAt.localeCompare(b.startsAt)),input,input.fromLocalDate,`${input.seed}:window`);
 }
 
 export function resolvePresence(events:readonly ScheduleBlock[],now:Date,fallback:{characterInstanceId:string;locationId:string|null;activity?:string}):CharacterPresence {
   const sorted=[...events].sort((a,b)=>a.startsAt.localeCompare(b.startsAt));
   const active=sorted.filter((event)=>new Date(event.startsAt)<=now&&new Date(event.endsAt)>now).sort((a,b)=>priorityRank[b.priority]-priorityRank[a.priority])[0];
   const next=sorted.find((event)=>new Date(event.startsAt)>now);
-  if(!active)return{characterInstanceId:fallback.characterInstanceId,locationId:fallback.locationId,activityKey:'unstructured_time',activity:fallback.activity??'taking care of a few things',activityStartedAt:now.toISOString(),interruptibility:'open',state:'relaxing',...(next?{nextEvent:next}:{}),source:'fallback'};
+  if(!active)return{characterInstanceId:fallback.characterInstanceId,locationId:fallback.locationId,activityKey:'unstructured_time',activity:fallback.activity??'Having some unstructured time at home',activityStartedAt:now.toISOString(),interruptibility:'open',state:'relaxing',...(next?{nextEvent:next}:{}),source:'fallback'};
   const activityLabel=active.metadata?.['activityLabel'];
   return{characterInstanceId:fallback.characterInstanceId,locationId:active.locationId,activityKey:active.activityKey,activity:typeof activityLabel==='string'?activityLabel:active.title,...(active.id?{scheduleEventId:active.id}:{}),activityStartedAt:active.startsAt,expectedEndAt:active.endsAt,interruptibility:active.interruptibility,state:presenceState(active),...(next?{nextEvent:next}:{}),source:active.priority==='user_commitment'?'plan':'schedule'};
 }
@@ -86,10 +108,11 @@ export function validateSchedule(events:readonly ScheduleBlock[],locations:reado
     if(!(end>start))issues.push(`invalid-duration:${event.generationKey}`);
     const next=sorted[index+1];if(next&&new Date(next.startsAt)<end)issues.push(`overlap:${event.generationKey}:${next.generationKey}`);
     const location=locations.find((item)=>item.id===event.locationId);
-    if(location&&!locationOpen(location,start,end,timezone))issues.push(`closed-location:${event.generationKey}`);
+    if(location&&event.metadata?.['allowOutsidePublicHours']!==true&&!locationOpen(location,start,end,timezone))issues.push(`closed-location:${event.generationKey}`);
   }
-  const sleepByDay=new Map<string,number>();for(const event of events.filter((item)=>item.activityKey==='sleep')){const key=localDateKey(event.startsAt,timezone);sleepByDay.set(key,(sleepByDay.get(key)??0)+(new Date(event.endsAt).getTime()-new Date(event.startsAt).getTime())/3600000);}
-  for(const [day,hours] of sleepByDay)if(hours<5.5)issues.push(`missing-sleep:${day}`);
+  const sleepByDay=new Map<string,{hours:number;hasMorning:boolean}>();for(const event of events.filter((item)=>item.activityKey==='sleep')){const start=new Date(event.startsAt),startDate=localDateKey(start,timezone),minute=minuteInZone(start,timezone),key=minute>=18*60?addLocalDays(startDate,1):startDate,current=sleepByDay.get(key)??{hours:0,hasMorning:false};sleepByDay.set(key,{hours:current.hours+(new Date(event.endsAt).getTime()-start.getTime())/3600000,hasMorning:current.hasMorning||minute<18*60});}
+  const firstGeneratedDate=sorted[0]?localDateKey(sorted[0].startsAt,timezone):null;
+  for(const [day,sleep] of sleepByDay)if(day!==firstGeneratedDate&&sleep.hasMorning&&sleep.hours<5.5)issues.push(`missing-sleep:${day}`);
   return issues;
 }
 
@@ -105,19 +128,55 @@ function addSleep(events:ScheduleBlock[],input:ScheduleGenerationInput,date:stri
 
 function addOccupation(events:ScheduleBlock[],input:ScheduleGenerationInput,date:string,weekday:number,seed:string){
   const job=input.profile.occupation;if(!job||job.workPattern==='unemployed')return;
+  if(job.scheduleBlocks?.length){
+    for(const configured of job.scheduleBlocks){
+      if(!configured.workDays.includes(weekday))continue;
+      const probability=Math.max(0,Math.min(1,configured.probability??1));
+      if((stableHash(`${seed}:occupation:${configured.key}:probability`)%10000)/10000>=probability)continue;
+      addOccupationBlock(events,input,date,seed,configured);
+    }
+    return;
+  }
   const days=job.workDays??defaultWorkDays(job.workPattern,seed);if(!days.includes(weekday))return;
   const range=job.startRange??({startMinute:9*60,endMinute:10*60});
   const start=range.startMinute+stableHash(seed+':work-start')%Math.max(1,range.endMinute-range.startMinute+1);
   const duration=randomInRange(job.durationMinutes??defaultWorkDuration(job.workPattern),seed+':work-duration');
   const location=job.primaryLocationId??chooseWorkLocation(input.locations,job.workPattern,input.homeLocationId,seed);
-  const end=Math.min(23*60+30,start+duration);
-  if(duration>=360){
+  const end=start+duration;
+  const title=occupationActivity(job.title,job.activityVariants,seed);
+  if(duration>=360&&(job.breakPolicy??'meal')==='meal'&&end<=1440){
     const lunchStart=Math.min(end-45,start+180+(stableHash(seed+':lunch')%75));
-    pushIfFree(events,block(input,date,start,lunchStart,'work',workTitle(job.title,seed),location,'hard_obligation','known','recurring','busy',`${date}:work:am`));
+    pushIfFree(events,block(input,date,start,lunchStart,'work',title,location,'hard_obligation','known','recurring','busy',`${date}:work:am`,{activityLabel:title,occupationTitle:job.title,allowOutsidePublicHours:true}));
     const lunchLocation=chooseLocation(input.locations,{locationCategories:['cafe','restaurant'],locationSlugs:[],tags:['food'],key:'lunch'},input.homeLocationId,seed+':lunch-location',[],date,lunchStart,lunchStart+45,input.timezone)??location;
-    pushIfFree(events,block(input,date,lunchStart,lunchStart+45,'lunch_break','Lunch break',lunchLocation,'recurring_routine','hidden','generated','limited',`${date}:work:lunch`));
-    pushIfFree(events,block(input,date,lunchStart+45,end,'work',workTitle(job.title,seed+':pm'),location,'hard_obligation','known','recurring','busy',`${date}:work:pm`));
-  }else pushIfFree(events,block(input,date,start,end,'work',workTitle(job.title,seed),location,'hard_obligation','known','recurring','busy',`${date}:work`));
+    pushIfFree(events,block(input,date,lunchStart,lunchStart+45,'lunch_break','Taking a meal break',lunchLocation,'recurring_routine','hidden','generated','limited',`${date}:work:lunch`,{activityLabel:'Taking a meal break'}));
+    const afternoon=occupationActivity(job.title,job.activityVariants,seed+':pm');
+    pushIfFree(events,block(input,date,lunchStart+45,end,'work',afternoon,location,'hard_obligation','known','recurring','busy',`${date}:work:pm`,{activityLabel:afternoon,occupationTitle:job.title,allowOutsidePublicHours:true}));
+  }else pushIfFree(events,block(input,date,start,end,'work',title,location,'hard_obligation','known','recurring','busy',`${date}:work`,{activityLabel:title,occupationTitle:job.title,allowOutsidePublicHours:true}));
+}
+
+function addOccupationBlock(events:ScheduleBlock[],input:ScheduleGenerationInput,date:string,seed:string,configured:OccupationScheduleBlock){
+  const range=configured.startRange;
+  const start=range.startMinute+stableHash(`${seed}:${configured.key}:start`)%Math.max(1,range.endMinute-range.startMinute+1);
+  const duration=randomInRange(configured.durationMinutes,`${seed}:${configured.key}:duration`),end=start+duration;
+  const configuredLocation=configured.primaryLocationId??findLocationBySlug(input.locations,configured.primaryLocationSlug);
+  const location=configuredLocation??chooseLocation(input.locations,{locationCategories:configured.locationCategories??['work','office','studio'],locationSlugs:configured.primaryLocationSlug?[configured.primaryLocationSlug]:[],tags:['work'],key:configured.activityKey??configured.key},input.homeLocationId,`${seed}:${configured.key}:location`,[],date,start,end,input.timezone)??input.homeLocationId;
+  const title=occupationActivity(configured.title,configured.activityVariants,`${seed}:${configured.key}`);
+  const activityKey=configured.activityKey??`occupation_${configured.key}`;
+  const metadata={...(configured.metadata??{}),activityLabel:title,occupationBlockKey:configured.key,occupationTitle:configured.title,upcomingHint:typeof configured.metadata?.['upcomingHint']==='string'?configured.metadata['upcomingHint']:`${configured.title} later`,allowOutsidePublicHours:true};
+  if(duration>=360&&(configured.breakPolicy??'none')==='meal'&&end<=1440){
+    const mealStart=Math.min(end-45,start+180+(stableHash(`${seed}:${configured.key}:meal`)%75));
+    pushIfFree(events,block(input,date,start,mealStart,activityKey,title,location,'hard_obligation',configured.visibility??'known','recurring',configured.interruptibility??'busy',`${date}:occupation:${configured.key}:before-meal`,metadata));
+    const mealLocation=chooseLocation(input.locations,{locationCategories:['cafe','restaurant'],locationSlugs:[],tags:['food'],key:'meal_break'},input.homeLocationId,`${seed}:${configured.key}:meal-location`,[],date,mealStart,mealStart+45,input.timezone)??location;
+    pushIfFree(events,block(input,date,mealStart,mealStart+45,'meal_break','Taking a meal break',mealLocation,'recurring_routine','hidden','generated','limited',`${date}:occupation:${configured.key}:meal`,{activityLabel:'Taking a meal break'}));
+    const resumed=occupationActivity(configured.title,configured.activityVariants,`${seed}:${configured.key}:resumed`);
+    pushIfFree(events,block(input,date,mealStart+45,end,activityKey,resumed,location,'hard_obligation',configured.visibility??'known','recurring',configured.interruptibility??'busy',`${date}:occupation:${configured.key}:after-meal`,{...metadata,activityLabel:resumed}));
+  }else{
+    pushIfFree(events,block(input,date,start,end,activityKey,title,location,'hard_obligation',configured.visibility??'known','recurring',configured.interruptibility??'busy',`${date}:occupation:${configured.key}`,metadata));
+  }
+  if(end>1440&&configured.recoverySleepMinutes){
+    const recoveryStart=end+30,recoveryDuration=randomInRange(configured.recoverySleepMinutes,`${seed}:${configured.key}:recovery`);
+    pushIfFree(events,block(input,date,recoveryStart,recoveryStart+recoveryDuration,'sleep','Sleeping after a late shift',input.homeLocationId,'recurring_routine','hidden','generated','unavailable',`${date}:occupation:${configured.key}:recovery`,{activityLabel:'Sleeping after a late shift',recoveryFrom:configured.key}));
+  }
 }
 
 function selectActivity(input:ScheduleGenerationInput,date:string,weekday:number,slot:number,recent:ScheduleBlock[],seed:string){
@@ -143,7 +202,7 @@ function selectActivity(input:ScheduleGenerationInput,date:string,weekday:number
     const start=earliest+stableHash(`${seed}:${slot}:${template.key}:start`)%Math.max(1,latest-earliest+1);
     const location=chooseLocation(input.locations,template,input.homeLocationId,`${seed}:${slot}:${template.key}:location`,recent,date,start,start+duration,input.timezone);
     if(!location)continue;
-    const event=block(input,date,start,start+duration,template.key,template.title,location,template.priority,template.visibility,'generated',template.interruptibility,`${date}:activity:${slot}:${template.key}`,{score,reasons:['character affinity','time fit','location open',...(score>70?['routine pressure']:[])],activityLabel:template.activityLabel??template.title,weekday});
+    const event=block(input,date,start,start+duration,template.key,template.title,location,template.priority,template.visibility,'generated',template.interruptibility,`${date}:activity:${slot}:${template.key}`,{score,reasons:['character affinity','time fit','location open',...(score>70?['routine pressure']:[])],activityLabel:template.activityLabel??template.title,upcomingHint:template.upcomingHint,outcomeEligible:template.outcomeEligible??false,outcomeProbability:template.outcomeProbability??0,outcomeVariants:template.outcomeVariants??[],rare:template.rare??false,weekday});
     if(!overlapsAny(event,recent.filter(item=>localDateKey(item.startsAt,input.timezone)===date)))return event;
   }
   return null;
@@ -181,15 +240,17 @@ function insertTravel(events:ScheduleBlock[],input:ScheduleGenerationInput,date:
 }
 
 function block(input:ScheduleGenerationInput,date:string,start:number,end:number,key:string,title:string,locationId:string|null,priority:SchedulePriority,visibility:ScheduleVisibility,source:ScheduleBlock['source'],interruptibility:Interruptibility,generationKey:string,metadata:Record<string,unknown>={}):ScheduleBlock{return{activityKey:key,title,locationId,startsAt:localToUtc(date,start,input.timezone).toISOString(),endsAt:localToUtc(date,end,input.timezone).toISOString(),priority,visibility,source,interruptibility,generationKey:`${input.generationVersion??'life_engine_v1'}:${generationKey}`,metadata};}
-function pushIfFree(events:ScheduleBlock[],event:ScheduleBlock){if(!overlapsAny(event,events))events.push(event);}
+function pushIfFree(events:ScheduleBlock[],event:ScheduleBlock){const conflicts=events.filter(item=>overlaps(item,event));if(!conflicts.length){events.push(event);return;}if(conflicts.every(item=>priorityRank[event.priority]>priorityRank[item.priority])){for(const conflict of conflicts){const index=events.indexOf(conflict);if(index>=0)events.splice(index,1);}events.push(event);}}
 function resolveConflicts(events:ScheduleBlock[]){return [...events].sort((a,b)=>priorityRank[b.priority]-priorityRank[a.priority]||a.startsAt.localeCompare(b.startsAt)).reduce<ScheduleBlock[]>((kept,event)=>{const conflicts=kept.filter(item=>overlaps(item,event));if(!conflicts.length)kept.push(event);return kept;},[]);}
 function overlapsAny(event:ScheduleBlock,events:readonly ScheduleBlock[]){return events.some(item=>overlaps(item,event));}
 function overlaps(a:ScheduleBlock,b:ScheduleBlock){return new Date(a.startsAt)<new Date(b.endsAt)&&new Date(b.startsAt)<new Date(a.endsAt);}
-function presenceState(event:ScheduleBlock):CharacterPresence['state']{if(event.activityKey==='sleep')return'sleeping';if(event.activityKey==='travel')return'traveling';if(event.activityKey==='work')return'working';if(event.interruptibility==='busy'||event.interruptibility==='unavailable')return'busy';if(/home|read|cook|relax/.test(event.activityKey))return'relaxing';return'active';}
+function presenceState(event:ScheduleBlock):CharacterPresence['state']{if(event.activityKey==='sleep')return'sleeping';if(event.activityKey==='travel')return'traveling';if(event.activityKey==='work'||event.activityKey.startsWith('occupation_'))return'working';if(event.interruptibility==='busy'||event.interruptibility==='unavailable')return'busy';if(/home|read|cook|relax/.test(event.activityKey))return'relaxing';return'active';}
 function chooseWorkLocation(locations:LifeLocation[],pattern:OccupationPattern,home:string,seed:string){if(pattern==='remote'&&stableHash(seed)%100<70)return home;return locations.find(item=>['work','studio','office'].some(tag=>`${item.category} ${item.tags.join(' ')}`.toLowerCase().includes(tag)))?.id??home;}
 function chooseLocation(locations:LifeLocation[],template:Pick<ActivityTemplate,'locationCategories'|'locationSlugs'|'tags'|'key'>,home:string,seed:string,recent:ScheduleBlock[],date?:string,startMinute?:number,endMinute?:number,timezone?:string):string|null{const candidates=locations.filter(location=>(template.locationSlugs?.includes(slug(location.name))||template.locationCategories.includes(location.category)||template.locationCategories.includes(location.locationType)||template.tags.some(tag=>location.tags.includes(tag))||location.supportedActivities.includes(template.key))&&(!date||startMinute===undefined||endMinute===undefined||!timezone||locationOpen(location,localToUtc(date,startMinute,timezone),localToUtc(date,endMinute,timezone),timezone)));if(!candidates.length)return template.locationCategories.includes('residence')||template.locationCategories.includes('home')?home:null;return candidates.map(location=>({location,score:(stableHash(`${seed}:${location.id}`)%1000)/100-recent.filter(item=>item.locationId===location.id).length*4})).sort((a,b)=>b.score-a.score)[0]!.location.id;}
 function activityLifestyleFit(template:ActivityTemplate,profile:CharacterLifeProfile){const text=`${template.key} ${template.category} ${template.tags.join(' ')}`;let score=0;if(/photo|art|creative|music|book/.test(text))score+=profile.lifestyle.creativity*24;if(/park|walk|outdoor/.test(text))score+=profile.lifestyle.outdoors*22;if(/gym|fitness/.test(text))score+=profile.lifestyle.fitness*24;if(/bar|night|club|music/.test(text))score+=profile.lifestyle.nightlife*20;if(/social|friend|drink|dinner/.test(text))score+=profile.lifestyle.social*18;if(/home|read|cook|relax/.test(text))score+=profile.lifestyle.homebody*18;return score;}
-function workTitle(title:string,seed:string){const variants=[`Working as a ${title}`,`Focused on work`,`In the middle of a project`];return variants[stableHash(seed)%variants.length]!;}
+function occupationActivity(title:string,variants:string[]|undefined,seed:string){const authored=(variants??[]).filter(value=>value.trim().length>0);if(authored.length)return authored[stableHash(seed)%authored.length]!;return`Working as ${article(title)} ${title}`;}
+function article(value:string){return /^[aeiou]/i.test(value.trim())?'an':'a';}
+function findLocationBySlug(locations:LifeLocation[],value:string|undefined){if(!value)return undefined;return locations.find(location=>slug(location.name)===value)?.id;}
 function defaultWorkDays(pattern:OccupationPattern,seed:string){if(pattern==='shifts')return[0,1,3,5].map(day=>(day+stableHash(seed)%2)%7);if(pattern==='freelance')return[1,2,4,5];if(pattern==='student')return[1,2,3,4];return[1,2,3,4,5];}
 function defaultWorkDuration(pattern:OccupationPattern):[number,number]{if(pattern==='shifts')return[420,720];if(pattern==='freelance')return[240,420];if(pattern==='student')return[180,360];return[450,510];}
 function travelMinutes(from:string,to:string,seed:string){return 10+stableHash(`${from}:${to}:${seed}`)%17;}

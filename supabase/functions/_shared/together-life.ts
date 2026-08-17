@@ -58,6 +58,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   if(progressed.error)throw new AppError('INTERNAL_ERROR','Shared plans could not advance safely.',500,true);
   const canonicalPlans=(progressed.data??sharedPlans.data??[])as EventRow[];
   await ensureCharacterSchedule({db,userId,characterInstanceId:String(instance.id),now}).catch((error)=>console.warn('Kivelle schedule generation unavailable',error instanceof Error?error.message:'unknown_error'));
+  const scheduleOutcomes=simulateEvents?await materializeScheduleOutcomes({db,userId,instance,from:eventSimulationStart,now,trigger}).catch((error)=>{console.warn('Kivelle schedule outcome materialization unavailable',error instanceof Error?error.message:'unknown_error');return[] as EventRow[]}):[];
   // Passive Life Engine state owns the materialized character row. A shared
   // scene is an interaction overlay and must never rewrite that passive state.
   const passivePresence=await resolveCharacterPresence({db,userId,characterInstanceId:String(instance.id),now,ensure:false}).catch(()=>null);
@@ -67,7 +68,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const worldTemplates=(templates.data??[]).filter((row:EventRow)=>row.world_id?String(row.world_id)===currentWorldId:!row.default_location_id||String(row.together_locations?.world_id??'')===currentWorldId);
   const eventCandidates = simulateEvents ? selectEventCandidates(eventSimulationStart, now, worldTemplates, String(instance.simulation_seed), recentEvents.data ?? [], worldSchedules, relationship.data, instance.current_location_id, requestedContentMode,currentPlace?.world.timezone??timezone) : [];
   const instanceByTemplate = new Map((allInstances.data ?? []).map((item) => [String(item.character_template_id), String(item.id)]));
-  const created: EventRow[] = [];
+  const created: EventRow[] = [...scheduleOutcomes];
   for (const candidate of eventCandidates) {
     const template = candidate.template;
     const participantIds = (template.participant_template_ids ?? []).map((id: string) => instanceByTemplate.get(String(id))).filter(Boolean);
@@ -110,7 +111,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const influential = [activePlan, ...created, ...(recentEvents.data ?? [])].filter((event): event is EventRow => Boolean(event) && eventIsActive(event, now)).sort((a, b) => Number(b.significance) - Number(a.significance))[0];
   const life = applyEventInfluence(scheduleState, influential);
   const presenceSource=activePlan?'plan':influential?'life_event':passivePresence?.source==='schedule'?'schedule':passivePresence?.source==='plan'?'plan':passivePresence?.source==='life_event'?'life_event':'fallback';
-  await db.from('together_character_instances').update({ ...(life.locationId?{current_location_id:life.locationId}:{}), current_activity: life.activity, current_mood: life.mood, current_energy: life.energy, current_schedule_event_id:presenceSource==='schedule'?passivePresence?.scheduleEventId??null:null,current_interruptibility:passivePresence?.interruptibility??'open',current_presence_source:presenceSource,life_engine_version:'life_engine_v1', last_simulated_at: now.toISOString(), ...(simulateEvents ? { last_event_simulated_at: now.toISOString() } : {}), updated_at: now.toISOString() }).eq('id', instance.id).eq('user_id', userId);
+  await db.from('together_character_instances').update({ ...(life.locationId?{current_location_id:life.locationId}:{}), current_activity: life.activity, current_mood: life.mood, current_energy: life.energy, current_schedule_event_id:presenceSource==='schedule'?passivePresence?.scheduleEventId??null:null,current_interruptibility:passivePresence?.interruptibility??'open',current_presence_source:presenceSource,life_engine_version:'life_engine_v2', last_simulated_at: now.toISOString(), ...(simulateEvents ? { last_event_simulated_at: now.toISOString() } : {}), updated_at: now.toISOString() }).eq('id', instance.id).eq('user_id', userId);
 
   const { data: dueThreads } = await db.from('together_open_threads').update({ follow_up_eligible: true, updated_at: now.toISOString() }).eq('user_id', userId).eq('character_instance_id', instance.id).is('resolved_at', null).lte('expected_at', now.toISOString()).select('*');
   const prefs = preferences.data ?? { character_initiated_messages: true, push_enabled: false, quiet_hours_start: '23:00', quiet_hours_end: '08:00', timezone: 'UTC' };
@@ -126,6 +127,37 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   }
 
   return { state: life, presence, activeEvent: influential ?? null, events: created, proactiveMessage: proactive, eligibleThreads: dueThreads ?? [], elapsedDays: Math.max(0, Math.floor((now.getTime() - eventSimulationStart.getTime()) / 86400000)), eventsSimulated: simulateEvents, timezone };
+}
+
+async function materializeScheduleOutcomes(input:{db:SupabaseClient;userId:string;instance:EventRow;from:Date;now:Date;trigger:LifeRunInput['trigger']}):Promise<EventRow[]>{
+  const from=new Date(Math.max(input.from.getTime(),input.now.getTime()-72*3600000));
+  const{data:completed,error}=await input.db.from('together_character_schedule_events').select('*')
+    .eq('user_id',input.userId).eq('character_instance_id',input.instance.id)
+    .eq('metadata->>outcomeEligible','true').gte('ends_at',from.toISOString()).lte('ends_at',input.now.toISOString())
+    .order('ends_at',{ascending:true}).limit(24);
+  if(error||!completed?.length)return[];
+  const{data:recent}=await input.db.from('together_life_events').select('id,starts_at,metadata').eq('user_id',input.userId)
+    .eq('character_instance_id',input.instance.id).eq('event_type','schedule_outcome')
+    .gte('starts_at',new Date(input.now.getTime()-24*3600000).toISOString()).limit(4);
+  if((recent??[]).length>=1)return[];
+  for(const schedule of completed as EventRow[]){
+    const probability=Math.max(0,Math.min(.5,Number(schedule.metadata?.outcomeProbability??0)));
+    if(!probability||(stableHash(`${input.instance.simulation_seed}:schedule-outcome:${schedule.id}`)%10000)/10000>=probability)continue;
+    const variants=Array.isArray(schedule.metadata?.outcomeVariants)?schedule.metadata.outcomeVariants.filter((value:unknown)=>typeof value==='string'&&value.trim()):[];
+    if(!variants.length)continue;
+    const narrative=String(variants[stableHash(`${schedule.id}:variant`)%variants.length]);
+    const significance=Math.max(.35,Math.min(.78,Number(schedule.metadata?.outcomeSignificance??.56)));
+    const{data}=await input.db.from('together_life_events').upsert({
+      user_id:input.userId,continuity_id:input.instance.continuity_id,character_instance_id:input.instance.id,
+      event_type:'schedule_outcome',title:String(schedule.metadata?.outcomeTitle??schedule.metadata?.activityLabel??schedule.title),narrative_summary:narrative,
+      participant_instance_ids:[input.instance.id],location_id:schedule.location_id,significance,
+      starts_at:schedule.ends_at,ends_at:schedule.ends_at,resulting_state_changes:{},
+      user_should_know:true,proactive_message_appropriate:schedule.metadata?.outcomeProactive===true,
+      simulation_key:`schedule-outcome:${schedule.id}`,metadata:{source:'character_schedule',scheduleEventId:schedule.id,activityKey:schedule.activity_key,trigger:input.trigger}
+    },{onConflict:'character_instance_id,simulation_key',ignoreDuplicates:true}).select('*').maybeSingle();
+    if(data)return[data];
+  }
+  return[];
 }
 
 async function createProactiveCandidate(input: { db: SupabaseClient; userId: string; instance: EventRow; relationship: EventRow; conversation: EventRow | null; prefs: EventRow; now: Date; dueThreads: EventRow[]; events: EventRow[]; plans:EventRow[]; recentProactive: EventRow[]; memory?: string }): Promise<EventRow | null> {
@@ -322,4 +354,3 @@ async function unlockEligibleDateSessions(db: SupabaseClient, userId: string, in
     if (data) await track(db, userId, 'date_unlocked', { dateSessionId: data.id });
   }
 }
-

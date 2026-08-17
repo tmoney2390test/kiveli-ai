@@ -1,6 +1,11 @@
 import type { CharacterTemplate, CharacterVersion, Snapshot } from '../types';
 
 export type FeaturedCompanion = CharacterTemplate & { together_character_versions: CharacterVersion };
+export const FEATURED_COMPANION_LIMIT = 10;
+
+export function featuredCompanionRail(companions: FeaturedCompanion[]): FeaturedCompanion[] {
+  return companions.slice(0, FEATURED_COMPANION_LIMIT);
+}
 
 export function featuredCompanionsForWorld(snapshot: Snapshot, worldId: string, activeTemplateId?: string): FeaturedCompanion[] {
   const eligibleVersions = new Set((snapshot.characterWorldPresence ?? [])
