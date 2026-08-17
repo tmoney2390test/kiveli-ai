@@ -19,7 +19,7 @@ const allowlist = new Set([
   'supabase/functions/_shared/together-content.ts',
   'supabase/functions/_shared/together.ts',
 ]);
-const forbidden = /\b(?:Maya|Juniper(?: City| Café)?|Dinner at Juniper)\b|Maya's Apartment/g;
+const forbidden = /\b(?:Maya|Juniper(?: City| CafÃ©)?|Dinner at Juniper)\b|Maya's Apartment/g;
 
 function filesUnder(path) {
   return readdirSync(path).flatMap((name) => {
@@ -48,3 +48,4 @@ if (failures.length) {
 }
 
 console.log('Generic engine is free of starter-content literals.');
+

@@ -151,3 +151,4 @@ const styles = StyleSheet.create({
   errorTitle: { color: colors.text, fontFamily: typography.display, fontSize: 28, textAlign: 'center' },
   errorCopy: { maxWidth: 480, color: colors.muted, fontSize: 13, lineHeight: 19, textAlign: 'center' },
 });
+

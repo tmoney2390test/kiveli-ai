@@ -72,7 +72,7 @@ export default function ConversationControls() {
       const memories = snapshot.memories.filter((item) => item.character_instance_id === character.id).length;
       const moments = snapshot.moments.filter((item) => item.character_instance_id === character.id || item.participant_instance_ids.includes(character.id)).length;
       return <View key={character.id} style={styles.card}>
-        <View style={styles.person}><CharacterAvatar slug={character.together_character_templates.slug} size={48} ring /><View style={{ flex: 1 }}><Text style={styles.name}>{name}</Text><Text style={styles.meta}>{character.relationship_stage.replace('_', ' ')} · {conversations} conversations · {memories} memories · {moments} Moments</Text></View></View>
+        <View style={styles.person}><CharacterAvatar slug={character.together_character_templates.slug} size={48} ring /><View style={{ flex: 1 }}><Text style={styles.name}>{name}</Text><Text style={styles.meta}>{character.relationship_stage.replace('_', ' ')} Â· {conversations} conversations Â· {memories} memories Â· {moments} Moments</Text></View></View>
         <Action icon={<MessageCircle size={17} color={colors.rose} />} title="Manage conversations" body="Search, read, rename, or start a new chat." onPress={() => router.push(`/conversations/${character.id}` as never)} />
         <Action icon={<Brain size={17} color={colors.violet} />} title="Manage memories" body={`Review or forget what ${name} remembers.`} onPress={() => router.push(`/memories?character=${character.together_character_templates.slug}` as never)} />
         <Text style={styles.advanced}>ADVANCED</Text>

@@ -24,6 +24,26 @@ export type ActiveConversationScene = {
   updatedAt: string;
 };
 
+export type InteractionMode = 'remote'|'co_present';
+export type SceneEntryReason = 'direct_chat'|'user_drop_in'|'shared_plan'|'active_date'|'continued_scene';
+export type ActiveConversationScene = {
+  version: 1;
+  characterInstanceId: string;
+  locationId: string;
+  worldId: string;
+  interactionMode: 'co_present';
+  entryReason: Exclude<SceneEntryReason,'direct_chat'>;
+  enteredAt: string;
+  source: 'presence'|'active_event'|'character_state';
+  sourceEventId?: string;
+  validUntil?: string;
+  arrivalAcknowledgedAt?: string;
+  sceneSessionId?: string;
+  activityKey?: string;
+  lastInteractionKey?: string;
+  updatedAt: string;
+};
+
 export async function getActiveConversation(db: SupabaseClient, userId: string, characterInstanceId: string, createIfMissing = false): Promise<Record<string, unknown> | null> {
   const { data, error } = await db.from('together_conversations').select('*').eq('user_id', userId).eq('character_instance_id', characterInstanceId).is('archived_at', null).in('kind', ['direct', 'first_meeting']).order('created_at', { ascending: false }).limit(1).maybeSingle();
   if (error) throw error;

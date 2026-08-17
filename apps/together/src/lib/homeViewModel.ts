@@ -164,7 +164,7 @@ export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeVi
     currentWorld,
     hero: {
       stage: labelStage(companion.relationship_stage),
-      statusLine: `${locationLabel} · ${activityLabel}`,
+      statusLine: `${locationLabel} Â· ${activityLabel}`,
       prompt: heroPrompt,
       notice: heroNotice,
       action: heroAction,
@@ -322,6 +322,19 @@ function buildTimeline({ snapshot, companion, recentEvents, currentLocation, cur
       sortMinute: minuteInZone(plan.starts_at, clock.timezone),
     });
   }
+  for (const plan of snapshot.sharedPlans) {
+    if (plan.character_instance_id !== companion.id || plan.status !== 'scheduled' || new Date(plan.starts_at).getTime() <= now.getTime()) continue;
+    if (localDateKey(plan.starts_at, clock.timezone) !== clock.dateKey) continue;
+    future.push({
+      id: `plan:${plan.id}`,
+      kind: 'plan',
+      title: plan.title,
+      detail: snapshot.locations.find((location) => location.id === plan.location_id)?.name ?? 'Together',
+      time: formatTime(plan.starts_at, clock.timezone),
+      locationId: plan.location_id,
+      sortMinute: minuteInZone(plan.starts_at, clock.timezone),
+    });
+  }
   for (const date of snapshot.dates) {
     if (date.character_instance_id !== companion.id || date.status !== 'upcoming' || !date.scheduled_for || new Date(date.scheduled_for).getTime() <= now.getTime()) continue;
     if (localDateKey(date.scheduled_for, clock.timezone) !== clock.dateKey) continue;
@@ -355,7 +368,7 @@ export function labelStage(stage: string) {
     stranger: 'Just met',
     acquaintance: 'Getting acquainted',
     friend: 'Getting closer',
-    flirting: 'There’s a spark',
+    flirting: 'Thereâ€™s a spark',
     dating: 'Dating',
     exclusive: 'Exclusive',
     long_term: 'Building a life',
@@ -434,7 +447,7 @@ function formatTime(value: string | Date, timezone: string) {
 function formatWeekdayTime(value: string, timezone: string) {
   const date = new Date(value);
   const weekday = new Intl.DateTimeFormat('en-US', { timeZone: timezone, weekday: 'short' }).format(date);
-  return `${weekday} · ${formatTime(date, timezone)}`;
+  return `${weekday} Â· ${formatTime(date, timezone)}`;
 }
 
 function isWithinPlanWindow(plan: Snapshot['sharedPlans'][number], now: Date) {

@@ -92,4 +92,17 @@ describe('buildHomeViewModel', () => {
     expect(model?.hero.statusLine.startsWith('At home')).toBe(false);
     expect(model?.hero.statusLine).toContain('Skyline Rooftop');
   });
+
+  it('does not call a cafe home just because legacy presence data points there', () => {
+    const cafeSnapshot = {
+      ...snapshot,
+      characters: snapshot.characters.map((character) => ({ ...character, current_location_id: 'rooftop' })),
+      characterWorldPresence: [{ ...snapshot.characterWorldPresence![0]!, home_location_id: 'rooftop' }],
+      proactiveMessages: [],
+    } as unknown as Snapshot;
+    const model = buildHomeViewModel(cafeSnapshot, now);
+    expect(model?.hero.statusLine.startsWith('At home')).toBe(false);
+    expect(model?.hero.statusLine).toContain('Skyline Rooftop');
+  });
 });
+
