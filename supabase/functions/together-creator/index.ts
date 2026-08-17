@@ -9,8 +9,19 @@ import { resolvePlaceContext, resolveWorldAccess } from '../_shared/together-pla
 import { routeImageProvider, type CanonicalImageGenerationRequest } from '../_shared/together-media.ts';
 import { track } from '../_shared/together.ts';
 import { enforceCustomCompanionLimit, refundCredits, resolveSubscriptionState, spendCredits } from '../_shared/kivelle-subscription.ts';
+import { handleCreatorStudioAction, isCreatorStudioAction } from '../_shared/kivelle-creator-studio.ts';
 
 const schema=z.discriminatedUnion('action',[
+  z.object({action:z.literal('create_draft'),concept:z.string().trim().min(20).max(1200),worldId:z.string().uuid(),relationshipGoal:z.enum(['friendship','romance','either']),requestId:z.string().uuid()}),
+  z.object({action:z.literal('get_draft'),draftId:z.string().uuid()}),
+  z.object({action:z.literal('list_drafts')}),
+  z.object({action:z.literal('update_draft_section'),draftId:z.string().uuid(),section:z.enum(['identity','appearance','personality','communication','connection','life','routine']),config:z.record(z.string(),z.unknown()),relationshipGoal:z.enum(['friendship','romance','either']).optional(),currentStep:z.enum(['identity','appearance','personality','life','connection','meeting','review']).optional(),expectedRevision:z.number().int().positive()}),
+  z.object({action:z.literal('regenerate_draft_section'),draftId:z.string().uuid(),section:z.enum(['routine','first_meetings'])}),
+  z.object({action:z.literal('generate_draft_appearance'),draftId:z.string().uuid(),requestId:z.string().uuid()}),
+  z.object({action:z.literal('select_draft_appearance'),draftId:z.string().uuid(),assetId:z.string().uuid()}),
+  z.object({action:z.literal('select_first_meeting'),draftId:z.string().uuid(),meetingId:z.string().uuid()}),
+  z.object({action:z.literal('finalize_draft'),draftId:z.string().uuid(),requestId:z.string().uuid()}),
+  z.object({action:z.literal('archive_draft'),draftId:z.string().uuid()}),
   z.object({action:z.literal('quick_create'),concept:z.string().trim().min(20).max(1200),worldId:z.string().uuid(),relationshipGoal:z.enum(['friendship','romance','either'])}),
   z.object({action:z.literal('generate_appearance'),characterTemplateId:z.string().uuid(),requestId:z.string().uuid().optional()}),
   z.object({action:z.literal('select_appearance'),characterTemplateId:z.string().uuid(),candidateId:z.string().uuid(),confirmVersionChange:z.boolean().default(false)}),
@@ -22,7 +33,11 @@ const schema=z.discriminatedUnion('action',[
 const provider=new ConfiguredCharacterCreationProvider(),moderation=new ConfiguredModerationProvider();
 
 serve(async(request,correlationId)=>{
-  const{user,db}=await authenticated(request);const input=await parseBody(request,schema);await enforceRateLimit(db,user.id,`together_creator_${input.action}`,input.action==='generate_appearance'?8:30,3600);const now=new Date().toISOString();
+  const{user,db}=await authenticated(request);const input=await parseBody(request,schema);await enforceRateLimit(db,user.id,`together_creator_${input.action}`,['generate_appearance','generate_draft_appearance'].includes(input.action)?8:30,3600);const now=new Date().toISOString();
+  if(isCreatorStudioAction(input.action)){
+    const data=await handleCreatorStudioAction({db,userId:user.id,action:input,now});
+    return json({data,correlationId},input.action==='create_draft'?201:200,correlationId);
+  }
   if(input.action==='quick_create'){
     const subscription=await resolveSubscriptionState(db,user.id);await enforceCustomCompanionLimit(db,user.id,subscription.capabilities);
     if(/\b(exactly like|identical to|clone of|look like)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/i.test(input.concept))throw new AppError('VALIDATION_ERROR','Create an original fictional person rather than copying a real person.',400);
@@ -39,6 +54,7 @@ serve(async(request,correlationId)=>{
     await track(db,user.id,'custom_companion_draft_created',{character_template_id:template.id,world_id:world.id,tier:subscription.tier});return json({data:{template:{...template,together_character_versions:versionInsert.data},proposal,homeLocation:home,meetingLocation:meeting},correlationId},201,correlationId);
   }
 
+  if(!('characterTemplateId' in input))throw new AppError('VALIDATION_ERROR','A character is required for this legacy creator action.',400);
   const{template,version}=await ownedCharacter(db,user.id,input.characterTemplateId);
   if(input.action==='generate_appearance'){
     const subscription=await resolveSubscriptionState(db,user.id),requestId=input.requestId??crypto.randomUUID();

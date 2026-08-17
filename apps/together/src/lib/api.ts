@@ -1,5 +1,5 @@
 import { supabase, supabasePublishableKey, supabaseUrl } from './supabase';
-import type { CharacterResetPreview, CharacterResetResult, InteractionCandidate, Message, SceneAction, SceneSession, Snapshot, SnapshotDelta } from '../types';
+import type { CharacterResetPreview, CharacterResetResult, CreatorDraft, CreatorStep, InteractionCandidate, Message, SceneAction, SceneSession, Snapshot, SnapshotDelta } from '../types';
 
 export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false) { super(message); } }
 type Envelope<T> = { data: T; correlationId: string };
@@ -37,6 +37,16 @@ export const enterScene = <T>(input:{characterInstanceId:string;locationId:strin
 export const manageMedia = <T>(input: Record<string, unknown>) => invoke<T>('together-media', input);
 export const managePersona = <T>(input:Record<string,unknown>) => invoke<T>('together-persona',input);
 export const manageCreator = <T>(input:Record<string,unknown>) => invoke<T>('together-creator',input);
+export const createCreatorDraft = (input:{concept:string;worldId:string;relationshipGoal:'friendship'|'romance'|'either';requestId:string}) => manageCreator<{draft:CreatorDraft;idempotent:boolean}>({action:'create_draft',...input});
+export const getCreatorDraft = (draftId:string) => manageCreator<{draft:CreatorDraft}>({action:'get_draft',draftId});
+export const listCreatorDrafts = () => manageCreator<{drafts:CreatorDraft[]}>({action:'list_drafts'});
+export const updateCreatorDraftSection = (input:{draftId:string;section:'identity'|'appearance'|'personality'|'communication'|'connection'|'life'|'routine';config:Record<string,unknown>;expectedRevision:number;currentStep?:CreatorStep;relationshipGoal?:'friendship'|'romance'|'either'}) => manageCreator<{draft:CreatorDraft;readiness?:{ready:boolean;missing:string[]}}>({action:'update_draft_section',...input});
+export const regenerateCreatorDraftSection = (draftId:string,section:'routine'|'first_meetings') => manageCreator<{draft:CreatorDraft}>({action:'regenerate_draft_section',draftId,section});
+export const generateCreatorAppearance = (draftId:string,requestId:string) => manageCreator<{draft:CreatorDraft;creditCost?:number;creditBalance?:{permanentBalance:number;subscriptionBalance:number;total:number}}>({action:'generate_draft_appearance',draftId,requestId});
+export const selectCreatorAppearance = (draftId:string,assetId:string) => manageCreator<{draft:CreatorDraft;readiness?:{ready:boolean;missing:string[]}}>({action:'select_draft_appearance',draftId,assetId});
+export const selectCreatorFirstMeeting = (draftId:string,meetingId:string) => manageCreator<{draft:CreatorDraft;readiness?:{ready:boolean;missing:string[]}}>({action:'select_first_meeting',draftId,meetingId});
+export const finalizeCreatorDraft = (draftId:string,requestId:string) => manageCreator<{draft:CreatorDraft;result:{draftId:string;characterTemplateId:string;characterVersionId:string;publicHandle:string;idempotent:boolean}}>({action:'finalize_draft',draftId,requestId});
+export const archiveCreatorDraft = (draftId:string) => manageCreator<{archived:boolean;draftId:string}>({action:'archive_draft',draftId});
 export const manageSubscription = <T>(input?:Record<string,unknown>) => input?invoke<T>('together-subscription',input):invoke<T>('together-subscription',undefined,'GET');
 
 export async function createTogetherAccount(email: string, password: string): Promise<void> {

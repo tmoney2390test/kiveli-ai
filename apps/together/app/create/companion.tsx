@@ -1,70 +1,112 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Check, ChevronRight, Coins, Dices, Home, Palette, RefreshCw, Sparkles, UserRound } from 'lucide-react-native';
-import { GradientButton, GlassCard, LoadingSkeleton, PageTitle, Screen, SectionHeader } from '../../src/components';
-import { ApiError, manageCreator, meetCompanion } from '../../src/lib/api';
+import { ArrowLeft, ArrowRight, Check, Globe2, Sparkles, UserRound } from 'lucide-react-native';
+import { GradientButton, GlassCard, LoadingSkeleton, PageTitle, Screen } from '../../src/components';
+import { createCreatorDraft, listCreatorDrafts } from '../../src/lib/api';
 import { createClientRequestId } from '../../src/lib/requestId';
 import { useTogether } from '../../src/store/useTogether';
-import { colors, radius } from '../../src/theme';
-import type { CharacterTemplate, CharacterVersion } from '../../src/types';
+import { colors, radius, spacing } from '../../src/theme';
 
-type DraftResponse={template:CharacterTemplate&{together_character_versions:CharacterVersion};proposal:{displayName:string;age:number;pronouns?:string;occupation:string;biography:string;interests:string[];traits:string[];personality:Record<string,number>;relationshipStyle:Record<string,unknown>;appearanceDescription:string};homeLocation:{id:string;name:string};meetingLocation:{id:string;name:string}};
-type Candidate={id:string;label:string;description:string;storagePath?:string;signedUrl?:string|null};
-type AppearanceResult={candidates:Candidate[];creditCost?:number;creditBalance?:{permanentBalance:number;subscriptionBalance:number;total:number}};
-const connectionOptions=[{key:'friendship',label:'Friendship'},{key:'romance',label:'Romance'},{key:'either',label:'Either'}]as const;
+const prompts = [
+  'A confident architect with dry humor who takes time to open up.',
+  'A warm, adventurous photographer who loves live music and quiet mornings.',
+  'A thoughtful chef with playful confidence and strong opinions about food.',
+];
+const goals = [
+  { key: 'friendship', title: 'Friendship', detail: 'Build trust without romantic progression.' },
+  { key: 'romance', title: 'Romance', detail: 'Let attraction develop naturally over time.' },
+  { key: 'either', title: 'Either', detail: 'Let the relationship find its own direction.' },
+] as const;
 
-export default function CreateCompanion(){
-  const params=useLocalSearchParams<{template?:string}>();
-  const{snapshot,setSnapshot}=useTogether();
-  const[concept,setConcept]=useState(''),[goal,setGoal]=useState<'friendship'|'romance'|'either'>('either'),[worldId,setWorldId]=useState('');
-  const[draft,setDraft]=useState<DraftResponse|null>(null),[candidates,setCandidates]=useState<Candidate[]>([]),[selected,setSelected]=useState(''),[advanced,setAdvanced]=useState(false),[busy,setBusy]=useState(''),[creditBalance,setCreditBalance]=useState<number|null>(null);
-  const worlds=useMemo(()=>snapshot?.worlds.filter((world)=>world.published&&(world.access_type==='free'||snapshot.userWorlds?.some((item)=>item.world_id===world.id&&item.access_status==='unlocked')))??[],[snapshot]);
-  const chosenWorld=worldId||worlds[0]?.id||'';
-  useEffect(()=>{if(!snapshot||!params.template||draft)return;const template=snapshot.discoverableCharacters.find((item)=>item.id===params.template&&Boolean(item.creator_id));if(!template)return;const version=template.together_character_versions;const meeting=template.first_meeting,homeId=String(version.life_config?.homeLocationId??''),home=snapshot.locations.find((item)=>item.id===homeId),meetingLocation=snapshot.locations.find((item)=>item.id===meeting?.location_id);if(!home||!meetingLocation)return;const traits=Array.isArray(template.discovery_metadata?.traits)?template.discovery_metadata.traits.map(String):Object.entries(version.personality_config??{}).sort((left,right)=>Number(right[1])-Number(left[1])).slice(0,3).map(([key])=>key);setWorldId(meeting?.world_id??home.world_id);setGoal(template.relationship_goal??'either');setCandidates((version.appearance_candidates??[]).filter((item):item is Candidate=>typeof item.id==='string'&&typeof item.label==='string'&&typeof item.description==='string'));setSelected(String(version.appearance_config?.selectedCandidateId??''));setDraft({template,proposal:{displayName:template.name,age:template.age,pronouns:version.pronouns??undefined,occupation:template.occupation,biography:template.biography,interests:version.interests??[],traits,personality:version.personality_config??{},relationshipStyle:version.relationship_config??{},appearanceDescription:String(version.appearance_config?.description??version.visual_identity?.canonicalDescription??'Original fictional adult appearance')},homeLocation:{id:home.id,name:home.name},meetingLocation:{id:meetingLocation.id,name:meetingLocation.name}});},[draft,params.template,snapshot]);
-  if(!snapshot)return <LoadingSkeleton/>;
+export default function CreateCompanionEntry() {
+  const params = useLocalSearchParams<{ template?: string }>();
+  const snapshot = useTogether((state) => state.snapshot);
+  const { width } = useWindowDimensions();
+  const [concept, setConcept] = useState('');
+  const [worldId, setWorldId] = useState('');
+  const [goal, setGoal] = useState<'friendship' | 'romance' | 'either'>('either');
+  const [busy, setBusy] = useState(false);
+  const [recovering, setRecovering] = useState(Boolean(params.template));
+  const worlds = useMemo(() => snapshot?.worlds.filter((world) => world.published && (world.access_type === 'free' || snapshot.userWorlds?.some((item) => item.world_id === world.id && item.access_status === 'unlocked'))) ?? [], [snapshot]);
+  const selectedWorldId = worldId || worlds[0]?.id || '';
 
-  const create=async()=>{setBusy('create');try{setDraft(await manageCreator<DraftResponse>({action:'quick_create',concept,worldId:chosenWorld,relationshipGoal:goal}));}catch(error){const message=error instanceof Error?error.message:'Try a different description.';Alert.alert('Could not create that person',message,error instanceof ApiError&&error.code==='PLAN_LIMIT_REACHED'?[{text:'Not now',style:'cancel'},{text:'View plans',onPress:()=>router.push('/subscription')}]:undefined);}finally{setBusy('')}};
-  const appearances=async()=>{if(!draft)return;setBusy('appearance');try{const result=await manageCreator<AppearanceResult>({action:'generate_appearance',characterTemplateId:draft.template.id,requestId:createClientRequestId()});setCandidates(result.candidates);if(result.creditBalance)setCreditBalance(result.creditBalance.total);}catch(error){const message=error instanceof Error?error.message:'Please try again.';Alert.alert('Could not generate looks',message,error instanceof ApiError&&error.code==='INSUFFICIENT_CREDITS'?[{text:'Not now',style:'cancel'},{text:'View credits',onPress:()=>router.push('/subscription')}]:undefined);}finally{setBusy('')}};
-  const choose=async(id:string,confirmVersionChange=false)=>{if(!draft)return;setSelected(id);try{const result=await manageCreator<{createdNewVersion?:boolean}>({action:'select_appearance',characterTemplateId:draft.template.id,candidateId:id,confirmVersionChange});if(result.createdNewVersion)Alert.alert('New identity version created',`${draft.template.name}'s new appearance will be used going forward. Existing memories and relationship history remain unchanged.`);}catch(error){setSelected('');const message=error instanceof Error?error.message:'Please try again.';if(/relationship.*already started|CharacterVersion/i.test(message))Alert.alert(`Change ${draft.template.name}'s appearance?`,message,[{text:'Keep current look',style:'cancel'},{text:'Use new look',onPress:()=>void choose(id,true)}]);else Alert.alert('Could not use that identity',message);}};
-  const routine=async()=>{if(!draft)return;setBusy('routine');try{await manageCreator({action:'generate_routine',characterTemplateId:draft.template.id});Alert.alert('Routine ready',`${draft.template.name} now has a real weekly routine using places in ${snapshot.worlds.find((item)=>item.id===chosenWorld)?.name}.`);}catch(error){Alert.alert('Could not generate routine',error instanceof Error?error.message:'Please try again.');}finally{setBusy('')}};
-  const meet=async()=>{if(!draft)return;setBusy('meet');try{await manageCreator({action:'finalize',characterTemplateId:draft.template.id});setSnapshot(await meetCompanion(draft.template.id));router.replace(`/chat?character=${draft.template.public_handle??draft.template.slug}` as never);}catch(error){Alert.alert('Could not begin the meeting',error instanceof Error?error.message:'Please try again.');}finally{setBusy('')}};
+  useEffect(() => {
+    if (!params.template) return;
+    let active = true;
+    void listCreatorDrafts().then(({ drafts }) => {
+      if (!active) return;
+      const draft = drafts.find((item) => item.legacy_template_id === params.template || item.finalized_template_id === params.template);
+      if (draft) router.replace(`/create/companion/${draft.id}` as never);
+      else setRecovering(false);
+    }).catch(() => setRecovering(false));
+    return () => { active = false; };
+  }, [params.template]);
 
-  if(draft)return <Screen>
-    <View style={styles.header}><Pressable onPress={()=>setDraft(null)}><ArrowLeft color={colors.text}/></Pressable><View><PageTitle>{draft.template.name}</PageTitle><Text style={styles.subtitle}>{draft.template.occupation} · {draft.template.age}</Text></View></View>
-    <GlassCard style={styles.dna}><View style={styles.portrait}><Text style={styles.initial}>{draft.template.name[0]}</Text></View><Text style={styles.traits}>{draft.proposal.traits.join(' · ')}</Text><Text style={styles.bio}>{draft.proposal.biography}</Text></GlassCard>
-    <SectionHeader title="Life"/><Info icon={<Home color={colors.warm}/>} title={`Lives near ${draft.homeLocation.name}`} body={`Your first meeting is at ${draft.meetingLocation.name}.`}/>
-    <Pressable onPress={()=>void routine()} style={styles.action}><RefreshCw size={17} color={colors.violet}/><Text style={styles.actionText}>{busy==='routine'?'Building routine…':'Generate weekly routine'}</Text></Pressable>
-    <SectionHeader title="Appearance"/>
-    {candidates.length?<View style={styles.looks}>{candidates.map((item)=><Pressable key={item.id} onPress={()=>void choose(item.id)} style={[styles.look,item.id===selected&&styles.lookSelected]}>{item.signedUrl?<Image source={{uri:item.signedUrl}} resizeMode="cover" style={styles.lookPortrait}/>:<View style={styles.lookPortrait}><Text style={styles.initial}>{draft.template.name[0]}</Text></View>}<Text style={styles.lookLabel}>{item.label}</Text><Text style={styles.lookCopy} numberOfLines={3}>{item.description}</Text>{item.id===selected?<Check color={colors.rose} size={18}/>:null}</Pressable>)}</View>:<><Pressable onPress={()=>void appearances()} disabled={Boolean(busy)} style={styles.action}><Palette size={17} color={colors.rose}/><Text style={styles.actionText}>{busy==='appearance'?'Generating four identities…':'Generate 4 appearance options'}</Text><View style={styles.creditPill}><Coins size={12} color={colors.warm}/><Text style={styles.creditPillText}>40</Text></View></Pressable><Text style={styles.creditNote}>Uses 40 Kivelle Credits. Failed generation is refunded automatically.{creditBalance!==null?` · ${creditBalance} remaining`:''}</Text></>}
-    <Pressable onPress={()=>setAdvanced((value)=>!value)} style={styles.action}><UserRound size={17} color={colors.muted}/><Text style={styles.actionText}>Customize</Text><ChevronRight color={colors.muted} size={17}/></Pressable>
-    {advanced?<Advanced draft={draft} onSaved={(values,version)=>setDraft((current)=>current?{...current,template:{...current.template,name:values.name,occupation:values.occupation,biography:values.biography,together_character_versions:version},proposal:{...current.proposal,displayName:values.name,occupation:values.occupation,biography:values.biography,interests:values.interests,personality:values.personality}}:current)}/>:null}<GradientButton label={busy==='meet'?`Preparing ${draft.template.name}…`:`Meet ${draft.template.name}`} disabled={Boolean(busy)} onPress={()=>void meet()}/>
-  </Screen>;
+  if (!snapshot || recovering) return <LoadingSkeleton label={recovering ? 'Opening your character draft…' : 'Opening Creator Studio…'} />;
 
-  return <Screen>
-    <View style={styles.header}><Pressable onPress={()=>router.back()}><ArrowLeft color={colors.text}/></Pressable><View><PageTitle>Create someone</PageTitle><Text style={styles.subtitle}>Describe a person. Kivelle will build a life, not a prompt.</Text></View></View>
-    <Text style={styles.label}>Who do you want to meet?</Text><TextInput value={concept} onChangeText={setConcept} multiline maxLength={1200} style={[styles.input,styles.concept]} placeholder="A confident 29-year-old architect with dry humor. She's ambitious, loves jazz and great food, but takes a while to open up." placeholderTextColor={colors.muted}/>
-    <Text style={styles.label}>Where should they live?</Text><View style={styles.options}>{worlds.map((world)=><Pressable key={world.id} onPress={()=>setWorldId(world.id)} style={[styles.option,chosenWorld===world.id&&styles.optionSelected]}><Text style={[styles.optionText,chosenWorld===world.id&&styles.optionTextSelected]}>{world.name}</Text></Pressable>)}</View>
-    <Text style={styles.label}>What kind of connection?</Text><View style={styles.options}>{connectionOptions.map((item)=><Pressable key={item.key} onPress={()=>setGoal(item.key)} style={[styles.option,goal===item.key&&styles.optionSelected]}><Text style={[styles.optionText,goal===item.key&&styles.optionTextSelected]}>{item.label}</Text></Pressable>)}</View>
-    <Info icon={<Sparkles color={colors.rose}/>} title={`Meeting as ${snapshot.activePersona?.display_name??'You'}`} body={`This person will join ${snapshot.activeContinuity?.title??'your Main Life'} only after you choose Meet.`}/>
-    <GradientButton label={busy==='create'?'Creating character DNA…':'Create'} icon={<Dices size={17} color="#fff"/>} disabled={Boolean(busy)||concept.trim().length<20||!chosenWorld} onPress={()=>void create()}/>
+  const create = async () => {
+    setBusy(true);
+    try {
+      const { draft } = await createCreatorDraft({ concept: concept.trim(), worldId: selectedWorldId, relationshipGoal: goal, requestId: createClientRequestId() });
+      router.replace(`/create/companion/${draft.id}` as never);
+    } catch (error) {
+      Alert.alert('Could not create that person', error instanceof Error ? error.message : 'Try a different description.');
+    } finally { setBusy(false); }
+  };
+
+  const desktop = width >= 900;
+  return <Screen contentStyle={styles.screen}>
+    <View style={styles.header}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={colors.text} size={21} /></Pressable>
+      <View style={{ flex: 1 }}><Text style={styles.kicker}>KIVELLE CREATOR</Text><PageTitle>Create someone</PageTitle><Text style={styles.subtitle}>Describe a person. Kivelle will help you shape an identity, a life, and a real first meeting.</Text></View>
+    </View>
+
+    <View style={[styles.layout, desktop && styles.layoutDesktop]}>
+      <View style={styles.editor}>
+        <View>
+          <Text style={styles.sectionLabel}>WHO DO YOU WANT TO MEET?</Text>
+          <Text style={styles.sectionTitle}>Start with the idea.</Text>
+          <Text style={styles.help}>You can change every detail before this person enters your Kivelle Life.</Text>
+        </View>
+        <TextInput
+          accessibilityLabel="Character concept"
+          value={concept}
+          onChangeText={setConcept}
+          multiline
+          maxLength={1200}
+          textAlignVertical="top"
+          style={styles.concept}
+          placeholder="A confident 29-year-old architect with dry humor. She loves jazz, travel and great food, but takes a while to genuinely open up."
+          placeholderTextColor={colors.muted}
+        />
+        <View style={styles.suggestions}>{prompts.map((prompt) => <Pressable key={prompt} accessibilityRole="button" onPress={() => setConcept(prompt)} style={styles.suggestion}><Sparkles size={14} color={colors.violet} /><Text style={styles.suggestionText}>{prompt}</Text></Pressable>)}</View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Home world</Text>
+          <View style={styles.choiceGrid}>{worlds.map((world) => <Pressable key={world.id} accessibilityRole="radio" accessibilityState={{ checked: selectedWorldId === world.id }} onPress={() => setWorldId(world.id)} style={[styles.worldChoice, selectedWorldId === world.id && styles.choiceSelected]}><Globe2 size={18} color={selectedWorldId === world.id ? '#fff' : colors.violet} /><View style={{ flex: 1 }}><Text style={[styles.choiceTitle, selectedWorldId === world.id && styles.choiceTitleSelected]}>{world.name}</Text><Text style={[styles.choiceDetail, selectedWorldId === world.id && styles.choiceDetailSelected]}>{world.access_type === 'free' ? 'Included world' : 'Unlocked world'}</Text></View>{selectedWorldId === world.id ? <Check size={17} color="#fff" /> : null}</Pressable>)}</View>
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Relationship direction</Text>
+          <View style={styles.goalGrid}>{goals.map((item) => <Pressable key={item.key} accessibilityRole="radio" accessibilityState={{ checked: goal === item.key }} onPress={() => setGoal(item.key)} style={[styles.goal, goal === item.key && styles.goalSelected]}><Text style={styles.goalTitle}>{item.title}</Text><Text style={styles.goalDetail}>{item.detail}</Text>{goal === item.key ? <View style={styles.selectedDot}><Check size={12} color="#fff" /></View> : null}</Pressable>)}</View>
+        </View>
+
+        <GradientButton label={busy ? 'Creating Character DNA…' : 'Build Character DNA'} icon={<ArrowRight size={18} color="#fff" />} disabled={busy || concept.trim().length < 20 || !selectedWorldId} onPress={() => void create()} />
+        <Text style={styles.privateNote}>Your draft stays private. No relationship or simulation begins until you choose Meet.</Text>
+      </View>
+
+      <GlassCard style={styles.preview}>
+        <View style={styles.previewIcon}><UserRound size={34} color={colors.rose} /></View>
+        <Text style={styles.previewKicker}>WHAT KIVELLE BUILDS</Text>
+        <Text style={styles.previewTitle}>A person, not a prompt.</Text>
+        {['A persistent identity and appearance', 'A personality with independent preferences', 'A home and weekly rhythm in a real world', 'A connection style that guides—not guarantees—the relationship', 'A canonical first meeting that flows into Chat'].map((item, index) => <View key={item} style={styles.previewRow}><View style={styles.previewNumber}><Text style={styles.previewNumberText}>{index + 1}</Text></View><Text style={styles.previewText}>{item}</Text></View>)}
+        <View style={styles.meetingAs}><Text style={styles.meetingAsLabel}>MEETING AS</Text><Text style={styles.meetingAsName}>{snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'}</Text><Text style={styles.meetingAsLife}>{snapshot.activeContinuity?.title ?? 'Main Life'}</Text></View>
+      </GlassCard>
+    </View>
   </Screen>;
 }
 
-type AdvancedValues={name:string;occupation:string;biography:string;interests:string[];personality:Record<string,number>};
-function Advanced({draft,onSaved}:{draft:DraftResponse;onSaved:(values:AdvancedValues,version:CharacterVersion)=>void}){
-  const[name,setName]=useState(draft.template.name),[occupation,setOccupation]=useState(draft.template.occupation),[biography,setBiography]=useState(draft.template.biography),[interests,setInterests]=useState(draft.proposal.interests.join(', ')),[personality,setPersonality]=useState(draft.proposal.personality),[saving,setSaving]=useState(false);
-  const scales=[['warmth','Warmth'],['humor','Humor'],['directness','Directness'],['independence','Independence'],['spontaneity','Spontaneity'],['socialEnergy','Social energy']] as const;
-  const save=async()=>{setSaving(true);const values={name:name.trim(),occupation:occupation.trim(),biography:biography.trim(),interests:interests.split(',').map((item)=>item.trim()).filter(Boolean).slice(0,12),personality};try{const result=await manageCreator<{version:CharacterVersion;createdNewVersion:boolean}>({action:'update',characterTemplateId:draft.template.id,...values});onSaved(values,result.version);Alert.alert('Character updated',result.createdNewVersion?'A new identity version now carries this character forward without rewriting earlier history.':'Your draft has been updated.');}catch(error){Alert.alert('Could not save changes',error instanceof Error?error.message:'Please try again.');}finally{setSaving(false)}};
-  return <GlassCard style={styles.advanced}>
-    <Text style={styles.advancedTitle}>IDENTITY</Text><TextInput value={name} onChangeText={setName} style={formStyles.smallInput} placeholder="Name" placeholderTextColor={colors.muted}/><TextInput value={occupation} onChangeText={setOccupation} style={formStyles.smallInput} placeholder="Occupation" placeholderTextColor={colors.muted}/><TextInput value={biography} onChangeText={setBiography} multiline style={[formStyles.smallInput,formStyles.bioInput]} placeholder="Biography" placeholderTextColor={colors.muted}/><TextInput value={interests} onChangeText={setInterests} style={formStyles.smallInput} placeholder="Jazz, food, travel" placeholderTextColor={colors.muted}/>
-    <View style={styles.advancedRow}><Text style={styles.advancedTitle}>APPEARANCE</Text><Text style={styles.advancedValue}>{draft.proposal.appearanceDescription}</Text><Text style={formStyles.hint}>Use the appearance choices above to lock a canonical visual identity.</Text></View>
-    <View style={styles.advancedRow}><Text style={styles.advancedTitle}>PERSONALITY</Text>{scales.map(([key,label])=><View key={key} style={formStyles.scale}><Text style={formStyles.scaleLabel}>{label}</Text><Pressable accessibilityLabel={`Decrease ${label}`} onPress={()=>setPersonality((value)=>({...value,[key]:Math.max(0,Number(value[key]??.5)-.1)}))} style={formStyles.step}><Text style={formStyles.stepText}>−</Text></Pressable><View style={formStyles.track}><View style={[formStyles.fill,{width:`${Math.round(Number(personality[key]??.5)*100)}%`}]}/></View><Pressable accessibilityLabel={`Increase ${label}`} onPress={()=>setPersonality((value)=>({...value,[key]:Math.min(1,Number(value[key]??.5)+.1)}))} style={formStyles.step}><Text style={formStyles.stepText}>+</Text></Pressable></View>)}</View>
-    <View style={styles.advancedRow}><Text style={styles.advancedTitle}>LIFE</Text><Text style={styles.advancedValue}>{occupation || draft.template.occupation} · {draft.homeLocation.name}</Text><Text style={formStyles.hint}>Generate routine maps their week to real places in this world.</Text></View>
-    <View style={styles.advancedRow}><Text style={styles.advancedTitle}>CONNECTION</Text><Text style={styles.advancedValue}>{String(draft.template.relationship_goal??'Either')}</Text><Text style={formStyles.hint}>This guides progression; it never presets trust, attraction, or devotion.</Text></View>
-    <GradientButton label={saving?'Saving…':'Save customizations'} disabled={saving||name.trim().length<1||occupation.trim().length<1||biography.trim().length<20} onPress={()=>void save()}/>
-  </GlassCard>;
-}
-const formStyles=StyleSheet.create({smallInput:{minHeight:45,borderRadius:radius.sm,borderWidth:1,borderColor:colors.border,backgroundColor:colors.background,color:colors.text,paddingHorizontal:12},bioInput:{minHeight:92,textAlignVertical:'top',paddingTop:12},hint:{color:colors.muted,fontSize:10,lineHeight:15,marginTop:4},scale:{flexDirection:'row',alignItems:'center',gap:8,minHeight:38},scaleLabel:{width:82,color:colors.text,fontSize:11,fontWeight:'700'},step:{width:28,height:28,borderRadius:14,alignItems:'center',justifyContent:'center',backgroundColor:colors.elevated},stepText:{color:colors.text,fontSize:18,lineHeight:20},track:{flex:1,height:5,borderRadius:3,overflow:'hidden',backgroundColor:colors.elevated},fill:{height:5,backgroundColor:colors.rose}});
-function Info({icon,title,body}:{icon:React.ReactElement;title:string;body:string}){return <GlassCard style={styles.info}>{icon}<View style={{flex:1}}><Text style={styles.infoTitle}>{title}</Text><Text style={styles.infoBody}>{body}</Text></View></GlassCard>}
-const styles=StyleSheet.create({header:{flexDirection:'row',alignItems:'center',gap:14},subtitle:{color:colors.muted,fontSize:12,lineHeight:18,marginTop:2},label:{color:colors.text,fontWeight:'800',fontSize:12},input:{minHeight:52,borderRadius:radius.md,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface,color:colors.text,padding:14},concept:{height:150,textAlignVertical:'top',fontSize:15,lineHeight:22},options:{flexDirection:'row',gap:8,flexWrap:'wrap'},option:{paddingHorizontal:13,paddingVertical:10,borderRadius:20,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface},optionSelected:{backgroundColor:colors.rose,borderColor:colors.rose},optionText:{color:colors.muted,fontWeight:'700'},optionTextSelected:{color:'#fff'},info:{flexDirection:'row',alignItems:'center',gap:12},infoTitle:{color:colors.text,fontWeight:'800'},infoBody:{color:colors.muted,fontSize:11,lineHeight:16,marginTop:3},dna:{alignItems:'center',gap:9},portrait:{width:118,height:118,borderRadius:59,alignItems:'center',justifyContent:'center',backgroundColor:colors.elevated,borderWidth:2,borderColor:colors.rose},initial:{fontFamily:'Georgia',fontSize:48,color:colors.rose},traits:{color:colors.rose,fontWeight:'800',fontSize:11,textAlign:'center'},bio:{color:colors.text,lineHeight:20,textAlign:'center'},action:{minHeight:52,flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:14,borderRadius:radius.md,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface},actionText:{flex:1,color:colors.text,fontWeight:'800'},creditPill:{flexDirection:'row',alignItems:'center',gap:4,paddingHorizontal:8,paddingVertical:5,borderRadius:radius.pill,backgroundColor:'rgba(242,162,127,.10)'},creditPillText:{color:colors.warm,fontSize:10,fontWeight:'900'},creditNote:{color:colors.muted,fontSize:10,lineHeight:15,marginTop:-7},looks:{flexDirection:'row',flexWrap:'wrap',gap:9},look:{width:'48%',padding:10,gap:6,borderRadius:radius.md,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface},lookSelected:{borderColor:colors.rose},lookPortrait:{height:92,borderRadius:radius.sm,alignItems:'center',justifyContent:'center',backgroundColor:colors.elevated},lookLabel:{color:colors.text,fontWeight:'800'},lookCopy:{color:colors.muted,fontSize:9,lineHeight:13},advanced:{gap:0},advancedRow:{paddingVertical:11,borderBottomWidth:1,borderBottomColor:colors.border},advancedTitle:{color:colors.rose,fontSize:10,fontWeight:'900',letterSpacing:1},advancedValue:{color:colors.text,fontSize:12,lineHeight:17,marginTop:4}});
+const styles = StyleSheet.create({
+  screen: { maxWidth: 1120, paddingHorizontal: spacing.lg }, header: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 }, back: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, kicker: { color: colors.rose, fontSize: 10, fontWeight: '900', letterSpacing: 1.5, marginBottom: 4 }, subtitle: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 5, maxWidth: 640 }, layout: { gap: 18 }, layoutDesktop: { flexDirection: 'row', alignItems: 'flex-start' }, editor: { flex: 1.7, gap: 18, padding: 18, borderRadius: radius.xl, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, sectionLabel: { color: colors.rose, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 }, sectionTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 28, marginTop: 5 }, help: { color: colors.muted, lineHeight: 19, marginTop: 6 }, concept: { minHeight: 172, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.borderBright, backgroundColor: colors.background, padding: 15, color: colors.text, fontSize: 15, lineHeight: 23 }, suggestions: { gap: 8 }, suggestion: { flexDirection: 'row', gap: 9, alignItems: 'flex-start', padding: 11, borderRadius: radius.md, backgroundColor: colors.elevated }, suggestionText: { flex: 1, color: colors.muted, fontSize: 11, lineHeight: 17 }, fieldGroup: { gap: 9 }, fieldLabel: { color: colors.text, fontSize: 12, fontWeight: '900' }, choiceGrid: { gap: 8 }, worldChoice: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }, choiceSelected: { backgroundColor: colors.violet, borderColor: colors.violet }, choiceTitle: { color: colors.text, fontWeight: '800' }, choiceTitleSelected: { color: '#fff' }, choiceDetail: { color: colors.muted, fontSize: 10, marginTop: 3 }, choiceDetailSelected: { color: 'rgba(255,255,255,.72)' }, goalGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, goal: { flex: 1, minWidth: 150, minHeight: 106, padding: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }, goalSelected: { borderColor: colors.rose, backgroundColor: 'rgba(232,93,140,.08)' }, goalTitle: { color: colors.text, fontWeight: '900' }, goalDetail: { color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: 7, paddingRight: 16 }, selectedDot: { position: 'absolute', right: 9, top: 9, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.rose }, privateNote: { color: colors.muted, fontSize: 10, lineHeight: 15, textAlign: 'center' }, preview: { flex: 1, minWidth: 280, gap: 13, padding: 20 }, previewIcon: { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(232,93,140,.12)' }, previewKicker: { color: colors.violet, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 }, previewTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 25 }, previewRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 }, previewNumber: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.elevated }, previewNumberText: { color: colors.rose, fontSize: 10, fontWeight: '900' }, previewText: { flex: 1, color: colors.muted, fontSize: 11, lineHeight: 17 }, meetingAs: { marginTop: 4, paddingTop: 15, borderTopWidth: 1, borderTopColor: colors.border }, meetingAsLabel: { color: colors.muted, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 }, meetingAsName: { color: colors.text, fontFamily: 'Georgia', fontSize: 21, marginTop: 4 }, meetingAsLife: { color: colors.rose, fontSize: 10, marginTop: 2 },
+});

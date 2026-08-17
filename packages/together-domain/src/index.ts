@@ -19,3 +19,4 @@ export * from './commitments.ts';
 export * from './interactions.ts';
 export * from './place-perspective.ts';
 export * from './place-opinion-analysis.ts';
+export * from './creator.ts';
