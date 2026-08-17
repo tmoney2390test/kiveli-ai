@@ -80,8 +80,9 @@ export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeVi
   const activityLabel = currentEvent?getScheduleEventPresentation(currentEvent).activity:humanizeActivity(companion.current_activity);
   const interruptibility=currentEvent?.interruptibility??companion.current_interruptibility??'open';
 
+  const activeConversation = life.activeConversation;
   const unreadMessage = life.proactiveMessages
-    .filter((item) => item.status === 'sent' && (!item.eligible_at || new Date(item.eligible_at).getTime() <= now.getTime()))
+    .filter((item) => item.status === 'sent' && activeConversation?.unread === true && item.conversation_id === activeConversation.id && Boolean(item.sent_message_id) && (!item.eligible_at || new Date(item.eligible_at).getTime() <= now.getTime()) && (!item.expires_at || new Date(item.expires_at).getTime() > now.getTime()))
     .sort((left, right) => new Date(right.eligible_at ?? 0).getTime() - new Date(left.eligible_at ?? 0).getTime())[0];
   const relationshipCue = snapshot.relationshipCues?.[companion.id];
   const pendingMilestone = snapshot.relationshipMilestones?.find((item) => item.character_instance_id === companion.id && item.status === 'pending');

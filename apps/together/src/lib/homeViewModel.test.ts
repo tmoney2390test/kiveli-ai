@@ -25,6 +25,7 @@ const snapshot = {
     together_character_versions: { id: 'chloe-version', interests: [], personality_config: {}, portrait_asset_key: 'chloe-portrait' },
   }],
   relationships: [{ character_instance_id: 'chloe-instance' }],
+  conversations: [{ id: 'chloe-chat', character_instance_id: 'chloe-instance', kind: 'direct', title: 'Chat', last_message_at: '2026-08-16T11:20:00.000Z', last_assistant_message_at: '2026-08-16T11:20:00.000Z', last_read_at: '2026-08-16T11:00:00.000Z', archived_at: null, unread: true }],
   memories: [
     { id: 'older-important', character_instance_id: 'chloe-instance', memory_type: 'semantic', canonical_text: 'You like old movies.', importance: 0.9, confidence: 0.9, pinned: false, status: 'active', created_at: '2026-08-14T12:00:00.000Z', updated_at: '2026-08-14T12:00:00.000Z' },
     { id: 'pinned', character_instance_id: 'chloe-instance', memory_type: 'preference', canonical_text: 'Your favorite season is fall.', importance: 0.6, confidence: 0.9, pinned: true, status: 'active', created_at: '2026-08-15T12:00:00.000Z', updated_at: '2026-08-15T12:00:00.000Z' },
@@ -38,8 +39,8 @@ const snapshot = {
   relationshipMilestones: [],
   relationshipCues: {},
   proactiveMessages: [
-    { id: 'opened-newer', character_instance_id: 'chloe-instance', content: 'Already read.', status: 'opened', eligible_at: '2026-08-16T11:25:00.000Z' },
-    { id: 'sent-older', character_instance_id: 'chloe-instance', content: 'I have something to tell you.', status: 'sent', eligible_at: '2026-08-16T11:20:00.000Z' },
+    { id: 'opened-newer', character_instance_id: 'chloe-instance', content: 'Already read.', status: 'opened', eligible_at: '2026-08-16T11:25:00.000Z', conversation_id: 'chloe-chat', sent_message_id: 'opened-message' },
+    { id: 'sent-older', character_instance_id: 'chloe-instance', content: 'I have something to tell you.', status: 'sent', eligible_at: '2026-08-16T11:20:00.000Z', conversation_id: 'chloe-chat', sent_message_id: 'sent-message' },
   ],
   lifeEvents: [{ id: 'morning', character_instance_id: 'chloe-instance', title: 'Slow morning', narrative_summary: 'Chloe slept a little later than planned.', starts_at: '2026-08-16T10:45:00.000Z', user_should_know: true }],
   worlds: [{ id: 'city', slug: 'city-life', name: 'City Life', description: 'City', access_type: 'free', timezone: 'America/New_York', sort_order: 0, featured: true, published: true, visual_context: {}, metadata: {} }],
@@ -57,6 +58,7 @@ const snapshot = {
 describe('buildHomeViewModel', () => {
   it('turns canonical state into a compact living Home surface', () => {
     const model = buildHomeViewModel(snapshot, now);
+    expect(model?.relationshipDay).toBe(1);
     expect(model?.hero.statusLine).toBe('At home · Winding down');
     expect(model?.hero.stage).toBe('Just met');
     expect(model?.message?.id).toBe('sent-older');
@@ -71,6 +73,12 @@ describe('buildHomeViewModel', () => {
   it('uses a contextual companion CTA when there is no unread message', () => {
     const model = buildHomeViewModel({ ...snapshot, proactiveMessages: [] }, now);
     expect(model?.hero.action).toEqual({ kind: 'chat', label: 'Keep Chloe company' });
+  });
+
+  it('does not show a proactive message when the active chat is empty', () => {
+    const model = buildHomeViewModel({ ...snapshot, conversations: [], proactiveMessages: snapshot.proactiveMessages }, now);
+    expect(model?.message).toBeUndefined();
+    expect(model?.hero.notice).not.toBe('New message from Chloe');
   });
 
   it('does not call a cafe home just because legacy presence data points there', () => {
