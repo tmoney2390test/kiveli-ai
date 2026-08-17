@@ -54,3 +54,12 @@ export async function sendDialogue(input: {conversationId:string;characterInstan
   if (!final) throw new ApiError('The reply was interrupted. Try again.', 'STREAM_INTERRUPTED', true);
   return {message:final,...(delta?{delta}:{})};
 }
+
+export async function sendSceneReaction(input:{conversationId:string;characterInstanceId:string;sceneActionId:string;clientRequestId:string},onToken:(token:string)=>void):Promise<{message:Message}>{
+  const response=await fetch(`${supabaseUrl}/functions/v1/together-scene-reaction`,{method:'POST',headers:{Authorization:`Bearer ${await token()}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify(input)});
+  if(!response.ok){const error=await response.json().catch(()=>({}));throw new ApiError(error.error?.message??'Your companion could not react to that right now.',error.error?.code,error.error?.retryable);}
+  if(!response.body)throw new ApiError('The reaction stream ended early.','STREAM_INTERRUPTED',true);
+  const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',final:Message|null=null;
+  while(true){const{value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const events=buffer.split('\n\n');buffer=events.pop()??'';for(const event of events){const line=event.split('\n').find((item)=>item.startsWith('data: '));if(!line)continue;const data=JSON.parse(line.slice(6));if(data.type==='token')onToken(data.token);if(data.type==='done')final=data.message;if(data.type==='error')throw new ApiError(data.error?.message??'Your companion could not finish that reaction.',data.error?.code??'STREAM_INTERRUPTED',Boolean(data.error?.retryable));}}
+  if(!final)throw new ApiError('The reaction was interrupted. Try again.','STREAM_INTERRUPTED',true);return{message:final};
+}

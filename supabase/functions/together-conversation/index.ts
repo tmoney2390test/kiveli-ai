@@ -5,7 +5,7 @@ import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { track } from '../_shared/together.ts';
 import {activeContinuity,requireInstanceInActiveContinuity}from'../_shared/together-continuity.ts';
-import { getActiveConversation, mergeConversationSceneMetadata } from '../_shared/together-conversation.ts';
+import { getActiveConversation, mergeConversationSceneMetadata, type ActiveConversationScene } from '../_shared/together-conversation.ts';
 import { resolveCompanionPresence } from '../_shared/together-schedule.ts';
 import { resolvePlaceContext, resolveWorldAccess } from '../_shared/together-place.ts';
 
@@ -99,8 +99,8 @@ serve(async (request, correlationId) => {
     if(privateLocation&&earlyRelationship&&!['active_date','active_plan'].includes(presence.source))throw new AppError('SCENE_PRIVATE', 'This is not somewhere you can drop in uninvited yet. You can still message them.', 403);
     const conversation = input.conversationId ? await ownedConversation(db, user.id, continuity.id, input.conversationId) : await getActiveConversation(db, user.id, input.characterInstanceId, true);
     if (!conversation) throw new AppError('NOT_FOUND', 'That conversation is unavailable.', 404);
-    const entryReason = presence.source === 'active_date' ? 'active_date' : presence.source === 'active_plan' ? 'shared_plan' : 'user_drop_in';
-    const scene = { version: 1 as const, characterInstanceId: input.characterInstanceId, locationId: place.location.id, worldId: place.world.id, interactionMode: 'co_present' as const, entryReason, enteredAt: now.toISOString(), source: presence.source === 'active_event' || presence.source === 'active_date' ? 'active_event' as const : presence.source === 'active_plan' ? 'presence' as const : 'presence' as const, ...(presence.sourceEventId ? { sourceEventId: presence.sourceEventId } : {}), ...(presence.validUntil ? { validUntil: presence.validUntil } : {}), updatedAt: now.toISOString() };
+    const entryReason: ActiveConversationScene['entryReason'] = presence.source === 'active_date' ? 'active_date' : presence.source === 'active_plan' ? 'shared_plan' : 'user_drop_in';
+    const scene = { version: 1 as const, characterInstanceId: input.characterInstanceId, locationId: place.location.id, worldId: place.world.id, interactionMode: 'co_present' as const, entryReason, enteredAt: now.toISOString(), source: presence.source === 'active_event' || presence.source === 'active_date' ? 'active_event' as const : presence.source === 'active_plan' ? 'presence' as const : 'presence' as const, activityKey:presence.activityKey,activityLabel:presence.activity, ...(presence.sourceEventId ? { sourceEventId: presence.sourceEventId } : {}), ...(presence.validUntil ? { validUntil: presence.validUntil } : {}), updatedAt: now.toISOString() };
     const metadata = mergeConversationSceneMetadata((conversation.metadata ?? {}) as Record<string, any>, scene);
     const { data: updated, error } = await db.from('together_conversations').update({ metadata, updated_at: now.toISOString() }).eq('id', conversation.id).eq('user_id', user.id).select('*').single();
     if (error || !updated) throw new AppError('INTERNAL_ERROR', 'The scene could not be entered.', 500, true);

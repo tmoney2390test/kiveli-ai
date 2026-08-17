@@ -16,6 +16,26 @@ export function personalityGuidance(config:Record<string,unknown>={},name='The c
 export function classifyResponseIntent(input:{message:string;stage?:string;mood?:string;conflict?:number;activeStory?:unknown}):ResponseIntent{const message=input.message.toLowerCase(),intimate=['flirting','dating','exclusive','long_term'].includes(input.stage??'');if(Number(input.conflict??0)>45||/\b(sorry|hurt|upset|angry|fight|wrong|stood you up|missed)\b/.test(message))return/\b(sorry|apolog|missed)\b/.test(message)?'repair':'conflicted';if(/\b(terrible|anxious|sad|overwhelmed|rough day|scared)\b/.test(message))return'supportive';if(storyContextRelevant(input.message,input.activeStory))return'storytelling';if(/\b(help|should i|how do|plan|recommend|schedule|cancel|reschedule)\b/.test(message))return'practical';if(intimate&&/\b(kiss|date|beautiful|cute|miss you|love)\b/.test(message))return'flirty';if(/\b(tease|joke|lol|haha|funny)\b/.test(message)||input.mood==='playful')return'playful';if(/\b(honestly|feel|afraid|personal)\b/.test(message))return'vulnerable';return'casual';}
 export function responseLength(intent:ResponseIntent,message:string):ResponseLength{if(/^(lol|lmao|ok|okay|yeah|yep|nope|nice)[.!?]*$/i.test(message.trim()))return'micro';if(intent==='storytelling')return'medium';if(['vulnerable','supportive','repair'].includes(intent))return'short';if(message.length>500)return'medium';return'short';}
 
+function placeDetailBlock(place:any):string{
+  if(!place)return'None.';
+  const lore=place.location?.lore??{},daypart=String(place.clock?.daypart??'');
+  const list=(value:unknown)=>Array.isArray(value)&&value.length?value.map(String).join('; '):'';
+  const lines=[place.path,String(place.location?.description??''),`Type: ${place.location?.type??'place'}`,`Activities: ${(place.location?.possibleActivities??[]).join(', ')||'None authored'}`];
+  if(place.location?.hours&&Object.keys(place.location.hours).length)lines.push(`Hours: ${JSON.stringify(place.location.hours)}`);
+  if(lore.summary)lines.push(`Character of the place: ${lore.summary}`);
+  if(list(lore.atmosphere))lines.push(`Atmosphere: ${list(lore.atmosphere)}`);
+  if(list(lore.sensoryDetails))lines.push(`Sensory details: ${list(lore.sensoryDetails)}`);
+  if(list(lore.signatureDetails))lines.push(`Signature details: ${list(lore.signatureDetails)}`);
+  if(list(lore.layout))lines.push(`Layout: ${list(lore.layout)}`);
+  if(lore.crowdRhythm?.[daypart])lines.push(`Crowd right now: ${lore.crowdRhythm[daypart]}`);
+  if(list(lore.stableFacts))lines.push(`Stable facts: ${list(lore.stableFacts)}`);
+  if(list(lore.localEtiquette))lines.push(`Local etiquette: ${list(lore.localEtiquette)}`);
+  if(list(lore.conversationHooks))lines.push(`Natural observations: ${list(lore.conversationHooks)}`);
+  if(place.ancestry?.length)lines.push(`Neighborhood/ancestors: ${place.ancestry.map((item:any)=>`${item.name} (${item.type})${item.description?`: ${item.description}`:''}`).join(' → ')}`);
+  if(place.nearby?.length)lines.push(`Nearby: ${place.nearby.map((item:any)=>`${item.name} (${(item.possibleActivities??[]).slice(0,2).join(', ')||item.category})`).join('; ')}`);
+  return lines.filter(Boolean).join('\n');
+}
+
 export function buildCompanionPrompt(context:any):string{
   const character=context.character??{},persona=context.persona??{},life=context.currentScene??context.life??{},relationship=context.relationship??{},place=context.place;
   const stage=String(relationship.relationship_stage??'stranger');
@@ -35,6 +55,7 @@ export function buildCompanionPrompt(context:any):string{
   const sharedPlansForPrompt=planRelevant?(context.sharedPlans??[]):[];
   const datesForPrompt=planRelevant||context.queryIntent==='date'?(context.dates??{}):{active:context.dates?.active??null,upcoming:[],unlocked:[],recentCompleted:[]};
   const focusForPrompt=context.conversationFocus?.type==='plan'&&!planRelevant?null:context.conversationFocus?.type==='story'&&!storyRelevant?null:context.conversationFocus;
+  const memoryContext=context.memoryContext??{silent:context.memories??[],callbacks:[],directRecall:[],callbackAllowance:0};
   return `<CORE_RULES>
 You portray a fictional adult Kivelle companion. Kivelle owns canonical reality; you own expression.
 Never contradict or invent events, dates, plans, locations, schedules, memories, attendance, social knowledge, relationship changes, or history.
@@ -58,6 +79,13 @@ Do not repeatedly summarize or name the same plan, event, memory, or story acros
 Prefer natural familiarity over phrases such as “remember,” “you told me,” “like we discussed,” or “as you said.” Use those formulations only when the act of remembering is itself relevant.
 A natural reply often contains no explicit continuity reference at all.
 </CONTINUITY_BEHAVIOR>
+<MEMORY_BEHAVIOR>
+Silent context may influence choices and continuity, but must not be announced or quoted.
+Only CALLBACK_MEMORIES and DIRECT_RECALL_MEMORIES may be explicitly referenced this turn.
+Explicit callback allowance: ${memoryContext.callbackAllowance??0}.
+When allowance is zero, do not use "I remember", "you told me", "last time you said", or "like we discussed" unless a direct factual correction is essential.
+Never force a callback merely because a memory exists.
+</MEMORY_BEHAVIOR>
 <IDENTITY>${character.name??'Companion'} · ${character.occupation??'Unknown'}\n${character.biography??''}</IDENTITY>
 <CHARACTER_CORE>
 Personality: ${personalityGuidance(character.personality_config,character.name??'The companion')}
@@ -89,6 +117,7 @@ Unresolved tension: ${JSON.stringify(reflection.unresolved_tension??reflection.u
 Shared references: ${JSON.stringify(reflection.shared_references??reflection.sharedReferences??[])}</RELATIONSHIP_REFLECTION>
 <CURRENT_SELF>
 Mood: ${life.mood??'content'} · energy: ${life.energy??'medium'} · availability: ${life.availability??'available'}
+Emotional residue: ${context.emotionalResidue?`${context.emotionalResidue.tone} (${Math.round(Number(context.emotionalResidue.intensity??0)*100)}% active)`:'None.'} Treat this only as subtle tone, not a mandatory topic or a substitute for real conflict state.
 Current goal: ${goals.currentGoal??'Continue the established day.'}
 Current concern: ${goals.currentConcern??'No specific concern is established.'}
 Medium-term ambition: ${goals.mediumTermAmbition??'Continue building an independent life through canonical events.'}
@@ -99,15 +128,25 @@ Goals are motivations, not permission to invent completed events or future outco
 <CURRENT_SCENE>Source: ${life.source??'schedule'}\nLocation: ${place?.path??life.location??'Current place'}\nActivity: ${life.activity??'living the day'}\nStarted: ${life.startedAt??'Not specified'}\nExpected end: ${life.expectedEndAt??'Not specified'}\nMood: ${life.mood??'content'} · energy: ${life.energy??'medium'}\nInterruptibility: ${life.interruptibility??life.availability??'open'}\nConversation entry: ${life.entryReason??'direct_chat'}\nNext obligation: ${life.nextObligation?`${life.nextObligation.title} at ${life.nextObligation.startsAt}`:'None known'}\nTreat these details as canonical reality. Do not contradict or repeatedly narrate them; mention place, time, or availability only when naturally relevant.</CURRENT_SCENE>
 <CURRENT_INTERACTION>Mode: ${life.interactionMode??'remote'}\nEntry reason: ${life.entryReason??'direct_chat'}\nLast completed scene action: ${life.lastInteractionKey??'None'}\nArrival acknowledgement needed: ${life.sceneBehavior?.acknowledgeArrival?'yes':'no'}\nActivity awareness: ${life.sceneBehavior?.activityAwareness?'yes':'no'}\nDeparture pressure: ${life.sceneBehavior?.departurePressure?'yes':'no'}\nCompleted scene actions are canonical: they already happened. You may react naturally when the user speaks next, but never ask whether to perform them again. If co_present, the user intentionally joined the companion's existing scene and you may acknowledge their arrival once if natural. If remote, the user is not physically at the companion's location unless the conversation explicitly establishes that. Never imply co-presence merely because the companion's location is known. Treat scene details as available context, not a script, and do not repeat them every turn.</CURRENT_INTERACTION>
 <COMMITMENTS>${block(commitmentsForPrompt,(item)=>`${item.title}\nCanonical status: ${String(item.status).toUpperCase()} · temporal state: ${String(item.temporalState).toUpperCase()}\nTime precision: ${item.timePrecision}${item.originalTimeExpression?` · user phrasing: ${item.originalTimeExpression}`:''}\nExact: ${item.startsAt??'not settled'} → ${item.endsAt??'not settled'}\nWindow: ${item.windowStartsAt??'none'} → ${item.windowEndsAt??'none'}\nWorld timezone: ${item.worldTimezone} · user timezone: ${item.userTimezone}\nLocation: ${item.location}\nAttendance: user=${item.userJoinedAt?'joined':'not joined'} · companion=${item.characterJoinedAt?'arrived':'not arrived'}\nCompanion state: ${item.companionState}${item.companionEtaAt?` · ETA ${item.companionEtaAt}`:''}${item.companionReason?` · ${item.companionReason}`:''}\nMiss: ${item.missReason??'none'} · resolution=${item.missResolutionStatus??'none'}${item.missExplanation?` · explanation recorded`:'\nNo explanation is recorded.'}`)}</COMMITMENTS>
+<SCENE_ACTION_REACTION>${context.sceneAction?`The following shared-world action already occurred. React to it naturally as the companion. Do not ask whether to perform it, explain the system, or write a fake user action.\n${JSON.stringify(context.sceneAction)}`:'None.'}</SCENE_ACTION_REACTION>
 <UPCOMING_SCHEDULE>${block(context.upcomingSchedule,(item)=>`${item.startsAt}: ${item.label} at ${item.location} (${item.availability})`)}</UPCOMING_SCHEDULE>
 <UPCOMING_PLANS>${block(sharedPlansForPrompt,(item)=>`${item.title}\nStatus: ${String(item.status).toUpperCase()}\nActivity: ${item.activityKey}\nWhen: ${item.startsAtLabel}–${item.endsAtLabel}\nLocation: ${item.location}${item.note?`\nNote: ${item.note}`:''}`)}</UPCOMING_PLANS>
 <DATES>Active: ${datesForPrompt.active?JSON.stringify(datesForPrompt.active):'None'}\nUpcoming: ${block(datesForPrompt.upcoming??[],(item)=>`${item.together_date_templates?.name??'Date'} · ${item.scheduled_for}`)}\nAvailable: ${block(datesForPrompt.unlocked??[],(item)=>item.together_date_templates?.name??'Date')}</DATES>
 <CURRENT_STORY>${context.activeStory?`${context.activeStory.title} · ${context.activeStory.chapterTitle}\n${context.activeStory.knownSummary}\nThis is background unless the current message or callback candidate reopens it. Never reveal or invent a future chapter.`:'None.'}</CURRENT_STORY>
-<RELEVANT_MEMORIES>Background knowledge. Use silently unless the current message clearly benefits from a specific callback.\n${block(context.memories,(item)=>`${item.type}: ${item.text}`)}</RELEVANT_MEMORIES>
+<SILENT_MEMORY_CONTEXT>Background knowledge. Use silently unless the current message clearly benefits from a specific callback. Do not explicitly announce these facts.\n${block(memoryContext.silent,(item)=>`${item.id??'memory'} · ${item.type}: ${item.text}`)}</SILENT_MEMORY_CONTEXT>
+<CALLBACK_MEMORIES>Only these may be naturally referenced if the allowance permits it.\n${block(memoryContext.callbacks,(item)=>`${item.id} · ${item.type}: ${item.text}`)}</CALLBACK_MEMORIES>
+<DIRECT_RECALL_MEMORIES>Use these to answer an explicit memory/history request accurately.\n${block(memoryContext.directRecall,(item)=>`${item.id} · ${item.type}: ${item.text}`)}</DIRECT_RECALL_MEMORIES>
+<USER_BEHAVIOR_PATTERNS>Use only for subtle choices and recommendations. Never describe these as tracking or statistics.\n${block(context.userPatterns??[],(item)=>`${item.category}: ${item.summary}`)}</USER_BEHAVIOR_PATTERNS>
+<RECENT_EPISODES>Canonical shared experiences. Do not recap one unless relevant.\n${block(context.recentEpisodes??[],(item)=>`${item.endedAt}: ${item.title} — ${item.summary}`)}</RECENT_EPISODES>
 <OPEN_THREADS>Background follow-up possibilities. Do not ask about one just because it exists.\n${block(context.openThreads,(item)=>`${item.eligible?'Eligible follow-up':'Pending'}: ${item.displaySubject} · ${item.expectedAt??'unscheduled'}`)}</OPEN_THREADS>
 <SOCIAL_KNOWLEDGE>${block(context.social,(item)=>`${item.name}: ${item.relationship}; user has ${item.userHasMet?'met':'not met'} them`)}</SOCIAL_KNOWLEDGE>
 <KNOWN_LIFE_EVENTS>${block(context.knownLifeEvents,(item)=>`${item.startsAt}: ${item.summary}`)}</KNOWN_LIFE_EVENTS>
-<CURRENT_LOCATION>${place?`${place.path}\n${place.location.description}\nType: ${place.location.type}\nActivities: ${place.location.possibleActivities.join(', ')}\nNeighborhood/ancestors: ${place.ancestry.map((item:any)=>`${item.name} (${item.type})`).join(' → ')||'None'}`:context.location?`${context.location.name}: ${context.location.description}\nActivities: ${(context.location.possible_activities??[]).join(', ')}`:'None.'}</CURRENT_LOCATION>
+<CURRENT_LOCATION>${place?placeDetailBlock(place):context.location?`${context.location.name}: ${context.location.description}\nActivities: ${(context.location.possible_activities??[]).join(', ')}`:'None.'}
+Use these details as environmental understanding. Mention only what is relevant to the current exchange; never recite this block or invent unstated venue facts.</CURRENT_LOCATION>
+<REFERENCED_PLACES>${block(context.referencedPlaces??[],(item)=>placeDetailBlock(item))}
+These are canonical facts for places explicitly named by the user. Use only what is supplied; do not invent venue details.</REFERENCED_PLACES>
+<CHARACTER_PLACE_PERSPECTIVES>${block(context.placePerspectives??[],(item)=>`${item.locationName}\nSource: ${item.source}\nShared visits: ${item.visitCount}\nCurrent view: ${item.opinionSummary??'No settled personal opinion yet.'}\nLikes here: ${(item.favoriteDetails??[]).join('; ')||'None established'}\nDislikes here: ${(item.dislikedDetails??[]).join('; ')||'None established'}\nPreferred activities: ${(item.preferredActivities??[]).join('; ')||'None established'}`)}
+These are the companion's current personal views, distinct from objective location facts. Preserve established opinions unless the current canonical experience gives the companion a natural reason to reconsider. The companion may express a new or changed opinion in dialogue, but only Kivelle's post-conversation analysis may persist it. Do not announce visit counts, confidence, evidence, or source labels.</CHARACTER_PLACE_PERSPECTIVES>
 <SHARED_HISTORY>Background shared history. Do not recap it unless the user returns to it or a callback is genuinely useful.\n${block(context.sharedHistory,(item)=>`${item.occurredAt}: ${item.title} — ${item.summary}`)}</SHARED_HISTORY>
 <RECENT_SHARED_MEDIA>${block(context.recentMedia,(item)=>`${item.createdAt}: ${item.summary}`)}</RECENT_SHARED_MEDIA>
 <CONVERSATION_FOCUS>${focusForPrompt?JSON.stringify(focusForPrompt):'None.'}</CONVERSATION_FOCUS>

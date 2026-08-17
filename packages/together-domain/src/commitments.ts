@@ -3,6 +3,8 @@ export type CommitmentTemporalState='future'|'today'|'imminent'|'en_route'|'acti
 export type CommitmentTimePrecision='exact'|'approximate'|'daypart'|'window'|'day';
 export type CommitmentParticipationMode='live'|'flexible'|'ambient';
 export type CommitmentMissReason='user_absent'|'character_absent'|'system_failure'|'connection_failure'|'cancelled';
+export type CommitmentCompletionReason='elapsed'|'user_ended'|'date_completed'|'trip_completed'|'system_reconciled';
+export type ManualCommitmentEndBlocker='already_ended'|'date_owned'|'not_active'|'not_started'|'already_elapsed'|'user_not_present'|'companion_not_present'|'scene_not_active';
 
 export type CommitmentTimingInput={
   status:string;
@@ -18,6 +20,34 @@ export type CommitmentTimingInput={
 };
 
 export type MissedCommitmentImpact={trust:number;respect:number;conflict:number;affinity:number};
+
+export function manualCommitmentEndEligibility(input:{
+  status:string;
+  source?:string|null;
+  startsAt?:string|null;
+  endsAt?:string|null;
+  userPresent:boolean;
+  companionPresent:boolean;
+  activeScene:boolean;
+},now=new Date()):{allowed:boolean;blocker:ManualCommitmentEndBlocker|null}{
+  if(['completed','missed','cancelled'].includes(input.status))return{allowed:false,blocker:'already_ended'};
+  if(input.source==='date')return{allowed:false,blocker:'date_owned'};
+  if(!['scheduled','active'].includes(input.status))return{allowed:false,blocker:'not_active'};
+  const start=parseDate(input.startsAt),end=parseDate(input.endsAt);
+  if(!start||now.getTime()<start.getTime())return{allowed:false,blocker:'not_started'};
+  if(end&&now.getTime()>=end.getTime())return{allowed:false,blocker:'already_elapsed'};
+  if(!input.userPresent)return{allowed:false,blocker:'user_not_present'};
+  if(!input.companionPresent)return{allowed:false,blocker:'companion_not_present'};
+  if(!input.activeScene)return{allowed:false,blocker:'scene_not_active'};
+  return{allowed:true,blocker:null};
+}
+
+export function resolveElapsedCommitmentEnd(input:{status:string;source?:string|null;endsAt?:string|null},now=new Date()):{shouldFinalize:boolean;completedAt:string|null;reason:'elapsed'|null}{
+  if(input.source==='date'||!['scheduled','active'].includes(input.status))return{shouldFinalize:false,completedAt:null,reason:null};
+  const end=parseDate(input.endsAt);
+  if(!end||now.getTime()<end.getTime())return{shouldFinalize:false,completedAt:null,reason:null};
+  return{shouldFinalize:true,completedAt:end.toISOString(),reason:'elapsed'};
+}
 
 export function deriveCommitmentTemporalState(input:CommitmentTimingInput,now=new Date()):CommitmentTemporalState{
   if(['completed','missed','cancelled'].includes(String(input.status)))return'expired';

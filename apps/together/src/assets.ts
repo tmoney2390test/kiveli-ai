@@ -1,5 +1,6 @@
 import type { ImageSource } from 'expo-image';
 import { worldHeroAssets } from './world-assets';
+import { mappedLocationAsset } from './location-assets';
 
 export const characterAssets:Record<string,number>={
   maya:require('../assets/maya-portrait.png'),
@@ -13,4 +14,4 @@ export function worldHeroAsset(slug?:string|null):ImageSource{if(!slug||slug==='
 
 // Location art deliberately resolves through one seam so authored location imagery can
 // replace the world fallback without changing Explore, World, Date, or Plan screens.
-export function locationHeroAsset(worldSlug?:string|null,locationSlug?:string|null):ImageSource{void locationSlug;return worldHeroAsset(worldSlug);}
+export function locationHeroAsset(worldSlug?:string|null,locationSlug?:string|null):ImageSource{return mappedLocationAsset(worldSlug,locationSlug)??worldHeroAsset(worldSlug);}

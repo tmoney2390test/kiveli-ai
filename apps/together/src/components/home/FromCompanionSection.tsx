@@ -3,6 +3,7 @@ import { Image, type ImageSource } from 'expo-image';
 import { ArrowRight, Camera, LockKeyhole, Play } from 'lucide-react-native';
 import { colors, radius, typography } from '../../theme';
 import type { CompanionMediaItem } from '../../lib/homePresentation';
+import { DetailPreservingArtwork } from '../DetailPreservingArtwork';
 
 export function FromCompanionSection({ name, items, fallbackSource, onViewAll, onOpen, onAsk }: { name: string; items: CompanionMediaItem[]; fallbackSource?: ImageSource | number; onViewAll: () => void; onOpen: (item: CompanionMediaItem) => void; onAsk: () => void }) {
   return <View style={styles.section}>
@@ -14,7 +15,7 @@ export function FromCompanionSection({ name, items, fallbackSource, onViewAll, o
 function MediaCard({ item, onPress }: { item: CompanionMediaItem; onPress: () => void }) {
   const date = new Date(item.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
   return <Pressable accessibilityRole="button" accessibilityLabel={`${item.locked ? 'Locked media' : item.title}, ${item.subtitle}`} onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
-    <Image source={{ uri: item.thumbnailUrl ?? item.url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={220} cachePolicy="memory-disk" blurRadius={item.locked ? 15 : 0} />
+    <DetailPreservingArtwork source={{ uri: item.thumbnailUrl ?? item.url }} accessibilityLabel={item.title} blurRadius={item.locked ? 15 : 0} dim={.08} />
     <View style={styles.cardShade} />
     {item.locked ? <View style={styles.lock}><LockKeyhole size={13} color="#FFF4F7" /><Text style={styles.lockText}>PRIVATE</Text></View> : item.type === 'video' ? <View style={styles.play}><Play size={15} color="#fff" fill="#fff" /></View> : null}
     <View style={styles.cardCopy}><Text style={styles.kicker}>{item.context ?? 'FROM HER'} · {date.toUpperCase()}</Text><Text numberOfLines={2} style={styles.title}>{item.title}</Text><Text numberOfLines={1} style={styles.subtitle}>{item.locked ? 'Something for you' : item.subtitle}</Text></View>

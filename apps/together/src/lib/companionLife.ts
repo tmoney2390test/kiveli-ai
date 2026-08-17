@@ -24,6 +24,10 @@ export function activeCompanion(snapshot: Snapshot, companionId?: string): Chara
   return selectActiveCompanion(snapshot, companionId);
 }
 
+export function relationshipDaysKnown(relationship: Snapshot['relationships'][number] | undefined): number {
+  return Math.max(1, Number(relationship?.days_known ?? 1));
+}
+
 export function buildCompanionLife(snapshot: Snapshot, now = new Date(), companionId?: string): CompanionLifeSnapshot | undefined {
   const companion = activeCompanion(snapshot, companionId);
   if (!companion) return undefined;
@@ -36,7 +40,7 @@ export function buildCompanionLife(snapshot: Snapshot, now = new Date(), compani
   return {
     companion,
     relationship: scoped.relationship,
-    relationshipDay: Math.max(1, Math.floor((now.getTime() - new Date(companion.met_at || companion.contact_added_at || now.toISOString()).getTime()) / 86400000) + 1),
+    relationshipDay: relationshipDaysKnown(scoped.relationship),
     location,
     recentEvents: scoped.events.filter((event) => event.user_should_know !== false&&new Date(event.starts_at).getTime()<=now.getTime()).sort((left,right)=>new Date(right.starts_at).getTime()-new Date(left.starts_at).getTime()).slice(0, 8),
     upcomingSchedule,

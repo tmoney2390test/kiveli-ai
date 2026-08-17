@@ -21,7 +21,16 @@ export interface RelationshipProgressionEvaluation{stage:RelationshipStage;healt
 export const memoryTypes=['semantic','preference','episodic','relationship','emotional','open_thread'] as const;
 export type MemoryType=typeof memoryTypes[number];
 export interface MemoryCandidate{type:MemoryType;canonicalText:string;importance:number;confidence:number;sensitivity:'none'|'personal'|'sensitive';dedupeKey:string;subjectKey:string;metadata?:Record<string,unknown>}
-export interface MemoryRecord extends MemoryCandidate{id:string;pinned:boolean;status:'active'|'forgotten'|'superseded';createdAt:string;updatedAt:string;lastRecalledAt?:string}
+export interface MemoryRecord extends MemoryCandidate{id:string;pinned:boolean;status:'active'|'forgotten'|'superseded';createdAt:string;updatedAt:string;lastRecalledAt?:string;lastRetrievedAt?:string;lastMentionedAt?:string;retrievalCount?:number;mentionCount?:number;reinforcementCount?:number;worldId?:string;locationId?:string;participantInstanceIds?:string[];contextTags?:string[];sourceType?:MemorySourceType;sourceId?:string;episodeId?:string;validFrom?:string;validTo?:string;supersedesMemoryId?:string}
+export type MemoryRecallMode='silent_context'|'natural_callback'|'direct_recall';
+export type MemorySourceType='message'|'scene'|'plan'|'date'|'moment'|'life_event'|'manual';
+export interface MemoryActivationContext{now:Date;query:string;intent:string;worldId?:string;locationId?:string;activityKey?:string;interactionKey?:string;participantInstanceIds?:string[];relationshipStage?:string;currentMood?:string;recentAssistantMemoryIds?:string[]}
+export interface ActivatedMemory{id:string;canonicalText:string;memoryType:string;semanticSimilarity:number;lexicalRelevance:number;sceneRelevance:number;relationshipRelevance:number;importance:number;emotionalSalience:number;recentRetrievalPenalty:number;recentMentionPenalty:number;activationScore:number;recallMode:MemoryRecallMode;reasonCodes:string[]}
+export interface MemoryRecallPlan{silentContext:ActivatedMemory[];callbackCandidates:ActivatedMemory[];directRecall:ActivatedMemory[];explicitCallbackAllowance:number}
+export interface CharacterMemoryProfile{salientDomains:string[];locationCueStrength:number;activityCueStrength:number;socialCueStrength:number;nostalgia:number;detailOrientation:number;callbackFrequency:number;behavioralLearningRate:number}
+export interface EpisodeSignificanceInput{durationMinutes:number;meaningfulActionCount:number;actionFamilyCount:number;relationshipSignificance?:number;firstTimeActivity?:boolean;firstTimeLocation?:boolean;milestoneAction?:boolean;explicitPhoto?:boolean;emotionalShift?:number;routinePenalty?:number}
+export interface UserBehaviorObservation{sourceId:string;sceneId?:string;occurredAt:string;value?:string;weight?:number}
+export interface UserBehaviorPatternEvaluation{eligible:boolean;confidence:number;supportCount:number;distinctScenes:number;distinctDays:number;reasonCodes:string[]}
 
 export interface OpenThread{topic:string;dedupeKey:string;expectedAt?:string;importance:number;createdAt:string;resolvedAt?:string;followUpEligible:boolean}
 export interface ScheduleEntry{dayOfWeek:number;startMinute:number;endMinute:number;location:string;activity:string;availability:'available'|'limited'|'busy';energyDelta:number;moodInfluence?:string}

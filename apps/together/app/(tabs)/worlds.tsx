@@ -1,9 +1,9 @@
-import{useEffect,useState}from'react';
+import{useEffect}from'react';
 import{Pressable,ScrollView,StyleSheet,Text,View}from'react-native';
 import{router,useLocalSearchParams}from'expo-router';
 import{Image}from'expo-image';
 import{ChevronRight,Compass,MapPin,Sparkles}from'lucide-react-native';
-import{worldHeroAsset}from'../../src/assets';
+import{locationHeroAsset,worldHeroAsset}from'../../src/assets';
 import{CharacterCard,EmptyState,GlassCard,LoadingSkeleton,Screen,SectionHeader,WorldHero}from'../../src/components';
 import{colors,radius}from'../../src/theme';
 import{useTogether}from'../../src/store/useTogether';
@@ -15,13 +15,13 @@ const presenceStyles=StyleSheet.create({rightNow:{flexDirection:'row',alignItems
 
 export default function WorldsTab(){
   const params=useLocalSearchParams<{world?:string}>();
-  const{snapshot,loading}=useTogether();
-  const[browsedWorldId,setBrowsedWorldId]=useState<string|null>(null);
+  const{snapshot,loading,browsedWorldId,setBrowsedWorldId}=useTogether();
   const worlds=snapshot?.worlds.filter((item)=>item.published).sort((a,b)=>a.sort_order-b.sort_order)??[];
   const life=snapshot?buildCompanionLife(snapshot):undefined;
   const companion=life?.companion;
   const companionWorld=snapshot&&life?.location?worldForLocation(snapshot,life.location.id):snapshot&&companion?worldForLocation(snapshot,companion.current_location_id):undefined;
   useEffect(()=>{if(!snapshot)return;const requested=worlds.find((item)=>item.slug===params.world);if(requested)setBrowsedWorldId(requested.id);},[params.world,snapshot,worlds]);
+  useEffect(()=>{if(!browsedWorldId&&companionWorld)setBrowsedWorldId(companionWorld.id);},[browsedWorldId,companionWorld?.id,setBrowsedWorldId]);
   if(loading&&!snapshot)return <LoadingSkeleton/>;
   if(!snapshot)return <LoadingSkeleton/>;
   if(!worlds.length)return <EmptyState title="Worlds are being prepared" body="Kivelle couldn't find a published world yet."/>;
@@ -58,7 +58,7 @@ export default function WorldsTab(){
     {currentlyHere&&companion?<><SectionHeader title={`${companion.together_character_templates.name}'s day`}/><GlassCard style={styles.timeline}><Text style={styles.location}>{snapshot.currentPlaceContext?.path??life?.location?.name??selectedWorld.name}</Text><Text style={styles.activity}>{companion.current_activity} · {companion.current_mood}</Text>{day.length?<View style={styles.schedule}>{day.map((item)=><View key={item.id} style={styles.scheduleRow}><Text style={styles.time}>{formatScheduleTime(item.startsAt,selectedWorld.timezone)}</Text><View style={{flex:1}}><Text style={styles.scheduleTitle}>{item.activity}</Text><Text style={styles.scheduleMeta}>{item.locationName}</Text></View></View>)}</View>:<Text style={styles.empty}>Nothing else is known yet. The day can still change.</Text>}</GlassCard></>:null}
 
     <SectionHeader title="Places" action={`${selectedLocations.length} mapped`} onAction={()=>router.push(`/world/places?world=${selectedWorld.slug}` as never)}/>
-    <View style={styles.places}>{topLocations.map((location)=><Pressable key={location.id} onPress={()=>router.push(`/location/${location.slug}?world=${selectedWorld.slug}` as never)} style={styles.placeCard}><Image source={worldHeroAsset(selectedWorld.slug)} style={styles.placeImage} contentFit="cover"/><View style={styles.placeShade}/><View style={styles.placeCopy}><Text style={styles.placeType}>{location.location_type.toUpperCase()}</Text><Text style={styles.placeName}>{location.name}</Text><Text style={styles.placeMeta} numberOfLines={1}>{location.possible_activities.slice(0,2).join(' · ')}</Text></View></Pressable>)}</View>
+    <View style={styles.places}>{topLocations.map((location)=><Pressable key={location.id} onPress={()=>router.push(`/location/${location.slug}?world=${selectedWorld.slug}` as never)} style={styles.placeCard}><Image source={locationHeroAsset(selectedWorld.slug,location.slug)} style={styles.placeImage} contentFit="cover"/><View style={styles.placeShade}/><View style={styles.placeCopy}><Text style={styles.placeType}>{location.location_type.toUpperCase()}</Text><Text style={styles.placeName}>{location.name}</Text><Text style={styles.placeMeta} numberOfLines={1}>{location.possible_activities.slice(0,2).join(' · ')}</Text></View></Pressable>)}</View>
     {selectedLocations.length>topLocations.length?<Pressable onPress={()=>router.push(`/world/places?world=${selectedWorld.slug}` as never)} style={styles.allPlaces}><MapPin size={16} color={colors.rose}/><Text style={styles.allPlacesText}>Explore all {selectedLocations.length} places</Text><ChevronRight size={16} color={colors.muted}/></Pressable>:null}
 
     {selectedCharacters.length?<><SectionHeader title={currentlyHere?'People connected to this world':'Who can visit with you'}/><GlassCard>{selectedCharacters.slice(0,6).map((character)=><CharacterCard key={character.id} character={character} location={worldForLocation(snapshot,character.current_location_id)?.name??selectedWorld.name} onPress={()=>router.push(`/character/${character.together_character_templates.public_handle??character.together_character_templates.slug}` as never)}/>)}</GlassCard></>:null}

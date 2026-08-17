@@ -16,6 +16,10 @@ import { waitUntil } from '../_shared/background.ts';
 import { writeConversationEvent } from '../_shared/together-plans.ts';
 import { activeContinuity } from '../_shared/together-continuity.ts';
 import { extendScheduleForConversation } from '../_shared/together-schedule.ts';
+import { markMentionedMemories } from '../_shared/kivelle-memory.ts';
+import { deriveEmotionalResidue, upsertEmotionalResidue } from '../_shared/kivelle-emotional-residue.ts';
+import { recordChatPlaceOpinions } from '../_shared/kivelle-place-perspective.ts';
+import type { PlaceContext } from '../_shared/together-place.ts';
 
 const schema = z.object({ conversationId: z.string().uuid(), message: z.string().trim().min(1).max(4000), clientRequestId: z.string().min(8).max(100), characterInstanceId: z.string().uuid(), focusPlanId:z.string().uuid().optional(), entryContext:z.object({entryReason:z.literal('user_drop_in'),locationId:z.string().uuid(),scheduleEventId:z.string().uuid().optional()}).optional() });
 const dialogue = new ConfiguredDialogueProvider();
@@ -83,7 +87,8 @@ Deno.serve(async (request) => {
     const extended=await extendScheduleForConversation({db,userId:user.id,characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,scheduleEventId:typeof activeScene.scheduleEventId==='string'?activeScene.scheduleEventId:undefined,now}).catch(()=>null);
     if(extended)await track(db,user.id,'scene_extended_past_schedule_boundary',{characterInstanceId:input.characterInstanceId,scheduleEventId:activeScene.scheduleEventId});
     const queryEmbedding = await embeddings.embed(input.message);
-    const semanticResult = queryEmbedding ? await db.rpc('together_match_memories_server', { p_user_id:user.id, p_character_instance_id:input.characterInstanceId, p_embedding:queryEmbedding, p_limit:8 }) : { data:[], error:null };
+    const recallThreshold=/\b(remember|forgot|what was|what did we|who is|when did|where did)\b/i.test(input.message)?.48:/\b(last time|before|our first|used to|history)\b/i.test(input.message)?.54:/\b(scene|here|this place|tonight)\b/i.test(input.message)?.58:.60;
+    const semanticResult = queryEmbedding ? await db.rpc('together_match_memories_server', { p_user_id:user.id, p_character_instance_id:input.characterInstanceId, p_embedding:queryEmbedding, p_limit:12, p_min_similarity:recallThreshold }) : { data:[], error:null };
     const refreshedScene=await resolveActiveConversationScene({db,userId:user.id,conversation,characterInstanceId:input.characterInstanceId,now});
     if(refreshedScene.expired){conversation.metadata=mergeConversationSceneMetadata((conversation.metadata??{}) as Record<string,any>,null);await db.from('together_conversations').update({metadata:conversation.metadata,updated_at:now.toISOString()}).eq('id',conversation.id).eq('user_id',user.id);await track(db,user.id,'scene_expired',{characterInstanceId:input.characterInstanceId});}else if(refreshedScene.scene)conversation.metadata=mergeConversationSceneMetadata((conversation.metadata??{}) as Record<string,any>,refreshedScene.scene);
     const dialogueContext = await buildKivelleConversationContext({ db, userId:user.id, instance, conversation, userMessage:input.message, lifeRun, semanticRows:semanticResult.data??[], now });
@@ -198,13 +203,29 @@ async function safelyQueueConversationPhoto(db:any,userId:string,input:z.infer<t
 }
 
 async function applyConversationEffects(db: any, userId: string, instanceId: string, conversationId: string, sourceMessageId: string, assistantMessageId:string, userText: string, assistantText: string, current: Record<string, unknown>, stage: string, context:Parameters<ConfiguredDialogueProvider['generate']>[0]): Promise<void> {
-  const [{ data: profile }, { data: existingThreads }, { data: conversationRow }, recentTurns] = await Promise.all([
+  const [{ data: profile }, { data: existingThreads }, { data: conversationRow }, recentTurns,{data:instanceRow}] = await Promise.all([
     db.from('together_profiles').select('memory_categories,content_preferences').eq('user_id', userId).maybeSingle(),
     db.from('together_open_threads').select('*').eq('user_id', userId).eq('character_instance_id', instanceId).is('resolved_at', null).limit(20),
     db.from('together_conversations').select('metadata').eq('user_id',userId).eq('id',conversationId).maybeSingle(),
     db.from('together_messages').select('content').eq('user_id',userId).eq('conversation_id',conversationId).eq('role','user').gte('created_at',new Date(Date.now()-30*60000).toISOString()).order('created_at',{ascending:false}).limit(12),
+    db.from('together_character_instances').select('character_version_id,continuity_id').eq('id',instanceId).eq('user_id',userId).maybeSingle(),
   ]);
   const proposal = await analysis.analyze({ userMessage: userText, assistantMessage: assistantText, existingThreads: existingThreads ?? [], context });
+  const analysisNow=new Date();
+  const residue=deriveEmotionalResidue(userText,assistantText);
+  const continuityId=context.relationship?.continuity_id??current.continuity_id;
+  if(residue&&continuityId){
+    await upsertEmotionalResidue({db,userId,continuityId:String(continuityId),characterInstanceId:instanceId,sourceId:assistantMessageId,residue,now:analysisNow});
+    await track(db,userId,'emotional_residue_created',{characterInstanceId:instanceId,tone:residue.tone});
+  }
+  if(proposal.mentionedMemoryIds.length||proposal.reinforcedMemoryIds.length){
+    await markMentionedMemories({db,userId,memoryIds:proposal.mentionedMemoryIds,reinforcedIds:proposal.reinforcedMemoryIds,now:analysisNow});
+    if(proposal.mentionedMemoryIds.length)await track(db,userId,'memory_explicitly_mentioned',{characterInstanceId:instanceId,count:proposal.mentionedMemoryIds.length});
+  } else if((context.memoryContext?.retrievedIds??[]).length) await track(db,userId,'memory_callback_suppressed',{characterInstanceId:instanceId,count:context.memoryContext.retrievedIds.length});
+  const opinionPlaces=[context.place,...(context.referencedPlaces??[])].filter((item):item is PlaceContext=>Boolean(item));
+  if(proposal.placeOpinionCandidates.length&&instanceRow?.character_version_id&&instanceRow?.continuity_id&&opinionPlaces.length){
+    await recordChatPlaceOpinions({db,userId,continuityId:String(instanceRow.continuity_id),characterInstanceId:instanceId,characterVersionId:String(instanceRow.character_version_id),conversationId,assistantMessageId,candidates:proposal.placeOpinionCandidates,places:opinionPlaces,now:analysisNow});
+  }
   const enabled = (profile?.memory_categories ?? {}) as Record<string, boolean>;
   const interactionQuality=classifyInteractionQuality(userText,{hasMemory:proposal.memoryCandidates.length>0,hasOpenThread:proposal.newThreads.length>0,repair:Number(proposal.relationshipChanges.conflict??0)<0});
   const romanceEnabled=(profile?.content_preferences as Record<string,unknown>|undefined)?.romanceEnabled!==false;
@@ -228,11 +249,16 @@ async function applyConversationEffects(db: any, userId: string, instanceId: str
     if (existing) {
       const sameFact = existing.dedupe_key === candidate.dedupe_key;
       const now = new Date().toISOString();
-      await db.from('together_memories').update({ canonical_text: candidate.canonical_text, dedupe_key: candidate.dedupe_key, subject_key: candidate.subject_key, importance: Math.max(Number(existing.importance), candidate.importance), confidence: sameFact ? Math.min(1, Math.max(Number(existing.confidence), candidate.confidence) + .02) : candidate.confidence, embedding: embedding ?? existing.embedding, source_message_id: sourceMessageId, status: 'active', metadata: { ...(existing.metadata ?? {}), ...candidate.metadata, ...(!sameFact ? { previous_text: existing.canonical_text, corrected_at: now } : {}) }, updated_at: now }).eq('id', existing.id);
-      const supersededIds = (sameSubject ?? []).filter((item: Record<string, unknown>) => item.id !== existing.id).map((item: Record<string, unknown>) => item.id);
-      if (supersededIds.length) await db.from('together_memories').update({ status: 'superseded', updated_at: now }).in('id', supersededIds);
+      if(sameFact){
+        await db.from('together_memories').update({ importance: Math.max(Number(existing.importance), candidate.importance), confidence: Math.min(1, Math.max(Number(existing.confidence), candidate.confidence) + .02), embedding: embedding ?? existing.embedding, source_message_id: sourceMessageId, source_type:'message',source_id:sourceMessageId,learned_via:'direct_user',reinforcement_count:Number(existing.reinforcement_count??0)+1,updated_at: now }).eq('id', existing.id);
+      }else{
+        await db.from('together_memories').update({status:'superseded',valid_to:now,updated_at:now}).eq('id',existing.id).eq('status','active');
+        await db.from('together_memories').update({status:'superseded',valid_to:now,updated_at:now}).eq('user_id',userId).eq('character_instance_id',instanceId).eq('subject_key',candidate.subject_key).eq('status','active').neq('id',existing.id);
+        const {data:created}=await db.from('together_memories').insert({user_id:userId,character_instance_id:instanceId,...candidate,source_message_id:sourceMessageId,source_type:'message',source_id:sourceMessageId,learned_via:'direct_user',shareability:'private',valid_from:now,supersedes_memory_id:existing.id,embedding,status:'active'}).select('id').maybeSingle();
+        if(created)await track(db,userId,'memory_corrected',{memoryId:created.id,characterInstanceId:instanceId});
+      }
     } else {
-      const { data, error } = await db.from('together_memories').insert({ user_id: userId, character_instance_id: instanceId, ...candidate, source_message_id: sourceMessageId, embedding, status: 'active' }).select('id').single();
+      const { data, error } = await db.from('together_memories').insert({ user_id: userId, character_instance_id: instanceId, ...candidate, source_message_id: sourceMessageId, source_type:'message',source_id:sourceMessageId,learned_via:'direct_user',shareability:'private',valid_from:new Date().toISOString(),embedding, status: 'active' }).select('id').single();
       if (!error && data) await track(db, userId, 'memory_created', { memoryId: data.id, type: candidate.memory_type });
     }
   }
@@ -267,7 +293,7 @@ async function applyConversationEffects(db: any, userId: string, instanceId: str
 }
 
 async function collectDialogueDelta(db:any,userId:string,characterInstanceId:string,conversationId:string){
-  const [character,relationship,conversation,memories,openThreads,milestones,actions,events,plans,dates,lifeEvents,stories]=await Promise.all([
+  const [character,relationship,conversation,memories,openThreads,milestones,actions,events,plans,dates,lifeEvents,stories,relationshipPlaces]=await Promise.all([
     db.from('together_character_instances').select('*,together_character_templates(*),together_character_versions(*)').eq('id',characterInstanceId).eq('user_id',userId).maybeSingle(),
     db.from('together_relationship_states').select('*').eq('character_instance_id',characterInstanceId).eq('user_id',userId).maybeSingle(),
     db.from('together_conversations').select('*').eq('id',conversationId).eq('user_id',userId).maybeSingle(),
@@ -280,8 +306,9 @@ async function collectDialogueDelta(db:any,userId:string,characterInstanceId:str
     db.from('together_date_sessions').select('*,together_date_templates(*)').eq('character_instance_id',characterInstanceId).eq('user_id',userId).in('status',['unlocked','upcoming','active','deferred']),
     db.from('together_life_events').select('*').eq('character_instance_id',characterInstanceId).eq('user_id',userId).order('starts_at',{ascending:false}).limit(20),
     db.from('together_story_arc_instances').select('*,together_story_arc_templates(*)').eq('character_instance_id',characterInstanceId).eq('user_id',userId).eq('status','active'),
+    db.from('together_relationship_places').select('*').eq('character_instance_id',characterInstanceId).eq('user_id',userId),
   ]);
-  return{characterInstanceId,character:character.data,relationship:relationship.data,conversation:conversation.data,memories:memories.data??[],openThreads:openThreads.data??[],relationshipMilestones:milestones.data??[],conversationActions:actions.data??[],conversationEvents:events.data??[],sharedPlans:plans.data??[],dates:dates.data??[],lifeEvents:lifeEvents.data??[],storyArcs:stories.data??[]};
+  return{characterInstanceId,character:character.data,relationship:relationship.data,conversation:conversation.data,memories:memories.data??[],openThreads:openThreads.data??[],relationshipMilestones:milestones.data??[],conversationActions:actions.data??[],conversationEvents:events.data??[],sharedPlans:plans.data??[],dates:dates.data??[],lifeEvents:lifeEvents.data??[],storyArcs:stories.data??[],relationshipPlaces:relationshipPlaces.data??[]};
 }
 
 function toDomainRelationship(state:Record<string,unknown>,stage:string,romanceEnabled:boolean):RelationshipState{return{stage:stage as RelationshipState['stage'],trust:Number(state.trust??0),comfort:Number(state.comfort??0),attraction:Number(state.attraction??0),affinity:Number(state.affinity??0),familiarity:Number(state.familiarity??0),respect:Number(state.respect??0),conflict:Number(state.conflict??0),romantic_interest:Number(state.romantic_interest??0),commitment:Number(state.commitment??0),conversationCount:Number(state.interaction_turn_count??state.conversation_count??0),conversationSessionCount:Number(state.conversation_session_count??1),meaningfulInteractionCount:Number(state.meaningful_interaction_count??0),activeMajorConflict:Boolean(state.active_major_conflict),romanceEnabled};}

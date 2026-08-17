@@ -1,5 +1,6 @@
 import type { CharacterInstance, CharacterVersion, Snapshot } from '../types';
 import { worldForLocation } from './place';
+export { selectCharacterPlacePerspective } from './placePerspective';
 
 export function selectActiveCompanion(snapshot: Snapshot, companionId?: string): CharacterInstance | undefined {
   return snapshot.characters.find((item) => item.id === companionId)

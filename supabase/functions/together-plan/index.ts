@@ -5,6 +5,7 @@ import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { activeContinuity } from '../_shared/together-continuity.ts';
 import { createWindowedCommitment, explainMissedCommitment, joinCommitment, leaveCommitment, loadCommitmentState } from '../_shared/together-commitments.ts';
+import { finalizeExpiredPlanExperience, loadPlanExperience, wrapPlanExperience } from '../_shared/together-plan-experience.ts';
 import { cancelSharedPlan, createSharedPlan, rescheduleSharedPlan, updateSharedPlan, writeConversationEvent } from '../_shared/together-plans.ts';
 import { track } from '../_shared/together.ts';
 
@@ -16,8 +17,11 @@ const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('reschedule'),planId:z.string().uuid(),startsAt:z.string().datetime().optional(),windowStartsAt:z.string().datetime().optional(),windowEndsAt:z.string().datetime().optional(),timePrecision:precision.optional(),originalTimeExpression:z.string().trim().max(160).optional(),conversationId:z.string().uuid().optional()}),
   z.object({action:z.literal('cancel'),planId:z.string().uuid(),conversationId:z.string().uuid().optional()}),
   z.object({action:z.literal('update'),planId:z.string().uuid(),note:z.string().trim().max(1000).optional(),locationId:z.string().uuid().optional(),activityKey:z.string().trim().max(120).optional(),conversationId:z.string().uuid().optional()}),
-  z.object({action:z.literal('join'),planId:z.string().uuid(),characterInstanceId:z.string().uuid()}),
-  z.object({action:z.literal('leave'),planId:z.string().uuid()}),
+  z.object({action:z.literal('join'),planId:z.string().uuid(),characterInstanceId:z.string().uuid(),requestId:z.string().min(8).max(120).optional()}),
+  z.object({action:z.literal('leave'),planId:z.string().uuid(),requestId:z.string().min(8).max(120).optional()}),
+  z.object({action:z.literal('experience'),planId:z.string().uuid(),characterInstanceId:z.string().uuid()}),
+  z.object({action:z.literal('end'),planId:z.string().uuid(),characterInstanceId:z.string().uuid(),requestId:z.string().min(8).max(120),sceneId:z.string().uuid().optional()}),
+  z.object({action:z.literal('wrap_up'),planId:z.string().uuid(),characterInstanceId:z.string().uuid(),requestId:z.string().min(8).max(120),sceneId:z.string().uuid().optional()}),
   z.object({action:z.literal('explain_miss'),planId:z.string().uuid(),characterInstanceId:z.string().uuid(),explanation:z.string().trim().min(2).max(2000),conversationId:z.string().uuid().optional()}),
   z.object({action:z.literal('list'),characterInstanceId:z.string().uuid().optional(),includeCancelled:z.boolean().optional()}),
   z.object({action:z.literal('get'),planId:z.string().uuid()}),
@@ -40,8 +44,16 @@ serve(async(request,correlationId)=>{
     return json({data:data??[],correlationId},200,correlationId);
   }
   if(input.action==='get')return json({data:await loadCommitmentState(db,user.id,input.planId),correlationId},200,correlationId);
-  if(input.action==='join')return json({data:await joinCommitment(db,{userId:user.id,continuityId:continuity.id,characterInstanceId:input.characterInstanceId,planId:input.planId}),correlationId},200,correlationId);
-  if(input.action==='leave')return json({data:await leaveCommitment(db,{userId:user.id,continuityId:continuity.id,planId:input.planId}),correlationId},200,correlationId);
+  if(input.action==='join')return json({data:await joinCommitment(db,{userId:user.id,continuityId:continuity.id,characterInstanceId:input.characterInstanceId,planId:input.planId,requestId:input.requestId}),correlationId},200,correlationId);
+  if(input.action==='leave')return json({data:await leaveCommitment(db,{userId:user.id,continuityId:continuity.id,planId:input.planId,requestId:input.requestId}),correlationId},200,correlationId);
+  if(input.action==='experience'){
+    const experience=await loadPlanExperience({db,userId:user.id,continuityId:continuity.id,characterInstanceId:input.characterInstanceId,planId:input.planId});
+    const data=['scheduled','active'].includes(String(experience.plan.status))&&experience.plan.ends_at&&new Date(experience.plan.ends_at).getTime()<=Date.now()&&!['date'].includes(String(experience.plan.source))
+      ? await finalizeExpiredPlanExperience({db,userId:user.id,continuityId:continuity.id,characterInstanceId:input.characterInstanceId,planId:input.planId})
+      : experience;
+    return json({data,correlationId},200,correlationId);
+  }
+  if(input.action==='wrap_up'||input.action==='end')return json({data:await wrapPlanExperience({db,userId:user.id,continuityId:continuity.id,characterInstanceId:input.characterInstanceId,planId:input.planId,requestId:input.requestId,sceneId:input.sceneId}),correlationId},200,correlationId);
   if(input.action==='explain_miss')return json({data:await explainMissedCommitment(db,{userId:user.id,continuityId:continuity.id,characterInstanceId:input.characterInstanceId,planId:input.planId,explanation:input.explanation,conversationId:input.conversationId}),correlationId},200,correlationId);
 
   if(input.action==='create'){

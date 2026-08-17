@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveCompanionPresence, type CompanionPresence } from './together-schedule.ts';
+import { finalizeSceneSession } from './kivelle-scene-consolidation.ts';
+import { waitUntil } from './background.ts';
 
 export type InteractionMode = 'remote'|'co_present';
 export type SceneEntryReason = 'direct_chat'|'user_drop_in'|'shared_plan'|'active_date'|'continued_scene';
@@ -17,6 +19,7 @@ export type ActiveConversationScene = {
   arrivalAcknowledgedAt?: string;
   sceneSessionId?: string;
   activityKey?: string;
+  activityLabel?: string;
   lastInteractionKey?: string;
   updatedAt: string;
 };
@@ -43,9 +46,24 @@ export async function resolveActiveConversationScene(input:{db:SupabaseClient;us
   const metadata=(input.conversation.metadata??{}) as Record<string,any>;
   const stored=(metadata.activeScene??metadata.scene) as Partial<ActiveConversationScene>|undefined;
   const presence=await resolveCompanionPresence({db:input.db,userId:input.userId,characterInstanceId:input.characterInstanceId,now,ensure:false}).catch(()=>null);
-  // Plans and dates remain the highest-priority canonical shared context.
-  if(presence&&presence.locationId&&['active_date','active_plan'].includes(presence.source)){
+  // Dates already have their own authored co-presence contract. Shared Plans
+  // are different: passive character presence at the venue is not user
+  // co-presence. Both attendance rows must be active before a scene exists.
+  if(presence&&presence.locationId&&presence.source==='active_date'){
     return {scene:{version:1,characterInstanceId:input.characterInstanceId,locationId:presence.locationId,worldId:presence.worldId??'',interactionMode:'co_present',entryReason:presence.source==='active_date'?'active_date':'shared_plan',enteredAt:presence.activityStartedAt??now.toISOString(),source:presence.source==='active_date'?'active_event':'presence',sourceEventId:presence.sourceEventId,validUntil:presence.validUntil,updatedAt:now.toISOString()},presence,expired:false};
+  }
+  const { data: activePlans } = await input.db.from('together_shared_plans').select('id,continuity_id,location_id,world_id,activity_key,starts_at,ends_at,companion_state').eq('user_id',input.userId).eq('continuity_id',String(input.conversation.continuity_id)).eq('character_instance_id',input.characterInstanceId).in('status',['scheduled','active']).order('starts_at',{ascending:false}).limit(8);
+  const activePlan=(activePlans??[]).find((plan:any)=>plan.starts_at&&plan.ends_at&&new Date(plan.starts_at).getTime()-30*60_000<=now.getTime()&&new Date(plan.ends_at).getTime()>now.getTime()) as Record<string,any>|undefined;
+  if(activePlan){
+    const [{data:userAttendance},{data:characterAttendance}]=await Promise.all([
+      input.db.from('together_plan_attendance').select('id,joined_at,left_at').eq('plan_id',activePlan.id).eq('user_id',input.userId).eq('participant_type','user').is('left_at',null).maybeSingle(),
+      input.db.from('together_plan_attendance').select('id,joined_at,left_at').eq('plan_id',activePlan.id).eq('character_instance_id',input.characterInstanceId).eq('participant_type','character').is('left_at',null).maybeSingle(),
+    ]);
+    if(!userAttendance || !characterAttendance){
+      // Keep the remote conversation available so the companion can say they
+      // are at the plan, without leaking together-only interaction actions.
+      return {scene:null,presence,expired:false};
+    }
   }
   // A user-entered interaction scene is authoritative for co-presence and may
   // move within a world without rewriting passive schedule presence.
@@ -55,11 +73,21 @@ export async function resolveActiveConversationScene(input:{db:SupabaseClient;us
     sceneSession=result.data??null;
   } catch { sceneSession=null; }
   if(sceneSession){
+    if(sceneSession.shared_plan_id){
+      const {data:joined}=await input.db.from('together_plan_attendance').select('id').eq('plan_id',sceneSession.shared_plan_id).eq('user_id',input.userId).eq('participant_type','user').is('left_at',null).maybeSingle();
+      if(!joined)return {scene:null,presence,expired:false};
+    }
     const validUntil=sceneSession.expected_end_at?new Date(String(sceneSession.expected_end_at)).getTime():new Date(String(sceneSession.started_at)).getTime()+3*60*60*1000;
     if(Number.isFinite(validUntil)&&validUntil>now.getTime()){
       const existing=stored&&stored.interactionMode==='co_present'&&stored.characterInstanceId===input.characterInstanceId?stored:{};
-      return {scene:{version:1,characterInstanceId:input.characterInstanceId,locationId:String(sceneSession.location_id),worldId:String(sceneSession.world_id),interactionMode:'co_present',entryReason:(existing.entryReason??(sceneSession.source==='date'?'active_date':sceneSession.source==='shared_plan'?'shared_plan':'continued_scene')) as Exclude<SceneEntryReason,'direct_chat'>,enteredAt:String(existing.enteredAt??sceneSession.started_at),source:(existing.source??'presence') as ActiveConversationScene['source'],...(sceneSession.expected_end_at?{validUntil:String(sceneSession.expected_end_at)}:{}),...(existing.arrivalAcknowledgedAt?{arrivalAcknowledgedAt:String(existing.arrivalAcknowledgedAt)}:{}),sceneSessionId:String(sceneSession.id),activityKey:sceneSession.activity_key?String(sceneSession.activity_key):undefined,updatedAt:now.toISOString()},presence,expired:false};
+      const state=(sceneSession.state??{}) as Record<string,unknown>;
+      const activityKey=String(state.currentActivityKey??sceneSession.activity_key??'together');
+      const explicitActivity=typeof state.activityLabel==='string'?state.activityLabel.trim():'';
+      const activityLabel=explicitActivity||humanizeActivity(activityKey,'Spending time together');
+      return {scene:{version:1,characterInstanceId:input.characterInstanceId,locationId:String(sceneSession.location_id),worldId:String(sceneSession.world_id),interactionMode:'co_present',entryReason:(existing.entryReason??(sceneSession.source==='date'?'active_date':sceneSession.source==='shared_plan'?'shared_plan':'continued_scene')) as Exclude<SceneEntryReason,'direct_chat'>,enteredAt:String(existing.enteredAt??sceneSession.started_at),source:(existing.source??'presence') as ActiveConversationScene['source'],...(sceneSession.expected_end_at?{validUntil:String(sceneSession.expected_end_at)}:{}),...(existing.arrivalAcknowledgedAt?{arrivalAcknowledgedAt:String(existing.arrivalAcknowledgedAt)}:{}),sceneSessionId:String(sceneSession.id),activityKey,activityLabel,updatedAt:now.toISOString()},presence,expired:false};
     }
+    await input.db.from('together_scene_sessions').update({ended_at:now.toISOString(),updated_at:now.toISOString()}).eq('id',sceneSession.id).eq('user_id',input.userId).is('ended_at',null);
+    waitUntil(finalizeSceneSession({db:input.db,userId:input.userId,sceneSessionId:String(sceneSession.id),now}));
   }
   const activeScene=stored&&stored.interactionMode==='co_present'&&stored.characterInstanceId===input.characterInstanceId?stored as ActiveConversationScene:null;
   if(activeScene){
@@ -67,7 +95,7 @@ export async function resolveActiveConversationScene(input:{db:SupabaseClient;us
     const expiredByTime=Number.isFinite(timeout)&&now.getTime()>timeout;
     const expiredByEnd=Boolean(activeScene.validUntil&&new Date(String(activeScene.validUntil)).getTime()<=now.getTime());
     const samePlace=Boolean(presence&&presence.locationId===activeScene.locationId);
-    const preservedByActivity=Boolean(presence&&(['active_date','active_plan'].includes(presence.source))&&samePlace);
+    const preservedByActivity=Boolean(presence&&presence.source==='active_date'&&samePlace);
     const stillJoinable=activeScene.entryReason!=='user_drop_in'||(presence?.interruptibility==='open'||presence?.interruptibility==='limited');
     if(!expiredByTime&&!expiredByEnd&&(samePlace||preservedByActivity)&&stillJoinable&&presence?.interruptibility!=='unavailable'){
       return {scene:{...activeScene,updatedAt:now.toISOString()},presence,expired:false};
@@ -76,6 +104,8 @@ export async function resolveActiveConversationScene(input:{db:SupabaseClient;us
   }
   return {scene:null,presence,expired:false};
 }
+
+function humanizeActivity(value:string,fallback:string){const normalized=value.replace(/[_-]+/g,' ').trim();return normalized&&normalized!=='together'?normalized.replace(/^./,(character)=>character.toUpperCase()):fallback;}
 
 export function mergeConversationSceneMetadata(metadata:Record<string,any>|null|undefined,scene:ActiveConversationScene|null):Record<string,any>{
   const next={...(metadata??{})};

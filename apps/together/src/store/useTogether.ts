@@ -5,6 +5,7 @@ import { demoSnapshot } from '../demo';
 
 type State={
   snapshot:Snapshot|null;
+  browsedWorldId:string|null;
   loading:boolean;
   error:string|null;
   setSnapshot:(snapshot:Snapshot)=>void;
@@ -18,13 +19,14 @@ type State={
   upsertPlan:(plan:SharedPlan)=>void;
   upsertMedia:(media:GeneratedMedia)=>void;
   applyServerDelta:(delta:SnapshotDelta)=>void;
+  setBrowsedWorldId:(worldId:string|null)=>void;
   refresh:()=>Promise<void>;
   clear:()=>void;
 };
 const demoMode=__DEV__&&process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE==='true';
 export const useTogether=create<State>((set)=>{
   const patchSnapshot=(update:(snapshot:Snapshot)=>Snapshot)=>set((state)=>state.snapshot?{snapshot:update(state.snapshot),error:null}:state);
-  return {snapshot:demoMode?demoSnapshot:null,loading:false,error:null,
+  return {snapshot:demoMode?demoSnapshot:null,browsedWorldId:null,loading:false,error:null,
     setSnapshot:(snapshot)=>set({snapshot,error:null}),
     setCoreState:(delta)=>patchSnapshot((snapshot)=>({...snapshot,...delta})),
     updateCompanion:(companion)=>patchSnapshot((snapshot)=>({...snapshot,characters:upsert(snapshot.characters,companion)})),
@@ -49,11 +51,13 @@ export const useTogether=create<State>((set)=>{
         dates:scope(snapshot.dates,delta.dates)??snapshot.dates,
         lifeEvents:scope(snapshot.lifeEvents as Array<Snapshot['lifeEvents'][number]&{character_instance_id:string}>,delta.lifeEvents as Array<Snapshot['lifeEvents'][number]&{character_instance_id:string}>|undefined)??snapshot.lifeEvents,
         storyArcs:scope(snapshot.storyArcs,delta.storyArcs),
+        relationshipPlaces:scope(snapshot.relationshipPlaces,delta.relationshipPlaces),
         conversationEvents:delta.conversationEvents?mergeMany(snapshot.conversationEvents,delta.conversationEvents):snapshot.conversationEvents,
       };
     }),
+    setBrowsedWorldId:(browsedWorldId)=>set({browsedWorldId}),
     refresh:async()=>{if(demoMode)return;set({loading:true,error:null});try{set({snapshot:await loadSnapshot(),loading:false});}catch(error){set({loading:false,error:error instanceof Error?error.message:'Could not load Kivelle.'});}},
-    clear:()=>set({snapshot:demoMode?demoSnapshot:null,error:null}),
+    clear:()=>set({snapshot:demoMode?demoSnapshot:null,browsedWorldId:null,error:null}),
   };
 });
 

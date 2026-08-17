@@ -33,8 +33,15 @@ export interface InteractionDefinition {
     relationshipEvidenceType?: string;
     momentCandidate?: boolean;
     photoCandidate?: boolean;
+    /** Explicit media actions may queue a photo; other actions can only offer one. */
+    mediaPolicy?: 'none'|'offer'|'explicit';
     mayMoveCharacter?: boolean;
     mayExtendScene?: boolean;
+    activityStateEffects?: {
+      set?: Record<string, unknown>;
+      increment?: Record<string, number>;
+      append?: Record<string, unknown>;
+    };
   };
   scoring?: { noveltyWeight?: number; personalityWeight?: number; relationshipWeight?: number; locationWeight?: number };
 }
@@ -113,6 +120,7 @@ export interface InteractionSceneState {
   currentActivityKey?: string | null;
   activityLabel?: string | null;
   expectedEndAt?: string | null;
+  activity?: Record<string, unknown>;
 }
 
 export interface InteractionLife {
@@ -124,6 +132,9 @@ export interface InteractionLife {
   now?: Date;
 }
 
+export interface InteractionMemoryCue { memoryId:string; type:'shared_activity'|'place_history'|'preference'|'shared_joke'|'negative_preference'; activityTags:string[]; locationId?:string; valence?:number; strength:number; }
+export interface UserBehaviorPattern { patternKey:string; category:string; summary:string; confidence:number; }
+
 export interface InteractionResolveInput {
   character: InteractionCharacter;
   interactionProfile?: CharacterInteractionProfile;
@@ -133,6 +144,16 @@ export interface InteractionResolveInput {
   scene?: InteractionSceneState | null;
   life?: InteractionLife | null;
   nearbyLocations?: InteractionLocation[];
+  memoryCues?: InteractionMemoryCue[];
+  userPatterns?: UserBehaviorPattern[];
+  activePlan?: {
+    id: string;
+    activityKey: string;
+    locationId: string;
+    title: string;
+    startsAt: string;
+    endsAt: string;
+  };
   seed?: string;
   limit?: number;
 }
@@ -195,7 +216,7 @@ export function inferInteractionPacks(location: InteractionLocation, world?: Int
   return [...packs];
 }
 
-const definition = (key: string, family: InteractionFamily, label: string, tags: string[], durationMinutes: number, effects: InteractionDefinition['effects'] = {}, requirements?: InteractionDefinition['requirements']): InteractionDefinition => ({ key, family, labels: { default: label }, activityTags: tags, durationMinutes, effects, ...(requirements ? { requirements } : {}), scoring: { noveltyWeight: .35, personalityWeight: .45, relationshipWeight: .2, locationWeight: .5 } });
+const definition = (key: string, family: InteractionFamily, label: string, tags: string[], durationMinutes: number, effects: InteractionDefinition['effects'] = {}, requirements?: InteractionDefinition['requirements']): InteractionDefinition => ({ key, family, labels: { default: label }, activityTags: tags, durationMinutes, effects: { ...effects, ...(effects.photoCandidate && !effects.mediaPolicy ? { mediaPolicy: family === 'media' ? 'explicit' : 'offer' as const } : {}) }, ...(requirements ? { requirements } : {}), scoring: { noveltyWeight: .35, personalityWeight: .45, relationshipWeight: .2, locationWeight: .5 } });
 const pack = (prefix: string, entries: Array<[InteractionFamily, string, string[], number, InteractionDefinition['effects']?, InteractionDefinition['requirements']?]>): InteractionDefinition[] => entries.map(([family, label, tags, duration, effects, requirements]) => definition(`${prefix}.${label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`, family, label, tags, duration, effects, requirements));
 
 // Packs are composable. A location can inherit as many as its data supports.
@@ -273,10 +294,13 @@ export function resolveInteractions(input: InteractionResolveInput): Interaction
     const relationshipFit = interactionRelationshipFit(definition, input.relationship);
     const moodScore = moodFit(tags, life.mood, life.energy);
     const stableNoise = (stableHash(`${input.seed ?? input.location.id}:${definition.key}:${recent.join('|')}`) % 17) / 500;
-    const score = Math.max(0, locationFit + preferenceFit * .52 + relationshipFit * .22 + moodScore * .12 + stableNoise - repetition);
+    const memory = memoryInteractionFit(definition,input);
+    const planFit = planActivityFit(input.activePlan, definition, input.scene);
+    const score = Math.max(0, locationFit + preferenceFit * .52 + relationshipFit * .22 + moodScore * .12 + memory.score + stableNoise + planFit.score - repetition);
+    const label=memory.repeatPick&&definition.key.includes('let_them_pick')?definition.labels.default.replace(/your song/i,'again'):definition.labels.default;
     return [{
-      id: definition.key, interactionKey: definition.key, family: definition.family, label: definition.labels.default, ...(definition.durationMinutes !== undefined ? { durationMinutes: definition.durationMinutes } : {}),
-      score, reasonCodes: [...eligibility.reasons, locationFit > .5 ? 'location_match' : 'location_flexible', preferenceFit > .62 ? 'character_fit' : 'variety', repetition ? 'repetition_penalty' : 'fresh'],
+      id: definition.key, interactionKey: definition.key, family: definition.family, label, ...(definition.durationMinutes !== undefined ? { durationMinutes: definition.durationMinutes } : {}),
+      score, reasonCodes: [...eligibility.reasons, locationFit > .5 ? 'location_match' : 'location_flexible', preferenceFit > .62 ? 'character_fit' : 'variety', ...memory.reasonCodes, ...planFit.reasonCodes, repetition ? 'repetition_penalty' : 'fresh'],
       effects: { ...(definition.effects ?? {}) }, presentation: { iconKey: definition.family, emphasis: score > .95 ? 'recommended' as const : 'normal' as const },
     }];
   });
@@ -341,6 +365,33 @@ function moodFit(tags: string[], mood?: string | null, energy?: string | null) {
   if (/quiet|reflective/.test(text) && tags.some((tag) => ['books', 'art_gallery', 'scenic'].includes(tag))) return .24;
   return 0;
 }
+
+function planActivityFit(activePlan: InteractionResolveInput['activePlan'], definition: InteractionDefinition, scene?: InteractionSceneState | null) {
+  if (!activePlan) return { score: 0, reasonCodes: [] as string[] };
+  const planned = normalizeActivityTag(activePlan.activityKey);
+  const tags = definition.activityTags ?? [];
+  const matches = tags.some((tag) => normalizeActivityTag(tag) === planned) || normalizeActivityTag(definition.key.split('.')[0] ?? '') === planned;
+  if (!matches) return { score: scene?.recentActionKeys?.length && scene.recentActionKeys.length >= 4 ? .08 : .16, reasonCodes: ['plan_context'] };
+  const actionCount = scene?.recentActionKeys?.filter((key) => normalizeActivityTag(key.split('.')[0] ?? '') === planned).length ?? 0;
+  const score = Math.max(.12, .46 - Math.min(.28, actionCount * .07));
+  return { score, reasonCodes: ['active_plan_activity', ...(actionCount >= 3 ? ['plan_activity_opening'] : [])] };
+}
+function memoryInteractionFit(definition:InteractionDefinition,input:InteractionResolveInput){
+  const tags=definition.activityTags??[];let score=0;const reasonCodes:string[]=[];let repeatPick=false;
+  for(const cue of input.memoryCues??[]){
+    const matches=cue.activityTags.some((tag)=>tags.includes(tag));const atPlace=Boolean(cue.locationId&&cue.locationId===input.location.id);
+    if(cue.type==='negative_preference'&&matches){score-=.4*cue.strength;reasonCodes.push('negative_preference');continue;}
+    if(cue.type==='preference'&&matches){score+=.12*cue.strength;reasonCodes.push('user_preference');}
+    if(cue.type==='shared_activity'&&matches){score+=.08*cue.strength;reasonCodes.push('shared_activity');if(definition.key.includes('let_them_pick'))repeatPick=true;}
+    if(cue.type==='place_history'&&atPlace){score+=.08*cue.strength;reasonCodes.push('place_history');}
+  }
+  for(const pattern of input.userPatterns??[]){
+    const summary=normalizeActivityTag(`${pattern.patternKey} ${pattern.summary}`);
+    if(/quiet|calm|low energy/.test(summary)&&tags.some((tag)=>['books','art_gallery','scenic','cafe'].includes(tag))){score+=.08*pattern.confidence;reasonCodes.push('user_pattern');}
+    if(/play|game|competition/.test(summary)&&tags.some((tag)=>['arcade','trivia','karaoke'].includes(tag))){score+=.08*pattern.confidence;reasonCodes.push('user_pattern');}
+  }
+  return{score,reasonCodes:[...new Set(reasonCodes)],repeatPick};
+}
 function applyActionChains(candidates: InteractionCandidate[], scene: InteractionSceneState | null | undefined, packs: InteractionPack[]) {
   const recent = scene?.recentActionKeys ?? [];
   const last = recent.at(-1) ?? '';
@@ -376,8 +427,36 @@ export function applyInteractionSceneState(state: InteractionSceneState | null |
   const recent = [...(previous.recentActionKeys ?? []), candidate.interactionKey].slice(-10);
   const activity = typeof candidate.effects['sceneActivityKey'] === 'string' ? candidate.effects['sceneActivityKey'] : previous.currentActivityKey ?? null;
   const focus = candidate.interactionKey.split('.')[0] ?? previous.focus ?? null;
-  return { ...previous, focus, currentActivityKey: activity, activityLabel: candidate.label, recentActionKeys: recent, selectedBy: candidate.interactionKey.includes('let_them_pick') ? 'character' : 'user' };
+  const nextActivity = applyActivityState(previous.activity ?? {}, candidate);
+  return { ...previous, focus, currentActivityKey: activity, activityLabel: candidate.label, recentActionKeys: recent, selectedBy: candidate.interactionKey.includes('let_them_pick') ? 'character' : 'user', activity: nextActivity };
 }
+
+function applyActivityState(previous: Record<string, unknown>, candidate: Pick<InteractionCandidate, 'interactionKey' | 'effects' | 'label'>) {
+  const next: Record<string, unknown> = { ...previous };
+  const configured = candidate.effects['activityStateEffects'];
+  if (configured && typeof configured === 'object') {
+    const effect = configured as { set?: Record<string, unknown>; increment?: Record<string, number>; append?: Record<string, unknown> };
+    Object.assign(next, effect.set ?? {});
+    for (const [key, value] of Object.entries(effect.increment ?? {})) next[key] = Number(next[key] ?? 0) + Number(value ?? 0);
+    for (const [key, value] of Object.entries(effect.append ?? {})) next[key] = [...unknownArray(next[key]), value].slice(-12);
+  }
+  const key = candidate.interactionKey;
+  const storedType=next['type'];
+  const type = typeof storedType==='string' ? storedType : key.split('.')[0] ?? 'shared_plan';
+  const actions = [...unknownArray(next['actions']), key].slice(-12);
+  next['actions'] = actions;
+  if (type === 'karaoke' || key.startsWith('karaoke.')) {
+    next['type'] = 'karaoke';
+    if (/pick_a_song|let_them_pick_your_song/.test(key)) next['currentSong'] = { pickedBy: key.includes('let_them_pick') ? 'character' : 'user' };
+    if (/sing_together|duet/.test(key)) { next['songsCompleted'] = Number(next['songsCompleted'] ?? 0) + 1; next['userPerformed'] = true; next['companionPerformed'] = true; next['duet'] = true; }
+  }
+  if (type === 'trivia' || key.startsWith('trivia.')) { next['type'] = 'trivia'; if (/round|category|team/.test(key)) next['round'] = Number(next['round'] ?? 0) + 1; }
+  if (type === 'arcade' || key.startsWith('arcade.')) { next['type'] = 'arcade'; if (key.includes('rematch')) next['rematches'] = Number(next['rematches'] ?? 0) + 1; }
+  if (type === 'photography' || key.startsWith('photography.')) { next['type'] = 'photography'; if (key.includes('photo')) { next['photosTaken'] = Number(next['photosTaken'] ?? 0) + 1; next['photoTogetherTaken'] = true; } }
+  if (type === 'restaurant' || key.startsWith('restaurant.')) { next['type'] = 'restaurant'; if (/order|choose|menu/.test(key)) next['ordered'] = true; if (key.includes('share_food')) next['sharedDish'] = true; if (key.includes('dessert')) next['dessert'] = true; }
+  return next;
+}
+function unknownArray(value:unknown):unknown[]{return Array.isArray(value)?value as unknown[]:[];}
 
 /**
  * Recognises only clear, affirmative scene commands. This is deliberately a

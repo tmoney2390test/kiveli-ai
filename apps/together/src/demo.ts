@@ -21,7 +21,7 @@ export const demoSnapshot={
   ],
   characters:[character('maya',1,'11000000-0000-4000-8000-000000000001','having coffee with Chloe','playful'),character('chloe',2,'11000000-0000-4000-8000-000000000003','heading to Skyline Rooftop','adventurous'),character('alex',3,'11000000-0000-4000-8000-000000000005','finishing a photo walk','thoughtful')],
   schedules:[],
-  relationships:[{character_instance_id:'20000000-0000-4000-8000-000000000001',trust:38,comfort:35,attraction:40,affinity:42,familiarity:39,respect:44,conflict:0,romantic_interest:32,commitment:4,conversation_count:23,recent_direction:'improving'}],
+  relationships:[{character_instance_id:'20000000-0000-4000-8000-000000000001',trust:38,comfort:35,attraction:40,affinity:42,familiarity:39,respect:44,conflict:0,romantic_interest:32,commitment:4,conversation_count:23,days_known:7,recent_direction:'improving'}],
   relationshipMilestones:[{id:'21000000-0000-4000-8000-000000000001',character_instance_id:'20000000-0000-4000-8000-000000000001',kind:'first_date_invitation',from_stage:'flirting',to_stage:null,status:'pending',title:'Dinner at Juniper?',body:'Maya grins. “You’ve mentioned that place enough times. Are you actually going to take me?”',prompt:'What do you say?',choices:[{id:'accept',label:'Yes—let’s do it',tone:'primary'},{id:'defer',label:'Ask me again later',tone:'secondary'}],created_at:new Date().toISOString()}],
   relationshipCues:{'20000000-0000-4000-8000-000000000001':{label:'There’s a spark',detail:'The warmth between you has a playful romantic edge.',tone:'spark'}},
   memories:[

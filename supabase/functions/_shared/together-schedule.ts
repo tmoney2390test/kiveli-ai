@@ -78,7 +78,20 @@ export async function ensureCharacterSchedule(input:{db:SupabaseClient;userId:st
 export async function resolveCharacterPresence(input:{db:SupabaseClient;userId:string;characterInstanceId:string;now?:Date;ensure?:boolean}):Promise<ResolvedCharacterPresence|null>{
   const{db,userId,characterInstanceId}=input,now=input.now??new Date();
   if(input.ensure!==false)await ensureCharacterSchedule({db,userId,characterInstanceId,now});
-  const{data:instance}=await db.from('together_character_instances').select('current_location_id,current_activity').eq('id',characterInstanceId).eq('user_id',userId).maybeSingle();if(!instance)return null;
+  const{data:instance}=await db.from('together_character_instances').select('character_version_id,current_location_id,current_activity,current_presence_source').eq('id',characterInstanceId).eq('user_id',userId).maybeSingle();if(!instance)return null;
+  const currentPlace=instance.current_location_id?await resolvePlaceContext({db,locationId:String(instance.current_location_id),now,userId,characterInstanceId}).catch(()=>null):null;
+  let worldId=currentPlace?.world.id??null;
+  if(!worldId){
+    const{data:worldPresence}=await db.from('together_character_world_presence').select('world_id').eq('character_version_id',instance.character_version_id).neq('presence_type','unavailable').order('presence_type').limit(1).maybeSingle();
+    worldId=worldPresence?.world_id?String(worldPresence.world_id):null;
+  }
+  const baseLocation=worldId?await resolveCharacterBaseLocation({db,characterVersionId:String(instance.character_version_id),worldId}).catch(()=>null):null;
+  // A materialized character row describes the last resolved instant. When no
+  // schedule block is active, do not combine that old venue with a later
+  // activity. Return one coherent fallback pair from the character's base.
+  const preserveAuthoredState=String(instance.current_presence_source??'legacy')==='legacy';
+  const fallbackLocationId=preserveAuthoredState||!baseLocation?(instance.current_location_id?String(instance.current_location_id):null):String(baseLocation.id);
+  const fallbackActivity=preserveAuthoredState?String(instance.current_activity??'taking care of a few things'):'Taking some time at home';
   const[planResult,eventResult,nextResult,lifeEventResult]=await Promise.all([
     db.from('together_shared_plans').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).in('status',['active','scheduled']).lte('starts_at',now.toISOString()).gt('ends_at',now.toISOString()).order('starts_at').limit(1).maybeSingle(),
     db.from('together_character_schedule_events').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).lte('starts_at',now.toISOString()).gt('ends_at',now.toISOString()).order('priority').limit(10),
@@ -88,9 +101,10 @@ export async function resolveCharacterPresence(input:{db:SupabaseClient;userId:s
   const rows=(eventResult.data??[]).filter((row:Row)=>!row.metadata?.suppressedByPlanId).map(toBlock),nextRow=(nextResult.data??[]).find((row:Row)=>!row.metadata?.suppressedByPlanId),next=nextRow?toBlock(nextRow):undefined;
   const plan=planResult.data as Row|null;
   if(plan)rows.push({id:String(plan.id),activityKey:String(plan.activity_key),title:String(plan.title),locationId:plan.location_id?String(plan.location_id):null,startsAt:String(plan.starts_at),endsAt:String(plan.ends_at),priority:'user_commitment',visibility:'shared',source:'user_plan',interruptibility:'open',generationKey:`plan:${plan.id}`,metadata:{planId:plan.id,activityLabel:plan.title}});
-  let presence=resolvePresence(next?[...rows,next]:rows,now,{characterInstanceId,locationId:instance.current_location_id?String(instance.current_location_id):null,activity:String(instance.current_activity??'taking care of a few things')});
+  let presence=resolvePresence(next?[...rows,next]:rows,now,{characterInstanceId,locationId:fallbackLocationId,activity:fallbackActivity});
   const lifeEvent=lifeEventResult.data as Row|null;
   if(!plan&&lifeEvent)presence={...presence,locationId:lifeEvent.location_id?String(lifeEvent.location_id):presence.locationId,activityKey:String(lifeEvent.event_type??'life_event'),activity:String(lifeEvent.narrative_summary??lifeEvent.title),activityStartedAt:String(lifeEvent.starts_at),expectedEndAt:String(lifeEvent.ends_at),state:Number(lifeEvent.significance??0)>=.75?'busy':'active',interruptibility:String(lifeEvent.metadata?.interruptibility??(Number(lifeEvent.significance??0)>=.75?'busy':'limited')) as ResolvedCharacterPresence['interruptibility'],source:'life_event'};
+  if(baseLocation&&activityRequiresHome(presence.activityKey,presence.activity)&&String(presence.locationId)!==String(baseLocation.id))presence={...presence,locationId:String(baseLocation.id)};
   const place=presence.locationId?await resolvePlaceContext({db,locationId:presence.locationId,now,userId,characterInstanceId}).catch(()=>null):null;
   return{...presence,placeContext:place};
 }
@@ -105,11 +119,12 @@ export async function resolveCompanionPresence(input:{db:SupabaseClient;userId:s
     input.db.from('together_scene_sessions').select('id,world_id,location_id,activity_key,started_at,expected_end_at,state').eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).is('ended_at',null).order('started_at',{ascending:false}).limit(1).maybeSingle(),
   ]);
   if(activeDate){
-    const template=activeDate.together_date_templates as Row|undefined;
+    const activeDateRow=activeDate as unknown as Row;
+    const template=activeDateRow.together_date_templates as Row|undefined;
     const locationId=template?.location_id?String(template.location_id):base.locationId;
     const place=locationId?await resolvePlaceContext({db:input.db,locationId,now,userId:input.userId,characterInstanceId:input.characterInstanceId}).catch(()=>base.placeContext):base.placeContext;
-    const validUntil=activeDate.metadata?.ends_at??(template?.metadata?.durationMinutes?new Date(now.getTime()+Number(template.metadata.durationMinutes)*60000).toISOString():undefined);
-    return {characterInstanceId:input.characterInstanceId,locationId,worldId:place?.world.id??base.placeContext?.world.id??null,activityKey:'date',activity:String(template?.name??base.activity),mood:'present',energy:'medium',availability:'with you',interruptibility:'open',source:'active_date',sourceEventId:String(activeDate.id),validUntil,placeContext:place,activityStartedAt:String(activeDate.started_at??activeDate.scheduled_for??now.toISOString()),expectedEndAt:validUntil};
+    const validUntil=activeDateRow.metadata?.ends_at??(template?.metadata?.durationMinutes?new Date(now.getTime()+Number(template.metadata.durationMinutes)*60000).toISOString():undefined);
+    return {characterInstanceId:input.characterInstanceId,locationId,worldId:place?.world.id??base.placeContext?.world.id??null,activityKey:'date',activity:String(template?.name??base.activity),mood:'present',energy:'medium',availability:'with you',interruptibility:'open',source:'active_date',sourceEventId:String(activeDateRow.id),validUntil,placeContext:place,activityStartedAt:String(activeDateRow.started_at??activeDateRow.scheduled_for??now.toISOString()),expectedEndAt:validUntil};
   }
   // A user-entered scene overrides passive schedule display once it exists, but
   // an active plan/date above remains the stronger canonical commitment.
@@ -119,7 +134,8 @@ export async function resolveCompanionPresence(input:{db:SupabaseClient;userId:s
       const locationId=String(activeScene.location_id);
       const place=await resolvePlaceContext({db:input.db,locationId,now,userId:input.userId,characterInstanceId:input.characterInstanceId}).catch(()=>base.placeContext);
       const state=activeScene.state as Row|undefined;
-      return {characterInstanceId:input.characterInstanceId,locationId,worldId:place?.world.id??String(activeScene.world_id),activityKey:String(activeScene.activity_key??state?.currentActivityKey??'together'),activity:String(state?.activityLabel??activeScene.activity_key??base.activity),mood:'present',energy:base.state==='busy'?'medium':base.state==='relaxing'?'high':'medium',availability:'with you',interruptibility:'open',source:'scene',sourceEventId:String(activeScene.id),validUntil:activeScene.expected_end_at?String(activeScene.expected_end_at):undefined,placeContext:place,activityStartedAt:String(activeScene.started_at),expectedEndAt:activeScene.expected_end_at?String(activeScene.expected_end_at):undefined,state:'active',nextEvent:base.nextEvent};
+      const activityKey=String(state?.currentActivityKey??activeScene.activity_key??'together');
+      return {characterInstanceId:input.characterInstanceId,locationId,worldId:place?.world.id??String(activeScene.world_id),activityKey,activity:sceneActivityLabel(state,activityKey),mood:'present',energy:base.state==='busy'?'medium':base.state==='relaxing'?'high':'medium',availability:'with you',interruptibility:'open',source:'scene',sourceEventId:String(activeScene.id),validUntil:activeScene.expected_end_at?String(activeScene.expected_end_at):undefined,placeContext:place,activityStartedAt:String(activeScene.started_at),expectedEndAt:activeScene.expected_end_at?String(activeScene.expected_end_at):undefined,state:'active',nextEvent:base.nextEvent};
     }
   }
   const source=base.source==='plan'?'active_plan':base.source==='life_event'?'active_event':base.source==='schedule'?'schedule':'character_state';
@@ -143,5 +159,7 @@ function toBlock(row:Row):ScheduleBlock{return{id:String(row.id),activityKey:Str
 function legacyBlocks(rows:Row[],instance:Row,timezone:string,startDate:string,days:number,worldId:string){const out:ScheduleBlock[]=[];for(let day=0;day<days;day++){const date=addDays(startDate,day),weekday=new Date(`${date}T12:00:00Z`).getUTCDay();for(const row of rows){if(Number(row.day_of_week)!==weekday||String(row.together_locations?.world_id??'')!==worldId)continue;out.push({activityKey:String(row.activity),title:String(row.activity),locationId:String(row.location_id),startsAt:localToUtc(date,Number(row.start_minute),timezone).toISOString(),endsAt:localToUtc(date,Number(row.end_minute),timezone).toISOString(),priority:/work|class|shift/i.test(String(row.activity))?'hard_obligation':'recurring_routine',visibility:row.availability==='busy'?'known':'hidden',source:'recurring',interruptibility:row.availability==='busy'?'busy':row.availability==='limited'?'limited':'open',generationKey:`legacy:${row.id}:${date}`,metadata:{legacyTemplateId:row.id,activityLabel:row.activity}});}}return out;}
 function defaultActivities():ActivityTemplate[]{return[{key:'walk',title:'Taking a walk',category:'outdoors',validTimeWindows:[{startMinute:480,endMinute:1260}],durationMinutes:[45,90],locationCategories:['outdoor','park'],tags:['outdoors'],affinity:.6,preferredWeeklyFrequency:[1,4],maximumWeeklyFrequency:4,minimumGapHours:18,priority:'preferred_activity',visibility:'hidden',interruptibility:'open'},{key:'home_evening',title:'Having a quiet night at home',category:'home',validTimeWindows:[{startMinute:1080,endMinute:1380}],durationMinutes:[75,180],locationCategories:['residence'],tags:['home'],affinity:.75,preferredWeeklyFrequency:[2,7],maximumWeeklyFrequency:7,minimumGapHours:6,priority:'preferred_activity',visibility:'hidden',interruptibility:'open'}];}
 function parseRange(value:unknown,fallback:[number,number]):[number,number]{if(Array.isArray(value)&&value.length>=2)return[Number(value[0]),Number(value[1])];if(typeof value==='string'){const match=value.match(/[[(](\d+),(\d+)[)\]]/);if(match)return[Number(match[1]),Math.max(Number(match[1]),Number(match[2])-1)];}return fallback;}
+function activityRequiresHome(activityKey:string,activity:string){return activityKey==='sleep'||/\b(?:at home|home for the|home tonight)\b/i.test(activity);}
+function sceneActivityLabel(state:Row|undefined,activityKey:string){const explicit=typeof state?.activityLabel==='string'?state.activityLabel.trim():'';if(explicit)return explicit;const normalized=activityKey.replace(/[_-]+/g,' ').trim();return normalized&&normalized!=='together'?normalized.replace(/^./,(value)=>value.toUpperCase()):'Spending time together';}
 function localDate(value:Date|string,timezone:string){const date=typeof value==='string'?new Date(value):value;const parts=new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date),get=(type:string)=>parts.find(item=>item.type===type)?.value??'';return`${get('year')}-${get('month')}-${get('day')}`;}
 function addDays(date:string,days:number){const value=new Date(`${date}T12:00:00Z`);value.setUTCDate(value.getUTCDate()+days);return value.toISOString().slice(0,10);}

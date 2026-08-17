@@ -5,6 +5,7 @@ import { Sparkles } from 'lucide-react-native';
 import { EmptyState, GradientButton, MomentCarousel, Screen, resolveCharacterPortraitSource } from '../../src/components';
 import { CinematicCompanionHero } from '../../src/components/home/CinematicCompanionHero';
 import { FromCompanionSection } from '../../src/components/home/FromCompanionSection';
+import { FeaturedCompanionsSection } from '../../src/components/home/FeaturedCompanionsSection';
 import { HomeHeader } from '../../src/components/home/HomeHeader';
 import { HomeTimeline } from '../../src/components/home/HomeTimeline';
 import { HomeWorldSection } from '../../src/components/home/HomeWorldSection';
@@ -15,13 +16,14 @@ import { buildHomeViewModel, type HomeTargetAction, type HomeTimelineItem } from
 import { getCompanionMedia, getCurrentScenePresentation, getMemoryPresentation, getRelationshipPresentation, getWorldHook, selectFeaturedMemory } from '../../src/lib/homePresentation';
 import { locationHeroAsset } from '../../src/assets';
 import { selectPortraitVersion } from '../../src/lib/selectors';
+import { featuredCompanionsForWorld } from '../../src/lib/featuredCompanions';
 import type { SubscriptionStatus } from '../../src/lib/subscription';
 import type { Snapshot } from '../../src/types';
 
 const router = expoRouter as unknown as { push: (href: string) => void };
 
 export default function Home() {
-  const { snapshot, loading, error, refresh } = useTogether();
+  const { snapshot, loading, error, refresh, browsedWorldId, setBrowsedWorldId } = useTogether();
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
   const { width } = useWindowDimensions();
   const hasSnapshot = Boolean(snapshot);
@@ -50,6 +52,8 @@ export default function Home() {
   const handle = template.public_handle ?? template.slug;
   const portraitVersion = selectPortraitVersion(snapshot, companion);
   const portraitSource = resolveCharacterPortraitSource(template, portraitVersion, template.slug);
+  const selectedWorld = snapshot.worlds.find((world) => world.id === browsedWorldId) ?? model.currentWorld ?? snapshot.worlds.find((world) => world.published);
+  const featuredCompanions = selectedWorld ? featuredCompanionsForWorld(snapshot, selectedWorld.id, template.id) : [];
   const scene = getCurrentScenePresentation(model);
   const relationship = getRelationshipPresentation(snapshot, companion, model.relationshipDay);
   const memory = getMemoryPresentation(selectFeaturedMemory(snapshot, companion.id), template.name);
@@ -93,10 +97,11 @@ export default function Home() {
     <View pointerEvents="none" style={styles.ambientGlow} />
     <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push('/subscription')} onProfile={() => router.push('/(tabs)/profile')} />
     <CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} relationshipDay={model.relationshipDay} stage={model.hero.stage} eyebrow={scene.eyebrow} heading={scene.heading} activity={scene.activity} location={scene.location} quote={scene.quote} notice={model.hero.notice} onContinue={() => void openCompanion()} onProfile={() => router.push(`/character/${handle}`)} onLocation={openLocation} />
+    {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions} world={selectedWorld} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onViewWorld={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/worlds?world=${selectedWorld.slug}`); }} /> : null}
     <FromCompanionSection name={template.name} items={media} fallbackSource={portraitSource} onViewAll={() => router.push('/(tabs)/moments')} onOpen={(item) => router.push(item.locked ? '/subscription' : `/media/${item.id}`)} onAsk={() => router.push(`/(tabs)/chat-tab?draft=${encodeURIComponent('Send me a photo from where you are.')}`)} />
     <HomeWorldSection wide={wideCards} upcoming={{ eyebrow: model.upcoming.eyebrow, title: model.upcoming.title, meta: model.upcoming.meta }} relationship={{ eyebrow: `YOU + ${template.name.toUpperCase()}`, title: relationship.headline, meta: relationship.detail }} hook={getWorldHook(model)} memory={memory} upcomingSource={upcomingSource} relationshipSource={portraitSource} onUpcoming={() => void runAction(model.upcoming.action)} onRelationship={() => router.push(`/character/${handle}`)} />
     <HomeTimeline title={timelineTitle} items={model.timeline} onViewWorld={() => router.push('/(tabs)/worlds')} onOpen={openTimelineItem} />
-    {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Text onPress={() => router.push('/(tabs)/moments')} style={styles.sectionAction}>View all →</Text></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}
+    {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Text onPress={() => router.push('/(tabs)/moments')} style={styles.sectionAction}>View all →</Text></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} preserveImageDetails onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}
   </Screen>;
 }
 
@@ -131,7 +136,7 @@ const styles = StyleSheet.create({
   loadingHeader: { height: 54, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   loadingBrand: { width: 132, height: 26, borderRadius: 8, backgroundColor: colors.surface },
   loadingChip: { width: 92, height: 38, borderRadius: 20, backgroundColor: colors.surface },
-  loadingHero: { height: 590, borderRadius: 34, overflow: 'hidden', justifyContent: 'flex-end', padding: 23, backgroundColor: '#21131F' },
+  loadingHero: { height: 320, borderRadius: 30, overflow: 'hidden', justifyContent: 'flex-end', padding: 19, backgroundColor: '#21131F' },
   loadingGlow: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(153,48,99,.08)' },
   loadingCopy: { gap: 12, maxWidth: 570 },
   loadingEyebrow: { width: 110, height: 10, borderRadius: 5, backgroundColor: 'rgba(255,255,255,.14)' },

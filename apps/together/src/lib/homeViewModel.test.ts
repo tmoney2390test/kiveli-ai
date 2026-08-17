@@ -24,7 +24,7 @@ const snapshot = {
     together_character_templates: { id: 'chloe-template', name: 'Chloe', slug: 'chloe', age: 27, occupation: 'Designer', biography: 'Designer' },
     together_character_versions: { id: 'chloe-version', interests: [], personality_config: {}, portrait_asset_key: 'chloe-portrait' },
   }],
-  relationships: [{ character_instance_id: 'chloe-instance' }],
+  relationships: [{ character_instance_id: 'chloe-instance', days_known: 4 }],
   conversations: [{ id: 'chloe-chat', character_instance_id: 'chloe-instance', kind: 'direct', title: 'Chat', last_message_at: '2026-08-16T11:20:00.000Z', last_assistant_message_at: '2026-08-16T11:20:00.000Z', last_read_at: '2026-08-16T11:00:00.000Z', archived_at: null, unread: true }],
   memories: [
     { id: 'older-important', character_instance_id: 'chloe-instance', memory_type: 'semantic', canonical_text: 'You like old movies.', importance: 0.9, confidence: 0.9, pinned: false, status: 'active', created_at: '2026-08-14T12:00:00.000Z', updated_at: '2026-08-14T12:00:00.000Z' },
@@ -58,7 +58,7 @@ const snapshot = {
 describe('buildHomeViewModel', () => {
   it('turns canonical state into a compact living Home surface', () => {
     const model = buildHomeViewModel(snapshot, now);
-    expect(model?.relationshipDay).toBe(1);
+    expect(model?.relationshipDay).toBe(4);
     expect(model?.hero.statusLine).toBe('At home · Winding down');
     expect(model?.hero.stage).toBe('Just met');
     expect(model?.message?.id).toBe('sent-older');

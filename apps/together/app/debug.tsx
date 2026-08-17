@@ -8,17 +8,22 @@ import { useTogether } from '../src/store/useTogether';
 import { invoke, manageInteraction, manageMedia } from '../src/lib/api';
 import { selectActiveCompanion, selectCompanionLife } from '../src/lib/selectors';
 import { buildClientPlaceContext } from '../src/lib/place';
+import { selectCharacterPlacePerspective } from '../src/lib/placePerspective';
 import type { InteractionCandidate } from '../src/types';
 
 export default function Debug(){
   const{snapshot,refresh}=useTogether();
   const[interactionCandidates,setInteractionCandidates]=useState<InteractionCandidate[]>([]);
+  const[memoryInspector,setMemoryInspector]=useState<{memoryContext?:{callbackAllowance?:number;debug?:Array<{id:string;activation:number;mode:string;reasonCodes:string[]}>};emotionalResidue?:{tone?:string;intensity?:number}|null;userPatterns?:Array<{summary?:string;confidence?:number}>;recentEpisodes?:Array<{title?:string;significance?:number}>}|null>(null);
   const companion=snapshot?selectActiveCompanion(snapshot):undefined;
   const life=snapshot&&companion?selectCompanionLife(snapshot,companion.id):undefined;
   const relation=life?.relationship;
   const place=snapshot&&companion?.current_location_id?buildClientPlaceContext(snapshot,companion.current_location_id):null;
+  const currentLocation=snapshot?.locations.find((item)=>item.id===companion?.current_location_id);
+  const placePerspective=snapshot&&companion&&currentLocation?selectCharacterPlacePerspective(snapshot,companion,currentLocation):null;
   const media=life?.media.slice(0,12)??[];
   const nextPlan=life?.plans.find((item)=>['scheduled','active'].includes(item.status));
+  const activePlan=snapshot?.sharedPlans?.find((item)=>item.character_instance_id===companion?.id&&['scheduled','active'].includes(item.status));
   const nextDate=life?.dates.find((item)=>['upcoming','active','unlocked'].includes(item.status));
   const activeStory=life?.stories.find((item)=>item.status==='active');
   const schedule=(snapshot?.scheduleEvents??[]).filter((item)=>item.character_instance_id===companion?.id).sort((a,b)=>new Date(a.starts_at).getTime()-new Date(b.starts_at).getTime());
@@ -28,6 +33,7 @@ export default function Debug(){
   const simulateContent=async(days:number)=>{if(!companion)return;try{await invoke('together-debug',{action:'simulate_content',characterInstanceId:companion.id,days});await refresh();}catch(error){Alert.alert('Content simulation failed',error instanceof Error?error.message:'Unknown error');}};
   const retry=async(id:string)=>{await manageMedia({action:'retry',mediaId:id});await refresh();};
   const inspectInteractions=async()=>{if(!companion||!conversation)return;try{const result=await manageInteraction<{interactions:InteractionCandidate[]}>({action:'resolve',characterInstanceId:companion.id,conversationId:conversation.id});setInteractionCandidates(result.interactions??[]);}catch(error){Alert.alert('Interaction inspector',error instanceof Error?error.message:'Enter a shared scene to inspect its current actions.');}};
+  const inspectMemory=async()=>{if(!companion)return;try{const result=await invoke<{memoryContext:{callbackAllowance:number;debug:Array<{id:string;activation:number;mode:string;reasonCodes:string[]}>};emotionalResidue?:{tone?:string;intensity?:number}|null;userPatterns?:Array<{summary?:string;confidence?:number}>;recentEpisodes?:Array<{title?:string;significance?:number}>}>('together-debug',{action:'inspect_context',characterInstanceId:companion.id,message:'Want to go somewhere quieter?'});setMemoryInspector(result);}catch(error){Alert.alert('Memory inspector',error instanceof Error?error.message:'Could not inspect current memory activation.');}};
   return <Screen>
     <View style={styles.header}><Pressable onPress={()=>router.back()}><ArrowLeft color={colors.text}/></Pressable><PageTitle>Internal Tools</PageTitle></View>
     <Text style={styles.warning}>DEVELOPMENT / INTERNAL BUILDS ONLY</Text>
@@ -45,6 +51,8 @@ export default function Debug(){
     <Data label="Actual world" value={place?.world.name}/>
     <Data label="Current location" value={place?.location.name}/>
     <Data label="Place path" value={place?.path}/>
+    <Data label="Place perspective" value={placePerspective?.summary??undefined}/>
+    <Data label="Shared visits / sentiment" value={placePerspective?`${placePerspective.visitCount} / ${placePerspective.sentiment.toFixed(2)} (${placePerspective.source})`:undefined}/>
     <Data label="Timezone" value={place?.clock.timezone}/>
     <Data label="Activity" value={companion?.current_activity}/>
     <Data label="Mood / energy" value={companion?`${companion.current_mood} / ${companion.current_energy}`:undefined}/>
@@ -52,11 +60,22 @@ export default function Debug(){
     <Data label="Schedule event" value={companion?.current_schedule_event_id??undefined}/>
     <Data label="Presence source" value={companion?.current_presence_source}/>
     <Data label="Life engine" value={companion?.life_engine_version}/>
+    <SectionHeader title="Plan experience"/>
+    <Data label="Plan" value={activePlan?.id}/>
+    <Data label="Plan status / timing" value={activePlan?`${activePlan.status} · ${activePlan.starts_at} → ${activePlan.ends_at}`:undefined}/>
+    <Data label="Plan attendance" value={activePlan?`${activePlan.attendance?.user&&!activePlan.attendance.user.left_at?'user present':'user absent'} · ${activePlan.attendance?.character&&!activePlan.attendance.character.left_at?'companion present':'companion absent'}`:undefined}/>
+    <Data label="Participation" value={activePlan?.participation_level??undefined}/>
     <SectionHeader title="Interaction inspector"/>
     <Data label="Active scene" value={scene?`${scene.source} · ${scene.activity_key??'together'}`:'No active shared scene'}/>
+    <Data label="Scene / plan binding" value={scene?.shared_plan_id??undefined}/>
+    <Data label="Scene location / activity state" value={scene?`${scene.location_id} · ${JSON.stringify(scene.state?.activity??{})}`:undefined}/>
     <Data label="Recent actions" value={scene?.state?.recentActionKeys&&Array.isArray(scene.state.recentActionKeys)?scene.state.recentActionKeys.join(', '):undefined}/>
     <View style={styles.buttons}><GradientButton label="Inspect current actions" onPress={()=>void inspectInteractions()}/></View>
     {interactionCandidates.map((candidate)=><View key={candidate.id} style={styles.media}><View style={{flex:1}}><Text style={styles.mediaTitle}>{candidate.interactionKey} · {candidate.score.toFixed(2)}</Text><Text style={styles.mediaMeta}>{candidate.label} · {candidate.family}</Text><Text style={styles.mediaMeta}>{candidate.reasonCodes.join(', ')}</Text></View></View>)}
+    <SectionHeader title="Memory activation inspector"/>
+    <Text style={styles.mediaMeta}>Runs a safe contextual query: “Want to go somewhere quieter?”</Text>
+    <View style={styles.buttons}><GradientButton label="Inspect memory activation" onPress={()=>void inspectMemory()}/></View>
+    {memoryInspector?<><Data label="Callback allowance" value={String(memoryInspector.memoryContext?.callbackAllowance??0)}/><Data label="Emotional residue" value={memoryInspector.emotionalResidue?`${memoryInspector.emotionalResidue.tone??'unknown'} · ${Math.round(Number(memoryInspector.emotionalResidue.intensity??0)*100)}%`:'None'}/>{memoryInspector.memoryContext?.debug?.map((item)=><View key={item.id} style={styles.media}><View style={{flex:1}}><Text style={styles.mediaTitle}>{item.id} · {item.mode}</Text><Text style={styles.mediaMeta}>activation {item.activation.toFixed(2)} · {item.reasonCodes.join(', ')||'no strong cue'}</Text></View></View>)}{memoryInspector.userPatterns?.map((item,index)=><Data key={`pattern-${index}`} label="Pattern" value={`${item.summary??'Unknown'} (${Math.round(Number(item.confidence??0)*100)}%)`}/>) }{memoryInspector.recentEpisodes?.map((item,index)=><Data key={`episode-${index}`} label="Recent episode" value={`${item.title??'Untitled'} · ${Number(item.significance??0).toFixed(2)}`}/>)}</>:null}
     <SectionHeader title="Schedule inspector"/>
     {schedule.length?schedule.map((event)=><View key={event.id} style={styles.media}><View style={{flex:1}}><Text style={styles.mediaTitle}>{new Date(event.starts_at).toLocaleString()} · {event.title}</Text><Text style={styles.mediaMeta}>{snapshot?.locations.find((item)=>item.id===event.location_id)?.name??'Travel'} · {event.source} · {event.priority} · {event.visibility} · {event.interruptibility}</Text><Text style={styles.mediaMeta}>score={String(event.metadata?.score??'n/a')} · {Array.isArray(event.metadata?.reasons)?event.metadata.reasons.join(', '):String(event.metadata?.reason??'deterministic selection')}</Text></View></View>):<Data label="Schedule" value="Generate from Home or Resolve one hour"/>}
     <SectionHeader title="Relationship"/>

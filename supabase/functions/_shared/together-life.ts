@@ -8,7 +8,8 @@ import { eventIsActive, experienceClock } from './kivelle-time.ts';
 import { resolveCharacterBaseLocation, resolvePlaceContext } from './together-place.ts';
 import { waitUntil } from './background.ts';
 import { activeContinuity } from './together-continuity.ts';
-import { ensureCharacterSchedule, resolveCompanionPresence } from './together-schedule.ts';
+import { ensureCharacterSchedule, resolveCharacterPresence, resolveCompanionPresence } from './together-schedule.ts';
+import { finalizeExpiredPlanExperience } from './together-plan-experience.ts';
 
 type LifeRunInput = { db: SupabaseClient; userId: string; characterInstanceId?: string; now?: Date; evaluateProactive?: boolean; trigger: 'conversation_continued' | 'home_opened' | 'scheduled_dispatch' };
 type EventRow = Record<string, any>;
@@ -49,12 +50,19 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
 
   const timezone = String(profile.data?.experience_timezone ?? preferences.data?.timezone ?? 'UTC');
   const worldSchedules=(schedules.data??[]).filter((row:EventRow)=>!currentWorldId||String(row.together_locations?.world_id??'')===currentWorldId);
+  for (const plan of sharedPlans.data ?? []) {
+    if (plan.source === 'date' || !['scheduled', 'active'].includes(String(plan.status)) || !plan.ends_at || new Date(plan.ends_at).getTime() > now.getTime()) continue;
+    await finalizeExpiredPlanExperience({ db, userId, continuityId: String(instance.continuity_id), characterInstanceId: String(instance.id), planId: String(plan.id), now }).catch((error) => console.warn('Plan experience finalization deferred', error instanceof Error ? error.message : 'unknown_error'));
+  }
   const progressed=await db.rpc('kivelle_progress_shared_plans',{p_user_id:userId,p_character_instance_id:instance.id,p_now:now.toISOString()});
   if(progressed.error)throw new AppError('INTERNAL_ERROR','Shared plans could not advance safely.',500,true);
   const canonicalPlans=(progressed.data??sharedPlans.data??[])as EventRow[];
   await ensureCharacterSchedule({db,userId,characterInstanceId:String(instance.id),now}).catch((error)=>console.warn('Kivelle schedule generation unavailable',error instanceof Error?error.message:'unknown_error'));
+  // Passive Life Engine state owns the materialized character row. A shared
+  // scene is an interaction overlay and must never rewrite that passive state.
+  const passivePresence=await resolveCharacterPresence({db,userId,characterInstanceId:String(instance.id),now,ensure:false}).catch(()=>null);
   const presence=await resolveCompanionPresence({db,userId,characterInstanceId:String(instance.id),now,ensure:false}).catch(()=>null);
-  const scheduleState=presence?{locationId:presence.locationId,location:presence.placeContext?.location.name??baseLocation?.name??'Current place',activity:presence.activity,availability:presence.interruptibility==='open'?'available':presence.interruptibility==='limited'?'limited':'busy',mood:String(instance.current_mood??'content'),energy:String(instance.current_energy??'medium'),interruptibility:presence.interruptibility,scheduleEventId:presence.scheduleEventId,state:presence.state,expectedEndAt:presence.expectedEndAt,nextEvent:presence.nextEvent}:resolveLifeState(worldSchedules as Array<Record<string, unknown>>, now, currentPlace?.world.timezone??timezone,baseLocation?{locationId:String(baseLocation.id),location:String(baseLocation.name)}:currentPlace?{locationId:currentPlace.location.id,location:currentPlace.location.name}:undefined);
+  const scheduleState=passivePresence?{locationId:passivePresence.locationId,location:passivePresence.placeContext?.location.name??baseLocation?.name??'Current place',activity:passivePresence.activity,availability:passivePresence.interruptibility==='open'?'available':passivePresence.interruptibility==='limited'?'limited':'busy',mood:String(instance.current_mood??'content'),energy:String(instance.current_energy??'medium'),interruptibility:passivePresence.interruptibility,scheduleEventId:passivePresence.scheduleEventId,state:passivePresence.state,expectedEndAt:passivePresence.expectedEndAt,nextEvent:passivePresence.nextEvent}:resolveLifeState(worldSchedules as Array<Record<string, unknown>>, now, currentPlace?.world.timezone??timezone,baseLocation?{locationId:String(baseLocation.id),location:String(baseLocation.name)}:currentPlace?{locationId:currentPlace.location.id,location:currentPlace.location.name}:undefined);
   const requestedContentMode = profile.data?.age_verified_at ? String(profile.data?.content_preferences?.contentMode ?? 'standard') : 'standard';
   const worldTemplates=(templates.data??[]).filter((row:EventRow)=>row.world_id?String(row.world_id)===currentWorldId:!row.default_location_id||String(row.together_locations?.world_id??'')===currentWorldId);
   const eventCandidates = simulateEvents ? selectEventCandidates(eventSimulationStart, now, worldTemplates, String(instance.simulation_seed), recentEvents.data ?? [], worldSchedules, relationship.data, instance.current_location_id, requestedContentMode,currentPlace?.world.timezone??timezone) : [];
@@ -101,8 +109,8 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const activePlan=activePlanRow?{id:activePlanRow.id,event_type:'shared_plan_active',title:activePlanRow.title,narrative_summary:`spending time with you at ${activePlanRow.title}`,location_id:activePlanRow.location_id,significance:Number(activePlanRow.metadata?.significance??.5),starts_at:activePlanRow.starts_at,ends_at:activePlanRow.ends_at,resulting_state_changes:{sharedActivity:activePlanRow.activity_key},metadata:{canonicalPlanId:activePlanRow.id}}:null;
   const influential = [activePlan, ...created, ...(recentEvents.data ?? [])].filter((event): event is EventRow => Boolean(event) && eventIsActive(event, now)).sort((a, b) => Number(b.significance) - Number(a.significance))[0];
   const life = applyEventInfluence(scheduleState, influential);
-  const presenceSource=activePlan?'plan':influential?'life_event':presence?.source==='schedule'?'schedule':presence?.source==='active_plan'?'plan':presence?.source==='active_event'||presence?.source==='active_date'?'life_event':'fallback';
-  await db.from('together_character_instances').update({ ...(life.locationId?{current_location_id:life.locationId}:{}), current_activity: life.activity, current_mood: life.mood, current_energy: life.energy, current_schedule_event_id:presenceSource==='schedule'?presence?.scheduleEventId??null:null,current_interruptibility:presence?.interruptibility??'open',current_presence_source:presenceSource,life_engine_version:'life_engine_v1', last_simulated_at: now.toISOString(), ...(simulateEvents ? { last_event_simulated_at: now.toISOString() } : {}), updated_at: now.toISOString() }).eq('id', instance.id).eq('user_id', userId);
+  const presenceSource=activePlan?'plan':influential?'life_event':passivePresence?.source==='schedule'?'schedule':passivePresence?.source==='plan'?'plan':passivePresence?.source==='life_event'?'life_event':'fallback';
+  await db.from('together_character_instances').update({ ...(life.locationId?{current_location_id:life.locationId}:{}), current_activity: life.activity, current_mood: life.mood, current_energy: life.energy, current_schedule_event_id:presenceSource==='schedule'?passivePresence?.scheduleEventId??null:null,current_interruptibility:passivePresence?.interruptibility??'open',current_presence_source:presenceSource,life_engine_version:'life_engine_v1', last_simulated_at: now.toISOString(), ...(simulateEvents ? { last_event_simulated_at: now.toISOString() } : {}), updated_at: now.toISOString() }).eq('id', instance.id).eq('user_id', userId);
 
   const { data: dueThreads } = await db.from('together_open_threads').update({ follow_up_eligible: true, updated_at: now.toISOString() }).eq('user_id', userId).eq('character_instance_id', instance.id).is('resolved_at', null).lte('expected_at', now.toISOString()).select('*');
   const prefs = preferences.data ?? { character_initiated_messages: true, push_enabled: false, quiet_hours_start: '23:00', quiet_hours_end: '08:00', timezone: 'UTC' };
@@ -112,7 +120,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   } else if (evaluateProactive) {
     proactive = await deliverDueMessage(db, userId, instance, latestConversation.data, prefs, now);
     if (!proactive) {
-      const scheduleMessageEvent=trigger==='scheduled_dispatch'&&presence?.scheduleEventId&&presence.interruptibility==='open'&&!['sleep','work','travel'].includes(String(presence.activityKey))?{id:presence.scheduleEventId,event_type:'schedule_presence',title:presence.activity,narrative_summary:String(presence.activity),location_id:presence.locationId,significance:.56,starts_at:presence.activityStartedAt,ends_at:presence.expectedEndAt,user_should_know:true,proactive_message_appropriate:true,metadata:{source:'character_schedule',scheduleEventId:presence.scheduleEventId}}:null;
+      const scheduleMessageEvent=trigger==='scheduled_dispatch'&&passivePresence?.scheduleEventId&&passivePresence.interruptibility==='open'&&!['sleep','work','travel'].includes(String(passivePresence.activityKey))?{id:passivePresence.scheduleEventId,event_type:'schedule_presence',title:passivePresence.activity,narrative_summary:String(passivePresence.activity),location_id:passivePresence.locationId,significance:.56,starts_at:passivePresence.activityStartedAt,ends_at:passivePresence.expectedEndAt,user_should_know:true,proactive_message_appropriate:true,metadata:{source:'character_schedule',scheduleEventId:passivePresence.scheduleEventId}}:null;
       proactive = await createProactiveCandidate({ db, userId, instance, relationship: relationship.data, conversation: latestConversation.data, prefs, now, dueThreads: dueThreads ?? [], events: [...(scheduleMessageEvent?[scheduleMessageEvent]:[]),...created, ...(recentEvents.data ?? [])], plans:canonicalPlans, recentProactive: recentProactive.data ?? [], memory: memories.data?.[0]?.canonical_text });
     }
   }

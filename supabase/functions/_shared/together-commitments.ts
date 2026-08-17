@@ -2,6 +2,7 @@ import type{SupabaseClient}from'@supabase/supabase-js';
 import{classifyMissExplanation,deriveCommitmentTemporalState,missedCommitmentRepairImpact}from'../../../packages/together-domain/src/index.ts';
 import{AppError}from'./types.ts';
 import{writeConversationEvent}from'./together-plans.ts';
+import { beginPlanExperience, wrapPlanExperience, type PlanExperience } from './together-plan-experience.ts';
 
 type Row=Record<string,any>;
 
@@ -21,32 +22,15 @@ export function decorateCommitment(plan:Row,attendance:Row[],resolution:Row|null
   return{...plan,attendance:{user:userAttendance??null,character:characterAttendance??null},missResolution:resolution,temporalState};
 }
 
-export async function joinCommitment(db:SupabaseClient,input:{userId:string;continuityId:string;characterInstanceId:string;planId:string;source?:'app'|'date'|'trip'|'recovery';now?:Date}){
-  const now=input.now??new Date();
-  const{data:plan}=await db.from('together_shared_plans').select('*').eq('id',input.planId).eq('user_id',input.userId).eq('continuity_id',input.continuityId).eq('character_instance_id',input.characterInstanceId).maybeSingle();
-  if(!plan)throw new AppError('NOT_FOUND','That commitment is unavailable.',404);
-  if(['completed','cancelled'].includes(plan.status))throw new AppError('CONFLICT','That commitment is already over.',409);
-  if(plan.status==='missed')throw new AppError('PLAN_MISSED','That commitment has already been marked missed. Talk about what happened or make a new plan.',409);
-  if(!plan.starts_at)throw new AppError('PLAN_TIME_UNRESOLVED','Choose an exact time before joining.',409,true);
-  const starts=new Date(plan.starts_at),grace=new Date(plan.grace_ends_at??starts.getTime()+Number(plan.grace_minutes??30)*60000);
-  if(now.getTime()<starts.getTime()-30*60000)throw new AppError('TOO_EARLY','This commitment is not ready to join yet.',409,true);
-  if((plan.participation_mode??'live')==='live'&&now>grace)throw new AppError('PLAN_MISSED','The grace period for this commitment has ended.',409);
-  const{data:existing}=await db.from('together_plan_attendance').select('id').eq('plan_id',plan.id).eq('user_id',input.userId).eq('participant_type','user').maybeSingle();
-  const attendancePayload={user_id:input.userId,continuity_id:input.continuityId,plan_id:plan.id,participant_type:'user',character_instance_id:null,joined_at:now.toISOString(),left_at:null,source:input.source??'app',metadata:{joinedFrom:'client'}};
-  const attendanceWrite=existing?await db.from('together_plan_attendance').update({joined_at:now.toISOString(),left_at:null,source:input.source??'app',metadata:{joinedFrom:'client'},updated_at:now.toISOString()}).eq('id',existing.id).eq('user_id',input.userId):await db.from('together_plan_attendance').insert(attendancePayload);
-  if(attendanceWrite.error)throw new AppError('INTERNAL_ERROR','Could not record your arrival.',500,true);
-  if(plan.status==='scheduled'&&now>=starts)await db.from('together_shared_plans').update({status:'active',updated_at:now.toISOString()}).eq('id',plan.id).eq('user_id',input.userId);
-  await db.rpc('kivelle_progress_shared_plans',{p_user_id:input.userId,p_character_instance_id:input.characterInstanceId,p_now:now.toISOString()});
-  if(plan.source_conversation_id)await writeConversationEvent(db,{userId:input.userId,characterInstanceId:input.characterInstanceId,conversationId:String(plan.source_conversation_id),eventType:'plan_joined',entityType:'shared_plan',entityId:String(plan.id),metadata:{title:plan.title,joinedAt:now.toISOString()}}).catch(()=>undefined);
-  return loadCommitmentState(db,input.userId,String(plan.id),now);
+export async function joinCommitment(db:SupabaseClient,input:{userId:string;continuityId:string;characterInstanceId:string;planId:string;requestId?:string;source?:'app'|'date'|'trip'|'recovery';now?:Date}):Promise<PlanExperience>{
+  return beginPlanExperience({db,userId:input.userId,continuityId:input.continuityId,characterInstanceId:input.characterInstanceId,planId:input.planId,requestId:input.requestId??`join:${input.planId}`,source:input.source,now:input.now});
 }
 
-export async function leaveCommitment(db:SupabaseClient,input:{userId:string;continuityId:string;planId:string;now?:Date}){
+export async function leaveCommitment(db:SupabaseClient,input:{userId:string;continuityId:string;planId:string;requestId?:string;now?:Date}){
   const now=input.now??new Date();
-  const{data:plan}=await db.from('together_shared_plans').select('id,status').eq('id',input.planId).eq('user_id',input.userId).eq('continuity_id',input.continuityId).maybeSingle();
+  const{data:plan}=await db.from('together_shared_plans').select('id,status,character_instance_id').eq('id',input.planId).eq('user_id',input.userId).eq('continuity_id',input.continuityId).maybeSingle();
   if(!plan)throw new AppError('NOT_FOUND','That commitment is unavailable.',404);
-  await db.from('together_plan_attendance').update({left_at:now.toISOString(),updated_at:now.toISOString()}).eq('plan_id',plan.id).eq('user_id',input.userId).eq('participant_type','user').is('left_at',null);
-  return loadCommitmentState(db,input.userId,String(plan.id),now);
+  return wrapPlanExperience({db,userId:input.userId,continuityId:input.continuityId,characterInstanceId:String(plan.character_instance_id),planId:String(plan.id),requestId:input.requestId??`leave:${plan.id}`,now});
 }
 
 export async function explainMissedCommitment(db:SupabaseClient,input:{userId:string;continuityId:string;characterInstanceId:string;planId:string;explanation:string;conversationId?:string;now?:Date}){

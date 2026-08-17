@@ -2,6 +2,8 @@ import { AppError } from './types.ts';
 import { extractMemories, extractOpenThread, normalizeContinuityKey, threadAnswered, type MemoryCandidate, type OpenThreadCandidate } from './together.ts';
 import { buildCompanionPrompt } from './kivelle-intelligence.ts';
 import type { KivelleConversationContext } from './kivelle-conversation-context.ts';
+import type { PlaceOpinionCandidate } from './kivelle-place-perspective.ts';
+import { deterministicPlaceOpinionCandidates as derivePlaceOpinionCandidates, validatePlaceOpinionCandidates as validateDerivedPlaceOpinionCandidates } from '../../../packages/together-domain/src/place-opinion-analysis.ts';
 
 export type DialogueContext = KivelleConversationContext & { contentMode?:string };
 export interface DialogueProvider { generate(context: DialogueContext): Promise<string>; stream(context: DialogueContext): AsyncIterable<string>; }
@@ -9,7 +11,7 @@ export interface EmbeddingProvider { embed(text: string): Promise<number[] | nul
 export interface ModerationProvider { check(text: string): Promise<{ allowed: boolean; categories: string[] }>; }
 export type ConversationActionCandidate = { type:'plan_create'|'plan_cancel'|'plan_reschedule'|'date'; confidence:number; payload:Record<string,unknown> };
 export type ConversationAnalysisInput = { userMessage: string; assistantMessage: string; existingThreads: Array<Record<string, unknown>>; context?:DialogueContext };
-export type ConversationAnalysisProposal = { relationshipChanges: Record<string, number>; memoryCandidates: MemoryCandidate[]; resolvedThreadIds: string[]; newThreads: OpenThreadCandidate[]; momentCandidate: boolean; moodEffects: Record<string, number>; actionCandidates:ConversationActionCandidate[]; referencedEntities:string[]; source: 'deterministic' | 'hybrid' };
+export type ConversationAnalysisProposal = { relationshipChanges: Record<string, number>; memoryCandidates: MemoryCandidate[]; resolvedThreadIds: string[]; newThreads: OpenThreadCandidate[]; momentCandidate: boolean; moodEffects: Record<string, number>; actionCandidates:ConversationActionCandidate[]; placeOpinionCandidates:PlaceOpinionCandidate[]; referencedEntities:string[]; mentionedMemoryIds:string[]; reinforcedMemoryIds:string[]; correctedMemorySubjects:string[]; source: 'deterministic' | 'hybrid' };
 export interface ConversationAnalysisProvider { analyze(input: ConversationAnalysisInput): Promise<ConversationAnalysisProposal>; }
 
 const apiKey = () => Deno.env.get('OPENAI_API_KEY');
@@ -107,7 +109,7 @@ export class ConfiguredConversationAnalysisProvider implements ConversationAnaly
     const deterministic = deterministicAnalysis(input);
     const key = geminiKey();
     const enabled = Deno.env.get('TOGETHER_AI_ANALYSIS_ENABLED') !== 'false';
-    if (!enabled || !key || !shouldUseModelAnalysis(input.userMessage)) return deterministic;
+    if (!enabled || !key || !shouldUseModelAnalysis(input)) return deterministic;
     try {
       const modelName = model('TOGETHER_ANALYSIS_MODEL', Deno.env.get('GEMINI_EXPLANATION_MODEL') ?? 'gemini-2.5-flash');
       const response = await Promise.race([
@@ -148,12 +150,18 @@ function deterministicAnalysis(input: ConversationAnalysisInput): ConversationAn
     momentCandidate: false,
     moodEffects: {},
     actionCandidates: proposeActions(input),
+    placeOpinionCandidates:deterministicPlaceOpinionCandidates(input),
     referencedEntities: referencedEntities(input),
+    mentionedMemoryIds: detectedMentionedMemoryIds(input.assistantMessage,input.context),
+    reinforcedMemoryIds: [],
+    correctedMemorySubjects: [],
     source: 'deterministic',
   };
 }
 
-function shouldUseModelAnalysis(message: string): boolean {
+function shouldUseModelAnalysis(input:ConversationAnalysisInput): boolean {
+  const message=input.userMessage;
+  if(input.context?.place&&/\b(what do you think|do you like|how do you feel|opinion|this place|here|growing on|favorite)\b/i.test(message))return true;
   if (message.length < 32) return false;
   return /\b(i|i'm|i've|my|we|tomorrow|next|used to|actually|remember|important)\b/i.test(message);
 }
@@ -171,10 +179,16 @@ ${input.assistantMessage}
 OPEN THREADS
 ${JSON.stringify(threadList)}
 
-Return this shape:
-{"relationshipChanges":{"trust":0,"comfort":0,"attraction":0,"affinity":0,"familiarity":0,"respect":0,"conflict":0,"romantic_interest":0,"commitment":0},"memoryCandidates":[{"memory_type":"semantic|preference|episodic|relationship|emotional","canonical_text":"User ...","subject_key":"stable topic key","importance":0.0,"confidence":0.0,"sensitivity_category":"none|personal|sensitive","metadata":{}}],"resolvedThreadIds":[],"newThreads":[{"topic":"Ask how ... went.","subject":"presentation","expected_at":"ISO timestamp or null","importance":0.0}],"momentCandidate":false,"moodEffects":{}}
+MEMORIES AVAILABLE TO THE CHARACTER THIS TURN
+${JSON.stringify([...(input.context?.memoryContext?.silent??[]),...(input.context?.memoryContext?.callbacks??[]),...(input.context?.memoryContext?.directRecall??[])].map((item:any)=>({id:item.id,text:item.text})))}
 
-Rules: relationship deltas must be integers from -4 to 4. Ordinary chat should be 0 to 2. Never infer private facts. Do not create a memory from the character response. A correction must use the same subject_key as the earlier fact. Resolve only an eligible thread that this user message actually answers.`;
+ALLOWED PLACES FOR OPINION EVIDENCE
+${JSON.stringify(allowedPlaces(input).map((place)=>({placeRef:place.slug,name:place.name,current:place.current,existingView:place.existingView})))}
+
+Return this shape:
+{"relationshipChanges":{"trust":0,"comfort":0,"attraction":0,"affinity":0,"familiarity":0,"respect":0,"conflict":0,"romantic_interest":0,"commitment":0},"memoryCandidates":[{"memory_type":"semantic|preference|episodic|relationship|emotional","canonical_text":"User ...","subject_key":"stable topic key","importance":0.0,"confidence":0.0,"sensitivity_category":"none|personal|sensitive","metadata":{}}],"placeOpinionCandidates":[{"placeRef":"allowed-place-slug","sentiment":0.0,"confidence":0.0,"summary":"Durable neutral summary of the companion's expressed view.","tags":[],"favoriteDetails":[],"dislikedDetails":[],"reasoningCode":"explicit_character_opinion|opinion_changed|shared_experience_reaction"}],"resolvedThreadIds":[],"newThreads":[{"topic":"Ask how ... went.","subject":"presentation","expected_at":"ISO timestamp or null","importance":0.0}],"mentionedMemoryIds":[],"reinforcedMemoryIds":[],"correctedMemorySubjects":[],"momentCandidate":false,"moodEffects":{}}
+
+Rules: relationship deltas must be integers from -4 to 4. Ordinary chat should be 0 to 2. Never infer private facts. Do not create a memory from the character response. A correction must use the same subject_key as the earlier fact. Mentioned/reinforced memory IDs must be from the available list and only if the assistant actually referenced them. Resolve only an eligible thread that this user message actually answers. A place opinion candidate is allowed only when the CHARACTER RESPONSE explicitly expresses or changes a durable personal view of one listed place. Never turn the user's opinion, objective venue description, or a passing observation into the companion's opinion. Use only an allowed placeRef and never invent an ID.`;
 }
 
 function validateAnalysisJson(value: unknown, input: ConversationAnalysisInput): ConversationAnalysisProposal {
@@ -205,7 +219,10 @@ function validateAnalysisJson(value: unknown, input: ConversationAnalysisInput):
     if (!subject || !topic || !expectedAt) return [];
     return [{ topic, subject, display_subject:subject[0]!.toUpperCase()+subject.slice(1), followup_prompt:`I should tell you how my ${subject} went.`, dedupe_key: `event:${subject.replace(/\s+/g, ':')}:${expectedAt.slice(0, 10)}`, expected_at: expectedAt, importance: clampUnit(proposed.importance), metadata: { source: 'analysis', subject } }];
   });
-  return { relationshipChanges, memoryCandidates, resolvedThreadIds, newThreads, momentCandidate: record.momentCandidate === true, moodEffects: {}, actionCandidates:proposeActions(input), referencedEntities:referencedEntities(input), source: 'hybrid' };
+  const available=new Set([...(input.context?.memoryContext?.silent??[]),...(input.context?.memoryContext?.callbacks??[]),...(input.context?.memoryContext?.directRecall??[])].map((item:any)=>String(item.id)));
+  const ids=(value:unknown)=>Array.isArray(value)?value.map(String).filter((id)=>available.has(id)).slice(0,5):[];
+  const placeOpinionCandidates=validatePlaceOpinionCandidates(record.placeOpinionCandidates,input);
+  return { relationshipChanges, memoryCandidates, resolvedThreadIds, newThreads, momentCandidate: record.momentCandidate === true, moodEffects: {}, actionCandidates:proposeActions(input),placeOpinionCandidates, referencedEntities:referencedEntities(input),mentionedMemoryIds:ids(record.mentionedMemoryIds),reinforcedMemoryIds:ids(record.reinforcedMemoryIds),correctedMemorySubjects:Array.isArray(record.correctedMemorySubjects)?record.correctedMemorySubjects.map(String).slice(0,4):[], source: 'hybrid' };
 }
 
 function mergeAnalysis(base: ConversationAnalysisProposal, modelProposal: ConversationAnalysisProposal): ConversationAnalysisProposal {
@@ -221,9 +238,36 @@ function mergeAnalysis(base: ConversationAnalysisProposal, modelProposal: Conver
     resolvedThreadIds: [...new Set([...base.resolvedThreadIds, ...modelProposal.resolvedThreadIds])],
     newThreads: [...threads.values()],
     actionCandidates: base.actionCandidates,
+    placeOpinionCandidates:modelProposal.placeOpinionCandidates.length?modelProposal.placeOpinionCandidates:base.placeOpinionCandidates,
     referencedEntities: [...new Set([...base.referencedEntities, ...modelProposal.referencedEntities])],
+    mentionedMemoryIds:[...new Set([...base.mentionedMemoryIds,...modelProposal.mentionedMemoryIds])],
+    reinforcedMemoryIds:[...new Set([...base.reinforcedMemoryIds,...modelProposal.reinforcedMemoryIds])],
+    correctedMemorySubjects:[...new Set([...base.correctedMemorySubjects,...modelProposal.correctedMemorySubjects])],
     source: 'hybrid',
   };
+}
+
+function detectedMentionedMemoryIds(assistantMessage:string,context:DialogueContext|undefined):string[]{
+  const text=assistantMessage.toLowerCase();
+  const candidates=[...(context?.memoryContext?.callbacks??[]),...(context?.memoryContext?.directRecall??[])];
+  return candidates.filter((memory:any)=>{
+    const words=String(memory.text??'').toLowerCase().split(/[^a-z0-9]+/).filter((word)=>word.length>4);
+    return words.length>1&&words.filter((word)=>text.includes(word)).length>=2;
+  }).map((memory:any)=>String(memory.id));
+}
+
+function allowedPlaces(input:ConversationAnalysisInput):Array<{slug:string;name:string;current:boolean;existingView:string|null}>{
+  const current=input.context?.place;
+  const places=[current,...(input.context?.referencedPlaces??[])].filter((item):item is NonNullable<typeof current>=>Boolean(item));
+  return [...new Map(places.map((place)=>[place.location.id,{slug:place.location.slug,name:place.location.name,current:place.location.id===current?.location.id,existingView:input.context?.placePerspectives?.find((item)=>item.locationId===place.location.id)?.opinionSummary??null}])).values()];
+}
+
+export function deterministicPlaceOpinionCandidates(input:ConversationAnalysisInput):PlaceOpinionCandidate[]{
+  return derivePlaceOpinionCandidates({assistantMessage:input.assistantMessage,places:allowedPlaces(input)});
+}
+
+export function validatePlaceOpinionCandidates(value:unknown,input:ConversationAnalysisInput):PlaceOpinionCandidate[]{
+  return validateDerivedPlaceOpinionCandidates(value,{assistantMessage:input.assistantMessage,places:allowedPlaces(input)});
 }
 
 function clampUnit(value: unknown): number {
@@ -272,7 +316,7 @@ function proposeActions(input:ConversationAnalysisInput):ConversationActionCandi
 
 function planIntent(text:string):{match:string;label:string}|null{const groups:[RegExp,string,string][]=[[/\b(cocktails?|drinks?|bar)\b/,'drinks','drinks'],[/\b(coffee|cafe|café)\b/,'coffee','coffee'],[/\b(dinner|food|eat)\b/,'dinner','dinner'],[/\b(rooftop movie|movie night|movies?)\b/,'movie','movie night'],[/\b(trivia)\b/,'trivia','trivia'],[/\b(open mic|live music|concert)\b/,'music','live music'],[/\b(bookstore|books?)\b/,'books','books'],[/\b(photo walk|photos?|photography)\b/,'photo','photos'],[/\b(walk|riverwalk|park)\b/,'walk','walk'],[/\b(shopping|shop)\b/,'shopping','shopping'],[/\b(karaoke)\b/,'karaoke','karaoke'],[/\b(comedy)\b/,'comedy','comedy']];for(const[pattern,match,label]of groups)if(pattern.test(text))return{match,label};return null;}
 function rankPlanLocation(locations:any[],stage:unknown,intent:string){const romantic=['flirting','dating','exclusive','long_term'].includes(String(stage));return[...locations].sort((a,b)=>planLocationScore(b,romantic,intent)-planLocationScore(a,romantic,intent))[0];}
-function planLocationScore(location:any,romantic:boolean,intent:string){let score=0;if(intent==='drinks'&&location.slug==='velvet-hour')score+=4;if(intent==='coffee'&&location.slug==='juniper-cafe')score+=3;if(intent==='books'&&location.slug==='paper-trail')score+=5;if(intent==='walk'&&['riverwalk','halcyon-park'].includes(location.slug))score+=4;if(romantic&&location.tags.includes('romantic'))score+=2;if(location.category==='work')score-=5;return score;}
+function planLocationScore(location:any,romantic:boolean,intent:string){let score=0;if(intent==='drinks'&&location.slug==='velvet-hour')score+=4;if(intent==='coffee'&&location.slug==='juniper-cafe')score+=3;if(intent==='books'&&location.slug==='paper-trail')score+=5;if(intent==='walk'&&['riverwalk','halcyon-park'].includes(location.slug))score+=4;if(romantic&&location.tags.includes('romantic'))score+=2;if(location.category==='work')score-=5;score+=Number(location.companionSentiment??0)*1.25;if((location.preferredActivities??[]).some((activity:string)=>normalizePlanWord(activity).includes(intent)))score+=1;if(Number(location.sharedVisitCount??0)>0)score+=.25;return score;}
 function parsePlanTime(text:string,clock:any):string|null{if(!clock?.localDate||!clock?.timezone)return null;let date=String(clock.localDate);const base=new Date(`${date}T12:00:00Z`);if(/\btomorrow\b/.test(text)){base.setUTCDate(base.getUTCDate()+1);date=base.toISOString().slice(0,10);}else{const days=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];const index=days.findIndex((day)=>text.includes(day));if(index>=0){let delta=(index-Number(clock.weekday)+7)%7;if(delta===0)delta=7;base.setUTCDate(base.getUTCDate()+delta);date=base.toISOString().slice(0,10);}else if(/\bthis weekend\b/.test(text)){let delta=(6-Number(clock.weekday)+7)%7;if(delta===0)delta=7;base.setUTCDate(base.getUTCDate()+delta);date=base.toISOString().slice(0,10);}else if(!/\btonight\b/.test(text))return null;}
   const time=/\b(?:at|around|make it)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/.exec(text);let hour=time?Number(time[1]):(/night|evening|drinks|dinner/.test(text)?20:10);const minute=time?.[2]?Number(time[2]):0;if(time?.[3]==='pm'&&hour<12)hour+=12;if(time?.[3]==='am'&&hour===12)hour=0;if(!time?.[3]&&hour<=7&&/night|evening|dinner|drinks/.test(text))hour+=12;return localIso(date,hour,minute,String(clock.timezone));}
 function localIso(date:string,hour:number,minute:number,timezone:string){let guess=Date.parse(`${date}T${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}:00Z`);for(let i=0;i<2;i++){const parts=new Intl.DateTimeFormat('en-US',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(guess));const get=(type:string)=>Number(parts.find((part)=>part.type===type)?.value??0);const actual=Date.UTC(get('year'),get('month')-1,get('day'),get('hour')%24,get('minute'));const wanted=Date.UTC(Number(date.slice(0,4)),Number(date.slice(5,7))-1,Number(date.slice(8,10)),hour,minute);guess+=wanted-actual;}return new Date(guess).toISOString();}
@@ -398,6 +442,6 @@ function fallbackDialogue(context: DialogueContext): string {
   if (/presentation|interview|exam/.test(lower)) return "That sounds like a big deal. I'll be rooting for you—and I want to hear how it goes afterward.";
   if (/olive/.test(lower)) return "Noted. If olives show up on our table, they're staying very far away from your side.";
   if (/hello|\bhi\b|\bhey\b/.test(lower)) return "Hey. I was just sorting through a shoot that somehow produced three hundred photos of the same crooked lamp. How's your day going?";
-  const memory = context.memories[0]?.text;
+  const memory = context.memoryContext?.directRecall?.[0]?.text ?? (Number(context.memoryContext?.callbackAllowance ?? 0) > 0 ? context.memoryContext?.callbacks?.[0]?.text : undefined);
   return memory ? `You know, that reminds me of something you told me before—${memory.replace(/^User /, 'you ')} Anyway, tell me the part of this that matters most to you.` : "Okay, you have my attention. Tell me more—but give me the real version, not the polished one.";
 }

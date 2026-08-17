@@ -20,8 +20,7 @@ const categoryIcons:Record<ExploreCategoryId,ReactNode>={
 
 export default function Explore(){
   const params=useLocalSearchParams<{world?:string}>();
-  const snapshot=useTogether((state)=>state.snapshot);
-  const[browsedWorldId,setBrowsedWorldId]=useState<string|null>(null);
+  const{snapshot,browsedWorldId,setBrowsedWorldId}=useTogether();
   const[worldPickerOpen,setWorldPickerOpen]=useState(false);
   const[category,setCategory]=useState<ExploreCategoryId|null>(null);
   const worlds=snapshot?.worlds.filter((item)=>item.published).sort((a,b)=>a.sort_order-b.sort_order)??[];

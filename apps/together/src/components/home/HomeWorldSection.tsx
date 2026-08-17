@@ -1,8 +1,9 @@
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Image, type ImageSource } from 'expo-image';
+import type { ImageSource } from 'expo-image';
 import { ArrowRight, Heart, Sparkles } from 'lucide-react-native';
 import { colors, typography } from '../../theme';
 import { SectionTitle } from './FromCompanionSection';
+import { DetailPreservingArtwork } from '../DetailPreservingArtwork';
 
 export function HomeWorldSection({ wide, upcoming, relationship, hook, memory, upcomingSource, relationshipSource, onUpcoming, onRelationship }: {
   wide: boolean;
@@ -27,7 +28,7 @@ export function HomeWorldSection({ wide, upcoming, relationship, hook, memory, u
 
 function WorldImageCard({ source, eyebrow, title, meta, icon, memory, onPress }: { source?: ImageSource | number; eyebrow: string; title: string; meta: string; icon: React.ReactNode; memory?: { eyebrow: string; text: string }; onPress: () => void }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={`${eyebrow}, ${title}`} onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
-    {source ? <Image source={source} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" transition={200} cachePolicy="memory-disk" /> : null}
+    {source ? <DetailPreservingArtwork source={source} accessibilityLabel={title} contentPosition="center" dim={.13} /> : null}
     <View style={styles.shade} />
     <View style={styles.cardTop}><View style={styles.eyebrowRow}>{icon}<Text style={styles.eyebrow}>{eyebrow}</Text></View><ArrowRight size={18} color="rgba(255,255,255,.74)" /></View>
     <View style={styles.copy}><Text numberOfLines={3} style={styles.title}>{title}</Text><Text numberOfLines={2} style={styles.meta}>{meta}</Text>{memory ? <View style={styles.memory}><Text style={styles.memoryLabel}>{memory.eyebrow}</Text><Text numberOfLines={2} style={styles.memoryText}>{memory.text}</Text></View> : null}</View>

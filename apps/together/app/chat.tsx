@@ -9,9 +9,9 @@ import { CharacterAvatar, ErrorState, LoadingSkeleton, MediaTile, MoodBadge, Rel
 import { characterAssets, cityLifeAsset, locationHeroAsset, worldHeroAsset } from '../src/assets';
 import { colors, radius, spacing } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
-import { ApiError, confirmConversationAction, createSharedPlan, dismissConversationAction, manageConversation, manageInteraction, manageMedia, mutateMemory, reportMessage, resolveRelationshipMilestone, sendDialogue, simulate } from '../src/lib/api';
+import { ApiError, confirmConversationAction, createSharedPlan, dismissConversationAction, manageConversation, manageInteraction, manageMedia, mutateMemory, reportMessage, resolveRelationshipMilestone, sendDialogue, sendSceneReaction, simulate } from '../src/lib/api';
 import { supabase } from '../src/lib/supabase';
-import type { CharacterInstance, ConversationAction, ConversationEvent, GeneratedMedia, InteractionCandidate, Message, RelationshipMilestone, SceneSession, SharedPlan, Snapshot } from '../src/types';
+import type { CharacterInstance, ConversationAction, ConversationEvent, GeneratedMedia, InteractionCandidate, Message, RelationshipMilestone, SceneAction, SceneSession, SharedPlan, Snapshot } from '../src/types';
 import { activeCompanion } from '../src/lib/companionLife';
 import { activeConversationFor, mergeOlderMessages } from '../src/lib/conversation';
 import { confirmAction, promptText } from '../src/lib/dialogs';
@@ -65,8 +65,9 @@ export default function Chat() {
   useEffect(()=>{if(params.plan==='1')setShowPlans(true);if(params.draft)setInput(params.draft);if(params.planId)setFocusPlanId(params.planId);},[params.plan,params.draft,params.planId]);
   useEffect(()=>{const focus=conversation?.metadata?.focus as Record<string,unknown>|undefined;if(!focusDismissed&&!focusPlanId&&focus?.type==='plan'&&typeof focus.planId==='string')setFocusPlanId(focus.planId);},[conversation?.id,conversation?.metadata,focusPlanId,focusDismissed]);
   const activeSceneMetadata=(conversation?.metadata?.activeScene??conversation?.metadata?.scene??null) as Record<string,unknown>|null;
-  const hasActiveCommitment=Boolean(snapshot&&character&&((snapshot.sharedPlans??[]).some((plan)=>plan.character_instance_id===character.id&&isLivePlan(plan))||(snapshot.dates??[]).some((date)=>date.character_instance_id===character.id&&date.status==='active')));
-  const isCoPresent=Boolean(activeSceneMetadata?.interactionMode==='co_present'||hasActiveCommitment);
+  const hasActiveCommitment=Boolean(snapshot&&character&&((snapshot.sharedPlans??[]).some((plan)=>plan.character_instance_id===character.id&&isLivePlan(plan)&&Boolean(plan.attendance?.user&&!plan.attendance.user.left_at))||(snapshot.dates??[]).some((date)=>date.character_instance_id===character.id&&date.status==='active')));
+  const metadataCoPresent=activeSceneMetadata?.interactionMode==='co_present'&&activeSceneMetadata?.entryReason!=='shared_plan';
+  const isCoPresent=Boolean(metadataCoPresent||hasActiveCommitment);
   useEffect(()=>{
     if(!character?.id||!conversation?.id||!isCoPresent){setInteractionCandidates([]);setMovementCandidates([]);setInteractionScene(null);return;}
     let cancelled=false;setInteractionLoading(true);
@@ -115,7 +116,7 @@ export default function Chat() {
           setInteractionScene(sceneResult.scene?.id?sceneResult.scene:null);
           setInteractionCandidates(sceneResult.interactions??[]);
           setMovementCandidates(sceneResult.destinations??[]);
-          if(sceneResult.intentMatch)await executeInteraction(sceneResult.intentMatch);
+          if(sceneResult.intentMatch)await executeInteraction(sceneResult.intentMatch,'defer_to_current_message');
         }catch{/* The sent message is still valid if the scene changed. */}
       }
       const result = await sendDialogue({ conversationId: conversation.id, characterInstanceId: character.id, message: text, clientRequestId: createClientRequestId(),focusPlanId:focusPlanId??undefined }, (token) => setStream((current) => current + token));
@@ -147,11 +148,11 @@ export default function Chat() {
   };
   const applySceneDelta = (scene:SceneSession|null|undefined) => {
     if(!scene?.id)return;
-    updateCompanion({...character,current_location_id:scene.location_id,current_activity:String(scene.state?.activityLabel??scene.activity_key??character.current_activity),current_interruptibility:'open',current_presence_source:'scene'});
+    updateCompanion({...character,current_location_id:scene.location_id,current_activity:sceneActivityLabel(scene),current_interruptibility:'open',current_presence_source:'scene'});
   };
-  const executeInteraction = async (candidate:InteractionCandidate) => {
+  const executeInteraction = async (candidate:InteractionCandidate,reactionMode:'generate'|'defer_to_current_message'='generate') => {
     if(interactionLoading)return;setInteractionLoading(true);setError('');
-    try{const result=await manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[];action?:{result?:{label?:string}}}>({action:'execute',characterInstanceId:character.id,conversationId:conversation.id,sceneId:interactionScene?.id,interactionKey:candidate.interactionKey,requestId:createClientRequestId()});setInteractionScene(result.scene?.id?result.scene:null);applySceneDelta(result.scene);setInteractionCandidates(result.interactions??[]);setMovementCandidates(result.destinations??[]);setLastInteraction(candidate.label);setShowInteractions(false);if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);}catch(caught){setError(caught instanceof Error?caught.message:'That option is no longer available.');}finally{setInteractionLoading(false);}
+    try{const result=await manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[];action?:SceneAction}>({action:'execute',characterInstanceId:character.id,conversationId:conversation.id,sceneId:interactionScene?.id,interactionKey:candidate.interactionKey,requestId:createClientRequestId()});setInteractionScene(result.scene?.id?result.scene:null);applySceneDelta(result.scene);setInteractionCandidates(result.interactions??[]);setMovementCandidates(result.destinations??[]);setLastInteraction(candidate.label);setShowInteractions(false);if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);if(reactionMode==='generate'&&result.action?.id){setSending(true);setStream('');try{const reaction=await sendSceneReaction({conversationId:conversation.id,characterInstanceId:character.id,sceneActionId:result.action.id,clientRequestId:createClientRequestId()},(token)=>setStream((current)=>current+token));setStream('');setMessages((current)=>[...current,reaction.message]);}catch(caught){setStream('');setError(caught instanceof Error?caught.message:'The action happened, but the reaction was interrupted.');}finally{setSending(false);}}}catch(caught){setError(caught instanceof Error?caught.message:'That option is no longer available.');}finally{setInteractionLoading(false);}
   };
   const moveScene = async (candidate:InteractionCandidate) => {
     const destinationId=typeof candidate.effects.destinationLocationId==='string'?candidate.effects.destinationLocationId:null;if(!destinationId)return;
@@ -206,6 +207,7 @@ function ContextRail({snapshot,character,context,onPrompt,onPlan}:{snapshot:Snap
 function presentMemoryText(text:string,type:string){const cleaned=text.replace(/^User\s+(likes|dislikes|hates|loves)\s+/i,'You $1 ').replace(/^User told (?:Maya|the character)\s+/i,'You told them ');if(cleaned!==text)return cleaned;return type==='preference'&&!/^You\b/i.test(text)?`You mentioned ${text.charAt(0).toLowerCase()}${text.slice(1)}`:text;}
 
 function SceneCard({character,context,snapshot}:{character:CharacterInstance;context:ClientConversationContext;snapshot:Snapshot}) { const location=snapshot.locations.find((item)=>item.id&&(context.scene.locationId??character.current_location_id)===item.id);const world=location?worldForLocation(snapshot,location.id):undefined;const fallback=location?locationHeroAsset(world?.slug,location.slug):world?worldHeroAsset(world.slug):cityLifeAsset;return <View style={[styles.scene,context.interactionMode==='co_present'&&{borderColor:colors.rose}]}><Image source={context.scene.mediaUrl?{uri:context.scene.mediaUrl}:fallback} style={StyleSheet.absoluteFill} contentFit="cover"/><View style={styles.sceneShade}><View style={styles.sceneTop}><Text style={styles.sceneKicker}>{context.interactionMode==='co_present'?'TOGETHER NOW':`${character.together_character_templates.name.toUpperCase()} RIGHT NOW`}</Text><Text style={styles.sceneTime}>{context.scene.localTime}</Text></View><Text style={styles.sceneTitle}>{context.scene.location}</Text><Text style={styles.sceneCopy}>{context.scene.summary}</Text><View style={styles.scenePeople}><CharacterAvatar slug={character.together_character_templates.slug} size={28}/><Text style={styles.scenePeopleText}>{character.together_character_templates.name} · {character.current_mood}</Text></View></View></View>; }
+function sceneActivityLabel(scene:SceneSession){const explicit=typeof scene.state?.activityLabel==='string'?scene.state.activityLabel.trim():'';if(explicit)return explicit;const key=String(scene.state?.currentActivityKey??scene.activity_key??'together').replace(/[_-]+/g,' ').trim();return key&&key!=='together'?key.replace(/^./,(character)=>character.toUpperCase()):'Spending time together';}
 
 function ConversationActionCard({action,busy,onConfirm,onChange,onDismiss}:{action:ConversationAction;busy:boolean;onConfirm:(planId?:string)=>void;onChange:()=>void;onDismiss:()=>void}){
   const cancel=['plan_cancel','cancel_plan'].includes(action.candidate_type),reschedule=['plan_reschedule','reschedule_plan'].includes(action.candidate_type),options=Array.isArray(action.payload.options)?action.payload.options as Array<Record<string,unknown>>:[];
