@@ -30,7 +30,9 @@ export default function Chat() {
   const showLeft = width >= 1080;
   const showRight = width >= 920;
   const { snapshot, refresh, setSnapshot, updateCompanion, applyServerDelta } = useTogether();
-  const character = params.character ? snapshot?.characters.find((item) => item.together_character_templates.slug === params.character||item.together_character_templates.public_handle===params.character||item.character_template_id===params.character) : snapshot ? activeCompanion(snapshot) : undefined;
+  const focusedPlan = params.planId && snapshot ? snapshot.sharedPlans?.find((item) => item.id === params.planId) : undefined;
+  const requestedCharacter = params.character && snapshot ? snapshot.characters.find((item) => item.together_character_templates.slug === params.character||item.together_character_templates.public_handle===params.character||item.character_template_id===params.character) : undefined;
+  const character = snapshot ? (focusedPlan ? snapshot.characters.find((item) => item.id === focusedPlan.character_instance_id) ?? requestedCharacter : requestedCharacter ?? activeCompanion(snapshot)) : undefined;
   const slug = character?.together_character_templates.slug ?? '';
   const conversation = snapshot&&character ? activeConversationFor(snapshot.conversations,character.id) : undefined;
   const [messages, setMessages] = useState<Message[]>([]);
@@ -165,8 +167,7 @@ export default function Chat() {
     <View style={styles.shell}>
       {showLeft ? <LeftRail snapshot={snapshot} active={slug} /> : null}
       <View style={styles.conversation}>
-        <ChatHeader character={character} location={location} relationshipStage={character.relationship_stage} onMenu={()=>setShowConversationMenu((value)=>!value)} />
-        {!showRight&&chatContext.nextCommitment?<Pressable onPress={()=>chatContext.nextCommitment?.kind==='plan'&&router.push(`/plan/${chatContext.nextCommitment.id}` as never)} style={styles.mobileCommitment}><CalendarDays size={14} color={colors.rose}…12194 tokens truncated…}}><Text style={styles.railKicker}>{title}</Text>{children}</View>; }
+        <ChatHeader character={character} location={location} relationshipStage={character.relationshi…12274 tokens truncated…}}><Text style={styles.railKicker}>{title}</Text>{children}</View>; }
 function ContextLine({icon,title,body}:{icon:React.ReactNode;title:string;body:string}) { return <View style={styles.contextLine}>{icon}<View style={{flex:1}}><Text style={styles.contextLineTitle}>{title}</Text><Text style={styles.contextCopy}>{body}</Text></View></View>; }
 
 function relationshipLabel(stage:string){return({stranger:'You just met',acquaintance:'Getting acquainted',friend:'A real friendship',flirting:'There is a spark',dating:'You are dating',exclusive:'Choosing each other',long_term:'Building a life'} as Record<string,string>)[stage]??'Getting closer';}
