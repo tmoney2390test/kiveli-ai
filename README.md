@@ -57,7 +57,9 @@ KIVELLE_DIRECTOR_GEMINI_MODEL=gemini-2.5-flash
 
 The existing `OPENAI_API_KEY` / `GEMINI_API_KEY` configuration is reused. Director calls time out quickly and fall back to the deterministic response brief.
 
-Contextual image records are modeled and surfaced only when a real media provider has produced a ready asset. The current build does not configure nudity or explicit-content providers.
+Contextual image and short-video records are surfaced only when a real media provider has produced a ready asset. Media routing is provider-neutral; WaveSpeed runs through a durable asynchronous job/webhook/recovery path and never becomes a second source of character or world truth. Higher-intensity routes remain independently gated by age verification, user preferences, character boundaries, validated model routes, and server feature flags.
+
+See [WaveSpeed media operations](docs/wavespeed-media.md) for secrets, reference synchronization, canary rollout, recovery, and deployment.
 
 ## Run locally
 

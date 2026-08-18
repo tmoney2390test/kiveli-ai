@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "packageManager": "pnpm@11.16.0",
-  "engines": { "node": ">=22.13.0" },
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
     "web": "pnpm --filter @together/app web",
     "web:build": "pnpm --filter @together/app web:build",
@@ -13,12 +15,17 @@
     "guard:starter-content": "node scripts/check-starter-content.mjs",
     "edge:typecheck": "node scripts/check-edge-functions.mjs",
     "supabase:test": "supabase test db",
-    "life:simulate": "node --experimental-strip-types scripts/simulate-life-engine.ts"
+    "life:simulate": "node --experimental-strip-types scripts/simulate-life-engine.ts",
+    "media:sync-references": "node --experimental-strip-types scripts/sync-kivelle-reference-media.ts",
+    "media:prepare-lora": "node --experimental-strip-types scripts/prepare-kivelle-character-lora.ts",
+    "media:create-benchmark": "node --experimental-strip-types scripts/create-kivelle-media-benchmark.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@supabase/supabase-js": "2.93.3",
     "@types/node": "^24.10.1",
     "eslint": "^9.39.1",
+    "fflate": "0.8.2",
     "globals": "^16.5.0",
     "supabase": "^2.111.0",
     "typescript": "^5.9.3",

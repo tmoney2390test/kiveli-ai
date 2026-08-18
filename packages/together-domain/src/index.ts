@@ -20,3 +20,7 @@ export * from './interactions.ts';
 export * from './place-perspective.ts';
 export * from './place-opinion-analysis.ts';
 export * from './creator.ts';
+export * from './conversation-style.ts';
+export * from './multimodal.ts';
+export * from './media-routing.ts';
+export * from './provider-webhook.ts';

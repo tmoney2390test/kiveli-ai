@@ -5,7 +5,8 @@ import { ConfiguredModerationProvider } from './together-ai.ts';
 import { ConfiguredCharacterCreationProvider, appearanceCandidates, type CharacterDraftProposal } from './together-creator.ts';
 import { activeContinuity } from './together-continuity.ts';
 import { resolvePlaceContext, resolveWorldAccess } from './together-place.ts';
-import { routeImageProvider, type CanonicalImageGenerationRequest } from './together-media.ts';
+import { kickMediaDispatcher, routeImageProvider, type CanonicalImageGenerationRequest } from './together-media.ts';
+import { envBoolean } from './wavespeed.ts';
 import { enforceCustomCompanionLimit, refundCredits, resolveSubscriptionState, spendCredits } from './kivelle-subscription.ts';
 import { track } from './together.ts';
 
@@ -193,7 +194,7 @@ async function regenerateSection(db: Db, userId: string, draft: Record<string, a
 async function generateAppearance(db: Db, userId: string, draft: Record<string, any>, input: StudioAction, now: string): Promise<Record<string, unknown>> {
   const requestId = String(input.requestId ?? '');
   if (!z.string().uuid().safeParse(requestId).success) throw new AppError('VALIDATION_ERROR', 'A valid generation request is required.', 400);
-  const existing = await db.from('together_creator_assets').select('*').eq('draft_id', draft.id).eq('user_id', userId).eq('group_request_id', requestId).eq('status', 'ready').order('created_at');
+  const existing = await db.from('together_creator_assets').select('*').eq('draft_id', draft.id).eq('user_id', userId).eq('group_request_id', requestId).neq('status', 'archived').order('created_at');
   if ((existing.data ?? []).length) return { draft: await serializeDraft(db, draft, true), idempotent: true };
   const subscription = await resolveSubscriptionState(db, userId);
   const charged = await spendCredits(db, { userId, action: 'creator_appearance_set', idempotencyKey: `creator-draft-appearance:${draft.id}:${requestId}`, referenceType: 'creator_draft', referenceId: draft.id, metadata: { requestId, tier: subscription.tier } });
@@ -204,6 +205,15 @@ async function generateAppearance(db: Db, userId: string, draft: Record<string, 
     const candidateSet = appearanceCandidates(proposal).slice(0, 3).map((candidate, index) => ({ ...candidate, label: ['Natural', 'Polished', 'Distinctive'][index] ?? candidate.label }));
     const meetingLocationId = selectedMeeting(draft)?.locationId ?? draft.life_config?.homeLocationId;
     const place = await resolvePlaceContext({ db, locationId: String(meetingLocationId), userId });
+    if (envBoolean('KIVELLE_WAVESPEED_CREATOR_ENABLED') && envBoolean('KIVELLE_WAVESPEED_ENABLED') && Boolean(Deno.env.get('WAVESPEED_API_KEY'))) {
+      const queued = candidateSet.map((candidate) => ({ id: candidate.id, user_id: userId, draft_id: draft.id, asset_type: 'appearance_candidate', status: 'queued', label: candidate.label, description: candidate.description, group_request_id: requestId, metadata: { visualDoNotChange: candidate.visualDoNotChange ?? [], creditTransactionId: charged.transactionId, placeContextVersion: place.contextVersion } }));
+      const created = await db.from('together_creator_assets').insert(queued).select('*');
+      if (created.error) throw new AppError('INTERNAL_ERROR', 'Appearance options could not be queued.', 500, true);
+      const updated = await db.from('together_creator_drafts').update({ appearance_config: { ...draft.appearance_config, lastGroupRequestId: requestId }, current_step: 'appearance', revision: draft.revision + 1, updated_at: now }).eq('id', draft.id).eq('user_id', userId).select('*').single();
+      await track(db, userId, 'custom_companion_appearance_candidates_queued', { creator_draft_id: draft.id, count: queued.length, creditCost: charged.cost, tier: subscription.tier });
+      await kickMediaDispatcher();
+      return { draft: await serializeDraft(db, updated.data ?? draft, true), creditCost: charged.cost, creditBalance: charged.balance, asynchronous: true };
+    }
     const imageProvider = routeImageProvider('standard');
     for (const candidate of candidateSet) {
       const mediaRequest: CanonicalImageGenerationRequest = {
@@ -265,6 +275,14 @@ async function finalizeDraft(db: Db, userId: string, draft: Record<string, any>,
   if (access === 'locked') throw new AppError('FORBIDDEN', 'This character’s home world is no longer available.', 403);
   const result = await db.rpc('kivelle_finalize_creator_draft', { p_user_id: userId, p_draft_id: draft.id, p_request_id: requestId });
   if (result.error || !result.data) throw new AppError('CONFLICT', safeDatabaseMessage(result.error?.message, 'This companion could not be finalized.'), 409);
+  const selectedAssetId = String(draft.appearance_config?.selectedAssetId ?? '');
+  if (selectedAssetId && result.data.characterVersionId) {
+    const selected = await db.from('together_creator_assets').select('*').eq('id', selectedAssetId).eq('draft_id', draft.id).eq('user_id', userId).eq('status', 'ready').maybeSingle();
+    if (selected.data?.storage_path) {
+      const sourceKey = `custom:${result.data.characterVersionId}:canonical-identity`;
+      await db.from('together_media_reference_assets').upsert({ asset_role: 'character_identity', character_version_id: result.data.characterVersionId, source_key: sourceKey, storage_bucket: 'kivelle-character-reference', storage_path: selected.data.storage_path, content_type: selected.data.content_type ?? 'image/jpeg', width: selected.data.width, height: selected.data.height, revision: 1, active: true, metadata: { creatorDraftId: draft.id, creatorAssetId: selected.data.id, provider: selected.data.provider, model: selected.data.model } }, { onConflict: 'asset_role,source_key,revision' });
+    }
+  }
   await track(db, userId, 'custom_companion_ready', { creator_draft_id: draft.id, character_template_id: result.data.characterTemplateId, world_id: draft.world_id });
   const finalized = await ownedDraft(db, userId, draft.id);
   void now;

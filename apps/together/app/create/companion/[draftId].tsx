@@ -55,6 +55,14 @@ export default function CreatorStudioRoute() {
     catch (caught) { setError(caught instanceof Error ? caught.message : 'This character draft could not be opened.'); }
   }, [applyDraft, draftId]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!draft?.assets.some((asset) => asset.status === 'queued' || asset.status === 'generating')) return;
+    const timer = setTimeout(() => {
+      if (!draftId) return;
+      void getCreatorDraft(draftId).then((result) => applyDraft(result.draft)).catch(() => undefined);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [applyDraft, draft?.assets, draftId]);
 
   const saveSection = async (targetStep?: CreatorStep): Promise<CreatorDraft> => {
     if (!draft || !identity || !personality || !communication || !connection || !life) throw new Error('Creator Studio is still loading.');
@@ -206,6 +214,8 @@ function AppearanceEditor({ draft, description, onDescription, busy, onGenerate,
   return <View style={styles.form}>
     <Field label="Canonical appearance brief" value={description} multiline onChange={onDescription} help="Describe physical identity and enduring style. Outfits and scenes can change later; core identity stays consistent." />
     <Pressable accessibilityRole="button" accessibilityLabel="Generate three appearance options for 40 Kivelle Credits" disabled={Boolean(busy)} onPress={onGenerate} style={[styles.generateButton, Boolean(busy) && styles.disabled]}><Sparkles size={18} color={colors.rose} /><View style={{ flex: 1 }}><Text style={styles.generateTitle}>{busy === 'appearance' ? 'Generating three identities…' : draft.assets.length ? 'Generate another set' : 'Generate three appearance options'}</Text><Text style={styles.generateDetail}>Explicit action · failed generations are refunded</Text></View><View style={styles.credit}><Coins size={13} color={colors.warm} /><Text style={styles.creditText}>40</Text></View></Pressable>
+    {draft.assets.some((asset) => asset.status === 'queued' || asset.status === 'generating') ? <GlassCard style={styles.emptyAppearance}><Sparkles size={30} color={colors.rose} /><Text style={styles.emptyTitle}>Creating their identity…</Text><Text style={styles.emptyCopy}>You can keep editing while Kivelle prepares three canonical looks. This updates automatically.</Text></GlassCard> : null}
+    {draft.assets.some((asset) => asset.status === 'failed') && !draft.assets.some((asset) => asset.status === 'queued' || asset.status === 'generating' || asset.status === 'ready') ? <GlassCard style={styles.emptyAppearance}><RefreshCw size={30} color={colors.muted} /><Text style={styles.emptyTitle}>Those looks could not be created</Text><Text style={styles.emptyCopy}>Your Credits were returned. Generate another set when you’re ready.</Text></GlassCard> : null}
     {draft.assets.length ? <View style={styles.lookGrid}>{draft.assets.filter((asset) => asset.asset_type === 'appearance_candidate' && asset.status === 'ready').map((asset) => <Pressable key={asset.id} accessibilityRole="radio" accessibilityLabel={`${asset.label} appearance`} accessibilityState={{ checked: asset.selected }} onPress={() => onChoose(asset.id)} style={[styles.lookCard, asset.selected && styles.lookSelected]}>{asset.signedUrl ? <Image source={{ uri: asset.signedUrl }} style={styles.lookImage} contentFit="cover" contentPosition="top" /> : <View style={[styles.lookImage, styles.fallback]}><UserRound size={30} color={colors.rose} /></View>}<View style={styles.lookInfo}><Text style={styles.lookLabel}>{asset.label}</Text><Text style={styles.lookDescription} numberOfLines={3}>{asset.description}</Text>{asset.selected ? <View style={styles.selectedPill}><Check size={12} color="#fff" /><Text style={styles.selectedPillText}>IDENTITY SELECTED</Text></View> : <Text style={styles.chooseText}>{busy === `look:${asset.id}` ? 'Selecting…' : 'Use this identity'}</Text>}</View></Pressable>)}</View> : <GlassCard style={styles.emptyAppearance}><UserRound size={36} color={colors.violet} /><Text style={styles.emptyTitle}>No canonical face yet</Text><Text style={styles.emptyCopy}>Generate and select one identity before meeting this companion. Kivelle will use that reference across future photos.</Text></GlassCard>}
   </View>;
 }

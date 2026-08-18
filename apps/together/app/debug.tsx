@@ -15,6 +15,7 @@ export default function Debug(){
   const{snapshot,refresh}=useTogether();
   const[interactionCandidates,setInteractionCandidates]=useState<InteractionCandidate[]>([]);
   const[memoryInspector,setMemoryInspector]=useState<{memoryContext?:{callbackAllowance?:number;debug?:Array<{id:string;activation:number;mode:string;reasonCodes:string[]}>};emotionalResidue?:{tone?:string;intensity?:number}|null;userPatterns?:Array<{summary?:string;confidence?:number}>;recentEpisodes?:Array<{title?:string;significance?:number}>}|null>(null);
+  const[mediaInspector,setMediaInspector]=useState<Record<string,unknown>|null>(null);
   const companion=snapshot?selectActiveCompanion(snapshot):undefined;
   const life=snapshot&&companion?selectCompanionLife(snapshot,companion.id):undefined;
   const relation=life?.relationship;
@@ -34,6 +35,7 @@ export default function Debug(){
   const retry=async(id:string)=>{await manageMedia({action:'retry',mediaId:id});await refresh();};
   const inspectInteractions=async()=>{if(!companion||!conversation)return;try{const result=await manageInteraction<{interactions:InteractionCandidate[]}>({action:'resolve',characterInstanceId:companion.id,conversationId:conversation.id});setInteractionCandidates(result.interactions??[]);}catch(error){Alert.alert('Interaction inspector',error instanceof Error?error.message:'Enter a shared scene to inspect its current actions.');}};
   const inspectMemory=async()=>{if(!companion)return;try{const result=await invoke<{memoryContext:{callbackAllowance:number;debug:Array<{id:string;activation:number;mode:string;reasonCodes:string[]}>};emotionalResidue?:{tone?:string;intensity?:number}|null;userPatterns?:Array<{summary?:string;confidence?:number}>;recentEpisodes?:Array<{title?:string;significance?:number}>}>('together-debug',{action:'inspect_context',characterInstanceId:companion.id,message:'Want to go somewhere quieter?'});setMemoryInspector(result);}catch(error){Alert.alert('Memory inspector',error instanceof Error?error.message:'Could not inspect current memory activation.');}};
+  const inspectMedia=async()=>{const latest=media[0];if(!latest)return;try{setMediaInspector(await invoke<Record<string,unknown>>('together-debug',{action:'inspect_media',mediaId:latest.id}));}catch(error){Alert.alert('Media inspector',error instanceof Error?error.message:'Could not inspect that media row.');}};
   return <Screen>
     <View style={styles.header}><Pressable onPress={()=>router.back()}><ArrowLeft color={colors.text}/></Pressable><PageTitle>Internal Tools</PageTitle></View>
     <Text style={styles.warning}>DEVELOPMENT / INTERNAL BUILDS ONLY</Text>
@@ -90,6 +92,8 @@ export default function Debug(){
     <SectionHeader title="Content simulation"/>
     <View style={styles.buttons}><GradientButton label="Resolve one hour" onPress={()=>void advance(1)}/><GradientButton label="Simulate 1 day" onPress={()=>void simulateContent(1)}/><GradientButton label="Simulate 7 days" onPress={()=>void simulateContent(7)}/><GradientButton label="Simulate 30 days" onPress={()=>void simulateContent(30)}/></View>
     <SectionHeader title="Media inspector"/>
+    {media.length?<View style={styles.buttons}><GradientButton label="Inspect latest media route" onPress={()=>void inspectMedia()}/></View>:null}
+    {mediaInspector?<Data label="Latest route details" value={JSON.stringify(mediaInspector)}/>:null}
     {media.length?media.map((item)=><View key={item.id} style={styles.media}><View style={{flex:1}}><Text style={styles.mediaTitle}>{item.status.toUpperCase()} · {String(item.metadata?.source??'unknown')}</Text><Text style={styles.mediaMeta}>{mediaPlace(item.metadata)}</Text><Text style={styles.mediaMeta}>{String(item.metadata?.photoOpportunitySlug??'no opportunity')} · {String(item.metadata?.shotType??'unknown')} · {String(item.metadata?.resolvedContentLevel??item.content_level)}</Text></View>{item.status==='failed'?<Pressable onPress={()=>void retry(item.id)} style={styles.retry}><RefreshCw size={15} color={colors.rose}/></Pressable>:null}</View>):<Data label="Media" value="No media rows"/>}
     <SectionHeader title="Open Threads"/>
     {life?.threads.map((thread)=><Data key={thread.id} label={thread.follow_up_eligible?'Eligible':'Waiting'} value={thread.topic}/>) }

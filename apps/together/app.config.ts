@@ -8,7 +8,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: { supportsTablet: true, bundleIdentifier: 'com.together.world', infoPlist: { NSPhotoLibraryUsageDescription: 'Choose a profile photo for your Kivelle profile.' } },
   android: { package: 'com.together.world', adaptiveIcon: { foregroundImage: './assets/icon.png', backgroundColor: '#080B13' }, permissions: ['POST_NOTIFICATIONS'] },
   web: { bundler: 'metro', output: 'static', favicon: './assets/icon.png' },
-  plugins: ['expo-router','expo-secure-store','expo-system-ui','expo-notifications','expo-image-picker',['expo-splash-screen',{image:'./assets/icon.png',imageWidth:180,resizeMode:'contain',backgroundColor:'#080B13'}]],
+  plugins: ['expo-router','expo-secure-store','expo-system-ui','expo-notifications','expo-audio',['expo-image-picker',{photosPermission:'Choose a photo to share privately in Kivelle Chat.',cameraPermission:'Take a photo to share privately in Kivelle Chat.'}],['expo-splash-screen',{image:'./assets/icon.png',imageWidth:180,resizeMode:'contain',backgroundColor:'#080B13'}]],
   experiments: { typedRoutes: true },
   extra: {
     eas: {

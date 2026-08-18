@@ -172,7 +172,7 @@ export async function ensurePlanScene(input: {
     participant_instance_ids: [input.characterInstanceId],
     state: { planId: input.plan.id, focus: input.plan.activity_key, currentActivityKey: input.plan.activity_key, activity: initializePlanActivityState(input.plan.activity_key), entryReason: 'shared_plan' },
   }).select('*').maybeSingle();
-  if (!error && data) return data;
+  if (!error && data) {await input.db.from('together_scene_participants').upsert({user_id:input.userId,continuity_id:input.continuityId,scene_session_id:data.id,character_instance_id:input.characterInstanceId,role:'primary_companion',joined_at:data.started_at,witnessed_from_sequence:1,metadata:{canonicalPrimary:true,contextVersion:1}},{onConflict:'scene_session_id,character_instance_id',ignoreDuplicates:true});return data;}
   const { data: concurrent } = await input.db.from('together_scene_sessions').select('*').eq('shared_plan_id', input.plan.id).eq('user_id', input.userId).eq('continuity_id', input.continuityId).eq('character_instance_id', input.characterInstanceId).is('ended_at', null).maybeSingle();
   return concurrent ?? null;
 }

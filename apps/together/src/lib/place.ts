@@ -1,5 +1,4 @@
 import type { CharacterInstance, CharacterTemplate, CharacterVersion, CharacterWorldPresence, Location, PlaceContext, Snapshot, World } from '../types';
-import { currentScheduleEvent } from './lifePresentation';
 
 export function worldById(snapshot:Snapshot,worldId?:string|null){return worldId?snapshot.worlds.find((world)=>world.id===worldId):undefined;}
 export function locationById(snapshot:Snapshot,locationId?:string|null){return locationId?snapshot.locations.find((location)=>location.id===locationId):undefined;}
@@ -49,8 +48,8 @@ export function characterCatalogForWorld(snapshot:Snapshot,worldId:string):World
 }
 
 export function charactersConnectedToWorld(snapshot:Snapshot,worldId:string){const allowedVersions=new Set((snapshot.characterWorldPresence??[]).filter((presence)=>presence.world_id===worldId&&presence.presence_type!=='unavailable').map((presence)=>presence.character_version_id));return snapshot.characters.filter((character)=>worldForLocation(snapshot,character.current_location_id)?.id===worldId||allowedVersions.has(character.character_version_id));}
-export function charactersCurrentlyAtLocation(snapshot:Snapshot,locationId:string,now=new Date()){return snapshot.characters.filter((character)=>{const event=currentScheduleEvent(snapshot.scheduleEvents,character.id,now,character.current_schedule_event_id);const actual=event?.location_id??character.current_location_id;return actual===locationId&&event?.activity_key!=='travel'&&character.current_interruptibility!=='unavailable';});}
-export function charactersCurrentlyInWorld(snapshot:Snapshot,worldId:string,now=new Date()){return snapshot.characters.filter((character)=>worldForLocation(snapshot,(currentScheduleEvent(snapshot.scheduleEvents,character.id,now,character.current_schedule_event_id)?.location_id??character.current_location_id))?.id===worldId&&currentScheduleEvent(snapshot.scheduleEvents,character.id,now,character.current_schedule_event_id)?.activity_key!=='travel');}
+export function charactersCurrentlyAtLocation(snapshot:Snapshot,locationId:string){return snapshot.characters.filter((character)=>character.current_location_id===locationId&&!/\btravel(?:ling|ing)?\b/i.test(character.current_activity)&&character.current_interruptibility!=='unavailable');}
+export function charactersCurrentlyInWorld(snapshot:Snapshot,worldId:string){return snapshot.characters.filter((character)=>worldForLocation(snapshot,character.current_location_id)?.id===worldId&&!/\btravel(?:ling|ing)?\b/i.test(character.current_activity));}
 /** Backwards-compatible connected catalog selector; use charactersCurrently* for physical presence. */
 export function charactersForWorld(snapshot:Snapshot,worldId:string){return charactersConnectedToWorld(snapshot,worldId);}
 export function plansForWorld(snapshot:Snapshot,worldId:string){return(snapshot.sharedPlans??[]).filter((plan)=>(plan.world_id??worldForLocation(snapshot,plan.location_id)?.id)===worldId);}

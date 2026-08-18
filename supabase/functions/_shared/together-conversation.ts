@@ -46,24 +46,18 @@ export async function resolveActiveConversationScene(input:{db:SupabaseClient;us
   const metadata=(input.conversation.metadata??{}) as Record<string,any>;
   const stored=(metadata.activeScene??metadata.scene) as Partial<ActiveConversationScene>|undefined;
   const presence=await resolveCompanionPresence({db:input.db,userId:input.userId,characterInstanceId:input.characterInstanceId,now,ensure:false}).catch(()=>null);
-  // Dates already have their own authored co-presence contract. Shared Plans
-  // are different: passive character presence at the venue is not user
-  // co-presence. Both attendance rows must be active before a scene exists.
-  if(presence&&presence.locationId&&presence.source==='active_date'){
-    return {scene:{version:1,characterInstanceId:input.characterInstanceId,locationId:presence.locationId,worldId:presence.worldId??'',interactionMode:'co_present',entryReason:presence.source==='active_date'?'active_date':'shared_plan',enteredAt:presence.activityStartedAt??now.toISOString(),source:presence.source==='active_date'?'active_event':'presence',sourceEventId:presence.sourceEventId,validUntil:presence.validUntil,updatedAt:now.toISOString()},presence,expired:false};
-  }
-  const { data: activePlans } = await input.db.from('together_shared_plans').select('id,continuity_id,location_id,world_id,activity_key,starts_at,ends_at,companion_state').eq('user_id',input.userId).eq('continuity_id',String(input.conversation.continuity_id)).eq('character_instance_id',input.characterInstanceId).in('status',['scheduled','active']).order('starts_at',{ascending:false}).limit(8);
+  // A live scene session is checked before passive Date/Plan presence because
+  // it may have moved within the world since the authored commitment began.
+  // Shared Plans still require both participants to have active attendance.
+  const { data: activePlans } = await input.db.from('together_shared_plans').select('id,continuity_id,title,location_id,world_id,activity_key,starts_at,ends_at,companion_state').eq('user_id',input.userId).eq('continuity_id',String(input.conversation.continuity_id)).eq('character_instance_id',input.characterInstanceId).in('status',['scheduled','active']).order('starts_at',{ascending:false}).limit(8);
   const activePlan=(activePlans??[]).find((plan:any)=>plan.starts_at&&plan.ends_at&&new Date(plan.starts_at).getTime()-30*60_000<=now.getTime()&&new Date(plan.ends_at).getTime()>now.getTime()) as Record<string,any>|undefined;
+  let activePlanJoined=false;
   if(activePlan){
     const [{data:userAttendance},{data:characterAttendance}]=await Promise.all([
       input.db.from('together_plan_attendance').select('id,joined_at,left_at').eq('plan_id',activePlan.id).eq('user_id',input.userId).eq('participant_type','user').is('left_at',null).maybeSingle(),
       input.db.from('together_plan_attendance').select('id,joined_at,left_at').eq('plan_id',activePlan.id).eq('character_instance_id',input.characterInstanceId).eq('participant_type','character').is('left_at',null).maybeSingle(),
     ]);
-    if(!userAttendance || !characterAttendance){
-      // Keep the remote conversation available so the companion can say they
-      // are at the plan, without leaking together-only interaction actions.
-      return {scene:null,presence,expired:false};
-    }
+    activePlanJoined=Boolean(userAttendance&&characterAttendance);
   }
   // A user-entered interaction scene is authoritative for co-presence and may
   // move within a world without rewriting passive schedule presence.
@@ -88,6 +82,12 @@ export async function resolveActiveConversationScene(input:{db:SupabaseClient;us
     }
     await input.db.from('together_scene_sessions').update({ended_at:now.toISOString(),updated_at:now.toISOString()}).eq('id',sceneSession.id).eq('user_id',input.userId).is('ended_at',null);
     waitUntil(finalizeSceneSession({db:input.db,userId:input.userId,sceneSessionId:String(sceneSession.id),now}));
+  }
+  if(presence&&presence.locationId&&presence.source==='active_date'){
+    return {scene:{version:1,characterInstanceId:input.characterInstanceId,locationId:presence.locationId,worldId:presence.worldId??'',interactionMode:'co_present',entryReason:'active_date',enteredAt:presence.activityStartedAt??now.toISOString(),source:'active_event',sourceEventId:presence.sourceEventId,validUntil:presence.validUntil,activityKey:presence.activityKey,activityLabel:presence.activity,updatedAt:now.toISOString()},presence,expired:false};
+  }
+  if(activePlan&&activePlanJoined&&activePlan.location_id){
+    return {scene:{version:1,characterInstanceId:input.characterInstanceId,locationId:String(activePlan.location_id),worldId:String(activePlan.world_id??presence?.worldId??''),interactionMode:'co_present',entryReason:'shared_plan',enteredAt:String(activePlan.starts_at??now.toISOString()),source:'presence',sourceEventId:String(activePlan.id),validUntil:activePlan.ends_at?String(activePlan.ends_at):undefined,activityKey:String(activePlan.activity_key??'together'),activityLabel:humanizeActivity(String(activePlan.activity_key??''),String(activePlan.title??'Spending time together')),updatedAt:now.toISOString()},presence,expired:false};
   }
   const activeScene=stored&&stored.interactionMode==='co_present'&&stored.characterInstanceId===input.characterInstanceId?stored as ActiveConversationScene:null;
   if(activeScene){

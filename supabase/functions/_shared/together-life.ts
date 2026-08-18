@@ -126,7 +126,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
     }
   }
 
-  return { state: life, presence, activeEvent: influential ?? null, events: created, proactiveMessage: proactive, eligibleThreads: dueThreads ?? [], elapsedDays: Math.max(0, Math.floor((now.getTime() - eventSimulationStart.getTime()) / 86400000)), eventsSimulated: simulateEvents, timezone };
+  return { state: life, stateSource:presenceSource, presence, activeEvent: influential ?? null, events: created, proactiveMessage: proactive, eligibleThreads: dueThreads ?? [], elapsedDays: Math.max(0, Math.floor((now.getTime() - eventSimulationStart.getTime()) / 86400000)), eventsSimulated: simulateEvents, timezone };
 }
 
 async function materializeScheduleOutcomes(input:{db:SupabaseClient;userId:string;instance:EventRow;from:Date;now:Date;trigger:LifeRunInput['trigger']}):Promise<EventRow[]>{

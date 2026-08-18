@@ -21,6 +21,7 @@ import {
   ChevronRight,
   CreditCard,
   FileText,
+  AlignLeft,
   Heart,
   KeyRound,
   LogOut,
@@ -29,6 +30,7 @@ import {
   Sparkles,
   UserRound,
   UsersRound,
+  Volume2,
   X,
 } from 'lucide-react-native';
 import { colors, radius, spacing, typography } from '../src/theme';
@@ -36,6 +38,7 @@ import { useTogether } from '../src/store/useTogether';
 import { useAuth } from '../src/hooks/useAuth';
 import { activeCompanion } from '../src/lib/companionLife';
 import { manageAccount } from '../src/lib/api';
+import { resolveClientConversationStyle } from '../src/lib/conversationStyle';
 import { supabase } from '../src/lib/supabase';
 import { FrostedBackdrop, FrostedSurface, GradientButton, LoadingSkeleton } from '../src/components';
 
@@ -154,7 +157,7 @@ export default function Settings() {
         <Pressable accessibilityRole="button" accessibilityLabel="Close settings" onPress={close} style={({ pressed }) => [styles.close, pressed && styles.pressed]}><X size={21} color={colors.textSecondary} /></Pressable>
       </View>
 
-      {!desktop ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mobileTabs}>
+      {!desktop ? <ScrollView horizontal style={styles.mobileTabsViewport} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mobileTabs}>
         {sections.map((item) => <SectionTab key={item.id} item={item} active={section === item.id} compact onPress={() => selectSection(item.id)} />)}
       </ScrollView> : null}
 
@@ -236,10 +239,14 @@ function IdentityPanel({ snapshot, onRoute }: { snapshot: NonNullable<ReturnType
 }
 
 function ExperiencePanel({ snapshot, onRoute }: { snapshot: NonNullable<ReturnType<typeof useTogether.getState>['snapshot']>; onRoute: (route: string) => void }) {
+  const conversationStyle = resolveClientConversationStyle(snapshot.profile);
   return <View style={styles.panel}><PanelHeading title="Experience" body="Choose how Kivelle communicates and which relationship experiences appear." /><SettingsGroup>
+    <SettingsRow icon={<AlignLeft />} title="Conversation style" body={conversationStyle === 'paragraph' ? 'Paragraph · Fuller, expressive replies' : 'Texting · Short, natural messages'} onPress={() => onRoute('/conversation-style')} />
     <SettingsRow icon={<Heart />} title="Content preferences" body={snapshot.profile?.content_preferences?.romanceEnabled === false ? 'Friendship-focused' : 'Romance allowed'} onPress={() => onRoute('/content-settings')} />
     <SettingsRow icon={<Bell />} title="Notifications" body={snapshot.notificationPreferences?.push_enabled ? 'Push notifications on' : 'Push notifications off'} onPress={() => onRoute('/notifications')} />
     <SettingsRow icon={<Camera />} title="Companion photos" body={snapshot.profile?.photo_preferences?.companionPhotos === false ? 'Photo generation off' : 'Photo generation on'} onPress={() => onRoute('/photo-settings')} />
+    <SettingsRow icon={<Volume2 />} title="Media & voice" body="Photo sharing, voice notes, and live calls" onPress={() => onRoute('/media-preferences')} />
+    <SettingsRow icon={<Shield />} title="Media boundaries" body="Adult-only image and short-video permissions" onPress={() => onRoute('/media-content-settings')} />
     <SettingsRow icon={<CreditCard />} title="Plan & usage limits" body={subscriptionLabel(snapshot.entitlements?.tier)} onPress={() => onRoute('/subscription')} />
   </SettingsGroup><InfoCard title="Your controls are canonical">These settings constrain what Kivelle may generate. They do not force a character to ignore their own boundaries or relationship state.</InfoCard></View>;
 }
@@ -290,8 +297,9 @@ const styles = StyleSheet.create({
   sidebarLinkText: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' }, sidebarLinkTextActive: { color: '#F1D7FF' },
   sidebarFooter: { padding: 13, borderRadius: 15, backgroundColor: 'rgba(255,255,255,.025)', borderWidth: 1, borderColor: colors.border },
   sidebarFooterTitle: { color: colors.text, fontSize: 11, fontWeight: '800' }, sidebarFooterCopy: { color: colors.dimmed, fontSize: 9, lineHeight: 14, marginTop: 5 },
-  mobileTabs: { gap: 7, paddingHorizontal: spacing.md, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
-  mobileTab: { minHeight: 37, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,.025)', borderWidth: 1, borderColor: colors.border },
+  mobileTabsViewport: { flexGrow: 0, flexShrink: 0, height: 58, maxHeight: 58, borderBottomWidth: 1, borderBottomColor: colors.border },
+  mobileTabs: { flexGrow: 0, alignItems: 'center', gap: 7, paddingHorizontal: spacing.md, paddingVertical: 9 },
+  mobileTab: { flexGrow: 0, flexShrink: 0, alignSelf: 'center', height: 38, maxHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,.025)', borderWidth: 1, borderColor: colors.border },
   mobileTabActive: { backgroundColor: 'rgba(139,58,181,.25)', borderColor: 'rgba(183,93,231,.4)' }, mobileTabText: { color: colors.muted, fontSize: 10, fontWeight: '800' },
   main: { flex: 1 }, mainContent: { flexGrow: 1, padding: spacing.xl, paddingBottom: 70 },
   panel: { width: '100%', maxWidth: 780, alignSelf: 'center', gap: 18 },

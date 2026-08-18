@@ -18,7 +18,7 @@ export type TieredConversationContext=BaseContext&{
   director:{used:boolean;provider:string;policy:string};
 };
 
-export async function buildTieredKivelleConversationContext(input:{db:SupabaseClient;userId:string;instance:Row;conversation:Row;userMessage:string;lifeRun:Row;semanticRows?:Row[];now?:Date}):Promise<TieredConversationContext>{
+export async function buildTieredKivelleConversationContext(input:{db:SupabaseClient;userId:string;instance:Row;conversation:Row;userMessage:string;lifeRun:Row;semanticRows?:Row[];attachments?:Row[];now?:Date}):Promise<TieredConversationContext>{
   const subscription=await resolveSubscriptionState(input.db,input.userId,input.now);
   const base=await buildBaseContext(input);
   const caps=subscription.capabilities;

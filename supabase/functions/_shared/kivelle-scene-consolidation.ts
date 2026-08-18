@@ -13,12 +13,13 @@ export async function finalizeSceneSession(input:{db:any;userId:string;sceneSess
   if(existing)return existing as Row;
   const {data:scene,error}=await input.db.from('together_scene_sessions').select('*').eq('id',input.sceneSessionId).eq('user_id',input.userId).not('ended_at','is',null).maybeSingle();
   if(error||!scene)return null;
-  const [{data:actions},{data:location},{data:relationship},{data:media},{data:plan}]=await Promise.all([
+  const [{data:actions},{data:location},{data:relationship},{data:media},{data:plan},{data:participantRows}]=await Promise.all([
     input.db.from('together_scene_actions').select('*').eq('scene_session_id',scene.id).eq('user_id',input.userId).not('completed_at','is',null).order('created_at'),
     input.db.from('together_locations').select('name,category,possible_activities').eq('id',scene.location_id).maybeSingle(),
     input.db.from('together_relationship_states').select('trust,comfort,affinity,familiarity').eq('character_instance_id',scene.character_instance_id).eq('user_id',input.userId).maybeSingle(),
     input.db.from('together_generated_media').select('id').eq('user_id',input.userId).eq('character_instance_id',scene.character_instance_id).eq('scene_session_id',scene.id).eq('status','ready').limit(8),
     scene.shared_plan_id ? input.db.from('together_shared_plans').select('id,location_id,activity_key,title').eq('id',scene.shared_plan_id).maybeSingle() : Promise.resolve({data:null}),
+    input.db.from('together_scene_participants').select('character_instance_id,joined_at,left_at,witnessed_from_sequence,witnessed_to_sequence').eq('scene_session_id',scene.id).eq('user_id',input.userId),
   ]);
   const completed=(actions??[]) as Row[];
   const meaningful=completed.filter((action)=>!['leave','move'].includes(String(action.family)));
@@ -36,24 +37,32 @@ export async function finalizeSceneSession(input:{db:any;userId:string;sceneSess
   const payload={user_id:input.userId,continuity_id:scene.continuity_id,scene_session_id:scene.id,shared_plan_id:scene.shared_plan_id??null,character_instance_id:scene.character_instance_id,world_id:scene.world_id,location_id:scene.location_id,starting_location_id:startingLocationId,ending_location_id:scene.location_id,activity_key:plan?.activity_key??scene.activity_key,attended_seconds:Math.round(Math.max(0,(new Date(String(scene.ended_at)).getTime()-new Date(String(scene.started_at)).getTime())/1000)),meaningful_action_count:meaningful.length,media_count:(media??[]).length,participant_instance_ids:[scene.character_instance_id,...(Array.isArray(scene.participant_instance_ids)?scene.participant_instance_ids:[])].filter((id,index,all)=>Boolean(id)&&all.indexOf(id)===index),title,summary,emotional_tone:scene.state?.emotionalTone??null,significance,started_at:scene.started_at,ended_at:scene.ended_at,action_ids:completed.map((action)=>action.id),context_tags:episodeTags(scene,location,completed),metadata:{version:2,actionCount:completed.length,meaningfulActionCount:meaningful.length,mediaIds:(media??[]).map((item:Row)=>item.id),startingLocationId,endingLocationId:scene.location_id}};
   const {data:episode,error:episodeError}=await input.db.from('together_scene_episodes').insert(payload).select('*').single();
   if(episodeError){const {data:retry}=await input.db.from('together_scene_episodes').select('*').eq('scene_session_id',scene.id).maybeSingle();return retry??null;}
-  let memoryId:string|null=null;
+  const memoryIds:string[]=[];
   if(significance>=.55){
-    const {data:memory}=await input.db.from('together_memories').insert({user_id:input.userId,continuity_id:scene.continuity_id,character_instance_id:scene.character_instance_id,memory_type:'episodic',canonical_text:summary,dedupe_key:`scene-episode:${episode.id}`,subject_key:`episode:${episode.id}`,importance:significance,confidence:.96,status:'active',source_type:'scene',source_id:scene.id,episode_id:episode.id,world_id:scene.world_id,location_id:scene.location_id,participant_instance_ids:payload.participant_instance_ids,context_tags:payload.context_tags,learned_via:'observed_scene',shareability:payload.participant_instance_ids.length>1?'social':'normal',valid_from:scene.ended_at,metadata:{sceneSessionId:scene.id,actionIds:payload.action_ids}}).select('id').maybeSingle();
-    memoryId=memory?.id??null;
-    if(memoryId)await track(input.db,input.userId,'episode_promoted_to_memory',{sceneSessionId:scene.id,episodeId:episode.id});
+    const windows=new Map<string,{joinedAt:string;leftAt:string|null}>((participantRows??[]).map((participant:Row)=>[String(participant.character_instance_id),{joinedAt:String(participant.joined_at??scene.started_at),leftAt:participant.left_at?String(participant.left_at):null}]));
+    const memoryRows=payload.participant_instance_ids.map((characterInstanceId:string)=>{
+      const window=windows.get(characterInstanceId)??{joinedAt:String(scene.started_at),leftAt:String(scene.ended_at)};
+      const witnessed=completed.filter((action)=>{const at=new Date(String(action.created_at??action.started_at)).getTime();return at>=new Date(window.joinedAt).getTime()&&(!window.leftAt||at<=new Date(window.leftAt).getTime());});
+      const witnessedLabels=witnessed.filter((action)=>!['leave','move'].includes(String(action.family))).map(actionLabel).filter(Boolean);
+      const witnessedSummary=characterInstanceId===String(scene.character_instance_id)?summary:episodeSummary(witnessedLabels,locationName,String(startingLocation?.name??locationName),witnessed);
+      return{user_id:input.userId,continuity_id:scene.continuity_id,character_instance_id:characterInstanceId,memory_type:'episodic',canonical_text:witnessedSummary,dedupe_key:`scene-episode:${episode.id}`,subject_key:`episode:${episode.id}`,importance:significance,confidence:.96,status:'active',source_type:'scene',source_id:scene.id,episode_id:episode.id,world_id:scene.world_id,location_id:scene.location_id,participant_instance_ids:payload.participant_instance_ids,context_tags:payload.context_tags,learned_via:'observed_scene',shareability:payload.participant_instance_ids.length>1?'social':'normal',valid_from:scene.ended_at,metadata:{sceneSessionId:scene.id,actionIds:witnessed.map((action)=>action.id),witnessedFrom:window.joinedAt,witnessedTo:window.leftAt??scene.ended_at}};
+    });
+    const {data:memories}=await input.db.from('together_memories').insert(memoryRows).select('id');
+    memoryIds.push(...(memories??[]).map((memory:Row)=>String(memory.id)));
+    if(memoryIds.length)await track(input.db,input.userId,'episode_promoted_to_memory',{sceneSessionId:scene.id,episodeId:episode.id,witnessCount:memoryIds.length});
   }
   let momentId:string|null=null;
   if(significance>=.75){
     const {data:priorMoment}=await input.db.from('together_moments').select('id').eq('scene_session_id',scene.id).maybeSingle();
-    momentId=priorMoment?.id??(await input.db.from('together_moments').insert({user_id:input.userId,continuity_id:scene.continuity_id,character_instance_id:scene.character_instance_id,title,occurred_at:scene.ended_at,location_id:scene.location_id,summary,participant_instance_ids:payload.participant_instance_ids,linked_memory_ids:memoryId?[memoryId]:[],relationship_impact:{affinity:1,familiarity:1},media:[],moment_type:'scene_episode',scene_session_id:scene.id,episode_id:episode.id}).select('id').maybeSingle()).data?.id??null;
+    momentId=priorMoment?.id??(await input.db.from('together_moments').insert({user_id:input.userId,continuity_id:scene.continuity_id,character_instance_id:scene.character_instance_id,title,occurred_at:scene.ended_at,location_id:scene.location_id,summary,participant_instance_ids:payload.participant_instance_ids,linked_memory_ids:memoryIds,relationship_impact:{affinity:1,familiarity:1},media:[],moment_type:'scene_episode',scene_session_id:scene.id,episode_id:episode.id}).select('id').maybeSingle()).data?.id??null;
     if(momentId){await input.db.from('together_scene_episodes').update({moment_id:momentId}).eq('id',episode.id);await track(input.db,input.userId,'episode_promoted_to_moment',{sceneSessionId:scene.id,episodeId:episode.id,momentId});}
   }
-  await recordSharedPlaceVisit({db:input.db,userId:input.userId,characterInstanceId:String(scene.character_instance_id),locationId:String(scene.location_id),sourceType:'scene',sourceId:String(episode.id),occurredAt:String(scene.ended_at),meaningSummary:summary,momentId});
+  await Promise.all(payload.participant_instance_ids.map((characterInstanceId:string)=>recordSharedPlaceVisit({db:input.db,userId:input.userId,characterInstanceId,locationId:String(scene.location_id),sourceType:'scene',sourceId:String(episode.id),occurredAt:String(scene.ended_at),meaningSummary:summary,momentId})));
   await track(input.db,input.userId,'episode_created',{sceneSessionId:scene.id,episodeId:episode.id,significance});
   const observations=observationsFromScene({scene,actions:completed});
   if(observations.length){
-    await supportBehaviorPatterns({db:input.db,userId:input.userId,continuityId:String(scene.continuity_id),characterInstanceId:String(scene.character_instance_id),observations,now});
-    await track(input.db,input.userId,'behavior_pattern_supported',{characterInstanceId:scene.character_instance_id,sceneSessionId:scene.id,count:observations.length});
+    await Promise.all(payload.participant_instance_ids.map((characterInstanceId:string)=>supportBehaviorPatterns({db:input.db,userId:input.userId,continuityId:String(scene.continuity_id),characterInstanceId,observations,now})));
+    await track(input.db,input.userId,'behavior_pattern_supported',{characterInstanceId:scene.character_instance_id,sceneSessionId:scene.id,count:observations.length,witnessCount:payload.participant_instance_ids.length});
   }
   return episode;
 }

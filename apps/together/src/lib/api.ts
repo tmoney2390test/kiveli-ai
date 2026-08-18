@@ -1,5 +1,5 @@
 import { supabase, supabasePublishableKey, supabaseUrl } from './supabase';
-import type { CharacterResetPreview, CharacterResetResult, CreatorDraft, CreatorStep, InteractionCandidate, Message, SceneAction, SceneSession, Snapshot, SnapshotDelta } from '../types';
+import type { CharacterResetPreview, CharacterResetResult, ConversationAttachment, CreatorDraft, CreatorStep, GeneratedMedia, InteractionCandidate, KivelleExperienceCapabilities, Message, MultimodalPreferences, SceneAction, SceneSession, Snapshot, SnapshotDelta, VoiceCallSession } from '../types';
 
 export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false) { super(message); } }
 type Envelope<T> = { data: T; correlationId: string };
@@ -36,6 +36,17 @@ export const startOverCharacter = (characterInstanceId:string,requestId:string) 
 export const manageInteraction = <T = {scene:SceneSession;action?:SceneAction;interactions:InteractionCandidate[];destinations:InteractionCandidate[]}>(input: Record<string, unknown>) => invoke<T>('together-interaction', input);
 export const enterScene = <T>(input:{characterInstanceId:string;locationId:string;conversationId?:string}) => invoke<T>('together-conversation',{action:'enter_scene',...input});
 export const manageMedia = <T>(input: Record<string, unknown>) => invoke<T>('together-media', input);
+export const animateMedia = (mediaId:string,requestId:string,motionPrompt?:string,durationSeconds=5) => manageMedia<{media:GeneratedMedia;creditCost?:number}>({action:'animate',mediaId,requestId,motionPrompt,durationSeconds});
+export const saveMediaContentPreferences = (input:{suggestiveMediaEnabled:boolean;matureMediaEnabled:boolean;explicitMediaEnabled:boolean;adultVideoEnabled:boolean}) => manageMedia<{saved:boolean;preferences:Record<string,unknown>}>({action:'content_preferences',...input});
+export const manageMultimodal = <T>(input:Record<string,unknown>) => invoke<T>('together-multimodal',input);
+export const getExperienceCapabilities = () => manageMultimodal<{experience:KivelleExperienceCapabilities;providers:KivelleExperienceCapabilities['providers']}>({action:'capabilities'});
+export const saveMultimodalPreferences = (preferences:Required<MultimodalPreferences>) => manageMultimodal<{preferences:MultimodalPreferences;experience:KivelleExperienceCapabilities}>({action:'preferences',...preferences});
+export const prepareUserImage = (input:{conversationId:string;characterInstanceId:string;mimeType:'image/jpeg'|'image/png'|'image/webp';byteSize:number;width?:number;height?:number;requestId:string}) => manageMultimodal<{attachment:ConversationAttachment;upload:{bucket:string;path:string}}>({action:'prepare_user_image',...input});
+export const confirmUserImage = (attachmentId:string) => manageMultimodal<{attachment:ConversationAttachment;upload:{bucket:string;path:string}}>({action:'confirm_user_image',attachmentId});
+export const removePendingAttachment = (attachmentId:string) => manageMultimodal<{removed:boolean}>({action:'remove_attachment',attachmentId});
+export const requestVoiceNote = (messageId:string,requestId:string) => manageMultimodal<{status?:string;providerStatus?:string;message?:string;media?:GeneratedMedia}>({action:'request_voice_note',messageId,requestId});
+export const manageCall = <T= {call?:VoiceCallSession;status?:string;providerStatus?:string;message?:string;clientSecret?:string;expiresAt?:string}>(input:Record<string,unknown>) => invoke<T>('together-call',input);
+export const manageSharedScene = <T>(input:Record<string,unknown>) => invoke<T>('together-shared-scene',input);
 export const managePersona = <T>(input:Record<string,unknown>) => invoke<T>('together-persona',input);
 export const manageCreator = <T>(input:Record<string,unknown>) => invoke<T>('together-creator',input);
 export const createCreatorDraft = (input:{concept:string;worldId:string;relationshipGoal:'friendship'|'romance'|'either';requestId:string}) => manageCreator<{draft:CreatorDraft;idempotent:boolean}>({action:'create_draft',...input});
@@ -56,14 +67,14 @@ export async function createTogetherAccount(email: string, password: string): Pr
   if (!response.ok) throw new ApiError(payload.error?.message ?? 'Your Kivelle account could not be created.', payload.error?.code, payload.error?.retryable);
 }
 
-export async function sendDialogue(input: {conversationId:string;characterInstanceId:string;message:string;clientRequestId:string;focusPlanId?:string;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void): Promise<{message:Message;delta?:SnapshotDelta}> {
+export async function sendDialogue(input: {conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void): Promise<{message:Message;additionalMessages?:Message[];delta?:SnapshotDelta}> {
   const response = await fetch(`${supabaseUrl}/functions/v1/together-dialogue`, { method: 'POST', headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
   if (!response.ok) { const error = await response.json().catch(() => ({})); throw new ApiError(error.error?.message ?? 'Your companion could not reply.', error.error?.code, error.error?.retryable); }
   if (!response.body) throw new ApiError('The response stream ended early.', 'STREAM_INTERRUPTED', true);
-  const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''; let final: Message | null = null; let delta:SnapshotDelta|undefined;
-  while (true) { const { value, done } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const events = buffer.split('\n\n'); buffer = events.pop() ?? ''; for (const event of events) { const line = event.split('\n').find((item) => item.startsWith('data: ')); if (!line) continue; const data = JSON.parse(line.slice(6)); if (data.type === 'token') onToken(data.token); if (data.type === 'done') {final = data.message;delta=data.delta;} if (data.type === 'error') throw new ApiError(data.error?.message ?? 'Your companion could not finish the reply.', data.error?.code ?? 'STREAM_INTERRUPTED', Boolean(data.error?.retryable)); } }
+  const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''; let final: Message | null = null; let additionalMessages:Message[]|undefined;let delta:SnapshotDelta|undefined;
+  while (true) { const { value, done } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const events = buffer.split('\n\n'); buffer = events.pop() ?? ''; for (const event of events) { const line = event.split('\n').find((item) => item.startsWith('data: ')); if (!line) continue; const data = JSON.parse(line.slice(6)); if (data.type === 'token') onToken(data.token); if (data.type === 'done') {final = data.message;additionalMessages=data.additionalMessages;delta=data.delta;} if (data.type === 'error') throw new ApiError(data.error?.message ?? 'Your companion could not finish the reply.', data.error?.code ?? 'STREAM_INTERRUPTED', Boolean(data.error?.retryable)); } }
   if (!final) throw new ApiError('The reply was interrupted. Try again.', 'STREAM_INTERRUPTED', true);
-  return {message:final,...(delta?{delta}:{})};
+  return {message:final,...(additionalMessages?.length?{additionalMessages}:{}),...(delta?{delta}:{})};
 }
 
 export async function sendSceneReaction(input:{conversationId:string;characterInstanceId:string;sceneActionId:string;clientRequestId:string},onToken:(token:string)=>void):Promise<{message:Message}>{

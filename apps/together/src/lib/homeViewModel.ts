@@ -67,8 +67,9 @@ export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeVi
 
   const { companion, relationshipDay, recentEvents, dates } = life;
   const name = companion.together_character_templates.name;
-  const currentEvent=currentScheduleEvent(snapshot.scheduleEvents,companion.id,now,companion.current_schedule_event_id);
-  const currentLocation = snapshot.locations.find((item) => item.id === (currentEvent?.location_id??companion.current_location_id));
+  const scheduleCandidate=currentScheduleEvent(snapshot.scheduleEvents,companion.id,now,companion.current_schedule_event_id);
+  const currentEvent=scheduleCandidate&&companion.current_presence_source==='schedule'&&scheduleCandidate.id===companion.current_schedule_event_id&&scheduleCandidate.location_id===companion.current_location_id?scheduleCandidate:undefined;
+  const currentLocation = snapshot.locations.find((item) => item.id === companion.current_location_id);
   const currentWorld = worldForLocation(snapshot, currentLocation?.id ?? companion.current_location_id);
   const timezone = currentWorld?.timezone || snapshot.profile?.experience_timezone || 'UTC';
   const clock = zonedClock(now, timezone);

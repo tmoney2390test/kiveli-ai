@@ -1,7 +1,7 @@
 import type { CharacterInstance, CharacterScheduleEvent, Snapshot } from '../types';
 import { worldForLocation } from './place';
 import { selectActiveCompanion, selectCompanionLife } from './selectors';
-import { currentScheduleEvent, getScheduleHint, nextVisibleScheduleEvents } from './lifePresentation';
+import { getScheduleHint, nextVisibleScheduleEvents } from './lifePresentation';
 
 export type CompanionLifeSnapshot = {
   companion: CharacterInstance;
@@ -32,9 +32,8 @@ export function buildCompanionLife(snapshot: Snapshot, now = new Date(), compani
   const companion = activeCompanion(snapshot, companionId);
   if (!companion) return undefined;
   const scoped = selectCompanionLife(snapshot, companion.id);
-  const currentEvent=currentScheduleEvent(snapshot.scheduleEvents,companion.id,now,companion.current_schedule_event_id);
   const activeConversation=snapshot.conversations.find((conversation)=>conversation.character_instance_id===companion.id&&!conversation.archived_at&&['direct','first_meeting'].includes(conversation.kind));
-  const location = snapshot.locations.find((item) => item.id === (currentEvent?.location_id??companion.current_location_id));
+  const location = snapshot.locations.find((item) => item.id === companion.current_location_id);
   const currentWorld=worldForLocation(snapshot,location?.id??companion.current_location_id);
   const upcomingSchedule = nextVisibleScheduleEvents(snapshot.scheduleEvents,companion.id,now).slice(0,3).map((item)=>({ ...item, startsAt:new Date(item.starts_at), endsAt:new Date(item.ends_at), activity:getScheduleHint(item)??item.title, locationName:snapshot.locations.find((place)=>place.id===item.location_id)?.name??currentWorld?.name??'Current world' }));
   return {

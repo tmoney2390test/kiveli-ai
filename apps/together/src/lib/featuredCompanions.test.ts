@@ -24,6 +24,22 @@ describe('featured companions', () => {
   it('caps the Home rail at ten without truncating the full world catalog', () => {
     const roster = Array.from({ length: 14 }, (_, index) => template(`person-${index}`, 'juniper'));
     expect(featuredCompanionRail(roster)).toHaveLength(10);
+    expect(featuredCompanionRail(roster, 'any', 1).map((item) => item.id)).toEqual(['person-10', 'person-11', 'person-12', 'person-13']);
     expect(roster).toHaveLength(14);
+  });
+
+  it('filters by companion gender before applying the ten-card limit', () => {
+    const women = Array.from({ length: 12 }, (_, index) => ({ ...template(`woman-${index}`, 'juniper'), together_character_versions: { ...version(`woman-${index}-version`), pronouns: 'she/her' } }));
+    const men = Array.from({ length: 4 }, (_, index) => ({ ...template(`man-${index}`, 'juniper'), together_character_versions: { ...version(`man-${index}-version`), pronouns: 'he/him' } }));
+    expect(featuredCompanionRail([...women, ...men], 'female')).toHaveLength(10);
+    expect(featuredCompanionRail([...women, ...men], 'male').map((item) => item.id)).toEqual(men.map((item) => item.id));
+    expect(featuredCompanionRail([...women, ...men], 'any')).toHaveLength(10);
+  });
+
+  it('prefers explicit discovery gender metadata and leaves neutral identities in Any', () => {
+    const metadataWoman = { ...template('metadata-woman', 'juniper'), discovery_metadata: { gender: 'female' }, together_character_versions: { ...version('metadata-woman-version'), pronouns: 'they/them' } };
+    const neutral = { ...template('neutral', 'juniper'), together_character_versions: { ...version('neutral-version'), pronouns: 'they/them' } };
+    expect(featuredCompanionRail([metadataWoman, neutral], 'female').map((item) => item.id)).toEqual(['metadata-woman']);
+    expect(featuredCompanionRail([metadataWoman, neutral], 'any').map((item) => item.id)).toEqual(['metadata-woman', 'neutral']);
   });
 });

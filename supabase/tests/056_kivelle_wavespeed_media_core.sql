@@ -1,0 +1,31 @@
+begin;
+select plan(25);
+
+select has_table('public','together_media_reference_assets','canonical media reference assets exist');
+select has_column('public','together_media_reference_assets','asset_role','references have semantic roles');
+select has_column('public','together_media_reference_assets','revision','references are revisioned');
+select has_column('public','together_media_reference_assets','sha256','reference synchronization is content-addressed');
+select has_index('public','together_media_reference_assets','together_media_reference_character_idx','character reference lookup is indexed');
+select has_index('public','together_media_reference_assets','together_media_reference_location_idx','location reference lookup is indexed');
+select has_table('public','together_character_media_profiles','version-owned media profiles exist');
+select has_column('public','together_character_media_profiles','model_family','LoRA profiles record model compatibility');
+select has_column('public','together_character_media_profiles','source_reference_asset_ids','LoRA profiles snapshot their training set');
+select has_column('public','together_character_media_profiles','training_params','LoRA training parameters are canonical');
+select has_column('public','together_character_media_profiles','compatibility','LoRA profile compatibility is explicit');
+select has_table('public','together_media_provider_jobs','durable provider jobs exist');
+select has_column('public','together_media_provider_jobs','provider_request_id','provider identity is durable');
+select has_column('public','together_media_provider_jobs','next_poll_at','provider jobs support recovery polling');
+select has_index('public','together_media_provider_jobs','together_media_provider_request_idx','provider callbacks are idempotently matched');
+select has_table('public','together_media_provider_webhook_receipts','webhook replay receipts exist');
+select has_column('public','together_generated_media','parent_media_id','videos retain their approved source image');
+select has_index('public','together_generated_media','together_generated_media_parent_idx','source media lookup is indexed');
+select has_table('public','together_media_benchmark_runs','media benchmark runs exist');
+select has_table('public','together_media_benchmark_results','media benchmark results exist');
+select has_function('public','kivelle_claim_media_jobs',array['integer'],'provider-neutral media claim function exists');
+select has_function('public','kivelle_recover_stale_media_jobs',array['integer'],'provider-aware recovery function exists');
+select has_function('public','kivelle_claim_media_profile_training',array['integer'],'LoRA training claims are concurrency safe');
+select has_function('public','kivelle_claim_creator_media_jobs',array['integer'],'Creator appearance claims are concurrency safe');
+select has_column('public','together_media_provider_jobs','creator_asset_id','Provider jobs can durably own Creator appearance work');
+
+select * from finish();
+rollback;

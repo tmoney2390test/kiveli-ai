@@ -126,17 +126,9 @@ export async function resolveCompanionPresence(input:{db:SupabaseClient;userId:s
     input.db.from('together_date_sessions').select('id,started_at,scheduled_for,updated_at,together_date_templates(location_id,name,metadata)').eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).eq('status','active').order('started_at',{ascending:false}).limit(1).maybeSingle(),
     input.db.from('together_scene_sessions').select('id,world_id,location_id,activity_key,started_at,expected_end_at,state').eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).is('ended_at',null).order('started_at',{ascending:false}).limit(1).maybeSingle(),
   ]);
-  if(activeDate){
-    const activeDateRow=activeDate as unknown as Row;
-    const template=activeDateRow.together_date_templates as Row|undefined;
-    const locationId=template?.location_id?String(template.location_id):base.locationId;
-    const place=locationId?await resolvePlaceContext({db:input.db,locationId,now,userId:input.userId,characterInstanceId:input.characterInstanceId}).catch(()=>base.placeContext):base.placeContext;
-    const validUntil=activeDateRow.metadata?.ends_at??(template?.metadata?.durationMinutes?new Date(now.getTime()+Number(template.metadata.durationMinutes)*60000).toISOString():undefined);
-    return {characterInstanceId:input.characterInstanceId,locationId,worldId:place?.world.id??base.placeContext?.world.id??null,activityKey:'date',activity:String(template?.name??base.activity),mood:'present',energy:'medium',availability:'with you',interruptibility:'open',source:'active_date',sourceEventId:String(activeDateRow.id),validUntil,placeContext:place,activityStartedAt:String(activeDateRow.started_at??activeDateRow.scheduled_for??now.toISOString()),expectedEndAt:validUntil};
-  }
-  // A user-entered scene overrides passive schedule display once it exists, but
-  // an active plan/date above remains the stronger canonical commitment.
-  if(base.source!=='plan'&&activeScene){
+  // A live scene is the interaction ledger and may have moved since the Date
+  // or Plan began. It therefore owns present location/activity while valid.
+  if(activeScene){
     const expectedEnd=activeScene.expected_end_at?new Date(String(activeScene.expected_end_at)).getTime():new Date(String(activeScene.started_at)).getTime()+3*60*60*1000;
     if(Number.isFinite(expectedEnd)&&expectedEnd>now.getTime()){
       const locationId=String(activeScene.location_id);
@@ -145,6 +137,14 @@ export async function resolveCompanionPresence(input:{db:SupabaseClient;userId:s
       const activityKey=String(state?.currentActivityKey??activeScene.activity_key??'together');
       return {characterInstanceId:input.characterInstanceId,locationId,worldId:place?.world.id??String(activeScene.world_id),activityKey,activity:sceneActivityLabel(state,activityKey),mood:'present',energy:base.state==='busy'?'medium':base.state==='relaxing'?'high':'medium',availability:'with you',interruptibility:'open',source:'scene',sourceEventId:String(activeScene.id),validUntil:activeScene.expected_end_at?String(activeScene.expected_end_at):undefined,placeContext:place,activityStartedAt:String(activeScene.started_at),expectedEndAt:activeScene.expected_end_at?String(activeScene.expected_end_at):undefined,state:'active',nextEvent:base.nextEvent};
     }
+  }
+  if(activeDate){
+    const activeDateRow=activeDate as unknown as Row;
+    const template=activeDateRow.together_date_templates as Row|undefined;
+    const locationId=template?.location_id?String(template.location_id):base.locationId;
+    const place=locationId?await resolvePlaceContext({db:input.db,locationId,now,userId:input.userId,characterInstanceId:input.characterInstanceId}).catch(()=>base.placeContext):base.placeContext;
+    const validUntil=activeDateRow.metadata?.ends_at??(template?.metadata?.durationMinutes?new Date(now.getTime()+Number(template.metadata.durationMinutes)*60000).toISOString():undefined);
+    return {characterInstanceId:input.characterInstanceId,locationId,worldId:place?.world.id??base.placeContext?.world.id??null,activityKey:'date',activity:String(template?.name??base.activity),mood:'present',energy:'medium',availability:'with you',interruptibility:'open',source:'active_date',sourceEventId:String(activeDateRow.id),validUntil,placeContext:place,activityStartedAt:String(activeDateRow.started_at??activeDateRow.scheduled_for??now.toISOString()),expectedEndAt:validUntil};
   }
   const source=base.source==='plan'?'active_plan':base.source==='life_event'?'active_event':base.source==='schedule'?'schedule':'character_state';
   return {characterInstanceId:input.characterInstanceId,locationId:base.locationId,worldId:base.placeContext?.world.id??null,activityKey:base.activityKey,activity:base.activity,mood:'present',energy:'medium',availability:base.interruptibility==='open'?'available':base.interruptibility==='limited'?'limited':'busy',interruptibility:base.interruptibility,source,sourceEventId:base.scheduleEventId,validUntil:base.expectedEndAt,placeContext:base.placeContext,activityStartedAt:base.activityStartedAt,expectedEndAt:base.expectedEndAt,scheduleEventId:base.scheduleEventId,state:base.state,nextEvent:base.nextEvent};

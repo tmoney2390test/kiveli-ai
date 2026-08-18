@@ -73,7 +73,7 @@ export default function Explore(){
 
     {context.worldEvents.length?<Section title="What’s happening" action="Explore places" onAction={()=>nav.push(`/world/places?world=${selectedWorld.slug}`)}><View style={styles.eventStack}>{context.worldEvents.map((event)=><Pressable key={event.id} onPress={()=>handle&&nav.push(`/(tabs)/chat-tab?character=${handle}&draft=${encodeURIComponent(`What's going on with ${event.title}?`)}`)} style={styles.eventCard}><View style={styles.eventIcon}><Sparkles size={16} color={colors.warm}/></View><View style={{flex:1}}><Text style={styles.eventTitle}>{event.title}</Text><Text numberOfLines={2} style={styles.eventCopy}>{event.narrative_summary}</Text></View><ChevronRight size={17} color={colors.muted}/></Pressable>)}</View></Section>:null}
 
-    {context.people.length?<Section title={`People in ${selectedWorld.name}`} action="Discover people" onAction={()=>nav.push('/(tabs)/singles')}><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.peopleRow}>{context.people.map((person)=><PersonCard key={person.id} person={person}/>)}</ScrollView></Section>:null}
+    {context.people.length?<Section title={`People in ${selectedWorld.name}`} action="Discover people" onAction={()=>nav.push(`/(tabs)/singles?world=${selectedWorld.slug}`)}><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.peopleRow}>{context.people.map((person)=><PersonCard key={person.id} person={person}/>)}</ScrollView></Section>:null}
   </Screen>;
 }
 

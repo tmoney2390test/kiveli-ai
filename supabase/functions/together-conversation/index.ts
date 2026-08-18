@@ -100,13 +100,25 @@ serve(async (request, correlationId) => {
     const conversation = input.conversationId ? await ownedConversation(db, user.id, continuity.id, input.conversationId) : await getActiveConversation(db, user.id, input.characterInstanceId, true);
     if (!conversation) throw new AppError('NOT_FOUND', 'That conversation is unavailable.', 404);
     const entryReason: ActiveConversationScene['entryReason'] = presence.source === 'active_date' ? 'active_date' : presence.source === 'active_plan' ? 'shared_plan' : 'user_drop_in';
-    const scene = { version: 1 as const, characterInstanceId: input.characterInstanceId, locationId: place.location.id, worldId: place.world.id, interactionMode: 'co_present' as const, entryReason, enteredAt: now.toISOString(), source: presence.source === 'active_event' || presence.source === 'active_date' ? 'active_event' as const : presence.source === 'active_plan' ? 'presence' as const : 'presence' as const, activityKey:presence.activityKey,activityLabel:presence.activity, ...(presence.sourceEventId ? { sourceEventId: presence.sourceEventId } : {}), ...(presence.validUntil ? { validUntil: presence.validUntil } : {}), updatedAt: now.toISOString() };
+    const {data:activeScene}=await db.from('together_scene_sessions').select('*').eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_instance_id',input.characterInstanceId).is('ended_at',null).order('started_at',{ascending:false}).limit(1).maybeSingle();
+    if(activeScene&&String(activeScene.location_id)!==place.location.id)throw new AppError('SCENE_NO_LONGER_AVAILABLE','They are already somewhere else. You can still message them.',409);
+    const source=presence.source==='active_date'?'date':presence.source==='active_plan'?'shared_plan':'drop_in';
+    let sceneSession=activeScene;
+    if(!sceneSession){
+      const expectedEndAt=presence.validUntil??new Date(now.getTime()+90*60_000).toISOString();
+      const {data:created,error:createError}=await db.from('together_scene_sessions').insert({user_id:user.id,continuity_id:continuity.id,character_instance_id:input.characterInstanceId,conversation_id:conversation.id,world_id:place.world.id,location_id:place.location.id,source,activity_key:presence.activityKey??null,participant_instance_ids:[input.characterInstanceId],started_at:now.toISOString(),expected_end_at:expectedEndAt,state:{sequence:0,entryReason,participantCount:1}}).select('*').single();
+      if(createError||!created)throw new AppError('INTERNAL_ERROR','The scene could not be entered.',500,true);
+      sceneSession=created;
+    }
+    const {error:participantError}=await db.from('together_scene_participants').upsert({user_id:user.id,continuity_id:continuity.id,scene_session_id:sceneSession.id,character_instance_id:input.characterInstanceId,role:'primary_companion',joined_at:sceneSession.started_at,witnessed_from_sequence:1,metadata:{canonicalPrimary:true,contextVersion:1}},{onConflict:'scene_session_id,character_instance_id'});
+    if(participantError)throw new AppError('INTERNAL_ERROR','The scene could not be entered.',500,true);
+    const scene = { version: 1 as const, characterInstanceId: input.characterInstanceId, locationId: place.location.id, worldId: place.world.id, interactionMode: 'co_present' as const, entryReason, enteredAt: String(sceneSession.started_at), source: presence.source === 'active_event' || presence.source === 'active_date' ? 'active_event' as const : presence.source === 'active_plan' ? 'presence' as const : 'presence' as const, activityKey:presence.activityKey,activityLabel:presence.activity, sceneSessionId:String(sceneSession.id), ...(presence.sourceEventId ? { sourceEventId: presence.sourceEventId } : {}), ...((sceneSession.expected_end_at??presence.validUntil) ? { validUntil: String(sceneSession.expected_end_at??presence.validUntil) } : {}), updatedAt: now.toISOString() };
     const metadata = mergeConversationSceneMetadata((conversation.metadata ?? {}) as Record<string, any>, scene);
     const { data: updated, error } = await db.from('together_conversations').update({ metadata, updated_at: now.toISOString() }).eq('id', conversation.id).eq('user_id', user.id).select('*').single();
     if (error || !updated) throw new AppError('INTERNAL_ERROR', 'The scene could not be entered.', 500, true);
     await track(db, user.id, 'join_character_clicked', { characterInstanceId: input.characterInstanceId, locationId: input.locationId });
     await track(db, user.id, 'scene_entry_succeeded', { characterInstanceId: input.characterInstanceId, locationId: input.locationId, entryReason });
-    return json({ data: { conversation: updated, scene, presence, place }, correlationId }, 200, correlationId);
+    return json({ data: { conversation: updated, scene, sceneSession, presence, place }, correlationId }, 200, correlationId);
   }
 
   if (input.action === 'new') {

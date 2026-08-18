@@ -1,10 +1,11 @@
 import { AppError } from './types.ts';
 import { extractMemories, extractOpenThread, normalizeContinuityKey, threadAnswered, type MemoryCandidate, type OpenThreadCandidate } from './together.ts';
-import { buildCompanionPrompt } from './kivelle-intelligence.ts';
+import { buildCompanionPrompt, responseTokenBudget } from './kivelle-intelligence.ts';
 import type { KivelleConversationContext } from './kivelle-conversation-context.ts';
 import type { PlaceOpinionCandidate } from './kivelle-place-perspective.ts';
 import { deterministicPlaceOpinionCandidates as derivePlaceOpinionCandidates, validatePlaceOpinionCandidates as validateDerivedPlaceOpinionCandidates } from '../../../packages/together-domain/src/place-opinion-analysis.ts';
 import { detectFlirtSignal, scoreConversationEngagement } from '../../../packages/together-domain/src/relationship.ts';
+import { resolveConversationStyle } from '../../../packages/together-domain/src/conversation-style.ts';
 
 export type DialogueContext = KivelleConversationContext & { contentMode?:string };
 export interface DialogueProvider { generate(context: DialogueContext): Promise<string>; stream(context: DialogueContext): AsyncIterable<string>; }
@@ -414,14 +415,6 @@ function* textChunks(content: string): Iterable<string> {
   yield* content.match(/\S+\s*/g) ?? [content];
 }
 
-function responseTokenBudget(context: DialogueContext): number {
-  const messageLength = context.userMessage.length;
-  if (messageLength < 45) return 100;
-  if (messageLength > 700 || /\b(story|tell me about|why|how did)\b/i.test(context.userMessage)) return 520;
-  if (context.progression || /\b(date|relationship|sorry|hurt|love)\b/i.test(context.userMessage)) return 380;
-  return 220;
-}
-
 async function embedGemini(text: string, key: string): Promise<number[] | null> {
   try {
     const embeddingModel = model('TOGETHER_GEMINI_EMBEDDING_MODEL', 'gemini-embedding-001');
@@ -443,10 +436,12 @@ async function embedGemini(text: string, key: string): Promise<number[] | null> 
 
 function fallbackDialogue(context: DialogueContext): string {
   const lower = context.userMessage.toLowerCase();
-  if (/dog.*name is/.test(lower)) return "Okay, that is important information. I'm going to remember that—Cooper is a very good name. What kind of trouble does he get into?";
-  if (/presentation|interview|exam/.test(lower)) return "That sounds like a big deal. I'll be rooting for you—and I want to hear how it goes afterward.";
+  const texting = resolveConversationStyle(context.conversationStyle) === 'texting';
+  if (/dog.*name is/.test(lower)) return texting ? "Cooper. Got it—that's a very good name." : "Okay, that is important information. I'm going to remember that—Cooper is a very good name. What kind of trouble does he get into?";
+  if (/presentation|interview|exam/.test(lower)) return texting ? "That's a big deal. I'm rooting for you." : "That sounds like a big deal. I'll be rooting for you—and I want to hear how it goes afterward.";
   if (/olive/.test(lower)) return "Noted. If olives show up on our table, they're staying very far away from your side.";
-  if (/hello|\bhi\b|\bhey\b/.test(lower)) return "Hey. I was just sorting through a shoot that somehow produced three hundred photos of the same crooked lamp. How's your day going?";
+  if (/hello|\bhi\b|\bhey\b/.test(lower)) return texting ? "Hey. I was just sorting through a very questionable photo set." : "Hey. I was just sorting through a shoot that somehow produced three hundred photos of the same crooked lamp. How's your day going?";
   const memory = context.memoryContext?.directRecall?.[0]?.text ?? (Number(context.memoryContext?.callbackAllowance ?? 0) > 0 ? context.memoryContext?.callbacks?.[0]?.text : undefined);
-  return memory ? `You know, that reminds me of something you told me before—${memory.replace(/^User /, 'you ')} Anyway, tell me the part of this that matters most to you.` : "Okay, you have my attention. Tell me more—but give me the real version, not the polished one.";
+  if (memory) return texting ? memory.replace(/^User /, 'You ') : `You know, that reminds me of something you told me before—${memory.replace(/^User /, 'you ')} Anyway, tell me the part of this that matters most to you.`;
+  return texting ? "Okay, you have my attention." : "Okay, you have my attention. Tell me more—but give me the real version, not the polished one.";
 }

@@ -62,10 +62,19 @@ verify_jwt = false
 verify_jwt = false
 [functions.together-media-dispatch]
 verify_jwt = false
+
+[functions.together-wavespeed-webhook]
+verify_jwt = false
 [functions.together-companion]
 verify_jwt = false
 [functions.together-persona]
 verify_jwt = false
 [functions.together-creator]
+verify_jwt = false
+[functions.together-multimodal]
+verify_jwt = false
+[functions.together-call]
+verify_jwt = false
+[functions.together-shared-scene]
 verify_jwt = false
 

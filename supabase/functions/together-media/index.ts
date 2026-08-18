@@ -8,6 +8,10 @@ import { track } from '../_shared/together.ts';
 import { waitUntil } from '../_shared/background.ts';
 import {activeContinuity,requireInstanceInActiveContinuity}from'../_shared/together-continuity.ts';
 import { resolveSubscriptionState, spendCredits } from '../_shared/kivelle-subscription.ts';
+import { refundCredits } from '../_shared/kivelle-subscription.ts';
+import { configuredMediaRegistry } from '../_shared/together-media-providers.ts';
+import { resolveMediaContentPolicy } from '../../../packages/together-domain/src/media-routing.ts';
+import { envBoolean } from '../_shared/wavespeed.ts';
 
 const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('request'),characterInstanceId:z.string().uuid(),source:z.enum(['user_request','life_event','date','moment','story']).default('user_request'),conversationId:z.string().uuid().optional(),messageId:z.string().uuid().optional(),lifeEventId:z.string().uuid().optional(),dateSessionId:z.string().uuid().optional(),momentId:z.string().uuid().optional(),storyArcId:z.string().uuid().optional(),requestText:z.string().trim().max(400).optional(),idempotencyKey:z.string().trim().min(8).max(120).optional()}),
@@ -15,6 +19,8 @@ const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('status'),mediaId:z.string().uuid()}),
   z.object({action:z.literal('remove'),mediaId:z.string().uuid()}),
   z.object({action:z.literal('preferences'),companionPhotos:z.boolean(),automaticPhotos:z.boolean()}),
+  z.object({action:z.literal('content_preferences'),suggestiveMediaEnabled:z.boolean(),matureMediaEnabled:z.boolean(),explicitMediaEnabled:z.boolean(),adultVideoEnabled:z.boolean()}),
+  z.object({action:z.literal('animate'),mediaId:z.string().uuid(),requestId:z.string().trim().min(8).max(120),motionPrompt:z.string().trim().max(240).optional(),durationSeconds:z.number().int().min(3).max(10).default(5)}),
 ]);
 
 serve(async(request,correlationId)=>{
@@ -35,8 +41,27 @@ serve(async(request,correlationId)=>{
     if(error)throw new AppError('INTERNAL_ERROR','Photo preferences could not be saved.',500,true);
     return json({data:{saved:true},correlationId},200,correlationId);
   }
+  if(input.action==='content_preferences'){
+    const{data:profile}=await db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id',user.id).maybeSingle();
+    if((input.suggestiveMediaEnabled||input.matureMediaEnabled||input.explicitMediaEnabled||input.adultVideoEnabled)&&!profile?.age_verified_at)throw new AppError('FORBIDDEN','Age verification is required for higher-intensity media.',403);
+    const next={...((profile?.content_preferences??{}) as Record<string,unknown>),suggestiveMediaEnabled:input.suggestiveMediaEnabled,matureMediaEnabled:input.matureMediaEnabled,explicitMediaEnabled:input.explicitMediaEnabled,adultVideoEnabled:input.adultVideoEnabled};
+    const{error}=await db.from('together_profiles').update({content_preferences:next,updated_at:new Date().toISOString()}).eq('user_id',user.id);if(error)throw new AppError('INTERNAL_ERROR','Media preferences could not be saved.',500,true);
+    return json({data:{saved:true,preferences:next},correlationId},200,correlationId);
+  }
   const continuity=await activeContinuity(db,user.id),{data:media}=await db.from('together_generated_media').select('*').eq('id',input.mediaId).eq('user_id',user.id).eq('continuity_id',continuity.id).maybeSingle();
   if(!media)throw new AppError('NOT_FOUND','That photo is unavailable.',404);
+  if(input.action==='animate'){
+    if(media.media_type!=='image'||media.status!=='ready'||!media.storage_path)throw new AppError('CONFLICT','Only a ready companion photo can be animated.',409);
+    if(!envBoolean('KIVELLE_VIDEO_ENABLED')||!configuredMediaRegistry().some((route)=>route.enabled&&route.mediaTypes.includes('video')))throw new AppError('PROVIDER_NOT_CONFIGURED',"Video generation isn't connected yet.",503);
+    const requestKey=`animate:${media.id}:${input.requestId}`;const{data:existing}=await db.from('together_generated_media').select('*').eq('user_id',user.id).eq('request_key',requestKey).maybeSingle();if(existing)return json({data:{media:existing},correlationId},existing.status==='ready'?200:202,correlationId);
+    const[{data:profile},{data:instance}]=await Promise.all([db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id',user.id).maybeSingle(),db.from('together_character_instances').select('*,together_character_templates(age,metadata,content_boundaries)').eq('id',media.character_instance_id).eq('user_id',user.id).maybeSingle()]);if(!instance)throw new AppError('NOT_FOUND','That companion is unavailable.',404);
+    const preferences=(profile?.content_preferences??{}) as Record<string,unknown>,template=instance.together_character_templates as Record<string,unknown>,level=String(media.content_level??'standard') as 'standard'|'romance'|'suggestive'|'mature'|'explicit';
+    const boundaries=(template.content_boundaries??{}) as Record<string,unknown>,characterAllowsRequestedLevel=level==='standard'?true:level==='romance'?boundaries.allows_romance!==false:level==='suggestive'?boundaries.allows_suggestive===true||boundaries.allows_mature===true:level==='mature'?boundaries.allows_mature===true:boundaries.allows_explicit===true;
+    const policy=resolveMediaContentPolicy({requestedLevel:level,source:'user_request',automatic:false,ageVerified:Boolean(profile?.age_verified_at),characterAge:Number(template.age),fictionalCharacter:(template.metadata as Record<string,unknown>|undefined)?.fictional!==false,realPersonRequest:false,nonConsensualRequest:false,minorRelatedRequest:false,characterAllowsRequestedLevel,romanceEnabled:preferences.romanceEnabled!==false,suggestiveMediaEnabled:preferences.suggestiveMediaEnabled===true,matureMediaEnabled:preferences.matureMediaEnabled===true,explicitMediaEnabled:preferences.explicitMediaEnabled===true,adultVideoEnabled:preferences.adultVideoEnabled===true,mediaType:'video',adultMediaFeatureEnabled:envBoolean('KIVELLE_ADULT_MEDIA_ENABLED')});if(!policy.allowed)throw new AppError('FORBIDDEN','Your media preferences do not allow this video.',403);
+    const charged=await spendCredits(db,{userId:user.id,action:'short_video',idempotencyKey:`media-video:${requestKey}`,referenceType:'generated_media',referenceId:String(media.id),metadata:{sourceMediaId:media.id,characterInstanceId:media.character_instance_id}});
+    const metadata={...((media.metadata??{}) as Record<string,unknown>),source:'user_request',parentMediaId:media.id,motionPrompt:input.motionPrompt?.slice(0,240)??null,durationSeconds:input.durationSeconds,requestKey,creditTransactionId:charged.transactionId,creditCost:charged.cost,creditAction:'short_video',creditRefunded:false,generationIntent:{kind:'image_to_video',sourceMediaId:media.id}};
+    const{data:video,error}=await db.from('together_generated_media').insert({user_id:user.id,continuity_id:continuity.id,character_instance_id:media.character_instance_id,conversation_id:media.conversation_id,message_id:media.message_id,life_event_id:media.life_event_id,date_session_id:media.date_session_id,moment_id:media.moment_id,story_arc_id:media.story_arc_id,scene_session_id:media.scene_session_id,scene_action_id:media.scene_action_id,shared_plan_id:media.shared_plan_id,world_id:media.world_id,location_id:media.location_id,parent_media_id:media.id,media_type:'video',content_level:policy.resolvedLevel,status:'queued',request_key:requestKey,queue_priority:media.queue_priority??0,metadata}).select('*').single();if(error||!video){await refundCredits(db,{userId:user.id,transactionId:charged.transactionId,idempotencyKey:`refund:${charged.transactionId}`,metadata:{reason:'video_queue_failed',sourceMediaId:media.id}});throw new AppError('INTERNAL_ERROR','The video could not be queued.',500,true);}waitUntil(kickMediaDispatcher());await track(db,user.id,'contextual_video_requested',{mediaId:video.id,sourceMediaId:media.id,characterInstanceId:media.character_instance_id});return json({data:{media:video,creditCost:charged.cost},correlationId},202,correlationId);
+  }
   if(input.action==='status'){
     let signedUrl:string|null=null;
     if(media.status==='ready'&&media.storage_path){const {data}=await db.storage.from('together-user-media').createSignedUrl(media.storage_path,3600);signedUrl=data?.signedUrl??null;}

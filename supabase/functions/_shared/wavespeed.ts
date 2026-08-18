@@ -1,0 +1,78 @@
+import{AppError}from'./types.ts';
+import{verifyProviderWebhookHmac}from'../../../packages/together-domain/src/provider-webhook.ts';
+
+const API_BASE='https://api.wavespeed.ai/api/v3';
+export type WaveSpeedStatus='created'|'processing'|'completed'|'failed'|'cancelled'|'timeout'|'deleted';
+export type WaveSpeedPrediction={id:string;model:string;status:WaveSpeedStatus;outputs:string[];error?:string;createdAt?:string;getUrl?:string;inferenceMs?:number;hasNsfwContents?:boolean[]};
+export type WaveSpeedSubmission={provider:'wavespeed';providerRequestId:string;model:string;status:'submitted'|'completed';result?:WaveSpeedPrediction};
+
+export type WaveSpeedEnvelope={code?:number;message?:string;data?:{id?:string;model?:string;status?:string;outputs?:unknown;error?:unknown;created_at?:string;urls?:{get?:string};timings?:{inference?:number};has_nsfw_contents?:unknown}};
+
+export class WaveSpeedClient{
+  constructor(private readonly apiKey:string,private readonly webhookUrl?:string){}
+
+  async submit(model:string,input:Record<string,unknown>):Promise<WaveSpeedSubmission>{
+    const endpoint=`${API_BASE}/${model}${this.webhookUrl?`?webhook=${encodeURIComponent(this.webhookUrl)}`:''}`;
+    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),60_000);
+    try{
+      const response=await fetch(endpoint,{method:'POST',headers:{Authorization:`Bearer ${this.apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({...input,enable_sync_mode:false,enable_base64_output:false}),signal:controller.signal});
+      const payload=await parseEnvelope(response);
+      if(!response.ok||Number(payload.code??response.status)!==200)throw providerError(response.status,payload.message);
+      const prediction=normalizePrediction(payload,model);
+      if(!prediction.id)throw new AppError('PROVIDER_SUBMISSION_UNKNOWN','The provider did not confirm the media request. No duplicate request was sent.',503,false);
+      return{provider:'wavespeed',providerRequestId:prediction.id,model:prediction.model,status:prediction.status==='completed'?'completed':'submitted',...(prediction.status==='completed'?{result:prediction}:{})};
+    }catch(error){
+      if(error instanceof AppError)throw error;
+      if(error instanceof DOMException&&error.name==='AbortError')throw new AppError('PROVIDER_SUBMISSION_UNKNOWN','The provider did not confirm the media request. No duplicate request was sent.',503,false);
+      throw new AppError('PROVIDER_SUBMISSION_UNKNOWN','The provider did not confirm the media request. No duplicate request was sent.',503,false);
+    }finally{clearTimeout(timeout);}
+  }
+
+  async getResult(providerRequestId:string):Promise<WaveSpeedPrediction>{
+    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),30_000);
+    try{
+      const response=await fetch(`${API_BASE}/predictions/${encodeURIComponent(providerRequestId)}/result`,{headers:{Authorization:`Bearer ${this.apiKey}`},signal:controller.signal});
+      const payload=await parseEnvelope(response);
+      if(!response.ok||Number(payload.code??response.status)!==200)throw providerError(response.status,payload.message);
+      return normalizePrediction(payload);
+    }catch(error){if(error instanceof AppError)throw error;throw new AppError('PROVIDER_TIMEOUT','The provider result could not be checked right now.',503,true);}finally{clearTimeout(timeout);}
+  }
+}
+
+async function parseEnvelope(response:Response):Promise<WaveSpeedEnvelope>{const text=await response.text();try{return JSON.parse(text) as WaveSpeedEnvelope;}catch{return{code:response.status,message:text.slice(0,160)}};}
+
+export function normalizePrediction(payload:WaveSpeedEnvelope,fallbackModel=''):WaveSpeedPrediction{
+  const data=payload.data??{},status=String(data.status??'created') as WaveSpeedStatus;
+  const validStatuses:WaveSpeedStatus[]=['created','processing','completed','failed','cancelled','timeout','deleted'];
+  return{id:String(data.id??''),model:String(data.model??fallbackModel),status:validStatuses.includes(status)?status:'failed',outputs:Array.isArray(data.outputs)?data.outputs.map(String).filter(isHttpsUrl):[],error:typeof data.error==='string'?data.error.slice(0,240):undefined,createdAt:data.created_at,getUrl:isHttpsUrl(data.urls?.get)?data.urls?.get:undefined,inferenceMs:Number.isFinite(data.timings?.inference)?Number(data.timings?.inference):undefined,hasNsfwContents:Array.isArray(data.has_nsfw_contents)?data.has_nsfw_contents.map(Boolean):undefined};
+}
+
+export function normalizeWaveSpeedWebhook(payload:unknown):WaveSpeedPrediction{
+  const value=payload&&typeof payload==='object'?payload as Record<string,unknown>:{};
+  if(value.data&&typeof value.data==='object')return normalizePrediction(value as WaveSpeedEnvelope);
+  return normalizePrediction({code:200,data:value as WaveSpeedEnvelope['data']});
+}
+
+function providerError(status:number,message?:string):AppError{
+  if(status===401)return new AppError('PROVIDER_AUTH','The photo provider needs attention.',503,false);
+  if(status===402||status===403)return new AppError('PROVIDER_QUOTA','Media generation is temporarily unavailable.',503,false);
+  if(status===404)return new AppError('PROVIDER_MODEL','The configured media model is unavailable.',503,false);
+  if(status===429)return new AppError('RATE_LIMITED','Media requests are busy right now. Try again soon.',429,true);
+  if(status===400||status===422)return new AppError('PROVIDER_REQUEST_INVALID','The media request could not be processed.',422,false);
+  if(/content|safety|nsfw|moderation/i.test(message??''))return new AppError('PROVIDER_CONTENT_BLOCKED','That media request could not be created.',422,false);
+  return new AppError('PROVIDER_UNAVAILABLE','The media provider is temporarily unavailable.',503,status>=500);
+}
+
+export async function verifyWaveSpeedWebhook(input:{rawBody:string;webhookId:string|null;timestamp:string|null;signature:string|null;secret:string;now?:Date;maxAgeSeconds?:number}):Promise<boolean>{
+  return verifyProviderWebhookHmac({...input,scheme:'v3'});
+}
+function isHttpsUrl(value:unknown):value is string{if(typeof value!=='string')return false;try{return new URL(value).protocol==='https:';}catch{return false;}}
+
+export function configuredWaveSpeedClient():WaveSpeedClient|null{
+  const key=Deno.env.get('WAVESPEED_API_KEY');if(!key||!envBoolean('KIVELLE_WAVESPEED_ENABLED'))return null;
+  const base=Deno.env.get('SUPABASE_URL');const webhook=base?`${base}/functions/v1/together-wavespeed-webhook`:undefined;
+  return new WaveSpeedClient(key,webhook);
+}
+
+export function envBoolean(name:string,defaultValue=false):boolean{const value=Deno.env.get(name);if(value===undefined)return defaultValue;return['1','true','yes','on'].includes(value.toLowerCase());}
+export function envNumber(name:string,defaultValue:number):number{const value=Number(Deno.env.get(name));return Number.isFinite(value)?value:defaultValue;}

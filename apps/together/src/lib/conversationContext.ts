@@ -6,7 +6,7 @@ export type ClientConversationContext={
   interactionMode:InteractionMode;
   entryReason:SceneEntryReason;
   sceneBehavior:{acknowledgeArrival:boolean;activityAwareness:boolean;departurePressure:boolean};
-  scene:{locationId?:string;location:string;activity:string;summary:string;source:'active_event'|'character_state';activeEventId?:string;mediaUrl?:string;localTime:string;worldName?:string};
+  scene:{locationId?:string;location:string;activity:string;summary:string;source:'active_date'|'active_plan'|'scene'|'life_engine'|'character_state';activeEventId?:string;mediaUrl?:string;localTime:string;worldName?:string};
   nextCommitment?:Commitment;
   activePlan?:Commitment;
   activeDate?:Commitment;
@@ -21,6 +21,7 @@ export function buildClientConversationContext(snapshot:Snapshot,character:Chara
   const location=snapshot.locations.find((item)=>item.id===character.current_location_id)?.name??worldForLocation(snapshot,character.current_location_id)?.name??'Current place';
   const characterPlans=(snapshot.sharedPlans??[]).filter((plan)=>plan.character_instance_id===character.id);
   const activePlanRow=characterPlans.find((plan)=>isActivePlan(plan,now));
+  const planUserPresent=Boolean(activePlanRow?.attendance?.user&&!activePlanRow.attendance.user.left_at);
   const activeDateRow=snapshot.dates.find((date)=>date.character_instance_id===character.id&&date.status==='active');
   const activeSceneRow=(snapshot.sceneSessions??[]).find((scene)=>scene.character_instance_id===character.id&&!scene.ended_at&&sceneIsCurrent(scene,now));
   const conversation=snapshot.conversations.find((item)=>item.character_instance_id===character.id&&!item.archived_at);
@@ -28,7 +29,7 @@ export function buildClientConversationContext(snapshot:Snapshot,character:Chara
   const storedValid=Boolean(storedScene?.interactionMode==='co_present'&&(!storedScene.validUntil||new Date(storedScene.validUntil)>now));
   const activeSceneActivity=activeSceneRow?sceneActivity(activeSceneRow):storedValid?storedScene?.activityLabel??humanizeActivity(storedScene?.activityKey):undefined;
   const activeEvent=snapshot.lifeEvents.filter((event)=>event.character_instance_id===character.id&&event.metadata?.planStatus!=='cancelled'&&Boolean(event.ends_at)&&new Date(event.starts_at).getTime()<=now.getTime()&&new Date(event.ends_at!).getTime()>=now.getTime()).sort((a,b)=>Number(b.significance??0)-Number(a.significance??0))[0];
-  const activeLocationId=activeDateRow?.together_date_templates.location_id??activePlanRow?.location_id??activeSceneRow?.location_id??(storedValid?storedScene?.locationId:undefined)??activeEvent?.location_id??character.current_location_id;
+  const activeLocationId=activeSceneRow?.location_id??(storedValid?storedScene?.locationId:undefined)??activeDateRow?.together_date_templates.location_id??(planUserPresent?activePlanRow?.location_id:undefined)??character.current_location_id;
   const sceneLocation=snapshot.locations.find((item)=>item.id===activeLocationId)?.name??location;
   const sceneWorld=worldForLocation(snapshot,activeLocationId);
   const localTime=formatWorldTime(now,sceneWorld?.timezone);
@@ -47,15 +48,17 @@ export function buildClientConversationContext(snapshot:Snapshot,character:Chara
   const openThread=snapshot.openThreads.find((item)=>item.character_instance_id===character.id&&item.follow_up_eligible);
   const subject=openThread?.display_subject??openThread?.subject??String(openThread?.topic??'').match(/user's\s+([a-z ]+)/i)?.[1]?.replace(/\s+went.*$/i,'')??'something important';
   const thread=openThread?{label:subject,prompt:openThread.followup_prompt??`I should tell you how my ${subject.toLowerCase()} went.`}:undefined;
-  const activeCommitment=activePlan??activeDate;
-  const planUserPresent=Boolean(activePlanRow?.attendance?.user&&!activePlanRow.attendance.user.left_at);
-  const interactionMode:InteractionMode=activeDate||planUserPresent||activeSceneRow||storedValid?'co_present':'remote';
-  const entryReason:SceneEntryReason=activeDate?'active_date':planUserPresent?'shared_plan':activeSceneRow?(storedScene?.entryReason??sceneEntryReason(activeSceneRow.source)):storedValid?(storedScene?.entryReason??'continued_scene'):'direct_chat';
+  const activeCommitment=activeDate??(planUserPresent?activePlan:undefined);
+  const interactionMode:InteractionMode=activeSceneRow||storedValid||activeDate||planUserPresent?'co_present':'remote';
+  const entryReason:SceneEntryReason=activeSceneRow?(storedScene?.entryReason??sceneEntryReason(activeSceneRow.source)):storedValid?(storedScene?.entryReason??'continued_scene'):activeDate?'active_date':planUserPresent?'shared_plan':'direct_chat';
   const acknowledgeArrival=interactionMode==='co_present'&&entryReason==='user_drop_in'&&!storedScene?.arrivalAcknowledgedAt;
-  const departurePressure=Boolean(activeCommitment?.endsAt&&new Date(activeCommitment.endsAt).getTime()-now.getTime()<20*60000);
-  const sceneActivityLabel=activeCommitment?.title??activeSceneActivity??activeEvent?.title??character.current_activity;
+  const departureAt=activeSceneRow?.expected_end_at??storedScene?.validUntil??activeCommitment?.endsAt;
+  const departurePressure=Boolean(departureAt&&new Date(departureAt).getTime()-now.getTime()<20*60000);
+  const sceneActivityLabel=activeSceneActivity??activeDate?.title??(planUserPresent?activePlan?.title:undefined)??character.current_activity;
+  const eventEstablishesPresence=Boolean(activeEvent?.location_id&&activeEvent.location_id===character.current_location_id&&['life_event','active_event'].includes(String(character.current_presence_source)));
+  const sceneSource:ClientConversationContext['scene']['source']=activeSceneRow||storedValid?'scene':activeDate?'active_date':planUserPresent?'active_plan':character.current_presence_source==='life_event'||character.current_presence_source==='active_event'?'life_engine':'character_state';
   const prompts=smartReplies({character,location:sceneLocation,activity:sceneActivityLabel,thread,nextCommitment,activePlan:activeCommitment,startingSoon,recentPlan,storyTitle:activeStory?.together_story_arc_templates?.title,now,interactionMode});
-  return{interactionMode,entryReason,sceneBehavior:{acknowledgeArrival,activityAwareness:interactionMode==='co_present'||Boolean(activeEvent),departurePressure},scene:{locationId:activeLocationId??undefined,location:sceneLocation,activity:sceneActivityLabel,summary:interactionMode==='co_present'?`You are together at ${sceneLocation} while ${character.together_character_templates.name} is ${sceneActivityLabel.toLowerCase()}.`:activeEvent?.narrative_summary??`${character.together_character_templates.name} is ${sceneActivityLabel.toLowerCase()}.`,source:activeCommitment||activeSceneRow||activeEvent?'active_event':'character_state',activeEventId:activeEvent?.id,mediaUrl:media?.signed_url??undefined,localTime,worldName:sceneWorld?.name},nextCommitment,activePlan,activeDate,startingSoon,recentPlan,story:activeStory?{title:activeStory.together_story_arc_templates?.title??'A story in progress',chapter:chapter?.title??activeStory.current_chapter_id}:undefined,thread,prompts};
+  return{interactionMode,entryReason,sceneBehavior:{acknowledgeArrival,activityAwareness:interactionMode==='co_present'||eventEstablishesPresence,departurePressure},scene:{locationId:activeLocationId??undefined,location:sceneLocation,activity:sceneActivityLabel,summary:interactionMode==='co_present'?`You are together at ${sceneLocation} while ${character.together_character_templates.name} is ${sceneActivityLabel.toLowerCase()}.`:eventEstablishesPresence?activeEvent!.narrative_summary:`${character.together_character_templates.name} is ${sceneActivityLabel.toLowerCase()}.`,source:sceneSource,activeEventId:eventEstablishesPresence?activeEvent?.id:undefined,mediaUrl:media?.signed_url??undefined,localTime,worldName:sceneWorld?.name},nextCommitment,activePlan,activeDate,startingSoon,recentPlan,story:activeStory?{title:activeStory.together_story_arc_templates?.title??'A story in progress',chapter:chapter?.title??activeStory.current_chapter_id}:undefined,thread,prompts};
 }
 
 function formatWorldTime(now:Date,timezone?:string){try{return new Intl.DateTimeFormat(undefined,{hour:'numeric',minute:'2-digit',timeZone:timezone||'UTC'}).format(now);}catch{return now.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}}
@@ -68,7 +71,7 @@ function smartReplies(input:{character:CharacterInstance;location:string;activit
   if(input.recentPlan)return[`${input.recentPlan.location??input.recentPlan.title} was a good call.`,`We should do that again.`,`What was your favorite part?`];
   if(input.thread)return[input.thread.prompt,`What have you been up to at ${input.location}?`,'Tell me the part you have not told me yet'];
   if(input.storyTitle)return[`What is happening with ${input.storyTitle}?`,'How are you feeling about it?',`What is the scene at ${input.location}?`];
-  const activity=input.character.current_activity.toLowerCase();
+  const activity=input.activity.toLowerCase();
   if(/coffee|cafe/.test(activity))return['How is coffee going?','Who are you with?','Tell me what happened today'];
   if(/photo|shoot|studio/.test(activity))return['How did the shoot go?','What are you working on?','Show me what caught your eye'];
   if(input.character.current_mood.toLowerCase()==='playful')return['What trouble are you causing?','Tease me about something',`How is ${input.location}?`];
