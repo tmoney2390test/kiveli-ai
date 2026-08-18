@@ -10,6 +10,10 @@ import {
 } from '../../../packages/together-domain/src/multimodal.ts';
 import { configuredImageProvider } from './together-media-base.ts';
 import { configuredMediaRegistry } from './together-media-providers.ts';
+// Keep the async WaveSpeed adapter in the remote Edge bundle. The Supabase
+// deploy graph does not currently retain this transitive sibling import when
+// capabilities are reached through together-media-providers alone.
+import './wavespeed.ts';
 
 export type VisionInput = {
   bytes: Uint8Array;
