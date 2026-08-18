@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Alert, Animated, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Brain, CalendarDays, Camera, Check, ChevronRight, Copy, Heart, ImagePlus, MapPin, MessageCircle, MoreHorizontal, Pause, Phone, Play, Send, Sparkles, Undo2, Volume2, Wand2, X } from 'lucide-react-native';
@@ -7,7 +7,7 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import { CharacterAvatar, ErrorState, FrostedSurface, LoadingSkeleton, MediaTile, MoodBadge, RelationshipBadge } from '../src/components';
+import { CharacterAvatar, ErrorState, FrostedBackdrop, FrostedSurface, LoadingSkeleton, MediaTile, MoodBadge, RelationshipBadge } from '../src/components';
 import { characterAssets, cityLifeAsset, locationHeroAsset, worldHeroAsset } from '../src/assets';
 import { colors, radius, spacing } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
@@ -215,7 +215,7 @@ export default function Chat() {
         <ChatHeader character={character} location={location} relationshipStage={character.relationship_stage} onCall={()=>router.push(`/call?character=${character.id}&conversation=${conversation.id}` as never)} onMenu={()=>setShowConversationMenu((value)=>!value)} />
         {!showRight&&chatContext.nextCommitment?<Pressable onPress={()=>chatContext.nextCommitment?.kind==='plan'&&router.push(`/plan/${chatContext.nextCommitment.id}` as never)} style={styles.mobileCommitment}><CalendarDays size={14} color={colors.rose}/><Text style={styles.mobileCommitmentText} numberOfLines={1}>{new Date(chatContext.nextCommitment.startsAt).toLocaleDateString([],{weekday:'short'})} · {chatContext.nextCommitment.title}</Text><ChevronRight size={14} color={colors.muted}/></Pressable>:null}
         {showConversationMenu ? <ConversationMenu name={character.together_character_templates.name} onClose={()=>setShowConversationMenu(false)} actions={{profile:()=>router.push(`/character/${slug}` as never),plan:()=>{setShowPlans(true);setShowConversationMenu(false);},memories:()=>router.push(`/memories?character=${slug}` as never),history:()=>router.push(`/conversations/${character.id}` as never),style:()=>{setShowConversationMenu(false);router.push('/conversation-style');},settings:()=>router.push('/conversation-controls'),start:startNewConversation,rename:renameConversation,remove:deleteConversation}} /> : null}
-        {showPhotoRequests ? <PhotoRequestTray name={character.together_character_templates.name} onRequest={(request)=>{setShowPhotoRequests(false);void send(request);}} onClose={()=>setShowPhotoRequests(false)}/> : null}
+        <PhotoRequestModal visible={showPhotoRequests} name={character.together_character_templates.name} onRequest={(request)=>{setShowPhotoRequests(false);void send(request);}} onShare={()=>{setShowPhotoRequests(false);openPhotoPicker();}} onClose={()=>setShowPhotoRequests(false)}/>
         {showPlans ? <ScrollView style={styles.planScroll} contentContainerStyle={styles.planScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <PlanSelection snapshot={snapshot} character={character} scopedLocationId={resolveScopedLocation(snapshot,params.location,params.world,pendingActions.find((item)=>item.id===pendingActionId),params.repeatPlanId)} initialActivityKey={params.activity} repeatPlanId={params.repeatPlanId} proposal={pendingActions.find((item)=>item.id===pendingActionId)} interests={[...(snapshot.profile?.interests??[]),...snapshot.memories.filter((item)=>item.character_instance_id===character.id&&item.memory_type==='preference').map((item)=>item.canonical_text)]} busy={planning} onPlan={(option,scheduledFor) => void plan(option,scheduledFor)} onClose={() => {setShowPlans(false);setPendingActionId(null);}} />
         </ScrollView> : <ScrollView ref={scroll} style={styles.messageScroll} contentContainerStyle={styles.messages} keyboardShouldPersistTaps="handled" scrollEventThrottle={80} onScroll={(event)=>{if(event.nativeEvent.contentOffset.y<80)void loadOlder();}} onContentSizeChange={(_,height)=>{contentHeight.current=height;if(prepending.current){scroll.current?.scrollTo({y:Math.max(0,height-previousHeight.current),animated:false});prepending.current=false;}}}>
@@ -314,7 +314,38 @@ function LegacyComposer({character,compact,input,setInput,sending,onSend,onPlan,
   void onInteraction; void onMove; void coPresent;
   return <View style={[styles.composerWrap,{paddingBottom:tabBarInset}]}><View style={styles.quickActions}><Pressable onPress={onPhoto} style={[styles.quickAction,styles.quickActionFitted]}><Camera size={14} color={colors.rose}/><Text numberOfLines={1} style={[styles.quickText,styles.quickTextFitted]}>{compact?'Photo':'Ask for a photo'}</Text></Pressable><Pressable onPress={onPlan} style={[styles.quickAction,styles.quickActionFitted]}><CalendarDays size={14} color={colors.warm}/><Text numberOfLines={1} style={[styles.quickText,styles.quickTextFitted]}>{compact?'Plan':'Plan something'}</Text></Pressable><Pressable onPress={()=>router.push('/memories')} style={[styles.quickAction,styles.quickActionFitted]}><Brain size={14} color={colors.violet}/><Text numberOfLines={1} style={[styles.quickText,styles.quickTextFitted]}>Memories</Text></Pressable></View><View style={styles.composer}><TextInput value={input} onChangeText={setInput} placeholder={`Message ${character.together_character_templates.name}…`} placeholderTextColor={colors.dimmed} multiline maxLength={4000} style={[styles.input,styles.inputFitted]} textAlignVertical="top"/><Pressable accessibilityLabel="Send message" onPress={onSend} disabled={!input.trim()||sending} style={[styles.send,(!input.trim()||sending)&&styles.sendDisabled]}><Send color="#fff" size={19}/></Pressable></View><Text style={styles.aiNote}>{character.together_character_templates.name} is a fictional AI character. Important memories stay in your control.</Text></View>; }
 
-function PhotoRequestTray({name,onRequest,onClose}:{name:string;onRequest:(request:string)=>void;onClose:()=>void}){const options=[`Send me a selfie from where you are.`,`Show me what you're doing right now.`,`Show me where you are.`,`Show me your outfit today.`];return <View style={styles.photoTray}><View style={{flex:1}}><Text style={styles.planTitle}>Ask {name} for a photo</Text><Text style={styles.contextMuted}>She’ll answer normally, then send something that fits what she’s actually doing.</Text></View><View style={styles.photoChoices}>{options.map((option)=><Pressable key={option} onPress={()=>onRequest(option)} style={styles.photoChoice}><Camera size={13} color={colors.rose}/><Text style={styles.photoChoiceText}>{option}</Text></Pressable>)}</View><Pressable onPress={onClose}><Text style={styles.closeText}>Close</Text></Pressable></View>}
+function PhotoRequestModal({visible,name,onRequest,onShare,onClose}:{visible:boolean;name:string;onRequest:(request:string)=>void;onShare:()=>void;onClose:()=>void}){
+  const options=[
+    {label:'What they’re doing',request:`Show me what you're doing right now.`},
+    {label:'Where they are',request:`Show me where you are.`},
+    {label:'Today’s outfit',request:`Show me your outfit today.`},
+  ];
+  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Pressable accessibilityLabel="Close photo options" style={styles.mediaModalBackdrop} onPress={onClose}>
+      <FrostedBackdrop intensity={34}/>
+      <Pressable style={styles.mediaModalFrame} onPress={()=>undefined}>
+        <FrostedSurface intensity={82} style={styles.mediaModal}>
+          <Pressable accessibilityLabel="Close photo options" onPress={onClose} style={styles.mediaModalClose}><X size={18} color={colors.muted}/></Pressable>
+          <View style={styles.mediaModalIconWrap}>
+            <View style={styles.mediaModalIconGlow}/>
+            <ImagePlus size={31} color="#C9A8FF" strokeWidth={1.7}/>
+            <Sparkles size={15} color="#FF9DCC" style={styles.mediaModalSpark}/>
+          </View>
+          <Text style={styles.mediaModalTitle}>See this moment</Text>
+          <Text style={styles.mediaModalCopy}>Ask {name} for a photo grounded in where they are and what they’re doing right now.</Text>
+          <Pressable accessibilityLabel={`Ask ${name} for a selfie`} onPress={()=>onRequest('Send me a selfie from where you are.')} style={styles.mediaPrimaryAction}>
+            <Sparkles size={17} color="#fff"/>
+            <Text style={styles.mediaPrimaryText}>Send me a selfie</Text>
+          </Pressable>
+          <Text style={styles.mediaOptionLabel}>OR SHOW ME</Text>
+          <View style={styles.mediaOptions}>{options.map((option)=><Pressable key={option.label} onPress={()=>onRequest(option.request)} style={styles.mediaOption}><Camera size={14} color="#C7A6FF"/><Text style={styles.mediaOptionText}>{option.label}</Text></Pressable>)}</View>
+          <Pressable accessibilityLabel="Share your own photo" onPress={onShare} style={styles.mediaShareAction}><ImagePlus size={15} color={colors.rose}/><Text style={styles.mediaShareText}>Share your own photo</Text></Pressable>
+          <Pressable onPress={onClose} style={styles.mediaCancel}><Text style={styles.mediaCancelText}>Not now</Text></Pressable>
+        </FrostedSurface>
+      </Pressable>
+    </Pressable>
+  </Modal>;
+}
 
 void LegacyComposer;
 function Composer({inputRef,character,compact,input,setInput,pendingImage,onAddPhoto,onRemovePhoto,sending,onSend,onPlan,onPhoto,onInteraction,onMove,coPresent}:{inputRef:{current:TextInput|null};character:CharacterInstance;compact:boolean;input:string;setInput:(value:string)=>void;pendingImage:PendingImage|null;onAddPhoto:()=>void;onRemovePhoto:()=>void;sending:boolean;onSend:()=>void;onPlan:()=>void;onPhoto:()=>void;onInteraction:()=>void;onMove:()=>void;coPresent:boolean}) {
@@ -324,13 +355,22 @@ function Composer({inputRef,character,compact,input,setInput,pendingImage,onAddP
     <View style={styles.quickActions}>
       <Pressable accessibilityLabel={coPresent?'Choose something to do together':'Join them to do something together'} onPress={onInteraction} style={[styles.quickAction,styles.quickActionFitted]}><Wand2 size={14} color={colors.rose}/><Text numberOfLines={1} style={[styles.quickText,styles.quickTextFitted]}>{compact?'Do':'Do something'}</Text></Pressable>
       <Pressable accessibilityLabel={coPresent?'Choose somewhere to go':'Join them to go somewhere'} onPress={onMove} style={[styles.quickAction,styles.quickActionFitted]}><MapPin size={14} color={colors.warm}/><Text numberOfLines={1} style={[styles.quickText,styles.quickTextFitted]}>{compact?'Go':'Go somewhere'}</Text></Pressable>
-      <Pressable onPress={onPhoto} style={[styles.quickAction,styles.quickActionFitted]}><Camera size={14} color={colors.violet}/><Text numberOfLines={1} style={[styles.quickText,styles.quickTextFitted]}>{compact?'Photo':'Ask for a photo'}</Text></Pressable>
       <Pressable onPress={onPlan} style={[styles.quickAction,styles.quickActionFitted]}><CalendarDays size={14} color={colors.warm}/><Text numberOfLines={1} style={[styles.quickText,styles.quickTextFitted]}>{compact?'Plan':'Plan'}</Text></Pressable>
     </View>
     {pendingImage?<View style={styles.attachmentPreview}><Image source={{uri:pendingImage.uri}} style={styles.attachmentPreviewImage} contentFit="cover"/><View style={{flex:1,minWidth:0}}><Text style={styles.attachmentPreviewTitle}>Photo ready to share</Text><Text style={styles.attachmentPreviewMeta}>{pendingImage.fileName??'Selected image'} · {Math.max(1,Math.round(pendingImage.byteSize/1024))} KB</Text><Pressable accessibilityLabel="Replace selected photo" onPress={onAddPhoto}><Text style={styles.attachmentReplace}>Replace</Text></Pressable></View><Pressable accessibilityLabel="Remove selected photo" onPress={onRemovePhoto} style={styles.attachmentRemove}><X size={16} color={colors.text}/></Pressable></View>:null}
-    <View style={styles.composer}><Pressable accessibilityLabel="Attach a photo" onPress={onAddPhoto} disabled={sending} style={[styles.attachButton,sending&&styles.sendDisabled]}><ImagePlus size={19} color={colors.rose}/></Pressable><TextInput ref={inputRef} value={input} onChangeText={setInput} placeholder={`Message ${character.together_character_templates.name}…`} placeholderTextColor={colors.dimmed} multiline maxLength={4000} style={[styles.input,styles.inputFitted]} textAlignVertical="top"/><Pressable accessibilityLabel="Send message" onPress={onSend} disabled={(!input.trim()&&!pendingImage)||sending} style={[styles.send,((!input.trim()&&!pendingImage)||sending)&&styles.sendDisabled]}><Send color="#fff" size={19}/></Pressable></View>
+    <View style={styles.composer}><AiMediaButton name={character.together_character_templates.name} onPress={onPhoto} disabled={sending}/><TextInput ref={inputRef} value={input} onChangeText={setInput} placeholder={`Message ${character.together_character_templates.name}…`} placeholderTextColor={colors.dimmed} multiline maxLength={4000} style={[styles.input,styles.inputFitted]} textAlignVertical="top"/><Pressable accessibilityLabel="Send message" onPress={onSend} disabled={(!input.trim()&&!pendingImage)||sending} style={[styles.send,((!input.trim()&&!pendingImage)||sending)&&styles.sendDisabled]}><Send color="#fff" size={19}/></Pressable></View>
     <Text style={styles.aiNote}>{character.together_character_templates.name} is a fictional AI character. Important memories stay in your control.</Text>
   </View>;
+}
+
+function AiMediaButton({name,onPress,disabled}:{name:string;onPress:()=>void;disabled:boolean}){
+  const glow=useRef(new Animated.Value(0)).current;
+  useEffect(()=>{const loop=Animated.loop(Animated.sequence([Animated.timing(glow,{toValue:1,duration:1500,useNativeDriver:true}),Animated.timing(glow,{toValue:0,duration:1500,useNativeDriver:true})]));loop.start();return()=>loop.stop();},[glow]);
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Ask ${name} for an AI-generated photo`} onPress={onPress} disabled={disabled} style={({pressed})=>[styles.aiMediaButton,pressed&&styles.aiMediaPressed,disabled&&styles.sendDisabled]}>
+    <Animated.View pointerEvents="none" style={[styles.aiMediaGlow,{opacity:glow.interpolate({inputRange:[0,1],outputRange:[.28,.72]}),transform:[{scale:glow.interpolate({inputRange:[0,1],outputRange:[.9,1.16]})}]}]}/>
+    <ImagePlus size={21} color="#E5D7FF" strokeWidth={1.7}/>
+    <Sparkles size={10} color="#FF9DCC" style={styles.aiMediaSpark}/>
+  </Pressable>;
 }
 
 function ContextualInteractionTray({interactions,loading,onOpen,onInteraction}:{interactions:InteractionCandidate[];loading:boolean;onOpen:()=>void;onInteraction:(candidate:InteractionCandidate)=>void}) { return <View style={styles.contextualTray}><View style={styles.contextualTrayHeader}><Text style={styles.actionKicker}>TOGETHER NOW</Text><Pressable accessibilityLabel="See all shared scene actions" onPress={onOpen}><Text style={styles.contextualMore}>More</Text></Pressable></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.contextualTrayActions}>{interactions.map((candidate)=><Pressable key={candidate.id} disabled={loading} accessibilityLabel={candidate.label} onPress={()=>onInteraction(candidate)} style={[styles.contextualAction,loading&&styles.sendDisabled]}><Wand2 size={13} color={colors.rose}/><Text style={styles.contextualActionText}>{candidate.label}</Text></Pressable>)}</ScrollView></View>; }
@@ -481,6 +521,28 @@ const styles=StyleSheet.create({
   ,attachmentPreviewMeta:{color:colors.muted,fontSize:9,marginTop:2}
   ,attachmentReplace:{color:colors.rose,fontSize:10,fontWeight:'800',marginTop:5}
   ,attachmentRemove:{width:34,height:34,borderRadius:17,alignItems:'center',justifyContent:'center',backgroundColor:colors.surface}
-  ,attachButton:{width:46,height:46,borderRadius:23,alignItems:'center',justifyContent:'center',backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border}
+  ,aiMediaButton:{position:'relative',width:50,height:50,borderRadius:25,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(70,42,108,.82)',borderWidth:1,borderColor:'rgba(203,168,255,.54)',shadowColor:'#8F5BFF',shadowOpacity:.48,shadowRadius:16,shadowOffset:{width:0,height:4}}
+  ,aiMediaPressed:{transform:[{scale:.96}],backgroundColor:'rgba(88,48,137,.94)'}
+  ,aiMediaGlow:{position:'absolute',width:48,height:48,borderRadius:24,backgroundColor:'rgba(139,80,255,.28)',borderWidth:1,borderColor:'rgba(220,196,255,.3)'}
+  ,aiMediaSpark:{position:'absolute',right:8,top:8}
+  ,mediaModalBackdrop:{flex:1,alignItems:'center',justifyContent:'center',padding:20}
+  ,mediaModalFrame:{width:'100%',maxWidth:520}
+  ,mediaModal:{width:'100%',alignItems:'center',paddingHorizontal:28,paddingTop:36,paddingBottom:24,borderRadius:radius.xl,borderColor:'rgba(201,168,255,.28)',backgroundColor:'rgba(28,21,39,.84)',shadowColor:'#7A42E8',shadowOpacity:.3,shadowRadius:28,shadowOffset:{width:0,height:14}}
+  ,mediaModalClose:{position:'absolute',zIndex:2,right:14,top:14,width:36,height:36,borderRadius:18,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(255,255,255,.06)'}
+  ,mediaModalIconWrap:{position:'relative',width:82,height:82,borderRadius:41,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(100,61,167,.32)',borderWidth:1,borderColor:'rgba(203,168,255,.2)',marginBottom:18}
+  ,mediaModalIconGlow:{position:'absolute',width:104,height:104,borderRadius:52,backgroundColor:'rgba(118,70,216,.13)'}
+  ,mediaModalSpark:{position:'absolute',right:15,top:16}
+  ,mediaModalTitle:{fontFamily:'Georgia',fontSize:28,color:colors.text,textAlign:'center'}
+  ,mediaModalCopy:{maxWidth:410,color:colors.textSecondary,fontSize:14,lineHeight:21,textAlign:'center',marginTop:11,marginBottom:22}
+  ,mediaPrimaryAction:{width:'100%',minHeight:56,borderRadius:radius.md,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:9,backgroundColor:'#7545F5',borderWidth:1,borderColor:'rgba(255,255,255,.2)',shadowColor:'#7E4CFF',shadowOpacity:.42,shadowRadius:18,shadowOffset:{width:0,height:8}}
+  ,mediaPrimaryText:{color:'#fff',fontSize:15,fontWeight:'900'}
+  ,mediaOptionLabel:{alignSelf:'flex-start',color:colors.dimmed,fontSize:9,fontWeight:'900',letterSpacing:1.2,marginTop:19,marginBottom:8}
+  ,mediaOptions:{width:'100%',flexDirection:'row',flexWrap:'wrap',gap:8}
+  ,mediaOption:{flex:1,minWidth:125,minHeight:44,paddingHorizontal:11,borderRadius:radius.md,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,backgroundColor:'rgba(255,255,255,.055)',borderWidth:1,borderColor:'rgba(203,168,255,.16)'}
+  ,mediaOptionText:{color:colors.text,fontSize:10,fontWeight:'800',textAlign:'center'}
+  ,mediaShareAction:{marginTop:17,minHeight:38,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,paddingHorizontal:13,borderRadius:radius.pill,backgroundColor:'rgba(239,82,137,.08)',borderWidth:1,borderColor:'rgba(239,82,137,.18)'}
+  ,mediaShareText:{color:'#FFADCA',fontSize:11,fontWeight:'800'}
+  ,mediaCancel:{paddingHorizontal:18,paddingTop:17,paddingBottom:2}
+  ,mediaCancelText:{color:colors.muted,fontSize:12,fontWeight:'700'}
 });
 
