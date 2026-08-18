@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
   captureFrame: {
     width: 68, height: 68, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,.085)', borderWidth: 1, borderColor: 'rgba(255,255,255,.24)',
-    shadowColor: '#EF5289', shadowOpacity: 0.32, shadowRadius: 18, shadowOffset: { width: 0, height: 7 },
+    shadowColor: '#D83EEA', shadowOpacity: 0.32, shadowRadius: 18, shadowOffset: { width: 0, height: 7 },
   },
   captureSpark: { position: 'absolute', right: 7, top: 7 },
   progressCopy: { alignItems: 'center', gap: 3, marginTop: 7 },
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
   feedbackButtonSelected:{opacity:1},
   retry: {
     flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, paddingVertical: 7,
-    borderRadius: radius.pill, backgroundColor: 'rgba(241,103,154,.10)',
+    borderRadius: radius.pill, backgroundColor: 'rgba(216,62,234,.10)',
   },
   retryText: { color: colors.rose, fontWeight: '800', fontSize: 11 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },

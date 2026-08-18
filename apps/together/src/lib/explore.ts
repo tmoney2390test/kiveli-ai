@@ -6,7 +6,7 @@ export type ExploreCategoryId='coffee'|'nightlife'|'dining'|'quiet'|'entertainme
 export type ExploreRecommendation={id:'tonight'|'companion'|'different'|'liked';title:string;subtitle:string;option:PlanOption;location:Location};
 export type ExploreContext={locations:Location[];featuredLocations:Location[];categories:Array<{id:ExploreCategoryId;label:string;count:number}>;recommendations:ExploreRecommendation[];worldEvents:Snapshot['lifeEvents'];people:CharacterTemplate[]};
 
-const categories:Array<{id:ExploreCategoryId;label:string}>=[{id:'coffee',label:'Coffee'},{id:'nightlife',label:'Nightlife'},{id:'dining',label:'Dining'},{id:'quiet',label:'Quiet Spots'},{id:'entertainment',label:'Entertainment'}];
+export const EXPLORE_CATEGORIES:Array<{id:ExploreCategoryId;label:string}>=[{id:'coffee',label:'Coffee'},{id:'nightlife',label:'Nightlife'},{id:'dining',label:'Dining'},{id:'quiet',label:'Quiet Spots'},{id:'entertainment',label:'Entertainment'}];
 
 export function buildExploreContext(snapshot:Snapshot,companion:CharacterInstance|undefined,worldId:string):ExploreContext{
   const locations=snapshot.locations.filter((location)=>location.world_id===worldId&&isBrowsableLocation(location));
@@ -14,10 +14,10 @@ export function buildExploreContext(snapshot:Snapshot,companion:CharacterInstanc
   const featuredLocations=featureLocations(locations,recommendations.map((item)=>item.location.id));
   const worldEvents=snapshot.lifeEvents.filter((event)=>event.location_id&&snapshot.locations.find((location)=>location.id===event.location_id)?.world_id===worldId).sort((left,right)=>new Date(right.starts_at).getTime()-new Date(left.starts_at).getTime()).slice(0,4);
   const people=peopleForWorld(snapshot,worldId).slice(0,8);
-  return{locations,featuredLocations,categories:categories.map((category)=>({...category,count:locationsForExploreCategory(locations,category.id).length})).filter((category)=>category.count>0),recommendations,worldEvents,people};
+  return{locations,featuredLocations,categories:EXPLORE_CATEGORIES.map((category)=>({...category,count:locationsForExploreCategory(locations,category.id).length})).filter((category)=>category.count>0),recommendations,worldEvents,people};
 }
 
-export function locationsForExploreCategory(locations:Location[],category:ExploreCategoryId){return locations.filter((location)=>matchesCategory(location,category));}
+export function locationsForExploreCategory(locations:Location[],category:ExploreCategoryId){return locations.filter((location)=>matchesExploreCategory(location,category));}
 
 function buildRecommendations(snapshot:Snapshot,companion:CharacterInstance,locations:Location[]):ExploreRecommendation[]{
   const memories=snapshot.memories.filter((memory)=>memory.character_instance_id===companion.id&&memory.memory_type==='preference').map((memory)=>memory.canonical_text);
@@ -35,7 +35,7 @@ function buildRecommendations(snapshot:Snapshot,companion:CharacterInstance,loca
 function recommendationSubtitle(id:string,option:PlanOption){if(id==='tonight')return`${option.locationName} · ${friendly(option.activityKey)}`;if(id==='companion')return`${option.locationName} feels like the right fit right now.`;if(id==='different')return`${option.locationName} breaks your recent pattern.`;return`${option.locationName} is worth doing again.`;}
 function featureLocations(locations:Location[],priorityIds:string[]){const score=(location:Location)=>{const priority=priorityIds.indexOf(location.id);return(priority>=0?50-priority*5:0)+(location.sort_order??0)*-.001+(hasArtPriority(location.slug)?12:0);};return[...locations].sort((a,b)=>score(b)-score(a)).slice(0,8);}
 function hasArtPriority(slug:string){return['velvet-hour','riverwalk','pixel-and-pint','paper-trail','moss-and-crumb','juniper-civic-arena'].includes(slug);}
-function isBrowsableLocation(location:Location){return!['room','zone','transit'].includes(location.location_type)&&location.category!=='home'&&location.category!=='work'&&location.metadata?.private!==true;}
-function matchesCategory(location:Location,category:ExploreCategoryId){const tags=Array.isArray(location.metadata?.tags)?location.metadata.tags:[];const words=`${location.category} ${location.possible_activities.join(' ')} ${tags.join(' ')}`.toLowerCase();if(category==='coffee')return/coffee|cafe|bakery|pastry|brunch/.test(words);if(category==='nightlife')return/bar|lounge|nightlife|cocktail|music|karaoke|comedy|drinks/.test(words);if(category==='dining')return/restaurant|dinner|food|taco|brunch/.test(words);if(category==='quiet')return/quiet|book|park|gallery|walk|outdoor|reading|coffee/.test(words);return/entertainment|cinema|movie|arcade|games|music|comedy|karaoke|trivia|sport|arena|basketball|hockey|soccer|boxing/.test(words);}
+export function isBrowsableLocation(location:Location){return!['room','zone','transit'].includes(location.location_type)&&location.category!=='home'&&location.category!=='work'&&location.metadata?.private!==true&&location.metadata?.directoryVisibility!=='private';}
+export function matchesExploreCategory(location:Location,category:ExploreCategoryId){const tags=Array.isArray(location.metadata?.tags)?location.metadata.tags:[];const words=`${location.category} ${location.possible_activities.join(' ')} ${tags.join(' ')}`.toLowerCase();if(category==='coffee')return/coffee|cafe|bakery|pastry|brunch/.test(words);if(category==='nightlife')return/bar|lounge|nightlife|cocktail|music|karaoke|comedy|drinks/.test(words);if(category==='dining')return/restaurant|dinner|food|taco|brunch/.test(words);if(category==='quiet')return/quiet|book|park|gallery|walk|outdoor|reading|coffee/.test(words);return/entertainment|cinema|movie|arcade|games|music|comedy|karaoke|trivia|sport|arena|basketball|hockey|soccer|boxing/.test(words);}
 function peopleForWorld(snapshot:Snapshot,worldId:string):CharacterTemplate[]{return characterCatalogForWorld(snapshot,worldId).map((entry)=>entry.template);}
 function friendly(value:string){return value.replace(/_/g,' ').replace(/\b\w/g,(letter)=>letter.toUpperCase())}

@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Check, MessageCircle, Sparkles } from 'lucide-react-native';
-import { CharacterAvatar, GradientButton, LoadingSkeleton, Screen, SpiceBadge, resolveCharacterPortraitSource } from '../src/components';
+import { CharacterAvatar, GradientButton, KivelleLogo, LoadingSkeleton, Screen, SpiceBadge, resolveCharacterPortraitSource } from '../src/components';
 import { bootstrap } from '../src/lib/api';
 import { quickStartProfile } from '../src/lib/quickStart';
 import { useTogether } from '../src/store/useTogether';
@@ -55,7 +55,7 @@ export default function ChooseCompanion() {
 
   return <Screen contentStyle={styles.screen}>
     <View style={styles.header}>
-      <Text style={styles.brand}>Kivelle.AI</Text>
+      <KivelleLogo height={30} />
       <View style={styles.kicker}><Sparkles size={13} color={colors.rose} /><Text style={styles.kickerText}>YOUR STORY STARTS HERE</Text></View>
       <Text style={styles.title}>Who catches your attention?</Text>
       <Text style={styles.subtitle}>Choose who you want to message first. Each person has their own life, places, and way of meeting you.</Text>
@@ -111,14 +111,13 @@ export default function ChooseCompanion() {
 const styles = StyleSheet.create({
   screen: { minHeight: '100%', maxWidth: 620, justifyContent: 'center', paddingHorizontal: 14, paddingTop: 22, paddingBottom: 30, gap: spacing.md },
   header: { gap: 6, marginBottom: 3 },
-  brand: { fontFamily: typography.display, color: colors.rose, fontSize: 20, fontWeight: '700' },
   kicker: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   kickerText: { color: '#F5BDD0', fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
   title: { fontFamily: typography.display, color: colors.text, fontSize: 31, lineHeight: 37, fontWeight: '600' },
   subtitle: { color: colors.muted, fontSize: 13, lineHeight: 19 },
   people: { gap: 9 },
   person: { minHeight: 112, flexDirection: 'row', overflow: 'hidden', borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  personSelected: { borderColor: colors.rose, backgroundColor: 'rgba(232,93,140,.08)' },
+  personSelected: { borderColor: colors.rose, backgroundColor: 'rgba(216,62,234,.08)' },
   personPressed: { transform: [{ scale: .992 }], opacity: .94 },
   portraitWrap:{width:102,alignSelf:'stretch',alignItems:'center',justifyContent:'center',overflow:'hidden',backgroundColor:colors.elevated},
   personCopy: { flex: 1, justifyContent: 'center', paddingHorizontal: 13, paddingVertical: 10 },
@@ -130,7 +129,7 @@ const styles = StyleSheet.create({
   selected: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: colors.rose },
   selectedText: { color: '#fff', fontSize: 7, fontWeight: '900', letterSpacing: .7 },
   age: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  ageActive: { borderColor: 'rgba(232,93,140,.5)', backgroundColor: 'rgba(232,93,140,.08)' },
+  ageActive: { borderColor: 'rgba(216,62,234,.5)', backgroundColor: 'rgba(216,62,234,.08)' },
   check: { width: 22, height: 22, borderRadius: 7, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.borderBright },
   checkActive: { backgroundColor: colors.rose, borderColor: colors.rose },
   ageText: { color: colors.text, fontSize: 12, fontWeight: '800' },

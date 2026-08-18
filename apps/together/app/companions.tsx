@@ -38,7 +38,7 @@ export default function Companions() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', gap: 14, alignItems: 'center' }, lead: { color: colors.muted, lineHeight: 19 },
-  card: { padding: 13, gap: 10, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, active: { borderColor: 'rgba(232,93,140,.35)' },
+  card: { padding: 13, gap: 10, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, active: { borderColor: 'rgba(216,62,234,.35)' },
   person: { flexDirection: 'row', alignItems: 'center', gap: 12 }, avatar: { width: 58, height: 58, position: 'relative' },
   name: { fontFamily: 'Georgia', fontSize: 22, color: colors.text }, meta: { color: colors.muted, fontSize: 11, marginTop: 3, textTransform: 'capitalize' },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: colors.rose }, pillText: { fontSize: 8, color: '#fff', fontWeight: '900' },

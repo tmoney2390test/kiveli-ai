@@ -63,7 +63,7 @@ export function CinematicCompanionHero({ companion, portraitVersion, source, loc
 }
 
 const styles = StyleSheet.create({
-  hero: { width: '100%', overflow: 'hidden', borderRadius: 29, backgroundColor: colors.elevated, borderWidth: 1, borderColor: 'rgba(255,255,255,.13)', shadowColor: '#B93467', shadowOpacity: .16, shadowRadius: 38, shadowOffset: { width: 0, height: 22 }, elevation: 10 },
+  hero: { width: '100%', overflow: 'hidden', borderRadius: 29, backgroundColor: colors.elevated, borderWidth: 1, borderColor: 'rgba(255,255,255,.13)', shadowColor: '#A52EB6', shadowOpacity: .16, shadowRadius: 38, shadowOffset: { width: 0, height: 22 }, elevation: 10 },
   heroDesktop: { borderRadius: 34 },
   fallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.plum },
   fallbackInitial: { color: 'rgba(255,255,255,.22)', fontFamily: typography.display, fontSize: 180 },

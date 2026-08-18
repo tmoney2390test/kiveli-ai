@@ -66,8 +66,8 @@ function LifeCard({ life, active, busy, onSwitch, onEdit, onDelete }: { life: Ki
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 14 }, subtitle: { color: colors.muted, fontSize: 12, marginTop: 3, lineHeight:18 },
-  activeSummary:{gap:3,borderColor:'rgba(232,93,140,.30)'},activeKicker:{fontSize:9,fontWeight:'900',letterSpacing:1.1,color:colors.rose},activeName:{fontFamily:'Georgia',fontSize:24,color:colors.text},activeMeta:{color:colors.muted,fontSize:11},
-  life: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, active: { borderColor: 'rgba(232,93,140,.55)', backgroundColor:'rgba(232,93,140,.05)' },
+  activeSummary:{gap:3,borderColor:'rgba(216,62,234,.30)'},activeKicker:{fontSize:9,fontWeight:'900',letterSpacing:1.1,color:colors.rose},activeName:{fontFamily:'Georgia',fontSize:24,color:colors.text},activeMeta:{color:colors.muted,fontSize:11},
+  life: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, active: { borderColor: 'rgba(216,62,234,.55)', backgroundColor:'rgba(216,62,234,.05)' },
   avatar: { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.elevated }, initial: { fontFamily: 'Georgia', fontSize: 24, color: colors.rose },
   kicker: { fontSize: 9, fontWeight: '900', letterSpacing: 1, color: colors.rose }, name: { fontFamily: 'Georgia', fontSize: 20, color: colors.text, marginTop: 2 }, meta: { fontSize: 11, color: colors.muted, marginTop: 2 },
   pill: { flexDirection: 'row', gap: 4, alignItems: 'center', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 20, backgroundColor: colors.rose }, pillText: { fontSize: 8, fontWeight: '900', color: '#fff' },

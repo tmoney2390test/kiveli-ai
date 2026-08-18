@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
   info: { flexDirection: 'row', justifyContent: 'space-between', gap: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   label: { color: colors.muted, flexShrink: 0 },
   value: { flex: 1, color: colors.text, textAlign: 'right' },
-  welcome: { flexDirection: 'row', gap: 10, padding: 13, borderRadius: radius.md, backgroundColor: 'rgba(232,93,140,.10)', borderWidth: 1, borderColor: 'rgba(232,93,140,.22)' },
+  welcome: { flexDirection: 'row', gap: 10, padding: 13, borderRadius: radius.md, backgroundColor: 'rgba(216,62,234,.10)', borderWidth: 1, borderColor: 'rgba(216,62,234,.22)' },
   welcomeTitle: { color: colors.text, fontWeight: '900' },
   welcomeCopy: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 3 },
   secondary: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },

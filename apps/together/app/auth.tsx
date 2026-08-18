@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput,
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Check, Eye, EyeOff, Sparkles } from 'lucide-react-native';
-import { GradientButton, Screen } from '../src/components';
+import { GradientButton, KivelleLogo, Screen } from '../src/components';
 import { cityLifeAsset } from '../src/assets';
 import { colors, radius, typography } from '../src/theme';
 import { useAuth } from '../src/hooks/useAuth';
@@ -101,7 +101,7 @@ export default function Auth() {
           <Image source={cityLifeAsset} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" />
           <View style={styles.heroShade}>
             <View style={styles.heroTop}>
-              <Text style={styles.wordmark}>Kivelle.AI</Text>
+              <KivelleLogo height={31} />
               <View style={styles.fictionalPill}><Text style={styles.fictionalText}>FICTIONAL AI</Text></View>
             </View>
             <View>
@@ -164,7 +164,6 @@ const styles = StyleSheet.create({
   heroWide: { flex: 1.08, minWidth: 0 },
   heroShade: { flex: 1, justifyContent: 'space-between', padding: 18, backgroundColor: 'rgba(7,7,13,.34)' },
   heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  wordmark: { fontFamily: typography.display, fontSize: 21, fontWeight: '700', color: '#fff' },
   fictionalPill: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: 'rgba(8,8,14,.66)', borderWidth: 1, borderColor: 'rgba(255,255,255,.18)' },
   fictionalText: { color: '#F5DDE6', fontSize: 8, fontWeight: '900', letterSpacing: 1 },
   liveRow: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 5 },
@@ -187,7 +186,7 @@ const styles = StyleSheet.create({
   passwordInput: { flex: 1, minHeight: 48, color: colors.text, paddingHorizontal: 15, fontSize: 16, outlineStyle: 'none' } as never,
   eye: { padding: 13 },
   age: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13, paddingVertical: 9, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
-  ageActive: { borderColor: 'rgba(232,93,140,.55)', backgroundColor: 'rgba(232,93,140,.09)' },
+  ageActive: { borderColor: 'rgba(216,62,234,.55)', backgroundColor: 'rgba(216,62,234,.09)' },
   check: { width: 22, height: 22, borderRadius: 7, borderWidth: 1, borderColor: colors.borderBright, alignItems: 'center', justifyContent: 'center' },
   checkActive: { backgroundColor: colors.rose, borderColor: colors.rose },
   ageCopy: { flex: 1 },

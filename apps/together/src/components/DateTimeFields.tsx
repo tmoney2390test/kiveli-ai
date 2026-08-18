@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   quickRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 7 },
   quickLabel: { color: colors.dimmed, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
   quickChip: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  quickChipActive: { borderColor: colors.rose, backgroundColor: 'rgba(241,103,154,.10)' },
+  quickChipActive: { borderColor: colors.rose, backgroundColor: 'rgba(216,62,234,.10)' },
   quickChipText: { color: colors.text, fontSize: 10, fontWeight: '800' },
   row: { flex: 1, minWidth: 250, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 8 },
   fieldWrap: { flex: 1, minWidth: 120, gap: 5 },

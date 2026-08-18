@@ -2,8 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ChevronDown, ChevronRight, Coffee, Compass, Leaf, Martini, Sparkles, Ticket, UtensilsCrossed } from 'lucide-react-native';
-import { CharacterAvatar, EmptyState, FrostedSurface, LoadingSkeleton, Screen } from '../../src/components';
+import { ChevronDown, ChevronRight, Compass, Sparkles } from 'lucide-react-native';
+import { CharacterAvatar, EmptyState, FrostedSurface, LoadingSkeleton, PlaceCategoryFilters, Screen } from '../../src/components';
 import { locationHeroAsset, worldHeroAsset } from '../../src/assets';
 import { colors, radius } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
@@ -14,10 +14,6 @@ import type { PlanOption } from '../../src/lib/plans';
 import type { CharacterTemplate, Location, World } from '../../src/types';
 
 const nav=router as unknown as {push:(href:string)=>void;setParams:(params:Record<string,string>)=>void};
-const categoryIcons:Record<ExploreCategoryId,ReactNode>={
-  coffee:<Coffee size={18} color="#F3C989"/>,nightlife:<Martini size={18} color="#F2A4C6"/>,dining:<UtensilsCrossed size={18} color="#EFC28C"/>,quiet:<Leaf size={18} color="#A9C88D"/>,entertainment:<Ticket size={18} color="#A9B9F2"/>,
-};
-
 export default function Explore(){
   const params=useLocalSearchParams<{world?:string}>();
   const{snapshot,browsedWorldId,setBrowsedWorldId}=useTogether();
@@ -64,7 +60,7 @@ export default function Explore(){
     {context.recommendations.length?<Section title="For you" action={isCurrentWorld?'Plan something':'View world'} onAction={primaryWorldAction}><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recommendationRow}>{context.recommendations.map((item)=><Pressable key={item.id} onPress={()=>planAt(item.option)} style={styles.recommendationCard}><Image source={locationHeroAsset(selectedWorld.slug,item.location.slug)} style={StyleSheet.absoluteFill} contentFit="cover"/><View style={styles.recommendationShade}/><View style={styles.recommendationIcon}><Sparkles size={16} color="#FFD5A0"/></View><View style={styles.recommendationContent}><Text style={styles.recommendationTitle}>{item.title}</Text><Text numberOfLines={2} style={styles.recommendationCopy}>{item.subtitle}</Text><View style={styles.roundArrow}><ChevronRight size={17} color="#fff"/></View></View></Pressable>)}</ScrollView></Section>:null}
 
     <Section title="Places" action={category?'Clear filter':'See all'} onAction={()=>category?setCategory(null):nav.push(`/world/places?world=${selectedWorld.slug}`)}>
-      <View accessibilityRole="tablist" style={styles.categoryRow}>{context.categories.map((item)=><Pressable accessibilityRole="tab" accessibilityState={{selected:category===item.id}} key={item.id} onPress={()=>setCategory((current)=>current===item.id?null:item.id)} style={[styles.categoryCard,category===item.id&&styles.categoryCardActive]}><View style={[styles.categoryIcon,category===item.id&&styles.categoryIconActive]}>{categoryIcons[item.id]}</View><Text numberOfLines={2} style={[styles.categoryLabel,category===item.id&&styles.categoryLabelActive]}>{item.label}</Text></Pressable>)}</View>
+      <PlaceCategoryFilters categories={context.categories} value={category} onChange={setCategory}/>
       {category?<View style={styles.filterLine}><Text style={styles.filterLabel}>{context.categories.find((item)=>item.id===category)?.label}</Text><Text style={styles.filterMeta}>{categoryLocations.length} places in {selectedWorld.name}</Text></View>:null}
       <View style={styles.locationGrid}>{visibleLocations.map((location)=><Pressable key={location.id} onPress={()=>openLocation(location)} style={styles.locationCard}><Image source={locationHeroAsset(selectedWorld.slug,location.slug)} style={StyleSheet.absoluteFill} contentFit="cover"/><View style={styles.locationShade}/><View style={styles.locationCopy}><Text style={styles.locationType}>{friendlyCategory(location.category)}</Text><Text style={styles.locationName}>{location.name}</Text><Text numberOfLines={1} style={styles.locationMeta}>{location.possible_activities.slice(0,3).join(' · ')}</Text></View></Pressable>)}</View>
     </Section>
