@@ -7,7 +7,7 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import { CharacterAvatar, ErrorState, FrostedBackdrop, FrostedSurface, LoadingSkeleton, MediaTile, MoodBadge, RelationshipBadge } from '../src/components';
+import { CharacterAvatar, ErrorState, FrostedBackdrop, FrostedSurface, LoadingSkeleton, MediaTile, RelationshipBadge } from '../src/components';
 import { characterAssets, cityLifeAsset, locationHeroAsset, worldHeroAsset } from '../src/assets';
 import { colors, radius, spacing } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
@@ -254,7 +254,7 @@ export default function Chat() {
   </KeyboardAvoidingView>;
 }
 
-function ChatHeader({character,location,relationshipStage,onCall,onMenu}:{character:CharacterInstance;location:string;relationshipStage:string;onCall:()=>void;onMenu:()=>void}) { const slug=character.together_character_templates.slug;const leaveChat=()=>{if(router.canGoBack())router.back();else router.replace('/home');};return <View style={[styles.header, Platform.OS === 'web' && styles.webHeader]}><Pressable accessibilityLabel="Back to Home" onPress={leaveChat} style={styles.icon}><ArrowLeft color={colors.text}/></Pressable><Pressable accessibilityLabel={`View ${character.together_character_templates.name}'s profile`} onPress={()=>router.push(`/character/${slug}` as never)}><CharacterAvatar slug={slug} name={character.together_character_templates.name} size={42} ring/></Pressable><Pressable onPress={()=>router.push(`/character/${slug}` as never)} style={{flex:1}}><View style={styles.nameLine}><Text style={styles.name}>{character.together_character_templates.name}</Text><MoodBadge mood={character.current_mood}/></View><Text style={styles.status}>At {location} · {character.current_activity}</Text></Pressable><RelationshipBadge stage={relationshipStage}/><Pressable accessibilityLabel={`Call ${character.together_character_templates.name}`} onPress={onCall} style={styles.icon}><Phone size={18} color={colors.text}/></Pressable><Pressable accessibilityLabel="Conversation menu" onPress={onMenu} style={styles.icon}><MoreHorizontal color={colors.text}/></Pressable></View>; }
+function ChatHeader({character,location,relationshipStage,onCall,onMenu}:{character:CharacterInstance;location:string;relationshipStage:string;onCall:()=>void;onMenu:()=>void}) { const slug=character.together_character_templates.slug;const leaveChat=()=>{if(router.canGoBack())router.back();else router.replace('/home');};return <View style={[styles.header, Platform.OS === 'web' && styles.webHeader]}><Pressable accessibilityLabel="Back to Home" onPress={leaveChat} style={styles.icon}><ArrowLeft color={colors.text}/></Pressable><Pressable accessibilityLabel={`View ${character.together_character_templates.name}'s profile`} onPress={()=>router.push(`/character/${slug}` as never)}><CharacterAvatar slug={slug} name={character.together_character_templates.name} size={42} ring/></Pressable><Pressable onPress={()=>router.push(`/character/${slug}` as never)} style={styles.headerIdentity}><Text numberOfLines={1} style={styles.name}>{character.together_character_templates.name}</Text><Text numberOfLines={1} style={styles.status}>At {location}</Text></Pressable><RelationshipBadge stage={relationshipStage}/><Pressable accessibilityLabel={`Call ${character.together_character_templates.name}`} onPress={onCall} style={styles.icon}><Phone size={18} color={colors.text}/></Pressable><Pressable accessibilityLabel="Conversation menu" onPress={onMenu} style={styles.icon}><MoreHorizontal color={colors.text}/></Pressable></View>; }
 
 function ConversationMenu({name,onClose,actions}:{name:string;onClose:()=>void;actions:Record<'profile'|'plan'|'memories'|'history'|'style'|'settings'|'start'|'rename'|'remove',()=>void>}) { const item=(label:string,action:()=>void,danger=false)=><Pressable key={label} onPress={action} style={styles.menuItem}><Text style={[styles.menuItemText,danger&&{color:colors.danger}]}>{label}</Text></Pressable>;return <FrostedSurface intensity={82} style={styles.menu}><View style={styles.menuTop}><Text style={styles.menuTitle}>{name}</Text><Pressable onPress={onClose}><Text style={styles.closeText}>Close</Text></Pressable></View><Text style={styles.menuSection}>COMPANION</Text>{item('View profile',actions.profile)}{item('Plan something',actions.plan)}{item(`What ${name} remembers`,actions.memories)}<Text style={styles.menuSection}>CONVERSATION</Text>{item('Conversation style',actions.style)}{item('Start a fresh chat',actions.start)}{item('Conversation history & search',actions.history)}{item('Rename conversation',actions.rename)}<Text style={styles.menuSection}>MANAGE</Text>{item('Conversation settings',actions.settings)}{item('Delete this conversation',actions.remove,true)}</FrostedSurface>; }
 
@@ -283,7 +283,6 @@ function MessageBubble({message,character,media,grouped,onMediaRetry}:{message:M
   return <Animated.View style={[styles.messageRow,assistant?styles.assistantRow:styles.userRow,{opacity,transform:[{translateY:translate}]}]}>
     {assistant&&!grouped?<CharacterAvatar slug={speakerSlug} size={28}/>:assistant?<View style={{width:28}}/>:null}
     <Pressable onHoverIn={()=>setHovered(true)} onHoverOut={()=>setHovered(false)} onLongPress={actions} style={[styles.bubble,assistant?styles.assistantBubble:styles.userBubble,message.delivery_status==='failed'&&styles.failed]}>
-      {assistant&&!grouped?<Text style={styles.speakerName}>{speakerName}</Text>:null}
       {message.content!=='[Photo]'?<Text style={styles.messageText}>{message.content}</Text>:null}
       {attachments.map((attachment)=><Pressable key={attachment.id} accessibilityLabel="Open shared photo" onPress={()=>attachment.signed_url&&void Linking.openURL(attachment.signed_url)}><Image source={attachment.signed_url?{uri:attachment.signed_url}:undefined} style={styles.userAttachment} contentFit="cover"/></Pressable>)}
       {images.map((item)=><MediaTile key={item.id} media={item} style={styles.messageMedia} onRetry={()=>void onMediaRetry(item.id)}/>)}
@@ -434,6 +433,7 @@ const styles=StyleSheet.create({
   ,quickActionFitted:{flex:1,minWidth:0,justifyContent:'center',paddingHorizontal:6}
   ,quickTextFitted:{flexShrink:1}
   ,inputFitted:{minWidth:0}
+  ,headerIdentity:{flex:1,minWidth:0}
   ,pendingPhotoBubble:{padding:5,backgroundColor:'rgba(17,12,23,.94)'}
   ,optimisticPhoto:{width:300,maxWidth:'100%',height:238,borderWidth:0}
   ,plannerTray:{gap:10,padding:12,borderBottomWidth:1,borderBottomColor:colors.border,backgroundColor:colors.elevated}
