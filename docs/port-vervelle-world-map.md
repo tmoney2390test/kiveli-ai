@@ -1,6 +1,10 @@
 # Port Vervelle world map — draft
 
-Status: world-design draft only. This document does not seed production data.
+## Resident companion roster
+
+Port Vervelle has 30 server-published, selectable women distributed evenly across its six districts. Each resident has a canonical workplace and first-meeting location, a Life Engine V2 occupation block, world-specific presence, an authored activity bank, spice pacing, and a reciprocal local social circle. Character portraits are intentionally marked `pending` until canonical artwork is supplied; Kivelle must not reuse another companion's portrait as a placeholder.
+
+Status: implemented baseline. Migration `202608180004_kivelle_port_vervelle_world.sql` seeds the published world, six districts, and 38 public places. The app includes the world hero and a first mapped batch of 28 canonical location photos. Mercato Vecchio, Capo Vervelle, and the remaining unmapped places continue to use the Port Vervelle world fallback until dedicated art arrives.
 
 ## Canonical naming
 
@@ -22,8 +26,8 @@ The original source image arrived as `PortVirelle.png` inside a `PortKirelle` fo
   - Evening: terraces, restaurants, taverns, and the old town fill gradually.
   - Late night: activity contracts into Marina Solana, the Blue Lantern, Velours, Maison Rouge, and post-shift gatherings near the harbor.
 - Recommended default arrival: `porto-vecchio`, with Café Marelle or Harbor Steps used for the first grounded scene.
-- Proposed timezone: `Europe/Rome`, pending confirmation of the fictional country's cultural and language model.
-- Proposed hero asset key: `port-vervelle-hero`, pending repository asset import.
+- Timezone: `Europe/Rome`.
+- Hero asset key: `port-vervelle-hero`.
 
 ## Visual canon from the supplied hero image
 
@@ -34,6 +38,12 @@ The original source image arrived as `PortVirelle.png` inside a `PortKirelle` fo
 - Church domes and towers as distant skyline anchors, not named real-world monuments.
 - Warm late-afternoon light, hazy mountains, active but unhurried pedestrian life.
 - Avoid: direct Amalfi/Positano replicas, recognizable real landmarks, generic luxury-resort imagery, empty streets, cruise ships, futuristic architecture, and spotless theme-park presentation.
+
+## Authored photo coverage
+
+The first mapped batch covers 28 of the 44 canonical location rows. Source filenames are provenance only; packaged assets use stable canonical slugs, including typo normalization such as `MarianaSolana.png` → `marina-solana`, `LidoVerbelle.png` → `lido-vervelle`, and `PortVecchio.png` → `porto-vecchio`.
+
+Dedicated art is still pending for: `mercato-vecchio`, `capo-vervelle`, `studio-lucent`, `belvedere-garden`, `vervelle-general-clinic`, `officina-moretti`, `vervelle-design-works`, `studio-ondine`, `piccolo-cinema`, `vervelle-cooperative`, `domaine-vervelle`, `hotel-celeste`, `celeste-spa`, `cala-bianca`, `faro-vervelle`, and `la-pergola`. These locations intentionally inherit the Port Vervelle world hero until their own image is mapped.
 
 ## Canonical topology
 
@@ -157,23 +167,20 @@ Recommended nesting: Celeste Spa should be a child of Hôtel Celeste (`depth=2`)
 - Beach and nightlife: lifeguard, rental attendant, DJ, promoter, singer, dancer, security.
 - Countryside and luxury: winemaker, vineyard worker, concierge, massage therapist, esthetician.
 
-## Decisions needed before the seed migration
+## Implemented launch assumptions
 
-1. Fictional country and language texture: the current names intentionally mix Italian, French, and Spanish influences. Decide whether that blend is canon or should be narrowed.
-2. Timezone and currency model.
-3. Subscription/access tier and whether the world launches featured, standard, or early access.
-4. Age policy for La Sirena, Velours, Maison Rouge, and Lido Vervelle; venue access should remain separate from chat spice/content settings.
-5. Seasonality: permanent warm coast, or meaningful high/low season with winter closures and different crowd rhythms.
-6. Default arrival scene: Porto Vecchio itself, Café Marelle, or Harbor Steps.
-7. Whether residence buildings need private character-specific child homes in the first release or only after the resident roster is authored.
+1. The Italian, French, and Spanish naming blend is part of the fictional town's canon.
+2. The world uses `Europe/Rome` time and the existing platform currency model.
+3. Port Vervelle is a featured early-access home world in the `worlds.standard` subscription entitlement.
+4. Venue age policy remains independent from chat spice and content settings.
+5. The initial release uses a warm Mediterranean baseline; seasonal closures can be layered into schedules later.
+6. Porto Marina is the default arrival location.
+7. Bellavista Apartments, Villa Mirabelle, and Hôtel Celeste are public shells; private character homes can be added as child locations with the resident roster.
 
-## Seed implementation sequence
+## Follow-on rollout
 
-1. Confirm the seven decisions above.
-2. Import and optimize the hero image under the final asset key.
-3. Assign stable UUID ranges for the world, six districts, and 38 additional location rows.
-4. Seed world visual context, district topology, location hours, activities, tags, lore, and nearby-location links.
-5. Add world reference media and validate canonical visual prompts against the hero image.
-6. Author a resident roster with home/work/habitual-place movement profiles.
-7. Add event templates, photo opportunities, plans/dates, and rare outcomes tied to the town's daily rhythm.
-8. Run schema, traversal, schedule, prompt-grounding, and mobile directory tests before enabling access.
+1. Add location-specific photos under the stable world and location slugs.
+2. Register world reference media and validate visual prompts against the hero image.
+3. Author a resident roster with home, work, and habitual-place movement profiles.
+4. Add event templates, photo opportunities, plans/dates, and rare outcomes tied to the town's daily rhythm.
+5. Add high/low-season schedules and weather-sensitive closures.

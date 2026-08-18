@@ -62,6 +62,14 @@ export const subscriptionCatalog:Record<SubscriptionTier,KivelleCapabilities>={
 
 export const creditCosts:Record<CreditAction,number>={companion_photo:10,photo_edit:10,photo_variant:10,premium_photo:20,creator_appearance_set:40,short_video:125,voice_minute:8};
 export function capabilitiesForTier(tier:string):KivelleCapabilities{return subscriptionCatalog[normalizeSubscriptionTier(tier)];}
+export function capabilitiesForAccount(tier:string,metadata?:unknown):KivelleCapabilities{
+  const base=capabilitiesForTier(tier),record=isRecord(metadata)?metadata:{},overrides=isRecord(record['entitlementOverrides'])?record['entitlementOverrides']:{},rawGrants=Array.isArray(overrides['grants'])?overrides['grants']:[];
+  const grants=rawGrants.filter((value):value is EntitlementKey=>typeof value==='string'&&entitlementKeys.includes(value as EntitlementKey));
+  if(!grants.length)return base;
+  const entitlements=[...new Set<EntitlementKey>([...base.entitlements,...grants])];
+  return{...base,chatDailyLimit:entitlements.includes('chat_unlimited')?null:base.chatDailyLimit,entitlements};
+}
 export function entitlementsForTier(tier:string):ReadonlySet<EntitlementKey>{return new Set(capabilitiesForTier(tier).entitlements);}
 export function hasEntitlement(tier:string,key:EntitlementKey):boolean{return capabilitiesForTier(tier).entitlements.includes(key);}
 export function creditCost(action:CreditAction):number{return creditCosts[action];}
+function isRecord(value:unknown):value is Record<string,unknown>{return Boolean(value)&&typeof value==='object'&&!Array.isArray(value);}

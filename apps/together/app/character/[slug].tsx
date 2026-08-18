@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import type { ImageContentPosition } from 'expo-image';
-import { ArrowLeft, Check, MapPin, Sparkles } from 'lucide-react-native';
+import { ArrowLeft, CalendarDays, Check, Clock3, MapPin, Sparkles } from 'lucide-react-native';
 import {
   Body,
   CharacterAvatar,
@@ -16,11 +16,17 @@ import {
 } from '../../src/components';
 import { DetailPreservingArtwork } from '../../src/components/DetailPreservingArtwork';
 import { meetCompanion, setActiveCompanion } from '../../src/lib/api';
+import { buildCharacterDaySchedule, type CharacterDayScheduleEntry } from '../../src/lib/characterDaySchedule';
 import { relationshipDaysKnown } from '../../src/lib/companionLife';
 import { worldForLocation } from '../../src/lib/place';
 import { selectPortraitVersion } from '../../src/lib/selectors';
 import { useTogether } from '../../src/store/useTogether';
 import { colors, radius, spacing, typography } from '../../src/theme';
+import { characterAssets } from '../../src/assets';
+
+export function generateStaticParams() {
+  return Object.keys(characterAssets).map((slug) => ({ slug }));
+}
 
 export default function CharacterProfile() {
   const { slug, intro } = useLocalSearchParams<{ slug: string; intro?: string }>();
@@ -79,6 +85,16 @@ export default function CharacterProfile() {
     : 0;
   const handle = template.public_handle ?? template.slug;
   const canTalk = selectable || known;
+  const daySchedule = buildCharacterDaySchedule({ snapshot, instance, characterVersionId: version.id, timezone: world?.timezone });
+  const authoredScheduleOwnsPresence = Boolean(instance
+    && daySchedule.source === 'authored'
+    && !['scene', 'active_date', 'active_plan', 'active_event', 'plan', 'life_event'].includes(String(instance.current_presence_source)));
+  const currentActivity = authoredScheduleOwnsPresence
+    ? daySchedule.currentStatus?.activity ?? 'Having some unstructured time at home'
+    : instance?.current_activity;
+  const currentLocation = authoredScheduleOwnsPresence
+    ? daySchedule.currentStatus?.location ?? 'Home'
+    : location;
 
   const goBack = () => router.canGoBack() ? router.back() : router.replace('/(tabs)/home');
   const act = async () => {
@@ -155,13 +171,18 @@ export default function CharacterProfile() {
 
         <View style={styles.facts}>
           {instance ? <>
-            <Info label="Right now" value={instance.current_activity} />
-            <Info label="Location" value={location} />
+            <Info label="Right now" value={currentActivity ?? instance.current_activity} />
+            <Info label="Location" value={currentLocation} />
           </> : null}
           {world ? <Info label={instance ? 'World' : 'Lives in'} value={world.name} /> : null}
           {!instance && meetingLocation ? <Info label="Where you could meet" value={meetingLocation.name} /> : null}
           <Info label="Occupation" value={template.occupation} />
           <Info label="Interests" value={(version.interests ?? []).join(', ') || 'Still discovering'} />
+        </View>
+
+        <View style={styles.schedule}>
+          <View style={styles.scheduleHeader}><View style={styles.scheduleIcon}><CalendarDays size={17} color={colors.rose}/></View><View style={styles.flex}><Text style={styles.scheduleTitle}>Today</Text><Text style={styles.scheduleDate}>{daySchedule.dateLabel}</Text></View></View>
+          {daySchedule.entries.length ? <View style={styles.scheduleList}>{daySchedule.entries.map((entry)=><ScheduleRow key={entry.id} entry={entry}/>)}</View> : <View style={styles.scheduleEmpty}><Clock3 size={16} color={colors.muted}/><Text style={styles.scheduleEmptyText}>{template.name} has an open day.</Text></View>}
         </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -204,6 +225,10 @@ function Stat({ value, label }: { value: string; label: string }) {
   return <View style={styles.stat}><Text style={styles.statValue}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>;
 }
 
+function ScheduleRow({entry}:{entry:CharacterDayScheduleEntry}) {
+  return <View style={[styles.scheduleRow,entry.current&&styles.scheduleRowCurrent,entry.past&&styles.scheduleRowPast]}><View style={[styles.scheduleRail,entry.current&&styles.scheduleRailCurrent]}/><View style={styles.scheduleTimeWrap}><Text style={[styles.scheduleTime,entry.current&&styles.scheduleTimeCurrent]}>{entry.current?'NOW':entry.time}</Text>{entry.current?<Text style={styles.scheduleCurrentRange}>{entry.time}</Text>:null}</View><View style={styles.scheduleCopy}><Text style={styles.scheduleActivity}>{entry.activity}</Text>{entry.location?<View style={styles.schedulePlace}><MapPin size={11} color={colors.muted}/><Text style={styles.scheduleLocation}>{entry.location}</Text></View>:null}</View></View>;
+}
+
 const styles = StyleSheet.create({
   pageMobile: { padding: spacing.md, paddingBottom: 120, gap: 0 },
   pageDesktop: { padding: spacing.xl, paddingBottom: 120, gap: 0, maxWidth: 1040 },
@@ -234,6 +259,27 @@ const styles = StyleSheet.create({
   info: { flexDirection: 'row', justifyContent: 'space-between', gap: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   label: { color: colors.muted, flexShrink: 0 },
   value: { flex: 1, color: colors.text, textAlign: 'right' },
+  schedule: { gap: 10, padding: 14, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  scheduleHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  scheduleIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(216,62,234,.10)' },
+  scheduleTitle: { color: colors.text, fontFamily: typography.display, fontSize: 19, fontWeight: '600' },
+  scheduleDate: { color: colors.muted, fontSize: 10, marginTop: 1 },
+  scheduleList: { borderTopWidth: 1, borderTopColor: colors.border },
+  scheduleRow: { position: 'relative', minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingLeft: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  scheduleRowCurrent: { backgroundColor: 'rgba(216,62,234,.07)' },
+  scheduleRowPast: { opacity: .5 },
+  scheduleRail: { position: 'absolute', left: 0, top: 12, bottom: 12, width: 2, borderRadius: 2, backgroundColor: colors.borderBright },
+  scheduleRailCurrent: { width: 3, backgroundColor: colors.rose },
+  scheduleTimeWrap: { width: 86 },
+  scheduleTime: { color: colors.muted, fontSize: 9, lineHeight: 13, fontWeight: '800' },
+  scheduleTimeCurrent: { color: colors.rose, letterSpacing: .7 },
+  scheduleCurrentRange: { color: colors.muted, fontSize: 8, marginTop: 2 },
+  scheduleCopy: { flex: 1, gap: 4 },
+  scheduleActivity: { color: colors.text, fontSize: 12, fontWeight: '800' },
+  schedulePlace: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  scheduleLocation: { color: colors.muted, fontSize: 9 },
+  scheduleEmpty: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderTopWidth: 1, borderTopColor: colors.border },
+  scheduleEmptyText: { color: colors.muted, fontSize: 11 },
   welcome: { flexDirection: 'row', gap: 10, padding: 13, borderRadius: radius.md, backgroundColor: 'rgba(216,62,234,.10)', borderWidth: 1, borderColor: 'rgba(216,62,234,.22)' },
   welcomeTitle: { color: colors.text, fontWeight: '900' },
   welcomeCopy: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 3 },

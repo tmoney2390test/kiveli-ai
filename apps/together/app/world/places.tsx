@@ -32,9 +32,9 @@ export default function Places(){
   if(!world||!directory||!baseDirectory)return <EmptyState title="World unavailable" body="No published world is available yet." action="Back" onAction={()=>router.back()}/>;
 
   const contentWidth=Math.max(280,Math.min(width,840)-40);
-  const columns=width>=720?2:1;
-  const cardWidth=Math.floor((contentWidth-(columns-1)*12)/columns);
-  const cardHeight=columns===2?330:Math.max(310,Math.min(410,Math.round(cardWidth*.86)));
+  const placeGridWidth=Math.max(240,contentWidth-26);
+  const cardWidth=Math.floor((placeGridWidth-12)/2);
+  const cardHeight=Math.max(250,Math.min(330,Math.round(cardWidth*1.45)));
   const filtering=Boolean(query.trim()||category);
   const role=String(world.world_role??'home');
   const toggle=(id:string)=>setExpanded((current)=>{const next=new Set(current);if(next.has(id))next.delete(id);else next.add(id);return next;});

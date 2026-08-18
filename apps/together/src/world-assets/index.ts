@@ -5,6 +5,7 @@ import { kairoHero } from './kairo';
 import { alder_ridgeHero } from './alder-ridge';
 import { aureliaHero } from './aurelia';
 import { isla_marenHero } from './isla-maren';
+import { port_vervelleHero } from './port-vervelle';
 
 export const worldHeroAssets: Record<string, ImageSource> = {
   'vesper-city': vesper_cityHero,
@@ -13,4 +14,5 @@ export const worldHeroAssets: Record<string, ImageSource> = {
   'alder-ridge': alder_ridgeHero,
   'aurelia': aureliaHero,
   'isla-maren': isla_marenHero,
+  'port-vervelle': port_vervelleHero,
 };

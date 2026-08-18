@@ -20,6 +20,24 @@ const stringValue = (value: unknown): string => typeof value === 'string' || typ
 
 export function canonicalMemoryKey(type: MemoryType, text: string): string { return `${type}:${normalize(text)}`; }
 
+/**
+ * Direct declarations about the companion or the relationship are relationship
+ * evidence, not facts about the user's general preferences. Keeping this check
+ * in the domain layer prevents both deterministic and model-proposed memories
+ * from turning "I love you" into "User likes you."
+ */
+export function isRelationshipDirectedPreferenceObject(value: string): boolean {
+  const object = cleanObject(value).replace(/^["']|["']$/g, '').trim();
+  return /^(?:you|u|ya|her|him|them|us|we)\b/i.test(object)
+    || /^(?:my|our)\s+(?:girlfriend|boyfriend|wife|husband|partner|companion|relationship)\b/i.test(object)
+    || /^(?:being|talking|spending\s+time|hanging\s+out)\s+with\s+you\b/i.test(object);
+}
+
+export function isRelationshipDirectedPreferenceMemory(canonicalText: string): boolean {
+  const match = /^\s*User\s+(?:likes?|loves?|enjoys?)\s+(.+?)[.!?]*\s*$/i.exec(canonicalText);
+  return Boolean(match?.[1] && isRelationshipDirectedPreferenceObject(match[1]));
+}
+
 export function extractMemoryCandidates(message: string): MemoryCandidate[] {
   const candidates: MemoryCandidate[] = [];
   const trimmed = message.trim();
@@ -33,7 +51,10 @@ export function extractMemoryCandidates(message: string): MemoryCandidate[] {
   const like = /\bi\s+(?:actually\s+)?(?:really\s+)?(?:love|like|enjoy)\s+([^.!?]{2,60}?)(?:\s+now)?(?:[.!?]|$)/i.exec(trimmed);
   if (neutral) { const item = cleanObject(neutral[1]!); push(candidates, 'preference', `User no longer dislikes ${item}.`, .7, .93, 'none', `preference:${normalize(item)}`, { preference: 'neutral', item, correction: true }); }
   else if (dislike) { const item = cleanObject(dislike[1]!); push(candidates, 'preference', `User dislikes ${item}.`, .68, .91, 'none', `preference:${normalize(item)}`, { preference: 'dislike', item }); }
-  else if (like) { const item = cleanObject(like[1]!); push(candidates, 'preference', `User likes ${item}.`, .58, .84, 'none', `preference:${normalize(item)}`, { preference: 'like', item }); }
+  else if (like) {
+    const item = cleanObject(like[1]!);
+    if (!isRelationshipDirectedPreferenceObject(item)) push(candidates, 'preference', `User likes ${item}.`, .58, .84, 'none', `preference:${normalize(item)}`, { preference: 'like', item });
+  }
   const emotion = /\bi(?:'m| am)\s+(nervous|anxious|excited|worried|scared)\s+(?:about\s+)?([^.!?]{2,80})/i.exec(trimmed);
   if (emotion) { const topic = cleanObject(emotion[2]!); push(candidates, 'emotional', `User feels ${emotion[1]!.toLowerCase()} about ${topic}.`, .72, .86, 'personal', `emotion:${normalize(topic)}`); }
   return candidates;

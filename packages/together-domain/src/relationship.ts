@@ -20,7 +20,7 @@ export function applyInteractionProposal(state:RelationshipState,proposal:Partia
 function applyBoundedChanges(state:RelationshipState,proposal:Partial<RelationshipMetrics>,limit:number):RelationshipState{const next={...state};for(const metric of relationshipMetricNames){const requested=Number(proposal[metric]??0);const delta=Math.max(-limit,Math.min(limit,Number.isFinite(requested)?requested:0));next[metric]=clampMetric(state[metric]+delta);}return next;}
 
 const trivialAcknowledgment=/^(?:hey|hi|hello|lol|lmao|cool|yeah|yea|yep|nope|sure|k|ok|okay|nice|haha|sup|what'?s up)[!?.\s]*$/i;
-const relationshipDisclosure=/\b(i feel|i'm scared|i am scared|i need to tell you|i've never told|i am worried|i'm worried|thank you for|i was wrong|i'm sorry|i don't usually tell|rough breakup|make this easy to talk|nervous about|afraid that)\b/i;
+const relationshipDisclosure=/\b(i feel|i'm scared|i am scared|i need to tell you|i've never told|i am worried|i'm worried|thank you for|i was wrong|i'm sorry|i don't usually tell|rough breakup|make this easy to talk|nervous about|afraid that|i love you|i really like you)\b/i;
 const question=/\?|\b(who|what|when|where|why|how|which|would|could|do you|are you|did you|will you|have you|tell me)\b/i;
 
 export function scoreConversationEngagement(input:ConversationEngagementInput):ConversationEngagementEvaluation{
@@ -55,6 +55,7 @@ export function detectFlirtSignal(text:string):ChemistrySignal{
   const value=text.trim().toLowerCase();if(!value)return{strength:0,kind:'none',reasonCodes:[]};
   if(/\b(just friends|stay friends|not interested|stop flirting|don't flirt|do not flirt|no romance)\b/.test(value))return{strength:1,kind:'rejection',reasonCodes:['explicit_rejection']};
   if(/\b(i(?: am|'m) (?:really )?(?:attracted to|into) you|i want to kiss you|kiss me|you turn me on|more than friends|i have a crush on you)\b/.test(value))return{strength:.95,kind:'attraction',reasonCodes:['direct_attraction']};
+  if(/\b(i love you|i really like you)\b/.test(value))return{strength:.85,kind:'affectionate',reasonCodes:['direct_affection']};
   if(/\b(are you single|would you date me|go on a date|take you out|date with me)\b/.test(value))return{strength:.8,kind:'date',reasonCodes:['romantic_interest']};
   if(/\b(beautiful|gorgeous|stunning|sexy|handsome|hot|attractive)\b/.test(value))return{strength:.65,kind:'compliment',reasonCodes:['appearance_compliment']};
   if(/\b(flirt|kiss|cuddle|hold your hand|miss you|thinking about you)\b/.test(value))return{strength:.55,kind:'affectionate',reasonCodes:['affectionate_language']};

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
-import { capabilitiesForTier, creditCost, entitlementsForTier, normalizeSubscriptionTier, type CreditAction, type KivelleCapabilities, type SubscriptionTier } from '../../../packages/together-domain/src/index.ts';
+import { capabilitiesForAccount, creditCost, entitlementsForTier, normalizeSubscriptionTier, type CreditAction, type KivelleCapabilities, type SubscriptionTier } from '../../../packages/together-domain/src/index.ts';
 
 type CreditBalance={permanentBalance:number;subscriptionBalance:number;total:number};
 export type KivelleSubscriptionState={tier:SubscriptionTier;capabilities:KivelleCapabilities;creditBalance:CreditBalance;entitlementKeys:string[];billing:{provider?:string|null;productKey?:string|null;periodStart?:string|null;periodEnd?:string|null;expiresAt?:string|null}};
@@ -12,7 +12,7 @@ export async function resolveSubscriptionState(db:SupabaseClient,userId:string,n
   let{data:row,error}=await db.from('together_entitlements').select('*').eq('user_id',userId).maybeSingle();
   if(error)throw new AppError('INTERNAL_ERROR','Subscription status could not be loaded.',500,true);
   if(!row){const created=await db.from('together_entitlements').insert({user_id:userId,tier:'free',entitlement_keys:[...entitlementsForTier('free')]}).select('*').single();if(created.error||!created.data)throw new AppError('INTERNAL_ERROR','Subscription status could not be prepared.',500,true);row=created.data;}
-  const expired=Boolean(row.expires_at&&new Date(row.expires_at).getTime()<=now.getTime());const tier=expired?'free':normalizeSubscriptionTier(row.tier),capabilities=capabilitiesForTier(tier);
+  const expired=Boolean(row.expires_at&&new Date(row.expires_at).getTime()<=now.getTime());const tier=expired?'free':normalizeSubscriptionTier(row.tier),capabilities=capabilitiesForAccount(tier,row.metadata);
   if(row.tier!==tier||!sameKeys(row.entitlement_keys,capabilities.entitlements)){const updated=await db.from('together_entitlements').update({tier,entitlement_keys:[...capabilities.entitlements],...(expired?{metadata:{...(row.metadata??{}),expiredAt:row.expires_at,expiredResolvedAt:now.toISOString()}}:{}),updated_at:now.toISOString()}).eq('user_id',userId).select('*').single();if(updated.data)row=updated.data;}
   await ensureCreditGrants(db,userId,capabilities,now,billingCycle(row.billing_period_start,now));
   const balance=await creditBalance(db,userId);

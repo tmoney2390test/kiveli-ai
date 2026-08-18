@@ -1,6 +1,31 @@
 import{AppError}from'./types.ts';
 import{verifyProviderWebhookHmac}from'../../../packages/together-domain/src/provider-webhook.ts';
-import{buildWaveSpeedRequestBody,normalizeWaveSpeedOutputs,type WaveSpeedRequestOptions}from'../../../packages/together-domain/src/wavespeed.ts';
+
+// Keep these small provider-boundary helpers inside the Edge bundle. The
+// remote Supabase bundler does not reliably upload this newer cross-workspace
+// module even though local Deno resolution succeeds.
+type WaveSpeedRequestOptions={enableSyncMode?:boolean|undefined;enableBase64Output?:boolean|undefined};
+function buildWaveSpeedRequestBody(input:Record<string,unknown>,options:WaveSpeedRequestOptions={}):Record<string,unknown>{
+  const body={...input};
+  if(options.enableSyncMode!==undefined)body['enable_sync_mode']=options.enableSyncMode;
+  if(options.enableBase64Output!==undefined)body['enable_base64_output']=options.enableBase64Output;
+  return body;
+}
+function normalizeWaveSpeedOutputs(value:unknown):{urlOutputs:string[];textOutputs:string[]}{
+  const urlOutputs:string[]=[],textOutputs:string[]=[];
+  for(const output of Array.isArray(value)?value:[])collectWaveSpeedOutput(output,urlOutputs,textOutputs,0);
+  return{urlOutputs:[...new Set(urlOutputs)],textOutputs:[...new Set(textOutputs)]};
+}
+function collectWaveSpeedOutput(value:unknown,urls:string[],texts:string[],depth:number):void{
+  if(depth>4||value==null)return;
+  if(typeof value==='string'){const normalized=value.trim();if(!normalized)return;if(isHttpsUrl(normalized))urls.push(normalized);else texts.push(normalized);return;}
+  if(Array.isArray(value)){for(const item of value)collectWaveSpeedOutput(item,urls,texts,depth+1);return;}
+  if(typeof value!=='object')return;
+  const record=value as Record<string,unknown>,urlKeys=new Set(['url','uri','image_url','video_url','output_url']),textKeys=new Set(['text','answer','content','caption','response','message','value','output']),containerKeys=new Set(['data','result']);
+  let collected=false;
+  for(const[key,item]of Object.entries(record)){const normalizedKey=key.toLowerCase();if(urlKeys.has(normalizedKey)||textKeys.has(normalizedKey)||containerKeys.has(normalizedKey)){const before=urls.length+texts.length;collectWaveSpeedOutput(item,urls,texts,depth+1);collected=collected||urls.length+texts.length>before;}}
+  if(!collected){try{const serialized=JSON.stringify(value);if(serialized)texts.push(serialized);}catch{/* Ignore non-serializable provider output. */}}
+}
 
 const API_BASE='https://api.wavespeed.ai/api/v3';
 export type WaveSpeedStatus='created'|'processing'|'completed'|'failed'|'cancelled'|'timeout'|'deleted';

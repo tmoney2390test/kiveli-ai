@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMemoryRecallPlan, decayEmotionalResidue, evaluateBehaviorPattern, scoreEpisodeSignificance } from './memory.ts';
+import { buildMemoryRecallPlan, decayEmotionalResidue, evaluateBehaviorPattern, isRelationshipDirectedPreferenceMemory, scoreEpisodeSignificance } from './memory.ts';
 
 const now = new Date('2026-08-16T20:00:00.000Z');
 
@@ -40,5 +40,11 @@ describe('Memory Engine V2', () => {
 
   it('decays emotional residue deterministically', () => {
     expect(decayEmotionalResidue({ intensity:1, startedAt:'2026-08-16T18:00:00.000Z', halfLifeMinutes:120, now })).toBeCloseTo(.5, 5);
+  });
+
+  it('rejects model-proposed preference memories aimed at the companion', () => {
+    expect(isRelationshipDirectedPreferenceMemory('User likes you.')).toBe(true);
+    expect(isRelationshipDirectedPreferenceMemory('User loves her.')).toBe(true);
+    expect(isRelationshipDirectedPreferenceMemory('User likes football.')).toBe(false);
   });
 });
