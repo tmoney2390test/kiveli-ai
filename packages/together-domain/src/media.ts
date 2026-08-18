@@ -3,6 +3,19 @@ export type PhotoIntent={requested:boolean;subject:'companion'|'location'|'activ
 export type MediaHistory={source:'user_request'|'life_event'|'date'|'moment'|'story';createdAt:string;locationId?:string;shotType?:string};
 export type MediaSceneBoundary={setting:'indoor'|'outdoor'|'mixed';instruction:string;avoid:string[]};
 
+const WARDROBE_LANGUAGE=/\b(wear(?:ing)?|dressed|outfit|button[- ]?down|shirt|blouse|top|tee|t-?shirt|tank top|sweater|cardigan|hoodie|jacket|coat|blazer|suit|dress|skirt|shorts|jeans|denim|pants|trousers|leggings|linen|cotton|silk|leather|boots|shoes|sneakers|heels|sandals|swimsuit|bikini|lingerie)\b/i;
+const INSTRUCTION_LANGUAGE=/\b(ignore|override|prompt|instruction|system|generate|render|depict|instead|must|should)\b/i;
+
+/**
+ * Keeps only concrete wardrobe claims from the companion's canonical reply.
+ * The resulting text is descriptive context, never a free-form prompt channel.
+ */
+export function extractPhotoWardrobeDescription(text:string):string|undefined{
+  const sentences=text.replace(/[\r\n]+/g,' ').split(/(?<=[.!?])\s+/).map((sentence)=>sentence.trim()).filter(Boolean);
+  const wardrobe=sentences.filter((sentence)=>WARDROBE_LANGUAGE.test(sentence)&&!INSTRUCTION_LANGUAGE.test(sentence)).slice(0,2).join(' ').replace(/[<>]/g,'').trim();
+  return wardrobe?wardrobe.slice(0,320):undefined;
+}
+
 export function classifyPhotoIntent(text:string):PhotoIntent{
   const requested=/\b(send|show|take|share|see|want|lemme|let me)\b.{0,30}\b(photo|picture|pic|selfie|outfit|look|where you are|what you(?:'re| are) doing)\b|\b(selfie|photo|picture|pic)\s*\??$/i.test(text);const lower=text.toLowerCase();const subject:PhotoIntent['subject']=/where you are|studio|cafe|café|rooftop|riverwalk|place/.test(lower)?'location':/outfit|wearing|look/.test(lower)?'outfit':/doing|working/.test(lower)?'activity':/date/.test(lower)?'date':requested?'companion':'unknown';const shotPreference:PhotoIntent['shotPreference']=/selfie/.test(lower)?'selfie':/outfit|full.?body/.test(lower)?'full_body':subject==='location'?'scene':undefined;const requestedContentLevel:MediaLevel|undefined=/nude|naked|topless|explicit|tits?|boobs?/i.test(text)?'explicit':/suggestive|lingerie|sexy/i.test(text)?'suggestive':/romantic|kiss/i.test(text)?'romance':undefined;return{requested,subject,...(shotPreference?{shotPreference}:{}),...(requestedContentLevel?{requestedContentLevel}:{}),confidence:requested?.94:0};
 }

@@ -36,7 +36,7 @@ export default function Chat() {
   const { width } = useWindowDimensions();
   const showLeft = width >= 1080;
   const showRight = width >= 920;
-  const { snapshot, refresh, setSnapshot, updateCompanion, upsertSceneSession, applyServerDelta } = useTogether();
+  const { snapshot, refresh, setSnapshot, updateCompanion, upsertMedia, upsertSceneSession, applyServerDelta } = useTogether();
   const focusedPlan = params.planId && snapshot ? snapshot.sharedPlans?.find((item) => item.id === params.planId) : undefined;
   const requestedCharacter = params.character && snapshot ? snapshot.characters.find((item) => item.together_character_templates.slug === params.character||item.together_character_templates.public_handle===params.character||item.character_template_id===params.character) : undefined;
   const character = snapshot ? (focusedPlan ? snapshot.characters.find((item) => item.id === focusedPlan.character_instance_id) ?? requestedCharacter : requestedCharacter ?? activeCompanion(snapshot)) : undefined;
@@ -65,6 +65,7 @@ export default function Chat() {
   const [showConversationMenu, setShowConversationMenu] = useState(false);
   const [pendingImage,setPendingImage]=useState<PendingImage|null>(null);
   const [pendingGeneratedPhoto,setPendingGeneratedPhoto]=useState<PendingGeneratedPhoto|null>(null);
+  const [reconcilingMediaId,setReconcilingMediaId]=useState<string|null>(null);
   const [resolvingMilestone, setResolvingMilestone] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -106,12 +107,27 @@ export default function Chat() {
   useEffect(() => { void load(); }, [conversation?.id]);
   const simulationStale=Boolean(character&&(Date.now()-new Date(character.last_simulated_at).getTime()>2*60000||!(snapshot?.scheduleEvents??[]).some((item)=>item.character_instance_id===character.id&&new Date(item.ends_at)>new Date())));
   useEffect(()=>{if(!character?.id||!simulationStale)return;let cancelled=false;void simulate(character.id).then(()=>cancelled?undefined:refresh()).catch(()=>undefined);return()=>{cancelled=true;};},[character?.id,refresh,simulationStale]);
-  useEffect(()=>{if(!character)return;const channel=supabase.channel(`kivelle-media-${character.id}`).on('postgres_changes',{event:'*',schema:'public',table:'together_generated_media',filter:`character_instance_id=eq.${character.id}`},()=>void refresh()).subscribe();return()=>{void supabase.removeChannel(channel);};},[character?.id,refresh]);
+  useEffect(()=>{if(!character)return;const channel=supabase.channel(`kivelle-media-${character.id}`).on('postgres_changes',{event:'*',schema:'public',table:'together_generated_media',filter:`character_instance_id=eq.${character.id}`},(payload)=>{const id=String((payload.new as Record<string,unknown>|null)?.id??'');if(id)void manageMedia<{media:GeneratedMedia}>({action:'status',mediaId:id}).then((result)=>upsertMedia(result.media)).catch(()=>undefined);else void refresh();}).subscribe();return()=>{void supabase.removeChannel(channel);};},[character?.id,refresh,upsertMedia]);
   useEffect(()=>{
     if(!pendingGeneratedPhoto||!character||!conversation)return;
     const canonicalMedia=(snapshot?.generatedMedia??[]).some((media)=>media.media_type==='image'&&media.character_instance_id===character.id&&media.conversation_id===conversation.id&&new Date(media.created_at).getTime()>=pendingGeneratedPhoto.requestedAt-2000);
     if(canonicalMedia)setPendingGeneratedPhoto(null);
   },[pendingGeneratedPhoto,character?.id,conversation?.id,snapshot?.generatedMedia]);
+  useEffect(()=>{
+    if(!reconcilingMediaId)return;
+    let cancelled=false,timer:ReturnType<typeof setTimeout>|undefined;
+    const reconcile=async()=>{
+      try{
+        const result=await manageMedia<{media:GeneratedMedia}>({action:'status',mediaId:reconcilingMediaId});
+        if(cancelled)return;
+        upsertMedia(result.media);
+        if(result.media.status==='ready'||result.media.status==='failed'){setReconcilingMediaId((current)=>current===reconcilingMediaId?null:current);return;}
+      }catch{/* Realtime may still deliver the terminal update. */}
+      if(!cancelled)timer=setTimeout(()=>void reconcile(),3000);
+    };
+    timer=setTimeout(()=>void reconcile(),1500);
+    return()=>{cancelled=true;if(timer)clearTimeout(timer);};
+  },[reconcilingMediaId,upsertMedia]);
   useEffect(()=>{if(!character)return;const channel=supabase.channel(`kivelle-presence-${character.id}`).on('postgres_changes',{event:'*',schema:'public',table:'together_character_schedule_events',filter:`character_instance_id=eq.${character.id}`},()=>void refresh()).on('postgres_changes',{event:'UPDATE',schema:'public',table:'together_character_instances',filter:`id=eq.${character.id}`},()=>void refresh()).subscribe();return()=>{void supabase.removeChannel(channel);};},[character?.id,refresh]);
   useEffect(() => { if(prepending.current)return;const timer = setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 40); return () => clearTimeout(timer); }, [messages, stream, sending, feedback]);
 
@@ -153,6 +169,7 @@ export default function Chat() {
       }
       const result = await sendDialogue({ conversationId: conversation.id, characterInstanceId: character.id, message: text,attachmentIds:preparedAttachmentId?[preparedAttachmentId]:[], clientRequestId: createClientRequestId(),focusPlanId:focusPlanId??undefined }, (token) => setStream((current) => current + token));
       setPendingImage(null);setStream(''); setMessages((current) => [...current.filter((item) => item.id !== optimistic.id), { ...optimistic, delivery_status: 'complete',attachments:sentAttachment?[sentAttachment]:optimistic.attachments }, result.message,...(result.additionalMessages??[])]);
+      if(result.generatedMedia){upsertMedia(result.generatedMedia);setReconcilingMediaId(result.generatedMedia.id);setPendingGeneratedPhoto((current)=>current?{...current,id:result.generatedMedia!.id,requestedAt:new Date(result.generatedMedia!.created_at).getTime()}:current);}
       if(result.delta)applyServerDelta(result.delta);
       showNewStoryFeedback(before, useTogether.getState().snapshot, character.id, character.together_character_templates.name, setFeedback);
     } catch (caught) {
