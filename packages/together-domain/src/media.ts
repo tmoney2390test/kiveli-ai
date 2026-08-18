@@ -1,5 +1,7 @@
 export type MediaLevel='standard'|'romance'|'suggestive'|'mature'|'explicit';
-export type PhotoIntent={requested:boolean;subject:'companion'|'location'|'activity'|'outfit'|'date'|'unknown';shotPreference?:'selfie'|'portrait'|'full_body'|'scene';requestedContentLevel?:MediaLevel;confidence:number};
+export type PhotoShotType='selfie'|'portrait'|'candid'|'full_body'|'scene';
+export type PhotoIntent={requested:boolean;subject:'companion'|'location'|'activity'|'outfit'|'event'|'date'|'unknown';shotPreference?:PhotoShotType;requestedContentLevel?:MediaLevel;confidence:number};
+export type PhotoComposition={shotType:PhotoShotType;aspectRatio:'1:1'|'4:5'|'16:9';framing:string};
 export type MediaHistory={source:'user_request'|'life_event'|'date'|'moment'|'story';createdAt:string;locationId?:string;shotType?:string};
 export type MediaSceneBoundary={setting:'indoor'|'outdoor'|'mixed';instruction:string;avoid:string[]};
 
@@ -17,7 +19,22 @@ export function extractPhotoWardrobeDescription(text:string):string|undefined{
 }
 
 export function classifyPhotoIntent(text:string):PhotoIntent{
-  const requested=/\b(send|show|take|share|see|want|lemme|let me)\b.{0,30}\b(photo|picture|pic|selfie|outfit|look|where you are|what you(?:'re| are) doing)\b|\b(selfie|photo|picture|pic)\s*\??$/i.test(text);const lower=text.toLowerCase();const subject:PhotoIntent['subject']=/where you are|studio|cafe|café|rooftop|riverwalk|place/.test(lower)?'location':/outfit|wearing|look/.test(lower)?'outfit':/doing|working/.test(lower)?'activity':/date/.test(lower)?'date':requested?'companion':'unknown';const shotPreference:PhotoIntent['shotPreference']=/selfie/.test(lower)?'selfie':/outfit|full.?body/.test(lower)?'full_body':subject==='location'?'scene':undefined;const requestedContentLevel:MediaLevel|undefined=/nude|naked|topless|explicit|tits?|boobs?/i.test(text)?'explicit':/suggestive|lingerie|sexy/i.test(text)?'suggestive':/romantic|kiss/i.test(text)?'romance':undefined;return{requested,subject,...(shotPreference?{shotPreference}:{}),...(requestedContentLevel?{requestedContentLevel}:{}),confidence:requested?.94:0};
+  const requested=/\b(send|show|take|share|see|want|lemme|let me)\b.{0,40}\b(photo|picture|pic|selfie|outfit|look|where you are|what you(?:'re| are) doing|what .{0,20}looks like)\b|\b(selfie|photo|picture|pic)\s*\??$/i.test(text),lower=text.toLowerCase();
+  const subject:PhotoIntent['subject']=/where you are|studio|gallery|museum|cafe|café|rooftop|riverwalk|venue|place/.test(lower)?'location':/outfit|wearing|look/.test(lower)?'outfit':/doing|working|activity/.test(lower)?'activity':/date/.test(lower)?'date':requested?'companion':'unknown';
+  const environmentOnly=/\b(?:show|send|take|share)\b.{0,36}\b(?:the|your)?\s*(?:view|surroundings|room|gallery|museum|venue|place itself)\b|\bwhat (?:it|the (?:place|room|gallery|museum|venue)) looks like\b/i.test(text);
+  const shotPreference:PhotoIntent['shotPreference']=/selfie/.test(lower)?'selfie':/outfit|full.?body/.test(lower)?'full_body':/portrait/.test(lower)?'portrait':environmentOnly?'scene':subject==='location'||subject==='activity'?'candid':undefined;
+  const requestedContentLevel:MediaLevel|undefined=/nude|naked|topless|explicit|tits?|boobs?/i.test(text)?'explicit':/suggestive|lingerie|sexy/i.test(text)?'suggestive':/romantic|kiss/i.test(text)?'romance':undefined;return{requested,subject,...(shotPreference?{shotPreference}:{}),...(requestedContentLevel?{requestedContentLevel}:{}),confidence:requested?.94:0};
+}
+
+export function resolvePhotoComposition(input:{source:string;shotType:PhotoShotType}):PhotoComposition{
+  if(input.source==='user_request'){
+    if(input.shotType==='scene')return{shotType:'scene',aspectRatio:'16:9',framing:'environment-led composition that clearly establishes the exact place while keeping the companion close enough for a crisp, naturally detailed face'};
+    if(input.shotType==='full_body')return{shotType:'full_body',aspectRatio:'4:5',framing:'natural full-body vertical framing with the companion prominent and the face still sharp, recognizable, and unobstructed'};
+    if(input.shotType==='portrait')return{shotType:'portrait',aspectRatio:'4:5',framing:'chest-up environmental portrait with a large, sharply detailed, naturally proportioned face'};
+    if(input.shotType==='candid')return{shotType:'candid',aspectRatio:'4:5',framing:'medium three-quarter environmental portrait; the companion is the clear primary subject, with a large crisp face and enough background to establish the exact activity and location'};
+    return{shotType:'selfie',aspectRatio:'4:5',framing:'close personal smartphone selfie with a large, sharply detailed, recognizable face and a small amount of truthful environmental context'};
+  }
+  return{shotType:input.shotType,aspectRatio:input.shotType==='scene'?'16:9':input.shotType==='selfie'||input.shotType==='full_body'?'4:5':'1:1',framing:'grounded framing with useful environmental context'};
 }
 export function automaticPhotoAllowed(history:MediaHistory[],now:Date):boolean{const automatic=history.filter((item)=>item.source!=='user_request'&&now.getTime()-new Date(item.createdAt).getTime()<86400000);if(automatic.length>=2)return false;return !automatic.some((item)=>now.getTime()-new Date(item.createdAt).getTime()<8*3600000);}
 export function mediaCapabilityAllowed(level:MediaLevel,capabilities:Record<MediaLevel,boolean>,adult=true):boolean{return adult&&Boolean(capabilities[level]);}

@@ -26,10 +26,12 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   if(!claimed)return{action:'deferred'};
 
   try{
-    const canonical={...(await canonicalRequestForMedia(db,media)),mediaType:'image',qualityRetry:{reasonCodes:verdict.reasonCodes}} as CanonicalMediaRequest;
+    const base=await canonicalRequestForMedia(db,media),faceQualityFailure=verdict.reasonCodes.some((reason)=>['face_distortion','face_blur','face_low_detail','face_too_small','duplicate_features'].includes(reason));
+    const retryComposition=faceQualityFailure?{...base.composition,shotType:base.composition.shotType==='scene'?'candid':base.composition.shotType,aspectRatio:'4:5',framing:'fresh medium-close environmental portrait with the companion as the dominant subject; render one large, crisp, naturally proportioned face with clear eyes, nose, mouth, teeth, and skin detail'}:base.composition;
+    const retryRequest={...base,mediaType:'image',composition:retryComposition,qualityRetry:{reasonCodes:verdict.reasonCodes}} as CanonicalMediaRequest;
     const subscription=await resolveSubscriptionState(db,String(media.user_id));
-    const routed=routeCanonicalMedia(canonical,{source:'user_request',userTier:subscription.tier,preferredProvider:'wavespeed'});
-    const submission=await routed.provider.submit(canonical,routed.route.capability);
+    const routed=routeCanonicalMedia(retryRequest,{source:'user_request',userTier:subscription.tier,preferredProvider:'wavespeed'});
+    const submission=await routed.provider.submit(retryRequest,routed.route.capability);
     const nextMetadata={...providerMetadata,qualityRetryPreparing:false,qualityRetryCount:1,qualityVerdict:'fail',qualityReasonCodes:verdict.reasonCodes,rejectedProviderRequestIds:[...asStrings(providerMetadata.rejectedProviderRequestIds),String(result.providerRequestId??job.provider_request_id)],routingReason:routed.route.reasonCode};
     const{data:updatedJob,error:jobError}=await db.from('together_media_provider_jobs').update({provider_request_id:submission.providerRequestId,model:routed.route.capability.model,route_id:routed.route.capability.id,status:'processing',attempt_count:Math.min(10,Number(job.attempt_count??1)+1),submitted_at:now,provider_completed_at:null,next_poll_at:new Date(Date.now()+5_000).toISOString(),last_polled_at:null,provider_metadata:nextMetadata,updated_at:now}).eq('id',job.id).eq('status','submitting').select('id').maybeSingle();
     if(jobError||!updatedJob)throw new Error('quality_retry_job_update_failed');
@@ -44,7 +46,7 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
 }
 
 async function assessImage(client:NonNullable<ReturnType<typeof configuredWaveSpeedClient>>,imageUrl:string):Promise<MediaQualityVerdict>{
-  const prediction=await client.runToCompletion(Deno.env.get('WAVESPEED_MODEL_IMAGE_QUALITY')??QUALITY_MODEL,{images:[imageUrl],text:'Quality-control this single generated companion photo. Return exactly PASS when it is usable. Otherwise return FAIL followed only by comma-separated codes from: face_distortion, face_blur, duplicate_features, embedded_reference, rendered_text, multiple_subjects. Fail only for an obviously malformed, duplicated, melted, or severely low-detail primary face; a visible source/profile image reproduced as a collage, inset, screen, poster, frame, or held photo; visible prompt/caption/instruction text; or unintended duplicate people. Do not fail natural asymmetry, makeup, expression, pose, lighting, or ordinary photographic softness.'},12_000);
+  const prediction=await client.runToCompletion(Deno.env.get('WAVESPEED_MODEL_IMAGE_QUALITY')??QUALITY_MODEL,{images:[imageUrl],text:'Quality-control this single generated companion photo. Return exactly PASS when it is suitable for delivery. Otherwise return FAIL followed only by comma-separated codes from: face_distortion, face_blur, face_low_detail, face_too_small, duplicate_features, embedded_reference, rendered_text, multiple_subjects. Fail face_too_small when the primary companion face is too small to judge or recognize in a companion photo. Fail face_low_detail when eyes, nose, mouth, teeth, or facial structure are visibly mushy, smeared, flattened, or synthetic even if not severely melted. Fail face_distortion for unnatural facial anatomy. Also fail a visible source/profile image reproduced as a collage, inset, screen, poster, frame, or held photo; visible prompt/caption/instruction text; or unintended duplicate people. Do not fail natural asymmetry, makeup, expression, pose, ordinary photographic depth of field, or differences in clothing and environment.'},12_000);
   if(!prediction||prediction.status!=='completed')return{status:'unavailable',reasonCodes:[]};
   return parseMediaQualityVerdict(prediction.textOutputs?.[0]);
 }

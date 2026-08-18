@@ -11,6 +11,7 @@ export type MediaRouteCapability={
   supportsLoRA:boolean;loraModelFamilies:string[];supportsImageEditing:boolean;supportsImageToVideo:boolean;
   qualityTiers:MediaQualityTier[];estimatedCost?:number;priority:number;enabled:boolean;asynchronous:boolean;
   preferredForUserRequests?:boolean;
+  preferredForQualityRetry?:boolean;
   requiresReferenceImages?:boolean;
 };
 
@@ -19,6 +20,7 @@ export type MediaRouteInput={
   characterIdentityAvailable:boolean;characterLoRAAvailable:boolean;characterLoRAModelFamily?:string;
   locationReferenceAvailable:boolean;worldReferenceAvailable?:boolean;outfitReferenceAvailable:boolean;
   source:string;userTier:string;preferredProvider?:string;
+  qualityRetry?:boolean;
 };
 
 export type MediaRoute={capability:MediaRouteCapability;reasonCode:string;fallbacks:MediaRouteCapability[]};
@@ -26,7 +28,7 @@ export type MediaRoute={capability:MediaRouteCapability;reasonCode:string;fallba
 export function routeMediaGeneration(input:MediaRouteInput,registry:MediaRouteCapability[]):MediaRoute|null{
   const hasReference=input.characterIdentityAvailable||input.locationReferenceAvailable||Boolean(input.worldReferenceAvailable)||input.outfitReferenceAvailable;
   const candidates=registry.filter((entry)=>entry.enabled&&entry.mediaTypes.includes(input.mediaType)&&entry.contentLevels.includes(input.contentLevel)&&entry.qualityTiers.includes(input.qualityTier)&&(!entry.requiresReferenceImages||hasReference)&&(!input.characterLoRAAvailable||!entry.supportsLoRA||entry.loraModelFamilies.includes(input.characterLoRAModelFamily??''))&&(!(input.mediaType==='video')||entry.supportsImageToVideo));
-  const scored=candidates.map((entry)=>({entry,score:entry.priority+providerPreference(entry,input)+referenceFit(entry,input)+loraFit(entry,input)+qualityFit(entry,input)+requestSourceFit(entry,input)})).sort((a,b)=>b.score-a.score||a.entry.id.localeCompare(b.entry.id));
+  const scored=candidates.map((entry)=>({entry,score:entry.priority+providerPreference(entry,input)+referenceFit(entry,input)+loraFit(entry,input)+qualityFit(entry,input)+requestSourceFit(entry,input)+qualityRetryFit(entry,input)})).sort((a,b)=>b.score-a.score||a.entry.id.localeCompare(b.entry.id));
   const primary=scored[0]?.entry;if(!primary)return null;
   return{capability:primary,reasonCode:routeReason(primary,input),fallbacks:scored.slice(1).map((item)=>item.entry)};
 }
@@ -36,6 +38,7 @@ function referenceFit(entry:MediaRouteCapability,input:MediaRouteInput){let scor
 function loraFit(entry:MediaRouteCapability,input:MediaRouteInput){if(!input.characterLoRAAvailable)return 0;return entry.supportsLoRA&&entry.loraModelFamilies.includes(input.characterLoRAModelFamily??'')?100:-5;}
 function qualityFit(entry:MediaRouteCapability,input:MediaRouteInput){return input.qualityTier==='premium'&&entry.qualityTiers.includes('premium')?4:0;}
 function requestSourceFit(entry:MediaRouteCapability,input:MediaRouteInput){if(!entry.preferredForUserRequests)return 0;return input.source==='user_request'?36:-36;}
+function qualityRetryFit(entry:MediaRouteCapability,input:MediaRouteInput){return input.qualityRetry&&entry.preferredForQualityRetry?80:0;}
 function routeReason(entry:MediaRouteCapability,input:MediaRouteInput){if(input.mediaType==='video')return'image_to_video';if(input.characterLoRAAvailable&&entry.supportsLoRA&&input.locationReferenceAvailable&&entry.supportsLocationReference)return'compatible_lora_plus_location';if(input.locationReferenceAvailable&&entry.supportsLocationReference&&input.characterIdentityAvailable&&entry.supportsCharacterReference)return'character_plus_location_references';if(input.characterLoRAAvailable&&entry.supportsLoRA)return'compatible_character_lora';if(input.characterIdentityAvailable&&entry.supportsCharacterReference)return'character_reference';return'textual_context_fallback';}
 
 export type MediaPolicyInput={
