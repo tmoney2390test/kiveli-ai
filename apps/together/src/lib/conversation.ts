@@ -4,6 +4,15 @@ export function activeConversationFor(conversations: Conversation[], characterIn
   return conversations.find((conversation) => conversation.character_instance_id === characterInstanceId && !conversation.archived_at && ['direct','first_meeting'].includes(conversation.kind));
 }
 
+export function mostRecentlyUsedConversation(conversations: Conversation[]): Conversation | undefined {
+  return conversations
+    .filter((conversation) => !conversation.archived_at && ['direct','first_meeting'].includes(conversation.kind))
+    .reduce<Conversation|undefined>((latest,conversation) => {
+      if(!latest)return conversation;
+      return conversationActivityTime(conversation)>conversationActivityTime(latest)?conversation:latest;
+    },undefined);
+}
+
 export function mergeOlderMessages(olderDescending: Message[], currentChronological: Message[]): Message[] {
   const currentIds = new Set(currentChronological.map((message) => message.id));
   return [...olderDescending].reverse().filter((message) => !currentIds.has(message.id)).concat(currentChronological);
@@ -15,4 +24,10 @@ export function planConversationDraft(plan:Pick<SharedPlan,'title'|'status'>):st
   if(plan.status==='missed')return`Can we talk about what happened with ${title}?`;
   if(plan.status==='proposed')return`Can we figure out the details for ${title}?`;
   return`Are we still good for ${title}?`;
+}
+
+function conversationActivityTime(conversation:Conversation):number{
+  const value=conversation.last_message_at??conversation.updated_at??conversation.created_at;
+  const timestamp=value?new Date(value).getTime():0;
+  return Number.isFinite(timestamp)?timestamp:0;
 }

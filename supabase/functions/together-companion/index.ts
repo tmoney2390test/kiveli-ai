@@ -10,7 +10,7 @@ import {activeContinuity} from '../_shared/together-continuity.ts';
 const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('set_active'),characterInstanceId:z.string().uuid(),source:z.enum(['home_switcher','discover_profile','companion_manager']).default('home_switcher')}),
   z.object({action:z.literal('meet'),characterTemplateId:z.string().uuid(),source:z.enum(['onboarding','discover_profile']).default('discover_profile')}),
-  z.object({action:z.literal('set_favorite'),characterTemplateId:z.string().uuid(),favorite:z.boolean(),source:z.enum(['home_featured','discover']).default('home_featured')}),
+  z.object({action:z.literal('set_favorite'),characterTemplateId:z.string().uuid(),favorite:z.boolean(),source:z.enum(['home_featured','discover','chat_menu']).default('home_featured')}),
 ]);
 const relationOne=(value:unknown):Record<string,unknown>|null=>{const row=Array.isArray(value)?value[0]:value;return row&&typeof row==='object'?row as Record<string,unknown>:null;};
 
