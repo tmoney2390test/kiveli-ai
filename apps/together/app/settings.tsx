@@ -21,7 +21,6 @@ import {
   ChevronRight,
   CreditCard,
   FileText,
-  AlignLeft,
   Heart,
   KeyRound,
   LogOut,
@@ -38,7 +37,6 @@ import { useTogether } from '../src/store/useTogether';
 import { useAuth } from '../src/hooks/useAuth';
 import { activeCompanion } from '../src/lib/companionLife';
 import { manageAccount } from '../src/lib/api';
-import { resolveClientConversationStyle } from '../src/lib/conversationStyle';
 import { supabase } from '../src/lib/supabase';
 import { FrostedBackdrop, FrostedSurface, GradientButton, LoadingSkeleton } from '../src/components';
 
@@ -239,9 +237,7 @@ function IdentityPanel({ snapshot, onRoute }: { snapshot: NonNullable<ReturnType
 }
 
 function ExperiencePanel({ snapshot, onRoute }: { snapshot: NonNullable<ReturnType<typeof useTogether.getState>['snapshot']>; onRoute: (route: string) => void }) {
-  const conversationStyle = resolveClientConversationStyle(snapshot.profile);
   return <View style={styles.panel}><PanelHeading title="Experience" body="Choose how Kivelle communicates and which relationship experiences appear." /><SettingsGroup>
-    <SettingsRow icon={<AlignLeft />} title="Conversation style" body={conversationStyle === 'paragraph' ? 'Paragraph · Fuller, expressive replies' : 'Texting · Short, natural messages'} onPress={() => onRoute('/conversation-style')} />
     <SettingsRow icon={<Heart />} title="Content preferences" body={snapshot.profile?.content_preferences?.romanceEnabled === false ? 'Friendship-focused' : 'Romance allowed'} onPress={() => onRoute('/content-settings')} />
     <SettingsRow icon={<Bell />} title="Notifications" body={snapshot.notificationPreferences?.push_enabled ? 'Push notifications on' : 'Push notifications off'} onPress={() => onRoute('/notifications')} />
     <SettingsRow icon={<Camera />} title="Companion photos" body={snapshot.profile?.photo_preferences?.companionPhotos === false ? 'Photo generation off' : 'Photo generation on'} onPress={() => onRoute('/photo-settings')} />

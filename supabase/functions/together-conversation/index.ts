@@ -8,12 +8,15 @@ import {activeContinuity,requireInstanceInActiveContinuity}from'../_shared/toget
 import { getActiveConversation, mergeConversationSceneMetadata, type ActiveConversationScene } from '../_shared/together-conversation.ts';
 import { resolveCompanionPresence } from '../_shared/together-schedule.ts';
 import { resolvePlaceContext, resolveWorldAccess } from '../_shared/together-place.ts';
+import { resolveSubscriptionState } from '../_shared/kivelle-subscription.ts';
 
 const schema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('inbox') }),
   z.object({ action: z.literal('new'), characterInstanceId: z.string().uuid() }),
   z.object({ action: z.literal('archive'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('delete'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('rename'), conversationId: z.string().uuid(), title: z.string().trim().min(1).max(80) }),
+  z.object({ action: z.literal('settings'), conversationId: z.string().uuid(), title: z.string().trim().max(80).nullable(), responseStyle: z.enum(['texting','paragraph']), textSize: z.enum(['small','medium','large']), spiceLevel: z.union([z.literal(1),z.literal(2),z.literal(3)]).optional() }),
   z.object({ action: z.literal('history'), characterInstanceId: z.string().uuid() }),
   z.object({ action: z.literal('messages'), conversationId: z.string().uuid(), before: z.string().datetime().optional(), anchorMessageId: z.string().uuid().optional(), limit: z.number().int().min(1).max(60).default(50) }),
   z.object({ action: z.literal('search'), characterInstanceId: z.string().uuid(), query: z.string().trim().min(2).max(100), conversationId: z.string().uuid().optional() }),
@@ -31,7 +34,20 @@ serve(async (request, correlationId) => {
   const owned = 'characterInstanceId' in input && input.action !== 'start_over'
     ? await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId)
     : null;
-  await enforceRateLimit(db, user.id, `together_conversation_${input.action}`, input.action === 'search' ? 40 : 20, 3600);
+  await enforceRateLimit(db, user.id, `together_conversation_${input.action}`, input.action === 'inbox' ? 240 : input.action === 'search' ? 40 : 20, 3600);
+
+  if (input.action === 'inbox') {
+    const { data, error } = await db.from('together_conversations').select('*').eq('user_id', user.id).eq('continuity_id', continuity.id).is('archived_at', null).in('kind', ['direct', 'first_meeting']).order('last_message_at', { ascending: false, nullsFirst: false }).limit(100);
+    if (error) throw new AppError('INTERNAL_ERROR', 'Messages could not be loaded.', 500, true);
+    const enriched = await Promise.all((data ?? []).map(async (conversation) => {
+      const { data: preview, error: previewError } = await db.from('together_messages').select('content,created_at,role').eq('user_id', user.id).eq('conversation_id', conversation.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (previewError) throw new AppError('INTERNAL_ERROR', 'Message previews could not be loaded.', 500, true);
+      const unread = Boolean(conversation.last_assistant_message_at && (!conversation.last_read_at || new Date(conversation.last_assistant_message_at) > new Date(conversation.last_read_at)));
+      return { ...conversation, last_message_at: preview?.created_at ?? conversation.last_message_at, last_message_preview: preview?.content ?? null, last_message_role: preview?.role ?? null, unread };
+    }));
+    await track(db, user.id, 'conversation_inbox_viewed', { conversationCount: enriched.length });
+    return json({ data: enriched, correlationId }, 200, correlationId);
+  }
 
   if (input.action === 'reset_preview') {
     const target = await requireInstanceInActiveContinuity(db, user.id, input.characterInstanceId);
@@ -193,6 +209,20 @@ serve(async (request, correlationId) => {
   }
 
   const conversation = await ownedConversation(db, user.id,continuity.id,input.conversationId);
+  if (input.action === 'settings') {
+    if (input.spiceLevel !== undefined) {
+      const subscription = await resolveSubscriptionState(db, user.id);
+      if (subscription.tier === 'free') throw new AppError('PLAN_LIMIT_REACHED', 'Custom spice levels are available with Kivelle+ or Max.', 403);
+    }
+    const currentMetadata = (conversation.metadata ?? {}) as Record<string, unknown>;
+    const storedPreferences = currentMetadata.chatPreferences;
+    const currentPreferences = storedPreferences && typeof storedPreferences === 'object' && !Array.isArray(storedPreferences) ? storedPreferences as Record<string, unknown> : {};
+    const chatPreferences = { ...currentPreferences, responseStyle: input.responseStyle, textSize: input.textSize, ...(input.spiceLevel !== undefined ? { spiceLevel: input.spiceLevel } : {}) };
+    const { data, error } = await db.from('together_conversations').update({ title: input.title, metadata: { ...currentMetadata, chatPreferences }, updated_at: new Date().toISOString() }).eq('id', conversation.id).eq('user_id', user.id).select('*').single();
+    if (error || !data) throw new AppError('INTERNAL_ERROR', 'Chat settings could not be saved.', 500, true);
+    await track(db, user.id, 'chat_settings_updated', { conversationId: conversation.id, responseStyle: input.responseStyle, textSize: input.textSize, customSpice: input.spiceLevel !== undefined });
+    return json({ data, correlationId }, 200, correlationId);
+  }
   if (input.action === 'read') {
     const now = new Date().toISOString();
     await db.from('together_conversations').update({ last_read_at: now }).eq('id', conversation.id).eq('user_id', user.id);

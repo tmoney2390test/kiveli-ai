@@ -1,24 +1,28 @@
 import{AppError}from'./types.ts';
 import{verifyProviderWebhookHmac}from'../../../packages/together-domain/src/provider-webhook.ts';
+import{buildWaveSpeedRequestBody,normalizeWaveSpeedOutputs,type WaveSpeedRequestOptions}from'../../../packages/together-domain/src/wavespeed.ts';
 
 const API_BASE='https://api.wavespeed.ai/api/v3';
 export type WaveSpeedStatus='created'|'processing'|'completed'|'failed'|'cancelled'|'timeout'|'deleted';
 export type WaveSpeedPrediction={id:string;model:string;status:WaveSpeedStatus;outputs:string[];textOutputs?:string[];error?:string;createdAt?:string;getUrl?:string;inferenceMs?:number;hasNsfwContents?:boolean[]};
 export type WaveSpeedSubmission={provider:'wavespeed';providerRequestId:string;model:string;status:'submitted'|'completed';result?:WaveSpeedPrediction};
+export type WaveSpeedRunResult={prediction:WaveSpeedPrediction|null;providerRequestId:string;model:string;timedOut:boolean};
+export type WaveSpeedSubmitOptions={webhook?:boolean|undefined}&WaveSpeedRequestOptions;
 
 export type WaveSpeedEnvelope={code?:number;message?:string;data?:{id?:string;model?:string;status?:string;outputs?:unknown;error?:unknown;created_at?:string;urls?:{get?:string};timings?:{inference?:number};has_nsfw_contents?:unknown}};
 
 export class WaveSpeedClient{
   constructor(private readonly apiKey:string,private readonly webhookUrl?:string){}
 
-  async submit(model:string,input:Record<string,unknown>,options:{webhook?:boolean}={}):Promise<WaveSpeedSubmission>{
+  async submit(model:string,input:Record<string,unknown>,options:WaveSpeedSubmitOptions={}):Promise<WaveSpeedSubmission>{
     const webhook=options.webhook===false?undefined:this.webhookUrl;
     const endpoint=`${API_BASE}/${model}${webhook?`?webhook=${encodeURIComponent(webhook)}`:''}`;
     const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),60_000);
     try{
-      const response=await fetch(endpoint,{method:'POST',headers:{Authorization:`Bearer ${this.apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({...input,enable_sync_mode:false,enable_base64_output:false}),signal:controller.signal});
+      const body=buildWaveSpeedRequestBody(input,{enableSyncMode:options.enableSyncMode,enableBase64Output:options.enableBase64Output});
+      const response=await fetch(endpoint,{method:'POST',headers:{Authorization:`Bearer ${this.apiKey}`,'Content-Type':'application/json'},body:JSON.stringify(body),signal:controller.signal});
       const payload=await parseEnvelope(response);
-      if(!response.ok||Number(payload.code??response.status)!==200)throw providerError(response.status,payload.message);
+      if(!response.ok||Number(payload.code??response.status)!==200)throw providerError(response.status,payload.message??safeProviderError(payload.data?.error));
       const prediction=normalizePrediction(payload,model);
       if(!prediction.id)throw new AppError('PROVIDER_SUBMISSION_UNKNOWN','The provider did not confirm the media request. No duplicate request was sent.',503,false);
       return{provider:'wavespeed',providerRequestId:prediction.id,model:prediction.model,status:prediction.status==='completed'?'completed':'submitted',...(prediction.status==='completed'?{result:prediction}:{})};
@@ -39,17 +43,19 @@ export class WaveSpeedClient{
     }catch(error){if(error instanceof AppError)throw error;throw new AppError('PROVIDER_TIMEOUT','The provider result could not be checked right now.',503,true);}finally{clearTimeout(timeout);}
   }
 
-  async runToCompletion(model:string,input:Record<string,unknown>,timeoutMs=12_000):Promise<WaveSpeedPrediction|null>{
-    const submitted=await this.submit(model,input,{webhook:false});
-    if(submitted.status==='completed'&&submitted.result)return submitted.result;
+  async runToCompletion(model:string,input:Record<string,unknown>,timeoutMs=30_000,options:WaveSpeedRequestOptions={}):Promise<WaveSpeedRunResult>{
+    const submitted=await this.submit(model,input,{webhook:false,...options});
+    if(submitted.status==='completed'&&submitted.result)return{prediction:submitted.result,providerRequestId:submitted.providerRequestId,model:submitted.model,timedOut:false};
     const deadline=Date.now()+timeoutMs;
+    let lastPrediction:WaveSpeedPrediction|null=null;
     while(Date.now()<deadline){
-      await new Promise((resolve)=>setTimeout(resolve,1200));
-      const prediction=await this.getResult(submitted.providerRequestId);
-      if(prediction.status==='completed')return prediction;
-      if(['failed','cancelled','timeout','deleted'].includes(prediction.status))return prediction;
+      await new Promise((resolve)=>setTimeout(resolve,2_000));
+      try{
+        const prediction=await this.getResult(submitted.providerRequestId);lastPrediction=prediction;
+        if(prediction.status==='completed'||['failed','cancelled','timeout','deleted'].includes(prediction.status))return{prediction,providerRequestId:submitted.providerRequestId,model:prediction.model||submitted.model,timedOut:false};
+      }catch(error){if(!(error instanceof AppError)||!error.retryable)throw error;}
     }
-    return null;
+    return{prediction:lastPrediction,providerRequestId:submitted.providerRequestId,model:lastPrediction?.model||submitted.model,timedOut:true};
   }
 }
 
@@ -58,8 +64,8 @@ async function parseEnvelope(response:Response):Promise<WaveSpeedEnvelope>{const
 export function normalizePrediction(payload:WaveSpeedEnvelope,fallbackModel=''):WaveSpeedPrediction{
   const data=payload.data??{},status=String(data.status??'created') as WaveSpeedStatus;
   const validStatuses:WaveSpeedStatus[]=['created','processing','completed','failed','cancelled','timeout','deleted'];
-  const rawOutputs=Array.isArray(data.outputs)?data.outputs.map((value)=>typeof value==='string'?value:JSON.stringify(value)).filter(Boolean):[];
-  return{id:String(data.id??''),model:String(data.model??fallbackModel),status:validStatuses.includes(status)?status:'failed',outputs:rawOutputs.filter(isHttpsUrl),textOutputs:rawOutputs.filter((value)=>!isHttpsUrl(value)),error:typeof data.error==='string'?data.error.slice(0,240):undefined,createdAt:data.created_at,getUrl:isHttpsUrl(data.urls?.get)?data.urls?.get:undefined,inferenceMs:Number.isFinite(data.timings?.inference)?Number(data.timings?.inference):undefined,hasNsfwContents:Array.isArray(data.has_nsfw_contents)?data.has_nsfw_contents.map(Boolean):undefined};
+  const outputs=normalizeWaveSpeedOutputs(data.outputs);
+  return{id:String(data.id??''),model:String(data.model??fallbackModel),status:validStatuses.includes(status)?status:'failed',outputs:outputs.urlOutputs,textOutputs:outputs.textOutputs,error:safeProviderError(data.error),createdAt:data.created_at,getUrl:isHttpsUrl(data.urls?.get)?data.urls?.get:undefined,inferenceMs:Number.isFinite(data.timings?.inference)?Number(data.timings?.inference):undefined,hasNsfwContents:Array.isArray(data.has_nsfw_contents)?data.has_nsfw_contents.map(Boolean):undefined};
 }
 
 export function normalizeWaveSpeedWebhook(payload:unknown):WaveSpeedPrediction{
@@ -76,6 +82,14 @@ function providerError(status:number,message?:string):AppError{
   if(status===400||status===422)return new AppError('PROVIDER_REQUEST_INVALID','The media request could not be processed.',422,false);
   if(/content|safety|nsfw|moderation/i.test(message??''))return new AppError('PROVIDER_CONTENT_BLOCKED','That media request could not be created.',422,false);
   return new AppError('PROVIDER_UNAVAILABLE','The media provider is temporarily unavailable.',503,status>=500);
+}
+
+function safeProviderError(value:unknown):string|undefined{
+  if(typeof value==='string')return value.trim().slice(0,240)||undefined;
+  if(!value||typeof value!=='object')return undefined;
+  const record=value as Record<string,unknown>;
+  for(const key of ['message','error','detail']){const nested=record[key];if(typeof nested==='string'&&nested.trim())return nested.trim().slice(0,240);}
+  try{return JSON.stringify(value).slice(0,240)||undefined;}catch{return undefined;}
 }
 
 export async function verifyWaveSpeedWebhook(input:{rawBody:string;webhookId:string|null;timestamp:string|null;signature:string|null;secret:string;now?:Date;maxAgeSeconds?:number}):Promise<boolean>{
