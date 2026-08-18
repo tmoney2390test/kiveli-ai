@@ -175,11 +175,6 @@ export default function Chat() {
     finally { setPlanning(false); }
   };
   const undoMemory = async () => { if (!feedback?.id) return; await mutateMemory({ action:'forget', memoryId:feedback.id }); await refresh(); setFeedback(null); };
-  const resolveInteractions = async () => {
-    if(!isCoPresent){setError(`Join ${character.together_character_templates.name} at their current location to do something together.`);return;}
-    setInteractionLoading(true);setError('');
-    try{const result=await manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[]}>({action:'resolve',characterInstanceId:character.id,conversationId:conversation.id});setInteractionScene(result.scene?.id?result.scene:null);setInteractionCandidates(result.interactions??[]);setMovementCandidates(result.destinations??[]);setShowInteractions(true);}catch(caught){setError(caught instanceof Error?caught.message:'The shared scene is no longer available.');}finally{setInteractionLoading(false);}
-  };
   const applySceneDelta = (scene:SceneSession|null|undefined) => {
     if(!scene?.id)return;
     upsertSceneSession(scene);
@@ -235,7 +230,7 @@ export default function Chat() {
         </ScrollView>}
         {showInteractions?<InteractionTray name={character.together_character_templates.name} location={location} loading={interactionLoading} interactions={interactionCandidates} destinations={movementCandidates} onInteraction={(candidate)=>void executeInteraction(candidate)} onMove={(candidate)=>void moveScene(candidate)} onClose={()=>setShowInteractions(false)} />:isCoPresent&&interactionCandidates.length?<ContextualInteractionTray loading={interactionLoading} interactions={interactionCandidates.slice(0,3)} onOpen={()=>setShowInteractions(true)} onInteraction={(candidate)=>void executeInteraction(candidate)} />:null}
         {focusPlanId?<PlanFocusChip plan={(snapshot.sharedPlans??[]).find((item)=>item.id===focusPlanId)} onOpen={(id)=>router.push(`/plan/${id}` as never)} onClose={()=>{setFocusPlanId(null);setFocusDismissed(true);}}/>:null}
-        <Composer inputRef={composerInput} character={character} compact={width < 480} input={input} setInput={setInput} pendingImage={pendingImage} onAddPhoto={openPhotoPicker} onRemovePhoto={()=>setPendingImage(null)} sending={sending} onSend={() => void send()} onPlan={() => setShowPlans((value) => !value)} onPhoto={()=>setShowPhotoRequests((value)=>!value)} onInteraction={()=>void resolveInteractions()} onMove={()=>{void resolveInteractions();setShowInteractions(true);}} coPresent={isCoPresent} />
+        <Composer inputRef={composerInput} character={character} input={input} setInput={setInput} pendingImage={pendingImage} onAddPhoto={openPhotoPicker} onRemovePhoto={()=>setPendingImage(null)} sending={sending} onSend={() => void send()} onPhoto={()=>setShowPhotoRequests((value)=>!value)} />
       </View>
       {showRight ? <ContextRail snapshot={snapshot} character={character} context={chatContext} onPrompt={setInput} onPlan={() => setShowPlans(true)} /> : null}
     </View>
@@ -348,17 +343,12 @@ function PhotoRequestModal({visible,name,onRequest,onShare,onClose}:{visible:boo
 }
 
 void LegacyComposer;
-function Composer({inputRef,character,compact,input,setInput,pendingImage,onAddPhoto,onRemovePhoto,sending,onSend,onPlan,onPhoto,onInteraction,onMove,coPresent}:{inputRef:{current:TextInput|null};character:CharacterInstance;compact:boolean;input:string;setInput:(value:string)=>void;pendingImage:PendingImage|null;onAddPhoto:()=>void;onRemovePhoto:()=>void;sending:boolean;onSend:()=>void;onPlan:()=>void;onPhoto:()=>void;onInteraction:()=>void;onMove:()=>void;coPresent:boolean}) {
+function Composer({inputRef,character,input,setInput,pendingImage,onAddPhoto,onRemovePhoto,sending,onSend,onPhoto}:{inputRef:{current:TextInput|null};character:CharacterInstance;input:string;setInput:(value:string)=>void;pendingImage:PendingImage|null;onAddPhoto:()=>void;onRemovePhoto:()=>void;sending:boolean;onSend:()=>void;onPhoto:()=>void}) {
   const { width } = useWindowDimensions();
   const tabBarInset = Platform.OS === 'web' ? (width < 620 ? 92 : 100) : 92;
   return <View style={[styles.composerWrap,{paddingBottom:tabBarInset}]}>
-    <View style={styles.quickActions}>
-      <Pressable accessibilityLabel={coPresent?'Choose something to do together':'Join them to do something together'} onPress={onInteraction} style={[styles.quickAction,styles.quickActionFitted]}><Wand2 size={14} color={colors.rose}/><Text numberOfLines={1} style={[styles.quickText,styles.quickTextFitted]}>{compact?'Do':'Do something'}</Text></Pressable>
-      <Pressable accessibilityLabel={coPresent?'Choose somewhere to go':'Join them to go somewhere'} onPress={onMove} style={[styles.quickAction,styles.quickActionFitted]}><MapPin size={14} color={colors.warm}/><Text numberOfLines={1} style={[styles.quickText,styles.quickTextFitted]}>{compact?'Go':'Go somewhere'}</Text></Pressable>
-      <Pressable onPress={onPlan} style={[styles.quickAction,styles.quickActionFitted]}><CalendarDays size={14} color={colors.warm}/><Text numberOfLines={1} style={[styles.quickText,styles.quickTextFitted]}>{compact?'Plan':'Plan'}</Text></Pressable>
-    </View>
     {pendingImage?<View style={styles.attachmentPreview}><Image source={{uri:pendingImage.uri}} style={styles.attachmentPreviewImage} contentFit="cover"/><View style={{flex:1,minWidth:0}}><Text style={styles.attachmentPreviewTitle}>Photo ready to share</Text><Text style={styles.attachmentPreviewMeta}>{pendingImage.fileName??'Selected image'} · {Math.max(1,Math.round(pendingImage.byteSize/1024))} KB</Text><Pressable accessibilityLabel="Replace selected photo" onPress={onAddPhoto}><Text style={styles.attachmentReplace}>Replace</Text></Pressable></View><Pressable accessibilityLabel="Remove selected photo" onPress={onRemovePhoto} style={styles.attachmentRemove}><X size={16} color={colors.text}/></Pressable></View>:null}
-    <View style={styles.composer}><AiMediaButton name={character.together_character_templates.name} onPress={onPhoto} disabled={sending}/><TextInput ref={inputRef} value={input} onChangeText={setInput} placeholder={`Message ${character.together_character_templates.name}…`} placeholderTextColor={colors.dimmed} multiline maxLength={4000} style={[styles.input,styles.inputFitted]} textAlignVertical="top"/><Pressable accessibilityLabel="Send message" onPress={onSend} disabled={(!input.trim()&&!pendingImage)||sending} style={[styles.send,((!input.trim()&&!pendingImage)||sending)&&styles.sendDisabled]}><Send color="#fff" size={19}/></Pressable></View>
+    <View style={styles.composer}><View style={styles.composerInputShell}><AiMediaButton name={character.together_character_templates.name} onPress={onPhoto} disabled={sending}/><TextInput ref={inputRef} value={input} onChangeText={setInput} placeholder={`Message ${character.together_character_templates.name}…`} placeholderTextColor={colors.dimmed} multiline maxLength={4000} style={[styles.input,styles.inputFitted,styles.embeddedInput]} textAlignVertical="top"/></View><Pressable accessibilityLabel="Send message" onPress={onSend} disabled={(!input.trim()&&!pendingImage)||sending} style={[styles.send,((!input.trim()&&!pendingImage)||sending)&&styles.sendDisabled]}><Send color="#fff" size={19}/></Pressable></View>
     <Text style={styles.aiNote}>{character.together_character_templates.name} is a fictional AI character. Important memories stay in your control.</Text>
   </View>;
 }
@@ -369,7 +359,6 @@ function AiMediaButton({name,onPress,disabled}:{name:string;onPress:()=>void;dis
   return <Pressable accessibilityRole="button" accessibilityLabel={`Ask ${name} for an AI-generated photo`} onPress={onPress} disabled={disabled} style={({pressed})=>[styles.aiMediaButton,pressed&&styles.aiMediaPressed,disabled&&styles.sendDisabled]}>
     <Animated.View pointerEvents="none" style={[styles.aiMediaGlow,{opacity:glow.interpolate({inputRange:[0,1],outputRange:[.28,.72]}),transform:[{scale:glow.interpolate({inputRange:[0,1],outputRange:[.9,1.16]})}]}]}/>
     <ImagePlus size={21} color="#E5D7FF" strokeWidth={1.7}/>
-    <Sparkles size={10} color="#FF9DCC" style={styles.aiMediaSpark}/>
   </Pressable>;
 }
 
@@ -521,10 +510,11 @@ const styles=StyleSheet.create({
   ,attachmentPreviewMeta:{color:colors.muted,fontSize:9,marginTop:2}
   ,attachmentReplace:{color:colors.rose,fontSize:10,fontWeight:'800',marginTop:5}
   ,attachmentRemove:{width:34,height:34,borderRadius:17,alignItems:'center',justifyContent:'center',backgroundColor:colors.surface}
-  ,aiMediaButton:{position:'relative',width:50,height:50,borderRadius:25,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(70,42,108,.82)',borderWidth:1,borderColor:'rgba(203,168,255,.54)',shadowColor:'#8F5BFF',shadowOpacity:.48,shadowRadius:16,shadowOffset:{width:0,height:4}}
+  ,composerInputShell:{flex:1,minWidth:0,minHeight:54,maxHeight:124,flexDirection:'row',alignItems:'flex-end',gap:4,paddingLeft:5,paddingRight:4,borderRadius:27,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border}
+  ,embeddedInput:{backgroundColor:'transparent',borderWidth:0,borderRadius:0,paddingLeft:4,paddingRight:10}
+  ,aiMediaButton:{position:'relative',width:44,height:44,borderRadius:22,marginBottom:4,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(70,42,108,.72)',borderWidth:1,borderColor:'rgba(203,168,255,.48)',shadowColor:'#8F5BFF',shadowOpacity:.4,shadowRadius:13,shadowOffset:{width:0,height:3}}
   ,aiMediaPressed:{transform:[{scale:.96}],backgroundColor:'rgba(88,48,137,.94)'}
-  ,aiMediaGlow:{position:'absolute',width:48,height:48,borderRadius:24,backgroundColor:'rgba(139,80,255,.28)',borderWidth:1,borderColor:'rgba(220,196,255,.3)'}
-  ,aiMediaSpark:{position:'absolute',right:8,top:8}
+  ,aiMediaGlow:{position:'absolute',width:42,height:42,borderRadius:21,backgroundColor:'rgba(139,80,255,.25)',borderWidth:1,borderColor:'rgba(220,196,255,.28)'}
   ,mediaModalBackdrop:{flex:1,alignItems:'center',justifyContent:'center',padding:20}
   ,mediaModalFrame:{width:'100%',maxWidth:520}
   ,mediaModal:{width:'100%',alignItems:'center',paddingHorizontal:28,paddingTop:36,paddingBottom:24,borderRadius:radius.xl,borderColor:'rgba(201,168,255,.28)',backgroundColor:'rgba(28,21,39,.84)',shadowColor:'#7A42E8',shadowOpacity:.3,shadowRadius:28,shadowOffset:{width:0,height:14}}
