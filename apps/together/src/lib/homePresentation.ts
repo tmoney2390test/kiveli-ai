@@ -1,6 +1,7 @@
 import type { CharacterInstance, GeneratedMedia, Memory, Snapshot } from '../types';
 import type { HomeViewModel } from './homeViewModel';
 import { getInterruptibilityPresentation } from './lifePresentation';
+import { presentMemoryText } from './memoryPresentation';
 
 export type CompanionMediaItem = {
   id: string;
@@ -72,26 +73,9 @@ export function getWorldHook(model: HomeViewModel) {
 
 export function getMemoryPresentation(memory: Pick<Memory, 'canonical_text' | 'memory_type'> | undefined, companionName: string) {
   if (!memory) return { eyebrow: 'YOUR STORY', text: `You and ${companionName} are just getting started.` };
-  let text = memory.canonical_text.trim()
-    .replace(/\bthe user’s\b/gi, 'your')
-    .replace(/\bthe user's\b/gi, 'your')
-    .replace(/\buser’s\b/gi, 'your')
-    .replace(/\buser's\b/gi, 'your')
-    .replace(/\bthe user\b/gi, 'you')
-    .replace(/\buser\b/gi, 'you')
-    .replace(/\bthe character’s\b/gi, `${companionName}'s`)
-    .replace(/\bthe character's\b/gi, `${companionName}'s`)
-    .replace(/\bthe character\b/gi, companionName)
-    .replace(/\bcharacter\b/gi, companionName)
-    .replace(/expressed (?:a )?desire to/gi, 'said you wanted to')
-    .replace(/stated that/gi, 'said')
-    .replace(/indicated that/gi, 'made it clear')
-    .replace(/\s+/g, ' ')
-    .replace(/^[a-z]/, (letter) => letter.toUpperCase());
-  if (!/[.!?]$/.test(text)) text += '.';
   return {
-    eyebrow: memory.memory_type === 'relationship' ? 'BETWEEN YOU' : memory.memory_type === 'episodic' ? 'A SHARED MOMENT' : 'SHE REMEMBERS',
-    text,
+    eyebrow: memory.memory_type === 'relationship' ? 'BETWEEN YOU' : memory.memory_type === 'episodic' ? 'A SHARED MOMENT' : `${companionName.toUpperCase()} REMEMBERS`,
+    text: presentMemoryText(memory.canonical_text, companionName),
   };
 }
 
