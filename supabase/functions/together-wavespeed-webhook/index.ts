@@ -7,8 +7,10 @@ import { finalizeAuxiliaryProviderJob } from '../_shared/together-media-auxiliar
 // Explicit roots keep the signed callback's finalization graph in Supabase's
 // remote bundle even when compact shared modules hide a transitive import.
 import '../../../packages/together-domain/src/provider-webhook.ts';
+import '../../../packages/together-domain/src/media-quality.ts';
 import '../_shared/kivelle-subscription.ts';
 import '../_shared/together-media-base.ts';
+import '../_shared/together-media-quality.ts';
 import '../_shared/together-media-providers.ts';
 import '../_shared/together-place.ts';
 import '../_shared/together.ts';
