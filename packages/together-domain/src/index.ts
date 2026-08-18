@@ -23,4 +23,5 @@ export * from './creator.ts';
 export * from './conversation-style.ts';
 export * from './multimodal.ts';
 export * from './media-routing.ts';
+export * from './media-quality.ts';
 export * from './provider-webhook.ts';

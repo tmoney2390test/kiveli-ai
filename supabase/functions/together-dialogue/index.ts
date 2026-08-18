@@ -4,13 +4,13 @@ import { parseBody } from '../_shared/body.ts';
 import { corsHeaders, errorResponse } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { ConfiguredConversationAnalysisProvider, ConfiguredDialogueProvider, ConfiguredEmbeddingProvider, ConfiguredModerationProvider, dialogueProviderName } from '../_shared/together-ai.ts';
-import { classifyContent, routeDialogueProvider } from '../_shared/kivelle-intelligence.ts';
+import { classifyContent, routeDialogueProvider, stripGeneratedMediaMarkup } from '../_shared/kivelle-intelligence.ts';
 import { mergeConversationSummary, relationshipMetrics, track } from '../_shared/together.ts';
 import { applyConversationEngagement, applyInteractionProposal, detectFlirtSignal, scoreConversationEngagement, selectSceneSpeakers, updateChemistry, type ChemistrySignal, type RelationshipState, type SpiceLevel } from '../../../packages/together-domain/src/index.ts';
 import { runLifeSimulation } from '../_shared/together-life.ts';
 import { buildKivelleConversationContext } from '../_shared/kivelle-conversation-context.ts';
 import { acknowledgeConversationScene, getActiveConversation, mergeConversationSceneMetadata, resolveActiveConversationScene } from '../_shared/together-conversation.ts';
-import { kickMediaDispatcher, queueMediaRequest } from '../_shared/together-media.ts';
+import { classifyPhotoRequest, kickMediaDispatcher, queueMediaRequest } from '../_shared/together-media.ts';
 import { waitUntil } from '../_shared/background.ts';
 import { writeConversationEvent } from '../_shared/together-plans.ts';
 import { activeContinuity } from '../_shared/together-continuity.ts';
@@ -109,6 +109,7 @@ Deno.serve(async (request) => {
       current_presence_source:(lifeRun as Record<string,unknown>).stateSource??instance.current_presence_source,
     };
     let dialogueContext = await buildKivelleConversationContext({ db, userId:user.id, instance:currentInstance, conversation, userMessage:contextText, lifeRun, semanticRows:semanticResult.data??[], attachments, now });
+    dialogueContext.photoRequest=classifyPhotoRequest(contextText).requested;
     if(dialogueContext.currentScene.sceneSessionId)await recordSceneMessage(db,{userId:user.id,continuityId:continuity.id,sceneId:dialogueContext.currentScene.sceneSessionId,message:userMessage,role:'user'});
     const speakerSelection=selectSceneSpeakers({message:contextText,candidates:(dialogueContext.sceneParticipants??[]).map((participant)=>({characterInstanceId:participant.characterInstanceId,name:participant.name,role:participant.role as 'primary_companion'|'participant'|'guest',available:true,socialEnergy:participant.socialEnergy,directness:participant.directness,topicRelevance:participant.relationshipRelevance,knowledgeRelevance:participant.relationshipRelevance})),maxSpeakers:2});
     const primarySpeakerId=speakerSelection.speakerInstanceIds[0]??input.characterInstanceId;
@@ -126,7 +127,7 @@ Deno.serve(async (request) => {
     }
     const responseText = await dialogue.generate(dialogueContext);
     const outputSafety = await moderation.check(responseText);
-    const safeText = outputSafety.allowed ? responseText : "I want to answer thoughtfully, but I need to steer this conversation somewhere safer. We can talk about what you're feeling without crossing that line.";
+    const safeText = outputSafety.allowed ? cleanPhotoReply(responseText,dialogueContext.photoRequest===true) : "I want to answer thoughtfully, but I need to steer this conversation somewhere safer. We can talk about what you're feeling without crossing that line.";
     if (!outputSafety.allowed) await db.from('together_safety_events').insert({ user_id: user.id, character_instance_id: input.characterInstanceId, direction: 'output', categories: outputSafety.categories, action: 'replaced' });
     const { data: assistantMessage, error: assistantError } = await db.from('together_messages').insert({ conversation_id: input.conversationId, user_id: user.id, character_instance_id: primarySpeakerId, speaker_character_instance_id:primarySpeakerId, role: 'assistant', content: safeText, delivery_status: 'complete', provider_metadata: { provider: dialogueProviderName(), model: Deno.env.get('TOGETHER_DIALOGUE_MODEL') ?? Deno.env.get('TOGETHER_GEMINI_MODEL') ?? 'configured-default',speakerName:characterTemplate.name,speakerSlug:characterTemplate.slug } }).select('*').single();
     if (assistantError || !assistantMessage) throw new AppError('INTERNAL_ERROR', `${String(characterTemplate.name ?? 'Your companion')} replied, but the response could not be saved.`, 500, true);
@@ -173,11 +174,14 @@ function streamDialogue({ db, user, input, conversation, instance, relationship,
       try {
         emit({ type: 'start', messageId: crypto.randomUUID() });
         let content = '';
+        const photoRequest=context.photoRequest===true;
         for await (const token of dialogue.stream(context)) {
           content += token;
-          emit({ type: 'token', token });
+          if(!photoRequest)emit({ type: 'token', token });
         }
         if (!content.trim()) throw new AppError('PROVIDER_UNAVAILABLE', 'Your companion needs a moment before replying.', 503, true);
+        content=cleanPhotoReply(content,photoRequest);
+        if(photoRequest)for(const token of content.match(/\S+\s*/g)??[content])emit({type:'token',token});
 
         // The configured provider applies source safety settings before tokens are emitted.
         const provider = dialogueProviderName();
@@ -203,6 +207,11 @@ function streamDialogue({ db, user, input, conversation, instance, relationship,
     },
   });
   return new Response(stream, { status: 200, headers: { ...corsHeaders, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', 'X-Accel-Buffering': 'no', 'X-Correlation-ID': correlationId } });
+}
+
+function cleanPhotoReply(text:string,photoRequest:boolean):string{
+  if(!photoRequest)return text;
+  return stripGeneratedMediaMarkup(text)||'Give me a second.';
 }
 
 async function dialogueSpeaker(db:any,userId:string,continuityId:string,speakerId:string,baseContext:any):Promise<{instance:Record<string,any>;context:any}>{

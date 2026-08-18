@@ -3,18 +3,29 @@ import{AppError}from'./types.ts';
 import{refundCredits}from'./kivelle-subscription.ts';
 import{track}from'./together.ts';
 import type{ProviderCompletedMedia}from'./together-media-providers.ts';
+import{gateGeneratedImageQuality}from'./together-media-quality.ts';
 
 const MAX_IMAGE_BYTES=20*1024*1024;
 const MAX_VIDEO_BYTES=80*1024*1024;
 const MAX_LORA_BYTES=1024*1024*1024;
 
 export async function finalizeProviderMedia(db:SupabaseClient,input:{jobId:string;result:ProviderCompletedMedia;providerStatus?:Record<string,unknown>}):Promise<Record<string,unknown>>{
-  const{data:job}=await db.from('together_media_provider_jobs').select('*').eq('id',input.jobId).maybeSingle();
+  let{data:job}=await db.from('together_media_provider_jobs').select('*').eq('id',input.jobId).maybeSingle();
   if(!job)throw new AppError('NOT_FOUND','That media job is unavailable.',404);
   const{data:media}=await db.from('together_generated_media').select('*').eq('id',String(job.generated_media_id)).maybeSingle();
   if(!media)throw new AppError('NOT_FOUND','That media request is unavailable.',404);
   if(job.finalized_at&&media.status==='ready')return media as Record<string,unknown>;
   if(job.status==='failed'||job.status==='cancelled')throw new AppError('CONFLICT','That media job has already ended.',409);
+
+  const quality=await gateGeneratedImageQuality(db,job,media,input.result);
+  if(quality.action==='deferred')return media as Record<string,unknown>;
+  if(quality.action==='reject'){
+    await failProviderMedia(db,{jobId:input.jobId,failureCode:'image_quality_failed',failureReasonSafe:'The photo did not come out clearly. Your credits were returned.',providerMetadata:{qualityReasonCodes:quality.reasonCodes}});
+    const{data:failed}=await db.from('together_generated_media').select('*').eq('id',media.id).maybeSingle();
+    return(failed??media) as Record<string,unknown>;
+  }
+  input={...input,result:quality.result};
+  const refreshed=await db.from('together_media_provider_jobs').select('*').eq('id',input.jobId).maybeSingle();if(refreshed.data)job=refreshed.data;
 
   const downloaded=input.result.bytes?{bytes:input.result.bytes,contentType:input.result.contentType??defaultContentType(String(media.media_type))}:await downloadProviderOutput(String(input.result.outputUrl??''),String(media.media_type));
   validateOutput(downloaded.bytes,downloaded.contentType,String(media.media_type));

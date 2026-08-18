@@ -29,6 +29,13 @@ export function resolveResponseDirection(context:any):{intent:ResponseIntent;len
 
 export function responseTokenBudget(context:any):number{const direction=resolveResponseDirection(context);return conversationResponseTokenBudget({style:direction.style,length:direction.length});}
 
+export function stripGeneratedMediaMarkup(text:string):string{
+  return text
+    .replace(/\s*\[(?:attached|attachment|image|photo|selfie|visual|generated image)\s*:\s*[\s\S]*?\]\s*$/i,'')
+    .replace(/\s*!\[[^\]]*\]\([^\s)]+\)\s*$/i,'')
+    .trim();
+}
+
 function placeDetailBlock(place:any):string{
   if(!place)return'None.';
   const lore=place.location?.lore??{},daypart=String(place.clock?.daypart??'');
@@ -207,6 +214,9 @@ These values describe the companion RIGHT NOW. If any earlier conversation messa
 ${context.queryIntent==='location'?'Current-location request: answer from PRESENT_REALITY. Do not infer current location from RECENT_CONVERSATION. If the user asks whether the companion is still at an earlier place, clearly and naturally distinguish the earlier place from the current one.':context.queryIntent==='history'?'Historical-location request: answer the requested past timeframe from supported history. PRESENT_REALITY remains the current state and must not be presented as the historical answer.':'Keep present reality silent unless the user asks or it is naturally relevant.'}
 Do not expose the labels canonical, scene source, Life Engine, or PRESENT_REALITY in the character response.
 </PRESENT_REALITY>
+${context.photoRequest===true?`<PHOTO_DELIVERY>
+Kivelle is fulfilling the user's photo request through the canonical media system. Write only the companion's natural conversational reply. Do not include an image-generation prompt, alt text, visual description in brackets, filename, markdown image, or any construction such as "[Attached: ...]", "[Image: ...]", or "[Photo: ...]". Do not claim that a generated attachment is already visible. Kivelle attaches and updates the photo separately.
+</PHOTO_DELIVERY>`:''}
 <RESPONSE_DIRECTION>Query intent: ${context.queryIntent??'general'}. Response intent: ${intent}. Length: ${length}. Conversation style: ${style}. Interaction quality: ${context.interactionQuality??'normal'}. Intelligence profile: ${subscription.intelligenceProfile??'core'}. Director applied: ${context.director?.used?'yes':'no'}. Do not mention these internal labels.</RESPONSE_DIRECTION>
 <USER_MESSAGE>${context.userMessage}</USER_MESSAGE>`;
 }

@@ -14,6 +14,7 @@ export type ContextQueryIntent = 'general'|'schedule'|'plan'|'date'|'story'|'mem
 export type CurrentSceneContext = { locationId: string|null; location: string; activity: string; mood: string; energy: string; availability: string; interruptibility?:string; scheduleEventId?:string; sceneSessionId?:string; lastInteractionKey?:string; startedAt?:string; expectedEndAt?:string; nextObligation?:{title:string;startsAt:string;location?:string|null}; entryReason?:'direct_chat'|'scheduled'|'user_drop_in'|'invited'|'continued_chat'|'shared_plan'|'active_date'; interactionMode:'remote'|'co_present'; sceneBehavior:{acknowledgeArrival:boolean;activityAwareness:boolean;departurePressure:boolean}; source: 'active_date'|'active_plan'|'active_event'|'scene'|'schedule'|'life_engine'|'character_state'; activeEvent?: { id:string; title:string; summary:string; endsAt?:string|null }; activePlan?:{id:string;title:string;activityKey:string;originalLocationId?:string|null;endsAt?:string|null;sceneSessionId?:string;activityState?:Record<string,unknown>;companionAtPlan?:boolean;planAwaitingUser?:boolean;participation?:{joinedAt?:string;attendedSeconds?:number}};activeDate?:{id:string;title:string} };
 export type KivelleConversationContext = {
   contentMode?:string;
+  photoRequest?:boolean;
   conversationStyle:ConversationStyle;
   experienceCapabilities:ReturnType<typeof resolveServerExperienceCapabilities>;
   persona: Row;

@@ -3,7 +3,7 @@ import{verifyProviderWebhookHmac}from'../../../packages/together-domain/src/prov
 
 const API_BASE='https://api.wavespeed.ai/api/v3';
 export type WaveSpeedStatus='created'|'processing'|'completed'|'failed'|'cancelled'|'timeout'|'deleted';
-export type WaveSpeedPrediction={id:string;model:string;status:WaveSpeedStatus;outputs:string[];error?:string;createdAt?:string;getUrl?:string;inferenceMs?:number;hasNsfwContents?:boolean[]};
+export type WaveSpeedPrediction={id:string;model:string;status:WaveSpeedStatus;outputs:string[];textOutputs?:string[];error?:string;createdAt?:string;getUrl?:string;inferenceMs?:number;hasNsfwContents?:boolean[]};
 export type WaveSpeedSubmission={provider:'wavespeed';providerRequestId:string;model:string;status:'submitted'|'completed';result?:WaveSpeedPrediction};
 
 export type WaveSpeedEnvelope={code?:number;message?:string;data?:{id?:string;model?:string;status?:string;outputs?:unknown;error?:unknown;created_at?:string;urls?:{get?:string};timings?:{inference?:number};has_nsfw_contents?:unknown}};
@@ -11,8 +11,9 @@ export type WaveSpeedEnvelope={code?:number;message?:string;data?:{id?:string;mo
 export class WaveSpeedClient{
   constructor(private readonly apiKey:string,private readonly webhookUrl?:string){}
 
-  async submit(model:string,input:Record<string,unknown>):Promise<WaveSpeedSubmission>{
-    const endpoint=`${API_BASE}/${model}${this.webhookUrl?`?webhook=${encodeURIComponent(this.webhookUrl)}`:''}`;
+  async submit(model:string,input:Record<string,unknown>,options:{webhook?:boolean}={}):Promise<WaveSpeedSubmission>{
+    const webhook=options.webhook===false?undefined:this.webhookUrl;
+    const endpoint=`${API_BASE}/${model}${webhook?`?webhook=${encodeURIComponent(webhook)}`:''}`;
     const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),60_000);
     try{
       const response=await fetch(endpoint,{method:'POST',headers:{Authorization:`Bearer ${this.apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({...input,enable_sync_mode:false,enable_base64_output:false}),signal:controller.signal});
@@ -37,6 +38,19 @@ export class WaveSpeedClient{
       return normalizePrediction(payload);
     }catch(error){if(error instanceof AppError)throw error;throw new AppError('PROVIDER_TIMEOUT','The provider result could not be checked right now.',503,true);}finally{clearTimeout(timeout);}
   }
+
+  async runToCompletion(model:string,input:Record<string,unknown>,timeoutMs=12_000):Promise<WaveSpeedPrediction|null>{
+    const submitted=await this.submit(model,input,{webhook:false});
+    if(submitted.status==='completed'&&submitted.result)return submitted.result;
+    const deadline=Date.now()+timeoutMs;
+    while(Date.now()<deadline){
+      await new Promise((resolve)=>setTimeout(resolve,1200));
+      const prediction=await this.getResult(submitted.providerRequestId);
+      if(prediction.status==='completed')return prediction;
+      if(['failed','cancelled','timeout','deleted'].includes(prediction.status))return prediction;
+    }
+    return null;
+  }
 }
 
 async function parseEnvelope(response:Response):Promise<WaveSpeedEnvelope>{const text=await response.text();try{return JSON.parse(text) as WaveSpeedEnvelope;}catch{return{code:response.status,message:text.slice(0,160)}};}
@@ -44,7 +58,8 @@ async function parseEnvelope(response:Response):Promise<WaveSpeedEnvelope>{const
 export function normalizePrediction(payload:WaveSpeedEnvelope,fallbackModel=''):WaveSpeedPrediction{
   const data=payload.data??{},status=String(data.status??'created') as WaveSpeedStatus;
   const validStatuses:WaveSpeedStatus[]=['created','processing','completed','failed','cancelled','timeout','deleted'];
-  return{id:String(data.id??''),model:String(data.model??fallbackModel),status:validStatuses.includes(status)?status:'failed',outputs:Array.isArray(data.outputs)?data.outputs.map(String).filter(isHttpsUrl):[],error:typeof data.error==='string'?data.error.slice(0,240):undefined,createdAt:data.created_at,getUrl:isHttpsUrl(data.urls?.get)?data.urls?.get:undefined,inferenceMs:Number.isFinite(data.timings?.inference)?Number(data.timings?.inference):undefined,hasNsfwContents:Array.isArray(data.has_nsfw_contents)?data.has_nsfw_contents.map(Boolean):undefined};
+  const rawOutputs=Array.isArray(data.outputs)?data.outputs.map((value)=>typeof value==='string'?value:JSON.stringify(value)).filter(Boolean):[];
+  return{id:String(data.id??''),model:String(data.model??fallbackModel),status:validStatuses.includes(status)?status:'failed',outputs:rawOutputs.filter(isHttpsUrl),textOutputs:rawOutputs.filter((value)=>!isHttpsUrl(value)),error:typeof data.error==='string'?data.error.slice(0,240):undefined,createdAt:data.created_at,getUrl:isHttpsUrl(data.urls?.get)?data.urls?.get:undefined,inferenceMs:Number.isFinite(data.timings?.inference)?Number(data.timings?.inference):undefined,hasNsfwContents:Array.isArray(data.has_nsfw_contents)?data.has_nsfw_contents.map(Boolean):undefined};
 }
 
 export function normalizeWaveSpeedWebhook(payload:unknown):WaveSpeedPrediction{
