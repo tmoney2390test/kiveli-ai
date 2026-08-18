@@ -1,9 +1,17 @@
-import{adminClient,serverEnv}from'../_shared/context.ts';
-import{json,serve}from'../_shared/http.ts';
-import{AppError}from'../_shared/types.ts';
-import{normalizeWaveSpeedWebhook,verifyWaveSpeedWebhook}from'../_shared/wavespeed.ts';
-import{failProviderMedia,finalizeProviderMedia}from'../_shared/together-media-finalizer.ts';
-import{finalizeAuxiliaryProviderJob}from'../_shared/together-media-auxiliary.ts';
+import { adminClient, serverEnv } from '../_shared/context.ts';
+import { json, serve } from '../_shared/http.ts';
+import { AppError } from '../_shared/types.ts';
+import { normalizeWaveSpeedWebhook, verifyWaveSpeedWebhook } from '../_shared/wavespeed.ts';
+import { failProviderMedia, finalizeProviderMedia } from '../_shared/together-media-finalizer.ts';
+import { finalizeAuxiliaryProviderJob } from '../_shared/together-media-auxiliary.ts';
+// Explicit roots keep the signed callback's finalization graph in Supabase's
+// remote bundle even when compact shared modules hide a transitive import.
+import '../../../packages/together-domain/src/provider-webhook.ts';
+import '../_shared/kivelle-subscription.ts';
+import '../_shared/together-media-base.ts';
+import '../_shared/together-media-providers.ts';
+import '../_shared/together-place.ts';
+import '../_shared/together.ts';
 
 serve(async(request,correlationId)=>{
   if(request.method!=='POST')throw new AppError('NOT_FOUND','Not found.',404);
