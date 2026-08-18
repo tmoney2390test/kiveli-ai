@@ -4,9 +4,11 @@ import{routeCanonicalMedia,type CanonicalMediaRequest,type ProviderCompletedMedi
 import{resolveSubscriptionState}from'./kivelle-subscription.ts';
 import{track}from'./together.ts';
 import{configuredWaveSpeedClient,envBoolean}from'./wavespeed.ts';
+import{AppError}from'./types.ts';
 import{parseMediaQualityVerdict,type MediaQualityVerdict}from'../../../packages/together-domain/src/media-quality.ts';
 
 export type MediaQualityGateResult={action:'accept';result:ProviderCompletedMedia}|{action:'deferred'}|{action:'reject';reasonCodes:string[]};
+type MediaQualityAssessment={verdict:MediaQualityVerdict;providerRequestId?:string|undefined;providerModel?:string|undefined;providerStatus?:string|undefined;providerError?:string|undefined;errorCode?:string|undefined;inferenceMs?:number|undefined;timedOut:boolean};
 
 const QUALITY_MODEL='wavespeed-ai/molmo2/image-qa';
 
@@ -14,11 +16,12 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   const metadata=(media.metadata??{}) as Record<string,unknown>;
   if(job.job_type!=='image'||job.provider!=='wavespeed'||metadata.source!=='user_request'||!result.outputUrl||!envBoolean('KIVELLE_MEDIA_QUALITY_GATE_ENABLED',true))return{action:'accept',result};
   const client=configuredWaveSpeedClient();if(!client)return{action:'accept',result};
-  const verdict=await assessImage(client,result.outputUrl).catch(()=>({status:'unavailable',reasonCodes:[]} as MediaQualityVerdict));
-  await track(db,String(media.user_id),'media_quality_checked',{mediaId:media.id,verdict:verdict.status,retryCount:Number((job.provider_metadata as Record<string,unknown>|null)?.qualityRetryCount??0)});
+  const assessment=await assessImage(client,result.outputUrl),verdict=assessment.verdict,qualityMetadata=assessmentMetadata(assessment),providerMetadata={...((job.provider_metadata??{}) as Record<string,unknown>),...qualityMetadata};
+  await db.from('together_media_provider_jobs').update({provider_metadata:providerMetadata,updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
+  await track(db,String(media.user_id),'media_quality_checked',compactRecord({mediaId:media.id,verdict:verdict.status,retryCount:Number(providerMetadata.qualityRetryCount??0),qaProviderRequestId:assessment.providerRequestId,qaProviderModel:assessment.providerModel,qaProviderStatus:assessment.providerStatus,qaErrorCode:assessment.errorCode,qaTimedOut:assessment.timedOut,qaInferenceMs:assessment.inferenceMs}));
   if(verdict.status!=='fail')return{action:'accept',result};
 
-  const providerMetadata=(job.provider_metadata??{}) as Record<string,unknown>,retryCount=Number(providerMetadata.qualityRetryCount??0);
+  const retryCount=Number(providerMetadata.qualityRetryCount??0);
   if(retryCount>=1)return{action:'reject',reasonCodes:verdict.reasonCodes};
 
   const now=new Date().toISOString();
@@ -45,10 +48,16 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   }
 }
 
-async function assessImage(client:NonNullable<ReturnType<typeof configuredWaveSpeedClient>>,imageUrl:string):Promise<MediaQualityVerdict>{
-  const prediction=await client.runToCompletion(Deno.env.get('WAVESPEED_MODEL_IMAGE_QUALITY')??QUALITY_MODEL,{images:[imageUrl],text:'Quality-control this single generated companion photo. Return exactly PASS when it is suitable for delivery. Otherwise return FAIL followed only by comma-separated codes from: face_distortion, face_blur, face_low_detail, face_too_small, duplicate_features, embedded_reference, rendered_text, multiple_subjects. Fail face_too_small when the primary companion face is too small to judge or recognize in a companion photo. Fail face_low_detail when eyes, nose, mouth, teeth, or facial structure are visibly mushy, smeared, flattened, or synthetic even if not severely melted. Fail face_distortion for unnatural facial anatomy. Also fail a visible source/profile image reproduced as a collage, inset, screen, poster, frame, or held photo; visible prompt/caption/instruction text; or unintended duplicate people. Do not fail natural asymmetry, makeup, expression, pose, ordinary photographic depth of field, or differences in clothing and environment.'},12_000);
-  if(!prediction||prediction.status!=='completed')return{status:'unavailable',reasonCodes:[]};
-  return parseMediaQualityVerdict(prediction.textOutputs?.[0]);
+async function assessImage(client:NonNullable<ReturnType<typeof configuredWaveSpeedClient>>,imageUrl:string):Promise<MediaQualityAssessment>{
+  try{
+    const run=await client.runToCompletion(Deno.env.get('WAVESPEED_MODEL_IMAGE_QUALITY')??QUALITY_MODEL,{images:[imageUrl],text:'Quality-control this single generated companion photo. Return exactly PASS when it is suitable for delivery. Otherwise return FAIL followed only by comma-separated codes from: face_distortion, face_blur, face_low_detail, face_too_small, duplicate_features, embedded_reference, rendered_text, multiple_subjects. Fail face_too_small when the primary companion face is too small to judge or recognize in a companion photo. Fail face_low_detail when eyes, nose, mouth, teeth, or facial structure are visibly mushy, smeared, flattened, or synthetic even if not severely melted. Fail face_distortion for unnatural facial anatomy. Also fail a visible source/profile image reproduced as a collage, inset, screen, poster, frame, or held photo; visible prompt/caption/instruction text; or unintended duplicate people. Do not fail natural asymmetry, makeup, expression, pose, ordinary photographic depth of field, or differences in clothing and environment.'},30_000);
+    const prediction=run.prediction,base={providerRequestId:run.providerRequestId,providerModel:run.model,providerStatus:prediction?.status??'processing',providerError:prediction?.error,inferenceMs:prediction?.inferenceMs,timedOut:run.timedOut};
+    if(!prediction||prediction.status!=='completed')return{...base,verdict:{status:'unavailable',reasonCodes:[]},errorCode:run.timedOut?'provider_poll_timeout':prediction?`provider_${prediction.status}`:'provider_result_unavailable'};
+    const verdict=parseMediaQualityVerdict(prediction.textOutputs?.[0]);
+    return{...base,verdict,...(verdict.status==='unavailable'?{errorCode:'provider_output_invalid'}:{})};
+  }catch(error){return{verdict:{status:'unavailable',reasonCodes:[]},errorCode:error instanceof AppError?error.code:'provider_unknown_error',timedOut:false};}
 }
 
 function asStrings(value:unknown):string[]{return Array.isArray(value)?value.map(String).filter(Boolean):[];}
+function assessmentMetadata(assessment:MediaQualityAssessment):Record<string,unknown>{return compactRecord({qualityCheckedAt:new Date().toISOString(),qualityProviderRequestId:assessment.providerRequestId,qualityProviderModel:assessment.providerModel,qualityProviderStatus:assessment.providerStatus,qualityProviderError:assessment.providerError,qualityErrorCode:assessment.errorCode,qualityTimedOut:assessment.timedOut,qualityInferenceMs:assessment.inferenceMs});}
+function compactRecord(value:Record<string,unknown>):Record<string,unknown>{return Object.fromEntries(Object.entries(value).filter(([,item])=>item!==undefined));}

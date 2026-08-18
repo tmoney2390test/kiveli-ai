@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Brain, ChevronRight, MessageCircle, RotateCcw, Trash2 } from 'lucide-react-native';
 import { CharacterAvatar, EmptyState, PageTitle, Screen, SectionHeader } from '../src/components';
 import { colors, radius } from '../src/theme';
@@ -11,6 +11,7 @@ import { createClientRequestId } from '../src/lib/requestId';
 import type { CharacterResetPreview, CharacterResetResult } from '../src/types';
 
 export default function ConversationControls() {
+  const params = useLocalSearchParams<{ character?: string }>();
   const { snapshot, refresh } = useTogether();
   const [resetId, setResetId] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState('');
@@ -33,7 +34,8 @@ export default function ConversationControls() {
 
   if (!snapshot) return <EmptyState title="Relationships unavailable" body="Reload Kivelle and try again." />;
   const selected = snapshot.characters.find((item) => item.id === resetId);
-  const meaningful = snapshot.characters.filter((item) => item.contact_added_at || item.introduced_at || item.relationship_stage !== 'stranger' || snapshot.conversations.some((conversation) => conversation.character_instance_id === item.id && (conversation.message_count ?? 0) > 0));
+  const focused = params.character ? snapshot.characters.find((item) => item.id === params.character || item.together_character_templates.slug === params.character) : undefined;
+  const meaningful = focused ? [focused] : snapshot.characters.filter((item) => item.contact_added_at || item.introduced_at || item.relationship_stage !== 'stranger' || snapshot.conversations.some((conversation) => conversation.character_instance_id === item.id && (conversation.message_count ?? 0) > 0));
 
   const reset = async (characterId: string, mode: 'memory'|'relationship'|'full') => {
     const target = snapshot.characters.find((item) => item.id === characterId);
@@ -63,9 +65,9 @@ export default function ConversationControls() {
   const relationshipReset = (id: string, name: string) => confirmAction({ title: 'Reset relationship progress?', message: `Your messages, memories, Moments, and photos will remain, but your relationship with ${name} will return to the beginning and Dates will relock.`, confirmLabel: 'Review reset', onConfirm: () => confirmAction({ title: 'Reset relationship progress', message: `Completed Date Moments remain part of your history. Reset progression with ${name}?`, confirmLabel: 'Reset progress', destructive: true, onConfirm: () => reset(id, 'relationship') }) });
 
   return <Screen>
-    <View style={styles.header}><Pressable accessibilityLabel="Back" onPress={() => router.back()}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Conversations & resets</PageTitle></View>
-    <Text style={styles.lead}>A conversation is not the relationship. Choose exactly what you want to change.</Text>
-    <SectionHeader title="Your companions" />
+    <View style={styles.header}><Pressable accessibilityLabel="Back" onPress={() => router.back()}><ArrowLeft color={colors.text} /></Pressable><PageTitle>{focused ? `${focused.together_character_templates.name} chat settings` : 'Conversations & resets'}</PageTitle></View>
+    <Text style={styles.lead}>{focused ? 'Manage this chat without changing the relationship unless you choose an advanced reset.' : 'A conversation is not the relationship. Choose exactly what you want to change.'}</Text>
+    <SectionHeader title={focused ? 'Conversation' : 'Your companions'} />
     {meaningful.map((character) => {
       const name = character.together_character_templates.name;
       const conversations = snapshot.conversations.filter((item) => item.character_instance_id === character.id).length;
