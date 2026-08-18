@@ -25,14 +25,14 @@ export function MediaTile({ media, style, onRetry }: { media: GeneratedMedia; st
       accessibilityRole="imagebutton"
       accessibilityLabel={`Open ${noun.toLowerCase()}`}
       onPress={() => router.push(`/media/${media.id}` as never)}
-      style={StyleSheet.absoluteFill}
+      style={[styles.mediaPressable,media.media_type==='image'&&styles.mediaPressableWithFeedback]}
     >
       {media.media_type === 'video' && media.parent_media_id
         ? <VideoPoster />
         : <Image source={{ uri: media.signed_url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={180} />}
       {media.media_type === 'video' ? <View style={styles.play}><Play size={20} color="#fff" fill="#fff" /></View> : null}
     </Pressable>
-    {media.media_type === 'image' ? <MediaFeedbackControls media={media} style={styles.feedbackOverlay} /> : null}
+    {media.media_type === 'image' ? <MediaFeedbackControls media={media} style={styles.feedbackBelow} /> : null}
   </View>;
 }
 
@@ -48,11 +48,10 @@ export function MediaFeedbackControls({media,style}:{media:GeneratedMedia;style?
   };
   return <View accessibilityLabel="Rate this photo" style={[styles.feedback,style]}>
     <Pressable accessibilityRole="button" accessibilityLabel="This photo looks good" accessibilityState={{selected:selected==='positive',disabled:busy}} disabled={busy} onPress={(event)=>void submit(event,'positive')} style={[styles.feedbackButton,selected==='positive'&&styles.feedbackButtonSelected]}>
-      <ThumbsUp size={15} color="#fff" fill={selected==='positive'?'#fff':'transparent'} strokeWidth={2}/>
+      <ThumbsUp size={13} color="#fff" fill={selected==='positive'?'#fff':'transparent'} strokeWidth={2}/>
     </Pressable>
-    <View style={styles.feedbackDivider}/>
     <Pressable accessibilityRole="button" accessibilityLabel="This photo looks wrong" accessibilityState={{selected:selected==='negative',disabled:busy}} disabled={busy} onPress={(event)=>void submit(event,'negative')} style={[styles.feedbackButton,selected==='negative'&&styles.feedbackButtonSelected]}>
-      <ThumbsDown size={15} color="#fff" fill={selected==='negative'?'#fff':'transparent'} strokeWidth={2}/>
+      <ThumbsDown size={13} color="#fff" fill={selected==='negative'?'#fff':'transparent'} strokeWidth={2}/>
     </Pressable>
   </View>;
 }
@@ -232,11 +231,12 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,.3)',
   },
   videoPoster: { alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.elevated },
-  feedbackOverlay:{position:'absolute',right:10,bottom:10},
-  feedback:{flexDirection:'row',alignItems:'center',height:34,borderRadius:radius.pill,overflow:'hidden',backgroundColor:'rgba(9,8,15,.62)',borderWidth:1,borderColor:'rgba(255,255,255,.24)',shadowColor:'#000',shadowOpacity:.28,shadowRadius:10,shadowOffset:{width:0,height:4}},
-  feedbackButton:{width:36,height:34,alignItems:'center',justifyContent:'center',opacity:.72},
-  feedbackButtonSelected:{opacity:1,backgroundColor:'rgba(255,255,255,.18)'},
-  feedbackDivider:{width:1,height:17,backgroundColor:'rgba(255,255,255,.18)'},
+  mediaPressable:{position:'absolute',top:0,right:0,bottom:0,left:0},
+  mediaPressableWithFeedback:{bottom:25},
+  feedbackBelow:{position:'absolute',right:4,bottom:0},
+  feedback:{flexDirection:'row',alignItems:'center',gap:1,height:24},
+  feedbackButton:{width:25,height:24,alignItems:'center',justifyContent:'center',opacity:.58},
+  feedbackButtonSelected:{opacity:1},
   retry: {
     flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, paddingVertical: 7,
     borderRadius: radius.pill, backgroundColor: 'rgba(241,103,154,.10)',
