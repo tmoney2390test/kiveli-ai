@@ -1,13 +1,13 @@
-import { useEffect, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Animated, Easing, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
-import { Camera, Play, RefreshCw, Sparkles } from 'lucide-react-native';
+import { Camera, Play, RefreshCw, Sparkles, ThumbsDown, ThumbsUp } from 'lucide-react-native';
 import { router } from 'expo-router';
 import type { GeneratedMedia } from '../types';
 import { colors, radius } from '../theme';
+import { rateGeneratedMedia } from '../lib/api';
 
 export function MediaTile({ media, style, onRetry }: { media: GeneratedMedia; style?: ViewStyle; onRetry?: () => void }) {
-  const meta = media.metadata ?? {};
   const noun = media.media_type === 'video' ? 'Video' : 'Photo';
   if (media.status === 'queued' || media.status === 'generating') return <MediaProgress media={media} style={style} />;
   if (media.status === 'failed') return <View style={[styles.tile, styles.pending, style]}>
@@ -20,22 +20,41 @@ export function MediaTile({ media, style, onRetry }: { media: GeneratedMedia; st
     </Pressable> : null}
   </View>;
   if (!media.signed_url) return null;
-  return <Pressable
-    accessibilityRole="imagebutton"
-    accessibilityLabel={`Open ${noun.toLowerCase()}`}
-    onPress={() => router.push(`/media/${media.id}` as never)}
-    style={[styles.tile, style]}
-  >
-    {media.media_type === 'video' && media.parent_media_id
-      ? <VideoPoster />
-      : <Image source={{ uri: media.signed_url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={180} />}
-    <View style={styles.shade} />
-    {media.media_type === 'video' ? <View style={styles.play}><Play size={20} color="#fff" fill="#fff" /></View> : null}
-    <View style={styles.footer}>
-      <Text style={styles.caption} numberOfLines={1}>{String(meta.sceneSummary ?? 'From your story')}</Text>
-      <Text style={styles.place}>{String(meta.timeOfDay ?? '')}</Text>
-    </View>
-  </Pressable>;
+  return <View style={[styles.tile, style]}>
+    <Pressable
+      accessibilityRole="imagebutton"
+      accessibilityLabel={`Open ${noun.toLowerCase()}`}
+      onPress={() => router.push(`/media/${media.id}` as never)}
+      style={StyleSheet.absoluteFill}
+    >
+      {media.media_type === 'video' && media.parent_media_id
+        ? <VideoPoster />
+        : <Image source={{ uri: media.signed_url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={180} />}
+      {media.media_type === 'video' ? <View style={styles.play}><Play size={20} color="#fff" fill="#fff" /></View> : null}
+    </Pressable>
+    {media.media_type === 'image' ? <MediaFeedbackControls media={media} style={styles.feedbackOverlay} /> : null}
+  </View>;
+}
+
+export function MediaFeedbackControls({media,style}:{media:GeneratedMedia;style?:ViewStyle}){
+  const[selected,setSelected]=useState<'positive'|'negative'|null>(media.user_feedback??null);
+  const[busy,setBusy]=useState(false);
+  useEffect(()=>setSelected(media.user_feedback??null),[media.id,media.user_feedback]);
+  const submit=async(event:GestureResponderEvent,feedback:'positive'|'negative')=>{
+    event.stopPropagation?.();
+    if(busy||selected===feedback)return;
+    const previous=selected;setSelected(feedback);setBusy(true);
+    try{await rateGeneratedMedia(media.id,feedback);}catch(error){setSelected(previous);Alert.alert('Feedback not saved',error instanceof Error?error.message:'Please try again.');}finally{setBusy(false);}
+  };
+  return <View accessibilityLabel="Rate this photo" style={[styles.feedback,style]}>
+    <Pressable accessibilityRole="button" accessibilityLabel="This photo looks good" accessibilityState={{selected:selected==='positive',disabled:busy}} disabled={busy} onPress={(event)=>void submit(event,'positive')} style={[styles.feedbackButton,selected==='positive'&&styles.feedbackButtonSelected]}>
+      <ThumbsUp size={15} color="#fff" fill={selected==='positive'?'#fff':'transparent'} strokeWidth={2}/>
+    </Pressable>
+    <View style={styles.feedbackDivider}/>
+    <Pressable accessibilityRole="button" accessibilityLabel="This photo looks wrong" accessibilityState={{selected:selected==='negative',disabled:busy}} disabled={busy} onPress={(event)=>void submit(event,'negative')} style={[styles.feedbackButton,selected==='negative'&&styles.feedbackButtonSelected]}>
+      <ThumbsDown size={15} color="#fff" fill={selected==='negative'?'#fff':'transparent'} strokeWidth={2}/>
+    </Pressable>
+  </View>;
 }
 
 function MediaProgress({ media, style }: { media: GeneratedMedia; style?: ViewStyle }) {
@@ -207,15 +226,17 @@ const styles = StyleSheet.create({
     overflow: 'hidden', backgroundColor: 'rgba(255,255,255,.08)',
   },
   progressFill: { width: '100%', height: '100%', borderRadius: 2, backgroundColor: colors.rose },
-  shade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(8,11,19,.18)' },
   play: {
     position: 'absolute', left: '50%', top: '44%', width: 48, height: 48, marginLeft: -24, marginTop: -24,
     borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10,8,17,.72)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,.3)',
   },
   videoPoster: { alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.elevated },
-  footer: { padding: 11, backgroundColor: 'rgba(8,11,19,.68)' },
-  place: { color: colors.muted, fontSize: 9, marginTop: 3, textTransform: 'capitalize' },
+  feedbackOverlay:{position:'absolute',right:10,bottom:10},
+  feedback:{flexDirection:'row',alignItems:'center',height:34,borderRadius:radius.pill,overflow:'hidden',backgroundColor:'rgba(9,8,15,.62)',borderWidth:1,borderColor:'rgba(255,255,255,.24)',shadowColor:'#000',shadowOpacity:.28,shadowRadius:10,shadowOffset:{width:0,height:4}},
+  feedbackButton:{width:36,height:34,alignItems:'center',justifyContent:'center',opacity:.72},
+  feedbackButtonSelected:{opacity:1,backgroundColor:'rgba(255,255,255,.18)'},
+  feedbackDivider:{width:1,height:17,backgroundColor:'rgba(255,255,255,.18)'},
   retry: {
     flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, paddingVertical: 7,
     borderRadius: radius.pill, backgroundColor: 'rgba(241,103,154,.10)',

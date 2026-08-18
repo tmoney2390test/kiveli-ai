@@ -17,6 +17,7 @@ const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('request'),characterInstanceId:z.string().uuid(),source:z.enum(['user_request','life_event','date','moment','story']).default('user_request'),conversationId:z.string().uuid().optional(),messageId:z.string().uuid().optional(),lifeEventId:z.string().uuid().optional(),dateSessionId:z.string().uuid().optional(),momentId:z.string().uuid().optional(),storyArcId:z.string().uuid().optional(),requestText:z.string().trim().max(400).optional(),idempotencyKey:z.string().trim().min(8).max(120).optional()}),
   z.object({action:z.literal('retry'),mediaId:z.string().uuid()}),
   z.object({action:z.literal('status'),mediaId:z.string().uuid()}),
+  z.object({action:z.literal('feedback'),mediaId:z.string().uuid(),feedback:z.enum(['positive','negative'])}),
   z.object({action:z.literal('remove'),mediaId:z.string().uuid()}),
   z.object({action:z.literal('preferences'),companionPhotos:z.boolean(),automaticPhotos:z.boolean()}),
   z.object({action:z.literal('content_preferences'),suggestiveMediaEnabled:z.boolean(),matureMediaEnabled:z.boolean(),explicitMediaEnabled:z.boolean(),adultVideoEnabled:z.boolean()}),
@@ -67,6 +68,14 @@ serve(async(request,correlationId)=>{
     let signedUrl:string|null=null;
     if(media.status==='ready'&&media.storage_path){const {data}=await db.storage.from('together-user-media').createSignedUrl(media.storage_path,3600);signedUrl=data?.signedUrl??null;}
     return json({data:{media:{...media,signed_url:signedUrl}},correlationId},200,correlationId);
+  }
+  if(input.action==='feedback'){
+    if(media.media_type!=='image'||media.status!=='ready')throw new AppError('CONFLICT','Only a completed photo can be rated.',409);
+    const feedbackAt=new Date().toISOString();
+    const{error}=await db.from('together_generated_media').update({user_feedback:input.feedback,user_feedback_at:feedbackAt,updated_at:feedbackAt}).eq('id',media.id).eq('user_id',user.id).eq('continuity_id',continuity.id);
+    if(error)throw new AppError('INTERNAL_ERROR','Photo feedback could not be saved.',500,true);
+    await track(db,user.id,'generated_media_feedback_submitted',{mediaId:media.id,characterInstanceId:media.character_instance_id,feedback:input.feedback,provider:media.provider??null});
+    return json({data:{mediaId:media.id,userFeedback:input.feedback,userFeedbackAt:feedbackAt},correlationId},200,correlationId);
   }
   if(input.action==='retry'){
     if(media.status!=='failed')throw new AppError('CONFLICT','Only a failed photo can be retried.',409);

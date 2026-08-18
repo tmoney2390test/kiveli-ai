@@ -36,6 +36,7 @@ export const startOverCharacter = (characterInstanceId:string,requestId:string) 
 export const manageInteraction = <T = {scene:SceneSession;action?:SceneAction;interactions:InteractionCandidate[];destinations:InteractionCandidate[]}>(input: Record<string, unknown>) => invoke<T>('together-interaction', input);
 export const enterScene = <T>(input:{characterInstanceId:string;locationId:string;conversationId?:string}) => invoke<T>('together-conversation',{action:'enter_scene',...input});
 export const manageMedia = <T>(input: Record<string, unknown>) => invoke<T>('together-media', input);
+export const rateGeneratedMedia = (mediaId:string,feedback:'positive'|'negative') => manageMedia<{mediaId:string;userFeedback:'positive'|'negative';userFeedbackAt:string}>({action:'feedback',mediaId,feedback});
 export const animateMedia = (mediaId:string,requestId:string,motionPrompt?:string,durationSeconds=5) => manageMedia<{media:GeneratedMedia;creditCost?:number}>({action:'animate',mediaId,requestId,motionPrompt,durationSeconds});
 export const saveMediaContentPreferences = (input:{suggestiveMediaEnabled:boolean;matureMediaEnabled:boolean;explicitMediaEnabled:boolean;adultVideoEnabled:boolean}) => manageMedia<{saved:boolean;preferences:Record<string,unknown>}>({action:'content_preferences',...input});
 export const manageMultimodal = <T>(input:Record<string,unknown>) => invoke<T>('together-multimodal',input);
