@@ -18,6 +18,7 @@ type State={
   upsertMoment:(moment:Moment)=>void;
   upsertPlan:(plan:SharedPlan)=>void;
   upsertMedia:(media:GeneratedMedia)=>void;
+  removeMedia:(mediaId:string)=>void;
   upsertSceneSession:(scene:SceneSession)=>void;
   applyServerDelta:(delta:SnapshotDelta)=>void;
   setBrowsedWorldId:(worldId:string|null)=>void;
@@ -40,6 +41,7 @@ export const useTogether=create<State>((set)=>{
     upsertMoment:(moment)=>patchSnapshot((snapshot)=>({...snapshot,moments:upsert(snapshot.moments,moment)})),
     upsertPlan:(plan)=>patchSnapshot((snapshot)=>({...snapshot,sharedPlans:upsert(snapshot.sharedPlans,plan)})),
     upsertMedia:(media)=>patchSnapshot((snapshot)=>({...snapshot,generatedMedia:upsert(snapshot.generatedMedia??[],media)})),
+    removeMedia:(mediaId)=>patchSnapshot((snapshot)=>({...snapshot,generatedMedia:(snapshot.generatedMedia??[]).filter((item)=>item.id!==mediaId)})),
     upsertSceneSession:(scene)=>patchSnapshot((snapshot)=>({...snapshot,sceneSessions:upsert(snapshot.sceneSessions??[],scene)})),
     applyServerDelta:(delta)=>patchSnapshot((snapshot)=>{
       const scope=<T extends{character_instance_id:string}>(current:T[]|undefined,next:T[]|undefined)=>next?[...(current??[]).filter((item)=>item.character_instance_id!==delta.characterInstanceId),...next]:current;
