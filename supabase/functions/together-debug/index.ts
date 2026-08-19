@@ -7,6 +7,7 @@ import { buildSnapshot } from '../_shared/together.ts';
 import { runLifeSimulation } from '../_shared/together-life.ts';
 import { buildKivelleConversationContext } from '../_shared/kivelle-conversation-context.ts';
 import { summarizeAiUsage } from '../../../packages/together-domain/src/ai-usage.ts';
+import { compileCompanionPrompt } from '../_shared/kivelle-intelligence.ts';
 
 const schema = z.object({ action: z.enum(['inspect','inspect_context','inspect_media','inspect_ai_usage','inspect_media_economics','adjust_relationship','content_inspect','simulate_content']), characterInstanceId: z.string().uuid().optional(), mediaId:z.string().uuid().optional(), message:z.string().max(4000).optional(), changes: z.record(z.string(), z.number()).optional(), days: z.number().int().min(1).max(30).optional() });
 
@@ -48,7 +49,8 @@ serve(async (request, correlationId) => {
     if(!instance||!conversation)throw new AppError('NOT_FOUND','That conversation is unavailable.',404);
     const lifeRun=await runLifeSimulation({db,userId:user.id,characterInstanceId:instance.id,trigger:'home_opened',evaluateProactive:false});
     const context=await buildKivelleConversationContext({db,userId:user.id,instance,conversation,userMessage:input.message??'What is happening right now?',lifeRun});
-    return json({data:{...context,debug:{...context.debug,note:'Credentials, provider secrets, embeddings, and sensitive memories are excluded.'}},correlationId},200,correlationId);
+    const compilation=compileCompanionPrompt(context);
+    return json({data:{...context,debug:{...context.debug,contextBudget:{ceilingTokens:compilation.ceilingTokens,estimatedTokens:compilation.estimatedTokens,utilization:compilation.utilization,sections:compilation.sections},note:'Credentials, provider secrets, prompt text, embeddings, and sensitive memory text are excluded.'}},correlationId},200,correlationId);
   }
   if (input.action === 'adjust_relationship') {
     if (!input.characterInstanceId || !input.changes) throw new AppError('VALIDATION_FAILED', 'Choose a character and changes.', 400);

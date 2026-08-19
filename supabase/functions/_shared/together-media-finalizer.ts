@@ -5,6 +5,7 @@ import{track}from'./together.ts';
 import type{ProviderCompletedMedia}from'./together-media-providers.ts';
 import{gateGeneratedImageQuality}from'./together-media-quality.ts';
 import{completeMediaUsageAttempt,markMediaOfferOutcome}from'./together-media-usage.ts';
+import{isSafeExternalHttpsUrl,matchesDeclaredMediaSignature}from'../../../packages/together-domain/src/security.ts';
 
 const MAX_IMAGE_BYTES=20*1024*1024;
 const MAX_VIDEO_BYTES=80*1024*1024;
@@ -125,19 +126,38 @@ async function failCreatorAsset(db:SupabaseClient,job:Record<string,unknown>,fai
 }
 
 async function downloadProviderOutput(url:string,mediaType:string):Promise<{bytes:Uint8Array;contentType:string}>{
-  if(!isHttpsUrl(url))throw new AppError('PROVIDER_UNAVAILABLE','The media provider returned an invalid result.',503,false);
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),45_000);
-  try{const response=await fetch(url,{signal:controller.signal,redirect:'follow'});if(!response.ok)throw new AppError('PROVIDER_UNAVAILABLE','The generated media could not be collected.',503,true);const declared=Number(response.headers.get('content-length')??0),max=mediaType==='video'?MAX_VIDEO_BYTES:MAX_IMAGE_BYTES;if(declared>max)throw new AppError('PROVIDER_REQUEST_INVALID','The generated media was larger than allowed.',422,false);const bytes=new Uint8Array(await response.arrayBuffer());return{bytes,contentType:(response.headers.get('content-type')??defaultContentType(mediaType)).split(';')[0]!.toLowerCase()};}catch(error){if(error instanceof AppError)throw error;throw new AppError('PROVIDER_TIMEOUT','The generated media could not be collected yet.',503,true);}finally{clearTimeout(timeout);}
+  try{const response=await fetchProviderOutput(url,controller.signal);if(!response.ok)throw new AppError('PROVIDER_UNAVAILABLE','The generated media could not be collected.',503,true);const declared=Number(response.headers.get('content-length')??0),max=mediaType==='video'?MAX_VIDEO_BYTES:MAX_IMAGE_BYTES;if(declared>max)throw new AppError('PROVIDER_REQUEST_INVALID','The generated media was larger than allowed.',422,false);const bytes=await readResponseBytes(response,max);return{bytes,contentType:(response.headers.get('content-type')??defaultContentType(mediaType)).split(';')[0]!.toLowerCase()};}catch(error){if(error instanceof AppError)throw error;throw new AppError('PROVIDER_TIMEOUT','The generated media could not be collected yet.',503,true);}finally{clearTimeout(timeout);}
 }
 
 async function downloadProviderBinary(url:string,maxBytes:number,allowedContentTypes:string[]):Promise<{bytes:Uint8Array;contentType:string}>{
-  if(!isHttpsUrl(url))throw new AppError('PROVIDER_UNAVAILABLE','The provider returned an invalid model result.',503,false);
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),90_000);
-  try{const response=await fetch(url,{signal:controller.signal,redirect:'follow'});if(!response.ok)throw new AppError('PROVIDER_UNAVAILABLE','The trained model could not be collected.',503,true);const declared=Number(response.headers.get('content-length')??0);if(declared>maxBytes)throw new AppError('PROVIDER_REQUEST_INVALID','The trained model was larger than allowed.',422,false);const bytes=new Uint8Array(await response.arrayBuffer());if(!bytes.byteLength||bytes.byteLength>maxBytes)throw new AppError('PROVIDER_REQUEST_INVALID','The trained model was larger than allowed.',422,false);const contentType=(response.headers.get('content-type')??'application/octet-stream').split(';')[0]!.toLowerCase();if(!allowedContentTypes.includes(contentType)&&contentType!=='application/octet-stream')throw new AppError('PROVIDER_REQUEST_INVALID','The provider returned an unsupported model format.',422,false);return{bytes,contentType};}catch(error){if(error instanceof AppError)throw error;throw new AppError('PROVIDER_TIMEOUT','The trained model could not be collected yet.',503,true);}finally{clearTimeout(timeout);}
+  try{const response=await fetchProviderOutput(url,controller.signal);if(!response.ok)throw new AppError('PROVIDER_UNAVAILABLE','The trained model could not be collected.',503,true);const declared=Number(response.headers.get('content-length')??0);if(declared>maxBytes)throw new AppError('PROVIDER_REQUEST_INVALID','The trained model was larger than allowed.',422,false);const bytes=await readResponseBytes(response,maxBytes);const contentType=(response.headers.get('content-type')??'application/octet-stream').split(';')[0]!.toLowerCase();if(!allowedContentTypes.includes(contentType)&&contentType!=='application/octet-stream')throw new AppError('PROVIDER_REQUEST_INVALID','The provider returned an unsupported model format.',422,false);return{bytes,contentType};}catch(error){if(error instanceof AppError)throw error;throw new AppError('PROVIDER_TIMEOUT','The trained model could not be collected yet.',503,true);}finally{clearTimeout(timeout);}
 }
 
-function validateOutput(bytes:Uint8Array,contentType:string,mediaType:string){const max=mediaType==='video'?MAX_VIDEO_BYTES:MAX_IMAGE_BYTES,allowed=mediaType==='video'?['video/mp4','video/webm']:['image/jpeg','image/png','image/webp'];if(!bytes.byteLength||bytes.byteLength>max||!allowed.includes(contentType))throw new AppError('PROVIDER_REQUEST_INVALID','The provider result did not match the expected media format.',422,false);}
+async function fetchProviderOutput(value:string,signal:AbortSignal):Promise<Response>{
+  let current=value;
+  for(let redirect=0;redirect<=3;redirect+=1){
+    if(!isSafeExternalHttpsUrl(current))throw new AppError('PROVIDER_UNAVAILABLE','The media provider returned an invalid result.',503,false);
+    const response=await fetch(current,{signal,redirect:'manual'});
+    if(![301,302,303,307,308].includes(response.status))return response;
+    if(redirect===3)throw new AppError('PROVIDER_UNAVAILABLE','The media provider returned too many redirects.',503,false);
+    const location=response.headers.get('location');
+    if(!location)throw new AppError('PROVIDER_UNAVAILABLE','The media provider returned an invalid redirect.',503,false);
+    await response.body?.cancel();
+    current=new URL(location,current).toString();
+  }
+  throw new AppError('PROVIDER_UNAVAILABLE','The media provider returned an invalid result.',503,false);
+}
+
+async function readResponseBytes(response:Response,maxBytes:number):Promise<Uint8Array>{
+  if(!response.body)return new Uint8Array();
+  const reader=response.body.getReader(),chunks:Uint8Array[]=[];let total=0;
+  try{while(true){const{done,value}=await reader.read();if(done)break;if(!value)continue;total+=value.byteLength;if(total>maxBytes){await reader.cancel();throw new AppError('PROVIDER_REQUEST_INVALID','The provider result was larger than allowed.',422,false);}chunks.push(value);}}finally{reader.releaseLock();}
+  const bytes=new Uint8Array(total);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}return bytes;
+}
+
+function validateOutput(bytes:Uint8Array,contentType:string,mediaType:string){const max=mediaType==='video'?MAX_VIDEO_BYTES:MAX_IMAGE_BYTES,allowed=mediaType==='video'?['video/mp4','video/webm']:['image/jpeg','image/png','image/webp'];if(!bytes.byteLength||bytes.byteLength>max||!allowed.includes(contentType)||!matchesDeclaredMediaSignature(bytes,contentType))throw new AppError('PROVIDER_REQUEST_INVALID','The provider result did not match the expected media format.',422,false);}
 function extensionFor(contentType:string,mediaType:string){if(contentType==='image/webp')return'webp';if(contentType==='image/png')return'png';if(contentType==='video/webm')return'webm';return mediaType==='video'?'mp4':'jpg';}
 function defaultContentType(mediaType:string){return mediaType==='video'?'video/mp4':'image/jpeg';}
-function isHttpsUrl(value:string){try{return new URL(value).protocol==='https:';}catch{return false;}}
 function sanitizeProviderMetadata(value:Record<string,unknown>):Record<string,unknown>{const allowed=['status','hasNsfwContents','inferenceMs','outputCount','webhookReceivedAt'];return Object.fromEntries(allowed.filter((key)=>key in value).map((key)=>[key,value[key]]));}

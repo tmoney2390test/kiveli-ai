@@ -1,9 +1,16 @@
 import { AppError } from './types.ts';
+import { normalizeCorrelationId } from '../../../packages/together-domain/src/security.ts';
 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, idempotency-key, x-kivelle-timezone',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+  'Cache-Control': 'no-store',
+  'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  'Referrer-Policy': 'no-referrer',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
 };
 
 export function json(data: unknown, status = 200, correlationId: string = crypto.randomUUID()): Response {
@@ -18,7 +25,7 @@ export function errorResponse(error: unknown, correlationId: string): Response {
 
 export function serve(handler: (request: Request, correlationId: string) => Promise<Response>): void {
   Deno.serve(async (request) => {
-    const correlationId = request.headers.get('x-correlation-id') ?? crypto.randomUUID();
+    const correlationId = normalizeCorrelationId(request.headers.get('x-correlation-id'));
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders });
     try { return await handler(request, correlationId); } catch (error) { return errorResponse(error, correlationId); }
   });

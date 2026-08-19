@@ -1,20 +1,22 @@
 import { z } from 'zod';
 import { adminClient, serverEnv } from '../_shared/context.ts';
-import { parseBody } from '../_shared/body.ts';
+import { parseBody, readRequestText } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { canonicalCreditPurchaseAmount,entitlementsForTier, normalizeSubscriptionTier,resolveCreditPurchaseGrant, type SubscriptionTier } from '../../../packages/together-domain/src/index.ts';
 import { resolveSubscriptionState } from '../_shared/kivelle-subscription.ts';
 import { stripeObjectCustomerId, stripeObjectSubscriptionId, stripePeriod, stripePriceForTier, stripeSubscriptionHasAccess, verifyStripeWebhook, type StripeEvent } from '../_shared/stripe.ts';
 import { track } from '../_shared/together.ts';
+import { constantTimeEqual } from '../../../packages/together-domain/src/security.ts';
 
 const legacySchema=z.object({eventId:z.string().trim().min(6).max(200),eventType:z.enum(['subscription_updated','subscription_cancelled','credit_purchase']),provider:z.string().trim().min(1).max(80).default('configured'),userId:z.string().uuid(),tier:z.enum(['free','kivelle_plus','kivelle_max','together_plus','unlimited']).optional(),productKey:z.string().trim().max(160).optional(),periodStart:z.string().datetime().optional(),periodEnd:z.string().datetime().optional(),expiresAt:z.string().datetime().nullable().optional(),creditAmount:z.number().int().positive().max(100000).optional(),metadata:z.record(z.string(),z.unknown()).default({})});
 type Db=ReturnType<typeof adminClient>;
 
 serve(async(request,correlationId)=>{
+  if(request.method!=='POST')throw new AppError('NOT_FOUND','That endpoint is unavailable.',404);
   const signature=request.headers.get('stripe-signature');
-  if(signature){const raw=await request.text(),event=await verifyStripeWebhook(raw,signature);return handleStripeEvent(adminClient(),event,correlationId);}
-  const secret=serverEnv('KIVELLE_BILLING_WEBHOOK_SECRET');if(request.headers.get('x-kivelle-billing-secret')!==secret)throw new AppError('FORBIDDEN','Billing webhook authorization failed.',403);
+  if(signature){const raw=await readRequestText(request),event=await verifyStripeWebhook(raw,signature);return handleStripeEvent(adminClient(),event,correlationId);}
+  const secret=serverEnv('KIVELLE_BILLING_WEBHOOK_SECRET'),supplied=request.headers.get('x-kivelle-billing-secret');if(!supplied||!constantTimeEqual(supplied,secret))throw new AppError('FORBIDDEN','Billing webhook authorization failed.',403);
   return handleLegacyEvent(adminClient(),await parseBody(request,legacySchema),correlationId);
 });
 

@@ -79,7 +79,7 @@ export default function MessageInbox() {
     });
   };
 
-  if (chatHref) return <Redirect href={chatHref as never} />;
+  if (chatHref) return <Redirect href={chatHref} />;
   if (!snapshot) return <EmptyState title="Messages unavailable" body="Reload Kivelle and try again." />;
   return <SafeAreaView edges={['top']} style={styles.screen}>
     <View pointerEvents="none" style={styles.glowTop} />

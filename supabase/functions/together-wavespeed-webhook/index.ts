@@ -1,6 +1,7 @@
 import { adminClient, serverEnv } from '../_shared/context.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
+import { readRequestText } from '../_shared/body.ts';
 import { normalizeWaveSpeedWebhook, verifyWaveSpeedWebhook } from '../_shared/wavespeed.ts';
 import { failProviderMedia, finalizeProviderMedia } from '../_shared/together-media-finalizer.ts';
 import { finalizeAuxiliaryProviderJob } from '../_shared/together-media-auxiliary.ts';
@@ -17,7 +18,7 @@ import '../_shared/together.ts';
 
 serve(async(request,correlationId)=>{
   if(request.method!=='POST')throw new AppError('NOT_FOUND','Not found.',404);
-  const rawBody=await request.text(),webhookId=request.headers.get('webhook-id'),timestamp=request.headers.get('webhook-timestamp'),signature=request.headers.get('webhook-signature');
+  const rawBody=await readRequestText(request),webhookId=request.headers.get('webhook-id'),timestamp=request.headers.get('webhook-timestamp'),signature=request.headers.get('webhook-signature');
   const valid=await verifyWaveSpeedWebhook({rawBody,webhookId,timestamp,signature,secret:serverEnv('WAVESPEED_WEBHOOK_SECRET')});
   if(!valid)throw new AppError('FORBIDDEN','Webhook signature verification failed.',403);
   let payload:unknown;try{payload=JSON.parse(rawBody);}catch{throw new AppError('VALIDATION_ERROR','Invalid webhook payload.',400);}

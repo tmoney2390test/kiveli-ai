@@ -4,7 +4,7 @@ import { experienceClock } from './kivelle-time.ts';
 import { resolvePlaceContext } from './together-place.ts';
 import { activeContinuity } from './together-continuity.ts';
 import { normalizeMultimodalPreferences, resolveServerExperienceCapabilities } from './kivelle-multimodal.ts';
-import { applyRelationshipProposal, firstDateEligibility, isDurableUserMemory, isRelationshipDirectedPreferenceObject, lifeEventHasExplicitPresenceAuthority, nextRelationshipMilestone as selectRelationshipMilestone, relationshipCue, type RelationshipState } from '../../../packages/together-domain/src/index.ts';
+import { applyRelationshipProposal, firstDateEligibility, isDurableUserMemory, isRelationshipDirectedPreferenceObject, lifeEventHasExplicitPresenceAuthority, mergeRollingConversationState, nextRelationshipMilestone as selectRelationshipMilestone, relationshipCue, type RelationshipState } from '../../../packages/together-domain/src/index.ts';
 
 export const TOGETHER_IDS = {
   world: '10000000-0000-4000-8000-000000000001',
@@ -137,39 +137,8 @@ export function summarizeConversation(turns: Array<{ role: string; content: stri
   return summary.length <= limit ? summary : `${summary.slice(0, limit - 1).trimEnd()}…`;
 }
 
-type ConversationContinuitySummary = {
-  version: 1;
-  topics: string[];
-  recentContext: string;
-  emotionalContext?: string;
-  unresolvedConversationPoints: string[];
-  sharedJokesOrReferences: string[];
-  storyReferences: string[];
-  updatedThroughMessageId?: string;
-};
-
-export function mergeConversationSummary(previousValue: string, turns: Array<{ id?: string; role: string; content: string }>): string {
-  let previous: Partial<ConversationContinuitySummary> = {};
-  try { previous = JSON.parse(previousValue) as Partial<ConversationContinuitySummary>; } catch { if (previousValue.trim()) previous.recentContext = previousValue.trim(); }
-  const recent = summarizeConversation(turns, 760);
-  const userTurns = turns.filter((turn) => turn.role === 'user').map((turn) => turn.content.trim());
-  const allText = turns.map((turn) => turn.content).join(' ');
-  const emotional = allText.match(/\b(?:nervous|excited|upset|happy|sad|worried|stressed|proud|angry|afraid|hopeful)\b/gi) ?? [];
-  const questions = userTurns.filter((text) => text.endsWith('?')).slice(-2);
-  const jokes = turns.filter((turn) => /\b(?:haha|lol|joke|teas(?:e|ing)|😂|😄)\b/i.test(turn.content)).map((turn) => turn.content.trim()).slice(-2);
-  const topics = [...new Set([...(previous.topics ?? []), ...userTurns.map((text) => text.split(/[.!?]/)[0]?.trim()).filter(Boolean)])].slice(-6);
-  const priorContext = String(previous.recentContext ?? '').slice(-520);
-  const summary: ConversationContinuitySummary = {
-    version: 1,
-    topics: topics.filter((item):item is string=>typeof item==='string').map((item) => item.slice(0, 100)),
-    recentContext: [priorContext, recent].filter(Boolean).join('\n').slice(-1100),
-    emotionalContext: emotional.length ? `Recent emotional cues: ${[...new Set(emotional.map((item) => item.toLowerCase()))].slice(-5).join(', ')}.` : previous.emotionalContext,
-    unresolvedConversationPoints: [...(previous.unresolvedConversationPoints ?? []), ...questions].slice(-4).map((item) => item.slice(0, 180)),
-    sharedJokesOrReferences: [...(previous.sharedJokesOrReferences ?? []), ...jokes].slice(-3).map((item) => item.slice(0, 180)),
-    storyReferences: (previous.storyReferences ?? []).slice(-4),
-    updatedThroughMessageId: turns.at(-1)?.id ?? previous.updatedThroughMessageId,
-  };
-  return JSON.stringify(summary);
+export function mergeConversationSummary(previousValue: string, turns: Array<{ id?: string; role: string; content: string; created_at?: string }>): string {
+  return mergeRollingConversationState(previousValue, turns);
 }
 
 function cleanContinuityObject(value: string): string {

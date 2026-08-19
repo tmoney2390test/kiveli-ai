@@ -2,17 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { CompanionGenderToggle, useCompanionGenderPreference } from '../CompanionGenderToggle';
+import { CompanionWorldToggle } from '../CompanionWorldToggle';
 import { CompanionPortraitCard } from '../CompanionPortraitCard';
 import { colors, radius, typography } from '../../theme';
 import { FEATURED_COMPANION_LIMIT, featuredCompanionRail, featuredCompanionsMatchingGender, type FeaturedCompanion } from '../../lib/featuredCompanions';
 import type { World } from '../../types';
 
-export function FeaturedCompanionsSection({ companions, world, favoriteIds, onOpen, onViewAll, onToggleFavorite }: {
+export function FeaturedCompanionsSection({ companions, world, worlds, favoriteIds, onOpen, onViewAll, onSelectWorld, onToggleFavorite }: {
   companions: FeaturedCompanion[];
   world: World;
+  worlds: World[];
   favoriteIds: string[];
   onOpen: (companion: FeaturedCompanion) => void;
   onViewAll: () => void;
+  onSelectWorld: (worldId: string) => void;
   onToggleFavorite: (companion: FeaturedCompanion, favorite: boolean) => Promise<void>;
 }) {
   const { width } = useWindowDimensions();
@@ -58,7 +61,10 @@ export function FeaturedCompanionsSection({ companions, world, favoriteIds, onOp
         <Text style={styles.subtitle}>People to discover in {world.name}</Text>
       </View>
     </View>
-    <CompanionGenderToggle value={gender} onChange={chooseGender} />
+    <View style={styles.filters}>
+      <CompanionGenderToggle value={gender} onChange={chooseGender} />
+      <CompanionWorldToggle worlds={worlds} value={world.id} onChange={onSelectWorld} />
+    </View>
     {featured.length ? <View style={styles.railFrame}>
       <ScrollView ref={rail} horizontal decelerationRate="fast" snapToInterval={step} snapToAlignment="start" disableIntervalMomentum showsHorizontalScrollIndicator={false} onMomentumScrollEnd={syncIndex} contentContainerStyle={styles.rail}>
         {featured.map((companion) => <CompanionPortraitCard key={companion.id} companion={companion} width={cardWidth} favorite={favoriteIds.includes(companion.id)} favoriteBusy={savingFavoriteId === companion.id} onFavorite={() => void toggleFavorite(companion)} onPress={() => onOpen(companion)} />)}
@@ -85,6 +91,7 @@ const styles = StyleSheet.create({
   heading: { color: colors.text, fontFamily: typography.display, fontSize: 32, lineHeight: 37, fontWeight: '600', letterSpacing: -.6 },
   headingAccent: { color: '#AEA3F2' },
   subtitle: { color: colors.muted, fontSize: 12, lineHeight: 18 },
+  filters: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap', zIndex: 30 },
   railFrame: { position: 'relative', minHeight: 390 },
   rail: { gap: 12, paddingHorizontal: 3, paddingRight: 18 },
   imageArrow: { position: 'absolute', zIndex: 8, top: 0, bottom: 0, width: 58, alignItems: 'center', justifyContent: 'center' },

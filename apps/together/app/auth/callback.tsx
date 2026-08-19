@@ -11,9 +11,9 @@ export default function AuthCallback() {
   const [error, setError] = useState(errorDescription ?? '');
   useEffect(() => {
     if (loading) return;
-    if (session) { router.replace((safeAppReturnPath(next)??'/') as never); return; }
+    if (session) { router.replace(safeAppReturnPath(next)??'/'); return; }
     if (!code) { setError(errorDescription ?? 'The confirmation link is incomplete or has expired.'); return; }
-    void supabase.auth.exchangeCodeForSession(code).then(({ error: exchangeError }) => { if (exchangeError) setError(exchangeError.message); else router.replace((safeAppReturnPath(next)??'/') as never); });
+    void supabase.auth.exchangeCodeForSession(code).then(({ error: exchangeError }) => { if (exchangeError) setError(exchangeError.message); else router.replace(safeAppReturnPath(next)??'/'); });
   }, [code, errorDescription, loading, next, session]);
   if (error) return <Screen contentStyle={{ minHeight: '100%', justifyContent: 'center' }}><ErrorState message={error} /><Body muted>Return to sign in to request a fresh confirmation link.</Body></Screen>;
   return <LoadingSkeleton label="Confirming your account…" />;

@@ -57,14 +57,14 @@ export default function Auth() {
         const state = useTogether.getState();
         if (!state.snapshot) throw new Error(state.error ?? 'Kivelle could not open your world.');
         const next = safeAppReturnPath(params.next);
-        router.replace(state.snapshot.profile ? (next ?? '/home') as never : '/choose-companion?adultConfirmed=1');
+        router.replace(state.snapshot.profile ? (next ?? '/home') : '/choose-companion?adultConfirmed=1');
       } else {
         await signIn(normalizedEmail, password);
         await refresh();
         const state = useTogether.getState();
         if (!state.snapshot) throw new Error(state.error ?? 'Kivelle could not open your world.');
         const next = safeAppReturnPath(params.next);
-        router.replace(state.snapshot.profile ? (next ?? '/home') as never : '/choose-companion');
+        router.replace(state.snapshot.profile ? (next ?? '/home') : '/choose-companion');
       }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : creating ? 'Account creation failed.' : 'Sign in failed.';
@@ -104,7 +104,7 @@ export default function Auth() {
       await signInWithSocial(provider,onboardingNext);
       if(Platform.OS==='web')return;
       await refresh();const state=useTogether.getState();if(!state.snapshot)throw new Error(state.error??'Kivelle could not open your world.');
-      router.replace((state.snapshot.profile?(requestedNext??'/home'):creating?'/choose-companion?adultConfirmed=1':'/choose-companion') as never);
+      router.replace(state.snapshot.profile?(requestedNext??'/home'):creating?'/choose-companion?adultConfirmed=1':'/choose-companion');
     }catch(caught){setError(caught instanceof Error?caught.message:`${provider==='google'?'Google':'Apple'} sign-in failed.`);}finally{setSocialBusy(null);}
   };
 

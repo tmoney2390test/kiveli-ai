@@ -2,11 +2,13 @@ import { adminClient, serverEnv } from '../_shared/context.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { runLifeSimulation } from '../_shared/together-life.ts';
+import { constantTimeEqual } from '../../../packages/together-domain/src/security.ts';
 
 serve(async (request, correlationId) => {
+  if (request.method !== 'POST') throw new AppError('NOT_FOUND', 'That endpoint is unavailable.', 404);
   const expected = serverEnv('TOGETHER_LIFE_DISPATCH_SECRET');
   const supplied = request.headers.get('x-together-dispatch-secret');
-  if (!supplied || supplied !== expected) throw new AppError('FORBIDDEN', 'Life dispatch authorization failed.', 403);
+  if (!supplied || !constantTimeEqual(supplied, expected)) throw new AppError('FORBIDDEN', 'Life dispatch authorization failed.', 403);
   const db = adminClient();
   const now = new Date();
   const cutoff = new Date(now.getTime() - 20 * 60000).toISOString();

@@ -25,7 +25,7 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
         const target = signInPathFor(pathname);
         if (redirectTarget.current !== target) {
           redirectTarget.current = target;
-          router.replace(target as never);
+          router.replace(target);
         }
       }
       return;

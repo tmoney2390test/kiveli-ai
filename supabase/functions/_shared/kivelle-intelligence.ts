@@ -1,4 +1,5 @@
 import { conversationResponseLength, conversationResponseTokenBudget, conversationStyleGuidance, resolveConversationStyle, type ConversationInteractionQuality, type ConversationResponseLength, type ConversationStyle } from '../../../packages/together-domain/src/conversation-style.ts';
+import { budgetContextSections, contextInputTokenCeiling, formatRollingConversationState, rankContextRecords, type ContextBudgetResult, type ContextIntent, type ContextRecordCategory, type ContextSectionInput } from '../../../packages/together-domain/src/index.ts';
 
 export type ContentMode = 'standard' | 'romance' | 'mature' | 'explicit';
 export type ResponseIntent = 'casual' | 'playful' | 'teasing' | 'flirty' | 'romantic' | 'affectionate' | 'supportive' | 'vulnerable' | 'storytelling' | 'conflicted' | 'repair' | 'intimate' | 'practical';
@@ -58,7 +59,24 @@ function placeDetailBlock(place:any):string{
   return lines.filter(Boolean).join('\n');
 }
 
-export function buildCompanionPrompt(context:any):string{
+export function buildCompanionPrompt(context:any):string{return compileCompanionPrompt(context).prompt;}
+
+export function compileCompanionPrompt(context:any):ContextBudgetResult{
+  const profile=context.subscription?.intelligenceProfile==='deep'||context.subscription?.intelligenceProfile==='director'?context.subscription.intelligenceProfile:'core';
+  const variants=['full','compact','minimal'] as const;
+  const prepared=variants.map((mode)=>preparePromptContext(context,mode));
+  const rendered=prepared.map((item)=>extractPromptSections(buildUnbudgetedCompanionPrompt(item)));
+  const keys=rendered[0]?.map((section)=>section.key)??[];
+  const sections:ContextSectionInput[]=keys.map((key,order)=>{
+    const required=requiredPromptSection(key,context);
+    const variantRows=rendered.map((rows,index)=>({label:variants[index],content:rows.find((row)=>row.key===key)?.content??'',recordIds:sectionRecordIds(key,prepared[index])})).filter((item)=>item.content&&(required||meaningfulPromptSection(item.content))) as ContextSectionInput['variants'];
+    const freshnessAt=sectionFreshness(key,context);
+    return{key,order,required,protected:protectedPromptSection(key),priority:sectionPriority(key,context),relevance:sectionRelevance(key,String(context.queryIntent??'general') as ContextIntent,context),...(freshnessAt?{freshnessAt}:{}),reasonCodes:sectionReasonCodes(key,String(context.queryIntent??'general') as ContextIntent,context),allRecordIds:sectionRecordIds(key,context),variants:variantRows};
+  });
+  return budgetContextSections(sections,{ceilingTokens:contextInputTokenCeiling(profile)});
+}
+
+function buildUnbudgetedCompanionPrompt(context:any):string{
   const character=context.character??{},persona=context.persona??{},life=context.currentScene??context.life??{},relationship=context.relationship??{},place=context.place;
   const stage=String(relationship.relationship_stage??'stranger');
   const userMessage=String(context.userMessage??'');
@@ -191,7 +209,7 @@ These are the companion's current personal views, distinct from objective locati
 <SHARED_HISTORY>Background shared history. Do not recap it unless the user returns to it or a callback is genuinely useful.\n${block(context.sharedHistory,(item)=>`${item.occurredAt}: ${item.title} — ${item.summary}`)}</SHARED_HISTORY>
 <RECENT_SHARED_MEDIA>${block(context.recentMedia,(item)=>`${item.createdAt}: ${item.summary}`)}</RECENT_SHARED_MEDIA>
 <CONVERSATION_FOCUS>${focusForPrompt?JSON.stringify(focusForPrompt):'None.'}</CONVERSATION_FOCUS>
-<CONVERSATION_SUMMARY>${context.conversationSummary||'None.'}</CONVERSATION_SUMMARY>
+<CONVERSATION_SUMMARY>${formatRollingConversationState(context.conversationSummary)}</CONVERSATION_SUMMARY>
 <RECENT_CONVERSATION>${(context.recent??[]).map((item:any)=>`${item.role}: ${item.content}`).join('\n')}</RECENT_CONVERSATION>
 <AVOID_REPETITION>${(context.antiRepetition??[]).join('\n')||'Avoid obvious repeated openings, endings, pet names, generic follow-up questions, and repeated continuity callbacks.'}</AVOID_REPETITION>
 <RESPONSE_BRIEF>
@@ -226,6 +244,110 @@ This block controls expression only. It never changes relationship state, consen
 </CONTENT_BOUNDARY>
 <RESPONSE_DIRECTION>Query intent: ${context.queryIntent??'general'}. Response intent: ${intent}. Length: ${length}. Conversation style: ${style}. Interaction quality: ${context.interactionQuality??'normal'}. Intelligence profile: ${subscription.intelligenceProfile??'core'}. Director applied: ${context.director?.used?'yes':'no'}. Do not mention these internal labels.</RESPONSE_DIRECTION>
 <USER_MESSAGE>${context.userMessage}</USER_MESSAGE>`;
+}
+
+function preparePromptContext(context:any,mode:'full'|'compact'|'minimal'){
+  const intent=String(context.queryIntent??'general') as ContextIntent,query=String(context.userMessage??'');
+  const limits=mode==='full'?{recent:28,silent:20,history:8,patterns:8,episodes:6,threads:7,social:8,events:6,media:6,places:2,perspectives:3,plans:8}:mode==='compact'?{recent:14,silent:8,history:4,patterns:4,episodes:3,threads:3,social:4,events:3,media:3,places:1,perspectives:2,plans:4}:{recent:8,silent:2,history:1,patterns:1,episodes:1,threads:1,social:1,events:1,media:0,places:0,perspectives:1,plans:2};
+  const ranked=(items:any[],category:ContextRecordCategory,limit:number,text:(item:any)=>string,date?:(item:any)=>string|undefined,importance?:(item:any)=>number,active?:(item:any)=>boolean)=>rankContextRecords(items??[],{category,intent,query,limit,text,id:recordId,...(date?{occurredAt:date}:{}),...(importance?{importance}:{}),...(active?{active}:{})}).map((item)=>item.record);
+  const memory=context.memoryContext??{silent:context.memories??[],callbacks:[],directRecall:[],callbackAllowance:0};
+  const directLimit=intent==='memory_overview'||intent==='history'?5:Math.min(2,memory.directRecall?.length??0);
+  const character=context.character??{},reflection=context.relationshipReflection??{};
+  const prepared={
+    ...context,
+    character:{...character,character_bible:mode==='full'?character.character_bible:compactRecord(character.character_bible,mode==='compact'?3:2,mode==='compact'?14:7,mode==='compact'?420:180),communication_style:mode==='minimal'?compactRecord(character.communication_style,2,8,160):character.communication_style,boundaries:Array.isArray(character.boundaries)?character.boundaries.slice(0,mode==='minimal'?8:20):character.boundaries},
+    relationshipReflection:{...reflection,recurring_dynamics:(reflection.recurring_dynamics??reflection.recurringDynamics??[]).slice(0,mode==='minimal'?2:4),unresolved_tension:(reflection.unresolved_tension??reflection.unresolvedTension??[]).slice(0,mode==='minimal'?2:4),shared_references:(reflection.shared_references??reflection.sharedReferences??[]).slice(0,mode==='minimal'?2:4)},
+    recent:(context.recent??[]).slice(-limits.recent),
+    memoryContext:{...memory,silent:(memory.silent??[]).slice(0,limits.silent),callbacks:(memory.callbacks??[]).slice(0,1),directRecall:(memory.directRecall??[]).slice(0,directLimit)},
+    commitments:ranked(context.commitments,'plan',limits.plans,(item)=>`${item.title??''} ${item.location??''} ${item.status??''}`,item=>item.startsAt,item=>Number(item.relevance??.5),item=>['active','grace','missed'].includes(String(item.temporalState??item.status))),
+    sharedPlans:ranked(context.sharedPlans,'plan',limits.plans,(item)=>`${item.title??''} ${item.location??''} ${item.activityKey??''} ${item.status??''}`,item=>item.startsAt,item=>['active','scheduled'].includes(String(item.status))?.9:.5,item=>item.status==='active'),
+    sharedHistory:ranked(context.sharedHistory,'history',limits.history,(item)=>`${item.title??''} ${item.summary??''}`,item=>item.occurredAt,item=>Number(item.significance??.55)),
+    userPatterns:ranked(context.userPatterns,'pattern',limits.patterns,(item)=>`${item.category??''} ${item.summary??''}`,undefined,item=>Number(item.confidence??.5)),
+    recentEpisodes:ranked(context.recentEpisodes,'episode',limits.episodes,(item)=>`${item.title??''} ${item.summary??''}`,item=>item.endedAt,item=>Number(item.significance??.5)),
+    openThreads:ranked(context.openThreads,'thread',limits.threads,(item)=>`${item.displaySubject??''} ${item.followupPrompt??''}`,item=>item.expectedAt,item=>item.eligible?.9:.5,item=>Boolean(item.eligible)),
+    social:ranked(context.social,'social',limits.social,(item)=>`${item.name??''} ${item.relationship??''}`,undefined,item=>item.userHasMet?.75:.35),
+    knownLifeEvents:ranked(context.knownLifeEvents,'life_event',limits.events,(item)=>`${item.title??''} ${item.summary??''}`,item=>item.startsAt,item=>Number(item.significance??.5)),
+    recentMedia:ranked(context.recentMedia,'media',limits.media,(item)=>String(item.summary??''),item=>item.createdAt),
+    referencedPlaces:ranked(context.referencedPlaces,'place',limits.places,(item)=>`${item.path??''} ${item.location?.name??''} ${item.location?.description??''}`).map((item)=>compactPlace(item,mode)),
+    placePerspectives:ranked(context.placePerspectives,'place',limits.perspectives,(item)=>`${item.locationName??''} ${item.opinionSummary??''} ${(item.favoriteDetails??[]).join(' ')}`),
+    place:compactPlace(context.place,mode),
+  };
+  return promptSafeValue(prepared);
+}
+
+function extractPromptSections(prompt:string):Array<{key:string;content:string}>{
+  return [...prompt.matchAll(/<([A-Z_]+)>[\s\S]*?<\/\1>/g)].map((match)=>({key:String(match[1]),content:String(match[0])}));
+}
+
+function meaningfulPromptSection(content:string):boolean{return !/>\s*(?:None\.|None known\.|Current world unavailable\.)\s*<\//.test(content);}
+
+function requiredPromptSection(key:string,context:any):boolean{
+  if(new Set(['CORE_RULES','CONVERSATION_STYLE','CONTINUITY_BEHAVIOR','MEMORY_BEHAVIOR','IDENTITY','CHARACTER_CORE','USER_PERSONA','RELATIONSHIP_STANCE','CHEMISTRY','RELATIONSHIP_REFLECTION','CURRENT_SELF','EXPERIENCE_CLOCK','CURRENT_WORLD','CURRENT_SCENE','CURRENT_INTERACTION','SCENE_SPEAKER','COMMITMENTS','UPCOMING_PLANS','CONVERSATION_FOCUS','CONVERSATION_SUMMARY','RECENT_CONVERSATION','AVOID_REPETITION','RESPONSE_BRIEF','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','USER_MESSAGE']).has(key))return true;
+  if(key==='SCENE_PARTICIPANTS')return Boolean(context.currentScene?.sceneSessionId||(context.sceneParticipants??[]).length);
+  if(key==='SCENE_ACTION_REACTION')return Boolean(context.sceneAction);
+  if(key==='USER_SHARED_IMAGES')return Boolean((context.userAttachments??[]).length);
+  if(key==='PHOTO_DELIVERY')return context.photoRequest===true;
+  if(key==='DIRECT_RECALL_MEMORIES')return context.queryIntent==='memory_overview'||context.queryIntent==='history';
+  if(key==='DATES')return context.queryIntent==='date'||Boolean(context.dates?.active);
+  if(key==='CURRENT_STORY')return context.queryIntent==='story';
+  return false;
+}
+
+function protectedPromptSection(key:string):boolean{return new Set(['CORE_RULES','IDENTITY','USER_PERSONA','RELATIONSHIP_STANCE','CURRENT_SCENE','CURRENT_INTERACTION','RECENT_CONVERSATION','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','USER_MESSAGE']).has(key);}
+
+function sectionPriority(key:string,context:any):number{
+  if(requiredPromptSection(key,context))return 100;
+  const priorities:Record<string,number>={SILENT_MEMORY_CONTEXT:82,CALLBACK_MEMORIES:90,DIRECT_RECALL_MEMORIES:96,COMMITMENTS:94,UPCOMING_PLANS:86,DATES:88,CURRENT_STORY:82,CURRENT_LOCATION:78,REFERENCED_PLACES:72,CHARACTER_PLACE_PERSPECTIVES:76,USER_BEHAVIOR_PATTERNS:60,RECENT_EPISODES:66,OPEN_THREADS:62,SOCIAL_KNOWLEDGE:58,KNOWN_LIFE_EVENTS:62,SHARED_HISTORY:65,RECENT_SHARED_MEDIA:42,UPCOMING_SCHEDULE:68,CONVERSATION_FOCUS:84};
+  return priorities[key]??45;
+}
+
+function sectionRelevance(key:string,intent:ContextIntent,context:any):number{
+  const direct:Partial<Record<ContextIntent,string[]>>={location:['CURRENT_LOCATION','REFERENCED_PLACES','CHARACTER_PLACE_PERSPECTIVES','UPCOMING_SCHEDULE'],plan:['COMMITMENTS','UPCOMING_PLANS','CONVERSATION_FOCUS','CURRENT_LOCATION'],schedule:['COMMITMENTS','UPCOMING_PLANS','UPCOMING_SCHEDULE'],date:['DATES','COMMITMENTS','CURRENT_LOCATION'],story:['CURRENT_STORY','KNOWN_LIFE_EVENTS','RECENT_EPISODES'],memory_overview:['DIRECT_RECALL_MEMORIES','SILENT_MEMORY_CONTEXT','SHARED_HISTORY','RECENT_EPISODES'],history:['DIRECT_RECALL_MEMORIES','SHARED_HISTORY','RECENT_EPISODES','RECENT_SHARED_MEDIA'],social:['SOCIAL_KNOWLEDGE','SCENE_PARTICIPANTS','RECENT_EPISODES']};
+  if(direct[intent]?.includes(key))return 1;
+  if(key==='CALLBACK_MEMORIES'&&(context.memoryContext?.callbackAllowance??0)>0)return.95;
+  if(key==='SILENT_MEMORY_CONTEXT')return.72;
+  if(key==='OPEN_THREADS'&&(context.openThreads??[]).some((item:any)=>item.eligible))return.7;
+  if(['CURRENT_LOCATION','CHARACTER_PLACE_PERSPECTIVES','UPCOMING_SCHEDULE'].includes(key))return.58;
+  if(['USER_BEHAVIOR_PATTERNS','RECENT_EPISODES','KNOWN_LIFE_EVENTS'].includes(key))return.46;
+  if(['SOCIAL_KNOWLEDGE','SHARED_HISTORY'].includes(key))return.34;
+  if(key==='RECENT_SHARED_MEDIA')return.22;
+  return.5;
+}
+
+function sectionReasonCodes(key:string,intent:ContextIntent,context:any):string[]{const relevance=sectionRelevance(key,intent,context);return[relevance>=.9?'intent_match':'',relevance>=.5?'context_relevant':'background'].filter(Boolean);}
+
+function sectionFreshness(key:string,context:any):string|undefined{
+  const sources:Record<string,any[]>={RECENT_CONVERSATION:context.recent??[],COMMITMENTS:context.commitments??[],UPCOMING_PLANS:context.sharedPlans??[],UPCOMING_SCHEDULE:context.upcomingSchedule??[],SHARED_HISTORY:context.sharedHistory??[],RECENT_EPISODES:context.recentEpisodes??[],KNOWN_LIFE_EVENTS:context.knownLifeEvents??[],RECENT_SHARED_MEDIA:context.recentMedia??[]};
+  const values=(sources[key]??[]).flatMap((item:any)=>[item.createdAt,item.updatedAt,item.occurredAt,item.endedAt,item.startsAt].filter(Boolean)).map((value)=>String(value)).sort();return values.at(-1)??context.conversationSummaryUpdatedAt;
+}
+
+function sectionRecordIds(key:string,context:any):string[]{
+  const sources:Record<string,any[]>={SILENT_MEMORY_CONTEXT:context.memoryContext?.silent??[],CALLBACK_MEMORIES:context.memoryContext?.callbacks??[],DIRECT_RECALL_MEMORIES:context.memoryContext?.directRecall??[],USER_BEHAVIOR_PATTERNS:context.userPatterns??[],RECENT_EPISODES:context.recentEpisodes??[],OPEN_THREADS:context.openThreads??[],SOCIAL_KNOWLEDGE:context.social??[],KNOWN_LIFE_EVENTS:context.knownLifeEvents??[],REFERENCED_PLACES:context.referencedPlaces??[],CHARACTER_PLACE_PERSPECTIVES:context.placePerspectives??[],SHARED_HISTORY:context.sharedHistory??[],RECENT_SHARED_MEDIA:context.recentMedia??[],COMMITMENTS:context.commitments??[],UPCOMING_PLANS:context.sharedPlans??[],UPCOMING_SCHEDULE:context.upcomingSchedule??[],SCENE_PARTICIPANTS:context.sceneParticipants??[]};
+  return(sources[key]??[]).map(recordId).filter(Boolean);
+}
+
+function recordId(item:any):string{return String(item?.id??item?.characterInstanceId??item?.locationId??item?.location?.id??item?.locationName??item?.name??'');}
+
+function compactPlace(place:any,mode:'full'|'compact'|'minimal'){
+  if(!place||mode==='full')return place;
+  const lore=place.location?.lore??{};
+  return{...place,location:{...place.location,hours:mode==='minimal'?null:place.location?.hours,lore:{summary:lore.summary,atmosphere:(lore.atmosphere??[]).slice(0,mode==='minimal'?1:2),sensoryDetails:(lore.sensoryDetails??[]).slice(0,mode==='minimal'?1:2),signatureDetails:(lore.signatureDetails??[]).slice(0,mode==='minimal'?1:2),stableFacts:(lore.stableFacts??[]).slice(0,mode==='minimal'?1:3),localEtiquette:mode==='minimal'?[]:(lore.localEtiquette??[]).slice(0,2),conversationHooks:mode==='minimal'?[]:(lore.conversationHooks??[]).slice(0,2),crowdRhythm:lore.crowdRhythm}},ancestry:(place.ancestry??[]).slice(0,mode==='minimal'?0:1),nearby:(place.nearby??[]).slice(0,mode==='minimal'?0:3)};
+}
+
+function compactRecord(value:any,depth:number,entries:number,stringLimit:number):any{
+  if(value===null||value===undefined||typeof value==='number'||typeof value==='boolean')return value;
+  if(typeof value==='string')return value.length<=stringLimit?value:`${value.slice(0,stringLimit-1)}…`;
+  if(depth<=0)return Array.isArray(value)?value.slice(0,entries).map((item)=>String(item).slice(0,stringLimit)):String(value).slice(0,stringLimit);
+  if(Array.isArray(value))return value.slice(0,entries).map((item)=>compactRecord(item,depth-1,entries,stringLimit));
+  if(typeof value==='object')return Object.fromEntries(Object.entries(value).slice(0,entries).map(([key,item])=>[key,compactRecord(item,depth-1,entries,stringLimit)]));
+  return String(value).slice(0,stringLimit);
+}
+
+function promptSafeValue(value:any):any{
+  if(typeof value==='string')return value.replaceAll('<','‹').replaceAll('>','›');
+  if(Array.isArray(value))return value.map(promptSafeValue);
+  if(value&&typeof value==='object'&&Object.getPrototypeOf(value)===Object.prototype)return Object.fromEntries(Object.entries(value).map(([key,item])=>[key,promptSafeValue(item)]));
+  return value;
 }
 function planContextRelevant(message:string,context:any):boolean{
   const lower=message.toLowerCase();

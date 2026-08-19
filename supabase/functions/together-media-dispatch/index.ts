@@ -14,6 +14,7 @@ import '../_shared/together-media-finalizer.ts';
 import '../_shared/together-media-quality.ts';
 import '../_shared/together-media-providers.ts';
 import '../../../packages/together-domain/src/media-quality.ts';
+import { constantTimeEqual } from '../../../packages/together-domain/src/security.ts';
 import '../_shared/together-place.ts';
 import '../_shared/together.ts';
 import '../_shared/wavespeed.ts';
@@ -21,8 +22,10 @@ import '../_shared/wavespeed.ts';
 const schema=z.object({limit:z.number().int().min(1).max(10).default(3)});
 
 serve(async(request,correlationId)=>{
+  if(request.method!=='POST')throw new AppError('NOT_FOUND','That endpoint is unavailable.',404);
   const expected=serverEnv('TOGETHER_MEDIA_DISPATCH_SECRET');
-  if(request.headers.get('x-together-dispatch-secret')!==expected)throw new AppError('FORBIDDEN','Media dispatch authorization failed.',403);
+  const supplied=request.headers.get('x-together-dispatch-secret');
+  if(!supplied||!constantTimeEqual(supplied,expected))throw new AppError('FORBIDDEN','Media dispatch authorization failed.',403);
   const {limit}=await parseBody(request,schema);
   const db=adminClient();
   return json({data:await dispatchMediaJobs(db,limit,correlationId),correlationId},200,correlationId);
