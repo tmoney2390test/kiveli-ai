@@ -1,7 +1,7 @@
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { router, Tabs } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { BlurView } from 'expo-blur';
-import { Compass, Crown, Home, Images, MessageCircle } from 'lucide-react-native';
+import { Compass, Home, Images, MessageCircle, UserRound } from 'lucide-react-native';
 
 const web = Platform.OS === 'web';
 
@@ -40,12 +40,12 @@ export default function TabsLayout() {
     tabBarLabelStyle: { fontSize: 9.5, fontWeight: '800', letterSpacing: .15 },
   }}>
     <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: ({ color, size, focused }) => <Home color={color} size={focused ? size + 1 : size} fill={focused ? 'rgba(239,82,137,.13)' : 'transparent'} /> }} />
-    <Tabs.Screen name="explore" options={{ title: 'Discover', tabBarIcon: ({ color, size, focused }) => <Compass color={color} size={focused ? size + 2 : size} /> }} />
+    <Tabs.Screen name="explore" options={{ title: 'Explore', tabBarIcon: ({ color, size, focused }) => <Compass color={color} size={focused ? size + 2 : size} /> }} />
     <Tabs.Screen name="chat-tab" options={{ title: 'Chat', tabBarIcon: ({ color, size, focused }) => <MessageCircle color={color} size={focused ? size + 2 : size} fill={focused ? 'rgba(239,82,137,.13)' : 'transparent'} /> }} />
     <Tabs.Screen name="moments" options={{ title: 'Moments', tabBarIcon: ({ color, size, focused }) => <Images color={color} size={focused ? size + 1 : size} /> }} />
-    <Tabs.Screen name="upgrade" listeners={{ tabPress: (event) => { event.preventDefault(); router.push('/subscription'); } }} options={{ title: 'Upgrade', tabBarActiveTintColor: '#F3C67D', tabBarIcon: ({ color, size, focused }) => <Crown color={focused ? '#F3C67D' : color} size={focused ? size + 2 : size} /> }} />
+    <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, size, focused }) => <UserRound color={color} size={focused ? size + 2 : size} /> }} />
+    <Tabs.Screen name="upgrade" options={{ href: null }} />
     <Tabs.Screen name="dates" options={{ href: null }} />
-    <Tabs.Screen name="profile" options={{ href: null }} />
     <Tabs.Screen name="singles" options={{ href: null }} />
     <Tabs.Screen name="market" options={{ href: null }} />
   </Tabs>;
