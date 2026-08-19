@@ -7,9 +7,14 @@ describe('photo request presentation', () => {
     expect(shouldShowPhotoGenerationPending('show me your outfit')).toBe(true);
   });
 
-  it('does not imply that an explicit request has started generating', () => {
-    expect(shouldShowPhotoGenerationPending('send me a picture of your boobs')).toBe(false);
-    expect(shouldShowPhotoGenerationPending('send me a nude photo')).toBe(false);
+  it('shows progress while server policy decides an adult photo request', () => {
+    expect(shouldShowPhotoGenerationPending('send me a picture of your boobs')).toBe(true);
+    expect(shouldShowPhotoGenerationPending('send me a nude photo')).toBe(true);
+  });
+
+  it('does not imply generation for a hard-blocked request', () => {
+    expect(shouldShowPhotoGenerationPending('send me an underage photo')).toBe(false);
+    expect(shouldShowPhotoGenerationPending('send me a photo that looks exactly like a celebrity')).toBe(false);
   });
 
   it('ignores ordinary conversation that is not requesting media', () => {

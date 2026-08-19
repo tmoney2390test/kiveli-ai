@@ -1,9 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
-import { capabilitiesForAccount, creditCost, entitlementsForTier, normalizeSubscriptionTier, type CreditAction, type KivelleCapabilities, type SubscriptionTier } from '../../../packages/together-domain/src/index.ts';
+import { capabilitiesForAccount, creditCost, effectiveChatDailyLimit, entitlementsForTier, normalizeSubscriptionTier, type CreditAction, type KivelleCapabilities, type SubscriptionTier } from '../../../packages/together-domain/src/index.ts';
 
-type CreditBalance={permanentBalance:number;subscriptionBalance:number;total:number};
-export type KivelleSubscriptionState={tier:SubscriptionTier;capabilities:KivelleCapabilities;creditBalance:CreditBalance;entitlementKeys:string[];billing:{provider?:string|null;customerId?:string|null;subscriptionId?:string|null;status?:string|null;productKey?:string|null;periodStart?:string|null;periodEnd?:string|null;expiresAt?:string|null}};
+type CreditBalance={permanentBalance:number;subscriptionBalance:number;total:number;subscriptionExpiresAt?:string|null};
+export type KivelleSubscriptionState={tier:SubscriptionTier;capabilities:KivelleCapabilities;creditBalance:CreditBalance;entitlementKeys:string[];billing:{provider?:string|null;customerId?:string|null;subscriptionId?:string|null;status?:string|null;productKey?:string|null;billingInterval?:'monthly'|'annual';periodStart?:string|null;periodEnd?:string|null;expiresAt?:string|null}};
 
 const calendarCycle=(now=new Date())=>`${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}`;
 const billingCycle=(value:unknown,now:Date)=>{if(typeof value==='string'&&value){const date=new Date(value);if(Number.isFinite(date.getTime()))return`billing:${date.toISOString().slice(0,10)}`;}return`calendar:${calendarCycle(now)}`;};
@@ -14,9 +14,12 @@ export async function resolveSubscriptionState(db:SupabaseClient,userId:string,n
   if(!row){const created=await db.from('together_entitlements').insert({user_id:userId,tier:'free',entitlement_keys:[...entitlementsForTier('free')]}).select('*').single();if(created.error||!created.data)throw new AppError('INTERNAL_ERROR','Subscription status could not be prepared.',500,true);row=created.data;}
   const expired=Boolean(row.expires_at&&new Date(row.expires_at).getTime()<=now.getTime());const tier=expired?'free':normalizeSubscriptionTier(row.tier),capabilities=capabilitiesForAccount(tier,row.metadata);
   if(row.tier!==tier||!sameKeys(row.entitlement_keys,capabilities.entitlements)){const updated=await db.from('together_entitlements').update({tier,entitlement_keys:[...capabilities.entitlements],...(expired?{metadata:{...(row.metadata??{}),expiredAt:row.expires_at,expiredResolvedAt:now.toISOString()}}:{}),updated_at:now.toISOString()}).eq('user_id',userId).select('*').single();if(updated.data)row=updated.data;}
-  await ensureCreditGrants(db,userId,capabilities,now,billingCycle(row.billing_period_start,now));
+  await reconcileSubscriptionCreditLifecycle(db,userId,capabilities,now);
+  const interval=(row.metadata as Record<string,unknown>|null)?.billingInterval;
+  const grantCycle=interval==='annual'?`calendar:${calendarCycle(now)}`:billingCycle(row.billing_period_start,now);
+  await ensureCreditGrants(db,userId,capabilities,now,grantCycle);
   const balance=await creditBalance(db,userId);
-  return{tier,capabilities,creditBalance:balance,entitlementKeys:[...capabilities.entitlements],billing:{provider:row.billing_provider??null,customerId:row.billing_customer_id??null,subscriptionId:row.billing_subscription_id??null,status:row.billing_status??null,productKey:row.product_key??null,periodStart:row.billing_period_start??null,periodEnd:row.billing_period_end??null,expiresAt:row.expires_at??null}};
+  return{tier,capabilities,creditBalance:balance,entitlementKeys:[...capabilities.entitlements],billing:{provider:row.billing_provider??null,customerId:row.billing_customer_id??null,subscriptionId:row.billing_subscription_id??null,status:row.billing_status??null,productKey:row.product_key??null,billingInterval:interval==='annual'?'annual':'monthly',periodStart:row.billing_period_start??null,periodEnd:row.billing_period_end??null,expiresAt:row.expires_at??null}};
 }
 
 export async function ensureCreditGrants(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities,now=new Date(),grantCycle=billingCycle(null,now)):Promise<void>{
@@ -34,9 +37,9 @@ export async function ensureCreditGrants(db:SupabaseClient,userId:string,capabil
 }
 
 export async function creditBalance(db:SupabaseClient,userId:string):Promise<CreditBalance>{
-  const{data,error}=await db.from('together_credit_accounts').select('permanent_balance,subscription_balance').eq('user_id',userId).maybeSingle();
+  const{data,error}=await db.from('together_credit_accounts').select('permanent_balance,subscription_balance,subscription_expires_at').eq('user_id',userId).maybeSingle();
   if(error)throw new AppError('INTERNAL_ERROR','Credit balance could not be loaded.',500,true);
-  const permanentBalance=Number(data?.permanent_balance??0),subscriptionBalance=Number(data?.subscription_balance??0);return{permanentBalance,subscriptionBalance,total:permanentBalance+subscriptionBalance};
+  const permanentBalance=Number(data?.permanent_balance??0),subscriptionBalance=Number(data?.subscription_balance??0);return{permanentBalance,subscriptionBalance,total:permanentBalance+subscriptionBalance,subscriptionExpiresAt:data?.subscription_expires_at??null};
 }
 
 export async function spendCredits(db:SupabaseClient,input:{userId:string;action:CreditAction;idempotencyKey:string;referenceType:string;referenceId:string;metadata?:Record<string,unknown>}):Promise<{transactionId:string;cost:number;balance:CreditBalance}>{
@@ -47,7 +50,20 @@ export async function spendCredits(db:SupabaseClient,input:{userId:string;action
 export async function refundCredits(db:SupabaseClient,input:{userId:string;transactionId:string;idempotencyKey:string;metadata?:Record<string,unknown>}):Promise<boolean>{const{error}=await db.rpc('kivelle_refund_credit_transaction',{p_user_id:input.userId,p_transaction_id:input.transactionId,p_idempotency_key:input.idempotencyKey,p_metadata:input.metadata??{}});if(error){console.error('Kivelle credit refund failed',error.message);return false;}return true;}
 
 export async function enforceCreditBalance(db:SupabaseClient,userId:string,action:CreditAction):Promise<CreditBalance>{const state=await resolveSubscriptionState(db,userId);const cost=creditCost(action);if(state.creditBalance.total<cost)throw new AppError('INSUFFICIENT_CREDITS',`This action uses ${cost} Kivelle Credits. You have ${state.creditBalance.total}.`,402);return state.creditBalance;}
-export async function enforceChatAllowance(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities,now=new Date()):Promise<void>{if(capabilities.chatDailyLimit===null)return;const start=new Date(now);start.setUTCHours(0,0,0,0);const{count,error}=await db.from('together_messages').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('role','user').gte('created_at',start.toISOString());if(error)throw new AppError('INTERNAL_ERROR','Daily chat allowance could not be checked.',500,true);if(Number(count??0)>=capabilities.chatDailyLimit)throw new AppError('PLAN_LIMIT_REACHED',`Kivelle Free includes ${capabilities.chatDailyLimit} messages per day. Upgrade for unlimited conversations.`,429);}
+export async function enforceChatAllowance(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities,accountCreatedAt?:unknown,now=new Date()):Promise<void>{const limit=effectiveChatDailyLimit(capabilities,accountCreatedAt,now);if(limit===null)return;const start=new Date(now);start.setUTCHours(0,0,0,0);const{count,error}=await db.from('together_messages').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('role','user').gte('created_at',start.toISOString());if(error)throw new AppError('INTERNAL_ERROR','Daily chat allowance could not be checked.',500,true);if(Number(count??0)>=limit)throw new AppError('PLAN_LIMIT_REACHED',`Kivelle Free includes ${limit} messages per day right now. Upgrade for unlimited conversations.`,429);}
+
+export async function enforceExplicitDialogueAllowance(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities,now=new Date()):Promise<void>{
+  const limit=capabilities.explicitDialogueMonthlyLimit;if(limit===null)return;
+  const start=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),1)).toISOString();
+  const{count,error}=await db.from('together_ai_usage_events').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('provider','xai').eq('success',true).in('operation',['dialogue_xai','shared_scene_dialogue']).gte('created_at',start);
+  if(error)throw new AppError('INTERNAL_ERROR','Monthly conversation allowance could not be checked.',500,true);
+  if(Number(count??0)>=limit)throw new AppError('PLAN_LIMIT_REACHED',`${capabilities.displayName} includes ${limit.toLocaleString()} adult dialogue responses each month. Standard and romantic chat are still available, or you can upgrade for a higher allowance.`,429);
+}
+
+export async function reconcileSubscriptionCreditLifecycle(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities,now=new Date()):Promise<void>{
+  const{error}=await db.rpc('kivelle_reconcile_subscription_credits',{p_user_id:userId,p_cap:capabilities.subscriptionCreditRolloverCap,p_paid_active:capabilities.tier!=='free',p_grace_days:30,p_now:now.toISOString()});
+  if(error)throw new AppError('INTERNAL_ERROR','Subscription credit balance could not be reconciled.',500,true);
+}
 export async function enforceLifeLimit(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities):Promise<void>{const{count,error}=await db.from('together_continuities').select('id',{count:'exact',head:true}).eq('user_id',userId);if(error)throw new AppError('INTERNAL_ERROR','Kivelle Lives could not be counted.',500,true);if(Number(count??0)>=capabilities.maxLives)throw new AppError('PLAN_LIMIT_REACHED',`${capabilities.displayName} supports up to ${capabilities.maxLives} Kivelle ${capabilities.maxLives===1?'Life':'Lives'}.`,403);}
 export async function enforceCustomCompanionLimit(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities):Promise<void>{const{count,error}=await db.from('together_character_templates').select('id',{count:'exact',head:true}).eq('creator_id',userId).neq('lifecycle_status','archived');if(error)throw new AppError('INTERNAL_ERROR','Custom companions could not be counted.',500,true);if(Number(count??0)>=capabilities.maxCustomCompanions)throw new AppError('PLAN_LIMIT_REACHED',`${capabilities.displayName} supports up to ${capabilities.maxCustomCompanions} custom ${capabilities.maxCustomCompanions===1?'companion':'companions'}.`,403);}
 

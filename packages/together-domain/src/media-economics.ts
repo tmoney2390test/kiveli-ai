@@ -1,4 +1,4 @@
-import {creditCost,normalizeSubscriptionTier,type CreditAction,type SubscriptionTier} from './entitlements.ts';
+import {capabilitiesForTier,creditCost,normalizeSubscriptionTier,type CreditAction,type SubscriptionTier} from './entitlements.ts';
 import type {MediaContentLevel,MediaQualityTier,MediaShotType} from './media-routing.ts';
 
 export const mediaOfferSources=['life_event','story','moment','date'] as const;
@@ -11,6 +11,7 @@ export type MediaOfferPolicyInput={
   source:MediaOfferSource;
   tier:string;
   automaticPhotos:boolean;
+  includedDatePhotosUsed?:number;
 };
 
 export type MediaOfferPolicy={
@@ -27,7 +28,7 @@ export type MediaOfferPolicy={
 /** Product economics only. Safety and canonical-event eligibility are validated server-side. */
 export function resolveMediaOfferPolicy(input:MediaOfferPolicyInput):MediaOfferPolicy{
   const tier=normalizeSubscriptionTier(input.tier);
-  const included=input.source==='date'&&tier!=='free';
+  const included=input.source==='date'&&tier!=='free'&&Number(input.includedDatePhotosUsed??0)<capabilitiesForTier(tier).includedDatePhotoMonthlyLimit;
   if(input.source!=='date'&&!input.automaticPhotos)return policy(false,false,10,'standard',false,null,24);
   if(included)return policy(true,input.automaticPhotos,0,'premium',true,'date_completion_photo',null);
   return policy(true,false,creditCost('companion_photo'),input.source==='date'?'premium':'standard',false,null,input.source==='date'?null:24);
@@ -41,9 +42,9 @@ export type CreditPackKey='credits_100'|'credits_300'|'credits_800'|'credits_200
 export type CreditPack={key:CreditPackKey;credits:number;priceUsd:number;displayPrice:string;companionPhotoEquivalent:number;popular?:boolean;active:boolean};
 export const creditPackCatalog:Readonly<Record<CreditPackKey,CreditPack>>={
   credits_100:{key:'credits_100',credits:100,priceUsd:4.99,displayPrice:'$4.99',companionPhotoEquivalent:10,active:true},
-  credits_300:{key:'credits_300',credits:300,priceUsd:9.99,displayPrice:'$9.99',companionPhotoEquivalent:30,popular:true,active:true},
-  credits_800:{key:'credits_800',credits:800,priceUsd:19.99,displayPrice:'$19.99',companionPhotoEquivalent:80,active:true},
-  credits_2000:{key:'credits_2000',credits:2000,priceUsd:39.99,displayPrice:'$39.99',companionPhotoEquivalent:200,active:true},
+  credits_300:{key:'credits_300',credits:300,priceUsd:11.99,displayPrice:'$11.99',companionPhotoEquivalent:30,popular:true,active:true},
+  credits_800:{key:'credits_800',credits:800,priceUsd:27.99,displayPrice:'$27.99',companionPhotoEquivalent:80,active:true},
+  credits_2000:{key:'credits_2000',credits:2000,priceUsd:59.99,displayPrice:'$59.99',companionPhotoEquivalent:200,active:true},
 };
 export const creditPacks=Object.values(creditPackCatalog);
 export function resolveCreditPack(value:unknown):CreditPack|null{return typeof value==='string'&&value in creditPackCatalog?creditPackCatalog[value as CreditPackKey]:null;}

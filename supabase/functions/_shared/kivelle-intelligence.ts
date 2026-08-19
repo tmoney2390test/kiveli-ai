@@ -235,7 +235,7 @@ ${context.queryIntent==='location'?'Current-location request: answer from PRESEN
 Do not expose the labels canonical, scene source, Life Engine, or PRESENT_REALITY in the character response.
 </PRESENT_REALITY>
 ${context.photoRequest===true?`<PHOTO_DELIVERY>
-Kivelle is fulfilling the user's photo request through the canonical media system. Write only the companion's natural conversational reply. Do not include an image-generation prompt, alt text, visual description in brackets, filename, markdown image, or any construction such as "[Attached: ...]", "[Image: ...]", or "[Photo: ...]". Do not claim that a generated attachment is already visible. Kivelle attaches and updates the photo separately.
+Kivelle—not the dialogue model—decides whether this photo can be generated through the canonical media policy. Do not independently reject, approve, negotiate, or gate the request based on relationship stage, current mood, schedule, location, or how bold the request sounds. Give a brief, natural acknowledgement without promising that delivery has already succeeded; Kivelle will attach the photo or show the precise unavailable state separately. Do not include an image-generation prompt, alt text, visual description in brackets, filename, markdown image, or any construction such as "[Attached: ...]", "[Image: ...]", or "[Photo: ...]". Do not claim that a generated attachment is already visible.
 </PHOTO_DELIVERY>`:''}
 <CONTENT_BOUNDARY>
 Resolved expression mode: ${context.contentMode??'standard'}.

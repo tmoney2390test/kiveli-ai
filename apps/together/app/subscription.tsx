@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Check, ChevronDown, Coins, CreditCard, Sparkles, Zap } from 'lucide-react-native';
 import { GradientButton, LoadingSkeleton, PageTitle, Screen } from '../src/components';
 import { manageSubscription } from '../src/lib/api';
-import { intelligenceLabel, tierDescription, type CreditPack,type SubscriptionPlan, type SubscriptionStatus, type SubscriptionTier } from '../src/lib/subscription';
+import { intelligenceLabel, tierDescription, type BillingInterval,type CreditPack,type SubscriptionPlan, type SubscriptionStatus, type SubscriptionTier } from '../src/lib/subscription';
 import { colors, radius, spacing } from '../src/theme';
 
 const tierRank: Record<SubscriptionTier, number> = { free: 0, kivelle_plus: 1, kivelle_max: 2 };
@@ -17,6 +17,7 @@ export default function Subscription() {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [compareOpen, setCompareOpen] = useState(false);
+  const [billingInterval,setBillingInterval]=useState<BillingInterval>('monthly');
 
   const load = async () => {
     setLoading(true);
@@ -36,15 +37,16 @@ export default function Subscription() {
   const orderedPlans = (['kivelle_plus', 'kivelle_max', 'free'] as SubscriptionTier[])
     .map((tier) => state.catalog.find((plan) => plan.tier === tier))
     .filter((plan): plan is SubscriptionPlan => Boolean(plan));
-  const nextRefill = state.tier !== 'free' && state.billing.periodEnd ? formatDate(state.billing.periodEnd) : null;
+  const nextRefill = state.tier === 'free' ? null : state.billing.billingInterval==='annual'?formatDate(nextMonthlyRefill()):state.billing.periodEnd?formatDate(state.billing.periodEnd):null;
 
   const checkout = async (tier: Exclude<SubscriptionTier, 'free'>) => {
-    if (!state.billingConfigured[tier]) {
+    const checkoutConfigured=billingInterval==='annual'?Boolean(state.billingConfiguredAnnual?.[tier]):state.billingConfigured[tier];
+    if (!checkoutConfigured) {
       Alert.alert('Checkout not configured', 'The plan is ready in Kivelle, but a live checkout URL has not been configured for this build yet.');
       return;
     }
     setBusy(tier);
-    try { const result = await manageSubscription<{ url: string }>({ action: 'checkout', tier,requestId:Crypto.randomUUID() }); await Linking.openURL(result.url); }
+    try { const result = await manageSubscription<{ url: string }>({ action: 'checkout', tier,billingInterval,requestId:Crypto.randomUUID() }); await Linking.openURL(result.url); }
     catch (caught) { Alert.alert('Could not open checkout', caught instanceof Error ? caught.message : 'Please try again.'); }
     finally { setBusy(''); }
   };
@@ -86,7 +88,7 @@ export default function Subscription() {
       </View>
     </View>
 
-    <BillingIntervalToggle onYearly={() => Alert.alert('Yearly billing is coming next', 'The interface is ready for yearly plans, but Kivelle will not invent a discount before yearly products are configured.')} />
+    <BillingIntervalToggle value={billingInterval} onChange={setBillingInterval} />
 
     <View style={styles.sectionHeading}>
       <View><Text style={styles.sectionKicker}>CHOOSE YOUR EXPERIENCE</Text><Text style={styles.sectionTitle}>Go deeper with Kivelle</Text></View>
@@ -96,11 +98,11 @@ export default function Subscription() {
     <View style={styles.plans}>{orderedPlans.map((plan) => {
       const currentPlan = plan.tier === state.tier;
       const downgrade = tierRank[plan.tier] < tierRank[state.tier];
-      const checkoutConfigured = plan.tier === 'free' ? true : state.billingConfigured[plan.tier];
+      const checkoutConfigured = plan.tier === 'free' ? true : billingInterval==='annual'?Boolean(state.billingConfiguredAnnual?.[plan.tier]):state.billingConfigured[plan.tier];
       const actionConfigured = downgrade ? state.billingConfigured.portal : checkoutConfigured;
       const actionLabel = downgrade ? 'Manage plan' : plan.tier === 'kivelle_max' ? 'Upgrade to Kivelle Max' : plan.tier === 'kivelle_plus' ? 'Upgrade to Kivelle+' : '';
       const actionBusy = busy === plan.tier || busy === 'portal';
-      return <PlanCard key={plan.tier} plan={plan} current={currentPlan} actionLabel={actionLabel} actionConfigured={actionConfigured} busy={actionBusy} onAction={() => {
+      return <PlanCard key={plan.tier} plan={plan} billingInterval={billingInterval} current={currentPlan} actionLabel={actionLabel} actionConfigured={actionConfigured} busy={actionBusy} onAction={() => {
         if (downgrade) { void openAction('portal'); return; }
         if (plan.tier !== 'free') void checkout(plan.tier);
       }} />;
@@ -130,10 +132,13 @@ export default function Subscription() {
         <View style={styles.costStrip}>
           <Cost label="Companion photo" value={state.creditCosts.companion_photo ?? 10} />
           <Cost label="Photo variant" value={state.creditCosts.photo_variant ?? 10} />
+          <Cost label="Premium photo" value={state.creditCosts.premium_photo ?? 20} />
           <Cost label="4 Creator looks" value={state.creditCosts.creator_appearance_set ?? 40} />
+          <Cost label="Short video" value={state.creditCosts.short_video ?? 125} />
+          <Cost label="Voice minute" value={state.creditCosts.voice_minute ?? 8} />
         </View>
       </View>
-      <Text style={styles.refundNote}>Failed paid generations refund automatically. Purchased credits do not expire.</Text>
+      <Text style={styles.refundNote}>Failed paid generations refund automatically. Purchased and welcome credits do not expire. {state.creditBalance.subscriptionExpiresAt?`Your remaining subscription credits expire ${formatDate(state.creditBalance.subscriptionExpiresAt)}.`:'Unused subscription credits have a 30-day grace period after paid access ends.'}</Text>
     </View>
 
     <Pressable onPress={() => setCompareOpen((value) => !value)} style={styles.compareToggle}>
@@ -147,18 +152,18 @@ export default function Subscription() {
   </Screen>;
 }
 
-function BillingIntervalToggle({ onYearly }: { onYearly: () => void }) {
+function BillingIntervalToggle({value,onChange}:{value:BillingInterval;onChange:(value:BillingInterval)=>void}) {
   return <View style={styles.billingWrap}>
-    <View style={[styles.billingChoice, styles.billingChoiceActive]}><Text style={[styles.billingText, styles.billingTextActive]}>Monthly</Text></View>
-    <Pressable onPress={onYearly} style={styles.billingChoice}><Text style={styles.billingText}>Yearly</Text><View style={styles.soonPill}><Text style={styles.soonText}>SOON</Text></View></Pressable>
+    <Pressable accessibilityRole="button" accessibilityState={{selected:value==='monthly'}} onPress={()=>onChange('monthly')} style={[styles.billingChoice,value==='monthly'&&styles.billingChoiceActive]}><Text style={[styles.billingText,value==='monthly'&&styles.billingTextActive]}>Monthly</Text></Pressable>
+    <Pressable accessibilityRole="button" accessibilityState={{selected:value==='annual'}} onPress={()=>onChange('annual')} style={[styles.billingChoice,value==='annual'&&styles.billingChoiceActive]}><Text style={[styles.billingText,value==='annual'&&styles.billingTextActive]}>Yearly</Text><View style={styles.savePill}><Text style={styles.saveText}>SAVE 16%</Text></View></Pressable>
   </View>;
 }
 
-function PlanCard({ plan, current, actionLabel, actionConfigured, busy, onAction }: { plan: SubscriptionPlan; current: boolean; actionLabel: string; actionConfigured: boolean; busy: boolean; onAction: () => void }) {
+function PlanCard({ plan,billingInterval, current, actionLabel, actionConfigured, busy, onAction }: { plan: SubscriptionPlan;billingInterval:BillingInterval; current: boolean; actionLabel: string; actionConfigured: boolean; busy: boolean; onAction: () => void }) {
   const featured = plan.tier === 'kivelle_plus';
   const max = plan.tier === 'kivelle_max';
   const features = plan.tier === 'free' ? [
-    'Core relationship continuity', '1 Life · 1 custom companion', 'Free worlds', 'Welcome credits included',
+    `${plan.introductoryChatDailyLimit} messages/day for ${plan.introductoryChatDays} days · ${plan.chatDailyLimit}/day after`, 'Core relationship continuity', '1 Life · 1 custom companion', 'Free worlds', '50 welcome credits',
   ] : [
     plan.chatDailyLimit === null ? 'Unlimited chat' : 'Daily chat',
     intelligenceLabel(plan.intelligenceProfile),
@@ -169,10 +174,11 @@ function PlanCard({ plan, current, actionLabel, actionConfigured, busy, onAction
     ...(plan.earlyWorldAccess ? ['Early access worlds'] : []),
   ];
 
+  const annual=plan.annualPriceUsd,monthlyEquivalent=annual===null?null:annual/12;
   return <View style={[styles.plan, featured && styles.planFeatured, max && styles.planMax, current && styles.planCurrent]}>
     {featured ? <View style={styles.popular}><Sparkles size={11} color="#fff" /><Text style={styles.popularText}>MOST POPULAR</Text></View> : null}
     <View style={styles.planTop}>
-      <View style={{ flex: 1 }}><Text style={styles.planName}>{plan.displayName}</Text><Text style={styles.planPrice}>{plan.monthlyPriceUsd === 0 ? 'Free' : `$${plan.monthlyPriceUsd.toFixed(2)}`}<Text style={styles.planPeriod}>{plan.monthlyPriceUsd === 0 ? '' : ' / month'}</Text></Text></View>
+      <View style={{ flex: 1 }}><Text style={styles.planName}>{plan.displayName}</Text><Text style={styles.planPrice}>{plan.monthlyPriceUsd === 0 ? 'Free' : billingInterval==='annual'&&monthlyEquivalent!==null?`$${monthlyEquivalent.toFixed(2)}`:`$${plan.monthlyPriceUsd.toFixed(2)}`}<Text style={styles.planPeriod}>{plan.monthlyPriceUsd === 0 ? '' : ' / month'}</Text></Text>{plan.monthlyPriceUsd>0&&billingInterval==='annual'&&annual!==null?<Text style={styles.billedAnnually}>${annual.toFixed(2)} billed yearly</Text>:null}</View>
       {current ? <View style={styles.activeBadge}><Check size={12} color={colors.success} /><Text style={styles.activeBadgeText}>CURRENT</Text></View> : max ? <View style={styles.maxBadge}><Zap size={11} color="#D8C1FF" /><Text style={styles.maxBadgeText}>DEEPEST</Text></View> : null}
     </View>
     <Text style={styles.planCopy}>{tierDescription(plan.tier)}</Text>
@@ -187,12 +193,14 @@ function Comparison({ plans }: { plans: SubscriptionPlan[] }) {
   const max = plans.find((plan) => plan.tier === 'kivelle_max');
   if (!free || !plus || !max) return null;
   const rows: Array<[string, string, string, string]> = [
-    ['Chat', free.chatDailyLimit === null ? 'Unlimited' : 'Daily limit', 'Unlimited', 'Unlimited'],
+    ['Chat', `${free.introductoryChatDailyLimit}/day first week, then ${free.chatDailyLimit}`, 'Unlimited', 'Unlimited'],
     ['Intelligence', intelligenceLabel(free.intelligenceProfile), intelligenceLabel(plus.intelligenceProfile), intelligenceLabel(max.intelligenceProfile)],
     ['Lives', String(free.maxLives), String(plus.maxLives), String(max.maxLives)],
     ['Custom companions', String(free.maxCustomCompanions), String(plus.maxCustomCompanions), String(max.maxCustomCompanions)],
     ['Worlds', 'Free', 'Standard', 'Standard + early'],
     ['Monthly credits', '—', plus.monthlyCreditGrant.toLocaleString(), max.monthlyCreditGrant.toLocaleString()],
+    ['Included Date photos', 'Paid with credits', `${plus.includedDatePhotoMonthlyLimit} / month`, `${max.includedDatePhotoMonthlyLimit} / month`],
+    ['Adult dialogue', `${free.explicitDialogueMonthlyLimit} / month`, `${plus.explicitDialogueMonthlyLimit} / month`, `${max.explicitDialogueMonthlyLimit} / month`],
     ['Media priority', 'Standard', 'Priority', 'Highest'],
   ];
   return <View style={styles.compareCard}>
@@ -204,6 +212,7 @@ function Comparison({ plans }: { plans: SubscriptionPlan[] }) {
 function MiniStat({ label, value }: { label: string; value: string }) { return <View style={styles.miniStat}><Text style={styles.miniLabel}>{label}</Text><Text style={styles.miniValue}>{value}</Text></View>; }
 function Cost({ label, value }: { label: string; value: number }) { return <View style={styles.cost}><Text style={styles.costLabel}>{label}</Text><View style={styles.costValueRow}><Coins size={11} color="#FFD29B" /><Text style={styles.costValue}>{value}</Text></View></View>; }
 function formatDate(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? 'At renewal' : date.toLocaleDateString([], { month: 'short', day: 'numeric' }); }
+function nextMonthlyRefill(){const now=new Date();return new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()+1,1)).toISOString();}
 
 const styles = StyleSheet.create({
   content: { gap: spacing.lg, maxWidth: 780, paddingBottom: spacing.xxxl },
@@ -230,8 +239,9 @@ const styles = StyleSheet.create({
   billingChoiceActive: { backgroundColor: colors.elevated, borderWidth: 1, borderColor: 'rgba(216,62,234,.35)' },
   billingText: { color: colors.muted, fontSize: 11, fontWeight: '800' },
   billingTextActive: { color: colors.text },
-  soonPill: { paddingHorizontal: 5, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: 'rgba(154,99,215,.16)' },
-  soonText: { color: '#D8C1FF', fontSize: 7, fontWeight: '900', letterSpacing: .6 },
+  savePill: { paddingHorizontal: 5, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: 'rgba(216,62,234,.20)' },
+  saveText: { color: '#FFB9D2', fontSize: 7, fontWeight: '900', letterSpacing: .5 },
+  billedAnnually:{color:colors.dimmed,fontSize:9,fontWeight:'700',marginTop:3},
   sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 },
   sectionKicker: { color: colors.rose, fontSize: 9, fontWeight: '900', letterSpacing: 1.15 },
   sectionTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 24, marginTop: 4 },

@@ -17,7 +17,12 @@ export type KivelleCapabilities={
   tier:SubscriptionTier;
   displayName:'Kivelle Free'|'Kivelle+'|'Kivelle Max';
   monthlyPriceUsd:number;
+  annualPriceUsd:number|null;
   chatDailyLimit:number|null;
+  introductoryChatDailyLimit:number|null;
+  introductoryChatDays:number;
+  explicitDialogueMonthlyLimit:number|null;
+  includedDatePhotoMonthlyLimit:number;
   intelligenceProfile:IntelligenceProfile;
   memoryRetrievalBudget:number;
   recentTurnBudget:number;
@@ -55,9 +60,9 @@ const maxEntitlements:readonly EntitlementKey[]=[...plusEntitlements,
 ];
 
 export const subscriptionCatalog:Record<SubscriptionTier,KivelleCapabilities>={
-  free:{tier:'free',displayName:'Kivelle Free',monthlyPriceUsd:0,chatDailyLimit:40,intelligenceProfile:'core',memoryRetrievalBudget:6,recentTurnBudget:10,historyRetrievalBudget:1,directorPolicy:'major_only',maxLives:1,maxCustomCompanions:1,worldAccess:'free',earlyWorldAccess:false,monthlyCreditGrant:0,subscriptionCreditRolloverCap:0,welcomeCredits:50,mediaQueue:'standard',entitlements:freeEntitlements},
-  kivelle_plus:{tier:'kivelle_plus',displayName:'Kivelle+',monthlyPriceUsd:14.99,chatDailyLimit:null,intelligenceProfile:'deep',memoryRetrievalBudget:12,recentTurnBudget:18,historyRetrievalBudget:3,directorPolicy:'meaningful',maxLives:3,maxCustomCompanions:5,worldAccess:'all_standard',earlyWorldAccess:false,monthlyCreditGrant:500,subscriptionCreditRolloverCap:1000,welcomeCredits:50,mediaQueue:'priority',entitlements:plusEntitlements},
-  kivelle_max:{tier:'kivelle_max',displayName:'Kivelle Max',monthlyPriceUsd:29.99,chatDailyLimit:null,intelligenceProfile:'director',memoryRetrievalBudget:20,recentTurnBudget:28,historyRetrievalBudget:6,directorPolicy:'normal_and_up',maxLives:10,maxCustomCompanions:20,worldAccess:'all_standard',earlyWorldAccess:true,monthlyCreditGrant:1500,subscriptionCreditRolloverCap:3000,welcomeCredits:50,mediaQueue:'highest',entitlements:maxEntitlements},
+  free:{tier:'free',displayName:'Kivelle Free',monthlyPriceUsd:0,annualPriceUsd:null,chatDailyLimit:20,introductoryChatDailyLimit:40,introductoryChatDays:7,explicitDialogueMonthlyLimit:25,includedDatePhotoMonthlyLimit:0,intelligenceProfile:'core',memoryRetrievalBudget:6,recentTurnBudget:10,historyRetrievalBudget:1,directorPolicy:'major_only',maxLives:1,maxCustomCompanions:1,worldAccess:'free',earlyWorldAccess:false,monthlyCreditGrant:0,subscriptionCreditRolloverCap:0,welcomeCredits:50,mediaQueue:'standard',entitlements:freeEntitlements},
+  kivelle_plus:{tier:'kivelle_plus',displayName:'Kivelle+',monthlyPriceUsd:14.99,annualPriceUsd:149.99,chatDailyLimit:null,introductoryChatDailyLimit:null,introductoryChatDays:0,explicitDialogueMonthlyLimit:500,includedDatePhotoMonthlyLimit:1,intelligenceProfile:'deep',memoryRetrievalBudget:12,recentTurnBudget:18,historyRetrievalBudget:3,directorPolicy:'meaningful',maxLives:3,maxCustomCompanions:5,worldAccess:'all_standard',earlyWorldAccess:false,monthlyCreditGrant:300,subscriptionCreditRolloverCap:600,welcomeCredits:50,mediaQueue:'priority',entitlements:plusEntitlements},
+  kivelle_max:{tier:'kivelle_max',displayName:'Kivelle Max',monthlyPriceUsd:34.99,annualPriceUsd:349.99,chatDailyLimit:null,introductoryChatDailyLimit:null,introductoryChatDays:0,explicitDialogueMonthlyLimit:1500,includedDatePhotoMonthlyLimit:3,intelligenceProfile:'director',memoryRetrievalBudget:20,recentTurnBudget:28,historyRetrievalBudget:6,directorPolicy:'normal_and_up',maxLives:10,maxCustomCompanions:20,worldAccess:'all_standard',earlyWorldAccess:true,monthlyCreditGrant:1000,subscriptionCreditRolloverCap:2000,welcomeCredits:50,mediaQueue:'highest',entitlements:maxEntitlements},
 };
 
 export const creditCosts:Record<CreditAction,number>={companion_photo:10,photo_edit:10,photo_variant:10,premium_photo:20,creator_appearance_set:40,short_video:125,voice_minute:8};
@@ -72,4 +77,14 @@ export function capabilitiesForAccount(tier:string,metadata?:unknown):KivelleCap
 export function entitlementsForTier(tier:string):ReadonlySet<EntitlementKey>{return new Set(capabilitiesForTier(tier).entitlements);}
 export function hasEntitlement(tier:string,key:EntitlementKey):boolean{return capabilitiesForTier(tier).entitlements.includes(key);}
 export function creditCost(action:CreditAction):number{return creditCosts[action];}
+export function effectiveChatDailyLimit(capabilities:KivelleCapabilities,accountCreatedAt:unknown,now=new Date()):number|null{
+  if(capabilities.chatDailyLimit===null)return null;
+  const created=typeof accountCreatedAt==='string'||accountCreatedAt instanceof Date?new Date(accountCreatedAt):null;
+  const introductory=capabilities.introductoryChatDailyLimit;
+  if(created&&Number.isFinite(created.getTime())&&introductory!==null&&capabilities.introductoryChatDays>0){
+    const ageMs=now.getTime()-created.getTime();
+    if(ageMs>=0&&ageMs<capabilities.introductoryChatDays*86400000)return introductory;
+  }
+  return capabilities.chatDailyLimit;
+}
 function isRecord(value:unknown):value is Record<string,unknown>{return Boolean(value)&&typeof value==='object'&&!Array.isArray(value);}

@@ -215,6 +215,7 @@ export default function Chat() {
       setPendingImage(null);setStream(''); setMessages((current) => [...current.filter((item) => item.id !== optimistic.id), { ...optimistic, delivery_status: 'complete',attachments:sentAttachment?[sentAttachment]:optimistic.attachments }, result.message,...(result.additionalMessages??[])]);
       if(result.generatedMedia){upsertMedia(result.generatedMedia);setReconcilingMediaId(result.generatedMedia.id);setPendingGeneratedPhoto((current)=>current?{...current,id:result.generatedMedia!.id,requestedAt:new Date(result.generatedMedia!.created_at).getTime()}:current);}
       else if(generatedPhotoRequest)setPendingGeneratedPhoto((current)=>current?.id===generatedPhotoRequest.id?null:current);
+      if(result.photoRequestError)setError(result.photoRequestError.message);
       if(result.delta)applyServerDelta(result.delta);
       showNewStoryFeedback(before, useTogether.getState().snapshot, character.id, character.together_character_templates.name, setFeedback);
     } catch (caught) {

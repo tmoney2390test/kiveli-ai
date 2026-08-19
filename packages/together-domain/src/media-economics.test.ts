@@ -4,8 +4,8 @@ import{canonicalCreditPurchaseAmount,creditPacks,estimatedMediaProviderCost,isMe
 describe('media economics',()=>{
   it('keeps the authoritative credit pack catalog',()=>{
     expect(creditPacks.map(({key,credits,priceUsd})=>({key,credits,priceUsd}))).toEqual([
-      {key:'credits_100',credits:100,priceUsd:4.99},{key:'credits_300',credits:300,priceUsd:9.99},
-      {key:'credits_800',credits:800,priceUsd:19.99},{key:'credits_2000',credits:2000,priceUsd:39.99},
+      {key:'credits_100',credits:100,priceUsd:4.99},{key:'credits_300',credits:300,priceUsd:11.99},
+      {key:'credits_800',credits:800,priceUsd:27.99},{key:'credits_2000',credits:2000,priceUsd:59.99},
     ]);
     expect(canonicalCreditPurchaseAmount('credits_100')).toBe(100);
     expect(canonicalCreditPurchaseAmount('unknown')).toBeNull();
@@ -21,6 +21,9 @@ describe('media economics',()=>{
     expect(resolveMediaOfferPolicy({source:'date',tier:'free',automaticPhotos:true})).toMatchObject({creditCost:10,autoAccept:false,includedSubscriptionBenefit:false,qualityTier:'premium'});
     expect(resolveMediaOfferPolicy({source:'date',tier:'kivelle_plus',automaticPhotos:true})).toMatchObject({creditCost:0,autoAccept:true,includedSubscriptionBenefit:true,includedBenefitType:'date_completion_photo'});
     expect(resolveMediaOfferPolicy({source:'date',tier:'kivelle_max',automaticPhotos:false})).toMatchObject({createOffer:true,creditCost:0,autoAccept:false,includedSubscriptionBenefit:true});
+    expect(resolveMediaOfferPolicy({source:'date',tier:'kivelle_plus',automaticPhotos:true,includedDatePhotosUsed:1})).toMatchObject({creditCost:10,autoAccept:false,includedSubscriptionBenefit:false});
+    expect(resolveMediaOfferPolicy({source:'date',tier:'kivelle_max',automaticPhotos:true,includedDatePhotosUsed:2})).toMatchObject({creditCost:0,includedSubscriptionBenefit:true});
+    expect(resolveMediaOfferPolicy({source:'date',tier:'kivelle_max',automaticPhotos:true,includedDatePhotosUsed:3})).toMatchObject({creditCost:10,includedSubscriptionBenefit:false});
   });
   it('centralizes provider estimates',()=>{
     expect(estimatedMediaProviderCost('venice-qwen-multiref')).toBe(.04);

@@ -2,8 +2,8 @@ const PHOTO_REQUEST_PATTERN = /\b(send|show|take|share|see|want|lemme|let me)\b.
 
 // This only controls the optimistic loading treatment. The server remains the
 // authority for moderation and for deciding whether a media job may be queued.
-const NON_GENERATABLE_PREVIEW_PATTERN = /\b(nudes?|naked|topless|strip|tits?|boobs?|breasts?|pussy|dick|cock|sex|sexual|explicit|underage|minors?|children?)\b/i;
+const HARD_BLOCKED_PREVIEW_PATTERN = /\b(underage|minors?|children?|schoolgirls?|schoolboys?|non[- ]?consensual|without (?:her|his|their) consent|force(?:d|s|ing)? (?:her|him|them)|celebrity|public figure|look exactly like|face of|identical to)\b/i;
 
 export function shouldShowPhotoGenerationPending(text: string): boolean {
-  return PHOTO_REQUEST_PATTERN.test(text) && !NON_GENERATABLE_PREVIEW_PATTERN.test(text);
+  return PHOTO_REQUEST_PATTERN.test(text) && !HARD_BLOCKED_PREVIEW_PATTERN.test(text);
 }

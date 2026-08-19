@@ -79,11 +79,25 @@ export function routeKivelleDialogue(input: {
   ageVerified: boolean;
   characterAge?: number | null;
   relationshipAllowsExplicit?: boolean;
+  photoRequest?: boolean;
   providers: DialogueProviderAvailability;
 }): DialogueRoutingDecision {
   const requestedMode = input.requestedMode ?? 'standard';
   const adultEligible = input.ageVerified && Number.isFinite(input.characterAge) && Number(input.characterAge) >= 18;
   if (input.classification === 'hard_block') return { provider: 'deterministic', requestedMode, resolvedMode: 'standard', reason: 'safety_block', explicit: false, adultEligible, hardBlocked: true, classification: input.classification };
+
+  // PhotoGen owns photo permission and delivery. The prose provider should
+  // only produce a short acknowledgement, not reject a valid media request
+  // because explicit dialogue or relationship-stage routing is unavailable.
+  // Preserve adult-age and hard-safety checks before taking this branch.
+  if (input.photoRequest) {
+    if (input.classification === 'explicit_adult' && !adultEligible) return { provider: 'deterministic', requestedMode, resolvedMode: 'romance', reason: 'safety_block', explicit: false, adultEligible, hardBlocked: true, classification: input.classification };
+    const resolvedMode: DialogueContentMode = requestedMode === 'standard' ? 'standard' : 'romance';
+    const reason: DialogueRouteReason = resolvedMode === 'romance' ? 'romance_default' : 'standard_default';
+    if (input.providers.openai) return { provider: 'openai', requestedMode, resolvedMode, reason, explicit: false, adultEligible, hardBlocked: false, classification: input.classification };
+    if (input.providers.gemini) return { provider: 'gemini', requestedMode, resolvedMode, reason: 'provider_fallback', explicit: false, adultEligible, hardBlocked: false, classification: input.classification };
+    return { provider: 'deterministic', requestedMode, resolvedMode, reason: 'provider_unavailable', explicit: false, adultEligible, hardBlocked: false, classification: input.classification };
+  }
 
   if (input.classification === 'explicit_adult') {
     if (!adultEligible) return { provider: 'deterministic', requestedMode, resolvedMode: 'romance', reason: 'safety_block', explicit: false, adultEligible, hardBlocked: true, classification: input.classification };

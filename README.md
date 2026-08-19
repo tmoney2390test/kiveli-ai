@@ -20,11 +20,11 @@ Kivelle.AI is an adult relationship and living-world simulation built with Expo,
 
 The capability catalog lives in `packages/together-domain/src/entitlements.ts` and is consumed server-side. Never gate canonical truth or basic character quality in the client only.
 
-- **Kivelle Free** — $0, 40 messages/day, core continuity, 1 Life, 1 custom companion, free worlds, 50 one-time welcome credits.
-- **Kivelle+** — $14.99/month, unlimited conversations, deeper retrieval, all standard subscription worlds, 3 Lives, 5 custom companions, 500 monthly credits with rollover to 1,000.
-- **Kivelle Max** — $29.99/month, deepest retrieval + Kivelle Director routing, 10 Lives, 20 custom companions, priority media, 1,500 monthly credits with rollover to 3,000, and explicitly flagged early-access worlds.
+- **Kivelle Free** — $0, 40 messages/day for the first 7 days and 20/day afterward, core continuity, 1 Life, 1 custom companion, free worlds, and 50 one-time welcome credits.
+- **Kivelle+** — $14.99/month or $149.99/year, unlimited conversations, deeper retrieval, all standard subscription worlds, 3 Lives, 5 custom companions, 300 monthly credits with rollover to 600, and one included Date souvenir photo per month.
+- **Kivelle Max** — $34.99/month or $349.99/year, deepest retrieval + Kivelle Director routing, 10 Lives, 20 custom companions, highest-priority media, 1,000 monthly credits with rollover to 2,000, three included Date souvenir photos per month, and explicitly flagged early-access worlds.
 
-Credits meter variable-cost generation rather than relationship actions. Chat, relationship progression, memories, Plans, Dates, Stories, and Moments do not spend credits. Direct companion photos currently cost 10 credits and a four-image Creator appearance set costs 40. Automatic life/Date/Story/Moment photos are not charged. Terminal paid-generation failures refund the exact balance buckets that were spent.
+Credits meter variable-cost generation rather than relationship actions. Chat, relationship progression, memories, Plans, Dates, Stories, and Moments do not spend credits. Direct companion photos currently cost 10 credits and a four-image Creator appearance set costs 40. Life/Story/Moment photo opportunities remain provider-free until the user accepts a 10-credit offer; paid Date souvenir benefits are monthly-bounded. Terminal paid-generation failures refund the exact balance buckets that were spent.
 
 ## Authentication providers
 

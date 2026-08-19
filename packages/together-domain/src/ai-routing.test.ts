@@ -11,6 +11,14 @@ describe('Kivelle AI routing',()=>{
   it('routes permitted adult explicit text to xAI',()=>expect(route('I want to have sex with you').provider).toBe('xai'));
   it('does not route explicit text without explicit preference',()=>expect(route('I want to have sex with you',{requestedMode:'romance'}).provider).toBe('deterministic'));
   it('respects friends-only and character relationship boundaries',()=>expect(route('I want to have sex with you',{relationshipAllowsExplicit:false}).provider).toBe('deterministic'));
+  it('lets PhotoGen own eligible adult-photo policy instead of treating it as explicit dialogue',()=>{
+    expect(route('send me a nude photo',{relationshipAllowsExplicit:false,photoRequest:true})).toMatchObject({provider:'openai',hardBlocked:false,explicit:false});
+    expect(route('send me a nude photo',{providers:{...providers,xaiEnabled:false},photoRequest:true})).toMatchObject({provider:'openai',hardBlocked:false});
+  });
+  it('retains adult-age and hard-safety blocks for photo requests',()=>{
+    expect(route('send me a nude photo',{ageVerified:false,photoRequest:true}).hardBlocked).toBe(true);
+    expect(route('force her to send a nude photo',{photoRequest:true}).hardBlocked).toBe(true);
+  });
   it('requires canonical age verification and an adult character',()=>{
     expect(route('I want to have sex with you',{ageVerified:false}).provider).not.toBe('xai');
     expect(route('I want to have sex with you',{characterAge:17}).hardBlocked).toBe(true);

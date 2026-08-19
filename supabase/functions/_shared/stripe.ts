@@ -7,9 +7,12 @@ export type StripeBillingConfiguration={
   webhook:boolean;
   kivelle_plus:boolean;
   kivelle_max:boolean;
+  kivelle_plus_annual:boolean;
+  kivelle_max_annual:boolean;
   credits:boolean;
   portal:boolean;
 };
+export type BillingInterval='monthly'|'annual';
 export type StripeEvent={id:string;type:string;created?:number;data:{object:Record<string,any>}};
 
 const STRIPE_API='https://api.stripe.com/v1';
@@ -24,13 +27,16 @@ export function stripeBillingConfiguration():StripeBillingConfiguration{
     webhook:Boolean(optionalEnv('STRIPE_WEBHOOK_SECRET')),
     kivelle_plus:secretKey&&Boolean(optionalEnv('STRIPE_PRICE_KIVELLE_PLUS_MONTHLY')),
     kivelle_max:secretKey&&Boolean(optionalEnv('STRIPE_PRICE_KIVELLE_MAX_MONTHLY')),
+    kivelle_plus_annual:secretKey&&Boolean(optionalEnv('STRIPE_PRICE_KIVELLE_PLUS_ANNUAL')),
+    kivelle_max_annual:secretKey&&Boolean(optionalEnv('STRIPE_PRICE_KIVELLE_MAX_ANNUAL')),
     credits:secretKey&&(['credits_100','credits_300','credits_800','credits_2000'] as const).some((key)=>Boolean(stripePriceForCreditPack(key))),
     portal:secretKey,
   };
 }
 
-export function stripePriceForTier(tier:'kivelle_plus'|'kivelle_max'):string|null{
-  return optionalEnv(tier==='kivelle_plus'?'STRIPE_PRICE_KIVELLE_PLUS_MONTHLY':'STRIPE_PRICE_KIVELLE_MAX_MONTHLY')??null;
+export function stripePriceForTier(tier:'kivelle_plus'|'kivelle_max',interval:BillingInterval='monthly'):string|null{
+  const suffix=interval==='annual'?'ANNUAL':'MONTHLY';
+  return optionalEnv(`STRIPE_PRICE_${tier==='kivelle_plus'?'KIVELLE_PLUS':'KIVELLE_MAX'}_${suffix}`)??null;
 }
 
 export function stripeCreditAmount():number|null{return positiveInteger(optionalEnv('STRIPE_CREDITS_AMOUNT'));}
@@ -79,19 +85,20 @@ export async function ensureStripeCustomer(db:SupabaseClient,input:{userId:strin
   return String(upsert.data.customer_id);
 }
 
-export async function createStripeCheckoutSession(db:SupabaseClient,input:{userId:string;email?:string|null;tier?:'kivelle_plus'|'kivelle_max';credits?:boolean;creditPackKey?:CreditPackKey;requestId:string}):Promise<{id:string;url:string}>{
+export async function createStripeCheckoutSession(db:SupabaseClient,input:{userId:string;email?:string|null;tier?:'kivelle_plus'|'kivelle_max';billingInterval?:BillingInterval;credits?:boolean;creditPackKey?:CreditPackKey;requestId:string}):Promise<{id:string;url:string}>{
   const credits=input.credits===true;
   const pack=credits?resolveCreditPack(input.creditPackKey):null;
-  const price=credits&&pack?stripePriceForCreditPack(pack.key):input.tier?stripePriceForTier(input.tier):null;
+  const interval=input.billingInterval??'monthly';
+  const price=credits&&pack?stripePriceForCreditPack(pack.key):input.tier?stripePriceForTier(input.tier,interval):null;
   const creditAmount=pack?.credits??null;
   if(!price||credits&&!creditAmount||!credits&&!input.tier)throw new AppError('BILLING_NOT_CONFIGURED','That Stripe product has not been configured yet.',503);
   const customer=await ensureStripeCustomer(db,input);
   const kind=credits?'credits':'subscription',metadata:Record<string,string>={user_id:input.userId,kind};
-  if(input.tier)metadata.tier=input.tier;if(creditAmount)metadata.credit_amount=String(creditAmount);if(pack)metadata.product_key=pack.key;
+  if(input.tier){metadata.tier=input.tier;metadata.billing_interval=interval;}if(creditAmount)metadata.credit_amount=String(creditAmount);if(pack)metadata.product_key=pack.key;
   const parameters:Record<string,string>={mode:credits?'payment':'subscription',customer,'line_items[0][price]':price,'line_items[0][quantity]':'1',success_url:returnUrl('success'),cancel_url:returnUrl('cancel'),client_reference_id:input.userId,'billing_address_collection':'auto','metadata[user_id]':input.userId,'metadata[kind]':kind};
-  if(input.tier){parameters['metadata[tier]']=input.tier;parameters['subscription_data[metadata][user_id]']=input.userId;parameters['subscription_data[metadata][tier]']=input.tier;parameters['subscription_data[metadata][kind]']='subscription';parameters.allow_promotion_codes='true';}
+  if(input.tier){parameters['metadata[tier]']=input.tier;parameters['metadata[billing_interval]']=interval;parameters['subscription_data[metadata][user_id]']=input.userId;parameters['subscription_data[metadata][tier]']=input.tier;parameters['subscription_data[metadata][billing_interval]']=interval;parameters['subscription_data[metadata][kind]']='subscription';parameters.allow_promotion_codes='true';}
   if(creditAmount)parameters['metadata[credit_amount]']=String(creditAmount);if(pack)parameters['metadata[product_key]']=pack.key;
-  const session=await stripeRequest<{id:string;url?:string|null}>('/checkout/sessions',parameters,`checkout:${input.userId}:${kind}:${input.tier??pack?.key}:${input.requestId}`);
+  const session=await stripeRequest<{id:string;url?:string|null}>('/checkout/sessions',parameters,`checkout:${input.userId}:${kind}:${input.tier??pack?.key}:${interval}:${input.requestId}`);
   if(!session.url)throw new AppError('PROVIDER_UNAVAILABLE','Stripe created a session without a checkout URL.',502,true);
   return{id:session.id,url:session.url};
 }

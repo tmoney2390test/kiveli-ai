@@ -1,6 +1,6 @@
 import type{SupabaseClient}from'@supabase/supabase-js';
 import{resolveMediaOfferPolicy,type MediaOfferSource}from'../../../packages/together-domain/src/media-economics.ts';
-import{normalizeSubscriptionTier,type SubscriptionTier}from'../../../packages/together-domain/src/entitlements.ts';
+import{capabilitiesForTier,normalizeSubscriptionTier,type SubscriptionTier}from'../../../packages/together-domain/src/entitlements.ts';
 import type{MediaContentLevel,MediaShotType}from'../../../packages/together-domain/src/media-routing.ts';
 import{AppError}from'./types.ts';
 import{track}from'./together.ts';
@@ -21,7 +21,15 @@ export async function createMediaOffer(db:SupabaseClient,input:CreateMediaOfferI
   const template=instance.together_character_templates as unknown as Record<string,unknown>,preferences=(profile?.photo_preferences??{}) as Record<string,unknown>;
   if(preferences.companionPhotos===false)return null;
   if(!profile?.age_verified_at||Number(template.age)<18||(template.metadata as Record<string,unknown>|undefined)?.fictional===false)return null;
-  const policy=resolveMediaOfferPolicy({source:input.source,tier,automaticPhotos:preferences.automaticPhotos!==false});
+  let includedDatePhotosUsed=0;
+  if(input.source==='date'&&tier!=='free'){
+    if(!input.dateSessionId)throw new AppError('VALIDATION_FAILED','A completed Date is required for its souvenir photo.',400);
+    const limit=capabilitiesForTier(tier).includedDatePhotoMonthlyLimit;
+    const{data:claimed,error:claimError}=await db.rpc('kivelle_claim_included_date_photo',{p_user_id:input.userId,p_date_session_id:input.dateSessionId,p_monthly_limit:limit});
+    if(claimError)throw new AppError('INTERNAL_ERROR','Your included Date photo allowance could not be checked.',500,true);
+    includedDatePhotosUsed=claimed?0:limit;
+  }
+  const policy=resolveMediaOfferPolicy({source:input.source,tier,automaticPhotos:preferences.automaticPhotos!==false,includedDatePhotosUsed});
   if(!policy.createOffer)return null;
   const offerKey=input.offerKey??canonicalOfferKey(input);
   const expiresAt=policy.expiresInHours===null?null:new Date(Date.now()+policy.expiresInHours*3600000).toISOString();

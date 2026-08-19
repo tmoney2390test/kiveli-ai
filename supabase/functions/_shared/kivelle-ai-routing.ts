@@ -8,7 +8,7 @@ export function configuredDialogueProviders(){return{
   xaiExplicitEnabled:Deno.env.get('KIVELLE_XAI_EXPLICIT_ENABLED')==='true',
 };}
 
-export function resolveDialogueRouting(input:{message:string;recentTurns?:Array<{role:string;content:string}>;requestedMode?:DialogueContentMode;ageVerified:boolean;characterAge?:number|null;relationshipAllowsExplicit?:boolean;moderation?:NormalizedModerationResult}):DialogueRoutingDecision{
+export function resolveDialogueRouting(input:{message:string;recentTurns?:Array<{role:string;content:string}>;requestedMode?:DialogueContentMode;ageVerified:boolean;characterAge?:number|null;relationshipAllowsExplicit?:boolean;photoRequest?:boolean;moderation?:NormalizedModerationResult}):DialogueRoutingDecision{
   const classification=classifyDialogueContent({message:input.message,recentTurns:input.recentTurns,requestedMode:input.requestedMode,moderation:input.moderation});
-  return routeKivelleDialogue({classification,requestedMode:input.requestedMode,ageVerified:input.ageVerified,characterAge:input.characterAge,relationshipAllowsExplicit:input.relationshipAllowsExplicit,providers:configuredDialogueProviders()});
+  return routeKivelleDialogue({classification,requestedMode:input.requestedMode,ageVerified:input.ageVerified,characterAge:input.characterAge,relationshipAllowsExplicit:input.relationshipAllowsExplicit,photoRequest:input.photoRequest,providers:configuredDialogueProviders()});
 }
