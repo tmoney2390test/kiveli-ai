@@ -12,7 +12,8 @@ import { refundCredits } from '../_shared/kivelle-subscription.ts';
 import { configuredMediaRegistry } from '../_shared/together-media-providers.ts';
 import { resolveMediaContentPolicy } from '../../../packages/together-domain/src/media-routing.ts';
 import { envBoolean } from '../_shared/wavespeed.ts';
-import {acceptMediaOffer,declineMediaOffer,listPendingMediaOffers} from '../_shared/together-media-offers.ts';
+import {acceptMediaOffer} from '../_shared/together-media-offer-acceptance.ts';
+import {declineMediaOffer,listPendingMediaOffers} from '../_shared/together-media-offers.ts';
 
 const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('request'),characterInstanceId:z.string().uuid(),source:z.literal('user_request').default('user_request'),conversationId:z.string().uuid().optional(),messageId:z.string().uuid().optional(),requestText:z.string().trim().max(400).optional(),idempotencyKey:z.string().trim().min(8).max(120).optional()}),
