@@ -3,9 +3,13 @@ import{AppError}from'./types.ts';
 import{buildImagePrompt,configuredImageProvider,type CanonicalImageGenerationRequest,type ImageGenerationResult,type MediaReferenceImage}from'./together-media-base.ts';
 import{configuredWaveSpeedClient,envBoolean,envNumber,type WaveSpeedClient,type WaveSpeedPrediction}from'./wavespeed.ts';
 import{estimatedMediaProviderCost}from'../../../packages/together-domain/src/media-economics.ts';
+import{hasUsableCharacterIdentityReference}from'../../../packages/together-domain/src/media.ts';
+import{resolveVenicePipeline,VENICE_ADULT_EDIT_MODEL,VENICE_QUALITY_EDIT_MODEL,VENICE_STANDARD_EDIT_MODEL,veniceModelCostUsd}from'../../../packages/together-domain/src/venice-media.ts';
+import{configuredVeniceClient,type VeniceEditResult,type VeniceImageClient}from'./venice.ts';
 
-export type CanonicalMediaRequest=CanonicalImageGenerationRequest&{mediaType:'image'|'video';sourceImage?:MediaReferenceImage;motionPrompt?:string;durationSeconds?:number;mediaProfile?:{id:string;provider:string;modelFamily:string;modelUrl:string;triggerWord?:string;revision:number}};
-export type ProviderCompletedMedia={bytes?:Uint8Array;outputUrl?:string;contentType?:string;width?:number;height?:number;durationMs?:number;providerRequestId?:string;model:string;estimatedCost?:number;generationMs?:number};
+export type CanonicalMediaRequest=CanonicalImageGenerationRequest&{mediaType:'image'|'video';generationKind?:'companion_photo'|'creator_identity';sourceImage?:MediaReferenceImage;motionPrompt?:string;durationSeconds?:number;mediaProfile?:{id:string;provider:string;modelFamily:string;modelUrl:string;triggerWord?:string;revision:number}};
+export type ProviderAttempt={attemptNumber:number;stage:string;provider:string;model:string;routeId:string;estimatedCost?:number;generationMs?:number;success:boolean;failureCode?:string;providerRequestId?:string};
+export type ProviderCompletedMedia={bytes?:Uint8Array;outputUrl?:string;contentType?:string;width?:number;height?:number;durationMs?:number;providerRequestId?:string;model:string;estimatedCost?:number;generationMs?:number;providerAttempts?:ProviderAttempt[];providerMetadata?:Record<string,unknown>};
 export type ProviderSubmission={provider:string;providerRequestId:string;model:string;status:'submitted'|'completed';result?:ProviderCompletedMedia};
 
 export interface MediaGenerationProvider{id:string;asynchronous:boolean;submit(request:CanonicalMediaRequest,route:MediaRouteCapability):Promise<ProviderSubmission>;getResult?(providerRequestId:string):Promise<ProviderResult>}
@@ -13,9 +17,12 @@ export type ProviderResult={status:'processing'|'completed'|'failed';result?:Pro
 export type RoutedProvider={route:MediaRoute;provider:MediaGenerationProvider};
 
 export function configuredMediaRegistry():MediaRouteCapability[]{
-  const wave=envBoolean('KIVELLE_WAVESPEED_ENABLED')&&Boolean(Deno.env.get('WAVESPEED_API_KEY')),adult=envBoolean('KIVELLE_ADULT_MEDIA_ENABLED'),video=envBoolean('KIVELLE_VIDEO_ENABLED');
+  const wave=envBoolean('KIVELLE_WAVESPEED_ENABLED')&&Boolean(Deno.env.get('WAVESPEED_API_KEY')),adult=envBoolean('KIVELLE_ADULT_MEDIA_ENABLED'),video=envBoolean('KIVELLE_VIDEO_ENABLED'),venice=envBoolean('KIVELLE_VENICE_ENABLED')&&Boolean(Deno.env.get('VENICE_API_KEY'));
   const standard:MediaRouteCapability['contentLevels']=['standard','romance'];
   const registry:MediaRouteCapability[]=[
+    entry('venice-qwen-multiref','venice',env('KIVELLE_VENICE_STANDARD_MODEL',VENICE_STANDARD_EDIT_MODEL),'qwen-image',['image'],standard,{character:true,location:true,max:3,edit:true,cost:estimatedMediaProviderCost('venice-qwen-multiref')??veniceModelCostUsd(VENICE_STANDARD_EDIT_MODEL),priority:130,enabled:venice,userRequest:true,requiresRefs:true,async:false}),
+    entry('venice-grok-quality-multiref','venice',env('KIVELLE_VENICE_QUALITY_MODEL',VENICE_QUALITY_EDIT_MODEL),'grok-image',['image'],standard,{character:true,location:true,max:3,edit:true,cost:estimatedMediaProviderCost('venice-grok-quality-multiref')??veniceModelCostUsd(VENICE_QUALITY_EDIT_MODEL),priority:105,enabled:venice,qualityRetry:true,requiresRefs:true,async:false}),
+    entry('venice-adult-two-stage','venice',env('KIVELLE_VENICE_ADULT_MODEL',VENICE_ADULT_EDIT_MODEL),'qwen-image',['image'],adult?['suggestive','mature','explicit']:[],{character:true,location:true,max:3,edit:true,cost:estimatedMediaProviderCost('venice-adult-two-stage')??.08,priority:140,enabled:venice&&adult&&envBoolean('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED'),userRequest:true,requiresRefs:true,async:false}),
     entry('wavespeed-kontext-pro-multiref','wavespeed',env('WAVESPEED_MODEL_REQUESTED_MULTIREF','wavespeed-ai/flux-kontext-pro/multi'),'flux',['image'],standard,{character:true,location:true,max:5,edit:true,cost:estimatedMediaProviderCost('wavespeed-kontext-pro-multiref')??undefined,priority:118,enabled:wave,userRequest:true,requiresRefs:true}),
     entry('wavespeed-kontext-max-multiref','wavespeed',env('WAVESPEED_MODEL_QUALITY_RETRY_MULTIREF','wavespeed-ai/flux-kontext-max/multi'),'flux',['image'],standard,{character:true,location:true,max:5,edit:true,cost:estimatedMediaProviderCost('wavespeed-kontext-max-multiref')??undefined,priority:117,enabled:wave,qualityRetry:true,requiresRefs:true}),
     entry('wavespeed-multiref','wavespeed',env('WAVESPEED_MODEL_MULTIREF','wavespeed-ai/flux-kontext-dev/multi-ultra-fast'),'flux',['image'],standard,{character:true,location:true,max:4,edit:true,cost:estimatedMediaProviderCost('wavespeed-multiref')??undefined,priority:120,enabled:wave}),
@@ -32,17 +39,57 @@ export function configuredMediaRegistry():MediaRouteCapability[]{
 
 export function routeCanonicalMedia(request:CanonicalMediaRequest,input:{source:string;userTier:string;preferredProvider?:string}):RoutedProvider{
   const references=request.referenceImages;const profile=request.mediaProfile;
-  const waveSelected=input.preferredProvider==='wavespeed'||env('KIVELLE_IMAGE_PROVIDER','').toLowerCase()==='wavespeed'||canaryWaveSpeed(request.mediaId),allRoutes=configuredMediaRegistry(),registry=waveSelected?allRoutes:allRoutes.filter((entry)=>entry.provider!=='wavespeed');
-  const route=routeMediaGeneration({mediaType:request.mediaType,contentLevel:request.contentLevel,qualityTier:request.qualityTier,shotType:request.composition.shotType,characterIdentityAvailable:references.some((item)=>item.role==='character_identity'),characterLoRAAvailable:Boolean(profile?.modelUrl),characterLoRAModelFamily:profile?.modelFamily,locationReferenceAvailable:references.some((item)=>item.role==='location_environment'),worldReferenceAvailable:references.some((item)=>item.role==='world_environment'),outfitReferenceAvailable:references.some((item)=>item.role==='outfit_continuity'),source:input.source,userTier:input.userTier,preferredProvider:input.preferredProvider??(waveSelected?'wavespeed':undefined),qualityRetry:Boolean(request.qualityRetry)},registry);
-  if(!route)throw new AppError('PROVIDER_UNAVAILABLE','That kind of media is not available right now.',503);
+  const characterIdentityAvailable=hasUsableCharacterIdentityReference(references),requiresCharacterReference=request.mediaType==='image'&&request.generationKind!=='creator_identity';
+  if(requiresCharacterReference&&!characterIdentityAvailable)throw new AppError('CHARACTER_REFERENCE_REQUIRED','The companion reference photo could not be prepared. No ungrounded image was sent to the provider.',409,true);
+  const selected=input.preferredProvider??(request.mediaType==='video'?'wavespeed':env('KIVELLE_IMAGE_PROVIDER','').toLowerCase()||undefined),preferred=selected??(canaryWaveSpeed(request.mediaId)?'wavespeed':undefined),registry=configuredMediaRegistry();
+  const route=routeMediaGeneration({mediaType:request.mediaType,contentLevel:request.contentLevel,qualityTier:request.qualityTier,shotType:request.composition.shotType,characterIdentityAvailable,characterLoRAAvailable:Boolean(profile?.modelUrl),characterLoRAModelFamily:profile?.modelFamily,locationReferenceAvailable:references.some((item)=>item.role==='location_environment'),worldReferenceAvailable:references.some((item)=>item.role==='world_environment'),outfitReferenceAvailable:references.some((item)=>item.role==='outfit_continuity'),source:input.source,userTier:input.userTier,preferredProvider:preferred,qualityRetry:Boolean(request.qualityRetry),requiresCharacterReference},registry);
+  if(!route)throw new AppError('PROVIDER_UNAVAILABLE','No configured provider can preserve this companion’s identity for that photo.',503);
   const provider=providerForCapability(route.capability);return{route,provider};
 }
 
 export function providerForCapability(route:MediaRouteCapability):MediaGenerationProvider{
   if(route.provider==='wavespeed'){const client=configuredWaveSpeedClient();if(!client)throw new AppError('PROVIDER_NOT_CONFIGURED','Photo generation is not connected yet.',503);return new WaveSpeedMediaProvider(client);}
+  if(route.provider==='venice'){const client=configuredVeniceClient();if(!client)throw new AppError('PROVIDER_NOT_CONFIGURED','Photo generation is not connected yet.',503);return new VeniceMediaProvider(client);}
   const provider=configuredImageProvider();if(!provider||provider.id!==route.provider)throw new AppError('PROVIDER_NOT_CONFIGURED','Photo generation is not connected yet.',503);
   return{id:provider.id,asynchronous:false,submit:async(request)=>{const result=await provider.generate(request);return{provider:provider.id,providerRequestId:result.providerRequestId??crypto.randomUUID(),model:result.model,status:'completed',result:syncResult(result)}}};
 }
+
+export class VeniceMediaProvider implements MediaGenerationProvider{
+  id='venice';asynchronous=false;
+  constructor(private readonly client:VeniceImageClient){}
+  async submit(request:CanonicalMediaRequest,route:MediaRouteCapability):Promise<ProviderSubmission>{
+    if(request.mediaType!=='image')throw new AppError('PROVIDER_UNAVAILABLE','That media type is not available through this provider.',503);
+    const references=veniceReferences(request,route),adultRoute=route.id==='venice-adult-two-stage';
+    if(!adultRoute){
+      const result=await this.client.edit({model:route.model,prompt:buildImagePrompt(request),images:references,aspectRatio:request.composition.aspectRatio,safeMode:true});
+      return completedVeniceSubmission(result,route.id);
+    }
+    if(!envBoolean('KIVELLE_ADULT_MEDIA_ENABLED')||!envBoolean('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED'))throw new AppError('PROVIDER_UNAVAILABLE','That kind of photo is not available right now.',503);
+    const stages=resolveVenicePipeline({contentLevel:request.contentLevel,standardModel:env('KIVELLE_VENICE_STANDARD_MODEL',VENICE_STANDARD_EDIT_MODEL),adultModel:route.model}),attempts:ProviderAttempt[]=[];
+    let base:VeniceEditResult;
+    try{
+      const neutral={...request,contentLevel:'romance' as const,generationIntent:undefined};
+      base=await this.client.edit({model:stages[0]!.model,prompt:buildImagePrompt(neutral),images:references,aspectRatio:request.composition.aspectRatio,safeMode:true});
+      attempts.push(veniceAttempt(1,'canonical_base',route.id,base,true));
+    }catch(error){
+      attempts.push(failedVeniceAttempt(1,'canonical_base',route.id,stages[0]!.model,error,stages[0]!.estimatedCostUsd));
+      throw new MediaProviderPipelineError(error,attempts);
+    }
+    try{
+      const final=await this.client.edit({model:stages[1]!.model,prompt:adultEditPrompt(request),images:[uint8ToBase64(base.bytes)],aspectRatio:request.composition.aspectRatio,safeMode:false});
+      attempts.push(veniceAttempt(2,'final_adult_edit',route.id,final,true));
+      return{provider:'venice',providerRequestId:final.providerRequestId,model:final.model,status:'completed',result:{bytes:final.bytes,contentType:final.contentType,providerRequestId:final.providerRequestId,model:final.model,estimatedCost:attempts.reduce((sum,item)=>sum+Number(item.estimatedCost??0),0),generationMs:attempts.reduce((sum,item)=>sum+Number(item.generationMs??0),0),providerAttempts:attempts,providerMetadata:{pipeline:'canonical_base_then_scoped_adult_edit',stageCount:2}}};
+    }catch(error){
+      attempts.push(failedVeniceAttempt(2,'final_adult_edit',route.id,stages[1]!.model,error,stages[1]!.estimatedCostUsd));
+      throw new MediaProviderPipelineError(error,attempts);
+    }
+  }
+}
+
+export class MediaProviderPipelineError extends AppError{
+  constructor(error:unknown,readonly providerAttempts:ProviderAttempt[]){const source=error instanceof AppError?error:new AppError('PROVIDER_UNAVAILABLE','The photo could not be created right now.',503,true);super(source.code,source.message,source.status,source.retryable);this.name='MediaProviderPipelineError';}
+}
+export function providerAttemptsFromError(error:unknown):ProviderAttempt[]{return error instanceof MediaProviderPipelineError?error.providerAttempts:[];}
 
 class WaveSpeedMediaProvider implements MediaGenerationProvider{
   id='wavespeed';asynchronous=true;
@@ -55,7 +102,9 @@ class WaveSpeedMediaProvider implements MediaGenerationProvider{
 }
 
 export function waveSpeedInput(request:CanonicalMediaRequest,route:MediaRouteCapability):Record<string,unknown>{
-  const refs=request.referenceImages.filter((item)=>item.signedUrl).slice(0,route.maxReferenceImages),size=dimensions(request.composition.aspectRatio,request.qualityTier),prompt=request.mediaType==='video'?buildVideoPrompt(request):buildImagePrompt(request);
+  const identity=request.referenceImages.find((item)=>item.role==='character_identity'&&item.signedUrl);
+  if(request.mediaType==='image'&&request.generationKind!=='creator_identity'&&(!identity||!route.supportsCharacterReference||route.maxReferenceImages<1))throw new AppError('CHARACTER_REFERENCE_REQUIRED','This provider route cannot preserve the companion reference identity.',409,true);
+  const refs=[...(identity?[identity]:[]),...request.referenceImages.filter((item)=>item.signedUrl&&item!==identity)].slice(0,route.maxReferenceImages),size=dimensions(request.composition.aspectRatio,request.qualityTier),prompt=request.mediaType==='video'?buildVideoPrompt(request):buildImagePrompt(request);
   if(request.mediaType==='video')return{image:request.sourceImage?.signedUrl??refs[0]?.signedUrl,prompt,preset:'tuned',resolution:request.qualityTier==='premium'?'720p':'480p',duration:Math.max(3,Math.min(10,request.durationSeconds??5)),seed:-1};
   if(['wavespeed-kontext-pro-multiref','wavespeed-kontext-max-multiref'].includes(route.id))return{prompt,images:refs.map((item)=>item.signedUrl),seed:-1,guidance_scale:3.5,aspect_ratio:request.composition.aspectRatio==='4:5'?'3:4':request.composition.aspectRatio};
   const common={prompt,size:`${size.width}*${size.height}`,seed:-1,output_format:'jpeg',num_images:1};
@@ -69,6 +118,23 @@ export function buildVideoPrompt(request:CanonicalMediaRequest):string{return['A
 
 function predictionResult(prediction:WaveSpeedPrediction,estimatedCost?:number):ProviderCompletedMedia{return{outputUrl:prediction.outputs[0],providerRequestId:prediction.id,model:prediction.model,estimatedCost,generationMs:prediction.inferenceMs};}
 function syncResult(result:ImageGenerationResult):ProviderCompletedMedia{return{bytes:result.bytes,contentType:result.contentType,width:result.width,height:result.height,providerRequestId:result.providerRequestId,model:result.model,estimatedCost:result.estimatedCost};}
+function completedVeniceSubmission(result:VeniceEditResult,routeId:string):ProviderSubmission{
+  const attempt=veniceAttempt(1,'final_edit',routeId,result,true);
+  return{provider:'venice',providerRequestId:result.providerRequestId,model:result.model,status:'completed',result:{bytes:result.bytes,contentType:result.contentType,providerRequestId:result.providerRequestId,model:result.model,estimatedCost:result.estimatedCost,generationMs:result.generationMs,providerAttempts:[attempt],providerMetadata:{pipeline:'single_edit',stageCount:1}}};
+}
+function veniceAttempt(attemptNumber:number,stage:string,routeId:string,result:VeniceEditResult,success:boolean):ProviderAttempt{return{attemptNumber,stage,routeId,provider:'venice',model:result.model,estimatedCost:result.estimatedCost,generationMs:result.generationMs,success,providerRequestId:result.providerRequestId};}
+function failedVeniceAttempt(attemptNumber:number,stage:string,routeId:string,model:string,error:unknown,estimatedCost:number):ProviderAttempt{return{attemptNumber,stage,routeId,provider:'venice',model,estimatedCost,success:false,failureCode:error instanceof AppError?error.code:'provider_failure'};}
+function veniceReferences(request:CanonicalMediaRequest,route:MediaRouteCapability):string[]{
+  const identity=request.referenceImages.find((item)=>item.role==='character_identity'&&(item.signedUrl||item.bytes));
+  if(request.generationKind!=='creator_identity'&&!identity)throw new AppError('CHARACTER_REFERENCE_REQUIRED','The companion reference photo could not be prepared.',409,true);
+  return[...(identity?[identity]:[]),...request.referenceImages.filter((item)=>item!==identity&&(item.signedUrl||item.bytes))].slice(0,Math.min(3,route.maxReferenceImages)).map(referenceSource);
+}
+function referenceSource(reference:MediaReferenceImage):string{if(reference.signedUrl)return reference.signedUrl;if(reference.bytes)return uint8ToBase64(reference.bytes);throw new AppError('CHARACTER_REFERENCE_REQUIRED','A required media reference could not be prepared.',409,true);}
+function adultEditPrompt(request:CanonicalMediaRequest):string{
+  const intent=request.generationIntent?.requestText?.trim();if(!intent)throw new AppError('PROVIDER_REQUEST_INVALID','The approved adult photo request was incomplete.',422,false);
+  return[`Apply only this approved change to the already rendered photograph: ${intent}`,`This is ${request.companion.name}, one fictional consenting adult age ${request.companion.age}.`,'Preserve the exact same adult face, facial structure, hair, body identity, body proportions, pose, camera angle, crop, lighting, background, location, activity, and all clothing not explicitly changed by the request.','Keep exactly one person. Do not duplicate the subject or add another person. Maintain realistic anatomy, natural skin texture, a sharp undistorted face, photorealism, and a single coherent camera image. No collage, reference image, caption, watermark, or text.'].join('\n');
+}
+function uint8ToBase64(bytes:Uint8Array):string{let binary='';for(let index=0;index<bytes.length;index+=32768)binary+=String.fromCharCode(...bytes.subarray(index,index+32768));return btoa(binary);}
 function dimensions(aspect:string,quality:string){const long=quality==='economy'?768:1024;return aspect==='16:9'?{width:long,height:Math.round(long*9/16)}:aspect==='1:1'?{width:long,height:long}:{width:Math.round(long*4/5),height:long};}
 function env(name:string,fallback:string){return Deno.env.get(name)??fallback;}
 function canaryWaveSpeed(seed:string){if(!envBoolean('KIVELLE_WAVESPEED_ENABLED'))return false;const percent=Math.max(0,Math.min(100,envNumber('KIVELLE_WAVESPEED_CANARY_PERCENT',0)));if(percent>=100)return true;let hash=0;for(const char of seed)hash=(hash*31+char.charCodeAt(0))>>>0;return hash%100<percent;}

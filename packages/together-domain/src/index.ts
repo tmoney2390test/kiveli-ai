@@ -32,3 +32,4 @@ export * from './media-economics.ts';
 export * from './media-quality.ts';
 export * from './provider-webhook.ts';
 export * from './security.ts';
+export * from './venice-media.ts';

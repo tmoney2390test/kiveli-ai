@@ -16,9 +16,11 @@ const QUALITY_MODEL='wavespeed-ai/molmo2/image-qa';
 export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<string,any>,media:Record<string,any>,result:ProviderCompletedMedia):Promise<MediaQualityGateResult>{
   const metadata=(media.metadata??{}) as Record<string,unknown>;
   const economicallyAuthorized=metadata.source==='user_request'||typeof metadata.mediaOfferId==='string';
-  if(job.job_type!=='image'||job.provider!=='wavespeed'||!economicallyAuthorized||!result.outputUrl||!envBoolean('KIVELLE_MEDIA_QUALITY_GATE_ENABLED',true))return{action:'accept',result};
+  if(job.job_type!=='image'||!economicallyAuthorized||(!result.outputUrl&&!result.bytes)||!envBoolean('KIVELLE_MEDIA_QUALITY_GATE_ENABLED',true))return{action:'accept',result};
   const client=configuredWaveSpeedClient();if(!client)return{action:'accept',result};
-  const assessment=await assessImage(client,result.outputUrl),verdict=assessment.verdict,qualityMetadata=assessmentMetadata(assessment),providerMetadata={...((job.provider_metadata??{}) as Record<string,unknown>),...qualityMetadata};
+  const prepared=await prepareQualityInput(db,job,media,result);if(!prepared)return{action:'accept',result};
+  let assessment:MediaQualityAssessment;try{assessment=await assessImage(client,prepared.url);}finally{if(prepared.temporary)await db.storage.from('together-user-media').remove([prepared.temporary]);}
+  const verdict=assessment.verdict,qualityMetadata=assessmentMetadata(assessment),providerMetadata={...((job.provider_metadata??{}) as Record<string,unknown>),...qualityMetadata};
   await db.from('together_media_provider_jobs').update({provider_metadata:providerMetadata,updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
   await track(db,String(media.user_id),'media_quality_checked',compactRecord({mediaId:media.id,verdict:verdict.status,retryCount:Number(providerMetadata.qualityRetryCount??0),qaProviderRequestId:assessment.providerRequestId,qaProviderModel:assessment.providerModel,qaProviderStatus:assessment.providerStatus,qaErrorCode:assessment.errorCode,qaTimedOut:assessment.timedOut,qaInferenceMs:assessment.inferenceMs}));
   if(verdict.status!=='fail')return{action:'accept',result};
@@ -37,7 +39,7 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     const retryComposition=faceQualityFailure?{...base.composition,shotType:base.composition.shotType==='scene'?'candid':base.composition.shotType,aspectRatio:'4:5',framing:'fresh medium-close environmental portrait with the companion as the dominant subject; render one large, crisp, naturally proportioned face with clear eyes, nose, mouth, teeth, and skin detail'}:base.composition;
     const retryRequest={...base,mediaType:'image',composition:retryComposition,qualityRetry:{reasonCodes:verdict.reasonCodes}} as CanonicalMediaRequest;
     const subscription=await resolveSubscriptionState(db,String(media.user_id));
-    const routed=routeCanonicalMedia(retryRequest,{source:'user_request',userTier:subscription.tier,preferredProvider:'wavespeed'});
+    const routed=routeCanonicalMedia(retryRequest,{source:'user_request',userTier:subscription.tier,preferredProvider:String(job.provider)==='venice'?'venice':'wavespeed'});
     let submission;try{submission=await routed.provider.submit(retryRequest,routed.route.capability);}catch(error){const failureCode=error instanceof AppError?error.code:'quality_retry_submission_failed';await recordMediaUsageAttempt(db,{job,media,subscriptionTier:subscription.tier,routeId:routed.route.capability.id,model:routed.route.capability.model,provider:routed.provider.id,attemptNumber:retryAttempt,qualityRetry:true,estimatedCost:routed.route.capability.estimatedCost});await completeMediaUsageAttempt(db,{providerJobId:String(job.id),attemptNumber:retryAttempt,success:false,failureCode});throw error;}
     await recordMediaUsageAttempt(db,{job,media,subscriptionTier:subscription.tier,routeId:routed.route.capability.id,model:submission.model,provider:submission.provider,attemptNumber:retryAttempt,qualityRetry:true,generationMs:submission.result?.generationMs,estimatedCost:submission.result?.estimatedCost??routed.route.capability.estimatedCost});retryRecorded=true;
     const nextMetadata={...providerMetadata,qualityRetryPreparing:false,qualityRetryCount:1,qualityVerdict:'fail',qualityReasonCodes:verdict.reasonCodes,rejectedProviderRequestIds:[...asStrings(providerMetadata.rejectedProviderRequestIds),String(result.providerRequestId??job.provider_request_id)],routingReason:routed.route.reasonCode};
@@ -52,6 +54,12 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     if(retryRecorded)await completeMediaUsageAttempt(db,{providerJobId:String(job.id),attemptNumber:retryAttempt,success:false,failureCode:'quality_retry_setup_failed'});
     return{action:'reject',reasonCodes:['quality_retry_submission_failed']};
   }
+}
+
+async function prepareQualityInput(db:SupabaseClient,job:Record<string,any>,media:Record<string,any>,result:ProviderCompletedMedia):Promise<{url:string;temporary?:string}|null>{
+  if(result.outputUrl)return{url:result.outputUrl};if(!result.bytes)return null;
+  const path=`${media.user_id}/${media.character_instance_id}/quality-candidates/${media.id}-${job.id}-${crypto.randomUUID()}.png`,uploaded=await db.storage.from('together-user-media').upload(path,result.bytes,{contentType:result.contentType??'image/png',upsert:false,cacheControl:'60'});if(uploaded.error)return null;
+  const{data}=await db.storage.from('together-user-media').createSignedUrl(path,600);if(!data?.signedUrl){await db.storage.from('together-user-media').remove([path]);return null;}return{url:data.signedUrl,temporary:path};
 }
 
 async function assessImage(client:NonNullable<ReturnType<typeof configuredWaveSpeedClient>>,imageUrl:string):Promise<MediaQualityAssessment>{

@@ -1,5 +1,5 @@
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { Tabs } from 'expo-router';
+import { Tabs, router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { Compass, Home, Images, MessageCircle, UserRound } from 'lucide-react-native';
 
@@ -41,7 +41,11 @@ export default function TabsLayout() {
   }}>
     <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: ({ color, size, focused }) => <Home color={color} size={focused ? size + 1 : size} fill={focused ? 'rgba(239,82,137,.13)' : 'transparent'} /> }} />
     <Tabs.Screen name="explore" options={{ title: 'Explore', tabBarIcon: ({ color, size, focused }) => <Compass color={color} size={focused ? size + 2 : size} /> }} />
-    <Tabs.Screen name="chat-tab" options={{ title: 'Chat', tabBarIcon: ({ color, size, focused }) => <MessageCircle color={color} size={focused ? size + 2 : size} fill={focused ? 'rgba(239,82,137,.13)' : 'transparent'} /> }} />
+    <Tabs.Screen
+      name="chat-tab"
+      listeners={{ tabPress: (event) => { event.preventDefault(); router.push('/chat'); } }}
+      options={{ title: 'Chat', tabBarIcon: ({ color, size, focused }) => <MessageCircle color={color} size={focused ? size + 2 : size} fill={focused ? 'rgba(239,82,137,.13)' : 'transparent'} /> }}
+    />
     <Tabs.Screen name="moments" options={{ title: 'Moments', tabBarIcon: ({ color, size, focused }) => <Images color={color} size={focused ? size + 1 : size} /> }} />
     <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, size, focused }) => <UserRound color={color} size={focused ? size + 2 : size} /> }} />
     <Tabs.Screen name="upgrade" options={{ href: null }} />

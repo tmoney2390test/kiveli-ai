@@ -7,6 +7,12 @@ export type MediaSceneBoundary={setting:'indoor'|'outdoor'|'mixed';instruction:s
 export type MediaPresenceState={locationId?:string|null;activity?:string|null;mood?:string|null;source?:string|null;resolvedAt?:string|null};
 export type ResolvedMediaPresence={locationId:string|null;activity:string;mood:string;source:string;resolvedAt?:string};
 
+export const CHARACTER_PHOTO_REALISM_GUIDANCE='Photorealistic real-camera photograph of the same referenced fictional adult: preserve facial geometry, natural skin texture, pores, fine hair, eye detail, adult age, and body identity. Use believable optics and lighting. No illustration, anime, CGI, 3D render, doll-like or waxy skin, beauty-filter face, plastic texture, or identity drift.';
+
+export function hasUsableCharacterIdentityReference(references:Array<{role:string;signedUrl?:string;bytes?:Uint8Array}>):boolean{
+  return references.some((reference)=>reference.role==='character_identity'&&(Boolean(reference.signedUrl)||Boolean(reference.bytes?.byteLength)));
+}
+
 /**
  * Snapshots the same present-tense state that produced the conversation.
  * A linked scene/date/event may authoritatively override its location, but a

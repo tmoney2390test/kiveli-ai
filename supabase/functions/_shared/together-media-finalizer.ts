@@ -37,7 +37,7 @@ export async function finalizeProviderMedia(db:SupabaseClient,input:{jobId:strin
   if(uploadError)throw new AppError('INTERNAL_ERROR','The generated media could not be stored.',500,true);
 
   const now=new Date().toISOString(),metadata=(media.metadata??{}) as Record<string,unknown>;
-  const safeProviderMetadata={model:input.result.model,estimatedCost:input.result.estimatedCost??null,generationMs:input.result.generationMs??null,...sanitizeProviderMetadata(input.providerStatus??{})};
+  const safeProviderMetadata={model:input.result.model,estimatedCost:input.result.estimatedCost??null,generationMs:input.result.generationMs??null,...sanitizeProviderMetadata(input.result.providerMetadata??{}),...sanitizeProviderMetadata(input.providerStatus??{})};
   const{data:updated,error:updateError}=await db.from('together_generated_media').update({
     status:'ready',storage_path:storagePath,content_type:downloaded.contentType,byte_size:downloaded.bytes.byteLength,
     width:input.result.width??media.width??null,height:input.result.height??media.height??null,duration_ms:input.result.durationMs??media.duration_ms??null,
@@ -71,6 +71,24 @@ export async function failProviderMedia(db:SupabaseClient,input:{jobId:string;fa
   await db.from('together_generated_media').update({status:'failed',failure_code:input.failureCode,failure_reason_safe:input.failureReasonSafe,claimed_at:null,next_attempt_at:null,metadata:nextMetadata,updated_at:now}).eq('id',media.id).in('status',['queued','generating']);
   await markMediaOfferOutcome(db,{media:{...media,metadata:nextMetadata},status:'failed',failureCode:input.failureCode,failureReasonSafe:input.failureReasonSafe,creditRefunded:nextMetadata.creditRefunded===true});
   await track(db,String(media.user_id),'media_generation_failed',{mediaId:media.id,provider:job.provider,routeId:job.route_id,failureCode:input.failureCode,creditRefunded:nextMetadata.creditRefunded===true});
+}
+
+/**
+ * Ends a claimed media request that cannot be safely routed before a provider
+ * job exists. This is deliberately separate from failProviderMedia(): missing
+ * identity references and incompatible routes must never create a provider
+ * request, but paid requests still need the same exact-once refund semantics.
+ */
+export async function failMediaBeforeProvider(db:SupabaseClient,input:{media:Record<string,unknown>;failureCode:string;failureReasonSafe:string}):Promise<void>{
+  const mediaId=String(input.media.id??'');if(!mediaId)return;
+  const{data:media}=await db.from('together_generated_media').select('*').eq('id',mediaId).maybeSingle();
+  if(!media||!['queued','generating'].includes(String(media.status)))return;
+  const now=new Date().toISOString(),metadata=(media.metadata??{}) as Record<string,unknown>;let nextMetadata=metadata;
+  if(typeof metadata.creditTransactionId==='string'&&metadata.creditRefunded!==true){const refunded=await refundCredits(db,{userId:String(media.user_id),transactionId:String(metadata.creditTransactionId),idempotencyKey:`refund:${String(metadata.creditTransactionId)}`,metadata:{reason:'media_rejected_before_provider',mediaId,failureCode:input.failureCode}});if(refunded)nextMetadata={...metadata,creditRefunded:true,creditRefundedAt:now};}
+  const{data:updated}=await db.from('together_generated_media').update({status:'failed',failure_code:input.failureCode,failure_reason_safe:input.failureReasonSafe,claimed_at:null,next_attempt_at:null,metadata:nextMetadata,updated_at:now}).eq('id',mediaId).in('status',['queued','generating']).select('*').maybeSingle();
+  if(!updated)return;
+  await markMediaOfferOutcome(db,{media:updated,status:'failed',failureCode:input.failureCode,failureReasonSafe:input.failureReasonSafe,creditRefunded:nextMetadata.creditRefunded===true});
+  await track(db,String(media.user_id),'media_generation_failed',{mediaId,provider:null,routeId:null,failureCode:input.failureCode,creditRefunded:nextMetadata.creditRefunded===true,providerRequestCreated:false});
 }
 
 export async function finalizeLoraProviderJob(db:SupabaseClient,input:{jobId:string;result:ProviderCompletedMedia;providerStatus?:Record<string,unknown>}):Promise<Record<string,unknown>>{

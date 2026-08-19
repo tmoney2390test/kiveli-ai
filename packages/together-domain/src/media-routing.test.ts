@@ -16,9 +16,11 @@ describe('media routing',()=>{
   it('escalates a rejected candidate to the high-fidelity retry route',()=>expect(routeMediaGeneration({...input,qualityRetry:true},registry)?.capability.id).toBe('wavespeed-max'));
   it('keeps automatic media on the fast route',()=>{const route=routeMediaGeneration({...input,source:'life_event'},registry);expect(route?.capability.id).toBe('wavespeed-multiref');});
   it('does not select the multi-reference Pro endpoint without a reference',()=>{const route=routeMediaGeneration({...input,characterIdentityAvailable:false,locationReferenceAvailable:false},registry);expect(route?.capability.id).not.toBe('wavespeed-pro');});
+  it('refuses every character-photo route when a usable identity reference is required but missing',()=>expect(routeMediaGeneration({...input,characterIdentityAvailable:false,locationReferenceAvailable:true,requiresCharacterReference:true},registry)).toBeNull());
+  it('excludes text-only and LoRA-only routes when character photos require an identity image',()=>{const route=routeMediaGeneration({...input,requiresCharacterReference:true},registry);expect(route?.fallbacks.map((item)=>item.id)).not.toContain('wavespeed-z-lora');});
   it('uses only a compatible LoRA family for automatic generation',()=>{const route=routeMediaGeneration({...input,source:'life_event',locationReferenceAvailable:false,characterLoRAAvailable:true,characterLoRAModelFamily:'z-image'},registry);expect(route?.capability.id).toBe('wavespeed-z-lora');const incompatible=routeMediaGeneration({...input,source:'life_event',locationReferenceAvailable:false,characterLoRAAvailable:true,characterLoRAModelFamily:'sdxl'},registry);expect(incompatible?.capability.id).not.toBe('wavespeed-z-lora');});
   it('keeps fallback ordering deterministic',()=>{expect(routeMediaGeneration(input,registry)?.fallbacks.map((item)=>item.id)).toEqual(['wavespeed-multiref','wavespeed-max','openai','wavespeed-z-lora']);});
-  it('identifies model families conservatively',()=>{expect(modelFamilyFor('wavespeed-ai/flux-2-klein-4b/edit-lora')).toBe('flux');expect(modelFamilyFor('vendor/new-model')).toBe('unknown');});
+  it('identifies model families conservatively',()=>{expect(modelFamilyFor('wavespeed-ai/flux-2-klein-4b/edit-lora')).toBe('flux');expect(modelFamilyFor('qwen-edit-uncensored')).toBe('qwen-image');expect(modelFamilyFor('grok-imagine-quality-edit')).toBe('grok-image');expect(modelFamilyFor('vendor/new-model')).toBe('unknown');});
 });
 
 describe('media policy',()=>{

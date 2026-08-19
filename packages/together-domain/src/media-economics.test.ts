@@ -23,6 +23,8 @@ describe('media economics',()=>{
     expect(resolveMediaOfferPolicy({source:'date',tier:'kivelle_max',automaticPhotos:false})).toMatchObject({createOffer:true,creditCost:0,autoAccept:false,includedSubscriptionBenefit:true});
   });
   it('centralizes provider estimates',()=>{
+    expect(estimatedMediaProviderCost('venice-qwen-multiref')).toBe(.04);
+    expect(estimatedMediaProviderCost('venice-adult-two-stage')).toBe(.08);
     expect(estimatedMediaProviderCost('wavespeed-multiref')).toBe(.025);
     expect(estimatedMediaProviderCost('wavespeed-kontext-pro-multiref')).toBe(.04);
     expect(estimatedMediaProviderCost('wavespeed-kontext-max-multiref')).toBe(.08);

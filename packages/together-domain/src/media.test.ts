@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyPhotoIntent, extractPhotoWardrobeDescription, resolveCanonicalMediaPresence, resolvePhotoComposition } from './media';
+import { CHARACTER_PHOTO_REALISM_GUIDANCE, classifyPhotoIntent, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, resolveCanonicalMediaPresence, resolvePhotoComposition } from './media';
 
 describe('extractPhotoWardrobeDescription',()=>{
   it('retains canonical clothing claims from a companion reply',()=>{
@@ -43,5 +43,19 @@ describe('canonical media presence',()=>{
       canonical:{locationId:'civic-arena',activity:'Watching the game',mood:'excited',source:'schedule'},
       authoritativeLocationId:'riverwalk',
     })).toMatchObject({locationId:'riverwalk',activity:'Watching the game',mood:'excited',source:'linked_context'});
+  });
+});
+
+describe('character photo identity grounding',()=>{
+  it('requires an actual usable character identity image rather than a location or empty record',()=>{
+    expect(hasUsableCharacterIdentityReference([{role:'location_environment',signedUrl:'https://example.com/place.jpg'}])).toBe(false);
+    expect(hasUsableCharacterIdentityReference([{role:'character_identity'}])).toBe(false);
+    expect(hasUsableCharacterIdentityReference([{role:'character_identity',bytes:new Uint8Array([1,2,3])}])).toBe(true);
+  });
+
+  it('defines photorealism as real-camera identity preservation',()=>{
+    expect(CHARACTER_PHOTO_REALISM_GUIDANCE).toContain('Photorealistic real-camera photograph');
+    expect(CHARACTER_PHOTO_REALISM_GUIDANCE).toContain('No illustration, anime, CGI');
+    expect(CHARACTER_PHOTO_REALISM_GUIDANCE).toContain('identity drift');
   });
 });

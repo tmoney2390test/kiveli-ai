@@ -103,11 +103,11 @@ export default function CharacterProfile() {
     try {
       if (!instance) {
         setSnapshot(await meetCompanion(template.id));
-        router.replace(`/(tabs)/chat-tab?character=${handle}` as never);
+        router.replace(`/chat?character=${encodeURIComponent(handle)}` as never);
         return;
       }
       if (selectable && !active) setSnapshot(await setActiveCompanion(instance.id, 'discover_profile'));
-      router.push(`/(tabs)/chat-tab?character=${handle}` as never);
+      router.push(`/chat?character=${encodeURIComponent(handle)}` as never);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not continue right now.');
     } finally {

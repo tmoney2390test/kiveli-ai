@@ -21,13 +21,15 @@ export type MediaRouteInput={
   locationReferenceAvailable:boolean;worldReferenceAvailable?:boolean;outfitReferenceAvailable:boolean;
   source:string;userTier:string;preferredProvider?:string;
   qualityRetry?:boolean;
+  requiresCharacterReference?:boolean;
 };
 
 export type MediaRoute={capability:MediaRouteCapability;reasonCode:string;fallbacks:MediaRouteCapability[]};
 
 export function routeMediaGeneration(input:MediaRouteInput,registry:MediaRouteCapability[]):MediaRoute|null{
+  if(input.requiresCharacterReference&&!input.characterIdentityAvailable)return null;
   const hasReference=input.characterIdentityAvailable||input.locationReferenceAvailable||Boolean(input.worldReferenceAvailable)||input.outfitReferenceAvailable;
-  const candidates=registry.filter((entry)=>entry.enabled&&entry.mediaTypes.includes(input.mediaType)&&entry.contentLevels.includes(input.contentLevel)&&entry.qualityTiers.includes(input.qualityTier)&&(!entry.requiresReferenceImages||hasReference)&&(!input.characterLoRAAvailable||!entry.supportsLoRA||entry.loraModelFamilies.includes(input.characterLoRAModelFamily??''))&&(!(input.mediaType==='video')||entry.supportsImageToVideo));
+  const candidates=registry.filter((entry)=>entry.enabled&&entry.mediaTypes.includes(input.mediaType)&&entry.contentLevels.includes(input.contentLevel)&&entry.qualityTiers.includes(input.qualityTier)&&(!entry.requiresReferenceImages||hasReference)&&(!input.requiresCharacterReference||(entry.supportsCharacterReference&&entry.maxReferenceImages>0))&&(!input.characterLoRAAvailable||!entry.supportsLoRA||entry.loraModelFamilies.includes(input.characterLoRAModelFamily??''))&&(!(input.mediaType==='video')||entry.supportsImageToVideo));
   const scored=candidates.map((entry)=>({entry,score:entry.priority+providerPreference(entry,input)+referenceFit(entry,input)+loraFit(entry,input)+qualityFit(entry,input)+requestSourceFit(entry,input)+qualityRetryFit(entry,input)})).sort((a,b)=>b.score-a.score||a.entry.id.localeCompare(b.entry.id));
   const primary=scored[0]?.entry;if(!primary)return null;
   return{capability:primary,reasonCode:routeReason(primary,input),fallbacks:scored.slice(1).map((item)=>item.entry)};
@@ -77,5 +79,7 @@ export function modelFamilyFor(model:string):string{
   if(value.includes('chroma'))return'chroma';
   if(value.includes('gpt-image'))return'openai-image';
   if(value.includes('gemini'))return'gemini-image';
+  if(value.includes('qwen'))return'qwen-image';
+  if(value.includes('grok'))return'grok-image';
   return'unknown';
 }

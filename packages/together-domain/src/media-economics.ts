@@ -56,6 +56,10 @@ export function resolveCreditPurchaseGrant(input:{productKey:unknown;reportedCre
 
 /** Auditable estimates. Actual provider charges, when supplied, remain authoritative. */
 export const mediaProviderCostRegistry:Readonly<Record<string,number>>={
+  'venice-qwen-multiref':0.04,
+  'venice-grok-quality-multiref':0.10,
+  // One neutral canonical edit plus one tightly scoped uncensored edit.
+  'venice-adult-two-stage':0.08,
   'wavespeed-kontext-pro-multiref':0.04,
   'wavespeed-kontext-max-multiref':0.08,
   'wavespeed-multiref':0.025,

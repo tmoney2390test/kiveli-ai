@@ -27,6 +27,7 @@ export async function dispatchCreatorAppearanceJobs(db: SupabaseClient, limit: n
       const request: CanonicalMediaRequest = {
         mediaId: String(asset.id),
         mediaType: 'image',
+        generationKind: 'creator_identity',
         companion: { templateId: String(draft.id), versionId: String(draft.id), name: String(identity.name ?? 'Companion'), age: Number(identity.age ?? 18) },
         visualIdentity: { canonicalDescription: String(asset.description), age: Number(identity.age ?? 18), referenceStoragePaths: [], identifyingFeatures: [], fashionStyle: String(asset.label), visualDoNotChange: stringArray((asset.metadata as Record<string, unknown> | null)?.visualDoNotChange) },
         referenceImages: [],
