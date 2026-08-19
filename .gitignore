@@ -11,3 +11,4 @@ apps/together/android/
 apps/together/ios/
 apps/together/.together-web-*.log
 .codex-output/
+.codex-temp/
