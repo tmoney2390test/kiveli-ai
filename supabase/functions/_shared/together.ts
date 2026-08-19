@@ -4,7 +4,7 @@ import { experienceClock } from './kivelle-time.ts';
 import { resolvePlaceContext } from './together-place.ts';
 import { activeContinuity } from './together-continuity.ts';
 import { normalizeMultimodalPreferences, resolveServerExperienceCapabilities } from './kivelle-multimodal.ts';
-import { applyRelationshipProposal, firstDateEligibility, isRelationshipDirectedPreferenceObject, nextRelationshipMilestone as selectRelationshipMilestone, relationshipCue, type RelationshipState } from '../../../packages/together-domain/src/index.ts';
+import { applyRelationshipProposal, firstDateEligibility, isDurableUserMemory, isRelationshipDirectedPreferenceObject, lifeEventHasExplicitPresenceAuthority, nextRelationshipMilestone as selectRelationshipMilestone, relationshipCue, type RelationshipState } from '../../../packages/together-domain/src/index.ts';
 
 export const TOGETHER_IDS = {
   world: '10000000-0000-4000-8000-000000000001',
@@ -230,10 +230,12 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
   // Scene state is an active, user-entered layer over passive schedule state.
   // The persisted character row stays schedule-owned; snapshot consumers see
   // the shared scene without mutating the character just to render a screen.
-  const visibleInstances=(instances.data??[]).map((instance:Record<string,unknown>)=>{
+  const visibleInstances:Array<Record<string,any>>=(instances.data??[]).map((instance:Record<string,any>):Record<string,any>=>{
     const scene=sceneByInstance.get(String(instance.id));
     if(scene)return {...instance,current_location_id:scene.location_id,current_activity:sceneSnapshotActivity(scene),current_interruptibility:'open',current_presence_source:'scene'};
-    if(hasActiveSnapshotPresenceLayer(String(instance.id),nowDate,dates.data??[],sharedPlans.data??[],events.data??[]))return instance;
+    if(hasActiveSnapshotCommitment(String(instance.id),nowDate,dates.data??[],sharedPlans.data??[]))return instance;
+    const authoritativeEvent=activeAuthoritativeLifeEvent(String(instance.id),nowDate,events.data??[]);
+    if(authoritativeEvent)return {...instance,current_location_id:authoritativeEvent.location_id??instance.current_location_id,current_activity:authoritativeEvent.narrative_summary??authoritativeEvent.title??instance.current_activity,current_presence_source:'life_event'};
     const authored=resolveAuthoredSnapshotPresence(instance,nowDate,schedules.data??[],locations.data??[],worlds.data??[],characterWorldPresence.data??[]);
     if(!authored)return instance;
     return {...instance,current_location_id:authored.locationId,current_activity:authored.activity,current_energy:authored.energy,current_interruptibility:authored.interruptibility,current_presence_source:'schedule',current_schedule_event_id:null};
@@ -246,6 +248,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
   const signed=readyPaths.length?await db.storage.from('together-user-media').createSignedUrls(readyPaths,3600):{data:[]};
   const urlByPath=new Map((signed.data??[]).map((item)=>[item.path,item.signedUrl]));
   const mediaPayload=mediaRows.map((item)=>({...item,signed_url:item.storage_path?urlByPath.get(item.storage_path)??null:null}));
+  const durableMemories=(memories.data??[]).filter((memory)=>isDurableUserMemory({memoryType:String(memory.memory_type??'semantic'),canonicalText:String(memory.canonical_text??'')}));
   const currentCreatorVersions=(discoverable.data??[]).map((template)=>((template.together_character_versions??[]).find((version:Record<string,unknown>)=>Number(version.version)===Number(template.current_published_version))??template.together_character_versions?.[0]??null)as Record<string,any>|null).filter(Boolean)as Array<Record<string,any>>;
   const referencePaths=[...new Set(currentCreatorVersions.flatMap((version)=>[...(Array.isArray(version.appearance_candidates)?version.appearance_candidates.map((candidate:Record<string,unknown>)=>String(candidate.storagePath??'')).filter(Boolean):[]),...(Array.isArray(version.visual_identity?.referenceStoragePaths)?version.visual_identity.referenceStoragePaths.map(String):[])]))];
   const referenceSigned=referencePaths.length?await db.storage.from('kivelle-character-reference').createSignedUrls(referencePaths,3600):{data:[]};const referenceUrlByPath=new Map((referenceSigned.data??[]).map((item)=>[item.path,item.signedUrl]));
@@ -258,7 +261,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
   const currentPlaceContext=activeInstance?.current_location_id?await resolvePlaceContext({db,locationId:String(activeInstance.current_location_id),userId}).catch(()=>null):null;
   const profilePayload=profile.data?{...profile.data,active_continuity_id:continuity.id,active_companion_instance_id:activeInstance?.id??null}:profile.data;
   const experienceCapabilities=resolveServerExperienceCapabilities(normalizeMultimodalPreferences(profile.data?.multimodal_preferences),(entitlements.data?.entitlement_keys??[]).map(String)).experience;
-  return { profile: profilePayload, activePersona:continuity.together_user_personas??null,activeContinuity:continuity,personas:personas.data??[],continuities:continuities.data??[],worlds: worlds.data ?? [], userWorlds:userWorlds.data??[], characterWorldPresence:characterWorldPresence.data??[], currentPlaceContext, locations: locations.data ?? [],relationshipPlaces:relationshipPlaces.data??[],characterPlaceProfiles, characters: visibleInstances, discoverableCharacters, favoriteCharacterTemplateIds:(favorites.data??[]).map((item)=>String(item.character_template_id)), schedules: schedules.data ?? [], scheduleEvents:(scheduleEvents.data??[]).filter((event)=>!event.metadata?.suppressedByPlanId), relationships: relationships.data ?? [], relationshipMilestones: milestones.data ?? [], relationshipCues, dates: dates.data ?? [], moments: moments.data ?? [], memories: memories.data ?? [], openThreads: threads.data ?? [], conversations: conversationMetadata, sceneSessions:activeScenes,sceneParticipants:sceneParticipants.data??[], sharedPlans:sharedPlans.data??[], conversationEvents:conversationEvents.data??[], lifeEvents: events.data ?? [], proactiveMessages: proactive.data ?? [], storyArcs: storyArcs.data ?? [], trips: trips.data ?? [], photoOpportunities: photoOpportunities.data ?? [], generatedMedia: mediaPayload, conversationActions:conversationActions.data??[], entitlements: entitlements.data,experienceCapabilities, notificationPreferences: preferences.data };
+  return { profile: profilePayload, activePersona:continuity.together_user_personas??null,activeContinuity:continuity,personas:personas.data??[],continuities:continuities.data??[],worlds: worlds.data ?? [], userWorlds:userWorlds.data??[], characterWorldPresence:characterWorldPresence.data??[], currentPlaceContext, locations: locations.data ?? [],relationshipPlaces:relationshipPlaces.data??[],characterPlaceProfiles, characters: visibleInstances, discoverableCharacters, favoriteCharacterTemplateIds:(favorites.data??[]).map((item)=>String(item.character_template_id)), schedules: schedules.data ?? [], scheduleEvents:(scheduleEvents.data??[]).filter((event)=>!event.metadata?.suppressedByPlanId), relationships: relationships.data ?? [], relationshipMilestones: milestones.data ?? [], relationshipCues, dates: dates.data ?? [], moments: moments.data ?? [], memories: durableMemories, openThreads: threads.data ?? [], conversations: conversationMetadata, sceneSessions:activeScenes,sceneParticipants:sceneParticipants.data??[], sharedPlans:sharedPlans.data??[], conversationEvents:conversationEvents.data??[], lifeEvents: events.data ?? [], proactiveMessages: proactive.data ?? [], storyArcs: storyArcs.data ?? [], trips: trips.data ?? [], photoOpportunities: photoOpportunities.data ?? [], generatedMedia: mediaPayload, conversationActions:conversationActions.data??[], entitlements: entitlements.data,experienceCapabilities, notificationPreferences: preferences.data };
 }
 
 async function fetchAllScheduleTemplates(db:SupabaseClient){
@@ -288,10 +291,15 @@ function resolveAuthoredSnapshotPresence(instance:Record<string,unknown>,now:Dat
   return{locationId:row.location_id?String(row.location_id):homeId,activity,energy:Number(row.energy_delta)>0?'high':Number(row.energy_delta)<0?'low':'medium',interruptibility:availability==='busy'?'busy':availability==='limited'?'limited':'open'};
 }
 
-function hasActiveSnapshotPresenceLayer(instanceId:string,now:Date,dates:Array<Record<string,any>>,plans:Array<Record<string,any>>,events:Array<Record<string,any>>){
+function hasActiveSnapshotCommitment(instanceId:string,now:Date,dates:Array<Record<string,any>>,plans:Array<Record<string,any>>){
   if(dates.some((row)=>String(row.character_instance_id)===instanceId&&row.status==='active'))return true;
   const active=(row:Record<string,any>)=>{const starts=new Date(String(row.starts_at??row.started_at??'')).getTime(),ends=row.ends_at?new Date(String(row.ends_at)).getTime():starts+2*60*60*1000;return Number.isFinite(starts)&&starts<=now.getTime()&&ends>now.getTime();};
-  return plans.some((row)=>String(row.character_instance_id)===instanceId&&!['cancelled','completed'].includes(String(row.status))&&active(row))||events.some((row)=>String(row.character_instance_id)===instanceId&&active(row));
+  return plans.some((row)=>String(row.character_instance_id)===instanceId&&!['cancelled','completed'].includes(String(row.status))&&active(row));
+}
+
+function activeAuthoritativeLifeEvent(instanceId:string,now:Date,events:Array<Record<string,any>>){
+  const active=(row:Record<string,any>)=>{const starts=new Date(String(row.starts_at??row.started_at??'')).getTime(),ends=row.ends_at?new Date(String(row.ends_at)).getTime():starts+2*60*60*1000;return Number.isFinite(starts)&&starts<=now.getTime()&&ends>now.getTime();};
+  return events.filter((row)=>String(row.character_instance_id)===instanceId&&active(row)&&lifeEventHasExplicitPresenceAuthority({locationId:row.location_id?String(row.location_id):null,eventType:String(row.event_type??''),metadata:row.metadata??{}})).sort((left,right)=>Number(right.significance??0)-Number(left.significance??0))[0]??null;
 }
 
 function snapshotStableIndex(seed:string,length:number){let hash=0;for(let index=0;index<seed.length;index+=1)hash=(Math.imul(31,hash)+seed.charCodeAt(index))|0;return(hash>>>0)%length;}

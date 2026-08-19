@@ -1,0 +1,13 @@
+begin;
+select plan(9);
+select has_table('public','together_ai_usage_events','AI usage telemetry table exists');
+select has_column('public','together_ai_usage_events','cached_input_tokens','cached input tokens are recorded');
+select has_column('public','together_ai_usage_events','provider_cost_ticks','exact provider cost ticks are recorded');
+select has_column('public','together_ai_usage_events','route_reason','routing reason is recorded');
+select has_column('public','together_ai_usage_events','latency_ms','request latency is recorded');
+select has_column('public','together_ai_usage_events','correlation_id','all inference work for one user turn can be grouped');
+select ok(to_regclass('public.together_ai_usage_provider_created_idx') is not null,'provider time-series index exists');
+select ok(to_regclass('public.together_ai_usage_user_created_idx') is not null,'user time-series index exists');
+select is((select relrowsecurity from pg_class where oid='public.together_ai_usage_events'::regclass),true,'AI usage telemetry has RLS enabled');
+select * from finish();
+rollback;

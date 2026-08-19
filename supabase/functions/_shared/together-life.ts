@@ -3,18 +3,19 @@ import { AppError } from './types.ts';
 import { resolveLifeState, track } from './together.ts';
 import { progressStoryArcs, rankEventTemplates } from './together-content.ts';
 import { getActiveConversation } from './together-conversation.ts';
-import { kickMediaDispatcher, queueMediaRequest } from './together-media.ts';
+import { createMediaOffer } from './together-media-offers.ts';
 import { eventIsActive, experienceClock } from './kivelle-time.ts';
 import { resolveCharacterBaseLocation, resolvePlaceContext } from './together-place.ts';
 import { waitUntil } from './background.ts';
 import { activeContinuity } from './together-continuity.ts';
 import { ensureCharacterSchedule, resolveCharacterPresence, resolveCompanionPresence } from './together-schedule.ts';
 import { finalizeExpiredPlanExperience } from './together-plan-experience.ts';
+import { isDurableUserMemory, lifeEventEstablishesPresentReality } from '../../../packages/together-domain/src/index.ts';
 
-type LifeRunInput = { db: SupabaseClient; userId: string; characterInstanceId?: string; now?: Date; evaluateProactive?: boolean; trigger: 'conversation_continued' | 'home_opened' | 'scheduled_dispatch' };
+type LifeRunInput = { db: SupabaseClient; userId: string; characterInstanceId?: string; now?: Date; evaluateProactive?: boolean; persistCharacterState?:boolean; trigger: 'conversation_continued' | 'home_opened' | 'scheduled_dispatch' };
 type EventRow = Record<string, any>;
 
-export async function runLifeSimulation({ db, userId, characterInstanceId, now = new Date(), evaluateProactive = true, trigger }: LifeRunInput): Promise<Record<string, unknown>> {
+export async function runLifeSimulation({ db, userId, characterInstanceId, now = new Date(), evaluateProactive = true, persistCharacterState=true, trigger }: LifeRunInput): Promise<Record<string, unknown>> {
   // Routine state resolution is cheap; meaningful events are materialized only
   // by a continued conversation or the protected background dispatcher.
   const simulateEvents = trigger === 'conversation_continued' || trigger === 'scheduled_dispatch';
@@ -66,7 +67,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const scheduleState=passivePresence?{locationId:passivePresence.locationId,location:passivePresence.placeContext?.location.name??baseLocation?.name??'Current place',activity:passivePresence.activity,availability:passivePresence.interruptibility==='open'?'available':passivePresence.interruptibility==='limited'?'limited':'busy',mood:String(instance.current_mood??'content'),energy:String(instance.current_energy??'medium'),interruptibility:passivePresence.interruptibility,scheduleEventId:passivePresence.scheduleEventId,state:passivePresence.state,expectedEndAt:passivePresence.expectedEndAt,nextEvent:passivePresence.nextEvent}:resolveLifeState(worldSchedules as Array<Record<string, unknown>>, now, currentPlace?.world.timezone??timezone,baseLocation?{locationId:String(baseLocation.id),location:String(baseLocation.name)}:currentPlace?{locationId:currentPlace.location.id,location:currentPlace.location.name}:undefined);
   const requestedContentMode = profile.data?.age_verified_at ? String(profile.data?.content_preferences?.contentMode ?? 'standard') : 'standard';
   const worldTemplates=(templates.data??[]).filter((row:EventRow)=>row.world_id?String(row.world_id)===currentWorldId:!row.default_location_id||String(row.together_locations?.world_id??'')===currentWorldId);
-  const eventCandidates = simulateEvents ? selectEventCandidates(eventSimulationStart, now, worldTemplates, String(instance.simulation_seed), recentEvents.data ?? [], worldSchedules, relationship.data, instance.current_location_id, requestedContentMode,currentPlace?.world.timezone??timezone) : [];
+  const eventCandidates = simulateEvents ? selectEventCandidates(eventSimulationStart, now, worldTemplates, String(instance.simulation_seed), recentEvents.data ?? [], worldSchedules, relationship.data, passivePresence?.locationId??scheduleState.locationId??instance.current_location_id, requestedContentMode,currentPlace?.world.timezone??timezone) : [];
   const instanceByTemplate = new Map((allInstances.data ?? []).map((item) => [String(item.character_template_id), String(item.id)]));
   const created: EventRow[] = [...scheduleOutcomes];
   for (const candidate of eventCandidates) {
@@ -88,7 +89,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
       resulting_state_changes: template.state_effects,
       user_should_know: template.user_visibility !== 'hidden',
       proactive_message_appropriate: template.proactive_eligible,
-      metadata: { source: trigger, probability: template.probability, category: template.category ?? template.event_type, tone: template.tone ?? 'mundane', scale: template.scale ?? 'normal', content_level: template.content_level ?? 'standard', content_template_name: template.name },
+      metadata: { source: trigger, probability: template.probability, category: template.category ?? template.event_type, tone: template.tone ?? 'mundane', scale: template.scale ?? 'normal', content_level: template.content_level ?? 'standard', content_template_name: template.name, establishesPresence:template.metadata?.establishesPresence===true, presenceAuthority:template.metadata?.establishesPresence===true?'explicit':'contextual' },
     }, { onConflict: 'character_instance_id,simulation_key', ignoreDuplicates: true }).select('*').maybeSingle();
     if (!error && data) {
       created.push(data);
@@ -101,20 +102,27 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
     for (const event of arcEvents) {
       await db.from('together_content_usage').insert({ user_id: userId, character_instance_id: instance.id, content_kind: 'arc', content_key: String(event.metadata?.arc_slug ?? event.story_arc_instance_id ?? event.id), used_at: event.starts_at, metadata: { chapter_id: event.metadata?.chapter_id } });
       if(event.user_should_know&&Number(event.significance)>=.8){
-        waitUntil(queueMediaRequest(db,{userId,characterInstanceId:String(instance.id),source:'story',lifeEventId:String(event.id),storyArcId:String(event.story_arc_instance_id),idempotencyKey:`story:${event.story_arc_instance_id}:${event.metadata?.chapter_id??event.id}`}).then((media)=>media?kickMediaDispatcher():undefined).catch((error)=>console.warn('Together story photo unavailable',error instanceof Error?error.message:'unknown_error')));
+        waitUntil(createMediaOffer(db,{userId,characterInstanceId:String(instance.id),source:'story',lifeEventId:String(event.id),storyArcId:String(event.story_arc_instance_id),offerKey:`story:${event.story_arc_instance_id}:${event.metadata?.chapter_id??event.id}`,title:String(event.title??'A photo from this chapter'),previewMetadata:{eventTitle:event.title,locationId:event.location_id}}).catch((error)=>{console.warn('Together story photo offer unavailable',error instanceof Error?error.message:'unknown_error');return null;}));
       }
     }
   }
 
   const activePlanRow = canonicalPlans.filter((plan)=>plan.status==='active'&&new Date(plan.starts_at)<=now&&new Date(plan.ends_at)>now).sort((a,b)=>Number(b.metadata?.significance??0)-Number(a.metadata?.significance??0))[0];
   const activePlan=activePlanRow?{id:activePlanRow.id,event_type:'shared_plan_active',title:activePlanRow.title,narrative_summary:`spending time with you at ${activePlanRow.title}`,location_id:activePlanRow.location_id,significance:Number(activePlanRow.metadata?.significance??.5),starts_at:activePlanRow.starts_at,ends_at:activePlanRow.ends_at,resulting_state_changes:{sharedActivity:activePlanRow.activity_key},metadata:{canonicalPlanId:activePlanRow.id}}:null;
-  const influential = [activePlan, ...created, ...(recentEvents.data ?? [])].filter((event): event is EventRow => Boolean(event) && eventIsActive(event, now)).sort((a, b) => Number(b.significance) - Number(a.significance))[0];
-  const life = applyEventInfluence(scheduleState, influential);
-  const presenceSource=activePlan?'plan':influential?'life_event':passivePresence?.source==='schedule'?'schedule':passivePresence?.source==='plan'?'plan':passivePresence?.source==='life_event'?'life_event':'fallback';
-  await db.from('together_character_instances').update({ ...(life.locationId?{current_location_id:life.locationId}:{}), current_activity: life.activity, current_mood: life.mood, current_energy: life.energy, current_schedule_event_id:presenceSource==='schedule'?passivePresence?.scheduleEventId??null:null,current_interruptibility:passivePresence?.interruptibility??'open',current_presence_source:presenceSource,life_engine_version:'life_engine_v2', last_simulated_at: now.toISOString(), ...(simulateEvents ? { last_event_simulated_at: now.toISOString() } : {}), updated_at: now.toISOString() }).eq('id', instance.id).eq('user_id', userId);
+  const activeLifeEvents=[...created,...(recentEvents.data??[])].filter((event):event is EventRow=>Boolean(event)&&eventIsActive(event,now));
+  const influential=[activePlan,...activeLifeEvents].filter((event):event is EventRow=>Boolean(event)).sort((a,b)=>Number(b.significance)-Number(a.significance))[0];
+  const eventPresenceInfluence=activeLifeEvents.filter((event)=>lifeEventEstablishesPresentReality(
+    {locationId:event.location_id?String(event.location_id):null,eventType:String(event.event_type??''),metadata:event.metadata??{}},
+    {locationId:scheduleState.locationId},
+  )).sort((a,b)=>Number(b.significance)-Number(a.significance))[0];
+  const presenceInfluence=activePlan??eventPresenceInfluence;
+  const life=applyEventInfluence(scheduleState,presenceInfluence);
+  const presenceSource=activePlan?'plan':eventPresenceInfluence?'life_event':passivePresence?.source==='schedule'?'schedule':passivePresence?.source==='plan'?'plan':passivePresence?.source==='life_event'?'life_event':'fallback';
+  if(persistCharacterState)await db.from('together_character_instances').update({ ...(life.locationId?{current_location_id:life.locationId}:{}), current_activity: life.activity, current_mood: life.mood, current_energy: life.energy, current_schedule_event_id:presenceSource==='schedule'?passivePresence?.scheduleEventId??null:null,current_interruptibility:passivePresence?.interruptibility??'open',current_presence_source:presenceSource,life_engine_version:'life_engine_v2', last_simulated_at: now.toISOString(), ...(simulateEvents ? { last_event_simulated_at: now.toISOString() } : {}), updated_at: now.toISOString() }).eq('id', instance.id).eq('user_id', userId);
 
   const { data: dueThreads } = await db.from('together_open_threads').update({ follow_up_eligible: true, updated_at: now.toISOString() }).eq('user_id', userId).eq('character_instance_id', instance.id).is('resolved_at', null).lte('expected_at', now.toISOString()).select('*');
   const prefs = preferences.data ?? { character_initiated_messages: true, push_enabled: false, quiet_hours_start: '23:00', quiet_hours_end: '08:00', timezone: 'UTC' };
+  const durableMemory=(memories.data??[]).find((memory)=>isDurableUserMemory({memoryType:String(memory.memory_type??'semantic'),canonicalText:String(memory.canonical_text??'')}));
   let proactive: EventRow | null = null;
   if (prefs.character_initiated_messages === false) {
     await db.from('together_proactive_messages').update({ status: 'cancelled', updated_at: now.toISOString() }).eq('user_id', userId).eq('character_instance_id', instance.id).eq('status', 'queued');
@@ -122,7 +130,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
     proactive = await deliverDueMessage(db, userId, instance, latestConversation.data, prefs, now);
     if (!proactive) {
       const scheduleMessageEvent=trigger==='scheduled_dispatch'&&passivePresence?.scheduleEventId&&passivePresence.interruptibility==='open'&&!['sleep','work','travel'].includes(String(passivePresence.activityKey))?{id:passivePresence.scheduleEventId,event_type:'schedule_presence',title:passivePresence.activity,narrative_summary:String(passivePresence.activity),location_id:passivePresence.locationId,significance:.56,starts_at:passivePresence.activityStartedAt,ends_at:passivePresence.expectedEndAt,user_should_know:true,proactive_message_appropriate:true,metadata:{source:'character_schedule',scheduleEventId:passivePresence.scheduleEventId}}:null;
-      proactive = await createProactiveCandidate({ db, userId, instance, relationship: relationship.data, conversation: latestConversation.data, prefs, now, dueThreads: dueThreads ?? [], events: [...(scheduleMessageEvent?[scheduleMessageEvent]:[]),...created, ...(recentEvents.data ?? [])], plans:canonicalPlans, recentProactive: recentProactive.data ?? [], memory: memories.data?.[0]?.canonical_text });
+      proactive = await createProactiveCandidate({ db, userId, instance, relationship: relationship.data, conversation: latestConversation.data, prefs, now, dueThreads: dueThreads ?? [], events: [...(scheduleMessageEvent?[scheduleMessageEvent]:[]),...created, ...(recentEvents.data ?? [])], plans:canonicalPlans, recentProactive: recentProactive.data ?? [], memory: durableMemory?.canonical_text });
     }
   }
 
@@ -153,7 +161,7 @@ async function materializeScheduleOutcomes(input:{db:SupabaseClient;userId:strin
       participant_instance_ids:[input.instance.id],location_id:schedule.location_id,significance,
       starts_at:schedule.ends_at,ends_at:schedule.ends_at,resulting_state_changes:{},
       user_should_know:true,proactive_message_appropriate:schedule.metadata?.outcomeProactive===true,
-      simulation_key:`schedule-outcome:${schedule.id}`,metadata:{source:'character_schedule',scheduleEventId:schedule.id,activityKey:schedule.activity_key,trigger:input.trigger}
+      simulation_key:`schedule-outcome:${schedule.id}`,metadata:{source:'character_schedule',scheduleEventId:schedule.id,activityKey:schedule.activity_key,trigger:input.trigger,establishesPresence:false,presenceAuthority:'contextual'}
     },{onConflict:'character_instance_id,simulation_key',ignoreDuplicates:true}).select('*').maybeSingle();
     if(data)return[data];
   }
@@ -233,9 +241,8 @@ async function deliverMessage(db: SupabaseClient, userId: string, instance: Even
     const { data: event } = await db.from('together_life_events').select('*').eq('id', delivered.life_event_id).eq('user_id', userId).maybeSingle();
     if (event && shouldOfferAutomaticPhoto(event)) {
       try {
-        const media = await queueMediaRequest(db, { userId, characterInstanceId: String(instance.id), source: 'life_event', conversationId: String(conversation.id), messageId: sentMessageId, lifeEventId: String(event.id), idempotencyKey: `life:${event.id}` });
-        if (media) waitUntil(kickMediaDispatcher());
-      } catch (error) { console.warn('Together contextual life photo unavailable', error instanceof Error ? error.message : 'unknown_error'); }
+        await createMediaOffer(db, { userId, characterInstanceId: String(instance.id), source: 'life_event', conversationId: String(conversation.id), messageId: sentMessageId, lifeEventId: String(event.id), offerKey: `life:${event.id}`, title:String(event.title??'A photo from right now'),previewMetadata:{eventTitle:event.title,locationId:event.location_id} });
+      } catch (error) { console.warn('Together contextual life photo offer unavailable', error instanceof Error ? error.message : 'unknown_error'); }
     }
   }
   if (delivered && prefs.push_enabled) await sendPushNotifications(db, userId, String((instance.together_character_templates as EventRow | undefined)?.name ?? 'Kivelle'), delivered);

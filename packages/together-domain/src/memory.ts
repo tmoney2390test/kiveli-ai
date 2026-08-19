@@ -38,6 +38,31 @@ export function isRelationshipDirectedPreferenceMemory(canonicalText: string): b
   return Boolean(match?.[1] && isRelationshipDirectedPreferenceObject(match[1]));
 }
 
+/**
+ * Durable memory may describe stable identity, preferences, commitments, or a
+ * meaningful shared episode. Momentary physical state belongs in recent
+ * conversation context, not long-term memory. This is deliberately enforced
+ * after model analysis as well as in prompts so a provider cannot promote
+ * "I'm in bed" or "I'm eating" into character knowledge.
+ */
+export function isDurableUserMemory(input: { memoryType: string; canonicalText: string }): boolean {
+  const type = input.memoryType.toLowerCase();
+  const text = normalize(input.canonicalText);
+  // Authored Date/scene episodes may use a title or both participants' names.
+  // They are not model-proposed user facts and must remain eligible for recall.
+  if (!text.startsWith('user ')) return true;
+  if (type === 'preference') return !isRelationshipDirectedPreferenceMemory(input.canonicalText);
+  if (type === 'relationship') return true;
+
+  const transientPlace = /^user (?:is|was|went) (?:currently |right now |now )?(?:in bed|to bed|at home|at work|at the gym|on (?:the )?couch|on (?:the )?sofa)(?:\b|$)/;
+  const transientAction = /^user (?:is|was|has been) (?:currently |right now |now )?(?:lying|sitting|standing|walking|driving|commuting|eating|drinking|watching|wearing|cooking|showering|sleeping|resting|relaxing|getting ready|heading|going|scrolling|gaming|working out)(?:\b|$)/;
+  const transientCondition = /^user (?:is|was|feels|felt) (?:currently |right now |now )?(?:tired|sleepy|hungry|thirsty|bored|hot|cold|busy|awake|in bed)(?:\b|$)/;
+  const explicitMoment = /\b(?:right now|at the moment|currently|this minute)\b/;
+  if (transientPlace.test(text) || transientAction.test(text) || transientCondition.test(text)) return false;
+  if (explicitMoment.test(text) && (type === 'semantic' || type === 'episodic' || type === 'emotional')) return false;
+  return true;
+}
+
 export function extractMemoryCandidates(message: string): MemoryCandidate[] {
   const candidates: MemoryCandidate[] = [];
   const trimmed = message.trim();

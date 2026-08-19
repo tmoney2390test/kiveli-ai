@@ -3,9 +3,11 @@ import { AppError } from './types.ts';
 import { queueMediaRequest as queueBase, type QueueMediaInput } from './together-media-base.ts';
 import { configuredMediaRegistry } from './together-media-providers.ts';
 import { refundCredits, resolveSubscriptionState, spendCredits } from './kivelle-subscription.ts';
+import { isMediaGenerationAuthorized } from '../../../packages/together-domain/src/media-economics.ts';
 export * from './together-media-base.ts';
 
 export async function queueMediaRequest(db:SupabaseClient,input:QueueMediaInput):Promise<Record<string,unknown>|null>{
+  if(!isMediaGenerationAuthorized(input.source,input.economicAuthorization?.kind))throw new AppError('FORBIDDEN','Spontaneous media requires a server-authorized offer.',403);
   const media=await queueBase(db,input);if(!media)return media;
   if(String(media.status)!=='queued')return media; // legacy ready media is never retroactively charged or reprioritized
   if(!configuredMediaRegistry().some((route)=>route.enabled&&route.mediaTypes.includes('image'))){

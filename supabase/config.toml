@@ -17,7 +17,7 @@ enabled = true
 [auth]
 enabled = true
 site_url = "http://localhost:8082"
-additional_redirect_urls = ["together://auth/callback", "http://localhost:8082/auth/callback", "http://localhost:8082/reset-password"]
+additional_redirect_urls = ["together://auth/callback", "together://auth/reset-password", "https://ttutten-together.expo.app/auth/callback", "https://ttutten-together.expo.app/reset-password", "http://localhost:8082/auth/callback", "http://localhost:8082/reset-password"]
 enable_signup = true
 
 [auth.email]
@@ -61,6 +61,10 @@ verify_jwt = false
 [functions.together-media]
 verify_jwt = false
 [functions.together-media-dispatch]
+verify_jwt = false
+[functions.together-subscription]
+verify_jwt = false
+[functions.together-billing-webhook]
 verify_jwt = false
 
 [functions.together-wavespeed-webhook]

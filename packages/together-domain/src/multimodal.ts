@@ -52,6 +52,10 @@ export type SceneSpeakerCandidate = {
   knowledgeRelevance?: number;
   socialEnergy?: number;
   directness?: number;
+  socialAffinity?: number;
+  socialTension?: number;
+  relationshipType?: string;
+  recentlyInterrupted?: boolean;
   lastSpoke?: boolean;
   available?: boolean;
 };
@@ -183,7 +187,11 @@ export function selectSceneSpeakers(input: { message: string; candidates: SceneS
     value += Math.max(0, Math.min(1, candidate.knowledgeRelevance ?? .3)) * .25;
     value += Math.max(0, Math.min(1, candidate.directness ?? .5)) * .08;
     value += Math.max(0, Math.min(1, candidate.socialEnergy ?? .5)) * .06;
-    if (candidate.lastSpoke) value -= .22;
+    value += Math.max(0, Math.min(1, candidate.socialAffinity ?? .4)) * .07;
+    if(/disagree|argument|honest|really think|wrong/i.test(input.message))value+=Math.max(0,Math.min(1,candidate.socialTension??0))*.08;
+    if(['friend','close_friends','family','coworker'].includes(candidate.relationshipType??''))value+=.025;
+    if (candidate.lastSpoke) value -= .3;
+    if(candidate.recentlyInterrupted)value-=.18;
     return value;
   };
   const ranked = [...available].sort((left, right) => score(right) - score(left));

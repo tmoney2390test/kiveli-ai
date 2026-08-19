@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { generateScheduleWindow, localToUtc, resolvePresence, type ActivityTemplate, type CharacterLifeProfile, type LifeLocation, type ScheduleBlock } from '../../../packages/together-domain/src/index.ts';
+import { generateScheduleWindow, lifeEventEstablishesPresentReality, localToUtc, resolvePresence, type ActivityTemplate, type CharacterLifeProfile, type LifeLocation, type ScheduleBlock } from '../../../packages/together-domain/src/index.ts';
 import { resolveCharacterBaseLocation, resolvePlaceContext, type PlaceContext } from './together-place.ts';
 
 type Row=Record<string,any>;
@@ -107,14 +107,18 @@ export async function resolveCharacterPresence(input:{db:SupabaseClient;userId:s
     db.from('together_shared_plans').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).in('status',['active','scheduled']).lte('starts_at',now.toISOString()).gt('ends_at',now.toISOString()).order('starts_at').limit(1).maybeSingle(),
     db.from('together_character_schedule_events').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).lte('starts_at',now.toISOString()).gt('ends_at',now.toISOString()).order('priority').limit(10),
     db.from('together_character_schedule_events').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).gt('starts_at',now.toISOString()).order('starts_at').limit(12),
-    db.from('together_life_events').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).not('event_type','in','(shared_plan,legacy_shared_plan)').lte('starts_at',now.toISOString()).gt('ends_at',now.toISOString()).order('significance',{ascending:false}).limit(1).maybeSingle(),
+    db.from('together_life_events').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).not('event_type','in','(shared_plan,legacy_shared_plan)').lte('starts_at',now.toISOString()).gt('ends_at',now.toISOString()).order('significance',{ascending:false}).limit(10),
   ]);
   const rows=(eventResult.data??[]).filter((row:Row)=>!row.metadata?.suppressedByPlanId).map(toBlock),nextRow=(nextResult.data??[]).find((row:Row)=>!row.metadata?.suppressedByPlanId),next=nextRow?toBlock(nextRow):undefined;
   const plan=planResult.data as Row|null;
   if(plan)rows.push({id:String(plan.id),activityKey:String(plan.activity_key),title:String(plan.title),locationId:plan.location_id?String(plan.location_id):null,startsAt:String(plan.starts_at),endsAt:String(plan.ends_at),priority:'user_commitment',visibility:'shared',source:'user_plan',interruptibility:'open',generationKey:`plan:${plan.id}`,metadata:{planId:plan.id,activityLabel:plan.title}});
   let presence=resolvePresence(next?[...rows,next]:rows,now,{characterInstanceId,locationId:fallbackLocationId,activity:fallbackActivity});
-  const lifeEvent=lifeEventResult.data as Row|null;
-  if(!plan&&lifeEvent)presence={...presence,locationId:lifeEvent.location_id?String(lifeEvent.location_id):presence.locationId,activityKey:String(lifeEvent.event_type??'life_event'),activity:String(lifeEvent.narrative_summary??lifeEvent.title),activityStartedAt:String(lifeEvent.starts_at),expectedEndAt:String(lifeEvent.ends_at),state:Number(lifeEvent.significance??0)>=.75?'busy':'active',interruptibility:String(lifeEvent.metadata?.interruptibility??(Number(lifeEvent.significance??0)>=.75?'busy':'limited')) as ResolvedCharacterPresence['interruptibility'],source:'life_event'};
+  const lifeEvent=!plan?(lifeEventResult.data??[]).find((candidate:Row)=>lifeEventEstablishesPresentReality(
+    {locationId:candidate.location_id?String(candidate.location_id):null,eventType:String(candidate.event_type??''),metadata:candidate.metadata??{}},
+    {locationId:presence.locationId},
+  ))??null:null;
+  const lifeEventOwnsPresence=Boolean(lifeEvent);
+  if(lifeEventOwnsPresence)presence={...presence,locationId:lifeEvent.location_id?String(lifeEvent.location_id):presence.locationId,activityKey:String(lifeEvent.event_type??'life_event'),activity:String(lifeEvent.narrative_summary??lifeEvent.title),activityStartedAt:String(lifeEvent.starts_at),expectedEndAt:String(lifeEvent.ends_at),state:Number(lifeEvent.significance??0)>=.75?'busy':'active',interruptibility:String(lifeEvent.metadata?.interruptibility??(Number(lifeEvent.significance??0)>=.75?'busy':'limited')) as ResolvedCharacterPresence['interruptibility'],source:'life_event'};
   if(baseLocation&&activityRequiresHome(presence.activityKey,presence.activity)&&String(presence.locationId)!==String(baseLocation.id))presence={...presence,locationId:String(baseLocation.id)};
   const place=presence.locationId?await resolvePlaceContext({db,locationId:presence.locationId,now,userId,characterInstanceId}).catch(()=>null):null;
   return{...presence,placeContext:place};

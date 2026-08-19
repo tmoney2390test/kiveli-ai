@@ -3,7 +3,8 @@ import { AppError } from './types.ts';
 import { track } from './together.ts';
 import { placeContextSnapshot, resolvePlaceContext, type PlaceContext } from './together-place.ts';
 import { resolveMediaContentPolicy } from '../../../packages/together-domain/src/media-routing.ts';
-import { classifyPhotoIntent, extractPhotoWardrobeDescription, resolveMediaSceneBoundary, resolvePhotoComposition } from '../../../packages/together-domain/src/media.ts';
+import { classifyPhotoIntent, extractPhotoWardrobeDescription, resolveCanonicalMediaPresence, resolveMediaSceneBoundary, resolvePhotoComposition, type MediaPresenceState } from '../../../packages/together-domain/src/media.ts';
+import { isMediaGenerationAuthorized } from '../../../packages/together-domain/src/media-economics.ts';
 
 export type MediaSource = 'user_request'|'life_event'|'date'|'moment'|'story';
 export type MediaContentLevel = 'standard'|'romance'|'suggestive'|'mature'|'explicit';
@@ -180,8 +181,10 @@ export function buildImagePrompt(request:CanonicalImageGenerationRequest):string
 function timeOfDay(date=new Date()):string{const hour=date.getHours();return hour<6?'night':hour<12?'morning':hour<17?'afternoon':hour<21?'evening':'night';}
 function requestKey(input:QueueMediaInput,intent:PhotoRequestIntent):string{return [input.source,input.characterInstanceId,input.messageId??input.lifeEventId??input.dateSessionId??input.momentId??input.storyArcId??input.idempotencyKey??intent.subject].join(':');}
 
-export type QueueMediaInput={userId:string;characterInstanceId:string;source:MediaSource;conversationId?:string;messageId?:string;lifeEventId?:string;dateSessionId?:string;momentId?:string;storyArcId?:string;sceneSessionId?:string;sceneActionId?:string;sharedPlanId?:string;requestText?:string;companionResponseText?:string;idempotencyKey?:string;force?:boolean};
+export type MediaEconomicAuthorization={kind:'accepted_offer'|'included_benefit';mediaOfferId:string;creditTransactionId?:string|null;creditCost:number;creditAction:'companion_photo';includedBenefit?:boolean;includedBenefitType?:'date_completion_photo'|null;subscriptionTier:string};
+export type QueueMediaInput={userId:string;characterInstanceId:string;source:MediaSource;conversationId?:string;messageId?:string;lifeEventId?:string;dateSessionId?:string;momentId?:string;storyArcId?:string;sceneSessionId?:string;sceneActionId?:string;sharedPlanId?:string;requestText?:string;companionResponseText?:string;idempotencyKey?:string;force?:boolean;canonicalPresence?:MediaPresenceState;economicAuthorization?:MediaEconomicAuthorization;qualityTierOverride?:'economy'|'standard'|'premium';shotTypeOverride?:ShotType};
 export async function queueMediaRequest(db:SupabaseClient,input:QueueMediaInput):Promise<Record<string,unknown>|null>{
+  if(!isMediaGenerationAuthorized(input.source,input.economicAuthorization?.kind))throw new AppError('FORBIDDEN','Spontaneous media must be accepted before generation.',403);
   const intent=classifyPhotoRequest(input.requestText??'');
   if(input.source==='user_request'&&!intent.requested&&!input.force)return null;
   const [{data:instance},{data:profile},{data:relationship}]=await Promise.all([
@@ -192,7 +195,7 @@ export async function queueMediaRequest(db:SupabaseClient,input:QueueMediaInput)
   if(!instance)throw new AppError('NOT_FOUND','That companion is unavailable.',404);
   const preferences=(profile?.photo_preferences??{}) as Record<string,unknown>;
   if(preferences.companionPhotos===false)return null;
-  if(input.source!=='user_request'&&preferences.automaticPhotos===false)return null;
+  if(input.source!=='user_request'&&preferences.automaticPhotos===false&&!input.economicAuthorization)return null;
   const template=instance.together_character_templates as Record<string,unknown>;
   if(!profile?.age_verified_at||Number(template.age)<18)throw new AppError('FORBIDDEN','Photos require confirmed adult characters and accounts.',403);
   const key=requestKey(input,intent);
@@ -202,15 +205,24 @@ export async function queueMediaRequest(db:SupabaseClient,input:QueueMediaInput)
   const recentSince=new Date(now.getTime()-24*3600000).toISOString();
   const {data:recent}=await db.from('together_generated_media').select('id,created_at,status,metadata').eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).gte('created_at',recentSince).in('status',['queued','generating','ready']).order('created_at',{ascending:false});
   if(input.source==='user_request'&&(recent??[]).filter((item)=>String((item.metadata as Record<string,unknown>)?.source)==='user_request').length>=12)throw new AppError('RATE_LIMITED','You have asked for several photos today. Try again later.',429,true);
-  if(input.source!=='user_request'){
+  // Proactive-event throttles prevent offer spam. Once a user has accepted an
+  // offer (or is claiming a bounded included benefit), that authorization must
+  // not be rejected by an unrelated proactive-photo cooldown.
+  if(input.source!=='user_request'&&!input.economicAuthorization){
     if((recent??[]).filter((item)=>String((item.metadata as Record<string,unknown>)?.source)!=='user_request').length>=2)return null;
     if(recent?.some((item)=>String((item.metadata as Record<string,unknown>)?.source)!=='user_request'&&now.getTime()-new Date(item.created_at).getTime()<8*3600000))return null;
   }
-  let locationId=String(instance.current_location_id??'')||undefined;
-  if(input.lifeEventId){const {data:event}=await db.from('together_life_events').select('location_id').eq('id',input.lifeEventId).eq('user_id',input.userId).maybeSingle();locationId=String(event?.location_id??locationId??'')||undefined;}
-  if(input.dateSessionId){const {data:date}=await db.from('together_date_sessions').select('together_date_templates(location_id)').eq('id',input.dateSessionId).eq('user_id',input.userId).maybeSingle();const template=date?.together_date_templates as unknown as Record<string,unknown>|null;locationId=String(template?.location_id??locationId??'')||undefined;}
-  if(input.momentId){const {data:moment}=await db.from('together_moments').select('location_id').eq('id',input.momentId).eq('user_id',input.userId).maybeSingle();locationId=String(moment?.location_id??locationId??'')||undefined;}
-  if(input.sceneSessionId){const {data:scene}=await db.from('together_scene_sessions').select('location_id').eq('id',input.sceneSessionId).eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).maybeSingle();locationId=String(scene?.location_id??locationId??'')||undefined;}
+  let authoritativeLocationId:string|undefined;
+  if(input.lifeEventId){const {data:event}=await db.from('together_life_events').select('location_id').eq('id',input.lifeEventId).eq('user_id',input.userId).maybeSingle();if(event?.location_id)authoritativeLocationId=String(event.location_id);}
+  if(input.dateSessionId){const {data:date}=await db.from('together_date_sessions').select('together_date_templates(location_id)').eq('id',input.dateSessionId).eq('user_id',input.userId).maybeSingle();const template=date?.together_date_templates as unknown as Record<string,unknown>|null;if(template?.location_id)authoritativeLocationId=String(template.location_id);}
+  if(input.momentId){const {data:moment}=await db.from('together_moments').select('location_id').eq('id',input.momentId).eq('user_id',input.userId).maybeSingle();if(moment?.location_id)authoritativeLocationId=String(moment.location_id);}
+  if(input.sceneSessionId){const {data:scene}=await db.from('together_scene_sessions').select('location_id').eq('id',input.sceneSessionId).eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).maybeSingle();if(scene?.location_id)authoritativeLocationId=String(scene.location_id);}
+  const mediaPresence=resolveCanonicalMediaPresence({
+    character:{locationId:String(instance.current_location_id??'')||null,activity:String(instance.current_activity??''),mood:String(instance.current_mood??''),source:String(instance.current_presence_source??'character_state')},
+    canonical:input.canonicalPresence,
+    ...(authoritativeLocationId?{authoritativeLocationId}:{}),
+  });
+  const locationId=mediaPresence.locationId??undefined;
   const [{data:location},{data:opportunities}]=await Promise.all([
     locationId?db.from('together_locations').select('*').eq('id',locationId).maybeSingle():Promise.resolve({data:null}),
     db.from('together_photo_opportunities').select('*').eq('active',true),
@@ -225,17 +237,18 @@ export async function queueMediaRequest(db:SupabaseClient,input:QueueMediaInput)
   const policy=resolveMediaContentPolicy({requestedLevel:requestedForPolicy,source:input.source,automatic:input.source!=='user_request',ageVerified:Boolean(profile?.age_verified_at),characterAge:Number(template.age),fictionalCharacter:(template.metadata as Record<string,unknown>|undefined)?.fictional!==false,realPersonRequest:REAL_PERSON_PATTERN.test(requestText),nonConsensualRequest:/\b(non.?consensual|without (?:her|his|their) consent|secretly nude)\b/i.test(requestText),minorRelatedRequest:/\b(minor|underage|schoolgirl|schoolboy|child)\b/i.test(requestText),characterAllowsRequestedLevel,romanceEnabled:Boolean(contentPreferences.romanceEnabled!==false),suggestiveMediaEnabled:contentPreferences.suggestiveMediaEnabled===true,matureMediaEnabled:contentPreferences.matureMediaEnabled===true,explicitMediaEnabled:contentPreferences.explicitMediaEnabled===true,adultVideoEnabled:contentPreferences.adultVideoEnabled===true,mediaType:'image',adultMediaFeatureEnabled:envEnabled('KIVELLE_ADULT_MEDIA_ENABLED')});
   if(!policy.allowed)throw new AppError('FORBIDDEN',mediaPolicyMessage(policy.reasonCode),403);
   const contentLevel:MediaContentLevel=policy.resolvedLevel;
-  const shotType=intent.shotPreference??String(opportunity?.shot_type??(input.source==='user_request'?'selfie':'candid')) as ShotType;
+  const shotType=input.shotTypeOverride??intent.shotPreference??String(opportunity?.shot_type??(input.source==='user_request'?'selfie':'candid')) as ShotType;
   const composition=resolvePhotoComposition({source:input.source,shotType});
   const aspectRatio=composition.aspectRatio;
-  const qualityTier=input.source==='date'||input.source==='moment'||input.source==='story'?'premium':input.source==='user_request'?'standard':'economy';
+  const qualityTier=input.qualityTierOverride??(input.source==='date'||input.source==='moment'||input.source==='story'?'premium':input.source==='user_request'?'standard':'economy');
   const outfitKey=await resolveOutfitKey(db,input,instance,now,place);
   const outfitDescription=input.companionResponseText?extractPhotoWardrobeDescription(input.companionResponseText):undefined;
   const referenceAssets=await snapshotReferenceAssets(db,{characterVersionId:String(instance.character_version_id),worldId:place?.world.id,locationId});
   const sceneBoundary=resolveMediaSceneBoundary({locationName:String(place?.location.name??location?.name??'the current canonical place'),locationType:place?.location.type,category:String(place?.location.category??location?.category??''),indoorOutdoor:place?.location.visualContext.indoorOutdoor});
   const hasLocationReference=referenceAssets.some((asset)=>asset.role==='location_canonical'||asset.role==='location_alternate'),hasWorldReference=sceneBoundary.setting!=='indoor'&&referenceAssets.some((asset)=>asset.role==='world_canonical');
-  const metadata={source:input.source,photoOpportunitySlug:opportunity?.slug??null,shotType,framing:composition.framing,locationId:locationId??null,sceneSessionId:input.sceneSessionId??null,sceneActionId:input.sceneActionId??null,requestedContentLevel:requestedLevel,resolvedContentLevel:contentLevel,mediaPolicyReason:policy.reasonCode,qualityTier,aspectRatio,requestKey:key,requestIntent:{subject:intent.subject,confidence:intent.confidence},generationIntent:input.source==='user_request'&&input.requestText?{requestText:input.requestText.slice(0,400),requestedContentLevel:requestedLevel}:null,requestHint:safeRequestText(input.requestText),referenceAssets,sceneBoundary:sceneBoundary.setting,locationReferenceResolution:hasLocationReference?'location':hasWorldReference?'world':'text',location_reference_fallback:!hasLocationReference&&hasWorldReference?'world':null,sceneSummary:`${String(template.name)} ${shotType==='scene'?'shared a view from':'sent a photo while at'} ${String(place?.path??location?.name??'their current place')} during ${String(instance.current_activity)}.`,activity:String(instance.current_activity),mood:String(instance.current_mood),timeOfDay:place?.clock.daypart??timeOfDay(now),outfitKey,outfitDescription:outfitDescription??null,relationshipStage:String(instance.relationship_stage),relationshipDirection:String(relationship?.recent_direction??'steady'),placeContext:place?placeContextSnapshot(place):null};
-  const row={user_id:input.userId,character_instance_id:input.characterInstanceId,conversation_id:input.conversationId??null,message_id:input.messageId??null,life_event_id:input.lifeEventId??null,date_session_id:input.dateSessionId??null,moment_id:input.momentId??null,story_arc_id:input.storyArcId??null,scene_session_id:input.sceneSessionId??null,scene_action_id:input.sceneActionId??null,shared_plan_id:input.sharedPlanId??null,world_id:place?.world.id??null,location_id:locationId??null,media_type:'image',content_level:contentLevel,provider:configuredImageProvider()?.id??null,status:'queued',request_key:key,metadata};
+  const authorization=input.economicAuthorization;
+  const metadata={source:input.source,photoOpportunitySlug:opportunity?.slug??null,shotType,framing:composition.framing,locationId:locationId??null,sceneSessionId:input.sceneSessionId??null,sceneActionId:input.sceneActionId??null,requestedContentLevel:requestedLevel,resolvedContentLevel:contentLevel,mediaPolicyReason:policy.reasonCode,qualityTier,aspectRatio,requestKey:key,requestIntent:{subject:intent.subject,confidence:intent.confidence},generationIntent:input.source==='user_request'&&input.requestText?{requestText:input.requestText.slice(0,400),requestedContentLevel:requestedLevel}:null,requestHint:safeRequestText(input.requestText),referenceAssets,sceneBoundary:sceneBoundary.setting,locationReferenceResolution:hasLocationReference?'location':hasWorldReference?'world':'text',location_reference_fallback:!hasLocationReference&&hasWorldReference?'world':null,sceneSummary:`${String(template.name)} ${shotType==='scene'?'shared a view from':'sent a photo while at'} ${String(place?.path??location?.name??'their current place')} during ${mediaPresence.activity}.`,activity:mediaPresence.activity,mood:mediaPresence.mood,presenceSource:mediaPresence.source,presenceResolvedAt:mediaPresence.resolvedAt??now.toISOString(),timeOfDay:place?.clock.daypart??timeOfDay(now),outfitKey,outfitDescription:outfitDescription??null,relationshipStage:String(instance.relationship_stage),relationshipDirection:String(relationship?.recent_direction??'steady'),placeContext:place?placeContextSnapshot(place):null,...(authorization?{mediaOfferId:authorization.mediaOfferId,creditTransactionId:authorization.creditTransactionId??null,creditCost:authorization.creditCost,creditAction:authorization.creditAction,creditRefunded:false,includedBenefit:Boolean(authorization.includedBenefit),includedBenefitType:authorization.includedBenefitType??null,subscriptionTier:authorization.subscriptionTier,economicAuthorization:authorization.kind}:{})};
+  const row={user_id:input.userId,character_instance_id:input.characterInstanceId,conversation_id:input.conversationId??null,message_id:input.messageId??null,life_event_id:input.lifeEventId??null,date_session_id:input.dateSessionId??null,moment_id:input.momentId??null,story_arc_id:input.storyArcId??null,scene_session_id:input.sceneSessionId??null,scene_action_id:input.sceneActionId??null,shared_plan_id:input.sharedPlanId??null,media_offer_id:authorization?.mediaOfferId??null,world_id:place?.world.id??null,location_id:locationId??null,media_type:'image',content_level:contentLevel,provider:configuredImageProvider()?.id??null,status:'queued',request_key:key,metadata};
   const {data,error}=await db.from('together_generated_media').insert(row).select('*').single();
   if(error){const {data:race}=await db.from('together_generated_media').select('*').eq('user_id',input.userId).eq('request_key',key).maybeSingle();if(race)return race;throw new AppError('INTERNAL_ERROR','The photo request could not be queued.',500,true);}
   await track(db,input.userId,'media_queued',{mediaId:data.id,source:input.source,characterInstanceId:input.characterInstanceId,shotType,contentLevel});

@@ -6,6 +6,7 @@ import { track } from './together.ts';
 import { routeCanonicalMedia, type CanonicalMediaRequest, type ProviderCompletedMedia } from './together-media-providers.ts';
 import { configuredWaveSpeedClient, envBoolean } from './wavespeed.ts';
 import { failProviderMedia, finalizeCreatorProviderJob, finalizeLoraProviderJob } from './together-media-finalizer.ts';
+import { recordMediaUsageAttempt } from './together-media-usage.ts';
 
 export async function dispatchCreatorAppearanceJobs(db: SupabaseClient, limit: number): Promise<{ claimed: number; submitted: number; ready: number; failed: number }> {
   const result = { claimed: 0, submitted: 0, ready: 0, failed: 0 };
@@ -58,6 +59,7 @@ export async function dispatchCreatorAppearanceJobs(db: SupabaseClient, limit: n
       }
       providerJob = created.data;
       const submission = await routed.provider.submit(request, routed.route.capability);
+      await recordMediaUsageAttempt(db,{job:created.data,media:asset,subscriptionTier:subscription.tier,routeId:routed.route.capability.id,model:submission.model,provider:submission.provider,attemptNumber:1,qualityRetry:false,generationMs:submission.result?.generationMs,estimatedCost:submission.result?.estimatedCost??routed.route.capability.estimatedCost});
       const now = new Date().toISOString();
       await db.from('together_media_provider_jobs').update({ provider_request_id: submission.providerRequestId, status: 'processing', submitted_at: now, next_poll_at: new Date(Date.now() + 45_000).toISOString(), updated_at: now }).eq('id', created.data.id).eq('status', 'submitting');
       await db.from('together_creator_assets').update({ provider: routed.provider.id, model: submission.model, metadata: { ...((asset.metadata ?? {}) as Record<string, unknown>), providerJobId: created.data.id, providerRouteId: routed.route.capability.id }, updated_at: now }).eq('id', asset.id).eq('status', 'generating');
@@ -101,6 +103,7 @@ export async function dispatchLoraTrainingJobs(db: SupabaseClient, limit: number
       providerJob = created.data;
       const params = (profile.training_params ?? {}) as Record<string, unknown>;
       const submission = await client.submit(model, { data: signed.data.signedUrl, trigger_word: String(profile.trigger_word ?? 'KIVELLE_PERSON'), steps: boundedNumber(params.steps, 1200, 500, 3000), learning_rate: boundedNumber(params.learningRate, 0.0002, 0.00001, 0.005), lora_rank: boundedNumber(params.loraRank, 32, 8, 128) });
+      await recordMediaUsageAttempt(db,{job:created.data,media:{metadata:{source:'character_lora'}},subscriptionTier:'free',routeId:'wavespeed-zimage-trainer',model:submission.model,provider:'wavespeed',attemptNumber:1,qualityRetry:false,generationMs:submission.result?.inferenceMs});
       const now = new Date().toISOString();
       await db.from('together_media_provider_jobs').update({ provider_request_id: submission.providerRequestId, status: 'processing', submitted_at: now, next_poll_at: new Date(Date.now() + 120_000).toISOString(), updated_at: now }).eq('id', created.data.id).eq('status', 'submitting');
       await db.from('together_character_media_profiles').update({ status: 'training', provider_training_id: submission.providerRequestId, updated_at: now }).eq('id', profile.id).eq('status', 'preparing');

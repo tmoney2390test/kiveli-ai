@@ -3,10 +3,10 @@ import { authenticated, enforceRateLimit } from '../_shared/context.ts';
 import { parseBody } from '../_shared/body.ts';
 import { corsHeaders, errorResponse } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
-import { ConfiguredConversationAnalysisProvider, ConfiguredDialogueProvider, ConfiguredEmbeddingProvider, ConfiguredModerationProvider, dialogueProviderName } from '../_shared/together-ai.ts';
-import { classifyContent, routeDialogueProvider, stripGeneratedMediaMarkup } from '../_shared/kivelle-intelligence.ts';
+import { ConfiguredConversationAnalysisProvider, ConfiguredDialogueProvider, ConfiguredEmbeddingProvider, ConfiguredModerationProvider, type DialogueRunMetadata, type DialogueRunOptions } from '../_shared/together-ai.ts';
+import { stripGeneratedMediaMarkup } from '../_shared/kivelle-intelligence.ts';
 import { mergeConversationSummary, relationshipMetrics, track } from '../_shared/together.ts';
-import { applyConversationEngagement, applyInteractionProposal, detectFlirtSignal, scoreConversationEngagement, selectSceneSpeakers, updateChemistry, type ChemistrySignal, type RelationshipState, type SpiceLevel } from '../../../packages/together-domain/src/index.ts';
+import { applyConversationEngagement, applyInteractionProposal, detectFlirtSignal, isDurableUserMemory, lifeTriggerForConversationTurn, scoreConversationEngagement, selectSceneSpeakers, shouldPersistLifeStateForConversationTurn, updateChemistry, type ChemistrySignal, type RelationshipState, type SpiceLevel } from '../../../packages/together-domain/src/index.ts';
 import { runLifeSimulation } from '../_shared/together-life.ts';
 import { buildKivelleConversationContext } from '../_shared/kivelle-conversation-context.ts';
 import { acknowledgeConversationScene, getActiveConversation, mergeConversationSceneMetadata, resolveActiveConversationScene } from '../_shared/together-conversation.ts';
@@ -19,8 +19,10 @@ import { markMentionedMemories } from '../_shared/kivelle-memory.ts';
 import { deriveEmotionalResidue, upsertEmotionalResidue } from '../_shared/kivelle-emotional-residue.ts';
 import { recordChatPlaceOpinions } from '../_shared/kivelle-place-perspective.ts';
 import type { PlaceContext } from '../_shared/together-place.ts';
+import { resolveDialogueRouting } from '../_shared/kivelle-ai-routing.ts';
+import type { DialogueContentMode, DialogueRoutingDecision } from '../../../packages/together-domain/src/index.ts';
 
-const schema = z.object({ conversationId: z.string().uuid(), message: z.string().max(4000).default(''), attachmentIds:z.array(z.string().uuid()).max(4).default([]), clientRequestId: z.string().min(8).max(100), characterInstanceId: z.string().uuid(), focusPlanId:z.string().uuid().optional(), entryContext:z.object({entryReason:z.literal('user_drop_in'),locationId:z.string().uuid(),scheduleEventId:z.string().uuid().optional()}).optional() }).refine((value)=>value.message.trim().length>0||value.attachmentIds.length>0,{message:'Write a message or attach a photo.'});
+const schema = z.object({ conversationId: z.string().uuid(), message: z.string().max(4000).default(''), attachmentIds:z.array(z.string().uuid()).max(4).default([]), clientRequestId: z.string().min(8).max(100), characterInstanceId: z.string().uuid(), focusPlanId:z.string().uuid().optional(),sceneActionId:z.string().uuid().optional(), entryContext:z.object({entryReason:z.literal('user_drop_in'),locationId:z.string().uuid(),scheduleEventId:z.string().uuid().optional()}).optional() }).refine((value)=>value.message.trim().length>0||value.attachmentIds.length>0,{message:'Write a message or attach a photo.'});
 const dialogue = new ConfiguredDialogueProvider();
 const moderation = new ConfiguredModerationProvider();
 const embeddings = new ConfiguredEmbeddingProvider();
@@ -55,10 +57,19 @@ Deno.serve(async (request) => {
       throw new AppError('CONFLICT', 'That message is already being processed.', 409, true);
     }
 
-    const inputSafety = await moderation.check(contextText);
-    const contentClassification = classifyContent(userText);
+    const instanceAtRequest = conversation.together_character_instances as Record<string, any>;
+    const usageBase={db,userId:user.id,continuityId:continuity.id,conversationId:input.conversationId,characterInstanceId:input.characterInstanceId,correlationId};
+    const [{data:profile},{data:recentRoutingRows},{data:routingRelationship},inputSafety]=await Promise.all([
+      db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id',user.id).maybeSingle(),
+      db.from('together_messages').select('role,content').eq('conversation_id',input.conversationId).order('created_at',{ascending:false}).limit(4),
+      db.from('together_relationship_states').select('romance_enabled,romance_path_status').eq('user_id',user.id).eq('character_instance_id',input.characterInstanceId).maybeSingle(),
+      moderation.check(contextText,{...usageBase,metadata:{direction:'input'}}),
+    ]);
+    const requestedMode=normalizeContentMode(profile?.content_preferences?.contentMode);
+    const relationshipAllowsExplicit=routingRelationship?.romance_enabled!==false&&routingRelationship?.romance_path_status!=='friends_only';
+    let route=resolveDialogueRouting({message:userText,recentTurns:[...(recentRoutingRows??[])].reverse(),requestedMode,ageVerified:Boolean(profile?.age_verified_at),characterAge:Number(instanceAtRequest.together_character_templates?.age??instanceAtRequest.together_character_versions?.age??0)||null,relationshipAllowsExplicit,moderation:inputSafety});
     const characterName = String((conversation.together_character_instances as Record<string, any>).together_character_templates?.name ?? 'Companion');
-    const scriptedBoundary = boundaryResponse(userText, characterName, contentClassification);
+    const scriptedBoundary = boundaryResponseForRoute(characterName,route);
     if (scriptedBoundary || !inputSafety.allowed) {
       const boundary = scriptedBoundary ?? { text: `${characterName} pauses. “I’m not comfortable taking the conversation in that direction. We can change the subject.”`, storeOriginal: false, category: 'moderated_input' };
       const { data: boundaryUserMessage, error: boundaryUserError } = await db.from('together_messages').insert({ conversation_id: input.conversationId, user_id: user.id, character_instance_id: input.characterInstanceId, role: 'user', content: boundary.storeOriginal ? input.message : '[Message withheld by safety controls]', client_request_id: input.clientRequestId, delivery_status: 'complete', provider_metadata: { safety_redirected: true } }).select('*').single();
@@ -78,9 +89,10 @@ Deno.serve(async (request) => {
     if (insertError || !userMessage) throw new AppError('INTERNAL_ERROR', 'Your message could not be saved.', 500, true);
     if(attachments.length){const{error:attachmentError}=await db.from('together_conversation_attachments').update({message_id:userMessage.id,updated_at:new Date().toISOString()}).in('id',input.attachmentIds).eq('user_id',user.id).is('message_id',null);if(attachmentError)throw new AppError('INTERNAL_ERROR','Your photo could not be attached to the message.',500,true);await track(db,user.id,'user_photo_sent',{attachmentCount:attachments.length,characterInstanceId:input.characterInstanceId});}
 
-    const instance = conversation.together_character_instances as Record<string, any>;
+    const instance = instanceAtRequest;
     const now = new Date();
-    const lifeRun = await runLifeSimulation({ db, userId:user.id, characterInstanceId:input.characterInstanceId, now, evaluateProactive:false, trigger:'conversation_continued' }).catch((error) => {
+    const photoIntent=classifyPhotoRequest(contextText);
+    const lifeRun = await runLifeSimulation({ db, userId:user.id, characterInstanceId:input.characterInstanceId, now, evaluateProactive:false,persistCharacterState:shouldPersistLifeStateForConversationTurn({photoRequested:photoIntent.requested}), trigger:lifeTriggerForConversationTurn({photoRequested:photoIntent.requested}) }).catch((error) => {
       console.error(JSON.stringify({ level:'error', correlationId, operation:'lazy_conversation_simulation', message:error instanceof Error?error.message:'unknown_error' }));
       return { state:{ locationId:instance.current_location_id, location:'Current place', activity:instance.current_activity, mood:instance.current_mood, energy:instance.current_energy, availability:'available' }, activeEvent:null };
     });
@@ -91,7 +103,7 @@ Deno.serve(async (request) => {
     const activeScene=(conversation.metadata?.activeScene??{}) as Record<string,any>;
     const extended=await extendScheduleForConversation({db,userId:user.id,characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,scheduleEventId:typeof activeScene.scheduleEventId==='string'?activeScene.scheduleEventId:undefined,now}).catch(()=>null);
     if(extended)await track(db,user.id,'scene_extended_past_schedule_boundary',{characterInstanceId:input.characterInstanceId,scheduleEventId:activeScene.scheduleEventId});
-    const queryEmbedding = await embeddings.embed(contextText);
+    const queryEmbedding = await embeddings.embed(contextText,{...usageBase,purpose:'memory_query'});
     const recallThreshold=/\b(remember|forgot|what was|what did we|who is|when did|where did)\b/i.test(contextText)?.48:/\b(last time|before|our first|used to|history)\b/i.test(contextText)?.54:/\b(scene|here|this place|tonight)\b/i.test(contextText)?.58:.60;
     const semanticResult = queryEmbedding ? await db.rpc('together_match_memories_server', { p_user_id:user.id, p_character_instance_id:input.characterInstanceId, p_embedding:queryEmbedding, p_limit:12, p_min_similarity:recallThreshold }) : { data:[], error:null };
     const refreshedScene=await resolveActiveConversationScene({db,userId:user.id,conversation,characterInstanceId:input.characterInstanceId,now});
@@ -108,28 +120,57 @@ Deno.serve(async (request) => {
       current_interruptibility:freshLifeState.interruptibility??presence.interruptibility??instance.current_interruptibility,
       current_presence_source:(lifeRun as Record<string,unknown>).stateSource??instance.current_presence_source,
     };
-    let dialogueContext = await buildKivelleConversationContext({ db, userId:user.id, instance:currentInstance, conversation, userMessage:contextText, lifeRun, semanticRows:semanticResult.data??[], attachments, now });
-    dialogueContext.photoRequest=classifyPhotoRequest(contextText).requested;
+    let dialogueContext = await buildKivelleConversationContext({ db, userId:user.id, instance:currentInstance, conversation, userMessage:contextText, lifeRun, semanticRows:semanticResult.data??[], attachments, now,correlationId });
+    dialogueContext.photoRequest=photoIntent.requested;
+    if(input.sceneActionId){
+      const{data:sceneAction}=await db.from('together_scene_actions').select('*,together_scene_sessions!inner(conversation_id)').eq('id',input.sceneActionId).eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_instance_id',input.characterInstanceId).not('completed_at','is',null).maybeSingle();
+      if(!sceneAction||sceneAction.together_scene_sessions?.conversation_id!==conversation.id)throw new AppError('ACTION_NOT_AVAILABLE','That shared action is no longer available.',409);
+      (dialogueContext as Record<string,unknown>).sceneAction={id:sceneAction.id,key:sceneAction.interaction_key,label:String(sceneAction.result?.label??sceneAction.payload?.candidate?.label??sceneAction.interaction_key).replace(/_/g,' '),decision:sceneAction.decision_status??sceneAction.result?.decision??'accepted',requestedInteractionKey:sceneAction.requested_interaction_key??sceneAction.interaction_key,resolvedInteractionKey:sceneAction.resolved_interaction_key??null,result:sceneAction.result,location:dialogueContext.place?.path??dialogueContext.currentScene.location};
+    }
     if(dialogueContext.currentScene.sceneSessionId)await recordSceneMessage(db,{userId:user.id,continuityId:continuity.id,sceneId:dialogueContext.currentScene.sceneSessionId,message:userMessage,role:'user'});
-    const speakerSelection=selectSceneSpeakers({message:contextText,candidates:(dialogueContext.sceneParticipants??[]).map((participant)=>({characterInstanceId:participant.characterInstanceId,name:participant.name,role:participant.role as 'primary_companion'|'participant'|'guest',available:true,socialEnergy:participant.socialEnergy,directness:participant.directness,topicRelevance:participant.relationshipRelevance,knowledgeRelevance:participant.relationshipRelevance})),maxSpeakers:2});
+    const speakerSelection=selectSceneSpeakers({message:contextText,candidates:(dialogueContext.sceneParticipants??[]).map((participant)=>({characterInstanceId:participant.characterInstanceId,name:participant.name,role:participant.role as 'primary_companion'|'participant'|'guest',available:true,socialEnergy:participant.socialEnergy,directness:participant.directness,topicRelevance:participant.relationshipRelevance,knowledgeRelevance:participant.relationshipRelevance,socialAffinity:participant.socialAffinity,socialTension:participant.socialTension,relationshipType:participant.relationshipType})),maxSpeakers:2});
     const primarySpeakerId=speakerSelection.speakerInstanceIds[0]??input.characterInstanceId;
     const selected=await dialogueSpeaker(db,user.id,continuity.id,primarySpeakerId,dialogueContext);
     dialogueContext=selected.context;
-    const profileResult = await db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id', user.id).maybeSingle();
-    const adultEligible = Boolean(profileResult.data?.age_verified_at) && Number(dialogueContext.character.age ?? 0) >= 18;
-    const requestedMode = adultEligible ? profileResult.data?.content_preferences?.contentMode ?? 'standard' : 'standard';
-    const route = routeDialogueProvider(dialogueProviderName(), requestedMode);
+    // Shared-scene directing can select a different speaker from the active
+    // companion. Re-evaluate age, boundaries, and provider eligibility against
+    // the character who will actually speak so routing can never inherit the
+    // wrong participant's permissions.
+    route=resolveDialogueRouting({
+      message:userText,
+      recentTurns:[...(recentRoutingRows??[])].reverse(),
+      requestedMode,
+      ageVerified:Boolean(profile?.age_verified_at),
+      characterAge:Number(dialogueContext.character?.age??0)||null,
+      relationshipAllowsExplicit:dialogueContext.relationship?.romance_enabled!==false&&dialogueContext.relationship?.romance_path_status!=='friends_only',
+      moderation:inputSafety,
+    });
+    const selectedSpeakerName=String(dialogueContext.character?.name??'Companion');
+    const selectedSpeakerBoundary=boundaryResponseForRoute(selectedSpeakerName,route);
+    if(selectedSpeakerBoundary){
+      const{data:boundaryMessage,error:boundaryError}=await db.from('together_messages').insert({conversation_id:input.conversationId,user_id:user.id,character_instance_id:primarySpeakerId,speaker_character_instance_id:primarySpeakerId,role:'assistant',content:selectedSpeakerBoundary.text,delivery_status:'complete',provider_metadata:{provider:'scripted-boundary',safety_category:selectedSpeakerBoundary.category,speakerName:selectedSpeakerName,speakerSlug:dialogueContext.character?.slug}}).select('*').single();
+      if(boundaryError||!boundaryMessage)throw new AppError('INTERNAL_ERROR',`${selectedSpeakerName} could not respond.`,500,true);
+      if(dialogueContext.currentScene.sceneSessionId)await recordSceneMessage(db,{userId:user.id,continuityId:continuity.id,sceneId:dialogueContext.currentScene.sceneSessionId,message:boundaryMessage,role:'character',characterInstanceId:primarySpeakerId});
+      await db.from('together_safety_events').insert({user_id:user.id,character_instance_id:primarySpeakerId,direction:'input',categories:[...new Set([...inputSafety.categories,selectedSpeakerBoundary.category])],action:'redirected'});
+      await db.from('together_conversations').update({last_message_at:boundaryMessage.created_at,updated_at:boundaryMessage.created_at,kind:conversation.kind==='first_meeting'?'direct':conversation.kind}).eq('id',input.conversationId);
+      await acknowledgeArrival(db,user.id,conversation,String(boundaryMessage.created_at));
+      await track(db,user.id,'message_sent',{characterInstanceId:input.characterInstanceId,safetyRedirected:true});
+      await track(db,user.id,'character_response_received',{characterInstanceId:primarySpeakerId,safetyRedirected:true});
+      return streamText(selectedSpeakerBoundary.text,boundaryMessage,correlationId);
+    }
     dialogueContext.contentMode = route.resolvedMode;
+    (dialogueContext as Record<string,unknown>).dialogueRouting={provider:route.provider,reason:route.reason,contentMode:route.resolvedMode,explicit:route.explicit};
     const relationshipResult = { data:dialogueContext.relationship };
     const characterTemplate = dialogueContext.character;
-    if (dialogueProviderName() !== 'deterministic') {
-      return streamDialogue({ db, user, input, conversation, instance:selected.instance, relationship: relationshipResult.data, userMessage, context: dialogueContext, correlationId,primarySpeakerId,remainingSpeakerIds:speakerSelection.speakerInstanceIds.slice(1) });
+    const runOptions=dialogueRunOptions(route,{...usageBase,characterInstanceId:primarySpeakerId,subscriptionTier:dialogueContext.subscription?.tier,routeReason:route.reason,contentMode:route.resolvedMode});
+    if (route.provider !== 'deterministic') {
+      return streamDialogue({ db, user, input, conversation, instance:selected.instance, relationship: relationshipResult.data, userMessage, context: dialogueContext, correlationId,primarySpeakerId,remainingSpeakerIds:speakerSelection.speakerInstanceIds.slice(1),runOptions,ageVerified:Boolean(profile?.age_verified_at),requestedMode });
     }
-    const responseText = await dialogue.generate(dialogueContext);
-    const outputSafety = await moderation.check(responseText);
-    const safeText = outputSafety.allowed ? cleanPhotoReply(responseText,dialogueContext.photoRequest===true) : "I want to answer thoughtfully, but I need to steer this conversation somewhere safer. We can talk about what you're feeling without crossing that line.";
+    const generated = await dialogue.generate(dialogueContext,runOptions);
+    const outputSafety = await moderation.check(generated.text,{...usageBase,characterInstanceId:primarySpeakerId,metadata:{direction:'output'}});
+    const safeText = outputSafety.allowed ? cleanPhotoReply(generated.text,dialogueContext.photoRequest===true) : "I want to answer thoughtfully, but I need to steer this conversation somewhere safer. We can talk about what you're feeling without crossing that line.";
     if (!outputSafety.allowed) await db.from('together_safety_events').insert({ user_id: user.id, character_instance_id: input.characterInstanceId, direction: 'output', categories: outputSafety.categories, action: 'replaced' });
-    const { data: assistantMessage, error: assistantError } = await db.from('together_messages').insert({ conversation_id: input.conversationId, user_id: user.id, character_instance_id: primarySpeakerId, speaker_character_instance_id:primarySpeakerId, role: 'assistant', content: safeText, delivery_status: 'complete', provider_metadata: { provider: dialogueProviderName(), model: Deno.env.get('TOGETHER_DIALOGUE_MODEL') ?? Deno.env.get('TOGETHER_GEMINI_MODEL') ?? 'configured-default',speakerName:characterTemplate.name,speakerSlug:characterTemplate.slug } }).select('*').single();
+    const { data: assistantMessage, error: assistantError } = await db.from('together_messages').insert({ conversation_id: input.conversationId, user_id: user.id, character_instance_id: primarySpeakerId, speaker_character_instance_id:primarySpeakerId, role: 'assistant', content: safeText, delivery_status: 'complete', provider_metadata: { ...generated.metadata,speakerName:characterTemplate.name,speakerSlug:characterTemplate.slug,directorUsed:dialogueContext.director?.used===true } }).select('*').single();
     if (assistantError || !assistantMessage) throw new AppError('INTERNAL_ERROR', `${String(characterTemplate.name ?? 'Your companion')} replied, but the response could not be saved.`, 500, true);
     if(dialogueContext.currentScene.sceneSessionId)await recordSceneMessage(db,{userId:user.id,continuityId:continuity.id,sceneId:dialogueContext.currentScene.sceneSessionId,message:assistantMessage,role:'character',characterInstanceId:primarySpeakerId});
     await safelyApplyConversationEffects(db, user.id, primarySpeakerId, input.conversationId, userMessage.id, String(assistantMessage.id), userText, safeText, relationshipResult.data, String(selected.instance.relationship_stage), dialogueContext, correlationId);
@@ -139,7 +180,7 @@ Deno.serve(async (request) => {
     const generatedMedia=primarySpeakerId===input.characterInstanceId?await safelyQueueConversationPhoto(db, user.id, input, String(assistantMessage.id), safeText, correlationId,dialogueContext):null;
     await track(db, user.id, 'message_sent', { characterInstanceId: input.characterInstanceId });
     await track(db, user.id, 'character_response_received', { characterInstanceId: input.characterInstanceId });
-    const additionalMessages=await generateAdditionalSceneReplies(db,{userId:user.id,continuityId:continuity.id,conversationId:input.conversationId,userMessageId:String(userMessage.id),userText,baseContext:dialogueContext,speakerIds:speakerSelection.speakerInstanceIds.slice(1),primaryReply:safeText,sceneId:dialogueContext.currentScene.sceneSessionId});
+    const additionalMessages=await generateAdditionalSceneReplies(db,{userId:user.id,continuityId:continuity.id,conversationId:input.conversationId,userMessageId:String(userMessage.id),userText,baseContext:dialogueContext,speakerIds:speakerSelection.speakerInstanceIds.slice(1),primaryReply:safeText,sceneId:dialogueContext.currentScene.sceneSessionId,ageVerified:Boolean(profile?.age_verified_at),requestedMode,correlationId});
     return streamText(safeText, assistantMessage, correlationId,additionalMessages,generatedMedia);
   } catch (error) { return errorResponse(error, correlationId); }
 });
@@ -157,17 +198,16 @@ function streamText(content: string, message: Record<string, unknown>, correlati
   return new Response(stream, { status: 200, headers: { ...corsHeaders, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'X-Correlation-ID': correlationId } });
 }
 
-function boundaryResponse(message: string, characterName: string, classification: ReturnType<typeof classifyContent>): { text: string; storeOriginal: boolean; category: string } | null {
-  if (classification.sexual && classification.minorRelated) return { text: `${characterName}’s expression turns serious. “No. I won’t engage with sexual content involving anyone under 18.”`, storeOriginal: false, category: 'sexual_minors' };
-  if (classification.sexual && classification.coercive) return { text: `${characterName} pauses. “I’m not going to engage with sexual pressure, coercion, or anything without clear consent.”`, storeOriginal: false, category: 'sexual_coercion' };
-  const explicit = /\b(nudes?|naked|strip|tits?|boobs?|breasts?|sex|sexual|horny|pussy|dick|cock|fuck(?:ing)?|ass)\b/i.test(message);
-  if (!explicit) return null;
-  const minor = /\b(minors?|children?|underage|teen(?:ager)?s?|young girls?|young boys?)\b/i.test(message);
-  if (minor) return { text: `${characterName}’s expression turns serious. “No. I won’t engage with sexual content involving anyone under 18.”`, storeOriginal: false, category: 'sexual_minors' };
-  return { text: `${characterName} raises an eyebrow. “Bold—but I’m not doing nude photos. You can flirt with me, but keep it non-explicit.”`, storeOriginal: true, category: 'sexual_explicit' };
+function boundaryResponseForRoute(characterName:string,route:DialogueRoutingDecision):{text:string;storeOriginal:boolean;category:string}|null{
+  if(route.reason==='safety_block')return{text:`${characterName} pauses. “I’m not going to engage with anything unsafe, underage, coercive, or without clear consent.”`,storeOriginal:false,category:'hard_safety_block'};
+  if(route.classification==='explicit_adult'&&(route.reason==='feature_disabled'||route.reason==='provider_unavailable'))return{text:`${characterName} holds your gaze for a moment. “I can stay close to this with you, but I can’t take it further right now.”`,storeOriginal:true,category:route.reason==='feature_disabled'?'explicit_feature_disabled':'explicit_provider_unavailable'};
+  return null;
 }
 
-function streamDialogue({ db, user, input, conversation, instance, relationship, userMessage, context, correlationId,primarySpeakerId,remainingSpeakerIds }: { db: any; user: { id: string }; input: z.infer<typeof schema>; conversation: Record<string, unknown>; instance: Record<string, unknown>; relationship: Record<string, unknown>; userMessage: Record<string, unknown>; context: Parameters<ConfiguredDialogueProvider['generate']>[0]; correlationId: string;primarySpeakerId:string;remainingSpeakerIds:string[] }): Response {
+function dialogueRunOptions(route:DialogueRoutingDecision,usageScope:DialogueRunOptions['usageScope'],operation?:string,sharedSceneParticipant=false):DialogueRunOptions{return{route,usageScope,...(operation?{operation}:{}),...(sharedSceneParticipant?{sharedSceneParticipant:true}:{})};}
+function normalizeContentMode(value:unknown):DialogueContentMode{return value==='romance'||value==='mature'||value==='explicit'?value:'standard';}
+
+function streamDialogue({ db, user, input, conversation, instance, relationship, userMessage, context, correlationId,primarySpeakerId,remainingSpeakerIds,runOptions,ageVerified,requestedMode }: { db: any; user: { id: string }; input: z.infer<typeof schema>; conversation: Record<string, unknown>; instance: Record<string, unknown>; relationship: Record<string, unknown>; userMessage: Record<string, unknown>; context: Parameters<ConfiguredDialogueProvider['generate']>[0]; correlationId: string;primarySpeakerId:string;remainingSpeakerIds:string[];runOptions:DialogueRunOptions;ageVerified:boolean;requestedMode:DialogueContentMode }): Response {
   const stream = new ReadableStream({
     async start(controller) {
       const emit = (data: Record<string, unknown>) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
@@ -175,17 +215,17 @@ function streamDialogue({ db, user, input, conversation, instance, relationship,
         emit({ type: 'start', messageId: crypto.randomUUID() });
         let content = '';
         const photoRequest=context.photoRequest===true;
-        for await (const token of dialogue.stream(context)) {
-          content += token;
-          if(!photoRequest)emit({ type: 'token', token });
+        let runMetadata:DialogueRunMetadata|undefined;
+        for await (const event of dialogue.stream(context,runOptions)) {
+          if(event.type==='complete'){runMetadata=event.metadata;continue;}
+          content += event.token;
+          if(!photoRequest)emit({ type: 'token', token:event.token });
         }
         if (!content.trim()) throw new AppError('PROVIDER_UNAVAILABLE', 'Your companion needs a moment before replying.', 503, true);
         content=cleanPhotoReply(content,photoRequest);
         if(photoRequest)for(const token of content.match(/\S+\s*/g)??[content])emit({type:'token',token});
 
-        // The configured provider applies source safety settings before tokens are emitted.
-        const provider = dialogueProviderName();
-        const { data: assistantMessage, error: assistantError } = await db.from('together_messages').insert({ conversation_id: input.conversationId, user_id: user.id, character_instance_id: primarySpeakerId, speaker_character_instance_id:primarySpeakerId, role: 'assistant', content, delivery_status: 'complete', provider_metadata: { provider, model: provider === 'openai' ? (Deno.env.get('KIVELLE_DIALOGUE_MODEL') ?? Deno.env.get('TOGETHER_DIALOGUE_MODEL') ?? 'configured-default') : (Deno.env.get('TOGETHER_GEMINI_MODEL') ?? Deno.env.get('GEMINI_EXPLANATION_MODEL') ?? 'configured-default'), streamed: true,speakerName:context.character?.name,speakerSlug:context.character?.slug } }).select('*').single();
+        const { data: assistantMessage, error: assistantError } = await db.from('together_messages').insert({ conversation_id: input.conversationId, user_id: user.id, character_instance_id: primarySpeakerId, speaker_character_instance_id:primarySpeakerId, role: 'assistant', content, delivery_status: 'complete', provider_metadata: { ...(runMetadata??{provider:runOptions.route.provider,model:'configured-default',routeReason:runOptions.route.reason,contentMode:runOptions.route.resolvedMode}),streamed:true,speakerName:context.character?.name,speakerSlug:context.character?.slug,directorUsed:context.director?.used===true } }).select('*').single();
         if (assistantError || !assistantMessage) throw new AppError('INTERNAL_ERROR', 'Your companion replied, but the response could not be saved.', 500, true);
         if(context.currentScene?.sceneSessionId)await recordSceneMessage(db,{userId:user.id,continuityId:String(instance.continuity_id),sceneId:String(context.currentScene.sceneSessionId),message:assistantMessage,role:'character',characterInstanceId:primarySpeakerId});
         await safelyApplyConversationEffects(db, user.id, primarySpeakerId, input.conversationId, String(userMessage.id), String(assistantMessage.id), String(context.userMessage??input.message), content, relationship, String(instance.relationship_stage), context, correlationId);
@@ -195,7 +235,7 @@ function streamDialogue({ db, user, input, conversation, instance, relationship,
         const generatedMedia=primarySpeakerId===input.characterInstanceId?await safelyQueueConversationPhoto(db, user.id, input, String(assistantMessage.id), content, correlationId,context):null;
         await track(db, user.id, 'message_sent', { characterInstanceId: input.characterInstanceId });
         await track(db, user.id, 'character_response_received', { characterInstanceId: input.characterInstanceId });
-        const additionalMessages=await generateAdditionalSceneReplies(db,{userId:user.id,continuityId:String(instance.continuity_id),conversationId:input.conversationId,userMessageId:String(userMessage.id),userText:String(context.userMessage??input.message),baseContext:context,speakerIds:remainingSpeakerIds,primaryReply:content,sceneId:context.currentScene?.sceneSessionId});
+        const additionalMessages=await generateAdditionalSceneReplies(db,{userId:user.id,continuityId:String(instance.continuity_id),conversationId:input.conversationId,userMessageId:String(userMessage.id),userText:String(context.userMessage??input.message),baseContext:context,speakerIds:remainingSpeakerIds,primaryReply:content,sceneId:context.currentScene?.sceneSessionId,ageVerified,requestedMode,correlationId});
         emit({ type: 'done', message: assistantMessage,additionalMessages,generatedMedia, delta:await collectDialogueDelta(db,user.id,input.characterInstanceId,input.conversationId) });
       } catch (error) {
         console.error(JSON.stringify({ level: 'error', correlationId, message: error instanceof Error ? error.message : 'Unknown stream error' }));
@@ -225,24 +265,38 @@ async function dialogueSpeaker(db:any,userId:string,continuityId:string,speakerI
   return{instance,context};
 }
 
-async function generateAdditionalSceneReplies(db:any,input:{userId:string;continuityId:string;conversationId:string;userMessageId:string;userText:string;baseContext:any;speakerIds:string[];primaryReply:string;sceneId?:string}):Promise<Record<string,unknown>[]>{
+async function generateAdditionalSceneReplies(db:any,input:{userId:string;continuityId:string;conversationId:string;userMessageId:string;userText:string;baseContext:any;speakerIds:string[];primaryReply:string;sceneId?:string;ageVerified:boolean;requestedMode:DialogueContentMode;correlationId:string}):Promise<Record<string,unknown>[]>{
   if(!input.sceneId||!input.speakerIds.length)return[];
   const replies:Record<string,unknown>[]=[];
   for(const speakerId of input.speakerIds.slice(0,1)){
     try{
       const selected=await dialogueSpeaker(db,input.userId,input.continuityId,speakerId,{...input.baseContext,recent:[...(input.baseContext.recent??[]),{role:'assistant',content:input.primaryReply}],sceneSpeakerDirective:{characterInstanceId:speakerId}});
-      const generated=await dialogue.generate(selected.context);
-      if(!generated.trim())continue;
-      const safety=await moderation.check(generated);if(!safety.allowed)continue;
-      const{data:message}=await db.from('together_messages').insert({conversation_id:input.conversationId,user_id:input.userId,character_instance_id:speakerId,speaker_character_instance_id:speakerId,role:'assistant',content:generated,delivery_status:'complete',provider_metadata:{provider:dialogueProviderName(),sharedSceneParticipant:true,speakerName:selected.context.character?.name,speakerSlug:selected.context.character?.slug}}).select('*').single();
+      const route=resolveDialogueRouting({message:input.userText,recentTurns:[...(selected.context.recent??[]),{role:'assistant',content:input.primaryReply}].slice(-4),requestedMode:input.requestedMode,ageVerified:input.ageVerified,characterAge:Number(selected.context.character?.age??0)||null,relationshipAllowsExplicit:selected.context.relationship?.romance_enabled!==false&&selected.context.relationship?.romance_path_status!=='friends_only'});
+      if(route.hardBlocked||(route.classification==='explicit_adult'&&route.provider==='deterministic'))continue;
+      selected.context.contentMode=route.resolvedMode;
+      const options=dialogueRunOptions(route,{db,userId:input.userId,continuityId:input.continuityId,conversationId:input.conversationId,characterInstanceId:speakerId,subscriptionTier:selected.context.subscription?.tier,routeReason:route.reason,contentMode:route.resolvedMode,correlationId:input.correlationId},'shared_scene_dialogue',true);
+      const generated=await dialogue.generate(selected.context,options);
+      if(!generated.text.trim())continue;
+      const safety=await moderation.check(generated.text,{...options.usageScope,metadata:{direction:'output',sharedSceneParticipant:true}});if(!safety.allowed)continue;
+      const{data:message}=await db.from('together_messages').insert({conversation_id:input.conversationId,user_id:input.userId,character_instance_id:speakerId,speaker_character_instance_id:speakerId,role:'assistant',content:generated.text,delivery_status:'complete',provider_metadata:{...generated.metadata,sharedSceneParticipant:true,speakerName:selected.context.character?.name,speakerSlug:selected.context.character?.slug,directorUsed:selected.context.director?.used===true}}).select('*').single();
       if(!message)continue;
       await recordSceneMessage(db,{userId:input.userId,continuityId:input.continuityId,sceneId:input.sceneId,message,role:'character',characterInstanceId:speakerId});
-      await safelyApplyConversationEffects(db,input.userId,speakerId,input.conversationId,input.userMessageId,String(message.id),input.userText,generated,selected.context.relationship,String(selected.instance.relationship_stage),selected.context,crypto.randomUUID());
+      await safelyApplyConversationEffects(db,input.userId,speakerId,input.conversationId,input.userMessageId,String(message.id),input.userText,generated.text,selected.context.relationship,String(selected.instance.relationship_stage),selected.context,input.correlationId);
+      const primarySpeakerId=String(input.baseContext.sceneSpeakerDirective?.characterInstanceId??'');
+      if(primarySpeakerId&&primarySpeakerId!==speakerId)await recordCharacterSocialInteraction(db,{userId:input.userId,continuityId:input.continuityId,sceneId:input.sceneId,characterAInstanceId:primarySpeakerId,characterBInstanceId:speakerId});
       await track(db,input.userId,'shared_scene_character_spoke',{sceneId:input.sceneId,characterInstanceId:speakerId});
       replies.push(message);
     }catch(error){console.warn('Shared-scene participant stayed silent',error instanceof Error?error.message:'unknown_error');}
   }
   return replies;
+}
+
+async function recordCharacterSocialInteraction(db:any,input:{userId:string;continuityId:string;sceneId:string;characterAInstanceId:string;characterBInstanceId:string}){
+  const a=input.characterAInstanceId<input.characterBInstanceId?input.characterAInstanceId:input.characterBInstanceId,b=input.characterAInstanceId<input.characterBInstanceId?input.characterBInstanceId:input.characterAInstanceId;
+  const{data:existing}=await db.from('together_character_social_states').select('*').eq('continuity_id',input.continuityId).eq('character_a_instance_id',a).eq('character_b_instance_id',b).maybeSingle();
+  const now=new Date().toISOString();
+  if(existing){await db.from('together_character_social_states').update({familiarity:Math.min(100,Number(existing.familiarity??0)+.5),affinity:Math.min(100,Number(existing.affinity??0)+.15),last_shared_scene_at:now,recent_direction:'warming',metadata:{...(existing.metadata??{}),lastSceneId:input.sceneId},updated_at:now}).eq('id',existing.id).eq('user_id',input.userId);}
+  else await db.from('together_character_social_states').insert({user_id:input.userId,continuity_id:input.continuityId,character_a_instance_id:a,character_b_instance_id:b,relationship_type:'acquaintance',familiarity:.5,affinity:.15,tension:0,recent_direction:'warming',last_shared_scene_at:now,metadata:{lastSceneId:input.sceneId}});
 }
 
 async function recordSceneMessage(db:any,input:{userId:string;continuityId:string;sceneId:string;message:Record<string,any>;role:'user'|'character';characterInstanceId?:string}){
@@ -287,7 +341,7 @@ async function acknowledgeArrival(db:any,userId:string,conversation:Record<strin
 
 async function safelyApplyConversationEffects(db: any, userId: string, instanceId: string, conversationId: string, sourceMessageId: string, assistantMessageId:string, userText: string, assistantText: string, current: Record<string, unknown>, stage: string, context:Parameters<ConfiguredDialogueProvider['generate']>[0], correlationId: string): Promise<void> {
   try {
-    await applyConversationEffects(db, userId, instanceId, conversationId, sourceMessageId, assistantMessageId, userText, assistantText, current, stage, context);
+    await applyConversationEffects(db, userId, instanceId, conversationId, sourceMessageId, assistantMessageId, userText, assistantText, current, stage, context,correlationId);
   } catch (error) {
     console.error(JSON.stringify({ level: 'error', correlationId, operation: 'together_continuity', message: error instanceof Error ? error.message : 'Unknown continuity error' }));
   }
@@ -295,7 +349,8 @@ async function safelyApplyConversationEffects(db: any, userId: string, instanceI
 
 async function safelyQueueConversationPhoto(db:any,userId:string,input:z.infer<typeof schema>,assistantMessageId:string,assistantText:string,correlationId:string,context?:Parameters<ConfiguredDialogueProvider['generate']>[0]):Promise<Record<string,unknown>|null>{
   try {
-    const media=await queueMediaRequest(db,{userId,characterInstanceId:input.characterInstanceId,source:'user_request',conversationId:input.conversationId,messageId:assistantMessageId,requestText:input.message,companionResponseText:assistantText,idempotencyKey:`dialogue:${assistantMessageId}`,...(context?.currentScene?.sceneSessionId?{sceneSessionId:String(context.currentScene.sceneSessionId)}:{}),...(context?.currentScene?.activePlan?.id?{sharedPlanId:String(context.currentScene.activePlan.id)}:{})});
+    const currentScene=context?.currentScene;
+    const media=await queueMediaRequest(db,{userId,characterInstanceId:input.characterInstanceId,source:'user_request',conversationId:input.conversationId,messageId:assistantMessageId,requestText:input.message,companionResponseText:assistantText,idempotencyKey:`dialogue:${assistantMessageId}`,...(currentScene?{canonicalPresence:{locationId:currentScene.locationId,activity:currentScene.activity,mood:currentScene.mood,source:currentScene.source,resolvedAt:new Date().toISOString()}}:{}),...(currentScene?.sceneSessionId?{sceneSessionId:String(currentScene.sceneSessionId)}:{}),...(currentScene?.activePlan?.id?{sharedPlanId:String(currentScene.activePlan.id)}:{})});
     if(media)waitUntil(kickMediaDispatcher());
     return media;
   } catch(error) {
@@ -304,7 +359,7 @@ async function safelyQueueConversationPhoto(db:any,userId:string,input:z.infer<t
   }
 }
 
-async function applyConversationEffects(db: any, userId: string, instanceId: string, conversationId: string, sourceMessageId: string, assistantMessageId:string, userText: string, assistantText: string, current: Record<string, unknown>, stage: string, context:Parameters<ConfiguredDialogueProvider['generate']>[0]): Promise<void> {
+async function applyConversationEffects(db: any, userId: string, instanceId: string, conversationId: string, sourceMessageId: string, assistantMessageId:string, userText: string, assistantText: string, current: Record<string, unknown>, stage: string, context:Parameters<ConfiguredDialogueProvider['generate']>[0],correlationId:string): Promise<void> {
   const [{ data: profile }, { data: existingThreads }, { data: conversationRow }, recentTurns,{data:instanceRow}] = await Promise.all([
     db.from('together_profiles').select('memory_categories,content_preferences').eq('user_id', userId).maybeSingle(),
     db.from('together_open_threads').select('*').eq('user_id', userId).eq('character_instance_id', instanceId).is('resolved_at', null).limit(20),
@@ -312,7 +367,7 @@ async function applyConversationEffects(db: any, userId: string, instanceId: str
     db.from('together_messages').select('content').eq('user_id',userId).eq('conversation_id',conversationId).eq('role','user').gte('created_at',new Date(Date.now()-30*60000).toISOString()).order('created_at',{ascending:false}).limit(12),
     db.from('together_character_instances').select('character_version_id,continuity_id,together_character_templates(spice_level),together_character_versions(personality_config,relationship_config)').eq('id',instanceId).eq('user_id',userId).maybeSingle(),
   ]);
-  const proposal = await analysis.analyze({ userMessage: userText, assistantMessage: assistantText, existingThreads: existingThreads ?? [], context });
+  const proposal = await analysis.analyze({ userMessage: userText, assistantMessage: assistantText, existingThreads: existingThreads ?? [], context,usageScope:{db,userId,continuityId:instanceRow?.continuity_id??null,conversationId,characterInstanceId:instanceId,subscriptionTier:context.subscription?.tier,contentMode:context.contentMode,correlationId} });
   const analysisNow=new Date();
   const residue=deriveEmotionalResidue(userText,assistantText);
   const continuityId=context.relationship?.continuity_id??current.continuity_id;
@@ -345,7 +400,8 @@ async function applyConversationEffects(db: any, userId: string, instanceId: str
   await db.from('together_character_instances').update({ updated_at: new Date().toISOString() }).eq('id', instanceId);
   for (const candidate of proposal.memoryCandidates) {
     if (enabled[candidate.memory_type] === false) continue;
-    const embedding = await embeddings.embed(candidate.canonical_text);
+    if (!isDurableUserMemory({memoryType:candidate.memory_type,canonicalText:candidate.canonical_text})) continue;
+    const embedding = await embeddings.embed(candidate.canonical_text,{db,userId,conversationId,characterInstanceId:instanceId,subscriptionTier:context.subscription?.tier,correlationId,purpose:'memory_write'});
     const { data: sameSubject } = await db.from('together_memories').select('*').eq('user_id', userId).eq('character_instance_id', instanceId).eq('subject_key', candidate.subject_key).eq('status', 'active').order('pinned', { ascending: false }).order('updated_at', { ascending: false }).limit(10);
     const { data: exact } = sameSubject?.length ? { data: null } : await db.from('together_memories').select('*').eq('character_instance_id', instanceId).eq('dedupe_key', candidate.dedupe_key).maybeSingle();
     const existing = (sameSubject ?? []).find((item: Record<string, unknown>) => item.dedupe_key === candidate.dedupe_key) ?? sameSubject?.[0] ?? exact;

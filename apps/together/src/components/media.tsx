@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Easing, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
-import { Camera, Play, RefreshCw, Sparkles, ThumbsDown, ThumbsUp } from 'lucide-react-native';
+import { Camera, Coins, Play, RefreshCw, Sparkles, ThumbsDown, ThumbsUp } from 'lucide-react-native';
 import { router } from 'expo-router';
-import type { GeneratedMedia } from '../types';
+import type { GeneratedMedia,MediaOffer } from '../types';
 import { colors, radius } from '../theme';
 import { rateGeneratedMedia } from '../lib/api';
 
@@ -53,6 +53,17 @@ export function MediaFeedbackControls({media,style}:{media:GeneratedMedia;style?
     <Pressable accessibilityRole="button" accessibilityLabel="This photo looks wrong" accessibilityState={{selected:selected==='negative',disabled:busy}} disabled={busy} onPress={(event)=>void submit(event,'negative')} style={[styles.feedbackButton,selected==='negative'&&styles.feedbackButtonSelected]}>
       <ThumbsDown size={13} color="#fff" fill={selected==='negative'?'#fff':'transparent'} strokeWidth={2}/>
     </Pressable>
+  </View>;
+}
+
+export function MediaOfferCard({offer,busy,onAccept,onDecline,onBuyCredits}:{offer:MediaOffer;busy:boolean;onAccept:()=>void;onDecline:()=>void;onBuyCredits:()=>void}){
+  const accepted=offer.status==='accepted',included=offer.included_subscription_benefit;
+  return <View style={styles.offer} accessible accessibilityLabel={`${offer.title}. ${included?'Included with your plan':`${offer.credit_cost} Kivelle Credits`}`}>
+    <View pointerEvents="none" style={styles.offerGlow}/><View style={styles.offerIcon}><Camera size={22} color="#FFD8E7"/></View>
+    <Text style={styles.offerMessage}>{offer.companion_message}</Text><Text style={styles.offerTitle}>{offer.title}</Text>
+    <View style={styles.offerCost}>{included?<Sparkles size={13} color="#FFD8E7"/>:<Coins size={13} color="#FFD29B"/>}<Text style={styles.offerCostText}>{included?'Included Date souvenir':`${offer.credit_cost} Kivelle Credits`}</Text></View>
+    {accepted?<View style={styles.offerGenerating}><Text style={styles.offerGeneratingText}>Taking the photo…</Text></View>:<View style={styles.offerActions}><Pressable disabled={busy} onPress={onAccept} style={styles.offerPrimary}><Text style={styles.offerPrimaryText}>{busy?'Preparing…':included?'Claim included photo':'Send photo'}</Text></Pressable><Pressable disabled={busy} onPress={onDecline} style={styles.offerSecondary}><Text style={styles.offerSecondaryText}>Not now</Text></Pressable></View>}
+    {offer.status==='failed'?<Pressable onPress={onBuyCredits}><Text style={styles.offerFailure}>{offer.failure_reason_safe??'The photo could not be created.'}</Text></Pressable>:null}
   </View>;
 }
 
@@ -237,6 +248,21 @@ const styles = StyleSheet.create({
   feedback:{flexDirection:'row',alignItems:'center',gap:1,height:24},
   feedbackButton:{width:25,height:24,alignItems:'center',justifyContent:'center',opacity:.58},
   feedbackButtonSelected:{opacity:1},
+  offer:{position:'relative',overflow:'hidden',alignSelf:'flex-start',width:'84%',maxWidth:440,gap:8,padding:16,borderRadius:radius.lg,backgroundColor:'rgba(31,20,40,.96)',borderWidth:1,borderColor:'rgba(255,169,204,.28)'},
+  offerGlow:{position:'absolute',width:180,height:180,borderRadius:90,right:-100,top:-95,backgroundColor:'rgba(216,62,234,.16)'},
+  offerIcon:{width:43,height:43,borderRadius:17,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(216,62,234,.15)',borderWidth:1,borderColor:'rgba(255,216,231,.15)'},
+  offerMessage:{color:colors.cream,fontSize:13,lineHeight:19,fontWeight:'700'},
+  offerTitle:{color:colors.muted,fontSize:10,fontWeight:'800'},
+  offerCost:{flexDirection:'row',alignItems:'center',gap:6},
+  offerCostText:{color:'#FFD7B2',fontSize:10,fontWeight:'900'},
+  offerActions:{flexDirection:'row',gap:8,marginTop:2},
+  offerPrimary:{flex:1,minHeight:40,alignItems:'center',justifyContent:'center',borderRadius:radius.md,backgroundColor:colors.rose},
+  offerPrimaryText:{color:'#fff',fontSize:11,fontWeight:'900'},
+  offerSecondary:{minHeight:40,paddingHorizontal:14,alignItems:'center',justifyContent:'center',borderRadius:radius.md,borderWidth:1,borderColor:colors.border},
+  offerSecondaryText:{color:colors.muted,fontSize:11,fontWeight:'800'},
+  offerGenerating:{minHeight:40,alignItems:'center',justifyContent:'center',borderRadius:radius.md,backgroundColor:'rgba(216,62,234,.10)'},
+  offerGeneratingText:{color:'#FFD8E7',fontSize:11,fontWeight:'900'},
+  offerFailure:{color:colors.danger,fontSize:10,lineHeight:15},
   retry: {
     flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, paddingVertical: 7,
     borderRadius: radius.pill, backgroundColor: 'rgba(216,62,234,.10)',

@@ -1,5 +1,5 @@
 import { supabase, supabasePublishableKey, supabaseUrl } from './supabase';
-import type { CharacterResetPreview, CharacterResetResult, ConversationAttachment, CreatorDraft, CreatorStep, GeneratedMedia, InteractionCandidate, KivelleExperienceCapabilities, Message, MultimodalPreferences, SceneAction, SceneSession, Snapshot, SnapshotDelta, VoiceCallSession } from '../types';
+import type { CharacterInteractionProposal, CharacterResetPreview, CharacterResetResult, ConversationAttachment, CreatorDraft, CreatorStep, GeneratedMedia, InteractionCandidate, KivelleExperienceCapabilities, Message, MultimodalPreferences, SceneAction, SceneSession, Snapshot, SnapshotDelta, VoiceCallSession } from '../types';
 
 export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false) { super(message); } }
 type Envelope<T> = { data: T; correlationId: string };
@@ -33,7 +33,7 @@ export const resolveRelationshipMilestone = (milestoneId:string,action:'accept'|
 export const manageConversation = <T>(input: Record<string, unknown>) => invoke<T>('together-conversation', input);
 export const previewCharacterReset = (characterInstanceId:string) => manageConversation<CharacterResetPreview>({action:'reset_preview',characterInstanceId});
 export const startOverCharacter = (characterInstanceId:string,requestId:string) => manageConversation<CharacterResetResult>({action:'start_over',characterInstanceId,requestId});
-export const manageInteraction = <T = {scene:SceneSession;action?:SceneAction;interactions:InteractionCandidate[];destinations:InteractionCandidate[]}>(input: Record<string, unknown>) => invoke<T>('together-interaction', input);
+export const manageInteraction = <T = {scene:SceneSession;action?:SceneAction;interactions:InteractionCandidate[];destinations:InteractionCandidate[];characterProposal?:CharacterInteractionProposal}>(input: Record<string, unknown>) => invoke<T>('together-interaction', input);
 export const enterScene = <T>(input:{characterInstanceId:string;locationId:string;conversationId?:string}) => invoke<T>('together-conversation',{action:'enter_scene',...input});
 export const manageMedia = <T>(input: Record<string, unknown>) => invoke<T>('together-media', input);
 export const rateGeneratedMedia = (mediaId:string,feedback:'positive'|'negative') => manageMedia<{mediaId:string;userFeedback:'positive'|'negative';userFeedbackAt:string}>({action:'feedback',mediaId,feedback});
@@ -68,7 +68,7 @@ export async function createTogetherAccount(email: string, password: string): Pr
   if (!response.ok) throw new ApiError(payload.error?.message ?? 'Your Kivelle account could not be created.', payload.error?.code, payload.error?.retryable);
 }
 
-export async function sendDialogue(input: {conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;delta?:SnapshotDelta}> {
+export async function sendDialogue(input: {conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;sceneActionId?:string;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;delta?:SnapshotDelta}> {
   const response = await fetch(`${supabaseUrl}/functions/v1/together-dialogue`, { method: 'POST', headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
   if (!response.ok) { const error = await response.json().catch(() => ({})); throw new ApiError(error.error?.message ?? 'Your companion could not reply.', error.error?.code, error.error?.retryable); }
   if (!response.body) throw new ApiError('The response stream ended early.', 'STREAM_INTERRUPTED', true);

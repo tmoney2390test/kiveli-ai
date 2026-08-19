@@ -4,6 +4,7 @@ import{refundCredits}from'./kivelle-subscription.ts';
 import{track}from'./together.ts';
 import type{ProviderCompletedMedia}from'./together-media-providers.ts';
 import{gateGeneratedImageQuality}from'./together-media-quality.ts';
+import{completeMediaUsageAttempt,markMediaOfferOutcome}from'./together-media-usage.ts';
 
 const MAX_IMAGE_BYTES=20*1024*1024;
 const MAX_VIDEO_BYTES=80*1024*1024;
@@ -45,6 +46,8 @@ export async function finalizeProviderMedia(db:SupabaseClient,input:{jobId:strin
   }).eq('id',media.id).in('status',['generating','queued','ready']).select('*').single();
   if(updateError||!updated)throw new AppError('INTERNAL_ERROR','The generated media status could not be saved.',500,true);
   await db.from('together_media_provider_jobs').update({status:'completed',provider_completed_at:job.provider_completed_at??now,finalized_at:now,output_storage_path:storagePath,provider_metadata:{...((job.provider_metadata??{}) as Record<string,unknown>),...safeProviderMetadata},failure_code:null,failure_reason_safe:null,updated_at:now}).eq('id',job.id).is('finalized_at',null);
+  await completeMediaUsageAttempt(db,{providerJobId:String(job.id),attemptNumber:Number(job.attempt_count??1),success:true,generationMs:input.result.generationMs});
+  await markMediaOfferOutcome(db,{media:updated,status:'fulfilled'});
   await track(db,String(media.user_id),String(media.media_type)==='video'?'media_video_ready':'media_generation_completed',{mediaId:media.id,provider:job.provider,model:input.result.model,routeId:job.route_id,source:metadata.source,contentLevel:media.content_level,duration:input.result.generationMs??null,creditCost:metadata.creditCost??0});
   return updated as Record<string,unknown>;
 }
@@ -54,6 +57,7 @@ export async function failProviderMedia(db:SupabaseClient,input:{jobId:string;fa
   const{data:media}=job.generated_media_id?await db.from('together_generated_media').select('*').eq('id',String(job.generated_media_id)).maybeSingle():{data:null};
   const now=new Date().toISOString();
   await db.from('together_media_provider_jobs').update({status:'failed',failure_code:input.failureCode,failure_reason_safe:input.failureReasonSafe,provider_metadata:{...((job.provider_metadata??{}) as Record<string,unknown>),...sanitizeProviderMetadata(input.providerMetadata??{})},updated_at:now}).eq('id',job.id).in('status',['created','submitting','processing','submission_unknown']);
+  await completeMediaUsageAttempt(db,{providerJobId:String(job.id),attemptNumber:Number(job.attempt_count??1),success:false,failureCode:input.failureCode});
   if(job.character_media_profile_id){
     await db.from('together_character_media_profiles').update({status:'failed',failure_code:input.failureCode,failure_reason_safe:input.failureReasonSafe,updated_at:now}).eq('id',String(job.character_media_profile_id)).in('status',['pending','preparing','training']);
     if(job.user_id)await track(db,String(job.user_id),'character_lora_training_failed',{characterMediaProfileId:job.character_media_profile_id,provider:job.provider,model:job.model,failureCode:input.failureCode});
@@ -64,6 +68,7 @@ export async function failProviderMedia(db:SupabaseClient,input:{jobId:string;fa
   const metadata=(media.metadata??{}) as Record<string,unknown>;let nextMetadata=metadata;
   if(typeof metadata.creditTransactionId==='string'&&metadata.creditRefunded!==true){const refunded=await refundCredits(db,{userId:String(media.user_id),transactionId:String(metadata.creditTransactionId),idempotencyKey:`refund:${String(metadata.creditTransactionId)}`,metadata:{reason:'terminal_media_failure',mediaId:String(media.id),failureCode:input.failureCode}});if(refunded)nextMetadata={...metadata,creditRefunded:true,creditRefundedAt:now};}
   await db.from('together_generated_media').update({status:'failed',failure_code:input.failureCode,failure_reason_safe:input.failureReasonSafe,claimed_at:null,next_attempt_at:null,metadata:nextMetadata,updated_at:now}).eq('id',media.id).in('status',['queued','generating']);
+  await markMediaOfferOutcome(db,{media:{...media,metadata:nextMetadata},status:'failed',failureCode:input.failureCode,failureReasonSafe:input.failureReasonSafe,creditRefunded:nextMetadata.creditRefunded===true});
   await track(db,String(media.user_id),'media_generation_failed',{mediaId:media.id,provider:job.provider,routeId:job.route_id,failureCode:input.failureCode,creditRefunded:nextMetadata.creditRefunded===true});
 }
 
@@ -82,6 +87,7 @@ export async function finalizeLoraProviderJob(db:SupabaseClient,input:{jobId:str
   const{data:updated,error}=await db.from('together_character_media_profiles').update({status:'ready',provider_training_id:String(job.provider_request_id??input.result.providerRequestId??'')||null,provider_model_id:input.result.model,model_storage_bucket:'kivelle-model-assets',model_storage_path:storagePath,trained_at:now,failure_code:null,failure_reason_safe:null,metadata:{...((profile.metadata??{}) as Record<string,unknown>),providerStatus:sanitizeProviderMetadata(input.providerStatus??{})},updated_at:now}).eq('id',profile.id).in('status',['preparing','training','ready']).select('*').single();
   if(error||!updated)throw new AppError('INTERNAL_ERROR','The trained character identity could not be activated.',500,true);
   await db.from('together_media_provider_jobs').update({status:'completed',provider_completed_at:job.provider_completed_at??now,finalized_at:now,output_storage_path:storagePath,provider_metadata:{...((job.provider_metadata??{}) as Record<string,unknown>),model:input.result.model,generationMs:input.result.generationMs??null,...sanitizeProviderMetadata(input.providerStatus??{})},failure_code:null,failure_reason_safe:null,updated_at:now}).eq('id',job.id).is('finalized_at',null);
+  await completeMediaUsageAttempt(db,{providerJobId:String(job.id),attemptNumber:Number(job.attempt_count??1),success:true,generationMs:input.result.generationMs});
   if(job.user_id)await track(db,String(job.user_id),'character_lora_training_completed',{characterMediaProfileId:profile.id,characterVersionId:profile.character_version_id,provider:job.provider,model:input.result.model,sourceRevision:profile.source_revision});
   return updated as Record<string,unknown>;
 }
@@ -101,6 +107,7 @@ export async function finalizeCreatorProviderJob(db:SupabaseClient,input:{jobId:
   const{data:updated,error}=await db.from('together_creator_assets').update({status:'ready',storage_path:storagePath,content_type:downloaded.contentType,width:input.result.width??null,height:input.result.height??null,provider:job.provider,model:input.result.model,metadata:{...((asset.metadata??{}) as Record<string,unknown>),providerJobId:job.id,providerRouteId:job.route_id},updated_at:now}).eq('id',asset.id).in('status',['generating','ready']).select('*').single();
   if(error||!updated)throw new AppError('INTERNAL_ERROR','The Creator appearance could not be finalized.',500,true);
   await db.from('together_media_provider_jobs').update({status:'completed',provider_completed_at:job.provider_completed_at??now,finalized_at:now,output_storage_path:storagePath,provider_metadata:{...((job.provider_metadata??{}) as Record<string,unknown>),model:input.result.model,...sanitizeProviderMetadata(input.providerStatus??{})},updated_at:now}).eq('id',job.id).is('finalized_at',null);
+  await completeMediaUsageAttempt(db,{providerJobId:String(job.id),attemptNumber:Number(job.attempt_count??1),success:true,generationMs:input.result.generationMs});
   await track(db,String(asset.user_id),'custom_companion_appearance_candidate_ready',{creatorDraftId:asset.draft_id,creatorAssetId:asset.id,provider:job.provider,model:input.result.model});
   return updated as Record<string,unknown>;
 }

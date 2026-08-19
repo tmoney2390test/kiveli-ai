@@ -4,6 +4,32 @@ export type PhotoIntent={requested:boolean;subject:'companion'|'location'|'activ
 export type PhotoComposition={shotType:PhotoShotType;aspectRatio:'1:1'|'4:5'|'16:9';framing:string};
 export type MediaHistory={source:'user_request'|'life_event'|'date'|'moment'|'story';createdAt:string;locationId?:string;shotType?:string};
 export type MediaSceneBoundary={setting:'indoor'|'outdoor'|'mixed';instruction:string;avoid:string[]};
+export type MediaPresenceState={locationId?:string|null;activity?:string|null;mood?:string|null;source?:string|null;resolvedAt?:string|null};
+export type ResolvedMediaPresence={locationId:string|null;activity:string;mood:string;source:string;resolvedAt?:string};
+
+/**
+ * Snapshots the same present-tense state that produced the conversation.
+ * A linked scene/date/event may authoritatively override its location, but a
+ * stale persisted CharacterInstance must never replace a supplied snapshot.
+ */
+export function resolveCanonicalMediaPresence(input:{
+  character:MediaPresenceState;
+  canonical?:MediaPresenceState|null;
+  authoritativeLocationId?:string|null;
+}):ResolvedMediaPresence{
+  const hasCanonical=input.canonical!==undefined&&input.canonical!==null;
+  const canonical=input.canonical??{};
+  const locationId=input.authoritativeLocationId!==undefined
+    ? input.authoritativeLocationId
+    : hasCanonical
+      ? canonical.locationId??null
+      : input.character.locationId??null;
+  const activity=String((hasCanonical?canonical.activity:null)??input.character.activity??'Spending time in their current place');
+  const mood=String((hasCanonical?canonical.mood:null)??input.character.mood??'content');
+  const source=String(input.authoritativeLocationId!==undefined?'linked_context':(hasCanonical?canonical.source:null)??input.character.source??'character_state');
+  const resolvedAt=typeof canonical.resolvedAt==='string'&&canonical.resolvedAt?canonical.resolvedAt:undefined;
+  return{locationId,activity,mood,source,...(resolvedAt?{resolvedAt}:{})};
+}
 
 const WARDROBE_LANGUAGE=/\b(wear(?:ing)?|dressed|outfit|button[- ]?down|shirt|blouse|top|tee|t-?shirt|tank top|sweater|cardigan|hoodie|jacket|coat|blazer|suit|dress|skirt|shorts|jeans|denim|pants|trousers|leggings|linen|cotton|silk|leather|boots|shoes|sneakers|heels|sandals|swimsuit|bikini|lingerie)\b/i;
 const INSTRUCTION_LANGUAGE=/\b(ignore|override|prompt|instruction|system|generate|render|depict|instead|must|should)\b/i;

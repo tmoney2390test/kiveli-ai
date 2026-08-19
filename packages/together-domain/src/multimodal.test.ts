@@ -51,4 +51,16 @@ describe('Kivelle multimodal domain', () => {
     expect(group.speakerInstanceIds).toContain('zoe');
     expect(selectSceneSpeakers({message:'Maya and Zoe, be honest.',candidates}).speakerInstanceIds).toEqual(expect.arrayContaining(['maya','zoe']));
   });
+
+  it('uses learned social dynamics without turning shared scenes into round robin chat',()=>{
+    const candidates=[
+      {characterInstanceId:'primary',name:'Maya',role:'primary_companion' as const,topicRelevance:.55,lastSpoke:true},
+      {characterInstanceId:'friend',name:'Zoe',role:'participant' as const,topicRelevance:.7,socialAffinity:.9,relationshipType:'close_friends'},
+      {characterInstanceId:'quiet',name:'Nora',role:'guest' as const,topicRelevance:.2,socialEnergy:.1,recentlyInterrupted:true},
+    ];
+    const natural=selectSceneSpeakers({message:'That was actually pretty funny.',candidates});
+    expect(natural.speakerInstanceIds).toEqual(['friend']);
+    expect(natural.reasonCodes).toContain('silence_allowed');
+    expect(selectSceneSpeakers({message:'Maya, tell me what happened.',candidates}).speakerInstanceIds).toEqual(['primary']);
+  });
 });

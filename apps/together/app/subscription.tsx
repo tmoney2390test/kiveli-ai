@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import * as Crypto from 'expo-crypto';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Check, ChevronDown, Coins, CreditCard, Sparkles, Zap } from 'lucide-react-native';
 import { GradientButton, LoadingSkeleton, PageTitle, Screen } from '../src/components';
 import { manageSubscription } from '../src/lib/api';
-import { intelligenceLabel, tierDescription, type SubscriptionPlan, type SubscriptionStatus, type SubscriptionTier } from '../src/lib/subscription';
+import { intelligenceLabel, tierDescription, type CreditPack,type SubscriptionPlan, type SubscriptionStatus, type SubscriptionTier } from '../src/lib/subscription';
 import { colors, radius, spacing } from '../src/theme';
 
 const tierRank: Record<SubscriptionTier, number> = { free: 0, kivelle_plus: 1, kivelle_max: 2 };
 
 export default function Subscription() {
+  const params=useLocalSearchParams<{checkout?:string}>();
   const [state, setState] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
@@ -25,6 +27,7 @@ export default function Subscription() {
   };
 
   useEffect(() => { void load(); }, []);
+  useEffect(()=>{if(params.checkout==='success')Alert.alert('Payment received','Stripe is confirming your purchase. Your Kivelle access will update automatically.');},[params.checkout]);
 
   if (loading && !state) return <LoadingSkeleton label="Loading Kivelle plans…" />;
   if (!state) return <Screen><View style={styles.header}><Pressable onPress={() => router.back()} style={styles.back}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Subscription & Credits</PageTitle></View><View style={styles.errorCard}><Text style={styles.error}>{error || 'Subscription details are unavailable.'}</Text><GradientButton label="Try again" onPress={() => void load()} /></View></Screen>;
@@ -41,19 +44,20 @@ export default function Subscription() {
       return;
     }
     setBusy(tier);
-    try { const result = await manageSubscription<{ url: string }>({ action: 'checkout', tier }); await Linking.openURL(result.url); }
+    try { const result = await manageSubscription<{ url: string }>({ action: 'checkout', tier,requestId:Crypto.randomUUID() }); await Linking.openURL(result.url); }
     catch (caught) { Alert.alert('Could not open checkout', caught instanceof Error ? caught.message : 'Please try again.'); }
     finally { setBusy(''); }
   };
 
-  const openAction = async (action: 'credits_checkout' | 'portal') => {
+  const openAction = async (action: 'credits_checkout' | 'portal',pack?:CreditPack) => {
     const configured = action === 'credits_checkout' ? state.billingConfigured.credits : state.billingConfigured.portal;
     if (!configured) {
       Alert.alert(action === 'portal' ? 'Billing portal not configured' : 'Credit checkout not configured', 'Connect your billing provider URL to enable this action.');
       return;
     }
-    setBusy(action);
-    try { const result = await manageSubscription<{ url: string }>({ action }); await Linking.openURL(result.url); }
+    if(action==='credits_checkout'&&!pack)return;
+    setBusy(pack?.key??action);
+    try { const result = await manageSubscription<{ url: string }>({ action,...(pack?{productKey:pack.key}:{}),requestId:Crypto.randomUUID() }); await Linking.openURL(result.url); }
     catch (caught) { Alert.alert('Could not open billing', caught instanceof Error ? caught.message : 'Please try again.'); }
     finally { setBusy(''); }
   };
@@ -117,9 +121,12 @@ export default function Subscription() {
           <MiniStat label="Next refill" value={nextRefill ?? 'No monthly refill'} />
         </View>
       </View>
-      <Text style={styles.creditsCopy}>Credits are used for companion photos, alternate looks, and other premium media. Chat, relationships, memories, Plans, Dates, Stories, and Moments never spend credits.</Text>
+      <Text style={styles.creditsCopy}>Credits are prepaid generation capacity for companion photos, alternate looks, and other premium media. A spontaneous photo is only created after you choose to receive it.</Text>
       <View style={styles.creditActions}>
-        <GradientButton disabled={busy === 'credits_checkout'} label={busy === 'credits_checkout' ? 'Opening credits…' : 'Buy Credits'} onPress={() => void openAction('credits_checkout')} />
+        <View style={styles.packGrid}>{(state.creditPacks??[]).map((pack)=><Pressable accessibilityRole="button" accessibilityLabel={`Buy ${pack.credits} Kivelle Credits for ${pack.displayPrice}`} disabled={!pack.checkoutConfigured||Boolean(busy)} key={pack.key} onPress={()=>void openAction('credits_checkout',pack)} style={[styles.packCard,pack.popular&&styles.packPopular,!pack.checkoutConfigured&&styles.packDisabled]}>
+          {pack.popular?<View style={styles.packBadge}><Text style={styles.packBadgeText}>POPULAR</Text></View>:null}
+          <Text style={styles.packCredits}>{pack.credits.toLocaleString()} Credits</Text><Text style={styles.packPrice}>{pack.displayPrice}</Text><Text style={styles.packEquivalent}>Up to {pack.companionPhotoEquivalent} companion photos</Text><Text style={styles.packAction}>{busy===pack.key?'Opening…':pack.checkoutConfigured?'Choose pack':'Checkout not configured'}</Text>
+        </Pressable>)}</View>
         <View style={styles.costStrip}>
           <Cost label="Companion photo" value={state.creditCosts.companion_photo ?? 10} />
           <Cost label="Photo variant" value={state.creditCosts.photo_variant ?? 10} />
@@ -265,6 +272,16 @@ const styles = StyleSheet.create({
   miniValue: { color: colors.text, fontSize: 12, fontWeight: '800', marginTop: 4 },
   creditsCopy: { color: colors.muted, fontSize: 11, lineHeight: 17 },
   creditActions: { gap: 10 },
+  packGrid:{flexDirection:'row',flexWrap:'wrap',gap:10},
+  packCard:{position:'relative',overflow:'hidden',width:'48%',minWidth:210,gap:5,padding:15,borderRadius:radius.lg,backgroundColor:'rgba(255,255,255,.045)',borderWidth:1,borderColor:'rgba(255,255,255,.10)'},
+  packPopular:{borderColor:'rgba(216,62,234,.55)',backgroundColor:'rgba(216,62,234,.09)'},
+  packDisabled:{opacity:.48},
+  packBadge:{position:'absolute',right:0,top:0,paddingHorizontal:8,paddingVertical:4,backgroundColor:colors.rose,borderBottomLeftRadius:8},
+  packBadgeText:{color:'#fff',fontSize:7,fontWeight:'900',letterSpacing:.7},
+  packCredits:{color:colors.text,fontSize:15,fontWeight:'900'},
+  packPrice:{color:'#FFD3A9',fontFamily:'Georgia',fontSize:25},
+  packEquivalent:{color:colors.muted,fontSize:9,lineHeight:14},
+  packAction:{color:'#F2B4CA',fontSize:9,fontWeight:'900',marginTop:5},
   costStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   cost: { flex: 1, minWidth: 145, padding: 10, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.035)' },
   costLabel: { color: colors.muted, fontSize: 9 },

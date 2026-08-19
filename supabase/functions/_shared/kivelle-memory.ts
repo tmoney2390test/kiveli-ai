@@ -1,4 +1,4 @@
-import { buildMemoryRecallPlan, decayEmotionalResidue, type MemoryActivationContext } from '../../../packages/together-domain/src/index.ts';
+import { buildMemoryRecallPlan, decayEmotionalResidue, isDurableUserMemory, type MemoryActivationContext } from '../../../packages/together-domain/src/index.ts';
 
 type Row = Record<string, any>;
 type MemoryRow = Row & { id: string };
@@ -10,8 +10,8 @@ const flagEnabled = () => Deno.env.get('KIVELLE_MEMORY_ACTIVATION_V2') !== 'fals
 
 export async function retrieveActivatedMemories(input:{db:any;userId:string;characterInstanceId:string;userMessage:string;intent:string;storedRows:Row[];semanticRows?:Row[];currentScene?:Row|null;relationship?:Row|null;recentAssistantMessages?:Array<{content?:string}>;now:Date}):Promise<ActivatedMemoryContext>{
   const candidates=new Map<string,MemoryRow>();
-  for(const item of input.storedRows){const id=String(item.id??'');if(id)candidates.set(id,{...item,id});}
-  for(const item of input.semanticRows??[]){const id=String(item.id??'');if(!id)continue;candidates.set(id,{...(candidates.get(id)??{}),...item,id,metadata:{...(candidates.get(id)?.metadata??{}),...(item.metadata??{})}});}
+  for(const item of input.storedRows){const id=String(item.id??'');if(id&&durableRow(item))candidates.set(id,{...item,id});}
+  for(const item of input.semanticRows??[]){const id=String(item.id??'');if(!id||!durableRow(item))continue;candidates.set(id,{...(candidates.get(id)??{}),...item,id,metadata:{...(candidates.get(id)?.metadata??{}),...(item.metadata??{})}});}
   if(!flagEnabled()){
     const fallback=[...candidates.values()].slice(0,8).map((row)=>present(row));
     await markRetrieved(input.db,input.userId,fallback.map((item)=>item.id),input.now);
@@ -43,5 +43,6 @@ export function activeEmotionalResidue(row:Row|null|undefined,now:Date){
 }
 
 function present(row:Row,override?:{id:string;canonicalText:string;memoryType:string;importance:number}):MemoryContextEntry{return{id:String(override?.id??row.id),text:String(override?.canonicalText??row.canonical_text??''),type:String(override?.memoryType??row.memory_type??'semantic'),pinned:Boolean(row.pinned),importance:Number(override?.importance??row.importance??.5),sourceType:row.source_type??undefined,episodeId:row.episode_id??undefined,locationId:row.location_id??null,worldId:row.world_id??null,contextTags:Array.isArray(row.context_tags)?row.context_tags.map(String):[]};}
+function durableRow(row:Row){return isDurableUserMemory({memoryType:String(row.memory_type??'semantic'),canonicalText:String(row.canonical_text??'')});}
 async function markRetrieved(db:any,userId:string,ids:string[],now:Date){if(!ids.length)return;await db.rpc('kivelle_touch_memories',{p_user_id:userId,p_memory_ids:ids,p_kind:'retrieved',p_now:now.toISOString()});}
 function extractMemoryIds(content:string,rows:Map<string,Row>){const text=content.toLowerCase();return[...rows.entries()].filter(([,row])=>{const value=String(row.canonical_text??'').toLowerCase();const words=value.split(/[^a-z0-9]+/).filter((word:string)=>word.length>4);return words.length>1&&words.filter((word:string)=>text.includes(word)).length>=2;}).map(([id])=>id);}

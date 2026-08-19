@@ -26,23 +26,40 @@ The capability catalog lives in `packages/together-domain/src/entitlements.ts` a
 
 Credits meter variable-cost generation rather than relationship actions. Chat, relationship progression, memories, Plans, Dates, Stories, and Moments do not spend credits. Direct companion photos currently cost 10 credits and a four-image Creator appearance set costs 40. Automatic life/Date/Story/Moment photos are not charged. Terminal paid-generation failures refund the exact balance buckets that were spent.
 
-## Billing provider boundary
+## Authentication providers
 
-Kivelle does not assume a specific payment vendor. The app reads subscription state from `together_entitlements`; only the shared-secret-authenticated `together-billing-webhook` should synchronize paid entitlement state from the billing system. If the selected billing provider supports cryptographic webhook signatures, verify those at the provider adapter before forwarding a normalized event to this internal boundary.
+Email/password remains available by default. Google and Apple use Supabase Auth and remain fail-closed until their provider credentials and redirect URLs are configured in the Supabase dashboard. The Expo app contains no Google client secret or Apple private key.
 
-Configure these **Edge Function secrets** when a payment provider is connected:
+After configuring the providers, enable their UI at build time:
 
 ```text
-KIVELLE_BILLING_WEBHOOK_SECRET=
-KIVELLE_PLUS_CHECKOUT_URL=
-KIVELLE_MAX_CHECKOUT_URL=
-KIVELLE_CREDITS_CHECKOUT_URL=
-KIVELLE_BILLING_PORTAL_URL=
+EXPO_PUBLIC_KIVELLE_GOOGLE_AUTH_ENABLED=true
+EXPO_PUBLIC_KIVELLE_APPLE_AUTH_ENABLED=true
 ```
 
-Checkout URLs may contain `{user_id}` and `{email}` placeholders. Only HTTPS URLs are returned to the client. Until these secrets are configured the plan screen remains functional for status/credits but clearly reports that checkout is not configured rather than faking a purchase.
+Web/Android OAuth uses Supabase PKCE. iOS uses native Sign in with Apple with a hashed nonce and sends the resulting identity token to Supabase. Keep `https://ttutten-together.expo.app/auth/callback` and `together://auth/callback` in the Supabase Auth redirect allowlist. Apple only supplies a person's name on first consent, so Kivelle saves it immediately as account metadata while Persona identity remains separate.
 
-The provider adapter sends `x-kivelle-billing-secret` and a normalized event body to `together-billing-webhook` for `subscription_updated`, `subscription_cancelled`, or `credit_purchase`. Credit purchases are permanent and idempotent; subscription grants are tied to the billing-period start when available and fall back to a calendar cycle only when no billing period exists.
+## Billing provider boundary
+
+Kivelle reads subscription state from `together_entitlements`. The Stripe adapter creates short-lived hosted Checkout/Customer Portal sessions server-side and the signed webhook synchronizes that existing entitlement and credit architecture. Kivelle stores Stripe customer/subscription identifiers but never card or payment-method data. Legacy normalized-provider URLs remain available as a compatibility fallback.
+
+Configure these **Edge Function secrets** for Stripe:
+
+```text
+STRIPE_SECRET_KEY=sk_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_KIVELLE_PLUS_MONTHLY=price_...
+STRIPE_PRICE_KIVELLE_MAX_MONTHLY=price_...
+STRIPE_PRICE_CREDITS_100=price_...
+STRIPE_PRICE_CREDITS_300=price_...
+STRIPE_PRICE_CREDITS_800=price_...
+STRIPE_PRICE_CREDITS_2000=price_...
+KIVELLE_PUBLIC_APP_URL=https://ttutten-together.expo.app
+```
+
+Register `together-billing-webhook` as the Stripe webhook endpoint and subscribe to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, and `invoice.payment_failed`. Signature validation uses the raw request body and a five-minute replay window. Checkout and credit grants are idempotent. Until Stripe is configured, the plan screen still provides status and credit balances and clearly reports that checkout is unavailable.
+
+The former `x-kivelle-billing-secret` normalized event contract remains accepted for staged migration from another billing provider. Credit purchases are permanent and idempotent; subscription grants are tied to the billing-period start when available and fall back to a calendar cycle only when no billing period exists.
 
 ## AI provider configuration
 
@@ -56,6 +73,8 @@ KIVELLE_DIRECTOR_GEMINI_MODEL=gemini-2.5-flash
 ```
 
 The existing `OPENAI_API_KEY` / `GEMINI_API_KEY` configuration is reused. Director calls time out quickly and fall back to the deterministic response brief.
+
+Dialogue routing defaults to `KIVELLE_OPENAI_DIALOGUE_MODEL=gpt-5.6-luna` with reasoning disabled. The optional adult-explicit route requires `XAI_API_KEY`, `KIVELLE_XAI_ENABLED=true`, and `KIVELLE_XAI_EXPLICIT_ENABLED=true`; it defaults to `KIVELLE_XAI_DIALOGUE_MODEL=grok-4.3`. `KIVELLE_AI_COST_TELEMETRY_ENABLED=true` records server-only normalized token, cache, latency, routing, and cost events without storing prompts.
 
 Contextual image and short-video records are surfaced only when a real media provider has produced a ready asset. Media routing is provider-neutral; WaveSpeed runs through a durable asynchronous job/webhook/recovery path and never becomes a second source of character or world truth. Higher-intensity routes remain independently gated by age verification, user preferences, character boundaries, validated model routes, and server feature flags.
 

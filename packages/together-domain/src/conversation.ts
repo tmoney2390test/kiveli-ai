@@ -25,6 +25,35 @@ export type PresentRealityInput={
   characterState?:PresentRealityCandidate|null;
 };
 
+export type LifeEventPresenceCandidate={
+  locationId?:string|null;
+  eventType?:string|null;
+  metadata?:Record<string,unknown>|null;
+};
+
+/**
+ * Life events are narrative evidence by default, not physical movement.
+ * Only structured events that explicitly establish presence may move a
+ * character away from the currently resolved schedule. An event at the same
+ * place may still enrich activity/mood without creating a contradiction.
+ */
+export function lifeEventHasExplicitPresenceAuthority(event:LifeEventPresenceCandidate|null|undefined):boolean{
+  const metadata=event?.metadata??{};
+  const establishesPresence=metadata['establishesPresence'];
+  if(establishesPresence===false)return false;
+  const rawAuthority=metadata['presenceAuthority']??metadata['presence_authority'];
+  const authority=typeof rawAuthority==='string'?rawAuthority.toLowerCase():'';
+  return establishesPresence===true||authority==='explicit'||authority==='override';
+}
+
+export function lifeEventEstablishesPresentReality(event:LifeEventPresenceCandidate|null|undefined,current:{locationId?:string|null}|null|undefined):boolean{
+  if(!event)return false;
+  if(lifeEventHasExplicitPresenceAuthority(event))return true;
+  const eventLocation=event.locationId?String(event.locationId):'';
+  const currentLocation=current?.locationId?String(current.locationId):'';
+  return Boolean(eventLocation&&currentLocation&&eventLocation===currentLocation);
+}
+
 /**
  * Resolves one present-tense source for location and activity. Historical
  * events are intentionally absent: an event may only win after the Life

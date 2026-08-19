@@ -11,21 +11,29 @@ pnpm web
 
 Public Supabase values have safe project defaults. Copy `.env.example` when overriding them locally. Never add AI keys or Supabase privileged credentials to the Expo environment.
 
+Google and Apple login are implemented through Supabase Auth and default off. Configure each provider in Supabase, add the Kivelle web and `together://` callback URLs to its allowlist, then set the matching `EXPO_PUBLIC_KIVELLE_*_AUTH_ENABLED=true` build flag. Provider secrets stay in Supabase/Apple/Google configuration; only the boolean availability flags belong in Expo.
+
 For a local visual fixture without creating an account, start with `EXPO_PUBLIC_TOGETHER_DEMO_MODE=true`. The fixture is development-only and cannot activate in a production bundle.
 
 ## Server configuration
 
-Dialogue, moderation, and embeddings are server-side provider interfaces. With `OPENAI_API_KEY` unset, dialogue uses a deterministic continuity fallback and embeddings are skipped without failing the conversation.
+Dialogue, moderation, and embeddings are server-side provider interfaces. Standard dialogue defaults to OpenAI `gpt-5.6-luna` with reasoning disabled. Eligible adult-explicit dialogue can use xAI `grok-4.3` only when the server-side xAI key and both route flags are enabled. With `OPENAI_API_KEY` unset, standard dialogue falls back to Gemini or deterministic continuity behavior; embeddings are skipped without failing the conversation.
 
 Optional server secrets:
 
 - `OPENAI_API_KEY`
-- `TOGETHER_DIALOGUE_MODEL`
+- `KIVELLE_OPENAI_DIALOGUE_MODEL` (defaults to `gpt-5.6-luna`)
+- `XAI_API_KEY` (server only)
+- `KIVELLE_XAI_ENABLED`
+- `KIVELLE_XAI_DIALOGUE_MODEL` (defaults to `grok-4.3`)
+- `KIVELLE_XAI_EXPLICIT_ENABLED`
+- `KIVELLE_AI_COST_TELEMETRY_ENABLED`
+- `TOGETHER_DIALOGUE_MODEL` (legacy fallback)
 - `TOGETHER_MODERATION_MODEL`
 - `TOGETHER_EMBEDDING_MODEL`
 - `TOGETHER_DEBUG_USER_IDS`
 
-Together uses the existing server-side `GEMINI_API_KEY` for dialogue and memory embeddings, with a deterministic fallback if the provider is unavailable. `OPENAI_API_KEY` remains supported as an alternative provider. Conversation and memory-embedding inputs leave Supabase only from the Edge Function; provider credentials never reach the mobile app.
+Kivelle keeps canonical state in Supabase and sends only the compiled turn context from Edge Functions to the selected inference provider. Provider credentials never reach the mobile app. Prompt/message content is excluded from AI cost telemetry and operational logs.
 
 ## Boundaries
 

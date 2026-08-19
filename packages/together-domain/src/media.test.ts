@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyPhotoIntent, extractPhotoWardrobeDescription, resolvePhotoComposition } from './media';
+import { classifyPhotoIntent, extractPhotoWardrobeDescription, resolveCanonicalMediaPresence, resolvePhotoComposition } from './media';
 
 describe('extractPhotoWardrobeDescription',()=>{
   it('retains canonical clothing claims from a companion reply',()=>{
@@ -26,5 +26,22 @@ describe('requested photo composition',()=>{
   it('reserves wide scene framing for an explicit environment request',()=>{
     expect(classifyPhotoIntent('Show me what the gallery looks like').shotPreference).toBe('scene');
     expect(resolvePhotoComposition({source:'user_request',shotType:'scene'}).aspectRatio).toBe('16:9');
+  });
+});
+
+describe('canonical media presence',()=>{
+  it('uses the live conversation snapshot instead of a stale persisted location',()=>{
+    expect(resolveCanonicalMediaPresence({
+      character:{locationId:'glassline-gallery',activity:'Looking around the gallery',mood:'curious'},
+      canonical:{locationId:'civic-arena',activity:'Watching the game',mood:'excited',source:'schedule',resolvedAt:'2026-08-18T20:00:00.000Z'},
+    })).toEqual({locationId:'civic-arena',activity:'Watching the game',mood:'excited',source:'schedule',resolvedAt:'2026-08-18T20:00:00.000Z'});
+  });
+
+  it('lets a linked active scene override passive presence',()=>{
+    expect(resolveCanonicalMediaPresence({
+      character:{locationId:'glassline-gallery',activity:'Looking around'},
+      canonical:{locationId:'civic-arena',activity:'Watching the game',mood:'excited',source:'schedule'},
+      authoritativeLocationId:'riverwalk',
+    })).toMatchObject({locationId:'riverwalk',activity:'Watching the game',mood:'excited',source:'linked_context'});
   });
 });

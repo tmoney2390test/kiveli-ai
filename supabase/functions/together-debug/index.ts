@@ -6,14 +6,33 @@ import { AppError } from '../_shared/types.ts';
 import { buildSnapshot } from '../_shared/together.ts';
 import { runLifeSimulation } from '../_shared/together-life.ts';
 import { buildKivelleConversationContext } from '../_shared/kivelle-conversation-context.ts';
+import { summarizeAiUsage } from '../../../packages/together-domain/src/ai-usage.ts';
 
-const schema = z.object({ action: z.enum(['inspect','inspect_context','inspect_media','adjust_relationship','content_inspect','simulate_content']), characterInstanceId: z.string().uuid().optional(), mediaId:z.string().uuid().optional(), message:z.string().max(4000).optional(), changes: z.record(z.string(), z.number()).optional(), days: z.number().int().min(1).max(30).optional() });
+const schema = z.object({ action: z.enum(['inspect','inspect_context','inspect_media','inspect_ai_usage','inspect_media_economics','adjust_relationship','content_inspect','simulate_content']), characterInstanceId: z.string().uuid().optional(), mediaId:z.string().uuid().optional(), message:z.string().max(4000).optional(), changes: z.record(z.string(), z.number()).optional(), days: z.number().int().min(1).max(30).optional() });
 
 serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
   const allowed = (Deno.env.get('TOGETHER_DEBUG_USER_IDS') ?? '').split(',').map((id) => id.trim()).filter(Boolean);
   if (!allowed.includes(user.id) && user.app_metadata?.together_internal !== true) throw new AppError('FORBIDDEN', 'Internal build access is required.', 403);
   const input = await parseBody(request, schema);
+  if(input.action==='inspect_ai_usage'){
+    const since=new Date(Date.now()-30*86400000).toISOString();
+    let query=db.from('together_ai_usage_events').select('correlation_id,provider,model,operation,route_reason,content_mode,subscription_tier,input_tokens,cached_input_tokens,output_tokens,reasoning_tokens,total_tokens,estimated_cost_usd,provider_cost_usd,provider_cost_ticks,cache_hit,latency_ms,success,http_status,error_code,metadata,created_at').eq('user_id',user.id).gte('created_at',since).order('created_at',{ascending:false}).limit(10000);
+    if(input.characterInstanceId)query=query.eq('character_instance_id',input.characterInstanceId);
+    const{data,error}=await query;if(error)throw new AppError('INTERNAL_ERROR','AI usage could not be inspected.',500,true);
+    return json({data:{summary:summarizeAiUsage(data??[]),latest:(data??[]).slice(0,20),note:'Prompts, messages, memories, credentials, and raw provider payloads are excluded.'},correlationId},200,correlationId);
+  }
+  if(input.action==='inspect_media_economics'){
+    const since=new Date(Date.now()-30*86400000).toISOString();
+    const[usage,offers,ledger,accounts]=await Promise.all([
+      db.from('together_media_usage_events').select('*').eq('user_id',user.id).gte('created_at',since).order('created_at',{ascending:false}).limit(10000),
+      db.from('together_media_offers').select('id,source,status,credit_cost,included_subscription_benefit,created_at,accepted_at,declined_at').eq('user_id',user.id).gte('created_at',since).limit(10000),
+      db.from('together_credit_ledger').select('event_type,permanent_delta,subscription_delta,created_at,metadata').eq('user_id',user.id).gte('created_at',since).limit(10000),
+      db.from('together_credit_accounts').select('permanent_balance,subscription_balance').eq('user_id',user.id).maybeSingle(),
+    ]);
+    const failed=[usage,offers,ledger,accounts].find((item)=>item.error);if(failed?.error)throw new AppError('INTERNAL_ERROR','Media economics could not be inspected.',500,true);
+    return json({data:{windows:summarizeMediaWindows(usage.data??[],offers.data??[]),creditLiability:summarizeCreditLiability(ledger.data??[],accounts.data),latestAttempts:(usage.data??[]).slice(0,30),note:'Provider cost is marked estimated unless actual_provider_cost_usd is populated. Prompts, private messages, signed URLs, and credentials are excluded.'},correlationId},200,correlationId);
+  }
   if(input.action==='inspect_media'){
     if(!input.mediaId)throw new AppError('VALIDATION_FAILED','Choose a media row.',400);
     const mediaResult=await db.from('together_generated_media').select('*').eq('id',input.mediaId).eq('user_id',user.id).maybeSingle();
@@ -57,3 +76,11 @@ serve(async (request, correlationId) => {
   const snapshot = await buildSnapshot(db, user.id);
   return json({ data: { ...snapshot, aiContext: { note: 'Structured context preview. Credentials and provider secrets are intentionally excluded.' } }, correlationId }, 200, correlationId);
 });
+
+function summarizeMediaWindows(usage:Array<Record<string,any>>,offers:Array<Record<string,any>>){return Object.fromEntries([1,7,30].map((days)=>{const cutoff=Date.now()-days*86400000,attempts=usage.filter((row)=>new Date(row.created_at).getTime()>=cutoff),windowOffers=offers.filter((row)=>new Date(row.created_at).getTime()>=cutoff),cost=(row:Record<string,any>)=>Number(row.actual_provider_cost_usd??row.estimated_provider_cost_usd??0),total=attempts.reduce((sum,row)=>sum+cost(row),0),delivered=new Set(attempts.filter((row)=>row.success===true&&row.generated_media_id).map((row)=>row.generated_media_id)).size,credits=attempts.reduce((sum,row)=>sum+Number(row.credit_funded?row.credit_cost:0),0);return[days===1?'today':`${days}d`,{totalProviderCostUsd:total,costByProvider:groupCost(attempts,'provider',cost),costByModel:groupCost(attempts,'model',cost),costByRoute:groupCost(attempts,'route_id',cost),costByTier:groupCost(attempts,'subscription_tier',cost),costBySource:groupCost(attempts,'source',cost),creditFundedImageCount:new Set(attempts.filter((row)=>row.credit_funded&&row.generated_media_id).map((row)=>row.generated_media_id)).size,includedBenefitImageCount:new Set(attempts.filter((row)=>row.included_subscription_benefit&&row.generated_media_id).map((row)=>row.generated_media_id)).size,unfundedImageCount:new Set(attempts.filter((row)=>!row.credit_funded&&!row.included_subscription_benefit&&row.generated_media_id).map((row)=>row.generated_media_id)).size,averageProviderCostPerDeliveredImage:delivered?total/delivered:0,qualityRetryRate:attempts.length?attempts.filter((row)=>row.quality_retry).length/attempts.length:0,averageRetryCost:average(attempts.filter((row)=>row.quality_retry).map(cost)),creditsSpentOnMedia:credits,providerCogsPer100CreditsSpent:credits?total/credits*100:0,offerStatusCounts:groupCount(windowOffers,'status'),acceptedOfferRate:offerRate(windowOffers,'accepted'),declinedOfferRate:offerRate(windowOffers,'declined'),expiredOfferRate:offerRate(windowOffers,'expired'),dateSouvenirCost:attempts.filter((row)=>row.included_benefit_type==='date_completion_photo').reduce((sum,row)=>sum+cost(row),0),storyOfferAcceptance:sourceOfferRate(windowOffers,'story'),lifeEventOfferAcceptance:sourceOfferRate(windowOffers,'life_event')}];}));}
+function summarizeCreditLiability(rows:Array<Record<string,any>>,account:Record<string,any>|null){const delta=(kind:string,field:string)=>rows.filter((row)=>row.event_type===kind).reduce((sum,row)=>sum+Number(row[field]??0),0);return{welcomeAndPurchasedGranted:delta('welcome_grant','permanent_delta')+delta('purchase','permanent_delta'),subscriptionCreditsGranted:delta('subscription_grant','subscription_delta'),permanentCreditsSpent:Math.abs(Math.min(0,delta('spend','permanent_delta'))),subscriptionCreditsSpent:Math.abs(Math.min(0,delta('spend','subscription_delta'))),creditsRefunded:delta('refund','permanent_delta')+delta('refund','subscription_delta'),creditsExpired:0,permanentPurchasedOutstanding:Number(account?.permanent_balance??0),subscriptionCreditsOutstanding:Number(account?.subscription_balance??0),note:'Unused credits are liabilities, not provider cost. The current ledger has no explicit expiry event; creditsExpired remains zero until one is introduced.'};}
+function groupCost(rows:Array<Record<string,any>>,key:string,cost:(row:Record<string,any>)=>number){const result:Record<string,number>={};for(const row of rows){const name=String(row[key]??'unknown');result[name]=(result[name]??0)+cost(row);}return result;}
+function groupCount(rows:Array<Record<string,any>>,key:string){const result:Record<string,number>={};for(const row of rows){const name=String(row[key]??'unknown');result[name]=(result[name]??0)+1;}return result;}
+function offerRate(rows:Array<Record<string,any>>,status:string){return rows.length?rows.filter((row)=>row.status===status).length/rows.length:0;}
+function sourceOfferRate(rows:Array<Record<string,any>>,source:string){const selected=rows.filter((row)=>row.source===source);return selected.length?selected.filter((row)=>['accepted','fulfilled'].includes(row.status)).length/selected.length:0;}
+function average(values:number[]){return values.length?values.reduce((sum,value)=>sum+value,0)/values.length:0;}

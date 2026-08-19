@@ -121,6 +121,10 @@ export interface InteractionSceneState {
   activityLabel?: string | null;
   expectedEndAt?: string | null;
   activity?: Record<string, unknown>;
+  lastCharacterInitiativeAt?: string | null;
+  initiativeCooldownUntil?: string | null;
+  pendingProposalId?: string | null;
+  pendingDeparture?:{reason:string;requestedAt:string}|null;
 }
 
 export interface InteractionLife {
@@ -132,8 +136,23 @@ export interface InteractionLife {
   now?: Date;
 }
 
-export interface InteractionMemoryCue { memoryId:string; type:'shared_activity'|'place_history'|'preference'|'shared_joke'|'negative_preference'; activityTags:string[]; locationId?:string; valence?:number; strength:number; }
+export interface InteractionMemoryCue { memoryId:string; type:'shared_activity'|'place_history'|'preference'|'shared_joke'|'negative_preference'; activityTags:string[]; locationId?:string; valence?:number; strength:number; interactionKey?:string; summary?:string; occurredAt?:string; }
 export interface UserBehaviorPattern { patternKey:string; category:string; summary:string; confidence:number; }
+
+export type InteractionDecisionStatus='accepted'|'countered'|'declined';
+export type InteractionEvidenceType='shared_experience'|'playful_competition'|'support'|'vulnerability'|'affection'|'romantic_tension'|'conflict'|'repair'|'boundary_respected'|'boundary_ignored';
+export type InteractionMetricDelta={trust?:number;comfort?:number;attraction?:number;affinity?:number;familiarity?:number;respect?:number;conflict?:number;romantic_interest?:number;commitment?:number};
+export type InteractionRelationshipEvidence={type:InteractionEvidenceType;quality:number;valence:number;metricDelta:InteractionMetricDelta;reasonCodes:string[]};
+export type SceneTransitionProposal=
+  |{kind:'stay'}
+  |{kind:'extend';minutes:number}
+  |{kind:'move';destinationLocationId:string}
+  |{kind:'character_departure';reason:'schedule'|'energy'|'boundary'|'scene_complete'}
+  |{kind:'end';reason:'scene_complete'|'mutual_departure'};
+export type CharacterInteractionDecision={decision:InteractionDecisionStatus;requestedInteractionKey:string;resolvedInteractionKey?:string;counterInteractionKey?:string;reasonCodes:string[];relationshipEvidence?:InteractionRelationshipEvidence;sceneTransition?:SceneTransitionProposal};
+export type CharacterInitiativeResult=
+  |{kind:'none';reasonCodes:string[]}
+  |{kind:'proposal';interactionKey:string;label:string;expiresAt:string;reasonCodes:string[]};
 
 export interface InteractionResolveInput {
   character: InteractionCharacter;
@@ -300,11 +319,11 @@ export function resolveInteractions(input: InteractionResolveInput): Interaction
     const memory = memoryInteractionFit(definition,input);
     const planFit = planActivityFit(input.activePlan, definition, input.scene);
     const score = Math.max(0, locationFit + preferenceFit * .52 + relationshipFit * .22 + moodScore * .12 + memory.score + stableNoise + planFit.score - repetition);
-    const label=memory.repeatPick&&definition.key.includes('let_them_pick')?definition.labels.default.replace(/your song/i,'again'):definition.labels.default;
+    const label=contextualInteractionLabel(definition,memory);
     return [{
       id: definition.key, interactionKey: definition.key, family: definition.family, label, ...(definition.durationMinutes !== undefined ? { durationMinutes: definition.durationMinutes } : {}),
       score, reasonCodes: [...eligibility.reasons, locationFit > .5 ? 'location_match' : 'location_flexible', preferenceFit > .62 ? 'character_fit' : 'variety', ...memory.reasonCodes, ...planFit.reasonCodes, repetition ? 'repetition_penalty' : 'fresh'],
-      effects: { ...(definition.effects ?? {}) }, presentation: { iconKey: definition.family, emphasis: score > .95 ? 'recommended' as const : 'normal' as const },
+      effects: { ...(definition.effects ?? {}) }, presentation: { ...(memory.reasonCodes.some((reason)=>['shared_activity','place_history','user_preference','user_pattern'].includes(reason))?{subtitle:'A familiar choice'}:{}), iconKey: definition.family, emphasis: score > .95 ? 'recommended' as const : 'normal' as const },
     }];
   });
   const chained = applyActionChains(results, input.scene, packs);
@@ -325,6 +344,80 @@ export function resolveInteractions(input: InteractionResolveInput): Interaction
     if (!candidates.some((chosen) => chosen.id === candidate.id)) candidates.push(candidate);
   }
   return candidates.length ? candidates : fallbackInteractions(input, availableMinutes);
+}
+
+export function deriveInteractionRelationshipEvidence(candidate:Pick<InteractionCandidate,'interactionKey'|'family'|'effects'>,relationship:InteractionRelationship,recentSameInteractionCount=0):InteractionRelationshipEvidence|null{
+  const rawEvidenceType=candidate.effects['relationshipEvidenceType'];
+  const requested=typeof rawEvidenceType==='string'?rawEvidenceType:'';
+  const key=candidate.interactionKey;
+  let type:InteractionEvidenceType|null=normalizeEvidenceType(requested);
+  if(!type&&candidate.effects['momentCandidate']===true)type='shared_experience';
+  if(!type&&/challenge|rematch|trivia|pick_a_side|call_the_next_play/.test(key))type='playful_competition';
+  if(!type&&/cheer|bring_coffee|help_/.test(key))type='support';
+  if(!type)return null;
+  const repetitionMultiplier=recentSameInteractionCount>=4?0:recentSameInteractionCount===3?.2:recentSameInteractionCount===2?.45:recentSameInteractionCount===1?.7:1;
+  const baseQuality=candidate.effects['momentCandidate']===true?.72:type==='vulnerability'||type==='repair'?.66:.48;
+  const quality=roundInteraction(baseQuality*repetitionMultiplier);
+  const romantic=relationship.romanceEnabled!==false&&['flirting','dating','exclusive','long_term'].includes(relationship.stage);
+  const metricDelta=interactionMetricDelta(type,quality,romantic);
+  return{type,quality,valence:type==='conflict'||type==='boundary_ignored'?-.55:.45,metricDelta,reasonCodes:[`evidence_${type}`,...(recentSameInteractionCount?['diminishing_returns']:[]),...(romantic?['romance_context']:[])]};
+}
+
+export function resolveCharacterInteractionDecision(input:{candidate:InteractionCandidate;candidates:InteractionCandidate[];profile:CharacterInteractionProfile;relationship:InteractionRelationship;life?:InteractionLife|null;scene?:InteractionSceneState|null;seed?:string;recentSameInteractionCount?:number}):CharacterInteractionDecision{
+  const{candidate,profile,relationship}=input,recentSame=input.recentSameInteractionCount??input.scene?.recentActionKeys?.filter((key)=>key===candidate.interactionKey).length??0;
+  const tags=(interactionDefinition(candidate.interactionKey)?.activityTags??[]).map(normalizeActivityTag);
+  const lifeLevelValue=lifeLevel(input.life),energy=word(input.life?.energy),physical=tags.some((tag)=>['fitness','hiking','ski_snow','water_activity'].includes(tag));
+  const evidence=deriveInteractionRelationshipEvidence(candidate,relationship,recentSame);
+  if(lifeLevelValue==='unavailable'||lifeLevelValue==='busy')return{decision:'declined',requestedInteractionKey:candidate.interactionKey,reasonCodes:['not_interruptible'],...(evidence?{relationshipEvidence:{type:'boundary_respected',quality:.28,valence:.2,metricDelta:{respect:1},reasonCodes:['availability_respected']}}:{})};
+  if(tags.some((tag)=>profile.dislikedActivityTags.includes(tag)))return{decision:'declined',requestedInteractionKey:candidate.interactionKey,reasonCodes:['character_boundary'],sceneTransition:{kind:'stay'}};
+  const alternatives=input.candidates.filter((item)=>item.interactionKey!==candidate.interactionKey&&item.family!=='leave'&&item.family!=='move');
+  const counter=alternatives.find((item)=>{
+    const alternativeTags=interactionDefinition(item.interactionKey)?.activityTags??[];
+    return alternativeTags.some((tag)=>tagProfileFit(normalizeActivityTag(tag),profile)>.62)&&!input.scene?.recentActionKeys?.slice(-2).includes(item.interactionKey);
+  })??alternatives[0];
+  if((physical&&/low|tired|exhaust/.test(energy))||recentSame>=3){
+    if(counter)return{decision:'countered',requestedInteractionKey:candidate.interactionKey,counterInteractionKey:counter.interactionKey,reasonCodes:[physical?'energy_mismatch':'repetition_limit','counteroffered'],sceneTransition:{kind:'stay'}};
+    return{decision:'declined',requestedInteractionKey:candidate.interactionKey,reasonCodes:[physical?'energy_mismatch':'repetition_limit'],sceneTransition:{kind:'stay'}};
+  }
+  const preference=tags.length?tags.reduce((sum,tag)=>sum+tagProfileFit(tag,profile),0)/tags.length:.5;
+  const comfort=Math.max(0,Math.min(1,Number(relationship.comfort??35)/100));
+  const probability=Math.max(.25,Math.min(.98,.5+preference*.28+comfort*.14+(lifeLevelValue==='limited'?-.12:0)));
+  const roll=(stableHash(`${input.seed??'interaction-decision'}:${candidate.interactionKey}:${input.scene?.recentActionKeys?.join('|')??''}`)%10000)/10000;
+  if(roll>probability){
+    if(counter)return{decision:'countered',requestedInteractionKey:candidate.interactionKey,counterInteractionKey:counter.interactionKey,reasonCodes:['character_preference','counteroffered'],sceneTransition:{kind:'stay'}};
+    return{decision:'declined',requestedInteractionKey:candidate.interactionKey,reasonCodes:['character_preference'],sceneTransition:{kind:'stay'}};
+  }
+  const transition=resolveSceneTransition({candidate,...(input.life!==undefined?{life:input.life}:{}),...(input.scene!==undefined?{scene:input.scene}:{})});
+  return{decision:'accepted',requestedInteractionKey:candidate.interactionKey,resolvedInteractionKey:candidate.interactionKey,reasonCodes:['character_agreed',preference>.65?'character_fit':'open_to_suggestion'],...(evidence?{relationshipEvidence:evidence}:{}),sceneTransition:transition};
+}
+
+export function resolveCharacterInitiative(input:{candidates:InteractionCandidate[];profile:CharacterInteractionProfile;life?:InteractionLife|null;scene?:InteractionSceneState|null;now?:Date;seed?:string}):CharacterInitiativeResult{
+  const now=input.now??new Date(),scene=input.scene??{};
+  if(!input.candidates.length)return{kind:'none',reasonCodes:['no_candidates']};
+  if(['busy','unavailable'].includes(lifeLevel(input.life)))return{kind:'none',reasonCodes:['not_interruptible']};
+  if(scene.pendingProposalId)return{kind:'none',reasonCodes:['proposal_pending']};
+  const cooldown=scene.initiativeCooldownUntil?new Date(scene.initiativeCooldownUntil).getTime():0;
+  if(Number.isFinite(cooldown)&&cooldown>now.getTime())return{kind:'none',reasonCodes:['initiative_cooldown']};
+  const last=scene.lastCharacterInitiativeAt?new Date(scene.lastCharacterInitiativeAt).getTime():0;
+  if(Number.isFinite(last)&&now.getTime()-last<10*60_000)return{kind:'none',reasonCodes:['initiative_cooldown']};
+  const candidate=input.candidates.find((item)=>!['leave','move'].includes(item.family)&&!scene.recentActionKeys?.slice(-2).includes(item.interactionKey));
+  if(!candidate)return{kind:'none',reasonCodes:['no_fresh_candidate']};
+  const sceneEntry=(scene.recentActionKeys?.length??0)===0;
+  const probability=Math.max(.08,Math.min(.82,input.profile.initiative*.55+input.profile.spontaneity*.2+(sceneEntry?.12:0)));
+  const roll=(stableHash(`${input.seed??'character-initiative'}:${candidate.interactionKey}:${scene.recentActionKeys?.join('|')??''}`)%10000)/10000;
+  if(roll>probability&&input.profile.initiative<.8)return{kind:'none',reasonCodes:['character_waits']};
+  return{kind:'proposal',interactionKey:candidate.interactionKey,label:candidate.label,expiresAt:new Date(now.getTime()+12*60_000).toISOString(),reasonCodes:['character_initiative',sceneEntry?'scene_entry':'scene_lull']};
+}
+
+export function resolveSceneTransition(input:{candidate:Pick<InteractionCandidate,'interactionKey'|'durationMinutes'|'effects'>;life?:InteractionLife|null;scene?:InteractionSceneState|null;now?:Date}):SceneTransitionProposal{
+  const now=input.now??input.life?.now??new Date(),expected=input.life?.expectedEndAt??input.scene?.expectedEndAt;
+  const remaining=expected?(new Date(expected).getTime()-now.getTime())/60000:Infinity;
+  if(Number.isFinite(remaining)&&remaining<=5)return{kind:'character_departure',reason:'schedule'};
+  const destination=input.candidate.effects['destinationLocationId'];
+  if(input.candidate.effects['mayMoveCharacter']===true&&typeof destination==='string')return{kind:'move',destinationLocationId:destination};
+  if(input.candidate.effects['mayExtendScene']===true)return{kind:'extend',minutes:Math.min(30,input.candidate.durationMinutes??10)};
+  if(/leave|head_back|last_train/.test(input.candidate.interactionKey))return{kind:'end',reason:'scene_complete'};
+  return{kind:'stay'};
 }
 
 function interactionEligible(definition: InteractionDefinition, input: InteractionResolveInput, profile: CharacterInteractionProfile, availableMinutes: number) {
@@ -395,6 +488,43 @@ function memoryInteractionFit(definition:InteractionDefinition,input:Interaction
   }
   return{score,reasonCodes:[...new Set(reasonCodes)],repeatPick};
 }
+function contextualInteractionLabel(definition:InteractionDefinition,memory:{repeatPick:boolean;reasonCodes:string[]}){
+  if(memory.repeatPick&&definition.key.includes('let_them_pick'))return definition.labels.default.replace(/your song/i,'again');
+  if(!memory.reasonCodes.some((reason)=>reason==='shared_activity'||reason==='place_history'))return definition.labels.default;
+  const callbacks:Record<string,string>={
+    'karaoke.sing_together':'Sing together again',
+    'arcade.challenge_them':'Challenge them again',
+    'arcade.ask_for_a_rematch':'Ask for another rematch',
+    'photography.take_a_photo_together':'Take another photo together',
+    'live_music.take_a_photo_together':'Take another photo together',
+    'scenic.take_a_photo_together':'Take another photo together',
+    'sports.pick_a_side':'Defend your team choice',
+    'restaurant.let_them_choose':'Let them choose again',
+  };
+  return callbacks[definition.key]??definition.labels.default;
+}
+function normalizeEvidenceType(value:string):InteractionEvidenceType|null{
+  const normalized=value.toLowerCase();
+  if(normalized==='meaningful_conversation')return'vulnerability';
+  const allowed=new Set<InteractionEvidenceType>(['shared_experience','playful_competition','support','vulnerability','affection','romantic_tension','conflict','repair','boundary_respected','boundary_ignored']);
+  return allowed.has(normalized as InteractionEvidenceType)?normalized as InteractionEvidenceType:null;
+}
+function interactionMetricDelta(type:InteractionEvidenceType,quality:number,romantic:boolean):InteractionMetricDelta{
+  const strength=quality<.18?0:quality>=.65?2:1;
+  switch(type){
+    case'shared_experience':return{comfort:strength,affinity:strength,familiarity:strength};
+    case'playful_competition':return{affinity:strength,familiarity:1,respect:1};
+    case'support':return{trust:strength,comfort:strength,respect:1};
+    case'vulnerability':return{trust:strength,comfort:strength,familiarity:1};
+    case'affection':return romantic?{comfort:1,affinity:1,attraction:strength,romantic_interest:1}:{comfort:strength,affinity:strength};
+    case'romantic_tension':return romantic?{attraction:strength,romantic_interest:strength,affinity:1}:{affinity:1};
+    case'conflict':return{conflict:strength,respect:-1};
+    case'repair':return{trust:strength,comfort:strength,conflict:-strength,respect:1};
+    case'boundary_respected':return{respect:strength,trust:1};
+    case'boundary_ignored':return{respect:-strength,trust:-1,conflict:strength};
+  }
+}
+function roundInteraction(value:number){return Math.round(Math.max(0,Math.min(1,value))*1000)/1000;}
 function applyActionChains(candidates: InteractionCandidate[], scene: InteractionSceneState | null | undefined, packs: InteractionPack[]) {
   const recent = scene?.recentActionKeys ?? [];
   const last = recent.at(-1) ?? '';

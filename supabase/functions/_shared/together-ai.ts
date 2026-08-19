@@ -5,22 +5,31 @@ import type { KivelleConversationContext } from './kivelle-conversation-context.
 import type { PlaceOpinionCandidate } from './kivelle-place-perspective.ts';
 import { deterministicPlaceOpinionCandidates as derivePlaceOpinionCandidates, validatePlaceOpinionCandidates as validateDerivedPlaceOpinionCandidates } from '../../../packages/together-domain/src/place-opinion-analysis.ts';
 import { detectFlirtSignal, scoreConversationEngagement } from '../../../packages/together-domain/src/relationship.ts';
-import { isRelationshipDirectedPreferenceMemory } from '../../../packages/together-domain/src/memory.ts';
+import { isDurableUserMemory, isRelationshipDirectedPreferenceMemory } from '../../../packages/together-domain/src/memory.ts';
 import { resolveConversationStyle } from '../../../packages/together-domain/src/conversation-style.ts';
+import { buildResponsesRequestBody, canRetryStreamFailure, deriveOpaquePromptCacheKey, dialogueFallbackProvider, executeResponsesHttp, extractResponsesText, normalizeResponsesUsage, parseResponsesStreamEvent, type DialogueProviderName, type DialogueRoutingDecision, type NormalizedAiUsage, type NormalizedModerationResult } from '../../../packages/together-domain/src/index.ts';
+import { recordAiUsage, type AiUsageScope } from './kivelle-ai-usage.ts';
 
 export type DialogueContext = KivelleConversationContext & { contentMode?:string };
-export interface DialogueProvider { generate(context: DialogueContext): Promise<string>; stream(context: DialogueContext): AsyncIterable<string>; }
-export interface EmbeddingProvider { embed(text: string): Promise<number[] | null>; }
-export interface ModerationProvider { check(text: string): Promise<{ allowed: boolean; categories: string[] }>; }
+export type DialogueRunMetadata={provider:DialogueProviderName;model:string;routeReason:string;contentMode:string;cachedInputTokens:number;inputTokens:number;outputTokens:number;reasoningTokens:number;latencyMs:number;fallback?:boolean};
+export type DialogueGenerationResult={text:string;metadata:DialogueRunMetadata};
+export type DialogueStreamEvent={type:'token';token:string}|{type:'complete';metadata:DialogueRunMetadata};
+export type DialogueRunOptions={route:DialogueRoutingDecision;usageScope?:AiUsageScope;operation?:string;sharedSceneParticipant?:boolean};
+export interface DialogueProvider { generate(context: DialogueContext,options:DialogueRunOptions): Promise<DialogueGenerationResult>; stream(context: DialogueContext,options:DialogueRunOptions): AsyncIterable<DialogueStreamEvent>; }
+export interface EmbeddingProvider { embed(text: string,scope?:AiUsageScope&{purpose?:string}): Promise<number[] | null>; }
+export interface ModerationProvider { check(text: string,scope?:AiUsageScope): Promise<NormalizedModerationResult>; }
 export type ConversationActionCandidate = { type:'plan_create'|'plan_cancel'|'plan_reschedule'|'date'; confidence:number; payload:Record<string,unknown> };
-export type ConversationAnalysisInput = { userMessage: string; assistantMessage: string; existingThreads: Array<Record<string, unknown>>; context?:DialogueContext };
+export type ConversationAnalysisInput = { userMessage: string; assistantMessage: string; existingThreads: Array<Record<string, unknown>>; context?:DialogueContext;usageScope?:AiUsageScope };
 export type ConversationAnalysisProposal = { relationshipChanges: Record<string, number>; chemistry:{userFlirtSignal:number;characterFlirtSignal:number;mutualChemistry:number;heatDelta:number}; memoryCandidates: MemoryCandidate[]; resolvedThreadIds: string[]; newThreads: OpenThreadCandidate[]; momentCandidate: boolean; moodEffects: Record<string, number>; actionCandidates:ConversationActionCandidate[]; placeOpinionCandidates:PlaceOpinionCandidate[]; referencedEntities:string[]; mentionedMemoryIds:string[]; reinforcedMemoryIds:string[]; correctedMemorySubjects:string[]; source: 'deterministic' | 'hybrid' };
 export interface ConversationAnalysisProvider { analyze(input: ConversationAnalysisInput): Promise<ConversationAnalysisProposal>; }
 
 const apiKey = () => Deno.env.get('OPENAI_API_KEY');
+const xaiKey = () => Deno.env.get('XAI_API_KEY');
 const geminiKey = () => Deno.env.get('GEMINI_API_KEY');
-const model = (name: string, fallback: string) => Deno.env.get(name) ?? fallback;
+const model = (name: string, fallback: string) => Deno.env.get(name)?.trim() || fallback;
 
+export function openAIDialogueModel():string{return model('KIVELLE_OPENAI_DIALOGUE_MODEL',model('KIVELLE_DIALOGUE_MODEL',model('TOGETHER_DIALOGUE_MODEL','gpt-5.6-luna')));}
+export function xaiDialogueModel():string{return model('KIVELLE_XAI_DIALOGUE_MODEL','grok-4.3');}
 export function dialogueProviderName(): 'openai' | 'gemini' | 'deterministic' {
   if (apiKey()) return 'openai';
   if (geminiKey()) return 'gemini';
@@ -28,82 +37,103 @@ export function dialogueProviderName(): 'openai' | 'gemini' | 'deterministic' {
 }
 
 export class ConfiguredDialogueProvider implements DialogueProvider {
-  async generate(context: DialogueContext): Promise<string> {
-    const key = apiKey();
-    if (!key) {
-      const googleKey = geminiKey();
-      return googleKey ? generateGemini(context, googleKey) : fallbackDialogue(context);
-    }
-    const response = await fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: model('KIVELLE_DIALOGUE_MODEL', model('TOGETHER_DIALOGUE_MODEL', 'gpt-5-mini')), input: buildCompanionPrompt(context), max_output_tokens: responseTokenBudget(context) }) });
-    if (!response.ok) {
-      console.warn('Together dialogue provider failed', response.status, await response.text());
-      if (response.status === 429) throw new AppError('RATE_LIMITED', 'Your companion needs a moment before replying.', 429, true);
-      return fallbackDialogue(context);
-    }
-    const data = await response.json();
-    const text = data.output_text ?? data.output?.flatMap((item: Record<string, unknown>) => Array.isArray(item.content) ? item.content : []).find((item: Record<string, unknown>) => item.type === 'output_text')?.text;
-    return typeof text === 'string' && text.trim() ? text.trim() : fallbackDialogue(context);
-  }
-
-  async *stream(context: DialogueContext): AsyncIterable<string> {
-    const key = geminiKey();
-    const openAIKey = apiKey();
-    if (openAIKey) {
-      let emitted = false;
-      try { for await (const token of streamOpenAI(context, openAIKey)) { emitted = true; yield token; } return; } catch { if (emitted) throw new Error('OpenAI stream interrupted.'); yield* textChunks(await this.generate(context)); return; }
-    }
-    if (!key) {
-      yield* textChunks(await this.generate(context));
-      return;
-    }
-
-    let emitted = false;
-    try {
-      for await (const token of streamGemini(context, key)) {
-        emitted = true;
-        yield token;
+  async generate(context: DialogueContext,options:DialogueRunOptions): Promise<DialogueGenerationResult> {
+    if(options.route.provider==='openai'||options.route.provider==='xai'){
+      try{return await generateResponses(context,options);}catch(error){
+        if(dialogueFallbackProvider(options.route.provider,Boolean(geminiKey()))==='gemini'){
+          const started=Date.now();const text=await generateGemini(context,geminiKey()!);
+          const providerModel=model('TOGETHER_GEMINI_MODEL',Deno.env.get('GEMINI_EXPLANATION_MODEL')??'gemini-2.5-flash');
+          await recordAiUsage(options.usageScope?{...options.usageScope,routeReason:'provider_fallback'}:undefined,{provider:'gemini',model:providerModel,operation:'dialogue_gemini',latencyMs:Date.now()-started,success:true,metadata:{fallbackFrom:'openai'}});
+          return{text,metadata:{...metadataFor(options,'gemini',providerModel,null,Date.now()-started,true),routeReason:'provider_fallback'}};
+        }
+        const text=options.route.provider==='xai'?explicitProviderFallback(context):fallbackDialogue(context);
+        return{text,metadata:{...metadataFor(options,'deterministic','kivelle-deterministic',null,0,true),routeReason:'provider_fallback'}};
       }
-      if (!emitted) yield* textChunks(await this.generate(context));
-    } catch (error) {
-      if (emitted) throw error;
-      yield* textChunks(await this.generate(context));
     }
+    if(options.route.provider==='gemini'&&geminiKey()){
+      const started=Date.now();const text=await generateGemini(context,geminiKey()!);const providerModel=model('TOGETHER_GEMINI_MODEL',Deno.env.get('GEMINI_EXPLANATION_MODEL')??'gemini-2.5-flash');
+      await recordAiUsage(options.usageScope,{provider:'gemini',model:providerModel,operation:options.operation??'dialogue_gemini',latencyMs:Date.now()-started,success:true});
+      return{text,metadata:metadataFor(options,'gemini',providerModel,null,Date.now()-started)};
+    }
+    return{text:fallbackDialogue(context),metadata:metadataFor(options,'deterministic','kivelle-deterministic',null,0)};
+  }
+
+  async *stream(context: DialogueContext,options:DialogueRunOptions): AsyncIterable<DialogueStreamEvent> {
+    if(options.route.provider==='openai'||options.route.provider==='xai'){
+      let emitted=false;
+      try{for await(const event of streamResponses(context,options)){if(event.type==='token')emitted=true;yield event;}return;}catch(error){
+        if(!canRetryStreamFailure(emitted))throw error;
+        const fallback=await this.generate(context,options);
+        for await(const token of textChunks(fallback.text))yield{type:'token',token};
+        yield{type:'complete',metadata:fallback.metadata};return;
+      }
+    }
+    const generated=await this.generate(context,options);
+    for await(const token of textChunks(generated.text))yield{type:'token',token};
+    yield{type:'complete',metadata:generated.metadata};
   }
 }
 
-async function* streamOpenAI(context: DialogueContext, key: string): AsyncIterable<string> {
-  const response = await fetch('https://api.openai.com/v1/responses', { method:'POST', headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'}, body:JSON.stringify({model:model('KIVELLE_DIALOGUE_MODEL',model('TOGETHER_DIALOGUE_MODEL','gpt-5-mini')),input:buildCompanionPrompt(context),max_output_tokens:responseTokenBudget(context),stream:true}) });
-  if (!response.ok || !response.body) throw new Error(`OpenAI stream failed (${response.status})`);
-  for await (const data of sseData(response.body)) { const event=JSON.parse(data) as { type?:string; delta?:string }; if(event.type==='response.output_text.delta' && event.delta) yield event.delta; }
+async function generateResponses(context:DialogueContext,options:DialogueRunOptions):Promise<DialogueGenerationResult>{
+  const provider=options.route.provider as 'openai'|'xai',key=provider==='openai'?apiKey():xaiKey(),modelName=provider==='openai'?openAIDialogueModel():xaiDialogueModel();
+  if(!key)throw new Error(`${provider}_not_configured`);
+  const started=Date.now();let response:Response|undefined;
+  try{
+    response=await executeResponsesHttp(fetch,provider,key,await responsesBody(context,options,modelName,false));const latency=Date.now()-started;
+    if(!response.ok){await recordAiUsage(options.usageScope,{provider,model:modelName,operation:operationName(options,provider),latencyMs:latency,success:false,httpStatus:response.status,errorCode:`HTTP_${response.status}`,metadata:{sharedSceneParticipant:options.sharedSceneParticipant===true}});throw new AppError(response.status===429?'RATE_LIMITED':'PROVIDER_UNAVAILABLE','Your companion needs a moment before replying.',response.status===429?429:503,true);}
+    const data=await response.json(),usage=normalizeResponsesUsage(provider,data.usage),text=extractResponsesText(data);
+    await recordAiUsage(options.usageScope,{provider,model:modelName,operation:operationName(options,provider),usage,latencyMs:latency,success:true,httpStatus:response.status,cacheHit:usage.cachedInputTokens>0,metadata:{sharedSceneParticipant:options.sharedSceneParticipant===true}});
+    if(!text)throw new Error('empty_provider_response');return{text,metadata:metadataFor(options,provider,modelName,usage,latency)};
+  }catch(error){if(!response)await recordAiUsage(options.usageScope,{provider,model:modelName,operation:operationName(options,provider),latencyMs:Date.now()-started,success:false,errorCode:'NETWORK_ERROR',metadata:{sharedSceneParticipant:options.sharedSceneParticipant===true}});throw error;}
 }
+
+async function* streamResponses(context:DialogueContext,options:DialogueRunOptions):AsyncIterable<DialogueStreamEvent>{
+  const provider=options.route.provider as 'openai'|'xai',key=provider==='openai'?apiKey():xaiKey(),modelName=provider==='openai'?openAIDialogueModel():xaiDialogueModel();if(!key)throw new Error(`${provider}_not_configured`);
+  const started=Date.now();let response:Response|undefined,recorded=false;
+  try{
+    response=await executeResponsesHttp(fetch,provider,key,await responsesBody(context,options,modelName,true));
+    if(!response.ok||!response.body){await recordAiUsage(options.usageScope,{provider,model:modelName,operation:operationName(options,provider),latencyMs:Date.now()-started,success:false,httpStatus:response.status,errorCode:`HTTP_${response.status}`});recorded=true;throw new Error(`${provider}_stream_failed`);}
+    let usage:NormalizedAiUsage|null=null;
+    for await(const data of sseData(response.body)){const parsed=parseResponsesStreamEvent(JSON.parse(data));if(parsed.token)yield{type:'token',token:parsed.token};if(parsed.usage)usage=normalizeResponsesUsage(provider,parsed.usage);}
+    const latency=Date.now()-started;await recordAiUsage(options.usageScope,{provider,model:modelName,operation:operationName(options,provider),usage,latencyMs:latency,success:true,httpStatus:response.status,cacheHit:Boolean(usage?.cachedInputTokens),metadata:{sharedSceneParticipant:options.sharedSceneParticipant===true}});recorded=true;yield{type:'complete',metadata:metadataFor(options,provider,modelName,usage,latency)};
+  }catch(error){if(!recorded)await recordAiUsage(options.usageScope,{provider,model:modelName,operation:operationName(options,provider),latencyMs:Date.now()-started,success:false,httpStatus:response?.status??null,errorCode:response?'STREAM_INTERRUPTED':'NETWORK_ERROR',metadata:{sharedSceneParticipant:options.sharedSceneParticipant===true}});throw error;}
+}
+
+async function responsesBody(context:DialogueContext,options:DialogueRunOptions,modelName:string,stream:boolean){return buildResponsesRequestBody({model:modelName,prompt:buildCompanionPrompt(context),maxOutputTokens:responseTokenBudget(context),stream,...(options.route.provider==='xai'?{promptCacheKey:await deriveOpaquePromptCacheKey({conversationId:options.usageScope?.conversationId,continuityId:options.usageScope?.continuityId,characterInstanceId:options.usageScope?.characterInstanceId})}:{})});}
+function operationName(options:DialogueRunOptions,provider:string){return options.operation??`dialogue_${provider}`;}
+function metadataFor(options:DialogueRunOptions,provider:DialogueProviderName,modelName:string,usage:NormalizedAiUsage|null,latencyMs:number,fallback=false):DialogueRunMetadata{return{provider,model:modelName,routeReason:options.route.reason,contentMode:options.route.resolvedMode,cachedInputTokens:usage?.cachedInputTokens??0,inputTokens:usage?.inputTokens??0,outputTokens:usage?.outputTokens??0,reasoningTokens:usage?.reasoningTokens??0,latencyMs,...(fallback?{fallback:true}:{})};}
+function explicitProviderFallback(context:DialogueContext):string{return`${context.character.name} slows the moment down. “Give me a second. I want to stay present with you, not rush this.”`;}
 
 export class ConfiguredEmbeddingProvider implements EmbeddingProvider {
-  async embed(text: string): Promise<number[] | null> {
+  async embed(text: string,scope?:AiUsageScope&{purpose?:string}): Promise<number[] | null> {
     const key = apiKey();
     if (!key) {
       const googleKey = geminiKey();
       return googleKey ? embedGemini(text, googleKey) : null;
     }
-    try {
+    const started=Date.now(),modelName=model('TOGETHER_EMBEDDING_MODEL', 'text-embedding-3-small');try {
       const response = await fetch('https://api.openai.com/v1/embeddings', { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: model('TOGETHER_EMBEDDING_MODEL', 'text-embedding-3-small'), input: text, dimensions: 1536 }) });
-      if (!response.ok) return null;
+      if (!response.ok){await recordAiUsage(scope,{provider:'openai',model:modelName,operation:'embedding_openai',latencyMs:Date.now()-started,success:false,httpStatus:response.status,errorCode:`HTTP_${response.status}`,metadata:{purpose:scope?.purpose}});return null;}
       const data = await response.json();
+      const usage=normalizeResponsesUsage('openai',{input_tokens:data.usage?.prompt_tokens,total_tokens:data.usage?.total_tokens});await recordAiUsage(scope,{provider:'openai',model:modelName,operation:'embedding_openai',usage,latencyMs:Date.now()-started,success:true,httpStatus:response.status,metadata:{purpose:scope?.purpose}});
       return data.data?.[0]?.embedding ?? null;
-    } catch { return null; }
+    } catch {await recordAiUsage(scope,{provider:'openai',model:modelName,operation:'embedding_openai',latencyMs:Date.now()-started,success:false,errorCode:'NETWORK_ERROR',metadata:{purpose:scope?.purpose}}); return null; }
   }
 }
 
 
 export class ConfiguredModerationProvider implements ModerationProvider {
-  async check(text: string): Promise<{ allowed: boolean; categories: string[] }> {
+  async check(text: string,scope?:AiUsageScope): Promise<NormalizedModerationResult> {
     const key = apiKey();
-    if (!key) return { allowed: true, categories: [] };
-    try {
+    if (!key) return { allowed: true, flagged:false,categories: [],categoryScores:{} };
+    const started=Date.now(),modelName=model('TOGETHER_MODERATION_MODEL', 'omni-moderation-latest');try {
       const response = await fetch('https://api.openai.com/v1/moderations', { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: model('TOGETHER_MODERATION_MODEL', 'omni-moderation-latest'), input: text }) });
-      if (!response.ok) return { allowed: true, categories: [] };
+      if (!response.ok){await recordAiUsage(scope,{provider:'openai',model:modelName,operation:'moderation_openai',latencyMs:Date.now()-started,success:false,httpStatus:response.status,errorCode:`HTTP_${response.status}`,estimatedCostUsd:0});return { allowed: true,flagged:false,categories: [],categoryScores:{} };}
       const result = (await response.json()).results?.[0];
-      return { allowed: !result?.flagged, categories: Object.entries(result?.categories ?? {}).filter(([, flagged]) => flagged).map(([category]) => category) };
-    } catch { return { allowed: true, categories: [] }; }
+      const categories=Object.entries(result?.categories??{}).filter(([,flagged])=>flagged).map(([category])=>category),categoryScores=Object.fromEntries(Object.entries(result?.category_scores??{}).map(([category,score])=>[category,Number(score)]));
+      await recordAiUsage(scope,{provider:'openai',model:modelName,operation:'moderation_openai',latencyMs:Date.now()-started,success:true,httpStatus:response.status,estimatedCostUsd:0,metadata:{flagged:Boolean(result?.flagged),categoryCount:categories.length}});
+      const hardBlocked=categories.some((category)=>category!=='sexual'&&category!=='sexual/adult');return { allowed: !hardBlocked,flagged:Boolean(result?.flagged),categories,categoryScores };
+    } catch {await recordAiUsage(scope,{provider:'openai',model:modelName,operation:'moderation_openai',latencyMs:Date.now()-started,success:false,errorCode:'NETWORK_ERROR',estimatedCostUsd:0});return { allowed: true,flagged:false,categories: [],categoryScores:{} }; }
   }
 }
 
@@ -113,7 +143,7 @@ export class ConfiguredConversationAnalysisProvider implements ConversationAnaly
     const key = geminiKey();
     const enabled = Deno.env.get('TOGETHER_AI_ANALYSIS_ENABLED') !== 'false';
     if (!enabled || !key || !shouldUseModelAnalysis(input)) return deterministic;
-    try {
+    const started=Date.now();let usageRecorded=false;try {
       const modelName = model('TOGETHER_ANALYSIS_MODEL', Deno.env.get('GEMINI_EXPLANATION_MODEL') ?? 'gemini-2.5-flash');
       const response = await Promise.race([
         fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(key)}`, {
@@ -126,12 +156,14 @@ export class ConfiguredConversationAnalysisProvider implements ConversationAnaly
         }),
         new Promise<Response>((_, reject) => setTimeout(() => reject(new Error('analysis_timeout')), 3500)),
       ]);
-      if (!response.ok) return deterministic;
+      if (!response.ok){await recordAiUsage(input.usageScope,{provider:'gemini',model:modelName,operation:'analysis_gemini',latencyMs:Date.now()-started,success:false,httpStatus:response.status,errorCode:`HTTP_${response.status}`});usageRecorded=true;return deterministic;}
       const payload = await response.json();
+      const usageMetadata=payload.usageMetadata??{},usage={inputTokens:Number(usageMetadata.promptTokenCount??0),cachedInputTokens:Number(usageMetadata.cachedContentTokenCount??0),outputTokens:Number(usageMetadata.candidatesTokenCount??0),reasoningTokens:Number(usageMetadata.thoughtsTokenCount??0),totalTokens:Number(usageMetadata.totalTokenCount??0)};await recordAiUsage(input.usageScope,{provider:'gemini',model:modelName,operation:'analysis_gemini',usage,latencyMs:Date.now()-started,success:true,httpStatus:response.status});usageRecorded=true;
       const raw = payload.candidates?.[0]?.content?.parts?.map((part: Record<string, unknown>) => part.text).filter(Boolean).join('');
       const modelProposal = validateAnalysisJson(typeof raw === 'string' ? JSON.parse(raw) : null, input);
       return mergeAnalysis(deterministic, modelProposal);
     } catch (error) {
+      if(!usageRecorded)await recordAiUsage(input.usageScope,{provider:'gemini',model:model('TOGETHER_ANALYSIS_MODEL',Deno.env.get('GEMINI_EXPLANATION_MODEL')??'gemini-2.5-flash'),operation:'analysis_gemini',latencyMs:Date.now()-started,success:false,errorCode:'NETWORK_OR_PARSE_ERROR'});
       console.warn('Together post-conversation analysis fell back', error instanceof Error ? error.message : 'unknown_error');
       return deterministic;
     }
@@ -193,7 +225,7 @@ ${JSON.stringify(allowedPlaces(input).map((place)=>({placeRef:place.slug,name:pl
 Return this shape:
 {"relationshipChanges":{"trust":0,"comfort":0,"attraction":0,"affinity":0,"familiarity":0,"respect":0,"conflict":0,"romantic_interest":0,"commitment":0},"chemistry":{"userFlirtSignal":0.0,"characterFlirtSignal":0.0,"mutualChemistry":0.0,"heatDelta":0},"memoryCandidates":[{"memory_type":"semantic|preference|episodic|relationship|emotional","canonical_text":"User ...","subject_key":"stable topic key","importance":0.0,"confidence":0.0,"sensitivity_category":"none|personal|sensitive","metadata":{}}],"placeOpinionCandidates":[{"placeRef":"allowed-place-slug","sentiment":0.0,"confidence":0.0,"summary":"Durable neutral summary of the companion's expressed view.","tags":[],"favoriteDetails":[],"dislikedDetails":[],"reasoningCode":"explicit_character_opinion|opinion_changed|shared_experience_reaction"}],"resolvedThreadIds":[],"newThreads":[{"topic":"Ask how ... went.","subject":"presentation","expected_at":"ISO timestamp or null","importance":0.0}],"mentionedMemoryIds":[],"reinforcedMemoryIds":[],"correctedMemorySubjects":[],"momentCandidate":false,"moodEffects":{}}
 
-Rules: relationship deltas must be integers from -4 to 4. Ordinary chat should be 0 to 2. Memory-worthiness is not relationship significance: an ordinary preference or biographical fact may become memory but must not receive vulnerability-level trust/comfort changes. Direct declarations to the companion such as "I love you" or "I like you" are relationship evidence, never preference memories; do not produce text such as "User likes you." Chemistry signals are 0 to 1 and require actual romantic/flirt evidence; generic positivity such as "you're cool", "nice", or "you're funny" is not flirting. Never infer private facts. Do not create a memory from the character response. A correction must use the same subject_key as the earlier fact. Mentioned/reinforced memory IDs must be from the available list and only if the assistant actually referenced them. Resolve only an eligible thread that this user message actually answers. A place opinion candidate is allowed only when the CHARACTER RESPONSE explicitly expresses or changes a durable personal view of one listed place. Never turn the user's opinion, objective venue description, or a passing observation into the companion's opinion. Use only an allowed placeRef and never invent an ID.`;
+Rules: relationship deltas must be integers from -4 to 4. Ordinary chat should be 0 to 2. Memory-worthiness is not relationship significance: an ordinary preference or biographical fact may become memory but must not receive vulnerability-level trust/comfort changes. Direct declarations to the companion such as "I love you" or "I like you" are relationship evidence, never preference memories; do not produce text such as "User likes you." Momentary user state and generic actions belong only to recent conversation context: never create durable memories such as "User is in bed," "User is eating," "User is tired," "User is at home," or "User is watching television." Store only stable facts/preferences, meaningful relationship evidence, future-relevant commitments, or genuinely significant shared episodes. Chemistry signals are 0 to 1 and require actual romantic/flirt evidence; generic positivity such as "you're cool", "nice", or "you're funny" is not flirting. Never infer private facts. Do not create a memory from the character response. A correction must use the same subject_key as the earlier fact. Mentioned/reinforced memory IDs must be from the available list and only if the assistant actually referenced them. Resolve only an eligible thread that this user message actually answers. A place opinion candidate is allowed only when the CHARACTER RESPONSE explicitly expresses or changes a durable personal view of one listed place. Never turn the user's opinion, objective venue description, or a passing observation into the companion's opinion. Use only an allowed placeRef and never invent an ID.`;
 }
 
 function validateAnalysisJson(value: unknown, input: ConversationAnalysisInput): ConversationAnalysisProposal {
@@ -211,6 +243,7 @@ function validateAnalysisJson(value: unknown, input: ConversationAnalysisInput):
     const subjectKey = normalizeContinuityKey(String(candidate.subject_key ?? '')).replace(/\s+/g, ':').slice(0, 120);
     if (!['semantic','preference','episodic','relationship','emotional'].includes(memoryType) || !/^User\b/i.test(canonicalText) || !subjectKey) return [];
     if (memoryType === 'preference' && isRelationshipDirectedPreferenceMemory(canonicalText)) return [];
+    if (!isDurableUserMemory({memoryType,canonicalText})) return [];
     const sensitivity = ['none','personal','sensitive'].includes(String(candidate.sensitivity_category)) ? String(candidate.sensitivity_category) : 'none';
     return [{ memory_type: memoryType, canonical_text: canonicalText, dedupe_key: `${memoryType}:${normalizeContinuityKey(canonicalText)}`, subject_key: subjectKey, importance: clampUnit(candidate.importance), confidence: Math.min(.85, clampUnit(candidate.confidence)), sensitivity_category: sensitivity, metadata: candidate.metadata && typeof candidate.metadata === 'object' ? candidate.metadata as Record<string, unknown> : {} }];
   });

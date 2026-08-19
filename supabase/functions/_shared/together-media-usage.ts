@@ -1,0 +1,20 @@
+import type{SupabaseClient}from'@supabase/supabase-js';
+import{estimatedMediaProviderCost}from'../../../packages/together-domain/src/media-economics.ts';
+
+export async function recordMediaUsageAttempt(db:SupabaseClient,input:{job:Record<string,any>;media?:Record<string,any>|null;subscriptionTier:string;routeId:string;model:string;provider:string;attemptNumber:number;qualityRetry:boolean;generationMs?:number;estimatedCost?:number}):Promise<void>{
+  const media=input.media??{},metadata=(media.metadata??{}) as Record<string,unknown>,estimated=input.estimatedCost??estimatedMediaProviderCost(input.routeId);
+  const row={user_id:input.job.user_id??media.user_id??null,continuity_id:input.job.continuity_id??media.continuity_id??null,character_instance_id:media.character_instance_id??null,conversation_id:media.conversation_id??null,generated_media_id:input.job.generated_media_id??null,media_offer_id:media.media_offer_id??metadata.mediaOfferId??null,provider_job_id:input.job.id,subscription_tier:normalizeTier(input.subscriptionTier),provider:input.provider,model:input.model,route_id:input.routeId,source:String(metadata.source??input.job.provider_metadata?.source??input.job.job_type??'unknown'),content_level:String(media.content_level??metadata.resolvedContentLevel??'standard'),quality_tier:String(metadata.qualityTier??'standard'),credit_action:typeof metadata.creditAction==='string'?metadata.creditAction:null,credit_cost:Number(metadata.creditCost??0),credit_funded:Number(metadata.creditCost??0)>0,included_subscription_benefit:Boolean(metadata.includedBenefit),included_benefit_type:typeof metadata.includedBenefitType==='string'?metadata.includedBenefitType:null,estimated_provider_cost_usd:estimated,cost_is_estimate:true,generation_ms:input.generationMs??null,attempt_number:input.attemptNumber,quality_retry:input.qualityRetry,success:null,metadata:{providerAccepted:true,creatorAssetId:input.job.creator_asset_id??null,characterMediaProfileId:input.job.character_media_profile_id??null}};
+  const{error}=await db.from('together_media_usage_events').upsert(row,{onConflict:'provider_job_id,attempt_number'});if(error)console.warn('Media usage attempt could not be recorded',error.message);
+}
+
+export async function completeMediaUsageAttempt(db:SupabaseClient,input:{providerJobId:string;attemptNumber:number;success:boolean;failureCode?:string;generationMs?:number;actualProviderCostUsd?:number}):Promise<void>{
+  const update={success:input.success,failure_code:input.failureCode??null,generation_ms:input.generationMs??null,...(typeof input.actualProviderCostUsd==='number'?{actual_provider_cost_usd:input.actualProviderCostUsd,cost_is_estimate:false}:{}),updated_at:new Date().toISOString()};
+  const{error}=await db.from('together_media_usage_events').update(update).eq('provider_job_id',input.providerJobId).eq('attempt_number',input.attemptNumber);if(error)console.warn('Media usage completion could not be recorded',error.message);
+}
+
+export async function markMediaOfferOutcome(db:SupabaseClient,input:{media:Record<string,any>;status:'fulfilled'|'failed';failureCode?:string;failureReasonSafe?:string;creditRefunded?:boolean}):Promise<void>{
+  const offerId=input.media.media_offer_id??(input.media.metadata as Record<string,unknown>|undefined)?.mediaOfferId;if(!offerId)return;
+  const now=new Date().toISOString();const update=input.status==='fulfilled'?{status:'fulfilled',failure_code:null,failure_reason_safe:null,updated_at:now}:{status:'failed',failure_code:input.failureCode??'provider_failure',failure_reason_safe:input.failureReasonSafe??'The photo could not be created.',credit_refunded:Boolean(input.creditRefunded),updated_at:now};
+  const{error}=await db.from('together_media_offers').update(update).eq('id',String(offerId)).eq('user_id',String(input.media.user_id)).in('status',['accepted',input.status]);if(error)console.warn('Media offer outcome could not be recorded',error.message);
+}
+function normalizeTier(value:string){return value==='kivelle_plus'||value==='kivelle_max'?value:'free';}

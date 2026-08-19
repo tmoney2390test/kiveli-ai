@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMemoryRecallPlan, decayEmotionalResidue, evaluateBehaviorPattern, isRelationshipDirectedPreferenceMemory, scoreEpisodeSignificance } from './memory.ts';
+import { buildMemoryRecallPlan, decayEmotionalResidue, evaluateBehaviorPattern, isDurableUserMemory, isRelationshipDirectedPreferenceMemory, scoreEpisodeSignificance } from './memory.ts';
 
 const now = new Date('2026-08-16T20:00:00.000Z');
 
@@ -46,5 +46,15 @@ describe('Memory Engine V2', () => {
     expect(isRelationshipDirectedPreferenceMemory('User likes you.')).toBe(true);
     expect(isRelationshipDirectedPreferenceMemory('User loves her.')).toBe(true);
     expect(isRelationshipDirectedPreferenceMemory('User likes football.')).toBe(false);
+  });
+
+  it('keeps momentary user actions in conversation context instead of durable memory', () => {
+    expect(isDurableUserMemory({ memoryType:'semantic', canonicalText:'User is in bed.' })).toBe(false);
+    expect(isDurableUserMemory({ memoryType:'episodic', canonicalText:'User is watching television right now.' })).toBe(false);
+    expect(isDurableUserMemory({ memoryType:'emotional', canonicalText:'User feels tired.' })).toBe(false);
+    expect(isDurableUserMemory({ memoryType:'semantic', canonicalText:'User works as an architect.' })).toBe(true);
+    expect(isDurableUserMemory({ memoryType:'preference', canonicalText:'User likes football.' })).toBe(true);
+    expect(isDurableUserMemory({ memoryType:'relationship', canonicalText:'User told Brooke they love her.' })).toBe(true);
+    expect(isDurableUserMemory({ memoryType:'episodic', canonicalText:'Brooke and Tim watched the sunset at Riverwalk.' })).toBe(true);
   });
 });

@@ -12,9 +12,13 @@ import { refundCredits } from '../_shared/kivelle-subscription.ts';
 import { configuredMediaRegistry } from '../_shared/together-media-providers.ts';
 import { resolveMediaContentPolicy } from '../../../packages/together-domain/src/media-routing.ts';
 import { envBoolean } from '../_shared/wavespeed.ts';
+import {acceptMediaOffer,declineMediaOffer,listPendingMediaOffers} from '../_shared/together-media-offers.ts';
 
 const schema=z.discriminatedUnion('action',[
-  z.object({action:z.literal('request'),characterInstanceId:z.string().uuid(),source:z.enum(['user_request','life_event','date','moment','story']).default('user_request'),conversationId:z.string().uuid().optional(),messageId:z.string().uuid().optional(),lifeEventId:z.string().uuid().optional(),dateSessionId:z.string().uuid().optional(),momentId:z.string().uuid().optional(),storyArcId:z.string().uuid().optional(),requestText:z.string().trim().max(400).optional(),idempotencyKey:z.string().trim().min(8).max(120).optional()}),
+  z.object({action:z.literal('request'),characterInstanceId:z.string().uuid(),source:z.literal('user_request').default('user_request'),conversationId:z.string().uuid().optional(),messageId:z.string().uuid().optional(),requestText:z.string().trim().max(400).optional(),idempotencyKey:z.string().trim().min(8).max(120).optional()}),
+  z.object({action:z.literal('list_pending_offers'),characterInstanceId:z.string().uuid().optional()}),
+  z.object({action:z.literal('accept_offer'),offerId:z.string().uuid(),requestId:z.string().trim().min(8).max(120)}),
+  z.object({action:z.literal('decline_offer'),offerId:z.string().uuid()}),
   z.object({action:z.literal('retry'),mediaId:z.string().uuid()}),
   z.object({action:z.literal('status'),mediaId:z.string().uuid()}),
   z.object({action:z.literal('feedback'),mediaId:z.string().uuid(),feedback:z.enum(['positive','negative'])}),
@@ -31,9 +35,9 @@ serve(async(request,correlationId)=>{
     await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId);
     await enforceRateLimit(db,user.id,'together_media_request',15,86400);
     const requestId=input.idempotencyKey??crypto.randomUUID();
-    const media=await queueMediaRequest(db,{userId:user.id,characterInstanceId:input.characterInstanceId,source:input.source,conversationId:input.conversationId,messageId:input.messageId,lifeEventId:input.lifeEventId,dateSessionId:input.dateSessionId,momentId:input.momentId,storyArcId:input.storyArcId,requestText:input.requestText,idempotencyKey:requestId,force:true});
+    const media=await queueMediaRequest(db,{userId:user.id,characterInstanceId:input.characterInstanceId,source:'user_request',conversationId:input.conversationId,messageId:input.messageId,requestText:input.requestText,idempotencyKey:requestId,force:true});
     if(media&&media.status==='queued')waitUntil(kickMediaDispatcher());
-    const subscription=input.source==='user_request'?await resolveSubscriptionState(db,user.id):null;
+    const subscription=await resolveSubscriptionState(db,user.id);
     const metadata=(media?.metadata??{}) as Record<string,unknown>;
     return json({data:{media,creditCost:Number(metadata.creditCost??0),creditBalance:subscription?.creditBalance??null},correlationId},202,correlationId);
   }
@@ -41,6 +45,22 @@ serve(async(request,correlationId)=>{
     const {error}=await db.from('together_profiles').update({photo_preferences:{companionPhotos:input.companionPhotos,automaticPhotos:input.automaticPhotos},updated_at:new Date().toISOString()}).eq('user_id',user.id);
     if(error)throw new AppError('INTERNAL_ERROR','Photo preferences could not be saved.',500,true);
     return json({data:{saved:true},correlationId},200,correlationId);
+  }
+  if(input.action==='list_pending_offers'){
+    const continuity=await activeContinuity(db,user.id);if(input.characterInstanceId)await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId);
+    const offers=await listPendingMediaOffers(db,{userId:user.id,continuityId:String(continuity.id),characterInstanceId:input.characterInstanceId});
+    return json({data:{offers},correlationId},200,correlationId);
+  }
+  if(input.action==='accept_offer'){
+    const continuity=await activeContinuity(db,user.id),{data:offer}=await db.from('together_media_offers').select('continuity_id').eq('id',input.offerId).eq('user_id',user.id).maybeSingle();
+    if(!offer||String(offer.continuity_id)!==String(continuity.id))throw new AppError('NOT_FOUND','That photo offer is unavailable in this Kivelle Life.',404);
+    const result=await acceptMediaOffer(db,{userId:user.id,offerId:input.offerId,requestId:input.requestId});
+    return json({data:result,correlationId},result.state==='accepted'?202:200,correlationId);
+  }
+  if(input.action==='decline_offer'){
+    const continuity=await activeContinuity(db,user.id),{data:offer}=await db.from('together_media_offers').select('continuity_id').eq('id',input.offerId).eq('user_id',user.id).maybeSingle();
+    if(!offer||String(offer.continuity_id)!==String(continuity.id))throw new AppError('NOT_FOUND','That photo offer is unavailable in this Kivelle Life.',404);
+    const declined=await declineMediaOffer(db,{userId:user.id,offerId:input.offerId});return json({data:{offer:declined},correlationId},200,correlationId);
   }
   if(input.action==='content_preferences'){
     const{data:profile}=await db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id',user.id).maybeSingle();
@@ -81,7 +101,7 @@ serve(async(request,correlationId)=>{
     if(media.status!=='failed')throw new AppError('CONFLICT','Only a failed photo can be retried.',409);
     if(Number(media.attempt_count)>=3)throw new AppError('RATE_LIMITED','That photo has already been retried. Ask for a new one instead.',429);
     const metadata=(media.metadata??{}) as Record<string,unknown>;let nextMetadata=metadata;
-    const requiresCharge=media.failure_code==='insufficient_credits'||typeof metadata.creditTransactionId!=='string'||metadata.creditRefunded===true;
+    const requiresCharge=metadata.includedBenefit!==true&&(media.failure_code==='insufficient_credits'||typeof metadata.creditTransactionId!=='string'||metadata.creditRefunded===true);
     if(requiresCharge){await resolveSubscriptionState(db,user.id);const charged=await spendCredits(db,{userId:user.id,action:'companion_photo',idempotencyKey:`media-retry:${media.id}:${Number(media.attempt_count)+1}`,referenceType:'generated_media',referenceId:media.id,metadata:{retry:true,previousFailureCode:media.failure_code}});nextMetadata={...metadata,creditTransactionId:charged.transactionId,creditCost:charged.cost,creditRefunded:false,needsCredits:false};}
     const {data:updated,error}=await db.from('together_generated_media').update({status:'queued',failure_code:null,failure_reason_safe:null,next_attempt_at:null,claimed_at:null,metadata:nextMetadata,updated_at:new Date().toISOString()}).eq('id',media.id).eq('user_id',user.id).select('*').single();
     if(error)throw new AppError('INTERNAL_ERROR','The photo could not be retried.',500,true);

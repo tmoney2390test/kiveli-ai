@@ -16,6 +16,8 @@ export default function Debug(){
   const[interactionCandidates,setInteractionCandidates]=useState<InteractionCandidate[]>([]);
   const[memoryInspector,setMemoryInspector]=useState<{memoryContext?:{callbackAllowance?:number;debug?:Array<{id:string;activation:number;mode:string;reasonCodes:string[]}>};emotionalResidue?:{tone?:string;intensity?:number}|null;userPatterns?:Array<{summary?:string;confidence?:number}>;recentEpisodes?:Array<{title?:string;significance?:number}>}|null>(null);
   const[mediaInspector,setMediaInspector]=useState<Record<string,unknown>|null>(null);
+  const[aiUsage,setAiUsage]=useState<Record<string,unknown>|null>(null);
+  const[mediaEconomics,setMediaEconomics]=useState<Record<string,unknown>|null>(null);
   const companion=snapshot?selectActiveCompanion(snapshot):undefined;
   const life=snapshot&&companion?selectCompanionLife(snapshot,companion.id):undefined;
   const relation=life?.relationship;
@@ -36,6 +38,8 @@ export default function Debug(){
   const inspectInteractions=async()=>{if(!companion||!conversation)return;try{const result=await manageInteraction<{interactions:InteractionCandidate[]}>({action:'resolve',characterInstanceId:companion.id,conversationId:conversation.id});setInteractionCandidates(result.interactions??[]);}catch(error){Alert.alert('Interaction inspector',error instanceof Error?error.message:'Enter a shared scene to inspect its current actions.');}};
   const inspectMemory=async()=>{if(!companion)return;try{const result=await invoke<{memoryContext:{callbackAllowance:number;debug:Array<{id:string;activation:number;mode:string;reasonCodes:string[]}>};emotionalResidue?:{tone?:string;intensity?:number}|null;userPatterns?:Array<{summary?:string;confidence?:number}>;recentEpisodes?:Array<{title?:string;significance?:number}>}>('together-debug',{action:'inspect_context',characterInstanceId:companion.id,message:'Want to go somewhere quieter?'});setMemoryInspector(result);}catch(error){Alert.alert('Memory inspector',error instanceof Error?error.message:'Could not inspect current memory activation.');}};
   const inspectMedia=async()=>{const latest=media[0];if(!latest)return;try{setMediaInspector(await invoke<Record<string,unknown>>('together-debug',{action:'inspect_media',mediaId:latest.id}));}catch(error){Alert.alert('Media inspector',error instanceof Error?error.message:'Could not inspect that media row.');}};
+  const inspectAiUsage=async()=>{try{setAiUsage(await invoke<Record<string,unknown>>('together-debug',{action:'inspect_ai_usage',...(companion?{characterInstanceId:companion.id}:{})}));}catch(error){Alert.alert('AI usage inspector',error instanceof Error?error.message:'Could not inspect AI usage.');}};
+  const inspectMediaEconomics=async()=>{try{setMediaEconomics(await invoke<Record<string,unknown>>('together-debug',{action:'inspect_media_economics'}));}catch(error){Alert.alert('Media economics inspector',error instanceof Error?error.message:'Could not inspect media economics.');}};
   return <Screen>
     <View style={styles.header}><Pressable onPress={()=>router.back()}><ArrowLeft color={colors.text}/></Pressable><PageTitle>Internal Tools</PageTitle></View>
     <Text style={styles.warning}>DEVELOPMENT / INTERNAL BUILDS ONLY</Text>
@@ -89,6 +93,13 @@ export default function Debug(){
     <Data label="Next plan" value={nextPlan?.title}/>
     <Data label="Next Date" value={nextDate?.together_date_templates.name}/>
     <Data label="Snapshot payload" value={snapshot?`${new TextEncoder().encode(JSON.stringify(snapshot)).byteLength.toLocaleString()} bytes`:undefined}/>
+    <SectionHeader title="AI routing & cost"/>
+    <View style={styles.buttons}><GradientButton label="Inspect 30-day AI usage" onPress={()=>void inspectAiUsage()}/></View>
+    {aiUsage?<Data label="Usage summary" value={JSON.stringify(aiUsage)}/>:null}
+    <SectionHeader title="Media economics"/>
+    <Text style={styles.mediaMeta}>Provider COGS, funded versus included media, offer conversion, retries, and credit liability.</Text>
+    <View style={styles.buttons}><GradientButton label="Inspect 30-day media COGS" onPress={()=>void inspectMediaEconomics()}/></View>
+    {mediaEconomics?<Data label="Economics summary" value={JSON.stringify(mediaEconomics)}/>:null}
     <SectionHeader title="Content simulation"/>
     <View style={styles.buttons}><GradientButton label="Resolve one hour" onPress={()=>void advance(1)}/><GradientButton label="Simulate 1 day" onPress={()=>void simulateContent(1)}/><GradientButton label="Simulate 7 days" onPress={()=>void simulateContent(7)}/><GradientButton label="Simulate 30 days" onPress={()=>void simulateContent(30)}/></View>
     <SectionHeader title="Media inspector"/>

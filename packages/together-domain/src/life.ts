@@ -2,6 +2,10 @@ import type { CharacterLifeState, LifeEventTemplate, ScheduleEntry, SimulatedLif
 
 export type LifeSimulationTrigger='conversation_continued'|'home_opened'|'scheduled_dispatch';
 export function shouldMaterializeLifeEvents(trigger:LifeSimulationTrigger):boolean{return trigger==='conversation_continued';}
+/** Media requests observe the current world state; they must not create a new
+ * narrative event merely because the user asked to see it. */
+export function lifeTriggerForConversationTurn(input:{photoRequested:boolean}):LifeSimulationTrigger{return input.photoRequested?'home_opened':'conversation_continued';}
+export function shouldPersistLifeStateForConversationTurn(input:{photoRequested:boolean}):boolean{return !input.photoRequested;}
 
 export function resolveCharacterState(entries:readonly ScheduleEntry[],timestamp:Date,seed='maya'):CharacterLifeState{
   const minute=timestamp.getHours()*60+timestamp.getMinutes(),day=timestamp.getDay();

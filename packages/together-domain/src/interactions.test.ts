@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyInteractionSceneState, deriveCharacterInteractionProfile, inferInteractionPacks, interactionPacks, matchInteractionIntent, normalizeActivityTag, resolveInteractions, resolveMovementDestinations } from './interactions.ts';
+import { applyInteractionSceneState, deriveCharacterInteractionProfile, deriveInteractionRelationshipEvidence, inferInteractionPacks, interactionPacks, matchInteractionIntent, normalizeActivityTag, resolveCharacterInitiative, resolveCharacterInteractionDecision, resolveInteractions, resolveMovementDestinations, resolveSceneTransition } from './interactions.ts';
 
 const relationship = { stage: 'friend' as const, trust: 42, comfort: 44, affinity: 46, romanceEnabled: true };
 const creativeCharacter = { role: 'primary_companion', interests: ['photography', 'live music', 'food'], personality: { creativity: .9, spontaneity: .7, socialEnergy: .65 } };
@@ -72,6 +72,39 @@ describe('Interaction domain', () => {
     const location = { id: 'lucky-note', name: 'Any karaoke', category: 'karaoke', locationType: 'venue', possibleActivities: ['karaoke'] };
     const candidates = resolveInteractions({ character: creativeCharacter, relationship, location, life: { availability: 'open' }, memoryCues: [{ memoryId:'episode', type:'shared_activity', activityTags:['karaoke'], locationId:'lucky-note', strength:.9, valence:.8 }], seed:'memory-karaoke' });
     expect(candidates.find((item) => item.interactionKey === 'karaoke.let_them_pick_your_song')?.label).toContain('again');
+    expect(candidates.find((item)=>item.interactionKey==='karaoke.let_them_pick_your_song')?.presentation?.subtitle).toBe('A familiar choice');
+  });
+
+  it('lets an autonomous companion propose a valid scene action without inventing one',()=>{
+    const candidates=resolveInteractions({character:{...creativeCharacter,personality:{initiative:.95,spontaneity:.9}},relationship,location:{id:'gallery',name:'Gallery',category:'gallery',locationType:'venue',possibleActivities:['art']},life:{availability:'open'},seed:'initiative-options'});
+    const profile=deriveCharacterInteractionProfile({...creativeCharacter,personality:{initiative:.95,spontaneity:.9}});
+    const initiative=resolveCharacterInitiative({candidates,profile,life:{availability:'open'},scene:{recentActionKeys:[]},now:new Date('2026-08-18T18:00:00Z'),seed:'certain-initiative'});
+    expect(initiative.kind).toBe('proposal');
+    if(initiative.kind==='proposal')expect(candidates.some((candidate)=>candidate.interactionKey===initiative.interactionKey)).toBe(true);
+    expect(resolveCharacterInitiative({candidates,profile,life:{availability:'busy'},scene:{recentActionKeys:[]},seed:'busy'})).toMatchObject({kind:'none',reasonCodes:['not_interruptible']});
+  });
+
+  it('permits refusal and counteroffers without mutating canonical scene state first',()=>{
+    const candidates=resolveInteractions({character:creativeCharacter,relationship,location:{id:'trail',name:'Trail',category:'outdoor',locationType:'outdoor',possibleActivities:['hiking']},life:{availability:'open',energy:'low'},seed:'tired-hike'});
+    const requested=candidates.find((candidate)=>candidate.interactionKey==='hiking.keep_walking')??candidates[0]!;
+    const decision=resolveCharacterInteractionDecision({candidate:requested,candidates,profile:deriveCharacterInteractionProfile(creativeCharacter),relationship,life:{availability:'open',energy:'exhausted'},scene:{recentActionKeys:[]},seed:'tired-decision'});
+    expect(['countered','declined']).toContain(decision.decision);
+    expect(decision.resolvedInteractionKey).toBeUndefined();
+  });
+
+  it('writes dimensional evidence with diminishing returns and respects friendship-only mode',()=>{
+    const candidate={interactionKey:'trivia.celebrate_a_good_round',family:'activity' as const,effects:{relationshipEvidenceType:'shared_experience'}};
+    const first=deriveInteractionRelationshipEvidence(candidate,{...relationship,romanceEnabled:false},0)!;
+    const repeated=deriveInteractionRelationshipEvidence(candidate,{...relationship,romanceEnabled:false},4)!;
+    expect(first.metricDelta.affinity).toBeGreaterThan(0);
+    expect(first.metricDelta.attraction??0).toBe(0);
+    expect(repeated.quality).toBe(0);
+    expect(Object.values(repeated.metricDelta).every((value)=>value===0)).toBe(true);
+  });
+
+  it('turns approaching obligations into a graceful departure transition',()=>{
+    const candidate={interactionKey:'cafe.stay_a_little_longer',durationMinutes:20,effects:{mayExtendScene:true}};
+    expect(resolveSceneTransition({candidate,life:{now:new Date('2026-08-18T18:00:00Z'),expectedEndAt:'2026-08-18T18:04:00Z'}})).toEqual({kind:'character_departure',reason:'schedule'});
   });
 
   it('does not rank an explicitly disliked activity as a positive callback', () => {

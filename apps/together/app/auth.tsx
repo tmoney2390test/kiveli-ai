@@ -9,6 +9,7 @@ import { colors, radius, typography } from '../src/theme';
 import { useAuth } from '../src/hooks/useAuth';
 import { useTogether } from '../src/store/useTogether';
 import { safeAppReturnPath } from '../src/lib/sessionRouting';
+import type { SocialAuthProvider } from '../src/lib/socialAuth';
 
 export default function Auth() {
   const params = useLocalSearchParams<{ mode?: string; next?: string }>();
@@ -20,9 +21,10 @@ export default function Auth() {
   const [visible, setVisible] = useState(false);
   const [adult, setAdult] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [socialBusy,setSocialBusy]=useState<SocialAuthProvider|null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const { signIn, signUp, requestPasswordReset } = useAuth();
+  const { signIn, signInWithSocial, signUp, requestPasswordReset,socialAuth } = useAuth();
   const refresh = useTogether((state) => state.refresh);
 
   const switchMode = (nextCreating: boolean) => {
@@ -94,6 +96,18 @@ export default function Auth() {
     }
   };
 
+  const socialSignIn=async(provider:SocialAuthProvider)=>{
+    if(creating&&!adult){setError('Confirm that you are 18 or older to continue.');return;}
+    setSocialBusy(provider);setError('');setNotice('');
+    try{
+      const requestedNext=safeAppReturnPath(params.next),onboardingNext=creating?'/choose-companion?adultConfirmed=1':requestedNext;
+      await signInWithSocial(provider,onboardingNext);
+      if(Platform.OS==='web')return;
+      await refresh();const state=useTogether.getState();if(!state.snapshot)throw new Error(state.error??'Kivelle could not open your world.');
+      router.replace((state.snapshot.profile?(requestedNext??'/home'):creating?'/choose-companion?adultConfirmed=1':'/choose-companion') as never);
+    }catch(caught){setError(caught instanceof Error?caught.message:`${provider==='google'?'Google':'Apple'} sign-in failed.`);}finally{setSocialBusy(null);}
+  };
+
   return <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <Screen contentStyle={styles.screen}>
       <View style={[styles.shell, wide ? styles.shellWide : styles.shellCompact]}>
@@ -146,6 +160,11 @@ export default function Auth() {
 
           <GradientButton label={busy ? 'Connecting…' : creating ? 'Choose your person' : 'Sign in'} disabled={busy} onPress={() => void submit()} />
 
+          {socialAuth.google||socialAuth.apple?<><View style={styles.divider}><View style={styles.dividerLine}/><Text style={styles.dividerText}>OR CONTINUE WITH</Text><View style={styles.dividerLine}/></View><View style={styles.socialRow}>
+            {socialAuth.google?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Google" disabled={busy||Boolean(socialBusy)} onPress={()=>void socialSignIn('google')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><Text style={[styles.providerMark,{color:'#E9A2D0'}]}>G</Text><Text style={styles.socialText}>{socialBusy==='google'?'Connecting…':'Google'}</Text></Pressable>:null}
+            {socialAuth.apple?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Apple" disabled={busy||Boolean(socialBusy)} onPress={()=>void socialSignIn('apple')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><Text style={styles.providerMark}></Text><Text style={styles.socialText}>{socialBusy==='apple'?'Connecting…':'Apple'}</Text></Pressable>:null}
+          </View></>:null}
+
           {!creating ? <Pressable disabled={busy} onPress={() => void reset()}><Text style={styles.secondary}>Forgot password?</Text></Pressable> : <View style={styles.instant}><Sparkles size={14} color={colors.violet} /><Text style={styles.instantText}>No setup tour. Personalize later.</Text></View>}
         </View>
       </View>
@@ -195,6 +214,14 @@ const styles = StyleSheet.create({
   errorBox: { borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: 'rgba(255,113,129,.1)', borderWidth: 1, borderColor: 'rgba(255,113,129,.28)' },
   error: { color: '#FF9BA7', fontSize: 12, lineHeight: 17 },
   notice: { color: colors.success, fontSize: 12, textAlign: 'center' },
+  divider:{flexDirection:'row',alignItems:'center',gap:9,marginVertical:2},
+  dividerLine:{height:1,flex:1,backgroundColor:colors.border},
+  dividerText:{color:colors.dimmed,fontSize:8,fontWeight:'900',letterSpacing:1},
+  socialRow:{flexDirection:'row',gap:9},
+  socialButton:{minHeight:46,flex:1,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:9,borderRadius:radius.md,borderWidth:1,borderColor:colors.borderBright,backgroundColor:'rgba(255,255,255,.035)'},
+  socialPressed:{opacity:.78,transform:[{scale:.99}]},
+  providerMark:{color:colors.text,fontSize:18,fontWeight:'900'},
+  socialText:{color:colors.text,fontSize:12,fontWeight:'800'},
   secondary: { textAlign: 'center', color: colors.muted, fontWeight: '700', fontSize: 12 },
   instant: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
   instantText: { color: colors.muted, fontSize: 11 },

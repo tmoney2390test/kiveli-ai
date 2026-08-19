@@ -3,7 +3,7 @@ import { AppError } from './types.ts';
 import { capabilitiesForAccount, creditCost, entitlementsForTier, normalizeSubscriptionTier, type CreditAction, type KivelleCapabilities, type SubscriptionTier } from '../../../packages/together-domain/src/index.ts';
 
 type CreditBalance={permanentBalance:number;subscriptionBalance:number;total:number};
-export type KivelleSubscriptionState={tier:SubscriptionTier;capabilities:KivelleCapabilities;creditBalance:CreditBalance;entitlementKeys:string[];billing:{provider?:string|null;productKey?:string|null;periodStart?:string|null;periodEnd?:string|null;expiresAt?:string|null}};
+export type KivelleSubscriptionState={tier:SubscriptionTier;capabilities:KivelleCapabilities;creditBalance:CreditBalance;entitlementKeys:string[];billing:{provider?:string|null;customerId?:string|null;subscriptionId?:string|null;status?:string|null;productKey?:string|null;periodStart?:string|null;periodEnd?:string|null;expiresAt?:string|null}};
 
 const calendarCycle=(now=new Date())=>`${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}`;
 const billingCycle=(value:unknown,now:Date)=>{if(typeof value==='string'&&value){const date=new Date(value);if(Number.isFinite(date.getTime()))return`billing:${date.toISOString().slice(0,10)}`;}return`calendar:${calendarCycle(now)}`;};
@@ -16,7 +16,7 @@ export async function resolveSubscriptionState(db:SupabaseClient,userId:string,n
   if(row.tier!==tier||!sameKeys(row.entitlement_keys,capabilities.entitlements)){const updated=await db.from('together_entitlements').update({tier,entitlement_keys:[...capabilities.entitlements],...(expired?{metadata:{...(row.metadata??{}),expiredAt:row.expires_at,expiredResolvedAt:now.toISOString()}}:{}),updated_at:now.toISOString()}).eq('user_id',userId).select('*').single();if(updated.data)row=updated.data;}
   await ensureCreditGrants(db,userId,capabilities,now,billingCycle(row.billing_period_start,now));
   const balance=await creditBalance(db,userId);
-  return{tier,capabilities,creditBalance:balance,entitlementKeys:[...capabilities.entitlements],billing:{provider:row.billing_provider??null,productKey:row.product_key??null,periodStart:row.billing_period_start??null,periodEnd:row.billing_period_end??null,expiresAt:row.expires_at??null}};
+  return{tier,capabilities,creditBalance:balance,entitlementKeys:[...capabilities.entitlements],billing:{provider:row.billing_provider??null,customerId:row.billing_customer_id??null,subscriptionId:row.billing_subscription_id??null,status:row.billing_status??null,productKey:row.product_key??null,periodStart:row.billing_period_start??null,periodEnd:row.billing_period_end??null,expiresAt:row.expires_at??null}};
 }
 
 export async function ensureCreditGrants(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities,now=new Date(),grantCycle=billingCycle(null,now)):Promise<void>{

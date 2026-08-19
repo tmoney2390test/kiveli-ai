@@ -308,8 +308,9 @@ export function calculatePlanParticipation(input: { attendance: Row[]; segments:
     const end = row.left_at ? new Date(String(row.left_at)).getTime() : now.getTime();
     return sum + (Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, (end - start) / 1000) : 0);
   }, 0));
-  const meaningfulActionCount = input.actions.filter((action) => !['leave', 'move'].includes(String(action.family)) && !String(action.interaction_key).includes('look_around')).length;
-  const milestone = input.actions.some((action) => Boolean(action.result?.effects?.momentCandidate) || Boolean(action.payload?.candidate?.momentCandidate));
+  const canonicalActions=input.actions.filter((action)=>!action.decision_status||['accepted','completed'].includes(String(action.decision_status))).filter((action)=>action.result?.proposalAccepted!==true);
+  const meaningfulActionCount = canonicalActions.filter((action) => !['leave', 'move'].includes(String(action.family)) && !String(action.interaction_key).includes('look_around')).length;
+  const milestone = canonicalActions.some((action) => Boolean(action.result?.effects?.momentCandidate) || Boolean(action.payload?.candidate?.momentCandidate));
   const level: ParticipationLevel = !input.attendance.length ? 'arrived' : attendedSeconds < 300 && meaningfulActionCount === 0 ? 'brief' : attendedSeconds >= 900 && meaningfulActionCount >= 2 || milestone ? 'meaningful' : 'participated';
   return { userPresent: Boolean(input.activeUser ?? input.attendance.some((row) => !row.left_at)), companionPresent: Boolean(input.activeCharacter), attendedSeconds, joinCount: segments.length, meaningfulActionCount, level };
 }

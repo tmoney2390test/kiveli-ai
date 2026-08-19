@@ -21,7 +21,7 @@ export async function finalizeSceneSession(input:{db:any;userId:string;sceneSess
     scene.shared_plan_id ? input.db.from('together_shared_plans').select('id,location_id,activity_key,title').eq('id',scene.shared_plan_id).maybeSingle() : Promise.resolve({data:null}),
     input.db.from('together_scene_participants').select('character_instance_id,joined_at,left_at,witnessed_from_sequence,witnessed_to_sequence').eq('scene_session_id',scene.id).eq('user_id',input.userId),
   ]);
-  const completed=(actions??[]) as Row[];
+  const completed=((actions??[]) as Row[]).filter((action)=>!action.decision_status||['accepted','completed'].includes(String(action.decision_status))).filter((action)=>action.result?.proposalAccepted!==true);
   const meaningful=completed.filter((action)=>!['leave','move'].includes(String(action.family)));
   const families=new Set(meaningful.map((action)=>String(action.family)));
   const labels=meaningful.map(actionLabel).filter(Boolean);
