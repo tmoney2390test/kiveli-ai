@@ -1,11 +1,11 @@
-import type{SupabaseClient}from'@supabase/supabase-js';
-import type{MediaOfferSource}from'../../../packages/together-domain/src/media-economics.ts';
-import{waitUntil}from'./background.ts';
-import{resolveSubscriptionState,refundCredits}from'./kivelle-subscription.ts';
-import{kickMediaDispatcher,queueMediaRequest,type ShotType}from'./together-media.ts';
-import{configuredMediaRegistry}from'./together-media-providers.ts';
-import{track}from'./together.ts';
-import{AppError}from'./types.ts';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { MediaOfferSource } from '../../../packages/together-domain/src/media-economics.ts';
+import { waitUntil } from './background.ts';
+import { resolveSubscriptionState, refundCredits } from './kivelle-subscription.ts';
+import { kickMediaDispatcher, queueMediaRequest, type ShotType } from './together-media.ts';
+import { configuredMediaRegistry } from './together-media-providers.ts';
+import { track } from './together.ts';
+import { AppError } from './types.ts';
 
 export async function acceptMediaOffer(db:SupabaseClient,input:{userId:string;offerId:string;requestId:string}):Promise<{state:'accepted'|'needs_credits'|'expired';offer:Record<string,any>;media?:Record<string,unknown>;creditBalance:number;required?:number}>{
   const{data:offer}=await db.from('together_media_offers').select('*').eq('id',input.offerId).eq('user_id',input.userId).maybeSingle();
