@@ -10,6 +10,9 @@ import {activeContinuity,requireInstanceInActiveContinuity}from'../_shared/toget
 import { resolveSubscriptionState, spendCredits } from '../_shared/kivelle-subscription.ts';
 import { refundCredits } from '../_shared/kivelle-subscription.ts';
 import { configuredMediaRegistry } from '../_shared/together-media-providers.ts';
+// Keep the Venice adapter in Supabase's remote bundle. The deploy graph can
+// omit transitive sibling imports reached through the provider registry.
+import '../_shared/venice.ts';
 import { resolveMediaContentPolicy } from '../../../packages/together-domain/src/media-routing.ts';
 import { envBoolean } from '../_shared/wavespeed.ts';
 import {acceptMediaOffer} from '../_shared/together-media-offer-acceptance.ts';

@@ -13,6 +13,8 @@ import '../_shared/together-media-base.ts';
 import '../_shared/together-media-finalizer.ts';
 import '../_shared/together-media-quality.ts';
 import '../_shared/together-media-providers.ts';
+// Keep the Venice adapter in Supabase's remote bundle.
+import '../_shared/venice.ts';
 import '../../../packages/together-domain/src/media-quality.ts';
 import { constantTimeEqual } from '../../../packages/together-domain/src/security.ts';
 import '../_shared/together-place.ts';
