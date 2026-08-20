@@ -2,9 +2,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
 import { track } from './together.ts';
 import { placeContextSnapshot, resolvePlaceContext, type PlaceContext } from './together-place.ts';
-import { resolveMediaContentPolicy } from '../../../packages/together-domain/src/media-routing.ts';
-import { CHARACTER_PHOTO_REALISM_GUIDANCE, classifyPhotoIntent, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, resolveCanonicalMediaPresence, resolveMediaSceneBoundary, resolvePhotoComposition, type MediaPresenceState } from '../../../packages/together-domain/src/media.ts';
+import { resolveCharacterMediaBoundaries, resolveMediaContentPolicy } from '../../../packages/together-domain/src/media-routing.ts';
+import { CHARACTER_PHOTO_REALISM_GUIDANCE, classifyPhotoIntent, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, photoRequestAllowsHiddenFace, resolveCanonicalMediaPresence, resolveMediaSceneBoundary, resolvePhotoComposition, resolvePhotoDirection, type MediaPresenceState } from '../../../packages/together-domain/src/media.ts';
 import { isMediaGenerationAuthorized } from '../../../packages/together-domain/src/media-economics.ts';
+import { buildMediaEditConstraint, classifyMediaEditSemantics } from '../../../packages/together-domain/src/media-edit.ts';
+import { capabilitiesForAccount, normalizeSubscriptionTier } from '../../../packages/together-domain/src/entitlements.ts';
 
 export type MediaSource = 'user_request'|'life_event'|'date'|'moment'|'story';
 export type MediaContentLevel = 'standard'|'romance'|'suggestive'|'mature'|'explicit';
@@ -14,11 +16,13 @@ export type CompanionVisualIdentity = { canonicalDescription:string;age:number;r
 export type MediaReferenceImage={role:'character_identity'|'character_training'|'location_environment'|'world_environment'|'outfit_continuity'|'previous_media';bytes?:Uint8Array;signedUrl?:string;contentType:string;name:string;assetId?:string;revision?:number;storageBucket?:string;storagePath?:string};
 export type CanonicalImageGenerationRequest = {
   mediaId:string;
+  generationKind?:'companion_photo'|'creator_identity'|'photo_edit';
+  sourceImage?:MediaReferenceImage;
   companion:{templateId:string;versionId:string;name:string;age:number};
   visualIdentity:CompanionVisualIdentity;
   referenceImages:MediaReferenceImage[];
   context:{place?:PlaceContext;location?:{id:string;name:string;description?:string;category?:string};activity?:string;mood?:string;timeOfDay?:string;lifeEvent?:Record<string,unknown>;date?:Record<string,unknown>;plan?:Record<string,unknown>;moment?:Record<string,unknown>;story?:Record<string,unknown>;outfitKey?:string;outfitDescription?:string};
-  composition:{shotType:ShotType;framing?:string;aspectRatio:string};
+  composition:{shotType:ShotType;framing?:string;aspectRatio:string;poseDirection?:string;faceDirection?:string;faceMayBeHidden?:boolean};
   contentLevel:MediaContentLevel;
   qualityTier:'economy'|'standard'|'premium';
   generationIntent?:{requestText:string;requestedContentLevel:MediaContentLevel};
@@ -154,12 +158,27 @@ function line(value:unknown,fallback='not specified'):string{return typeof value
 function list(value:unknown):string{return Array.isArray(value)?value.map(String).filter(Boolean).join(', '):'';}
 export function buildImagePrompt(request:CanonicalImageGenerationRequest):string {
   const identity=request.visualIdentity;
+  if(request.generationKind==='photo_edit'){
+    const instruction=request.generationIntent?.requestText?.trim();
+    if(!instruction)throw new AppError('PROVIDER_REQUEST_INVALID','The photo edit instruction was incomplete.',422);
+    return[
+      'EDIT AN EXISTING KIVELLE PHOTOGRAPH',
+      buildMediaEditConstraint(instruction,classifyMediaEditSemantics(instruction)),
+      'IDENTITY',`${request.companion.name} is one fictional adult age ${request.companion.age}. Preserve the exact same recognizable identity, facial geometry, hair, skin, body identity, adult age, and identifying features from the source photograph.`,
+      'PHOTOREALISM',CHARACTER_PHOTO_REALISM_GUIDANCE,
+      'ANATOMY','Keep one coherent body with plausible joints and natural proportions. Every visible hand must have five distinct naturally arranged fingers and a correct thumb. Correct only anatomy the request explicitly asks to repair; never hide a requested repair with cropping or blur.',
+      'CONTENT LEVEL',contentLevelPrompt(request.contentLevel),
+      'CANONICAL SAFETY','This edit is downstream visual media. It must not imply that Kivelle location, activity, relationship, plans, memories, or scene state changed. Output only the edited photograph with no text, UI, collage, border, watermark, or embedded source image.',
+    ].join('\n');
+  }
   const place=request.context.place,location=request.context.location;
   const sceneBoundary=resolveMediaSceneBoundary({locationName:place?.location.name??location?.name??'the current canonical place',locationType:place?.location.type,category:place?.location.category??location?.category,indoorOutdoor:place?.location.visualContext.indoorOutdoor});
   const characterReference=request.referenceImages.some((item)=>item.role==='character_identity');
   const referenceRule=characterReference?'Image 1 defines only the same fictional adult companion’s stable physical identity. Its clothing, accessories, pose, framing, background, and lighting are not canonical and must not be copied.':'Use the canonical identity description exactly and keep it stable across images.';
   const referenceInstructions=request.referenceImages.map((reference,index)=>`Image ${index+1} ${reference.role==='character_identity'?'defines only face, hair, eyes, skin tone, adult age, body identity, and stable identifying features—not wardrobe, pose, framing, background, or lighting':reference.role==='location_environment'?'defines the canonical location environment and its architecture, materials, layout cues, recurring objects, and atmosphere':reference.role==='world_environment'?'defines the wider canonical world identity':reference.role==='outfit_continuity'?'defines same-day clothing continuity and is the only image allowed to define wardrobe':reference.role==='previous_media'?'defines continuity from the approved previous media':'is a curated character-training identity reference whose wardrobe and background are non-canonical'}.`).join(' ');
   const outfitReference=request.referenceImages.some((item)=>item.role==='outfit_continuity');
+  const resolvedDirection=resolvePhotoDirection({requestText:request.generationIntent?.requestText,shotType:request.composition.shotType,seed:request.mediaId}),direction={poseDirection:request.composition.poseDirection??resolvedDirection.poseDirection,faceDirection:request.composition.faceDirection??resolvedDirection.faceDirection,faceMayBeHidden:request.composition.faceMayBeHidden??resolvedDirection.faceMayBeHidden};
+  const hiddenFaceAllowed=direction.faceMayBeHidden||photoRequestAllowsHiddenFace(request.generationIntent?.requestText),faceGuidance=hiddenFaceAllowed?'The approved composition intentionally permits the face to be covered, turned away, cropped out, or outside the frame. Do not force the face into view. If any face is visible, keep it anatomically natural and identity-consistent.':'Keep the companion face recognizable and identity-consistent whenever visible; follow the facial direction below instead of forcing a rigid straight-on head angle.';
   const wardrobe=request.context.outfitDescription
     ?`Use exactly this canonical clothing description from the companion's message: ${request.context.outfitDescription}`
     :outfitReference
@@ -176,12 +195,13 @@ export function buildImagePrompt(request:CanonicalImageGenerationRequest):string
     'MOOD',line(request.context.mood,'natural and relaxed'),
     'TIME / LIGHTING',`${place?`${place.clock.weekday} ${place.clock.localTime} (${place.clock.timezone}), ${place.clock.daypart}`:line(request.context.timeOfDay,'current local time')}; believable available light.`,
     'WARDROBE',wardrobe,
-    'COMPOSITION',`${request.composition.shotType.replace('_',' ')} photo, ${request.composition.aspectRatio}, ${line(request.composition.framing,'grounded framing with useful environmental context')}.`,
-    'CAMERA STYLE','One coherent photorealistic personal smartphone or camera photograph, natural lighting, subtle sensor and lens character, realistic environment, natural expression, visible natural skin detail, and a clear anatomically natural face. No illustration, anime, painting, CGI, 3D render, doll-like face, waxy or plastic skin, collage, inset, diptych, screenshot, user interface, phone screen displaying a portrait, printed portrait, framed portrait, reference sheet, caption, prompt text, location label, watermark, or logo. Avoid glossy advertising, glamour-campaign staging, fantasy rendering, oversaturation, malformed or duplicated facial features, smeared eyes or mouth, extra fingers, impossible mirror geometry, and identity drift.',
+    'COMPOSITION',`${request.composition.shotType.replace('_',' ')} photo, ${request.composition.aspectRatio}, ${line(request.composition.framing,'grounded framing with useful environmental context')}. Pose: ${direction.poseDirection}. Facial direction: ${direction.faceDirection}. The identity reference defines appearance only and must never pull the pose, head angle, gaze, or expression back to its source orientation.`,
+    'CAMERA STYLE',`One coherent photorealistic personal smartphone or camera photograph, natural lighting, subtle sensor and lens character, realistic environment, natural expression, and visible natural skin detail. ${faceGuidance} No illustration, anime, painting, CGI, 3D render, doll-like face, waxy or plastic skin, collage, inset, diptych, screenshot, user interface, phone screen displaying a portrait, printed portrait, framed portrait, reference sheet, caption, prompt text, location label, watermark, or logo. Avoid glossy advertising, glamour-campaign staging, fantasy rendering, oversaturation, malformed or duplicated facial features, smeared eyes or mouth, impossible mirror geometry, and identity drift.`,
+    'ANATOMICAL REALISM','Preserve a coherent adult skeleton and natural body proportions from head through torso and limbs. Shoulders, elbows, wrists, hips, knees, and ankles must connect and bend plausibly. Every visible hand has one palm, five distinct naturally arranged fingers, correct thumb placement, separated digits, and believable nails. Do not fuse, erase, duplicate, stretch, twist, or add limbs, joints, fingers, toes, facial features, or body parts. Visible adult anatomy must have natural contours, believable volume, fine skin texture, and complete photographic detail rather than smooth, melted, vague, featureless, or synthetic regions.',
     'CONTINUITY REQUIREMENTS','World state is authoritative. Do not change the location, activity, time, canonical wardrobe description, or companion identity. Identity references never establish wardrobe. Do not add people unless they are explicitly part of the event context.',
     'CONTENT LEVEL',contentLevelPrompt(request.contentLevel),
     ...(request.generationIntent?.requestText?['APPROVED USER INTENT',`Use this approved visual request as creative direction without changing canonical identity, place, activity, consent boundaries, or content level: ${request.generationIntent.requestText}`]:[]),
-    ...(request.qualityRetry?['QUALITY RETRY',`The previous candidate was rejected by visual quality control (${request.qualityRetry.reasonCodes.join(', ')}). Produce a fresh single photograph with one clear, detailed, naturally proportioned face. Do not reuse the previous composition or reproduce any reference image inside the scene.`]:[]),
+    ...(request.qualityRetry?['QUALITY RETRY',`The previous candidate was rejected by visual quality control (${request.qualityRetry.reasonCodes.join(', ')}). Produce a fresh single photograph with one clear, detailed, naturally proportioned face and fully coherent adult anatomy. Correct the named defects rather than hiding them with blur, crop, hands behind the body, crossed limbs, shadows, or missing detail. Do not reuse the previous composition or reproduce any reference image inside the scene.`]:[]),
     'FINAL SCENE GROUNDING',`${sceneBoundary.instruction} Do not show: ${sceneBoundary.avoid.join(', ')}. This exact spatial requirement overrides conflicting exterior/interior cues from the world description, generic photographic priors, earlier media, or the approved user wording.`,
     'FINAL WARDROBE GROUNDING',`${wardrobe} Clothing visible in identity or character-training references is source-image residue and must not appear unless it independently matches this wardrobe instruction.`,
     'DO-NOT-CHANGE IDENTITY',`Preserve facial identity, adult age, body proportions, hair, eye color, and distinguishing features. ${list(identity.visualDoNotChange)}. Do not redesign the person and do not imitate any real person or celebrity. The output must contain only the requested camera image—never a visible copy of an identity reference or any rendered instructions.`,
@@ -197,16 +217,17 @@ export async function queueMediaRequest(db:SupabaseClient,input:QueueMediaInput)
   if(!isMediaGenerationAuthorized(input.source,input.economicAuthorization?.kind))throw new AppError('FORBIDDEN','Spontaneous media must be accepted before generation.',403);
   const intent=classifyPhotoRequest(input.requestText??'');
   if(input.source==='user_request'&&!intent.requested&&!input.force)return null;
-  const [{data:instance},{data:profile},{data:relationship}]=await Promise.all([
+  const [{data:instance},{data:profile},{data:relationship},{data:entitlement}]=await Promise.all([
     db.from('together_character_instances').select('*,together_character_templates(*),together_character_versions(*)').eq('id',input.characterInstanceId).eq('user_id',input.userId).maybeSingle(),
     db.from('together_profiles').select('age_verified_at,content_preferences,photo_preferences').eq('user_id',input.userId).maybeSingle(),
     db.from('together_relationship_states').select('*').eq('character_instance_id',input.characterInstanceId).eq('user_id',input.userId).maybeSingle(),
+    db.from('together_entitlements').select('tier,metadata,expires_at').eq('user_id',input.userId).maybeSingle(),
   ]);
   if(!instance)throw new AppError('NOT_FOUND','That companion is unavailable.',404);
   const preferences=(profile?.photo_preferences??{}) as Record<string,unknown>;
   if(preferences.companionPhotos===false)return null;
   if(input.source!=='user_request'&&preferences.automaticPhotos===false&&!input.economicAuthorization)return null;
-  const template=instance.together_character_templates as Record<string,unknown>;
+  const template=instance.together_character_templates as Record<string,unknown>,characterVersion=(instance.together_character_versions??{}) as Record<string,unknown>;
   if(!profile?.age_verified_at||Number(template.age)<18)throw new AppError('FORBIDDEN','Photos require confirmed adult characters and accounts.',403);
   const key=requestKey(input,intent);
   const {data:duplicate}=await db.from('together_generated_media').select('*').eq('user_id',input.userId).eq('request_key',key).maybeSingle();
@@ -214,7 +235,10 @@ export async function queueMediaRequest(db:SupabaseClient,input:QueueMediaInput)
   const now=new Date();
   const recentSince=new Date(now.getTime()-24*3600000).toISOString();
   const {data:recent}=await db.from('together_generated_media').select('id,created_at,status,metadata').eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).gte('created_at',recentSince).in('status',['queued','generating','ready']).order('created_at',{ascending:false});
-  if(input.source==='user_request'&&(recent??[]).filter((item)=>String((item.metadata as Record<string,unknown>)?.source)==='user_request').length>=12)throw new AppError('RATE_LIMITED','You have asked for several photos today. Try again later.',429,true);
+  const entitlementExpired=Boolean(entitlement?.expires_at&&new Date(entitlement.expires_at).getTime()<=now.getTime());
+  const mediaCapabilities=capabilitiesForAccount(entitlementExpired?'free':normalizeSubscriptionTier(entitlement?.tier),entitlement?.metadata);
+  const requestedPhotoLimit=mediaCapabilities.userRequestedPhotoDailyLimit;
+  if(input.source==='user_request'&&requestedPhotoLimit!==null&&(recent??[]).filter((item)=>String((item.metadata as Record<string,unknown>)?.source)==='user_request').length>=requestedPhotoLimit)throw new AppError('RATE_LIMITED','You have asked for several photos today. Try again later.',429,true);
   // Proactive-event throttles prevent offer spam. Once a user has accepted an
   // offer (or is claiming a bounded included benefit), that authorization must
   // not be rejected by an unrelated proactive-photo cooldown.
@@ -242,19 +266,19 @@ export async function queueMediaRequest(db:SupabaseClient,input:QueueMediaInput)
   const requestedLevel:MediaContentLevel=intent.requestedContentLevel??(input.source==='date'?'romance':'standard');
   const romanceAllowed=Boolean((profile?.content_preferences as Record<string,unknown>|undefined)?.romanceEnabled!==false)&&['flirting','dating','exclusive','long_term'].includes(String(instance.relationship_stage));
   const contentPreferences=(profile.content_preferences??{}) as Record<string,unknown>,requestText=input.requestText??'';
-  const requestedForPolicy=requestedLevel==='romance'&&!romanceAllowed?'standard':requestedLevel,characterBoundaries=(template.content_boundaries??{}) as Record<string,unknown>;
+  const requestedForPolicy=requestedLevel==='romance'&&!romanceAllowed?'standard':requestedLevel,characterBoundaries=resolveCharacterMediaBoundaries(characterVersion.content_boundaries,template.content_boundaries);
   const characterAllowsRequestedLevel=requestedForPolicy==='standard'?true:requestedForPolicy==='romance'?characterBoundaries.allows_romance!==false:requestedForPolicy==='suggestive'?characterBoundaries.allows_suggestive===true||characterBoundaries.allows_mature===true:requestedForPolicy==='mature'?characterBoundaries.allows_mature===true:characterBoundaries.allows_explicit===true;
   const policy=resolveMediaContentPolicy({requestedLevel:requestedForPolicy,source:input.source,automatic:input.source!=='user_request',ageVerified:Boolean(profile?.age_verified_at),characterAge:Number(template.age),fictionalCharacter:(template.metadata as Record<string,unknown>|undefined)?.fictional!==false,realPersonRequest:REAL_PERSON_PATTERN.test(requestText),nonConsensualRequest:/\b(non.?consensual|without (?:her|his|their) consent|secretly nude)\b/i.test(requestText),minorRelatedRequest:/\b(minor|underage|schoolgirl|schoolboy|child)\b/i.test(requestText),characterAllowsRequestedLevel,romanceEnabled:Boolean(contentPreferences.romanceEnabled!==false),suggestiveMediaEnabled:contentPreferences.suggestiveMediaEnabled===true,matureMediaEnabled:contentPreferences.matureMediaEnabled===true,explicitMediaEnabled:contentPreferences.explicitMediaEnabled===true,adultVideoEnabled:contentPreferences.adultVideoEnabled===true,mediaType:'image',adultMediaFeatureEnabled:envEnabled('KIVELLE_ADULT_MEDIA_ENABLED')});
   if(!policy.allowed)throw new AppError('FORBIDDEN',mediaPolicyMessage(policy.reasonCode),403);
   const contentLevel:MediaContentLevel=policy.resolvedLevel;
   const shotType=input.shotTypeOverride??intent.shotPreference??String(opportunity?.shot_type??(input.source==='user_request'?'selfie':'candid')) as ShotType;
-  const composition=resolvePhotoComposition({source:input.source,shotType});
+  const composition=resolvePhotoComposition({source:input.source,shotType,requestText:input.requestText});
   const aspectRatio=composition.aspectRatio;
   const qualityTier=input.qualityTierOverride??(input.source==='date'||input.source==='moment'||input.source==='story'?'premium':input.source==='user_request'?'standard':'economy');
   const outfitKey=await resolveOutfitKey(db,input,instance,now,place);
   const outfitDescription=input.companionResponseText?extractPhotoWardrobeDescription(input.companionResponseText):undefined;
   const referenceAssets=await snapshotReferenceAssets(db,{characterVersionId:String(instance.character_version_id),worldId:place?.world.id,locationId});
-  const characterVersion=(instance.together_character_versions??{}) as Record<string,unknown>,visualIdentity=(characterVersion.visual_identity??{}) as Record<string,unknown>,identityReferencePaths=Array.isArray(visualIdentity.referenceStoragePaths)?visualIdentity.referenceStoragePaths.map(String).filter(Boolean):[];
+  const visualIdentity=(characterVersion.visual_identity??{}) as Record<string,unknown>,identityReferencePaths=Array.isArray(visualIdentity.referenceStoragePaths)?visualIdentity.referenceStoragePaths.map(String).filter(Boolean):[];
   const hasPersistedIdentityReference=referenceAssets.some((asset)=>String(asset.role)==='character_identity')||identityReferencePaths.length>0;
   if(!hasPersistedIdentityReference)throw new AppError('CHARACTER_REFERENCE_REQUIRED','This companion needs a canonical reference photo before new photos can be generated.',409);
   const sceneBoundary=resolveMediaSceneBoundary({locationName:String(place?.location.name??location?.name??'the current canonical place'),locationType:place?.location.type,category:String(place?.location.category??location?.category??''),indoorOutdoor:place?.location.visualContext.indoorOutdoor});
@@ -318,11 +342,21 @@ export async function canonicalRequestForMedia(db:SupabaseClient,media:Record<st
   if(!references.some((item)=>item.role==='character_identity'))for(const path of paths){const reference=await loadStorageReference(db,{role:'character_identity',bucket:'kivelle-character-reference',path,name:path.split('/').at(-1)??'reference.png'});if(reference)references.push(reference);}
   if(!hasUsableCharacterIdentityReference(references))throw new AppError('CHARACTER_REFERENCE_REQUIRED','The companion reference photo could not be prepared. No ungrounded image was sent to the provider.',409,true);
   const outfitKey=String(meta.outfitKey??''),outfitDescription=typeof meta.outfitDescription==='string'?meta.outfitDescription:undefined;if(outfitKey&&!outfitDescription&&!references.some((item)=>item.role==='outfit_continuity')){const{data:previous}=await db.from('together_generated_media').select('id,storage_path,content_type,metadata').eq('user_id',String(media.user_id)).eq('character_instance_id',String(media.character_instance_id)).eq('media_type','image').eq('status','ready').neq('id',String(media.id)).order('created_at',{ascending:false}).limit(8);const match=(previous??[]).find((item)=>String((item.metadata as Record<string,unknown>)?.outfitKey??'')===outfitKey&&item.storage_path);if(match){const reference=await loadStorageReference(db,{role:'outfit_continuity',bucket:'together-user-media',path:String(match.storage_path),name:`outfit-${match.id}.jpg`,contentType:String(match.content_type??'image/jpeg')});if(reference)references.push(reference);}}
+  let editSource:MediaReferenceImage|undefined;
+  if(meta.generationKind==='photo_edit'){
+    const parentId=String(media.parent_media_id??meta.parentMediaId??'');
+    if(!parentId)throw new AppError('VALIDATION_ERROR','The source photo for this edit is missing.',422);
+    const{data:parent}=await db.from('together_generated_media').select('id,storage_path,content_type').eq('id',parentId).eq('user_id',String(media.user_id)).eq('character_instance_id',String(media.character_instance_id)).eq('media_type','image').eq('status','ready').maybeSingle();
+    if(!parent?.storage_path)throw new AppError('NOT_FOUND','The source photo for this edit is unavailable.',404);
+    editSource=await loadStorageReference(db,{role:'previous_media',bucket:'together-user-media',path:String(parent.storage_path),name:`source-${parent.id}.jpg`,contentType:String(parent.content_type??'image/jpeg')})??undefined;
+    if(!editSource)throw new AppError('INTERNAL_ERROR','The source photo could not be prepared for editing.',500,true);
+  }
   const mediaProfile=await resolveCharacterMediaProfile(db,String(instance.character_version_id));
   const storedGenerationIntent=meta.generationIntent&&typeof meta.generationIntent==='object'?meta.generationIntent as Record<string,unknown>:null;
   const sceneBoundary=resolveMediaSceneBoundary({locationName:String(place?.location.name??location?.name??'the current canonical place'),locationType:place?.location.type,category:String(place?.location.category??location?.category??''),indoorOutdoor:place?.location.visualContext.indoorOutdoor});
   const groundedReferences=sceneBoundary.setting==='indoor'?references.filter((item)=>item.role!=='world_environment'):references;
-  return {mediaId:String(media.id),companion:{templateId:String(instance.character_template_id),versionId:String(instance.character_version_id),name:String(template.name),age:Number(template.age)},visualIdentity:{canonicalDescription:String(identity.canonicalDescription??template.biography??template.name),age:Number(identity.age??template.age),referenceStoragePaths:paths,hair:String(identity.hair??''),eyes:String(identity.eyes??''),skinTone:String(identity.skinTone??''),build:String(identity.build??''),approximateHeight:String(identity.approximateHeight??''),identifyingFeatures:Array.isArray(identity.identifyingFeatures)?identity.identifyingFeatures.map(String):[],tattoos:Array.isArray(identity.tattoos)?identity.tattoos.map(String):[],piercings:Array.isArray(identity.piercings)?identity.piercings.map(String):[],fashionStyle:String(identity.fashionStyle??''),recurringAccessories:Array.isArray(identity.recurringAccessories)?identity.recurringAccessories.map(String):[],visualDoNotChange:Array.isArray(identity.visualDoNotChange)?identity.visualDoNotChange.map(String):[],photoStyle:(identity.photoStyle??{}) as Record<string,unknown>},referenceImages:sortReferences(groundedReferences).slice(0,4),context:{place:place??undefined,location:location?{id:String(location.id),name:String(location.name),description:String(location.description),category:String(location.category)}:undefined,activity:String(meta.activity??instance.current_activity),mood:String(meta.mood??instance.current_mood),timeOfDay:String(meta.timeOfDay??place?.clock.daypart??timeOfDay()),outfitKey:outfitKey||undefined,outfitDescription},composition:{shotType:String(meta.shotType??'candid') as ShotType,aspectRatio:String(meta.aspectRatio??'4:5'),framing:typeof meta.framing==='string'?meta.framing:undefined},contentLevel:String(media.content_level??'standard') as MediaContentLevel,qualityTier:String(meta.qualityTier??'standard') as CanonicalImageGenerationRequest['qualityTier'],...(storedGenerationIntent&&typeof storedGenerationIntent.requestText==='string'?{generationIntent:{requestText:storedGenerationIntent.requestText.slice(0,400),requestedContentLevel:String(storedGenerationIntent.requestedContentLevel??media.content_level??'standard') as MediaContentLevel}}:{}),...(mediaProfile?{mediaProfile}:{})};
+  const selectedReferences=editSource?[editSource,...sortReferences(groundedReferences).filter((item)=>item.role!=='previous_media')].slice(0,4):sortReferences(groundedReferences).slice(0,4);
+  return {mediaId:String(media.id),...(meta.generationKind==='photo_edit'?{generationKind:'photo_edit' as const,sourceImage:editSource}:{}),companion:{templateId:String(instance.character_template_id),versionId:String(instance.character_version_id),name:String(template.name),age:Number(template.age)},visualIdentity:{canonicalDescription:String(identity.canonicalDescription??template.biography??template.name),age:Number(identity.age??template.age),referenceStoragePaths:paths,hair:String(identity.hair??''),eyes:String(identity.eyes??''),skinTone:String(identity.skinTone??''),build:String(identity.build??''),approximateHeight:String(identity.approximateHeight??''),identifyingFeatures:Array.isArray(identity.identifyingFeatures)?identity.identifyingFeatures.map(String):[],tattoos:Array.isArray(identity.tattoos)?identity.tattoos.map(String):[],piercings:Array.isArray(identity.piercings)?identity.piercings.map(String):[],fashionStyle:String(identity.fashionStyle??''),recurringAccessories:Array.isArray(identity.recurringAccessories)?identity.recurringAccessories.map(String):[],visualDoNotChange:Array.isArray(identity.visualDoNotChange)?identity.visualDoNotChange.map(String):[],photoStyle:(identity.photoStyle??{}) as Record<string,unknown>},referenceImages:selectedReferences,context:{place:place??undefined,location:location?{id:String(location.id),name:String(location.name),description:String(location.description),category:String(location.category)}:undefined,activity:String(meta.activity??instance.current_activity),mood:String(meta.mood??instance.current_mood),timeOfDay:String(meta.timeOfDay??place?.clock.daypart??timeOfDay()),outfitKey:outfitKey||undefined,outfitDescription},composition:{shotType:String(meta.shotType??'candid') as ShotType,aspectRatio:String(meta.aspectRatio??'4:5'),framing:typeof meta.framing==='string'?meta.framing:undefined},contentLevel:String(media.content_level??'standard') as MediaContentLevel,qualityTier:String(meta.qualityTier??'standard') as CanonicalImageGenerationRequest['qualityTier'],...(storedGenerationIntent&&typeof storedGenerationIntent.requestText==='string'?{generationIntent:{requestText:storedGenerationIntent.requestText.slice(0,400),requestedContentLevel:String(storedGenerationIntent.requestedContentLevel??media.content_level??'standard') as MediaContentLevel}}:{}),...(mediaProfile?{mediaProfile}:{})};
 }
 
 async function snapshotReferenceAssets(db:SupabaseClient,input:{characterVersionId:string;worldId?:string;locationId?:string}):Promise<Array<Record<string,unknown>>>{
@@ -359,7 +393,21 @@ function sortReferences(references:MediaReferenceImage[]):MediaReferenceImage[]{
 function referenceRole(value:string):MediaReferenceImage['role']|null{return value==='location_canonical'||value==='location_alternate'?'location_environment':value==='world_canonical'?'world_environment':['character_identity','character_training','outfit_continuity','previous_media'].includes(value)?value as MediaReferenceImage['role']:null;}
 function contentLevelPrompt(level:MediaContentLevel):string{return level==='standard'?'Everyday non-explicit life photo.':level==='romance'?'Warm, affectionate, non-explicit romantic tone appropriate to the established relationship.':level==='suggestive'?'Suggestive adult-only tone within approved character boundaries; no explicit sexual activity.':level==='mature'?'Mature adult-only sensual tone within approved character boundaries and the normalized user intent.':'Explicit adult-only fictional content, only as allowed by the approved normalized request and character boundaries.';}
 function envEnabled(name:string):boolean{return['1','true','yes','on'].includes((Deno.env.get(name)??'false').toLowerCase());}
-function mediaPolicyMessage(reason:string):string{return reason==='age_verification_required'?'Age verification is required for companion media.':reason==='adult_character_required'?'Media generation requires an adult fictional character.':reason==='real_person_likeness'?'Kivelle can create an original fictional appearance, but cannot copy a real person.':reason==='automatic_adult_media_disabled'?'Higher-intensity media is never generated automatically.':reason.endsWith('_disabled')?'That media preference is turned off.':'That media request is outside the character’s boundaries.';}
+function mediaPolicyMessage(reason:string):string{
+  if(reason==='age_verification_required')return'Age verification is required for companion media.';
+  if(reason==='adult_character_required')return'Media generation requires an adult fictional character.';
+  if(reason==='real_person_likeness')return'Kivelle can create an original fictional appearance, but cannot copy a real person.';
+  if(reason==='consent_boundary')return'That photo request cannot be generated because it does not meet Kivelle’s consent requirements.';
+  if(reason==='character_boundary')return'This character does not support that kind of photo.';
+  if(reason==='romance_disabled')return'Turn on Romance in Content settings to request romantic or adult photos.';
+  if(reason==='automatic_adult_media_disabled')return'Higher-intensity media is never generated automatically.';
+  if(reason==='adult_media_feature_disabled')return'Adult photo generation is not available right now.';
+  if(reason==='suggestive_media_disabled')return'Turn on Suggestive generated photos in Content settings to request this photo.';
+  if(reason==='mature_media_disabled')return'Turn on Mature generated photos in Content settings to request this photo.';
+  if(reason==='explicit_media_disabled')return'Turn on Explicit generated photos in Content settings to request this photo.';
+  if(reason==='adult_video_disabled')return'Adult video generation is turned off in Content settings.';
+  return'That photo request cannot be generated.';
+}
 
 export async function kickMediaDispatcher():Promise<void>{
   const secret=Deno.env.get('TOGETHER_MEDIA_DISPATCH_SECRET');

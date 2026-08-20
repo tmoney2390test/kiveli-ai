@@ -1,9 +1,14 @@
 import{describe,expect,it}from'vitest';
-import{parseMediaQualityVerdict}from'./media-quality.ts';
+import{enforceMediaQualityRequirements,parseMediaQualityVerdict}from'./media-quality.ts';
 
 describe('generated media quality verdicts',()=>{
   it('accepts a strict pass',()=>expect(parseMediaQualityVerdict('PASS')).toEqual({status:'pass',reasonCodes:[]}));
   it('retains only known failure reasons',()=>expect(parseMediaQualityVerdict('FAIL: face_distortion, embedded_reference')).toEqual({status:'fail',reasonCodes:['face_distortion','embedded_reference']}));
   it('retains low-detail face failures',()=>expect(parseMediaQualityVerdict('FAIL: face_low_detail, face_too_small')).toEqual({status:'fail',reasonCodes:['face_low_detail','face_too_small']}));
-  it('fails open when the provider does not follow the verdict contract',()=>expect(parseMediaQualityVerdict('The image seems okay.')).toEqual({status:'unavailable',reasonCodes:[]}));
+  it('retains body-anatomy failures',()=>expect(parseMediaQualityVerdict('FAIL: malformed_hands, limb_distortion, body_proportion_error, anatomy_low_detail')).toEqual({status:'fail',reasonCodes:['malformed_hands','limb_distortion','body_proportion_error','anatomy_low_detail']}));
+  it('retains missing requested-anatomy failures',()=>expect(parseMediaQualityVerdict('FAIL: requested_anatomy_missing')).toEqual({status:'fail',reasonCodes:['requested_anatomy_missing']}));
+  it('retains requested pose and face-direction failures',()=>expect(parseMediaQualityVerdict('FAIL: pose_mismatch, face_direction_mismatch')).toEqual({status:'fail',reasonCodes:['pose_mismatch','face_direction_mismatch']}));
+  it('marks a non-contract provider response unavailable for the delivery gate to resolve',()=>expect(parseMediaQualityVerdict('The image seems okay.')).toEqual({status:'unavailable',reasonCodes:[]}));
+  it('fails closed when visible requested anatomy could not be verified',()=>expect(enforceMediaQualityRequirements({status:'unavailable',reasonCodes:[]},{requiresVisibleSpecificAnatomy:true})).toEqual({status:'fail',reasonCodes:['requested_anatomy_unverified']}));
+  it('does not make ordinary photos fail closed when quality inspection is unavailable',()=>expect(enforceMediaQualityRequirements({status:'unavailable',reasonCodes:[]},{requiresVisibleSpecificAnatomy:false})).toEqual({status:'unavailable',reasonCodes:[]}));
 });

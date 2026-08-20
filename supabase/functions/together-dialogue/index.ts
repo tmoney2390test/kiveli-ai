@@ -6,7 +6,7 @@ import { AppError } from '../_shared/types.ts';
 import { ConfiguredConversationAnalysisProvider, ConfiguredDialogueProvider, ConfiguredEmbeddingProvider, ConfiguredModerationProvider, type DialogueRunMetadata, type DialogueRunOptions } from '../_shared/together-ai.ts';
 import { stripGeneratedMediaMarkup } from '../_shared/kivelle-intelligence.ts';
 import { mergeConversationSummary, relationshipMetrics, track } from '../_shared/together.ts';
-import { applyConversationEngagement, applyInteractionProposal, capabilitiesForAccount, detectFlirtSignal, isDurableUserMemory, lifeTriggerForConversationTurn, normalizeSubscriptionTier, scoreConversationEngagement, selectSceneSpeakers, shouldPersistLifeStateForConversationTurn, updateChemistry, type ChemistrySignal, type RelationshipState, type SpiceLevel } from '../../../packages/together-domain/src/index.ts';
+import { applyConversationEngagement, applyInteractionProposal, capabilitiesForAccount, detectFlirtSignal, isDurableUserMemory, lifeTriggerForConversationTurn, normalizeSubscriptionTier, sanitizePhotoDeliveryAcknowledgement, scoreConversationEngagement, selectSceneSpeakers, shouldPersistLifeStateForConversationTurn, updateChemistry, type ChemistrySignal, type RelationshipState, type SpiceLevel } from '../../../packages/together-domain/src/index.ts';
 import { runLifeSimulation } from '../_shared/together-life.ts';
 import { buildKivelleConversationContext } from '../_shared/kivelle-conversation-context.ts';
 import { acknowledgeConversationScene, getActiveConversation, mergeConversationSceneMetadata, resolveActiveConversationScene } from '../_shared/together-conversation.ts';
@@ -176,7 +176,7 @@ Deno.serve(async (request) => {
     }
     const generated = await dialogue.generate(dialogueContext,runOptions);
     const outputSafety = await moderation.check(generated.text,{...usageBase,characterInstanceId:primarySpeakerId,metadata:{direction:'output'}});
-    const safeText = outputSafety.allowed ? cleanPhotoReply(generated.text,dialogueContext.photoRequest===true) : "I want to answer thoughtfully, but I need to steer this conversation somewhere safer. We can talk about what you're feeling without crossing that line.";
+    const safeText = outputSafety.allowed ? cleanPhotoReply(generated.text,dialogueContext.photoRequest===true) : dialogueContext.photoRequest===true?'Give me a second.':"I want to answer thoughtfully, but I need to steer this conversation somewhere safer. We can talk about what you're feeling without crossing that line.";
     if (!outputSafety.allowed) await db.from('together_safety_events').insert({ user_id: user.id, character_instance_id: input.characterInstanceId, direction: 'output', categories: outputSafety.categories, action: 'replaced' });
     const { data: assistantMessage, error: assistantError } = await db.from('together_messages').insert({ conversation_id: input.conversationId, user_id: user.id, character_instance_id: primarySpeakerId, speaker_character_instance_id:primarySpeakerId, role: 'assistant', content: safeText, delivery_status: 'complete', provider_metadata: { ...generated.metadata,speakerName:characterTemplate.name,speakerSlug:characterTemplate.slug,directorUsed:dialogueContext.director?.used===true } }).select('*').single();
     if (assistantError || !assistantMessage) throw new AppError('INTERNAL_ERROR', `${String(characterTemplate.name ?? 'Your companion')} replied, but the response could not be saved.`, 500, true);
@@ -259,7 +259,7 @@ function streamDialogue({ db, user, input, conversation, instance, relationship,
 
 function cleanPhotoReply(text:string,photoRequest:boolean):string{
   if(!photoRequest)return text;
-  return stripGeneratedMediaMarkup(text)||'Give me a second.';
+  return sanitizePhotoDeliveryAcknowledgement(stripGeneratedMediaMarkup(text));
 }
 
 async function dialogueSpeaker(db:any,userId:string,continuityId:string,speakerId:string,baseContext:any):Promise<{instance:Record<string,any>;context:any}>{

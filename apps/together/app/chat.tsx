@@ -149,6 +149,24 @@ export default function Chat() {
     if(canonicalMedia)setPendingGeneratedPhoto(null);
   },[pendingGeneratedPhoto,character?.id,conversation?.id,snapshot?.generatedMedia]);
   useEffect(()=>{
+    if(!pendingGeneratedPhoto||!character?.id||!conversation?.id||reconcilingMediaId)return;
+    let cancelled=false,timer:ReturnType<typeof setTimeout>|undefined,attempts=0;
+    const discover=async()=>{
+      attempts+=1;
+      try{
+        const result=await manageMedia<{media:GeneratedMedia[]}>({action:'list_recent',characterInstanceId:character.id,conversationId:conversation.id,createdAfter:new Date(pendingGeneratedPhoto.requestedAt-2000).toISOString(),limit:10});
+        if(cancelled)return;
+        const found=(result.media??[]).filter((item)=>item.media_type==='image').sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime())[0];
+        if(found){upsertMedia(found);setPendingGeneratedPhoto(null);if(found.status==='queued'||found.status==='generating')setReconcilingMediaId(found.id);return;}
+      }catch{/* Realtime or the dialogue result may still identify the media. */}
+      if(cancelled)return;
+      if(attempts>=10){setPendingGeneratedPhoto((current)=>current?.id===pendingGeneratedPhoto.id?null:current);return;}
+      timer=setTimeout(()=>void discover(),3000);
+    };
+    timer=setTimeout(()=>void discover(),1200);
+    return()=>{cancelled=true;if(timer)clearTimeout(timer);};
+  },[pendingGeneratedPhoto,character?.id,conversation?.id,reconcilingMediaId,upsertMedia]);
+  useEffect(()=>{
     if(!reconcilingMediaId)return;
     let cancelled=false,timer:ReturnType<typeof setTimeout>|undefined;
     const reconcile=async()=>{
@@ -214,7 +232,7 @@ export default function Chat() {
       const result = await sendDialogue({ conversationId: conversation.id, characterInstanceId: character.id, message: text,attachmentIds:preparedAttachmentId?[preparedAttachmentId]:[], clientRequestId: createClientRequestId(),focusPlanId:focusPlanId??undefined,...(sceneActionId?{sceneActionId}:{}) }, (token) => setStream((current) => current + token));
       setPendingImage(null);setStream(''); setMessages((current) => [...current.filter((item) => item.id !== optimistic.id), { ...optimistic, delivery_status: 'complete',attachments:sentAttachment?[sentAttachment]:optimistic.attachments }, result.message,...(result.additionalMessages??[])]);
       if(result.generatedMedia){upsertMedia(result.generatedMedia);setReconcilingMediaId(result.generatedMedia.id);setPendingGeneratedPhoto((current)=>current?{...current,id:result.generatedMedia!.id,requestedAt:new Date(result.generatedMedia!.created_at).getTime()}:current);}
-      else if(generatedPhotoRequest)setPendingGeneratedPhoto((current)=>current?.id===generatedPhotoRequest.id?null:current);
+      else if(generatedPhotoRequest&&result.photoRequestError)setPendingGeneratedPhoto((current)=>current?.id===generatedPhotoRequest.id?null:current);
       if(result.photoRequestError)setError(result.photoRequestError.message);
       if(result.delta)applyServerDelta(result.delta);
       showNewStoryFeedback(before, useTogether.getState().snapshot, character.id, character.together_character_templates.name, setFeedback);
@@ -287,7 +305,7 @@ export default function Chat() {
           <SceneCard character={character} context={chatContext} snapshot={snapshot} roster={sharedSceneRoster} />
           {isCoPresent&&sharedSceneRoster?.availableCharacters.length?<SharedSceneInvite people={sharedSceneRoster.availableCharacters} busy={interactionLoading} onJoin={(person)=>void addSceneParticipant(person)}/>:null}
           {!conversationReady?<ConversationHistoryLoading name={character.together_character_templates.name}/>:visibleMessages.length===0?<EmptyConversation character={character} prompts={prompts} onPrompt={setInput} />:null}
-          {mergeChatTimeline(visibleMessages,pendingActions,(snapshot.conversationEvents??[]).filter((event)=>event.conversation_id===conversation.id),conversation.last_read_at).map((item,index,timeline)=>item.kind==='separator'?<Text key={item.key} style={[styles.day,item.label==='NEW'&&{color:colors.rose}]}>{item.label}</Text>:item.kind==='message'?<MessageBubble key={item.value.id} message={item.value} character={character} media={(snapshot.generatedMedia??[]).filter((media)=>media.message_id===item.value.id)} grouped={index>0&&timeline[index-1]?.kind==='message'&&(timeline[index-1] as {kind:'message';value:Message}).value.role===item.value.role} textStyle={messageTypography} onMediaRetry={async(mediaId)=>{await manageMedia({action:'retry',mediaId});await refresh();}}/>:item.kind==='action'?<ConversationActionCard key={item.value.id} action={item.value} busy={planning} onConfirm={async(planId)=>{const proposed=typeof item.value.payload.proposedStartsAt==='string'?item.value.payload.proposedStartsAt:null,validProposed=Boolean(proposed&&new Date(proposed).getTime()>=Date.now()+10*60000),direct=['plan_cancel','cancel_plan'].includes(item.value.candidate_type)||validProposed||Boolean(planId);if(!direct){setPendingActionId(item.value.id);setShowPlans(true);return;}setPlanning(true);try{await confirmConversationAction(item.value.id,{planId,startsAt:validProposed?proposed??undefined:undefined});await refresh();}catch(caught){setError(caught instanceof Error?caught.message:'That action could not be completed.');}finally{setPlanning(false);}}} onChange={()=>{setPendingActionId(item.value.id);setShowPlans(true);}} onDismiss={async()=>{await dismissConversationAction(item.value.id);await refresh();}}/>:<PlanTimelineCard key={item.value.id} event={item.value} plan={(snapshot.sharedPlans??[]).find((plan)=>plan.id===item.value.entity_id)} onMessage={stagePlanMessage}/>)}
+          {mergeChatTimeline(visibleMessages,pendingActions,(snapshot.conversationEvents??[]).filter((event)=>event.conversation_id===conversation.id),conversation.last_read_at).map((item,index,timeline)=>item.kind==='separator'?<Text key={item.key} style={[styles.day,item.label==='NEW'&&{color:colors.rose}]}>{item.label}</Text>:item.kind==='message'?<MessageBubble key={item.value.id} message={item.value} character={character} media={(snapshot.generatedMedia??[]).filter((media)=>media.message_id===item.value.id)} grouped={index>0&&timeline[index-1]?.kind==='message'&&(timeline[index-1] as {kind:'message';value:Message}).value.role===item.value.role} textStyle={messageTypography} onMediaRetry={async(mediaId)=>{const result=await manageMedia<{media:GeneratedMedia}>({action:'retry',mediaId});upsertMedia(result.media);setReconcilingMediaId(result.media.id);}}/>:item.kind==='action'?<ConversationActionCard key={item.value.id} action={item.value} busy={planning} onConfirm={async(planId)=>{const proposed=typeof item.value.payload.proposedStartsAt==='string'?item.value.payload.proposedStartsAt:null,validProposed=Boolean(proposed&&new Date(proposed).getTime()>=Date.now()+10*60000),direct=['plan_cancel','cancel_plan'].includes(item.value.candidate_type)||validProposed||Boolean(planId);if(!direct){setPendingActionId(item.value.id);setShowPlans(true);return;}setPlanning(true);try{await confirmConversationAction(item.value.id,{planId,startsAt:validProposed?proposed??undefined:undefined});await refresh();}catch(caught){setError(caught instanceof Error?caught.message:'That action could not be completed.');}finally{setPlanning(false);}}} onChange={()=>{setPendingActionId(item.value.id);setShowPlans(true);}} onDismiss={async()=>{await dismissConversationAction(item.value.id);await refresh();}}/>:<PlanTimelineCard key={item.value.id} event={item.value} plan={(snapshot.sharedPlans??[]).find((plan)=>plan.id===item.value.entity_id)} onMessage={stagePlanMessage}/>)}
           {(conversationReady?mediaOffers:[]).map((offer)=><MediaOfferCard key={offer.id} offer={offer} busy={mediaOfferBusy===offer.id} onAccept={()=>void acceptOffer(offer)} onDecline={()=>void declineOffer(offer)} onBuyCredits={()=>router.push('/subscription')}/>)}
           {stream ? <StreamingBubble character={character} content={stream} textStyle={messageTypography} /> : null}
           {sending && !stream ? <TypingState name={character.together_character_templates.name} /> : null}

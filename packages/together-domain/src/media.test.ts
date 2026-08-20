@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHARACTER_PHOTO_REALISM_GUIDANCE, classifyPhotoIntent, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, resolveCanonicalMediaPresence, resolvePhotoComposition } from './media';
+import { CHARACTER_PHOTO_REALISM_GUIDANCE, classifyPhotoIntent, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, photoRequestAllowsHiddenFace, resolveAdultNudityScope, resolveCanonicalMediaPresence, resolvePhotoComposition, resolvePhotoDirection, resolveSpecificAnatomyExposure, sanitizePhotoDeliveryAcknowledgement } from './media';
 
 describe('extractPhotoWardrobeDescription',()=>{
   it('retains canonical clothing claims from a companion reply',()=>{
@@ -17,6 +17,75 @@ describe('extractPhotoWardrobeDescription',()=>{
 });
 
 describe('requested photo composition',()=>{
+  it('prevents the prose provider from contradicting canonical PhotoGen policy',()=>{
+    expect(sanitizePhotoDeliveryAcknowledgement("Nice try, troublemaker. I can send a playful, fully dressed photo—but not that kind.")).toBe('Give me a second.');
+    expect(sanitizePhotoDeliveryAcknowledgement("I can't send that, but I can send a normal selfie.")).toBe('Give me a second.');
+    expect(sanitizePhotoDeliveryAcknowledgement('I can’t do that, but I can send you something else instead.')).toBe('Give me a second.');
+    expect(sanitizePhotoDeliveryAcknowledgement('I can make it playful and fully dressed—more teasing than explicit 😏')).toBe('Give me a second.');
+    expect(sanitizePhotoDeliveryAcknowledgement('Hold on. Let me get the light right.')).toBe('Hold on. Let me get the light right.');
+  });
+
+  it('recognizes direct visual-body requests as explicit PhotoGen intent',()=>{
+    expect(classifyPhotoIntent('Show me your boobs')).toMatchObject({requested:true,subject:'companion',requestedContentLevel:'explicit'});
+    expect(classifyPhotoIntent('Can I see your breasts?')).toMatchObject({requested:true,subject:'companion',requestedContentLevel:'explicit'});
+    expect(classifyPhotoIntent('show me a picture of your boobs')).toMatchObject({requested:true,subject:'companion',requestedContentLevel:'explicit'});
+    expect(classifyPhotoIntent('let me see your body')).toMatchObject({requested:true,subject:'companion',requestedContentLevel:'explicit'});
+  });
+
+  it('tolerates common photo-request typing mistakes without treating discussion as a request',()=>{
+    expect(classifyPhotoIntent('sbow me a picjtre of youe boobs')).toMatchObject({requested:true,subject:'companion',requestedContentLevel:'explicit'});
+    expect(classifyPhotoIntent('snd me a slefie plz')).toMatchObject({requested:true,shotPreference:'selfie'});
+    expect(classifyPhotoIntent('You showed me your boobs yesterday').requested).toBe(false);
+    expect(classifyPhotoIntent('We were talking about boobs').requested).toBe(false);
+  });
+
+  it.each([
+    'Can you send me a pic?',
+    'Could I get a picture of you?',
+    'Snap me a selfie',
+    'Drop a pic please',
+    'Got any pics?',
+    'Any new photos?',
+    'Selfie?',
+    'A mirror pic of you',
+    'Show me what you look like',
+    'What do you look like right now?',
+    'What are you wearing?',
+    'outfit check',
+    'Show me that smile',
+    'Let me see your tattoos',
+    'Can I see your feet?',
+    'Show me your lingerie',
+    'Send nudes',
+    'nudes?',
+    'Show me where you are',
+    "Show me where you're at",
+    'Let me see the view',
+    'Show me the gallery',
+    'What does it look like there?',
+    'Show me what you are doing',
+  ])('recognizes natural visual request: %s',(message)=>{
+    expect(classifyPhotoIntent(message).requested).toBe(true);
+  });
+
+  it.each([
+    'Do you like photography?',
+    'I took a picture today.',
+    'You sent me a selfie yesterday.',
+    'Remember that photo from the gallery?',
+    'Delete that photo.',
+    'Rate this picture.',
+    'Your profile picture looks good.',
+    'Why did the last photo fail?',
+    'We were talking about a picture.',
+    'Can I see you tomorrow?',
+    'Picture this: we move to the coast.',
+    'I can see you look tired.',
+    'Show me how to make coffee.',
+  ])('does not generate for photo discussion or non-visual language: %s',(message)=>{
+    expect(classifyPhotoIntent(message).requested).toBe(false);
+  });
+
   it('keeps where-you-are and activity requests companion-first',()=>{
     expect(classifyPhotoIntent('Show me where you are right now').shotPreference).toBe('candid');
     expect(classifyPhotoIntent('Send me a picture of what you are doing').shotPreference).toBe('candid');
@@ -26,6 +95,40 @@ describe('requested photo composition',()=>{
   it('reserves wide scene framing for an explicit environment request',()=>{
     expect(classifyPhotoIntent('Show me what the gallery looks like').shotPreference).toBe('scene');
     expect(resolvePhotoComposition({source:'user_request',shotType:'scene'}).aspectRatio).toBe('16:9');
+  });
+
+  it('uses anatomy-aware wide framing for explicit seated composition requests',()=>{
+    const composition=resolvePhotoComposition({source:'user_request',shotType:'full_body',requestText:'Show me your pussy sitting on the couch legs spread open'});
+    expect(composition).toMatchObject({shotType:'full_body',aspectRatio:'4:5'});
+    expect(composition.framing).toContain('complete requested pose');
+    expect(composition.framing).not.toContain('face still sharp');
+  });
+
+  it.each([
+    ['Send me a full-body photo on all fours from a rear three-quarter angle, looking over your shoulder','all-fours pose','rear three-quarter'],
+    ['Send me a full-body photo lying on your back, knees open, from a high three-quarter angle','supported supine pose','elevated three-quarter'],
+    ['Send me a photo straddling a chair facing the camera','seated straddle pose','no second person'],
+    ['Send me a full-body photo pressed against a wall with one knee raised','supported against a wall or door','one leg naturally raised'],
+    ['Send me a full-body photo bent over with both hands braced on a chair','bent forward at the waist','coherent spine'],
+    ['Send me a full-body photo kneeling upright with your hands on your thighs','upright kneeling pose','torso balanced'],
+    ['Send me an overhead full-body photo in a relaxed starfish pose','reclined starfish pose','overhead camera'],
+    ['Send me a full-body photo lying on your side with your top knee bent','supported side-lying pose','coherent profile'],
+    ['Send me a side-view full-body photo arching your back','anatomically plausible back arch','continuous natural spine'],
+    ['Send me an overhead full-body photo on your back with both legs raised','both legs elevated','overhead camera'],
+  ])('preserves complete pose geometry for natural-language request: %s',(request,firstCue,secondCue)=>{
+    const intent=classifyPhotoIntent(request),direction=resolvePhotoDirection({requestText:request,shotType:intent.shotPreference??'full_body',seed:'pose-matrix'}),composition=resolvePhotoComposition({source:'user_request',shotType:intent.shotPreference??'full_body',requestText:request});
+    expect(intent).toMatchObject({requested:true,shotPreference:'full_body'});
+    expect(direction.source).toBe('requested');
+    expect(direction.poseDirection).toContain(firstCue);
+    expect(direction.poseDirection).toContain(secondCue);
+    expect(composition.framing).toContain('complete requested pose');
+  });
+
+  it('keeps named adult pose terminology solo and prevents an implied second generated person',()=>{
+    for(const request of ['doggy style from behind','missionary on her back','cowgirl pose','reverse cowgirl pose']){
+      const direction=resolvePhotoDirection({requestText:`Send a full-body photo in a ${request}`,shotType:'full_body',seed:request});
+      expect(direction.poseDirection).toContain('one-person');
+    }
   });
 });
 
@@ -57,5 +160,71 @@ describe('character photo identity grounding',()=>{
     expect(CHARACTER_PHOTO_REALISM_GUIDANCE).toContain('Photorealistic real-camera photograph');
     expect(CHARACTER_PHOTO_REALISM_GUIDANCE).toContain('No illustration, anime, CGI');
     expect(CHARACTER_PHOTO_REALISM_GUIDANCE).toContain('identity drift');
+  });
+
+  it('distinguishes an intentionally concealed face from an ordinary portrait',()=>{
+    expect(photoRequestAllowsHiddenFace('Send a picture bent over with your face covered')).toBe(true);
+    expect(photoRequestAllowsHiddenFace('A photo from behind, facing away')).toBe(true);
+    expect(photoRequestAllowsHiddenFace('Send a selfie with your face visible')).toBe(false);
+  });
+
+  it('carries requested away-facing pose into generation without exposing raw content',()=>{
+    const direction=resolvePhotoDirection({requestText:'bent over facing away with her face covered',shotType:'full_body',seed:'media-1'});
+    expect(direction).toMatchObject({source:'requested',faceMayBeHidden:true});
+    expect(direction.poseDirection).toContain('body bent forward');
+    expect(direction.poseDirection).toContain('back toward the camera');
+    expect(direction.faceDirection).toContain('Do not turn');
+  });
+
+  it('treats face-down-in-pillows as a requested prone pose rather than a camera-facing portrait',()=>{
+    const direction=resolvePhotoDirection({requestText:'Send me a photo face down in the pillows',shotType:'full_body',seed:'brooke-pillows'});
+    expect(photoRequestAllowsHiddenFace('face down in the pillows')).toBe(true);
+    expect(direction).toMatchObject({source:'requested',faceMayBeHidden:true});
+    expect(direction.poseDirection).toContain('prone pose lying face-first');
+    expect(direction.poseDirection).toContain('directed into the pillows');
+    expect(direction.faceDirection).toContain('No eye contact');
+    expect(direction.faceDirection).toContain('camera-facing smile');
+  });
+
+  it('adds stable non-frontal variation when no pose was requested',()=>{
+    const first=resolvePhotoDirection({shotType:'candid',seed:'media-a'}),repeat=resolvePhotoDirection({shotType:'candid',seed:'media-a'}),directions=['media-a','media-b','media-c','media-d'].map((seed)=>resolvePhotoDirection({shotType:'candid',seed}).poseDirection);
+    expect(first).toEqual(repeat);
+    expect(first.source).toBe('natural_variation');
+    expect([first.poseDirection,first.faceDirection].join(' ')).not.toContain('straight ahead');
+    expect(new Set(directions).size).toBeGreaterThan(1);
+  });
+
+  it('preserves the requested adult nudity scope without escalating narrower requests',()=>{
+    expect(resolveAdultNudityScope('send a fully nude photo')).toBe('full_nude');
+    expect(resolveAdultNudityScope('remove only the blouse and keep the shorts')).toBe('topless');
+    expect(resolveAdultNudityScope('bottomless from behind')).toBe('bottomless');
+    expect(resolveAdultNudityScope('show me your vulva')).toBe('specific_anatomy');
+    expect(resolveAdultNudityScope('send a bikini selfie')).toBe('none');
+  });
+
+  it('defaults a named anatomy request to uncovered unless coverage is explicit',()=>{
+    expect(resolveSpecificAnatomyExposure('show me your vulva')).toBe('uncovered');
+    expect(resolveSpecificAnatomyExposure('show me your vulva sitting on the couch')).toBe('uncovered');
+    expect(resolveSpecificAnatomyExposure('show me through your panties')).toBe('covered');
+    expect(resolveSpecificAnatomyExposure('show me but keep your underwear on')).toBe('covered');
+    expect(resolveSpecificAnatomyExposure('a covered photo please')).toBe('covered');
+  });
+
+  it('grounds explicit lower-body requests in a visible, coherent composition',()=>{
+    const request='Show me your pussy sitting on the couch legs spread open';
+    expect(classifyPhotoIntent(request)).toMatchObject({requested:true,requestedContentLevel:'explicit',shotPreference:'full_body'});
+    expect(resolveAdultNudityScope(request)).toBe('specific_anatomy');
+    const direction=resolvePhotoDirection({requestText:request,shotType:'full_body',seed:'brooke'});
+    expect(direction).toMatchObject({source:'requested',faceMayBeHidden:false});
+    expect(direction.poseDirection).toContain('legs visibly and naturally spread apart');
+  });
+
+  it('keeps clothed framing language on the standard media route',()=>{
+    expect(classifyPhotoIntent('Send me a fully clothed, non-explicit full-body fitness photo on all fours from a rear three-quarter angle.')).toMatchObject({
+      requested:true,
+      shotPreference:'full_body',
+    });
+    expect(classifyPhotoIntent('Send a chest-up portrait in your work shirt').requestedContentLevel).toBeUndefined();
+    expect(classifyPhotoIntent('Show me your full body in that outfit').requestedContentLevel).toBeUndefined();
   });
 });

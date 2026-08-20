@@ -17,6 +17,7 @@ import { resolveMediaContentPolicy } from '../../../packages/together-domain/src
 import { envBoolean } from '../_shared/wavespeed.ts';
 import {acceptMediaOffer} from '../_shared/together-media-offer-acceptance.ts';
 import {declineMediaOffer,listPendingMediaOffers} from '../_shared/together-media-offers.ts';
+import {queueMediaEdit} from '../_shared/together-media-edit.ts';
 
 const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('request'),characterInstanceId:z.string().uuid(),source:z.literal('user_request').default('user_request'),conversationId:z.string().uuid().optional(),messageId:z.string().uuid().optional(),requestText:z.string().trim().max(400).optional(),idempotencyKey:z.string().trim().min(8).max(120).optional()}),
@@ -25,7 +26,9 @@ const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('decline_offer'),offerId:z.string().uuid()}),
   z.object({action:z.literal('retry'),mediaId:z.string().uuid()}),
   z.object({action:z.literal('status'),mediaId:z.string().uuid()}),
+  z.object({action:z.literal('list_recent'),characterInstanceId:z.string().uuid(),conversationId:z.string().uuid(),createdAfter:z.string().datetime(),limit:z.number().int().min(1).max(20).default(10)}),
   z.object({action:z.literal('feedback'),mediaId:z.string().uuid(),feedback:z.enum(['positive','negative'])}),
+  z.object({action:z.literal('edit'),mediaId:z.string().uuid(),requestId:z.string().trim().min(8).max(120),instruction:z.string().trim().min(2).max(400)}),
   z.object({action:z.literal('remove'),mediaId:z.string().uuid()}),
   z.object({action:z.literal('preferences'),companionPhotos:z.boolean(),automaticPhotos:z.boolean()}),
   z.object({action:z.literal('content_preferences'),suggestiveMediaEnabled:z.boolean(),matureMediaEnabled:z.boolean(),explicitMediaEnabled:z.boolean(),adultVideoEnabled:z.boolean()}),
@@ -73,8 +76,28 @@ serve(async(request,correlationId)=>{
     const{error}=await db.from('together_profiles').update({content_preferences:next,updated_at:new Date().toISOString()}).eq('user_id',user.id);if(error)throw new AppError('INTERNAL_ERROR','Media preferences could not be saved.',500,true);
     return json({data:{saved:true,preferences:next},correlationId},200,correlationId);
   }
+  if(input.action==='list_recent'){
+    const continuity=await activeContinuity(db,user.id);
+    await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId);
+    const{data:conversation}=await db.from('together_conversations').select('id').eq('id',input.conversationId).eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_instance_id',input.characterInstanceId).maybeSingle();
+    if(!conversation)throw new AppError('NOT_FOUND','That conversation is unavailable in this Kivelle Life.',404);
+    const{data:rows,error}=await db.from('together_generated_media').select('*').eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_instance_id',input.characterInstanceId).eq('conversation_id',input.conversationId).gte('created_at',input.createdAfter).order('created_at',{ascending:false}).limit(input.limit);
+    if(error)throw new AppError('INTERNAL_ERROR','Recent photos could not be loaded.',500,true);
+    const media=await Promise.all((rows??[]).map(async(row:Record<string,unknown>)=>{
+      let signedUrl:string|null=null;
+      if(row.status==='ready'&&typeof row.storage_path==='string'&&row.storage_path){const{data}=await db.storage.from('together-user-media').createSignedUrl(row.storage_path,3600);signedUrl=data?.signedUrl??null;}
+      return{...row,signed_url:signedUrl};
+    }));
+    return json({data:{media},correlationId},200,correlationId);
+  }
   const continuity=await activeContinuity(db,user.id),{data:media}=await db.from('together_generated_media').select('*').eq('id',input.mediaId).eq('user_id',user.id).eq('continuity_id',continuity.id).maybeSingle();
   if(!media)throw new AppError('NOT_FOUND','That photo is unavailable.',404);
+  if(input.action==='edit'){
+    await enforceRateLimit(db,user.id,'together_media_edit',24,86400);
+    const result=await queueMediaEdit(db,{userId:user.id,continuityId:String(continuity.id),sourceMedia:media,requestId:input.requestId,instruction:input.instruction});
+    if(result.media.status==='queued')waitUntil(kickMediaDispatcher());
+    return json({data:result,correlationId},result.media.status==='ready'?200:202,correlationId);
+  }
   if(input.action==='animate'){
     if(media.media_type!=='image'||media.status!=='ready'||!media.storage_path)throw new AppError('CONFLICT','Only a ready companion photo can be animated.',409);
     if(!envBoolean('KIVELLE_VIDEO_ENABLED')||!configuredMediaRegistry().some((route)=>route.enabled&&route.mediaTypes.includes('video')))throw new AppError('PROVIDER_NOT_CONFIGURED',"Video generation isn't connected yet.",503);

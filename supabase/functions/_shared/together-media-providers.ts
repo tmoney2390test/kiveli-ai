@@ -1,13 +1,14 @@
-import{routeMediaGeneration,type MediaRoute,type MediaRouteCapability}from'../../../packages/together-domain/src/media-routing.ts';
+import{modelFamilyFor,routeMediaGeneration,type MediaRoute,type MediaRouteCapability}from'../../../packages/together-domain/src/media-routing.ts';
 import{AppError}from'./types.ts';
 import{buildImagePrompt,configuredImageProvider,type CanonicalImageGenerationRequest,type ImageGenerationResult,type MediaReferenceImage}from'./together-media-base.ts';
 import{configuredWaveSpeedClient,envBoolean,envNumber,type WaveSpeedClient,type WaveSpeedPrediction}from'./wavespeed.ts';
 import{estimatedMediaProviderCost}from'../../../packages/together-domain/src/media-economics.ts';
-import{hasUsableCharacterIdentityReference}from'../../../packages/together-domain/src/media.ts';
-import{resolveVenicePipeline,VENICE_ADULT_EDIT_MODEL,VENICE_QUALITY_EDIT_MODEL,VENICE_STANDARD_EDIT_MODEL,veniceModelCostUsd}from'../../../packages/together-domain/src/venice-media.ts';
+import{hasUsableCharacterIdentityReference,resolveAdultNudityScope,resolvePhotoDirection,resolveSpecificAnatomyExposure}from'../../../packages/together-domain/src/media.ts';
+import{resolveVenicePipeline,VENICE_ADULT_EDIT_MODEL,VENICE_ADULT_FALLBACK_EDIT_MODEL,VENICE_ADULT_FINAL_EDIT_MODEL,VENICE_QUALITY_EDIT_MODEL,VENICE_STANDARD_EDIT_MODEL,VENICE_STANDARD_FALLBACK_EDIT_MODEL,veniceModelCostUsd}from'../../../packages/together-domain/src/venice-media.ts';
 import{configuredVeniceClient,type VeniceEditResult,type VeniceImageClient}from'./venice.ts';
+import{buildMediaEditConstraint,classifyMediaEditSemantics}from'../../../packages/together-domain/src/media-edit.ts';
 
-export type CanonicalMediaRequest=CanonicalImageGenerationRequest&{mediaType:'image'|'video';generationKind?:'companion_photo'|'creator_identity';sourceImage?:MediaReferenceImage;motionPrompt?:string;durationSeconds?:number;mediaProfile?:{id:string;provider:string;modelFamily:string;modelUrl:string;triggerWord?:string;revision:number}};
+export type CanonicalMediaRequest=CanonicalImageGenerationRequest&{mediaType:'image'|'video';motionPrompt?:string;durationSeconds?:number};
 export type ProviderAttempt={attemptNumber:number;stage:string;provider:string;model:string;routeId:string;estimatedCost?:number;generationMs?:number;success:boolean;failureCode?:string;providerRequestId?:string};
 export type ProviderCompletedMedia={bytes?:Uint8Array;outputUrl?:string;contentType?:string;width?:number;height?:number;durationMs?:number;providerRequestId?:string;model:string;estimatedCost?:number;generationMs?:number;providerAttempts?:ProviderAttempt[];providerMetadata?:Record<string,unknown>};
 export type ProviderSubmission={provider:string;providerRequestId:string;model:string;status:'submitted'|'completed';result?:ProviderCompletedMedia};
@@ -18,11 +19,12 @@ export type RoutedProvider={route:MediaRoute;provider:MediaGenerationProvider};
 
 export function configuredMediaRegistry():MediaRouteCapability[]{
   const wave=envBoolean('KIVELLE_WAVESPEED_ENABLED')&&Boolean(Deno.env.get('WAVESPEED_API_KEY')),adult=envBoolean('KIVELLE_ADULT_MEDIA_ENABLED'),video=envBoolean('KIVELLE_VIDEO_ENABLED'),venice=envBoolean('KIVELLE_VENICE_ENABLED')&&Boolean(Deno.env.get('VENICE_API_KEY'));
+  const veniceAdultModel=env('KIVELLE_VENICE_ADULT_MODEL',VENICE_ADULT_EDIT_MODEL);
   const standard:MediaRouteCapability['contentLevels']=['standard','romance'];
   const registry:MediaRouteCapability[]=[
-    entry('venice-qwen-multiref','venice',env('KIVELLE_VENICE_STANDARD_MODEL',VENICE_STANDARD_EDIT_MODEL),'qwen-image',['image'],standard,{character:true,location:true,max:3,edit:true,cost:estimatedMediaProviderCost('venice-qwen-multiref')??veniceModelCostUsd(VENICE_STANDARD_EDIT_MODEL),priority:130,enabled:venice,userRequest:true,requiresRefs:true,async:false}),
-    entry('venice-grok-quality-multiref','venice',env('KIVELLE_VENICE_QUALITY_MODEL',VENICE_QUALITY_EDIT_MODEL),'grok-image',['image'],standard,{character:true,location:true,max:3,edit:true,cost:estimatedMediaProviderCost('venice-grok-quality-multiref')??veniceModelCostUsd(VENICE_QUALITY_EDIT_MODEL),priority:105,enabled:venice,qualityRetry:true,requiresRefs:true,async:false}),
-    entry('venice-adult-two-stage','venice',env('KIVELLE_VENICE_ADULT_MODEL',VENICE_ADULT_EDIT_MODEL),'qwen-image',['image'],adult?['suggestive','mature','explicit']:[],{character:true,location:true,max:3,edit:true,cost:estimatedMediaProviderCost('venice-adult-two-stage')??.08,priority:140,enabled:venice&&adult&&envBoolean('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED'),userRequest:true,requiresRefs:true,async:false}),
+    entry('venice-qwen2-reference-edit','venice',env('KIVELLE_VENICE_STANDARD_MODEL',VENICE_STANDARD_EDIT_MODEL),'qwen-image',['image'],standard,{character:true,location:true,max:3,edit:true,cost:estimatedMediaProviderCost('venice-qwen2-reference-edit')??veniceModelCostUsd(VENICE_STANDARD_EDIT_MODEL),priority:130,enabled:venice,userRequest:true,requiresRefs:true,async:false}),
+    entry('venice-qwen2-pro-quality','venice',env('KIVELLE_VENICE_QUALITY_MODEL',VENICE_QUALITY_EDIT_MODEL),'qwen-image',['image'],standard,{character:true,location:true,max:3,edit:true,cost:estimatedMediaProviderCost('venice-qwen2-pro-quality')??veniceModelCostUsd(VENICE_QUALITY_EDIT_MODEL),priority:105,enabled:venice,qualityRetry:true,requiresRefs:true,async:false}),
+    entry('venice-adult-two-stage','venice',veniceAdultModel,modelFamilyFor(veniceAdultModel),['image'],adult?['suggestive','mature','explicit']:[],{character:true,location:true,max:3,edit:true,cost:estimatedMediaProviderCost('venice-adult-two-stage')??.08,priority:140,enabled:venice&&adult&&envBoolean('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED'),userRequest:true,requiresRefs:true,async:false}),
     entry('wavespeed-kontext-pro-multiref','wavespeed',env('WAVESPEED_MODEL_REQUESTED_MULTIREF','wavespeed-ai/flux-kontext-pro/multi'),'flux',['image'],standard,{character:true,location:true,max:5,edit:true,cost:estimatedMediaProviderCost('wavespeed-kontext-pro-multiref')??undefined,priority:118,enabled:wave,userRequest:true,requiresRefs:true}),
     entry('wavespeed-kontext-max-multiref','wavespeed',env('WAVESPEED_MODEL_QUALITY_RETRY_MULTIREF','wavespeed-ai/flux-kontext-max/multi'),'flux',['image'],standard,{character:true,location:true,max:5,edit:true,cost:estimatedMediaProviderCost('wavespeed-kontext-max-multiref')??undefined,priority:117,enabled:wave,qualityRetry:true,requiresRefs:true}),
     entry('wavespeed-multiref','wavespeed',env('WAVESPEED_MODEL_MULTIREF','wavespeed-ai/flux-kontext-dev/multi-ultra-fast'),'flux',['image'],standard,{character:true,location:true,max:4,edit:true,cost:estimatedMediaProviderCost('wavespeed-multiref')??undefined,priority:120,enabled:wave}),
@@ -42,7 +44,7 @@ export function routeCanonicalMedia(request:CanonicalMediaRequest,input:{source:
   const characterIdentityAvailable=hasUsableCharacterIdentityReference(references),requiresCharacterReference=request.mediaType==='image'&&request.generationKind!=='creator_identity';
   if(requiresCharacterReference&&!characterIdentityAvailable)throw new AppError('CHARACTER_REFERENCE_REQUIRED','The companion reference photo could not be prepared. No ungrounded image was sent to the provider.',409,true);
   const selected=input.preferredProvider??(request.mediaType==='video'?'wavespeed':env('KIVELLE_IMAGE_PROVIDER','').toLowerCase()||undefined),preferred=selected??(canaryWaveSpeed(request.mediaId)?'wavespeed':undefined),registry=configuredMediaRegistry();
-  const route=routeMediaGeneration({mediaType:request.mediaType,contentLevel:request.contentLevel,qualityTier:request.qualityTier,shotType:request.composition.shotType,characterIdentityAvailable,characterLoRAAvailable:Boolean(profile?.modelUrl),characterLoRAModelFamily:profile?.modelFamily,locationReferenceAvailable:references.some((item)=>item.role==='location_environment'),worldReferenceAvailable:references.some((item)=>item.role==='world_environment'),outfitReferenceAvailable:references.some((item)=>item.role==='outfit_continuity'),source:input.source,userTier:input.userTier,preferredProvider:preferred,qualityRetry:Boolean(request.qualityRetry),requiresCharacterReference},registry);
+  const route=routeMediaGeneration({mediaType:request.mediaType,contentLevel:request.contentLevel,qualityTier:request.qualityTier,shotType:request.composition.shotType,characterIdentityAvailable,characterLoRAAvailable:Boolean(profile?.modelUrl),characterLoRAModelFamily:profile?.modelFamily,locationReferenceAvailable:references.some((item)=>item.role==='location_environment'),worldReferenceAvailable:references.some((item)=>item.role==='world_environment'),outfitReferenceAvailable:references.some((item)=>item.role==='outfit_continuity'),source:input.source,userTier:input.userTier,preferredProvider:preferred,qualityRetry:Boolean(request.qualityRetry),requiresCharacterReference,requiresImageEditing:request.generationKind==='photo_edit'},registry);
   if(!route)throw new AppError('PROVIDER_UNAVAILABLE','No configured provider can preserve this companion’s identity for that photo.',503);
   const provider=providerForCapability(route.capability);return{route,provider};
 }
@@ -59,28 +61,48 @@ export class VeniceMediaProvider implements MediaGenerationProvider{
   constructor(private readonly client:VeniceImageClient){}
   async submit(request:CanonicalMediaRequest,route:MediaRouteCapability):Promise<ProviderSubmission>{
     if(request.mediaType!=='image')throw new AppError('PROVIDER_UNAVAILABLE','That media type is not available through this provider.',503);
-    const references=veniceReferences(request,route),adultRoute=route.id==='venice-adult-two-stage';
+    // Venice multi-edit treats images after the first as masks/edit layers. Our
+    // location and outfit images are descriptive references, not masks, so
+    // sending them as layers makes otherwise valid companion requests fail
+    // validation. Keep the canonical identity image as the actual edit source;
+    // place, activity, outfit and time remain grounded in buildImagePrompt().
+    const references=veniceReferences(request,route).slice(0,1),adultRoute=route.id==='venice-adult-two-stage';
     if(!adultRoute){
-      const result=await this.client.edit({model:route.model,prompt:buildImagePrompt(request),images:references,aspectRatio:request.composition.aspectRatio,safeMode:true});
-      return completedVeniceSubmission(result,route.id);
+      const attempts:ProviderAttempt[]=[],models=[route.model,env('KIVELLE_VENICE_STANDARD_FALLBACK_MODEL',VENICE_STANDARD_FALLBACK_EDIT_MODEL)].filter((model,index,all)=>Boolean(model)&&all.indexOf(model)===index);
+      let lastError:unknown;
+      for(let index=0;index<models.length;index+=1){
+        const model=models[index]!,fallback=index>0;
+        try{
+          const result=await runVeniceSingleAttempt({client:this.client,attempts,stage:fallback?'standard_fallback':'standard_primary',routeId:route.id,model,estimatedCost:veniceModelCostUsd(model),edit:{model,prompt:buildVeniceImagePrompt(request),images:references,aspectRatio:request.composition.aspectRatio,safeMode:true,includeAspectRatio:true,forceMultiEdit:model===VENICE_STANDARD_FALLBACK_EDIT_MODEL}});
+          return completedVeniceSubmission(result,route.id,attempts,fallback?'primary_then_fallback':'single_edit');
+        }catch(error){lastError=error;if(!isVeniceStandardFallbackEligible(error)||index===models.length-1)break;}
+      }
+      throw new MediaProviderPipelineError(lastError,attempts);
     }
     if(!envBoolean('KIVELLE_ADULT_MEDIA_ENABLED')||!envBoolean('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED'))throw new AppError('PROVIDER_UNAVAILABLE','That kind of photo is not available right now.',503);
-    const stages=resolveVenicePipeline({contentLevel:request.contentLevel,standardModel:env('KIVELLE_VENICE_STANDARD_MODEL',VENICE_STANDARD_EDIT_MODEL),adultModel:route.model}),attempts:ProviderAttempt[]=[];
+    const stages=resolveVenicePipeline({contentLevel:request.contentLevel,standardModel:env('KIVELLE_VENICE_STANDARD_MODEL',VENICE_STANDARD_EDIT_MODEL),adultModel:route.model,adultFinalModel:env('KIVELLE_VENICE_ADULT_FINAL_MODEL',VENICE_ADULT_FINAL_EDIT_MODEL)}),attempts:ProviderAttempt[]=[];
+    if(request.generationKind==='photo_edit'){
+      try{
+        const final=await runVeniceAdultFinal({client:this.client,attempts,routeId:route.id,primaryModel:stages.at(-1)!.model,references,prompt:adultEditPrompt(request),aspectRatio:request.composition.aspectRatio});
+        return{provider:'venice',providerRequestId:final.providerRequestId,model:final.model,status:'completed',result:{bytes:final.bytes,contentType:final.contentType,providerRequestId:final.providerRequestId,model:final.model,estimatedCost:attempts.reduce((sum,item)=>sum+Number(item.estimatedCost??0),0),generationMs:attempts.reduce((sum,item)=>sum+Number(item.generationMs??0),0),providerAttempts:attempts,providerMetadata:{pipeline:'scoped_adult_source_edit',stageCount:attempts.length,fallbackUsed:attempts.some((item)=>item.stage==='final_adult_fallback')}}};
+      }catch(error){throw new MediaProviderPipelineError(error,attempts);}
+    }
     let base:VeniceEditResult;
     try{
-      const neutral={...request,contentLevel:'romance' as const,generationIntent:undefined};
-      base=await this.client.edit({model:stages[0]!.model,prompt:buildImagePrompt(neutral),images:references,aspectRatio:request.composition.aspectRatio,safeMode:true});
-      attempts.push(veniceAttempt(1,'canonical_base',route.id,base,true));
+      const requestedDirection=resolvePhotoDirection({requestText:request.generationIntent?.requestText,shotType:request.composition.shotType,seed:request.mediaId});
+      const neutral={...request,contentLevel:'romance' as const,generationIntent:undefined,composition:{...request.composition,poseDirection:requestedDirection.poseDirection,faceDirection:requestedDirection.faceDirection,faceMayBeHidden:requestedDirection.faceMayBeHidden}};
+      // The canonical base is intentionally non-explicit, but it may be built
+      // from an adult source reference. qwen-edit rejects that input before it
+      // can establish identity. Keep the prompt neutral while using the
+      // validated adult-capable multi-edit route with blurring disabled.
+      base=await runVeniceStage({client:this.client,attempts,stage:'canonical_base',routeId:route.id,model:stages[0]!.model,estimatedCost:stages[0]!.estimatedCostUsd,edit:{model:stages[0]!.model,prompt:buildVeniceImagePrompt(neutral),images:references,aspectRatio:request.composition.aspectRatio,safeMode:stages[0]!.safeMode,forceMultiEdit:true}});
     }catch(error){
-      attempts.push(failedVeniceAttempt(1,'canonical_base',route.id,stages[0]!.model,error,stages[0]!.estimatedCostUsd));
       throw new MediaProviderPipelineError(error,attempts);
     }
     try{
-      const final=await this.client.edit({model:stages[1]!.model,prompt:adultEditPrompt(request),images:[uint8ToBase64(base.bytes)],aspectRatio:request.composition.aspectRatio,safeMode:false});
-      attempts.push(veniceAttempt(2,'final_adult_edit',route.id,final,true));
-      return{provider:'venice',providerRequestId:final.providerRequestId,model:final.model,status:'completed',result:{bytes:final.bytes,contentType:final.contentType,providerRequestId:final.providerRequestId,model:final.model,estimatedCost:attempts.reduce((sum,item)=>sum+Number(item.estimatedCost??0),0),generationMs:attempts.reduce((sum,item)=>sum+Number(item.generationMs??0),0),providerAttempts:attempts,providerMetadata:{pipeline:'canonical_base_then_scoped_adult_edit',stageCount:2}}};
+      const final=await runVeniceAdultFinal({client:this.client,attempts,routeId:route.id,primaryModel:stages[1]!.model,references:[uint8ToDataUrl(base.bytes,base.contentType)],prompt:adultEditPrompt(request),aspectRatio:request.composition.aspectRatio});
+      return{provider:'venice',providerRequestId:final.providerRequestId,model:final.model,status:'completed',result:{bytes:final.bytes,contentType:final.contentType,providerRequestId:final.providerRequestId,model:final.model,estimatedCost:attempts.reduce((sum,item)=>sum+Number(item.estimatedCost??0),0),generationMs:attempts.reduce((sum,item)=>sum+Number(item.generationMs??0),0),providerAttempts:attempts,providerMetadata:{pipeline:'canonical_base_then_scoped_adult_edit',stageCount:attempts.length,fallbackUsed:attempts.some((item)=>item.stage==='final_adult_fallback')}}};
     }catch(error){
-      attempts.push(failedVeniceAttempt(2,'final_adult_edit',route.id,stages[1]!.model,error,stages[1]!.estimatedCostUsd));
       throw new MediaProviderPipelineError(error,attempts);
     }
   }
@@ -118,13 +140,58 @@ export function buildVideoPrompt(request:CanonicalMediaRequest):string{return['A
 
 function predictionResult(prediction:WaveSpeedPrediction,estimatedCost?:number):ProviderCompletedMedia{return{outputUrl:prediction.outputs[0],providerRequestId:prediction.id,model:prediction.model,estimatedCost,generationMs:prediction.inferenceMs};}
 function syncResult(result:ImageGenerationResult):ProviderCompletedMedia{return{bytes:result.bytes,contentType:result.contentType,width:result.width,height:result.height,providerRequestId:result.providerRequestId,model:result.model,estimatedCost:result.estimatedCost};}
-function completedVeniceSubmission(result:VeniceEditResult,routeId:string):ProviderSubmission{
-  const attempt=veniceAttempt(1,'final_edit',routeId,result,true);
-  return{provider:'venice',providerRequestId:result.providerRequestId,model:result.model,status:'completed',result:{bytes:result.bytes,contentType:result.contentType,providerRequestId:result.providerRequestId,model:result.model,estimatedCost:result.estimatedCost,generationMs:result.generationMs,providerAttempts:[attempt],providerMetadata:{pipeline:'single_edit',stageCount:1}}};
+function completedVeniceSubmission(result:VeniceEditResult,routeId:string,attempts?:ProviderAttempt[],pipeline='single_edit'):ProviderSubmission{
+  const recorded=attempts?.length?attempts:[veniceAttempt(1,'final_edit',routeId,result,true)];
+  return{provider:'venice',providerRequestId:result.providerRequestId,model:result.model,status:'completed',result:{bytes:result.bytes,contentType:result.contentType,providerRequestId:result.providerRequestId,model:result.model,estimatedCost:recorded.reduce((sum,item)=>sum+Number(item.estimatedCost??0),0),generationMs:recorded.reduce((sum,item)=>sum+Number(item.generationMs??0),0),providerAttempts:recorded,providerMetadata:{pipeline,stageCount:recorded.length,fallbackUsed:pipeline==='primary_then_fallback'}}};
 }
 function veniceAttempt(attemptNumber:number,stage:string,routeId:string,result:VeniceEditResult,success:boolean):ProviderAttempt{return{attemptNumber,stage,routeId,provider:'venice',model:result.model,estimatedCost:result.estimatedCost,generationMs:result.generationMs,success,providerRequestId:result.providerRequestId};}
 function failedVeniceAttempt(attemptNumber:number,stage:string,routeId:string,model:string,error:unknown,estimatedCost:number):ProviderAttempt{return{attemptNumber,stage,routeId,provider:'venice',model,estimatedCost,success:false,failureCode:error instanceof AppError?error.code:'provider_failure'};}
+async function runVeniceStage(input:{client:VeniceImageClient;attempts:ProviderAttempt[];stage:string;routeId:string;model:string;estimatedCost:number;edit:Parameters<VeniceImageClient['edit']>[0]}):Promise<VeniceEditResult>{
+  let lastError:unknown;
+  for(let stageAttempt=0;stageAttempt<2;stageAttempt+=1){
+    const attemptNumber=input.attempts.length+1;
+    try{const result=await input.client.edit(input.edit);input.attempts.push(veniceAttempt(attemptNumber,input.stage,input.routeId,result,true));return result;}
+    catch(error){lastError=error;input.attempts.push(failedVeniceAttempt(attemptNumber,input.stage,input.routeId,input.model,error,input.estimatedCost));if(!(error instanceof AppError)||!error.retryable||stageAttempt===1)throw error;await new Promise((resolve)=>setTimeout(resolve,600));}
+  }
+  throw lastError;
+}
+async function runVeniceSingleAttempt(input:{client:VeniceImageClient;attempts:ProviderAttempt[];stage:string;routeId:string;model:string;estimatedCost:number;edit:Parameters<VeniceImageClient['edit']>[0]}):Promise<VeniceEditResult>{
+  const attemptNumber=input.attempts.length+1;
+  try{const result=await input.client.edit(input.edit);input.attempts.push(veniceAttempt(attemptNumber,input.stage,input.routeId,result,true));return result;}
+  catch(error){input.attempts.push(failedVeniceAttempt(attemptNumber,input.stage,input.routeId,input.model,error,input.estimatedCost));throw error;}
+}
+async function runVeniceAdultFinal(input:{client:VeniceImageClient;attempts:ProviderAttempt[];routeId:string;primaryModel:string;references:string[];prompt:string;aspectRatio:string}):Promise<VeniceEditResult>{
+  const models=[input.primaryModel,env('KIVELLE_VENICE_ADULT_FALLBACK_MODEL',VENICE_ADULT_FALLBACK_EDIT_MODEL)].filter((model,index,all)=>Boolean(model)&&all.indexOf(model)===index);
+  let lastError:unknown;
+  for(let index=0;index<models.length;index+=1){
+    const model=models[index]!,fallback=index>0;
+    try{return await runVeniceSingleAttempt({client:input.client,attempts:input.attempts,stage:fallback?'final_adult_fallback':'final_adult_edit',routeId:input.routeId,model,estimatedCost:veniceModelCostUsd(model),edit:{model,prompt:input.prompt,images:input.references,aspectRatio:input.aspectRatio,safeMode:false,forceMultiEdit:true}});}
+    catch(error){lastError=error;if(!isVeniceAdultFinalFallbackEligible(error)||index===models.length-1)throw error;}
+  }
+  throw lastError;
+}
+function isVeniceFallbackEligible(error:unknown):boolean{return error instanceof AppError&&error.retryable&&['PROVIDER_MODEL','PROVIDER_UNAVAILABLE','PROVIDER_TIMEOUT','PROVIDER_SUBMISSION_UNKNOWN','RATE_LIMITED'].includes(error.code);}
+function isVeniceAdultFinalFallbackEligible(error:unknown):boolean{
+  // An edit model can reject an otherwise valid scoped edit at its model boundary
+  // after the canonical Grok stage has already succeeded. That is safe to
+  // retry once through the configured Venice adult fallback because the same
+  // validated request, reference image, content scope, and provider remain in
+  // force. Do not broaden this behavior to standard media or other stages.
+  return isVeniceFallbackEligible(error)||(error instanceof AppError&&error.code==='PROVIDER_REQUEST_INVALID');
+}
+function isVeniceStandardFallbackEligible(error:unknown):boolean{
+  // A blurred result is model-specific suppression, not the same signal as a
+  // provider content-policy violation. For standard/romance requests only,
+  // retry the same canonical request through the configured safe-mode fallback.
+  // Explicit policy signals remain non-retryable and never reach this branch.
+  return isVeniceFallbackEligible(error)||(error instanceof AppError&&error.code==='PROVIDER_OUTPUT_BLURRED');
+}
 function veniceReferences(request:CanonicalMediaRequest,route:MediaRouteCapability):string[]{
+  if(request.generationKind==='photo_edit'){
+    const source=request.sourceImage??request.referenceImages.find((item)=>item.role==='previous_media');
+    if(!source)throw new AppError('PROVIDER_REQUEST_INVALID','The source photo for this edit was unavailable.',422,true);
+    return[referenceSource(source)];
+  }
   const identity=request.referenceImages.find((item)=>item.role==='character_identity'&&(item.signedUrl||item.bytes));
   if(request.generationKind!=='creator_identity'&&!identity)throw new AppError('CHARACTER_REFERENCE_REQUIRED','The companion reference photo could not be prepared.',409,true);
   return[...(identity?[identity]:[]),...request.referenceImages.filter((item)=>item!==identity&&(item.signedUrl||item.bytes))].slice(0,Math.min(3,route.maxReferenceImages)).map(referenceSource);
@@ -132,9 +199,50 @@ function veniceReferences(request:CanonicalMediaRequest,route:MediaRouteCapabili
 function referenceSource(reference:MediaReferenceImage):string{if(reference.signedUrl)return reference.signedUrl;if(reference.bytes)return uint8ToBase64(reference.bytes);throw new AppError('CHARACTER_REFERENCE_REQUIRED','A required media reference could not be prepared.',409,true);}
 function adultEditPrompt(request:CanonicalMediaRequest):string{
   const intent=request.generationIntent?.requestText?.trim();if(!intent)throw new AppError('PROVIDER_REQUEST_INVALID','The approved adult photo request was incomplete.',422,false);
-  return[`Apply only this approved change to the already rendered photograph: ${intent}`,`This is ${request.companion.name}, one fictional consenting adult age ${request.companion.age}.`,'Preserve the exact same adult face, facial structure, hair, body identity, body proportions, pose, camera angle, crop, lighting, background, location, activity, and all clothing not explicitly changed by the request.','Keep exactly one person. Do not duplicate the subject or add another person. Maintain realistic anatomy, natural skin texture, a sharp undistorted face, photorealism, and a single coherent camera image. No collage, reference image, caption, watermark, or text.'].join('\n');
+  const direction=resolvePhotoDirection({requestText:intent,shotType:request.composition.shotType,seed:request.mediaId}),faceGuidance=direction.faceMayBeHidden?'Keep the face hidden or away exactly as requested. No eye contact, camera-facing smile, over-shoulder glance, or inserted face; preserve identity through body and hair.':`Keep the same sharp, undistorted, recognizable face when visible. ${direction.faceDirection}`,nudityScope=resolveAdultNudityScope(intent),nudityGuidance=adultNudityGuidance(nudityScope,intent),preservationGuidance=adultPreservationGuidance(nudityScope,intent);
+  const instruction=request.generationKind==='photo_edit'?buildMediaEditConstraint(intent,classifyMediaEditSemantics(intent)):`Edit only this approved change: ${clipVenicePrompt(intent,300)}.`;
+  return[instruction,`${request.companion.name} is one fictional consenting adult age ${request.companion.age}.`,`Pose: ${clipVenicePrompt(direction.poseDirection,260)}. ${clipVenicePrompt(direction.faceDirection,120)}`,nudityGuidance,preservationGuidance,clipVenicePrompt(faceGuidance,180),'One coherent adult body, realistic skin and anatomy, natural joints, connected limbs, and five fingers per visible hand. No duplication, fusion, distortion, blank anatomy, censorship, collage, caption, watermark, or text.'].join('\n').slice(0,1_200);
 }
+function adultPreservationGuidance(scope:ReturnType<typeof resolveAdultNudityScope>,intent:string):string{
+  if(scope==='specific_anatomy'&&resolveSpecificAnatomyExposure(intent)==='uncovered')return'Preserve the same adult identity, hair, body proportions, lighting, background, location, activity, and all unrelated clothing. Preserve the camera direction and overall pose only where they keep the specifically requested anatomy clearly visible; minimally reframe, reposition, or adjust the crop when necessary to satisfy that visibility requirement.';
+  return'Preserve the same adult identity, hair, body proportions, camera angle, crop, lighting, background, location, activity, and all clothing not explicitly changed.';
+}
+function adultNudityGuidance(scope:ReturnType<typeof resolveAdultNudityScope>,intent:string):string{
+  if(scope==='full_nude')return'Approved scope: full adult nudity. Remove all clothing while preserving identity and pose. Any external adult anatomy naturally visible from the requested camera angle must be complete, anatomically coherent, and photographically detailed—not censored, covered by invented clothing, blurred, smoothed over, or rendered as a featureless doll-like region. Do not invent visibility for regions that are genuinely occluded or outside the frame.';
+  if(scope==='bottomless')return'Approved scope: lower-body nudity only. Preserve unmentioned upper clothing. Any external adult anatomy naturally visible from the requested camera angle must be complete, coherent, and photographically detailed rather than blank, blurred, or doll-like. Do not invent visibility through occlusion.';
+  if(scope==='specific_anatomy'){
+    if(resolveSpecificAnatomyExposure(intent)==='covered')return'Approved scope: the specifically requested adult anatomy with coverage explicitly retained. Keep the requested garment or fabric in place and do not expose anatomy through it. Preserve all other clothing and body details.';
+    return'Approved scope: the specifically requested adult anatomy is uncovered by default. Remove or reposition only the garment or fabric that directly blocks the named anatomy, even when that garment was not separately named. Make the requested anatomy clearly visible, unobstructed, anatomically coherent, and large enough to read at a useful photographic scale. Do not preserve the base crop, pose occlusion, or blocking garment when it would hide or miniaturize the requested anatomy. Preserve all unrelated clothing and anatomy.';
+  }
+  if(scope==='topless')return'Approved scope: upper-body nudity only. Preserve lower-body clothing exactly and do not expose unrequested lower anatomy. Render visible requested upper anatomy naturally and completely.';
+  return'Approved scope: do not add nudity or expose anatomy beyond the exact user wording.';
+}
+export function buildVeniceImagePrompt(request:CanonicalMediaRequest):string{
+  if(request.generationKind==='photo_edit')return buildImagePrompt(request).slice(0,2_000);
+  const identity=request.visualIdentity,place=request.context.place,location=request.context.location;
+  const wardrobe=request.context.outfitDescription?.trim()||`natural ${String(identity.fashionStyle??'contemporary')} clothing appropriate to the place and activity`;
+  const locationDescription=place?.location.visualContext.canonicalPrompt??place?.location.lore.summary??place?.location.description??location?.description??location?.name??'the canonical current location';
+  const resolvedDirection=resolvePhotoDirection({requestText:request.generationIntent?.requestText,shotType:request.composition.shotType,seed:request.mediaId}),direction={poseDirection:request.composition.poseDirection??resolvedDirection.poseDirection,faceDirection:request.composition.faceDirection??resolvedDirection.faceDirection,faceMayBeHidden:request.composition.faceMayBeHidden??resolvedDirection.faceMayBeHidden},faceGuidance=direction.faceMayBeHidden?`${direction.faceDirection} The requested composition intentionally permits the face to be covered, turned away, cropped out, or outside the frame. Do not force a face into view. Preserve identity through body, hair, and visible identifying features; any visible face must remain natural and identity-consistent.`:`Keep the same face recognizable and identity-consistent whenever visible. ${direction.faceDirection}`;
+  const prompt=[
+    `Create one new photorealistic personal photograph of ${request.companion.name}, one fictional adult age ${request.companion.age}.`,
+    'Use the input image only to preserve the exact same adult face, hair, eyes, skin tone, body identity, age, and identifying features. Do not copy its clothing, pose, crop, background, or lighting.',
+    `Identity: ${clipVenicePrompt(identity.canonicalDescription,260)} Hair: ${clipVenicePrompt(identity.hair,100)}. Eyes: ${clipVenicePrompt(identity.eyes,70)}. Build: ${clipVenicePrompt(identity.build,100)}.`,
+    `Scene: ${clipVenicePrompt(place?.path??location?.name??'the canonical current place',120)}. ${clipVenicePrompt(locationDescription,360)}`,
+    `Activity: ${clipVenicePrompt(request.context.activity,180)}. Mood: ${clipVenicePrompt(request.context.mood,100)}. Time: ${clipVenicePrompt(place?`${place.clock.weekday} ${place.clock.localTime}, ${place.clock.daypart}`:request.context.timeOfDay,120)}.`,
+    `Wardrobe: ${clipVenicePrompt(wardrobe,240)}.`,
+    `Composition: ${request.composition.shotType.replace('_',' ')} photo; ${clipVenicePrompt(request.composition.framing,180)}. Pose: ${direction.poseDirection}.`,
+    ...(request.generationIntent?.requestText?[`Approved request: ${clipVenicePrompt(request.generationIntent.requestText,300)}`]:[]),
+    `${faceGuidance} The input reference defines identity only; never copy its pose, straight-on head alignment, gaze, expression, crop, or camera angle.`,
+    'Natural skin detail, realistic adult body proportions, coherent torso and limbs, plausible joints, and realistic lighting. Every visible hand has one palm, five distinct naturally arranged fingers, correct thumb placement, and believable nails. One person only. No fused or duplicated body parts, malformed hands, extra or missing digits, stretched limbs, melted anatomy, vague featureless skin regions, collage, inset reference, profile card, text, caption, watermark, illustration, CGI, duplicate face, or identity drift.',
+  ].join('\n');
+  // Venice edit models publish model-specific prompt limits and recommend short
+  // edit instructions. Keep canonical facts while avoiding a provider-level
+  // 400 from the much larger general Kivelle media prompt.
+  return prompt.slice(0,2_000);
+}
+function clipVenicePrompt(value:unknown,max:number):string{const text=String(value??'').replace(/\s+/g,' ').trim();return text.length<=max?text:`${text.slice(0,Math.max(0,max-1)).trimEnd()}…`;}
 function uint8ToBase64(bytes:Uint8Array):string{let binary='';for(let index=0;index<bytes.length;index+=32768)binary+=String.fromCharCode(...bytes.subarray(index,index+32768));return btoa(binary);}
+function uint8ToDataUrl(bytes:Uint8Array,contentType:string):string{return`data:${contentType};base64,${uint8ToBase64(bytes)}`;}
 function dimensions(aspect:string,quality:string){const long=quality==='economy'?768:1024;return aspect==='16:9'?{width:long,height:Math.round(long*9/16)}:aspect==='1:1'?{width:long,height:long}:{width:Math.round(long*4/5),height:long};}
 function env(name:string,fallback:string){return Deno.env.get(name)??fallback;}
 function canaryWaveSpeed(seed:string){if(!envBoolean('KIVELLE_WAVESPEED_ENABLED'))return false;const percent=Math.max(0,Math.min(100,envNumber('KIVELLE_WAVESPEED_CANARY_PERCENT',0)));if(percent>=100)return true;let hash=0;for(const char of seed)hash=(hash*31+char.charCodeAt(0))>>>0;return hash%100<percent;}

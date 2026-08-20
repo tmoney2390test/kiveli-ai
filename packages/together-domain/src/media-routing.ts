@@ -22,6 +22,7 @@ export type MediaRouteInput={
   source:string;userTier:string;preferredProvider?:string;
   qualityRetry?:boolean;
   requiresCharacterReference?:boolean;
+  requiresImageEditing?:boolean;
 };
 
 export type MediaRoute={capability:MediaRouteCapability;reasonCode:string;fallbacks:MediaRouteCapability[]};
@@ -29,7 +30,7 @@ export type MediaRoute={capability:MediaRouteCapability;reasonCode:string;fallba
 export function routeMediaGeneration(input:MediaRouteInput,registry:MediaRouteCapability[]):MediaRoute|null{
   if(input.requiresCharacterReference&&!input.characterIdentityAvailable)return null;
   const hasReference=input.characterIdentityAvailable||input.locationReferenceAvailable||Boolean(input.worldReferenceAvailable)||input.outfitReferenceAvailable;
-  const candidates=registry.filter((entry)=>entry.enabled&&entry.mediaTypes.includes(input.mediaType)&&entry.contentLevels.includes(input.contentLevel)&&entry.qualityTiers.includes(input.qualityTier)&&(!entry.requiresReferenceImages||hasReference)&&(!input.requiresCharacterReference||(entry.supportsCharacterReference&&entry.maxReferenceImages>0))&&(!input.characterLoRAAvailable||!entry.supportsLoRA||entry.loraModelFamilies.includes(input.characterLoRAModelFamily??''))&&(!(input.mediaType==='video')||entry.supportsImageToVideo));
+  const candidates=registry.filter((entry)=>entry.enabled&&entry.mediaTypes.includes(input.mediaType)&&entry.contentLevels.includes(input.contentLevel)&&entry.qualityTiers.includes(input.qualityTier)&&(!entry.requiresReferenceImages||hasReference)&&(!input.requiresCharacterReference||(entry.supportsCharacterReference&&entry.maxReferenceImages>0))&&(!input.requiresImageEditing||entry.supportsImageEditing)&&(!input.characterLoRAAvailable||!entry.supportsLoRA||entry.loraModelFamilies.includes(input.characterLoRAModelFamily??''))&&(!(input.mediaType==='video')||entry.supportsImageToVideo));
   const scored=candidates.map((entry)=>({entry,score:entry.priority+providerPreference(entry,input)+referenceFit(entry,input)+loraFit(entry,input)+qualityFit(entry,input)+requestSourceFit(entry,input)+qualityRetryFit(entry,input)})).sort((a,b)=>b.score-a.score||a.entry.id.localeCompare(b.entry.id));
   const primary=scored[0]?.entry;if(!primary)return null;
   return{capability:primary,reasonCode:routeReason(primary,input),fallbacks:scored.slice(1).map((item)=>item.entry)};
@@ -39,9 +40,9 @@ function providerPreference(entry:MediaRouteCapability,input:MediaRouteInput){re
 function referenceFit(entry:MediaRouteCapability,input:MediaRouteInput){let score=0;if(input.characterIdentityAvailable&&entry.supportsCharacterReference)score+=18;if(input.locationReferenceAvailable&&entry.supportsLocationReference)score+=input.shotType==='scene'?24:16;if(!input.locationReferenceAvailable&&input.worldReferenceAvailable&&entry.supportsLocationReference)score+=8;if(input.outfitReferenceAvailable&&entry.maxReferenceImages>=3)score+=5;if((input.characterIdentityAvailable||input.locationReferenceAvailable)&&entry.maxReferenceImages===0)score-=65;return score;}
 function loraFit(entry:MediaRouteCapability,input:MediaRouteInput){if(!input.characterLoRAAvailable)return 0;return entry.supportsLoRA&&entry.loraModelFamilies.includes(input.characterLoRAModelFamily??'')?100:-5;}
 function qualityFit(entry:MediaRouteCapability,input:MediaRouteInput){return input.qualityTier==='premium'&&entry.qualityTiers.includes('premium')?4:0;}
-function requestSourceFit(entry:MediaRouteCapability,input:MediaRouteInput){if(!entry.preferredForUserRequests)return 0;return input.source==='user_request'?36:-36;}
+function requestSourceFit(entry:MediaRouteCapability,input:MediaRouteInput){if(!entry.preferredForUserRequests)return 0;return['user_request','user_edit'].includes(input.source)?36:-36;}
 function qualityRetryFit(entry:MediaRouteCapability,input:MediaRouteInput){return input.qualityRetry&&entry.preferredForQualityRetry?80:0;}
-function routeReason(entry:MediaRouteCapability,input:MediaRouteInput){if(input.mediaType==='video')return'image_to_video';if(input.characterLoRAAvailable&&entry.supportsLoRA&&input.locationReferenceAvailable&&entry.supportsLocationReference)return'compatible_lora_plus_location';if(input.locationReferenceAvailable&&entry.supportsLocationReference&&input.characterIdentityAvailable&&entry.supportsCharacterReference)return'character_plus_location_references';if(input.characterLoRAAvailable&&entry.supportsLoRA)return'compatible_character_lora';if(input.characterIdentityAvailable&&entry.supportsCharacterReference)return'character_reference';return'textual_context_fallback';}
+function routeReason(entry:MediaRouteCapability,input:MediaRouteInput){if(input.mediaType==='video')return'image_to_video';if(input.requiresImageEditing)return'source_image_edit';if(input.characterLoRAAvailable&&entry.supportsLoRA&&input.locationReferenceAvailable&&entry.supportsLocationReference)return'compatible_lora_plus_location';if(input.locationReferenceAvailable&&entry.supportsLocationReference&&input.characterIdentityAvailable&&entry.supportsCharacterReference)return'character_plus_location_references';if(input.characterLoRAAvailable&&entry.supportsLoRA)return'compatible_character_lora';if(input.characterIdentityAvailable&&entry.supportsCharacterReference)return'character_reference';return'textual_context_fallback';}
 
 export type MediaPolicyInput={
   requestedLevel:MediaContentLevel;source:string;automatic:boolean;ageVerified:boolean;characterAge:number;
@@ -52,6 +53,12 @@ export type MediaPolicyInput={
 };
 
 export type MediaPolicyDecision={allowed:boolean;resolvedLevel:MediaContentLevel;reasonCode:string};
+
+export function resolveCharacterMediaBoundaries(versionBoundaries:unknown,templateBoundaries:unknown):Record<string,unknown>{
+  const template=templateBoundaries&&typeof templateBoundaries==='object'&&!Array.isArray(templateBoundaries)?templateBoundaries as Record<string,unknown>:{};
+  const version=versionBoundaries&&typeof versionBoundaries==='object'&&!Array.isArray(versionBoundaries)?versionBoundaries as Record<string,unknown>:{};
+  return{...template,...version};
+}
 
 export function resolveMediaContentPolicy(input:MediaPolicyInput):MediaPolicyDecision{
   if(!input.ageVerified)return deny('age_verification_required');

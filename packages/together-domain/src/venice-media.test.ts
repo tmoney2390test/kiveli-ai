@@ -4,7 +4,10 @@ import {
   parseVeniceSafetyHeaders,
   resolveVenicePipeline,
   VENICE_ADULT_EDIT_MODEL,
+  VENICE_ADULT_FINAL_EDIT_MODEL,
+  VENICE_QUALITY_EDIT_MODEL,
   VENICE_STANDARD_EDIT_MODEL,
+  VENICE_STANDARD_FALLBACK_EDIT_MODEL,
   veniceModelCostUsd,
 } from './venice-media.ts';
 
@@ -12,21 +15,31 @@ describe('Venice media contracts', () => {
   it('uses the single-edit wire contract for one canonical reference', () => {
     const request = buildVeniceEditRequest({ model: VENICE_STANDARD_EDIT_MODEL, prompt: 'Preserve her identity.', images: ['https://signed.test/character.jpg'], aspectRatio: '4:5', safeMode: true });
     expect(request.endpoint).toBe('/image/edit');
-    expect(request.body).toMatchObject({ model: VENICE_STANDARD_EDIT_MODEL, image: 'https://signed.test/character.jpg', aspect_ratio: '4:5', safe_mode: true });
+    expect(request.body).toMatchObject({ model: VENICE_STANDARD_EDIT_MODEL, image: 'https://signed.test/character.jpg' });
+    expect(request.body).not.toHaveProperty('aspect_ratio');
+    expect(request.body).not.toHaveProperty('safe_mode');
+    expect(request.body).not.toHaveProperty('resolution');
+    expect(request.body).not.toHaveProperty('output_format');
   });
 
   it('uses modelId and capped references for multi-edit', () => {
-    const request = buildVeniceEditRequest({ model: VENICE_STANDARD_EDIT_MODEL, prompt: 'Use the real gallery.', images: ['identity', 'location', 'outfit', 'ignored'], aspectRatio: '16:9', safeMode: true });
+    const request = buildVeniceEditRequest({ model: VENICE_STANDARD_EDIT_MODEL, prompt: 'Use the real gallery.', images: ['identity', 'location', 'outfit', 'ignored'], aspectRatio: '16:9', safeMode: true, includeAspectRatio: true });
     expect(request.endpoint).toBe('/image/multi-edit');
-    expect(request.body).toMatchObject({ modelId: VENICE_STANDARD_EDIT_MODEL, images: ['identity', 'location', 'outfit'], safe_mode: true });
+    expect(request.body).toMatchObject({ modelId: VENICE_STANDARD_EDIT_MODEL, images: ['identity', 'location', 'outfit'], safe_mode: true, aspect_ratio: '16:9' });
     expect(request.body).not.toHaveProperty('model');
   });
 
+  it('can force a one-image adult stage through multi-edit so safe mode is explicit', () => {
+    const request = buildVeniceEditRequest({ model: VENICE_ADULT_EDIT_MODEL, prompt: 'Apply the approved edit.', images: ['base64-image'], aspectRatio: '4:5', safeMode: false, forceMultiEdit: true });
+    expect(request.endpoint).toBe('/image/multi-edit');
+    expect(request.body).toMatchObject({ modelId: VENICE_ADULT_EDIT_MODEL, images: ['base64-image'], safe_mode: false });
+  });
+
   it('builds a bounded two-stage pipeline only for approved adult levels', () => {
-    expect(resolveVenicePipeline({ contentLevel: 'standard' })).toEqual([{ kind: 'final_edit', model: VENICE_STANDARD_EDIT_MODEL, safeMode: true, estimatedCostUsd: .04 }]);
+    expect(resolveVenicePipeline({ contentLevel: 'standard' })).toEqual([{ kind: 'final_edit', model: VENICE_STANDARD_EDIT_MODEL, safeMode: true, estimatedCostUsd: .05 }]);
     expect(resolveVenicePipeline({ contentLevel: 'explicit' })).toEqual([
-      { kind: 'canonical_base', model: VENICE_STANDARD_EDIT_MODEL, safeMode: true, estimatedCostUsd: .04 },
-      { kind: 'final_edit', model: VENICE_ADULT_EDIT_MODEL, safeMode: false, estimatedCostUsd: .04 },
+      { kind: 'canonical_base', model: VENICE_ADULT_EDIT_MODEL, safeMode: false, estimatedCostUsd: .04 },
+      { kind: 'final_edit', model: VENICE_ADULT_FINAL_EDIT_MODEL, safeMode: false, estimatedCostUsd: .04 },
     ]);
   });
 
@@ -37,6 +50,9 @@ describe('Venice media contracts', () => {
 
   it('keeps provider prices centralized and explicit estimates', () => {
     expect(veniceModelCostUsd('qwen-edit')).toBe(.04);
-    expect(veniceModelCostUsd('grok-imagine-quality-edit')).toBe(.10);
+    expect(veniceModelCostUsd(VENICE_STANDARD_EDIT_MODEL)).toBe(.05);
+    expect(veniceModelCostUsd(VENICE_STANDARD_FALLBACK_EDIT_MODEL)).toBe(.04);
+    expect(veniceModelCostUsd('firered-image-edit')).toBe(.04);
+    expect(veniceModelCostUsd(VENICE_QUALITY_EDIT_MODEL)).toBe(.10);
   });
 });

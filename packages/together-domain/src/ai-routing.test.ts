@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { classifyDialogueContent, routeKivelleDialogue, type DialogueProviderAvailability } from './ai-routing.ts';
+import { classifyPhotoIntent } from './media.ts';
 
 const providers: DialogueProviderAvailability = { openai:true, xai:true, gemini:true, xaiEnabled:true, xaiExplicitEnabled:true };
 const route = (message:string, options:Partial<Parameters<typeof routeKivelleDialogue>[0]> = {}, recentTurns:Array<{role:string;content:string}>=[]) => routeKivelleDialogue({ classification:classifyDialogueContent({message,recentTurns,requestedMode:options.requestedMode??'explicit'}), requestedMode:'explicit', ageVerified:true, characterAge:29, providers, ...options });
@@ -14,6 +15,8 @@ describe('Kivelle AI routing',()=>{
   it('lets PhotoGen own eligible adult-photo policy instead of treating it as explicit dialogue',()=>{
     expect(route('send me a nude photo',{relationshipAllowsExplicit:false,photoRequest:true})).toMatchObject({provider:'openai',hardBlocked:false,explicit:false});
     expect(route('send me a nude photo',{providers:{...providers,xaiEnabled:false},photoRequest:true})).toMatchObject({provider:'openai',hardBlocked:false});
+    const shorthand='show me your boobs';
+    expect(route(shorthand,{relationshipAllowsExplicit:false,photoRequest:classifyPhotoIntent(shorthand).requested})).toMatchObject({provider:'openai',hardBlocked:false,explicit:false});
   });
   it('retains adult-age and hard-safety blocks for photo requests',()=>{
     expect(route('send me a nude photo',{ageVerified:false,photoRequest:true}).hardBlocked).toBe(true);

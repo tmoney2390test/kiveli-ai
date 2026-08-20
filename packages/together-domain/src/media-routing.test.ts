@@ -1,5 +1,5 @@
 import{describe,expect,it}from'vitest';
-import{modelFamilyFor,resolveMediaContentPolicy,routeMediaGeneration,type MediaRouteCapability}from'./media-routing.ts';
+import{modelFamilyFor,resolveCharacterMediaBoundaries,resolveMediaContentPolicy,routeMediaGeneration,type MediaRouteCapability}from'./media-routing.ts';
 
 const registry:MediaRouteCapability[]=[
   {id:'wavespeed-max',provider:'wavespeed',model:'wavespeed-ai/flux-kontext-max/multi',modelFamily:'flux',mediaTypes:['image'],contentLevels:['standard','romance'],supportsCharacterReference:true,supportsLocationReference:true,maxReferenceImages:5,supportsLoRA:false,loraModelFamilies:[],supportsImageEditing:true,supportsImageToVideo:false,qualityTiers:['economy','standard','premium'],priority:97,enabled:true,asynchronous:true,preferredForQualityRetry:true,requiresReferenceImages:true},
@@ -18,6 +18,7 @@ describe('media routing',()=>{
   it('does not select the multi-reference Pro endpoint without a reference',()=>{const route=routeMediaGeneration({...input,characterIdentityAvailable:false,locationReferenceAvailable:false},registry);expect(route?.capability.id).not.toBe('wavespeed-pro');});
   it('refuses every character-photo route when a usable identity reference is required but missing',()=>expect(routeMediaGeneration({...input,characterIdentityAvailable:false,locationReferenceAvailable:true,requiresCharacterReference:true},registry)).toBeNull());
   it('excludes text-only and LoRA-only routes when character photos require an identity image',()=>{const route=routeMediaGeneration({...input,requiresCharacterReference:true},registry);expect(route?.fallbacks.map((item)=>item.id)).not.toContain('wavespeed-z-lora');});
+  it('treats a user edit as an intentional request and requires a true image-edit route',()=>{const route=routeMediaGeneration({...input,source:'user_edit',requiresImageEditing:true},registry);expect(route?.capability.id).toBe('wavespeed-pro');expect(route?.reasonCode).toBe('source_image_edit');expect([route?.capability,...(route?.fallbacks??[])].every((item)=>item?.supportsImageEditing)).toBe(true);});
   it('uses only a compatible LoRA family for automatic generation',()=>{const route=routeMediaGeneration({...input,source:'life_event',locationReferenceAvailable:false,characterLoRAAvailable:true,characterLoRAModelFamily:'z-image'},registry);expect(route?.capability.id).toBe('wavespeed-z-lora');const incompatible=routeMediaGeneration({...input,source:'life_event',locationReferenceAvailable:false,characterLoRAAvailable:true,characterLoRAModelFamily:'sdxl'},registry);expect(incompatible?.capability.id).not.toBe('wavespeed-z-lora');});
   it('keeps fallback ordering deterministic',()=>{expect(routeMediaGeneration(input,registry)?.fallbacks.map((item)=>item.id)).toEqual(['wavespeed-multiref','wavespeed-max','openai','wavespeed-z-lora']);});
   it('identifies model families conservatively',()=>{expect(modelFamilyFor('wavespeed-ai/flux-2-klein-4b/edit-lora')).toBe('flux');expect(modelFamilyFor('qwen-edit-uncensored')).toBe('qwen-image');expect(modelFamilyFor('grok-imagine-quality-edit')).toBe('grok-image');expect(modelFamilyFor('vendor/new-model')).toBe('unknown');});
@@ -32,4 +33,9 @@ describe('media policy',()=>{
   it('requires a separate adult-video permission',()=>{expect(resolveMediaContentPolicy({...policy,requestedLevel:'suggestive',suggestiveMediaEnabled:true,adultMediaFeatureEnabled:true,mediaType:'video'}).reasonCode).toBe('adult_video_disabled');expect(resolveMediaContentPolicy({...policy,requestedLevel:'suggestive',suggestiveMediaEnabled:true,adultMediaFeatureEnabled:true,adultVideoEnabled:true,mediaType:'video'}).allowed).toBe(true);});
   it('never lets policy or provider routing bypass real-person and consent boundaries',()=>{expect(resolveMediaContentPolicy({...policy,requestedLevel:'explicit',explicitMediaEnabled:true,adultMediaFeatureEnabled:true,realPersonRequest:true}).allowed).toBe(false);expect(resolveMediaContentPolicy({...policy,nonConsensualRequest:true}).reasonCode).toBe('consent_boundary');});
   it('keeps character-authored media boundaries authoritative',()=>expect(resolveMediaContentPolicy({...policy,requestedLevel:'mature',matureMediaEnabled:true,adultMediaFeatureEnabled:true,characterAllowsRequestedLevel:false}).reasonCode).toBe('character_boundary'));
+  it('uses the active CharacterVersion boundary before a stale template fallback',()=>{
+    expect(resolveCharacterMediaBoundaries({allows_explicit:true},{allows_explicit:false})).toMatchObject({allows_explicit:true});
+    expect(resolveCharacterMediaBoundaries(undefined,{allows_explicit:true})).toMatchObject({allows_explicit:true});
+    expect(resolveCharacterMediaBoundaries({allows_explicit:false},{allows_explicit:true})).toMatchObject({allows_explicit:false});
+  });
 });
