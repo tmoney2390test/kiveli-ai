@@ -4,6 +4,7 @@ import { parseBody } from "../_shared/body.ts";
 import { authenticated, enforceRateLimit } from "../_shared/context.ts";
 import { json, serve } from "../_shared/http.ts";
 import {
+  configuredSpeechToTextProvider,
   configuredTextToSpeechProvider,
   configuredVisionProvider,
   normalizeMultimodalPreferences,
@@ -75,6 +76,9 @@ const schema = z.discriminatedUnion("action", [
 
 serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
+  if (new URL(request.url).searchParams.get("action") === "transcribe_audio") {
+    return await transcribeAudio(request, correlationId, user.id, db);
+  }
   const input = await parseBody(request, schema);
   const continuity = await activeContinuity(db, user.id);
   const [{ data: profile }, { data: entitlement }] = await Promise.all([
@@ -787,6 +791,101 @@ serve(async (request, correlationId) => {
     correlationId,
   );
 });
+
+const MAX_DICTATION_BYTES = 8 * 1024 * 1024;
+const supportedDictationTypes = new Set([
+  "audio/aac",
+  "audio/flac",
+  "audio/mp4",
+  "audio/mpeg",
+  "audio/ogg",
+  "audio/wav",
+  "audio/webm",
+  "audio/x-m4a",
+  "audio/x-wav",
+]);
+
+async function transcribeAudio(
+  request: Request,
+  correlationId: string,
+  userId: string,
+  db: any,
+): Promise<Response> {
+  if (request.method !== "POST") {
+    throw new AppError("VALIDATION_FAILED", "Use POST for voice-to-text.", 405);
+  }
+  if (!request.headers.get("content-type")?.toLowerCase().startsWith("multipart/form-data")) {
+    throw new AppError("VALIDATION_FAILED", "A voice recording is required.", 422);
+  }
+  const declaredSize = Number(request.headers.get("content-length") ?? 0);
+  if (declaredSize > MAX_DICTATION_BYTES + 64 * 1024) {
+    throw new AppError("VALIDATION_FAILED", "Keep voice-to-text recordings under one minute.", 413);
+  }
+  const form = await request.formData().catch(() => null);
+  const audio = form?.get("audio");
+  const conversationId = String(form?.get("conversationId") ?? "");
+  const characterInstanceId = String(form?.get("characterInstanceId") ?? "");
+  const durationMs = Math.max(0, Math.min(60_000, Number(form?.get("durationMs") ?? 0)));
+  if (!(audio instanceof Blob) || !uuid.safeParse(conversationId).success ||
+    !uuid.safeParse(characterInstanceId).success) {
+    throw new AppError("VALIDATION_FAILED", "A valid voice recording is required.", 422);
+  }
+  const contentType = audio.type.toLowerCase().split(";", 1)[0] ?? "";
+  if (!supportedDictationTypes.has(contentType)) {
+    throw new AppError("VALIDATION_FAILED", "That audio format is not supported.", 422);
+  }
+  if (audio.size < 800) {
+    throw new AppError("VALIDATION_FAILED", "Speak for a moment before stopping.", 422);
+  }
+  if (audio.size > MAX_DICTATION_BYTES) {
+    throw new AppError("VALIDATION_FAILED", "Keep voice-to-text recordings under one minute.", 413);
+  }
+
+  const continuity = await activeContinuity(db, userId);
+  await requireInstanceInActiveContinuity(db, userId, characterInstanceId);
+  await requireConversation(
+    db,
+    userId,
+    continuity.id,
+    conversationId,
+    characterInstanceId,
+  );
+  await enforceRateLimit(db, userId, "together_chat_dictation", 120, 3600);
+  const provider = configuredSpeechToTextProvider();
+  if (!provider) {
+    throw new AppError(
+      "PROVIDER_NOT_CONFIGURED",
+      "Voice-to-text is not available right now.",
+      503,
+      true,
+    );
+  }
+  const suppliedName = typeof (audio as Blob & { name?: unknown }).name === "string"
+    ? String((audio as Blob & { name?: string }).name)
+    : "dictation";
+  const result = await provider.transcribe({
+    bytes: new Uint8Array(await audio.arrayBuffer()),
+    contentType,
+    fileName: suppliedName,
+  });
+  await track(db, userId, "chat_dictation_transcribed", {
+    conversationId,
+    characterInstanceId,
+    provider: provider.id,
+    model: result.model,
+    byteSize: audio.size,
+    durationMs,
+    latencyMs: result.latencyMs ?? null,
+  });
+  return json({
+    data: {
+      text: result.text,
+      provider: provider.id,
+      model: result.model,
+    },
+    correlationId,
+  }, 200, correlationId);
+}
 
 async function requireConversation(
   db: any,

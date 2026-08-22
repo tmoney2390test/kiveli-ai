@@ -24,6 +24,11 @@ import {
 import type { RealtimeVoiceClientConfiguration } from "./kivelle-realtime-voice.ts";
 import { applyCompanionVoicePreset } from "./companion-voice-selection.ts";
 import type { CompanionVoicePreset } from "../../../packages/together-domain/src/voice-presets.ts";
+import {
+  OPENAI_TRANSCRIPTION_MODEL,
+  OpenAiSpeechToTextProvider,
+  openAiSpeechToTextConfigurationAvailable,
+} from "./openai-speech-to-text.ts";
 
 export type VisionInput = {
   bytes: Uint8Array;
@@ -62,6 +67,22 @@ export type SpeechResult = {
 export interface TextToSpeechProvider {
   readonly id: string;
   synthesize(input: SpeechInput): Promise<SpeechResult>;
+}
+
+export type SpeechToTextInput = {
+  bytes: Uint8Array;
+  contentType: string;
+  fileName: string;
+};
+export type SpeechToTextResult = {
+  text: string;
+  model: string;
+  providerRequestId?: string;
+  latencyMs?: number;
+};
+export interface SpeechToTextProvider {
+  readonly id: string;
+  transcribe(input: SpeechToTextInput): Promise<SpeechToTextResult>;
 }
 
 export type RealtimeVoiceInput = {
@@ -112,6 +133,13 @@ class DeterministicTextToSpeechProvider implements TextToSpeechProvider {
   }
 }
 
+class DeterministicSpeechToTextProvider implements SpeechToTextProvider {
+  readonly id = "deterministic_test";
+  async transcribe(): Promise<SpeechToTextResult> {
+    return { text: "Hello from dictation.", model: "deterministic-transcript-v1" };
+  }
+}
+
 class DeterministicRealtimeVoiceProvider implements RealtimeVoiceProvider {
   readonly id = "deterministic_test";
   async createSession(
@@ -150,6 +178,21 @@ const textToSpeechProviderRegistry: Readonly<
       : null,
 };
 
+const speechToTextProviderRegistry: Readonly<
+  Record<string, ProviderFactory<SpeechToTextProvider>>
+> = {
+  deterministic_test: () =>
+    testProvidersEnabled() ? new DeterministicSpeechToTextProvider() : null,
+  openai: () =>
+    openAiSpeechToTextConfigurationAvailable()
+      ? new OpenAiSpeechToTextProvider(
+        String(Deno.env.get("OPENAI_API_KEY")),
+        Deno.env.get("KIVELLE_OPENAI_TRANSCRIPTION_MODEL")?.trim() ||
+          OPENAI_TRANSCRIPTION_MODEL,
+      )
+      : null,
+};
+
 const realtimeVoiceProviderRegistry: Readonly<
   Record<string, ProviderFactory<RealtimeVoiceProvider>>
 > = {
@@ -178,6 +221,11 @@ export function configuredTextToSpeechProvider(): TextToSpeechProvider | null {
   return textToSpeechProviderRegistry[selected]?.() ?? null;
 }
 
+export function configuredSpeechToTextProvider(): SpeechToTextProvider | null {
+  const selected = explicitProvider("KIVELLE_STT_PROVIDER");
+  return speechToTextProviderRegistry[selected]?.() ?? null;
+}
+
 export function configuredRealtimeVoiceProvider():
   | RealtimeVoiceProvider
   | null {
@@ -191,6 +239,7 @@ export function providerCapabilityStatuses(): Record<
 > {
   const mediaRoutes = configuredMediaRegistry();
   const ttsSelection = explicitProvider("KIVELLE_TTS_PROVIDER"),
+    sttSelection = explicitProvider("KIVELLE_STT_PROVIDER"),
     realtimeSelection = explicitProvider("KIVELLE_REALTIME_VOICE_PROVIDER");
   const ttsStatus: CapabilityStatus = configuredTextToSpeechProvider()
     ? "available"
@@ -204,10 +253,16 @@ export function providerCapabilityStatuses(): Record<
         Deno.env.get("KIVELLE_XAI_REALTIME_VOICE_ENABLED") === "false"
     ? "disabled"
     : "not_configured";
+  const speechToTextStatus: CapabilityStatus = configuredSpeechToTextProvider()
+    ? "available"
+    : sttSelection === "openai" &&
+        Deno.env.get("KIVELLE_OPENAI_TRANSCRIPTION_ENABLED") === "false"
+    ? "disabled"
+    : "not_configured";
   return {
     vision: configuredVisionProvider() ? "available" : "not_configured",
     text_to_speech: ttsStatus,
-    speech_to_text: "not_configured",
+    speech_to_text: speechToTextStatus,
     realtime_voice: realtimeStatus,
     image_generation:
       mediaRoutes.some((route) =>
