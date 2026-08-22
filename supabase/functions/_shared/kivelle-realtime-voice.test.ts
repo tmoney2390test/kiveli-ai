@@ -42,3 +42,21 @@ Deno.test('realtime calls inherit the required companion curiosity and reciproci
   assert(instructions.includes('After two substantive companion turns'));
   assert(instructions.includes('"style":"direct_specific"'));
 });
+
+Deno.test('realtime calls keep identity and geography inside Kivelle context',()=>{
+  const instructions=buildKivelleRealtimeInstructions({
+    character:{name:'Brooke',age:29,boundaries:['fictional adult','mutual consent'],character_bible:{fictional:true,background:'American'}},
+    relationship:{relationship_stage:'friend'},currentScene:{availability:'available'},
+    currentWorld:{name:'Juniper City',timezone:'America/New_York'},contentMode:'standard',
+    recentConversation:[{role:'user',content:'Have you ever been to the United States?'}],
+  });
+  assert(instructions.includes('complete geographic and public-knowledge reality'));
+  assert(instructions.includes("A name appearing only in the user's message does not make it known"));
+  assert(instructions.includes('Never identify the companion as fictional'));
+  assert(!instructions.includes('as the fictional Kivelle companion'));
+  assert(!instructions.includes('consenting fictional adult'));
+  assert(!instructions.includes('"fictional adult"'));
+  assert(!instructions.includes('"fictional":true'));
+  assert(!instructions.includes('"background":"American"'));
+  assert(!instructions.includes('America/New_York'));
+});

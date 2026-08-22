@@ -8,7 +8,7 @@ export const neonKyoWorld:World={
   id:NEON_KYO_WORLD_ID,
   slug:'neon-kyo',
   name:'Neon Kyo',
-  description:'One of the richest and loneliest cities on Earth: hyperconnected, heavily watched, and always selling a more perfect version of desire.',
+  description:'One of the richest and loneliest cities in the known world: hyperconnected, heavily watched, and always selling a more perfect version of desire.',
   hero_asset_key:'neon-kyo-hero',
   access_type:'subscription',
   entitlement_key:'worlds.standard',
