@@ -2,12 +2,13 @@ import { useCallback, useMemo, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Redirect, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Archive, MoreVertical, Search, Settings, X } from 'lucide-react-native';
+import { MoreVertical, Search, Settings, Trash2, X } from 'lucide-react-native';
 import { CharacterAvatar, EmptyState, FrostedSurface } from '../../src/components';
 import { ChatSettingsModal } from '../../src/components/ChatSettingsModal';
 import { manageConversation } from '../../src/lib/api';
 import { confirmAction } from '../../src/lib/dialogs';
 import { buildInboxRows, chatHrefFromInboxParams, formatInboxTimestamp, inboxPreview, type ChatLaunchParams, type InboxFilter, type InboxRow } from '../../src/lib/messageInbox';
+import { isActiveConversation } from '../../src/lib/conversation';
 import { useTogether } from '../../src/store/useTogether';
 import { colors, radius, spacing, typography } from '../../src/theme';
 import type { Conversation } from '../../src/types';
@@ -32,7 +33,7 @@ export default function MessageInbox() {
     if (chatHref) return;
     const currentSnapshot = useTogether.getState().snapshot;
     if (!currentSnapshot) return;
-    const local = currentSnapshot.conversations.filter((conversation) => !conversation.archived_at);
+    const local = currentSnapshot.conversations.filter(isActiveConversation);
     setConversations(local);
     if (demoMode) { setLoading(false); return; }
     let cancelled = false;
@@ -61,17 +62,20 @@ export default function MessageInbox() {
   const archive = (row: InboxRow) => {
     setMenuRow(null);
     confirmAction({
-      title: `Archive chat with ${row.character.together_character_templates.name}?`,
-      message: 'The conversation will leave Messages but remain available in conversation history. Your relationship and memories will not change.',
-      confirmLabel: 'Archive chat',
+      title: `Delete chat with ${row.character.together_character_templates.name}?`,
+      message: 'The chat will disappear from Messages and conversation history. You can restore it from Settings → Archived Chats for 30 days. Your relationship and memories will not change.',
+      confirmLabel: 'Delete chat',
+      destructive: true,
       onConfirm: async () => {
         setBusyId(row.conversation.id);
         try {
-          await manageConversation({ action: 'archive', conversationId: row.conversation.id });
+          const archived=await manageConversation<Conversation>({ action: 'delete', conversationId: row.conversation.id });
           setConversations((current) => current.filter((conversation) => conversation.id !== row.conversation.id));
           await refresh();
+          const latest=useTogether.getState().snapshot;
+          if(latest)useTogether.getState().setCoreState({conversations:latest.conversations.map((conversation)=>conversation.id===archived.id?archived:conversation)});
         } catch (caught) {
-          Alert.alert('Could not archive chat', caught instanceof Error ? caught.message : 'Please try again.');
+          Alert.alert('Could not delete chat', caught instanceof Error ? caught.message : 'Please try again.');
         } finally {
           setBusyId(null);
         }
@@ -79,7 +83,7 @@ export default function MessageInbox() {
     });
   };
 
-  if (chatHref) return <Redirect href={chatHref} />;
+  if (chatHref) return <Redirect href={chatHref as never} />;
   if (!snapshot) return <EmptyState title="Messages unavailable" body="Reload Kivelle and try again." />;
   return <SafeAreaView edges={['top']} style={styles.screen}>
     <View pointerEvents="none" style={styles.glowTop} />
@@ -154,7 +158,7 @@ function ConversationActions({ row, onClose, onArchive, onSettings }: { row: Inb
         <View style={styles.sheetHandle} />
         <View style={styles.sheetHeader}><CharacterAvatar slug={row.character.together_character_templates.slug} template={row.character.together_character_templates} version={row.character.together_character_versions} size={42} /><View style={{ flex: 1 }}><Text style={styles.sheetKicker}>CHAT OPTIONS</Text><Text style={styles.sheetName}>{row.character.together_character_templates.name}</Text></View><Pressable accessibilityLabel="Close" onPress={onClose} style={styles.sheetClose}><X size={19} color={colors.muted} /></Pressable></View>
         <Pressable onPress={() => onSettings(row)} style={({ pressed }) => [styles.sheetAction, pressed && styles.pressed]}><Settings size={19} color={colors.text} /><View style={{ flex: 1 }}><Text style={styles.sheetActionTitle}>Edit chat settings</Text><Text style={styles.sheetActionCopy}>Name, response style, text size, and conversation tools</Text></View></Pressable>
-        <Pressable onPress={() => onArchive(row)} style={({ pressed }) => [styles.sheetAction, pressed && styles.pressed]}><Archive size={19} color={colors.warm} /><View style={{ flex: 1 }}><Text style={[styles.sheetActionTitle, { color: colors.warm }]}>Archive chat</Text><Text style={styles.sheetActionCopy}>Hide it here without deleting your history</Text></View></Pressable>
+        <Pressable onPress={() => onArchive(row)} style={({ pressed }) => [styles.sheetAction, pressed && styles.pressed]}><Trash2 size={19} color={colors.danger} /><View style={{ flex: 1 }}><Text style={[styles.sheetActionTitle, { color: colors.danger }]}>Delete chat</Text><Text style={styles.sheetActionCopy}>Remove it now; restore it from Settings for 30 days</Text></View></Pressable>
       </FrostedSurface> : null}
     </View>
   </Modal>;

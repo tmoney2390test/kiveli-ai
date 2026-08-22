@@ -11,7 +11,7 @@ export type SubscriptionTier=typeof subscriptionTiers[number];
 export type LegacySubscriptionTier='together_plus'|'unlimited';
 export type IntelligenceProfile='core'|'deep'|'director';
 export type MediaQueuePriority='standard'|'priority'|'highest';
-export type CreditAction='companion_photo'|'photo_edit'|'photo_variant'|'premium_photo'|'creator_appearance_set'|'short_video'|'voice_minute';
+export type CreditAction='companion_photo'|'photo_edit'|'photo_variant'|'premium_photo'|'creator_appearance_set'|'short_video'|'voice_note'|'voice_minute';
 
 export type KivelleCapabilities={
   tier:SubscriptionTier;
@@ -66,7 +66,7 @@ export const subscriptionCatalog:Record<SubscriptionTier,KivelleCapabilities>={
   kivelle_max:{tier:'kivelle_max',displayName:'Kivelle Max',monthlyPriceUsd:34.99,annualPriceUsd:349.99,chatDailyLimit:null,userRequestedPhotoDailyLimit:12,introductoryChatDailyLimit:null,introductoryChatDays:0,explicitDialogueMonthlyLimit:1500,includedDatePhotoMonthlyLimit:3,intelligenceProfile:'director',memoryRetrievalBudget:20,recentTurnBudget:28,historyRetrievalBudget:6,directorPolicy:'normal_and_up',maxLives:10,maxCustomCompanions:20,worldAccess:'all_standard',earlyWorldAccess:true,monthlyCreditGrant:1000,subscriptionCreditRolloverCap:2000,welcomeCredits:50,mediaQueue:'highest',entitlements:maxEntitlements},
 };
 
-export const creditCosts:Record<CreditAction,number>={companion_photo:10,photo_edit:10,photo_variant:10,premium_photo:20,creator_appearance_set:40,short_video:125,voice_minute:8};
+export const creditCosts:Record<CreditAction,number>={companion_photo:10,photo_edit:10,photo_variant:10,premium_photo:20,creator_appearance_set:40,short_video:125,voice_note:2,voice_minute:8};
 export function capabilitiesForTier(tier:string):KivelleCapabilities{return subscriptionCatalog[normalizeSubscriptionTier(tier)];}
 export function capabilitiesForAccount(tier:string,metadata?:unknown):KivelleCapabilities{
   const base=capabilitiesForTier(tier),record=isRecord(metadata)?metadata:{},overrides=isRecord(record['entitlementOverrides'])?record['entitlementOverrides']:{},rawGrants=Array.isArray(overrides['grants'])?overrides['grants']:[];

@@ -134,19 +134,24 @@ export function normalizeRealtimeTranscriptEvents(
   events: RealtimeTranscriptEvent[],
   fallbackOccurredAt: string,
 ): CanonicalVoiceTranscriptEvent[] {
-  return events.flatMap((event, index) => {
+  const providerIds = new Set<string>();
+  return events.flatMap((event) => {
+    if (event.final === false) return [];
     const content = event.text.replace(/\s+/g, ' ').trim().slice(0, 4_000);
     if (!content) return [];
+    if (event.providerEventId && providerIds.has(event.providerEventId)) return [];
+    if (event.providerEventId) providerIds.add(event.providerEventId);
     const parsedTime = event.occurredAt ? Date.parse(event.occurredAt) : Number.NaN;
-    return [{
-      sequence: index + 1,
+    const normalized:CanonicalVoiceTranscriptEvent={
+      sequence: 0,
       role: event.speaker === 'character' ? 'assistant' : 'user',
       content,
       occurredAt: Number.isFinite(parsedTime) ? new Date(parsedTime).toISOString() : fallbackOccurredAt,
-      final: event.final !== false,
+      final: true,
       ...(event.providerEventId ? { providerEventId: event.providerEventId } : {}),
-    }];
-  });
+    };
+    return [normalized];
+  }).map((event,index)=>({...event,sequence:index+1}));
 }
 
 export function deriveCompanionVoiceProfile(input: {

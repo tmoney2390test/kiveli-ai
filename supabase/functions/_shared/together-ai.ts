@@ -7,10 +7,10 @@ import { deterministicPlaceOpinionCandidates as derivePlaceOpinionCandidates, va
 import { detectFlirtSignal, scoreConversationEngagement } from '../../../packages/together-domain/src/relationship.ts';
 import { isDurableUserMemory, isRelationshipDirectedPreferenceMemory } from '../../../packages/together-domain/src/memory.ts';
 import { resolveConversationStyle } from '../../../packages/together-domain/src/conversation-style.ts';
-import { buildResponsesRequestBody, canRetryStreamFailure, deriveOpaquePromptCacheKey, dialogueFallbackProvider, executeResponsesHttp, extractResponsesText, normalizeResponsesUsage, parseResponsesStreamEvent, type DialogueProviderName, type DialogueRoutingDecision, type NormalizedAiUsage, type NormalizedModerationResult } from '../../../packages/together-domain/src/index.ts';
+import { buildResponsesRequestBody, canRetryStreamFailure, deriveOpaquePromptCacheKey, dialogueFallbackProvider, executeResponsesHttp, extractResponsesText, isDialogueHardBlocked, normalizeResponsesUsage, parseResponsesStreamEvent, type DialogueProviderName, type DialogueRoutingDecision, type IntimacyStance, type NormalizedAiUsage, type NormalizedModerationResult } from '../../../packages/together-domain/src/index.ts';
 import { recordAiUsage, type AiUsageScope } from './kivelle-ai-usage.ts';
 
-export type DialogueContext = KivelleConversationContext & { contentMode?:string };
+export type DialogueContext = KivelleConversationContext & { contentMode?:string;intimacyStance?:IntimacyStance;dialogueRouting?:Record<string,unknown> };
 export type DialogueRunMetadata={provider:DialogueProviderName;model:string;routeReason:string;contentMode:string;cachedInputTokens:number;inputTokens:number;outputTokens:number;reasoningTokens:number;latencyMs:number;fallback?:boolean};
 export type DialogueGenerationResult={text:string;metadata:DialogueRunMetadata};
 export type DialogueStreamEvent={type:'token';token:string}|{type:'complete';metadata:DialogueRunMetadata};
@@ -27,6 +27,13 @@ const apiKey = () => Deno.env.get('OPENAI_API_KEY');
 const xaiKey = () => Deno.env.get('XAI_API_KEY');
 const geminiKey = () => Deno.env.get('GEMINI_API_KEY');
 const model = (name: string, fallback: string) => Deno.env.get(name)?.trim() || fallback;
+const DEFAULT_DIALOGUE_PROVIDER_INACTIVITY_MS=12_000;
+
+class DialogueProviderTimeoutError extends Error{constructor(){super('dialogue_provider_timeout');this.name='DialogueProviderTimeoutError';}}
+function dialogueProviderInactivityMs():number{const configured=Number(Deno.env.get('KIVELLE_DIALOGUE_PROVIDER_INACTIVITY_MS'));return Number.isFinite(configured)?Math.min(25_000,Math.max(5_000,configured)):DEFAULT_DIALOGUE_PROVIDER_INACTIVITY_MS;}
+function isDialogueProviderTimeout(error:unknown):boolean{return error instanceof DialogueProviderTimeoutError||(error instanceof Error&&error.message==='dialogue_provider_timeout');}
+async function withDialogueProviderDeadline<T>(operation:Promise<T>,controller:AbortController,timeoutMs=dialogueProviderInactivityMs()):Promise<T>{let timer:ReturnType<typeof setTimeout>|undefined;try{return await Promise.race([operation,new Promise<T>((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new DialogueProviderTimeoutError());},timeoutMs);})]);}finally{if(timer)clearTimeout(timer);}}
+function deadlineFetch(controller:AbortController):typeof fetch{return((input:RequestInfo|URL,init?:RequestInit)=>fetch(input,{...init,signal:controller.signal})) as typeof fetch;}
 
 export function openAIDialogueModel():string{return model('KIVELLE_OPENAI_DIALOGUE_MODEL',model('KIVELLE_DIALOGUE_MODEL',model('TOGETHER_DIALOGUE_MODEL','gpt-5.6-luna')));}
 export function xaiDialogueModel():string{return model('KIVELLE_XAI_DIALOGUE_MODEL','grok-4.3');}
@@ -40,13 +47,14 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
   async generate(context: DialogueContext,options:DialogueRunOptions): Promise<DialogueGenerationResult> {
     if(options.route.provider==='openai'||options.route.provider==='xai'){
       try{return await generateResponses(context,options);}catch(error){
-        if(dialogueFallbackProvider(options.route.provider,Boolean(geminiKey()))==='gemini'){
+        if(options.route.provider==='xai')return generateAdultProviderDowngrade(context,options);
+        if(!isDialogueProviderTimeout(error)&&dialogueFallbackProvider(options.route.provider,Boolean(geminiKey()))==='gemini'){
           const started=Date.now();const text=await generateGemini(context,geminiKey()!);
           const providerModel=model('TOGETHER_GEMINI_MODEL',Deno.env.get('GEMINI_EXPLANATION_MODEL')??'gemini-2.5-flash');
           await recordAiUsage(options.usageScope?{...options.usageScope,routeReason:'provider_fallback'}:undefined,{provider:'gemini',model:providerModel,operation:'dialogue_gemini',latencyMs:Date.now()-started,success:true,metadata:{fallbackFrom:'openai'}});
           return{text,metadata:{...metadataFor(options,'gemini',providerModel,null,Date.now()-started,true),routeReason:'provider_fallback'}};
         }
-        const text=options.route.provider==='xai'?explicitProviderFallback(context):fallbackDialogue(context);
+        const text=fallbackDialogue(context);
         return{text,metadata:{...metadataFor(options,'deterministic','kivelle-deterministic',null,0,true),routeReason:'provider_fallback'}};
       }
     }
@@ -63,6 +71,11 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
       let emitted=false;
       try{for await(const event of streamResponses(context,options)){if(event.type==='token')emitted=true;yield event;}return;}catch(error){
         if(!canRetryStreamFailure(emitted))throw error;
+        if(isDialogueProviderTimeout(error)){
+          const text=options.route.provider==='xai'?explicitProviderFallback(context):fallbackDialogue(context);
+          for await(const token of textChunks(text))yield{type:'token',token};
+          yield{type:'complete',metadata:{...metadataFor(options,'deterministic','kivelle-deterministic',null,dialogueProviderInactivityMs(),true),routeReason:'provider_timeout_fallback'}};return;
+        }
         const fallback=await this.generate(context,options);
         for await(const token of textChunks(fallback.text))yield{type:'token',token};
         yield{type:'complete',metadata:fallback.metadata};return;
@@ -77,11 +90,11 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
 async function generateResponses(context:DialogueContext,options:DialogueRunOptions):Promise<DialogueGenerationResult>{
   const provider=options.route.provider as 'openai'|'xai',key=provider==='openai'?apiKey():xaiKey(),modelName=provider==='openai'?openAIDialogueModel():xaiDialogueModel();
   if(!key)throw new Error(`${provider}_not_configured`);
-  const started=Date.now();let response:Response|undefined;
+  const started=Date.now();let response:Response|undefined;const controller=new AbortController();
   try{
-    response=await executeResponsesHttp(fetch,provider,key,await responsesBody(context,options,modelName,false));const latency=Date.now()-started;
+    response=await withDialogueProviderDeadline(executeResponsesHttp(deadlineFetch(controller),provider,key,await responsesBody(context,options,modelName,false)),controller);const latency=Date.now()-started;
     if(!response.ok){await recordAiUsage(options.usageScope,{provider,model:modelName,operation:operationName(options,provider),latencyMs:latency,success:false,httpStatus:response.status,errorCode:`HTTP_${response.status}`,metadata:{sharedSceneParticipant:options.sharedSceneParticipant===true}});throw new AppError(response.status===429?'RATE_LIMITED':'PROVIDER_UNAVAILABLE','Your companion needs a moment before replying.',response.status===429?429:503,true);}
-    const data=await response.json(),usage=normalizeResponsesUsage(provider,data.usage),text=extractResponsesText(data);
+    const data=await withDialogueProviderDeadline(response.json(),controller),usage=normalizeResponsesUsage(provider,data.usage),text=extractResponsesText(data);
     await recordAiUsage(options.usageScope,{provider,model:modelName,operation:operationName(options,provider),usage,latencyMs:latency,success:true,httpStatus:response.status,cacheHit:usage.cachedInputTokens>0,metadata:{sharedSceneParticipant:options.sharedSceneParticipant===true}});
     if(!text)throw new Error('empty_provider_response');return{text,metadata:metadataFor(options,provider,modelName,usage,latency)};
   }catch(error){if(!response)await recordAiUsage(options.usageScope,{provider,model:modelName,operation:operationName(options,provider),latencyMs:Date.now()-started,success:false,errorCode:'NETWORK_ERROR',metadata:{sharedSceneParticipant:options.sharedSceneParticipant===true}});throw error;}
@@ -89,20 +102,35 @@ async function generateResponses(context:DialogueContext,options:DialogueRunOpti
 
 async function* streamResponses(context:DialogueContext,options:DialogueRunOptions):AsyncIterable<DialogueStreamEvent>{
   const provider=options.route.provider as 'openai'|'xai',key=provider==='openai'?apiKey():xaiKey(),modelName=provider==='openai'?openAIDialogueModel():xaiDialogueModel();if(!key)throw new Error(`${provider}_not_configured`);
-  const started=Date.now();let response:Response|undefined,recorded=false;
+  const started=Date.now();let response:Response|undefined,recorded=false;const controller=new AbortController();
   try{
-    response=await executeResponsesHttp(fetch,provider,key,await responsesBody(context,options,modelName,true));
+    response=await withDialogueProviderDeadline(executeResponsesHttp(deadlineFetch(controller),provider,key,await responsesBody(context,options,modelName,true)),controller);
     if(!response.ok||!response.body){await recordAiUsage(options.usageScope,{provider,model:modelName,operation:operationName(options,provider),latencyMs:Date.now()-started,success:false,httpStatus:response.status,errorCode:`HTTP_${response.status}`});recorded=true;throw new Error(`${provider}_stream_failed`);}
     let usage:NormalizedAiUsage|null=null;
-    for await(const data of sseData(response.body)){const parsed=parseResponsesStreamEvent(JSON.parse(data));if(parsed.token)yield{type:'token',token:parsed.token};if(parsed.usage)usage=normalizeResponsesUsage(provider,parsed.usage);}
+    for await(const data of sseData(response.body,{inactivityMs:dialogueProviderInactivityMs(),onTimeout:()=>controller.abort()})){const parsed=parseResponsesStreamEvent(JSON.parse(data));if(parsed.token)yield{type:'token',token:parsed.token};if(parsed.usage)usage=normalizeResponsesUsage(provider,parsed.usage);}
     const latency=Date.now()-started;await recordAiUsage(options.usageScope,{provider,model:modelName,operation:operationName(options,provider),usage,latencyMs:latency,success:true,httpStatus:response.status,cacheHit:Boolean(usage?.cachedInputTokens),metadata:{sharedSceneParticipant:options.sharedSceneParticipant===true}});recorded=true;yield{type:'complete',metadata:metadataFor(options,provider,modelName,usage,latency)};
-  }catch(error){if(!recorded)await recordAiUsage(options.usageScope,{provider,model:modelName,operation:operationName(options,provider),latencyMs:Date.now()-started,success:false,httpStatus:response?.status??null,errorCode:response?'STREAM_INTERRUPTED':'NETWORK_ERROR',metadata:{sharedSceneParticipant:options.sharedSceneParticipant===true}});throw error;}
+  }catch(error){if(!recorded)await recordAiUsage(options.usageScope,{provider,model:modelName,operation:operationName(options,provider),latencyMs:Date.now()-started,success:false,httpStatus:response?.status??null,errorCode:isDialogueProviderTimeout(error)?'PROVIDER_TIMEOUT':response?'STREAM_INTERRUPTED':'NETWORK_ERROR',metadata:{sharedSceneParticipant:options.sharedSceneParticipant===true}});throw error;}
 }
 
 async function responsesBody(context:DialogueContext,options:DialogueRunOptions,modelName:string,stream:boolean){return buildResponsesRequestBody({model:modelName,prompt:buildCompanionPrompt(context),maxOutputTokens:responseTokenBudget(context),stream,...(options.route.provider==='xai'?{promptCacheKey:await deriveOpaquePromptCacheKey({conversationId:options.usageScope?.conversationId,continuityId:options.usageScope?.continuityId,characterInstanceId:options.usageScope?.characterInstanceId})}:{})});}
 function operationName(options:DialogueRunOptions,provider:string){return options.operation??`dialogue_${provider}`;}
 function metadataFor(options:DialogueRunOptions,provider:DialogueProviderName,modelName:string,usage:NormalizedAiUsage|null,latencyMs:number,fallback=false):DialogueRunMetadata{return{provider,model:modelName,routeReason:options.route.reason,contentMode:options.route.resolvedMode,cachedInputTokens:usage?.cachedInputTokens??0,inputTokens:usage?.inputTokens??0,outputTokens:usage?.outputTokens??0,reasoningTokens:usage?.reasoningTokens??0,latencyMs,...(fallback?{fallback:true}:{})};}
-function explicitProviderFallback(context:DialogueContext):string{return`${context.character.name} slows the moment down. “Give me a second. I want to stay present with you, not rush this.”`;}
+async function generateAdultProviderDowngrade(context:DialogueContext,options:DialogueRunOptions):Promise<DialogueGenerationResult>{
+  const resolvedMode:DialogueRoutingDecision['resolvedMode']=options.route.requestedMode==='standard'?'standard':options.route.requestedMode==='romance'?'romance':'mature';
+  const fallbackContext={...context,contentMode:resolvedMode,dialogueRouting:{...(context.dialogueRouting??{}),provider:apiKey()?'openai':geminiKey()?'gemini':'deterministic',reason:'provider_fallback',contentMode:resolvedMode,explicit:false}};
+  if(apiKey())try{const fallbackOptions={...options,route:{...options.route,provider:'openai' as const,resolvedMode,reason:'provider_fallback' as const,explicit:false}};const generated=await generateResponses(fallbackContext,fallbackOptions);return{...generated,metadata:{...generated.metadata,fallback:true,routeReason:'provider_fallback'}};}catch{/* fall through to the next non-explicit provider */}
+  if(geminiKey())try{const started=Date.now(),modelName=model('TOGETHER_GEMINI_MODEL',Deno.env.get('GEMINI_EXPLANATION_MODEL')??'gemini-2.5-flash'),text=await generateGemini(fallbackContext,geminiKey()!);const fallbackOptions={...options,route:{...options.route,provider:'gemini' as const,resolvedMode,reason:'provider_fallback' as const,explicit:false}},latencyMs=Date.now()-started;await recordAiUsage(options.usageScope?{...options.usageScope,routeReason:'provider_fallback',contentMode:resolvedMode}:undefined,{provider:'gemini',model:modelName,operation:operationName(fallbackOptions,'gemini'),latencyMs,success:true,metadata:{fallbackFrom:'xai'}});return{text,metadata:metadataFor(fallbackOptions,'gemini',modelName,null,latencyMs,true)};}catch{/* use a character-aware local response */}
+  const fallbackOptions={...options,route:{...options.route,provider:'deterministic' as const,resolvedMode,reason:'provider_fallback' as const,explicit:false}};return{text:explicitProviderFallback(fallbackContext),metadata:metadataFor(fallbackOptions,'deterministic','kivelle-deterministic',null,0,true)};
+}
+function explicitProviderFallback(context:DialogueContext):string{
+  const name=context.character.name,stance=context.intimacyStance;
+  if(stance?.consentState==='withdrawn')return`${name} stops immediately. “Okay. We stop.”`;
+  if(stance?.disposition==='firm_decline')return`${name} holds your gaze, answer clear. “No. That isn't what I want.”`;
+  if(stance?.disposition==='open')return`${name}'s answer is immediate, desire unmistakable. “Yes. I want you too.”`;
+  if(stance?.disposition==='needs_context')return`${name}'s interest is unmistakable. “I want this. I just can't act like we're in the same room right now—stay with me here.”`;
+  if(stance?.disposition==='playful_deflection')return`${name} gives you a long, openly interested look. “Bold. Keep that energy—you definitely have my attention.”`;
+  return`${name} stays with the question, interest clear. “I want to keep moving toward that. Come closer and let me show you how.”`;
+}
 
 export class ConfiguredEmbeddingProvider implements EmbeddingProvider {
   async embed(text: string,scope?:AiUsageScope&{purpose?:string}): Promise<number[] | null> {
@@ -132,7 +160,7 @@ export class ConfiguredModerationProvider implements ModerationProvider {
       const result = (await response.json()).results?.[0];
       const categories=Object.entries(result?.categories??{}).filter(([,flagged])=>flagged).map(([category])=>category),categoryScores=Object.fromEntries(Object.entries(result?.category_scores??{}).map(([category,score])=>[category,Number(score)]));
       await recordAiUsage(scope,{provider:'openai',model:modelName,operation:'moderation_openai',latencyMs:Date.now()-started,success:true,httpStatus:response.status,estimatedCostUsd:0,metadata:{flagged:Boolean(result?.flagged),categoryCount:categories.length}});
-      const hardBlocked=categories.some((category)=>category!=='sexual'&&category!=='sexual/adult');return { allowed: !hardBlocked,flagged:Boolean(result?.flagged),categories,categoryScores };
+      const normalized={allowed:true,flagged:Boolean(result?.flagged),categories,categoryScores};const hardBlocked=isDialogueHardBlocked({message:text,moderation:normalized});return { ...normalized,allowed:!hardBlocked };
     } catch {await recordAiUsage(scope,{provider:'openai',model:modelName,operation:'moderation_openai',latencyMs:Date.now()-started,success:false,errorCode:'NETWORK_ERROR',estimatedCostUsd:0});return { allowed: true,flagged:false,categories: [],categoryScores:{} }; }
   }
 }
@@ -428,12 +456,12 @@ async function* streamGemini(context: DialogueContext, key: string): AsyncIterab
   }
 }
 
-async function* sseData(body: ReadableStream<Uint8Array>): AsyncIterable<string> {
+async function* sseData(body: ReadableStream<Uint8Array>,options?:{inactivityMs:number;onTimeout:()=>void}): AsyncIterable<string> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
   while (true) {
-    const { value, done } = await reader.read();
+    const { value, done } = options?await readStreamChunk(reader,options):await reader.read();
     buffer += decoder.decode(value, { stream: !done });
     const events = buffer.split('\n\n');
     buffer = events.pop() ?? '';
@@ -445,6 +473,8 @@ async function* sseData(body: ReadableStream<Uint8Array>): AsyncIterable<string>
   }
   if (buffer.startsWith('data: ')) yield buffer.slice(6).trim();
 }
+
+async function readStreamChunk(reader:ReadableStreamDefaultReader<Uint8Array>,options:{inactivityMs:number;onTimeout:()=>void}):Promise<ReadableStreamReadResult<Uint8Array>>{let timer:ReturnType<typeof setTimeout>|undefined;try{return await Promise.race([reader.read(),new Promise<ReadableStreamReadResult<Uint8Array>>((_,reject)=>{timer=setTimeout(()=>{options.onTimeout();reject(new DialogueProviderTimeoutError());},options.inactivityMs);})]);}finally{if(timer)clearTimeout(timer);}}
 
 function* textChunks(content: string): Iterable<string> {
   yield* content.match(/\S+\s*/g) ?? [content];
@@ -472,6 +502,7 @@ async function embedGemini(text: string, key: string): Promise<number[] | null> 
 function fallbackDialogue(context: DialogueContext): string {
   const lower = context.userMessage.toLowerCase();
   const texting = resolveConversationStyle(context.conversationStyle) === 'texting';
+  if(context.intimacyStance?.active)return explicitProviderFallback(context);
   if (/dog.*name is/.test(lower)) return texting ? "Cooper. Got it—that's a very good name." : "Okay, that is important information. I'm going to remember that—Cooper is a very good name. What kind of trouble does he get into?";
   if (/presentation|interview|exam/.test(lower)) return texting ? "That's a big deal. I'm rooting for you." : "That sounds like a big deal. I'll be rooting for you—and I want to hear how it goes afterward.";
   if (/olive/.test(lower)) return "Noted. If olives show up on our table, they're staying very far away from your side.";

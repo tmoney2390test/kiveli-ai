@@ -1,5 +1,6 @@
 import type { Location } from '../types';
 import { EXPLORE_CATEGORIES, isBrowsableLocation, matchesExploreCategory, type ExploreCategoryId } from './explore';
+import { placeHoursStatus } from './placeHours';
 
 export type WorldPlaceDirectorySection={
   id:string;
@@ -19,7 +20,7 @@ export type WorldPlaceDirectory={
 
 const hierarchyTypes=new Set(['region','district','neighborhood']);
 
-export function buildWorldPlaceDirectory(locations:Location[],worldId:string,options:{query?:string;category?:ExploreCategoryId|null}={}):WorldPlaceDirectory{
+export function buildWorldPlaceDirectory(locations:Location[],worldId:string,options:{query?:string;category?:ExploreCategoryId|null;openNow?:boolean;now?:Date;timezone?:string}={}):WorldPlaceDirectory{
   const worldLocations=locations.filter((location)=>location.world_id===worldId);
   const byId=new Map(worldLocations.map((location)=>[location.id,location]));
   const districts=worldLocations.filter((location)=>location.location_type==='district').sort(sortLocations);
@@ -35,20 +36,23 @@ export function buildWorldPlaceDirectory(locations:Location[],worldId:string,opt
 
   const query=options.query?.trim().toLowerCase()??'';
   const category=options.category??null;
+  const openNow=options.openNow??false;
+  const now=options.now??new Date();
+  const timezone=options.timezone??Intl.DateTimeFormat().resolvedOptions().timeZone??'UTC';
   const filterPlaces=(items:Location[],district?:Location)=>{
     const districtMatches=Boolean(query&&district&&searchText(district).includes(query));
-    return items.filter((place)=>(!category||matchesExploreCategory(place,category))&&(!query||districtMatches||searchText(place).includes(query)));
+    return items.filter((place)=>(!category||matchesExploreCategory(place,category))&&(!openNow||placeHoursStatus(place.hours,now,timezone).isOpen)&&(!query||districtMatches||searchText(place).includes(query)));
   };
 
   const sections:WorldPlaceDirectorySection[]=districts.flatMap((district)=>{
     const all=districtPlaces.get(district.id)??[];
     const visible=filterPlaces(all,district);
     const districtMatches=Boolean(query&&searchText(district).includes(query));
-    if((query||category)&&!visible.length&&!districtMatches)return[];
+    if((query||category||openNow)&&!visible.length&&!districtMatches)return[];
     return[{id:district.id,kind:'district' as const,district,places:visible,totalPlaceCount:all.length}];
   });
   const visibleCitywide=filterPlaces(citywide);
-  if(visibleCitywide.length||(!query&&!category&&citywide.length))sections.push({id:'citywide',kind:'citywide',places:visibleCitywide,totalPlaceCount:citywide.length});
+  if(visibleCitywide.length||(!query&&!category&&!openNow&&citywide.length))sections.push({id:'citywide',kind:'citywide',places:visibleCitywide,totalPlaceCount:citywide.length});
 
   return{
     sections,

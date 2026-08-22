@@ -35,7 +35,7 @@ insert into public.together_life_events(
   user_id,continuity_id,character_instance_id,event_type,title,narrative_summary,
   participant_instance_ids,location_id,significance,starts_at,ends_at,
   resulting_state_changes,user_should_know,proactive_message_appropriate,
-  metadata,shared_plan_id
+  metadata,simulation_key,shared_plan_id
 )
 select
   plan.user_id,plan.continuity_id,plan.character_instance_id,'shared_plan_completed',
@@ -47,6 +47,7 @@ select
   jsonb_build_object('sharedActivity',plan.activity_key),true,
   greatest(0,least(1,coalesce((plan.metadata->>'significance')::numeric,.45)))>=.65,
   jsonb_build_object('canonicalPlanId',plan.id,'source',plan.source,'completionReason',plan.completion_reason,'backfilled',true),
+  'shared-plan:'||plan.id::text||':shared_plan_completed',
   plan.id
 from public.together_shared_plans plan
 where plan.status='completed' and plan.source<>'date'
@@ -320,7 +321,7 @@ begin
       user_id,continuity_id,character_instance_id,event_type,title,narrative_summary,
       participant_instance_ids,location_id,significance,starts_at,ends_at,
       resulting_state_changes,user_should_know,proactive_message_appropriate,
-      metadata,shared_plan_id
+      metadata,simulation_key,shared_plan_id
     ) values (
       p_user_id,p_continuity_id,p_character_instance_id,'shared_plan_completed',
       plan_row.title,
@@ -331,6 +332,7 @@ begin
       jsonb_build_object('sharedActivity',plan_row.activity_key),true,
       greatest(0,least(1,coalesce((plan_row.metadata->>'significance')::numeric,.45)))>=.65,
       jsonb_build_object('canonicalPlanId',plan_row.id,'source',plan_row.source,'completionReason',p_completion_reason),
+      'shared-plan:'||plan_row.id::text||':shared_plan_completed',
       plan_row.id
     ) on conflict(shared_plan_id) where shared_plan_id is not null do nothing;
   end if;

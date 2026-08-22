@@ -49,6 +49,36 @@ export const characterAssets:Record<string,number>={
   'sofia-bellini':require('../assets/characters/port-vervelle/sofia-bellini.jpg'),
   'tessa-patel-morgan':require('../assets/characters/port-vervelle/tessa-patel-morgan.jpg'),
   'valentina-costa':require('../assets/characters/port-vervelle/valentina-costa.jpg'),
+  'aya-mori':require('../assets/characters/neon-kyo/aya-mori.jpg'),
+  'emi-takahashi':require('../assets/characters/neon-kyo/emi-takahashi.jpg'),
+  'chloe-mercier':require('../assets/characters/neon-kyo/chloe-mercier.jpg'),
+  'rika-senzaki':require('../assets/characters/neon-kyo/rika-senzaki.jpg'),
+  'noa-7':require('../assets/characters/neon-kyo/noa-7.jpg'),
+  'sora-hayashi':require('../assets/characters/neon-kyo/sora-hayashi.jpg'),
+  'yumi-kato':require('../assets/characters/neon-kyo/yumi-kato.jpg'),
+  'mina-seo':require('../assets/characters/neon-kyo/mina-seo.jpg'),
+  'elena-volkov':require('../assets/characters/neon-kyo/elena-volkov.jpg'),
+  'zhen-li':require('../assets/characters/neon-kyo/zhen-li.jpg'),
+  'reina-kuroda':require('../assets/characters/neon-kyo/reina-kuroda.jpg'),
+  'piper-shaw':require('../assets/characters/neon-kyo/piper-shaw.jpg'),
+  'lexi-morgan':require('../assets/characters/neon-kyo/lexi-morgan.jpg'),
+  'vittoria-bellandi':require('../assets/characters/neon-kyo/vittoria-bellandi.jpg'),
+  'eva-aoyama':require('../assets/characters/neon-kyo/eva-aoyama.jpg'),
+  'yuna-park':require('../assets/characters/neon-kyo/yuna-park.jpg'),
+  'rin-akiyama':require('../assets/characters/neon-kyo/rin-akiyama.jpg'),
+  'natsumi-endo':require('../assets/characters/neon-kyo/natsumi-endo.jpg'),
+  'laleh-rahimi':require('../assets/characters/neon-kyo/laleh-rahimi.jpg'),
+  'kira-3':require('../assets/characters/neon-kyo/kira-3.jpg'),
+  'mia-lindstrom':require('../assets/characters/neon-kyo/mia-lindstrom.jpg'),
+  'mika-sato':require('../assets/characters/neon-kyo/mika-sato.jpg'),
+  'ana-luiza-ribeiro':require('../assets/characters/neon-kyo/ana-luiza-ribeiro.jpg'),
+  'mei-watanabe':require('../assets/characters/neon-kyo/mei-watanabe.jpg'),
+  'freya-keller':require('../assets/characters/neon-kyo/freya-keller.jpg'),
+  'akari-fujimoto':require('../assets/characters/neon-kyo/akari-fujimoto.jpg'),
+  'fumi-arai':require('../assets/characters/neon-kyo/fumi-arai.jpg'),
+  'isabella-reyes':require('../assets/characters/neon-kyo/isabella-reyes.jpg'),
+  'talia-okafor':require('../assets/characters/neon-kyo/talia-okafor.jpg'),
+  iori:require('../assets/characters/neon-kyo/iori.jpg'),
 };
 export const cityLifeAsset=require('../assets/locations/juniper-city/juniper-city.png');
 export const appIconAsset=require('../assets/icon.png');
@@ -57,4 +87,12 @@ export function worldHeroAsset(slug?:string|null):ImageSource{if(!slug||slug==='
 
 // Location art deliberately resolves through one seam so authored location imagery can
 // replace the world fallback without changing Explore, World, Date, or Plan screens.
-export function locationHeroAsset(worldSlug?:string|null,locationSlug?:string|null):ImageSource{return mappedLocationAsset(worldSlug,locationSlug)??worldHeroAsset(worldSlug);}
+export function locationHeroAsset(worldSlug?:string|null,locationSlug?:string|null,ancestorSlugs:readonly string[]=[]):ImageSource{
+  const exact=mappedLocationAsset(worldSlug,locationSlug);
+  if(exact)return exact;
+  for(const ancestorSlug of [...ancestorSlugs].reverse()){
+    const inherited=mappedLocationAsset(worldSlug,ancestorSlug);
+    if(inherited)return inherited;
+  }
+  return worldHeroAsset(worldSlug);
+}

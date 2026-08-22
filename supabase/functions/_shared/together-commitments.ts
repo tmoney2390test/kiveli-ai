@@ -3,6 +3,8 @@ import{classifyMissExplanation,deriveCommitmentTemporalState,missedCommitmentRep
 import{AppError}from'./types.ts';
 import{writeConversationEvent}from'./together-plans.ts';
 import { beginPlanExperience, wrapPlanExperience, type PlanExperience } from './together-plan-experience.ts';
+import { assertCharacterResidentInWorld, resolveWorldAccess } from './together-place.ts';
+import { resolveUserExperienceTimezone, safeTimezone } from './kivelle-time.ts';
 
 type Row=Record<string,any>;
 
@@ -18,7 +20,7 @@ export async function loadCommitmentState(db:SupabaseClient,userId:string,planId
 
 export function decorateCommitment(plan:Row,attendance:Row[],resolution:Row|null,now=new Date()){
   const userAttendance=attendance.find((row)=>row.participant_type==='user'),characterAttendance=attendance.find((row)=>row.participant_type==='character');
-  const temporalState=deriveCommitmentTemporalState({status:String(plan.status),startsAt:plan.starts_at,endsAt:plan.ends_at,windowStartsAt:plan.window_starts_at,windowEndsAt:plan.window_ends_at,graceEndsAt:plan.grace_ends_at,timezone:plan.world_timezone,participationMode:plan.participation_mode,userJoinedAt:userAttendance?.joined_at,characterJoinedAt:characterAttendance?.joined_at},now);
+  const temporalState=deriveCommitmentTemporalState({status:String(plan.status),startsAt:plan.starts_at,endsAt:plan.ends_at,windowStartsAt:plan.window_starts_at,windowEndsAt:plan.window_ends_at,graceEndsAt:plan.grace_ends_at,timezone:plan.user_timezone??plan.world_timezone,participationMode:plan.participation_mode,userJoinedAt:userAttendance?.joined_at,characterJoinedAt:characterAttendance?.joined_at},now);
   return{...plan,attendance:{user:userAttendance??null,character:characterAttendance??null},missResolution:resolution,temporalState};
 }
 
@@ -66,18 +68,19 @@ export async function createWindowedCommitment(db:SupabaseClient,input:{userId:s
   const start=new Date(input.windowStartsAt),end=new Date(input.windowEndsAt);if(!Number.isFinite(start.getTime())||!Number.isFinite(end.getTime())||end<=start)throw new AppError('VALIDATION_FAILED','That planning window is invalid.',400);
   if(start.getTime()<Date.now()-5*60000||start.getTime()>Date.now()+60*86400000)throw new AppError('VALIDATION_FAILED','Choose a time window within the next 60 days.',400);
   const[{data:instance},{data:location}]=await Promise.all([
-    db.from('together_character_instances').select('id,continuity_id').eq('id',input.characterInstanceId).eq('user_id',input.userId).eq('continuity_id',input.continuityId).maybeSingle(),
-    db.from('together_locations').select('*,together_worlds(id,name,timezone,access_type,entitlement_key)').eq('id',input.locationId).maybeSingle(),
+    db.from('together_character_instances').select('id,continuity_id,character_version_id').eq('id',input.characterInstanceId).eq('user_id',input.userId).eq('continuity_id',input.continuityId).maybeSingle(),
+    db.from('together_locations').select('*,together_worlds(id,name,timezone,access_type,entitlement_key,published)').eq('id',input.locationId).maybeSingle(),
   ]);
   if(!instance||!location)throw new AppError('NOT_FOUND','That companion or place is unavailable.',404);
+  await assertCharacterResidentInWorld({db,characterVersionId:String(instance.character_version_id),worldId:String(location.world_id)});
   const world=(location as Row).together_worlds as Row|undefined;
-  if(world?.access_type!=='free'){
-    const{data:access}=await db.from('together_user_worlds').select('access_status').eq('user_id',input.userId).eq('world_id',location.world_id).eq('access_status','unlocked').maybeSingle();
-    if(!access)throw new AppError('WORLD_LOCKED',`${world?.name??'That world'} is not available on this account yet.`,403);
-  }
+  const access=await resolveWorldAccess({db,userId:input.userId,worldId:String(location.world_id)});
+  if(access==='locked'||access==='available')throw new AppError('WORLD_LOCKED',`${world?.name??'That world'} is not available on this account yet.`,403);
   const activity=input.activityKey.trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');if(!activity)throw new AppError('VALIDATION_FAILED','Choose something to do together.',400);
   const title=(input.title?.trim()||`${titleCase(activity)} at ${location.name}`).slice(0,160);
-  const{data,error}=await db.from('together_shared_plans').insert({user_id:input.userId,continuity_id:input.continuityId,character_instance_id:input.characterInstanceId,title,activity_key:activity,world_id:location.world_id,location_id:location.id,starts_at:null,ends_at:null,window_starts_at:start.toISOString(),window_ends_at:end.toISOString(),time_precision:input.timePrecision,world_timezone:String(world?.timezone??'UTC'),user_timezone:input.userTimezone??'UTC',original_time_expression:input.originalTimeExpression??null,participation_mode:input.participationMode??'live',status:'proposed',source:input.source,source_conversation_id:input.sourceConversationId??null,source_message_id:input.sourceMessageId??null,note:input.note?.trim()||null,grace_minutes:30,companion_state:'expected',metadata:{requestId:input.requestId,durationMinutes:90,significance:.45,proposedWindow:true,completionSummary:`You and your companion spent time together for ${title}.`,locationSlug:location.slug}}).select('*').single();
+  const worldTimezone=safeTimezone(world?.timezone);
+  const userTimezone=input.userTimezone?safeTimezone(input.userTimezone):await resolveUserExperienceTimezone(db,input.userId,worldTimezone);
+  const{data,error}=await db.from('together_shared_plans').insert({user_id:input.userId,continuity_id:input.continuityId,character_instance_id:input.characterInstanceId,title,activity_key:activity,world_id:location.world_id,location_id:location.id,starts_at:null,ends_at:null,window_starts_at:start.toISOString(),window_ends_at:end.toISOString(),time_precision:input.timePrecision,world_timezone:worldTimezone,user_timezone:userTimezone,original_time_expression:input.originalTimeExpression??null,participation_mode:input.participationMode??'live',status:'proposed',source:input.source,source_conversation_id:input.sourceConversationId??null,source_message_id:input.sourceMessageId??null,note:input.note?.trim()||null,grace_minutes:30,companion_state:'expected',metadata:{requestId:input.requestId,durationMinutes:90,significance:.45,proposedWindow:true,completionSummary:`You and your companion spent time together for ${title}.`,locationSlug:location.slug}}).select('*').single();
   if(error){if(error.code==='23505'){const{data:existing}=await db.from('together_shared_plans').select('*').eq('user_id',input.userId).eq('metadata->>requestId',input.requestId).maybeSingle();if(existing)return existing;}throw new AppError('INTERNAL_ERROR','Could not save that planning window.',500,true);}
   if(input.sourceConversationId)await writeConversationEvent(db,{userId:input.userId,characterInstanceId:input.characterInstanceId,conversationId:input.sourceConversationId,eventType:'plan_proposed',entityType:'shared_plan',entityId:String(data.id),metadata:{title:data.title,windowStartsAt:data.window_starts_at,windowEndsAt:data.window_ends_at,timePrecision:data.time_precision,locationId:data.location_id}});
   return data;

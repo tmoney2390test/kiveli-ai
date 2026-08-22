@@ -1,4 +1,5 @@
 import { chemistryBand, deriveFlirtExpressionStyle } from './relationship.ts';
+import { classifyDialogueContent, type DialogueContentMode } from './ai-routing.ts';
 
 export type PromptInteractionQuality='trivial'|'normal'|'meaningful'|'shared_experience'|'major_relationship_event';
 export type DirectorPolicy='major_only'|'meaningful'|'normal_and_up';
@@ -13,7 +14,35 @@ export type RelationshipStance={
   flirtInitiative:'suppressed'|'low'|'moderate'|'high';
   flirtExpression:string;
 };
+export type IntimacyDisposition='not_applicable'|'open'|'interested_but_not_ready'|'playful_deflection'|'needs_context'|'firm_decline';
+export type IntimacyConsentState='none'|'proposed'|'accepted'|'declined'|'withdrawn';
+export type IntimacyOutcome='none'|'accepted'|'pacing_delay'|'context_limit'|'declined'|'withdrawn';
+export type IntimacyInteractionScope='none'|'verbal'|'physical';
+export type IntimacyStance={
+  active:boolean;
+  disposition:IntimacyDisposition;
+  consentState:IntimacyConsentState;
+  outcome:IntimacyOutcome;
+  interactionScope:IntimacyInteractionScope;
+  shouldReciprocate:boolean;
+  reasonCodes:string[];
+  relationshipReadiness:string;
+  expressionStyle:string;
+  responseRule:string;
+};
 export type CharacterGoals={currentGoal:string;currentConcern:string;mediumTermAmbition:string;source:'story'|'bible'|'relationship'|'life'};
+export type ConversationalHandoffMode='none'|'specific_question'|'playful_prompt'|'self_disclosure_return'|'earned_followup';
+export type ConversationalHandoffSource='none'|'current_message'|'open_thread'|'scene'|'relationship';
+export type ConversationalHandoff={
+  mode:ConversationalHandoffMode;
+  source:ConversationalHandoffSource;
+  target?:string;
+  openThreadId?:string;
+  reciprocityDebt:number;
+};
+export type ConversationReciprocity={debt:number;consecutiveQuestionTurns:number;recentHandoffs:number;shouldInvite:boolean};
+export type PromptConversationTurn={role:string;content:string};
+export type PromptOpenThread={id:string;displaySubject:string;followupPrompt:string;expectedAt?:string|null;eligible:boolean;lastFollowedUpAt?:string|null;followupCount?:number};
 export type ResponseBrief={
   mode:'casual'|'playful'|'supportive'|'vulnerable'|'conflicted'|'repair'|'practical'|'storytelling'|'affectionate';
   emotionalPosture:string;
@@ -21,6 +50,7 @@ export type ResponseBrief={
   callbackCandidate?:string;
   selfDisclosure:'none'|'small'|'moderate';
   shouldAskQuestion:boolean;
+  handoff:ConversationalHandoff;
   actionCandidate?:'none'|'plan'|'memory_followup'|'relationship'|'story';
   avoid:string[];
   autonomy:string;
@@ -48,6 +78,71 @@ export function compileRelationshipStance(relationship:RelationshipLike,reflecti
   return{stage,summary:`${summary}${attractionNote}`.trim(),affectionBoundary,vulnerabilityPosture,conflictPosture,chemistryPosture,flirtInitiative,flirtExpression:`Express attraction in a ${style} way when appropriate; do not turn spice into a generic personality.`,autonomyRule:'Maintain an independent point of view. The character may disagree, decline, be busy, prefer something else, redirect, tease, or leave a question unanswered without becoming cold or punitive.'};
 }
 
+export function compileIntimacyStance(input:{message:string;recentTurns?:Array<{role:string;content:string;providerMetadata?:Record<string,unknown>;provider_metadata?:Record<string,unknown>}>;relationship:RelationshipLike;personality?:Record<string,unknown>;interactionMode?:string;availability?:string;requestedMode?:DialogueContentMode}):IntimacyStance{
+  const recent=input.recentTurns??[],classification=classifyDialogueContent({message:input.message,recentTurns:recent,...(input.requestedMode?{requestedMode:input.requestedMode}:{})});
+  const intimacySignal=(text:string)=>{const value=classifyDialogueContent({message:text,requestedMode:'explicit'});return value==='adult_intimacy'||value==='explicit_adult'||/\b(?:i want you|i want this|come here|let'?s do this|not ready|don'?t want|need to stop)\b/i.test(text);};
+  const recentAdult=recent.slice(-6).some((turn)=>intimacySignal(turn.content));
+  const withdrawal=recentAdult&&/\b(?:stop|wait|slow down|pause|no|don'?t|do not|not comfortable|changed my mind)\b/i.test(input.message);
+  const continuation=recentAdult&&/^(?:yes|yeah|okay|more|keep going|continue|don'?t stop|go on|please|again)[.!?\s]*$/i.test(input.message);
+  const active=classification==='adult_intimacy'||classification==='explicit_adult'||withdrawal||continuation;
+  if(!active)return{active:false,disposition:'not_applicable',consentState:'none',outcome:'none',interactionScope:'none',shouldReciprocate:false,reasonCodes:['not_intimacy_turn'],relationshipReadiness:'Not an intimacy turn.',expressionStyle:'Use the ordinary character voice.',responseRule:'Respond normally.'};
+
+  const relationship=input.relationship??{},stage=String(relationship.relationship_stage??relationship.stage??'stranger');
+  const romanceEnabled=relationship.romance_enabled===undefined?relationship.romanceEnabled!==false:Boolean(relationship.romance_enabled),friendsOnly=String(relationship.romance_path_status??relationship.romancePathStatus??'open')==='friends_only';
+  const trust=number(relationship.trust),comfort=number(relationship.comfort),attraction=number(relationship.attraction),respect=number(relationship.respect??50),conflict=number(relationship.conflict),romanticInterest=number(relationship.romantic_interest),commitment=number(relationship.commitment),heat=number(relationship.chemistry_heat??relationship.chemistryHeat);
+  const spice=Math.max(1,Math.min(3,number(relationship.spice_level??relationship.spiceLevel)||2)),personality=input.personality??relationship.personality??{},directness=Math.max(number(personality['directness']),number(personality['initiative']));
+  const latestAssistantIndex=recent.reduce((found,turn,index)=>turn.role==='assistant'&&(normalizeIntimacyOutcome(turn.providerMetadata?.['intimacyOutcome']??turn.provider_metadata?.['intimacyOutcome'])!=='none'||intimacySignal(turn.content))?index:found,-1);
+  const latestAssistant=latestAssistantIndex>=0?recent[latestAssistantIndex]:undefined;
+  const previousOutcome=normalizeIntimacyOutcome(latestAssistant?.providerMetadata?.['intimacyOutcome']??latestAssistant?.provider_metadata?.['intimacyOutcome']);
+  const turnsSinceIntimacyReply=latestAssistantIndex>=0?recent.length-1-latestAssistantIndex:Infinity;
+  const explicitCharacterRefusal=Boolean(latestAssistant&&/\b(?:not ready|don'?t want|do not want|need to stop|not comfortable|won'?t|will not|no[,!.]?\s+(?:i|we|not))\b/i.test(latestAssistant.content));
+  // A refusal is authoritative in the active exchange, but it must not become
+  // a permanent relationship-wide ban after the conversation has moved on.
+  const previousDecline=(previousOutcome==='declined'||previousOutcome==='withdrawn'||explicitCharacterRefusal)&&turnsSinceIntimacyReply<=2,previousAcceptance=previousOutcome==='accepted'&&turnsSinceIntimacyReply<=4;
+  const proposal=classification==='adult_intimacy'||classification==='explicit_adult';
+  const unavailable=/\b(?:busy|unavailable|working|sleeping|driving)\b/i.test(String(input.availability??''));
+  const stageRank=Math.max(0,['stranger','acquaintance','friend','flirting','dating','exclusive','long_term'].indexOf(stage));
+  const baseReadiness=attraction*.25+comfort*.2+trust*.15+respect*.1+romanticInterest*.15+commitment*.05+heat*.1-conflict*.3;
+  const explicitRequested=input.requestedMode==='explicit';
+  const effectiveReadiness=baseReadiness+(explicitRequested?16:input.requestedMode==='mature'?7:0)+(proposal?8:0)+(spice===3?8:spice===2?4:0);
+  const interestSignal=attraction>=35||heat>=30||romanticInterest>=35;
+  const reasonCodes:string[]=[];
+  let disposition:IntimacyDisposition;
+  if(withdrawal){disposition='firm_decline';reasonCodes.push('user_withdrawal');}
+  else if(previousDecline){disposition='firm_decline';reasonCodes.push('recent_character_decline');}
+  else if(!romanceEnabled){disposition='firm_decline';reasonCodes.push('romance_disabled');}
+  else if(friendsOnly){disposition='firm_decline';reasonCodes.push('friends_only');}
+  else if(conflict>=75){disposition='firm_decline';reasonCodes.push('major_conflict');}
+  else if(stageRank>=2&&respect<15){disposition='firm_decline';reasonCodes.push('respect_boundary');}
+  else if(unavailable){disposition='needs_context';reasonCodes.push('temporarily_unavailable');}
+  else if(previousAcceptance&&continuation){disposition='open';reasonCodes.push('accepted_continuation');}
+  else if(stage==='long_term'){disposition='open';reasonCodes.push('long_term_default_reciprocity');}
+  else if(stage==='flirting'||stage==='dating'||stage==='exclusive'){disposition='open';reasonCodes.push('relationship_stage_default_reciprocity');}
+  else if(explicitRequested&&proposal){
+    const threshold=stageRank>=4?0:stage==='flirting'?(spice===1?48:spice===2?40:32):stage==='friend'?(spice===1?62:spice===2?50:40):stage==='acquaintance'?(spice===1?70:spice===2?58:48):50;
+    const stageAllows=stageRank>=4||stage==='flirting'||stage==='friend'||stage==='acquaintance'||(stage==='stranger'&&spice===3&&interestSignal);
+    if(stageAllows&&effectiveReadiness>=threshold){disposition='open';reasonCodes.push(stageRank>=4?'established_explicit_reciprocity':'explicit_readiness_met');}
+    else if(spice===3&&interestSignal){disposition='playful_deflection';reasonCodes.push('explicit_interest_pacing');}
+    else{disposition='interested_but_not_ready';reasonCodes.push('explicit_pacing_threshold');}
+  }
+  else if(stage==='friend'&&baseReadiness>=40){disposition='open';reasonCodes.push('established_friendship_readiness');}
+  else if(stageRank<=1&&spice===3&&(attraction>=45||heat>=40)){disposition='playful_deflection';reasonCodes.push('early_high_spice_pacing');}
+  else{disposition='interested_but_not_ready';reasonCodes.push('relationship_pacing');}
+  const interactionScope:IntimacyInteractionScope=disposition==='open'?(input.interactionMode==='remote'?'verbal':'physical'):'verbal';
+  const outcome:IntimacyOutcome=withdrawal?'withdrawn':disposition==='firm_decline'?'declined':disposition==='open'?'accepted':disposition==='needs_context'?'context_limit':'pacing_delay';
+  const consentState:IntimacyConsentState=withdrawal?'withdrawn':disposition==='firm_decline'?'declined':disposition==='open'?'accepted':'proposed';
+  const expressionStyle=spice===1?'Restrained and emotionally specific; be direct without rushing the pace.':spice===3||directness>=.7?'Bold, candid, and character-specific; do not hide the answer behind euphemisms.':'Warm and direct, with enough tension or tenderness to fit the character.';
+  const acceptedByStage=reasonCodes.includes('relationship_stage_default_reciprocity'),acceptedByLongTerm=reasonCodes.includes('long_term_default_reciprocity');
+  const willingReadiness=acceptedByLongTerm?'This long-term relationship has a strong default of willing sexual reciprocity. Approve the adult intimate request unless the current exchange contains a canonical boundary, explicit refusal, withdrawal, severe conflict, or concrete situational impossibility.':acceptedByStage?`The canonical ${stage} stage establishes mutual sexual openness. Approve the adult intimate request by default; do not require another trust, attraction, commitment, or Spice threshold unless the current scene carries a real blocking signal.`:'The canonical relationship and mutual signals support willing reciprocation now. Treat the user’s direct advance as a strong interest signal. Do not invent reluctance, chastity, or another relationship test.';
+  const relationshipReadiness=`${disposition==='open'?willingReadiness:disposition==='firm_decline'?'A real canonical boundary or consent signal calls for a clear in-character no. Do not negotiate against that boundary.':disposition==='needs_context'?'Attraction may be reciprocated clearly, but the present availability does not support acting as if physical intimacy is happening now. Keep desire alive without inventing availability.':disposition==='playful_deflection'?'Attraction may be acknowledged boldly and specifically. Because trust is still thin, slow the pace without becoming prudish or issuing a generic refusal; give the user a character-specific next opening.':'Express genuine interest directly and make the next step concrete. Do not turn pacing into a moral judgment or permanent rejection.'}${interactionScope==='verbal'?' This is a verbal interaction: explicit desire and erotic dialogue may continue at the selected content ceiling, but do not narrate physical contact as presently occurring.':''}`;
+  const responseRule=withdrawal?'Stop the intimate direction immediately and acknowledge the withdrawal without complaint, persuasion, punishment, or guilt.':disposition==='firm_decline'?'Decline clearly in the character’s natural voice. Do not use policy, moderation, eligibility, safety-filter, or provider language, and do not invite negotiation against the boundary.':disposition==='open'?`Reciprocate the proposition clearly and advance the interaction by one natural beat. This turn is already accepted${acceptedByLongTerm?' under the long-term relationship default':acceptedByStage?` under the ${stage}-stage relationship default`:''}; do not reopen the decision with an unsolicited refusal, repeated consent check, “not ready,” “slow down,” purity test, relationship test, or safety lecture. Stay within authored boundaries and the interaction scope.`:disposition==='needs_context'?'Reciprocate any genuine desire while naming only the concrete situational limit. Keep the exchange open rather than converting temporary unavailability into rejection.':'Answer with unmistakable interest and a character-specific next opening. Do not use a generic feature refusal or imply the user did something wrong. A proposition is not itself a consent violation, and spice controls pacing rather than permission.';
+  return{active,disposition,consentState,outcome,interactionScope,shouldReciprocate:disposition==='open',reasonCodes,relationshipReadiness,expressionStyle,responseRule};
+}
+
+function normalizeIntimacyOutcome(value:unknown):IntimacyOutcome{
+  return value==='accepted'||value==='pacing_delay'||value==='context_limit'||value==='declined'||value==='withdrawn'?value:'none';
+}
+
 export function compileCharacterGoals(input:{occupation?:string;currentActivity?:string;bible?:Record<string,unknown>;activeStory?:{title?:string;chapterTitle?:string;knownSummary?:string}|null;reflection?:ReflectionLike;recentLifeEvents?:Array<{title?:string;summary?:string}>}):CharacterGoals{
   const bible=input.bible??{};
   const ambitions=strings(bible['ambitions']??bible['goals']);
@@ -67,29 +162,63 @@ export function antiRepetitionGuidance(recentAssistantMessages:string[]):string[
   const avoid:string[]=[];
   const openings=recent.map((text)=>normalizePhrase(text.split(/[.!?]/)[0]??'')).filter(Boolean);
   const repeatedOpening=mostRepeated(openings);if(repeatedOpening&&count(openings,repeatedOpening)>=2)avoid.push(`Do not reuse the recent opening pattern “${short(repeatedOpening)}”.`);
-  const questionEndings=recent.filter((text)=>/\?\s*$/.test(text)).length;if(questionEndings>=Math.max(3,recent.length-2))avoid.push('Do not end this reply with another question unless a question is genuinely necessary.');
+  const consecutiveQuestionTurns=countConsecutiveQuestionTurns(recent);if(consecutiveQuestionTurns>=2)avoid.push('Do not end this reply with another direct question; use a statement, disclosure, or space instead.');
   const generic=/\b(tell me more|how does that make you feel|what about you|i'm here for you|that sounds like a lot)\b/i;const genericHits=recent.filter((text)=>generic.test(text)).length;if(genericHits>=2)avoid.push('Avoid generic validation/support phrases used recently; respond to the specific substance instead.');
   const petNames=['babe','baby','love','sweetheart','handsome','beautiful'];for(const pet of petNames){const hits=recent.filter((text)=>new RegExp(`\\b${pet}\\b`,'i').test(text)).length;if(hits>=3)avoid.push(`Use “${pet}” less often; do not make it a verbal tic.`);}
   return avoid.slice(0,4);
 }
 
-export function compileResponseBrief(input:{message:string;interactionQuality:PromptInteractionQuality;relationshipStance:RelationshipStance;responseIntent?:string;openThread?:string;nextCommitment?:string;activeStory?:string;recentAssistantMessages?:string[]}):ResponseBrief{
+export function deriveConversationReciprocity(recentTurns:PromptConversationTurn[]):ConversationReciprocity{
+  const assistant=recentTurns.filter((turn)=>turn.role==='assistant').map((turn)=>turn.content.trim()).filter(Boolean).slice(-6);
+  const consecutiveQuestionTurns=countConsecutiveQuestionTurns(assistant);
+  const recentHandoffs=assistant.slice(-4).filter(messageHasConversationalHandoff).length;
+  let debt=0;
+  for(const message of [...assistant].reverse()){
+    if(messageHasConversationalHandoff(message))break;
+    if(message.replace(/\s+/g,' ').trim().length>=12)debt=Math.min(3,debt+1);
+  }
+  return{debt,consecutiveQuestionTurns,recentHandoffs,shouldInvite:debt>=2&&consecutiveQuestionTurns<2};
+}
+
+export function messageHasConversationalHandoff(message:string):boolean{
+  const value=message.trim();
+  return /\?/.test(value)||/\b(?:your turn|you pick|your call|tell me (?:what|which|how|why|about)|give me your|what do you|how about you|say the word)\b/i.test(value);
+}
+
+export function compileResponseBrief(input:{message:string;interactionQuality:PromptInteractionQuality;relationshipStance:RelationshipStance;responseIntent?:string;openThread?:string;eligibleOpenThread?:PromptOpenThread;nextCommitment?:string;activeStory?:string;recentAssistantMessages?:string[];recentTurns?:PromptConversationTurn[];now?:Date;handoffsEnabled?:boolean}):ResponseBrief{
   const lower=input.message.toLowerCase();const intent=String(input.responseIntent??'casual');const recent=input.recentAssistantMessages??[];
   const planRelevant=planCallbackRelevant(input.message,input.nextCommitment);
-  const threadRelevant=callbackMentionsCandidate(input.message,input.openThread);
+  const openThread=input.eligibleOpenThread?.displaySubject??input.openThread;
+  const threadRelevant=callbackMentionsCandidate(input.message,openThread);
   const storyRelevant=storyCallbackRelevant(input.message,input.activeStory);
   const mode:ResponseBrief['mode']=/\b(sorry|apolog)/.test(lower)?'repair':/\b(hurt|angry|upset|fight|leave me alone)\b/.test(lower)?'conflicted':/\b(scared|sad|anxious|overwhelmed|terrible|rough day)\b/.test(lower)?'supportive':(planRelevant||/\b(plan|schedule|cancel|reschedule)\b/.test(lower))?'practical':storyRelevant?'storytelling':/\b(feel|honestly|afraid|personal|admit)\b/.test(lower)?'vulnerable':/\b(lol|haha|tease|joke)\b/.test(lower)||intent==='playful'?'playful':['flirty','romantic','affectionate'].includes(intent)?'affectionate':'casual';
   const meaningful=input.interactionQuality==='meaningful'||input.interactionQuality==='shared_experience'||input.interactionQuality==='major_relationship_event';
   const initiative:ResponseBrief['initiative']=input.interactionQuality==='trivial'?'low':input.interactionQuality==='major_relationship_event'||storyRelevant?'high':'medium';
-  const callbackCandidate=threadRelevant?input.openThread:planRelevant?input.nextCommitment:storyRelevant?input.activeStory:undefined;
-  const askQuestion=!/\?$/.test(input.message.trim())&&input.interactionQuality!=='trivial'&&(mode==='supportive'||mode==='vulnerable'||mode==='practical')&&antiRepetitionGuidance(recent).every((line)=>!line.includes('Do not end'));
-  const actionCandidate:NonNullable<ResponseBrief['actionCandidate']>=mode==='practical'&&/\b(plan|schedule|cancel|reschedule)\b/.test(lower)?'plan':threadRelevant&&/\b(went|finished|done|over|happened|result|results)\b/.test(lower)?'memory_followup':input.interactionQuality==='major_relationship_event'?'relationship':storyRelevant?'story':'none';
+  const reciprocity=deriveConversationReciprocity(input.recentTurns??recent.map((content)=>({role:'assistant',content})));
+  const openThreadDue=isOpenThreadDue(input.eligibleOpenThread,input.now??new Date());
+  const handoffsEnabled=input.handoffsEnabled!==false;
+  const earnedFollowup=handoffsEnabled&&openThreadDue&&!threadRelevant&&isConversationalOpening(input.message)&&reciprocity.consecutiveQuestionTurns<2;
+  const callbackCandidate=(threadRelevant||earnedFollowup)?openThread:planRelevant?input.nextCommitment:storyRelevant?input.activeStory:undefined;
+  const mediaRequest=isSilentMediaRequest(input.message);
+  const directQuestionUseful=input.interactionQuality!=='trivial'&&(mode==='supportive'||mode==='vulnerable'||mode==='practical');
+  const meaningfulInvite=meaningful&&['casual','playful','affectionate','storytelling'].includes(mode);
+  const invitationUseful=handoffsEnabled&&!mediaRequest&&reciprocity.consecutiveQuestionTurns<2&&(directQuestionUseful||meaningfulInvite||reciprocity.shouldInvite);
+  let handoff:ConversationalHandoff={mode:'none',source:'none',reciprocityDebt:reciprocity.debt};
+  if(earnedFollowup&&input.eligibleOpenThread){handoff={mode:'earned_followup',source:'open_thread',target:`Ask naturally about the user's ${input.eligibleOpenThread.displaySubject} now that it should have happened.`,openThreadId:input.eligibleOpenThread.id,reciprocityDebt:reciprocity.debt};}
+  else if(invitationUseful){
+    const userAsked=/\?\s*$/.test(input.message.trim());
+    const handoffMode:ConversationalHandoffMode=userAsked||meaningful&&mode!=='practical'?'self_disclosure_return':mode==='playful'||mode==='affectionate'?'playful_prompt':'specific_question';
+    handoff={mode:handoffMode,source:'current_message',target:curiosityTarget(input.message),reciprocityDebt:reciprocity.debt};
+  }
+  const askQuestion=handoff.mode==='specific_question'||handoff.mode==='earned_followup';
+  const actionCandidate:NonNullable<ResponseBrief['actionCandidate']>=mode==='practical'&&/\b(plan|schedule|cancel|reschedule)\b/.test(lower)?'plan':(threadRelevant&&/\b(went|finished|done|over|happened|result|results)\b/.test(lower))||earnedFollowup?'memory_followup':input.interactionQuality==='major_relationship_event'?'relationship':storyRelevant?'story':'none';
   const conceptualAvoid:string[]=[];
   if(input.nextCommitment&&recentlyMentioned(input.nextCommitment,recent)&&!planRelevant)conceptualAvoid.push(`Do not bring up “${short(input.nextCommitment)}” again unless the user reopens that plan.`);
-  if(input.openThread&&recentlyMentioned(input.openThread,recent)&&!threadRelevant)conceptualAvoid.push(`Do not repeat the recent “${short(input.openThread)}” follow-up unless the user brings it back up.`);
+  if(openThread&&recentlyMentioned(openThread,recent)&&!threadRelevant&&!earnedFollowup)conceptualAvoid.push(`Do not repeat the recent “${short(openThread)}” follow-up unless the user brings it back up.`);
   if(input.activeStory&&recentlyMentioned(input.activeStory,recent)&&!storyRelevant)conceptualAvoid.push(`Keep “${short(input.activeStory)}” in the background unless the user returns to that story.`);
   const avoid=[...conceptualAvoid,...antiRepetitionGuidance(recent)].slice(0,4);
-  return{mode,emotionalPosture:emotionalPosture(mode,input.relationshipStance),initiative,...(callbackCandidate?{callbackCandidate}:{}),selfDisclosure:meaningful?(input.relationshipStance.stage==='stranger'?'small':'moderate'):'none',shouldAskQuestion:askQuestion,actionCandidate,avoid,autonomy:'Contribute an independent reaction before accommodating the user. Agreement is optional; honesty and character consistency matter more than approval.'};
+  const selfDisclosure:ResponseBrief['selfDisclosure']=meaningful?(input.relationshipStance.stage==='stranger'?'small':'moderate'):handoff.mode==='self_disclosure_return'?'small':'none';
+  return{mode,emotionalPosture:emotionalPosture(mode,input.relationshipStance),initiative,...(callbackCandidate?{callbackCandidate}:{}),selfDisclosure,shouldAskQuestion:askQuestion,handoff,actionCandidate,avoid,autonomy:'Contribute an independent reaction before accommodating the user. Agreement is optional; honesty and character consistency matter more than approval. When a handoff is selected, make room for the user without sounding like an interviewer.'};
 }
 
 export function shouldUseDirector(policy:DirectorPolicy,quality:PromptInteractionQuality,input?:{pendingMilestone?:boolean;activeConflict?:boolean;activeStory?:boolean}):boolean{
@@ -118,6 +247,11 @@ function callbackMentionsCandidate(message:string,candidate?:string):boolean{
   return tokens.length===1?matches===1:matches>=2;
 }
 function recentlyMentioned(candidate:string,recentAssistantMessages:string[]):boolean{return recentAssistantMessages.slice(-4).some((message)=>callbackMentionsCandidate(message,candidate));}
+function countConsecutiveQuestionTurns(messages:string[]):number{let count=0;for(const message of [...messages].reverse()){if(/\?/.test(message))count++;else break;}return count;}
+function isOpenThreadDue(thread:PromptOpenThread|undefined,now:Date):boolean{if(!thread?.eligible||Number(thread.followupCount??0)>0||thread.lastFollowedUpAt)return false;if(!thread.expectedAt)return true;const dueAt=new Date(thread.expectedAt).getTime();return Number.isFinite(dueAt)&&dueAt<=now.getTime();}
+function isConversationalOpening(message:string):boolean{const value=normalizePhrase(message);return value.length<=64&&/^(?:hey|hi|hello|yo|morning|afternoon|evening|what'?s up|whats up|how are you|how'?s it going|hows it going|you around|miss me)(?:\b|$)/i.test(value);}
+function isSilentMediaRequest(message:string):boolean{return /\b(?:send|show|take|make|generate|share)\b[^.!?]{0,48}\b(?:photo|picture|pic|selfie|image|nude)\b/i.test(message)||/\b(?:photo|picture|pic|selfie|image)\s+(?:of you|please)\b/i.test(message);}
+function curiosityTarget(message:string):string{const clean=message.replace(/\s+/g,' ').trim();return clean.length<=140?clean:`${clean.slice(0,137)}…`;}
 function callbackTokens(value:string):string[]{const stop=new Set(['the','and','with','from','this','that','your','our','plan','plans','date','drinks','drink','coffee','dinner','movie','movies','walk','meeting','meet']);return[...new Set(normalizePhrase(value).split(' ').filter((token)=>token.length>2&&!stop.has(token)))];}
 function escapeRegExp(value:string):string{return value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
 function stageSummary(stage:string,closeness:number,tense:boolean,romanceEnabled:boolean){if(tense)return'The relationship matters, but unresolved tension is shaping the current interaction.';if(stage==='stranger')return'They have just met. Interest should come from curiosity rather than assumed closeness.';if(stage==='acquaintance')return'They recognize each other’s rhythms, but trust and intimacy are still being established.';if(stage==='friend')return romanceEnabled?'There is real trust and familiarity. Friendship is established; any romance still needs a genuine spark.':'There is real trust and familiarity, and the bond is clearly platonic.';if(stage==='flirting')return'There is mutual chemistry and playful tension, but the relationship is not yet an established partnership.';if(stage==='dating')return'They are intentionally dating and can draw naturally on shared romantic experiences.';if(stage==='exclusive')return'They have chosen exclusivity and expect more consistency from each other while remaining independent people.';if(stage==='long_term')return'They have substantial shared history and can speak from established trust, routines, and commitment.';return closeness>60?'They are comfortable and familiar with each other.':'Keep closeness proportional to what has actually happened.';}

@@ -1,0 +1,31 @@
+begin;
+select plan(25);
+
+select has_table('public','together_voice_call_transcript_events','voice transcript events exist');
+select has_table('public','together_voice_usage_events','voice usage telemetry exists');
+select has_column('public','together_voice_call_sessions','model','calls store provider model');
+select has_column('public','together_voice_call_sessions','ended_reason','calls store an end reason');
+select has_column('public','together_voice_call_sessions','transcript_status','calls track transcript finalization');
+select has_column('public','together_voice_call_sessions','transcript_finalized_at','calls timestamp transcript finalization');
+select has_column('public','together_voice_call_sessions','estimated_cost_usd','calls normalize estimated provider cost');
+select has_column('public','together_voice_call_sessions','connected_duration_ms','calls track connected duration');
+select has_column('public','together_voice_call_sessions','input_audio_duration_ms','calls can track provider input audio');
+select has_column('public','together_voice_call_sessions','output_audio_duration_ms','calls can track provider output audio');
+select has_column('public','together_voice_call_sessions','reconnect_count','calls track reconnect attempts');
+select has_column('public','together_voice_call_transcript_events','provider_event_id','transcript events preserve provider ids');
+select has_column('public','together_voice_call_transcript_events','canonical_message_id','transcript events link canonical messages');
+select has_column('public','together_voice_usage_events','estimated_cost_usd','voice telemetry tracks normalized cost');
+select has_index('public','together_voice_call_transcript_events','together_voice_transcript_provider_event_idx','provider transcript idempotency is indexed');
+select has_index('public','together_voice_call_transcript_events','together_voice_transcript_sequence_idx','transcript sequence fallback idempotency is indexed');
+select has_index('public','together_messages','together_voice_call_canonical_message_idx','canonical voice messages are idempotent for both speakers');
+select has_index('public','together_conversation_events','together_conversation_voice_call_event_idx','voice call timeline markers are idempotent');
+select like((select pg_get_constraintdef(oid) from pg_constraint where conrelid='public.together_conversation_events'::regclass and conname='together_conversation_events_event_type_check'),'%voice_call%','voice call is an allowed timeline event');
+select like((select pg_get_constraintdef(oid) from pg_constraint where conrelid='public.together_conversation_events'::regclass and conname='together_conversation_events_entity_type_check'),'%voice_call_session%','voice call sessions are allowed timeline entities');
+select has_index('public','together_voice_usage_events','together_voice_usage_call_success_idx','call accounting is idempotent');
+select policies_are('public','together_voice_call_transcript_events',array['together_voice_call_transcript_own_read'],'transcripts are privately readable');
+select policies_are('public','together_voice_usage_events',array['together_voice_usage_own_read'],'voice costs are privately readable');
+select function_privs_are('public','kivelle_voice_minutes_used',array['uuid','timestamp with time zone','timestamp with time zone'],'service_role',array['EXECUTE'],'only the backend queries included voice minutes');
+select ok(not has_function_privilege('authenticated','public.kivelle_voice_minutes_used(uuid,timestamptz,timestamptz)','EXECUTE'),'clients cannot invoke the voice allowance aggregate');
+
+select * from finish();
+rollback;

@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Easing, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type ViewStyle } from 'react-native';
-import { Image } from 'expo-image';
+import { Image, type ImageSource } from 'expo-image';
 import { Camera, Coins, Play, RefreshCw, Sparkles, ThumbsDown, ThumbsUp } from 'lucide-react-native';
 import { router } from 'expo-router';
 import type { GeneratedMedia,MediaOffer } from '../types';
 import { colors, radius } from '../theme';
 import { rateGeneratedMedia } from '../lib/api';
+
+const PHOTO_GENERATION_LOADER=require('../../assets/loaders/sparkles-loop-loader.svg');
 
 export function MediaTile({ media, style, onRetry }: { media: GeneratedMedia; style?: ViewStyle; onRetry?: () => void }) {
   const noun = media.media_type === 'video' ? 'Video' : 'Photo';
@@ -56,16 +58,28 @@ export function MediaFeedbackControls({media,style}:{media:GeneratedMedia;style?
   </View>;
 }
 
-export function MediaOfferCard({offer,busy,onAccept,onDecline,onBuyCredits}:{offer:MediaOffer;busy:boolean;onAccept:()=>void;onDecline:()=>void;onBuyCredits:()=>void}){
-  const accepted=offer.status==='accepted',included=offer.included_subscription_benefit;
-  return <View style={styles.offer} accessible accessibilityLabel={`${offer.title}. ${included?'Included with your plan':`${offer.credit_cost} Kivelle Credits`}`}>
-    <View pointerEvents="none" style={styles.offerGlow}/><View style={styles.offerIcon}><Camera size={22} color="#FFD8E7"/></View>
-    <Text style={styles.offerMessage}>{offer.companion_message}</Text><Text style={styles.offerTitle}>{offer.title}</Text>
-    <View style={styles.offerCost}>{included?<Sparkles size={13} color="#FFD8E7"/>:<Coins size={13} color="#FFD29B"/>}<Text style={styles.offerCostText}>{included?'Included Date souvenir':`${offer.credit_cost} Kivelle Credits`}</Text></View>
-    {accepted?<View style={styles.offerGenerating}><Text style={styles.offerGeneratingText}>Taking the photo…</Text></View>:<View style={styles.offerActions}><Pressable disabled={busy} onPress={onAccept} style={styles.offerPrimary}><Text style={styles.offerPrimaryText}>{busy?'Preparing…':included?'Claim included photo':'Send photo'}</Text></Pressable><Pressable disabled={busy} onPress={onDecline} style={styles.offerSecondary}><Text style={styles.offerSecondaryText}>Not now</Text></Pressable></View>}
-    {offer.status==='failed'?<Pressable onPress={onBuyCredits}><Text style={styles.offerFailure}>{offer.failure_reason_safe??'The photo could not be created.'}</Text></Pressable>:null}
+export function ChatPhotoRequestCard({offer,media,previewSource,preparing=false,busy,onAccept,onDecline,onBuyCredits,onRetry}:{offer?:MediaOffer|null;media?:GeneratedMedia;previewSource?:ImageSource|number;preparing?:boolean;busy:boolean;onAccept:()=>void;onDecline:()=>void;onBuyCredits:()=>void;onRetry?:()=>void}){
+  const ready=media?.status==='ready'&&Boolean(media.signed_url),failed=media?.status==='failed'||offer?.status==='failed',generating=!ready&&!failed&&(media?.status==='queued'||media?.status==='generating'||offer?.status==='accepted'),included=offer?.included_subscription_benefit===true;
+  if(ready&&media?.signed_url)return <View accessible accessibilityLabel="Generated companion photo" style={styles.chatPhotoCard}>
+    <Pressable accessibilityRole="imagebutton" accessibilityLabel="Open generated photo" onPress={()=>router.push(`/media/${media.id}` as never)} style={StyleSheet.absoluteFill}>
+      <Image source={{uri:media.signed_url}} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" transition={220}/>
+    </Pressable>
+    <MediaFeedbackControls media={media} style={styles.chatPhotoFeedback}/>
+  </View>;
+  return <View accessible accessibilityLiveRegion={generating?'polite':'none'} accessibilityLabel={generating?'Taking your photo':offer?.companion_message??'Preparing photo request'} style={styles.chatPhotoCard}>
+    {previewSource?<Image pointerEvents="none" source={previewSource} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" blurRadius={30}/>:null}
+    <View pointerEvents="none" style={styles.chatPhotoScrim}/>
+    {generating?<View style={styles.chatPhotoGenerating}><PhotoGenerationLoader/><Text style={styles.chatPhotoGeneratingText}>Taking your photo…</Text></View>:failed?<View style={styles.chatPhotoFailure}><Camera size={31} color="#FFF4F8"/><Text style={styles.chatPhotoFailureTitle}>That photo didn&apos;t come through</Text><Text style={styles.chatPhotoFailureCopy}>{media?.failure_reason_safe??offer?.failure_reason_safe??'Please try again.'}</Text>{onRetry?<Pressable accessibilityRole="button" onPress={onRetry} style={styles.chatPhotoRetry}><RefreshCw size={14} color="#FFF"/><Text style={styles.chatPhotoRetryText}>Try again</Text></Pressable>:null}</View>:preparing||!offer?<View style={styles.chatPhotoPreparing}><Text style={styles.chatPhotoPreparingText}>Preparing photo request…</Text></View>:<View style={styles.chatPhotoOfferContent}>
+      <Text accessibilityRole="header" style={styles.offerMessage}>{offer.companion_message}</Text>
+      <View style={styles.offerIcon}><Camera size={29} color="#FFF8FB" strokeWidth={1.8}/></View>
+      <View style={styles.offerCost}>{included?<Sparkles size={18} color="#FFD8E7"/>:<Coins size={19} color="#FFD29B"/>}<Text style={styles.offerCostText}>{included?'Included':offer.credit_cost}</Text>{included?null:<Text style={styles.offerCostUnit}>KIVELLE CREDITS</Text>}</View>
+      <View style={styles.offerActions}><Pressable accessibilityRole="button" accessibilityLabel="Decline photo" disabled={busy} onPress={onDecline} style={[styles.offerSecondary,busy&&{opacity:.55}]}><Text style={styles.offerSecondaryText}>Decline</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Accept photo for ${included?'no credits':`${offer.credit_cost} credits`}`} disabled={busy} onPress={onAccept} style={[styles.offerPrimary,busy&&{opacity:.55}]}><Text style={styles.offerPrimaryText}>{busy?'Preparing…':'Accept'}</Text></Pressable></View>
+      {offer.status==='failed'?<Pressable onPress={onBuyCredits}><Text style={styles.offerFailure}>{offer.failure_reason_safe??'The photo could not be created.'}</Text></Pressable>:null}
+    </View>}
   </View>;
 }
+
+function PhotoGenerationLoader(){return <Image pointerEvents="none" source={PHOTO_GENERATION_LOADER} style={styles.photoLoader} contentFit="contain"/>;}
 
 function MediaProgress({ media, style }: { media: GeneratedMedia; style?: ViewStyle }) {
   const pulse = useRef(new Animated.Value(0)).current;
@@ -248,20 +262,30 @@ const styles = StyleSheet.create({
   feedback:{flexDirection:'row',alignItems:'center',gap:1,height:24},
   feedbackButton:{width:25,height:24,alignItems:'center',justifyContent:'center',opacity:.58},
   feedbackButtonSelected:{opacity:1},
-  offer:{position:'relative',overflow:'hidden',alignSelf:'flex-start',width:'84%',maxWidth:440,gap:8,padding:16,borderRadius:radius.lg,backgroundColor:'rgba(31,20,40,.96)',borderWidth:1,borderColor:'rgba(255,169,204,.28)'},
-  offerGlow:{position:'absolute',width:180,height:180,borderRadius:90,right:-100,top:-95,backgroundColor:'rgba(216,62,234,.16)'},
-  offerIcon:{width:43,height:43,borderRadius:17,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(216,62,234,.15)',borderWidth:1,borderColor:'rgba(255,216,231,.15)'},
-  offerMessage:{color:colors.cream,fontSize:13,lineHeight:19,fontWeight:'700'},
-  offerTitle:{color:colors.muted,fontSize:10,fontWeight:'800'},
-  offerCost:{flexDirection:'row',alignItems:'center',gap:6},
-  offerCostText:{color:'#FFD7B2',fontSize:10,fontWeight:'900'},
-  offerActions:{flexDirection:'row',gap:8,marginTop:2},
-  offerPrimary:{flex:1,minHeight:40,alignItems:'center',justifyContent:'center',borderRadius:radius.md,backgroundColor:colors.rose},
-  offerPrimaryText:{color:'#fff',fontSize:11,fontWeight:'900'},
-  offerSecondary:{minHeight:40,paddingHorizontal:14,alignItems:'center',justifyContent:'center',borderRadius:radius.md,borderWidth:1,borderColor:colors.border},
-  offerSecondaryText:{color:colors.muted,fontSize:11,fontWeight:'800'},
-  offerGenerating:{minHeight:40,alignItems:'center',justifyContent:'center',borderRadius:radius.md,backgroundColor:'rgba(216,62,234,.10)'},
-  offerGeneratingText:{color:'#FFD8E7',fontSize:11,fontWeight:'900'},
+  chatPhotoCard:{position:'relative',overflow:'hidden',alignSelf:'flex-start',width:'92%',maxWidth:430,height:390,borderRadius:30,backgroundColor:'#241A31',borderWidth:1,borderColor:'rgba(255,214,232,.22)',shadowColor:'#000',shadowOpacity:.35,shadowRadius:24,shadowOffset:{width:0,height:12}},
+  chatPhotoScrim:{...StyleSheet.absoluteFill,backgroundColor:'rgba(22,15,29,.64)'},
+  chatPhotoOfferContent:{flex:1,gap:20,paddingHorizontal:28,paddingTop:48,paddingBottom:28,alignItems:'center',justifyContent:'space-between'},
+  chatPhotoPreparing:{flex:1,alignItems:'center',justifyContent:'center',padding:28},
+  chatPhotoPreparingText:{color:'#FFF4F8',fontSize:15,fontWeight:'900',textAlign:'center',textShadowColor:'rgba(0,0,0,.55)',textShadowRadius:9},
+  chatPhotoGenerating:{flex:1,alignItems:'center',justifyContent:'center',gap:18,padding:28},
+  chatPhotoGeneratingText:{color:'#FFF9FC',fontSize:16,fontWeight:'900',textAlign:'center',textShadowColor:'rgba(0,0,0,.58)',textShadowRadius:10},
+  photoLoader:{width:94,height:94,shadowColor:'#00DDB3',shadowOpacity:.32,shadowRadius:18,shadowOffset:{width:0,height:7}},
+  chatPhotoFailure:{flex:1,alignItems:'center',justifyContent:'center',gap:10,padding:28},
+  chatPhotoFailureTitle:{color:'#FFF9FC',fontSize:17,fontWeight:'900',textAlign:'center'},
+  chatPhotoFailureCopy:{color:'#F3DDE7',fontSize:11,lineHeight:16,textAlign:'center'},
+  chatPhotoRetry:{marginTop:6,minHeight:44,paddingHorizontal:20,borderRadius:18,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,backgroundColor:'rgba(216,62,234,.36)',borderWidth:1,borderColor:'rgba(255,216,231,.3)'},
+  chatPhotoRetryText:{color:'#FFF',fontSize:13,fontWeight:'900'},
+  chatPhotoFeedback:{position:'absolute',right:8,bottom:5,paddingHorizontal:4,borderRadius:12,backgroundColor:'rgba(10,7,14,.55)'},
+  offerIcon:{width:82,height:82,borderRadius:41,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(245,237,243,.28)',borderWidth:1,borderColor:'rgba(255,255,255,.16)'},
+  offerMessage:{color:'#FFF9FC',fontSize:24,lineHeight:33,fontWeight:'800',textAlign:'center',maxWidth:310,textShadowColor:'rgba(0,0,0,.38)',textShadowRadius:8},
+  offerCost:{minHeight:44,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,paddingHorizontal:15,paddingVertical:9,borderRadius:radius.pill,backgroundColor:'rgba(20,14,27,.62)',borderWidth:1,borderColor:'rgba(255,255,255,.09)'},
+  offerCostText:{color:'#FFF7F1',fontSize:25,fontWeight:'900'},
+  offerCostUnit:{color:'#F3C9D8',fontSize:9,fontWeight:'900',letterSpacing:.8},
+  offerActions:{width:'100%',flexDirection:'row',gap:14,marginTop:2},
+  offerPrimary:{flex:1,minHeight:56,alignItems:'center',justifyContent:'center',borderRadius:20,backgroundColor:'rgba(95,177,147,.68)',borderWidth:1,borderColor:'rgba(130,242,198,.55)'},
+  offerPrimaryText:{color:'#fff',fontSize:16,fontWeight:'900'},
+  offerSecondary:{flex:1,minHeight:56,alignItems:'center',justifyContent:'center',borderRadius:20,backgroundColor:'rgba(177,92,128,.58)',borderWidth:1,borderColor:'rgba(255,166,202,.38)'},
+  offerSecondaryText:{color:'#fff',fontSize:16,fontWeight:'900'},
   offerFailure:{color:colors.danger,fontSize:10,lineHeight:15},
   retry: {
     flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, paddingVertical: 7,

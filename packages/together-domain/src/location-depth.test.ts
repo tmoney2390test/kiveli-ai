@@ -1,0 +1,11 @@
+import{describe,expect,it}from'vitest';
+import{compactLocationLoreForDirectory,normalizeLocationLore,selectLocationLore}from'./location-depth';
+
+const lore={version:2,authored:true,summary:'A specific place.',atmosphere:['warm','busy','familiar'],sensoryDetails:['coffee','rain','music','wood'],signatureDetails:['window booth','old sign','rear room','garden'],layout:['front room','rear room','terrace'],crowdRhythm:{evening:'Regulars settle in.'},stableFacts:['Fact one','Fact two','Fact three','Fact four'],localEtiquette:['Order first','Keep the aisle clear'],conversationHooks:['The changed menu','A familiar regular','The weather'],publicHistory:['It began as a workshop.'],recurringPeople:[{label:'early regulars',role:'neighbors'}],activityNotes:{coffee:'Best before the rush.',reading:'The rear room is quiet.'},accessNotes:['Closes at midnight.'],weatherNotes:['Rain makes the windows part of the room.'],storySeeds:['Someone left a note.']};
+
+describe('location depth',()=>{
+  it('normalizes structured lore without accepting malformed people',()=>{expect(normalizeLocationLore({...lore,recurringPeople:[...lore.recurringPeople,{label:'missing role'}]}).recurringPeople).toEqual(lore.recurringPeople);});
+  it('selects direct location context without flooding ordinary turns',()=>{const direct=selectLocationLore({lore,intent:'location',daypart:'evening',seed:'one'}),general=selectLocationLore({lore,intent:'general',daypart:'evening',seed:'one'});expect(direct.crowdNow).toBe('Regulars settle in.');expect(direct.layout).toHaveLength(3);expect(direct.publicHistory).toHaveLength(1);expect(general.layout).toEqual([]);expect(general.sensoryDetails).toHaveLength(1);expect(general.publicHistory).toEqual([]);});
+  it('keeps planner facts and omits story-only hooks',()=>{const result=selectLocationLore({lore,intent:'plan',daypart:'afternoon'});expect(result.accessNotes).toEqual(['Closes at midnight.']);expect(result.activityNotes['coffee']).toContain('rush');expect(result.storySeeds).toEqual([]);});
+  it('creates a small directory payload',()=>{const compact=compactLocationLoreForDirectory(lore);expect(compact.summary).toBe(lore.summary);expect(compact.atmosphere).toHaveLength(2);expect(compact.sensoryDetails).toBeUndefined();expect(compact.layout).toBeUndefined();expect(compact.storySeeds).toBeUndefined();});
+});

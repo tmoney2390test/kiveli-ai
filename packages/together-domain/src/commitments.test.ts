@@ -1,8 +1,20 @@
 import{describe,expect,it}from'vitest';
-import{classifyMissExplanation,deriveCommitmentTemporalState,manualCommitmentEndEligibility,missedCommitmentImpact,missedCommitmentRepairImpact,resolveElapsedCommitmentEnd}from'./commitments';
+import{classifyMissExplanation,deriveCommitmentTemporalState,manualCommitmentEndEligibility,missedCommitmentImpact,missedCommitmentRepairImpact,planStartSatisfiesLeadTime,resolveElapsedCommitmentEnd,resolveQuickPlanTiming}from'./commitments';
 
 describe('commitments',()=>{
   const now=new Date('2026-08-15T20:00:00Z');
+  it('resolves quick plan choices from authoritative request time',()=>{
+    expect(resolveQuickPlanTiming('now',undefined,now)).toBe('2026-08-15T20:00:00.000Z');
+    expect(resolveQuickPlanTiming('in_one_hour',undefined,now)).toBe('2026-08-15T21:00:00.000Z');
+    expect(resolveQuickPlanTiming('custom','2026-08-16T18:30:00.000Z',now)).toBe('2026-08-16T18:30:00.000Z');
+  });
+  it('allows an immediate plan without weakening scheduled-plan lead time',()=>{
+    expect(planStartSatisfiesLeadTime(now,true,now)).toBe(true);
+    expect(planStartSatisfiesLeadTime(new Date(now.getTime()-90_000),true,now)).toBe(true);
+    expect(planStartSatisfiesLeadTime(new Date(now.getTime()-3*60_000),true,now)).toBe(false);
+    expect(planStartSatisfiesLeadTime(new Date(now.getTime()+9*60_000),false,now)).toBe(false);
+    expect(planStartSatisfiesLeadTime(new Date(now.getTime()+10*60_000),false,now)).toBe(true);
+  });
   it('derives imminent, grace and active from attendance',()=>{
     expect(deriveCommitmentTemporalState({status:'scheduled',startsAt:'2026-08-15T21:00:00Z',endsAt:'2026-08-15T23:00:00Z',timezone:'UTC'},now)).toBe('imminent');
     expect(deriveCommitmentTemporalState({status:'active',startsAt:'2026-08-15T19:50:00Z',endsAt:'2026-08-15T22:00:00Z',graceEndsAt:'2026-08-15T20:20:00Z',participationMode:'live'},now)).toBe('grace');

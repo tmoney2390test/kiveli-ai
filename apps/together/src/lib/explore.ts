@@ -1,12 +1,13 @@
-import type { CharacterInstance, CharacterTemplate, Location, Snapshot } from '../types';
+import type { CharacterInstance, Location, Snapshot } from '../types';
+import type { FeaturedCompanion } from './featuredCompanions';
 import { recommendPlanOptions, type PlanContext, type PlanOption } from './plans';
 import { characterCatalogForWorld } from './place';
 
-export type ExploreCategoryId='coffee'|'nightlife'|'dining'|'quiet'|'entertainment';
+export type ExploreCategoryId='food'|'nightlife'|'lodging'|'quiet'|'entertainment';
 export type ExploreRecommendation={id:'tonight'|'companion'|'different'|'liked';title:string;subtitle:string;option:PlanOption;location:Location};
-export type ExploreContext={locations:Location[];featuredLocations:Location[];categories:Array<{id:ExploreCategoryId;label:string;count:number}>;recommendations:ExploreRecommendation[];worldEvents:Snapshot['lifeEvents'];people:CharacterTemplate[]};
+export type ExploreContext={locations:Location[];featuredLocations:Location[];categories:Array<{id:ExploreCategoryId;label:string;count:number}>;recommendations:ExploreRecommendation[];worldEvents:Snapshot['lifeEvents'];people:FeaturedCompanion[]};
 
-export const EXPLORE_CATEGORIES:Array<{id:ExploreCategoryId;label:string}>=[{id:'coffee',label:'Coffee'},{id:'nightlife',label:'Nightlife'},{id:'dining',label:'Dining'},{id:'quiet',label:'Quiet Spots'},{id:'entertainment',label:'Entertainment'}];
+export const EXPLORE_CATEGORIES:Array<{id:ExploreCategoryId;label:string}>=[{id:'food',label:'Food'},{id:'nightlife',label:'Nightlife'},{id:'lodging',label:'Lodging'},{id:'quiet',label:'Quiet Spots'},{id:'entertainment',label:'Entertainment'}];
 
 export function buildExploreContext(snapshot:Snapshot,companion:CharacterInstance|undefined,worldId:string):ExploreContext{
   const locations=snapshot.locations.filter((location)=>location.world_id===worldId&&isBrowsableLocation(location));
@@ -35,7 +36,7 @@ function buildRecommendations(snapshot:Snapshot,companion:CharacterInstance,loca
 function recommendationSubtitle(id:string,option:PlanOption){if(id==='tonight')return`${option.locationName} · ${friendly(option.activityKey)}`;if(id==='companion')return`${option.locationName} feels like the right fit right now.`;if(id==='different')return`${option.locationName} breaks your recent pattern.`;return`${option.locationName} is worth doing again.`;}
 function featureLocations(locations:Location[],priorityIds:string[]){const score=(location:Location)=>{const priority=priorityIds.indexOf(location.id);return(priority>=0?50-priority*5:0)+(location.sort_order??0)*-.001+(hasArtPriority(location.slug)?12:0);};return[...locations].sort((a,b)=>score(b)-score(a)).slice(0,8);}
 function hasArtPriority(slug:string){return['velvet-hour','riverwalk','pixel-and-pint','paper-trail','moss-and-crumb','juniper-civic-arena'].includes(slug);}
-export function isBrowsableLocation(location:Location){return!['room','zone','transit'].includes(location.location_type)&&location.category!=='home'&&location.category!=='work'&&location.metadata?.private!==true&&location.metadata?.directoryVisibility!=='private';}
-export function matchesExploreCategory(location:Location,category:ExploreCategoryId){const tags=Array.isArray(location.metadata?.tags)?location.metadata.tags:[];const words=`${location.category} ${location.possible_activities.join(' ')} ${tags.join(' ')}`.toLowerCase();if(category==='coffee')return/coffee|cafe|bakery|pastry|brunch/.test(words);if(category==='nightlife')return/bar|lounge|nightlife|cocktail|music|karaoke|comedy|drinks/.test(words);if(category==='dining')return/restaurant|dinner|food|taco|brunch/.test(words);if(category==='quiet')return/quiet|book|park|gallery|walk|outdoor|reading|coffee/.test(words);return/entertainment|cinema|movie|arcade|games|music|comedy|karaoke|trivia|sport|arena|basketball|hockey|soccer|boxing/.test(words);}
-function peopleForWorld(snapshot:Snapshot,worldId:string):CharacterTemplate[]{return characterCatalogForWorld(snapshot,worldId).map((entry)=>entry.template);}
+export function isBrowsableLocation(location:Location){const explicitlyPublic=location.metadata?.directoryVisibility==='public';return!['region','district','neighborhood','room','zone'].includes(location.location_type)&&location.category!=='home'&&(location.category!=='work'||explicitlyPublic)&&location.metadata?.private!==true&&location.metadata?.directoryVisibility!=='private';}
+export function matchesExploreCategory(location:Location,category:ExploreCategoryId){const tags=Array.isArray(location.metadata?.tags)?location.metadata.tags:[];const words=`${location.category} ${location.possible_activities.join(' ')} ${tags.join(' ')}`.toLowerCase();if(category==='food')return/restaurant|dinner|dining|food|taco|brunch|coffee|cafe|café|bakery|pastry|breakfast|lunch|seafood|tavern|diner/.test(words);if(category==='nightlife')return/bar|lounge|nightlife|cocktail|music|karaoke|comedy|drinks/.test(words);if(category==='lodging')return/hotel|inn|guesthouse|lodg|resort|cabin|accommodation|overnight stay/.test(words);if(category==='quiet')return/quiet|book|park|gallery|walk|outdoor|reading|coffee/.test(words);return/entertainment|cinema|movie|arcade|games|music|comedy|karaoke|trivia|sport|arena|basketball|hockey|soccer|boxing/.test(words);}
+function peopleForWorld(snapshot:Snapshot,worldId:string):FeaturedCompanion[]{return characterCatalogForWorld(snapshot,worldId).map((entry)=>({...entry.template,together_character_versions:entry.version}));}
 function friendly(value:string){return value.replace(/_/g,' ').replace(/\b\w/g,(letter)=>letter.toUpperCase())}

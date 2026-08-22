@@ -1,20 +1,29 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  deriveCompanionVoiceProfile,
-  resolveExperienceCapabilities,
   type CapabilityStatus,
   type CompanionVoiceProfile,
+  deriveCompanionVoiceProfile,
   type KivelleExperienceCapabilities,
   type KivelleProviderCapability,
   type MultimodalPreferences,
-} from '../../../packages/together-domain/src/multimodal.ts';
-import { configuredImageProvider } from './together-media-base.ts';
-import { configuredMediaRegistry } from './together-media-providers.ts';
+  resolveExperienceCapabilities,
+} from "../../../packages/together-domain/src/multimodal.ts";
+import { configuredImageProvider } from "./together-media-base.ts";
+import { configuredMediaRegistry } from "./together-media-providers.ts";
 // Keep provider adapters in the remote Edge bundle. The Supabase deploy graph
 // does not currently retain these transitive sibling imports when capabilities
 // are reached through together-media-providers alone.
-import './wavespeed.ts';
-import './venice.ts';
+import "./wavespeed.ts";
+import "./venice.ts";
+import {
+  XAI_REALTIME_VOICE_MODEL,
+  XaiRealtimeVoiceProvider,
+  XaiTextToSpeechProvider,
+  xaiVoiceConfigurationAvailable,
+} from "./xai-voice.ts";
+import type { RealtimeVoiceClientConfiguration } from "./kivelle-realtime-voice.ts";
+import { applyCompanionVoicePreset } from "./companion-voice-selection.ts";
+import type { CompanionVoicePreset } from "../../../packages/together-domain/src/voice-presets.ts";
 
 export type VisionInput = {
   bytes: Uint8Array;
@@ -36,7 +45,8 @@ export interface VisionProvider {
 export type SpeechInput = {
   text: string;
   voice: CompanionVoiceProfile;
-  outputFormat?: 'wav' | 'mp3';
+  outputFormat?: "wav" | "mp3";
+  delivery?: { speed?: number };
 };
 export type SpeechResult = {
   bytes: Uint8Array;
@@ -44,6 +54,10 @@ export type SpeechResult = {
   durationMs: number;
   model: string;
   providerRequestId?: string;
+  latencyMs?: number;
+  characterCount?: number;
+  estimatedCostUsd?: number;
+  voiceId?: string;
 };
 export interface TextToSpeechProvider {
   readonly id: string;
@@ -59,6 +73,7 @@ export type RealtimeVoiceSession = {
   providerSessionId: string;
   clientSecret: string;
   expiresAt: string;
+  clientConfiguration?: RealtimeVoiceClientConfiguration;
   providerMetadata?: Record<string, unknown>;
 };
 export interface RealtimeVoiceProvider {
@@ -68,12 +83,12 @@ export interface RealtimeVoiceProvider {
 }
 
 class DeterministicVisionProvider implements VisionProvider {
-  readonly id = 'deterministic_test';
+  readonly id = "deterministic_test";
   async analyze(input: VisionInput): Promise<VisionResult> {
     return {
       shortDescription: input.userCaption
         ? `An image shared with the caption: ${input.userCaption.slice(0, 120)}`
-        : 'A user-shared image.',
+        : "A user-shared image.",
       notableDetails: [],
       safetyCategories: [],
       confidence: .75,
@@ -82,16 +97,26 @@ class DeterministicVisionProvider implements VisionProvider {
 }
 
 class DeterministicTextToSpeechProvider implements TextToSpeechProvider {
-  readonly id = 'deterministic_test';
+  readonly id = "deterministic_test";
   async synthesize(input: SpeechInput): Promise<SpeechResult> {
-    const durationMs = Math.max(500, Math.min(12_000, Math.round(input.text.split(/\s+/).length * 360)));
-    return { bytes: silentWav(durationMs), contentType: 'audio/wav', durationMs, model: 'deterministic-silence-v1' };
+    const durationMs = Math.max(
+      500,
+      Math.min(12_000, Math.round(input.text.split(/\s+/).length * 360)),
+    );
+    return {
+      bytes: silentWav(durationMs),
+      contentType: "audio/wav",
+      durationMs,
+      model: "deterministic-silence-v1",
+    };
   }
 }
 
 class DeterministicRealtimeVoiceProvider implements RealtimeVoiceProvider {
-  readonly id = 'deterministic_test';
-  async createSession(input: RealtimeVoiceInput): Promise<RealtimeVoiceSession> {
+  readonly id = "deterministic_test";
+  async createSession(
+    input: RealtimeVoiceInput,
+  ): Promise<RealtimeVoiceSession> {
     return {
       providerSessionId: `test-${input.callSessionId}`,
       clientSecret: `test-only-${input.callSessionId}`,
@@ -103,85 +128,192 @@ class DeterministicRealtimeVoiceProvider implements RealtimeVoiceProvider {
 }
 
 function explicitProvider(name: string): string {
-  return (Deno.env.get(name) ?? '').trim().toLowerCase();
+  return (Deno.env.get(name) ?? "").trim().toLowerCase();
 }
 
 function testProvidersEnabled(): boolean {
-  return Deno.env.get('KIVELLE_ENABLE_TEST_PROVIDERS') === 'true';
+  return Deno.env.get("KIVELLE_ENABLE_TEST_PROVIDERS") === "true";
 }
 
+type ProviderFactory<T> = () => T | null;
+
+// Provider selection stays behind the neutral interfaces. A Venice fallback
+// can be added here without changing the chat, media, or call APIs.
+const textToSpeechProviderRegistry: Readonly<
+  Record<string, ProviderFactory<TextToSpeechProvider>>
+> = {
+  deterministic_test: () =>
+    testProvidersEnabled() ? new DeterministicTextToSpeechProvider() : null,
+  xai: () =>
+    xaiVoiceConfigurationAvailable("tts")
+      ? new XaiTextToSpeechProvider(String(Deno.env.get("XAI_API_KEY")))
+      : null,
+};
+
+const realtimeVoiceProviderRegistry: Readonly<
+  Record<string, ProviderFactory<RealtimeVoiceProvider>>
+> = {
+  deterministic_test: () =>
+    testProvidersEnabled() ? new DeterministicRealtimeVoiceProvider() : null,
+  xai: () =>
+    xaiVoiceConfigurationAvailable("realtime")
+      ? new XaiRealtimeVoiceProvider(
+        String(Deno.env.get("XAI_API_KEY")),
+        Deno.env.get("KIVELLE_XAI_REALTIME_VOICE_MODEL")?.trim() ||
+          XAI_REALTIME_VOICE_MODEL,
+      )
+      : null,
+};
+
 export function configuredVisionProvider(): VisionProvider | null {
-  const selected = explicitProvider('KIVELLE_VISION_PROVIDER');
-  if (selected === 'deterministic_test' && testProvidersEnabled()) return new DeterministicVisionProvider();
+  const selected = explicitProvider("KIVELLE_VISION_PROVIDER");
+  if (selected === "deterministic_test" && testProvidersEnabled()) {
+    return new DeterministicVisionProvider();
+  }
   return null;
 }
 
 export function configuredTextToSpeechProvider(): TextToSpeechProvider | null {
-  const selected = explicitProvider('KIVELLE_TTS_PROVIDER');
-  if (selected === 'deterministic_test' && testProvidersEnabled()) return new DeterministicTextToSpeechProvider();
-  return null;
+  const selected = explicitProvider("KIVELLE_TTS_PROVIDER");
+  return textToSpeechProviderRegistry[selected]?.() ?? null;
 }
 
-export function configuredRealtimeVoiceProvider(): RealtimeVoiceProvider | null {
-  const selected = explicitProvider('KIVELLE_REALTIME_VOICE_PROVIDER');
-  if (selected === 'deterministic_test' && testProvidersEnabled()) return new DeterministicRealtimeVoiceProvider();
-  return null;
+export function configuredRealtimeVoiceProvider():
+  | RealtimeVoiceProvider
+  | null {
+  const selected = explicitProvider("KIVELLE_REALTIME_VOICE_PROVIDER");
+  return realtimeVoiceProviderRegistry[selected]?.() ?? null;
 }
 
-export function providerCapabilityStatuses(): Record<KivelleProviderCapability, CapabilityStatus> {
-  const mediaRoutes=configuredMediaRegistry();
+export function providerCapabilityStatuses(): Record<
+  KivelleProviderCapability,
+  CapabilityStatus
+> {
+  const mediaRoutes = configuredMediaRegistry();
+  const ttsSelection = explicitProvider("KIVELLE_TTS_PROVIDER"),
+    realtimeSelection = explicitProvider("KIVELLE_REALTIME_VOICE_PROVIDER");
+  const ttsStatus: CapabilityStatus = configuredTextToSpeechProvider()
+    ? "available"
+    : ttsSelection === "xai" &&
+        Deno.env.get("KIVELLE_XAI_TTS_ENABLED") === "false"
+    ? "disabled"
+    : "not_configured";
+  const realtimeStatus: CapabilityStatus = configuredRealtimeVoiceProvider()
+    ? "available"
+    : realtimeSelection === "xai" &&
+        Deno.env.get("KIVELLE_XAI_REALTIME_VOICE_ENABLED") === "false"
+    ? "disabled"
+    : "not_configured";
   return {
-    vision: configuredVisionProvider() ? 'available' : 'not_configured',
-    text_to_speech: configuredTextToSpeechProvider() ? 'available' : 'not_configured',
-    speech_to_text: 'not_configured',
-    realtime_voice: configuredRealtimeVoiceProvider() ? 'available' : 'not_configured',
-    image_generation: mediaRoutes.some((route)=>route.enabled&&route.mediaTypes.includes('image')) ? 'available' : 'not_configured',
-    image_editing: mediaRoutes.some((route)=>route.enabled&&route.mediaTypes.includes('image')&&route.supportsImageEditing) ? 'available' : 'not_configured',
-    video_generation: mediaRoutes.some((route)=>route.enabled&&route.mediaTypes.includes('video')) ? 'available' : 'not_configured',
+    vision: configuredVisionProvider() ? "available" : "not_configured",
+    text_to_speech: ttsStatus,
+    speech_to_text: "not_configured",
+    realtime_voice: realtimeStatus,
+    image_generation:
+      mediaRoutes.some((route) =>
+          route.enabled && route.mediaTypes.includes("image")
+        )
+        ? "available"
+        : "not_configured",
+    image_editing:
+      mediaRoutes.some((route) =>
+          route.enabled && route.mediaTypes.includes("image") &&
+          route.supportsImageEditing
+        )
+        ? "available"
+        : "not_configured",
+    video_generation:
+      mediaRoutes.some((route) =>
+          route.enabled && route.mediaTypes.includes("video")
+        )
+        ? "available"
+        : "not_configured",
   };
 }
 
-export function resolveServerExperienceCapabilities(preferences?: Partial<MultimodalPreferences>,entitlementKeys?:string[]): {
+export function resolveServerExperienceCapabilities(
+  preferences?: Partial<MultimodalPreferences>,
+  entitlementKeys?: string[],
+): {
   experience: KivelleExperienceCapabilities;
   providers: Record<KivelleProviderCapability, CapabilityStatus>;
 } {
   const providers = providerCapabilityStatuses();
-  const entitlements=new Set(entitlementKeys??[]),enforceEntitlements=Array.isArray(entitlementKeys);
-  const entitled=(...keys:string[])=>!enforceEntitlements||keys.some((key)=>entitlements.has(key));
-  return { providers, experience: resolveExperienceCapabilities({ providerStatuses: providers, preferences,product:{
-    userImageUploads:true,
-    visionUnderstanding:true,
-    voiceNotes:entitled('voice_notes'),
-    liveVoiceCalls:entitled('voice_priority'),
-    // Contextual photos already use the centralized Credits ledger for access;
-    // the legacy contextual_images key must not become a second paywall.
-    contextualSelfies:true,
-    contextualVideos:true,
-    multiCharacterScenes:entitled('group_interactions','social_scenes_enhanced'),
-  } }) };
+  const entitlements = new Set(entitlementKeys ?? []),
+    enforceEntitlements = Array.isArray(entitlementKeys);
+  const entitled = (...keys: string[]) =>
+    !enforceEntitlements || keys.some((key) => entitlements.has(key));
+  return {
+    providers,
+    experience: resolveExperienceCapabilities({
+      providerStatuses: providers,
+      preferences,
+      product: {
+        userImageUploads: true,
+        visionUnderstanding: true,
+        voiceNotes: entitled("voice_notes"),
+        // Live calls are purchased with Kivelle Credits per started minute.
+        // Subscription tiers may grant more credits, but are not an access gate.
+        liveVoiceCalls: true,
+        // Contextual photos already use the centralized Credits ledger for access;
+        // the legacy contextual_images key must not become a second paywall.
+        contextualSelfies: true,
+        contextualVideos: true,
+        multiCharacterScenes: entitled(
+          "group_interactions",
+          "social_scenes_enhanced",
+        ),
+      },
+    }),
+  };
 }
 
 export async function resolveCompanionVoiceProfile(
   db: SupabaseClient,
   characterInstanceId: string,
+  voicePreset?: CompanionVoicePreset | null,
 ): Promise<CompanionVoiceProfile> {
-  const { data: instance } = await db.from('together_character_instances').select('character_template_id,character_version_id').eq('id', characterInstanceId).single();
-  const templateId = String(instance?.character_template_id ?? '');
-  const { data: profile } = await db.from('together_character_voice_profiles').select('*').eq('character_template_id', templateId).eq('active', true).maybeSingle();
+  const { data: instance } = await db.from("together_character_instances")
+    .select("character_template_id,character_version_id").eq(
+      "id",
+      characterInstanceId,
+    ).single();
+  const templateId = String(instance?.character_template_id ?? "");
+  const { data: profile } = await db.from("together_character_voice_profiles")
+    .select("*").eq("character_template_id", templateId).eq("active", true)
+    .maybeSingle();
   if (profile) {
-    return {
+    return applyCompanionVoicePreset({
       characterTemplateId: templateId,
       voiceKey: String(profile.voice_key),
-      characteristics: (profile.characteristics ?? {}) as CompanionVoiceProfile['characteristics'],
-      providerMappings: (profile.provider_mappings ?? {}) as Record<string, string>,
-    };
+      characteristics: (profile.characteristics ?? {}) as CompanionVoiceProfile[
+        "characteristics"
+      ],
+      providerMappings: (profile.provider_mappings ?? {}) as Record<
+        string,
+        string
+      >,
+    }, voicePreset);
   }
-  const { data: version } = await db.from('together_character_versions').select('personality_config,communication_style').eq('id', String(instance?.character_version_id ?? '')).maybeSingle();
-  return deriveCompanionVoiceProfile({ characterTemplateId: templateId, personality: (version?.personality_config ?? {}) as Record<string, unknown>, communicationStyle: (version?.communication_style ?? {}) as Record<string, unknown> });
+  const { data: version } = await db.from("together_character_versions").select(
+    "personality_config,communication_style",
+  ).eq("id", String(instance?.character_version_id ?? "")).maybeSingle();
+  return applyCompanionVoicePreset(deriveCompanionVoiceProfile({
+    characterTemplateId: templateId,
+    personality: (version?.personality_config ?? {}) as Record<string, unknown>,
+    communicationStyle: (version?.communication_style ?? {}) as Record<
+      string,
+      unknown
+    >,
+  }), voicePreset);
 }
 
-export function normalizeMultimodalPreferences(value: unknown): MultimodalPreferences {
-  const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+export function normalizeMultimodalPreferences(
+  value: unknown,
+): MultimodalPreferences {
+  const raw = value && typeof value === "object"
+    ? value as Record<string, unknown>
+    : {};
   return {
     userPhotoUploads: raw.userPhotoUploads !== false,
     generatedPhotos: raw.generatedPhotos !== false,
@@ -198,10 +330,22 @@ function silentWav(durationMs: number): Uint8Array {
   const byteLength = 44 + sampleCount * 2;
   const buffer = new ArrayBuffer(byteLength);
   const view = new DataView(buffer);
-  const write = (offset: number, value: string) => [...value].forEach((character, index) => view.setUint8(offset + index, character.charCodeAt(0)));
-  write(0, 'RIFF'); view.setUint32(4, byteLength - 8, true); write(8, 'WAVE'); write(12, 'fmt ');
-  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
-  write(36, 'data'); view.setUint32(40, sampleCount * 2, true);
+  const write = (offset: number, value: string) =>
+    [...value].forEach((character, index) =>
+      view.setUint8(offset + index, character.charCodeAt(0))
+    );
+  write(0, "RIFF");
+  view.setUint32(4, byteLength - 8, true);
+  write(8, "WAVE");
+  write(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  write(36, "data");
+  view.setUint32(40, sampleCount * 2, true);
   return new Uint8Array(buffer);
 }

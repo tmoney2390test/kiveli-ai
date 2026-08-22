@@ -180,11 +180,11 @@ function isVeniceAdultFinalFallbackEligible(error:unknown):boolean{
   return isVeniceFallbackEligible(error)||(error instanceof AppError&&error.code==='PROVIDER_REQUEST_INVALID');
 }
 function isVeniceStandardFallbackEligible(error:unknown):boolean{
-  // A blurred result is model-specific suppression, not the same signal as a
-  // provider content-policy violation. For standard/romance requests only,
-  // retry the same canonical request through the configured safe-mode fallback.
-  // Explicit policy signals remain non-retryable and never reach this branch.
-  return isVeniceFallbackEligible(error)||(error instanceof AppError&&error.code==='PROVIDER_OUTPUT_BLURRED');
+  // A blurred result or request-shape rejection can be model-specific. For
+  // standard/romance requests only, retry the same canonical request through
+  // the configured safe-mode fallback. Explicit policy signals remain
+  // non-retryable and never reach this branch.
+  return isVeniceFallbackEligible(error)||(error instanceof AppError&&['PROVIDER_OUTPUT_BLURRED','PROVIDER_REQUEST_INVALID'].includes(error.code));
 }
 function veniceReferences(request:CanonicalMediaRequest,route:MediaRouteCapability):string[]{
   if(request.generationKind==='photo_edit'){

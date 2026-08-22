@@ -1,3 +1,5 @@
+import { analyzeAdultLanguage, hasAdultUpperBodyLanguage, normalizeAdultLanguageText } from './adult-language.ts';
+
 export type MediaLevel='standard'|'romance'|'suggestive'|'mature'|'explicit';
 export type PhotoShotType='selfie'|'portrait'|'candid'|'full_body'|'scene';
 export type PhotoIntent={requested:boolean;subject:'companion'|'location'|'activity'|'outfit'|'event'|'date'|'unknown';shotPreference?:PhotoShotType;requestedContentLevel?:MediaLevel;confidence:number};
@@ -7,8 +9,17 @@ export type AdultNudityScope='none'|'topless'|'bottomless'|'full_nude'|'specific
 export type SpecificAnatomyExposure='uncovered'|'covered';
 export type MediaHistory={source:'user_request'|'life_event'|'date'|'moment'|'story';createdAt:string;locationId?:string;shotType?:string};
 export type MediaSceneBoundary={setting:'indoor'|'outdoor'|'mixed';instruction:string;avoid:string[]};
-export type MediaPresenceState={locationId?:string|null;activity?:string|null;mood?:string|null;source?:string|null;resolvedAt?:string|null};
-export type ResolvedMediaPresence={locationId:string|null;activity:string;mood:string;source:string;resolvedAt?:string};
+export type MediaPresenceState={locationId?:string|null;activity?:string|null;activityKey?:string|null;mood?:string|null;source?:string|null;resolvedAt?:string|null};
+export type ResolvedMediaPresence={locationId:string|null;activity:string;activityKey?:string;mood:string;source:string;resolvedAt?:string};
+
+export const PHOTO_ONLY_MESSAGE_CONTENT='[Photo]';
+
+export function isPhotoOnlyConversationMessage(message:{role?:unknown;content?:unknown;provider_metadata?:unknown}):boolean{
+  const metadata=message.provider_metadata&&typeof message.provider_metadata==='object'&&!Array.isArray(message.provider_metadata)
+    ?message.provider_metadata as Record<string,unknown>
+    :{};
+  return message.role==='assistant'&&(message.content===PHOTO_ONLY_MESSAGE_CONTENT||metadata['mediaOnly']===true);
+}
 
 export const CHARACTER_PHOTO_REALISM_GUIDANCE='Photorealistic real-camera photograph of the same referenced fictional adult: preserve facial geometry, natural skin texture, pores, fine hair, eye detail, adult age, and body identity. Use believable optics and lighting. No illustration, anime, CGI, 3D render, doll-like or waxy skin, beauty-filter face, plastic texture, or identity drift.';
 
@@ -34,10 +45,11 @@ export function resolveCanonicalMediaPresence(input:{
       ? canonical.locationId??null
       : input.character.locationId??null;
   const activity=String((hasCanonical?canonical.activity:null)??input.character.activity??'Spending time in their current place');
+  const activityKey=String((hasCanonical?canonical.activityKey:null)??input.character.activityKey??'');
   const mood=String((hasCanonical?canonical.mood:null)??input.character.mood??'content');
   const source=String(input.authoritativeLocationId!==undefined?'linked_context':(hasCanonical?canonical.source:null)??input.character.source??'character_state');
   const resolvedAt=typeof canonical.resolvedAt==='string'&&canonical.resolvedAt?canonical.resolvedAt:undefined;
-  return{locationId,activity,mood,source,...(resolvedAt?{resolvedAt}:{})};
+  return{locationId,activity,...(activityKey?{activityKey}:{}),mood,source,...(resolvedAt?{resolvedAt}:{})};
 }
 
 const WARDROBE_LANGUAGE=/\b(wear(?:ing)?|dressed|outfit|button[- ]?down|shirt|blouse|top|tee|t-?shirt|tank top|sweater|cardigan|hoodie|jacket|coat|blazer|suit|dress|skirt|shorts|jeans|denim|pants|trousers|leggings|linen|cotton|silk|leather|boots|shoes|sneakers|heels|sandals|swimsuit|bikini|lingerie)\b/i;
@@ -63,12 +75,13 @@ const PHOTO_INTENT_TYPO_ALIASES:Array<[RegExp,string]>=[
   [/\b(?:imgae|imahe|iamge)\b/gi,'image'],
   [/\byoue\b/gi,'your'],
   [/\bur\b/gi,'your'],
+  [/\b(?:boobies|boobees|boobys)\b/gi,'boobs'],
   [/\bwanna\b/gi,'want to'],
   [/\blemme\b/gi,'let me'],
 ];
 
 function normalizePhotoIntentText(text:string):string{
-  return PHOTO_INTENT_TYPO_ALIASES.reduce((value,[pattern,replacement])=>value.replace(pattern,replacement),text.normalize('NFKC')).replace(/[\u2018\u2019]/g,"'").replace(/\s+/g,' ').trim();
+  return normalizeAdultLanguageText(PHOTO_INTENT_TYPO_ALIASES.reduce((value,[pattern,replacement])=>value.replace(pattern,replacement),text.normalize('NFKC'))).replace(/\s+/g,' ').trim();
 }
 
 const PHOTO_NOUN='(?:photos?|photographs?|pictures?|pics?|selfies?|snaps?|images?|nudes?|lewds?|mirror (?:pic|selfie)|outfit (?:pic|photo)|fit check|ootd)';
@@ -91,6 +104,7 @@ const NAMED_PHOTO_REQUEST=new RegExp([
 // "photo": outfit checks, a current view, or a specific visible detail.
 const CONTEXTUAL_VISUAL_REQUEST=/\b(?:show|send|share|let me see|can i see|could i see|may i see|i want to see|want to see)\b[^.!?]{0,64}\b(?:yourself|you right now|you today|you tonight|where you are|where you(?:'re| are) at|where you at|what you(?:'re| are) doing|the view|your view|your surroundings|around (?:there|the place)|your room|your place|the (?:room|place|gallery|museum|cafe|café|venue))\b|\b(?:show|send|share|let me see|can i see|could i see|may i see|i want to see|want to see|get a look at)\b[^.!?]{0,56}\b(?:your|that)\s+(?:face|smile|eyes?|hair|lips?|tattoos?|piercings?|hands?|arms?|shoulders?|back|chest|cleavage|boobs?|breasts?|tits?|nipples?|body|curves?|abs|stomach|tummy|belly|navel|waist|hips?|butt|ass|legs?|thighs?|feet|toes?|pussy|vagina|penis|dick|cock|outfit|clothes|lingerie|bra|panties|underwear|swimsuit|bikini|look)\b|\b(?:show me|let me see|get a look at)\s+(?:yourself|you)(?:\s+right now)?\b|\b(?:what|how)\s+do you look(?:\s+like)?\s+(?:right now|today|tonight)\b|\b(?:what are you|what're you)\s+(?:wearing|dressed in)\b|\b(?:show me|send me)\s+what you look like\b|\b(?:what does|what's)\s+(?:it|the place|the room)\s+look like\s+there\b|\b(?:outfit|fit)\s+check\b|\bootd\b/i;
 const DIRECT_VISUAL_BODY_REQUEST=new RegExp(`\\b(?:show|send|share|let me see|can i see|could i see|may i see|i want to see|want to see|get a look at)\\b[^.!?]{0,56}\\b(?:your|that)?\\s*${BODY_OR_DETAIL}\\b`,'i');
+const CLOSE_DETAIL_REQUEST=/\b(?:zoom(?:ed)?\s+in|zoomed[- ]?in|close[- ]?up|tight(?:ly)?\s+(?:cropped|framed)|detail\s+shot)\b/i;
 const PHOTO_DISCUSSION_OR_MANAGEMENT=/\b(?:remember(?:ing)?\s+(?:the|that|this|your|our)?\s*(?:photo|picture|pic|selfie)|(?:delete|remove|hide|report|rate|dislike|download|save|edit|crop)\s+(?:this|that|the|your|my)?\s*(?:photo|picture|pic|selfie)|why (?:did|didn'?t|won't|isn'?t)[^.!?]{0,36}(?:photo|picture|pic|selfie)|the (?:photo|picture|pic|selfie) (?:you|i|we)|profile (?:photo|picture|pic)|photo (?:settings|generation|generator|quality|button)|talk(?:ing)? about (?:a |the |that |your )?(?:photo|picture|pic|selfie)|do you like (?:photos?|photography)|i (?:sent|shared|showed|took|made|uploaded)\s+(?:a|the|that|this|my)?\s*(?:photo|picture|pic|selfie)|you (?:sent|shared|showed|took|made|uploaded)\s+(?:a|the|that|this|your)?\s*(?:photo|picture|pic|selfie))\b/i;
 const PHOTO_DELIVERY_REJECTION=/\b(?:nice try|not that kind|outside (?:my|the|this character'?s) boundaries|cross that line|not comfortable (?:sending|showing|sharing|with)|(?:can(?:not|'t)|won't|will not|don'?t)\s+(?:send|show|share|take|do|give)|keep (?:it|things|this) (?:clean|playful|fully dressed)|fully dressed(?:\s+(?:photo|picture|pic))?|more teasing than explicit|not doing explicit|can make it (?:playful|teasing) instead)\b/i;
 
@@ -180,10 +194,12 @@ export function resolvePhotoDirection(input:{requestText?:string;shotType:PhotoS
 /** Expands only the nudity scope the adult user actually requested. */
 export function resolveAdultNudityScope(text?:string):AdultNudityScope{
   const normalized=normalizePhotoIntentText(text??'').toLowerCase();
+  const adult=analyzeAdultLanguage(normalized);
   if(/\b(?:fully|completely|totally)\s+(?:nude|naked|unclothed|bare)\b|\bnudes?\b|\b(?:nude|naked)\s+(?:body|photo|picture|pic|selfie)\b|\b(?:remove|take off)\s+(?:all|every(?:thing)?)\s+(?:of\s+)?(?:your\s+)?(?:clothes|clothing)|\b(?:without|with no)\s+(?:any\s+)?clothes\b|\bstrip(?:ped)?\s+(?:completely|naked)\b/.test(normalized))return'full_nude';
-  if(/\b(?:genitals?|genitalia|vulva|vagina|pussy|penis|dick|cock)\b/.test(normalized))return'specific_anatomy';
+  if(adult.categories.includes('female_genitalia')||adult.categories.includes('male_genitalia')||/\b(?:genitals?|genitalia|private parts|intimate parts|naughty bits)\b/.test(normalized))return'specific_anatomy';
   if(/\b(?:bottomless|no bottoms?|remove (?:only )?(?:your |the )?(?:bottoms?|shorts|pants|trousers|skirt|underwear|panties))\b/.test(normalized))return'bottomless';
-  if(/\b(?:topless|bare[- ]chested|remove (?:only )?(?:your |the )?(?:top|shirt|blouse|bra)|show (?:me )?(?:your )?(?:boobs?|breasts?|tits?|nipples?|chest))\b/.test(normalized))return'topless';
+  if(adult.categories.includes('buttocks_anus'))return'bottomless';
+  if(adult.categories.includes('breasts')||/\b(?:topless|bare[- ]chested|remove (?:only )?(?:your |the )?(?:top|shirt|blouse|bra))\b/.test(normalized))return'topless';
   return'none';
 }
 
@@ -201,26 +217,28 @@ export function resolveSpecificAnatomyExposure(text?:string):SpecificAnatomyExpo
 function stableDirectionIndex(seed:string,length:number):number{let hash=2166136261;for(const character of seed)hash=Math.imul(hash^character.charCodeAt(0),16777619);return(hash>>>0)%length;}
 
 export function classifyPhotoIntent(text:string):PhotoIntent{
-  const normalized=normalizePhotoIntentText(text),hasRequest=NAMED_PHOTO_REQUEST.test(normalized)||CONTEXTUAL_VISUAL_REQUEST.test(normalized)||DIRECT_VISUAL_BODY_REQUEST.test(normalized),requested=hasRequest&&!PHOTO_DISCUSSION_OR_MANAGEMENT.test(normalized),lower=normalized.toLowerCase();
+  const normalized=normalizePhotoIntentText(text),classificationText=normalized.replace(/\bnon\s+explicit\b/gi,''),adult=analyzeAdultLanguage(classificationText),adultVisualRequest=adult.explicit&&/\b(?:show|send|share|let me see|can i see|could i see|may i see|i want to see|want to see|get a look at|take|give|zoom(?:ed)? in|close up)\b/i.test(normalized),hasRequest=NAMED_PHOTO_REQUEST.test(normalized)||CONTEXTUAL_VISUAL_REQUEST.test(normalized)||DIRECT_VISUAL_BODY_REQUEST.test(normalized)||adultVisualRequest,requested=hasRequest&&!PHOTO_DISCUSSION_OR_MANAGEMENT.test(normalized),lower=normalized.toLowerCase();
   const subject:PhotoIntent['subject']=/where you are|the view|surroundings|around there|your room|your place|studio|gallery|museum|cafe|café|rooftop|riverwalk|venue|place/.test(lower)?'location':/outfit|wearing|dressed|clothes|fit check|ootd/.test(lower)?'outfit':/doing|working|activity/.test(lower)?'activity':/date/.test(lower)?'date':requested?'companion':'unknown';
   const environmentOnly=/\b(?:show|send|take|share)\b.{0,36}\b(?:the|your)?\s*(?:view|surroundings|room|gallery|museum|venue|place itself)\b|\bwhat (?:it|the (?:place|room|gallery|museum|venue)) looks like\b/i.test(normalized);
-  const anatomyNeedsWideFrame=photoRequestNeedsCompletePose(lower);
-  const shotPreference:PhotoIntent['shotPreference']=anatomyNeedsWideFrame?'full_body':/selfie|mirror pic/.test(lower)?'selfie':/outfit|wearing|dressed|clothes|fit check|ootd|full.?body/.test(lower)?'full_body':/portrait|face|smile|eyes|hair/.test(lower)?'portrait':environmentOnly?'scene':subject==='location'||subject==='activity'?'candid':undefined;
+  const anatomyNeedsWideFrame=photoRequestNeedsCompletePose(lower),closeDetailRequested=CLOSE_DETAIL_REQUEST.test(normalized);
+  const shotPreference:PhotoIntent['shotPreference']=anatomyNeedsWideFrame?'full_body':closeDetailRequested?'portrait':/selfie|mirror pic/.test(lower)?'selfie':/outfit|wearing|dressed|clothes|fit check|ootd|full.?body/.test(lower)?'full_body':/portrait|face|smile|eyes|hair/.test(lower)?'portrait':environmentOnly?'scene':subject==='location'||subject==='activity'?'candid':undefined;
   // "Full-body", "body shot", and "chest-up" are framing language, not adult-content
   // signals. Strip an explicit negation before classification so "non-explicit" does
   // not inherit the account's adult media mode merely because it contains that word.
-  const contentClassificationText=lower.replace(/\bnon[- ]?explicit\b/g,'');
+  const contentClassificationText=classificationText.toLowerCase();
   const directBodyExposureRequest=/\b(?:let me see|show|send|give me|take)\b.{0,32}\b(?:your|her|his|their)\s+body\b/i.test(contentClassificationText)&&!/\b(?:full[- ]?body|fully clothed|dressed|outfit|clothes|fitness)\b/i.test(contentClassificationText);
-  const requestedContentLevel:MediaLevel|undefined=directBodyExposureRequest||/\b(?:nudes?|naked|topless|bottomless|explicit|nsfw|lewds?|tits?|boobs?|breasts?|nipples?|butt|ass|genitals?|genitalia|vulva|pussy|vagina|penis|dick|cock)\b/i.test(contentClassificationText)?'explicit':/\b(?:suggestive|lingerie|sexy|thirst trap)\b/i.test(contentClassificationText)?'suggestive':/\b(?:romantic|kiss)\b/i.test(contentClassificationText)?'romance':undefined;return{requested,subject,...(shotPreference?{shotPreference}:{}),...(requestedContentLevel?{requestedContentLevel}:{}),confidence:requested?.94:0};
+  const requestedContentLevel:MediaLevel|undefined=directBodyExposureRequest||adult.explicit?'explicit':/\b(?:suggestive|lingerie|sexy|thirst trap)\b/i.test(contentClassificationText)?'suggestive':/\b(?:romantic|kiss)\b/i.test(contentClassificationText)?'romance':undefined;return{requested,subject,...(shotPreference?{shotPreference}:{}),...(requestedContentLevel?{requestedContentLevel}:{}),confidence:requested?.94:0};
 }
 
 export function resolvePhotoComposition(input:{source:string;shotType:PhotoShotType;requestText?:string}):PhotoComposition{
   if(input.source==='user_request'){
+    const normalizedRequest=normalizePhotoIntentText(input.requestText??'');
     if(input.shotType==='scene')return{shotType:'scene',aspectRatio:'16:9',framing:'environment-led composition that clearly establishes the exact place while keeping the companion close enough for a crisp, naturally detailed face'};
     if(input.shotType==='full_body'){
       const completePoseIsTheSubject=photoRequestNeedsCompletePose(normalizePhotoIntentText(input.requestText??''));
       return{shotType:'full_body',aspectRatio:'4:5',framing:completePoseIsTheSubject?'wide full-body vertical framing that clearly includes the complete requested pose without cropping the head, torso, hips, knees, hands, or feet; prioritize coherent body geometry and the requested camera angle over a face-dominant portrait':'natural full-body vertical framing with the companion prominent and the face still sharp, recognizable, and unobstructed'};
     }
+    if(input.shotType==='portrait'&&CLOSE_DETAIL_REQUEST.test(normalizedRequest)&&hasAdultUpperBodyLanguage(normalizedRequest))return{shotType:'portrait',aspectRatio:'4:5',framing:'tight close-up upper-body detail framing centered on the specifically requested area, with coherent natural anatomy, believable camera distance, and enough of the same adult companion visible to preserve identity; preserve the requested tight detail crop'};
     if(input.shotType==='portrait')return{shotType:'portrait',aspectRatio:'4:5',framing:'chest-up environmental portrait with a large, sharply detailed, naturally proportioned face'};
     if(input.shotType==='candid')return{shotType:'candid',aspectRatio:'4:5',framing:'medium three-quarter environmental portrait; the companion is the clear primary subject, with a large crisp face and enough background to establish the exact activity and location'};
     return{shotType:'selfie',aspectRatio:'4:5',framing:'close personal smartphone selfie with a large, sharply detailed, recognizable face and a small amount of truthful environmental context'};
@@ -228,7 +246,8 @@ export function resolvePhotoComposition(input:{source:string;shotType:PhotoShotT
   return{shotType:input.shotType,aspectRatio:input.shotType==='scene'?'16:9':input.shotType==='selfie'||input.shotType==='full_body'?'4:5':'1:1',framing:'grounded framing with useful environmental context'};
 }
 function photoRequestNeedsCompletePose(text:string):boolean{
-  return /\b(?:genitals?|genitalia|vulva|pussy|vagina|penis|dick|cock|on all fours|all[- ]fours|doggy(?:[- ]style)?|missionary(?:[- ]style)?|cowgirl|reverse cowgirl|straddl(?:e|ing)|spreadeagle|spread[- ]eagle|starfish|side[- ]lying|spooning|piledriver(?:[- ]style)?|folded in half)\b|\blying\s+on\s+(?:your|her|his)\s+side\b|\b(?:legs?|knees?)\s+(?:spread|open|apart|wide(?:\s+apart)?|up|raised|elevated)\b|\b(?:bent|bending|leaning)\s+(?:over|forward)\b|\b(?:arch(?:ing|ed)?\s+(?:your|her|his|the)?\s*back|back\s+arch(?:ed|ing)?)\b|\b(?:kneel(?:ing)?|on (?:your|her|his) knees)\b|\b(?:pressed|leaning|braced)\s+(?:up\s+)?against\s+(?:a|the)?\s*(?:wall|door)\b/i.test(text);
+  const categories=analyzeAdultLanguage(text).categories;
+  return categories.includes('female_genitalia')||categories.includes('male_genitalia')||categories.includes('buttocks_anus')||/\b(?:genitals?|genitalia|on all fours|all[- ]fours|doggy(?:[- ]style)?|missionary(?:[- ]style)?|cowgirl|reverse cowgirl|straddl(?:e|ing)|spreadeagle|spread[- ]eagle|starfish|side[- ]lying|spooning|piledriver(?:[- ]style)?|folded in half)\b|\blying\s+on\s+(?:your|her|his)\s+side\b|\b(?:legs?|knees?)\s+(?:spread|open|apart|wide(?:\s+apart)?|up|raised|elevated)\b|\b(?:bent|bending|leaning)\s+(?:over|forward)\b|\b(?:arch(?:ing|ed)?\s+(?:your|her|his|the)?\s*back|back\s+arch(?:ed|ing)?)\b|\b(?:kneel(?:ing)?|on (?:your|her|his) knees)\b|\b(?:pressed|leaning|braced)\s+(?:up\s+)?against\s+(?:a|the)?\s*(?:wall|door)\b/i.test(text);
 }
 export function automaticPhotoAllowed(history:MediaHistory[],now:Date):boolean{const automatic=history.filter((item)=>item.source!=='user_request'&&now.getTime()-new Date(item.createdAt).getTime()<86400000);if(automatic.length>=2)return false;return !automatic.some((item)=>now.getTime()-new Date(item.createdAt).getTime()<8*3600000);}
 export function mediaCapabilityAllowed(level:MediaLevel,capabilities:Record<MediaLevel,boolean>,adult=true):boolean{return adult&&Boolean(capabilities[level]);}

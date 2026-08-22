@@ -225,8 +225,8 @@ Deno.test('Venice standard media falls back to FireRed after a retryable primary
     const client=new VeniceImageClient('secret','https://venice.test/api/v1',1_000,async(url,init)=>{const body=JSON.parse(String(init?.body)) as Record<string,unknown>;calls.push({url:String(url),body});return calls.length===1?new Response('{}',{status:500}):new Response(png,{status:200,headers:{'content-type':'image/png','cf-ray':'fallback-1'}});});
     const request={...adultRequest(),contentLevel:'standard' as const,generationIntent:undefined};
     const submission=await new VeniceMediaProvider(client).submit(request,standardRoute());
-    assert(calls.length===2&&calls[0]!.url.endsWith('/image/edit')&&calls[1]!.url.endsWith('/image/multi-edit'));
-    assert(calls[0]!.body.model===VENICE_STANDARD_EDIT_MODEL&&calls[0]!.body.aspect_ratio==='4:5');
+    assert(calls.length===2&&calls[0]!.url.endsWith('/image/multi-edit')&&calls[1]!.url.endsWith('/image/multi-edit'));
+    assert(calls[0]!.body.modelId===VENICE_STANDARD_EDIT_MODEL&&calls[0]!.body.aspect_ratio==='4:5');
     assert(calls[1]!.body.modelId==='firered-image-edit'&&calls[1]!.body.safe_mode===true);
     assert(submission.model==='firered-image-edit'&&submission.result?.providerMetadata?.fallbackUsed===true);
     assert(submission.result?.providerAttempts?.length===2&&submission.result.providerAttempts[0]?.failureCode==='PROVIDER_MODEL'&&submission.result.providerAttempts[1]?.success===true);
@@ -241,7 +241,7 @@ Deno.test('Venice standard media treats a blurred primary output as model suppre
   try{
     const client=new VeniceImageClient('secret','https://venice.test/api/v1',1_000,async(_url,init)=>{calls.push(JSON.parse(String(init?.body)) as Record<string,unknown>);return calls.length===1?new Response(png,{status:200,headers:{'content-type':'image/png','x-venice-is-blurred':'true'}}):new Response(png,{status:200,headers:{'content-type':'image/png'}});});
     const submission=await new VeniceMediaProvider(client).submit({...adultRequest(),contentLevel:'standard',generationIntent:undefined},standardRoute());
-    assert(calls.length===2&&calls[0]?.model===VENICE_STANDARD_EDIT_MODEL&&calls[1]?.modelId==='firered-image-edit');
+    assert(calls.length===2&&calls[0]?.modelId===VENICE_STANDARD_EDIT_MODEL&&calls[1]?.modelId==='firered-image-edit');
     assert(submission.model==='firered-image-edit'&&submission.result?.providerMetadata?.fallbackUsed===true);
     assert(submission.result?.providerAttempts?.[0]?.failureCode==='PROVIDER_OUTPUT_BLURRED'&&submission.result?.providerAttempts?.[1]?.success===true);
   }finally{restoreEnv('KIVELLE_VENICE_STANDARD_FALLBACK_MODEL',previousFallback);}
@@ -252,6 +252,17 @@ Deno.test('Venice standard media does not bypass a non-retryable content block w
   try{await new VeniceMediaProvider(client).submit({...adultRequest(),contentLevel:'standard',generationIntent:undefined},standardRoute());}
   catch(error){assert(error instanceof AppError&&error.code==='PROVIDER_CONTENT_BLOCKED'&&calls===1);return;}
   throw new Error('expected_rejection');
+});
+
+Deno.test('Venice standard media falls back after a provider request-shape rejection',async()=>{
+  const previousFallback=Deno.env.get('KIVELLE_VENICE_STANDARD_FALLBACK_MODEL');
+  Deno.env.set('KIVELLE_VENICE_STANDARD_FALLBACK_MODEL','firered-image-edit');
+  let calls=0;const png=Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,1]);
+  try{
+    const client=new VeniceImageClient('secret','https://venice.test/api/v1',1_000,async()=>{calls+=1;return calls===1?new Response('{}',{status:400}):new Response(png,{status:200,headers:{'content-type':'image/png'}});});
+    const submission=await new VeniceMediaProvider(client).submit({...adultRequest(),contentLevel:'standard',generationIntent:undefined},standardRoute());
+    assert(calls===2&&submission.model==='firered-image-edit'&&submission.result?.providerAttempts?.[0]?.failureCode==='PROVIDER_REQUEST_INVALID');
+  }finally{restoreEnv('KIVELLE_VENICE_STANDARD_FALLBACK_MODEL',previousFallback);}
 });
 
 Deno.test('Venice prompt keeps canonical identity and scene inside the provider limit', () => {
@@ -273,9 +284,9 @@ Deno.test('Venice standard photo edits use the selected photo as the sole edit s
   const client=new VeniceImageClient('secret','https://venice.test/api/v1',1_000,async(_url,init)=>{bodies.push(JSON.parse(String(init?.body)));return new Response(png,{status:200,headers:{'content-type':'image/png'}});});
   const request=photoEditRequest('Fix the distorted hands','standard');
   await new VeniceMediaProvider(client).submit(request,standardRoute());
-  assert(bodies.length===1&&bodies[0]?.image==='https://signed.test/source-photo.jpg');
+  assert(bodies.length===1&&Array.isArray(bodies[0]?.images)&&bodies[0]?.images[0]==='https://signed.test/source-photo.jpg');
   assert(String(bodies[0]?.prompt).includes('Apply only this requested change')&&String(bodies[0]?.prompt).includes('corrective repair'));
-  assert(!String(bodies[0]?.image).includes('brooke.jpg'));
+  assert(!String(bodies[0]?.images).includes('brooke.jpg'));
 });
 
 Deno.test('Venice adult photo edits preserve the chosen source without regenerating a neutral base',async()=>{

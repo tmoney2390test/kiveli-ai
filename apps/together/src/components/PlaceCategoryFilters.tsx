@@ -1,13 +1,13 @@
 import type{ReactNode}from'react';
 import{Pressable,StyleSheet,Text,View}from'react-native';
-import{Coffee,Leaf,Martini,Ticket,UtensilsCrossed}from'lucide-react-native';
+import{BedDouble,Leaf,Martini,Ticket,UtensilsCrossed}from'lucide-react-native';
 import{type ExploreCategoryId}from'../lib/explore';
 import{colors,radius}from'../theme';
 
 const icons:Record<ExploreCategoryId,ReactNode>={
-  coffee:<Coffee size={18} color="#F3C989"/>,
+  food:<UtensilsCrossed size={18} color="#F3C989"/>,
   nightlife:<Martini size={18} color="#F2A4C6"/>,
-  dining:<UtensilsCrossed size={18} color="#EFC28C"/>,
+  lodging:<BedDouble size={18} color="#EFC28C"/>,
   quiet:<Leaf size={18} color="#A9C88D"/>,
   entertainment:<Ticket size={18} color="#A9B9F2"/>,
 };

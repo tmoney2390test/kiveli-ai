@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CharacterInstance, Conversation } from '../types';
-import { buildInboxRows, chatHrefFromInboxParams, formatInboxTimestamp, inboxPreview } from './messageInbox';
+import { buildInboxRows, chatHrefFromInboxParams, chatSessionRouteKey, formatInboxTimestamp, inboxPreview } from './messageInbox';
 
 const character = (id: string, templateId: string, name: string): CharacterInstance => ({
   id,
@@ -36,6 +36,7 @@ describe('message inbox presentation', () => {
     conversation('maya-chat', 'maya', '2026-08-18T12:00:00.000Z', 'Want to go for a walk?'),
     conversation('chloe-chat', 'chloe', '2026-08-18T13:00:00.000Z', 'I found that place.'),
     conversation('old-chat', 'maya', '2026-08-17T12:00:00.000Z', 'Old news', '2026-08-17T13:00:00.000Z'),
+    {...conversation('deleted-chat','chloe','2026-08-18T14:00:00.000Z','Should stay hidden'),user_archived_at:'2026-08-18T14:05:00.000Z',restore_until:'2026-09-17T14:05:00.000Z'},
   ];
 
   it('shows active chats newest-first and excludes archived transcripts', () => {
@@ -58,5 +59,22 @@ describe('message inbox presentation', () => {
     expect(chatHrefFromInboxParams({})).toBeNull();
     expect(chatHrefFromInboxParams({ character: 'maya', plan: '1', draft: 'Meet me at Juniper Café?' }))
       .toBe('/chat?character=maya&plan=1&draft=Meet%20me%20at%20Juniper%20Caf%C3%A9%3F');
+    expect(chatHrefFromInboxParams({
+      character: 'maya-instance',
+      plan: '1',
+      location: 'juniper-cafe',
+      world: 'juniper-city',
+      activity: 'late_night_coffee',
+      draft: 'Want to go?',
+    })).toBe('/chat?character=maya-instance&plan=1&draft=Want%20to%20go%3F&location=juniper-cafe&world=juniper-city&activity=late_night_coffee');
+  });
+
+  it('gives a place planner a fresh session even when it reuses the current conversation',()=>{
+    const ordinary=chatSessionRouteKey('becka-chat',{character:'becka-shaw'});
+    const riverwalk=chatSessionRouteKey('becka-chat',{character:'becka-shaw',plan:'1',world:'juniper-city',location:'riverwalk'});
+    const park=chatSessionRouteKey('becka-chat',{character:'becka-shaw',plan:'1',world:'juniper-city',location:'halcyon-park'});
+    expect(riverwalk).not.toBe(ordinary);
+    expect(park).not.toBe(riverwalk);
+    expect(chatSessionRouteKey('becka-chat',{character:'different-route-key'})).toBe(ordinary);
   });
 });

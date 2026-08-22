@@ -20,6 +20,11 @@ export const VENICE_ADULT_FINAL_EDIT_MODEL = 'qwen-edit';
 export const VENICE_ADULT_FALLBACK_EDIT_MODEL = 'firered-image-edit';
 export const VENICE_QUALITY_EDIT_MODEL = 'qwen-image-2-pro-edit';
 
+const VENICE_MULTI_EDIT_ONLY_MODELS = new Set([
+  VENICE_STANDARD_EDIT_MODEL,
+  VENICE_QUALITY_EDIT_MODEL,
+]);
+
 export type VeniceEditRequest = {
   endpoint: '/image/edit' | '/image/multi-edit';
   body: Record<string, unknown>;
@@ -62,7 +67,7 @@ export function buildVeniceEditRequest(input: {
     prompt: input.prompt,
     ...(input.includeAspectRatio ? { aspect_ratio: normalizeVeniceAspectRatio(input.aspectRatio) } : {}),
   };
-  if (images.length === 1 && !input.forceMultiEdit) {
+  if (images.length === 1 && !input.forceMultiEdit && !VENICE_MULTI_EDIT_ONLY_MODELS.has(input.model.toLowerCase())) {
     // /image/edit has a smaller, model-agnostic contract. In particular,
     // safe_mode, resolution and output_format are not accepted consistently
     // by this experimental endpoint.

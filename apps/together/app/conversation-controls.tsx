@@ -35,7 +35,7 @@ export default function ConversationControls() {
   if (!snapshot) return <EmptyState title="Relationships unavailable" body="Reload Kivelle and try again." />;
   const selected = snapshot.characters.find((item) => item.id === resetId);
   const focused = params.character ? snapshot.characters.find((item) => item.id === params.character || item.together_character_templates.slug === params.character) : undefined;
-  const meaningful = focused ? [focused] : snapshot.characters.filter((item) => item.contact_added_at || item.introduced_at || item.relationship_stage !== 'stranger' || snapshot.conversations.some((conversation) => conversation.character_instance_id === item.id && (conversation.message_count ?? 0) > 0));
+  const meaningful = focused ? [focused] : snapshot.characters.filter((item) => item.contact_added_at || item.introduced_at || item.relationship_stage !== 'stranger' || snapshot.conversations.some((conversation) => conversation.character_instance_id === item.id && !conversation.user_archived_at && (conversation.message_count ?? 0) > 0));
 
   const reset = async (characterId: string, mode: 'memory'|'relationship'|'full') => {
     const target = snapshot.characters.find((item) => item.id === characterId);
@@ -70,7 +70,7 @@ export default function ConversationControls() {
     <SectionHeader title={focused ? 'Conversation' : 'Your companions'} />
     {meaningful.map((character) => {
       const name = character.together_character_templates.name;
-      const conversations = snapshot.conversations.filter((item) => item.character_instance_id === character.id).length;
+      const conversations = snapshot.conversations.filter((item) => item.character_instance_id === character.id && !item.user_archived_at).length;
       const memories = snapshot.memories.filter((item) => item.character_instance_id === character.id).length;
       const moments = snapshot.moments.filter((item) => item.character_instance_id === character.id || item.participant_instance_ids.includes(character.id)).length;
       return <View key={character.id} style={styles.card}>

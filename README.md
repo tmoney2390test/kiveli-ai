@@ -15,6 +15,7 @@ Kivelle.AI is an adult relationship and living-world simulation built with Expo,
 - Proactive communication, privacy controls, reporting, and internal debug tools
 - Server-side AI orchestration with capability-gated content modes
 - Three subscription tiers plus Kivelle Credits for variable-cost media generation
+- Character-stable xAI voice notes and credit-metered realtime calls for every tier that reconcile into canonical Kivelle conversation history
 
 ## Kivelle plans and credits
 
@@ -79,6 +80,8 @@ Dialogue routing defaults to `KIVELLE_OPENAI_DIALOGUE_MODEL=gpt-5.6-luna` with r
 Contextual image and short-video records are surfaced only when a real media provider has produced a ready asset. Media routing is provider-neutral; WaveSpeed runs through a durable asynchronous job/webhook/recovery path and never becomes a second source of character or world truth. Higher-intensity routes remain independently gated by age verification, user preferences, character boundaries, validated model routes, and server feature flags.
 
 See [WaveSpeed media operations](docs/wavespeed-media.md) for secrets, reference synchronization, canary rollout, recovery, and deployment.
+
+See [Kivelle voice](docs/voice.md) for xAI TTS/realtime setup, native development-build requirements, transcript writeback, privacy, and usage accounting.
 
 ## Run locally
 

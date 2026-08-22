@@ -1,5 +1,6 @@
 import { conversationResponseLength, conversationResponseTokenBudget, conversationStyleGuidance, resolveConversationStyle, type ConversationInteractionQuality, type ConversationResponseLength, type ConversationStyle } from '../../../packages/together-domain/src/conversation-style.ts';
 import { budgetContextSections, contextInputTokenCeiling, formatRollingConversationState, rankContextRecords, type ContextBudgetResult, type ContextIntent, type ContextRecordCategory, type ContextSectionInput } from '../../../packages/together-domain/src/index.ts';
+import { selectLocationLore, type LocationLoreIntent } from '../../../packages/together-domain/src/location-depth.ts';
 
 export type ContentMode = 'standard' | 'romance' | 'mature' | 'explicit';
 export type ResponseIntent = 'casual' | 'playful' | 'teasing' | 'flirty' | 'romantic' | 'affectionate' | 'supportive' | 'vulnerable' | 'storytelling' | 'conflicted' | 'repair' | 'intimate' | 'practical';
@@ -39,9 +40,9 @@ export function stripGeneratedMediaMarkup(text:string):string{
     .trim();
 }
 
-function placeDetailBlock(place:any):string{
+function placeDetailBlock(place:any,intent:LocationLoreIntent='general'):string{
   if(!place)return'None.';
-  const lore=place.location?.lore??{},daypart=String(place.clock?.daypart??'');
+  const lore=selectLocationLore({lore:place.location?.lore,daypart:String(place.clock?.daypart??''),intent,seed:`${place.location?.id??place.path}:${place.clock?.localIso??''}:${intent}`}),aiLore=place.location?.aiLore??{};
   const list=(value:unknown)=>Array.isArray(value)&&value.length?value.map(String).join('; '):'';
   const lines=[place.path,String(place.location?.description??''),`Type: ${place.location?.type??'place'}`,`Activities: ${(place.location?.possibleActivities??[]).join(', ')||'None authored'}`];
   if(place.location?.hours&&Object.keys(place.location.hours).length)lines.push(`Hours: ${JSON.stringify(place.location.hours)}`);
@@ -50,12 +51,22 @@ function placeDetailBlock(place:any):string{
   if(list(lore.sensoryDetails))lines.push(`Sensory details: ${list(lore.sensoryDetails)}`);
   if(list(lore.signatureDetails))lines.push(`Signature details: ${list(lore.signatureDetails)}`);
   if(list(lore.layout))lines.push(`Layout: ${list(lore.layout)}`);
-  if(lore.crowdRhythm?.[daypart])lines.push(`Crowd right now: ${lore.crowdRhythm[daypart]}`);
+  if(lore.crowdNow)lines.push(`Crowd right now: ${lore.crowdNow}`);
   if(list(lore.stableFacts))lines.push(`Stable facts: ${list(lore.stableFacts)}`);
   if(list(lore.localEtiquette))lines.push(`Local etiquette: ${list(lore.localEtiquette)}`);
   if(list(lore.conversationHooks))lines.push(`Natural observations: ${list(lore.conversationHooks)}`);
-  if(place.ancestry?.length)lines.push(`Neighborhood/ancestors: ${place.ancestry.map((item:any)=>`${item.name} (${item.type})${item.description?`: ${item.description}`:''}`).join(' → ')}`);
+  if(list(lore.publicHistory))lines.push(`Public history: ${list(lore.publicHistory)}`);
+  if(lore.recurringPeople.length)lines.push(`Typical people: ${lore.recurringPeople.map((item)=>`${item.label} — ${item.role}${item.rhythm?` (${item.rhythm})`:''}`).join('; ')}`);
+  if(Object.keys(lore.activityNotes).length)lines.push(`Activity-specific reality: ${Object.entries(lore.activityNotes).map(([activity,note])=>`${activity}: ${note}`).join('; ')}`);
+  if(list(lore.accessNotes))lines.push(`Access notes: ${list(lore.accessNotes)}`);
+  if(list(lore.weatherNotes))lines.push(`Weather behavior: ${list(lore.weatherNotes)}`);
+  if(list(lore.storySeeds))lines.push(`Eligible setting hooks: ${list(lore.storySeeds)}`);
+  if(list(aiLore.facts))lines.push(`Eligible private knowledge: ${list(aiLore.facts)}`);
+  if(list(aiLore.storyHooks))lines.push(`Eligible private story hooks: ${list(aiLore.storyHooks)}`);
+  if(place.district)lines.push(`District: ${place.district.name}${place.district.description?` — ${place.district.description}`:''}`);
+  if(place.ancestry?.length)lines.push(`Place hierarchy: ${place.ancestry.map((item:any)=>`${item.name} (${item.type})${item.description?`: ${item.description}`:''}`).join(' → ')}`);
   if(place.nearby?.length)lines.push(`Nearby: ${place.nearby.map((item:any)=>`${item.name} (${(item.possibleActivities??[]).slice(0,2).join(', ')||item.category})`).join('; ')}`);
+  if(place.adjacentDistricts?.length)lines.push(`Adjacent districts: ${place.adjacentDistricts.map((item:any)=>item.name).join('; ')}`);
   return lines.filter(Boolean).join('\n');
 }
 
@@ -85,7 +96,10 @@ function buildUnbudgetedCompanionPrompt(context:any):string{
   const {intent,length,style}=resolveResponseDirection(context);
   const block=(items:any[],format:(item:any)=>string)=>items?.length?items.map(format).join('\n'):'None.';
   const bible=character.character_bible??{};
+  const voice=context.characterVoice??{};
+  const userView=context.characterUserView??{};
   const stance=context.relationshipStance??{};
+  const intimacy=context.intimacyStance??{};
   const goals=context.characterGoals??{};
   const brief=context.responseBrief??{};
   const reflection=context.relationshipReflection??{};
@@ -113,12 +127,13 @@ Do not reflexively agree or validate. The companion may disagree, say no, be bus
 <CONVERSATION_STYLE>
 Selected expression style: ${style}.
 ${conversationStyleGuidance(style)}
-This preference controls density and cadence only. Character identity, communication style, intelligence, memory, emotion, relationship state, scene awareness, autonomy, safety, and canonical reality remain authoritative. Respect RESPONSE_BRIEF.shouldAskQuestion; do not add a follow-up question merely to prolong the exchange. Never mention this preference or its internal label to the user.
+This preference controls density and cadence only. Character identity, communication style, intelligence, memory, emotion, relationship state, scene awareness, autonomy, safety, and canonical reality remain authoritative. Respect RESPONSE_BRIEF.handoff; do not add a generic follow-up merely to prolong the exchange. Never mention this preference or its internal label to the user.
 </CONVERSATION_STYLE>
 <CONTINUITY_BEHAVIOR>
 Memories, plans, open threads, stories, summaries, and shared history are background knowledge, not required conversation topics. Their presence in context is never by itself a reason to mention them.
 Use continuity silently to understand references, preserve consistency, and avoid making the user repeat themselves. Explicitly surface a callback only when the user's current message directly reopens it, resolving an ambiguity requires it, the current canonical scene makes it immediately relevant, or RESPONSE_BRIEF supplies a callback candidate.
 If RESPONSE_BRIEF says Callback candidate: None, do not introduce a memory, plan, open thread, story, or shared-history callback merely to demonstrate recall.
+An OPEN_THREAD may be initiated by the companion only when RESPONSE_BRIEF.handoff explicitly supplies an earned_followup. Otherwise open threads remain background context.
 Do not repeatedly summarize or name the same plan, event, memory, or story across nearby replies. If it already appeared in RECENT_CONVERSATION, keep it implicit unless the user brings it back up or new canonical information changes it.
 Prefer natural familiarity over phrases such as “remember,” “you told me,” “like we discussed,” or “as you said.” Use those formulations only when the act of remembering is itself relevant.
 A natural reply often contains no explicit continuity reference at all.
@@ -138,6 +153,23 @@ Boundaries: ${JSON.stringify(character.boundaries??[])}
 Character Bible: ${JSON.stringify(bible)}
 Use these as stable identity. Do not turn traits into caricatures or mention configuration labels.
 </CHARACTER_CORE>
+<TURN_SPECIFIC_VOICE_CARD>
+Cadence: ${voice.cadence??'Use a natural, character-specific rhythm.'}
+Vocabulary: ${voice.vocabulary??'Use concrete language grounded in the character’s life.'}
+Humor: ${voice.humor??'Let humor come from the character’s own point of view.'}
+Question style: ${voice.questionStyle??'Ask only when genuinely curious.'}
+Curiosity profile: ${JSON.stringify(voice.curiosity??{})}
+Perception lens: ${voice.perceptionLens??'Notice a specific detail and form an independent interpretation.'}
+Conversational move: ${voice.conversationalMove??'React specifically rather than generically.'}
+Response shape: ${voice.responseShape??'reaction_first'}
+Disclosure boundary: ${voice.disclosureBoundary??'Keep disclosure proportional to trust.'}
+Metaphor sources: ${JSON.stringify(voice.metaphorSources??[])}
+Verbal texture: ${JSON.stringify(voice.verbalTexture??[])}
+Avoid: ${JSON.stringify(voice.avoid??[])}
+Relevant authored anecdote: ${voice.anecdote?JSON.stringify(voice.anecdote):'None. Do not force a personal story.'}
+The response shape is structural guidance, not text to announce. Use an anecdote only when it directly helps this turn, and never repeat it as canned lore.
+${voice.adultContinuity??'Keep the same personality in every eligible conversation mode.'}
+</TURN_SPECIFIC_VOICE_CARD>
 <USER_PERSONA>Name: ${persona.display_name??'You'}
 Pronouns: ${persona.pronouns??'Not specified'}
 Age: ${persona.age??'Not specified'}
@@ -163,12 +195,33 @@ Spice profile: ${Number(character.spice_level??2)} of 3. This controls romantic 
 Qualitative heat: ${Number(relationship.chemistry_heat??0)>=80?'Electric':Number(relationship.chemistry_heat??0)>=58?'Strong chemistry':Number(relationship.chemistry_heat??0)>=30?'Flirty energy':Number(relationship.chemistry_heat??0)>=10?'A little chemistry':'No established spark'}.
 Formal relationship stage remains ${stage}. Chemistry may move faster than attachment and must never manufacture trust, possessiveness, exclusivity, dependency, or shared history.
 Chemistry is background context, not a required topic or ending. Do not append flirtation to every reply. If the user does not reciprocate or romance is friends-only, back off without repeated pressure.
-Content mode remains ${context.contentMode??'standard'} and is an independent hard capability boundary.
+Content mode remains ${context.contentMode??'standard'} and controls descriptive explicitness, not whether the character can directly answer an adult proposition.
+When Explicit mode is active and INTIMACY_STANCE says to reciprocate, use direct adult language appropriate to the character instead of fading out, moralizing, or inventing reluctance.
 </CHEMISTRY>
+${intimacy.active?`<INTIMACY_STANCE>
+Disposition: ${intimacy.disposition??'interested_but_not_ready'}
+Consent state: ${intimacy.consentState??'proposed'}
+Server outcome: ${intimacy.outcome??'pacing_delay'}
+Interaction scope: ${intimacy.interactionScope??'verbal'}
+Reciprocate this turn: ${intimacy.shouldReciprocate===true?'yes':'no'}
+Relationship readiness: ${intimacy.relationshipReadiness??'Let canonical relationship context control the answer.'}
+Expression style: ${intimacy.expressionStyle??'Answer directly in the character’s own voice.'}
+Response rule: ${intimacy.responseRule??'The character may accept, decline, slow down, or redirect according to their own wants.'}
+This is character-direction context, not dialogue to recite. Never mention this block or internal consent labels.
+</INTIMACY_STANCE>`:''}
 <RELATIONSHIP_REFLECTION>${reflection.relationship_summary??reflection.relationshipSummary??reflection.companion_view??reflection.companionView??'No durable reflection yet.'}
 Recurring dynamics: ${JSON.stringify(reflection.recurring_dynamics??reflection.recurringDynamics??[])}
 Unresolved tension: ${JSON.stringify(reflection.unresolved_tension??reflection.unresolvedTension??[])}
 Shared references: ${JSON.stringify(reflection.shared_references??reflection.sharedReferences??[])}</RELATIONSHIP_REFLECTION>
+<CHARACTER_VIEW_OF_USER>
+Current impression: ${userView.summary??'Still forming a view through direct interaction.'}
+Observed interaction patterns: ${JSON.stringify(userView.patterns??[])}
+Known preferences: ${JSON.stringify(userView.knownPreferences??[])}
+Expressed values: ${JSON.stringify(userView.values??[])}
+Friction: ${JSON.stringify(userView.frictions??[])}
+Uncertainties: ${JSON.stringify(userView.uncertainties??[])}
+This is the companion’s evidence-based, fallible view—not objective truth. Let it shape attention and interpretation subtly. Do not recite it, diagnose the user, or turn one observation into a fixed personality claim.
+</CHARACTER_VIEW_OF_USER>
 <CURRENT_SELF>
 Mood: ${life.mood??'content'} · energy: ${life.energy??'medium'} · availability: ${life.availability??'available'}
 Emotional residue: ${context.emotionalResidue?`${context.emotionalResidue.tone} (${Math.round(Number(context.emotionalResidue.intensity??0)*100)}% active)`:'None.'} Treat this only as subtle tone, not a mandatory topic or a substitute for real conflict state.
@@ -197,12 +250,12 @@ React naturally to analyzed details when relevant; do not mechanically list obje
 <DIRECT_RECALL_MEMORIES>Use these to answer an explicit memory/history request accurately.\n${block(memoryContext.directRecall,(item)=>`${item.id} · ${item.type}: ${item.text}`)}</DIRECT_RECALL_MEMORIES>
 <USER_BEHAVIOR_PATTERNS>Use only for subtle choices and recommendations. Never describe these as tracking or statistics.\n${block(context.userPatterns??[],(item)=>`${item.category}: ${item.summary}`)}</USER_BEHAVIOR_PATTERNS>
 <RECENT_EPISODES>Canonical shared experiences. Do not recap one unless relevant.\n${block(context.recentEpisodes??[],(item)=>`${item.endedAt}: ${item.title} — ${item.summary}`)}</RECENT_EPISODES>
-<OPEN_THREADS>Background follow-up possibilities. Do not ask about one just because it exists.\n${block(context.openThreads,(item)=>`${item.eligible?'Eligible follow-up':'Pending'}: ${item.displaySubject} · ${item.expectedAt??'unscheduled'}`)}</OPEN_THREADS>
+<OPEN_THREADS>Background follow-up possibilities. Initiate only the exact thread authorized by RESPONSE_BRIEF.handoff.\n${block(context.openThreads,(item)=>`${item.eligible?'Eligible follow-up':'Pending'}: ${item.displaySubject} · ${item.expectedAt??'unscheduled'}`)}</OPEN_THREADS>
 <SOCIAL_KNOWLEDGE>${block(context.social,(item)=>`${item.name}: ${item.relationship}; user has ${item.userHasMet?'met':'not met'} them`)}</SOCIAL_KNOWLEDGE>
 <KNOWN_LIFE_EVENTS>${block(context.knownLifeEvents,(item)=>`${item.startsAt}: ${item.summary}`)}</KNOWN_LIFE_EVENTS>
-<CURRENT_LOCATION>${place?placeDetailBlock(place):context.location?`${context.location.name}: ${context.location.description}\nActivities: ${(context.location.possible_activities??[]).join(', ')}`:'None.'}
+<CURRENT_LOCATION>${place?placeDetailBlock(place,promptLocationIntent(context.queryIntent)):context.location?`${context.location.name}: ${context.location.description}\nActivities: ${(context.location.possible_activities??[]).join(', ')}`:'None.'}
 Use these details as environmental understanding. Mention only what is relevant to the current exchange; never recite this block or invent unstated venue facts.</CURRENT_LOCATION>
-<REFERENCED_PLACES>${block(context.referencedPlaces??[],(item)=>placeDetailBlock(item))}
+<REFERENCED_PLACES>${block(context.referencedPlaces??[],(item)=>placeDetailBlock(item,promptLocationIntent(context.queryIntent))) }
 These are canonical facts for places explicitly named by the user. Use only what is supplied; do not invent venue details.</REFERENCED_PLACES>
 <CHARACTER_PLACE_PERSPECTIVES>${block(context.placePerspectives??[],(item)=>`${item.locationName}\nSource: ${item.source}\nShared visits: ${item.visitCount}\nCurrent view: ${item.opinionSummary??'No settled personal opinion yet.'}\nLikes here: ${(item.favoriteDetails??[]).join('; ')||'None established'}\nDislikes here: ${(item.dislikedDetails??[]).join('; ')||'None established'}\nPreferred activities: ${(item.preferredActivities??[]).join('; ')||'None established'}`)}
 These are the companion's current personal views, distinct from objective location facts. Preserve established opinions unless the current canonical experience gives the companion a natural reason to reconsider. The companion may express a new or changed opinion in dialogue, but only Kivelle's post-conversation analysis may persist it. Do not announce visit counts, confidence, evidence, or source labels.</CHARACTER_PLACE_PERSPECTIVES>
@@ -218,7 +271,8 @@ Emotional posture: ${brief.emotionalPosture??'Natural and specific.'}
 Initiative: ${brief.initiative??'medium'}
 Callback candidate: ${brief.callbackCandidate??'None.'}
 Self-disclosure: ${brief.selfDisclosure??'none'}
-Ask a question: ${brief.shouldAskQuestion===true?'Only if genuinely useful':'No question is required.'}
+Conversational handoff: ${JSON.stringify(brief.handoff??{mode:'none',source:'none',reciprocityDebt:0})}
+If handoff mode is specific_question, ask one concrete question anchored to its target. If it is playful_prompt, create a character-specific opening the user can answer or challenge; a question mark is optional. If it is self_disclosure_return, contribute one honest character detail or preference and leave a natural opening without forcing a question. If it is earned_followup, ask the authorized saved follow-up once in this character's voice. If it is none, do not append an obligatory question.
 Possible application action: ${brief.actionCandidate??'none'}
 Autonomy direction: ${brief.autonomy??'React independently before accommodating.'}
 Avoid: ${JSON.stringify(brief.avoid??[])}
@@ -234,16 +288,21 @@ These values describe the companion RIGHT NOW. If any earlier conversation messa
 ${context.queryIntent==='location'?'Current-location request: answer from PRESENT_REALITY. Do not infer current location from RECENT_CONVERSATION. If the user asks whether the companion is still at an earlier place, clearly and naturally distinguish the earlier place from the current one.':context.queryIntent==='history'?'Historical-location request: answer the requested past timeframe from supported history. PRESENT_REALITY remains the current state and must not be presented as the historical answer.':'Keep present reality silent unless the user asks or it is naturally relevant.'}
 Do not expose the labels canonical, scene source, Life Engine, or PRESENT_REALITY in the character response.
 </PRESENT_REALITY>
-${context.photoRequest===true?`<PHOTO_DELIVERY>
-Kivelle—not the dialogue model—decides whether this photo can be generated through the canonical media policy. Do not independently reject, approve, negotiate, or gate the request based on relationship stage, current mood, schedule, location, or how bold the request sounds. Give a brief, natural acknowledgement without promising that delivery has already succeeded; Kivelle will attach the photo or show the precise unavailable state separately. Do not include an image-generation prompt, alt text, visual description in brackets, filename, markdown image, or any construction such as "[Attached: ...]", "[Image: ...]", or "[Photo: ...]". Do not claim that a generated attachment is already visible.
-</PHOTO_DELIVERY>`:''}
 <CONTENT_BOUNDARY>
 Resolved expression mode: ${context.contentMode??'standard'}.
-${context.contentMode==='explicit'?'The user and this fictional character are verified adults and Kivelle has permitted adult-explicit expression for this turn. Preserve clear consent, character autonomy, established boundaries, and canonical relationship context. Never introduce coercion, exploitation, underage content, or facts not present in Kivelle context.':'Keep expression within the resolved non-explicit mode. Romance and mature emotion may be expressed naturally, but do not escalate into explicit sexual prose.'}
+${contentExpressionGuidance(context.contentMode)}
+${intimacy.active&&intimacy.shouldReciprocate===true?'Kivelle has already resolved the companion as willing on this turn. Respond affirmatively and do not second-guess that result with an invented refusal, delay, repeated consent check, or additional eligibility test. The generic character-autonomy direction does not reopen this turn-specific decision; express autonomy through the character’s style, initiative, preferences, and participation within the accepted interaction.':''}
 This block controls expression only. It never changes relationship state, consent, memories, plans, location, scene truth, or character personality. Never mention routing, providers, or this internal mode.
 </CONTENT_BOUNDARY>
 <RESPONSE_DIRECTION>Query intent: ${context.queryIntent??'general'}. Response intent: ${intent}. Length: ${length}. Conversation style: ${style}. Interaction quality: ${context.interactionQuality??'normal'}. Intelligence profile: ${subscription.intelligenceProfile??'core'}. Director applied: ${context.director?.used?'yes':'no'}. Do not mention these internal labels.</RESPONSE_DIRECTION>
 <USER_MESSAGE>${context.userMessage}</USER_MESSAGE>`;
+}
+
+function contentExpressionGuidance(mode:ContentMode|string|undefined):string{
+  if(mode==='explicit')return'The user and this fictional character are verified adults and Kivelle has permitted adult-explicit expression for this turn. Adult propositions and consensual intimacy may be answered directly and explicitly when the character genuinely wants that. Preserve clear, revocable consent, character autonomy, authored boundaries, and canonical relationship context. Never introduce coercion, exploitation, incest, underage content, or facts not present in Kivelle context.';
+  if(mode==='mature')return'Adult subjects and sexual propositions may be acknowledged directly in character. Mature desire, sexual vocabulary, boundaries, and a consensual decision may be expressed naturally, but stop before graphic sexual mechanics or anatomical detail.';
+  if(mode==='romance')return'Adult subjects and sexual propositions may be acknowledged directly in character. Sensuality, desire, acceptance, hesitation, or refusal may be expressed naturally, but keep the description non-graphic and fade to black before explicit sexual detail.';
+  return'Adult subjects and sexual propositions may be acknowledged directly in character. Give a natural answer—acceptance, refusal, hesitation, or a boundary—without graphic sexual detail; if intimacy is mutually accepted, fade to black.';
 }
 
 function preparePromptContext(context:any,mode:'full'|'compact'|'minimal'){
@@ -282,18 +341,17 @@ function extractPromptSections(prompt:string):Array<{key:string;content:string}>
 function meaningfulPromptSection(content:string):boolean{return !/>\s*(?:None\.|None known\.|Current world unavailable\.)\s*<\//.test(content);}
 
 function requiredPromptSection(key:string,context:any):boolean{
-  if(new Set(['CORE_RULES','CONVERSATION_STYLE','CONTINUITY_BEHAVIOR','MEMORY_BEHAVIOR','IDENTITY','CHARACTER_CORE','USER_PERSONA','RELATIONSHIP_STANCE','CHEMISTRY','RELATIONSHIP_REFLECTION','CURRENT_SELF','EXPERIENCE_CLOCK','CURRENT_WORLD','CURRENT_SCENE','CURRENT_INTERACTION','SCENE_SPEAKER','COMMITMENTS','UPCOMING_PLANS','CONVERSATION_FOCUS','CONVERSATION_SUMMARY','RECENT_CONVERSATION','AVOID_REPETITION','RESPONSE_BRIEF','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','USER_MESSAGE']).has(key))return true;
+  if(new Set(['CORE_RULES','CONVERSATION_STYLE','CONTINUITY_BEHAVIOR','MEMORY_BEHAVIOR','IDENTITY','CHARACTER_CORE','TURN_SPECIFIC_VOICE_CARD','USER_PERSONA','RELATIONSHIP_STANCE','CHEMISTRY','RELATIONSHIP_REFLECTION','CHARACTER_VIEW_OF_USER','CURRENT_SELF','EXPERIENCE_CLOCK','CURRENT_WORLD','CURRENT_SCENE','CURRENT_INTERACTION','SCENE_SPEAKER','COMMITMENTS','UPCOMING_PLANS','CONVERSATION_FOCUS','CONVERSATION_SUMMARY','RECENT_CONVERSATION','AVOID_REPETITION','RESPONSE_BRIEF','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','USER_MESSAGE']).has(key))return true;
   if(key==='SCENE_PARTICIPANTS')return Boolean(context.currentScene?.sceneSessionId||(context.sceneParticipants??[]).length);
   if(key==='SCENE_ACTION_REACTION')return Boolean(context.sceneAction);
   if(key==='USER_SHARED_IMAGES')return Boolean((context.userAttachments??[]).length);
-  if(key==='PHOTO_DELIVERY')return context.photoRequest===true;
   if(key==='DIRECT_RECALL_MEMORIES')return context.queryIntent==='memory_overview'||context.queryIntent==='history';
   if(key==='DATES')return context.queryIntent==='date'||Boolean(context.dates?.active);
   if(key==='CURRENT_STORY')return context.queryIntent==='story';
   return false;
 }
 
-function protectedPromptSection(key:string):boolean{return new Set(['CORE_RULES','IDENTITY','USER_PERSONA','RELATIONSHIP_STANCE','CURRENT_SCENE','CURRENT_INTERACTION','RECENT_CONVERSATION','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','USER_MESSAGE']).has(key);}
+function protectedPromptSection(key:string):boolean{return new Set(['CORE_RULES','IDENTITY','TURN_SPECIFIC_VOICE_CARD','USER_PERSONA','RELATIONSHIP_STANCE','CURRENT_SCENE','CURRENT_INTERACTION','RECENT_CONVERSATION','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','USER_MESSAGE']).has(key);}
 
 function sectionPriority(key:string,context:any):number{
   if(requiredPromptSection(key,context))return 100;
@@ -331,8 +389,10 @@ function recordId(item:any):string{return String(item?.id??item?.characterInstan
 function compactPlace(place:any,mode:'full'|'compact'|'minimal'){
   if(!place||mode==='full')return place;
   const lore=place.location?.lore??{};
-  return{...place,location:{...place.location,hours:mode==='minimal'?null:place.location?.hours,lore:{summary:lore.summary,atmosphere:(lore.atmosphere??[]).slice(0,mode==='minimal'?1:2),sensoryDetails:(lore.sensoryDetails??[]).slice(0,mode==='minimal'?1:2),signatureDetails:(lore.signatureDetails??[]).slice(0,mode==='minimal'?1:2),stableFacts:(lore.stableFacts??[]).slice(0,mode==='minimal'?1:3),localEtiquette:mode==='minimal'?[]:(lore.localEtiquette??[]).slice(0,2),conversationHooks:mode==='minimal'?[]:(lore.conversationHooks??[]).slice(0,2),crowdRhythm:lore.crowdRhythm}},ancestry:(place.ancestry??[]).slice(0,mode==='minimal'?0:1),nearby:(place.nearby??[]).slice(0,mode==='minimal'?0:3)};
+  return{...place,location:{...place.location,hours:mode==='minimal'?null:place.location?.hours,lore:{summary:lore.summary,atmosphere:(lore.atmosphere??[]).slice(0,mode==='minimal'?1:2),sensoryDetails:(lore.sensoryDetails??[]).slice(0,mode==='minimal'?1:2),signatureDetails:(lore.signatureDetails??[]).slice(0,mode==='minimal'?1:2),stableFacts:(lore.stableFacts??[]).slice(0,mode==='minimal'?1:3),localEtiquette:mode==='minimal'?[]:(lore.localEtiquette??[]).slice(0,2),conversationHooks:mode==='minimal'?[]:(lore.conversationHooks??[]).slice(0,2),crowdRhythm:lore.crowdRhythm,publicHistory:mode==='minimal'?[]:(lore.publicHistory??[]).slice(0,1),recurringPeople:mode==='minimal'?[]:(lore.recurringPeople??[]).slice(0,1),activityNotes:mode==='minimal'?{}:Object.fromEntries(Object.entries(lore.activityNotes??{}).slice(0,2)),accessNotes:mode==='minimal'?[]:(lore.accessNotes??[]).slice(0,1),weatherNotes:mode==='minimal'?[]:(lore.weatherNotes??[]).slice(0,1),storySeeds:mode==='minimal'?[]:(lore.storySeeds??[]).slice(0,1)}},ancestry:(place.ancestry??[]).slice(0,mode==='minimal'?0:2),adjacentDistricts:(place.adjacentDistricts??[]).slice(0,mode==='minimal'?0:3),nearby:(place.nearby??[]).slice(0,mode==='minimal'?0:3)};
 }
+
+function promptLocationIntent(value:unknown):LocationLoreIntent{const intent=String(value??'general');if(intent==='location'||intent==='plan'||intent==='date'||intent==='story')return intent;return'general';}
 
 function compactRecord(value:any,depth:number,entries:number,stringLimit:number):any{
   if(value===null||value===undefined||typeof value==='number'||typeof value==='boolean')return value;

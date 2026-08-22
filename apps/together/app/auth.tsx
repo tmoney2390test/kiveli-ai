@@ -57,14 +57,14 @@ export default function Auth() {
         const state = useTogether.getState();
         if (!state.snapshot) throw new Error(state.error ?? 'Kivelle could not open your world.');
         const next = safeAppReturnPath(params.next);
-        router.replace(state.snapshot.profile ? (next ?? '/home') : '/choose-companion?adultConfirmed=1');
+        router.replace((state.snapshot.profile ? (next ?? '/home') : '/choose-companion?adultConfirmed=1') as never);
       } else {
         await signIn(normalizedEmail, password);
         await refresh();
         const state = useTogether.getState();
         if (!state.snapshot) throw new Error(state.error ?? 'Kivelle could not open your world.');
         const next = safeAppReturnPath(params.next);
-        router.replace(state.snapshot.profile ? (next ?? '/home') : '/choose-companion');
+        router.replace((state.snapshot.profile ? (next ?? '/home') : '/choose-companion') as never);
       }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : creating ? 'Account creation failed.' : 'Sign in failed.';
@@ -104,7 +104,7 @@ export default function Auth() {
       await signInWithSocial(provider,onboardingNext);
       if(Platform.OS==='web')return;
       await refresh();const state=useTogether.getState();if(!state.snapshot)throw new Error(state.error??'Kivelle could not open your world.');
-      router.replace(state.snapshot.profile?(requestedNext??'/home'):creating?'/choose-companion?adultConfirmed=1':'/choose-companion');
+      router.replace((state.snapshot.profile?(requestedNext??'/home'):creating?'/choose-companion?adultConfirmed=1':'/choose-companion') as never);
     }catch(caught){setError(caught instanceof Error?caught.message:`${provider==='google'?'Google':'Apple'} sign-in failed.`);}finally{setSocialBusy(null);}
   };
 
@@ -120,8 +120,8 @@ export default function Auth() {
             </View>
             <View>
               <View style={styles.liveRow}><View style={styles.liveDot} /><Text style={styles.liveText}>CITY LIFE · NOW</Text></View>
-              <Text style={styles.heroTitle}>Juniper City is awake.</Text>
-              <Text style={styles.heroBody}>Choose who you want to meet first.</Text>
+              <Text style={styles.heroTitle}>Your next world is waiting.</Text>
+              <Text style={styles.heroBody}>Choose where your story begins.</Text>
             </View>
           </View>
         </View>
@@ -129,7 +129,7 @@ export default function Auth() {
         <View style={[styles.form, wide && styles.formWide]}>
           <View style={styles.intro}>
             <Text style={styles.title}>{creating ? 'Find your person.' : 'Welcome back.'}</Text>
-            <Text style={styles.subtitle}>{creating ? 'Create your account, choose a companion, and start talking.' : 'Your conversations and shared history are waiting.'}</Text>
+            <Text style={styles.subtitle}>{creating ? 'Create your account, choose a world, and meet someone who lives there.' : 'Your conversations and shared history are waiting.'}</Text>
           </View>
 
           <View style={styles.tabs}>
@@ -158,7 +158,7 @@ export default function Auth() {
           {error ? <View style={styles.errorBox}><Text style={styles.error}>{error}</Text></View> : null}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
-          <GradientButton label={busy ? 'Connecting…' : creating ? 'Choose your person' : 'Sign in'} disabled={busy} onPress={() => void submit()} />
+          <GradientButton label={busy ? 'Connecting…' : creating ? 'Choose your world' : 'Sign in'} disabled={busy} onPress={() => void submit()} />
 
           {socialAuth.google||socialAuth.apple?<><View style={styles.divider}><View style={styles.dividerLine}/><Text style={styles.dividerText}>OR CONTINUE WITH</Text><View style={styles.dividerLine}/></View><View style={styles.socialRow}>
             {socialAuth.google?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Google" disabled={busy||Boolean(socialBusy)} onPress={()=>void socialSignIn('google')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><Text style={[styles.providerMark,{color:'#E9A2D0'}]}>G</Text><Text style={styles.socialText}>{socialBusy==='google'?'Connecting…':'Google'}</Text></Pressable>:null}

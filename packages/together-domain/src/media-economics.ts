@@ -1,7 +1,7 @@
 import {capabilitiesForTier,creditCost,normalizeSubscriptionTier,type CreditAction,type SubscriptionTier} from './entitlements.ts';
 import type {MediaContentLevel,MediaQualityTier,MediaShotType} from './media-routing.ts';
 
-export const mediaOfferSources=['life_event','story','moment','date'] as const;
+export const mediaOfferSources=['user_request','life_event','story','moment','date'] as const;
 export type MediaOfferSource=typeof mediaOfferSources[number];
 export const mediaOfferStatuses=['pending','accepted','declined','expired','fulfilled','failed'] as const;
 export type MediaOfferStatus=typeof mediaOfferStatuses[number];
@@ -29,6 +29,9 @@ export type MediaOfferPolicy={
 export function resolveMediaOfferPolicy(input:MediaOfferPolicyInput):MediaOfferPolicy{
   const tier=normalizeSubscriptionTier(input.tier);
   const included=input.source==='date'&&tier!=='free'&&Number(input.includedDatePhotosUsed??0)<capabilitiesForTier(tier).includedDatePhotoMonthlyLimit;
+  // Direct chat requests always pause at a confirmation offer. Automatic-photo
+  // preferences only govern spontaneous companion offers.
+  if(input.source==='user_request')return policy(true,false,creditCost('companion_photo'),'standard',false,null,24);
   if(input.source!=='date'&&!input.automaticPhotos)return policy(false,false,10,'standard',false,null,24);
   if(included)return policy(true,input.automaticPhotos,0,'premium',true,'date_completion_photo',null);
   return policy(true,false,creditCost('companion_photo'),input.source==='date'?'premium':'standard',false,null,input.source==='date'?null:24);

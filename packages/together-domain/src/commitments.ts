@@ -4,6 +4,7 @@ export type CommitmentTimePrecision='exact'|'approximate'|'daypart'|'window'|'da
 export type CommitmentParticipationMode='live'|'flexible'|'ambient';
 export type CommitmentMissReason='user_absent'|'character_absent'|'system_failure'|'connection_failure'|'cancelled';
 export type CommitmentCompletionReason='elapsed'|'user_ended'|'date_completed'|'trip_completed'|'system_reconciled';
+export type QuickPlanTimingChoice='now'|'in_one_hour'|'custom';
 export type ManualCommitmentEndBlocker='already_ended'|'date_owned'|'not_active'|'not_started'|'already_elapsed'|'user_not_present'|'companion_not_present'|'scene_not_active';
 
 export type CommitmentTimingInput={
@@ -20,6 +21,19 @@ export type CommitmentTimingInput={
 };
 
 export type MissedCommitmentImpact={trust:number;respect:number;conflict:number;affinity:number};
+
+export function resolveQuickPlanTiming(choice:QuickPlanTimingChoice|undefined,startsAt:string|undefined,now=new Date()):string|undefined{
+  if(choice==='now')return now.toISOString();
+  if(choice==='in_one_hour')return new Date(now.getTime()+60*60_000).toISOString();
+  return startsAt;
+}
+
+export function planStartSatisfiesLeadTime(startsAt:string|Date,immediate:boolean,now=new Date()):boolean{
+  const start=startsAt instanceof Date?startsAt:new Date(startsAt);
+  if(!Number.isFinite(start.getTime()))return false;
+  if(immediate)return start.getTime()>=now.getTime()-2*60_000&&start.getTime()<=now.getTime()+2*60_000;
+  return start.getTime()>=now.getTime()+10*60_000;
+}
 
 export function manualCommitmentEndEligibility(input:{
   status:string;

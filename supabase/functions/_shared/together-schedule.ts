@@ -1,9 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { generateScheduleWindow, lifeEventEstablishesPresentReality, localToUtc, resolvePresence, type ActivityTemplate, type CharacterLifeProfile, type LifeLocation, type ScheduleBlock } from '../../../packages/together-domain/src/index.ts';
-import { resolveCharacterBaseLocation, resolvePlaceContext, type PlaceContext } from './together-place.ts';
+import { resolveUserExperienceTimezone } from './kivelle-time.ts';
+import { resolveCharacterBaseLocation, resolveCharacterPlaceContext, resolvePlaceContext, type PlaceContext } from './together-place.ts';
 
 type Row=Record<string,any>;
-const ENGINE_VERSION='life_engine_v2';
+const ENGINE_VERSION='life_engine_v3_user_timezone';
 
 export type ResolvedCharacterPresence={
   characterInstanceId:string; locationId:string|null; activityKey:string; activity:string; scheduleEventId?:string;
@@ -41,21 +42,26 @@ export async function ensureCharacterSchedule(input:{db:SupabaseClient;userId:st
   let worldId=currentPlace?.world.id??null;
   if(!worldId){const{data:presence}=await db.from('together_character_world_presence').select('world_id').eq('character_version_id',instance.character_version_id).neq('presence_type','unavailable').order('presence_type').limit(1).maybeSingle();worldId=presence?.world_id??null;}
   if(!worldId)return[];
-  const{data:world}=await db.from('together_worlds').select('timezone').eq('id',worldId).maybeSingle();
-  const timezone=String(world?.timezone??currentPlace?.world.timezone??'UTC');
+  const timezone=await resolveUserExperienceTimezone(db,userId);
+  // Include the timezone in the materialization version so changing the
+  // user's configured timezone automatically rebuilds future routines.
+  const generationVersion=`${ENGINE_VERSION}:${timezone}`;
   const base=await resolveCharacterBaseLocation({db,characterVersionId:String(instance.character_version_id),worldId:String(worldId)});
   if(!base)return[];
   const configuredProfile=lifeProfile(instance),nativeLifeProfile=Number(configuredProfile.version??1)>=2;
   const startDate=localDate(now,timezone),endDate=addDays(startDate,days);
   const from=localToUtc(startDate,0,timezone),until=localToUtc(endDate,0,timezone);
-  if(nativeLifeProfile){
-    // Retire only generated/recurring future V1 materialization. User plans,
-    // overrides, active rows, and historical schedule evidence are preserved.
-    await db.from('together_character_schedule_events').delete()
-      .eq('user_id',userId).eq('character_instance_id',characterInstanceId)
-      .in('source',['recurring','generated']).eq('generation_version','life_engine_v1')
-      .gt('starts_at',now.toISOString());
-  }
+  // Retire stale generated/recurring materialization for the current local
+  // day and future. This clock policy applies to every character generation,
+  // while plans, overrides, and older historical evidence remain untouched.
+  await db.from('together_character_schedule_events').delete()
+    .eq('user_id',userId).eq('character_instance_id',characterInstanceId)
+    .in('source',['recurring','generated']).neq('generation_version',generationVersion)
+    .gte('ends_at',from.toISOString());
+  await db.from('together_character_schedule_events').delete()
+    .eq('user_id',userId).eq('character_instance_id',characterInstanceId)
+    .in('source',['recurring','generated']).is('generation_version',null)
+    .gte('ends_at',from.toISOString());
   const[locationsResult,templatesResult,existingResult,historyResult,plansResult,legacyResult,edgesResult,instancesResult]=await Promise.all([
     db.from('together_locations').select('*').eq('world_id',worldId),
     db.from('together_character_activity_templates').select('*').eq('character_version_id',instance.character_version_id),
@@ -66,7 +72,10 @@ export async function ensureCharacterSchedule(input:{db:SupabaseClient;userId:st
     db.from('together_character_relationship_edges').select('*').or(`source_template_id.eq.${instance.character_template_id},target_template_id.eq.${instance.character_template_id}`),
     db.from('together_character_instances').select('id,character_template_id').eq('user_id',userId).eq('continuity_id',instance.continuity_id),
   ]);
-  const locations=(locationsResult.data??[]).map(toLifeLocation),templates=(templatesResult.data??[]).map(toActivityTemplate);
+  // Hierarchy nodes provide context for a destination; they are not substitute
+  // venues for generated routines. Authored blocks may still deliberately point
+  // at a district because their UUIDs are preserved and handled separately.
+  const locations=(locationsResult.data??[]).map(toLifeLocation).filter((location)=>!['region','district','neighborhood','room','zone'].includes(location.locationType)),templates=(templatesResult.data??[]).map(toActivityTemplate);
   const existing=(existingResult.data??[]).map(toBlock),history=(historyResult.data??[]).map(toBlock);
   const covered=new Set(existing.map(event=>localDate(event.startsAt,timezone)));
   const legacyRows=legacyResult.data??[];
@@ -74,12 +83,12 @@ export async function ensureCharacterSchedule(input:{db:SupabaseClient;userId:st
   const fixed=[...(plansResult.data??[]).map((plan:Row):ScheduleBlock=>({activityKey:String(plan.activity_key),title:String(plan.title),locationId:plan.location_id?String(plan.location_id):null,startsAt:String(plan.starts_at),endsAt:String(plan.ends_at),priority:'user_commitment',visibility:'shared',source:'user_plan',interruptibility:'open',generationKey:`plan:${plan.id}`,metadata:{planId:plan.id}})),...legacyBlocks(nativeLifeProfile?authoredRows:legacyRows,timezone,startDate,days,worldId,String(base.id))];
   const profile=resolveOccupationLocations(configuredProfile,locationsResult.data??[]);
   const generationProfile=authoredRows.length?{...profile,occupation:undefined,scheduling:{...profile.scheduling,spontaneity:0,preferredDailyActivityCount:[0,0] as [number,number]}}:profile;
-  const generated=generateScheduleWindow({characterInstanceId,seed:String(instance.simulation_seed??characterInstanceId),timezone,fromLocalDate:startDate,days,profile:generationProfile,locations,homeLocationId:String(base.id),activityTemplates:templates.length?templates:defaultActivities(),fixedCommitments:fixed,history:[...history,...existing],generationVersion:ENGINE_VERSION});
+  const generated=generateScheduleWindow({characterInstanceId,seed:String(instance.simulation_seed??characterInstanceId),timezone,fromLocalDate:startDate,days,profile:generationProfile,locations,homeLocationId:String(base.id),activityTemplates:templates.length?templates:defaultActivities(),fixedCommitments:fixed,history:[...history,...existing],generationVersion});
   const relatedTemplateIds=(edgesResult.data??[]).map((edge:Row)=>String(edge.source_template_id)===String(instance.character_template_id)?String(edge.target_template_id):String(edge.source_template_id));
   const relatedInstance=(instancesResult.data??[]).find((candidate:Row)=>relatedTemplateIds.includes(String(candidate.character_template_id)));
   const missing=generated.filter(event=>event.source!=='user_plan'&&!covered.has(localDate(event.startsAt,timezone))).map(event=>event.priority==='social_event'&&relatedInstance?{...event,participantInstanceIds:[characterInstanceId,String(relatedInstance.id)],metadata:{...(event.metadata??{}),socialContext:'with a friend'}}:event);
   if(missing.length){
-    await db.from('together_character_schedule_events').upsert(missing.map(event=>({user_id:userId,continuity_id:instance.continuity_id,character_instance_id:characterInstanceId,location_id:event.locationId,activity_key:event.activityKey,title:event.title,starts_at:event.startsAt,ends_at:event.endsAt,priority:event.priority,visibility:event.visibility,source:event.source,interruptibility:event.interruptibility,participant_instance_ids:event.participantInstanceIds??[characterInstanceId],generation_key:event.generationKey,generation_version:ENGINE_VERSION,metadata:event.metadata??{}})),{onConflict:'character_instance_id,generation_key',ignoreDuplicates:true});
+    await db.from('together_character_schedule_events').upsert(missing.map(event=>({user_id:userId,continuity_id:instance.continuity_id,character_instance_id:characterInstanceId,location_id:event.locationId,activity_key:event.activityKey,title:event.title,starts_at:event.startsAt,ends_at:event.endsAt,priority:event.priority,visibility:event.visibility,source:event.source,interruptibility:event.interruptibility,participant_instance_ids:event.participantInstanceIds??[characterInstanceId],generation_key:event.generationKey,generation_version:generationVersion,metadata:{...(event.metadata??{}),scheduleTimezone:timezone}})),{onConflict:'character_instance_id,generation_key',ignoreDuplicates:true});
   }
   await db.from('together_character_schedule_events').delete().eq('user_id',userId).eq('character_instance_id',characterInstanceId).lt('ends_at',new Date(now.getTime()-90*86400000).toISOString());
   const{data:window}=await db.from('together_character_schedule_events').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).gte('ends_at',new Date(now.getTime()-86400000).toISOString()).lte('starts_at',until.toISOString()).order('starts_at');
@@ -120,7 +129,7 @@ export async function resolveCharacterPresence(input:{db:SupabaseClient;userId:s
   const lifeEventOwnsPresence=Boolean(lifeEvent);
   if(lifeEventOwnsPresence)presence={...presence,locationId:lifeEvent.location_id?String(lifeEvent.location_id):presence.locationId,activityKey:String(lifeEvent.event_type??'life_event'),activity:String(lifeEvent.narrative_summary??lifeEvent.title),activityStartedAt:String(lifeEvent.starts_at),expectedEndAt:String(lifeEvent.ends_at),state:Number(lifeEvent.significance??0)>=.75?'busy':'active',interruptibility:String(lifeEvent.metadata?.interruptibility??(Number(lifeEvent.significance??0)>=.75?'busy':'limited')) as ResolvedCharacterPresence['interruptibility'],source:'life_event'};
   if(baseLocation&&activityRequiresHome(presence.activityKey,presence.activity)&&String(presence.locationId)!==String(baseLocation.id))presence={...presence,locationId:String(baseLocation.id)};
-  const place=presence.locationId?await resolvePlaceContext({db,locationId:presence.locationId,now,userId,characterInstanceId}).catch(()=>null):null;
+  const place=await resolveCharacterPlaceContext({db,characterVersionId:String(instance.character_version_id),locationId:presence.locationId,activity:presence.activity,activityKey:presence.activityKey,now,userId,characterInstanceId});
   return{...presence,placeContext:place};
 }
 

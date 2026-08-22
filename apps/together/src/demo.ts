@@ -1,5 +1,7 @@
 import type { Snapshot } from './types';
+import { neonKyoLocations, neonKyoWorld } from './worlds/neon-kyo';
 import { portVervelleLocations, portVervelleWorld } from './worlds/port-vervelle';
+import { vespormoorLocations, vespormoorWorld } from './worlds/vespormoor';
 
 const templates = {
   maya: { id:'12000000-0000-4000-8000-000000000001',name:'Maya',slug:'maya' as const,age:26,occupation:'Photographer',biography:'Creative, independent, and always seeing the world through a different lens. Loves live music, sushi, and sunset light.' },
@@ -11,7 +13,7 @@ const character=(slug:keyof typeof templates,index:number,location:string,activi
 export const demoSnapshot={
   discoverableCharacters:[{...templates.maya,character_role:'primary_companion',can_be_selected:true,can_be_romanced:true,together_character_versions:{id:'13000000-0000-4000-8000-000000000001',portrait_asset_key:'maya-portrait',interests:['Photography','Movies','Sushi','Live Music','Football'],personality_config:{}}}],
   profile:{display_name:'Tim',active_companion_instance_id:'20000000-0000-4000-8000-000000000001',interests:['Sports','Movies','Photography'],experience_goals:['Dating','Stories'],memory_categories:{semantic:true,preference:true,episodic:true,relationship:true,emotional:true,open_thread:true}},
-  worlds:[{id:'10000000-0000-4000-8000-000000000001',slug:'juniper-city',name:'Juniper City',description:'A city full of people, places, and stories.',access_type:'free',timezone:'America/New_York',sort_order:0,featured:true,published:true,visual_context:{setting:'A contemporary creative city.'},metadata:{}},portVervelleWorld],
+  worlds:[{id:'10000000-0000-4000-8000-000000000001',slug:'juniper-city',name:'Juniper City',description:'A city full of people, places, and stories.',access_type:'free',timezone:'America/New_York',sort_order:0,featured:true,published:true,visual_context:{setting:'A contemporary creative city.'},metadata:{}},portVervelleWorld,neonKyoWorld,vespormoorWorld],
   locations:[
     {id:'11000000-0000-4000-8000-000000000001',world_id:'10000000-0000-4000-8000-000000000001',location_type:'venue',name:'Juniper Café',slug:'juniper-cafe',description:'A warm neighborhood café.',category:'café',possible_activities:['coffee','open mic']},
     {id:'11000000-0000-4000-8000-000000000002',world_id:'10000000-0000-4000-8000-000000000001',location_type:'residence',name:"Maya's Apartment",slug:'maya-apartment',description:'Maya’s apartment.',category:'home',possible_activities:['rest']},
@@ -20,6 +22,8 @@ export const demoSnapshot={
     {id:'11000000-0000-4000-8000-000000000005',world_id:'10000000-0000-4000-8000-000000000001',location_type:'outdoor',name:'Riverwalk',slug:'riverwalk',description:'A quiet path beside the river.',category:'outdoors',possible_activities:['walk']},
     {id:'11000000-0000-4000-8000-000000000006',world_id:'10000000-0000-4000-8000-000000000001',location_type:'venue',name:'Photography Studio',slug:'photography-studio',description:'Maya’s creative workspace.',category:'work',possible_activities:['shoot']},
     ...portVervelleLocations,
+    ...neonKyoLocations,
+    ...vespormoorLocations,
   ],
   characters:[character('maya',1,'11000000-0000-4000-8000-000000000001','having coffee with Chloe','playful'),character('chloe',2,'11000000-0000-4000-8000-000000000003','heading to Skyline Rooftop','adventurous'),character('alex',3,'11000000-0000-4000-8000-000000000005','finishing a photo walk','thoughtful')],
   schedules:[],

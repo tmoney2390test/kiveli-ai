@@ -1,4 +1,4 @@
-const PUBLIC_PATHS = new Set(['/auth', '/auth/callback', '/reset-password']);
+const PUBLIC_PATHS = new Set(['/', '/auth', '/auth/callback', '/reset-password']);
 
 export function isPublicAppPath(pathname: string) {
   return PUBLIC_PATHS.has(normalizePathname(pathname));
@@ -20,6 +20,11 @@ export function safeAppReturnPath(value?: string | string[] | null) {
 export function signInPathFor(pathname: string) {
   const next = safeAppReturnPath(pathname);
   return next ? `/auth?mode=signin&next=${encodeURIComponent(next)}` : '/auth?mode=signin';
+}
+
+export function joinPathFor(pathname?: string) {
+  const next = safeAppReturnPath(pathname);
+  return next ? `/auth?mode=signup&next=${encodeURIComponent(next)}` : '/auth?mode=signup';
 }
 
 function normalizePathname(pathname: string) {

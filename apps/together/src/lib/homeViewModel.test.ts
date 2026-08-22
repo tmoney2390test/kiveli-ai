@@ -70,6 +70,50 @@ describe('buildHomeViewModel', () => {
     expect(model?.timeline[2]?.time).toBe('9:00 AM');
   });
 
+  it('features the companion from the most recently active chat instead of the stored active companion', () => {
+    const chloe=snapshot.characters[0];
+    const chloeConversation=snapshot.conversations[0];
+    if(!chloe)throw new Error('Chloe fixture is required.');
+    if(!chloeConversation||!snapshot.profile)throw new Error('Chloe conversation fixture is required.');
+    const becka={...chloe,id:'becka-instance',character_template_id:'becka-template',character_version_id:'becka-version',together_character_templates:{...chloe.together_character_templates,id:'becka-template',name:'Becka',slug:'becka'},together_character_versions:{...chloe.together_character_versions,id:'becka-version'}};
+    const model=buildHomeViewModel({
+      ...snapshot,
+      profile:{...snapshot.profile,active_companion_instance_id:chloe.id},
+      characters:[chloe,becka],
+      conversations:[
+        {...chloeConversation,last_message_at:'2026-08-16T10:00:00.000Z'},
+        {id:'becka-chat',character_instance_id:becka.id,kind:'direct',title:'Becka',last_message_at:'2026-08-16T11:25:00.000Z',archived_at:null},
+      ],
+    },now);
+    expect(model?.companion.id).toBe('becka-instance');
+  });
+
+  it('ignores a newer archived chat when choosing Home', () => {
+    const chloe=snapshot.characters[0];
+    const chloeConversation=snapshot.conversations[0];
+    if(!chloe)throw new Error('Chloe fixture is required.');
+    if(!chloeConversation)throw new Error('Chloe conversation fixture is required.');
+    const becka={...chloe,id:'becka-instance',character_template_id:'becka-template',character_version_id:'becka-version',together_character_templates:{...chloe.together_character_templates,id:'becka-template',name:'Becka',slug:'becka'},together_character_versions:{...chloe.together_character_versions,id:'becka-version'}};
+    const model=buildHomeViewModel({
+      ...snapshot,
+      characters:[chloe,becka],
+      conversations:[
+        chloeConversation,
+        {id:'becka-chat',character_instance_id:becka.id,kind:'direct',title:'Becka',last_message_at:'2026-08-16T11:25:00.000Z',archived_at:'2026-08-16T11:26:00.000Z'},
+      ],
+    },now);
+    expect(model?.companion.id).toBe('chloe-instance');
+  });
+
+  it('uses the user timezone even when the companion world has another timezone', () => {
+    const model = buildHomeViewModel({
+      ...snapshot,
+      worlds: snapshot.worlds.map((world) => ({ ...world, timezone: 'Asia/Tokyo' })),
+    }, now);
+    expect(model?.timeline[0]?.time).toBe('6:45 AM');
+    expect(model?.timeline[2]?.time).toBe('9:00 AM');
+  });
+
   it('uses a contextual companion CTA when there is no unread message', () => {
     const model = buildHomeViewModel({ ...snapshot, proactiveMessages: [] }, now);
     expect(model?.hero.action).toEqual({ kind: 'chat', label: 'Keep Chloe company' });

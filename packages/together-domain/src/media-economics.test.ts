@@ -17,6 +17,10 @@ describe('media economics',()=>{
     expect(resolveMediaOfferPolicy({source:'life_event',tier:'free',automaticPhotos:true})).toMatchObject({createOffer:true,autoAccept:false,creditCost:10,qualityTier:'standard'});
     expect(resolveMediaOfferPolicy({source:'story',tier:'kivelle_max',automaticPhotos:false})).toMatchObject({createOffer:false,autoAccept:false});
   });
+  it('always confirms direct chat photo requests at the current price',()=>{
+    expect(resolveMediaOfferPolicy({source:'user_request',tier:'free',automaticPhotos:false})).toMatchObject({createOffer:true,autoAccept:false,creditCost:10,qualityTier:'standard'});
+    expect(resolveMediaOfferPolicy({source:'user_request',tier:'kivelle_max',automaticPhotos:true})).toMatchObject({createOffer:true,autoAccept:false,creditCost:10,includedSubscriptionBenefit:false});
+  });
   it('bounds Date benefits by tier and respects automatic photos',()=>{
     expect(resolveMediaOfferPolicy({source:'date',tier:'free',automaticPhotos:true})).toMatchObject({creditCost:10,autoAccept:false,includedSubscriptionBenefit:false,qualityTier:'premium'});
     expect(resolveMediaOfferPolicy({source:'date',tier:'kivelle_plus',automaticPhotos:true})).toMatchObject({creditCost:0,autoAccept:true,includedSubscriptionBenefit:true,includedBenefitType:'date_completion_photo'});

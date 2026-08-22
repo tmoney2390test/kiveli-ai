@@ -1,5 +1,6 @@
 import type { CharacterInstance, Location, Memory, Moment, Snapshot, World } from '../types';
 import { buildCompanionLife } from './companionLife';
+import { mostRecentlyUsedConversation } from './conversation';
 import { worldForLocation } from './place';
 import { currentScheduleEvent, getScheduleEventPresentation, getScheduleHint, nextVisibleScheduleEvents } from './lifePresentation';
 
@@ -61,8 +62,20 @@ type ZonedClock = {
 
 type FutureTimelineCandidate = HomeTimelineItem & { sortMinute: number };
 
+export function mostRecentHomeConversation(snapshot:Snapshot){
+  const characterIds=new Set(snapshot.characters.map((character)=>character.id));
+  return mostRecentlyUsedConversation(snapshot.conversations.filter((conversation)=>characterIds.has(conversation.character_instance_id)));
+}
+
+export function mostRecentHomeCompanion(snapshot:Snapshot):CharacterInstance|undefined{
+  const conversation=mostRecentHomeConversation(snapshot);
+  return conversation?snapshot.characters.find((character)=>character.id===conversation.character_instance_id):undefined;
+}
+
 export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeViewModel | undefined {
-  const life = buildCompanionLife(snapshot, now);
+  const homeConversation=mostRecentHomeConversation(snapshot);
+  if(!homeConversation)return undefined;
+  const life = buildCompanionLife(snapshot, now, homeConversation.character_instance_id, homeConversation.id);
   if (!life) return undefined;
 
   const { companion, relationshipDay, recentEvents, dates } = life;
@@ -71,7 +84,7 @@ export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeVi
   const currentEvent=scheduleCandidate&&companion.current_presence_source==='schedule'&&scheduleCandidate.id===companion.current_schedule_event_id&&scheduleCandidate.location_id===companion.current_location_id?scheduleCandidate:undefined;
   const currentLocation = snapshot.locations.find((item) => item.id === companion.current_location_id);
   const currentWorld = worldForLocation(snapshot, currentLocation?.id ?? companion.current_location_id);
-  const timezone = currentWorld?.timezone || snapshot.profile?.experience_timezone || 'UTC';
+  const timezone = snapshot.profile?.experience_timezone || 'UTC';
   const clock = zonedClock(now, timezone);
   const homePresence = currentWorld
     ? (snapshot.characterWorldPresence ?? []).find((item) => item.character_version_id === companion.character_version_id && item.world_id === currentWorld.id)

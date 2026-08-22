@@ -9,14 +9,19 @@ import { getActiveConversation, mergeConversationSceneMetadata, type ActiveConve
 import { resolveCompanionPresence } from '../_shared/together-schedule.ts';
 import { resolvePlaceContext, resolveWorldAccess } from '../_shared/together-place.ts';
 import { resolveSubscriptionState } from '../_shared/kivelle-subscription.ts';
+import { conversationArchiveExpired, conversationArchiveFields } from '../_shared/together-conversation-archive.ts';
+import { validateCompanionVoicePreset } from '../_shared/companion-voice-selection.ts';
 
 const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('inbox') }),
+  z.object({ action: z.literal('archived') }),
+  z.object({ action: z.literal('ensure'), characterInstanceId: z.string().uuid() }),
   z.object({ action: z.literal('new'), characterInstanceId: z.string().uuid() }),
   z.object({ action: z.literal('archive'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('delete'), conversationId: z.string().uuid() }),
+  z.object({ action: z.literal('restore'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('rename'), conversationId: z.string().uuid(), title: z.string().trim().min(1).max(80) }),
-  z.object({ action: z.literal('settings'), conversationId: z.string().uuid(), title: z.string().trim().max(80).nullable(), responseStyle: z.enum(['texting','paragraph']), textSize: z.enum(['small','medium','large']), spiceLevel: z.union([z.literal(1),z.literal(2),z.literal(3)]).optional() }),
+  z.object({ action: z.literal('settings'), conversationId: z.string().uuid(), title: z.string().trim().max(80).nullable(), responseStyle: z.enum(['texting','paragraph']), textSize: z.enum(['small','medium','large']), contentMode: z.enum(['standard','romance','mature','explicit']).optional(), spiceLevel: z.union([z.literal(1),z.literal(2),z.literal(3)]).optional(), voicePreset: z.enum(['warm','bright','clear','strong','balanced']).nullable().optional() }),
   z.object({ action: z.literal('history'), characterInstanceId: z.string().uuid() }),
   z.object({ action: z.literal('messages'), conversationId: z.string().uuid(), before: z.string().datetime().optional(), anchorMessageId: z.string().uuid().optional(), limit: z.number().int().min(1).max(60).default(50) }),
   z.object({ action: z.literal('search'), characterInstanceId: z.string().uuid(), query: z.string().trim().min(2).max(100), conversationId: z.string().uuid().optional() }),
@@ -49,11 +54,59 @@ serve(async (request, correlationId) => {
     return json({ data: enriched, correlationId }, 200, correlationId);
   }
 
+  if (input.action === 'archived') {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const { data: expired, error: expiredError } = await db.from('together_conversations')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('continuity_id', continuity.id)
+      .not('user_archived_at', 'is', null)
+      .lte('restore_until', nowIso)
+      .limit(100);
+    if (expiredError) throw new AppError('INTERNAL_ERROR', 'Archived chats could not be loaded.', 500, true);
+    let purgedCount = 0;
+    for (const item of expired ?? []) {
+      const { data: deleted, error: deleteError } = await db.rpc('kivelle_delete_conversation', { p_user_id: user.id, p_conversation_id: item.id });
+      if (deleteError) {
+        console.warn('Expired archived chat could not be purged', item.id, deleteError.message);
+        continue;
+      }
+      const storagePaths = Array.isArray(deleted?.storagePaths) ? deleted.storagePaths.filter((path: unknown): path is string => typeof path === 'string' && path.length > 0) : [];
+      await removeStoragePaths(db, user.id, storagePaths);
+      purgedCount += 1;
+    }
+
+    const { data, error } = await db.from('together_conversations')
+      .select('*,together_messages(count)')
+      .eq('user_id', user.id)
+      .eq('continuity_id', continuity.id)
+      .not('user_archived_at', 'is', null)
+      .gt('restore_until', nowIso)
+      .order('user_archived_at', { ascending: false })
+      .limit(100);
+    if (error) throw new AppError('INTERNAL_ERROR', 'Archived chats could not be loaded.', 500, true);
+    const enriched = await Promise.all((data ?? []).map(async (conversation) => {
+      const { data: preview, error: previewError } = await db.from('together_messages').select('content,created_at,role').eq('user_id', user.id).eq('conversation_id', conversation.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (previewError) throw new AppError('INTERNAL_ERROR', 'Archived chat previews could not be loaded.', 500, true);
+      return { ...conversation, message_count: Number(conversation.together_messages?.[0]?.count ?? 0), last_message_at: preview?.created_at ?? conversation.last_message_at, last_message_preview: preview?.content ?? null, last_message_role: preview?.role ?? null };
+    }));
+    await track(db, user.id, 'conversation_archive_viewed', { conversationCount: enriched.length, purgedCount });
+    return json({ data: enriched, correlationId }, 200, correlationId);
+  }
+
+  if (input.action === 'ensure') {
+    const conversation = await getActiveConversation(db, user.id, input.characterInstanceId, true);
+    if (!conversation) throw new AppError('INTERNAL_ERROR', 'The conversation could not be opened.', 500, true);
+    await track(db, user.id, 'conversation_ensured', { characterInstanceId: input.characterInstanceId, conversationId: conversation.id });
+    return json({ data: conversation, correlationId }, 200, correlationId);
+  }
+
   if (input.action === 'reset_preview') {
     const target = await requireInstanceInActiveContinuity(db, user.id, input.characterInstanceId);
     const [templateRow, conversations, memories, plans, dates, moments, photos, stories] = await Promise.all([
       db.from('together_character_templates').select('name').eq('id',String(target.instance.character_template_id)).maybeSingle(),
-      db.from('together_conversations').select('id',{count:'exact',head:true}).eq('user_id',user.id).eq('character_instance_id',input.characterInstanceId),
+      db.from('together_conversations').select('id',{count:'exact',head:true}).eq('user_id',user.id).eq('character_instance_id',input.characterInstanceId).is('user_archived_at',null),
       db.from('together_memories').select('id',{count:'exact',head:true}).eq('user_id',user.id).eq('character_instance_id',input.characterInstanceId),
       db.from('together_shared_plans').select('id,status',{count:'exact'}).eq('user_id',user.id).eq('character_instance_id',input.characterInstanceId),
       db.from('together_date_sessions').select('id',{count:'exact',head:true}).eq('user_id',user.id).eq('character_instance_id',input.characterInstanceId),
@@ -145,7 +198,7 @@ serve(async (request, correlationId) => {
   }
 
   if (input.action === 'history') {
-    const { data, error } = await db.from('together_conversations').select('*,together_messages(count)').eq('user_id', user.id).eq('character_instance_id', input.characterInstanceId).order('created_at', { ascending: false }).limit(100);
+    const { data, error } = await db.from('together_conversations').select('*,together_messages(count)').eq('user_id', user.id).eq('character_instance_id', input.characterInstanceId).is('user_archived_at', null).order('created_at', { ascending: false }).limit(100);
     if (error) throw new AppError('INTERNAL_ERROR', 'Conversation history could not be loaded.', 500, true);
     const enriched = await Promise.all((data ?? []).map(async (conversation) => {
       const { data: preview } = await db.from('together_messages').select('content,created_at,role').eq('conversation_id', conversation.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
@@ -157,6 +210,7 @@ serve(async (request, correlationId) => {
 
   if (input.action === 'messages') {
     const owned = await ownedConversation(db, user.id,continuity.id,input.conversationId);
+    if (owned.user_archived_at && conversationArchiveExpired(owned.restore_until, new Date())) throw new AppError('NOT_FOUND', 'That archived chat is no longer available.', 404);
     if (input.anchorMessageId && !input.before) {
       const { data: anchor } = await db.from('together_messages').select('id,created_at').eq('id', input.anchorMessageId).eq('conversation_id', owned.id).eq('user_id', user.id).maybeSingle();
       if (!anchor) throw new AppError('NOT_FOUND', 'That search result is no longer available.', 404);
@@ -178,7 +232,7 @@ serve(async (request, correlationId) => {
 
   if (input.action === 'search') {
     const safeQuery = input.query.replace(/[%_]/g, '').trim();
-    let query = db.from('together_messages').select('id,conversation_id,role,content,created_at,together_conversations!inner(title,archived_at,character_instance_id)').eq('user_id', user.id).eq('together_conversations.character_instance_id', input.characterInstanceId).ilike('content', `%${safeQuery}%`).order('created_at', { ascending: false }).limit(50);
+    let query = db.from('together_messages').select('id,conversation_id,role,content,created_at,together_conversations!inner(title,archived_at,user_archived_at,character_instance_id)').eq('user_id', user.id).eq('together_conversations.character_instance_id', input.characterInstanceId).is('together_conversations.user_archived_at', null).ilike('content', `%${safeQuery}%`).order('created_at', { ascending: false }).limit(50);
     if (input.conversationId) query = query.eq('conversation_id', input.conversationId);
     const { data, error } = await query;
     if (error) throw new AppError('INTERNAL_ERROR', 'Conversation search is unavailable.', 500, true);
@@ -210,17 +264,20 @@ serve(async (request, correlationId) => {
 
   const conversation = await ownedConversation(db, user.id,continuity.id,input.conversationId);
   if (input.action === 'settings') {
-    if (input.spiceLevel !== undefined) {
+    if (input.spiceLevel !== undefined || input.voicePreset !== undefined) {
       const subscription = await resolveSubscriptionState(db, user.id);
-      if (subscription.tier === 'free') throw new AppError('PLAN_LIMIT_REACHED', 'Custom spice levels are available with Kivelle+ or Max.', 403);
+      if (input.spiceLevel !== undefined && subscription.tier === 'free') throw new AppError('PLAN_LIMIT_REACHED', 'Custom spice levels are available with Kivelle+ or Max.', 403);
+      if (input.voicePreset !== undefined && !subscription.entitlementKeys.includes('voice_notes')) throw new AppError('PLAN_LIMIT_REACHED', 'Custom companion voices are available with Kivelle+ or Max.', 403);
     }
+    const voicePreset = input.voicePreset === undefined ? undefined : await validateCompanionVoicePreset(db, String(conversation.character_instance_id), input.voicePreset);
     const currentMetadata = (conversation.metadata ?? {}) as Record<string, unknown>;
     const storedPreferences = currentMetadata.chatPreferences;
     const currentPreferences = storedPreferences && typeof storedPreferences === 'object' && !Array.isArray(storedPreferences) ? storedPreferences as Record<string, unknown> : {};
-    const chatPreferences = { ...currentPreferences, responseStyle: input.responseStyle, textSize: input.textSize, ...(input.spiceLevel !== undefined ? { spiceLevel: input.spiceLevel } : {}) };
+    const chatPreferences = { ...currentPreferences, responseStyle: input.responseStyle, textSize: input.textSize, ...(input.contentMode !== undefined ? { contentMode: input.contentMode } : {}), ...(input.spiceLevel !== undefined ? { spiceLevel: input.spiceLevel } : {}), ...(voicePreset ? { voicePreset } : {}) };
+    if (input.voicePreset === null) delete chatPreferences.voicePreset;
     const { data, error } = await db.from('together_conversations').update({ title: input.title, metadata: { ...currentMetadata, chatPreferences }, updated_at: new Date().toISOString() }).eq('id', conversation.id).eq('user_id', user.id).select('*').single();
     if (error || !data) throw new AppError('INTERNAL_ERROR', 'Chat settings could not be saved.', 500, true);
-    await track(db, user.id, 'chat_settings_updated', { conversationId: conversation.id, responseStyle: input.responseStyle, textSize: input.textSize, customSpice: input.spiceLevel !== undefined });
+    await track(db, user.id, 'chat_settings_updated', { conversationId: conversation.id, responseStyle: input.responseStyle, textSize: input.textSize, contentMode: input.contentMode, customSpice: input.spiceLevel !== undefined, customVoice: Boolean(voicePreset) });
     return json({ data, correlationId }, 200, correlationId);
   }
   if (input.action === 'read') {
@@ -234,22 +291,28 @@ serve(async (request, correlationId) => {
     await track(db, user.id, 'conversation_renamed', { conversationId: conversation.id });
     return json({ data, correlationId }, 200, correlationId);
   }
-  if (input.action === 'archive') {
-    const { data, error } = await db.from('together_conversations').update({ archived_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', conversation.id).eq('user_id', user.id).is('archived_at', null).select('*').maybeSingle();
-    if (error || !data) throw new AppError('CONFLICT', 'This conversation is already in history.', 409);
-    await track(db, user.id, 'conversation_archived', { conversationId: conversation.id });
+  if (input.action === 'archive' || input.action === 'delete') {
+    const now = new Date();
+    const archive = conversationArchiveFields(now);
+    const { data, error } = await db.from('together_conversations').update({ ...archive, updated_at: archive.archived_at }).eq('id', conversation.id).eq('user_id', user.id).is('archived_at', null).select('*').maybeSingle();
+    if (error || !data) throw new AppError('CONFLICT', 'This chat is already archived.', 409);
+    await track(db, user.id, 'conversation_archived', { conversationId: conversation.id, requestedAction: input.action, restoreUntil: archive.restore_until });
     return json({ data, correlationId }, 200, correlationId);
   }
 
-  const { data: deleted, error: deleteError } = await db.rpc('kivelle_delete_conversation', { p_user_id: user.id, p_conversation_id: conversation.id });
-  if (deleteError) {
-    await db.from('together_destructive_action_audit').insert({ user_id: user.id, character_instance_id: conversation.character_instance_id, action_type: 'conversation_deleted', result_status: 'failed' });
-    throw new AppError('INTERNAL_ERROR', 'The transcript could not be deleted. Nothing was changed.', 500, true);
+  if (input.action === 'restore') {
+    if (!conversation.user_archived_at || !conversation.restore_until) throw new AppError('CONFLICT', 'This chat is not in Archived Chats.', 409);
+    if (conversationArchiveExpired(conversation.restore_until, new Date())) throw new AppError('ACTION_NOT_AVAILABLE', 'The 30-day restore window for this chat has ended.', 410);
+    const { data, error } = await db.rpc('kivelle_restore_conversation', { p_user_id: user.id, p_conversation_id: conversation.id });
+    if (error || !data) {
+      if (error?.message?.includes('ARCHIVE_EXPIRED')) throw new AppError('ACTION_NOT_AVAILABLE', 'The 30-day restore window for this chat has ended.', 410);
+      throw new AppError('INTERNAL_ERROR', 'The chat could not be restored.', 500, true);
+    }
+    await track(db, user.id, 'conversation_restored', { conversationId: conversation.id, characterInstanceId: conversation.character_instance_id });
+    return json({ data, correlationId }, 200, correlationId);
   }
-  const storagePaths = Array.isArray(deleted?.storagePaths) ? deleted.storagePaths.filter((item: unknown): item is string => typeof item === 'string' && item.length > 0) : [];
-  await removeStoragePaths(db, user.id, storagePaths);
-  await track(db, user.id, 'conversation_deleted', { characterInstanceId: conversation.character_instance_id });
-  return json({ data: deleted, correlationId }, 200, correlationId);
+
+  throw new AppError('ACTION_NOT_AVAILABLE', 'That conversation action is unavailable.', 400);
 });
 
 async function ownedConversation(db: any, userId: string,continuityId:string, conversationId: string): Promise<Record<string, any>> {

@@ -12,14 +12,21 @@ import {
 } from './venice-media.ts';
 
 describe('Venice media contracts', () => {
-  it('uses the single-edit wire contract for one canonical reference', () => {
+  it('uses the documented multi-edit wire contract for Qwen Image 2 with one canonical reference', () => {
     const request = buildVeniceEditRequest({ model: VENICE_STANDARD_EDIT_MODEL, prompt: 'Preserve her identity.', images: ['https://signed.test/character.jpg'], aspectRatio: '4:5', safeMode: true });
-    expect(request.endpoint).toBe('/image/edit');
-    expect(request.body).toMatchObject({ model: VENICE_STANDARD_EDIT_MODEL, image: 'https://signed.test/character.jpg' });
+    expect(request.endpoint).toBe('/image/multi-edit');
+    expect(request.body).toMatchObject({ modelId: VENICE_STANDARD_EDIT_MODEL, images: ['https://signed.test/character.jpg'], safe_mode: true });
     expect(request.body).not.toHaveProperty('aspect_ratio');
-    expect(request.body).not.toHaveProperty('safe_mode');
+    expect(request.body).not.toHaveProperty('model');
     expect(request.body).not.toHaveProperty('resolution');
     expect(request.body).not.toHaveProperty('output_format');
+  });
+
+  it('keeps single-edit models on the compact single-image contract', () => {
+    const request = buildVeniceEditRequest({ model: 'qwen-edit', prompt: 'Preserve her identity.', images: ['https://signed.test/character.jpg'], aspectRatio: '4:5', safeMode: true });
+    expect(request.endpoint).toBe('/image/edit');
+    expect(request.body).toMatchObject({ model: 'qwen-edit', image: 'https://signed.test/character.jpg' });
+    expect(request.body).not.toHaveProperty('safe_mode');
   });
 
   it('uses modelId and capped references for multi-edit', () => {

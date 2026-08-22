@@ -28,11 +28,13 @@ export function relationshipDaysKnown(relationship: Snapshot['relationships'][nu
   return Math.max(1, Number(relationship?.days_known ?? 1));
 }
 
-export function buildCompanionLife(snapshot: Snapshot, now = new Date(), companionId?: string): CompanionLifeSnapshot | undefined {
+export function buildCompanionLife(snapshot: Snapshot, now = new Date(), companionId?: string, conversationId?: string): CompanionLifeSnapshot | undefined {
   const companion = activeCompanion(snapshot, companionId);
   if (!companion) return undefined;
   const scoped = selectCompanionLife(snapshot, companion.id);
-  const activeConversation=snapshot.conversations.find((conversation)=>conversation.character_instance_id===companion.id&&!conversation.archived_at&&['direct','first_meeting'].includes(conversation.kind));
+  const activeConversation=conversationId
+    ?snapshot.conversations.find((conversation)=>conversation.id===conversationId&&conversation.character_instance_id===companion.id&&!conversation.archived_at&&!conversation.user_archived_at&&['direct','first_meeting'].includes(conversation.kind))
+    :snapshot.conversations.find((conversation)=>conversation.character_instance_id===companion.id&&!conversation.archived_at&&!conversation.user_archived_at&&['direct','first_meeting'].includes(conversation.kind));
   const location = snapshot.locations.find((item) => item.id === companion.current_location_id);
   const currentWorld=worldForLocation(snapshot,location?.id??companion.current_location_id);
   const upcomingSchedule = nextVisibleScheduleEvents(snapshot.scheduleEvents,companion.id,now).slice(0,3).map((item)=>({ ...item, startsAt:new Date(item.starts_at), endsAt:new Date(item.ends_at), activity:getScheduleHint(item)??item.title, locationName:snapshot.locations.find((place)=>place.id===item.location_id)?.name??currentWorld?.name??'Current world' }));

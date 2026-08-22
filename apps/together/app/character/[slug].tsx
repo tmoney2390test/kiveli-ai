@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import type { ImageContentPosition } from 'expo-image';
-import { ArrowLeft, CalendarDays, Check, Clock3, MapPin, Sparkles } from 'lucide-react-native';
+import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Clock3, MapPin, Sparkles } from 'lucide-react-native';
 import {
   Body,
   CharacterAvatar,
@@ -15,10 +15,12 @@ import {
   resolveCharacterPortraitSource,
 } from '../../src/components';
 import { DetailPreservingArtwork } from '../../src/components/DetailPreservingArtwork';
-import { meetCompanion, setActiveCompanion } from '../../src/lib/api';
+import { characterProfilePhotos } from '../../src/character-profile-assets';
+import { meetCompanion } from '../../src/lib/api';
 import { buildCharacterDaySchedule, type CharacterDayScheduleEntry } from '../../src/lib/characterDaySchedule';
 import { relationshipDaysKnown } from '../../src/lib/companionLife';
 import { worldForLocation } from '../../src/lib/place';
+import { cycleProfilePhotoIndex } from '../../src/lib/profilePhotoCarousel';
 import { selectPortraitVersion } from '../../src/lib/selectors';
 import { useTogether } from '../../src/store/useTogether';
 import { colors, radius, spacing, typography } from '../../src/theme';
@@ -35,9 +37,13 @@ export default function CharacterProfile() {
   const { snapshot, setSnapshot } = useTogether();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [portraitFailed, setPortraitFailed] = useState(false);
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const [failedPhotoIndexes, setFailedPhotoIndexes] = useState<Record<number, true>>({});
 
-  useEffect(() => setPortraitFailed(false), [slug]);
+  useEffect(() => {
+    setPhotoIndex(0);
+    setFailedPhotoIndexes({});
+  }, [slug]);
 
   if (!snapshot) return <LoadingSkeleton />;
 
@@ -63,12 +69,18 @@ export default function CharacterProfile() {
 
   const version = instance ? selectPortraitVersion(snapshot, instance) : baseVersion;
   const asset = resolveCharacterPortraitSource(template, version, template.slug);
+  const profilePhotos = characterProfilePhotos(template.slug, asset);
+  const activePhotoIndex = photoIndex < profilePhotos.length ? photoIndex : 0;
+  const activePhoto = profilePhotos[activePhotoIndex];
+  const activePhotoFailed = Boolean(failedPhotoIndexes[activePhotoIndex]);
+  const cyclePhoto = (delta: number) => {
+    setPhotoIndex((current) => cycleProfilePhotoIndex(current, delta, profilePhotos.length));
+  };
   const focal = (version.appearance_config?.hero_focal_position
     ?? template.discovery_metadata?.hero_focal_position
     ?? 'top') as ImageContentPosition;
   const known = Boolean(instance && (instance.contact_added_at || instance.introduced_at));
   const selectable = Boolean(template.can_be_selected);
-  const active = instance?.id === snapshot.activeContinuity?.active_companion_instance_id;
   const locationRow = instance ? snapshot.locations.find((item) => item.id === instance.current_location_id) : undefined;
   const authoredPresence = !instance ? snapshot.characterWorldPresence?.find((item) => item.character_version_id === version.id && item.presence_type !== 'unavailable') : undefined;
   const world = instance
@@ -85,7 +97,7 @@ export default function CharacterProfile() {
     : 0;
   const handle = template.public_handle ?? template.slug;
   const canTalk = selectable || known;
-  const daySchedule = buildCharacterDaySchedule({ snapshot, instance, characterVersionId: version.id, timezone: world?.timezone });
+  const daySchedule = buildCharacterDaySchedule({ snapshot, instance, characterVersionId: version.id, timezone: snapshot.profile?.experience_timezone });
   const authoredScheduleOwnsPresence = Boolean(instance
     && daySchedule.source === 'authored'
     && !['scene', 'active_date', 'active_plan', 'active_event', 'plan', 'life_event'].includes(String(instance.current_presence_source)));
@@ -106,7 +118,6 @@ export default function CharacterProfile() {
         router.replace(`/chat?character=${encodeURIComponent(handle)}` as never);
         return;
       }
-      if (selectable && !active) setSnapshot(await setActiveCompanion(instance.id, 'discover_profile'));
       router.push(`/chat?character=${encodeURIComponent(handle)}` as never);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not continue right now.');
@@ -123,23 +134,49 @@ export default function CharacterProfile() {
             slug={template.slug}
             name={template.name}
             template={template}
-            version={portraitFailed ? { ...version, portrait_url: null, portrait_asset_key: '' } : version}
+            version={activePhotoFailed && activePhotoIndex === 0 ? { ...version, portrait_url: null, portrait_asset_key: '' } : version}
             size={112}
           />
         </View>
-        {asset && !portraitFailed ? <DetailPreservingArtwork
-          accessibilityLabel={`${template.name}, ${template.occupation}`}
-          source={asset}
+        {activePhoto && !activePhotoFailed ? <DetailPreservingArtwork
+          accessibilityLabel={`${template.name}, ${template.occupation}. Photo ${activePhotoIndex + 1} of ${profilePhotos.length}.`}
+          source={activePhoto}
           contentPosition={focal}
           frameStyle={desktop ? styles.portraitFrameDesktop : styles.portraitFrameMobile}
           dim={.12}
           priority="high"
-          onError={() => setPortraitFailed(true)}
+          onError={() => setFailedPhotoIndexes((current) => ({ ...current, [activePhotoIndex]: true }))}
         /> : null}
         <View pointerEvents="none" style={styles.portraitShade} />
         <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={goBack} style={styles.back}>
           <ArrowLeft size={20} color="#fff" />
         </Pressable>
+        {profilePhotos.length > 1 ? <>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Previous photo of ${template.name}`}
+            hitSlop={8}
+            onPress={() => cyclePhoto(-1)}
+            style={[styles.photoButton, styles.previousPhoto]}
+          >
+            <ChevronLeft size={23} color="#fff" />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Next photo of ${template.name}`}
+            hitSlop={8}
+            onPress={() => cyclePhoto(1)}
+            style={[styles.photoButton, styles.nextPhoto]}
+          >
+            <ChevronRight size={23} color="#fff" />
+          </Pressable>
+          <View pointerEvents="none" style={styles.photoCounter}>
+            <Text style={styles.photoCounterText}>{activePhotoIndex + 1} / {profilePhotos.length}</Text>
+          </View>
+          <View pointerEvents="none" style={styles.photoDots}>
+            {profilePhotos.map((_, index) => <View key={index} style={[styles.photoDot, index === activePhotoIndex && styles.photoDotActive]} />)}
+          </View>
+        </> : null}
         <View pointerEvents="none" style={styles.portraitTitle}>
           <Text style={styles.name}>{template.name}</Text>
           <Text style={styles.job}>{template.occupation}</Text>
@@ -195,19 +232,6 @@ export default function CharacterProfile() {
           <Text style={styles.notMetText}>You haven’t been introduced yet. Their story will unfold through people, places, and events in their world.</Text>
         </View>}
 
-        {known && instance && !active && selectable ? <Pressable
-          disabled={busy}
-          onPress={async () => {
-            setBusy(true);
-            try { setSnapshot(await setActiveCompanion(instance.id, 'discover_profile')); }
-            finally { setBusy(false); }
-          }}
-          style={styles.secondary}
-        >
-          <Check size={16} color={colors.rose} />
-          <Text style={styles.secondaryText}>Make {template.name} active on Home</Text>
-        </Pressable> : null}
-
         {known && instance ? <View style={styles.links}>
           <Pressable onPress={() => router.push(`/memories?character=${handle}` as never)}><Text style={styles.link}>What {template.name} remembers</Text></Pressable>
           <Pressable onPress={() => router.push(`/(tabs)/moments?character=${handle}` as never)}><Text style={styles.link}>Shared moments</Text></Pressable>
@@ -242,6 +266,14 @@ const styles = StyleSheet.create({
   portraitFrameDesktop: { top: 5, right: 5, bottom: 5, left: 5 },
   portraitShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(8,6,12,.08)', borderBottomWidth: 90, borderBottomColor: 'rgba(6,4,9,.70)' },
   back: { position: 'absolute', top: 14, left: 14, zIndex: 3, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(8,11,19,.68)', borderWidth: 1, borderColor: 'rgba(255,255,255,.16)', alignItems: 'center', justifyContent: 'center' },
+  photoButton: { position: 'absolute', top: '46%', zIndex: 4, width: 38, height: 46, borderRadius: 19, backgroundColor: 'rgba(8,11,19,.62)', borderWidth: 1, borderColor: 'rgba(255,255,255,.18)', alignItems: 'center', justifyContent: 'center' },
+  previousPhoto: { left: 12 },
+  nextPhoto: { right: 12 },
+  photoCounter: { position: 'absolute', top: 17, right: 16, zIndex: 3, minWidth: 50, paddingHorizontal: 10, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: 'rgba(8,11,19,.68)', borderWidth: 1, borderColor: 'rgba(255,255,255,.16)', alignItems: 'center' },
+  photoCounterText: { color: '#fff', fontSize: 10, lineHeight: 12, fontWeight: '900', letterSpacing: .6 },
+  photoDots: { position: 'absolute', right: 20, bottom: 86, left: 20, zIndex: 3, flexDirection: 'row', justifyContent: 'center', gap: 6 },
+  photoDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,.42)' },
+  photoDotActive: { width: 18, backgroundColor: '#fff' },
   portraitTitle: { position: 'absolute', right: 20, bottom: 18, left: 20 },
   name: { fontFamily: typography.display, fontSize: 36, lineHeight: 39, color: '#fff', fontWeight: '600', textShadowColor: '#000', textShadowRadius: 14 },
   job: { color: 'rgba(255,255,255,.88)', fontSize: 14, marginTop: 3, fontWeight: '700', textShadowColor: '#000', textShadowRadius: 8 },
@@ -283,8 +315,6 @@ const styles = StyleSheet.create({
   welcome: { flexDirection: 'row', gap: 10, padding: 13, borderRadius: radius.md, backgroundColor: 'rgba(216,62,234,.10)', borderWidth: 1, borderColor: 'rgba(216,62,234,.22)' },
   welcomeTitle: { color: colors.text, fontWeight: '900' },
   welcomeCopy: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 3 },
-  secondary: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
-  secondaryText: { color: colors.text, fontWeight: '800', textAlign: 'center' },
   notMet: { flexDirection: 'row', gap: 10, padding: 14, borderRadius: radius.md, backgroundColor: colors.surface },
   notMetText: { flex: 1, color: colors.muted, fontSize: 12, lineHeight: 18 },
   links: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', gap: 16, paddingVertical: 6 },

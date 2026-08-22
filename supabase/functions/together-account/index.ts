@@ -39,7 +39,7 @@ serve(async (request, correlationId) => {
   if (input.action === 'content') {
     const { data: profile } = await db.from('together_profiles').select('content_preferences').eq('user_id', user.id).single();
     const current = (profile?.content_preferences ?? {}) as Record<string, unknown>;
-    const preferences = { ...current, romanceEnabled: input.romanceEnabled, contentMode: input.romanceEnabled ? 'romance' : 'standard' };
+    const preferences = { ...current, romanceEnabled: input.romanceEnabled };
     const { data, error } = await db.from('together_profiles').update({ content_preferences: preferences, updated_at: new Date().toISOString() }).eq('user_id', user.id).select('content_preferences').single();
     if (error || !data) throw new AppError('INTERNAL_ERROR', 'Could not save content preferences.', 500, true);
     await track(db, user.id, 'content_preferences_updated', { romance_enabled: input.romanceEnabled });

@@ -1,5 +1,6 @@
 import { classifyPhotoIntent } from './media.ts';
 import type { MediaContentLevel } from './media-routing.ts';
+import { hasExplicitAdultLanguage } from './adult-language.ts';
 
 export type MediaEditSemantics='correction'|'creative_variant';
 
@@ -16,7 +17,7 @@ export function resolveMediaEditContentLevel(source:MediaContentLevel,instructio
 function editRequestedContentLevel(instruction:string):MediaContentLevel{
   const classified=classifyPhotoIntent(instruction).requestedContentLevel;
   if(classified)return classified;
-  if(/\b(?:nude|naked|topless|bottomless|explicit|nsfw|genitals?|genitalia|vulva|pussy|vagina|penis|dick|cock|boobs?|breasts?|tits?|nipples?)\b|\b(?:remove|take off)\b[^.!?]{0,30}\b(?:shirt|top|blouse|bra|shorts|pants|trousers|skirt|underwear|panties|clothes|clothing)\b/i.test(instruction))return'explicit';
+  if(hasExplicitAdultLanguage(instruction)||/\b(?:remove|take off)\b[^.!?]{0,30}\b(?:shirt|top|blouse|bra|shorts|pants|trousers|skirt|underwear|panties|clothes|clothing)\b/i.test(instruction))return'explicit';
   if(/\b(?:suggestive|lingerie|sexy|thirst trap)\b/i.test(instruction))return'suggestive';
   if(/\b(?:romantic|kiss|kissing)\b/i.test(instruction))return'romance';
   return'standard';

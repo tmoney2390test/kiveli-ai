@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { AlignLeft, Brain, Check, ChevronRight, Flame, History, MessageCircle, RotateCcw, Settings, Type, X } from 'lucide-react-native';
-import { manageConversation } from '../lib/api';
-import { chatTextSizeOptions, isSubscribedTier, resolveChatResponseStyle, resolveChatSpiceLevel, resolveChatTextSize, withLocalChatSettings } from '../lib/chatSettings';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AlignLeft, Brain, Check, ChevronDown, ChevronRight, Flame, History, MessageCircle, Pause, Play, RotateCcw, Settings, Type, Volume2, X } from 'lucide-react-native';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { router } from 'expo-router';
+import { companionVoiceGenderFromSignals, companionVoicePresetsForGender, type CompanionVoicePreset } from '@together/domain/src/voice-presets';
+import { manageConversation, previewCompanionVoice } from '../lib/api';
+import { chatDialogueContentModeOptions, chatTextSizeOptions, isSubscribedTier, resolveChatContentMode, resolveChatResponseStyle, resolveChatSpiceLevel, resolveChatTextSize, resolveChatVoicePreset, withLocalChatSettings } from '../lib/chatSettings';
 import { conversationStyleOptions } from '../lib/conversationStyle';
 import { useTogether } from '../store/useTogether';
 import { colors, radius, spacing, typography } from '../theme';
-import type { CharacterInstance, ChatTextSize, Conversation, ConversationStyle, SpiceLevel } from '../types';
+import type { CharacterInstance, ChatTextSize, Conversation, ConversationStyle, DialogueContentMode, SpiceLevel } from '../types';
 import { FrostedSurface } from './FrostedGlass';
+import { createClientRequestId } from '../lib/requestId';
+import { cachedVoicePreview, rememberVoicePreview, type VoicePreview } from '../lib/voicePreviewCache';
 
 type Props = {
   visible: boolean;
@@ -32,25 +37,99 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
   const [title, setTitle] = useState('');
   const [responseStyle, setResponseStyle] = useState<ConversationStyle>('texting');
   const [textSize, setTextSize] = useState<ChatTextSize>('medium');
+  const [contentMode, setContentMode] = useState<DialogueContentMode>('romance');
+  const [contentModeOpen, setContentModeOpen] = useState(false);
   const [spiceLevel, setSpiceLevel] = useState<SpiceLevel>(2);
+  const [voicePreset, setVoicePreset] = useState<CompanionVoicePreset | null>(null);
+  const [voicePreview, setVoicePreview] = useState<VoicePreview | null>(null);
+  const [voicePreviewBusy, setVoicePreviewBusy] = useState(false);
+  const [voiceMenuOpen, setVoiceMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const voicePlayer = useAudioPlayer(null, { updateInterval: 200 });
+  const voicePlayerStatus = useAudioPlayerStatus(voicePlayer);
   const subscribed = isSubscribedTier(snapshot?.entitlements?.tier);
+  const adultVerified = Boolean(snapshot?.profile?.age_verified_at);
+  const voiceEntitled = snapshot?.experienceCapabilities?.voiceNotes === true || snapshot?.entitlements?.entitlement_keys?.includes('voice_notes') === true;
   const name = character?.together_character_templates.name ?? 'this companion';
+  const voiceGender = companionVoiceGenderFromSignals(
+    character?.together_character_templates.discovery_metadata?.gender,
+    character?.together_character_versions.pronouns,
+    character?.together_character_versions.visual_identity?.gender,
+    character?.together_character_versions.appearance_config,
+    character?.together_character_versions.visual_identity,
+    character?.together_character_templates.biography,
+  );
+  const voiceOptions = companionVoicePresetsForGender(voiceGender);
+  const selectedVoice = voicePreset === null
+    ? { label: `${name}'s default`, detail: 'Authored character voice', value: null }
+    : voiceOptions.find((option) => option.value === voicePreset) ?? { label: `${name}'s default`, detail: 'Authored character voice', value: null };
+  const selectableVoices = [
+    { label: `${name}'s default`, detail: 'Authored character voice', value: null as CompanionVoicePreset | null },
+    ...voiceOptions,
+  ];
+  const contentModeOptions = adultVerified ? chatDialogueContentModeOptions : chatDialogueContentModeOptions.slice(0, 2);
+  const selectedContentMode = chatDialogueContentModeOptions.find((option) => option.value === contentMode) ?? chatDialogueContentModeOptions[1]!;
 
   useEffect(() => {
     if (!visible || !conversation) return;
     setTitle(conversation.title ?? '');
     setResponseStyle(resolveChatResponseStyle(conversation, snapshot?.profile ?? null));
     setTextSize(resolveChatTextSize(conversation));
+    const savedContentMode = resolveChatContentMode(conversation, snapshot?.profile ?? null);
+    setContentMode(!adultVerified && (savedContentMode === 'mature' || savedContentMode === 'explicit') ? 'romance' : savedContentMode);
+    setContentModeOpen(false);
     setSpiceLevel(resolveChatSpiceLevel(conversation, character?.together_character_templates.spice_level));
+    const selectedVoice = resolveChatVoicePreset(conversation);
+    const cachedPreview = cachedVoicePreview(conversation.id, selectedVoice);
+    setVoicePreset(selectedVoice);
+    setVoicePreview(cachedPreview);
+    setVoiceMenuOpen(false);
+    if (cachedPreview) voicePlayer.replace(cachedPreview.signedUrl);
+    voicePlayer.pause();
   }, [visible, conversation?.id, character?.id, snapshot?.profile]);
+
+  useEffect(() => () => voicePlayer.pause(), [voicePlayer]);
+  useEffect(() => { if (!visible) { voicePlayer.pause(); setVoicePreview(null); } }, [visible, voicePlayer]);
+
+  const selectVoice = (next: CompanionVoicePreset | null) => {
+    voicePlayer.pause();
+    const cachedPreview = conversation ? cachedVoicePreview(conversation.id, next) : null;
+    setVoicePreview(cachedPreview);
+    if (cachedPreview) voicePlayer.replace(cachedPreview.signedUrl);
+    setVoicePreset(next);
+    setVoiceMenuOpen(false);
+  };
+
+  const testVoice = async () => {
+    if (!conversation || voicePreviewBusy) return;
+    if (voicePreview && voicePreview.selection === voicePreset) {
+      if (voicePlayerStatus.playing) voicePlayer.pause();
+      else {
+        if (voicePlayerStatus.didJustFinish) void voicePlayer.seekTo(0);
+        voicePlayer.play();
+      }
+      return;
+    }
+    setVoicePreviewBusy(true);
+    try {
+      const result = await previewCompanionVoice({ conversationId: conversation.id, voicePreset, requestId: createClientRequestId() });
+      const preview = { ...result.preview, selection: voicePreset };
+      rememberVoicePreview(conversation.id, preview);
+      setVoicePreview(preview);
+      voicePlayer.replace(result.preview.signedUrl);
+    } catch (error) {
+      Alert.alert('Voice preview unavailable', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setVoicePreviewBusy(false);
+    }
+  };
 
   const save = async () => {
     if (!conversation || saving) return;
     const cleanTitle = title.trim() || null;
     setSaving(true);
     try {
-      const input = { title: cleanTitle, responseStyle, textSize, ...(subscribed ? { spiceLevel } : {}) };
+      const input = { title: cleanTitle, responseStyle, textSize, contentMode, ...(subscribed ? { spiceLevel } : {}), ...(voiceEntitled ? { voicePreset } : {}) };
       const updated = demoMode
         ? withLocalChatSettings(conversation, input)
         : await manageConversation<Conversation>({ action: 'settings', conversationId: conversation.id, ...input });
@@ -130,6 +209,31 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
             </View>
           </SettingSection>
 
+          <SettingSection icon={<Flame size={16} color="#FF6F7D" />} label="Dialogue intensity">
+            <Pressable accessibilityRole="button" accessibilityLabel={`Dialogue intensity: ${selectedContentMode.label}`} accessibilityState={{ expanded: contentModeOpen, disabled: saving }} disabled={saving} onPress={() => { setVoiceMenuOpen(false); setContentModeOpen(true); }} style={({ pressed }) => [styles.intensitySelect, pressed && styles.pressed]}>
+              <View style={styles.intensityIcon}><Flame size={16} color="#fff" /></View>
+              <Text style={styles.intensityValue}>{selectedContentMode.label}</Text>
+              <ChevronDown size={17} color={colors.muted} />
+            </Pressable>
+          </SettingSection>
+
+          <SettingSection icon={<Volume2 size={16} color={colors.violet} />} label="Companion voice">
+            {voiceEntitled ? <>
+              <View style={styles.voiceControlRow}>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Companion voice: ${selectedVoice.label}`} accessibilityState={{ expanded: voiceMenuOpen, disabled: saving || voicePreviewBusy }} disabled={saving || voicePreviewBusy} onPress={() => { setContentModeOpen(false); setVoiceMenuOpen(true); }} style={({ pressed }) => [styles.voiceSelect, voiceMenuOpen && styles.voiceSelectOpen, pressed && styles.pressed]}>
+                  <View style={styles.voiceSelectIcon}><Volume2 size={15} color="#fff" /></View>
+                  <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.voiceSelectLabel}>{selectedVoice.label}</Text><Text numberOfLines={1} style={styles.voiceSelectDetail}>{selectedVoice.detail}</Text></View>
+                  <ChevronDown size={17} color={colors.muted} style={{ transform: [{ rotate: voiceMenuOpen ? '180deg' : '0deg' }] }} />
+                </Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel={voicePreview ? voicePlayerStatus.playing ? 'Pause voice sample' : 'Play voice sample' : 'Prepare voice sample'} disabled={saving || voicePreviewBusy} onPress={() => void testVoice()} style={({ pressed }) => [styles.voicePreviewButton, (saving || voicePreviewBusy) && styles.disabled, pressed && styles.pressed]}>
+                  {voicePreviewBusy ? <ActivityIndicator size="small" color="#fff" /> : voicePreview ? voicePlayerStatus.playing ? <Pause size={14} color="#fff" fill="#fff" /> : <Play size={14} color="#fff" fill="#fff" /> : <Volume2 size={14} color="#fff" />}
+                  <Text style={styles.voicePreviewButtonText}>{voicePreviewBusy ? 'Loading…' : voicePreview ? voicePlayerStatus.playing ? 'Pause' : 'Sample' : 'Test'}</Text>
+                </Pressable>
+              </View>
+              {voicePreview && !voicePlayerStatus.isLoaded ? <Text accessibilityLiveRegion="polite" style={styles.voiceLoadingText}>{voicePlayerStatus.error ? 'The sample could not load. Try it again.' : 'Sample ready · tap Play sample.'}</Text> : null}
+            </> : <Pressable accessibilityRole="button" onPress={() => { onClose(); router.push('/subscription'); }} style={styles.voiceLocked}><Volume2 size={18} color={colors.muted} /><View style={{ flex: 1 }}><Text style={styles.voiceLockedTitle}>Custom voices are available with Kivelle+</Text><Text style={styles.voiceLockedCopy}>Your companion’s authored voice is still used by default.</Text></View><ChevronRight size={16} color={colors.dimmed} /></Pressable>}
+          </SettingSection>
+
           {subscribed ? <SettingSection icon={<Flame size={16} color="#FF6F7D" />} label="Spice level">
             <View accessibilityRole="adjustable" accessibilityLabel="Spice level" accessibilityValue={{ min: 1, max: 3, now: spiceLevel, text: spiceOptions.find((item) => item.value === spiceLevel)?.label ?? 'Medium' }} style={styles.spiceControl}>
               <View style={styles.spiceTrack}><View style={[styles.spiceFill, { width: spiceLevel === 1 ? '0%' : spiceLevel === 2 ? '50%' : '100%' }]} /></View>
@@ -163,6 +267,26 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
           <Pressable disabled={saving} onPress={() => void save()} style={({ pressed }) => [styles.save, saving && styles.disabled, pressed && styles.pressed]}><Text style={styles.saveText}>{saving ? 'Saving…' : 'Save changes'}</Text></Pressable>
         </View>
       </FrostedSurface>
+      {contentModeOpen ? <View style={styles.intensityOverlay}>
+        <Pressable accessibilityLabel="Close dialogue intensity selector" onPress={() => setContentModeOpen(false)} style={StyleSheet.absoluteFill} />
+        <FrostedSurface intensity={96} style={styles.intensityPopup}>
+          <View style={styles.intensityPopupHeader}><Text style={styles.intensityPopupTitle}>Dialogue intensity</Text><Pressable accessibilityLabel="Close" onPress={() => setContentModeOpen(false)} style={styles.close}><X size={18} color={colors.muted} /></Pressable></View>
+          <View accessibilityRole="radiogroup" style={styles.intensityOptions}>{contentModeOptions.map((option) => {
+            const active = option.value === contentMode;
+            return <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={() => { setContentMode(option.value); setContentModeOpen(false); }} style={({ pressed }) => [styles.intensityOption, active && styles.intensityOptionActive, pressed && styles.pressed]}><Text style={[styles.intensityOptionText, active && styles.optionTextActive]}>{option.label}</Text>{active ? <Check size={17} color="#C778FF" strokeWidth={3} /> : null}</Pressable>;
+          })}</View>
+        </FrostedSurface>
+      </View> : null}
+      {voiceMenuOpen ? <View style={styles.intensityOverlay}>
+        <Pressable accessibilityLabel="Close companion voice selector" onPress={() => setVoiceMenuOpen(false)} style={StyleSheet.absoluteFill} />
+        <FrostedSurface intensity={96} style={styles.intensityPopup}>
+          <View style={styles.intensityPopupHeader}><Text style={styles.intensityPopupTitle}>Companion voice</Text><Pressable accessibilityLabel="Close" onPress={() => setVoiceMenuOpen(false)} style={styles.close}><X size={18} color={colors.muted} /></Pressable></View>
+          <View accessibilityRole="radiogroup" style={styles.intensityOptions}>{selectableVoices.map((option) => {
+            const active = option.value === voicePreset;
+            return <Pressable key={option.value ?? 'default'} accessibilityRole="radio" accessibilityState={{ checked: active, disabled: saving || voicePreviewBusy }} disabled={saving || voicePreviewBusy} onPress={() => selectVoice(option.value)} style={({ pressed }) => [styles.voicePopupOption, active && styles.intensityOptionActive, pressed && styles.pressed]}><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={[styles.voicePopupLabel, active && styles.optionTextActive]}>{option.label}</Text><Text numberOfLines={1} style={styles.voicePopupDetail}>{option.detail}</Text></View>{active ? <Check size={17} color="#C778FF" strokeWidth={3} /> : null}</Pressable>;
+          })}</View>
+        </FrostedSurface>
+      </View> : null}
     </KeyboardAvoidingView>
   </Modal>;
 }
@@ -200,6 +324,32 @@ const styles = StyleSheet.create({
   textSizeOption: { minHeight: 76, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.035)', borderWidth: 1, borderColor: colors.border },
   aa: { color: colors.textSecondary, fontWeight: '900', lineHeight: 26 },
   textSizeLabel: { color: colors.muted, fontSize: 11, marginTop: 2 },
+  intensitySelect: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.04)', borderWidth: 1, borderColor: 'rgba(199,120,255,.30)' },
+  intensityIcon: { width: 31, height: 31, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#A845F2' },
+  intensityValue: { flex: 1, color: colors.text, fontSize: 13, fontWeight: '900' },
+  intensityOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 20, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, backgroundColor: 'rgba(3,2,7,.62)' },
+  intensityPopup: { width: '100%', maxWidth: 380, overflow: 'hidden', borderRadius: radius.xl, padding: 16, backgroundColor: 'rgba(28,21,39,.98)', borderColor: 'rgba(199,120,255,.38)', shadowColor: '#000', shadowOpacity: .55, shadowRadius: 28, shadowOffset: { width: 0, height: 15 } },
+  intensityPopupHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  intensityPopupTitle: { flex: 1, color: colors.text, fontFamily: typography.display, fontSize: 22, fontWeight: '700' },
+  intensityOptions: { gap: 7 },
+  intensityOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.035)', borderWidth: 1, borderColor: colors.border },
+  intensityOptionActive: { backgroundColor: 'rgba(112,55,139,.26)', borderColor: '#A845F2' },
+  intensityOptionText: { color: colors.textSecondary, fontSize: 13, fontWeight: '900' },
+  voiceControlRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
+  voiceSelect: { minHeight: 49, flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 10, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.04)', borderWidth: 1, borderColor: colors.border },
+  voiceSelectOpen: { borderColor: '#A845F2', backgroundColor: 'rgba(112,55,139,.18)' },
+  voiceSelectIcon: { width: 29, height: 29, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.violet },
+  voiceSelectLabel: { color: colors.text, fontSize: 12, fontWeight: '900' },
+  voiceSelectDetail: { color: colors.muted, fontSize: 9, lineHeight: 12, marginTop: 2 },
+  voicePopupOption: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.035)', borderWidth: 1, borderColor: colors.border },
+  voicePopupLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: '900' },
+  voicePopupDetail: { color: colors.muted, fontSize: 10, lineHeight: 14, marginTop: 2 },
+  voicePreviewButton: { minHeight: 49, minWidth: 78, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 11, borderRadius: radius.md, backgroundColor: colors.violet },
+  voicePreviewButtonText: { color: '#fff', fontSize: 10, fontWeight: '900' },
+  voiceLoadingText: { color: colors.muted, fontSize: 9, marginTop: -5 },
+  voiceLocked: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.025)', borderWidth: 1, borderColor: colors.border },
+  voiceLockedTitle: { color: colors.textSecondary, fontSize: 11, fontWeight: '900' },
+  voiceLockedCopy: { color: colors.muted, fontSize: 9, lineHeight: 13, marginTop: 3 },
   spiceControl: { paddingHorizontal: 8, paddingTop: 12 },
   spiceTrack: { position: 'absolute', left: 24, right: 24, top: 29, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,.14)', overflow: 'hidden' },
   spiceFill: { height: 4, borderRadius: 2, backgroundColor: '#B168E5' },

@@ -1,48 +1,64 @@
-import type { GeneratedMedia, Moment, Snapshot } from '../types';
+import type { DateSession, GeneratedMedia, Memory, Moment, RelationshipMilestone, SharedPlan, Snapshot } from '../types';
 
-export type MomentsFeedFilter = 'All' | 'Milestones' | 'Dates' | 'Memories' | 'Photos';
+export type MomentsFeedFilter = 'All' | 'Experiences' | 'Milestones' | 'Memories' | 'Photos';
 
 export type MomentsFeedEntry =
   | { kind: 'moment'; id: string; occurred_at: string; moment: Moment; mediaUrl?: string | null }
+  | { kind: 'plan'; id: string; occurred_at: string; plan: SharedPlan }
+  | { kind: 'date'; id: string; occurred_at: string; date: DateSession }
+  | { kind: 'milestone'; id: string; occurred_at: string; milestone: RelationshipMilestone }
+  | { kind: 'memory'; id: string; occurred_at: string; memory: Memory }
   | { kind: 'photo'; id: string; occurred_at: string; media: GeneratedMedia; title: string };
 
 export function buildMomentsFeed(snapshot: Snapshot, companionId: string, filter: MomentsFeedFilter, query = ''): MomentsFeedEntry[] {
-  const moments = companionId === 'all'
-    ? snapshot.moments
-    : snapshot.moments.filter((moment) => moment.character_instance_id === companionId || (moment.participant_instance_ids ?? []).includes(companionId));
-  const photos = (snapshot.generatedMedia ?? []).filter((item) =>
-    item.media_type === 'image' &&
-    item.status === 'ready' &&
-    (companionId === 'all' || item.character_instance_id === companionId)
-  );
-  const momentIds = new Set(moments.map((moment) => moment.id));
+  const scoped = (characterInstanceId: string) => companionId === 'all' || characterInstanceId === companionId;
+  const moments = snapshot.moments.filter((moment) => scoped(moment.character_instance_id) || (moment.participant_instance_ids ?? []).includes(companionId));
+  const plans = (snapshot.sharedPlans ?? []).filter((plan) => scoped(plan.character_instance_id) && plan.status === 'completed' && plan.source !== 'date');
+  const dates = snapshot.dates.filter((date) => scoped(date.character_instance_id) && date.status === 'completed' && Boolean(date.completed_at));
+  const milestones = (snapshot.relationshipMilestoneHistory ?? []).filter((milestone) => scoped(milestone.character_instance_id) && milestone.status !== 'deferred');
+  const memories = snapshot.memories.filter((memory) => scoped(memory.character_instance_id) && ['episodic', 'relationship'].includes(memory.memory_type));
+  const photos = (snapshot.generatedMedia ?? []).filter((item) => item.media_type === 'image' && item.status === 'ready' && scoped(item.character_instance_id));
   const normalizedQuery = query.trim().toLowerCase();
 
-  const momentEntries = moments
-    .filter((moment) => momentMatchesFilter(moment, photos, filter))
-    .filter((moment) => matchesMomentQuery(snapshot, moment, normalizedQuery))
-    .map<MomentsFeedEntry>((moment) => ({
-      kind: 'moment',
+  const representedPlanIds = new Set(plans.map((plan) => plan.id));
+  const representedDateIds = new Set(dates.map((date) => date.id));
+  const visibleMoments = moments.filter((moment) => {
+    if (filter === 'Photos') return momentHasPhoto(moment, photos);
+    if (filter === 'Milestones') return /milestone|relationship|introduction/i.test(moment.moment_type);
+    if (filter !== 'All') return false;
+    return !(moment.shared_plan_id && representedPlanIds.has(moment.shared_plan_id)) && !(moment.date_session_id && representedDateIds.has(moment.date_session_id));
+  });
+
+  const entries: MomentsFeedEntry[] = [];
+  if (filter === 'All' || filter === 'Photos' || filter === 'Milestones') {
+    entries.push(...visibleMoments.map((moment) => ({
+      kind: 'moment' as const,
       id: moment.id,
       occurred_at: moment.occurred_at,
       moment,
       mediaUrl: photos.find((item) => item.moment_id === moment.id && item.signed_url)?.signed_url,
-    }));
+    })));
+  }
+  if (filter === 'All' || filter === 'Experiences') {
+    entries.push(...plans.map((plan) => ({ kind: 'plan' as const, id: plan.id, occurred_at: plan.completed_at ?? plan.ends_at, plan })));
+    entries.push(...dates.map((date) => ({ kind: 'date' as const, id: date.id, occurred_at: date.completed_at!, date })));
+  }
+  if (filter === 'All' || filter === 'Milestones') {
+    entries.push(...milestones.map((milestone) => ({ kind: 'milestone' as const, id: milestone.id, occurred_at: milestone.resolved_at ?? milestone.updated_at ?? milestone.created_at, milestone })));
+  }
+  if (filter === 'Memories') {
+    entries.push(...memories.map((memory) => ({ kind: 'memory' as const, id: memory.id, occurred_at: memory.updated_at ?? memory.created_at, memory })));
+  }
+  if (filter === 'All' || filter === 'Photos') {
+    const representedMomentIds = new Set(moments.map((moment) => moment.id));
+    entries.push(...photos
+      .filter((media) => !media.moment_id || !representedMomentIds.has(media.moment_id))
+      .map((media) => ({ kind: 'photo' as const, id: media.id, occurred_at: media.created_at, media, title: generatedPhotoTitle(snapshot, media) })));
+  }
 
-  const photoEntries = filter === 'All' || filter === 'Photos'
-    ? photos
-      .filter((media) => !media.moment_id || !momentIds.has(media.moment_id))
-      .map<MomentsFeedEntry>((media) => ({
-        kind: 'photo',
-        id: media.id,
-        occurred_at: media.created_at,
-        media,
-        title: generatedPhotoTitle(snapshot, media),
-      }))
-      .filter((entry) => entry.kind === 'photo' && matchesPhotoQuery(snapshot, entry.media, entry.title, normalizedQuery))
-    : [];
-
-  return [...momentEntries, ...photoEntries].sort((left, right) => new Date(right.occurred_at).getTime() - new Date(left.occurred_at).getTime());
+  return entries
+    .filter((entry) => entryMatchesQuery(snapshot, entry, normalizedQuery))
+    .sort((left, right) => new Date(right.occurred_at).getTime() - new Date(left.occurred_at).getTime());
 }
 
 export function generatedPhotoTitle(snapshot: Snapshot, media: GeneratedMedia): string {
@@ -59,26 +75,39 @@ export function generatedPhotoTitle(snapshot: Snapshot, media: GeneratedMedia): 
   return character ? `From ${character.together_character_templates.name}` : 'A photo from your story';
 }
 
-function momentMatchesFilter(moment: Moment, photos: GeneratedMedia[], filter: MomentsFeedFilter): boolean {
-  if (filter === 'All') return true;
-  if (filter === 'Photos') return (moment.media ?? []).length > 0 || photos.some((item) => item.moment_id === moment.id);
-  if (filter === 'Dates') return /date/i.test(moment.moment_type);
-  if (filter === 'Milestones') return /milestone|relationship|introduction/i.test(moment.moment_type);
-  return /memory|conversation/i.test(moment.moment_type);
+function momentHasPhoto(moment: Moment, photos: GeneratedMedia[]): boolean {
+  return (moment.media ?? []).length > 0 || photos.some((item) => item.moment_id === moment.id);
 }
 
-function matchesMomentQuery(snapshot: Snapshot, moment: Moment, query: string): boolean {
+function entryMatchesQuery(snapshot: Snapshot, entry: MomentsFeedEntry, query: string): boolean {
   if (!query) return true;
-  const place = snapshot.locations.find((item) => item.id === moment.location_id);
+  const characterInstanceId = entry.kind === 'moment' ? entry.moment.character_instance_id
+    : entry.kind === 'photo' ? entry.media.character_instance_id
+      : entry.kind === 'plan' ? entry.plan.character_instance_id
+        : entry.kind === 'date' ? entry.date.character_instance_id
+          : entry.kind === 'milestone' ? entry.milestone.character_instance_id
+            : entry.memory.character_instance_id;
+  const locationId = entry.kind === 'moment' ? entry.moment.location_id
+    : entry.kind === 'photo' ? entry.media.location_id
+      : entry.kind === 'plan' ? entry.plan.location_id
+        : entry.kind === 'date' ? entry.date.together_date_templates.location_id
+          : entry.kind === 'memory' ? entry.memory.location_id
+            : null;
+  const place = locationId ? snapshot.locations.find((item) => item.id === locationId) : undefined;
   const world = place ? snapshot.worlds.find((item) => item.id === place.world_id) : undefined;
-  const person = snapshot.characters.find((item) => item.id === moment.character_instance_id || (moment.participant_instance_ids ?? []).includes(item.id));
-  return `${moment.title} ${moment.summary} ${place?.name ?? ''} ${world?.name ?? ''} ${person?.together_character_templates.name ?? ''}`.toLowerCase().includes(query);
+  const person = snapshot.characters.find((item) => item.id === characterInstanceId);
+  const text = entry.kind === 'moment' ? `${entry.moment.title} ${entry.moment.summary}`
+    : entry.kind === 'photo' ? entry.title
+      : entry.kind === 'plan' ? `${entry.plan.title} ${planSummary(entry.plan)}`
+        : entry.kind === 'date' ? `${entry.date.together_date_templates.name} ${entry.date.together_date_templates.description}`
+          : entry.kind === 'milestone' ? `${entry.milestone.title} ${entry.milestone.body}`
+            : entry.memory.canonical_text;
+  return `${text} ${place?.name ?? ''} ${world?.name ?? ''} ${person?.together_character_templates.name ?? ''}`.toLowerCase().includes(query);
 }
 
-function matchesPhotoQuery(snapshot: Snapshot, media: GeneratedMedia, title: string, query: string): boolean {
-  if (!query) return true;
-  const place = snapshot.locations.find((item) => item.id === media.location_id);
-  const world = place ? snapshot.worlds.find((item) => item.id === place.world_id) : undefined;
-  const person = snapshot.characters.find((item) => item.id === media.character_instance_id);
-  return `${title} ${place?.name ?? ''} ${world?.name ?? ''} ${person?.together_character_templates.name ?? ''}`.toLowerCase().includes(query);
+export function planSummary(plan: SharedPlan): string {
+  const experience = plan.metadata?.planExperience;
+  return typeof experience === 'object' && experience && typeof (experience as Record<string, unknown>).summary === 'string'
+    ? String((experience as Record<string, unknown>).summary)
+    : plan.note ?? `${plan.title} became part of your shared history.`;
 }

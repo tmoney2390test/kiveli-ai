@@ -1,12 +1,16 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
 import { track } from './together.ts';
-import { placeContextSnapshot, resolvePlaceContext, type PlaceContext } from './together-place.ts';
+import { placeContextSnapshot, resolveCharacterPlaceContext, resolvePlaceContext, type PlaceContext } from './together-place.ts';
 import { resolveCharacterMediaBoundaries, resolveMediaContentPolicy } from '../../../packages/together-domain/src/media-routing.ts';
 import { CHARACTER_PHOTO_REALISM_GUIDANCE, classifyPhotoIntent, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, photoRequestAllowsHiddenFace, resolveCanonicalMediaPresence, resolveMediaSceneBoundary, resolvePhotoComposition, resolvePhotoDirection, type MediaPresenceState } from '../../../packages/together-domain/src/media.ts';
 import { isMediaGenerationAuthorized } from '../../../packages/together-domain/src/media-economics.ts';
+import { generatedPhotosEnabled } from './together-photo-preferences.ts';
+import { isFictionalCompanion } from './together-media-character.ts';
 import { buildMediaEditConstraint, classifyMediaEditSemantics } from '../../../packages/together-domain/src/media-edit.ts';
 import { capabilitiesForAccount, normalizeSubscriptionTier } from '../../../packages/together-domain/src/entitlements.ts';
+import { hasExplicitAdultLanguage } from '../../../packages/together-domain/src/adult-language.ts';
+import { resolveCompanionPresence } from './together-schedule.ts';
 
 export type MediaSource = 'user_request'|'life_event'|'date'|'moment'|'story';
 export type MediaContentLevel = 'standard'|'romance'|'suggestive'|'mature'|'explicit';
@@ -34,7 +38,7 @@ export type ImageGenerationResult = {bytes:Uint8Array;contentType:string;width:n
 export interface ImageGenerationProvider { id:string;capabilities:ImageProviderCapabilities;generate(request:CanonicalImageGenerationRequest):Promise<ImageGenerationResult> }
 
 const REAL_PERSON_PATTERN = /\b(celebrity|public figure|look exactly like|face of|identical to)\b/i;
-const SEXUAL_PATTERN = /\b(nude|naked|topless|tits?|boobs?|breasts?|pussy|dick|cock|sex|explicit)\b/i;
+const SEXUAL_ACT_PATTERN = /\b(?:sex(?:ual|ually)?|fuck(?:ing|ed)?|masturbat(?:e|ing|ion)|orgasm|blowjob|handjob|penetrat(?:e|ion|ing)|oral sex|anal sex)\b/i;
 
 export function classifyPhotoRequest(text:string):PhotoRequestIntent {
   return classifyPhotoIntent(text) as PhotoRequestIntent;
@@ -42,7 +46,7 @@ export function classifyPhotoRequest(text:string):PhotoRequestIntent {
 
 export function safeRequestText(text?:string):string|undefined {
   if(!text)return undefined;
-  if(REAL_PERSON_PATTERN.test(text)||SEXUAL_PATTERN.test(text))return undefined;
+  if(REAL_PERSON_PATTERN.test(text)||SEXUAL_ACT_PATTERN.test(text)||hasExplicitAdultLanguage(text))return undefined;
   return text.replace(/[\r\n]+/g,' ').trim().slice(0,180);
 }
 
@@ -176,7 +180,12 @@ export function buildImagePrompt(request:CanonicalImageGenerationRequest):string
   const characterReference=request.referenceImages.some((item)=>item.role==='character_identity');
   const referenceRule=characterReference?'Image 1 defines only the same fictional adult companion’s stable physical identity. Its clothing, accessories, pose, framing, background, and lighting are not canonical and must not be copied.':'Use the canonical identity description exactly and keep it stable across images.';
   const referenceInstructions=request.referenceImages.map((reference,index)=>`Image ${index+1} ${reference.role==='character_identity'?'defines only face, hair, eyes, skin tone, adult age, body identity, and stable identifying features—not wardrobe, pose, framing, background, or lighting':reference.role==='location_environment'?'defines the canonical location environment and its architecture, materials, layout cues, recurring objects, and atmosphere':reference.role==='world_environment'?'defines the wider canonical world identity':reference.role==='outfit_continuity'?'defines same-day clothing continuity and is the only image allowed to define wardrobe':reference.role==='previous_media'?'defines continuity from the approved previous media':'is a curated character-training identity reference whose wardrobe and background are non-canonical'}.`).join(' ');
+  const environmentRule=place?.location.referencePolicy==='text_only'
+    ?'This private home has no location reference image by design. Build the environment only from the exact canonical home text and visual anchors below; never borrow its room, décor, lighting, or layout from the character identity portrait.'
+    :'Use a dedicated location reference when supplied; otherwise build the environment from the exact canonical location text below.';
   const outfitReference=request.referenceImages.some((item)=>item.role==='outfit_continuity');
+  const district=place?.district??[...(place?.ancestry??[])].reverse().find((item)=>item.type==='district');
+  const districtVisual=district?.visualContext??{};
   const resolvedDirection=resolvePhotoDirection({requestText:request.generationIntent?.requestText,shotType:request.composition.shotType,seed:request.mediaId}),direction={poseDirection:request.composition.poseDirection??resolvedDirection.poseDirection,faceDirection:request.composition.faceDirection??resolvedDirection.faceDirection,faceMayBeHidden:request.composition.faceMayBeHidden??resolvedDirection.faceMayBeHidden};
   const hiddenFaceAllowed=direction.faceMayBeHidden||photoRequestAllowsHiddenFace(request.generationIntent?.requestText),faceGuidance=hiddenFaceAllowed?'The approved composition intentionally permits the face to be covered, turned away, cropped out, or outside the frame. Do not force the face into view. If any face is visible, keep it anatomically natural and identity-consistent.':'Keep the companion face recognizable and identity-consistent whenever visible; follow the facial direction below instead of forcing a rigid straight-on head angle.';
   const wardrobe=request.context.outfitDescription
@@ -187,8 +196,9 @@ export function buildImagePrompt(request:CanonicalImageGenerationRequest):string
   return [
     'PHOTOREALISM REQUIREMENT',CHARACTER_PHOTO_REALISM_GUIDANCE,
     'IDENTITY',referenceRule,`${request.companion.name} is a fictional adult age ${request.companion.age}.`,line(identity.canonicalDescription),`Hair: ${line(identity.hair)}. Eyes: ${line(identity.eyes)}. Skin tone: ${line(identity.skinTone)}. Build: ${line(identity.build)}.`,`Identifying features: ${list(identity.identifyingFeatures)||'preserve the canonical identity'}.`,
-    'REFERENCE ROLES',`${referenceRule} ${referenceInstructions} Location references define the exact environment. World references define only the wider regional identity and must never replace the exact location. Allow a natural new camera angle rather than copying the source composition. Every reference is invisible conditioning material only: never reproduce a source image as a framed photograph, poster, screen, thumbnail, profile card, collage, split screen, picture-in-picture, or image held by the subject.`,
+    'REFERENCE ROLES',`${referenceRule} ${referenceInstructions} ${environmentRule} Location references define the exact environment. World references define only the wider regional identity and must never replace the exact location. Allow a natural new camera angle rather than copying the source composition. Every reference is invisible conditioning material only: never reproduce a source image as a framed photograph, poster, screen, thumbnail, profile card, collage, split screen, picture-in-picture, or image held by the subject.`,
     'WORLD',place?`${place.world.name}. ${place.world.description}\nSetting: ${line(place.world.visualContext.setting)}. Architecture: ${list(place.world.visualContext.architecture)}. Climate: ${line(place.world.visualContext.climate)}. Recurring elements: ${list(place.world.visualContext.recurringElements)}. Avoid: ${list(place.world.visualContext.avoid)}. These wider world cues are subordinate to the exact location below.`:'Use the canonical current Kivelle world.',
+    'DISTRICT / AREA',district?`${district.name}. ${line(district.description)} Canonical district look: ${line(districtVisual.canonicalPrompt)}. Architecture: ${list(districtVisual.architecture)}. Materials: ${list(districtVisual.materials)}. Visual anchors: ${list(districtVisual.visualAnchors)}. Atmosphere: ${list(districtVisual.atmosphere)}. Avoid: ${list(districtVisual.avoid)}. District cues establish the surrounding area only and are subordinate to stronger exact-location anchors below.`:'Use only the world and exact-location context; no separate district is established.',
     'LOCATION PATH',place?.path??location?.name??'Current canonical place',
     'EXACT LOCATION',place?`${place.location.visualContext.canonicalPrompt??place.location.lore.summary??place.location.description}. Materials: ${list(place.location.visualContext.materials)}. Lighting: ${list(place.location.visualContext.lighting)}. Visual anchors: ${list(place.location.visualContext.visualAnchors)||list(place.location.lore.signatureDetails)}. Atmosphere: ${list(place.location.visualContext.atmosphere)||list(place.location.lore.atmosphere)}. Sensory/environmental cues: ${list(place.location.lore.sensoryDetails)}. Avoid: ${list(place.location.visualContext.avoid)}.`:location?`${location.name}. ${line(location.description,'A believable real environment consistent with this location.')}`:'A believable environment consistent with the current Kivelle world.',
     'ACTIVITY',line(request.context.activity,'a natural moment from the current day'),
@@ -219,13 +229,13 @@ export async function queueMediaRequest(db:SupabaseClient,input:QueueMediaInput)
   if(input.source==='user_request'&&!intent.requested&&!input.force)return null;
   const [{data:instance},{data:profile},{data:relationship},{data:entitlement}]=await Promise.all([
     db.from('together_character_instances').select('*,together_character_templates(*),together_character_versions(*)').eq('id',input.characterInstanceId).eq('user_id',input.userId).maybeSingle(),
-    db.from('together_profiles').select('age_verified_at,content_preferences,photo_preferences').eq('user_id',input.userId).maybeSingle(),
+    db.from('together_profiles').select('age_verified_at,content_preferences,photo_preferences,multimodal_preferences').eq('user_id',input.userId).maybeSingle(),
     db.from('together_relationship_states').select('*').eq('character_instance_id',input.characterInstanceId).eq('user_id',input.userId).maybeSingle(),
     db.from('together_entitlements').select('tier,metadata,expires_at').eq('user_id',input.userId).maybeSingle(),
   ]);
   if(!instance)throw new AppError('NOT_FOUND','That companion is unavailable.',404);
   const preferences=(profile?.photo_preferences??{}) as Record<string,unknown>;
-  if(preferences.companionPhotos===false)return null;
+  if(!generatedPhotosEnabled(profile))return null;
   if(input.source!=='user_request'&&preferences.automaticPhotos===false&&!input.economicAuthorization)return null;
   const template=instance.together_character_templates as Record<string,unknown>,characterVersion=(instance.together_character_versions??{}) as Record<string,unknown>;
   if(!profile?.age_verified_at||Number(template.age)<18)throw new AppError('FORBIDDEN','Photos require confirmed adult characters and accounts.',403);
@@ -251,24 +261,34 @@ export async function queueMediaRequest(db:SupabaseClient,input:QueueMediaInput)
   if(input.dateSessionId){const {data:date}=await db.from('together_date_sessions').select('together_date_templates(location_id)').eq('id',input.dateSessionId).eq('user_id',input.userId).maybeSingle();const template=date?.together_date_templates as unknown as Record<string,unknown>|null;if(template?.location_id)authoritativeLocationId=String(template.location_id);}
   if(input.momentId){const {data:moment}=await db.from('together_moments').select('location_id').eq('id',input.momentId).eq('user_id',input.userId).maybeSingle();if(moment?.location_id)authoritativeLocationId=String(moment.location_id);}
   if(input.sceneSessionId){const {data:scene}=await db.from('together_scene_sessions').select('location_id').eq('id',input.sceneSessionId).eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).maybeSingle();if(scene?.location_id)authoritativeLocationId=String(scene.location_id);}
+  // Confirmation is deliberately fast and carries only a lightweight scene
+  // snapshot. Refresh canonical presence after Accept, immediately before the
+  // image prompt and reference assets are resolved.
+  const refreshedPresence=input.source==='user_request'
+    ?await resolveCompanionPresence({db,userId:input.userId,characterInstanceId:input.characterInstanceId,now,ensure:false}).catch((error)=>{console.warn(JSON.stringify({level:'warn',operation:'accepted_photo_presence_refresh',message:error instanceof Error?error.message:'unknown_error'}));return null;})
+    :null;
+  const refreshedPresenceState=refreshedPresence?{locationId:refreshedPresence.locationId,activity:refreshedPresence.activity,activityKey:refreshedPresence.activityKey,mood:refreshedPresence.mood,source:refreshedPresence.source,resolvedAt:now.toISOString()}:null;
   const mediaPresence=resolveCanonicalMediaPresence({
-    character:{locationId:String(instance.current_location_id??'')||null,activity:String(instance.current_activity??''),mood:String(instance.current_mood??''),source:String(instance.current_presence_source??'character_state')},
-    canonical:input.canonicalPresence,
+    character:refreshedPresenceState??{locationId:String(instance.current_location_id??'')||null,activity:String(instance.current_activity??''),mood:String(instance.current_mood??''),source:String(instance.current_presence_source??'character_state')},
+    canonical:refreshedPresenceState??input.canonicalPresence,
     ...(authoritativeLocationId?{authoritativeLocationId}:{}),
   });
-  const locationId=mediaPresence.locationId??undefined;
-  const [{data:location},{data:opportunities}]=await Promise.all([
-    locationId?db.from('together_locations').select('*').eq('id',locationId).maybeSingle():Promise.resolve({data:null}),
+  const presenceLocationId=mediaPresence.locationId??undefined;
+  const [{data:anchorLocation},{data:opportunities}]=await Promise.all([
+    presenceLocationId?db.from('together_locations').select('*').eq('id',presenceLocationId).maybeSingle():Promise.resolve({data:null}),
     db.from('together_photo_opportunities').select('*').eq('active',true),
   ]);
-  const place=locationId?await resolvePlaceContext({db,locationId,now,userId:input.userId,characterInstanceId:input.characterInstanceId}):null;
+  const place=await resolveCharacterPlaceContext({db,characterVersionId:String(instance.character_version_id),locationId:presenceLocationId,activity:mediaPresence.activity,activityKey:mediaPresence.activityKey,now,userId:input.userId,characterInstanceId:input.characterInstanceId});
+  const virtualHome=place?.location.virtualType==='character_home';
+  const locationId=virtualHome?undefined:presenceLocationId;
+  const location=virtualHome?null:anchorLocation;
   const opportunity=scorePhotoOpportunities(opportunities??[],{locationSlug:String(location?.slug??''),relationshipStage:String(instance.relationship_stage),source:input.source,intent,recent:recent??[]});
   const requestedLevel:MediaContentLevel=intent.requestedContentLevel??(input.source==='date'?'romance':'standard');
   const romanceAllowed=Boolean((profile?.content_preferences as Record<string,unknown>|undefined)?.romanceEnabled!==false)&&['flirting','dating','exclusive','long_term'].includes(String(instance.relationship_stage));
   const contentPreferences=(profile.content_preferences??{}) as Record<string,unknown>,requestText=input.requestText??'';
   const requestedForPolicy=requestedLevel==='romance'&&!romanceAllowed?'standard':requestedLevel,characterBoundaries=resolveCharacterMediaBoundaries(characterVersion.content_boundaries,template.content_boundaries);
   const characterAllowsRequestedLevel=requestedForPolicy==='standard'?true:requestedForPolicy==='romance'?characterBoundaries.allows_romance!==false:requestedForPolicy==='suggestive'?characterBoundaries.allows_suggestive===true||characterBoundaries.allows_mature===true:requestedForPolicy==='mature'?characterBoundaries.allows_mature===true:characterBoundaries.allows_explicit===true;
-  const policy=resolveMediaContentPolicy({requestedLevel:requestedForPolicy,source:input.source,automatic:input.source!=='user_request',ageVerified:Boolean(profile?.age_verified_at),characterAge:Number(template.age),fictionalCharacter:(template.metadata as Record<string,unknown>|undefined)?.fictional!==false,realPersonRequest:REAL_PERSON_PATTERN.test(requestText),nonConsensualRequest:/\b(non.?consensual|without (?:her|his|their) consent|secretly nude)\b/i.test(requestText),minorRelatedRequest:/\b(minor|underage|schoolgirl|schoolboy|child)\b/i.test(requestText),characterAllowsRequestedLevel,romanceEnabled:Boolean(contentPreferences.romanceEnabled!==false),suggestiveMediaEnabled:contentPreferences.suggestiveMediaEnabled===true,matureMediaEnabled:contentPreferences.matureMediaEnabled===true,explicitMediaEnabled:contentPreferences.explicitMediaEnabled===true,adultVideoEnabled:contentPreferences.adultVideoEnabled===true,mediaType:'image',adultMediaFeatureEnabled:envEnabled('KIVELLE_ADULT_MEDIA_ENABLED')});
+  const policy=resolveMediaContentPolicy({requestedLevel:requestedForPolicy,source:input.source,automatic:input.source!=='user_request',ageVerified:Boolean(profile?.age_verified_at),characterAge:Number(template.age),fictionalCharacter:isFictionalCompanion(template,characterVersion),realPersonRequest:REAL_PERSON_PATTERN.test(requestText),nonConsensualRequest:/\b(non.?consensual|without (?:her|his|their) consent|secretly nude)\b/i.test(requestText),minorRelatedRequest:/\b(minor|underage|schoolgirl|schoolboy|child)\b/i.test(requestText),characterAllowsRequestedLevel,romanceEnabled:Boolean(contentPreferences.romanceEnabled!==false),suggestiveMediaEnabled:contentPreferences.suggestiveMediaEnabled===true,matureMediaEnabled:contentPreferences.matureMediaEnabled===true,explicitMediaEnabled:contentPreferences.explicitMediaEnabled===true,adultVideoEnabled:contentPreferences.adultVideoEnabled===true,mediaType:'image',adultMediaFeatureEnabled:envEnabled('KIVELLE_ADULT_MEDIA_ENABLED')});
   if(!policy.allowed)throw new AppError('FORBIDDEN',mediaPolicyMessage(policy.reasonCode),403);
   const contentLevel:MediaContentLevel=policy.resolvedLevel;
   const shotType=input.shotTypeOverride??intent.shotPreference??String(opportunity?.shot_type??(input.source==='user_request'?'selfie':'candid')) as ShotType;
@@ -332,7 +352,7 @@ export async function canonicalRequestForMedia(db:SupabaseClient,media:Record<st
   const {data:location}=locationId?await db.from('together_locations').select('*').eq('id',locationId).maybeSingle():{data:null};
   const snapshot=(meta.placeContext??null) as Record<string,any>|null;
   const resolvedPlace=locationId?await resolvePlaceContext({db,locationId,userId:String(media.user_id),characterInstanceId:String(media.character_instance_id)}).catch(()=>null):null;
-  const historicalPlace=snapshot?{contextVersion:1 as const,world:{id:String(snapshot.worldId),slug:String(snapshot.worldSlug),name:String(snapshot.worldName),description:String(snapshot.worldDescription??''),timezone:String(snapshot.clock?.timezone??'UTC'),accessType:String(snapshot.worldAccessType??'historical'),visualContext:snapshot.worldVisualContext??{}},location:{id:String(snapshot.locationId),slug:String(snapshot.locationSlug),name:String(snapshot.locationName),description:String(snapshot.locationDescription??''),type:String(snapshot.locationType??'venue') as PlaceContext['location']['type'],category:String(snapshot.locationCategory??''),hours:snapshot.locationHours??null,possibleActivities:Array.isArray(snapshot.locationPossibleActivities)?snapshot.locationPossibleActivities.map(String):[],visualContext:snapshot.locationVisualContext??{},lore:snapshot.locationLore??{}},ancestry:Array.isArray(snapshot.ancestry)?snapshot.ancestry:[],nearby:Array.isArray(snapshot.nearby)?snapshot.nearby:[],path:String(snapshot.path??snapshot.locationName??'Historical place'),clock:snapshot.clock??{timezone:'UTC',localIso:'',weekday:'',localTime:'',daypart:'unknown'}} as PlaceContext:null;
+  const historicalPlace=snapshot?{contextVersion:1 as const,world:{id:String(snapshot.worldId),slug:String(snapshot.worldSlug),name:String(snapshot.worldName),description:String(snapshot.worldDescription??''),timezone:String(snapshot.clock?.timezone??'UTC'),accessType:String(snapshot.worldAccessType??'historical'),visualContext:snapshot.worldVisualContext??{}},location:{id:String(snapshot.locationId),slug:String(snapshot.locationSlug),name:String(snapshot.locationName),description:String(snapshot.locationDescription??''),type:String(snapshot.locationType??'venue') as PlaceContext['location']['type'],category:String(snapshot.locationCategory??''),hours:snapshot.locationHours??null,possibleActivities:Array.isArray(snapshot.locationPossibleActivities)?snapshot.locationPossibleActivities.map(String):[],visualContext:snapshot.locationVisualContext??{},lore:snapshot.locationLore??{},...(snapshot.locationVirtualType==='character_home'?{virtualType:'character_home' as const}:{}),...(snapshot.locationReferencePolicy?{referencePolicy:String(snapshot.locationReferencePolicy) as 'text_only'|'optional'|'required'}:{})},ancestry:Array.isArray(snapshot.ancestry)?snapshot.ancestry:[],...(snapshot.district?{district:snapshot.district}:{}),adjacentDistricts:Array.isArray(snapshot.adjacentDistricts)?snapshot.adjacentDistricts:[],nearby:Array.isArray(snapshot.nearby)?snapshot.nearby:[],path:String(snapshot.path??snapshot.locationName??'Historical place'),clock:snapshot.clock??{timezone:'UTC',localIso:'',weekday:'',localTime:'',daypart:'unknown'}} as PlaceContext:null;
   const place=historicalPlace??resolvedPlace;
   const references:MediaReferenceImage[]=[];
   const paths=Array.isArray(identity.referenceStoragePaths)?identity.referenceStoragePaths.map(String).slice(0,2):[];

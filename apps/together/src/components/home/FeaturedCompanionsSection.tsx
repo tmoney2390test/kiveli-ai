@@ -34,8 +34,6 @@ export function FeaturedCompanionsSection({ companions, world, worlds, favoriteI
 
   useEffect(() => { setIndex(0); rail.current?.scrollTo({ x: 0, animated: false }); }, [gender, world.id]);
   useEffect(() => { rail.current?.scrollTo({ x: localIndex * step, animated: true }); }, [localIndex, step]);
-  if (!companions.length) return null;
-
   const cycle = (direction: -1 | 1) => {
     const next = (visibleIndex + direction + matching.length) % matching.length;
     setIndex(next);

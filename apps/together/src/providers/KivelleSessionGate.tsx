@@ -1,5 +1,5 @@
 import { useEffect, useRef, type PropsWithChildren } from 'react';
-import { router, usePathname } from 'expo-router';
+import { router, usePathname, useUnstableGlobalHref } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { ErrorState, LoadingSkeleton } from '../components';
 import { useAuth } from '../hooks/useAuth';
@@ -10,6 +10,7 @@ const demoMode = __DEV__ && process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === 'true
 
 export function KivelleSessionGate({ children }: PropsWithChildren) {
   const pathname = usePathname();
+  const href = useUnstableGlobalHref();
   const { session, loading: authLoading } = useAuth();
   const { snapshot, loading, error, refresh, clear } = useTogether();
   const redirectTarget = useRef<string | null>(null);
@@ -22,10 +23,10 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
     if (!session) {
       if (snapshot) clear();
       if (!publicPath) {
-        const target = signInPathFor(pathname);
+        const target = signInPathFor(href);
         if (redirectTarget.current !== target) {
           redirectTarget.current = target;
-          router.replace(target);
+          router.replace(target as never);
         }
       }
       return;
@@ -33,7 +34,7 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
 
     redirectTarget.current = null;
     if (!snapshot && !loading && !error) void refresh();
-  }, [authLoading, session?.user.id, snapshot, loading, error, publicPath, pathname, refresh, clear]);
+  }, [authLoading, session?.user.id, snapshot, loading, error, publicPath, href, refresh, clear]);
 
   useEffect(() => {
     if (demoMode) return;

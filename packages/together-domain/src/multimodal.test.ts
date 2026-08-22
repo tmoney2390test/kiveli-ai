@@ -32,6 +32,8 @@ describe('Kivelle multimodal domain', () => {
   it('normalizes realtime transcript output into canonical conversation roles', () => {
     expect(normalizeRealtimeTranscriptEvents([
       { providerEventId: 'user-1', speaker: 'user', text: '  Hi   Maya  ', final: true },
+      { providerEventId: 'partial-1', speaker: 'user', text: 'This is not final', final: false },
+      { providerEventId: 'user-1', speaker: 'user', text: 'duplicate', final: true },
       { providerEventId: 'maya-1', speaker: 'character', text: 'Hey.', occurredAt: '2026-08-17T18:00:00Z' },
       { speaker: 'character', text: '   ' },
     ], '2026-08-17T17:59:00.000Z')).toEqual([

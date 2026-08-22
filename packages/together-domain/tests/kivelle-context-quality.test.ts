@@ -13,7 +13,7 @@ const base = {
   memoryContext: { silent: [], callbacks: [], directRecall: [], callbackAllowance: 0 },
   memories: [], openThreads: [], social: [], knownLifeEvents: [], sharedHistory: [], recentMedia: [], recentEpisodes: [], userPatterns: [], placePerspectives: [], referencedPlaces: [], sceneParticipants: [], recent: [], upcomingSchedule: [], sharedPlans: [], commitments: [],
   subscription: { intelligenceProfile: 'core' }, director: { used: false }, interactionQuality: 'normal', conversationStyle: 'texting',
-  responseBrief: { mode: 'casual', initiative: 'medium', emotionalPosture: 'Natural.', selfDisclosure: 'none', shouldAskQuestion: false, actionCandidate: 'none', avoid: [], autonomy: 'Independent.' },
+  responseBrief: { mode: 'casual', initiative: 'medium', emotionalPosture: 'Natural.', selfDisclosure: 'none', shouldAskQuestion: false, handoff: { mode: 'none', source: 'none', reciprocityDebt: 0 }, actionCandidate: 'none', avoid: [], autonomy: 'Independent.' },
 };
 
 describe('Kivelle context quality evaluations', () => {

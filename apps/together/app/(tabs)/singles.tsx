@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowUpRight, CalendarDays, LockKeyhole, Palmtree, Plus, Sparkles, UserRound } from 'lucide-react-native';
+import { ArrowLeft, ArrowUpRight, CalendarDays, LockKeyhole, Palmtree, Plus, Sparkles, UserRound } from 'lucide-react-native';
 import { EmptyState, LoadingSkeleton, PageTitle, Screen, SectionHeader, SpiceBadge } from '../../src/components';
 import { CompanionGenderToggle, useCompanionGenderPreference } from '../../src/components/CompanionGenderToggle';
 import { CompanionPortraitCard } from '../../src/components/CompanionPortraitCard';
@@ -41,10 +41,12 @@ export default function Discover() {
 
   if (!snapshot) return <LoadingSkeleton label="Curating people and experiences…" />;
   const selectedWorld = worldSlug ? snapshot.worlds.find((world) => world.slug === worldSlug) : undefined;
+  if (worldSlug && !selectedWorld) return <EmptyState title="That world is unavailable" body="Choose a published world from Explore to meet its residents." />;
   return <Screen>
+    {selectedWorld ? <Pressable accessibilityRole="button" accessibilityLabel={`Back to Explore in ${selectedWorld.name}`} onPress={() => router.replace(`/(tabs)/explore?world=${selectedWorld.slug}` as never)} style={({ pressed }) => [styles.backToExplore, pressed && styles.backToExplorePressed]}><ArrowLeft size={17} color={colors.rose} /><Text style={styles.backToExploreText}>Back to Explore</Text></Pressable> : null}
     <View>
       <PageTitle>Discover</PageTitle>
-      <Text style={styles.subtitle}>{selectedWorld ? `Meet every available character connected to ${selectedWorld.name}.` : 'Meet someone new, or find something meaningful to do together.'}</Text>
+      <Text style={styles.subtitle}>{selectedWorld ? `Meet every available character who calls ${selectedWorld.name} home.` : 'Meet someone new, or find something meaningful to do together.'}</Text>
     </View>
     <Pressable accessibilityRole="button" accessibilityLabel="Create someone" onPress={() => router.push('/create/companion')} style={styles.create}>
       <Sparkles size={19} color="#fff" />
@@ -170,6 +172,9 @@ function Experiences({ snapshot }: { snapshot: Snapshot }) {
 }
 
 const styles = StyleSheet.create({
+  backToExplore: { alignSelf: 'flex-start', minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.borderBright, backgroundColor: colors.surface },
+  backToExplorePressed: { opacity: .72, transform: [{ scale: .98 }] },
+  backToExploreText: { color: colors.rose, fontSize: 11, fontWeight: '900' },
   subtitle: { color: colors.muted, marginTop: 5, lineHeight: 19 },
   create: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: radius.lg, backgroundColor: colors.violet },
   createTitle: { color: '#fff', fontFamily: 'Georgia', fontSize: 20 }, createCopy: { color: 'rgba(255,255,255,.78)', fontSize: 11, marginTop: 2 },

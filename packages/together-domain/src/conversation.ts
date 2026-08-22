@@ -5,6 +5,7 @@ export type PresentRealitySource='scene'|'active_date'|'active_plan'|'active_eve
 export type PresentRealityCandidate={
   locationId?:string|null;
   activity?:string|null;
+  activityKey?:string|null;
   mood?:string|null;
   energy?:string|null;
   availability?:string|null;

@@ -1,4 +1,5 @@
 import {describe,expect,it} from 'vitest';
+import {locationsForExploreCategory} from '../lib/explore';
 import {buildWorldPlaceDirectory} from '../lib/worldPlaceDirectory';
 import {PORT_VERVELLE_ARRIVAL_ID,PORT_VERVELLE_PHOTOGRAPHED_LOCATION_SLUGS,PORT_VERVELLE_WORLD_ID,portVervelleLocations,portVervelleWorld} from './port-vervelle';
 
@@ -12,13 +13,26 @@ describe('Port Vervelle world seed',()=>{
     expect(portVervelleLocations.find((location)=>location.id===PORT_VERVELLE_ARRIVAL_ID)?.slug).toBe('porto-marina');
   });
 
-  it('contains six districts and 38 public places with unique slugs',()=>{
-    expect(portVervelleLocations).toHaveLength(44);
+  it('contains six districts and 42 public places with unique slugs',()=>{
+    expect(portVervelleLocations).toHaveLength(48);
     expect(portVervelleLocations.filter((location)=>location.location_type==='district')).toHaveLength(6);
-    expect(new Set(portVervelleLocations.map((location)=>location.slug))).toHaveProperty('size',44);
+    expect(new Set(portVervelleLocations.map((location)=>location.slug))).toHaveProperty('size',48);
     const directory=buildWorldPlaceDirectory(portVervelleLocations,PORT_VERVELLE_WORLD_ID);
     expect(directory.sections.filter((section)=>section.kind==='district')).toHaveLength(6);
-    expect(directory.totalPlaceCount).toBe(38);
+    expect(directory.totalPlaceCount).toBe(42);
+  });
+
+  it('publishes the complete five-property lodging ladder',()=>{
+    const lodgingSlugs=['locanda-vela','palazzo-sereno','hotel-coralline','casa-livia','hotel-celeste'];
+    const lodging=portVervelleLocations.filter((location)=>lodgingSlugs.includes(location.slug));
+    expect(lodging.map((location)=>location.slug)).toEqual(expect.arrayContaining(lodgingSlugs));
+    expect(lodging).toHaveLength(5);
+    expect(lodging.every((location)=>location.category==='hotel'&&location.metadata?.lodging===true)).toBe(true);
+    expect(locationsForExploreCategory(portVervelleLocations,'lodging').map((location)=>location.slug)).toEqual(expect.arrayContaining(lodgingSlugs));
+    expect(lodging.find((location)=>location.slug==='locanda-vela')?.metadata?.roomCount).toBe(16);
+    expect(lodging.find((location)=>location.slug==='palazzo-sereno')?.metadata?.roomCount).toBe(24);
+    expect(lodging.find((location)=>location.slug==='hotel-coralline')?.metadata?.roomCount).toBe(52);
+    expect(lodging.find((location)=>location.slug==='casa-livia')?.metadata?.roomCount).toBe(9);
   });
 
   it('keeps every child inside Port Vervelle and resolves nested hotel places to Capo Vervelle',()=>{
@@ -38,5 +52,10 @@ describe('Port Vervelle world seed',()=>{
       expect(location?.visual_asset_key).toBe(slug);
       expect(location?.metadata?.photoStatus).toBe('ready');
     }
+  });
+
+  it('packages a full v2 location bible for every district and place',()=>{
+    expect(portVervelleLocations.every((location)=>location.canonical_lore?.version===2&&location.canonical_lore.authored===true)).toBe(true);
+    expect(portVervelleLocations.every((location)=>(location.canonical_lore?.sensoryDetails?.length??0)>=3&&(location.canonical_lore?.layout?.length??0)>=3)).toBe(true);
   });
 });

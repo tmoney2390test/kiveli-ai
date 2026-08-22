@@ -50,7 +50,7 @@ async function directGemini(context:DirectorContext,base:ResponseBrief,key:strin
 
 function directorPrompt(context:DirectorContext,base:ResponseBrief):string{return `You are Kivelle Director. Return JSON only. You control expression strategy, never canonical reality. Do not add facts, events, memories, plans, locations, relationship changes, or future story outcomes.
 
-Your job is to make the companion feel distinct, autonomous, non-repetitive, and emotionally proportional. It is acceptable to disagree, decline, redirect, tease, have another preference, or not ask a question. Never optimize for dependency, obedience, or retention.
+Your job is to make the companion feel distinct, autonomous, curious, reciprocal, non-repetitive, and emotionally proportional. It is acceptable to disagree, decline, redirect, tease, have another preference, or leave space without a question. Never optimize for dependency, obedience, or retention.
 
 Continuity discipline: canonical commitments, open threads, active stories, and shared history below are reference material, not required subject matter. Do not surface one merely to prove memory. Preserve callbackCandidate from the deterministic base brief as the gate: if the base brief has no callbackCandidate, return no callbackCandidate. Do not switch to storytelling merely because an ACTIVE STORY exists. If a plan/story/thread appeared in recent assistant messages, keep it in the background unless the USER MESSAGE clearly reopens it.
 
@@ -91,14 +91,25 @@ DETERMINISTIC BASE BRIEF
 ${JSON.stringify(base)}
 
 Return exactly this shape:
-{"mode":"casual|playful|supportive|vulnerable|conflicted|repair|practical|storytelling|affectionate","emotionalPosture":"short expression direction","initiative":"low|medium|high","callbackCandidate":"optional canonical callback already present in the base brief","selfDisclosure":"none|small|moderate","shouldAskQuestion":false,"actionCandidate":"none|plan|memory_followup|relationship|story","avoid":["short repetition warning"],"autonomy":"short autonomy direction"}
+{"mode":"casual|playful|supportive|vulnerable|conflicted|repair|practical|storytelling|affectionate","emotionalPosture":"short expression direction","initiative":"low|medium|high","callbackCandidate":"optional canonical callback already present in the base brief","selfDisclosure":"none|small|moderate","handoff":{"mode":"none|specific_question|playful_prompt|self_disclosure_return|earned_followup","source":"none|current_message|open_thread|scene|relationship","target":"optional concrete subject","openThreadId":"optional authorized thread id","reciprocityDebt":0},"actionCandidate":"none|plan|memory_followup|relationship|story","avoid":["short repetition warning"],"autonomy":"short autonomy direction"}
 
-Rules: preserve the base brief when uncertain. Never require a question. Never tell the companion to agree. callbackCandidate may refine an existing base callback but may not introduce a new one. Avoid at most 4 items.`;}
+Rules: preserve the base brief when uncertain. Respect the deterministic handoff gate. You may refine an authorized current-message handoff or use self-disclosure instead of a question, but may not invent a handoff when the base mode is none. Preserve an earned_followup's source, target, and openThreadId exactly. Prefer one concrete, character-specific question over generic or stacked questions. Never tell the companion to agree. callbackCandidate may refine an existing base callback but may not introduce a new one. Avoid at most 4 items.`;}
 
 function validateBrief(value:unknown,base:ResponseBrief):ResponseBrief{
   const row=value&&typeof value==='object'?value as Record<string,unknown>:{};const modes=new Set(['casual','playful','supportive','vulnerable','conflicted','repair','practical','storytelling','affectionate']);const initiatives=new Set(['low','medium','high']);const disclosures=new Set(['none','small','moderate']);const actions=new Set(['none','plan','memory_followup','relationship','story']);
   const directedCallback=base.callbackCandidate?text(row.callbackCandidate,180):null;
-  return{mode:modes.has(String(row.mode))?String(row.mode) as ResponseBrief['mode']:base.mode,emotionalPosture:text(row.emotionalPosture,220)??base.emotionalPosture,initiative:initiatives.has(String(row.initiative))?String(row.initiative) as ResponseBrief['initiative']:base.initiative,...(base.callbackCandidate?{callbackCandidate:directedCallback??base.callbackCandidate}:{}),selfDisclosure:disclosures.has(String(row.selfDisclosure))?String(row.selfDisclosure) as ResponseBrief['selfDisclosure']:base.selfDisclosure,shouldAskQuestion:typeof row.shouldAskQuestion==='boolean'?row.shouldAskQuestion:base.shouldAskQuestion,actionCandidate:actions.has(String(row.actionCandidate))?String(row.actionCandidate) as ResponseBrief['actionCandidate']:base.actionCandidate,avoid:[...new Set([...base.avoid,...(Array.isArray(row.avoid)?row.avoid.map((item)=>text(item,160)).filter((item):item is string=>Boolean(item)):[])])].slice(0,4),autonomy:text(row.autonomy,220)??base.autonomy};
+  const handoff=validateDirectedHandoff(row.handoff,base.handoff);
+  const shouldAskQuestion=handoff.mode==='specific_question'||handoff.mode==='earned_followup';
+  return{mode:modes.has(String(row.mode))?String(row.mode) as ResponseBrief['mode']:base.mode,emotionalPosture:text(row.emotionalPosture,220)??base.emotionalPosture,initiative:initiatives.has(String(row.initiative))?String(row.initiative) as ResponseBrief['initiative']:base.initiative,...(base.callbackCandidate?{callbackCandidate:directedCallback??base.callbackCandidate}:{}),selfDisclosure:disclosures.has(String(row.selfDisclosure))?String(row.selfDisclosure) as ResponseBrief['selfDisclosure']:base.selfDisclosure,shouldAskQuestion,handoff,actionCandidate:actions.has(String(row.actionCandidate))?String(row.actionCandidate) as ResponseBrief['actionCandidate']:base.actionCandidate,avoid:[...new Set([...base.avoid,...(Array.isArray(row.avoid)?row.avoid.map((item)=>text(item,160)).filter((item):item is string=>Boolean(item)):[])])].slice(0,4),autonomy:text(row.autonomy,220)??base.autonomy};
+}
+function validateDirectedHandoff(value:unknown,base:ResponseBrief['handoff']):ResponseBrief['handoff']{
+  if(base.mode==='none')return base;
+  if(base.mode==='earned_followup')return base;
+  const row=value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};
+  const modes=new Set(['specific_question','playful_prompt','self_disclosure_return']);
+  const mode=modes.has(String(row.mode))?String(row.mode) as ResponseBrief['handoff']['mode']:base.mode;
+  const target=text(row.target,180)??base.target;
+  return{mode,source:base.source,...(target?{target}:{}),reciprocityDebt:base.reciprocityDebt};
 }
 function parseJson(raw:string):unknown{try{return JSON.parse(raw);}catch{const match=raw.match(/\{[\s\S]*\}/);if(!match)return{};try{return JSON.parse(match[0]);}catch{return{};}}}
 function text(value:unknown,max:number):string|null{if(typeof value!=='string'||!value.trim())return null;return value.trim().slice(0,max);}

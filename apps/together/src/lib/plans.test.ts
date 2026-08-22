@@ -1,5 +1,5 @@
 import{describe,expect,it}from'vitest';
-import{buildPlanSlots,companionPick,defaultPlanTimeFields,hasPlanConflict,isLocationOpen,isVenueProgramTime,localPlanDateValue,parseCustomPlanTime,recommendPlanOptions,resolvePlanDraft}from'./plans';
+import{buildPlanSlots,companionPick,defaultPlanTimeFields,hasPlanConflict,isLocationOpen,isVenueProgramTime,localPlanDateValue,parseCustomPlanTime,previewPlanTiming,recommendPlanOptions,resolvePlanDraft}from'./plans';
 import type{Location,SharedPlan}from'../types';
 
 const locations=[
@@ -37,6 +37,7 @@ describe('native shared-plan recommendations',()=>{
   it('uses the world catalog rather than a fixed global list',()=>{const options=recommendPlanOptions(context);expect(options.some((item)=>item.activityKey==='photo_walk')).toBe(true);expect(options.some((item)=>item.locationId==='studio')).toBe(false);});
   it('keeps a location handoff scoped here',()=>{const options=recommendPlanOptions({...context,scopedLocationId:'velvet'});expect(options.length).toBeGreaterThan(0);expect(options.every((item)=>item.locationId==='velvet')).toBe(true);});
   it('returns global recommendations only after choose elsewhere',()=>{const options=recommendPlanOptions({...context,scopedLocationId:'velvet',chooseElsewhere:true});expect(options.some((item)=>item.locationId!=='velvet')).toBe(true);});
+  it('never recommends the current chat location, even when a handoff scoped that place',()=>{const options=recommendPlanOptions({...context,excludedLocationId:'river',scopedLocationId:'river'});expect(options.length).toBeGreaterThan(0);expect(options.every((item)=>item.locationId!=='river')).toBe(true);expect(companionPick({...context,excludedLocationId:'river',personality:{outdoorsy:1},interests:['outdoors']})?.locationId).not.toBe('river');});
   it('does not let current work location dominate recommendations',()=>{expect(recommendPlanOptions(context)[0]?.locationId).not.toBe('studio');});
   it('progressively resolves known location and activity without asking for them again',()=>{const result=resolvePlanDraft({companionId:'maya',locationId:'velvet',activityIntent:'drinks',source:'chat',confidence:{location:1,activity:1}},{...context,scopedLocationId:'velvet',schedules:[],plans:[],dates:[]});expect(result.option?.locationId).toBe('velvet');expect(result.missing).not.toContain('location');expect(result.slots[0]?.best).toBe(true);});
   it('uses personality to make companion picks meaningfully different',()=>{const playful=companionPick({...context,personality:{playful:.95},interests:['games']}),thoughtful=companionPick({...context,personality:{thoughtful:.95,homebody:.9},interests:['books']});expect(playful?.locationId).toBe('arcade');expect(thoughtful?.locationId).toBe('books');});
@@ -45,6 +46,7 @@ describe('native shared-plan recommendations',()=>{
 });
 
 describe('real scheduling validation',()=>{
+  it('previews the shared NOW and IN 1 HOUR timing choices without rounding',()=>{const now=new Date('2026-08-20T12:34:56.000Z');expect(previewPlanTiming('now',now).toISOString()).toBe(now.toISOString());expect(previewPlanTiming('in_one_hour',now).toISOString()).toBe('2026-08-20T13:34:56.000Z');});
   it('only offers future smart slots',()=>{const now=new Date('2026-08-14T20:30:00-04:00');const slots=buildPlanSlots(now);expect(slots.length).toBeGreaterThanOrEqual(2);expect(slots.every((slot)=>new Date(slot.value)>now)).toBe(true);});
   it('keeps a viable late-evening suggestion on the same local calendar day',()=>{const now=new Date(2026,7,15,22,38);const option=recommendPlanOptions({...context,scopedLocationId:'velvet'})[0]!;const slots=buildPlanSlots({now,option,schedules:[],plans:[],dates:[]});expect(slots[0]).toBeDefined();const first=new Date(slots[0]!.value);expect(localPlanDateValue(first)).toBe(localPlanDateValue(now));expect(first.getTime()).toBeGreaterThan(now.getTime()+10*60000);});
   it('defaults custom planning to the local day and next quarter-hour',()=>{const now=new Date(2026,7,15,22,38);expect(defaultPlanTimeFields(now)).toEqual({date:'2026-08-15',time:'23:15'});expect(localPlanDateValue(now)).toBe('2026-08-15');});

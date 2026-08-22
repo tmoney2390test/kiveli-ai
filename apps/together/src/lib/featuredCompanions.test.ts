@@ -4,7 +4,15 @@ import type { Snapshot } from '../types';
 
 const version = (id: string) => ({ id, portrait_asset_key: id, interests: [], personality_config: {} });
 const template = (id: string, worldId: string, featured = false) => ({ id, name: id, slug: id, age: 28, occupation: 'Creative', biography: '', can_be_selected: true, lifecycle_status: 'published' as const, discovery_metadata: { featured }, first_meeting: { world_id: worldId, location_id: `${worldId}-place`, title: 'Meet', setup: '', companion_activity: '', mood: 'curious', opening_line: 'Hi' }, together_character_versions: version(`${id}-version`) });
-const snapshot = { discoverableCharacters: [template('juniper-featured', 'juniper', true), template('juniper-other', 'juniper'), template('tokyo-person', 'tokyo')], characters: [], characterWorldPresence: [], locations: [] } as unknown as Snapshot;
+const snapshot = {
+  discoverableCharacters: [template('juniper-featured', 'juniper', true), template('juniper-other', 'juniper'), template('tokyo-person', 'tokyo')],
+  characters: [], characterWorldPresence: [], locations: [],
+  worlds:[
+    {id:'juniper',slug:'juniper',name:'Juniper',description:'',access_type:'free',timezone:'UTC',sort_order:0,featured:true,published:true,visual_context:{},metadata:{}},
+    {id:'tokyo',slug:'tokyo',name:'Tokyo',description:'',access_type:'subscription',timezone:'UTC',sort_order:1,featured:true,published:true,visual_context:{},metadata:{}},
+    {id:'elsewhere',slug:'elsewhere',name:'Elsewhere',description:'',access_type:'subscription',timezone:'UTC',sort_order:2,featured:true,published:true,visual_context:{},metadata:{}},
+  ],
+} as unknown as Snapshot;
 
 describe('featured companions', () => {
   it('never leaks companions from another selected world', () => {
@@ -15,10 +23,16 @@ describe('featured companions', () => {
     expect(featuredCompanionsForWorld(snapshot, 'juniper', 'juniper-featured').map((item) => item.id)).toEqual(['juniper-other']);
   });
 
-  it('uses world presence when a companion has no first-meeting world', () => {
+  it('uses resident world presence when a companion has no first-meeting world', () => {
     const visitor = { ...template('visitor', 'elsewhere'), first_meeting: undefined };
-    const withVisitor = { ...snapshot, discoverableCharacters: [...snapshot.discoverableCharacters, visitor], characterWorldPresence: [{ id: 'presence', character_version_id: visitor.together_character_versions.id, world_id: 'juniper', presence_type: 'visitor', familiarity: 0, visited_count: 0, metadata: {} }] } as unknown as Snapshot;
-    expect(featuredCompanionsForWorld(withVisitor, 'juniper').map((item) => item.id)).toContain('visitor');
+    const withResident = { ...snapshot, discoverableCharacters: [...snapshot.discoverableCharacters, visitor], characterWorldPresence: [{ id: 'presence', character_version_id: visitor.together_character_versions.id, world_id: 'juniper', presence_type: 'resident', familiarity: 1, visited_count: 1, metadata: {} }] } as unknown as Snapshot;
+    expect(featuredCompanionsForWorld(withResident, 'juniper').map((item) => item.id)).toContain('visitor');
+  });
+
+  it('does not leak visitors into a selected world rail',()=>{
+    const visitor={...template('visitor','elsewhere'),first_meeting:undefined};
+    const withVisitor={...snapshot,discoverableCharacters:[...snapshot.discoverableCharacters,visitor],characterWorldPresence:[{id:'presence',character_version_id:visitor.together_character_versions.id,world_id:'juniper',presence_type:'visitor',familiarity:.4,visited_count:1,metadata:{}}]}as unknown as Snapshot;
+    expect(featuredCompanionsForWorld(withVisitor,'juniper').map((item)=>item.id)).not.toContain('visitor');
   });
 
   it('caps the Home rail at ten without truncating the full world catalog', () => {

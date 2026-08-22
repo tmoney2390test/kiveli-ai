@@ -5,6 +5,7 @@ export type CharacterDayScheduleEntry = {
   id: string;
   activity: string;
   time: string;
+  locationId?: string;
   location?: string;
   current: boolean;
   past: boolean;
@@ -14,7 +15,7 @@ export type CharacterDaySchedule = {
   dateLabel: string;
   entries: CharacterDayScheduleEntry[];
   source: 'authored' | 'generated' | 'recurring' | 'none';
-  currentStatus?: Pick<CharacterDayScheduleEntry, 'activity' | 'location'>;
+  currentStatus?: Pick<CharacterDayScheduleEntry, 'activity' | 'location' | 'locationId'>;
 };
 
 export function buildCharacterDaySchedule(input: {
@@ -26,7 +27,10 @@ export function buildCharacterDaySchedule(input: {
 }): CharacterDaySchedule {
   const { snapshot, instance, characterVersionId } = input;
   const now = input.now ?? new Date();
-  const timezone = safeTimezone(input.timezone ?? snapshot.profile?.experience_timezone ?? 'UTC');
+  // Character routines intentionally follow the user's clock. A world's
+  // timezone remains useful for place ambience, but never decides whether a
+  // character's calendar block is current.
+  const timezone = safeTimezone(snapshot.profile?.experience_timezone ?? input.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC');
   const dateLabel = new Intl.DateTimeFormat(undefined, { timeZone: timezone, weekday: 'long', month: 'long', day: 'numeric' }).format(now);
   const weekday = localWeekday(now, timezone);
   const localMinute = localMinuteOfDay(now, timezone);
@@ -47,7 +51,7 @@ export function buildCharacterDaySchedule(input: {
       entries,
       source: 'authored',
       currentStatus: current
-        ? { activity: current.activity, location: current.location }
+        ? { activity: current.activity, location: current.location, locationId: current.locationId }
         : { activity: 'Having some unstructured time at home', location: 'Home' },
     };
   }
@@ -63,7 +67,7 @@ export function buildCharacterDaySchedule(input: {
       dateLabel,
       entries,
       source: 'generated',
-      currentStatus: current ? { activity: current.activity, location: current.location } : undefined,
+      currentStatus: current ? { activity: current.activity, location: current.location, locationId: current.locationId } : undefined,
     };
   }
 
@@ -73,7 +77,7 @@ export function buildCharacterDaySchedule(input: {
     dateLabel,
     entries,
     source: entries.length ? 'recurring' : 'none',
-    currentStatus: current ? { activity: current.activity, location: current.location } : undefined,
+    currentStatus: current ? { activity: current.activity, location: current.location, locationId: current.locationId } : undefined,
   };
 }
 
@@ -93,6 +97,7 @@ function generatedEntry(snapshot: Snapshot, event: CharacterScheduleEvent, now: 
     id: event.id,
     activity: getScheduleHint(event) ?? presentation.activity,
     time: `${formatTime(startsAt, timezone)}–${formatTime(endsAt, timezone)}`,
+    locationId: event.location_id ?? undefined,
     location: displayLocation(event.metadata) ?? snapshot.locations.find((item) => item.id === event.location_id)?.name,
     current: startsAt <= now && endsAt > now,
     past: endsAt <= now,
@@ -104,6 +109,7 @@ function recurringEntry(snapshot: Snapshot, item: ScheduleItem, localMinute: num
     id: `routine:${item.id}`,
     activity: activityForDate(item, dateKey),
     time: `${formatMinute(item.start_minute)}–${formatMinute(item.end_minute)}`,
+    locationId: item.location_id ?? undefined,
     location: displayLocation(item.metadata) ?? snapshot.locations.find((place) => place.id === item.location_id)?.name,
     current: item.start_minute <= localMinute && item.end_minute > localMinute,
     past: item.end_minute <= localMinute,

@@ -16,9 +16,13 @@ export type PlanDraft={
   confidence:{activity?:number;location?:number;time?:number};
 };
 export type PlanOption={id:string;title:string;description:string;locationId:string;locationName:string;activityKey:string;source:'location_activity'|'date'|'curated';tags:string[];durationMinutes:number;reason:string;hours?:Record<string,unknown>;program?:VenueProgram;score?:number;qualityLabel?:string};
-export type PlanContext={activity:string;mood:string;locationId?:string|null;interests?:string[];userInterests?:string[];preferences?:string[];personality?:Record<string,number>;relationshipStage:string;hour?:number;locations:Location[];scopedLocationId?:string|null;chooseElsewhere?:boolean;previousPlans?:SharedPlan[];intent?:PlanDiscoveryIntent};
+export type PlanContext={activity:string;mood:string;locationId?:string|null;excludedLocationId?:string|null;interests?:string[];userInterests?:string[];preferences?:string[];personality?:Record<string,number>;relationshipStage:string;hour?:number;locations:Location[];scopedLocationId?:string|null;chooseElsewhere?:boolean;previousPlans?:SharedPlan[];intent?:PlanDiscoveryIntent};
 export type PlanSlot={label:string;detail:string;value:string;reason?:string;best?:boolean};
+export type PlanTimingChoice='now'|'in_one_hour'|'custom';
+export type PlanTimingSelection={choice:'now'|'in_one_hour'}|{choice:'custom';startsAt:string};
 export type ResolvedPlanDraft={draft:PlanDraft;option?:PlanOption;slots:PlanSlot[];missing:Array<'activity'|'location'|'time'>;ready:boolean};
+
+export function previewPlanTiming(choice:Exclude<PlanTimingChoice,'custom'>,now=new Date()):Date{return new Date(now.getTime()+(choice==='in_one_hour'?60*60000:0));}
 
 export function resolvePlanDraft(draft:PlanDraft,context:PlanContext&{schedules?:ScheduleItem[];plans?:SharedPlan[];dates?:DateSession[]}):ResolvedPlanDraft{
   const options=recommendPlanOptions({...context,scopedLocationId:draft.locationId??context.scopedLocationId});
@@ -43,8 +47,8 @@ export function companionPickQuote(name:string,option:PlanOption,personality:Rec
 }
 
 export function recommendPlanOptions(context:PlanContext):PlanOption[]{
-  const available=context.locations.filter((location)=>location.category!=='home'&&location.category!=='work'&&location.metadata?.private!==true);
-  const scoped=context.scopedLocationId&&!context.chooseElsewhere?available.filter((location)=>location.id===context.scopedLocationId):available;
+  const available=context.locations.filter((location)=>location.id!==context.excludedLocationId&&location.category!=='home'&&location.category!=='work'&&location.metadata?.private!==true);
+  const scoped=context.scopedLocationId&&!context.chooseElsewhere&&context.scopedLocationId!==context.excludedLocationId?available.filter((location)=>location.id===context.scopedLocationId):available;
   const companionWords=normalize(`${context.activity} ${context.mood} ${(context.interests??[]).join(' ')}`);
   const userWords=normalize(`${(context.userInterests??[]).join(' ')} ${(context.preferences??[]).join(' ')}`);
   const dislikes=extractDislikes(context.preferences??[]);

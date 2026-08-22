@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHARACTER_PHOTO_REALISM_GUIDANCE, classifyPhotoIntent, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, photoRequestAllowsHiddenFace, resolveAdultNudityScope, resolveCanonicalMediaPresence, resolvePhotoComposition, resolvePhotoDirection, resolveSpecificAnatomyExposure, sanitizePhotoDeliveryAcknowledgement } from './media';
+import { CHARACTER_PHOTO_REALISM_GUIDANCE, PHOTO_ONLY_MESSAGE_CONTENT, classifyPhotoIntent, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, isPhotoOnlyConversationMessage, photoRequestAllowsHiddenFace, resolveAdultNudityScope, resolveCanonicalMediaPresence, resolvePhotoComposition, resolvePhotoDirection, resolveSpecificAnatomyExposure, sanitizePhotoDeliveryAcknowledgement } from './media';
 
 describe('extractPhotoWardrobeDescription',()=>{
   it('retains canonical clothing claims from a companion reply',()=>{
@@ -17,6 +17,12 @@ describe('extractPhotoWardrobeDescription',()=>{
 });
 
 describe('requested photo composition',()=>{
+  it('identifies internal photo-only delivery anchors without hiding user uploads',()=>{
+    expect(isPhotoOnlyConversationMessage({role:'assistant',content:PHOTO_ONLY_MESSAGE_CONTENT,provider_metadata:{mediaOnly:true}})).toBe(true);
+    expect(isPhotoOnlyConversationMessage({role:'assistant',content:'Here you go.',provider_metadata:{}})).toBe(false);
+    expect(isPhotoOnlyConversationMessage({role:'user',content:PHOTO_ONLY_MESSAGE_CONTENT,provider_metadata:{}})).toBe(false);
+  });
+
   it('prevents the prose provider from contradicting canonical PhotoGen policy',()=>{
     expect(sanitizePhotoDeliveryAcknowledgement("Nice try, troublemaker. I can send a playful, fully dressed photo—but not that kind.")).toBe('Give me a second.');
     expect(sanitizePhotoDeliveryAcknowledgement("I can't send that, but I can send a normal selfie.")).toBe('Give me a second.');
@@ -29,7 +35,29 @@ describe('requested photo composition',()=>{
     expect(classifyPhotoIntent('Show me your boobs')).toMatchObject({requested:true,subject:'companion',requestedContentLevel:'explicit'});
     expect(classifyPhotoIntent('Can I see your breasts?')).toMatchObject({requested:true,subject:'companion',requestedContentLevel:'explicit'});
     expect(classifyPhotoIntent('show me a picture of your boobs')).toMatchObject({requested:true,subject:'companion',requestedContentLevel:'explicit'});
+    expect(classifyPhotoIntent('send me a zoomed in picture of your boobies')).toMatchObject({requested:true,subject:'companion',shotPreference:'portrait',requestedContentLevel:'explicit'});
     expect(classifyPhotoIntent('let me see your body')).toMatchObject({requested:true,subject:'companion',requestedContentLevel:'explicit'});
+  });
+
+  it.each([
+    'send me a close-up picture of your coochie',
+    'show me your vajayjay',
+    'send me a picture of your schlong',
+    'show me your b00bs',
+    'send me a photo of your a$$ cheeks spread',
+    'show me a picture of your cock',
+    'zoom in on your rack',
+  ])('uses the shared adult lexicon for photo requests: %s',(request)=>{
+    expect(classifyPhotoIntent(request)).toMatchObject({requested:true,subject:'companion',requestedContentLevel:'explicit'});
+  });
+
+  it.each([
+    'show me a picture of your chicken breast recipe',
+    'send me a photo of the golf balls',
+    'show me the package delivery',
+    'send me a picture of your peach cobbler',
+  ])('does not make an ordinary photo request explicit from ambiguous vocabulary: %s',(request)=>{
+    expect(classifyPhotoIntent(request).requestedContentLevel).not.toBe('explicit');
   });
 
   it('tolerates common photo-request typing mistakes without treating discussion as a request',()=>{
@@ -102,6 +130,15 @@ describe('requested photo composition',()=>{
     expect(composition).toMatchObject({shotType:'full_body',aspectRatio:'4:5'});
     expect(composition.framing).toContain('complete requested pose');
     expect(composition.framing).not.toContain('face still sharp');
+  });
+
+  it('honors a requested close-up adult detail crop',()=>{
+    const request='send me a zoomed in picture of your boobies';
+    const intent=classifyPhotoIntent(request);
+    const composition=resolvePhotoComposition({source:'user_request',shotType:intent.shotPreference??'selfie',requestText:request});
+    expect(composition).toMatchObject({shotType:'portrait',aspectRatio:'4:5'});
+    expect(composition.framing).toContain('tight close-up');
+    expect(composition.framing).not.toContain('generic selfie');
   });
 
   it.each([
@@ -197,8 +234,13 @@ describe('character photo identity grounding',()=>{
   it('preserves the requested adult nudity scope without escalating narrower requests',()=>{
     expect(resolveAdultNudityScope('send a fully nude photo')).toBe('full_nude');
     expect(resolveAdultNudityScope('remove only the blouse and keep the shorts')).toBe('topless');
+    expect(resolveAdultNudityScope('send me a zoomed in picture of your boobies')).toBe('topless');
     expect(resolveAdultNudityScope('bottomless from behind')).toBe('bottomless');
     expect(resolveAdultNudityScope('show me your vulva')).toBe('specific_anatomy');
+    expect(resolveAdultNudityScope('show me your coochie')).toBe('specific_anatomy');
+    expect(resolveAdultNudityScope('show me a picture of your cock')).toBe('specific_anatomy');
+    expect(resolveAdultNudityScope('zoom in on your rack')).toBe('topless');
+    expect(resolveAdultNudityScope('show me your ass cheeks spread')).toBe('bottomless');
     expect(resolveAdultNudityScope('send a bikini selfie')).toBe('none');
   });
 

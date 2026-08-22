@@ -1,5 +1,5 @@
 import { createElement, useEffect } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { defaultPlanTimeFields, localPlanDateValue, parseCustomPlanTime } from '../lib/plans';
 import { colors, radius } from '../theme';
 
@@ -18,18 +18,6 @@ export function DateTimeFields({ date, time, onDateChange, onTimeChange }: Props
     const proposed = parseCustomPlanTime(defaults.date, time);
     if (!proposed || proposed.getTime() < Date.now() + 10 * 60_000) onTimeChange(defaults.time);
   }, [date, time, onDateChange, onTimeChange]);
-
-  const chooseDay = (offset: 0 | 1) => {
-    const now = new Date();
-    const selected = new Date(now);
-    selected.setDate(selected.getDate() + offset);
-    const nextDate = localPlanDateValue(selected);
-    onDateChange(nextDate);
-    if (offset === 0) {
-      const proposed = parseCustomPlanTime(nextDate, time);
-      if (!proposed || proposed.getTime() < now.getTime() + 10 * 60_000) onTimeChange(defaultPlanTimeFields(now).time);
-    }
-  };
 
   const fields = Platform.OS === 'web' ? <View style={styles.row}>
     <View style={styles.fieldWrap}>
@@ -65,14 +53,7 @@ export function DateTimeFields({ date, time, onDateChange, onTimeChange }: Props
     </View>
   </View>;
 
-  return <View style={styles.wrapper}>
-    <View style={styles.quickRow}>
-      <Text style={styles.quickLabel}>QUICK DATE</Text>
-      <Pressable accessibilityLabel="Plan for today" onPress={() => chooseDay(0)} style={[styles.quickChip, date === localPlanDateValue() && styles.quickChipActive]}><Text style={styles.quickChipText}>Today</Text></Pressable>
-      <Pressable accessibilityLabel="Plan for tomorrow" onPress={() => chooseDay(1)} style={styles.quickChip}><Text style={styles.quickChipText}>Tomorrow</Text></Pressable>
-    </View>
-    {fields}
-  </View>;
+  return <View style={styles.wrapper}>{fields}</View>;
 }
 
 const webInput = {
@@ -91,11 +72,6 @@ const webInput = {
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1, minWidth: 260, gap: 9 },
-  quickRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 7 },
-  quickLabel: { color: colors.dimmed, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
-  quickChip: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  quickChipActive: { borderColor: colors.rose, backgroundColor: 'rgba(216,62,234,.10)' },
-  quickChipText: { color: colors.text, fontSize: 10, fontWeight: '800' },
   row: { flex: 1, minWidth: 250, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 8 },
   fieldWrap: { flex: 1, minWidth: 120, gap: 5 },
   label: { color: colors.dimmed, fontSize: 9, fontWeight: '900', letterSpacing: .9 },

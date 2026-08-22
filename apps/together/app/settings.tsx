@@ -14,6 +14,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import {
+  Archive,
   Bell,
   Brain,
   Camera,
@@ -38,6 +39,7 @@ import { useAuth } from '../src/hooks/useAuth';
 import { activeCompanion } from '../src/lib/companionLife';
 import { manageAccount } from '../src/lib/api';
 import { supabase } from '../src/lib/supabase';
+import { confirmAction } from '../src/lib/dialogs';
 import { FrostedBackdrop, FrostedSurface, GradientButton, LoadingSkeleton } from '../src/components';
 
 type SettingsSection = 'profile' | 'account' | 'identity' | 'experience' | 'relationships' | 'privacy';
@@ -66,6 +68,7 @@ export default function Settings() {
   const [goals, setGoals] = useState((profile?.experience_goals ?? []).join(', '));
   const [avatar, setAvatar] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
@@ -133,10 +136,26 @@ export default function Settings() {
       Alert.alert('Photo upload failed', error instanceof Error ? error.message : 'Please try again.');
     } finally { setBusy(false); }
   };
-  const logout = () => Alert.alert('Sign out?', 'Your relationships and memories will still be here when you return.', [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Sign out', onPress: () => void signOut().then(() => { clear(); router.replace('/auth'); }) },
-  ]);
+  const performLogout = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await signOut();
+      clear();
+      router.replace('/auth');
+    } catch (error) {
+      Alert.alert('Could not sign out', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setSigningOut(false);
+    }
+  };
+  const logout = () => confirmAction({
+    title: 'Sign out?',
+    message: 'Your relationships and memories will still be here when you return.',
+    confirmLabel: 'Sign out',
+    destructive: true,
+    onConfirm: performLogout,
+  });
 
   const modalHeight = desktop ? Math.min(820, Math.max(620, height - 64)) : height;
 
@@ -169,11 +188,11 @@ export default function Settings() {
         <ScrollView ref={scroll} style={styles.main} contentContainerStyle={styles.mainContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {!snapshot ? <LoadingSkeleton label="Loading your profile…" /> : <>
             {section === 'profile' ? <ProfilePanel avatar={avatar} name={name} setName={setName} about={about} setAbout={setAbout} interests={interests} setInterests={setInterests} goals={goals} setGoals={setGoals} busy={busy} email={session?.user.email} personaName={snapshot.activePersona?.display_name} lifeTitle={snapshot.activeContinuity?.title} onAvatar={() => void pickAvatar()} onSave={() => void saveProfile()} /> : null}
-            {section === 'account' ? <AccountPanel email={session?.user.email} verified={Boolean(session?.user.email_confirmed_at)} tier={subscriptionLabel(snapshot.entitlements?.tier)} onRoute={(route) => router.push(route)} onResend={() => void resendEmailVerification().then(() => Alert.alert('Verification sent', 'Check your inbox.')).catch((error) => Alert.alert('Could not send email', error.message))} onSignOutOthers={() => Alert.alert('Sign out everywhere else?', 'This device will remain signed in.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out others', style: 'destructive', onPress: () => void signOutOthers().then(() => Alert.alert('Other sessions signed out.')).catch((error) => Alert.alert('Could not update sessions', error.message)) }])} /> : null}
-            {section === 'identity' ? <IdentityPanel snapshot={snapshot} onRoute={(route) => router.push(route)} /> : null}
-            {section === 'experience' ? <ExperiencePanel snapshot={snapshot} onRoute={(route) => router.push(route)} /> : null}
-            {section === 'relationships' ? <RelationshipsPanel snapshot={snapshot} onRoute={(route) => router.push(route)} /> : null}
-            {section === 'privacy' ? <PrivacyPanel onRoute={(route) => router.push(route)} onDisclosure={() => Alert.alert('About Kivelle characters', 'Kivelle companions are fictional AI characters. They can remember shared context and simulate a life, but they are not real people and do not have human consciousness.')} onLogout={logout} /> : null}
+            {section === 'account' ? <AccountPanel email={session?.user.email} verified={Boolean(session?.user.email_confirmed_at)} tier={subscriptionLabel(snapshot.entitlements?.tier)} onRoute={(route) => router.push(route as never)} onResend={() => void resendEmailVerification().then(() => Alert.alert('Verification sent', 'Check your inbox.')).catch((error) => Alert.alert('Could not send email', error.message))} onSignOutOthers={() => Alert.alert('Sign out everywhere else?', 'This device will remain signed in.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out others', style: 'destructive', onPress: () => void signOutOthers().then(() => Alert.alert('Other sessions signed out.')).catch((error) => Alert.alert('Could not update sessions', error.message)) }])} /> : null}
+            {section === 'identity' ? <IdentityPanel snapshot={snapshot} onRoute={(route) => router.push(route as never)} /> : null}
+            {section === 'experience' ? <ExperiencePanel snapshot={snapshot} onRoute={(route) => router.push(route as never)} /> : null}
+            {section === 'relationships' ? <RelationshipsPanel snapshot={snapshot} onRoute={(route) => router.push(route as never)} /> : null}
+            {section === 'privacy' ? <PrivacyPanel onRoute={(route) => router.push(route as never)} onDisclosure={() => Alert.alert('About Kivelle characters', 'Kivelle companions are fictional AI characters. They can remember shared context and simulate a life, but they are not real people and do not have human consciousness.')} onLogout={logout} signingOut={signingOut} /> : null}
           </>}
         </ScrollView>
       </View>
@@ -252,18 +271,18 @@ function RelationshipsPanel({ snapshot, onRoute }: { snapshot: NonNullable<Retur
   const memoryCount = companion ? snapshot.memories.filter((item) => item.character_instance_id === companion.id).length : 0;
   return <View style={styles.panel}><PanelHeading title="Relationships" body="Manage people and shared history. This area never substitutes a companion portrait for your own profile." />
     <View style={styles.metricRow}><Metric value={snapshot.characters.length} label="Companions" /><Metric value={snapshot.moments.length} label="Moments" /><Metric value={snapshot.sharedPlans.filter((plan) => ['scheduled', 'active'].includes(plan.status)).length} label="Upcoming" /></View>
-    <SettingsGroup><SettingsRow icon={<UsersRound />} title="Your companions" body="Switch the active relationship or meet someone new." onPress={() => onRoute('/companions')} /><SettingsRow icon={<MessageCircle />} title="Conversations & resets" body="Conversation history, fresh threads, and complete character reset." onPress={() => onRoute('/conversation-controls')} /><SettingsRow icon={<Brain />} title="Memory Center" body={companion ? `${memoryCount} memories with ${companion.together_character_templates.name}` : 'Review and control relationship memories'} onPress={() => onRoute('/memories')} /></SettingsGroup>
+    <SettingsGroup><SettingsRow icon={<UsersRound />} title="Your companions" body="Switch the active relationship or meet someone new." onPress={() => onRoute('/companions')} /><SettingsRow icon={<MessageCircle />} title="Conversations & resets" body="Conversation history, fresh threads, and complete character reset." onPress={() => onRoute('/conversation-controls')} /><SettingsRow icon={<Archive />} title="Archived Chats" body="Restore deleted chats for up to 30 days." onPress={() => onRoute('/archived-chats')} /><SettingsRow icon={<Brain />} title="Memory Center" body={companion ? `${memoryCount} memories with ${companion.together_character_templates.name}` : 'Review and control relationship memories'} onPress={() => onRoute('/memories')} /></SettingsGroup>
   </View>;
 }
 
-function PrivacyPanel({ onRoute, onDisclosure, onLogout }: { onRoute: (route: string) => void; onDisclosure: () => void; onLogout: () => void }) {
-  return <View style={styles.panel}><PanelHeading title="Privacy & safety" body="Control your data, understand Kivelle's AI characters, and manage account access." /><SettingsGroup><SettingsRow icon={<Shield />} title="Privacy and data controls" body="Personalization, analytics, export, and account deletion." onPress={() => onRoute('/privacy')} /><SettingsRow icon={<FileText />} title="AI disclosure" body="How fictional Kivelle characters and simulation work." onPress={onDisclosure} /><SettingsRow icon={<LogOut color={colors.danger} />} title="Sign out" body="Your relationships and history stay safely stored." onPress={onLogout} danger /></SettingsGroup><InfoCard title="A healthier relationship design">Your memories are visible and editable. Kivelle does not use guilt, loneliness, or dependency language to pressure you to return.</InfoCard><Text style={styles.version}>Kivelle.AI · 1.0.0</Text></View>;
+function PrivacyPanel({ onRoute, onDisclosure, onLogout, signingOut }: { onRoute: (route: string) => void; onDisclosure: () => void; onLogout: () => void; signingOut: boolean }) {
+  return <View style={styles.panel}><PanelHeading title="Privacy & safety" body="Control your data, understand Kivelle's AI characters, and manage account access." /><SettingsGroup><SettingsRow icon={<Shield />} title="Privacy and data controls" body="Personalization, analytics, export, and account deletion." onPress={() => onRoute('/privacy')} /><SettingsRow icon={<FileText />} title="AI disclosure" body="How fictional Kivelle characters and simulation work." onPress={onDisclosure} /><SettingsRow icon={<LogOut color={colors.danger} />} title={signingOut ? 'Signing out…' : 'Sign out'} body="Your relationships and history stay safely stored." onPress={onLogout} disabled={signingOut} danger /></SettingsGroup><InfoCard title="A healthier relationship design">Your memories are visible and editable. Kivelle does not use guilt, loneliness, or dependency language to pressure you to return.</InfoCard><Text style={styles.version}>Kivelle.AI · 1.0.0</Text></View>;
 }
 
 function PanelHeading({ title, body }: { title: string; body: string }) { return <View style={styles.panelHeading}><Text style={styles.panelTitle}>{title}</Text><Text style={styles.panelBody}>{body}</Text></View>; }
 function Field({ label, helper, children }: { label: string; helper?: string; children: ReactNode }) { return <View style={styles.field}><View style={styles.labelRow}><Text style={styles.label}>{label}</Text>{helper ? <Text style={styles.helper}>{helper}</Text> : null}</View>{children}</View>; }
 function SettingsGroup({ children }: { children: ReactNode }) { return <View style={styles.group}>{children}</View>; }
-function SettingsRow({ icon, title, body, onPress, danger = false }: { icon: ReactElement; title: string; body: string; onPress: () => void; danger?: boolean }) { return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.settingRow, pressed && styles.rowPressed]}><View style={[styles.rowIcon, danger && styles.rowIconDanger]}>{icon}</View><View style={{ flex: 1 }}><Text style={[styles.rowTitle, danger && { color: colors.danger }]}>{title}</Text><Text style={styles.rowBody}>{body}</Text></View><ChevronRight size={18} color={colors.dimmed} /></Pressable>; }
+function SettingsRow({ icon, title, body, onPress, danger = false, disabled = false }: { icon: ReactElement; title: string; body: string; onPress: () => void; danger?: boolean; disabled?: boolean }) { return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.settingRow, disabled && { opacity: .55 }, pressed && styles.rowPressed]}><View style={[styles.rowIcon, danger && styles.rowIconDanger]}>{icon}</View><View style={{ flex: 1 }}><Text style={[styles.rowTitle, danger && { color: colors.danger }]}>{title}</Text><Text style={styles.rowBody}>{body}</Text></View><ChevronRight size={18} color={colors.dimmed} /></Pressable>; }
 function Metric({ value, label }: { value: number; label: string }) { return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>; }
 function InfoCard({ title, children }: { title: string; children: ReactNode }) { return <View style={styles.infoCard}><Text style={styles.infoTitle}>{title}</Text><Text style={styles.infoBody}>{children}</Text></View>; }
 

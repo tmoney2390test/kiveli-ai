@@ -49,6 +49,7 @@ export async function beginPlanExperience(input: {
   requestId: string;
   source?: string;
   now?: Date;
+  quiet?: boolean;
 }): Promise<PlanExperience> {
   const now = input.now ?? new Date();
   const { data: canonicalPlan } = await input.db.from('together_shared_plans').select('id,status,source,starts_at,ends_at').eq('id', input.planId).eq('user_id', input.userId).eq('continuity_id', input.continuityId).eq('character_instance_id', input.characterInstanceId).maybeSingle();
@@ -64,16 +65,19 @@ export async function beginPlanExperience(input: {
     p_now: now.toISOString(),
     p_source: input.source ?? 'app',
   });
-  if (error) throw mapBeginError(error);
-  await track(input.db, input.userId, 'plan_joined', { planId: input.planId, characterInstanceId: input.characterInstanceId, requestId: input.requestId });
+  if (error) {
+    console.error('Plan experience start failed', { code: error.code, details: error.details, hint: error.hint, planId: input.planId, characterInstanceId: input.characterInstanceId });
+    throw mapBeginError(error);
+  }
+  if (!input.quiet) await track(input.db, input.userId, 'plan_joined', { planId: input.planId, characterInstanceId: input.characterInstanceId, requestId: input.requestId });
   const experience = await loadPlanExperience({ ...input, now });
-  if (data?.sceneId) await track(input.db, input.userId, 'plan_scene_started', { planId: input.planId, sceneId: data.sceneId });
+  if (data?.sceneId && !input.quiet) await track(input.db, input.userId, 'plan_scene_started', { planId: input.planId, sceneId: data.sceneId });
   const plan = experience.plan;
   if (experience.scene?.id && plan.source_conversation_id) {
     const { data: conversation } = await input.db.from('together_conversations').select('metadata').eq('id', plan.source_conversation_id).eq('user_id', input.userId).maybeSingle();
     if (conversation) await input.db.from('together_conversations').update({ metadata: mergeConversationSceneMetadata(conversation.metadata ?? {}, { version: 1, characterInstanceId: input.characterInstanceId, locationId: experience.scene.location_id, worldId: experience.scene.world_id, interactionMode: 'co_present', entryReason: 'shared_plan', enteredAt: experience.scene.started_at, source: 'active_event', validUntil: experience.scene.expected_end_at ?? undefined, sceneSessionId: experience.scene.id, activityKey: experience.scene.activity_key, updatedAt: now.toISOString() }), updated_at: now.toISOString() }).eq('id', plan.source_conversation_id).eq('user_id', input.userId);
   }
-  if (plan.source_conversation_id) {
+  if (plan.source_conversation_id && !input.quiet) {
     await writeConversationEvent(input.db, {
       userId: input.userId,
       characterInstanceId: input.characterInstanceId,
@@ -112,6 +116,9 @@ export async function loadPlanExperience(input: {
   let canonicalScene = activeScene as Row | null;
   const beforeScheduledEnd = !plan.ends_at || new Date(String(plan.ends_at)).getTime() > now.getTime();
   if (!canonicalScene && activeUser && activeCharacter && beforeScheduledEnd && ['scheduled', 'active'].includes(String(plan.status))) canonicalScene = await ensurePlanScene({ db: input.db, userId: input.userId, continuityId: input.continuityId, characterInstanceId: input.characterInstanceId, plan, conversationId: plan.source_conversation_id, now });
+  if (canonicalScene && activeUser && activeCharacter && !canonicalScene.ended_at) {
+    await reconcilePlanSceneParticipant({ db: input.db, userId: input.userId, continuityId: input.continuityId, characterInstanceId: input.characterInstanceId, planId: String(plan.id), sceneId: String(canonicalScene.id), now });
+  }
   const participation = calculatePlanParticipation({ attendance: userRows, segments: segments ?? [], actions: await loadActions(input.db, input.planId, input.userId, canonicalScene?.id ?? latestScene?.id), now, activeUser, activeCharacter });
   const state = String(plan.status);
   let phase: PlanExperiencePhase;
@@ -172,7 +179,7 @@ export async function ensurePlanScene(input: {
     participant_instance_ids: [input.characterInstanceId],
     state: { planId: input.plan.id, focus: input.plan.activity_key, currentActivityKey: input.plan.activity_key, activity: initializePlanActivityState(input.plan.activity_key), entryReason: 'shared_plan' },
   }).select('*').maybeSingle();
-  if (!error && data) {await input.db.from('together_scene_participants').upsert({user_id:input.userId,continuity_id:input.continuityId,scene_session_id:data.id,character_instance_id:input.characterInstanceId,role:'primary_companion',joined_at:data.started_at,witnessed_from_sequence:1,metadata:{canonicalPrimary:true,contextVersion:1}},{onConflict:'scene_session_id,character_instance_id',ignoreDuplicates:true});return data;}
+  if (!error && data) return data;
   const { data: concurrent } = await input.db.from('together_scene_sessions').select('*').eq('shared_plan_id', input.plan.id).eq('user_id', input.userId).eq('continuity_id', input.continuityId).eq('character_instance_id', input.characterInstanceId).is('ended_at', null).maybeSingle();
   return concurrent ?? null;
 }
@@ -237,7 +244,17 @@ async function finishPlanExperience(input: {
     p_completion_reason: input.completionReason,
     p_completed_at: input.completedAt.toISOString(),
   });
-  if (error) throw mapFinishError(error);
+  if (error) {
+    console.error(JSON.stringify({
+      level: 'error',
+      operation: 'finish_plan_experience_rpc',
+      planId: input.planId,
+      requestId: input.requestId,
+      code: error.code ?? null,
+      message: error.message ?? 'unknown_database_error',
+    }));
+    throw mapFinishError(error);
+  }
   const result = (data ?? {}) as Row;
   if (result.requiresProgress) {
     await input.db.rpc('kivelle_progress_shared_plans', { p_user_id: input.userId, p_character_instance_id: input.characterInstanceId, p_now: reconciledAt.toISOString() });
@@ -245,9 +262,33 @@ async function finishPlanExperience(input: {
   }
   if (!result.transitioned) return loadPlanExperience({ ...input, now: reconciledAt });
   const sceneId = typeof result.sceneId === 'string' ? result.sceneId : input.sceneId;
+  return reconcileCompletedPlanExperience({ ...input, sceneId, now: reconciledAt });
+}
+
+/**
+ * Finish non-transactional enrichments after the canonical database transition.
+ * This is safe to retry and is also used after an atomic plan switch.
+ */
+export async function reconcileCompletedPlanExperience(input: {
+  db: SupabaseClient;
+  userId: string;
+  continuityId: string;
+  characterInstanceId: string;
+  planId: string;
+  sceneId?: string;
+  now?: Date;
+}): Promise<PlanExperience> {
+  const reconciledAt = input.now ?? new Date();
+  const experience = await loadPlanExperience({ ...input, now: reconciledAt });
+  if (String(experience.plan.status) !== 'completed') return experience;
+  if (experience.plan.metadata?.planExperience?.finalizedAt) return experience;
+  const reason = String(experience.plan.completion_reason ?? 'user_ended');
+  const completionReason: Extract<CommitmentCompletionReason, 'user_ended' | 'elapsed' | 'system_reconciled'> = reason === 'elapsed' || reason === 'system_reconciled' ? reason : 'user_ended';
+  const completedAt = new Date(String(experience.plan.completed_at ?? reconciledAt.toISOString()));
+  const sceneId = input.sceneId ?? experience.scene?.id;
   let episode: Row | null = null;
-  if (sceneId) episode = await finalizeSceneSession({ db: input.db, userId: input.userId, sceneSessionId: sceneId, now: input.completedAt }).catch(() => null);
-  await enrichCompletedPlan({ ...input, sceneId, episode, reconciledAt });
+  if (sceneId) episode = await finalizeSceneSession({ db: input.db, userId: input.userId, sceneSessionId: sceneId, now: completedAt }).catch(() => null);
+  await enrichCompletedPlan({ ...input, completionReason, completedAt, sceneId, episode, reconciledAt });
   return loadPlanExperience({ ...input, now: reconciledAt });
 }
 
@@ -284,6 +325,12 @@ async function enrichCompletedPlan(input: {
     metadata: { ...(current.metadata ?? {}), planExperience },
     updated_at: input.reconciledAt.toISOString(),
   }).eq('id', input.planId).eq('user_id', input.userId).eq('continuity_id', input.continuityId);
+  // The completion trigger guarantees a baseline episodic memory. Re-run the
+  // idempotent materializer after scene consolidation so that memory receives
+  // the richer episode summary, significance, and participation metadata.
+  try {
+    await input.db.rpc('kivelle_materialize_completed_plan_history', { p_plan_id: input.planId });
+  } catch { /* History already exists; enrichment must not undo completion. */ }
   if (current.source !== 'date') {
     await input.db.from('together_life_events').update({ narrative_summary: summary, ends_at: input.completedAt.toISOString(), significance: Math.max(0, Math.min(1, Number(episode?.significance ?? current.metadata?.significance ?? .45))) }).eq('shared_plan_id', input.planId).eq('user_id', input.userId);
   }
@@ -296,7 +343,7 @@ async function enrichCompletedPlan(input: {
   await track(input.db, input.userId, 'plan_completed', { planId: input.planId, completionReason: input.completionReason, participationLevel: experience.participation.level, attendedSeconds: experience.participation.attendedSeconds });
   await track(input.db, input.userId, 'plan_scene_finalized', { planId: input.planId, participationLevel: experience.participation.level, attendedSeconds: experience.participation.attendedSeconds });
   try {
-    await input.db.rpc('kivelle_insert_relationship_evidence', { p_user_id: input.userId, p_character_instance_id: input.characterInstanceId, p_type: 'commitment_kept', p_source_type: 'shared_plan', p_source_id: input.planId, p_occurred_at: input.completedAt.toISOString(), p_quality: experience.participation.level === 'meaningful' ? .9 : experience.participation.level === 'participated' ? .65 : .3, p_valence: .25, p_timezone: String(current.world_timezone ?? 'UTC'), p_metadata: { participationLevel: experience.participation.level, attendedSeconds: experience.participation.attendedSeconds, meaningfulActionCount: experience.participation.meaningfulActionCount, completionReason: input.completionReason } });
+    await input.db.rpc('kivelle_insert_relationship_evidence', { p_user_id: input.userId, p_character_instance_id: input.characterInstanceId, p_type: 'commitment_kept', p_source_type: 'shared_plan', p_source_id: input.planId, p_occurred_at: input.completedAt.toISOString(), p_quality: experience.participation.level === 'meaningful' ? .9 : experience.participation.level === 'participated' ? .65 : .3, p_valence: .25, p_timezone: String(current.user_timezone ?? current.world_timezone ?? 'UTC'), p_metadata: { participationLevel: experience.participation.level, attendedSeconds: experience.participation.attendedSeconds, meaningfulActionCount: experience.participation.meaningfulActionCount, completionReason: input.completionReason } });
   } catch { /* Evidence enrichment must not undo a completed plan. */ }
 }
 
@@ -319,6 +366,35 @@ async function loadActions(db: SupabaseClient, planId: string, userId: string, s
   if (!sceneId) return [];
   const { data } = await db.from('together_scene_actions').select('*').eq('scene_session_id', sceneId).eq('user_id', userId).not('completed_at', 'is', null).order('created_at');
   return (data ?? []) as Row[];
+}
+
+async function reconcilePlanSceneParticipant(input: {
+  db: SupabaseClient;
+  userId: string;
+  continuityId: string;
+  characterInstanceId: string;
+  planId: string;
+  sceneId: string;
+  now: Date;
+}) {
+  const { error } = await input.db.rpc('kivelle_reconcile_plan_scene_participant', {
+    p_user_id: input.userId,
+    p_continuity_id: input.continuityId,
+    p_character_instance_id: input.characterInstanceId,
+    p_plan_id: input.planId,
+    p_scene_id: input.sceneId,
+    p_now: input.now.toISOString(),
+  });
+  if (!error) return;
+  console.error('Plan scene participant reconciliation failed', {
+    code: error.code,
+    details: error.details,
+    hint: error.hint,
+    planId: input.planId,
+    sceneId: input.sceneId,
+    characterInstanceId: input.characterInstanceId,
+  });
+  throw new AppError('INTERNAL_ERROR', 'The shared plan scene could not open. Try again.', 500, true);
 }
 
 function normalizeCompanionState(value: unknown, arrived: boolean): 'expected' | 'late' | 'absent' | 'cancelled' {

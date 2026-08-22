@@ -1,3 +1,5 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+
 export type ExperienceClock = {
   now: string;
   timezone: string;
@@ -12,6 +14,24 @@ export function safeTimezone(value: unknown): string {
   const timezone = typeof value === 'string' && value.trim() ? value.trim() : 'UTC';
   try { new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(new Date()); return timezone; }
   catch { return 'UTC'; }
+}
+
+/**
+ * The experience clock follows the viewer, not the fictional world's
+ * canonical timezone. Authored hours such as 21:00 therefore always mean
+ * 9 PM for the user who is viewing or planning the experience.
+ */
+export async function resolveUserExperienceTimezone(
+  db: SupabaseClient,
+  userId: string | undefined,
+  fallback: unknown = 'UTC',
+): Promise<string> {
+  if (!userId) return safeTimezone(fallback);
+  const [profile, preferences] = await Promise.all([
+    db.from('together_profiles').select('experience_timezone').eq('user_id', userId).maybeSingle(),
+    db.from('together_notification_preferences').select('timezone').eq('user_id', userId).maybeSingle(),
+  ]);
+  return safeTimezone(profile.data?.experience_timezone ?? preferences.data?.timezone ?? fallback);
 }
 
 export function experienceClock(timezoneValue: unknown, now = new Date()): ExperienceClock {

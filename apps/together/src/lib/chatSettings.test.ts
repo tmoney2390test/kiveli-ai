@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { chatMessageTypography, chatPreferencesFromConversation, isSubscribedTier, resolveChatResponseStyle, resolveChatSpiceLevel, resolveChatTextSize } from './chatSettings';
+import { chatMessageTypography, chatPreferencesFromConversation, isSubscribedTier, resolveChatContentMode, resolveChatResponseStyle, resolveChatSpiceLevel, resolveChatTextSize, resolveChatVoicePreset, withLocalChatSettings } from './chatSettings';
 
 describe('chat settings', () => {
   it('reads valid per-chat preferences and ignores malformed metadata', () => {
-    const conversation = { metadata: { chatPreferences: { responseStyle: 'paragraph', textSize: 'large', spiceLevel: 3, extra: true } } };
-    expect(chatPreferencesFromConversation(conversation as never)).toEqual({ responseStyle: 'paragraph', textSize: 'large', spiceLevel: 3 });
+    const conversation = { metadata: { chatPreferences: { responseStyle: 'paragraph', textSize: 'large', spiceLevel: 3, voicePreset: 'warm', contentMode: 'explicit', extra: true } } };
+    expect(chatPreferencesFromConversation(conversation as never)).toEqual({ responseStyle: 'paragraph', textSize: 'large', spiceLevel: 3, voicePreset: 'warm', contentMode: 'explicit' });
     expect(chatPreferencesFromConversation({ metadata: { chatPreferences: 'large' } })).toEqual({});
   });
 
@@ -23,5 +23,22 @@ describe('chat settings', () => {
     expect(isSubscribedTier('free')).toBe(false);
     expect(isSubscribedTier('kivelle_plus')).toBe(true);
     expect(isSubscribedTier('unlimited')).toBe(true);
+  });
+
+  it('reads, sets, and clears a per-chat voice preset', () => {
+    const conversation = { id: 'chat-1', title: null, metadata: { chatPreferences: { voicePreset: 'bright' } } } as never;
+    expect(resolveChatVoicePreset(conversation)).toBe('bright');
+    const updated = withLocalChatSettings(conversation, { title: null, responseStyle: 'texting', textSize: 'medium', voicePreset: 'warm' });
+    expect(resolveChatVoicePreset(updated)).toBe('warm');
+    expect(resolveChatVoicePreset(withLocalChatSettings(updated, { title: null, responseStyle: 'texting', textSize: 'medium', voicePreset: null }))).toBeNull();
+  });
+
+  it('resolves and saves a per-chat dialogue intensity', () => {
+    const conversation = { id: 'chat-1', title: null, metadata: {} } as never;
+    const profile = { content_preferences: { contentMode: 'mature' } } as never;
+    expect(resolveChatContentMode(conversation, profile)).toBe('mature');
+    const updated = withLocalChatSettings(conversation, { title: null, responseStyle: 'texting', textSize: 'medium', contentMode: 'explicit' });
+    expect(resolveChatContentMode(updated, profile)).toBe('explicit');
+    expect(resolveChatContentMode(null, { content_preferences: { romanceEnabled: false } } as never)).toBe('standard');
   });
 });

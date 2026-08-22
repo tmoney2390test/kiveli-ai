@@ -1,33 +1,25 @@
 import { describe, expect, it, vi } from 'vitest';
-vi.mock('./api',()=>({invoke:vi.fn()}));
-vi.mock('./requestId',()=>({createClientRequestId:()=> 'test-request'}));
-import { commitmentStatusLabel, commitmentTemporalState, planCompletionLabel, type Commitment } from './commitments';
 
-const completed = {
+vi.mock('./api', () => ({ invoke: vi.fn() }));
+import { commitmentTimeLabel, type Commitment } from './commitments';
+
+const plan: Commitment = {
   id: 'plan',
   character_instance_id: 'character',
-  title: 'Drinks at Velvet Hour',
-  activity_key: 'drinks',
-  starts_at: '2026-08-17T00:00:00Z',
-  ends_at: '2026-08-17T01:30:00Z',
-  completed_at: '2026-08-17T01:30:00Z',
-  status: 'completed',
-  completion_reason: 'elapsed',
-} satisfies Commitment;
+  title: 'Late dinner',
+  activity_key: 'dinner',
+  starts_at: '2026-08-15T01:00:00.000Z',
+  ends_at: '2026-08-15T02:30:00.000Z',
+  world_timezone: 'Asia/Tokyo',
+  user_timezone: 'America/New_York',
+  status: 'scheduled',
+};
 
-describe('commitment completion presentation', () => {
-  it('presents completed plans as shared history', () => {
-    expect(commitmentStatusLabel(completed)).toBe('SHARED');
-    expect(planCompletionLabel(completed)).toBe('Ended at the scheduled time');
-  });
-
-  it('distinguishes an explicit early ending', () => {
-    expect(planCompletionLabel({ ...completed, completed_at: '2026-08-17T01:00:00Z', completion_reason: 'user_ended' })).toBe('You ended the plan early');
-  });
-
-  it('marks a plan expired at its exact end boundary', () => {
-    const active = { ...completed, status: 'active', completed_at: null, completion_reason: null } satisfies Commitment;
-    expect(commitmentTemporalState(active, new Date('2026-08-17T01:29:59Z'))).toBe('active');
-    expect(commitmentTemporalState(active, new Date('2026-08-17T01:30:00Z'))).toBe('expired');
+describe('commitment clocks', () => {
+  it('shows the viewer-local time without a fictional world-time conversion', () => {
+    const label = commitmentTimeLabel(plan, 'America/New_York');
+    expect(label).toContain('9:00');
+    expect(label).not.toContain('10:00');
+    expect(label).not.toContain('your time');
   });
 });

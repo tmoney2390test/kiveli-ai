@@ -1,13 +1,15 @@
 import { create } from 'zustand';
 import { loadSnapshot } from '../lib/api';
-import type { CharacterInstance, Conversation, GeneratedMedia, Memory, Moment, Relationship, SceneSession, SharedPlan, Snapshot, SnapshotDelta } from '../types';
+import type { CharacterInstance, Conversation, ConversationAction, GeneratedMedia, Memory, Moment, Relationship, SceneSession, SharedPlan, Snapshot, SnapshotDelta } from '../types';
 import { demoSnapshot } from '../demo';
+import{beginPendingDialogue,finishPendingDialogue,type PendingDialogue,type PendingDialogueMap}from'../lib/pendingDialogue';
 
 type State={
   snapshot:Snapshot|null;
   browsedWorldId:string|null;
   loading:boolean;
   error:string|null;
+  pendingDialogues:PendingDialogueMap;
   setSnapshot:(snapshot:Snapshot)=>void;
   setCoreState:(delta:Partial<Snapshot>)=>void;
   updateCompanion:(companion:CharacterInstance)=>void;
@@ -19,18 +21,23 @@ type State={
   upsertPlan:(plan:SharedPlan)=>void;
   upsertMedia:(media:GeneratedMedia)=>void;
   removeMedia:(mediaId:string)=>void;
+  upsertConversationAction:(action:ConversationAction)=>void;
+  removeConversationAction:(actionId:string)=>void;
   upsertSceneSession:(scene:SceneSession)=>void;
   applyServerDelta:(delta:SnapshotDelta)=>void;
   setBrowsedWorldId:(worldId:string|null)=>void;
-  refresh:()=>Promise<void>;
+  beginPendingDialogue:(pending:PendingDialogue)=>void;
+  finishPendingDialogue:(conversationId:string,clientRequestId:string)=>void;
+  refresh:(options?:{force?:boolean})=>Promise<void>;
   clear:()=>void;
 };
 const demoMode=__DEV__&&process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE==='true';
 let refreshRequest:Promise<void>|null=null;
 let refreshGeneration=0;
+let refreshSequence=0;
 export const useTogether=create<State>((set)=>{
   const patchSnapshot=(update:(snapshot:Snapshot)=>Snapshot)=>set((state)=>state.snapshot?{snapshot:update(state.snapshot),error:null}:state);
-  return {snapshot:demoMode?demoSnapshot:null,browsedWorldId:null,loading:false,error:null,
+  return {snapshot:demoMode?demoSnapshot:null,browsedWorldId:null,loading:false,error:null,pendingDialogues:{},
     setSnapshot:(snapshot)=>set({snapshot,loading:false,error:null}),
     setCoreState:(delta)=>patchSnapshot((snapshot)=>({...snapshot,...delta})),
     updateCompanion:(companion)=>patchSnapshot((snapshot)=>({...snapshot,characters:upsert(snapshot.characters,companion)})),
@@ -42,6 +49,8 @@ export const useTogether=create<State>((set)=>{
     upsertPlan:(plan)=>patchSnapshot((snapshot)=>({...snapshot,sharedPlans:upsert(snapshot.sharedPlans,plan)})),
     upsertMedia:(media)=>patchSnapshot((snapshot)=>({...snapshot,generatedMedia:upsert(snapshot.generatedMedia??[],media)})),
     removeMedia:(mediaId)=>patchSnapshot((snapshot)=>({...snapshot,generatedMedia:(snapshot.generatedMedia??[]).filter((item)=>item.id!==mediaId)})),
+    upsertConversationAction:(action)=>patchSnapshot((snapshot)=>({...snapshot,conversationActions:upsert(snapshot.conversationActions??[],action)})),
+    removeConversationAction:(actionId)=>patchSnapshot((snapshot)=>({...snapshot,conversationActions:(snapshot.conversationActions??[]).filter((item)=>item.id!==actionId)})),
     upsertSceneSession:(scene)=>patchSnapshot((snapshot)=>({...snapshot,sceneSessions:upsert(snapshot.sceneSessions??[],scene)})),
     applyServerDelta:(delta)=>patchSnapshot((snapshot)=>{
       const scope=<T extends{character_instance_id:string}>(current:T[]|undefined,next:T[]|undefined)=>next?[...(current??[]).filter((item)=>item.character_instance_id!==delta.characterInstanceId),...next]:current;
@@ -62,16 +71,19 @@ export const useTogether=create<State>((set)=>{
       };
     }),
     setBrowsedWorldId:(browsedWorldId)=>set({browsedWorldId}),
-    refresh:async()=>{
+    beginPendingDialogue:(pending)=>set((state)=>({pendingDialogues:beginPendingDialogue(state.pendingDialogues,pending)})),
+    finishPendingDialogue:(conversationId,clientRequestId)=>set((state)=>({pendingDialogues:finishPendingDialogue(state.pendingDialogues,conversationId,clientRequestId)})),
+    refresh:async(options)=>{
       if(demoMode)return;
-      if(refreshRequest)return refreshRequest;
+      if(refreshRequest&&!options?.force)return refreshRequest;
       const generation=refreshGeneration;
+      const sequence=++refreshSequence;
       set({loading:true,error:null});
-      const request=(async()=>{try{const snapshot=await loadSnapshot();if(generation===refreshGeneration)set({snapshot,loading:false,error:null});}catch(error){if(generation===refreshGeneration)set({loading:false,error:error instanceof Error?error.message:'Could not load Kivelle.'});}finally{if(generation===refreshGeneration)refreshRequest=null;}})();
+      const request=(async()=>{try{const snapshot=await loadSnapshot();if(generation===refreshGeneration&&sequence===refreshSequence)set({snapshot,loading:false,error:null});}catch(error){if(generation===refreshGeneration&&sequence===refreshSequence)set({loading:false,error:error instanceof Error?error.message:'Could not load Kivelle.'});}finally{if(generation===refreshGeneration&&sequence===refreshSequence)refreshRequest=null;}})();
       refreshRequest=request;
       return request;
     },
-    clear:()=>{refreshGeneration+=1;refreshRequest=null;set({snapshot:demoMode?demoSnapshot:null,browsedWorldId:null,loading:false,error:null});},
+    clear:()=>{refreshGeneration+=1;refreshSequence+=1;refreshRequest=null;set({snapshot:demoMode?demoSnapshot:null,browsedWorldId:null,loading:false,error:null,pendingDialogues:{}});},
   };
 });
 

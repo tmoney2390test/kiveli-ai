@@ -2,8 +2,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type PendingOnboarding = {
   ageConfirmed: true;
+  onboardingChoice?: 'companion' | 'skip';
   displayName?: string;
   characterTemplateId?: string;
+  worldId?: string;
   interests: string[];
   goals: Array<'Dating'|'Friendship'|'Stories'|'Social worlds'>;
 };

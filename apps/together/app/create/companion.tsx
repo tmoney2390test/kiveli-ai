@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { hasOpenBuildWorldAccess } from '@together/domain/src/world-access';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, ArrowRight, Check, Globe2, Sparkles, UserRound } from 'lucide-react-native';
@@ -28,7 +29,7 @@ export default function CreateCompanionEntry() {
   const [goal, setGoal] = useState<'friendship' | 'romance' | 'either'>('either');
   const [busy, setBusy] = useState(false);
   const [recovering, setRecovering] = useState(Boolean(params.template));
-  const worlds = useMemo(() => snapshot?.worlds.filter((world) => world.published && (world.access_type === 'free' || snapshot.userWorlds?.some((item) => item.world_id === world.id && item.access_status === 'unlocked'))) ?? [], [snapshot]);
+  const worlds = useMemo(() => snapshot?.worlds.filter((world) => world.published && (hasOpenBuildWorldAccess(world.published) || world.access_type === 'free' || snapshot.userWorlds?.some((item) => item.world_id === world.id && item.access_status === 'unlocked'))) ?? [], [snapshot]);
   const selectedWorldId = worldId || worlds[0]?.id || '';
 
   useEffect(() => {
@@ -84,7 +85,7 @@ export default function CreateCompanionEntry() {
 
         <View style={styles.fieldGroup}>
           <Text style={styles.fieldLabel}>Home world</Text>
-          <View style={styles.choiceGrid}>{worlds.map((world) => <Pressable key={world.id} accessibilityRole="radio" accessibilityState={{ checked: selectedWorldId === world.id }} onPress={() => setWorldId(world.id)} style={[styles.worldChoice, selectedWorldId === world.id && styles.choiceSelected]}><Globe2 size={18} color={selectedWorldId === world.id ? '#fff' : colors.violet} /><View style={{ flex: 1 }}><Text style={[styles.choiceTitle, selectedWorldId === world.id && styles.choiceTitleSelected]}>{world.name}</Text><Text style={[styles.choiceDetail, selectedWorldId === world.id && styles.choiceDetailSelected]}>{world.access_type === 'free' ? 'Included world' : 'Unlocked world'}</Text></View>{selectedWorldId === world.id ? <Check size={17} color="#fff" /> : null}</Pressable>)}</View>
+          <View style={styles.choiceGrid}>{worlds.map((world) => <Pressable key={world.id} accessibilityRole="radio" accessibilityState={{ checked: selectedWorldId === world.id }} onPress={() => setWorldId(world.id)} style={[styles.worldChoice, selectedWorldId === world.id && styles.choiceSelected]}><Globe2 size={18} color={selectedWorldId === world.id ? '#fff' : colors.violet} /><View style={{ flex: 1 }}><Text style={[styles.choiceTitle, selectedWorldId === world.id && styles.choiceTitleSelected]}>{world.name}</Text><Text style={[styles.choiceDetail, selectedWorldId === world.id && styles.choiceDetailSelected]}>Included world</Text></View>{selectedWorldId === world.id ? <Check size={17} color="#fff" /> : null}</Pressable>)}</View>
         </View>
 
         <View style={styles.fieldGroup}>

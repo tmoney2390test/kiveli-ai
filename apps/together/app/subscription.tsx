@@ -67,7 +67,7 @@ export default function Subscription() {
   return <Screen contentStyle={styles.content}>
     <View style={styles.header}>
       <Pressable accessibilityLabel="Back to Settings" onPress={() => router.canGoBack() ? router.back() : router.replace('/settings')} style={styles.back}><ArrowLeft color={colors.text} /></Pressable>
-      <View style={{ flex: 1 }}><PageTitle>Subscription & Credits</PageTitle><Text style={styles.subtitle}>More continuity, more worlds, and premium media when you want it.</Text></View>
+      <View style={{ flex: 1 }}><PageTitle>Subscription & Credits</PageTitle><Text style={styles.subtitle}>More continuity, more Lives, and premium media when you want it.</Text></View>
     </View>
 
     <View style={styles.hero}>
@@ -77,7 +77,7 @@ export default function Subscription() {
         <View style={{ flex: 1 }}>
           <View style={styles.eyebrowRow}><Sparkles size={14} color="#F3B7D0" /><Text style={styles.heroEyebrow}>YOUR KIVELLE EXPERIENCE</Text></View>
           <Text style={styles.heroTitle}>Make the relationship feel more alive.</Text>
-          <Text style={styles.heroCopy}>Unlock deeper continuity, more Lives and worlds, and monthly Kivelle Credits for premium visual experiences.</Text>
+          <Text style={styles.heroCopy}>Unlock deeper continuity, more Lives and companions, and monthly Kivelle Credits for premium visual experiences.</Text>
         </View>
         <View style={styles.currentPill}><Check size={12} color="#fff" /><Text style={styles.currentPillText}>{current.displayName.toUpperCase()}</Text></View>
       </View>
@@ -135,6 +135,7 @@ export default function Subscription() {
           <Cost label="Premium photo" value={state.creditCosts.premium_photo ?? 20} />
           <Cost label="4 Creator looks" value={state.creditCosts.creator_appearance_set ?? 40} />
           <Cost label="Short video" value={state.creditCosts.short_video ?? 125} />
+          <Cost label="Voice note" value={state.creditCosts.voice_note ?? 2} />
           <Cost label="Voice minute" value={state.creditCosts.voice_minute ?? 8} />
         </View>
       </View>
@@ -163,15 +164,14 @@ function PlanCard({ plan,billingInterval, current, actionLabel, actionConfigured
   const featured = plan.tier === 'kivelle_plus';
   const max = plan.tier === 'kivelle_max';
   const features = plan.tier === 'free' ? [
-    `${plan.introductoryChatDailyLimit} messages/day for ${plan.introductoryChatDays} days · ${plan.chatDailyLimit}/day after`, 'Core relationship continuity', '1 Life · 1 custom companion', 'Free worlds', '50 welcome credits',
+    `${plan.introductoryChatDailyLimit} messages/day for ${plan.introductoryChatDays} days · ${plan.chatDailyLimit}/day after`, 'Core relationship continuity', '1 Life · 1 custom companion', 'All published worlds', '50 welcome credits',
   ] : [
     plan.chatDailyLimit === null ? 'Unlimited chat' : 'Daily chat',
     intelligenceLabel(plan.intelligenceProfile),
-    plan.worldAccess === 'all_standard' ? 'Standard subscription worlds' : 'Free worlds',
+    'All published worlds',
     `${plan.maxLives} Lives · ${plan.maxCustomCompanions} custom companions`,
     `${plan.monthlyCreditGrant.toLocaleString()} Kivelle Credits / month`,
     plan.mediaQueue === 'highest' ? 'Highest media priority' : 'Priority media queue',
-    ...(plan.earlyWorldAccess ? ['Early access worlds'] : []),
   ];
 
   const annual=plan.annualPriceUsd,monthlyEquivalent=annual===null?null:annual/12;
@@ -197,10 +197,11 @@ function Comparison({ plans }: { plans: SubscriptionPlan[] }) {
     ['Intelligence', intelligenceLabel(free.intelligenceProfile), intelligenceLabel(plus.intelligenceProfile), intelligenceLabel(max.intelligenceProfile)],
     ['Lives', String(free.maxLives), String(plus.maxLives), String(max.maxLives)],
     ['Custom companions', String(free.maxCustomCompanions), String(plus.maxCustomCompanions), String(max.maxCustomCompanions)],
-    ['Worlds', 'Free', 'Standard', 'Standard + early'],
+    ['Published worlds', 'All', 'All', 'All'],
     ['Monthly credits', '—', plus.monthlyCreditGrant.toLocaleString(), max.monthlyCreditGrant.toLocaleString()],
     ['Included Date photos', 'Paid with credits', `${plus.includedDatePhotoMonthlyLimit} / month`, `${max.includedDatePhotoMonthlyLimit} / month`],
     ['Adult dialogue', `${free.explicitDialogueMonthlyLimit} / month`, `${plus.explicitDialogueMonthlyLimit} / month`, `${max.explicitDialogueMonthlyLimit} / month`],
+    ['Live calls', 'Credits', 'Credits', 'Credits'],
     ['Media priority', 'Standard', 'Priority', 'Highest'],
   ];
   return <View style={styles.compareCard}>

@@ -58,4 +58,24 @@ describe('character day schedule', () => {
     const result = buildCharacterDaySchedule({ snapshot: authoredSnapshot, instance, characterVersionId: 'maya-v1', timezone: 'America/New_York', now: new Date('2026-08-18T06:00:00.000Z') });
     expect(result.currentStatus).toEqual({ activity: 'Having some unstructured time at home', location: 'Home' });
   });
+
+  it('uses the viewer clock instead of the character world clock', () => {
+    const tokyoSnapshot = {
+      ...snapshot,
+      schedules: [{
+        id: 'mina-overnight', character_version_id: 'maya-v1', day_of_week: 4, start_minute: 0, end_minute: 180,
+        location_id: 'studio', activity: 'closing the club sensory systems', availability: 'busy', energy_delta: -2,
+        metadata: { scheduleMode: 'authored', activityVariants: ['Closing the club sensory systems after hours'] },
+      }],
+    } as unknown as Snapshot;
+    const result = buildCharacterDaySchedule({
+      snapshot: tokyoSnapshot,
+      instance,
+      characterVersionId: 'maya-v1',
+      timezone: 'Asia/Tokyo',
+      now: new Date('2026-08-20T16:50:00.000Z'),
+    });
+    expect(result.entries[0]).toMatchObject({ time: '12:00 AM–3:00 AM', current: false, past: true });
+    expect(result.currentStatus).toEqual({ activity: 'Having some unstructured time at home', location: 'Home' });
+  });
 });

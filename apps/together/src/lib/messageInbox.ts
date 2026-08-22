@@ -1,4 +1,5 @@
 import type { CharacterInstance, Conversation } from '../types';
+import { isActiveConversation } from './conversation';
 
 export type InboxFilter = 'favorites' | 'all';
 export type InboxRow = { conversation: Conversation; character: CharacterInstance };
@@ -21,6 +22,17 @@ export function chatHrefFromInboxParams(params: ChatLaunchParams): string | null
   return `/chat?${entries.map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join('&')}`;
 }
 
+/**
+ * A place-planning launch must remount the chat surface even when it targets the
+ * conversation already sitting underneath Places in the navigation stack.
+ */
+export function chatSessionRouteKey(conversationId:string|null|undefined,params:ChatLaunchParams,fallback='recent'):string{
+  const base=conversationId??`pending:${fallback}`;
+  if(params.plan!=='1')return`${base}:chat`;
+  const scope=[params.world,params.location,params.activity,params.repeatPlanId].map((value)=>value??'').join(':');
+  return`${base}:plan:${scope}`;
+}
+
 export function buildInboxRows(
   conversations: Conversation[],
   characters: CharacterInstance[],
@@ -31,7 +43,7 @@ export function buildInboxRows(
   const favorites = new Set(favoriteCharacterTemplateIds);
   const normalizedQuery = query.trim().toLocaleLowerCase();
   return conversations
-    .filter((conversation) => !conversation.archived_at && ['direct', 'first_meeting'].includes(conversation.kind))
+    .filter(isActiveConversation)
     .map((conversation) => ({
       conversation,
       character: characters.find((character) => character.id === conversation.character_instance_id),

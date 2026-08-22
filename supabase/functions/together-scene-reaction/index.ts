@@ -10,7 +10,8 @@ import { ConfiguredDialogueProvider, ConfiguredModerationProvider } from '../_sh
 import { track } from '../_shared/together.ts';
 import { acknowledgeConversationScene } from '../_shared/together-conversation.ts';
 import { resolveDialogueRouting } from '../_shared/kivelle-ai-routing.ts';
-import type { DialogueContentMode } from '../../../packages/together-domain/src/index.ts';
+import { compileIntimacyStance, type DialogueContentMode } from '../../../packages/together-domain/src/index.ts';
+import { conversationDialogueContentMode } from '../_shared/conversation-content-mode.ts';
 
 const schema=z.object({conversationId:z.string().uuid(),characterInstanceId:z.string().uuid(),sceneActionId:z.string().uuid(),clientRequestId:z.string().min(8).max(120)});
 const dialogue=new ConfiguredDialogueProvider();
@@ -37,13 +38,16 @@ Deno.serve(async(request)=>{
     const context=await buildKivelleConversationContext({db,userId:user.id,instance,conversation,userMessage:'React naturally to the shared action that just happened.',lifeRun,now,correlationId});
     (context as Record<string,unknown>).sceneAction={id:action.id,key:action.interaction_key,label,decision:action.decision_status??action.result?.decision??'accepted',requestedInteractionKey:action.requested_interaction_key??action.interaction_key,resolvedInteractionKey:action.resolved_interaction_key??null,result:action.result,location:context.place?.path??context.currentScene.location};
     const{data:profile}=await db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id',user.id).maybeSingle();
-    const requestedMode:DialogueContentMode=profile?.content_preferences?.contentMode==='romance'||profile?.content_preferences?.contentMode==='mature'||profile?.content_preferences?.contentMode==='explicit'?profile.content_preferences.contentMode:'standard';
+    const requestedMode:DialogueContentMode=conversationDialogueContentMode(profile,conversation);
     const route=resolveDialogueRouting({message:label,requestedMode,ageVerified:Boolean(profile?.age_verified_at),characterAge:Number(instance.together_character_templates?.age??instance.together_character_versions?.age??0)||null,relationshipAllowsExplicit:context.relationship?.romance_enabled!==false&&context.relationship?.romance_path_status!=='friends_only'});
     context.contentMode=route.resolvedMode;
+    (context as Record<string,unknown>).dialogueRouting={provider:route.provider,reason:route.reason,classification:route.classification,requestedMode:route.requestedMode,contentMode:route.resolvedMode,explicit:route.explicit};
+    const intimacyStance=compileIntimacyStance({message:label,recentTurns:context.recent,relationship:{...context.relationship,spiceLevel:context.character?.spice_level,personality:context.character?.personality_config},personality:context.character?.personality_config,interactionMode:context.currentScene?.interactionMode,availability:context.currentScene?.interruptibility??context.currentScene?.availability,requestedMode});
+    (context as Record<string,unknown>).intimacyStance=intimacyStance;
     const usageScope={db,userId:user.id,continuityId:continuity.id,conversationId:conversation.id,characterInstanceId:input.characterInstanceId,subscriptionTier:context.subscription?.tier,routeReason:route.reason,contentMode:route.resolvedMode,correlationId};
     const generated=await dialogue.generate(context,{route,usageScope,operation:route.provider==='openai'?'dialogue_openai':route.provider==='xai'?'dialogue_xai':'dialogue_gemini'});
     const safe=await moderation.check(generated.text,{...usageScope,metadata:{direction:'output',source:'scene_action'}});const reply=safe.allowed?generated.text:`${String(instance.together_character_templates?.name??'Your companion')} pauses for a second, then smiles.`;
-    const {data:message,error}=await db.from('together_messages').insert({conversation_id:conversation.id,user_id:user.id,character_instance_id:input.characterInstanceId,role:'assistant',content:reply,delivery_status:'complete',provider_metadata:{...generated.metadata,source:'scene_action',sceneActionId:input.sceneActionId,sceneSessionId:action.scene_session_id,clientRequestId:input.clientRequestId,directorUsed:context.director?.used===true}}).select('*').single();
+    const {data:message,error}=await db.from('together_messages').insert({conversation_id:conversation.id,user_id:user.id,character_instance_id:input.characterInstanceId,role:'assistant',content:reply,delivery_status:'complete',provider_metadata:{...generated.metadata,...(intimacyStance.active?{intimacyOutcome:intimacyStance.outcome,intimacyDisposition:intimacyStance.disposition,intimacyInteractionScope:intimacyStance.interactionScope,intimacyReasonCodes:intimacyStance.reasonCodes}:{}),source:'scene_action',sceneActionId:input.sceneActionId,sceneSessionId:action.scene_session_id,clientRequestId:input.clientRequestId,directorUsed:context.director?.used===true}}).select('*').single();
     if(error||!message)throw new AppError('INTERNAL_ERROR','Your companion could not react to that right now.',500,true);
     const acknowledged=acknowledgeConversationScene(conversation.metadata??{},String(message.created_at));
     await db.from('together_conversations').update({metadata:acknowledged.metadata,last_message_at:message.created_at,last_assistant_message_at:message.created_at,updated_at:message.created_at}).eq('id',conversation.id).eq('user_id',user.id);

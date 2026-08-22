@@ -1,7 +1,7 @@
 import type{SupabaseClient}from'@supabase/supabase-js';
 import{AppError}from'./types.ts';
 import{canonicalRequestForMedia}from'./together-media-base.ts';
-import{providerAttemptsFromError,routeCanonicalMedia,type CanonicalMediaRequest,type ProviderAttempt}from'./together-media-providers.ts';
+import{configuredMediaRegistry,providerAttemptsFromError,routeCanonicalMedia,type CanonicalMediaRequest,type ProviderAttempt}from'./together-media-providers.ts';
 import{failMediaBeforeProvider,failProviderMedia,finalizeProviderMedia}from'./together-media-finalizer.ts';
 import{configuredWaveSpeedClient}from'./wavespeed.ts';
 import{resolveSubscriptionState}from'./kivelle-subscription.ts';
@@ -10,10 +10,10 @@ import{dispatchCreatorAppearanceJobs,dispatchLoraTrainingJobs,finalizeAuxiliaryP
 import{completeMediaUsageAttempt,recordMediaUsageAttempt}from'./together-media-usage.ts';
 
 export async function dispatchMediaJobs(db:SupabaseClient,limit:number,correlationId:string){
-  const recovered=await reconcileWaveSpeedJobs(db,limit);await db.rpc('kivelle_recover_stale_media_jobs',{p_stale_minutes:12});
+  const recovered=await reconcileWaveSpeedJobs(db,limit),recoveredSynchronous=await recoverStaleSynchronousJobs(db,limit);await db.rpc('kivelle_recover_stale_media_jobs',{p_stale_minutes:12});
   const[creator,training]=await Promise.all([dispatchCreatorAppearanceJobs(db,limit),dispatchLoraTrainingJobs(db,limit)]);
   const{data:jobs,error}=await db.rpc('kivelle_claim_media_jobs',{p_limit:limit});if(error)throw new AppError('INTERNAL_ERROR','Media jobs could not be claimed.',500,true);
-  const results={recovered,creator,training,claimed:(jobs??[]).length,ready:0,submitted:0,failed:0};
+  const results={recovered,recoveredSynchronous,creator,training,claimed:(jobs??[]).length,ready:0,submitted:0,failed:0};
   for(const job of jobs??[])try{
     const canonical=await canonicalRequestForJob(db,job,await canonicalRequestForMedia(db,job)),subscription=await resolveSubscriptionState(db,String(job.user_id)),routed=routeCanonicalMedia(canonical,{source:String(job.metadata?.source??'user_request'),userTier:subscription.tier}),requestId=`media:${job.id}:attempt:${job.attempt_count}`;
     let{data:providerJob,error:createError}=await db.from('together_media_provider_jobs').insert({user_id:job.user_id,continuity_id:job.continuity_id,generated_media_id:job.id,job_type:canonical.mediaType,provider:routed.provider.id,model:routed.route.capability.model,route_id:routed.route.capability.id,request_id:requestId,status:'submitting',attempt_count:1,provider_metadata:{routingReason:routed.route.reasonCode,fallbackRouteIds:routed.route.fallbacks.map((entry)=>entry.id),referenceCount:canonical.referenceImages.length,characterIdentityReferenceCount:canonical.referenceImages.filter((item)=>item.role==='character_identity').length,characterReferenceRequired:canonical.mediaType==='image',photorealismRequired:canonical.mediaType==='image',contentLevel:canonical.contentLevel}}).select('*').single();
@@ -22,12 +22,35 @@ export async function dispatchMediaJobs(db:SupabaseClient,limit:number,correlati
     let submission;try{submission=await routed.provider.submit(canonical,routed.route.capability);}catch(error){const failureCode=error instanceof AppError?error.code:'provider_failure',attempts=providerAttemptsFromError(error);if(attempts.length){await recordProviderAttempts(db,providerJob,job,subscription.tier,attempts);await db.from('together_media_provider_jobs').update({attempt_count:Math.max(...attempts.map((item)=>item.attemptNumber))}).eq('id',providerJob.id).eq('status','submitting');}else{await recordMediaUsageAttempt(db,{job:providerJob,media:job,subscriptionTier:subscription.tier,routeId:routed.route.capability.id,model:routed.route.capability.model,provider:routed.provider.id,attemptNumber:1,qualityRetry:false,estimatedCost:routed.route.capability.estimatedCost});await completeMediaUsageAttempt(db,{providerJobId:String(providerJob.id),attemptNumber:1,success:false,failureCode});}await failProviderMedia(db,{jobId:String(providerJob.id),failureCode,failureReasonSafe:error instanceof AppError?error.message:'The media could not be created right now.'});throw error;}
     const attempts=submission.result?.providerAttempts??[];if(attempts.length)await recordProviderAttempts(db,providerJob,job,subscription.tier,attempts);else await recordMediaUsageAttempt(db,{job:providerJob,media:job,subscriptionTier:subscription.tier,routeId:routed.route.capability.id,model:submission.model,provider:submission.provider,attemptNumber:1,qualityRetry:false,generationMs:submission.result?.generationMs,estimatedCost:submission.result?.estimatedCost??routed.route.capability.estimatedCost});
     const attemptCount=attempts.length?Math.max(...attempts.map((item)=>item.attemptNumber)):1,now=new Date().toISOString();await db.from('together_media_provider_jobs').update({provider_request_id:submission.providerRequestId,status:'processing',attempt_count:attemptCount,submitted_at:now,next_poll_at:new Date(Date.now()+5_000).toISOString(),provider_metadata:{...((providerJob.provider_metadata??{}) as Record<string,unknown>),model:submission.model,...(submission.result?.providerMetadata??{})},updated_at:now}).eq('id',providerJob.id).eq('status','submitting');await db.from('together_generated_media').update({provider:submission.provider,provider_request_id:submission.providerRequestId,metadata:{...((job.metadata??{}) as Record<string,unknown>),providerRouteId:routed.route.capability.id,providerJobId:providerJob.id,providerStatus:submission.status},updated_at:now}).eq('id',job.id).eq('status','generating');
-    if(submission.status==='completed'&&submission.result){await finalizeProviderMedia(db,{jobId:String(providerJob.id),result:submission.result});results.ready+=1;}else results.submitted+=1;
+    if(submission.status==='completed'&&submission.result){
+      const finalized=await finalizeMediaWithRetry({
+        finalize:()=>finalizeProviderMedia(db,{jobId:String(providerJob.id),result:submission.result!}),
+        onTerminalFailure:async(error)=>{const failure=mediaFinalizationFailure(error);await failProviderMedia(db,{jobId:String(providerJob.id),failureCode:failure.code,failureReasonSafe:failure.reason,providerMetadata:{finalizationFailed:true}});},
+      });
+      if(finalized.status==='failed')results.failed+=1;
+      else if(String((finalized.value as Record<string,unknown>).status)==='ready')results.ready+=1;
+      else if(String((finalized.value as Record<string,unknown>).status)==='failed')results.failed+=1;
+      else results.submitted+=1;
+    }else results.submitted+=1;
   }catch(error){
     const failureCode=error instanceof AppError?error.code:'provider_failure',failureReasonSafe=error instanceof AppError?error.message:'The media could not be created right now.';
-    try{const{data:providerJob}=await db.from('together_media_provider_jobs').select('id').eq('generated_media_id',job.id).limit(1).maybeSingle();if(!providerJob)await failMediaBeforeProvider(db,{media:job,failureCode,failureReasonSafe});}catch(cleanupError){console.error(JSON.stringify({level:'error',operation:'together_media_pre_provider_failure_cleanup',mediaId:job.id,correlationId,message:cleanupError instanceof Error?cleanupError.message:'unknown_error'}));}
+    try{const{data:providerJob}=await db.from('together_media_provider_jobs').select('id,status').eq('generated_media_id',job.id).order('created_at',{ascending:false}).limit(1).maybeSingle();if(providerJob&&!['completed','failed','cancelled'].includes(String(providerJob.status)))await failProviderMedia(db,{jobId:String(providerJob.id),failureCode,failureReasonSafe});else if(!providerJob)await failMediaBeforeProvider(db,{media:job,failureCode,failureReasonSafe});}catch(cleanupError){console.error(JSON.stringify({level:'error',operation:'together_media_provider_failure_cleanup',mediaId:job.id,correlationId,message:cleanupError instanceof Error?cleanupError.message:'unknown_error'}));}
     results.failed+=1;console.error(JSON.stringify({level:'error',operation:'together_media_dispatch',mediaId:job.id,correlationId,code:failureCode,message:error instanceof Error?error.message:'unknown_error'}));}
   return results;
+}
+
+async function recoverStaleSynchronousJobs(db:SupabaseClient,limit:number){
+  const result={checked:0,failed:0},synchronousRouteIds=new Set(configuredMediaRegistry().filter((route)=>!route.asynchronous).map((route)=>route.id));
+  if(!synchronousRouteIds.size)return result;
+  const staleBefore=new Date(Date.now()-2*60_000).toISOString();
+  const{data:jobs}=await db.from('together_media_provider_jobs').select('*').eq('status','processing').lte('updated_at',staleBefore).order('updated_at').limit(limit);
+  for(const job of jobs??[]){
+    if(!synchronousRouteIds.has(String(job.route_id)))continue;
+    result.checked+=1;
+    await failProviderMedia(db,{jobId:String(job.id),failureCode:'MEDIA_FINALIZATION_TIMEOUT',failureReasonSafe:'The photo was created but could not be delivered. Your credits were returned.',providerMetadata:{finalizationTimedOut:true}});
+    result.failed+=1;
+  }
+  return result;
 }
 
 async function recordProviderAttempts(db:SupabaseClient,providerJob:Record<string,any>,media:Record<string,any>,subscriptionTier:string,attempts:ProviderAttempt[]){for(const attempt of attempts){await recordMediaUsageAttempt(db,{job:providerJob,media,subscriptionTier,routeId:attempt.routeId,model:attempt.model,provider:attempt.provider,attemptNumber:attempt.attemptNumber,qualityRetry:false,generationMs:attempt.generationMs,estimatedCost:attempt.estimatedCost,attemptMetadata:{pipelineStage:attempt.stage,providerRequestId:attempt.providerRequestId??null}});await completeMediaUsageAttempt(db,{providerJobId:String(providerJob.id),attemptNumber:attempt.attemptNumber,success:attempt.success,failureCode:attempt.failureCode,generationMs:attempt.generationMs});}}
@@ -38,3 +61,12 @@ async function canonicalRequestForJob(db:SupabaseClient,job:Record<string,any>,i
 
 async function reconcileWaveSpeedJobs(db:SupabaseClient,limit:number){const result={checked:0,ready:0,failed:0},client=configuredWaveSpeedClient();if(!client)return result;const{data:jobs}=await db.from('together_media_provider_jobs').select('*').eq('provider','wavespeed').eq('status','processing').lte('next_poll_at',new Date().toISOString()).order('created_at').limit(limit);for(const job of jobs??[]){result.checked+=1;try{const timeoutMinutes=job.job_type==='lora'?180:job.job_type==='video'?60:45;if(Date.now()-new Date(job.created_at).getTime()>timeoutMinutes*60_000){await failProviderMedia(db,{jobId:String(job.id),failureCode:'provider_timeout',failureReasonSafe:job.job_type==='lora'?'Character identity training took too long and was stopped.':'The media took too long to create. Your credits were returned.'});result.failed+=1;continue;}const prediction=await client.getResult(String(job.provider_request_id));if(prediction.status==='completed'&&prediction.outputs[0]){const completed={outputUrl:prediction.outputs[0],providerRequestId:prediction.id,model:prediction.model,generationMs:prediction.inferenceMs};if(job.character_media_profile_id||job.creator_asset_id)await finalizeAuxiliaryProviderJob(db,job,completed,{status:prediction.status,hasNsfwContents:prediction.hasNsfwContents,inferenceMs:prediction.inferenceMs,outputCount:prediction.outputs.length});else await finalizeProviderMedia(db,{jobId:String(job.id),result:completed,providerStatus:{status:prediction.status,hasNsfwContents:prediction.hasNsfwContents,inferenceMs:prediction.inferenceMs,outputCount:prediction.outputs.length}});result.ready+=1;}else if(['failed','cancelled','timeout','deleted'].includes(prediction.status)){await failProviderMedia(db,{jobId:String(job.id),failureCode:`provider_${prediction.status}`,failureReasonSafe:job.job_type==='lora'?'Character identity training could not be completed.':'The media could not be created this time.'});result.failed+=1;}else await scheduleNextPoll(db,job,prediction.status);}catch(error){await scheduleNextPoll(db,job,error instanceof AppError?error.code:'provider_unavailable');}}return result;}
 async function scheduleNextPoll(db:SupabaseClient,job:Record<string,any>,status:string){await db.from('together_media_provider_jobs').update({last_polled_at:new Date().toISOString(),next_poll_at:new Date(Date.now()+8_000).toISOString(),provider_metadata:{...((job.provider_metadata??{}) as Record<string,unknown>),status},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing');}
+
+export type MediaFinalizationResult<T>={status:'finalized';value:T;attempts:number}|{status:'failed';error:unknown;attempts:number};
+export async function finalizeMediaWithRetry<T>(input:{finalize:()=>Promise<T>;onTerminalFailure:(error:unknown)=>Promise<void>;wait?:(delayMs:number)=>Promise<void>;maxAttempts?:number}):Promise<MediaFinalizationResult<T>>{
+  const maxAttempts=Math.max(1,Math.min(3,input.maxAttempts??2)),wait=input.wait??((delayMs:number)=>new Promise<void>((resolve)=>setTimeout(resolve,delayMs)));let lastError:unknown,attempts=0;
+  for(let attempt=1;attempt<=maxAttempts;attempt+=1){attempts=attempt;try{return{status:'finalized',value:await input.finalize(),attempts:attempt};}catch(error){lastError=error;if(!isRetryableMediaFinalizationError(error)||attempt===maxAttempts)break;await wait(350*attempt);}}
+  await input.onTerminalFailure(lastError);return{status:'failed',error:lastError,attempts};
+}
+export function isRetryableMediaFinalizationError(error:unknown):boolean{return error instanceof AppError?error.retryable||['INTERNAL_ERROR','PROVIDER_TIMEOUT','PROVIDER_UNAVAILABLE'].includes(error.code):true;}
+export function mediaFinalizationFailure(error:unknown):{code:string;reason:string}{if(error instanceof AppError&&!error.retryable&&error.code!=='INTERNAL_ERROR')return{code:error.code,reason:error.message};return{code:'MEDIA_FINALIZATION_FAILED',reason:'The photo was created but could not be delivered. Your credits were returned.'};}
