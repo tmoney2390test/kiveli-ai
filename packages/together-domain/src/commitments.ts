@@ -81,6 +81,16 @@ export function deriveCommitmentTemporalState(input:CommitmentTimingInput,now=ne
   return'future';
 }
 
+export function shouldSendPlanWaitingCheckIn(input:CommitmentTimingInput&{companionState?:string|null},now=new Date()):boolean{
+  if(input.status!=='active'||(input.participationMode??'live')!=='live')return false;
+  if(input.companionState&&input.companionState!=='expected')return false;
+  if(input.userJoinedAt||!input.characterJoinedAt)return false;
+  const start=parseDate(input.startsAt??input.windowStartsAt),end=parseDate(input.endsAt??input.windowEndsAt),grace=parseDate(input.graceEndsAt);
+  if(!start||now.getTime()<start.getTime())return false;
+  const cutoff=Math.min(end?.getTime()??Infinity,grace?.getTime()??start.getTime()+30*60_000);
+  return now.getTime()<cutoff;
+}
+
 export function commitmentRelevanceScore(input:CommitmentTimingInput&{missResolutionStatus?:string|null},now=new Date()):number{
   if(input.status==='missed'&&input.missResolutionStatus&&!['repaired','resolved'].includes(input.missResolutionStatus))return 1;
   const state=deriveCommitmentTemporalState(input,now);

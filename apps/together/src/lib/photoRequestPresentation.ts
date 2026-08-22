@@ -1,4 +1,4 @@
-import type { MediaOffer } from '../types';
+import type { GeneratedMedia, MediaOffer } from '../types';
 import { classifyPhotoIntent } from '@together/domain/src/media';
 
 // This only controls the optimistic loading treatment. The server remains the
@@ -17,4 +17,9 @@ export function photoOfferForMessage(offers: MediaOffer[], messageId: string): M
 
 export function photoOffersWithoutVisibleMessages(offers: MediaOffer[], visibleMessageIds: ReadonlySet<string>): MediaOffer[] {
   return offers.filter((offer) => !offer.message_id || !visibleMessageIds.has(offer.message_id));
+}
+
+export function mediaWithoutActivePhotoOffer(media: GeneratedMedia[], generatedMediaId?: string | null): GeneratedMedia[] {
+  if (!generatedMediaId) return media;
+  return media.filter((item) => item.id !== generatedMediaId);
 }

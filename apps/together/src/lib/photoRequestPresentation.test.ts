@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MediaOffer } from '../types';
-import { photoOfferForMessage, photoOffersWithoutVisibleMessages, shouldShowPhotoGenerationPending } from './photoRequestPresentation';
+import { mediaWithoutActivePhotoOffer, photoOfferForMessage, photoOffersWithoutVisibleMessages, shouldShowPhotoGenerationPending } from './photoRequestPresentation';
 
 function offer(id: string, status: MediaOffer['status'], source: MediaOffer['source'], createdAt: string): MediaOffer {
   return {id,continuity_id:'life',character_instance_id:'character',message_id:id.includes('orphan')?null:'photo-message',source,status,content_level:'standard',quality_tier:'standard',shot_type:'selfie',credit_action:'companion_photo',credit_cost:10,title:'Picture request',companion_message:'A picture is ready to confirm',preview_metadata:{},included_subscription_benefit:false,created_at:createdAt,updated_at:createdAt};
@@ -58,5 +58,11 @@ describe('photo request presentation', () => {
     const attached=offer('attached','pending','user_request','2026-08-21T12:00:00.000Z');
     const orphan=offer('orphan-offer','pending','story','2026-08-21T12:01:00.000Z');
     expect(photoOffersWithoutVisibleMessages([attached,orphan],new Set(['photo-message']))).toEqual([orphan]);
+  });
+
+  it('does not render the legacy media loader beside an active blurred offer card', () => {
+    const linked={id:'linked',character_instance_id:'character',media_type:'image' as const,content_level:'standard',status:'generating' as const,created_at:'2026-08-21T12:00:00.000Z'};
+    const unrelated={...linked,id:'unrelated'};
+    expect(mediaWithoutActivePhotoOffer([linked,unrelated],'linked')).toEqual([unrelated]);
   });
 });

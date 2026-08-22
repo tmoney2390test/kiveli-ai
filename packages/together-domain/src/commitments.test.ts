@@ -1,5 +1,5 @@
 import{describe,expect,it}from'vitest';
-import{classifyMissExplanation,deriveCommitmentTemporalState,manualCommitmentEndEligibility,missedCommitmentImpact,missedCommitmentRepairImpact,planStartSatisfiesLeadTime,resolveElapsedCommitmentEnd,resolveQuickPlanTiming}from'./commitments';
+import{classifyMissExplanation,deriveCommitmentTemporalState,manualCommitmentEndEligibility,missedCommitmentImpact,missedCommitmentRepairImpact,planStartSatisfiesLeadTime,resolveElapsedCommitmentEnd,resolveQuickPlanTiming,shouldSendPlanWaitingCheckIn}from'./commitments';
 
 describe('commitments',()=>{
   const now=new Date('2026-08-15T20:00:00Z');
@@ -19,6 +19,14 @@ describe('commitments',()=>{
     expect(deriveCommitmentTemporalState({status:'scheduled',startsAt:'2026-08-15T21:00:00Z',endsAt:'2026-08-15T23:00:00Z',timezone:'UTC'},now)).toBe('imminent');
     expect(deriveCommitmentTemporalState({status:'active',startsAt:'2026-08-15T19:50:00Z',endsAt:'2026-08-15T22:00:00Z',graceEndsAt:'2026-08-15T20:20:00Z',participationMode:'live'},now)).toBe('grace');
     expect(deriveCommitmentTemporalState({status:'active',startsAt:'2026-08-15T19:50:00Z',endsAt:'2026-08-15T22:00:00Z',graceEndsAt:'2026-08-15T20:20:00Z',participationMode:'live',userJoinedAt:'2026-08-15T19:55:00Z'},now)).toBe('active');
+  });
+  it('only sends a waiting check-in while the companion is present and the user has not arrived',()=>{
+    const waiting={status:'active',startsAt:'2026-08-15T19:50:00Z',endsAt:'2026-08-15T22:00:00Z',graceEndsAt:'2026-08-15T20:20:00Z',participationMode:'live',characterJoinedAt:'2026-08-15T19:50:00Z',companionState:'expected'};
+    expect(shouldSendPlanWaitingCheckIn(waiting,now)).toBe(true);
+    expect(shouldSendPlanWaitingCheckIn({...waiting,userJoinedAt:'2026-08-15T19:55:00Z'},now)).toBe(false);
+    expect(shouldSendPlanWaitingCheckIn({...waiting,characterJoinedAt:null},now)).toBe(false);
+    expect(shouldSendPlanWaitingCheckIn({...waiting,companionState:'late'},now)).toBe(false);
+    expect(shouldSendPlanWaitingCheckIn(waiting,new Date('2026-08-15T20:21:00Z'))).toBe(false);
   });
   it('does not punish technical or companion-caused misses',()=>{
     expect(missedCommitmentImpact({reason:'system_failure',significance:.9,relationshipStage:'exclusive',priorMisses:2})).toEqual({trust:0,respect:0,conflict:0,affinity:0});

@@ -10,7 +10,7 @@ import { waitUntil } from './background.ts';
 import { activeContinuity } from './together-continuity.ts';
 import { ensureCharacterSchedule, resolveCharacterPresence, resolveCompanionPresence } from './together-schedule.ts';
 import { finalizeExpiredPlanExperience } from './together-plan-experience.ts';
-import { isDurableUserMemory, lifeEventEstablishesPresentReality } from '../../../packages/together-domain/src/index.ts';
+import { isDurableUserMemory, lifeEventEstablishesPresentReality, shouldSendPlanWaitingCheckIn } from '../../../packages/together-domain/src/index.ts';
 
 type LifeRunInput = { db: SupabaseClient; userId: string; characterInstanceId?: string; now?: Date; evaluateProactive?: boolean; persistCharacterState?:boolean; trigger: 'conversation_continued' | 'home_opened' | 'scheduled_dispatch' };
 type EventRow = Record<string, any>;
@@ -227,7 +227,11 @@ async function deliverDueMessage(db: SupabaseClient, userId: string, instance: E
   return data ? deliverMessage(db, userId, instance, conversation, prefs, data, now) : null;
 }
 
-async function deliverMessage(db: SupabaseClient, userId: string, instance: EventRow, conversation: EventRow | null, prefs: EventRow, proactive: EventRow, now: Date): Promise<EventRow> {
+async function deliverMessage(db: SupabaseClient, userId: string, instance: EventRow, conversation: EventRow | null, prefs: EventRow, proactive: EventRow, now: Date): Promise<EventRow|null> {
+  if(!await proactiveMessageStillRelevant(db,userId,proactive,now)){
+    await db.from('together_proactive_messages').update({status:'cancelled',updated_at:now.toISOString()}).eq('id',proactive.id).eq('user_id',userId).eq('status','queued');
+    return null;
+  }
   let sentMessageId: string | null = proactive.sent_message_id ?? null;
   if (conversation?.id && !sentMessageId) {
     const { data: message } = await db.from('together_messages').insert({ conversation_id: conversation.id, user_id: userId, character_instance_id: instance.id, role: 'assistant', content: proactive.content, delivery_status: 'complete', provider_metadata: { provider: 'life-engine', proactive: true, proactive_message_id: proactive.id } }).select('id,created_at').single();
@@ -247,6 +251,21 @@ async function deliverMessage(db: SupabaseClient, userId: string, instance: Even
   }
   if (delivered && prefs.push_enabled) await sendPushNotifications(db, userId, String((instance.together_character_templates as EventRow | undefined)?.name ?? 'Kivelle'), delivered);
   return delivered ?? proactive;
+}
+
+async function proactiveMessageStillRelevant(db:SupabaseClient,userId:string,proactive:EventRow,now:Date):Promise<boolean>{
+  if(!proactive.life_event_id)return true;
+  const{data:event}=await db.from('together_life_events').select('event_type,metadata').eq('id',String(proactive.life_event_id)).eq('user_id',userId).maybeSingle();
+  if(!event||event.event_type!=='commitment_waiting')return true;
+  const planId=String((event.metadata as EventRow|undefined)?.canonicalPlanId??'');
+  if(!planId)return false;
+  const[{data:plan},{data:attendance}]=await Promise.all([
+    db.from('together_shared_plans').select('status,starts_at,ends_at,window_starts_at,window_ends_at,grace_ends_at,participation_mode,companion_state').eq('id',planId).eq('user_id',userId).maybeSingle(),
+    db.from('together_plan_attendance').select('participant_type,joined_at').eq('plan_id',planId).eq('user_id',userId),
+  ]);
+  if(!plan)return false;
+  const rows=attendance??[],userAttendance=rows.find((row)=>row.participant_type==='user'),characterAttendance=rows.find((row)=>row.participant_type==='character');
+  return shouldSendPlanWaitingCheckIn({status:String(plan.status),startsAt:plan.starts_at,endsAt:plan.ends_at,windowStartsAt:plan.window_starts_at,windowEndsAt:plan.window_ends_at,graceEndsAt:plan.grace_ends_at,participationMode:plan.participation_mode,userJoinedAt:userAttendance?.joined_at,characterJoinedAt:characterAttendance?.joined_at,companionState:plan.companion_state},now);
 }
 
 function shouldOfferAutomaticPhoto(event:EventRow):boolean {
