@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('./api', () => ({ invoke: vi.fn() }));
-import { activePlanForChat, planActionAvailability, shouldShowPlanConversationAction, shouldShowPlanTimelineEvent } from './planActions';
+import { activePlanForChat, collapsePlanTimelineEvents, planActionAvailability, shouldShowPlanConversationAction, shouldShowPlanTimelineEvent } from './planActions';
 import type { Commitment } from './commitments';
 
 const now = new Date('2026-08-21T16:00:00.000Z');
@@ -33,6 +33,24 @@ describe('chat plan presentation', () => {
   it('collapses switch completion into the plan changed event', () => {
     expect(shouldShowPlanTimelineEvent({ event_type: 'plan_completed', metadata: { switchedToPlanId: 'plan-2' } })).toBe(false);
     expect(shouldShowPlanTimelineEvent({ event_type: 'plan_switched', metadata: { previousPlanId: 'plan-1' } })).toBe(true);
+  });
+
+  it('renders one canonical card across save and repeated start events', () => {
+    const events = [
+      { id: 'created', entity_id: 'plan-1', entity_type: 'shared_plan', event_type: 'plan_created', created_at: '2026-08-21T16:00:00.000Z', metadata: {} },
+      { id: 'joined-1', entity_id: 'plan-1', entity_type: 'shared_plan', event_type: 'plan_joined', created_at: '2026-08-21T16:01:00.000Z', metadata: {} },
+      { id: 'joined-2', entity_id: 'plan-1', entity_type: 'shared_plan', event_type: 'plan_joined', created_at: '2026-08-21T16:02:00.000Z', metadata: {} },
+    ];
+    expect(collapsePlanTimelineEvents(events).map((event) => event.id)).toEqual(['joined-2']);
+  });
+
+  it('keeps separate plans and the latest lifecycle state for each', () => {
+    const events = [
+      { id: 'one-created', entity_id: 'plan-1', entity_type: 'shared_plan', event_type: 'plan_created', created_at: '2026-08-21T16:00:00.000Z', metadata: {} },
+      { id: 'two-created', entity_id: 'plan-2', entity_type: 'shared_plan', event_type: 'plan_created', created_at: '2026-08-21T16:01:00.000Z', metadata: {} },
+      { id: 'one-completed', entity_id: 'plan-1', entity_type: 'shared_plan', event_type: 'plan_completed', created_at: '2026-08-21T17:00:00.000Z', metadata: {} },
+    ];
+    expect(collapsePlanTimelineEvents(events).map((event) => event.id)).toEqual(['two-created', 'one-completed']);
   });
 
   it('hides a location-mention date card when chat is already at that place', () => {

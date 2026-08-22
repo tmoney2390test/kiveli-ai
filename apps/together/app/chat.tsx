@@ -32,7 +32,7 @@ import { latestMediaOfferPreviewUri } from '../src/lib/mediaOfferPresentation';
 import { interactionFeedback, interactionFeedbackCopy, proposalHeading, type InteractionFeedbackPresentation } from '../src/lib/interactionPresentation';
 import { dialogueFailureMayHavePersisted } from '../src/lib/dialogueRecovery';
 import { endPlanExperience, joinCommitment, switchPlanExperience } from '../src/lib/commitments';
-import { activePlanForChat, planActionAvailability, shouldShowPlanConversationAction, shouldShowPlanTimelineEvent } from '../src/lib/planActions';
+import { activePlanForChat, collapsePlanTimelineEvents, planActionAvailability, shouldShowPlanConversationAction, shouldShowPlanTimelineEvent } from '../src/lib/planActions';
 import { hideVoiceNoteConfirmation, isVoiceNoteConfirmationHidden } from '../src/lib/voiceNoteConfirmation';
 import { chatSessionRouteKey } from '../src/lib/messageInbox';
 
@@ -733,6 +733,7 @@ function PlanTray({snapshot,character,scopedLocationId,repeatPlanId,proposal,int
 
 type VoiceCallTimelineValue={id:string;messages:Message[];at:string;durationMs:number};
 function mergeChatTimeline(messages:Message[],actions:ConversationAction[],events:ConversationEvent[],lastReadAt?:string|null){
+  events=collapsePlanTimelineEvents(events);
   const resolvedActionIds=new Set(events.filter((event)=>event.event_type==='plan_proposed'&&event.metadata.resolution!=='pending').map((event)=>event.entity_id)),messageTimes=new Map(messages.map((message)=>[message.id,message.created_at]));
   const callGroups=new Map<string,Message[]>();
   for(const message of messages){const callId=typeof message.provider_metadata?.callSessionId==='string'?message.provider_metadata.callSessionId:null;if(callId)callGroups.set(callId,[...(callGroups.get(callId)??[]),message]);}
@@ -755,7 +756,7 @@ function PlanTimelineCard({event,plan,locationName,busy,onOpen,onStart,onEnd,onC
   return <View accessibilityLabel={`${title}, ${starts?new Date(starts).toLocaleString():''}, ${status}`} style={styles.timelinePlan}>
     <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title} details`} disabled={!plan} onPress={()=>plan&&onOpen(plan)} style={({pressed})=>[styles.timelinePlanBody,pressed&&styles.timelinePlanPressed]}>
       <CalendarDays size={18} color={status==='cancelled'?colors.muted:colors.rose}/>
-      <View style={{flex:1,minWidth:0}}><Text style={styles.actionKicker}>{status==='cancelled'?'PLAN CANCELLED':status==='completed'?'SHARED':event.event_type==='plan_rescheduled'||event.event_type==='plan_switched'?'PLAN CHANGED':'PLAN SAVED'}</Text><Text style={styles.actionTitle}>{title}</Text>{event.event_type==='plan_switched'&&metadata.previousTitle?<Text style={styles.contextMuted}>Changed from {String(metadata.previousTitle)}</Text>:null}{starts?<Text style={styles.contextMuted}>{new Date(starts).toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} · {locationName??String(metadata.location??'City Life')}</Text>:null}</View>
+      <View style={{flex:1,minWidth:0}}><Text style={styles.actionKicker}>{status==='cancelled'?'PLAN CANCELLED':status==='completed'?'SHARED':event.event_type==='plan_joined'?'PLAN STARTED':event.event_type==='plan_rescheduled'||event.event_type==='plan_switched'?'PLAN CHANGED':'PLAN SAVED'}</Text><Text style={styles.actionTitle}>{title}</Text>{event.event_type==='plan_switched'&&metadata.previousTitle?<Text style={styles.contextMuted}>Changed from {String(metadata.previousTitle)}</Text>:null}{starts?<Text style={styles.contextMuted}>{new Date(starts).toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} · {locationName??String(metadata.location??'City Life')}</Text>:null}</View>
       {plan?<ChevronRight size={16} color={colors.muted}/>:null}
     </Pressable>
     {plan&&(primaryLabel||availability?.canEnd||availability?.canCancel)?<View style={styles.timelineActions}>{primaryLabel?<Pressable accessibilityRole="button" accessibilityLabel={primaryLabel} disabled={busy||!availability?.primaryEnabled} onPress={()=>onStart(plan)} style={[styles.timelineStart,busy||!availability?.primaryEnabled?styles.timelineActionDisabled:null]}>{busy?<ActivityIndicator size="small" color="#fff"/>:<Play size={13} color="#fff" fill="#fff"/>}<Text style={styles.timelineStartText}>{busy?'Starting…':primaryLabel}</Text></Pressable>:null}{availability?.canEnd?<Pressable accessibilityRole="button" accessibilityLabel={`End ${title}`} disabled={busy} onPress={()=>onEnd(plan)} style={styles.timelineCancel}><Trash2 size={13} color={colors.danger}/><Text style={styles.timelineCancelText}>End plan</Text></Pressable>:null}{availability?.canCancel?<Pressable accessibilityRole="button" accessibilityLabel={`Cancel ${title}`} disabled={busy} onPress={()=>onCancel(plan)} style={styles.timelineCancel}><Trash2 size={13} color={colors.danger}/><Text style={styles.timelineCancelText}>Cancel plan</Text></Pressable>:null}</View>:null}
