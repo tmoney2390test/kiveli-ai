@@ -11,7 +11,8 @@ begin
    limit 1;
 
   if target_user_id is null then
-    raise exception 'test7@test.com does not exist; voice-note testing grant was not applied';
+    raise notice 'test7@test.com does not exist; skipping voice-note testing grant';
+    return;
   end if;
 
   insert into public.together_entitlements as entitlement(user_id,tier,entitlement_keys,metadata)

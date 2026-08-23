@@ -220,7 +220,10 @@ do $$
 declare target_user_id uuid;
 begin
   select id into target_user_id from auth.users where lower(email)=lower('test7@test.com') limit 1;
-  if target_user_id is null then raise exception 'test7@test.com does not exist; group-chat testing grant was not applied';end if;
+  if target_user_id is null then
+    raise notice 'test7@test.com does not exist; skipping group-chat testing grant';
+    return;
+  end if;
   insert into public.together_entitlements as entitlement(user_id,tier,entitlement_keys,metadata)
   values(target_user_id,'free',array['group_chat']::text[],jsonb_build_object('entitlementOverrides',jsonb_build_object(
     'grants',jsonb_build_array('group_chat'),'reason','Approved Kivelle group-chat testing allowance','scope','test7@test.com','migration','202608220005')))
