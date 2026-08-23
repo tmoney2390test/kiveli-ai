@@ -11,7 +11,11 @@ begin
    limit 1;
 
   if target_user_id is null then
-    raise exception 'test7@test.com does not exist; unlimited chat grant was not applied';
+    -- Fresh/local databases do not seed production auth users. Keep the
+    -- migration portable while applying the explicitly scoped production
+    -- allowance whenever that account exists.
+    raise notice 'test7@test.com does not exist; skipping unlimited chat grant';
+    return;
   end if;
 
   insert into public.together_entitlements as entitlement(user_id,tier,entitlement_keys,metadata)
