@@ -185,7 +185,7 @@ select version.id,expanded.activity_key,initcap(expanded.title),expanded.categor
   int4range(60,241,'[]'),array[expanded.category],case when expanded.location_slug is null then array[]::text[] else array[expanded.location_slug] end,
   array[expanded.category,'port-vervelle'],case when expanded.category='work' then .95 else .82 end,
   int4range(1,4,'[]'),case when expanded.category='work' then 7 else 3 end,18,null,'either',
-  case when expanded.category='work' then 'hard_obligation' else 'preferred_activity' end,
+  case when expanded.category='work' then 'recurring_routine' else 'preferred_activity' end,
   case when expanded.category='work' then 'known' else 'hint' end,
   case when expanded.category='work' then 'busy' else 'open' end,
   jsonb_build_object('source','port_vervelle_male_life_v1','activityLabel',expanded.title,'outcomeEligible',false)
