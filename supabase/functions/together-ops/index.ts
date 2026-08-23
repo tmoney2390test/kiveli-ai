@@ -4,7 +4,6 @@ import { parseBody } from "../_shared/body.ts";
 import { json, serve } from "../_shared/http.ts";
 import { AppError } from "../_shared/types.ts";
 import { kickMediaDispatcher } from "../_shared/together-media-base.ts";
-import { failProviderMedia } from "../_shared/together-media-finalizer.ts";
 import { refundCredits } from "../_shared/kivelle-subscription.ts";
 import {
   evaluateOperationalAlerts,
@@ -582,13 +581,23 @@ serve(async (request, correlationId) => {
         409,
       );
     }
-    await failProviderMedia(db, {
-      jobId: input.jobId,
-      failureCode: "OPS_TERMINATED",
-      failureReasonSafe:
-        "The media request could not be completed. Your credits were returned.",
-      providerMetadata: { opsTerminated: true },
-    });
+    const { data: recovery, error: recoveryError } = await db.rpc(
+      "kivelle_ops_terminate_media_job",
+      {
+        p_job_id: input.jobId,
+        p_failure_code: "OPS_TERMINATED",
+        p_failure_reason_safe:
+          "The media request could not be completed. Your credits were returned.",
+      },
+    );
+    if (recoveryError) {
+      throw new AppError(
+        "INTERNAL_ERROR",
+        "That provider job could not be ended safely.",
+        500,
+        true,
+      );
+    }
     await recordOperationsAudit(db, {
       actorUserId: user.id,
       actorRole: role,
@@ -599,7 +608,7 @@ serve(async (request, correlationId) => {
       reasonSafe: input.reason,
       metadata: { affectedUserId: String(job.user_id) },
     });
-    return json({ data: { ended: true }, correlationId }, 200, correlationId);
+    return json({ data: recovery, correlationId }, 200, correlationId);
   }
   if (input.action === "refund_credit") {
     requireMinimumRole(role, "admin");

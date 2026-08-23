@@ -1,5 +1,5 @@
 begin;
-select plan(31);
+select plan(33);
 
 select has_table('public','together_ops_incidents','operations incidents have canonical storage');
 select has_table('public','together_ops_ticket_events','support ticket history is durable');
@@ -19,6 +19,7 @@ select has_column('public','together_support_tickets','incident_id','support tic
 select has_function('public','kivelle_ops_upsert_incident',array['text','text','text','text','text','text','jsonb'],'incident grouping is atomic');
 select has_function('public','kivelle_ops_find_user',array['text'],'safe exact account lookup exists');
 select has_function('public','kivelle_ops_latest_migration',array[]::text[],'release health can resolve the database version');
+select has_function('public','kivelle_ops_terminate_media_job',array['uuid','text','text'],'provider-job termination and exact refund are atomic');
 select has_trigger('public','together_ops_audit_log','together_ops_audit_immutable','operations audit entries are immutable');
 select alike(pg_get_functiondef('public.kivelle_ops_audit_immutable()'::regprocedure),'%operations audit records are immutable%','audit mutation is rejected by the database');
 
@@ -35,6 +36,7 @@ select ok(not has_table_privilege('authenticated','public.together_ops_audit_log
 select ok(not has_table_privilege('authenticated','public.together_client_sessions','SELECT'),'clients cannot enumerate version heartbeats');
 select ok(not has_function_privilege('authenticated','public.kivelle_ops_find_user(text)','EXECUTE'),'clients cannot query auth accounts');
 select ok(not has_function_privilege('authenticated','public.kivelle_ops_upsert_incident(text,text,text,text,text,text,jsonb)','EXECUTE'),'clients cannot create incidents directly');
+select ok(not has_function_privilege('authenticated','public.kivelle_ops_terminate_media_job(uuid,text,text)','EXECUTE'),'clients cannot terminate provider jobs');
 select results_eq('select count(*)::bigint from public.together_ops_alert_rules',array[10::bigint],'the initial production alert pack is seeded exactly once');
 
 select * from finish();
