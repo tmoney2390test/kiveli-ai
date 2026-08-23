@@ -12,6 +12,7 @@ export type InboxRow = {
   group?: GroupDetail;
 };
 export type ChatLaunchParams = {
+  compose?: string;
   character?: string;
   plan?: string;
   draft?: string;

@@ -2,11 +2,13 @@ import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Tabs, router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { Compass, Home, Images, MessageCircle, UserRound } from 'lucide-react-native';
+import { useAppShell } from '../../src/shell/AppShellContext';
 
 const web = Platform.OS === 'web';
 
 export default function TabsLayout() {
   const { width } = useWindowDimensions();
+  const { desktop } = useAppShell();
   const webBarWidth = Math.max(300, Math.min(720, width - 24));
   return <Tabs screenOptions={{
     headerShown: false,
@@ -15,6 +17,7 @@ export default function TabsLayout() {
     tabBarActiveBackgroundColor: 'rgba(239,82,137,.18)',
     tabBarBackground: () => <FrostedTabBarBackground />,
     tabBarStyle: {
+      display: desktop ? 'none' : 'flex',
       position: 'absolute',
       zIndex: 100,
       left: 12,

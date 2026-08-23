@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Modal,
@@ -53,6 +53,7 @@ import type {
   Conversation,
   GroupDetail,
 } from "../../src/types";
+import { useAppShell } from "../../src/shell/AppShellContext";
 
 const demoMode = __DEV__ &&
   process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === "true";
@@ -60,6 +61,7 @@ const inboxCache = new Map<string, Conversation[]>();
 
 export default function MessageInbox() {
   const params = useLocalSearchParams<ChatLaunchParams>();
+  const { desktop } = useAppShell();
   const { snapshot, refresh, setCoreState } = useTogether();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [groups, setGroups] = useState<GroupDetail[]>([]);
@@ -73,6 +75,10 @@ export default function MessageInbox() {
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
   const chatHref = chatHrefFromInboxParams(params);
+
+  useEffect(() => {
+    if (params.compose) setShowNewConversation(true);
+  }, [params.compose]);
 
   useFocusEffect(useCallback(() => {
     if (chatHref) return;
@@ -238,7 +244,7 @@ export default function MessageInbox() {
       <View pointerEvents="none" style={styles.glowTop} />
       <View pointerEvents="none" style={styles.glowBottom} />
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, desktop && styles.contentDesktop]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -728,6 +734,7 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 128,
   },
+  contentDesktop: { maxWidth: 920, paddingHorizontal: spacing.xl, paddingTop: 26, paddingBottom: 48 },
   glowTop: {
     position: "absolute",
     top: -120,

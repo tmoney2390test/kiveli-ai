@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { router as expoRouter } from 'expo-router';
 import { Sparkles } from 'lucide-react-native';
@@ -12,32 +12,26 @@ import { HomeWorldSection } from '../../src/components/home/HomeWorldSection';
 import { HomeWorldDiscoveryHero } from '../../src/components/home/HomeWorldDiscoveryHero';
 import { colors, spacing, typography } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
-import { manageSubscription, markProactiveOpened, setCharacterFavorite, simulate } from '../../src/lib/api';
+import { markProactiveOpened, setCharacterFavorite, simulate } from '../../src/lib/api';
 import { buildHomeViewModel, mostRecentHomeCompanion, type HomeTargetAction, type HomeTimelineItem } from '../../src/lib/homeViewModel';
 import { getCompanionMedia, getMemoryPresentation, getRelationshipPresentation, getWorldHook, selectFeaturedMemory } from '../../src/lib/homePresentation';
 import { locationHeroAsset } from '../../src/assets';
 import { selectPortraitVersion } from '../../src/lib/selectors';
 import { featuredCompanionsForWorld } from '../../src/lib/featuredCompanions';
 import { homeWorldDiscoveryOptions } from '../../src/lib/homeWorldDiscovery';
-import type { SubscriptionStatus } from '../../src/lib/subscription';
 import type { Snapshot } from '../../src/types';
+import { useSubscriptionStatus } from '../../src/hooks/useSubscriptionStatus';
+import { useAppShell } from '../../src/shell/AppShellContext';
 
 const router = expoRouter as unknown as { push: (href: string) => void };
 
 export default function Home() {
   const { snapshot, loading, error, refresh, browsedWorldId, setBrowsedWorldId, setCoreState } = useTogether();
-  const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
+  const { desktop } = useAppShell();
+  const { data: subscription = null } = useSubscriptionStatus(Boolean(snapshot));
   const { width } = useWindowDimensions();
-  const hasSnapshot = Boolean(snapshot);
   const homeCompanion=snapshot?mostRecentHomeCompanion(snapshot):undefined;
   const homeCompanionId=homeCompanion?.id;
-
-  useEffect(() => {
-    if (!hasSnapshot) return;
-    let mounted = true;
-    void manageSubscription<SubscriptionStatus>().then((next) => { if (mounted) setSubscription(next); }).catch(() => undefined);
-    return () => { mounted = false; };
-  }, [hasSnapshot]);
 
   const simulationStale=!homeCompanion||Date.now()-new Date(homeCompanion.last_simulated_at).getTime()>2*60000||!(snapshot?.scheduleEvents??[]).some((item)=>item.character_instance_id===homeCompanionId&&new Date(item.ends_at)>new Date());
   useEffect(()=>{if(!homeCompanionId||!simulationStale)return;let cancelled=false;void simulate(homeCompanionId).then(()=>cancelled?undefined:refresh()).catch(()=>undefined);return()=>{cancelled=true;};},[homeCompanionId,refresh,simulationStale]);
@@ -104,9 +98,9 @@ export default function Home() {
     }
   };
 
-  return <Screen contentStyle={styles.content}>
+  return <Screen contentStyle={desktop ? styles.contentDesktop : styles.content}>
     <View pointerEvents="none" style={styles.ambientGlow} />
-    <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push('/subscription')} onProfile={() => router.push('/settings')} />
+    {!desktop ? <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push('/subscription')} onProfile={() => router.push('/settings')} /> : null}
     <View style={[styles.heroPair,width<860&&styles.heroPairStack]}>
       <View style={styles.heroPane}><CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} location={model.currentLocation?.name} world={model.currentWorld?.name} onContinue={() => void openCompanion()} onProfile={() => router.push(`/character/${handle}`)} /></View>
       {discoveryWorlds.length?<View style={styles.heroPane}><HomeWorldDiscoveryHero worlds={discoveryWorlds} onExplore={(world)=>{setBrowsedWorldId(world.id);router.push(`/(tabs)/explore?world=${world.slug}`);}}/></View>:null}
@@ -141,6 +135,7 @@ function HomeError({ message, onRetry }: { message: string; onRetry: () => void 
 
 const styles = StyleSheet.create({
   content: { position: 'relative', maxWidth: 1180, gap: 30, paddingTop: 14, paddingBottom: 154 },
+  contentDesktop: { position: 'relative', maxWidth: 1180, gap: 30, paddingTop: 24, paddingBottom: 48 },
   ambientGlow: { position: 'absolute', top: 80, left: '22%', width: '70%', height: 700, borderRadius: 500, backgroundColor: 'rgba(122,34,86,.045)', ...(Platform.OS === 'web' ? ({ backgroundImage: 'radial-gradient(circle, rgba(191,55,119,.09), transparent 68%)' } as never) : {}) },
   heroPair:{flexDirection:'row',alignItems:'stretch',gap:14},
   heroPairStack:{flexDirection:'column'},

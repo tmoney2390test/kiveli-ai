@@ -5,6 +5,8 @@ import { ErrorState, LoadingSkeleton } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { isLifeSetupPath, isPublicAppPath, signInPathFor } from '../lib/sessionRouting';
 import { useTogether } from '../store/useTogether';
+import { desktopShellAllowed } from '../lib/desktopNavigation';
+import { ResponsiveAppShell } from '../shell/ResponsiveAppShell';
 
 const demoMode = __DEV__ && process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === 'true';
 
@@ -60,7 +62,11 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
     blocker = <LoadingSkeleton label="Preparing your first meeting…" />;
   }
 
-  return <>{children}{blocker ? <View style={styles.blocker}>{blocker}</View> : null}</>;
+  const shellEnabled = Boolean(session && snapshot?.profile && desktopShellAllowed(pathname));
+  return <>
+    <ResponsiveAppShell enabled={shellEnabled}>{children}</ResponsiveAppShell>
+    {blocker ? <View style={styles.blocker}>{blocker}</View> : null}
+  </>;
 }
 
 const styles = StyleSheet.create({
