@@ -32,7 +32,7 @@ select ok(to_regprocedure('public.kivelle_claim_media_jobs_v2(integer,integer)')
 select ok(to_regprocedure('public.kivelle_claim_media_provider_poll_jobs(text,integer,integer)') is not null,'Provider polls are atomically claimed');
 select ok(to_regprocedure('public.kivelle_claim_stale_synchronous_media_jobs(text[],timestamp with time zone,integer,integer)') is not null,'Stale synchronous recovery is atomically claimed');
 select ok(to_regprocedure('public.kivelle_claim_media_finalization(uuid,integer)') is not null,'Media finalization is atomically claimed');
-select alike(lower(pg_get_functiondef('public.kivelle_claim_media_jobs_v2(integer,integer)'::regprocedure)),'%row_number() over (partition by media.user_id%','Media claiming distributes a batch across users');
+select alike(regexp_replace(lower(pg_get_functiondef('public.kivelle_claim_media_jobs_v2(integer,integer)'::regprocedure)),'\s+','','g'),'%row_number()over(partitionbymedia.user_id%','Media claiming distributes a batch across users');
 select alike(pg_get_functiondef('public.kivelle_claim_media_jobs_v2(integer,integer)'::regprocedure),'%kivelle-media-global-claim%','Global media admission is serialized');
 select alike(pg_get_functiondef('public.kivelle_claim_media_provider_poll_jobs(text,integer,integer)'::regprocedure),'%for update skip locked%','Concurrent dispatchers cannot poll the same job');
 select alike(pg_get_functiondef('public.kivelle_claim_media_finalization(uuid,integer)'::regprocedure),'%finalization_lease_expires_at%','Webhook and polling finalization share one lease');

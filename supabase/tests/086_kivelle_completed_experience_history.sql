@@ -35,8 +35,8 @@ select alike(
 );
 
 select alike(
-  pg_get_functiondef('public.kivelle_materialize_completed_plan_history(uuid)'::regprocedure),
-  '%plan_row.status <> ''completed''%',
+  regexp_replace(pg_get_functiondef('public.kivelle_materialize_completed_plan_history(uuid)'::regprocedure),'\s+','','g'),
+  '%plan_row.status<>''completed''%',
   'only completed plans are materialized'
 );
 
