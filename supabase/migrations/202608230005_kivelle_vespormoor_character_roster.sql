@@ -71,6 +71,21 @@ $roster$::jsonb) as x(
   interests text[],traits text[],quirks text,story_hook text,dialogue_tone text,opening_line text,circle_slugs text[],romance_style text
 );
 
+-- Character template slugs are global. Keep Vespormoor's Camille distinct
+-- from Port Vervelle's existing Camille Laurent while preserving her name.
+update kivelle_vespormoor_roster
+set slug='camille-laurent-vespormoor'
+where roster_id=9;
+
+update kivelle_vespormoor_roster
+set circle_slugs=array_replace(circle_slugs,'camille-laurent','camille-laurent-vespormoor')
+where 'camille-laurent'=any(circle_slugs);
+
+-- Display names are not identities and may legitimately repeat across worlds.
+-- Stable slugs, template IDs, and world presence remain unique.
+alter table public.together_character_templates
+  drop constraint if exists together_character_templates_name_key;
+
 insert into public.together_character_templates(
   id,name,slug,public_handle,age,occupation,biography,creator_id,current_published_version,
   published,lifecycle_status,visibility,relationship_goal,connection_config,spice_level,

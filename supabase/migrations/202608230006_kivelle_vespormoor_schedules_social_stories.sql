@@ -204,6 +204,10 @@ insert into vespormoor_special_edges values
   ('nia-holloway','lena-kovacs','close_friend',90,88,'Nia designs Lena''s stage art; Lena is one of few people allowed to interrupt Nia while drawing.'),
   ('roxy-bell','luca-ferraro','after_hours_friends',79,75,'Roxy and Luca trade late-shift food and the harmless version of what their customers did.');
 
+update vespormoor_special_edges
+set source_slug=case when source_slug='camille-laurent' then 'camille-laurent-vespormoor' else source_slug end,
+    target_slug=case when target_slug='camille-laurent' then 'camille-laurent-vespormoor' else target_slug end;
+
 with directed as(
   select * from vespormoor_special_edges
   union all select target_slug,source_slug,relationship_type,affinity,trust,history from vespormoor_special_edges
@@ -233,6 +237,9 @@ insert into vespormoor_events values
   (4,'High Gardens Open Afternoon','world','high-gardens',array['maeve-kearney','lina-moreno','hana-watanabe','isabella-reyes-vespormoor','celeste-moreau'],.7,180,'The university opens the High Gardens to town residents on Sunday afternoon.','world','positive','{"frequency":"weekly","weekday":0,"startMinute":780}'::jsonb),
   (5,'Moonwake Evening','social','moonwake-baths',array['selene-morcant','mirelle-voss','vivienne-blackwood','camille-laurent','julian-ashcroft'],.34,240,'Moonwake Baths hosts a discreet monthly evening of music, food, and lakeside bathing.','celebration','romantic','{"frequency":"monthly","ordinal":1,"weekday":6,"startMinute":1140}'::jsonb),
   (6,'Black Lantern Rain Crowd','weather','black-lantern',array['evelyn-harrow','priya-raman','clara-whitmore','adrian-bell','marcus-reed','mateo-serrano'],.26,150,'Heavy rain sends Old Vesper regulars into the Black Lantern and rearranges the evening naturally.','weather','mundane','{"frequency":"weather_condition","weather":["rain","heavy_rain"],"startRange":[960,1260]}'::jsonb);
+
+update vespormoor_events
+set participant_slugs=array_replace(participant_slugs,'camille-laurent','camille-laurent-vespormoor');
 
 insert into public.together_event_templates(
   id,name,event_type,world_id,default_location_id,participant_template_ids,significance,probability,duration_minutes,
