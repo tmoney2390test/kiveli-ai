@@ -245,12 +245,12 @@ insert into public.together_event_templates(
   id,name,event_type,world_id,default_location_id,participant_template_ids,significance,probability,duration_minutes,
   narrative_summary,state_effects,user_visibility,proactive_eligible,metadata,active,category,tone,scale,content_level,conditions,followups
 )
-select ('3a000000-0000-4000-8010-'||lpad(event_index::text,12,'0'))::uuid,name,event_type,
+select ('3a000000-0000-4000-8010-'||lpad(event.event_index::text,12,'0'))::uuid,event.name,event.event_type,
   '10000000-0000-4000-8000-000000000010',location.id,
-  array(select template.id from public.together_character_templates template where template.slug=any(participant_slugs)),
-  .58,probability,duration_minutes,narrative_summary,'{}'::jsonb,'contextual',true,
-  jsonb_build_object('worldSlug','vespormoor','worldEvent',true,'recurrence',recurrence,'scheduleAware',true),
-  true,category,tone,'normal','standard',jsonb_build_object('recurrence',recurrence),'{}'::text[]
+  array(select template.id from public.together_character_templates template where template.slug=any(event.participant_slugs)),
+  .58,event.probability,event.duration_minutes,event.narrative_summary,'{}'::jsonb,'contextual',true,
+  jsonb_build_object('worldSlug','vespormoor','worldEvent',true,'recurrence',event.recurrence,'scheduleAware',true),
+  true,event.category,event.tone,'normal','standard',jsonb_build_object('recurrence',event.recurrence),'{}'::text[]
 from vespormoor_events event
 join public.together_locations location on location.world_id='10000000-0000-4000-8000-000000000010' and location.slug=event.location_slug
 on conflict(id) do update set name=excluded.name,event_type=excluded.event_type,default_location_id=excluded.default_location_id,

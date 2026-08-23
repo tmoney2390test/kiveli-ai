@@ -365,12 +365,12 @@ insert into public.together_event_templates(
   id,name,event_type,world_id,default_location_id,participant_template_ids,significance,probability,duration_minutes,
   narrative_summary,state_effects,user_visibility,proactive_eligible,metadata,active,category,tone,scale,content_level,conditions,followups
 )
-select ('3b000000-0000-4000-8008-'||lpad(event_index::text,12,'0'))::uuid,name,event_type,
+select ('3b000000-0000-4000-8008-'||lpad(event.event_index::text,12,'0'))::uuid,event.name,event.event_type,
   '10000000-0000-4000-8000-000000000008',location.id,
-  array(select template.id from public.together_character_templates template where template.slug=any(participant_slugs)),
-  .55,probability,duration_minutes,narrative_summary,'{}'::jsonb,'contextual',true,
-  jsonb_build_object('worldSlug','port-vervelle','worldEvent',true,'recurrence',recurrence,'scheduleAware',true,'source','port_vervelle_male_expansion_v1'),
-  true,category,tone,'normal','standard',jsonb_build_object('recurrence',recurrence),'{}'::text[]
+  array(select template.id from public.together_character_templates template where template.slug=any(event.participant_slugs)),
+  .55,event.probability,event.duration_minutes,event.narrative_summary,'{}'::jsonb,'contextual',true,
+  jsonb_build_object('worldSlug','port-vervelle','worldEvent',true,'recurrence',event.recurrence,'scheduleAware',true,'source','port_vervelle_male_expansion_v1'),
+  true,event.category,event.tone,'normal','standard',jsonb_build_object('recurrence',event.recurrence),'{}'::text[]
 from port_vervelle_expansion_events event
 join public.together_locations location on location.world_id='10000000-0000-4000-8000-000000000008' and location.slug=event.location_slug
 on conflict(id) do update set
