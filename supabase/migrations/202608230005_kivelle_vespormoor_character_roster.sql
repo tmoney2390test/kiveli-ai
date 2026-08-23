@@ -105,7 +105,9 @@ select
     'suggested_prompts',jsonb_build_array('What are you working on?','What should I know about this place?','Who do you trust around here?')
   ),now()
 from kivelle_vespormoor_roster roster
-join public.together_locations meeting on meeting.world_id='10000000-0000-4000-8000-000000000010' and meeting.slug=roster.work_slug
+join (
+  select id,world_id,slug as location_slug from public.together_locations
+) meeting on meeting.world_id='10000000-0000-4000-8000-000000000010' and meeting.location_slug=roster.work_slug
 on conflict(id) do update set
   name=excluded.name,slug=excluded.slug,public_handle=excluded.public_handle,age=excluded.age,
   occupation=excluded.occupation,biography=excluded.biography,current_published_version=1,
@@ -174,7 +176,9 @@ select
   ),
   '[]'::jsonb,now(),now()
 from kivelle_vespormoor_roster roster
-join public.together_locations home on home.world_id='10000000-0000-4000-8000-000000000010' and home.slug=roster.district_slug
+join (
+  select id,world_id,slug as location_slug from public.together_locations
+) home on home.world_id='10000000-0000-4000-8000-000000000010' and home.location_slug=roster.district_slug
 on conflict(id) do update set
   pronouns=excluded.pronouns,personality_config=excluded.personality_config,values_config=excluded.values_config,
   interests=excluded.interests,communication_style=excluded.communication_style,appearance_config=excluded.appearance_config,
@@ -193,7 +197,9 @@ select
     'workLocationSlug',work_slug,'classification',classification,'portraitStatus','pending','portraitSlotKey','vespormoor-character-'||slug,
     'authored',true,'dynamicSchedule',true,'scheduleProfile','vespormoor_launch')
 from kivelle_vespormoor_roster roster
-join public.together_locations home on home.world_id='10000000-0000-4000-8000-000000000010' and home.slug=roster.district_slug
+join (
+  select id,world_id,slug as location_slug from public.together_locations
+) home on home.world_id='10000000-0000-4000-8000-000000000010' and home.location_slug=roster.district_slug
 on conflict(character_version_id,world_id) do update set presence_type='resident',home_location_id=excluded.home_location_id,
   familiarity=1,metadata=excluded.metadata,updated_at=now();
 
