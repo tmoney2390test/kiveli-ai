@@ -4,6 +4,7 @@ import { AppError } from '../_shared/types.ts';
 import { runLifeSimulation } from '../_shared/together-life.ts';
 import { constantTimeEqual } from '../../../packages/together-domain/src/security.ts';
 import { reconcilePushReceipts } from '../_shared/kivelle-push.ts';
+import { evaluateOperationalAlerts } from '../_shared/kivelle-ops.ts';
 
 serve(async (request, correlationId) => {
   if (request.method !== 'POST') throw new AppError('NOT_FOUND', 'That endpoint is unavailable.', 404);
@@ -27,6 +28,12 @@ serve(async (request, correlationId) => {
       results.failures += 1;
       console.error(JSON.stringify({ level: 'error', operation: 'together_life_dispatch', characterInstanceId: instance.id, message: dispatchError instanceof Error ? dispatchError.message : 'unknown_error' }));
     }
+  }
+  try {
+    await evaluateOperationalAlerts(db,{deliver:true,trigger:'scheduled',now});
+  } catch (alertError) {
+    // Monitoring must never block the Life simulation it observes.
+    console.error(JSON.stringify({level:'error',operation:'kivelle_ops_alert_evaluation',message:alertError instanceof Error?alertError.message:'unknown_error'}));
   }
   return json({ data: results, correlationId }, 200, correlationId);
 });

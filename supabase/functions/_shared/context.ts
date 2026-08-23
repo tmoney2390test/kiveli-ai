@@ -21,9 +21,12 @@ export function adminClient(): SupabaseClient {
 export async function authenticated(request: Request): Promise<{ user: User; db: SupabaseClient }> {
   const authorization = request.headers.get('authorization');
   if (!authorization?.startsWith('Bearer ')) throw new AppError('AUTH_REQUIRED', 'Sign in to continue.', 401);
+  const accessToken=authorization.slice(7);
   const db = adminClient();
-  const { data, error } = await db.auth.getUser(authorization.slice(7));
+  const { data, error } = await db.auth.getUser(accessToken);
   if (error || !data.user) throw new AppError('AUTH_REQUIRED', 'Your session is no longer valid.', 401);
+  const invalidBefore=Date.parse(String(data.user.app_metadata?.together_sessions_invalid_before??'')),issuedAt=jwtIssuedAt(accessToken);
+  if(Number.isFinite(invalidBefore)&&issuedAt!==null&&issuedAt*1000<=invalidBefore)throw new AppError('AUTH_REQUIRED','Sign in again to continue.',401);
   const { data: suspension } = await db.from('account_suspensions').select('id').eq('user_id', data.user.id).eq('active', true).or(`permanent.eq.true,ends_at.gt.${new Date().toISOString()}`).maybeSingle();
   if (suspension) throw new AppError('FORBIDDEN', 'This account is currently suspended.', 403);
   return { user: data.user, db };
@@ -52,5 +55,7 @@ async function enforceDialoguePlanLimit(db:SupabaseClient,userId:string):Promise
   const start=new Date();start.setUTCHours(0,0,0,0);const{count,error:countError}=await db.from('together_messages').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('role','user').gte('created_at',start.toISOString());if(countError)throw new AppError('INTERNAL_ERROR','Daily chat allowance could not be checked.',500,true);
   if(Number(count??0)>=limit)throw new AppError('PLAN_LIMIT_REACHED',`Kivelle Free includes ${limit} messages per day right now. Upgrade to Kivelle+ or Max for unlimited conversations.`,429);
 }
+
+function jwtIssuedAt(token:string):number|null{try{const encoded=token.split('.')[1];if(!encoded)return null;const normalized=encoded.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(encoded.length/4)*4,'='),payload=JSON.parse(atob(normalized)) as Record<string,unknown>,issued=Number(payload.iat);return Number.isFinite(issued)?issued:null;}catch{return null;}}
 
 export function serverEnv(name: string): string { return env(name); }
