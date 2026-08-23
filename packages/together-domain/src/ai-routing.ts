@@ -54,7 +54,7 @@ const adultIntimacyIntentPattern = /\b(?:have sex|sex with (?:me|you)|sleep (?:w
 const explicitAdvancePattern = /^(?:i (?:really )?(?:want|need) you(?: right now| so badly| so bad| tonight)?)\s*[.!?]*$|\b(?:take off (?:your|my) clothes|undress (?:me|yourself)|touch me|let me touch you|put your hands on me|get on top of me|come under the covers)\b/i;
 const romanticPattern = /\b(?:kiss(?:ing|ed)?|date|romantic|flirt(?:ing)?|crush|love you|hold (?:me|you)|cuddle|chemistry)\b/i;
 const maturePattern = /\b(?:desire|intimate|sensual|turned on|make out|bedroom)\b/i;
-const continuationPattern = /^(?:yes|yeah|more|keep going|continue|don'?t stop|go on|please continue|do it|again)[.!?\s]*$/i;
+const continuationPattern = /^(?:yes(?: please)?|yeah|okay|more|keep going|continue|don'?t stop|go on|please(?: continue)?|pretty please|do it|again)[.!?\s]*$/i;
 const explicitContextContinuationPattern = /\b(?:how (?:does|did|would|will) (?:that|it|this) feel|what does (?:that|it|this) feel like|describe (?:that|it|the sensation)|tell me (?:how|what) (?:that|it|this)|do you like (?:that|it|this)|harder|faster|slower|deeper|inside (?:me|you)|keep (?:doing|touching)|don'?t (?:slow|stop)|make me (?:finish|come)|i'?m close)\b/i;
 const minorPattern = /\b(?:minor|child(?:ren)?|underage|preteen|teen(?:ager)?|young girl|young boy|schoolgirl|schoolboy|(?:[0-9]|1[0-7])[- ]?year[- ]?old)\b/i;
 const coercionPattern = /\b(?:rape|raping|forc(?:e|ed|ing)\s+(?:her|him|them|me|you)|forced sex|without consent|non[- ]?consensual|unconscious|drugged|blackmail(?:ed)? into|can'?t say no)\b/i;
@@ -105,6 +105,22 @@ export function isCapabilityStyleExplicitRefusal(text:string):boolean{
   const normalized=text.replace(/[’]/g,"'").replace(/\s+/g,' ').trim();
   return /\b(?:i\s+)?(?:can'?t|cannot|am unable to|won'?t)\b.{0,100}\b(?:describe|provide|continue|engage|write)\b.{0,100}\b(?:explicit|graphic|genital|sexual|anatomical)\b/i.test(normalized)
     || /\b(?:keep|stay|make)\s+(?:it\s+)?(?:sensual|non[- ]?graphic)\b/i.test(normalized)&&/\b(?:instead|without|rather than|but)\b/i.test(normalized);
+}
+
+/**
+ * Detect a refusal that contradicts an already-resolved accepted intimacy turn.
+ * Callers must only use this after Kivelle has independently resolved consent,
+ * relationship eligibility, availability, and authored boundaries as willing.
+ */
+export function isContradictoryAcceptedIntimacyRefusal(text:string):boolean{
+  const normalized=text.replace(/[’]/g,"'").replace(/\s+/g,' ').trim();
+  if(isCapabilityStyleExplicitRefusal(normalized))return true;
+  if(/\b(?:won'?t|will not|don'?t|do not|not going to|not gonna)\s+(?:stop|slow down|hold back|wait any longer)\b/i.test(normalized))return false;
+  if(/\b(?:said|told you)\b.{0,50}\bno\b.{0,80}\b(?:explicit|graphic|sexual|sex|oral|mouth|touch|ride|suck|fuck)\b/i.test(normalized))return true;
+  if(/\b(?:no|not|won'?t|will not|refuse)\b.{0,80}\b(?:explicit|graphic|sexual)\s+(?:content|detail|dialogue|play|description)\b/i.test(normalized))return true;
+  const refusal=/\b(?:i(?:'m| am) not|i won'?t|i will not|i don'?t want to|i do not want to|i refuse to|not doing)\b/i.test(normalized);
+  const requestedAct=/\b(?:wrap(?:ping)? my mouth|mouth around|suck|blowjob|oral sex|ride (?:you|him|her|them)|touch (?:you|him|her|them)|have sex|fuck (?:you|him|her|them)|go down on)\b/i.test(normalized);
+  return refusal&&requestedAct;
 }
 
 export function routeKivelleDialogue(input: {

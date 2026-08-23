@@ -1,0 +1,5 @@
+import{StyleSheet,Text,View}from'react-native';
+import{CloudOff,RefreshCw,Wifi}from'lucide-react-native';
+import{useNetworkStatus}from'../providers/NetworkStatusProvider';
+export function ConnectionBanner({sendFailed=false}:{sendFailed?:boolean}){const{phase}=useNetworkStatus();if(phase==='online'&&!sendFailed)return null;const offline=phase==='offline',title=offline?'You’re offline—draft saved':sendFailed?'Message not sent—tap it to retry':'Back online—reconnecting';return <View accessibilityRole="alert" style={[styles.banner,offline?styles.offline:sendFailed?styles.failed:styles.online]}>{offline?<CloudOff size={15} color="#fff"/>:sendFailed?<RefreshCw size={15} color="#fff"/>:<Wifi size={15} color="#fff"/>}<Text style={styles.text}>{title}</Text></View>}
+const styles=StyleSheet.create({banner:{minHeight:34,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,paddingHorizontal:12,paddingVertical:7},offline:{backgroundColor:'rgba(194,93,73,.94)'},online:{backgroundColor:'rgba(50,142,107,.94)'},failed:{backgroundColor:'rgba(141,83,184,.94)'},text:{color:'#fff',fontWeight:'900',fontSize:11}});

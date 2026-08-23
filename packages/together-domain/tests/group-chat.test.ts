@@ -3,8 +3,10 @@ import {
   boundedGroupSocialDelta,
   classifyGroupSocialEvent,
   commonGroupWorldId,
+  currentGroupPlan,
   defaultGroupTitle,
   formatAttributedGroupTranscript,
+  groupPlanBlockingParticipantRemoval,
   groupFloorDebt,
   groupMemoryRecipientIds,
   type GroupSpeakerCandidate,
@@ -183,6 +185,20 @@ describe("group director", () => {
         continuationIndex: 1,
       })?.characterInstanceId,
     ).toBe(two[1]!.characterInstanceId);
+  });
+});
+
+describe("group plan membership",()=>{
+  it("blocks removal only for companions on a current immutable plan roster",()=>{
+    const plans=[
+      {id:"scheduled",title:"Dinner",status:"scheduled",starts_at:"2026-08-24T20:00:00Z",participant_instance_ids:["mara","priya"]},
+      {id:"active",title:"Lake walk",status:"active",starts_at:"2026-08-23T20:00:00Z",participant_instance_ids:["mara","evelyn"]},
+      {id:"done",title:"Coffee",status:"completed",participant_instance_ids:["mara","priya","evelyn"]},
+    ];
+    expect(groupPlanBlockingParticipantRemoval(plans,"mara")?.id).toBe("active");
+    expect(groupPlanBlockingParticipantRemoval(plans,"priya")?.id).toBe("scheduled");
+    expect(groupPlanBlockingParticipantRemoval(plans,"someone-else")).toBeNull();
+    expect(currentGroupPlan(plans)?.id).toBe("active");
   });
 });
 

@@ -7,6 +7,7 @@ import { track } from '../_shared/together.ts';
 
 const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('register'), token: z.string().startsWith('ExponentPushToken[').max(256), platform: z.enum(['ios','android']), deviceId: z.string().max(200).optional() }),
+  z.object({ action: z.literal('deactivate'), platform: z.enum(['ios','android']).optional() }),
   z.object({ action: z.literal('preferences'), pushEnabled: z.boolean(), characterInitiatedMessages: z.boolean(), dateReminders: z.boolean().default(true), worldEventUpdates: z.boolean().default(true), quietHoursStart: z.string().regex(/^\d{2}:\d{2}$/), quietHoursEnd: z.string().regex(/^\d{2}:\d{2}$/), timezone: z.string().min(1).max(80) }),
   z.object({ action: z.literal('opened'), proactiveMessageId: z.string().uuid() }),
 ]);
@@ -18,6 +19,10 @@ serve(async (request, correlationId) => {
   if (input.action === 'register') {
     const { error } = await db.from('together_push_tokens').upsert({ user_id: user.id, expo_push_token: input.token, platform: input.platform, device_id: input.deviceId ?? null, active: true, last_registered_at: new Date().toISOString() }, { onConflict: 'user_id,expo_push_token' });
     if (error) throw new AppError('INTERNAL_ERROR', 'Could not register this device.', 500, true);
+  } else if(input.action==='deactivate'){
+    let query=db.from('together_push_tokens').update({active:false}).eq('user_id',user.id);
+    if(input.platform)query=query.eq('platform',input.platform);
+    const{error}=await query;if(error)throw new AppError('INTERNAL_ERROR','Could not disable notifications on this device.',500,true);
   } else if (input.action === 'preferences') {
     try{new Intl.DateTimeFormat('en-US',{timeZone:input.timezone}).format(new Date());}catch{throw new AppError('VALIDATION_FAILED','Choose a valid timezone.',400);}
     const { error } = await db.from('together_notification_preferences').upsert({ user_id: user.id, push_enabled: input.pushEnabled, character_initiated_messages: input.characterInitiatedMessages, date_reminders: input.dateReminders, world_event_updates: input.worldEventUpdates, quiet_hours_start: input.quietHoursStart, quiet_hours_end: input.quietHoursEnd, timezone: input.timezone, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });

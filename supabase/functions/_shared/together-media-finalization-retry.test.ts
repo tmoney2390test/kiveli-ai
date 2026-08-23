@@ -22,7 +22,7 @@ Deno.test('media finalization retries one transient failure and then succeeds', 
   assertEquals(terminalFailures, 0);
 });
 
-Deno.test('media finalization terminalizes a repeated transient failure', async () => {
+Deno.test('media finalization gives repeated transient failures three delivery attempts', async () => {
   let attempts = 0;
   let terminalFailures = 0;
   const result = await finalizeMediaWithRetry({
@@ -38,7 +38,7 @@ Deno.test('media finalization terminalizes a repeated transient failure', async 
   });
 
   assertEquals(result.status, 'failed');
-  assertEquals(attempts, 2);
+  assertEquals(attempts, 3);
   assertEquals(terminalFailures, 1);
 });
 

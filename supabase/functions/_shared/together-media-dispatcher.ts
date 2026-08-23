@@ -49,7 +49,7 @@ async function recoverStaleSynchronousJobs(db:SupabaseClient,limit:number){
   const{data:jobs}=await db.rpc('kivelle_claim_stale_synchronous_media_jobs',{p_route_ids:[...synchronousRouteIds],p_stale_before:staleBefore,p_limit:limit,p_lease_seconds:60});
   for(const job of jobs??[]){
     result.checked+=1;
-    await failProviderMedia(db,{jobId:String(job.id),failureCode:'MEDIA_FINALIZATION_TIMEOUT',failureReasonSafe:'The photo was created but could not be delivered. Your credits were returned.',providerMetadata:{finalizationTimedOut:true}});
+    await failProviderMedia(db,{jobId:String(job.id),failureCode:'MEDIA_FINALIZATION_TIMEOUT',failureReasonSafe:'The photo could not be delivered this time. Your credits were returned.',providerMetadata:{finalizationTimedOut:true}});
     result.failed+=1;
   }
   return result;
@@ -77,9 +77,9 @@ async function mediaQueueSnapshot(db:SupabaseClient):Promise<{queued:number;infl
 
 export type MediaFinalizationResult<T>={status:'finalized';value:T;attempts:number}|{status:'failed';error:unknown;attempts:number};
 export async function finalizeMediaWithRetry<T>(input:{finalize:()=>Promise<T>;onTerminalFailure:(error:unknown)=>Promise<void>;wait?:(delayMs:number)=>Promise<void>;maxAttempts?:number}):Promise<MediaFinalizationResult<T>>{
-  const maxAttempts=Math.max(1,Math.min(3,input.maxAttempts??2)),wait=input.wait??((delayMs:number)=>new Promise<void>((resolve)=>setTimeout(resolve,delayMs)));let lastError:unknown,attempts=0;
-  for(let attempt=1;attempt<=maxAttempts;attempt+=1){attempts=attempt;try{return{status:'finalized',value:await input.finalize(),attempts:attempt};}catch(error){lastError=error;if(!isRetryableMediaFinalizationError(error)||attempt===maxAttempts)break;await wait(350*attempt);}}
+  const maxAttempts=Math.max(1,Math.min(4,input.maxAttempts??3)),wait=input.wait??((delayMs:number)=>new Promise<void>((resolve)=>setTimeout(resolve,delayMs)));let lastError:unknown,attempts=0;
+  for(let attempt=1;attempt<=maxAttempts;attempt+=1){attempts=attempt;try{return{status:'finalized',value:await input.finalize(),attempts:attempt};}catch(error){lastError=error;if(!isRetryableMediaFinalizationError(error)||attempt===maxAttempts)break;await wait(750*attempt);}}
   await input.onTerminalFailure(lastError);return{status:'failed',error:lastError,attempts};
 }
 export function isRetryableMediaFinalizationError(error:unknown):boolean{return error instanceof AppError?error.retryable||['INTERNAL_ERROR','PROVIDER_TIMEOUT','PROVIDER_UNAVAILABLE'].includes(error.code):true;}
-export function mediaFinalizationFailure(error:unknown):{code:string;reason:string}{if(error instanceof AppError&&!error.retryable&&error.code!=='INTERNAL_ERROR')return{code:error.code,reason:error.message};return{code:'MEDIA_FINALIZATION_FAILED',reason:'The photo was created but could not be delivered. Your credits were returned.'};}
+export function mediaFinalizationFailure(error:unknown):{code:string;reason:string}{if(error instanceof AppError&&!error.retryable&&error.code!=='INTERNAL_ERROR')return{code:error.code,reason:error.message};return{code:'MEDIA_FINALIZATION_FAILED',reason:'The photo could not be delivered this time. Your credits were returned.'};}

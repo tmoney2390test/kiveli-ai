@@ -5,17 +5,19 @@ import{writeConversationEvent}from'./together-plans.ts';
 import { beginPlanExperience, wrapPlanExperience, type PlanExperience } from './together-plan-experience.ts';
 import { assertCharacterResidentInWorld, resolveWorldAccess } from './together-place.ts';
 import { resolveUserExperienceTimezone, safeTimezone } from './kivelle-time.ts';
+import { planParticipantIds, recordGroupPlanCommitment, resolveSharedPlanRoster } from './together-group-plans.ts';
 
 type Row=Record<string,any>;
 
 export async function loadCommitmentState(db:SupabaseClient,userId:string,planId:string,now=new Date()){
-  const[{data:plan},{data:attendance},{data:resolution}]=await Promise.all([
+  const[{data:plan},{data:attendance},{data:resolution},{data:responses}]=await Promise.all([
     db.from('together_shared_plans').select('*,together_locations(name,slug),together_worlds(name,slug,timezone)').eq('id',planId).eq('user_id',userId).maybeSingle(),
     db.from('together_plan_attendance').select('*').eq('plan_id',planId).eq('user_id',userId).order('joined_at'),
     db.from('together_missed_plan_resolutions').select('*').eq('plan_id',planId).eq('user_id',userId).maybeSingle(),
+    db.from('together_plan_participant_responses').select('*').eq('plan_id',planId).eq('user_id',userId).order('created_at'),
   ]);
   if(!plan)throw new AppError('NOT_FOUND','That commitment is unavailable.',404);
-  return decorateCommitment(plan,attendance??[],resolution??null,now);
+  return decorateCommitment({...plan,participant_responses:responses??[]},attendance??[],resolution??null,now);
 }
 
 export function decorateCommitment(plan:Row,attendance:Row[],resolution:Row|null,now=new Date()){
@@ -47,8 +49,10 @@ export async function explainMissedCommitment(db:SupabaseClient,input:{userId:st
   if(['system_failure','connection_failure','character_absent','cancelled'].includes(String(resolution.miss_reason)))return loadCommitmentState(db,input.userId,input.planId,now);
   const signals=classifyMissExplanation(explanation);
   const repair=missedCommitmentRepairImpact({impact:resolution.impact_applied??{},...signals});
-  if(relationship){
-    await db.from('together_relationship_states').update({trust:clamp(Number(relationship.trust)+repair.trust),respect:clamp(Number(relationship.respect)+repair.respect),conflict:clamp(Number(relationship.conflict)+repair.conflict),affinity:clamp(Number(relationship.affinity)+repair.affinity),last_relationship_delta:repair,recent_direction:signals.dismissive?'strained':repair.trust>0||repair.conflict<0?'repairing':relationship.recent_direction,updated_at:now.toISOString()}).eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId);
+  const extraIds=planParticipantIds(plan).filter((id)=>id!==input.characterInstanceId);
+  const{data:extraRelationships}=extraIds.length?await db.from('together_relationship_states').select('*').eq('user_id',input.userId).eq('continuity_id',input.continuityId).in('character_instance_id',extraIds):{data:[]};
+  for(const state of [relationship,...(extraRelationships??[])].filter(Boolean) as Row[]){
+    await db.from('together_relationship_states').update({trust:clamp(Number(state.trust)+repair.trust),respect:clamp(Number(state.respect)+repair.respect),conflict:clamp(Number(state.conflict)+repair.conflict),affinity:clamp(Number(state.affinity)+repair.affinity),last_relationship_delta:repair,recent_direction:signals.dismissive?'strained':repair.trust>0||repair.conflict<0?'repairing':state.recent_direction,updated_at:now.toISOString()}).eq('user_id',input.userId).eq('character_instance_id',state.character_instance_id);
   }
   const nextStatus=signals.dismissive?'unresolved':signals.apology&&signals.attemptedRepair?'repaired':'explained';
   await db.from('together_missed_plan_resolutions').update({status:nextStatus,explanation,explained_at:now.toISOString(),repair_attempted_at:signals.attemptedRepair?now.toISOString():resolution.repair_attempted_at,repair_impact:repair,metadata:{...(resolution.metadata??{}),explanationSignals:signals},updated_at:now.toISOString(),...(nextStatus==='repaired'?{resolved_at:now.toISOString()}:{})}).eq('id',resolution.id).eq('user_id',input.userId);
@@ -80,11 +84,16 @@ export async function createWindowedCommitment(db:SupabaseClient,input:{userId:s
   const title=(input.title?.trim()||`${titleCase(activity)} at ${location.name}`).slice(0,160);
   const worldTimezone=safeTimezone(world?.timezone);
   const userTimezone=input.userTimezone?safeTimezone(input.userTimezone):await resolveUserExperienceTimezone(db,input.userId,worldTimezone);
-  const{data,error}=await db.from('together_shared_plans').insert({user_id:input.userId,continuity_id:input.continuityId,character_instance_id:input.characterInstanceId,title,activity_key:activity,world_id:location.world_id,location_id:location.id,starts_at:null,ends_at:null,window_starts_at:start.toISOString(),window_ends_at:end.toISOString(),time_precision:input.timePrecision,world_timezone:worldTimezone,user_timezone:userTimezone,original_time_expression:input.originalTimeExpression??null,participation_mode:input.participationMode??'live',status:'proposed',source:input.source,source_conversation_id:input.sourceConversationId??null,source_message_id:input.sourceMessageId??null,note:input.note?.trim()||null,grace_minutes:30,companion_state:'expected',metadata:{requestId:input.requestId,durationMinutes:90,significance:.45,proposedWindow:true,completionSummary:`You and your companion spent time together for ${title}.`,locationSlug:location.slug}}).select('*').single();
+  const roster=await resolveSharedPlanRoster(db,{userId:input.userId,continuityId:input.continuityId,anchorCharacterInstanceId:input.characterInstanceId,sourceConversationId:input.sourceConversationId,worldId:String(location.world_id)});
+  const groupPlan=roster.participantInstanceIds.length>1;
+  const participantLabel=joinNames(roster.participantNames);
+  const{data,error}=await db.from('together_shared_plans').insert({user_id:input.userId,continuity_id:input.continuityId,character_instance_id:input.characterInstanceId,participant_instance_ids:roster.participantInstanceIds,title,activity_key:activity,world_id:location.world_id,location_id:location.id,starts_at:null,ends_at:null,window_starts_at:start.toISOString(),window_ends_at:end.toISOString(),time_precision:input.timePrecision,world_timezone:worldTimezone,user_timezone:userTimezone,original_time_expression:input.originalTimeExpression??null,participation_mode:input.participationMode??'live',status:'proposed',source:input.source,source_conversation_id:input.sourceConversationId??null,source_message_id:input.sourceMessageId??null,note:input.note?.trim()||null,grace_minutes:30,companion_state:'expected',metadata:{requestId:input.requestId,durationMinutes:90,significance:.45,proposedWindow:true,completionSummary:groupPlan?`You and ${participantLabel} spent time together for ${title}.`:`You and your companion spent time together for ${title}.`,locationSlug:location.slug,participantInstanceIds:roster.participantInstanceIds,...(groupPlan?{groupPlan:true,groupConversationId:roster.groupConversationId,groupTitle:roster.groupTitle,participantNames:roster.participantNames}:{})}}).select('*').single();
   if(error){if(error.code==='23505'){const{data:existing}=await db.from('together_shared_plans').select('*').eq('user_id',input.userId).eq('metadata->>requestId',input.requestId).maybeSingle();if(existing)return existing;}throw new AppError('INTERNAL_ERROR','Could not save that planning window.',500,true);}
+  if(groupPlan)await recordGroupPlanCommitment(db,{userId:input.userId,plan:data});
   if(input.sourceConversationId)await writeConversationEvent(db,{userId:input.userId,characterInstanceId:input.characterInstanceId,conversationId:input.sourceConversationId,eventType:'plan_proposed',entityType:'shared_plan',entityId:String(data.id),metadata:{title:data.title,windowStartsAt:data.window_starts_at,windowEndsAt:data.window_ends_at,timePrecision:data.time_precision,locationId:data.location_id}});
   return data;
 }
 
 function clamp(value:number){return Math.max(0,Math.min(100,Number.isFinite(value)?value:0));}
 function titleCase(value:string){return value.replace(/_/g,' ').replace(/\b\w/g,(letter)=>letter.toUpperCase());}
+function joinNames(names:string[]){if(!names.length)return'the group';if(names.length===1)return names[0];if(names.length===2)return`${names[0]} and ${names[1]}`;return`${names.slice(0,-1).join(', ')}, and ${names[names.length-1]}`;}

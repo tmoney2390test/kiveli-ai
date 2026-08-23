@@ -57,9 +57,9 @@ describe('photo request presentation', () => {
     expect(result).toBeNull();
   });
 
-  it('does not keep failed requests in the durable chat timeline', () => {
+  it('keeps a failed request owned by its source message for one retry card', () => {
     const failed={...offer('failed','failed','user_request','2026-08-21T12:03:00.000Z'),generated_media_id:'media-failed'};
-    expect(photoOfferForMessage([failed],'photo-message')).toBeNull();
+    expect(photoOfferForMessage([failed],'photo-message')).toEqual(failed);
   });
 
   it('keeps only offers without an inline card in the fallback list', () => {

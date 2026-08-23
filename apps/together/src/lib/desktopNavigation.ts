@@ -22,6 +22,10 @@ const shellFreePaths = new Set([
   '/quick-start',
   '/introduction',
   '/meet-maya',
+  '/terms',
+  '/privacy-policy',
+  '/community-guidelines',
+  '/help',
 ]);
 
 export function normalizeDesktopPath(pathname: string) {
@@ -53,7 +57,7 @@ export function desktopNavigationKey(pathname: string): DesktopNavigationKey | n
     path === '/content-settings' || path === '/conversation-controls' ||
     path === '/media-content-settings' || path === '/media-preferences' ||
     path === '/photo-settings' || path === '/privacy' || path === '/personas' ||
-    path === '/persona-editor' || path === '/subscription'
+    path === '/persona-editor' || path === '/subscription' || path === '/support'
   ) return 'settings';
   return null;
 }

@@ -148,13 +148,13 @@ export function mergeConversationSummary(previousValue: string, turns: Array<{ i
  * joined plan back into a joinable one.
  */
 export function decorateSnapshotSharedPlan(plan:Record<string,any>):Record<string,any>{
-  const{together_plan_attendance:embeddedAttendance,...canonicalPlan}=plan;
+  const{together_plan_attendance:embeddedAttendance,together_plan_participant_responses:embeddedResponses,...canonicalPlan}=plan;
   const attendance=Array.isArray(embeddedAttendance)?embeddedAttendance:[];
   const user=attendance.find((row:Record<string,any>)=>row.participant_type==='user')??null;
   const character=attendance.find((row:Record<string,any>)=>row.participant_type==='character'&&String(row.character_instance_id)===String(plan.character_instance_id))
     ??attendance.find((row:Record<string,any>)=>row.participant_type==='character')
     ??null;
-  return{...canonicalPlan,attendance:{user,character}};
+  return{...canonicalPlan,participant_responses:Array.isArray(embeddedResponses)?embeddedResponses:[],attendance:{user,character}};
 }
 
 function cleanContinuityObject(value: string): string {
@@ -162,7 +162,7 @@ function cleanContinuityObject(value: string): string {
 }
 
 export async function track(db: SupabaseClient, userId: string, eventName: string, properties: Record<string, unknown> = {}): Promise<void> {
-  const { error } = await db.from('together_analytics_events').insert({ user_id: userId, event_name: eventName, properties });
+  const { error } = await db.rpc('kivelle_track_event', { p_user_id:userId, p_event_name:eventName, p_properties:properties });
   if (error) console.warn('Together analytics failed', eventName, error.message);
 }
 
@@ -196,7 +196,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
     db.from('together_scene_sessions').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).is('ended_at',null).order('started_at',{ascending:false}).limit(24),
     db.from('together_scene_participants').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).is('left_at',null).order('joined_at'),
     db.from('together_life_events').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).order('starts_at', { ascending: false }).limit(20),
-    db.from('together_shared_plans').select('*,together_plan_attendance(*)').eq('user_id',userId).eq('continuity_id',continuity.id).order('starts_at',{ascending:false,nullsFirst:false}).limit(200),
+    db.from('together_shared_plans').select('*,together_plan_attendance(*),together_plan_participant_responses(*)').eq('user_id',userId).eq('continuity_id',continuity.id).order('starts_at',{ascending:false,nullsFirst:false}).limit(200),
     db.from('together_conversation_events').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).order('created_at',{ascending:true}).limit(200),
     db.from('together_proactive_messages').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).in('status', ['queued','sent']).lte('eligible_at', new Date().toISOString()).order('eligible_at', { ascending: false }).limit(10),
     db.from('together_entitlements').select('*').eq('user_id', userId).maybeSingle(),

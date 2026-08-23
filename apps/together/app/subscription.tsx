@@ -164,7 +164,7 @@ function PlanCard({ plan,billingInterval, current, actionLabel, actionConfigured
   const featured = plan.tier === 'kivelle_plus';
   const max = plan.tier === 'kivelle_max';
   const features = plan.tier === 'free' ? [
-    `${plan.introductoryChatDailyLimit} messages/day for ${plan.introductoryChatDays} days · ${plan.chatDailyLimit}/day after`, 'Core relationship continuity', '1 Life · 1 custom companion', 'All published worlds', '50 welcome credits',
+    `${plan.introductoryChatDailyLimit} messages/day for ${plan.introductoryChatDays} days · ${plan.chatDailyLimit}/day after`, 'Adult dialogue included in message limit', 'Core relationship continuity', '1 Life · 1 custom companion', 'All published worlds', '50 welcome credits',
   ] : [
     plan.chatDailyLimit === null ? 'Unlimited chat' : 'Daily chat',
     'Multi-character group chats',
@@ -201,7 +201,7 @@ function Comparison({ plans }: { plans: SubscriptionPlan[] }) {
     ['Published worlds', 'All', 'All', 'All'],
     ['Monthly credits', '—', plus.monthlyCreditGrant.toLocaleString(), max.monthlyCreditGrant.toLocaleString()],
     ['Included Date photos', 'Paid with credits', `${plus.includedDatePhotoMonthlyLimit} / month`, `${max.includedDatePhotoMonthlyLimit} / month`],
-    ['Adult dialogue', `${free.explicitDialogueMonthlyLimit} / month`, `${plus.explicitDialogueMonthlyLimit} / month`, `${max.explicitDialogueMonthlyLimit} / month`],
+    ['Adult dialogue', 'Included in chat limit', adultDialogueLimitLabel(plus), adultDialogueLimitLabel(max)],
     ['Live calls', 'Credits', 'Credits', 'Credits'],
     ['Media priority', 'Standard', 'Priority', 'Highest'],
   ];
@@ -210,6 +210,8 @@ function Comparison({ plans }: { plans: SubscriptionPlan[] }) {
     {rows.map(([label, freeValue, plusValue, maxValue]) => <View key={label} style={styles.compareRow}><Text style={styles.compareLabel}>{label}</Text><Text style={styles.compareValue}>{freeValue}</Text><Text style={[styles.compareValue, styles.comparePlus]}>{plusValue}</Text><Text style={[styles.compareValue, styles.compareMax]}>{maxValue}</Text></View>)}
   </View>;
 }
+
+function adultDialogueLimitLabel(plan:SubscriptionPlan):string{return plan.explicitDialogueMonthlyLimit===null?'Unlimited':`${plan.explicitDialogueMonthlyLimit.toLocaleString()} / month`;}
 
 function MiniStat({ label, value }: { label: string; value: string }) { return <View style={styles.miniStat}><Text style={styles.miniLabel}>{label}</Text><Text style={styles.miniValue}>{value}</Text></View>; }
 function Cost({ label, value }: { label: string; value: number }) { return <View style={styles.cost}><Text style={styles.costLabel}>{label}</Text><View style={styles.costValueRow}><Coins size={11} color="#FFD29B" /><Text style={styles.costValue}>{value}</Text></View></View>; }

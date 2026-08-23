@@ -3,11 +3,15 @@ import {
   boundedGroupSocialDelta,
   classifyGroupSocialEvent,
   compileIntimacyStance,
+  isLocationPlanDismissalCoolingDown,
+  LOCATION_PLAN_DISMISSAL_COOLDOWN_MS,
+  matchAssistantLocationPlan,
   type DialogueContentMode,
   extractMemoryCandidates,
   resolveGroupPhotoSubjects,
   type GroupSpeakerCandidate,
   type GroupTurnAction,
+  type PlannableLocationMention,
   planGroupContinuation,
   planGroupTurn,
 } from "../../../packages/together-domain/src/index.ts";
@@ -46,6 +50,7 @@ import {
   finishConversationTurn,
   touchConversationTurn,
 } from "../_shared/together-dialogue-turns.ts";
+import { writeConversationEvent } from "../_shared/together-plans.ts";
 
 const schema = z.object({
   conversationId: z.string().uuid(),
@@ -553,13 +558,26 @@ function groupStream(input: any): Response {
             energy: input.settings.energy,
             action,
           };
+          const activeGroupPlan = context.currentScene.activePlan;
+          const groupIsTogether = Boolean(
+            activeGroupPlan &&
+            activeGroupPlan.sourceConversationId === input.conversation.id &&
+            activeGroupPlan.status === "active" &&
+            !activeGroupPlan.planAwaitingUser &&
+            activeGroupPlan.participantInstanceIds?.includes(
+              action.characterInstanceId,
+            ),
+          );
           context.currentScene = {
             ...context.currentScene,
-            interactionMode: "remote",
+            interactionMode: groupIsTogether ? "co_present" : "remote",
+            entryReason: groupIsTogether ? "shared_plan" : "direct_chat",
             sceneBehavior: {
               acknowledgeArrival: false,
-              activityAwareness: false,
-              departurePressure: false,
+              activityAwareness: groupIsTogether,
+              departurePressure: groupIsTogether
+                ? context.currentScene.sceneBehavior.departurePressure
+                : false,
             },
           };
           const { data: profile } = await input.db.from("together_profiles")
@@ -762,6 +780,19 @@ function groupStream(input: any): Response {
           latestSpeakerId = action.characterInstanceId;
           replyCount += 1;
           emit({ type: "message_completed", message: saved });
+          await maybeCreateGroupLocationPlanCandidate(input.db, {
+            userId: input.userId,
+            conversationId: input.conversation.id,
+            characterInstanceId: action.characterInstanceId,
+            assistantMessageId: String(saved.id),
+            assistantText: text,
+            context,
+          }).catch((error) => console.error(JSON.stringify({
+            level: "warn",
+            operation: "group_location_plan_candidate",
+            conversationId: input.conversation.id,
+            code: error instanceof Error ? error.name : "unknown_error",
+          })));
           if (action.intent === "answer_user") {
             await recordDirectedGroupRelationshipTurn(input.db, {
               userId: input.userId,
@@ -925,6 +956,123 @@ function groupStream(input: any): Response {
       "X-Correlation-ID": input.correlationId,
     },
   });
+}
+
+async function maybeCreateGroupLocationPlanCandidate(db: any, input: {
+  userId: string;
+  conversationId: string;
+  characterInstanceId: string;
+  assistantMessageId: string;
+  assistantText: string;
+  context: Record<string, any>;
+}) {
+  const activePlan = input.context.currentScene?.activePlan;
+  if (activePlan?.sourceConversationId === input.conversationId &&
+    ["scheduled", "active"].includes(String(activePlan.status))) return null;
+  const worldId = String(
+    input.context.place?.world?.id ?? input.context.location?.world_id ?? "",
+  );
+  if (!worldId) return null;
+  let locations: PlannableLocationMention[] = (input.context.planningCatalog ?? [])
+    .map((item: Record<string, any>) => ({
+      id: String(item.id),
+      worldId: String(item.worldId),
+      worldSlug: String(item.worldSlug ?? input.context.place?.world?.slug ?? ""),
+      name: String(item.name),
+      slug: String(item.slug),
+      category: String(item.category),
+      activities: (item.activities ?? []).map(String),
+      dateTypes: (item.dateTypes ?? []).map(String),
+      aliases: (item.aliases ?? []).map(String),
+      private: item.privacy === "private",
+    }));
+  if (!locations.length) {
+    const { data, error } = await db.from("together_locations").select(
+      "id,world_id,name,slug,category,possible_activities,metadata,together_worlds(slug)",
+    ).eq("world_id", worldId);
+    if (error) return null;
+    locations = (data ?? []).map((item: Record<string, any>) => ({
+      id: String(item.id),
+      worldId: String(item.world_id),
+      worldSlug: String(item.together_worlds?.slug ?? input.context.place?.world?.slug ?? ""),
+      name: String(item.name),
+      slug: String(item.slug),
+      category: String(item.category),
+      activities: (item.possible_activities ?? []).map(String),
+      dateTypes: (item.metadata?.date_types ?? []).map(String),
+      aliases: (item.metadata?.aliases ?? []).map(String),
+      private: item.metadata?.private === true,
+    }));
+  }
+  const currentLocationId = String(input.context.currentScene?.locationId ?? "");
+  const match = matchAssistantLocationPlan(input.assistantText, locations, {
+    excludeLocationIds: currentLocationId ? [currentLocationId] : [],
+  });
+  if (!match) return null;
+  const { data: pending } = await db.from("together_conversation_actions")
+    .select("id,payload").eq("user_id", input.userId).eq(
+      "conversation_id",
+      input.conversationId,
+    ).eq("status", "pending").limit(20);
+  if ((pending ?? []).some((item: Record<string, any>) =>
+    String(item.payload?.locationId ?? "") === match.locationId
+  )) return null;
+  const now = new Date();
+  const { data: dismissals } = await db.from("together_conversation_actions")
+    .select("payload,updated_at").eq("user_id", input.userId).eq(
+      "conversation_id",
+      input.conversationId,
+    ).eq("candidate_type", "plan_create").eq("status", "dismissed").gte(
+      "updated_at",
+      new Date(now.getTime() - LOCATION_PLAN_DISMISSAL_COOLDOWN_MS).toISOString(),
+    ).order("updated_at", { ascending: false }).limit(20);
+  if (isLocationPlanDismissalCoolingDown(match.locationId, dismissals ?? [], now)) {
+    return null;
+  }
+  const payload = {
+    activityIntent: match.activityLabel,
+    activityKey: match.activityKey,
+    locationId: match.locationId,
+    location: match.locationName,
+    locationSlug: match.locationSlug,
+    worldSlug: match.worldSlug,
+    title: match.title,
+    trigger: "assistant_location_mention",
+    reasoningCode: "assistant_location_mention",
+    matchedPhrase: match.matchedPhrase,
+    requiresConfirmation: true,
+    groupPlan: true,
+  };
+  const { data: created, error: createError } = await db.from(
+    "together_conversation_actions",
+  ).insert({
+    user_id: input.userId,
+    character_instance_id: input.characterInstanceId,
+    conversation_id: input.conversationId,
+    assistant_message_id: input.assistantMessageId,
+    candidate_type: "plan_create",
+    status: "pending",
+    payload,
+    confidence: .96,
+    expires_at: new Date(now.getTime() + 24 * 3_600_000).toISOString(),
+    updated_at: now.toISOString(),
+  }).select("*").maybeSingle();
+  if (createError || !created) return null;
+  await writeConversationEvent(db, {
+    userId: input.userId,
+    characterInstanceId: input.characterInstanceId,
+    conversationId: input.conversationId,
+    eventType: "plan_proposed",
+    entityType: "conversation_action",
+    entityId: created.id,
+    metadata: { ...payload, candidateType: "plan_create", resolution: "pending" },
+  });
+  await track(db, input.userId, "plan_proposal_created", {
+    type: "plan_create",
+    conversationId: input.conversationId,
+    source: "group_chat_location_mention",
+  });
+  return created;
 }
 
 async function commitMessage(

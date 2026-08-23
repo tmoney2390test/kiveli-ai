@@ -53,6 +53,9 @@ export async function enforceCreditBalance(db:SupabaseClient,userId:string,actio
 export async function enforceChatAllowance(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities,accountCreatedAt?:unknown,now=new Date()):Promise<void>{const limit=effectiveChatDailyLimit(capabilities,accountCreatedAt,now);if(limit===null)return;const start=new Date(now);start.setUTCHours(0,0,0,0);const{count,error}=await db.from('together_messages').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('role','user').gte('created_at',start.toISOString());if(error)throw new AppError('INTERNAL_ERROR','Daily chat allowance could not be checked.',500,true);if(Number(count??0)>=limit)throw new AppError('PLAN_LIMIT_REACHED',`Kivelle Free includes ${limit} messages per day right now. Upgrade for unlimited conversations.`,429);}
 
 export async function enforceExplicitDialogueAllowance(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities,now=new Date()):Promise<void>{
+  // Free dialogue is governed only by the shared daily message allowance.
+  // Adult routing must not introduce a second, content-specific message cap.
+  if(capabilities.tier==='free')return;
   const limit=capabilities.explicitDialogueMonthlyLimit;if(limit===null)return;
   const start=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),1)).toISOString();
   const{count,error}=await db.from('together_ai_usage_events').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('provider','xai').eq('success',true).in('operation',['dialogue_xai','shared_scene_dialogue','group_dialogue_xai']).gte('created_at',start);

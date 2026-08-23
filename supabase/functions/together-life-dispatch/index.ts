@@ -3,6 +3,7 @@ import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { runLifeSimulation } from '../_shared/together-life.ts';
 import { constantTimeEqual } from '../../../packages/together-domain/src/security.ts';
+import { reconcilePushReceipts } from '../_shared/kivelle-push.ts';
 
 serve(async (request, correlationId) => {
   if (request.method !== 'POST') throw new AppError('NOT_FOUND', 'That endpoint is unavailable.', 404);
@@ -11,6 +12,7 @@ serve(async (request, correlationId) => {
   if (!supplied || !constantTimeEqual(supplied, expected)) throw new AppError('FORBIDDEN', 'Life dispatch authorization failed.', 403);
   const db = adminClient();
   const now = new Date();
+  await reconcilePushReceipts(db);
   const cutoff = new Date(now.getTime() - 20 * 60000).toISOString();
   const { data: instances, error } = await db.from('together_character_instances').select('id,user_id').or(`last_simulated_at.lt.${cutoff},last_simulated_at.is.null`).order('last_simulated_at', { ascending: true, nullsFirst: true }).limit(25);
   if (error) throw new AppError('INTERNAL_ERROR', 'Life dispatch could not load characters.', 500, true);

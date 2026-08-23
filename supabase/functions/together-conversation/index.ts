@@ -102,7 +102,7 @@ serve(async (request, correlationId) => {
       db.from('together_character_templates').select('name').eq('id',String(target.instance.character_template_id)).maybeSingle(),
       db.from('together_conversations').select('id',{count:'exact',head:true}).eq('user_id',user.id).eq('character_instance_id',input.characterInstanceId).is('user_archived_at',null),
       db.from('together_memories').select('id',{count:'exact',head:true}).eq('user_id',user.id).eq('character_instance_id',input.characterInstanceId),
-      db.from('together_shared_plans').select('id,status',{count:'exact'}).eq('user_id',user.id).eq('character_instance_id',input.characterInstanceId),
+      db.from('together_shared_plans').select('id,status',{count:'exact'}).eq('user_id',user.id).contains('participant_instance_ids',[input.characterInstanceId]),
       db.from('together_date_sessions').select('id',{count:'exact',head:true}).eq('user_id',user.id).eq('character_instance_id',input.characterInstanceId),
       db.from('together_moments').select('id',{count:'exact',head:true}).eq('user_id',user.id).eq('character_instance_id',input.characterInstanceId),
       db.from('together_generated_media').select('id',{count:'exact',head:true}).eq('user_id',user.id).eq('character_instance_id',input.characterInstanceId),

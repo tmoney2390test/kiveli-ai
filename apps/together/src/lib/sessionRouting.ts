@@ -1,4 +1,4 @@
-const PUBLIC_PATHS = new Set(['/', '/auth', '/auth/callback', '/reset-password']);
+const PUBLIC_PATHS = new Set(['/', '/auth', '/auth/callback', '/reset-password', '/terms', '/privacy-policy', '/community-guidelines', '/help']);
 
 export function isPublicAppPath(pathname: string) {
   return PUBLIC_PATHS.has(normalizePathname(pathname));

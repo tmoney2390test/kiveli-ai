@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('./api', () => ({ invoke: vi.fn() }));
-import { activePlanForChat, attendedPlansForLifecycleReconciliation, collapsePlanTimelineEvents, conversationPlanMenuItems, joinablePlanForChat, planActionAvailability, planLifecycleDividerLabel, shouldShowPlanConversationAction, shouldShowPlanTimelineEvent } from './planActions';
+import { activePlanForChat, activePlanForGroup, attendedPlansForLifecycleReconciliation, collapsePlanTimelineEvents, conversationPlanMenuItems, joinablePlanForChat, joinablePlanForGroup, planActionAvailability, planLifecycleDividerLabel, plansForGroup, shouldShowPlanConversationAction, shouldShowPlanTimelineEvent } from './planActions';
 import type { Commitment, CommitmentAttendance } from './commitments';
 
 const now = new Date('2026-08-21T16:00:00.000Z');
@@ -58,6 +58,20 @@ describe('chat plan presentation', () => {
     const complete = plan({ id:'complete', status:'completed', starts_at:'2026-08-21T15:30:00.000Z', ends_at:'2026-08-21T17:00:00.000Z' });
     const other = plan({ id:'other', character_instance_id:'character-2', status:'active', starts_at:'2026-08-21T15:30:00.000Z', ends_at:'2026-08-21T17:00:00.000Z' });
     expect(joinablePlanForChat([early,attended,complete,other], 'character-1', now)).toBeNull();
+  });
+
+  it('scopes group plan actions to the group conversation instead of the anchor companion', () => {
+    const attendance:{user:CommitmentAttendance;character:null}={user:{id:'attendance-1',participant_type:'user',joined_at:now.toISOString(),left_at:null},character:null};
+    const groupOne=plan({id:'group-one',status:'active',attendance,source_conversation_id:'group-1'} as Partial<Commitment>);
+    const groupTwo=plan({id:'group-two',status:'active',attendance,source_conversation_id:'group-2'} as Partial<Commitment>);
+    expect(plansForGroup([groupOne,groupTwo] as Array<Commitment&{source_conversation_id?:string|null}>,'group-1').map((item)=>item.id)).toEqual(['group-one']);
+    expect(activePlanForGroup([groupOne,groupTwo] as Array<Commitment&{source_conversation_id?:string|null}>,'group-1')?.id).toBe('group-one');
+  });
+
+  it('finds a joinable group plan without exposing a plan from another group', () => {
+    const joinable=plan({id:'join-group',status:'active',starts_at:'2026-08-21T15:30:00.000Z',ends_at:'2026-08-21T17:00:00.000Z',source_conversation_id:'group-1'} as Partial<Commitment>);
+    const other=plan({id:'other-group',status:'active',starts_at:'2026-08-21T15:30:00.000Z',ends_at:'2026-08-21T17:00:00.000Z',source_conversation_id:'group-2'} as Partial<Commitment>);
+    expect(joinablePlanForGroup([joinable,other] as Array<Commitment&{source_conversation_id?:string|null}>,'group-1',now)?.id).toBe('join-group');
   });
 
   it('collapses switch completion into the plan changed event', () => {

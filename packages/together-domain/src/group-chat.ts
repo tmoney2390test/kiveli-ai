@@ -5,6 +5,27 @@ export type GroupResponseMode = typeof groupResponseModes[number];
 export const groupReactions = ["❤️", "😂", "😮", "😏", "👍", "👀"] as const;
 export type GroupReaction = typeof groupReactions[number];
 
+export type GroupPlanRosterSummary={
+  id:string;
+  title:string;
+  status:string;
+  starts_at?:string|null;
+  participant_instance_ids?:readonly string[]|null;
+};
+
+/** A current group plan owns an immutable attendee roster. Removing one of
+ * those companions would otherwise leave chat membership and scene attendance
+ * disagreeing, so membership changes wait until that plan is resolved. */
+export function currentGroupPlan<T extends GroupPlanRosterSummary>(plans:readonly T[]):T|null{
+  const priority=(status:string)=>status==='active'?0:status==='scheduled'?1:2;
+  return plans.filter((plan)=>['proposed','scheduled','active'].includes(plan.status))
+    .sort((left,right)=>priority(left.status)-priority(right.status)||(new Date(left.starts_at??0).getTime()-new Date(right.starts_at??0).getTime()))[0]??null;
+}
+
+export function groupPlanBlockingParticipantRemoval<T extends GroupPlanRosterSummary>(plans:readonly T[],characterInstanceId:string):T|null{
+  return currentGroupPlan(plans.filter((plan)=>plan.participant_instance_ids?.includes(characterInstanceId)));
+}
+
 export type GroupSpeakerCandidate = {
   characterInstanceId: string;
   name: string;

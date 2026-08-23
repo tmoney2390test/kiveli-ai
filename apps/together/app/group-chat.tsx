@@ -23,6 +23,7 @@ import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import {
   Archive,
+  CalendarDays,
   Camera,
   ChevronLeft,
   ChevronRight,
@@ -40,7 +41,7 @@ import {
   Volume2,
   X,
 } from "lucide-react-native";
-import { shouldGroupChatMessages } from "@together/domain/src/group-chat";
+import { currentGroupPlan, groupPlanBlockingParticipantRemoval, shouldGroupChatMessages } from "@together/domain/src/group-chat";
 import {
   MESSAGE_CHARACTER_LIMIT,
   messageCharacterLimitError,
@@ -48,6 +49,7 @@ import {
 import {
   CharacterAvatar,
   ChatPhotoRequestCard,
+  ConnectionBanner,
   EmptyState,
   FrostedSurface,
   MediaTile,
@@ -55,11 +57,16 @@ import {
   resolveCharacterPortraitSource,
   VoiceNotePurchaseModal,
 } from "../src/components";
+import { PlanSelection } from "../src/components/PlanSelection";
 import {
   confirmUserImage,
+  confirmConversationAction,
+  createSharedPlan,
+  dismissConversationAction,
   type GroupDialogueEvent,
   manageGroup,
   manageMedia,
+  managePlan,
   prepareUserImage,
   quoteVoiceNote,
   refreshVoiceNote,
@@ -68,6 +75,12 @@ import {
   sendGroupDialogue,
   type VoiceNoteQuote,
 } from "../src/lib/api";
+import { locationHeroAsset } from "../src/assets";
+import { endPlanExperience, getPlanExperience, joinCommitment, switchPlanExperience } from "../src/lib/commitments";
+import { activePlanForGroup, collapsePlanTimelineEvents, conversationPlanMenuItems, isPlanLifecycleDividerEvent, joinablePlanForGroup, planActionAvailability, planLifecycleDividerLabel, shouldShowPlanTimelineEvent } from "../src/lib/planActions";
+import type { PlanOption, PlanTimingSelection } from "../src/lib/plans";
+import { createClientRequestId } from "../src/lib/requestId";
+import { confirmAction } from "../src/lib/dialogs";
 import {
   cleanupNormalizedImage,
   type NormalizedUserImage,
@@ -82,12 +95,16 @@ import { mergeDictationTranscript } from "../src/lib/dictation";
 import { privateStoredImageSource } from "../src/lib/mediaImageSource";
 import { mediaWithoutActivePhotoOffer, photoMediaForOffer, visibleChatPhotoMedia } from "../src/lib/photoRequestPresentation";
 import { characterResidentWorld } from "../src/lib/place";
+import { placeHoursStatus } from "../src/lib/placeHours";
 import { supabase } from "../src/lib/supabase";
 import {
   hideVoiceNoteConfirmation,
   isVoiceNoteConfirmationHidden,
 } from "../src/lib/voiceNoteConfirmation";
 import { useTogether } from "../src/store/useTogether";
+import { useAuth } from "../src/hooks/useAuth";
+import { useNetworkStatus } from "../src/providers/NetworkStatusProvider";
+import { usePersistentMessageDraft } from "../src/hooks/usePersistentMessageDraft";
 import {
   type ChatDictationPhase,
   useChatDictation,
@@ -95,11 +112,15 @@ import {
 import { colors, radius, typography } from "../src/theme";
 import type {
   GeneratedMedia,
+  ConversationAction,
+  ConversationEvent,
   GroupDetail,
   GroupParticipant,
+  Location,
   MediaOffer,
   Message,
   MessageReaction,
+  SharedPlan,
   Snapshot,
 } from "../src/types";
 
@@ -108,6 +129,7 @@ export default function GroupChatScreen() {
     { width } = useWindowDimensions(),
     snapshot = useTogether((state) => state.snapshot),
     refresh = useTogether((state) => state.refresh);
+  const{session}=useAuth(),{online}=useNetworkStatus();
   const [detail, setDetail] = useState<GroupDetail | null>(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
@@ -124,9 +146,16 @@ export default function GroupChatScreen() {
     [photoSubjects, setPhotoSubjects] = useState<string[]>([]),
     [photoRequestBusy, setPhotoRequestBusy] = useState(false),
     [showDetails, setShowDetails] = useState(params.details === "1"),
+    [showGroupMenu, setShowGroupMenu] = useState(false),
+    [showPlans, setShowPlans] = useState(false),
+    [switchPlanId, setSwitchPlanId] = useState<string | null>(null),
+    [pendingGroupActionId, setPendingGroupActionId] = useState<string | null>(null),
+    [planActionBusyId, setPlanActionBusyId] = useState<string | null>(null),
     [sending, setSending] = useState(false),
     [busy, setBusy] = useState(false);
+  const clearStoredDraft=usePersistentMessageDraft({userId:session?.user.id,conversationId:params.id,kind:"group",value:input,setValue:setInput});
   const abortRef = useRef<AbortController | null>(null),
+    planRequestIdRef = useRef(createClientRequestId()),
     mediaRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
     scrollRef = useRef<ScrollView | null>(null),
     bottomAlignedConversation = useRef<string | null>(null),
@@ -181,6 +210,29 @@ export default function GroupChatScreen() {
         schema: "public",
         table: "together_message_reactions",
         filter: `conversation_id=eq.${params.id}`,
+      }, refreshDetail)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "together_conversation_actions",
+        filter: `conversation_id=eq.${params.id}`,
+      }, refreshDetail)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "together_conversation_events",
+        filter: `conversation_id=eq.${params.id}`,
+      }, refreshDetail)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "together_shared_plans",
+        filter: `source_conversation_id=eq.${params.id}`,
+      }, refreshDetail)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "together_plan_participant_responses",
       }, refreshDetail)
       .subscribe();
     return () => {
@@ -241,12 +293,150 @@ export default function GroupChatScreen() {
       participant.together_character_instances.together_character_templates.name
         .toLocaleLowerCase().startsWith(mentionQuery)
     ).slice(0, 5);
+  const groupPlans = detail?.sharedPlans ?? [];
+  const activeGroupPlan = detail ? activePlanForGroup(groupPlans, detail.conversation.id) : null;
+  const joinableGroupPlan = detail ? joinablePlanForGroup(groupPlans, detail.conversation.id) : null;
+  const waitingGroupPlan = detail
+    ? groupPlans.filter((plan) =>
+      plan.source_conversation_id === detail.conversation.id &&
+      plan.status === "scheduled" &&
+      Boolean(plan.attendance?.user && !plan.attendance.user.left_at) &&
+      Number.isFinite(new Date(plan.starts_at ?? "").getTime()) &&
+      new Date(plan.starts_at ?? "").getTime() > Date.now()
+    ).sort((left, right) =>
+      new Date(left.starts_at ?? 0).getTime() - new Date(right.starts_at ?? 0).getTime()
+    )[0] ?? null
+    : null;
+  const anchorParticipant = detail?.participants.find((participant) =>
+    participant.character_instance_id === detail.conversation.character_instance_id
+  ) ?? detail?.participants[0];
+  const groupPlanLabel = groupCompanionLabel(detail?.participants ?? []);
+  const groupPlanReconciliationKey = groupPlans
+    .filter((plan) =>
+      ((plan.status === "scheduled" || plan.status === "active") &&
+        Boolean(plan.ends_at) && Boolean(plan.attendance?.user)) ||
+      (plan.status === "completed" &&
+        (plan.participant_instance_ids?.length ?? 1) > 1 &&
+        !((plan.metadata?.groupPlanExperience as Record<string, unknown> | undefined)?.finalizedAt))
+    )
+    .map((plan) => `${plan.id}:${plan.ends_at}:${plan.character_instance_id}`)
+    .sort()
+    .join("|");
+  const groupPlanStartKey = groupPlans
+    .filter((plan) =>
+      Boolean(plan.attendance?.user && !plan.attendance.user.left_at) &&
+      Boolean(plan.starts_at) &&
+      (plan.status === "scheduled" ||
+        (plan.status === "active" && !plan.attendance?.character))
+    )
+    .map((plan) => `${plan.id}:${plan.status}:${plan.starts_at}:${Boolean(plan.attendance?.character)}`)
+    .sort()
+    .join("|");
+  useEffect(() => {
+    if (!params.id || !groupPlanStartKey) return;
+    const candidates = groupPlans.filter((plan) =>
+      Boolean(plan.attendance?.user && !plan.attendance.user.left_at) &&
+      Boolean(plan.starts_at) &&
+      (plan.status === "scheduled" ||
+        (plan.status === "active" && !plan.attendance?.character))
+    );
+    const nextStart = Math.min(...candidates.map((plan) =>
+      new Date(plan.starts_at!).getTime()
+    ));
+    if (!Number.isFinite(nextStart)) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const activate = async () => {
+      const due = candidates.filter((plan) =>
+        new Date(plan.starts_at!).getTime() <= Date.now()
+      );
+      if (!due.length) return;
+      try {
+        await Promise.all(due.map((plan) =>
+          joinCommitment(
+            plan.id,
+            plan.character_instance_id,
+            `group-start:${plan.id}`,
+          )
+        ));
+        if (cancelled) return;
+        const refreshed = await manageGroup<GroupDetail>({
+          action: "detail",
+          conversationId: params.id,
+        });
+        if (!cancelled) setDetail(refreshed);
+      } catch {
+        if (!cancelled) timer = setTimeout(() => void activate(), 5_000);
+      }
+    };
+    const delay = Math.max(0, nextStart - Date.now()) + 250;
+    timer = setTimeout(() => void activate(), delay);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [groupPlanStartKey, params.id]);
+  useEffect(() => {
+    if (!params.id || !groupPlanReconciliationKey) return;
+    const candidates = groupPlans.filter((plan) =>
+      (((plan.status === "scheduled" || plan.status === "active") &&
+        Boolean(plan.ends_at) && Boolean(plan.attendance?.user)) ||
+        (plan.status === "completed" &&
+          (plan.participant_instance_ids?.length ?? 1) > 1 &&
+          !((plan.metadata?.groupPlanExperience as Record<string, unknown> | undefined)?.finalizedAt))) &&
+      Boolean(plan.ends_at)
+    );
+    const nextEnd = Math.min(...candidates.map((plan) => new Date(plan.ends_at!).getTime()));
+    if (!Number.isFinite(nextEnd)) return;
+    let cancelled = false;
+    const reconcile = async () => {
+      const elapsed = candidates.filter((plan) =>
+        new Date(plan.ends_at!).getTime() <= Date.now()
+      );
+      if (!elapsed.length) return;
+      try {
+        await Promise.all(elapsed.map((plan) =>
+          getPlanExperience(plan.id, plan.character_instance_id)
+        ));
+        if (cancelled) return;
+        const refreshed = await manageGroup<GroupDetail>({
+          action: "detail",
+          conversationId: params.id,
+        });
+        if (!cancelled) setDetail(refreshed);
+      } catch {
+        // Realtime or the next focus refresh will retry. The server operation is
+        // idempotent, so a transient network failure cannot duplicate history.
+      }
+    };
+    const delay = Math.max(0, nextEnd - Date.now()) + 750;
+    const timer = setTimeout(() => void reconcile(), delay);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [groupPlanReconciliationKey, params.id]);
+  const groupTimeline = useMemo(() => {
+    if (!detail) return [] as Array<{kind:"message";value:Message}|{kind:"action";value:ConversationAction}|{kind:"event";value:ConversationEvent}>;
+    const events = collapsePlanTimelineEvents((detail.conversationEvents ?? []).filter((event) => event.entity_type === "shared_plan" && shouldShowPlanTimelineEvent(event)));
+    return [
+      ...detail.messages.map((value) => ({ kind: "message" as const, value })),
+      ...(activeGroupPlan ? [] : (detail.conversationActions ?? []).filter((value) => value.status === "pending").map((value) => ({ kind: "action" as const, value }))),
+      ...events.map((value) => ({ kind: "event" as const, value })),
+    ].sort((left, right) => {
+      const delta = new Date(left.value.created_at).getTime() - new Date(right.value.created_at).getTime();
+      if (delta) return delta;
+      return left.kind === "event" ? 1 : -1;
+    });
+  }, [activeGroupPlan, detail]);
   const appendMessage = (message: Message) =>
     setDetail((current) =>
       current && !current.messages.some((item) => item.id === message.id)
         ? {
           ...current,
-          messages: [...current.messages, message],
+          messages: current.messages.some((item)=>Boolean(message.client_request_id)&&item.client_request_id===message.client_request_id)
+            ?current.messages.map((item)=>item.client_request_id===message.client_request_id?message:item)
+            :[...current.messages, message],
           conversation: {
             ...current.conversation,
             last_message_at: message.created_at,
@@ -300,13 +490,14 @@ export default function GroupChatScreen() {
       setTyping([]);
     }
   };
-  const send = async (text = input, letThemTalk = false) => {
+  const send = async (text = input, letThemTalk = false,retryRequestId?:string,retryMessageId?:string) => {
     const message = text.trim();
     if (!detail || !message) return;
     if (message.length > MESSAGE_CHARACTER_LIMIT) {
       setError(messageCharacterLimitError());
       return;
     }
+    if(!online){setError("You’re offline. Your draft is saved and ready when you reconnect.");return;}
     abortRef.current?.abort();
     keepPinnedToBottom.current = true;
     const controller = new AbortController();
@@ -326,13 +517,16 @@ export default function GroupChatScreen() {
       ).test(message)
     ).map((participant) => participant.character_instance_id);
     const reply = replyTo;
+    const clientRequestId=retryRequestId??createClientRequestId();
+    const optimistic:Message={id:retryMessageId??`local-${Date.now()}`,conversation_id:detail.conversation.id,role:"user",content:message,client_request_id:clientRequestId,delivery_status:"pending",created_at:new Date().toISOString(),attachments:[]};
+    setDetail((current)=>current?{...current,messages:retryMessageId?current.messages.map((item)=>item.id===retryMessageId?optimistic:item):[...current.messages,optimistic]}:current);
     setReplyTo(null);
     try {
       await sendGroupDialogue(
         {
           conversationId: detail.conversation.id,
           message,
-          clientRequestId: crypto.randomUUID(),
+          clientRequestId,
           mentionedCharacterInstanceIds: mentions,
           replyToMessageId: reply?.id,
           manualSpeakerInstanceId:
@@ -344,6 +538,7 @@ export default function GroupChatScreen() {
         handleEvent,
         controller.signal,
       );
+      if(!letThemTalk)await clearStoredDraft();
     } catch (caught) {
       if ((caught as Error)?.name !== "AbortError") {
         setError(
@@ -351,6 +546,8 @@ export default function GroupChatScreen() {
             ? caught.message
             : "The group could not reply.",
         );
+        if(!letThemTalk)setInput(message);
+        setDetail((current)=>current?{...current,messages:current.messages.map((item)=>item.id===optimistic.id?{...item,delivery_status:"failed"}:item)}:current);
       }
     } finally {
       if (abortRef.current === controller) {
@@ -367,6 +564,7 @@ export default function GroupChatScreen() {
       setError(messageCharacterLimitError());
       return;
     }
+    if(!online){setError("You’re offline. Your draft is saved and ready when you reconnect.");return;}
     abortRef.current?.abort();
     keepPinnedToBottom.current = true;
     const controller = new AbortController();
@@ -376,6 +574,8 @@ export default function GroupChatScreen() {
     setError("");
     const mentions = mentionedParticipants(message, detail.participants),
       reply = replyTo;
+    const clientRequestId=createClientRequestId(),optimistic:Message={id:`local-${Date.now()}`,conversation_id:detail.conversation.id,role:"user",content:message||"[Photo]",client_request_id:clientRequestId,delivery_status:"pending",created_at:new Date().toISOString(),attachments:[]};
+    setDetail((current)=>current?{...current,messages:[...current.messages,optimistic]}:current);
     setReplyTo(null);
     try {
       let attachmentId: string | undefined;
@@ -410,7 +610,7 @@ export default function GroupChatScreen() {
           conversationId: detail.conversation.id,
           message,
           attachmentIds: attachmentId ? [attachmentId] : [],
-          clientRequestId: crypto.randomUUID(),
+          clientRequestId,
           mentionedCharacterInstanceIds: mentions,
           replyToMessageId: reply?.id,
           manualSpeakerInstanceId:
@@ -425,6 +625,7 @@ export default function GroupChatScreen() {
         cleanupNormalizedImage(selectedImage.uri);
         setPendingImage(null);
       }
+      await clearStoredDraft();
     } catch (caught) {
       if ((caught as Error)?.name !== "AbortError") {
         setError(
@@ -432,6 +633,8 @@ export default function GroupChatScreen() {
             ? caught.message
             : "The group could not reply.",
         );
+        setInput(message);
+        setDetail((current)=>current?{...current,messages:current.messages.map((item)=>item.id===optimistic.id?{...item,delivery_status:"failed"}:item)}:current);
       }
     } finally {
       if (abortRef.current === controller) {
@@ -649,6 +852,148 @@ export default function GroupChatScreen() {
       setMediaOfferBusy(null);
     }
   };
+  const reloadGroup = async () => {
+    if (!detail) return;
+    const next = await manageGroup<GroupDetail>({ action: "detail", conversationId: detail.conversation.id });
+    setDetail(next);
+    await refresh();
+  };
+  const openGroupPlanner = (change = false) => {
+    if (!detail || !anchorParticipant) return;
+    setShowGroupMenu(false);
+    setPendingGroupActionId(null);
+    setSwitchPlanId(change ? activeGroupPlan?.id ?? null : null);
+    setShowPlans(true);
+  };
+  const openGroupSuggestionPlanner = (action: ConversationAction) => {
+    setPendingGroupActionId(action.id);
+    setSwitchPlanId(null);
+    setShowPlans(true);
+  };
+  const acceptGroupPlanSuggestion = async (
+    action: ConversationAction,
+    timingChoice: "now" | "in_one_hour",
+  ) => {
+    if (planActionBusyId) return;
+    setPlanActionBusyId(action.id);
+    setError("");
+    try {
+      await confirmConversationAction(action.id, { timingChoice });
+      await reloadGroup();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The group plan could not be saved.");
+    } finally {
+      setPlanActionBusyId(null);
+    }
+  };
+  const dismissGroupPlanSuggestion = async (action: ConversationAction) => {
+    setDetail((current) => current ? {
+      ...current,
+      conversationActions: current.conversationActions.filter((item) => item.id !== action.id),
+    } : current);
+    try {
+      await dismissConversationAction(action.id);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "That suggestion could not be dismissed.");
+      await reloadGroup().catch(() => undefined);
+    }
+  };
+  const saveGroupPlan = async (option: PlanOption, timing: PlanTimingSelection) => {
+    if (!detail || !anchorParticipant || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      if (switchPlanId) {
+        if (timing.choice !== "now") throw new Error("Choose Switch Now to replace the active group plan.");
+        const currentPlan = groupPlans.find((plan) => plan.id === switchPlanId);
+        if (!currentPlan) throw new Error("That group plan is no longer active.");
+        await switchPlanExperience({
+          currentPlanId: switchPlanId,
+          characterInstanceId: currentPlan.character_instance_id,
+          activityKey: option.activityKey,
+          locationId: option.locationId,
+          sourceConversationId: detail.conversation.id,
+          requestId: planRequestIdRef.current,
+        });
+      } else if (pendingGroupActionId) {
+        await confirmConversationAction(pendingGroupActionId, {
+          activityKey: option.activityKey,
+          locationId: option.locationId,
+          ...(timing.choice === "custom"
+            ? { timingChoice: "custom" as const, startsAt: timing.startsAt }
+            : { timingChoice: timing.choice }),
+        });
+      } else {
+        await createSharedPlan({
+          activityKey: option.activityKey,
+          locationId: option.locationId,
+          characterInstanceId: anchorParticipant.character_instance_id,
+          ...(timing.choice === "custom"
+            ? { timingChoice: "custom" as const, startsAt: timing.startsAt }
+            : { timingChoice: timing.choice }),
+          requestId: planRequestIdRef.current,
+          source: "manual_planner",
+          sourceConversationId: detail.conversation.id,
+        });
+      }
+      planRequestIdRef.current = createClientRequestId();
+      setShowPlans(false);
+      setSwitchPlanId(null);
+      setPendingGroupActionId(null);
+      await reloadGroup();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The group plan could not be saved.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const startGroupPlan = async (plan: SharedPlan) => {
+    if (!detail || planActionBusyId) return;
+    setPlanActionBusyId(plan.id);
+    setError("");
+    try {
+      await joinCommitment(plan.id, plan.character_instance_id);
+      await reloadGroup();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The group plan could not be started.");
+    } finally {
+      setPlanActionBusyId(null);
+    }
+  };
+  const requestEndGroupPlan = (plan: SharedPlan) => confirmAction({
+    title: "End this group plan?",
+    message: `This closes the shared scene with ${groupPlanLabel} and saves what happened for everyone.`,
+    confirmLabel: "End plan",
+    onConfirm: async () => {
+      setPlanActionBusyId(plan.id);
+      setError("");
+      try {
+        await endPlanExperience(plan.id, plan.character_instance_id);
+        setShowGroupMenu(false);
+        await reloadGroup();
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "The group plan could not be ended.");
+      } finally {
+        setPlanActionBusyId(null);
+      }
+    },
+  });
+  const cancelGroupPlan = (plan: SharedPlan) => confirmAction({
+    title: "Cancel this group plan?",
+    message: `Cancel ${plan.title} for the whole group?`,
+    confirmLabel: "Cancel plan",
+    onConfirm: async () => {
+      setPlanActionBusyId(plan.id);
+      try {
+        await managePlan({ action: "cancel", planId: plan.id, conversationId: detail?.conversation.id });
+        await reloadGroup();
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "The group plan could not be cancelled.");
+      } finally {
+        setPlanActionBusyId(null);
+      }
+    },
+  });
   const selectMention = (participant: GroupParticipant) => {
     const first =
       participant.together_character_instances.together_character_templates.name
@@ -692,8 +1037,43 @@ export default function GroupChatScreen() {
           world.id === detail.conversation.group_world_id
         )?.name}
         onBack={() => router.replace("/(tabs)/chat-tab")}
-        onDetails={() => setShowDetails(true)}
+        onDetails={() => setShowGroupMenu((value) => !value)}
       />
+      <ConnectionBanner sendFailed={detail.messages.some((message)=>message.delivery_status==="failed")}/>
+      {showGroupMenu ? <GroupConversationMenu
+        title={detail.conversation.title ?? "Group"}
+        hasActivePlan={Boolean(activeGroupPlan)}
+        onClose={() => setShowGroupMenu(false)}
+        onDetails={() => { setShowGroupMenu(false); setShowDetails(true); }}
+        onCreatePlan={() => openGroupPlanner(false)}
+        onChangePlan={() => openGroupPlanner(true)}
+        onEndPlan={() => activeGroupPlan && requestEndGroupPlan(activeGroupPlan)}
+      /> : null}
+      <Modal animationType="fade" transparent visible={showPlans} onRequestClose={() => setShowPlans(false)}>
+        <View style={styles.plannerModalRoot}>
+          <ScrollView style={styles.plannerModalScroll} contentContainerStyle={styles.plannerModalContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            {snapshot && anchorParticipant ? <PlanSelection
+              snapshot={snapshot}
+              character={anchorParticipant.together_character_instances}
+              currentLocationId={null}
+              mode={switchPlanId ? "switch" : "create"}
+              currentPlan={switchPlanId ? groupPlans.find((plan) => plan.id === switchPlanId) ?? null : null}
+              proposal={pendingGroupActionId ? detail.conversationActions.find((action) => action.id === pendingGroupActionId) : undefined}
+              initialTimingChoice={switchPlanId ? "now" : undefined}
+              interests={[...(snapshot.profile?.interests ?? []), ...detail.participants.flatMap((participant) => participant.together_character_instances.together_character_versions.interests ?? [])]}
+              companionLabel={groupPlanLabel}
+              pluralCompanions
+              participants={detail.participants.map((participant) => participant.together_character_instances)}
+              plannerWorldId={detail.conversation.group_world_id}
+              hideViewAllPlaces
+              busy={busy}
+              error={error}
+              onPlan={(option, timing) => void saveGroupPlan(option, timing)}
+              onClose={() => { if (!busy) { setShowPlans(false); setSwitchPlanId(null); setPendingGroupActionId(null); } }}
+            /> : null}
+          </ScrollView>
+        </View>
+      </Modal>
       <ScrollView
         ref={scrollRef}
         style={styles.timeline}
@@ -729,15 +1109,44 @@ export default function GroupChatScreen() {
           }
         }}
       >
-        {detail.messages.map((message, index) => {
-          const previous = detail.messages[index - 1],
-            dayLabel = groupTimelineDayLabel(
-              message.created_at,
-              previous?.created_at,
-            ),
+        {groupTimeline.map((item, index) => {
+          const previous = groupTimeline[index - 1],
+            dayLabel = groupTimelineDayLabel(item.value.created_at, previous?.value.created_at);
+          if (item.kind === "event") {
+            const plan = groupPlans.find((candidate) => candidate.id === item.value.entity_id);
+            return <Fragment key={item.value.id}>
+              {dayLabel ? <Text style={styles.day}>{dayLabel}</Text> : null}
+              <GroupPlanTimelineEvent
+                event={item.value}
+                plan={plan}
+                participants={detail.participants}
+                groupLabel={groupPlanLabel}
+                busy={planActionBusyId === plan?.id}
+                onOpen={(value) => router.push(`/plan/${value.id}` as never)}
+                onStart={(value) => void startGroupPlan(value)}
+                onEnd={requestEndGroupPlan}
+                onCancel={cancelGroupPlan}
+              />
+            </Fragment>;
+          }
+          if (item.kind === "action") {
+            return <Fragment key={item.value.id}>
+              {dayLabel ? <Text style={styles.day}>{dayLabel}</Text> : null}
+              <GroupLocationPlanSuggestion
+                action={item.value}
+                participants={detail.participants}
+                locationRecord={snapshot?.locations.find((location) => location.id === item.value.payload.locationId)}
+                busy={planActionBusyId === item.value.id}
+                onAccept={(timing) => void acceptGroupPlanSuggestion(item.value, timing)}
+                onChange={() => openGroupSuggestionPlanner(item.value)}
+                onDismiss={() => void dismissGroupPlanSuggestion(item.value)}
+              />
+            </Fragment>;
+          }
+          const message = item.value,
             grouped = Boolean(
-              previous && !dayLabel &&
-                shouldGroupChatMessages(previous, message),
+              previous?.kind === "message" && !dayLabel &&
+                shouldGroupChatMessages(previous.value, message),
             );
           const participant = message.role === "assistant"
               ? participantById.get(
@@ -777,6 +1186,7 @@ export default function GroupChatScreen() {
                   ?.companionVoiceNotes !== false}
                 voiceEnabled={snapshot?.experienceCapabilities?.voiceNotes !==
                   false}
+                onRetry={message.delivery_status==="failed"&&message.content!=="[Photo]"?()=>void send(message.content,false,message.client_request_id??undefined,message.id):undefined}
               />
             </Fragment>
           );
@@ -913,6 +1323,25 @@ export default function GroupChatScreen() {
           </View>
         )
         : null}
+      {activeGroupPlan ? <GroupActivePlanBar
+        plan={activeGroupPlan}
+        participantCount={activeGroupPlan.participant_instance_ids?.length ?? detail.participants.length}
+        locationName={activeGroupPlan.together_locations?.name ?? snapshot?.locations.find((location) => location.id === activeGroupPlan.location_id)?.name}
+        busy={planActionBusyId === activeGroupPlan.id || busy}
+        onDetails={() => router.push(`/plan/${activeGroupPlan.id}` as never)}
+        onChange={() => openGroupPlanner(true)}
+        onEnd={() => requestEndGroupPlan(activeGroupPlan)}
+      /> : waitingGroupPlan ? <GroupPlanWaitingBar
+        plan={waitingGroupPlan}
+        locationName={waitingGroupPlan.together_locations?.name ?? snapshot?.locations.find((location) => location.id === waitingGroupPlan.location_id)?.name}
+        onDetails={() => router.push(`/plan/${waitingGroupPlan.id}` as never)}
+      /> : joinableGroupPlan ? <GroupPlanJoinBar
+        plan={joinableGroupPlan}
+        locationName={joinableGroupPlan.together_locations?.name ?? snapshot?.locations.find((location) => location.id === joinableGroupPlan.location_id)?.name}
+        busy={planActionBusyId === joinableGroupPlan.id}
+        onJoin={() => void startGroupPlan(joinableGroupPlan)}
+        onDetails={() => router.push(`/plan/${joinableGroupPlan.id}` as never)}
+      /> : null}
       <GroupComposer
         conversationId={detail.conversation.id}
         characterInstanceId={String(
@@ -1378,6 +1807,63 @@ function GroupHeader(
     </View>
   );
 }
+function GroupConversationMenu({title,hasActivePlan,onClose,onDetails,onCreatePlan,onChangePlan,onEndPlan}:{title:string;hasActivePlan:boolean;onClose:()=>void;onDetails:()=>void;onCreatePlan:()=>void;onChangePlan:()=>void;onEndPlan:()=>void}) {
+  const actions={createPlan:onCreatePlan,changePlan:onChangePlan,endPlan:onEndPlan};
+  return <FrostedSurface intensity={88} style={styles.groupMenu}>
+    <View style={styles.groupMenuTop}><Text numberOfLines={1} style={styles.groupMenuTitle}>{title}</Text><Pressable onPress={onClose}><Text style={styles.groupMenuClose}>Close</Text></Pressable></View>
+    <Text style={styles.groupMenuSection}>PLAN</Text>
+    {conversationPlanMenuItems(hasActivePlan).map((item)=><Pressable key={item.key} onPress={actions[item.key]} style={styles.groupMenuItem}><Text style={[styles.groupMenuItemText,item.danger&&{color:colors.danger}]}>{item.label}</Text></Pressable>)}
+    <Text style={styles.groupMenuSection}>GROUP</Text>
+    <Pressable onPress={onDetails} style={styles.groupMenuItem}><Text style={styles.groupMenuItemText}>Group details</Text></Pressable>
+  </FrostedSurface>;
+}
+function GroupLocationPlanSuggestion({action,participants,locationRecord,busy,onAccept,onChange,onDismiss}:{action:ConversationAction;participants:GroupParticipant[];locationRecord?:Location;busy:boolean;onAccept:(timing:"now"|"in_one_hour")=>void;onChange:()=>void;onDismiss:()=>void}) {
+  const location=String(action.payload.location??"that place"),worldSlug=typeof action.payload.worldSlug==="string"?action.payload.worldSlug:undefined,locationSlug=typeof action.payload.locationSlug==="string"?action.payload.locationSlug:undefined;
+  const hours=placeHoursStatus(locationRecord?.hours);
+  return <View style={styles.groupPlanSuggestion}>
+    <View style={styles.groupPlanSuggestionHero}>
+      <Image source={locationHeroAsset(worldSlug,locationSlug)} style={StyleSheet.absoluteFill} contentFit="cover"/>
+      <View style={styles.groupPlanSuggestionShade}/>
+      <View style={styles.groupPlanSuggestionCopy}><View style={styles.groupPlanSuggestionTop}><Text style={styles.groupPlanEventKicker}>PLAN WITH THE GROUP</Text><Pressable accessibilityLabel="Dismiss group plan suggestion" disabled={busy} onPress={onDismiss} style={styles.groupPlanSuggestionClose}><X size={16} color="#fff"/></Pressable></View><Text style={styles.groupPlanSuggestionTitle}>Go to {location} together?</Text><View style={styles.groupPlanInvitationPeople}><AvatarStack participants={participants}/><Text numberOfLines={1} style={styles.groupPlanSuggestionBody}>{groupCompanionLabel(participants)}</Text></View><Text style={[styles.groupPlanSuggestionBody,hours.state==='open'?styles.groupPlanHoursOpen:hours.state==='closed'?styles.groupPlanHoursClosed:undefined]}>{hours.statusLabel} · {hours.scheduleLabel}</Text></View>
+    </View>
+    <View style={styles.groupPlanSuggestionActions}><Pressable disabled={busy} onPress={()=>onAccept("now")} style={[styles.groupPlanPrimary,busy&&styles.groupPlanDisabled]}><Text style={styles.groupPlanPrimaryText}>{busy?"SAVING…":"NOW"}</Text></Pressable><Pressable disabled={busy} onPress={()=>onAccept("in_one_hour")} style={styles.groupPlanSecondary}><Text style={styles.groupPlanSuggestionSecondaryText}>IN 1 HOUR</Text></Pressable><Pressable disabled={busy} onPress={onChange} style={styles.groupPlanSuggestionChange}><CalendarDays size={14} color={colors.rose}/><Text style={styles.groupPlanSuggestionChangeText}>PICK ANOTHER TIME</Text></Pressable></View>
+  </View>;
+}
+function GroupPlanTimelineEvent({event,plan,participants,groupLabel,busy,onOpen,onStart,onEnd,onCancel}:{event:ConversationEvent;plan?:SharedPlan;participants:GroupParticipant[];groupLabel:string;busy:boolean;onOpen:(plan:SharedPlan)=>void;onStart:(plan:SharedPlan)=>void;onEnd:(plan:SharedPlan)=>void;onCancel:(plan:SharedPlan)=>void}) {
+  if(isPlanLifecycleDividerEvent(event)){
+    const direct=planLifecycleDividerLabel(event,groupLabel);
+    const action=event.event_type==='plan_created'?'scheduled':event.event_type==='plan_joined'?'started':'ended';
+    const label=direct?`Plan ${action} with ${groupLabel}`:null;
+    return label?<View><View accessibilityRole="text" accessibilityLabel={label} style={styles.planLifecycleDivider}><View style={styles.planLifecycleLine}/><Text style={styles.planLifecycleText}>{label}</Text><View style={styles.planLifecycleLine}/></View>{plan&&event.event_type!=='plan_completed'?<GroupPlanResponseStrip plan={plan} participants={participants}/>:null}</View>:null;
+  }
+  const metadata=event.metadata??{},title=String(metadata.title??plan?.title??'Group plan'),starts=String(metadata.startsAt??plan?.starts_at??''),location=String(metadata.location??plan?.together_locations?.name??'');
+  const availability=plan?planActionAvailability(plan):null;
+  return <View style={styles.groupPlanEvent}>
+    <Pressable disabled={!plan} onPress={()=>plan&&onOpen(plan)} style={styles.groupPlanEventMain}>
+      <CalendarDays size={18} color={colors.rose}/><View style={{flex:1,minWidth:0}}><Text style={styles.groupPlanEventKicker}>{event.event_type==='plan_cancelled'?'PLAN CANCELLED':event.event_type==='plan_switched'||event.event_type==='plan_rescheduled'?'PLAN CHANGED':'GROUP PLAN'}</Text><Text style={styles.groupPlanEventTitle}>{title}</Text>{starts?<Text style={styles.groupPlanEventMeta}>{new Date(starts).toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}{location?` · ${location}`:''}</Text>:null}</View>{plan?<ChevronRight size={16} color={colors.muted}/>:null}
+    </Pressable>
+    {plan&&(availability?.primary||availability?.canEnd||availability?.canCancel)?<View style={styles.groupPlanEventActions}>{availability.primary?<Pressable disabled={busy||!availability.primaryEnabled} onPress={()=>onStart(plan)} style={[styles.groupPlanPrimary,(busy||!availability.primaryEnabled)&&styles.groupPlanDisabled]}><Play size={13} color="#fff" fill="#fff"/><Text style={styles.groupPlanPrimaryText}>{busy?'Starting…':'Join plan'}</Text></Pressable>:null}{availability.canEnd?<Pressable disabled={busy} onPress={()=>onEnd(plan)} style={styles.groupPlanSecondary}><Text style={styles.groupPlanDangerText}>End plan</Text></Pressable>:null}{availability.canCancel?<Pressable disabled={busy} onPress={()=>onCancel(plan)} style={styles.groupPlanSecondary}><Text style={styles.groupPlanDangerText}>Cancel plan</Text></Pressable>:null}</View>:null}
+  </View>;
+}
+function GroupActivePlanBar({plan,participantCount,locationName,busy,onDetails,onChange,onEnd}:{plan:SharedPlan;participantCount:number;locationName?:string;busy:boolean;onDetails:()=>void;onChange:()=>void;onEnd:()=>void}) {
+  const[now,setNow]=useState(Date.now());
+  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),30000);return()=>clearInterval(timer);},[]);
+  const start=new Date(plan.starts_at).getTime(),end=new Date(plan.ends_at).getTime(),duration=Math.max(1,end-start),progress=Math.max(0,Math.min(1,(now-start)/duration)),remaining=Math.max(0,end-now);
+  const remainingLabel=remaining<60000?'ending soon':`${Math.ceil(remaining/60000)} min left`;
+  return <View style={styles.groupPlanBar}><View style={styles.groupPlanBarIcon}><CalendarDays size={17} color={colors.rose}/></View><Pressable accessibilityRole="button" accessibilityLabel={`Open active group plan, ${plan.title}`} onPress={onDetails} style={styles.groupPlanBarContent}><View style={styles.groupPlanBarHeading}><Text style={styles.groupPlanBarKicker}>TOGETHER NOW · {participantCount} COMPANIONS</Text><Text style={styles.groupPlanBarClock}>{remainingLabel}</Text></View><Text numberOfLines={1} style={styles.groupPlanBarTitle}>{plan.title}</Text><Text numberOfLines={1} style={styles.groupPlanBarMeta}>{locationName??'Shared place'}</Text><View style={styles.groupPlanProgressTrack}><View style={[styles.groupPlanProgressFill,{width:`${Math.round(progress*100)}%`}]}/></View></Pressable><View style={styles.groupPlanBarButtons}><Pressable accessibilityRole="button" accessibilityLabel="Change active group plan" disabled={busy} onPress={onChange} style={styles.groupPlanBarAction}><Text style={styles.groupPlanBarActionText}>Change</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="End active group plan" disabled={busy} onPress={onEnd} style={styles.groupPlanBarAction}><Text style={[styles.groupPlanBarActionText,{color:colors.danger}]}>{busy?'Ending…':'End'}</Text></Pressable></View></View>;
+}
+function GroupPlanResponseStrip({plan,participants}:{plan:SharedPlan;participants:GroupParticipant[]}){
+  const responses=participants.filter((participant)=>(plan.participant_instance_ids??[plan.character_instance_id]).includes(participant.character_instance_id)).map((participant)=>({participant,response:plan.participant_responses?.find((item)=>item.character_instance_id===participant.character_instance_id)}));
+  if(!responses.length)return null;
+  return <View style={styles.groupPlanResponses}>{responses.map(({participant,response})=>{const lateWithoutArrival=plan.status==='active'&&Date.now()>new Date(plan.starts_at).getTime()+5*60000&&response?.response_state!=='arrived';const state=lateWithoutArrival?'late':response?.response_state??'going',label=state==='arrived'?'Here':state==='late'?'Late':state==='declined'?'Declined':state==='unavailable'?'Unavailable':'Going';return <View key={participant.character_instance_id} accessibilityLabel={`${participant.together_character_instances.together_character_templates.name}: ${label}`} style={styles.groupPlanResponse}><CharacterAvatarForParticipant participant={participant} size={25}/><View style={[styles.groupPlanResponseDot,['going','arrived'].includes(state)?styles.groupPlanResponseReady:state==='late'?styles.groupPlanResponseLate:styles.groupPlanResponseUnavailable]}/><Text numberOfLines={1} style={styles.groupPlanResponseText}>{participant.together_character_instances.together_character_templates.name.split(' ')[0]} · {label}</Text></View>;})}</View>;
+}
+function GroupPlanWaitingBar({plan,locationName,onDetails}:{plan:SharedPlan;locationName?:string;onDetails:()=>void}) {
+  const startsAt=plan.starts_at?new Date(plan.starts_at):null;
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Open upcoming group plan, ${plan.title}`} onPress={onDetails} style={styles.groupPlanBar}><View style={styles.groupPlanBarIcon}><CalendarDays size={17} color={colors.rose}/></View><View style={{flex:1,minWidth:0}}><Text style={styles.groupPlanBarKicker}>YOU’RE EARLY</Text><Text numberOfLines={1} style={styles.groupPlanBarTitle}>{plan.title}</Text><Text numberOfLines={1} style={styles.groupPlanBarMeta}>{locationName??'Shared place'}{startsAt?` · begins ${startsAt.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}`:' · waiting for the group'}</Text></View><ChevronRight size={16} color={colors.muted}/></Pressable>;
+}
+function GroupPlanJoinBar({plan,locationName,busy,onJoin,onDetails}:{plan:SharedPlan;locationName?:string;busy:boolean;onJoin:()=>void;onDetails:()=>void}) {
+  return <View style={styles.groupPlanBar}><View style={styles.groupPlanBarIcon}><CalendarDays size={17} color={colors.rose}/></View><Pressable accessibilityRole="button" accessibilityLabel={`Open group plan, ${plan.title}`} onPress={onDetails} style={{flex:1,minWidth:0}}><Text style={styles.groupPlanBarKicker}>GROUP PLAN</Text><Text numberOfLines={1} style={styles.groupPlanBarTitle}>{plan.title}</Text><Text numberOfLines={1} style={styles.groupPlanBarMeta}>{locationName??'Shared place'} · ready to start</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Join group plan, ${plan.title}`} disabled={busy} onPress={onJoin} style={[styles.groupPlanJoin,busy&&styles.groupPlanDisabled]}>{busy?<ActivityIndicator size="small" color="#fff"/>:<Play size={13} color="#fff" fill="#fff"/>}<Text style={styles.groupPlanPrimaryText}>{busy?'Joining…':'Join'}</Text></Pressable></View>;
+}
 function AvatarStack({ participants }: { participants: GroupParticipant[] }) {
   return (
     <View style={styles.avatarStack}>
@@ -1427,6 +1913,7 @@ function GroupBubble({
   onReply,
   voiceVisible,
   voiceEnabled,
+  onRetry,
 }: {
   message: Message;
   participant?: GroupParticipant;
@@ -1444,6 +1931,7 @@ function GroupBubble({
   onReply: () => void;
   voiceVisible: boolean;
   voiceEnabled: boolean;
+  onRetry?:()=>void;
 }) {
   const opacity = useRef(new Animated.Value(0)).current,
     translate = useRef(new Animated.Value(8)).current;
@@ -1562,10 +2050,12 @@ function GroupBubble({
             visibleImages.length
           ? (
             <Pressable
+              onPress={message.delivery_status==="failed"?onRetry:undefined}
               onLongPress={messageActions}
               style={[
                 styles.bubble,
                 user ? styles.userBubble : styles.assistantBubble,
+                message.delivery_status==="failed"&&{borderColor:colors.danger,borderWidth:1},
               ]}
             >
               {message.content !== "[Photo]"
@@ -1612,6 +2102,7 @@ function GroupBubble({
                 )
                 : null}
               <View style={styles.messageTimeRow}>
+                {message.delivery_status==="failed"?<Text style={[styles.timestamp,{color:colors.danger}]}>Not sent · Tap to retry</Text>:null}
                 <Text style={styles.timestamp}>
                   {new Date(message.created_at).toLocaleTimeString([], {
                     hour: "numeric",
@@ -1850,10 +2341,14 @@ function GroupDetailsModal({
   onArchived: () => void;
 }) {
   const [title, setTitle] = useState(detail.conversation.title ?? ""),
-    [adding, setAdding] = useState(false);
+    [adding, setAdding] = useState(false),
+    [mutationError,setMutationError]=useState("");
   useEffect(() => setTitle(detail.conversation.title ?? ""), [
     detail.conversation.title,
   ]);
+  useEffect(() => {
+    if (visible) setMutationError("");
+  }, [visible]);
   const active = new Set(
       detail.participants.map((participant) =>
         participant.character_instance_id
@@ -1867,9 +2362,11 @@ function GroupDetailsModal({
     groupWorld = snapshot?.worlds.find((world) => world.id === groupWorldId),
     eligible = snapshot
       ? groupAddCandidates(snapshot, groupWorldId, active)
-      : [];
+      : [],
+    blockingArchivePlan=currentGroupPlan(detail.sharedPlans??[]);
   const mutate = async (input: Record<string, unknown>) => {
     onBusy(true);
+    setMutationError("");
     try {
       onChanged(
         await manageGroup<GroupDetail>({
@@ -1878,6 +2375,8 @@ function GroupDetailsModal({
         }),
       );
       setAdding(false);
+    }catch(error){
+      setMutationError(error instanceof Error?error.message:"That group change could not be saved.");
     } finally {
       onBusy(false);
     }
@@ -1890,7 +2389,7 @@ function GroupDetailsModal({
       onRequestClose={onClose}
     >
       <View style={styles.modalRoot}>
-        <Pressable onPress={onClose} style={StyleSheet.absoluteFill} />
+        <Pressable accessibilityLabel="Close group details" onPress={onClose} style={StyleSheet.absoluteFill} />
         <FrostedSurface intensity={94} style={styles.details}>
           <View style={styles.detailsHeader}>
             <View style={{ flex: 1 }}>
@@ -1899,7 +2398,7 @@ function GroupDetailsModal({
                 {detail.conversation.title}
               </Text>
             </View>
-            <Pressable onPress={onClose} style={styles.close}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close group details" onPress={onClose} style={styles.close}>
               <X size={20} color={colors.muted} />
             </Pressable>
           </View>
@@ -1923,8 +2422,9 @@ function GroupDetailsModal({
               </Pressable>
             </View>
             <Text style={styles.detailsLabel}>PARTICIPANTS</Text>
-            {detail.participants.map((participant) => (
-              <View key={participant.id} style={styles.detailPerson}>
+            {detail.participants.map((participant) => {
+              const blockingPlan=groupPlanBlockingParticipantRemoval(detail.sharedPlans??[],participant.character_instance_id);
+              return <View key={participant.id} style={styles.detailPerson}>
                 <CharacterAvatarForParticipant
                   participant={participant}
                   size={44}
@@ -1933,7 +2433,7 @@ function GroupDetailsModal({
                   {participant.together_character_instances
                     .together_character_templates.name}
                 </Text>
-                {detail.participants.length > 2
+                {blockingPlan?<Text numberOfLines={1} style={styles.detailPersonStatus}>In {blockingPlan.title}</Text>:detail.participants.length > 2
                   ? (
                     <Pressable
                       accessibilityLabel={`Remove ${participant.together_character_instances.together_character_templates.name}`}
@@ -1951,10 +2451,12 @@ function GroupDetailsModal({
                   )
                   : null}
               </View>
-            ))}
+            })}
             {detail.participants.length < 5
               ? (
                 <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Add a companion"
                   onPress={() => setAdding((value) => !value)}
                   style={styles.addButton}
                 >
@@ -2034,10 +2536,14 @@ function GroupDetailsModal({
                   energy: value,
                 })}
             />
+            {mutationError?<Text accessibilityRole="alert" style={styles.detailError}>{mutationError}</Text>:null}
             <Pressable
-              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel={blockingArchivePlan?`Resolve ${blockingArchivePlan.title} before archiving this group`:"Archive group"}
+              disabled={busy||Boolean(blockingArchivePlan)}
               onPress={async () => {
                 onBusy(true);
+                setMutationError("");
                 try {
                   await manageGroup({
                     action: "archive",
@@ -2045,14 +2551,16 @@ function GroupDetailsModal({
                   });
                   onClose();
                   onArchived();
+                }catch(error){
+                  setMutationError(error instanceof Error?error.message:"This group could not be archived.");
                 } finally {
                   onBusy(false);
                 }
               }}
-              style={styles.archive}
+              style={[styles.archive,blockingArchivePlan&&styles.archiveDisabled]}
             >
               <Archive size={18} color={colors.danger} />
-              <Text style={styles.archiveText}>Archive group</Text>
+              <Text style={styles.archiveText}>{blockingArchivePlan?`Resolve ${blockingArchivePlan.title} first`:"Archive group"}</Text>
             </Pressable>
           </ScrollView>
           {busy
@@ -2079,6 +2587,9 @@ function Segment(
       {options.map(([key, label]) => (
         <Pressable
           key={key}
+          accessibilityRole="button"
+          accessibilityState={{selected:value===key}}
+          accessibilityLabel={label}
           onPress={() => onChange(key)}
           style={[styles.segmentOption, value === key && styles.segmentActive]}
         >
@@ -2109,6 +2620,13 @@ function mentionedParticipants(
         .split(" ")[0]!.toLocaleLowerCase(),
     )
   ).map((participant) => participant.character_instance_id);
+}
+function groupCompanionLabel(participants:GroupParticipant[]){
+  const names=participants.map((participant)=>participant.together_character_instances.together_character_templates.name.split(" ")[0]).filter(Boolean);
+  if(!names.length)return"the group";
+  if(names.length===1)return names[0]!;
+  if(names.length===2)return`${names[0]} & ${names[1]}`;
+  return`${names.slice(0,-1).join(", ")} & ${names[names.length-1]}`;
 }
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -2247,6 +2765,16 @@ const styles = StyleSheet.create({
     borderColor: colors.background,
     borderRadius: 20,
   },
+  groupMenu:{position:"absolute",zIndex:30,top:Platform.OS==="web"?72:108,right:12,width:270,padding:12,gap:2,borderRadius:radius.lg,backgroundColor:"rgba(24,18,33,.98)",borderWidth:1,borderColor:colors.border,shadowColor:"#000",shadowOpacity:.42,shadowRadius:18,shadowOffset:{width:0,height:10}},
+  groupMenuTop:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:8,paddingHorizontal:8,paddingBottom:5},
+  groupMenuTitle:{flex:1,color:colors.text,fontFamily:"Georgia",fontSize:19},
+  groupMenuClose:{color:colors.muted,fontSize:10,fontWeight:"800"},
+  groupMenuSection:{color:colors.dimmed,fontSize:8,fontWeight:"900",letterSpacing:1.2,paddingHorizontal:8,paddingTop:9,paddingBottom:3},
+  groupMenuItem:{minHeight:40,justifyContent:"center",paddingHorizontal:9,borderRadius:radius.md},
+  groupMenuItemText:{color:colors.text,fontSize:12,fontWeight:"700"},
+  plannerModalRoot:{flex:1,backgroundColor:"rgba(4,5,10,.76)",paddingTop:Platform.OS==="web"?34:70,paddingHorizontal:Platform.OS==="web"?24:0},
+  plannerModalScroll:{width:"100%",maxWidth:860,alignSelf:"center",borderRadius:Platform.OS==="web"?24:0,overflow:"hidden",backgroundColor:colors.background},
+  plannerModalContent:{paddingBottom:32},
   timeline: { flex: 1 },
   timelineContent: {
     width: "100%",
@@ -2265,6 +2793,42 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginVertical: 8,
   },
+  planLifecycleDivider:{width:"100%",flexDirection:"row",alignItems:"center",gap:10,marginVertical:10},
+  planLifecycleLine:{height:1,flex:1,backgroundColor:"rgba(255,255,255,.10)"},
+  planLifecycleText:{color:colors.dimmed,fontSize:9,fontWeight:"900",letterSpacing:.8,textTransform:"uppercase"},
+  groupPlanEvent:{alignSelf:"center",width:"100%",maxWidth:580,borderRadius:radius.lg,backgroundColor:"rgba(30,22,40,.96)",borderWidth:1,borderColor:"rgba(216,62,234,.24)",overflow:"hidden",marginVertical:4},
+  groupPlanSuggestion:{alignSelf:"center",width:"100%",maxWidth:580,borderRadius:radius.lg,backgroundColor:"rgba(22,17,31,.98)",borderWidth:1,borderColor:"rgba(216,62,234,.24)",overflow:"hidden",marginVertical:6},
+  groupPlanSuggestionHero:{height:176,overflow:"hidden"},
+  groupPlanSuggestionShade:{position:"absolute",top:0,right:0,bottom:0,left:0,backgroundColor:"rgba(8,6,14,.48)"},
+  groupPlanSuggestionCopy:{flex:1,justifyContent:"flex-end",padding:16},
+  groupPlanSuggestionTop:{position:"absolute",top:12,left:14,right:12,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},
+  groupPlanSuggestionClose:{width:32,height:32,borderRadius:16,backgroundColor:"rgba(5,5,10,.52)",alignItems:"center",justifyContent:"center"},
+  groupPlanSuggestionTitle:{color:"#fff",fontFamily:"Georgia",fontSize:22,fontWeight:"800"},
+  groupPlanSuggestionBody:{color:"rgba(255,255,255,.78)",fontSize:11,marginTop:5},
+  groupPlanInvitationPeople:{minHeight:34,flexDirection:"row",alignItems:"center",gap:8,marginTop:7},
+  groupPlanHoursOpen:{color:"#84E6B7"},
+  groupPlanHoursClosed:{color:"#F5A0AE"},
+  groupPlanSuggestionActions:{padding:12,flexDirection:"row",alignItems:"center",gap:8,flexWrap:"wrap"},
+  groupPlanSuggestionSecondaryText:{color:colors.text,fontSize:10,fontWeight:"900"},
+  groupPlanSuggestionChange:{minHeight:36,flexDirection:"row",alignItems:"center",gap:6,paddingHorizontal:9},
+  groupPlanSuggestionChangeText:{color:colors.rose,fontSize:9,fontWeight:"900"},
+  groupPlanEventMain:{flexDirection:"row",alignItems:"center",gap:11,padding:13},
+  groupPlanEventKicker:{color:colors.rose,fontSize:9,fontWeight:"900",letterSpacing:1.1},
+  groupPlanEventTitle:{color:colors.text,fontSize:14,fontWeight:"900",marginTop:3},
+  groupPlanEventMeta:{color:colors.muted,fontSize:10,marginTop:4},
+  groupPlanEventActions:{flexDirection:"row",alignItems:"center",gap:8,paddingHorizontal:13,paddingBottom:12},
+  groupPlanPrimary:{minHeight:36,paddingHorizontal:13,borderRadius:18,backgroundColor:colors.rose,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:6},
+  groupPlanPrimaryText:{color:"#fff",fontSize:10,fontWeight:"900"},
+  groupPlanSecondary:{minHeight:36,paddingHorizontal:12,borderRadius:18,borderWidth:1,borderColor:colors.border,alignItems:"center",justifyContent:"center"},
+  groupPlanDangerText:{color:colors.danger,fontSize:10,fontWeight:"900"},
+  groupPlanDisabled:{opacity:.42},
+  groupPlanResponses:{alignSelf:"center",width:"100%",maxWidth:580,flexDirection:"row",alignItems:"center",justifyContent:"center",flexWrap:"wrap",gap:10,marginTop:-2,marginBottom:8},
+  groupPlanResponse:{minHeight:29,flexDirection:"row",alignItems:"center",gap:5},
+  groupPlanResponseDot:{width:7,height:7,borderRadius:4,marginLeft:-10,marginTop:17,borderWidth:1,borderColor:"#17111F"},
+  groupPlanResponseReady:{backgroundColor:colors.success},
+  groupPlanResponseLate:{backgroundColor:colors.warm},
+  groupPlanResponseUnavailable:{backgroundColor:colors.danger},
+  groupPlanResponseText:{color:colors.muted,fontSize:9,fontWeight:"800",maxWidth:105},
   messageRow: {
     width: "86%",
     maxWidth: 680,
@@ -2448,6 +3012,20 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   attachmentPreviewMeta: { color: colors.muted, fontSize: 9, marginTop: 3 },
+  groupPlanBar:{minHeight:68,marginHorizontal:10,marginTop:7,padding:10,borderRadius:radius.lg,flexDirection:"row",alignItems:"center",gap:9,backgroundColor:"rgba(30,22,40,.98)",borderWidth:1,borderColor:"rgba(216,62,234,.25)"},
+  groupPlanBarIcon:{width:36,height:36,borderRadius:18,alignItems:"center",justifyContent:"center",backgroundColor:"rgba(216,62,234,.10)"},
+  groupPlanBarContent:{flex:1,minWidth:0},
+  groupPlanBarHeading:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:6},
+  groupPlanBarKicker:{color:colors.rose,fontSize:8,fontWeight:"900",letterSpacing:1.1},
+  groupPlanBarClock:{color:colors.muted,fontSize:8,fontWeight:"800"},
+  groupPlanBarTitle:{color:colors.text,fontSize:12,fontWeight:"900",marginTop:2},
+  groupPlanBarMeta:{color:colors.muted,fontSize:9,marginTop:2},
+  groupPlanBarButtons:{alignItems:"stretch",justifyContent:"center"},
+  groupPlanBarAction:{minHeight:28,paddingHorizontal:8,alignItems:"center",justifyContent:"center"},
+  groupPlanBarActionText:{color:colors.text,fontSize:10,fontWeight:"900"},
+  groupPlanProgressTrack:{height:2,borderRadius:1,overflow:"hidden",backgroundColor:"rgba(255,255,255,.10)",marginTop:6},
+  groupPlanProgressFill:{height:2,borderRadius:1,backgroundColor:colors.rose},
+  groupPlanJoin:{minHeight:38,paddingHorizontal:13,borderRadius:19,backgroundColor:colors.rose,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:6},
   composerWrap: {
     borderTopWidth: 1,
     borderTopColor: colors.border,
@@ -2730,6 +3308,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
   },
+  detailPersonStatus:{color:colors.muted,fontSize:10,fontWeight:"700",maxWidth:100,textAlign:"right"},
+  detailError:{color:colors.danger,fontSize:12,lineHeight:18,marginTop:12,textAlign:"center"},
   iconButton: {
     width: 38,
     height: 38,
@@ -2781,6 +3361,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,113,129,.2)",
   },
+  archiveDisabled:{opacity:.45},
   archiveText: { color: colors.danger, fontWeight: "900" },
   busyOverlay: {
     position: "absolute",

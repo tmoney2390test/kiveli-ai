@@ -83,7 +83,7 @@ export function compileIntimacyStance(input:{message:string;recentTurns?:Array<{
   const intimacySignal=(text:string)=>{const value=classifyDialogueContent({message:text,requestedMode:'explicit'});return value==='adult_intimacy'||value==='explicit_adult'||/\b(?:i want you|i want this|come here|let'?s do this|not ready|don'?t want|need to stop)\b/i.test(text);};
   const recentAdult=recent.slice(-6).some((turn)=>intimacySignal(turn.content));
   const withdrawal=recentAdult&&/\b(?:stop|wait|slow down|pause|no|don'?t|do not|not comfortable|changed my mind)\b/i.test(input.message);
-  const continuation=recentAdult&&/^(?:yes|yeah|okay|more|keep going|continue|don'?t stop|go on|please|again)[.!?\s]*$/i.test(input.message);
+  const continuation=recentAdult&&/^(?:yes(?: please)?|yeah|okay|more|keep going|continue|don'?t stop|go on|please|pretty please|again)[.!?\s]*$/i.test(input.message);
   const active=classification==='adult_intimacy'||classification==='explicit_adult'||withdrawal||continuation;
   if(!active)return{active:false,disposition:'not_applicable',consentState:'none',outcome:'none',interactionScope:'none',shouldReciprocate:false,reasonCodes:['not_intimacy_turn'],relationshipReadiness:'Not an intimacy turn.',expressionStyle:'Use the ordinary character voice.',responseRule:'Respond normally.'};
 

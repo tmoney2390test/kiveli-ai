@@ -147,7 +147,7 @@ async function loadContext(input: { db: any; userId: string; continuityId: strin
     : await input.db.from('together_scene_sessions').select('*').eq('user_id', input.userId).eq('continuity_id', input.continuityId).eq('character_instance_id', input.characterInstanceId).is('ended_at', null).order('started_at', { ascending: false }).limit(1).maybeSingle();
   const { data: activePlan } = currentScene?.shared_plan_id
     ? await input.db.from('together_shared_plans').select('*').eq('id', currentScene.shared_plan_id).eq('user_id', input.userId).maybeSingle()
-    : await input.db.from('together_shared_plans').select('*').eq('user_id', input.userId).eq('continuity_id', input.continuityId).eq('character_instance_id', input.characterInstanceId).in('status', ['scheduled', 'active']).lte('starts_at', new Date(input.now.getTime() + 30 * 60_000).toISOString()).gt('ends_at', input.now.toISOString()).order('starts_at', { ascending: false }).limit(1).maybeSingle();
+    : await input.db.from('together_shared_plans').select('*').eq('user_id', input.userId).eq('continuity_id', input.continuityId).contains('participant_instance_ids', [input.characterInstanceId]).in('status', ['scheduled', 'active']).lte('starts_at', new Date(input.now.getTime() + 30 * 60_000).toISOString()).gt('ends_at', input.now.toISOString()).order('starts_at', { ascending: false }).limit(1).maybeSingle();
   const locationId = String(currentScene?.location_id ?? active.scene.locationId);
   const place = await resolvePlaceContext({ db: input.db, locationId, now: input.now, userId: input.userId, characterInstanceId: input.characterInstanceId });
   const access = await resolveWorldAccess({ db: input.db, userId: input.userId, worldId: place.world.id });

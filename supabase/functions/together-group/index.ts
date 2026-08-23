@@ -1,7 +1,9 @@
 import { z } from "zod";
 import {
   commonGroupWorldId,
+  currentGroupPlan,
   defaultGroupTitle,
+  groupPlanBlockingParticipantRemoval,
 } from "../../../packages/together-domain/src/index.ts";
 import { parseBody } from "../_shared/body.ts";
 import { authenticated, enforceRateLimit } from "../_shared/context.ts";
@@ -413,6 +415,15 @@ serve(async (request, correlationId) => {
         400,
       );
     }
+    const {data:currentPlans,error:planLookupError}=await db.from("together_shared_plans")
+      .select("id,title,status,starts_at,participant_instance_ids")
+      .eq("user_id",user.id).eq("continuity_id",continuity.id)
+      .eq("source_conversation_id",conversation.id)
+      .in("status",["proposed","scheduled","active"])
+      .contains("participant_instance_ids",[input.characterInstanceId]);
+    if(planLookupError)throw new AppError("INTERNAL_ERROR","Current group plans could not be checked.",500,true);
+    const blockingPlan=groupPlanBlockingParticipantRemoval(currentPlans??[],input.characterInstanceId);
+    if(blockingPlan)throw new AppError("CONFLICT",`${blockingPlan.title} still includes this companion. End or cancel that plan first.`,409,true);
     const now = new Date().toISOString();
     const { data } = await db.from("together_conversation_participants").update(
       {
@@ -456,6 +467,14 @@ serve(async (request, correlationId) => {
       correlationId,
     );
   }
+  const {data:currentPlans,error:currentPlanError}=await db.from("together_shared_plans")
+    .select("id,title,status,starts_at,participant_instance_ids")
+    .eq("user_id",user.id).eq("continuity_id",continuity.id)
+    .eq("source_conversation_id",conversation.id)
+    .in("status",["proposed","scheduled","active"]);
+  if(currentPlanError)throw new AppError("INTERNAL_ERROR","Current group plans could not be checked.",500,true);
+  const blockingArchivePlan=currentGroupPlan(currentPlans??[]);
+  if(blockingArchivePlan)throw new AppError("CONFLICT",`${blockingArchivePlan.title} is still current. End or cancel it before archiving this group.`,409,true);
   const now = new Date().toISOString();
   await Promise.all([
     db.from("together_conversations").update({
@@ -539,9 +558,12 @@ async function groupDetail(
   let messages: any[] = [],
     reactions: any[] = [],
     generatedMedia: any[] = [],
-    mediaOffers: any[] = [];
+    mediaOffers: any[] = [],
+    sharedPlans: any[] = [],
+    conversationActions: any[] = [],
+    conversationEvents: any[] = [];
   if (includeTimeline) {
-    const [result, reactionResult, mediaResult, offerResult] = await Promise
+    const [result, reactionResult, mediaResult, offerResult, planResult, actionResult, eventResult] = await Promise
       .all([
         db.from("together_messages").select(
           "*,together_conversation_attachments(*)",
@@ -561,11 +583,45 @@ async function groupDetail(
           "conversation_id",
           conversation.id,
         ).order("created_at"),
+        db.from("together_shared_plans").select(
+          "*,together_locations(id,name,slug),together_plan_attendance(*),together_plan_participant_responses(*)",
+        ).eq("source_conversation_id", conversation.id).eq("user_id", userId)
+          .eq("continuity_id", continuityId).order("starts_at", {
+            ascending: true,
+            nullsFirst: false,
+          }),
+        db.from("together_conversation_actions").select("*").eq(
+          "conversation_id",
+          conversation.id,
+        ).eq("user_id", userId).eq("continuity_id", continuityId).eq(
+          "status",
+          "pending",
+        ).order("created_at"),
+        db.from("together_conversation_events").select("*").eq(
+          "conversation_id",
+          conversation.id,
+        ).eq("user_id", userId).order("created_at"),
       ]);
     messages = result.data ?? [];
     reactions = reactionResult.data ?? [];
     generatedMedia = mediaResult.data ?? [];
     mediaOffers = offerResult.data ?? [];
+    sharedPlans = (planResult.data ?? []).map((plan: any) => {
+      const attendance = plan.together_plan_attendance ?? [];
+      return {
+        ...plan,
+        participant_responses: plan.together_plan_participant_responses ?? [],
+        attendance: {
+          user: attendance.find((row: any) => row.participant_type === "user") ?? null,
+          character: attendance.find((row: any) =>
+            row.participant_type === "character" &&
+            String(row.character_instance_id) === String(plan.character_instance_id)
+          ) ?? null,
+        },
+      };
+    });
+    conversationActions = actionResult.data ?? [];
+    conversationEvents = eventResult.data ?? [];
     const paths = [
       ...messages.flatMap((message: any) =>
         message.together_conversation_attachments ?? []
@@ -603,6 +659,9 @@ async function groupDetail(
     reactions,
     generatedMedia,
     mediaOffers,
+    sharedPlans,
+    conversationActions,
+    conversationEvents,
     settings: normalizeGroupSettings(conversation.metadata),
   };
 }

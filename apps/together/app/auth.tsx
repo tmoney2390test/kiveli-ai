@@ -166,6 +166,16 @@ export default function Auth() {
           </View></>:null}
 
           {!creating ? <Pressable disabled={busy} onPress={() => void reset()}><Text style={styles.secondary}>Forgot password?</Text></Pressable> : <View style={styles.instant}><Sparkles size={14} color={colors.violet} /><Text style={styles.instantText}>No setup tour. Personalize later.</Text></View>}
+
+          <View style={styles.legalLinks}>
+            <Pressable accessibilityRole="link" onPress={() => router.push('/terms' as never)}><Text style={styles.legalLink}>Terms</Text></Pressable>
+            <Text style={styles.legalDot}>·</Text>
+            <Pressable accessibilityRole="link" onPress={() => router.push('/privacy-policy' as never)}><Text style={styles.legalLink}>Privacy</Text></Pressable>
+            <Text style={styles.legalDot}>·</Text>
+            <Pressable accessibilityRole="link" onPress={() => router.push('/community-guidelines' as never)}><Text style={styles.legalLink}>Safety</Text></Pressable>
+            <Text style={styles.legalDot}>·</Text>
+            <Pressable accessibilityRole="link" onPress={() => router.push('/help' as never)}><Text style={styles.legalLink}>Help</Text></Pressable>
+          </View>
         </View>
       </View>
     </Screen>
@@ -225,4 +235,7 @@ const styles = StyleSheet.create({
   secondary: { textAlign: 'center', color: colors.muted, fontWeight: '700', fontSize: 12 },
   instant: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
   instantText: { color: colors.muted, fontSize: 11 },
+  legalLinks: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 2 },
+  legalLink: { color: colors.muted, fontSize: 10, fontWeight: '800' },
+  legalDot: { color: colors.dimmed, fontSize: 10 },
 });

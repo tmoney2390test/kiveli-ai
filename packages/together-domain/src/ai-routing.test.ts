@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyDialogueContent, isCapabilityStyleExplicitRefusal, isDialogueHardBlocked, routeKivelleDialogue, type DialogueProviderAvailability } from './ai-routing.ts';
+import { classifyDialogueContent, isCapabilityStyleExplicitRefusal, isContradictoryAcceptedIntimacyRefusal, isDialogueHardBlocked, routeKivelleDialogue, type DialogueProviderAvailability } from './ai-routing.ts';
 import { classifyPhotoIntent } from './media.ts';
 
 const providers: DialogueProviderAvailability = { openai:true, xai:true, gemini:true, xaiEnabled:true, xaiExplicitEnabled:true };
@@ -51,9 +51,17 @@ describe('Kivelle AI routing',()=>{
     expect(route('keep going',{},[{role:'assistant',content:'Tell me more about work.'}]).provider).toBe('openai');
     expect(route('How was work?',{},[{role:'assistant',content:'I want to have sex with you.'}]).provider).toBe('openai');
   });
+  it.each(['please','pretty please','yes please','okay'])('keeps a short adult continuation on xAI: %s',(message)=>expect(route(message,{},[{role:'assistant',content:'I want oral sex.'}])).toMatchObject({provider:'xai',classification:'explicit_adult'}));
   it('recognizes capability-style adult refusals without treating an authored no as provider failure',()=>{
     expect(isCapabilityStyleExplicitRefusal("I can't describe explicit genital sensations in detail. I can keep it sensual without becoming graphic.")).toBe(true);
     expect(isCapabilityStyleExplicitRefusal("No. I don't want that tonight.")).toBe(false);
+  });
+  it('detects refusals that contradict an already-accepted intimacy turn',()=>{
+    expect(isContradictoryAcceptedIntimacyRefusal("That line's cute until you remember I already said no graphic play. My mouth stays empty.")).toBe(true);
+    expect(isContradictoryAcceptedIntimacyRefusal("I'm not wrapping my mouth around that.")).toBe(true);
+    expect(isContradictoryAcceptedIntimacyRefusal("I can't describe explicit sexual detail.")).toBe(true);
+    expect(isContradictoryAcceptedIntimacyRefusal("I won't stop touching you.")).toBe(false);
+    expect(isContradictoryAcceptedIntimacyRefusal("No. I don't want that tonight.")).toBe(false);
   });
   it('treats broad sexual moderation as routing evidence but minors as a hard block',()=>{
     expect(classifyDialogueContent({message:'keep going',requestedMode:'explicit',moderation:{allowed:true,flagged:true,categories:['sexual'],categoryScores:{sexual:.92}}})).toBe('explicit_adult');

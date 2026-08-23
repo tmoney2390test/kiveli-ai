@@ -74,6 +74,23 @@ export function joinablePlanForChat<T extends Commitment>(plans: T[], characterI
     .sort((left, right) => new Date(left.starts_at ?? 0).getTime() - new Date(right.starts_at ?? 0).getTime())[0] ?? null;
 }
 
+/** Group plans are one canonical commitment scoped to their source group. */
+export function plansForGroup<T extends Commitment & { source_conversation_id?: string | null }>(plans: T[], conversationId: string): T[] {
+  return plans.filter((plan) => plan.source_conversation_id === conversationId);
+}
+
+export function activePlanForGroup<T extends Commitment & { source_conversation_id?: string | null }>(plans: T[], conversationId: string): T | null {
+  return plansForGroup(plans, conversationId)
+    .filter((plan) => plan.status === 'active' && Boolean(plan.attendance?.user && !plan.attendance.user.left_at))
+    .sort((left, right) => new Date(right.attendance?.user?.joined_at ?? right.starts_at ?? 0).getTime() - new Date(left.attendance?.user?.joined_at ?? left.starts_at ?? 0).getTime())[0] ?? null;
+}
+
+export function joinablePlanForGroup<T extends Commitment & { source_conversation_id?: string | null }>(plans: T[], conversationId: string, now = new Date()): T | null {
+  return plansForGroup(plans, conversationId)
+    .filter((plan) => planActionAvailability(plan, now).primary === 'start' && planActionAvailability(plan, now).primaryEnabled)
+    .sort((left, right) => new Date(left.starts_at ?? 0).getTime() - new Date(right.starts_at ?? 0).getTime())[0] ?? null;
+}
+
 const lifecycleDividerTypes = new Set(['plan_created', 'plan_joined', 'plan_completed']);
 
 export function isPlanLifecycleDividerEvent(event: { event_type: string }): boolean {

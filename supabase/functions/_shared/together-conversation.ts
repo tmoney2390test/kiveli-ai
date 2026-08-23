@@ -49,7 +49,7 @@ export async function resolveActiveConversationScene(input:{db:SupabaseClient;us
   // A live scene session is checked before passive Date/Plan presence because
   // it may have moved within the world since the authored commitment began.
   // Shared Plans still require both participants to have active attendance.
-  const { data: activePlans } = await input.db.from('together_shared_plans').select('id,continuity_id,title,location_id,world_id,activity_key,starts_at,ends_at,companion_state').eq('user_id',input.userId).eq('continuity_id',String(input.conversation.continuity_id)).eq('character_instance_id',input.characterInstanceId).in('status',['scheduled','active']).order('starts_at',{ascending:false}).limit(8);
+  const { data: activePlans } = await input.db.from('together_shared_plans').select('id,continuity_id,title,location_id,world_id,activity_key,starts_at,ends_at,companion_state').eq('user_id',input.userId).eq('continuity_id',String(input.conversation.continuity_id)).contains('participant_instance_ids',[input.characterInstanceId]).in('status',['scheduled','active']).order('starts_at',{ascending:false}).limit(8);
   const activePlan=(activePlans??[]).find((plan:any)=>plan.starts_at&&plan.ends_at&&new Date(plan.starts_at).getTime()-30*60_000<=now.getTime()&&new Date(plan.ends_at).getTime()>now.getTime()) as Record<string,any>|undefined;
   let activePlanJoined=false;
   if(activePlan){

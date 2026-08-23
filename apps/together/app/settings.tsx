@@ -70,9 +70,11 @@ export default function Settings() {
   const [avatar, setAvatar] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const profileHydrated = useRef(false);
 
   useEffect(() => {
-    if (!profile) return;
+    if (!profile || profileHydrated.current) return;
+    profileHydrated.current = true;
     setName(profile.display_name ?? '');
     setAbout(profile.about_me ?? '');
     setInterests((profile.interests ?? []).join(', '));
@@ -280,7 +282,7 @@ function RelationshipsPanel({ snapshot, onRoute }: { snapshot: NonNullable<Retur
 }
 
 function PrivacyPanel({ onRoute, onDisclosure, onLogout, signingOut }: { onRoute: (route: string) => void; onDisclosure: () => void; onLogout: () => void; signingOut: boolean }) {
-  return <View style={styles.panel}><PanelHeading title="Privacy & safety" body="Control your data, understand Kivelle's AI characters, and manage account access." /><SettingsGroup><SettingsRow icon={<Shield />} title="Privacy and data controls" body="Personalization, analytics, export, and account deletion." onPress={() => onRoute('/privacy')} /><SettingsRow icon={<FileText />} title="AI disclosure" body="How fictional Kivelle characters and simulation work." onPress={onDisclosure} /><SettingsRow icon={<LogOut color={colors.danger} />} title={signingOut ? 'Signing out…' : 'Sign out'} body="Your relationships and history stay safely stored." onPress={onLogout} disabled={signingOut} danger /></SettingsGroup><InfoCard title="A healthier relationship design">Your memories are visible and editable. Kivelle does not use guilt, loneliness, or dependency language to pressure you to return.</InfoCard><Text style={styles.version}>Kivelle.AI · 1.0.0</Text></View>;
+  return <View style={styles.panel}><PanelHeading title="Privacy & safety" body="Control your data, understand Kivelle's AI characters, and manage account access." /><SettingsGroup><SettingsRow icon={<Shield />} title="Privacy and data controls" body="Personalization, analytics, export, and account deletion." onPress={() => onRoute('/privacy')} /><SettingsRow icon={<FileText />} title="AI disclosure" body="How fictional Kivelle characters and simulation work." onPress={onDisclosure} /><SettingsRow icon={<FileText />} title="Terms of Service" body="Account, billing, content, and acceptable use." onPress={() => onRoute('/terms')} /><SettingsRow icon={<Shield />} title="Community & Safety Guidelines" body="Adult-only content, consent, real people, and reports." onPress={() => onRoute('/community-guidelines')} /><SettingsRow icon={<MessageCircle />} title="Help & Support" body="Answers, private support requests, and request status." onPress={() => onRoute('/help')} /><SettingsRow icon={<LogOut color={colors.danger} />} title={signingOut ? 'Signing out…' : 'Sign out'} body="Your relationships and history stay safely stored." onPress={onLogout} disabled={signingOut} danger /></SettingsGroup><InfoCard title="A healthier relationship design">Your memories are visible and editable. Kivelle does not use guilt, loneliness, or dependency language to pressure you to return.</InfoCard><Text style={styles.version}>Kivelle.AI · 1.0.0</Text></View>;
 }
 
 function PanelHeading({ title, body }: { title: string; body: string }) { return <View style={styles.panelHeading}><Text style={styles.panelTitle}>{title}</Text><Text style={styles.panelBody}>{body}</Text></View>; }

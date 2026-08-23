@@ -1,5 +1,5 @@
 import{describe,expect,it}from'vitest';
-import{classifyMissExplanation,deriveCommitmentTemporalState,manualCommitmentEndEligibility,missedCommitmentImpact,missedCommitmentRepairImpact,planStartSatisfiesLeadTime,resolveElapsedCommitmentEnd,resolveQuickPlanTiming,shouldSendPlanWaitingCheckIn}from'./commitments';
+import{classifyMissExplanation,deriveCommitmentTemporalState,manualCommitmentEndEligibility,missedCommitmentImpact,missedCommitmentRepairImpact,planStartSatisfiesLeadTime,resolveElapsedCommitmentEnd,resolveQuickPlanTiming,selectGroupPlanReminder,shouldSendPlanWaitingCheckIn}from'./commitments';
 
 describe('commitments',()=>{
   const now=new Date('2026-08-15T20:00:00Z');
@@ -51,5 +51,16 @@ describe('commitments',()=>{
     expect(resolveElapsedCommitmentEnd({status:'active',source:'chat',endsAt:'2026-08-15T19:30:00Z'},now)).toEqual({shouldFinalize:true,completedAt:'2026-08-15T19:30:00.000Z',reason:'elapsed'});
     expect(resolveElapsedCommitmentEnd({status:'active',source:'date',endsAt:'2026-08-15T19:30:00Z'},now).shouldFinalize).toBe(false);
     expect(resolveElapsedCommitmentEnd({status:'completed',source:'chat',endsAt:'2026-08-15T19:30:00Z'},now).shouldFinalize).toBe(false);
+  });
+  it('selects one upcoming group reminder from its anchor companion only',()=>{
+    const plans=[
+      {id:'later',status:'scheduled',starts_at:'2026-08-15T21:20:00Z',source_conversation_id:'group',character_instance_id:'anchor',metadata:{groupPlan:true}},
+      {id:'soon',status:'scheduled',starts_at:'2026-08-15T20:45:00Z',source_conversation_id:'group',character_instance_id:'anchor',metadata:{groupPlan:true}},
+      {id:'other-speaker',status:'scheduled',starts_at:'2026-08-15T20:40:00Z',source_conversation_id:'group',character_instance_id:'other',metadata:{groupPlan:true}},
+      {id:'direct-plan',status:'scheduled',starts_at:'2026-08-15T20:35:00Z',source_conversation_id:'direct',character_instance_id:'anchor',metadata:{}},
+    ];
+    expect(selectGroupPlanReminder({plans,characterInstanceId:'anchor',remindersEnabled:true,now})?.id).toBe('soon');
+    expect(selectGroupPlanReminder({plans,characterInstanceId:'other',remindersEnabled:false,now})).toBeNull();
+    expect(selectGroupPlanReminder({plans,characterInstanceId:'missing',remindersEnabled:true,now})).toBeNull();
   });
 });

@@ -16,7 +16,7 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('delete'), confirmation: z.literal('DELETE') }),
 ]);
 
-const exportTables = ['together_profiles','together_user_personas','together_continuities','together_character_instances', 'together_relationship_states', 'together_relationship_milestones', 'together_conversations', 'together_messages','together_conversation_attachments', 'together_memories', 'together_open_threads', 'together_life_events','together_shared_plans', 'together_date_sessions', 'together_date_choices', 'together_moments', 'together_story_arc_instances', 'together_knowledge_transfers', 'together_generated_media','together_voice_call_sessions','together_scene_sessions','together_scene_participants','together_scene_messages', 'together_content_usage', 'together_notification_preferences', 'together_entitlements'] as const;
+const exportTables = ['together_profiles','together_user_personas','together_continuities','together_character_instances', 'together_relationship_states', 'together_relationship_milestones', 'together_conversations', 'together_messages','together_conversation_attachments', 'together_memories', 'together_open_threads', 'together_life_events','together_shared_plans','together_plan_participant_responses', 'together_date_sessions', 'together_date_choices', 'together_moments', 'together_story_arc_instances', 'together_knowledge_transfers', 'together_generated_media','together_voice_call_sessions','together_scene_sessions','together_scene_participants','together_scene_messages', 'together_content_usage', 'together_notification_preferences', 'together_entitlements'] as const;
 
 serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);

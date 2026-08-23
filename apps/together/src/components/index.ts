@@ -11,3 +11,4 @@ export * from './PlanDetailsModal';
 export * from './ActivePlanBar';
 export * from './VoiceNotePurchaseModal';
 export * from './PlanningCompanionPicker';
+export * from './ConnectionBanner';

@@ -19,6 +19,9 @@ describe('desktop navigation', () => {
     expect(desktopShellAllowed('/auth')).toBe(false);
     expect(desktopShellAllowed('/auth/callback')).toBe(false);
     expect(desktopShellAllowed('/choose-companion')).toBe(false);
+    expect(desktopShellAllowed('/terms')).toBe(false);
+    expect(desktopShellAllowed('/privacy-policy')).toBe(false);
+    expect(desktopShellAllowed('/help')).toBe(false);
     expect(desktopShellAllowed('/home')).toBe(true);
     expect(desktopShellAllowed('/create/companion')).toBe(true);
   });

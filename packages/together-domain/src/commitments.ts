@@ -22,6 +22,36 @@ export type CommitmentTimingInput={
 
 export type MissedCommitmentImpact={trust:number;respect:number;conflict:number;affinity:number};
 
+export type GroupPlanReminderCandidate={
+  id:string;
+  title?:string|null;
+  status:string;
+  starts_at:string;
+  source_conversation_id?:string|null;
+  character_instance_id?:string|null;
+  metadata?:Record<string,unknown>|null;
+};
+
+/** Selects the one group-plan reminder owned by this companion in the
+ * dispatch window. Group plans have one canonical anchor companion so a
+ * reminder never becomes a chorus of near-identical messages. */
+export function selectGroupPlanReminder<T extends GroupPlanReminderCandidate>(input:{
+  plans:T[];
+  characterInstanceId:string;
+  remindersEnabled:boolean;
+  now?:Date;
+  earliestMinutes?:number;
+  latestMinutes?:number;
+}):T|null{
+  if(!input.remindersEnabled)return null;
+  const now=input.now??new Date(),earliest=input.earliestMinutes??30,latest=input.latestMinutes??90;
+  return input.plans
+    .filter((plan)=>plan.status==='scheduled'&&Boolean(plan.source_conversation_id)&&plan.metadata?.['groupPlan']===true&&String(plan.character_instance_id??'')===input.characterInstanceId)
+    .map((plan)=>({plan,minutes:(new Date(plan.starts_at).getTime()-now.getTime())/60_000}))
+    .filter(({minutes})=>Number.isFinite(minutes)&&minutes>=earliest&&minutes<=latest)
+    .sort((a,b)=>a.minutes-b.minutes)[0]?.plan??null;
+}
+
 export function resolveQuickPlanTiming(choice:QuickPlanTimingChoice|undefined,startsAt:string|undefined,now=new Date()):string|undefined{
   if(choice==='now')return now.toISOString();
   if(choice==='in_one_hour')return new Date(now.getTime()+60*60_000).toISOString();

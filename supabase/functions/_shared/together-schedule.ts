@@ -67,7 +67,7 @@ export async function ensureCharacterSchedule(input:{db:SupabaseClient;userId:st
     db.from('together_character_activity_templates').select('*').eq('character_version_id',instance.character_version_id),
     db.from('together_character_schedule_events').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).gte('starts_at',from.toISOString()).lt('starts_at',until.toISOString()),
     db.from('together_character_schedule_events').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).gte('starts_at',new Date(from.getTime()-45*86400000).toISOString()).lt('starts_at',from.toISOString()).order('starts_at',{ascending:false}).limit(300),
-    db.from('together_shared_plans').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).in('status',['scheduled','active']).lt('starts_at',until.toISOString()).gt('ends_at',from.toISOString()),
+    db.from('together_shared_plans').select('*').eq('user_id',userId).contains('participant_instance_ids',[characterInstanceId]).in('status',['scheduled','active']).lt('starts_at',until.toISOString()).gt('ends_at',from.toISOString()),
     db.from('together_schedule_templates').select('*,together_locations(world_id)').eq('character_version_id',instance.character_version_id),
     db.from('together_character_relationship_edges').select('*').or(`source_template_id.eq.${instance.character_template_id},target_template_id.eq.${instance.character_template_id}`),
     db.from('together_character_instances').select('id,character_template_id').eq('user_id',userId).eq('continuity_id',instance.continuity_id),
@@ -113,7 +113,7 @@ export async function resolveCharacterPresence(input:{db:SupabaseClient;userId:s
   const fallbackLocationId=preserveAuthoredState||!baseLocation?(instance.current_location_id?String(instance.current_location_id):null):String(baseLocation.id);
   const fallbackActivity=preserveAuthoredState?String(instance.current_activity??'Having some unstructured time'):'Having some unstructured time at home';
   const[planResult,eventResult,nextResult,lifeEventResult]=await Promise.all([
-    db.from('together_shared_plans').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).in('status',['active','scheduled']).lte('starts_at',now.toISOString()).gt('ends_at',now.toISOString()).order('starts_at').limit(1).maybeSingle(),
+    db.from('together_shared_plans').select('*').eq('user_id',userId).contains('participant_instance_ids',[characterInstanceId]).in('status',['active','scheduled']).lte('starts_at',now.toISOString()).gt('ends_at',now.toISOString()).order('starts_at').limit(1).maybeSingle(),
     db.from('together_character_schedule_events').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).lte('starts_at',now.toISOString()).gt('ends_at',now.toISOString()).order('priority').limit(10),
     db.from('together_character_schedule_events').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).gt('starts_at',now.toISOString()).order('starts_at').limit(12),
     db.from('together_life_events').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).not('event_type','in','(shared_plan,legacy_shared_plan)').lte('starts_at',now.toISOString()).gt('ends_at',now.toISOString()).order('significance',{ascending:false}).limit(10),

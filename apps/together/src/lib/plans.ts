@@ -1,4 +1,4 @@
-import type { DateSession, Location, ScheduleItem, SharedPlan } from '../types';
+import type { CharacterInstance, DateSession, Location, ScheduleItem, SharedPlan } from '../types';
 
 export type PlanActivityId=string;
 export type PlanSource='chat'|'location'|'world'|'discover'|'home'|'story';
@@ -21,6 +21,47 @@ export type PlanSlot={label:string;detail:string;value:string;reason?:string;bes
 export type PlanTimingChoice='now'|'in_one_hour'|'custom';
 export type PlanTimingSelection={choice:'now'|'in_one_hour'}|{choice:'custom';startsAt:string};
 export type ResolvedPlanDraft={draft:PlanDraft;option?:PlanOption;slots:PlanSlot[];missing:Array<'activity'|'location'|'time'>;ready:boolean};
+export type GroupPlanAvailabilityState='free'|'override'|'busy'|'conflict';
+export type GroupPlanAvailability={characterInstanceId:string;name:string;state:GroupPlanAvailabilityState;detail:string;available:boolean};
+
+/** Fast client preview; the server repeats every check authoritatively on save. */
+export function resolveGroupPlanAvailability(input:{participants:CharacterInstance[];start:Date;durationMinutes:number;schedules:ScheduleItem[];plans:SharedPlan[];dates:DateSession[];immediate?:boolean;excludePlanId?:string}):GroupPlanAvailability[]{
+  const end=input.start.getTime()+input.durationMinutes*60000;
+  const startMinute=input.start.getHours()*60+input.start.getMinutes();
+  const endMinute=startMinute+input.durationMinutes;
+  return input.participants.map((participant)=>{
+    const name=participant.together_character_templates.name;
+    const plan=input.plans.find((candidate)=>candidate.id!==input.excludePlanId
+      && ['proposed','scheduled','active'].includes(candidate.status)
+      && (candidate.participant_instance_ids?.includes(participant.id)||candidate.character_instance_id===participant.id)
+      && new Date(candidate.starts_at).getTime()<end&&new Date(candidate.ends_at).getTime()>input.start.getTime());
+    if(plan)return{characterInstanceId:participant.id,name,state:'conflict',detail:`Already has ${plan.title}`,available:false};
+    const date=input.dates.find((candidate)=>candidate.character_instance_id===participant.id&&candidate.status==='upcoming'&&candidate.scheduled_for
+      && new Date(candidate.scheduled_for).getTime()<end&&new Date(candidate.scheduled_for).getTime()+3*3600000>input.start.getTime());
+    if(date)return{characterInstanceId:participant.id,name,state:'conflict',detail:`Already has ${date.together_date_templates.name}`,available:false};
+    // Start Now is an explicit user override of passive schedule blocks. The
+    // server applies the same rule after checking real plan/date conflicts.
+    if(input.immediate)return{characterInstanceId:participant.id,name,state:participant.current_interruptibility==='busy'?'override':'free',detail:participant.current_interruptibility==='busy'?'Can join when you start':'Free now',available:true};
+    const schedule=input.schedules.find((candidate)=>candidate.character_version_id===participant.character_version_id
+      && candidate.day_of_week===input.start.getDay()&&candidate.availability==='busy'
+      && startMinute<candidate.end_minute&&endMinute>candidate.start_minute);
+    if(schedule)return{characterInstanceId:participant.id,name,state:'busy',detail:`Busy with ${friendlyActivity(schedule.activity)} until ${minuteText(schedule.end_minute)}`,available:false};
+    return{characterInstanceId:participant.id,name,state:'free',detail:input.immediate?'Free now':'Free at this time',available:true};
+  });
+}
+
+export function nextAvailableGroupPlanTime(input:{participants:CharacterInstance[];after:Date;option:PlanOption;schedules:ScheduleItem[];plans:SharedPlan[];dates:DateSession[];excludePlanId?:string;maximumDays?:number}):Date|null{
+  const minimum=new Date(Math.max(input.after.getTime(),Date.now()+10*60000));
+  let candidate=roundToQuarter(minimum);
+  const deadline=candidate.getTime()+(input.maximumDays??14)*86400000;
+  for(let attempt=0;attempt<((input.maximumDays??14)*48)&&candidate.getTime()<=deadline;attempt++){
+    if(input.option.program){const programmed=nextProgramStart(candidate,input.option.program,new Date());if(!programmed)return null;candidate=programmed;}
+    const statuses=resolveGroupPlanAvailability({...input,start:candidate,durationMinutes:input.option.durationMinutes});
+    if(statuses.every((status)=>status.available)&&isLocationOpen({hours:input.option.hours} as Location,candidate,input.option.durationMinutes))return candidate;
+    candidate=new Date(candidate.getTime()+30*60000);
+  }
+  return null;
+}
 
 export function previewPlanTiming(choice:Exclude<PlanTimingChoice,'custom'>,now=new Date()):Date{return new Date(now.getTime()+(choice==='in_one_hour'?60*60000:0));}
 
@@ -107,6 +148,7 @@ function matchesActivity(option:PlanOption,activity:string){return normalize(opt
 function qualityLabel(reason:string){if(reason.includes('liked'))return'You both liked this';if(reason.includes('not done'))return'Something different';if(reason.includes('works naturally'))return'Works nearby';return'Best fit';}
 function openReason(option:PlanOption|undefined){if(!option?.hours?.close)return'You are both free';const close=parseMinute(option.hours.close);return close!==null&&close>=22*60?`${option.locationName} is open late`:'You are both free';}
 function friendlyActivity(activity:string){return activity.replace(/^(client\s+)?/i,'').replace(/\b\w/g,(letter)=>letter.toUpperCase());}
+function minuteText(value:number){const normalized=((value%1440)+1440)%1440,hour=Math.floor(normalized/60),minute=normalized%60;return`${hour%12||12}:${String(minute).padStart(2,'0')} ${hour>=12?'PM':'AM'}`;}
 function formatPlanDate(value:Date){return value.toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}
 function defaultTitle(activity:string,location:string){return`${activity.replace(/\b\w/g,(letter)=>letter.toUpperCase())} at ${location}`;}
 function durationFor(activity:string){const value=activity.toLowerCase();if(/movie/.test(value))return 150;if(/trivia|music|dinner|karaoke|comedy/.test(value))return 120;if(/walk|shopping|gallery|books|records|photos/.test(value))return 90;if(/coffee|pastry/.test(value))return 60;return 90;}

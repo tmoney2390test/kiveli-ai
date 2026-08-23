@@ -311,6 +311,10 @@ function LandingFooter({ onSignIn, onWorlds, onCompanions }: { onSignIn: () => v
     <View style={styles.footerLinks}>
       <FooterLink label="Worlds" onPress={onWorlds} />
       <FooterLink label="Companions" onPress={onCompanions} />
+      <FooterLink label="Terms" onPress={() => router.push('/terms' as never)} />
+      <FooterLink label="Privacy" onPress={() => router.push('/privacy-policy' as never)} />
+      <FooterLink label="Safety" onPress={() => router.push('/community-guidelines' as never)} />
+      <FooterLink label="Help" onPress={() => router.push('/help' as never)} />
       <FooterLink label="Log in" onPress={onSignIn} />
     </View>
     <Text style={styles.copyright}>© 2026 Kivelle.AI</Text>

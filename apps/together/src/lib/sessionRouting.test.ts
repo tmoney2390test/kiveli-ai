@@ -6,6 +6,10 @@ describe('session routing', () => {
     expect(isPublicAppPath('/')).toBe(true);
     expect(isPublicAppPath('/auth')).toBe(true);
     expect(isPublicAppPath('/auth/callback')).toBe(true);
+    expect(isPublicAppPath('/terms')).toBe(true);
+    expect(isPublicAppPath('/privacy-policy')).toBe(true);
+    expect(isPublicAppPath('/community-guidelines')).toBe(true);
+    expect(isPublicAppPath('/help')).toBe(true);
     expect(isPublicAppPath('/home')).toBe(false);
     expect(isPublicAppPath('/character/maya')).toBe(false);
   });

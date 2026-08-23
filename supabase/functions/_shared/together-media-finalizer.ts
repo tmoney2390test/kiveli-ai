@@ -11,6 +11,23 @@ const MAX_IMAGE_BYTES=20*1024*1024;
 const MAX_VIDEO_BYTES=80*1024*1024;
 const MAX_LORA_BYTES=1024*1024*1024;
 
+type StorageUploadResult={error:{message?:string}|null};
+
+/**
+ * Storage is the last network hop after a provider has already done the
+ * expensive generation work. Retry that hop locally before rerunning the
+ * broader finalization pipeline or refunding the request.
+ */
+export async function uploadGeneratedMediaWithRetry(input:{upload:()=>PromiseLike<StorageUploadResult>;wait?:(delayMs:number)=>Promise<void>;maxAttempts?:number}):Promise<number>{
+  const maxAttempts=Math.max(1,Math.min(4,input.maxAttempts??3)),wait=input.wait??((delayMs:number)=>new Promise<void>((resolve)=>setTimeout(resolve,delayMs)));
+  for(let attempt=1;attempt<=maxAttempts;attempt+=1){
+    const result=await input.upload();
+    if(!result.error)return attempt;
+    if(attempt<maxAttempts)await wait(300*attempt);
+  }
+  throw new AppError('INTERNAL_ERROR','The generated media could not be stored.',500,true);
+}
+
 export async function finalizeProviderMedia(db:SupabaseClient,input:{jobId:string;result:ProviderCompletedMedia;providerStatus?:Record<string,unknown>}):Promise<Record<string,unknown>>{
   const lease=await claimFinalizationLease(db,input.jobId,300);
   try{return await finalizeProviderMediaClaimed(db,input,lease.job,lease.token);}
@@ -39,8 +56,7 @@ async function finalizeProviderMediaClaimed(db:SupabaseClient,input:{jobId:strin
   const dimensions=String(media.media_type)==='image'?imageDimensions(downloaded.bytes,downloaded.contentType):null;
   const extension=extensionFor(downloaded.contentType,String(media.media_type));
   const storagePath=`${media.user_id}/${media.character_instance_id}/${media.id}.${extension}`;
-  const{error:uploadError}=await db.storage.from('together-user-media').upload(storagePath,downloaded.bytes,{contentType:downloaded.contentType,upsert:true,cacheControl:'31536000'});
-  if(uploadError)throw new AppError('INTERNAL_ERROR','The generated media could not be stored.',500,true);
+  await uploadGeneratedMediaWithRetry({upload:()=>db.storage.from('together-user-media').upload(storagePath,downloaded.bytes,{contentType:downloaded.contentType,upsert:true,cacheControl:'31536000'})});
 
   const now=new Date().toISOString(),metadata=(media.metadata??{}) as Record<string,unknown>;
   const safeProviderMetadata={model:input.result.model,estimatedCost:input.result.estimatedCost??null,generationMs:input.result.generationMs??null,...sanitizeProviderMetadata(input.result.providerMetadata??{}),...sanitizeProviderMetadata(input.providerStatus??{})};

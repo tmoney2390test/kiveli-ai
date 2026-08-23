@@ -9,6 +9,7 @@ import { createWindowedCommitment, explainMissedCommitment, joinCommitment, leav
 import { beginPlanExperience, finalizeExpiredPlanExperience, loadPlanExperience, reconcileCompletedPlanExperience, wrapPlanExperience } from '../_shared/together-plan-experience.ts';
 import { cancelSharedPlan, createSharedPlan, focusConversationOnPlan, rescheduleSharedPlan, updateSharedPlan, writeConversationEvent } from '../_shared/together-plans.ts';
 import { track } from '../_shared/together.ts';
+import { recordGroupPlanCommitment } from '../_shared/together-group-plans.ts';
 
 const source=z.enum(['chat','manual_planner','location','discover','date','story']);
 const precision=z.enum(['exact','approximate','daypart','window','day']);
@@ -40,8 +41,8 @@ serve(async(request,correlationId)=>{
   const userTimezone=request.headers.get('x-kivelle-timezone')??'UTC';
 
   if(input.action==='list'){
-    let query=db.from('together_shared_plans').select('*,together_locations(id,name,slug),together_plan_attendance(*),together_missed_plan_resolutions(*)').eq('user_id',user.id).eq('continuity_id',continuity.id).order('starts_at',{ascending:true,nullsFirst:false}).order('created_at');
-    if(input.characterInstanceId)query=query.eq('character_instance_id',input.characterInstanceId);
+    let query=db.from('together_shared_plans').select('*,together_locations(id,name,slug),together_plan_attendance(*),together_plan_participant_responses(*),together_missed_plan_resolutions(*)').eq('user_id',user.id).eq('continuity_id',continuity.id).order('starts_at',{ascending:true,nullsFirst:false}).order('created_at');
+    if(input.characterInstanceId)query=query.contains('participant_instance_ids',[input.characterInstanceId]);
     if(!input.includeCancelled)query=query.neq('status','cancelled');
     const{data,error}=await query;if(error)throw new AppError('INTERNAL_ERROR','Plans could not be loaded.',500,true);
     return json({data:data??[],correlationId},200,correlationId);
@@ -51,7 +52,9 @@ serve(async(request,correlationId)=>{
   if(input.action==='leave')return json({data:await leaveCommitment(db,{userId:user.id,continuityId:continuity.id,planId:input.planId,requestId:input.requestId}),correlationId},200,correlationId);
   if(input.action==='experience'){
     const experience=await loadPlanExperience({db,userId:user.id,continuityId:continuity.id,characterInstanceId:input.characterInstanceId,planId:input.planId});
-    const data=['scheduled','active'].includes(String(experience.plan.status))&&experience.plan.ends_at&&new Date(experience.plan.ends_at).getTime()<=Date.now()&&!['date'].includes(String(experience.plan.source))
+    const data=String(experience.plan.status)==='completed'
+      ?await reconcileCompletedPlanExperience({db,userId:user.id,continuityId:continuity.id,characterInstanceId:input.characterInstanceId,planId:input.planId})
+      :['scheduled','active'].includes(String(experience.plan.status))&&experience.plan.ends_at&&new Date(experience.plan.ends_at).getTime()<=Date.now()&&!['date'].includes(String(experience.plan.source))
       ? await finalizeExpiredPlanExperience({db,userId:user.id,continuityId:continuity.id,characterInstanceId:input.characterInstanceId,planId:input.planId})
       : experience;
     return json({data,correlationId},200,correlationId);
@@ -63,8 +66,12 @@ serve(async(request,correlationId)=>{
     const now=new Date();
     const currentExperience=await loadPlanExperience({db,userId:user.id,continuityId:continuity.id,characterInstanceId:input.characterInstanceId,planId:input.currentPlanId,now});
     if(String(currentExperience.plan.source)==='date')throw new AppError('CONFLICT','Return to the Date to change or end this experience.',409,true);
-    const{data:conversation}=await db.from('together_conversations').select('id').eq('id',input.sourceConversationId).eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_instance_id',input.characterInstanceId).is('archived_at',null).maybeSingle();
+    const{data:conversation}=await db.from('together_conversations').select('id,kind,character_instance_id').eq('id',input.sourceConversationId).eq('user_id',user.id).eq('continuity_id',continuity.id).is('archived_at',null).maybeSingle();
     if(!conversation)throw new AppError('NOT_FOUND','That conversation is no longer available.',404);
+    if(conversation.kind==='group'){
+      const{data:member}=await db.from('together_conversation_participants').select('id').eq('conversation_id',conversation.id).eq('character_instance_id',input.characterInstanceId).is('left_at',null).maybeSingle();
+      if(!member)throw new AppError('CONFLICT','That companion is no longer part of the group.',409,true);
+    }else if(String(conversation.character_instance_id)!==input.characterInstanceId)throw new AppError('NOT_FOUND','That conversation is no longer available.',404);
     if(String(currentExperience.plan.location_id)===input.locationId&&String(currentExperience.plan.activity_key)===input.activityKey)throw new AppError('VALIDATION_FAILED','Choose a different activity or place before switching.',400);
     const staged=await createSharedPlan(db,{userId:user.id,characterInstanceId:input.characterInstanceId,activityKey:input.activityKey,locationId:input.locationId,startsAt:now.toISOString(),source:'chat',sourceConversationId:input.sourceConversationId,requestId:input.requestId,title:input.title,durationMinutes:input.durationMinutes,immediate:true,replacementPlanId:input.currentPlanId,deferSideEffects:true});
     if(staged.kind!=='shared_plan')throw new AppError('CONFLICT','A Date cannot replace an active shared plan from chat.',409,true);
@@ -85,6 +92,7 @@ serve(async(request,correlationId)=>{
     let experience;
     try{experience=await beginPlanExperience({db,userId:user.id,continuityId:continuity.id,characterInstanceId:input.characterInstanceId,planId:replacementId,requestId:`${input.requestId}:sync`,source:'switch',now,quiet:true});}
     catch(error){console.error('Switched plan conversation synchronization failed',{planId:replacementId,code:(error as{code?:string})?.code});experience=await loadPlanExperience({db,userId:user.id,continuityId:continuity.id,characterInstanceId:input.characterInstanceId,planId:replacementId,now});}
+    if(Array.isArray(experience.plan.participant_instance_ids)&&experience.plan.participant_instance_ids.length>1)await recordGroupPlanCommitment(db,{userId:user.id,plan:experience.plan});
     const{data:completionEvents}=await db.from('together_conversation_events').select('id,metadata').eq('user_id',user.id).eq('conversation_id',input.sourceConversationId).eq('entity_type','shared_plan').eq('entity_id',input.currentPlanId).eq('event_type','plan_completed');
     for(const event of completionEvents??[])await db.from('together_conversation_events').update({metadata:{...(event.metadata??{}),switchedToPlanId:replacementId,switchRequestId:input.requestId}}).eq('id',event.id).eq('user_id',user.id);
     const{data:existingSwitch}=await db.from('together_conversation_events').select('id').eq('user_id',user.id).eq('conversation_id',input.sourceConversationId).eq('event_type','plan_switched').eq('metadata->>switchRequestId',input.requestId).maybeSingle();
@@ -154,7 +162,7 @@ serve(async(request,correlationId)=>{
       await writeConversationEvent(db,{userId:user.id,characterInstanceId:candidate.character_instance_id,conversationId:candidate.conversation_id,eventType:'plan_cancelled',entityType:'date_session',entityId:session.id,metadata:{title:session.together_date_templates?.name??'Date',status:'cancelled',commitmentType:'date'}});
     }else{
       const startsAt=timingStartsAt??(typeof payload.proposedStartsAt==='string'?payload.proposedStartsAt:undefined);if(!startsAt)throw new AppError('VALIDATION_FAILED','Choose an exact time for this Date before saving it.',400);const start=new Date(startsAt);if(input.timingChoice!=='now'&&start.getTime()<Date.now()+10*60000)throw new AppError('VALIDATION_FAILED','Choose a future time.',400);
-      const{data:conflict}=await db.from('together_shared_plans').select('id,title').eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_instance_id',candidate.character_instance_id).in('status',['scheduled','active']).lt('starts_at',new Date(start.getTime()+3*3600000).toISOString()).gt('ends_at',start.toISOString()).limit(1).maybeSingle();if(conflict&&conflict.id!==session.shared_plan_id)throw new AppError('PLAN_CONFLICT',`You already have ${conflict.title} at that time.`,409,true);
+      const{data:conflict}=await db.from('together_shared_plans').select('id,title').eq('user_id',user.id).eq('continuity_id',continuity.id).contains('participant_instance_ids',[candidate.character_instance_id]).in('status',['scheduled','active']).lt('starts_at',new Date(start.getTime()+3*3600000).toISOString()).gt('ends_at',start.toISOString()).limit(1).maybeSingle();if(conflict&&conflict.id!==session.shared_plan_id)throw new AppError('PLAN_CONFLICT',`You already have ${conflict.title} at that time.`,409,true);
       const{data,error}=await db.from('together_date_sessions').update({status:'upcoming',scheduled_for:start.toISOString(),updated_at:new Date().toISOString()}).eq('id',session.id).eq('user_id',user.id).select('*').single();if(error)throw new AppError('INTERNAL_ERROR','That date could not be rescheduled.',500,true);result=data;
       await writeConversationEvent(db,{userId:user.id,characterInstanceId:candidate.character_instance_id,conversationId:candidate.conversation_id,eventType:'plan_rescheduled',entityType:'date_session',entityId:session.id,metadata:{title:session.together_date_templates?.name??'Date',startsAt:start.toISOString(),locationId:session.together_date_templates?.location_id,commitmentType:'date'}});
     }

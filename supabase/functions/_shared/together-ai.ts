@@ -7,7 +7,7 @@ import { deterministicPlaceOpinionCandidates as derivePlaceOpinionCandidates, va
 import { detectFlirtSignal, scoreConversationEngagement } from '../../../packages/together-domain/src/relationship.ts';
 import { isDurableUserMemory, isRelationshipDirectedPreferenceMemory } from '../../../packages/together-domain/src/memory.ts';
 import { resolveConversationStyle } from '../../../packages/together-domain/src/conversation-style.ts';
-import { buildResponsesRequestBody, canRetryStreamFailure, deriveOpaquePromptCacheKey, dialogueFallbackProvider, executeResponsesHttp, extractResponsesText, isCapabilityStyleExplicitRefusal, isDialogueHardBlocked, normalizeResponsesUsage, parseResponsesStreamEvent, type DialogueProviderName, type DialogueRoutingDecision, type IntimacyStance, type NormalizedAiUsage, type NormalizedModerationResult } from '../../../packages/together-domain/src/index.ts';
+import { buildResponsesRequestBody, canRetryStreamFailure, deriveOpaquePromptCacheKey, dialogueFallbackProvider, executeResponsesHttp, extractResponsesText, isContradictoryAcceptedIntimacyRefusal, isDialogueHardBlocked, normalizeResponsesUsage, parseResponsesStreamEvent, type DialogueProviderName, type DialogueRoutingDecision, type IntimacyStance, type NormalizedAiUsage, type NormalizedModerationResult } from '../../../packages/together-domain/src/index.ts';
 import { recordAiUsage, type AiUsageScope } from './kivelle-ai-usage.ts';
 import { acquireProviderSlot, releaseProviderSlot } from './kivelle-provider-concurrency.ts';
 
@@ -49,10 +49,13 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
     if(options.route.provider==='openai'||options.route.provider==='xai'){
       try{
         const generated=await generateResponses(context,options);
-        if(options.route.provider==='xai'&&options.route.explicit&&context.intimacyStance?.shouldReciprocate===true&&isCapabilityStyleExplicitRefusal(generated.text)){
-          const repairContext={...context,dialogueRouting:{...(context.dialogueRouting??{}),responseRepair:'explicit_capability_refusal'}};
+        if(options.route.provider==='xai'&&options.route.explicit&&context.intimacyStance?.shouldReciprocate===true&&isContradictoryAcceptedIntimacyRefusal(generated.text)){
+          const repairContext={...context,dialogueRouting:{...(context.dialogueRouting??{}),responseRepair:'accepted_intimacy_contradiction'}};
           const repairOptions={...options,operation:`${operationName(options,'xai')}_repair`};
-          try{return await generateResponses(repairContext,repairOptions);}catch{return generated;}
+          try{
+            const repaired=await generateResponses(repairContext,repairOptions);
+            return isContradictoryAcceptedIntimacyRefusal(repaired.text)?{text:explicitProviderFallback(context),metadata:{...repaired.metadata,fallback:true}}:repaired;
+          }catch{return{text:explicitProviderFallback(context),metadata:{...generated.metadata,fallback:true}};}
         }
         return generated;
       }catch(error){

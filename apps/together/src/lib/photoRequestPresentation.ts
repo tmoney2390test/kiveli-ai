@@ -11,11 +11,16 @@ export function shouldShowPhotoGenerationPending(text: string): boolean {
 
 export function photoOfferForMessage(offers: MediaOffer[], messageId: string): MediaOffer | null {
   return offers
-    .filter((offer) => offer.message_id === messageId && (offer.status === 'pending' || offer.status === 'accepted'))
+    // The source message is the single visual owner for the full offer
+    // lifecycle. Keeping failed offers attached here prevents realtime timing
+    // from rendering the same failure once inline and again as an orphan.
+    .filter((offer) => offer.message_id === messageId && (offer.status === 'pending' || offer.status === 'accepted' || offer.status === 'failed'))
     .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0] ?? null;
 }
 
 export function photoOffersWithoutVisibleMessages(offers: MediaOffer[], visibleMessageIds: ReadonlySet<string>): MediaOffer[] {
+  // Terminal failures stay at their original source message and never collect
+  // at the bottom of chat when that message is outside the loaded page.
   return offers.filter((offer) => offer.status !== 'failed' && (!offer.message_id || !visibleMessageIds.has(offer.message_id)));
 }
 

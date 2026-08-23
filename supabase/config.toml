@@ -88,3 +88,5 @@ verify_jwt = false
 
 [functions.together-dialogue-suggestion]
 verify_jwt = false
+[functions.together-ops]
+verify_jwt = false

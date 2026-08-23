@@ -56,7 +56,7 @@ Deno.serve(async (request) => {
     const activeConversation = await getActiveConversation(db, user.id, input.characterInstanceId);
     if (conversation.archived_at || activeConversation?.id !== conversation.id) throw new AppError('CONVERSATION_ARCHIVED', 'This conversation is no longer active.', 409, true);
     if(input.focusPlanId){
-      const{data:focusedPlan}=await db.from('together_shared_plans').select('id').eq('id',input.focusPlanId).eq('user_id',user.id).eq('character_instance_id',input.characterInstanceId).maybeSingle();
+      const{data:focusedPlan}=await db.from('together_shared_plans').select('id').eq('id',input.focusPlanId).eq('user_id',user.id).contains('participant_instance_ids',[input.characterInstanceId]).maybeSingle();
       if(focusedPlan){const focus={type:'plan',planId:focusedPlan.id,updatedAt:new Date().toISOString()};conversation.metadata={...(conversation.metadata??{}),focus};await db.from('together_conversations').update({metadata:conversation.metadata}).eq('id',conversation.id).eq('user_id',user.id);}
     }
 
@@ -747,7 +747,7 @@ async function collectDialogueDelta(db:any,userId:string,characterInstanceId:str
     db.from('together_relationship_milestones').select('*').eq('character_instance_id',characterInstanceId).eq('user_id',userId).eq('status','pending'),
     db.from('together_conversation_actions').select('*').eq('conversation_id',conversationId).eq('character_instance_id',characterInstanceId).eq('user_id',userId).eq('status','pending'),
     db.from('together_conversation_events').select('*').eq('conversation_id',conversationId).eq('character_instance_id',characterInstanceId).eq('user_id',userId).order('created_at',{ascending:false}).limit(30),
-    db.from('together_shared_plans').select('*').eq('character_instance_id',characterInstanceId).eq('user_id',userId).in('status',['proposed','scheduled','active']).order('starts_at').limit(20),
+    db.from('together_shared_plans').select('*').contains('participant_instance_ids',[characterInstanceId]).eq('user_id',userId).in('status',['proposed','scheduled','active']).order('starts_at').limit(20),
     db.from('together_date_sessions').select('*,together_date_templates(*)').eq('character_instance_id',characterInstanceId).eq('user_id',userId).in('status',['unlocked','upcoming','active','deferred']),
     db.from('together_life_events').select('*').eq('character_instance_id',characterInstanceId).eq('user_id',userId).order('starts_at',{ascending:false}).limit(20),
     db.from('together_story_arc_instances').select('*,together_story_arc_templates(*)').eq('character_instance_id',characterInstanceId).eq('user_id',userId).eq('status','active'),

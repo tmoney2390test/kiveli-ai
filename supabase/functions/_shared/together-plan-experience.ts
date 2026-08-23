@@ -5,6 +5,7 @@ import { AppError } from './types.ts';
 import { track } from './together.ts';
 import { writeConversationEvent } from './together-plans.ts';
 import { mergeConversationSceneMetadata } from './together-conversation.ts';
+import { enrichCompletedGroupPlan, planParticipantIds, synchronizeGroupPlanPresence } from './together-group-plans.ts';
 
 type Row = Record<string, any>;
 export type PlanExperiencePhase = 'early' | 'waiting' | 'together' | 'wrapping_up' | 'completed';
@@ -52,7 +53,7 @@ export async function beginPlanExperience(input: {
   quiet?: boolean;
 }): Promise<PlanExperience> {
   const now = input.now ?? new Date();
-  const { data: canonicalPlan } = await input.db.from('together_shared_plans').select('id,status,source,starts_at,ends_at').eq('id', input.planId).eq('user_id', input.userId).eq('continuity_id', input.continuityId).eq('character_instance_id', input.characterInstanceId).maybeSingle();
+  const { data: canonicalPlan } = await input.db.from('together_shared_plans').select('*').eq('id', input.planId).eq('user_id', input.userId).eq('continuity_id', input.continuityId).eq('character_instance_id', input.characterInstanceId).maybeSingle();
   if (!canonicalPlan) throw new AppError('NOT_FOUND', 'That plan is unavailable in this Life.', 404);
   if (['completed', 'cancelled', 'missed'].includes(String(canonicalPlan.status))) throw new AppError('CONFLICT', 'That plan has already ended.', 409);
   if (canonicalPlan.ends_at && new Date(String(canonicalPlan.ends_at)).getTime() <= now.getTime()) throw new AppError('CONFLICT', 'That plan has already reached its scheduled end.', 409);
@@ -69,6 +70,7 @@ export async function beginPlanExperience(input: {
     console.error('Plan experience start failed', { code: error.code, details: error.details, hint: error.hint, planId: input.planId, characterInstanceId: input.characterInstanceId });
     throw mapBeginError(error);
   }
+  await synchronizeGroupPlanPresence(input.db, { userId: input.userId, continuityId: input.continuityId, plan: canonicalPlan, requestId: input.requestId, now });
   if (!input.quiet) await track(input.db, input.userId, 'plan_joined', { planId: input.planId, characterInstanceId: input.characterInstanceId, requestId: input.requestId });
   const experience = await loadPlanExperience({ ...input, now });
   if (data?.sceneId && !input.quiet) await track(input.db, input.userId, 'plan_scene_started', { planId: input.planId, sceneId: data.sceneId });
@@ -281,7 +283,23 @@ export async function reconcileCompletedPlanExperience(input: {
   const reconciledAt = input.now ?? new Date();
   const experience = await loadPlanExperience({ ...input, now: reconciledAt });
   if (String(experience.plan.status) !== 'completed') return experience;
-  if (experience.plan.metadata?.planExperience?.finalizedAt) return experience;
+  if (experience.plan.metadata?.planExperience?.finalizedAt) {
+    if (planParticipantIds(experience.plan).length > 1) {
+      await enrichCompletedGroupPlan(input.db, {
+        userId: input.userId,
+        continuityId: input.continuityId,
+        plan: experience.plan,
+        summary: String(experience.plan.metadata?.planExperience?.summary ?? experience.plan.metadata?.completionSummary ?? ''),
+        completedAt: new Date(String(experience.plan.completed_at ?? reconciledAt.toISOString())),
+        participationLevel: String(experience.plan.participation_level ?? experience.participation.level),
+        attendedSeconds: Number(experience.plan.metadata?.planExperience?.attendedSeconds ?? experience.participation.attendedSeconds),
+        meaningfulActionCount: Number(experience.plan.metadata?.planExperience?.meaningfulActionCount ?? experience.participation.meaningfulActionCount),
+        completionReason: String(experience.plan.completion_reason ?? 'user_ended'),
+      });
+      return loadPlanExperience({ ...input, now: reconciledAt });
+    }
+    return experience;
+  }
   const reason = String(experience.plan.completion_reason ?? 'user_ended');
   const completionReason: Extract<CommitmentCompletionReason, 'user_ended' | 'elapsed' | 'system_reconciled'> = reason === 'elapsed' || reason === 'system_reconciled' ? reason : 'user_ended';
   const completedAt = new Date(String(experience.plan.completed_at ?? reconciledAt.toISOString()));
@@ -345,6 +363,17 @@ async function enrichCompletedPlan(input: {
   try {
     await input.db.rpc('kivelle_insert_relationship_evidence', { p_user_id: input.userId, p_character_instance_id: input.characterInstanceId, p_type: 'commitment_kept', p_source_type: 'shared_plan', p_source_id: input.planId, p_occurred_at: input.completedAt.toISOString(), p_quality: experience.participation.level === 'meaningful' ? .9 : experience.participation.level === 'participated' ? .65 : .3, p_valence: .25, p_timezone: String(current.user_timezone ?? current.world_timezone ?? 'UTC'), p_metadata: { participationLevel: experience.participation.level, attendedSeconds: experience.participation.attendedSeconds, meaningfulActionCount: experience.participation.meaningfulActionCount, completionReason: input.completionReason } });
   } catch { /* Evidence enrichment must not undo a completed plan. */ }
+  await enrichCompletedGroupPlan(input.db, {
+    userId: input.userId,
+    continuityId: input.continuityId,
+    plan: current,
+    summary,
+    completedAt: input.completedAt,
+    participationLevel: experience.participation.level,
+    attendedSeconds: experience.participation.attendedSeconds,
+    meaningfulActionCount: experience.participation.meaningfulActionCount,
+    completionReason: input.completionReason,
+  });
 }
 
 export function calculatePlanParticipation(input: { attendance: Row[]; segments: Row[]; actions: Row[]; now?: Date; activeUser?: boolean; activeCharacter?: boolean }) {
