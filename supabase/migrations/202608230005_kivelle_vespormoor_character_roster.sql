@@ -300,9 +300,9 @@ insert into public.together_character_activity_templates(
   location_categories,location_slugs,tags,affinity,preferred_weekly_frequency,maximum_weekly_frequency,
   minimum_gap_hours,energy_requirement,social_requirement,priority,visibility,interruptibility,metadata
 )
-select version.id,'signature_activity',initcap(leisure_activity),'personal','[{"startMinute":600,"endMinute":1380}]'::jsonb,
-  int4range(60,181,'[]'),array[]::text[],array[leisure_slug],interests[1:3],.92,int4range(1,4,'[]'),4,20,null,'either',
-  'preferred_activity','hint','open',jsonb_build_object('source','vespormoor_character_roster','activityLabel',leisure_activity,'outcomeEligible',false)
+select version.id,'signature_activity',initcap(roster.leisure_activity),'personal','[{"startMinute":600,"endMinute":1380}]'::jsonb,
+  int4range(60,181,'[]'),array[]::text[],array[roster.leisure_slug],roster.interests[1:3],.92,int4range(1,4,'[]'),4,20,null,'either',
+  'preferred_activity','hint','open',jsonb_build_object('source','vespormoor_character_roster','activityLabel',roster.leisure_activity,'outcomeEligible',false)
 from kivelle_vespormoor_roster roster
 join public.together_character_versions version on version.id=('23000000-0000-4000-8010-'||lpad(roster.roster_id::text,12,'0'))::uuid
 on conflict(character_version_id,activity_key) do update set title=excluded.title,location_slugs=excluded.location_slugs,tags=excluded.tags,
