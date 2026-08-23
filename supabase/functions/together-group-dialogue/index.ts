@@ -51,14 +51,21 @@ import {
   touchConversationTurn,
 } from "../_shared/together-dialogue-turns.ts";
 import { writeConversationEvent } from "../_shared/together-plans.ts";
+import {
+  assertChatRequestId,
+  chatRequestFingerprint,
+  claimChatUserMessage,
+  findExistingChatRequest,
+  normalizeChatMessage,
+} from "../_shared/chat-message-hardening.ts";
 
 const schema = z.object({
   conversationId: z.string().uuid(),
   message: z.string().trim().max(4000).default(""),
-  attachmentIds: z.array(z.string().uuid()).max(4).default([]),
-  clientRequestId: z.string().min(8).max(120),
-  mentionedCharacterInstanceIds: z.array(z.string().uuid()).max(5).default([]),
-  photoSubjectCharacterInstanceIds: z.array(z.string().uuid()).max(2).default([]),
+  attachmentIds: z.array(z.string().uuid()).max(4).refine((ids) => new Set(ids).size === ids.length, "The same attachment cannot be sent twice.").default([]),
+  clientRequestId: z.string().uuid(),
+  mentionedCharacterInstanceIds: z.array(z.string().uuid()).max(5).refine((ids) => new Set(ids).size === ids.length, "A companion can only be mentioned once.").default([]),
+  photoSubjectCharacterInstanceIds: z.array(z.string().uuid()).max(2).refine((ids) => new Set(ids).size === ids.length, "A photo subject can only be selected once.").default([]),
   replyToMessageId: z.string().uuid().optional(),
   manualSpeakerInstanceId: z.string().uuid().optional(),
   letThemTalk: z.boolean().default(false),
@@ -81,7 +88,8 @@ Deno.serve(async (request) => {
     const { user, db } = await authenticated(request);
     turnDb = db;
     const input = await parseBody(request, schema);
-    await enforceRateLimit(db, user.id, "together_dialogue", 80, 3600);
+    const requestId = assertChatRequestId(input.clientRequestId);
+    const normalizedMessage = normalizeChatMessage(input.message);
     const continuity = await activeContinuity(db, user.id);
     const subscription = await requireGroupChatAccess(db, user.id);
     const conversation = await requireOwnedGroupConversation(db, {
@@ -104,6 +112,7 @@ Deno.serve(async (request) => {
     const rosterIds = new Set(
       roster.map((row) => String(row.character_instance_id)),
     );
+    const anchor = String(roster[0]!.character_instance_id);
     if (input.mentionedCharacterInstanceIds.some((id) => !rosterIds.has(id))) {
       throw new AppError(
         "VALIDATION_FAILED",
@@ -128,45 +137,60 @@ Deno.serve(async (request) => {
         422,
       );
     }
-    const attachments = input.attachmentIds.length
-      ? (await db.from("together_conversation_attachments").select("*").in(
-        "id",
-        input.attachmentIds,
-      ).eq("user_id", user.id).eq("continuity_id", continuity.id).eq(
-        "conversation_id",
-        conversation.id,
-      ).eq("kind", "image").eq("upload_status", "uploaded").is(
-        "message_id",
-        null,
-      )).data ?? []
-      : [];
-    if (attachments.length !== input.attachmentIds.length) {
-      throw new AppError(
-        "VALIDATION_FAILED",
-        "One of those photos is no longer available to send.",
-        422,
-      );
-    }
-    const messageText = input.message || "[Photo]";
-    const existing = await db.from("together_messages").select("*").eq(
-      "conversation_id",
-      conversation.id,
-    ).eq("client_request_id", input.clientRequestId).maybeSingle();
-    if (existing.data) {
+    const messageText = normalizedMessage || "[Photo]";
+    const requestFingerprint = await chatRequestFingerprint({
+      conversationId: conversation.id,
+      message: normalizedMessage,
+      attachmentIds: [...input.attachmentIds].sort(),
+      mentionedCharacterInstanceIds: [...input.mentionedCharacterInstanceIds].sort(),
+      photoSubjectCharacterInstanceIds: [...input.photoSubjectCharacterInstanceIds].sort(),
+      replyToMessageId: input.replyToMessageId ?? null,
+      manualSpeakerInstanceId: input.manualSpeakerInstanceId ?? null,
+      letThemTalk: input.letThemTalk,
+    });
+    const existingUserMessage = await findExistingChatRequest(db, {
+      userId: user.id,
+      conversationId: conversation.id,
+      requestId,
+      fingerprint: requestFingerprint,
+      expectedContent: messageText,
+      characterInstanceId: anchor,
+    });
+    if (existingUserMessage) {
       const { data: existingTurn } = await db.from("together_dialogue_turns")
-        .select("*").eq("source_message_id", existing.data.id).maybeSingle();
+        .select("*").eq("source_message_id", existingUserMessage.id).maybeSingle();
       const { data: existingMessages } = existingTurn
-        ? await db.from("together_messages").select("*").eq(
+        ? await db.from("together_messages").select("*").eq("user_id",user.id).eq(
           "dialogue_turn_id",
           existingTurn.id,
         ).order("conversation_sequence")
         : ({ data: [] } as any);
-      return completedReplay(
-        correlationId,
-        existingTurn,
-        existingMessages ?? [],
-      );
+      if ((existingMessages?.length ?? 0) > 0 || existingTurn?.state === "completed" || existingTurn?.state === "yielded") {
+        if (existingTurn?.state !== "planning" && existingTurn?.state !== "generating") {
+          return completedReplay(correlationId, existingTurn, existingMessages ?? []);
+        }
+      }
+      if (existingTurn?.state === "planning" || existingTurn?.state === "generating") {
+        const replay = await waitForCompletedGroupTurn(db,user.id,existingTurn.id);
+        if(replay)return completedReplay(correlationId,replay.turn,replay.messages);
+        throw new AppError("PROVIDER_TIMEOUT","The group is still finishing that reply. Reconnect in a moment.",503,true);
+      }
     }
+    let attachments: Record<string, any>[] = [];
+    if (input.attachmentIds.length) {
+      let attachmentQuery = db.from("together_conversation_attachments").select("*").in("id", input.attachmentIds)
+        .eq("user_id", user.id).eq("continuity_id", continuity.id).eq("conversation_id", conversation.id)
+        .eq("kind", "image").eq("upload_status", "uploaded");
+      attachmentQuery = existingUserMessage
+        ? attachmentQuery.eq("message_id", existingUserMessage.id)
+        : attachmentQuery.is("message_id", null);
+      const attachmentResult = await attachmentQuery;
+      attachments = attachmentResult.data ?? [];
+      if (attachmentResult.error || attachments.length !== input.attachmentIds.length) {
+        throw new AppError("VALIDATION_FAILED", "One of those photos is no longer available to send.", 422);
+      }
+    }
+    if (!existingUserMessage) await enforceRateLimit(db, user.id, "together_dialogue", 80, 3600);
     let replyTargetId: string | undefined;
     if (input.replyToMessageId) {
       const { data: reply } = await db.from("together_messages").select(
@@ -192,7 +216,7 @@ Deno.serve(async (request) => {
       userId: user.id,
       continuityId: continuity.id,
       conversationId: conversation.id,
-      requestId: input.clientRequestId,
+      requestId,
       kind: "group",
       supersedeGenerating: true,
       leaseSeconds: 240,
@@ -200,12 +224,15 @@ Deno.serve(async (request) => {
     if (!turnLease.acquired) {
       throw new AppError(
         "CONFLICT",
-        turnLease.requestId === input.clientRequestId
+        turnLease.requestId === requestId
           ? "That group turn is still finishing."
           : "The group is preparing another message. Try again in a moment.",
         409,
         true,
       );
+    }
+    if (existingUserMessage) {
+      await enforceRateLimit(db, user.id, "together_dialogue_retry", 12, 3600);
     }
     if (turnLease.interruptedCount) {
       await track(db, user.id, "group_turn_interrupted", {
@@ -213,52 +240,28 @@ Deno.serve(async (request) => {
         interruptedTurnCount: turnLease.interruptedCount,
       });
     }
-    const anchor = String(roster[0]!.character_instance_id);
-    const { data: userMessage, error: userError } = await db.from(
-      "together_messages",
-    ).insert({
-      conversation_id: conversation.id,
-      user_id: user.id,
-      character_instance_id: anchor,
-      role: "user",
-      content: messageText,
-      client_request_id: input.clientRequestId,
-      delivery_status: "complete",
-      reply_to_message_id: input.replyToMessageId ?? null,
-      mentioned_character_instance_ids: input.mentionedCharacterInstanceIds,
-      provider_metadata: {
-        source: "group_chat",
-        mentions: input.mentionedCharacterInstanceIds,
-        replyToMessageId: input.replyToMessageId ?? null,
-      },
-    }).select("*").single();
-    if (userError || !userMessage) {
-      throw new AppError(
-        "INTERNAL_ERROR",
-        "Your group message could not be saved.",
-        500,
-        true,
-      );
-    }
-    if (attachments.length) {
-      const { error: attachmentError } = await db.from(
-        "together_conversation_attachments",
-      ).update({
-        message_id: userMessage.id,
-        updated_at: new Date().toISOString(),
-      }).in("id", input.attachmentIds).eq("user_id", user.id).is(
-        "message_id",
-        null,
-      );
-      if (attachmentError) {
-        throw new AppError(
-          "INTERNAL_ERROR",
-          "Your photo could not be attached to the group message.",
-          500,
-          true,
-        );
-      }
-      userMessage.together_conversation_attachments = attachments;
+    const userClaim = existingUserMessage
+      ? { message: existingUserMessage, created: false }
+      : await claimChatUserMessage(db, {
+        userId: user.id,
+        continuityId: continuity.id,
+        conversationId: conversation.id,
+        characterInstanceId: anchor,
+        content: messageText,
+        requestId,
+        attachmentIds: input.attachmentIds,
+        replyToMessageId: input.replyToMessageId,
+        mentionedCharacterInstanceIds: input.mentionedCharacterInstanceIds,
+        providerMetadata: {
+          source: "group_chat",
+          mentions: input.mentionedCharacterInstanceIds,
+          replyToMessageId: input.replyToMessageId ?? null,
+          requestFingerprint,
+          requestAttachmentIds: [...input.attachmentIds].sort(),
+        },
+      });
+    const userMessage = userClaim.message;
+    if (userClaim.created && attachments.length) {
       await track(db, user.id, "user_photo_sent", {
         attachmentCount: attachments.length,
         groupChat: true,
@@ -621,7 +624,7 @@ function groupStream(input: any): Response {
           let route = resolveDialogueRouting(routeInput);
           if (route.hardBlocked) {
             const boundary = `I'm not going to take this conversation there.`;
-            const saved = await commitMessage(input, action, boundary, {
+            const committed = await commitMessage(input, action, boundary, {
               provider: "deterministic",
               model: "kivelle-boundary",
               routeReason: route.reason,
@@ -630,6 +633,7 @@ function groupStream(input: any): Response {
               speakerSlug: template.slug,
               directorReasonCodes: action.reasonCodes,
             });
+            const saved=committed?.message;
             if (!saved) {
               emit({ type: "turn_cancelled", turnId: input.turn.id });
               return;
@@ -640,7 +644,7 @@ function groupStream(input: any): Response {
             break;
           }
           if (action.intent === "media_offer") {
-            const saved = await commitMessage(input, action, "[Photo]", {
+            const committed = await commitMessage(input, action, "[Photo]", {
               provider: "kivelle-media",
               mediaOnly: true,
               speakerName,
@@ -648,6 +652,7 @@ function groupStream(input: any): Response {
               directorReasonCodes: action.reasonCodes,
               groupEnergy: input.settings.energy,
             });
+            const saved=committed?.message;
             if (!saved) {
               emit({ type: "turn_cancelled", turnId: input.turn.id });
               return;
@@ -693,7 +698,7 @@ function groupStream(input: any): Response {
             replyCount += 1;
             emit({ type: "message_completed", message: saved });
             emit({ type: "media_offer_created", offer });
-            await track(input.db, input.userId, "group_character_spoke", {
+            if(committed.created)await track(input.db, input.userId, "group_character_spoke", {
               conversationId: input.conversation.id,
               characterInstanceId: action.characterInstanceId,
               reasonCode: photoSubjectIds.length > 1
@@ -765,13 +770,14 @@ function groupStream(input: any): Response {
           const text = outputSafety.allowed
             ? generated.text
             : `Let's change the subject.`;
-          const saved = await commitMessage(input, action, text, {
+          const committed = await commitMessage(input, action, text, {
             ...generated.metadata,
             speakerName,
             speakerSlug: template.slug,
             directorReasonCodes: action.reasonCodes,
             groupEnergy: input.settings.energy,
           });
+          const saved=committed?.message;
           if (!saved) {
             emit({ type: "turn_cancelled", turnId: input.turn.id });
             return;
@@ -780,6 +786,7 @@ function groupStream(input: any): Response {
           latestSpeakerId = action.characterInstanceId;
           replyCount += 1;
           emit({ type: "message_completed", message: saved });
+          if(!committed.created)break;
           await maybeCreateGroupLocationPlanCandidate(input.db, {
             userId: input.userId,
             conversationId: input.conversation.id,
@@ -1081,19 +1088,20 @@ async function commitMessage(
   content: string,
   metadata: Record<string, unknown>,
 ) {
-  const { data: id } = await input.db.rpc("kivelle_commit_group_message", {
+  const { data } = await input.db.rpc("kivelle_commit_group_message_v2", {
     p_turn_id: input.turn.id,
     p_version: input.turn.version,
     p_speaker_character_instance_id: action.characterInstanceId,
     p_content: content,
-    p_provider_metadata: metadata,
+    p_provider_metadata: { ...metadata, groupActionId: action.id },
   });
-  if (!id) return null;
-  const { data } = await input.db.from("together_messages").select("*").eq(
+  const committed=Array.isArray(data)?data[0]:data;
+  if (!committed?.message_id) return null;
+  const { data: message } = await input.db.from("together_messages").select("*").eq(
     "id",
-    id,
+    committed.message_id,
   ).single();
-  return data ?? null;
+  return message?{message,created:committed.created===true}:null;
 }
 type GroupDirectorSignals = {
   relationships: Map<string, any>;
@@ -1449,4 +1457,20 @@ function completedReplay(
       },
     },
   );
+}
+
+async function waitForCompletedGroupTurn(db:any,userId:string,turnId:string,timeoutMs=20_000):Promise<{turn:any;messages:any[]}|null>{
+  const deadline=Date.now()+timeoutMs;
+  do{
+    const{data:turn}=await db.from("together_dialogue_turns").select("*").eq("id",turnId).eq("user_id",userId).maybeSingle();
+    if(!turn)return null;
+    if(["completed","yielded","failed","cancelled"].includes(String(turn.state))){
+      const{data:messages}=await db.from("together_messages").select("*").eq("user_id",userId).eq("dialogue_turn_id",turnId).order("conversation_sequence");
+      if(turn.state==="completed"||turn.state==="yielded"||(messages?.length??0)>0)return{turn,messages:messages??[]};
+      return null;
+    }
+    if(Date.now()>=deadline)break;
+    await new Promise((resolve)=>setTimeout(resolve,500));
+  }while(Date.now()<deadline);
+  return null;
 }

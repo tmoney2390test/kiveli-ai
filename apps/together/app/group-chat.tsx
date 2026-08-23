@@ -80,6 +80,7 @@ import { endPlanExperience, getPlanExperience, joinCommitment, switchPlanExperie
 import { activePlanForGroup, collapsePlanTimelineEvents, conversationPlanMenuItems, isPlanLifecycleDividerEvent, joinablePlanForGroup, planActionAvailability, planLifecycleDividerLabel, shouldShowPlanTimelineEvent } from "../src/lib/planActions";
 import type { PlanOption, PlanTimingSelection } from "../src/lib/plans";
 import { createClientRequestId } from "../src/lib/requestId";
+import { reconcileMessages } from "../src/lib/messageReconciliation";
 import { confirmAction } from "../src/lib/dialogs";
 import {
   cleanupNormalizedImage,
@@ -155,6 +156,7 @@ export default function GroupChatScreen() {
     [busy, setBusy] = useState(false);
   const clearStoredDraft=usePersistentMessageDraft({userId:session?.user.id,conversationId:params.id,kind:"group",value:input,setValue:setInput});
   const abortRef = useRef<AbortController | null>(null),
+    lastSendRef = useRef<{ text: string; startedAt: number } | null>(null),
     planRequestIdRef = useRef(createClientRequestId()),
     mediaRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
     scrollRef = useRef<ScrollView | null>(null),
@@ -431,12 +433,10 @@ export default function GroupChatScreen() {
   }, [activeGroupPlan, detail]);
   const appendMessage = (message: Message) =>
     setDetail((current) =>
-      current && !current.messages.some((item) => item.id === message.id)
+      current
         ? {
           ...current,
-          messages: current.messages.some((item)=>Boolean(message.client_request_id)&&item.client_request_id===message.client_request_id)
-            ?current.messages.map((item)=>item.client_request_id===message.client_request_id?message:item)
-            :[...current.messages, message],
+          messages: reconcileMessages(current.messages,[message]),
           conversation: {
             ...current.conversation,
             last_message_at: message.created_at,
@@ -498,6 +498,9 @@ export default function GroupChatScreen() {
       return;
     }
     if(!online){setError("You’re offline. Your draft is saved and ready when you reconnect.");return;}
+    const previousSend=lastSendRef.current;
+    if(previousSend?.text===message&&Date.now()-previousSend.startedAt<750)return;
+    lastSendRef.current={text:message,startedAt:Date.now()};
     abortRef.current?.abort();
     keepPinnedToBottom.current = true;
     const controller = new AbortController();
@@ -565,6 +568,10 @@ export default function GroupChatScreen() {
       return;
     }
     if(!online){setError("You’re offline. Your draft is saved and ready when you reconnect.");return;}
+    const submissionKey=`${message}\u0000${selectedImage?.uri??""}`;
+    const previousSend=lastSendRef.current;
+    if(previousSend?.text===submissionKey&&Date.now()-previousSend.startedAt<750)return;
+    lastSendRef.current={text:submissionKey,startedAt:Date.now()};
     abortRef.current?.abort();
     keepPinnedToBottom.current = true;
     const controller = new AbortController();
