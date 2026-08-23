@@ -76,8 +76,8 @@ Deno.test('Venice adult media establishes canonical reality before an explicitly
     const client = new VeniceImageClient('secret', 'https://venice.test/api/v1', 1_000, async (url, init) => { calls.push({url:String(url),body:JSON.parse(String(init?.body))}); return new Response(png, { status: 200, headers: { 'content-type': 'image/png' } }); });
     const provider = new VeniceMediaProvider(client), submission = await provider.submit(adultRequest(), adultRoute());
     assert(submission.status === 'completed' && submission.result?.providerAttempts?.length === 2);
-    assert(calls[0]?.url.endsWith('/image/multi-edit')&&calls[0]?.body.modelId === 'grok-imagine-edit' && calls[0]?.body.safe_mode === false);
-    assert(calls[1]?.url.endsWith('/image/multi-edit')&&calls[1]?.body.modelId === 'qwen-edit'&&calls[1]?.body.safe_mode === false);
+    assert(calls[0]?.url.endsWith('/image/multi-edit')&&calls[0]?.body.modelId === 'grok-imagine-edit' && calls[0]?.body.safe_mode === false&&calls[0]?.body.output_format==='webp'&&calls[0]?.body.resolution==='1K');
+    assert(calls[1]?.url.endsWith('/image/multi-edit')&&calls[1]?.body.modelId === 'qwen-edit'&&calls[1]?.body.safe_mode === false&&calls[1]?.body.output_format==='webp'&&calls[1]?.body.resolution==='1K');
     assert(Array.isArray(calls[1]?.body.images)&&String(calls[1]?.body.images?.[0]).startsWith('data:image/png;base64,')&&!String(calls[1]?.body.images?.[0]).includes('signed.test'));
     assert(String(calls[1]?.body.prompt).includes('five fingers')&&String(calls[1]?.body.prompt).includes('Preserve the same adult identity'));
     assert(String(calls[1]?.body.prompt).length<=1_200);
@@ -226,8 +226,8 @@ Deno.test('Venice standard media falls back to FireRed after a retryable primary
     const request={...adultRequest(),contentLevel:'standard' as const,generationIntent:undefined};
     const submission=await new VeniceMediaProvider(client).submit(request,standardRoute());
     assert(calls.length===2&&calls[0]!.url.endsWith('/image/multi-edit')&&calls[1]!.url.endsWith('/image/multi-edit'));
-    assert(calls[0]!.body.modelId===VENICE_STANDARD_EDIT_MODEL&&calls[0]!.body.aspect_ratio==='4:5');
-    assert(calls[1]!.body.modelId==='firered-image-edit'&&calls[1]!.body.safe_mode===true);
+    assert(calls[0]!.body.modelId===VENICE_STANDARD_EDIT_MODEL&&calls[0]!.body.aspect_ratio==='4:5'&&calls[0]!.body.output_format==='webp'&&calls[0]!.body.resolution==='1K');
+    assert(calls[1]!.body.modelId==='firered-image-edit'&&calls[1]!.body.safe_mode===true&&calls[1]!.body.output_format==='webp'&&calls[1]!.body.resolution==='1K');
     assert(submission.model==='firered-image-edit'&&submission.result?.providerMetadata?.fallbackUsed===true);
     assert(submission.result?.providerAttempts?.length===2&&submission.result.providerAttempts[0]?.failureCode==='PROVIDER_MODEL'&&submission.result.providerAttempts[1]?.success===true);
     assert(submission.result?.estimatedCost===.09);

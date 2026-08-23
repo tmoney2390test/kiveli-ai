@@ -11,7 +11,7 @@ const KNOWN_REASONS=[
   'body_proportion_error','duplicate_body_parts','anatomy_low_detail',
   'requested_anatomy_missing','requested_anatomy_unverified',
   'pose_mismatch','face_direction_mismatch',
-  'embedded_reference','rendered_text','multiple_subjects',
+  'embedded_reference','rendered_text','multiple_subjects','subject_count_mismatch','identity_mismatch','identity_swap',
 ] as const;
 
 export function parseMediaQualityVerdict(output:unknown):MediaQualityVerdict{

@@ -1,5 +1,5 @@
 import type { CharacterInstance, InteractionMode, SceneEntryReason, SharedPlan, Snapshot } from '../types';
-import { worldForLocation } from './place';
+import { characterHomeLocationId, isCharacterHomeLocation, worldForLocation } from './place';
 import { buildCharacterDaySchedule } from './characterDaySchedule';
 
 type Commitment={id:string;title:string;startsAt:string;endsAt?:string;kind:'plan'|'date';location?:string};
@@ -33,8 +33,13 @@ export function buildClientConversationContext(snapshot:Snapshot,character:Chara
   const storedValid=Boolean(storedScene?.interactionMode==='co_present'&&(!storedScene.validUntil||new Date(storedScene.validUntil)>now));
   const activeSceneActivity=activeSceneRow?sceneActivity(activeSceneRow):storedValid?storedScene?.activityLabel??humanizeActivity(storedScene?.activityKey):undefined;
   const activeEvent=snapshot.lifeEvents.filter((event)=>event.character_instance_id===character.id&&event.metadata?.planStatus!=='cancelled'&&Boolean(event.ends_at)&&new Date(event.starts_at).getTime()<=now.getTime()&&new Date(event.ends_at!).getTime()>=now.getTime()).sort((a,b)=>Number(b.significance??0)-Number(a.significance??0))[0];
-  const activeLocationId=activeSceneRow?.location_id??(storedValid?storedScene?.locationId:undefined)??activeDateRow?.together_date_templates.location_id??(planUserPresent?activePlanRow?.location_id:undefined)??scheduleStatus?.locationId??character.current_location_id;
-  const sceneLocation=snapshot.locations.find((item)=>item.id===activeLocationId)?.name??scheduleStatus?.location??location;
+  const higherPriorityPresence=Boolean(activeSceneRow||storedValid||activeDateRow||planUserPresent);
+  const scheduleDeclaresHome=!higherPriorityPresence&&scheduleStatus?.location?.trim().toLowerCase()==='home';
+  const homeLocationId=characterHomeLocationId(snapshot,character);
+  const passiveLocationId=scheduleStatus?.locationId??(scheduleDeclaresHome?homeLocationId:character.current_location_id);
+  const activeLocationId=activeSceneRow?.location_id??(storedValid?storedScene?.locationId:undefined)??activeDateRow?.together_date_templates.location_id??(planUserPresent?activePlanRow?.location_id:undefined)??passiveLocationId;
+  const atHome=!higherPriorityPresence&&(scheduleDeclaresHome||isCharacterHomeLocation(snapshot,character,activeLocationId));
+  const sceneLocation=atHome?'Home':snapshot.locations.find((item)=>item.id===activeLocationId)?.name??scheduleStatus?.location??location;
   const sceneWorld=worldForLocation(snapshot,activeLocationId);
   const localTime=formatUserTime(now,snapshot.profile?.experience_timezone);
   const media=(snapshot.generatedMedia??[]).filter((item)=>item.character_instance_id===character.id&&item.status==='ready'&&item.signed_url&&(item.location_id===activeLocationId||item.location_id===character.current_location_id)).sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime())[0];

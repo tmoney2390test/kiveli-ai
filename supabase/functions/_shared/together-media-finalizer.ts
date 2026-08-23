@@ -5,15 +5,20 @@ import{track}from'./together.ts';
 import type{ProviderCompletedMedia}from'./together-media-providers.ts';
 import{gateGeneratedImageQuality}from'./together-media-quality.ts';
 import{completeMediaUsageAttempt,markMediaOfferOutcome}from'./together-media-usage.ts';
-import{isSafeExternalHttpsUrl,matchesDeclaredMediaSignature}from'../../../packages/together-domain/src/security.ts';
+import{imageDimensions,isSafeExternalHttpsUrl,matchesDeclaredMediaSignature}from'../../../packages/together-domain/src/index.ts';
 
 const MAX_IMAGE_BYTES=20*1024*1024;
 const MAX_VIDEO_BYTES=80*1024*1024;
 const MAX_LORA_BYTES=1024*1024*1024;
 
 export async function finalizeProviderMedia(db:SupabaseClient,input:{jobId:string;result:ProviderCompletedMedia;providerStatus?:Record<string,unknown>}):Promise<Record<string,unknown>>{
-  let{data:job}=await db.from('together_media_provider_jobs').select('*').eq('id',input.jobId).maybeSingle();
-  if(!job)throw new AppError('NOT_FOUND','That media job is unavailable.',404);
+  const lease=await claimFinalizationLease(db,input.jobId,300);
+  try{return await finalizeProviderMediaClaimed(db,input,lease.job,lease.token);}
+  finally{if(lease.token)await releaseFinalizationLease(db,input.jobId,lease.token);}
+}
+
+async function finalizeProviderMediaClaimed(db:SupabaseClient,input:{jobId:string;result:ProviderCompletedMedia;providerStatus?:Record<string,unknown>},claimedJob:Record<string,any>,leaseToken:string):Promise<Record<string,unknown>>{
+  let job=claimedJob;
   const{data:media}=await db.from('together_generated_media').select('*').eq('id',String(job.generated_media_id)).maybeSingle();
   if(!media)throw new AppError('NOT_FOUND','That media request is unavailable.',404);
   if(job.finalized_at&&media.status==='ready')return media as Record<string,unknown>;
@@ -31,6 +36,7 @@ export async function finalizeProviderMedia(db:SupabaseClient,input:{jobId:strin
 
   const downloaded=input.result.bytes?{bytes:input.result.bytes,contentType:input.result.contentType??defaultContentType(String(media.media_type))}:await downloadProviderOutput(String(input.result.outputUrl??''),String(media.media_type));
   validateOutput(downloaded.bytes,downloaded.contentType,String(media.media_type));
+  const dimensions=String(media.media_type)==='image'?imageDimensions(downloaded.bytes,downloaded.contentType):null;
   const extension=extensionFor(downloaded.contentType,String(media.media_type));
   const storagePath=`${media.user_id}/${media.character_instance_id}/${media.id}.${extension}`;
   const{error:uploadError}=await db.storage.from('together-user-media').upload(storagePath,downloaded.bytes,{contentType:downloaded.contentType,upsert:true,cacheControl:'31536000'});
@@ -40,13 +46,14 @@ export async function finalizeProviderMedia(db:SupabaseClient,input:{jobId:strin
   const safeProviderMetadata={model:input.result.model,estimatedCost:input.result.estimatedCost??null,generationMs:input.result.generationMs??null,...sanitizeProviderMetadata(input.result.providerMetadata??{}),...sanitizeProviderMetadata(input.providerStatus??{})};
   const{data:updated,error:updateError}=await db.from('together_generated_media').update({
     status:'ready',storage_path:storagePath,content_type:downloaded.contentType,byte_size:downloaded.bytes.byteLength,
-    width:input.result.width??media.width??null,height:input.result.height??media.height??null,duration_ms:input.result.durationMs??media.duration_ms??null,
+    width:input.result.width??dimensions?.width??media.width??null,height:input.result.height??dimensions?.height??media.height??null,duration_ms:input.result.durationMs??media.duration_ms??null,
     provider:String(job.provider),provider_request_id:String(job.provider_request_id??input.result.providerRequestId??'')||null,
     generation_ms:input.result.generationMs??media.generation_ms??null,failure_code:null,failure_reason_safe:null,claimed_at:null,next_attempt_at:null,
     metadata:{...metadata,providerRouteId:job.route_id,providerModel:input.result.model,providerJobId:job.id,providerStatus:'completed'},updated_at:now,
   }).eq('id',media.id).in('status',['generating','queued','ready']).select('*').single();
   if(updateError||!updated)throw new AppError('INTERNAL_ERROR','The generated media status could not be saved.',500,true);
-  await db.from('together_media_provider_jobs').update({status:'completed',provider_completed_at:job.provider_completed_at??now,finalized_at:now,output_storage_path:storagePath,provider_metadata:{...((job.provider_metadata??{}) as Record<string,unknown>),...safeProviderMetadata},failure_code:null,failure_reason_safe:null,updated_at:now}).eq('id',job.id).is('finalized_at',null);
+  const{data:completedJob,error:completedJobError}=await db.from('together_media_provider_jobs').update({status:'completed',provider_completed_at:job.provider_completed_at??now,finalized_at:now,output_storage_path:storagePath,poll_lease_token:null,poll_lease_expires_at:null,finalization_lease_token:null,finalization_lease_expires_at:null,provider_metadata:{...((job.provider_metadata??{}) as Record<string,unknown>),...safeProviderMetadata},failure_code:null,failure_reason_safe:null,updated_at:now}).eq('id',job.id).eq('finalization_lease_token',leaseToken).is('finalized_at',null).select('id').maybeSingle();
+  if(completedJobError||!completedJob)throw new AppError('CONFLICT','Another worker completed this media delivery.',409,true);
   await completeMediaUsageAttempt(db,{providerJobId:String(job.id),attemptNumber:Number(job.attempt_count??1),success:true,generationMs:input.result.generationMs});
   await markMediaOfferOutcome(db,{media:updated,status:'fulfilled'});
   await track(db,String(media.user_id),String(media.media_type)==='video'?'media_video_ready':'media_generation_completed',{mediaId:media.id,provider:job.provider,model:input.result.model,routeId:job.route_id,source:metadata.source,contentLevel:media.content_level,duration:input.result.generationMs??null,creditCost:metadata.creditCost??0});
@@ -57,7 +64,7 @@ export async function failProviderMedia(db:SupabaseClient,input:{jobId:string;fa
   const{data:job}=await db.from('together_media_provider_jobs').select('*').eq('id',input.jobId).maybeSingle();if(!job||['completed','failed','cancelled'].includes(String(job.status)))return;
   const{data:media}=job.generated_media_id?await db.from('together_generated_media').select('*').eq('id',String(job.generated_media_id)).maybeSingle():{data:null};
   const now=new Date().toISOString();
-  await db.from('together_media_provider_jobs').update({status:'failed',failure_code:input.failureCode,failure_reason_safe:input.failureReasonSafe,provider_metadata:{...((job.provider_metadata??{}) as Record<string,unknown>),...sanitizeProviderMetadata(input.providerMetadata??{})},updated_at:now}).eq('id',job.id).in('status',['created','submitting','processing','submission_unknown']);
+  await db.from('together_media_provider_jobs').update({status:'failed',failure_code:input.failureCode,failure_reason_safe:input.failureReasonSafe,poll_lease_token:null,poll_lease_expires_at:null,finalization_lease_token:null,finalization_lease_expires_at:null,provider_metadata:{...((job.provider_metadata??{}) as Record<string,unknown>),...sanitizeProviderMetadata(input.providerMetadata??{})},updated_at:now}).eq('id',job.id).in('status',['created','submitting','processing','submission_unknown']);
   await completeMediaUsageAttempt(db,{providerJobId:String(job.id),attemptNumber:Number(job.attempt_count??1),success:false,failureCode:input.failureCode});
   if(job.character_media_profile_id){
     await db.from('together_character_media_profiles').update({status:'failed',failure_code:input.failureCode,failure_reason_safe:input.failureReasonSafe,updated_at:now}).eq('id',String(job.character_media_profile_id)).in('status',['pending','preparing','training']);
@@ -92,7 +99,12 @@ export async function failMediaBeforeProvider(db:SupabaseClient,input:{media:Rec
 }
 
 export async function finalizeLoraProviderJob(db:SupabaseClient,input:{jobId:string;result:ProviderCompletedMedia;providerStatus?:Record<string,unknown>}):Promise<Record<string,unknown>>{
-  const{data:job}=await db.from('together_media_provider_jobs').select('*').eq('id',input.jobId).eq('job_type','lora').maybeSingle();
+  const lease=await claimFinalizationLease(db,input.jobId,600);
+  try{return await finalizeLoraProviderJobClaimed(db,input,lease.job,lease.token);}
+  finally{if(lease.token)await releaseFinalizationLease(db,input.jobId,lease.token);}
+}
+
+async function finalizeLoraProviderJobClaimed(db:SupabaseClient,input:{jobId:string;result:ProviderCompletedMedia;providerStatus?:Record<string,unknown>},job:Record<string,any>,leaseToken:string):Promise<Record<string,unknown>>{
   if(!job?.character_media_profile_id)throw new AppError('NOT_FOUND','That character training job is unavailable.',404);
   const{data:profile}=await db.from('together_character_media_profiles').select('*').eq('id',String(job.character_media_profile_id)).maybeSingle();
   if(!profile)throw new AppError('NOT_FOUND','That character media profile is unavailable.',404);
@@ -105,27 +117,35 @@ export async function finalizeLoraProviderJob(db:SupabaseClient,input:{jobId:str
   const now=new Date().toISOString();
   const{data:updated,error}=await db.from('together_character_media_profiles').update({status:'ready',provider_training_id:String(job.provider_request_id??input.result.providerRequestId??'')||null,provider_model_id:input.result.model,model_storage_bucket:'kivelle-model-assets',model_storage_path:storagePath,trained_at:now,failure_code:null,failure_reason_safe:null,metadata:{...((profile.metadata??{}) as Record<string,unknown>),providerStatus:sanitizeProviderMetadata(input.providerStatus??{})},updated_at:now}).eq('id',profile.id).in('status',['preparing','training','ready']).select('*').single();
   if(error||!updated)throw new AppError('INTERNAL_ERROR','The trained character identity could not be activated.',500,true);
-  await db.from('together_media_provider_jobs').update({status:'completed',provider_completed_at:job.provider_completed_at??now,finalized_at:now,output_storage_path:storagePath,provider_metadata:{...((job.provider_metadata??{}) as Record<string,unknown>),model:input.result.model,generationMs:input.result.generationMs??null,...sanitizeProviderMetadata(input.providerStatus??{})},failure_code:null,failure_reason_safe:null,updated_at:now}).eq('id',job.id).is('finalized_at',null);
+  const{data:completedJob,error:completedJobError}=await db.from('together_media_provider_jobs').update({status:'completed',provider_completed_at:job.provider_completed_at??now,finalized_at:now,output_storage_path:storagePath,poll_lease_token:null,poll_lease_expires_at:null,finalization_lease_token:null,finalization_lease_expires_at:null,provider_metadata:{...((job.provider_metadata??{}) as Record<string,unknown>),model:input.result.model,generationMs:input.result.generationMs??null,...sanitizeProviderMetadata(input.providerStatus??{})},failure_code:null,failure_reason_safe:null,updated_at:now}).eq('id',job.id).eq('finalization_lease_token',leaseToken).is('finalized_at',null).select('id').maybeSingle();
+  if(completedJobError||!completedJob)throw new AppError('CONFLICT','Another worker completed this character identity.',409,true);
   await completeMediaUsageAttempt(db,{providerJobId:String(job.id),attemptNumber:Number(job.attempt_count??1),success:true,generationMs:input.result.generationMs});
   if(job.user_id)await track(db,String(job.user_id),'character_lora_training_completed',{characterMediaProfileId:profile.id,characterVersionId:profile.character_version_id,provider:job.provider,model:input.result.model,sourceRevision:profile.source_revision});
   return updated as Record<string,unknown>;
 }
 
 export async function finalizeCreatorProviderJob(db:SupabaseClient,input:{jobId:string;result:ProviderCompletedMedia;providerStatus?:Record<string,unknown>}):Promise<Record<string,unknown>>{
-  const{data:job}=await db.from('together_media_provider_jobs').select('*').eq('id',input.jobId).eq('job_type','image').maybeSingle();
+  const lease=await claimFinalizationLease(db,input.jobId,180);
+  try{return await finalizeCreatorProviderJobClaimed(db,input,lease.job,lease.token);}
+  finally{if(lease.token)await releaseFinalizationLease(db,input.jobId,lease.token);}
+}
+
+async function finalizeCreatorProviderJobClaimed(db:SupabaseClient,input:{jobId:string;result:ProviderCompletedMedia;providerStatus?:Record<string,unknown>},job:Record<string,any>,leaseToken:string):Promise<Record<string,unknown>>{
   if(!job?.creator_asset_id)throw new AppError('NOT_FOUND','That Creator media job is unavailable.',404);
   const{data:asset}=await db.from('together_creator_assets').select('*').eq('id',String(job.creator_asset_id)).maybeSingle();
   if(!asset)throw new AppError('NOT_FOUND','That Creator appearance is unavailable.',404);
   if(job.finalized_at&&asset.status==='ready')return asset as Record<string,unknown>;
   const downloaded=input.result.bytes?{bytes:input.result.bytes,contentType:input.result.contentType??'image/jpeg'}:await downloadProviderOutput(String(input.result.outputUrl??''),'image');
   validateOutput(downloaded.bytes,downloaded.contentType,'image');
+  const dimensions=imageDimensions(downloaded.bytes,downloaded.contentType);
   const storagePath=`${asset.user_id}/creator-drafts/${asset.draft_id}/appearance-${asset.id}.${extensionFor(downloaded.contentType,'image')}`;
   const upload=await db.storage.from('kivelle-character-reference').upload(storagePath,downloaded.bytes,{contentType:downloaded.contentType,upsert:true,cacheControl:'31536000'});
   if(upload.error)throw new AppError('INTERNAL_ERROR','The Creator appearance could not be stored.',500,true);
   const now=new Date().toISOString();
-  const{data:updated,error}=await db.from('together_creator_assets').update({status:'ready',storage_path:storagePath,content_type:downloaded.contentType,width:input.result.width??null,height:input.result.height??null,provider:job.provider,model:input.result.model,metadata:{...((asset.metadata??{}) as Record<string,unknown>),providerJobId:job.id,providerRouteId:job.route_id},updated_at:now}).eq('id',asset.id).in('status',['generating','ready']).select('*').single();
+  const{data:updated,error}=await db.from('together_creator_assets').update({status:'ready',storage_path:storagePath,content_type:downloaded.contentType,width:input.result.width??dimensions?.width??null,height:input.result.height??dimensions?.height??null,provider:job.provider,model:input.result.model,metadata:{...((asset.metadata??{}) as Record<string,unknown>),providerJobId:job.id,providerRouteId:job.route_id},updated_at:now}).eq('id',asset.id).in('status',['generating','ready']).select('*').single();
   if(error||!updated)throw new AppError('INTERNAL_ERROR','The Creator appearance could not be finalized.',500,true);
-  await db.from('together_media_provider_jobs').update({status:'completed',provider_completed_at:job.provider_completed_at??now,finalized_at:now,output_storage_path:storagePath,provider_metadata:{...((job.provider_metadata??{}) as Record<string,unknown>),model:input.result.model,...sanitizeProviderMetadata(input.providerStatus??{})},updated_at:now}).eq('id',job.id).is('finalized_at',null);
+  const{data:completedJob,error:completedJobError}=await db.from('together_media_provider_jobs').update({status:'completed',provider_completed_at:job.provider_completed_at??now,finalized_at:now,output_storage_path:storagePath,poll_lease_token:null,poll_lease_expires_at:null,finalization_lease_token:null,finalization_lease_expires_at:null,provider_metadata:{...((job.provider_metadata??{}) as Record<string,unknown>),model:input.result.model,...sanitizeProviderMetadata(input.providerStatus??{})},updated_at:now}).eq('id',job.id).eq('finalization_lease_token',leaseToken).is('finalized_at',null).select('id').maybeSingle();
+  if(completedJobError||!completedJob)throw new AppError('CONFLICT','Another worker completed this Creator appearance.',409,true);
   await completeMediaUsageAttempt(db,{providerJobId:String(job.id),attemptNumber:Number(job.attempt_count??1),success:true,generationMs:input.result.generationMs});
   await track(db,String(asset.user_id),'custom_companion_appearance_candidate_ready',{creatorDraftId:asset.draft_id,creatorAssetId:asset.id,provider:job.provider,model:input.result.model});
   return updated as Record<string,unknown>;
@@ -141,6 +161,23 @@ async function failCreatorAsset(db:SupabaseClient,job:Record<string,unknown>,fai
   const transactionId=String((asset.metadata as Record<string,unknown>|null)?.creditTransactionId??'');
   if(finished&&!anyReady&&transactionId){await refundCredits(db,{userId:String(asset.user_id),transactionId,idempotencyKey:`refund:${transactionId}`,metadata:{reason:'creator_draft_appearance_failed',creatorDraftId:asset.draft_id}});}
   await track(db,String(asset.user_id),'custom_companion_appearance_candidate_failed',{creatorDraftId:asset.draft_id,creatorAssetId:asset.id,provider:job.provider,failureCode});
+}
+
+async function claimFinalizationLease(db:SupabaseClient,jobId:string,leaseSeconds:number):Promise<{job:Record<string,any>;token:string}>{
+  const{data,error}=await db.rpc('kivelle_claim_media_finalization',{p_job_id:jobId,p_lease_seconds:leaseSeconds});
+  const claimed=Array.isArray(data)?data[0]:data;
+  if(error)throw new AppError('INTERNAL_ERROR','The media delivery lease could not be acquired.',500,true);
+  if(claimed)return{job:claimed as Record<string,any>,token:String(claimed.finalization_lease_token)};
+  const{data:current}=await db.from('together_media_provider_jobs').select('*').eq('id',jobId).maybeSingle();
+  if(!current)throw new AppError('NOT_FOUND','That media job is unavailable.',404);
+  if(current.finalized_at)return{job:current as Record<string,any>,token:''};
+  if(['failed','cancelled'].includes(String(current.status)))throw new AppError('CONFLICT','That media job has already ended.',409);
+  throw new AppError('PROVIDER_UNAVAILABLE','That media result is already being delivered.',503,true);
+}
+
+async function releaseFinalizationLease(db:SupabaseClient,jobId:string,token:string):Promise<void>{
+  const{error}=await db.rpc('kivelle_release_media_finalization',{p_job_id:jobId,p_lease_token:token});
+  if(error)console.warn(JSON.stringify({level:'warn',operation:'release_media_finalization_lease',jobId,errorCode:error.code??'rpc_failed'}));
 }
 
 async function downloadProviderOutput(url:string,mediaType:string):Promise<{bytes:Uint8Array;contentType:string}>{

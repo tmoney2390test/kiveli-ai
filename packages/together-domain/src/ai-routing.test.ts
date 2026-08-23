@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyDialogueContent, isDialogueHardBlocked, routeKivelleDialogue, type DialogueProviderAvailability } from './ai-routing.ts';
+import { classifyDialogueContent, isCapabilityStyleExplicitRefusal, isDialogueHardBlocked, routeKivelleDialogue, type DialogueProviderAvailability } from './ai-routing.ts';
 import { classifyPhotoIntent } from './media.ts';
 
 const providers: DialogueProviderAvailability = { openai:true, xai:true, gemini:true, xaiEnabled:true, xaiExplicitEnabled:true };
@@ -47,7 +47,13 @@ describe('Kivelle AI routing',()=>{
   });
   it('uses bounded context for explicit continuation only',()=>{
     expect(route('keep going',{},[{role:'assistant',content:'I want to have sex with you.'}]).provider).toBe('xai');
+    expect(route('What does that feel like?',{},[{role:'assistant',content:'I want to have sex with you.'}]).provider).toBe('xai');
     expect(route('keep going',{},[{role:'assistant',content:'Tell me more about work.'}]).provider).toBe('openai');
+    expect(route('How was work?',{},[{role:'assistant',content:'I want to have sex with you.'}]).provider).toBe('openai');
+  });
+  it('recognizes capability-style adult refusals without treating an authored no as provider failure',()=>{
+    expect(isCapabilityStyleExplicitRefusal("I can't describe explicit genital sensations in detail. I can keep it sensual without becoming graphic.")).toBe(true);
+    expect(isCapabilityStyleExplicitRefusal("No. I don't want that tonight.")).toBe(false);
   });
   it('treats broad sexual moderation as routing evidence but minors as a hard block',()=>{
     expect(classifyDialogueContent({message:'keep going',requestedMode:'explicit',moderation:{allowed:true,flagged:true,categories:['sexual'],categoryScores:{sexual:.92}}})).toBe('explicit_adult');

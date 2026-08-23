@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import { cleanupNormalizedImage, normalizeUserImage, type NormalizedUserImage } from '../src/lib/imageUploads';
 import { useRouter } from 'expo-router';
 import {
   Archive,
@@ -117,24 +118,27 @@ export default function Settings() {
       Alert.alert('Photo permission needed', 'Allow photo access to choose your account avatar.');
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: .82 });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 1 });
     if (result.canceled || !result.assets[0] || !session) return;
     setBusy(true);
+    let normalized: NormalizedUserImage | null = null;
     try {
       const asset = result.assets[0];
+      normalized = await normalizeUserImage({ uri: asset.uri, width: asset.width, height: asset.height, fileSize: asset.fileSize, fileName: asset.fileName }, .9);
       const path = `${session.user.id}/avatar-${Date.now()}.jpg`;
-      const blob = await (await fetch(asset.uri)).blob();
-      const { error } = await supabase.storage.from('together-user-media').upload(path, blob, { contentType: asset.mimeType ?? 'image/jpeg', upsert: false });
+      const blob = await (await fetch(normalized.uri)).blob();
+      const { error } = await supabase.storage.from('together-user-media').upload(path, blob, { contentType: normalized.mimeType, upsert: false, cacheControl: '31536000' });
       if (error) throw error;
       await manageAccount({
         action: 'profile', displayName: name.trim() || profile?.display_name || 'You', aboutMe: about.trim(),
         interests: splitList(interests, 10), goals: splitList(goals, 4), avatarPath: path,
       });
-      setAvatar(asset.uri);
+      const { data: signed } = await supabase.storage.from('together-user-media').createSignedUrl(path, 3600);
+      setAvatar(signed?.signedUrl ?? avatar);
       await refresh();
     } catch (error) {
       Alert.alert('Photo upload failed', error instanceof Error ? error.message : 'Please try again.');
-    } finally { setBusy(false); }
+    } finally { cleanupNormalizedImage(normalized?.uri); setBusy(false); }
   };
   const performLogout = async () => {
     if (signingOut) return;

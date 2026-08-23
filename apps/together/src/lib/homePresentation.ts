@@ -2,12 +2,14 @@ import type { CharacterInstance, GeneratedMedia, Memory, Snapshot } from '../typ
 import type { HomeViewModel } from './homeViewModel';
 import { getInterruptibilityPresentation } from './lifePresentation';
 import { presentMemoryText } from './memoryPresentation';
+import { generatedMediaCacheKey } from './mediaImageSource';
 
 export type CompanionMediaItem = {
   id: string;
   type: 'image' | 'video' | 'gif';
   url: string;
   thumbnailUrl?: string;
+  cacheKey?: string;
   title: string;
   subtitle: string;
   timestamp: string;
@@ -101,6 +103,7 @@ export function getCompanionMedia(snapshot: Snapshot, companionId: string): Comp
         type: 'image' as const,
         url: item.signed_url,
         thumbnailUrl: item.signed_url,
+        cacheKey: generatedMediaCacheKey(item),
         title: String(metadata.title ?? moment?.title ?? event?.title ?? date?.together_date_templates.name ?? 'A moment from today'),
         subtitle: location?.name ?? String(metadata.context ?? 'From your shared world'),
         timestamp: item.created_at,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { validateUserImage } from "../../../packages/together-domain/src/multimodal.ts";
+import { imageDimensions } from "../../../packages/together-domain/src/index.ts";
 import { parseBody } from "../_shared/body.ts";
 import { authenticated, enforceRateLimit } from "../_shared/context.ts";
 import { json, serve } from "../_shared/http.ts";
@@ -50,8 +51,8 @@ const schema = z.discriminatedUnion("action", [
     characterInstanceId: uuid,
     mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
     byteSize: z.number().int().positive().max(10 * 1024 * 1024),
-    width: z.number().int().positive().max(20_000).optional(),
-    height: z.number().int().positive().max(20_000).optional(),
+    width: z.number().int().positive().max(2_048).optional(),
+    height: z.number().int().positive().max(2_048).optional(),
     requestId: z.string().trim().min(8).max(120),
   }),
   z.object({ action: z.literal("confirm_user_image"), attachmentId: uuid }),
@@ -252,9 +253,12 @@ serve(async (request, correlationId) => {
       mimeType: String(attachment.mime_type),
       byteSize: bytes.byteLength,
     });
+    const actualDimensions = imageDimensions(bytes, String(attachment.mime_type));
     if (
       !actualValidation.valid ||
-      !matchesImageSignature(bytes, String(attachment.mime_type))
+      !matchesImageSignature(bytes, String(attachment.mime_type)) ||
+      !actualDimensions ||
+      Math.max(actualDimensions.width, actualDimensions.height) > 2_048
     ) {
       await Promise.all([
         db.storage.from("together-user-media").remove([
@@ -263,13 +267,13 @@ serve(async (request, correlationId) => {
         db.from("together_conversation_attachments").update({
           upload_status: "failed",
           analysis_status: "failed",
-          analysis_metadata: { validation: "invalid_image_bytes" },
+          analysis_metadata: { validation: actualDimensions ? "image_dimensions_too_large" : "invalid_image_bytes" },
           updated_at: new Date().toISOString(),
         }).eq("id", attachment.id).eq("user_id", user.id),
       ]);
       throw new AppError(
         "VALIDATION_FAILED",
-        "That file is not a supported image.",
+        actualDimensions ? "That photo is larger than Kivelle's 2048-pixel upload limit." : "That file is not a supported image.",
         422,
       );
     }
@@ -278,6 +282,8 @@ serve(async (request, correlationId) => {
       const { data } = await db.from("together_conversation_attachments")
         .update({
           byte_size: bytes.byteLength,
+          width: actualDimensions.width,
+          height: actualDimensions.height,
           upload_status: "uploaded",
           analysis_status: "unavailable",
           analysis_metadata: { providerStatus: "not_configured" },
@@ -294,6 +300,8 @@ serve(async (request, correlationId) => {
     }
     await db.from("together_conversation_attachments").update({
       byte_size: bytes.byteLength,
+      width: actualDimensions.width,
+      height: actualDimensions.height,
       upload_status: "uploaded",
       analysis_status: "processing",
       updated_at: new Date().toISOString(),

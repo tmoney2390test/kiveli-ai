@@ -29,8 +29,8 @@ serve(async (request, correlationId) => {
     if (!scene) return json({ data: { scene: null, participants: [], availableCharacters: [] }, correlationId }, 200, correlationId);
     await ensurePrimaryParticipant(db, scene);
     const [{ data: participants }, { data: candidates }] = await Promise.all([
-      db.from('together_scene_participants').select('*,together_character_instances(id,current_location_id,together_character_templates(name,slug,public_handle),together_character_versions(portrait_asset_url,visual_identity))').eq('scene_session_id', scene.id).is('left_at', null).order('joined_at'),
-      db.from('together_character_instances').select('id,current_location_id,together_character_templates(name,slug,public_handle),together_character_versions(portrait_asset_url,visual_identity)').eq('user_id', user.id).eq('continuity_id', continuity.id).neq('id', conversation.character_instance_id),
+      db.from('together_scene_participants').select('*,together_character_instances(id,current_location_id,together_character_templates(name,slug,public_handle),together_character_versions(portrait_asset_key,visual_identity))').eq('scene_session_id', scene.id).is('left_at', null).order('joined_at'),
+      db.from('together_character_instances').select('id,current_location_id,together_character_templates(name,slug,public_handle),together_character_versions(portrait_asset_key,visual_identity)').eq('user_id', user.id).eq('continuity_id', continuity.id).neq('id', conversation.character_instance_id),
     ]);
     const participantIds = new Set((participants ?? []).map((item: any) => String(item.character_instance_id)));
     const plausible = (candidates ?? []).filter((candidate: any) => String(candidate.current_location_id ?? '') === String(scene.location_id) && !participantIds.has(String(candidate.id))).slice(0, 12);

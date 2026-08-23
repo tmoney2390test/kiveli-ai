@@ -142,6 +142,21 @@ export function mergeConversationSummary(previousValue: string, turns: Array<{ i
   return mergeRollingConversationState(previousValue, turns);
 }
 
+/**
+ * The bootstrap snapshot is the canonical client plan source. Keep attendance
+ * on the same shape returned by together-plan so a refresh cannot turn a
+ * joined plan back into a joinable one.
+ */
+export function decorateSnapshotSharedPlan(plan:Record<string,any>):Record<string,any>{
+  const{together_plan_attendance:embeddedAttendance,...canonicalPlan}=plan;
+  const attendance=Array.isArray(embeddedAttendance)?embeddedAttendance:[];
+  const user=attendance.find((row:Record<string,any>)=>row.participant_type==='user')??null;
+  const character=attendance.find((row:Record<string,any>)=>row.participant_type==='character'&&String(row.character_instance_id)===String(plan.character_instance_id))
+    ??attendance.find((row:Record<string,any>)=>row.participant_type==='character')
+    ??null;
+  return{...canonicalPlan,attendance:{user,character}};
+}
+
 function cleanContinuityObject(value: string): string {
   return value.trim().replace(/\s+(?:a lot|so much|though)$/i, '').toLowerCase();
 }
@@ -181,7 +196,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
     db.from('together_scene_sessions').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).is('ended_at',null).order('started_at',{ascending:false}).limit(24),
     db.from('together_scene_participants').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).is('left_at',null).order('joined_at'),
     db.from('together_life_events').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).order('starts_at', { ascending: false }).limit(20),
-    db.from('together_shared_plans').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).order('starts_at',{ascending:false,nullsFirst:false}).limit(200),
+    db.from('together_shared_plans').select('*,together_plan_attendance(*)').eq('user_id',userId).eq('continuity_id',continuity.id).order('starts_at',{ascending:false,nullsFirst:false}).limit(200),
     db.from('together_conversation_events').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).order('created_at',{ascending:true}).limit(200),
     db.from('together_proactive_messages').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).in('status', ['queued','sent']).lte('eligible_at', new Date().toISOString()).order('eligible_at', { ascending: false }).limit(10),
     db.from('together_entitlements').select('*').eq('user_id', userId).maybeSingle(),
@@ -202,7 +217,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
   const publishedCharacterPresence=(characterWorldPresence.data??[]).filter((presence)=>publishedWorldIds.has(String(presence.world_id)));
   const publishedDates=(dates.data??[]).filter((date)=>date.status==='completed'||publishedWorldIds.has(String(date.together_date_templates?.world_id)));
   const publishedLifeEvents=(events.data??[]).filter((event)=>!event.location_id||publishedLocationIds.has(String(event.location_id)));
-  const publishedSharedPlans=(sharedPlans.data??[]).filter((plan)=>!plan.world_id||publishedWorldIds.has(String(plan.world_id))||plan.status==='completed');
+  const publishedSharedPlans=(sharedPlans.data??[]).filter((plan)=>!plan.world_id||publishedWorldIds.has(String(plan.world_id))||plan.status==='completed').map(decorateSnapshotSharedPlan);
   const now=Date.now(),nowDate=new Date(now);
   const activeScenes=(sceneSessions.data??[]).filter((scene:Record<string,unknown>)=>{
     if(!publishedWorldIds.has(String(scene.world_id)))return false;

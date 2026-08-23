@@ -98,6 +98,20 @@ export function characterResidentWorld(snapshot:Snapshot,character?:CharacterIns
   return worldById(snapshot,authoredWorldId)??worldForLocation(snapshot,character.current_location_id);
 }
 
+/** The canonical private residence for this character in their resident world. */
+export function characterHomeLocationId(snapshot:Snapshot,character?:CharacterInstance|null):string|undefined{
+  if(!character)return undefined;
+  const resident=(snapshot.characterWorldPresence??[]).find((item)=>item.character_version_id===character.character_version_id&&item.presence_type==='resident'&&Boolean(item.home_location_id));
+  if(resident?.home_location_id)return resident.home_location_id;
+  const currentWorld=worldForLocation(snapshot,character.current_location_id);
+  return(snapshot.characterWorldPresence??[]).find((item)=>item.character_version_id===character.character_version_id&&item.world_id===currentWorld?.id&&Boolean(item.home_location_id))?.home_location_id??undefined;
+}
+
+export function isCharacterHomeLocation(snapshot:Snapshot,character:CharacterInstance,locationId?:string|null):boolean{
+  const homeLocationId=characterHomeLocationId(snapshot,character);
+  return Boolean(homeLocationId&&locationId&&homeLocationId===locationId);
+}
+
 export function characterCanPlanInWorld(snapshot:Snapshot,character:CharacterInstance|undefined|null,worldId?:string|null){
   return Boolean(character&&worldId&&characterResidentWorld(snapshot,character)?.id===worldId);
 }

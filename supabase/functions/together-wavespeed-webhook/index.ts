@@ -25,10 +25,11 @@ serve(async(request,correlationId)=>{
   const prediction=normalizeWaveSpeedWebhook(payload);if(!prediction.id)throw new AppError('VALIDATION_ERROR','The webhook is missing a provider request ID.',400);
   const db=adminClient();
   const{error:receiptError}=await db.from('together_media_provider_webhook_receipts').insert({provider:'wavespeed',webhook_id:webhookId,provider_request_id:prediction.id,metadata:{status:prediction.status}});
-  if(receiptError&&receiptError.code==='23505')return json({data:{accepted:true,duplicate:true},correlationId},200,correlationId);
-  if(receiptError)throw new AppError('INTERNAL_ERROR','The webhook could not be recorded.',500,true);
+  const duplicate=receiptError?.code==='23505';
+  if(receiptError&&!duplicate)throw new AppError('INTERNAL_ERROR','The webhook could not be recorded.',500,true);
   const{data:job}=await db.from('together_media_provider_jobs').select('*').eq('provider','wavespeed').eq('provider_request_id',prediction.id).maybeSingle();
-  if(!job)return json({data:{accepted:true,matched:false},correlationId},202,correlationId);
+  if(!job)return json({data:{accepted:true,matched:false,duplicate},correlationId},202,correlationId);
+  await db.from('together_media_provider_webhook_receipts').update({matched_at:new Date().toISOString()}).eq('provider','wavespeed').eq('webhook_id',webhookId);
   if(prediction.status==='completed'&&prediction.outputs[0]){
     const result={outputUrl:prediction.outputs[0],providerRequestId:prediction.id,model:prediction.model,generationMs:prediction.inferenceMs};
     const providerStatus={status:prediction.status,hasNsfwContents:prediction.hasNsfwContents,inferenceMs:prediction.inferenceMs,outputCount:prediction.outputs.length,webhookReceivedAt:new Date().toISOString()};
@@ -37,5 +38,6 @@ serve(async(request,correlationId)=>{
   }
   else if(['failed','cancelled','timeout','deleted'].includes(prediction.status))await failProviderMedia(db,{jobId:String(job.id),failureCode:`provider_${prediction.status}`,failureReasonSafe:'The media could not be created this time.',providerMetadata:{status:prediction.status,hasNsfwContents:prediction.hasNsfwContents}});
   else await db.from('together_media_provider_jobs').update({status:'processing',last_polled_at:new Date().toISOString(),next_poll_at:new Date(Date.now()+60_000).toISOString(),provider_metadata:{...((job.provider_metadata??{}) as Record<string,unknown>),status:prediction.status},updated_at:new Date().toISOString()}).eq('id',job.id).in('status',['submitting','processing']);
-  return json({data:{accepted:true,matched:true,status:prediction.status},correlationId},200,correlationId);
+  await db.from('together_media_provider_webhook_receipts').update({processed_at:new Date().toISOString()}).eq('provider','wavespeed').eq('webhook_id',webhookId);
+  return json({data:{accepted:true,matched:true,duplicate,status:prediction.status},correlationId},200,correlationId);
 });

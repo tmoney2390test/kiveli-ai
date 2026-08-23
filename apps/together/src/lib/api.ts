@@ -1,7 +1,7 @@
 import { supabase, supabasePublishableKey, supabaseUrl } from './supabase';
 import { MESSAGE_CHARACTER_LIMIT, messageCharacterLimitError } from '@together/domain/src/message-limits';
 import type { CompanionVoicePreset } from '@together/domain/src/voice-presets';
-import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, GeneratedMedia, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, Message, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, Snapshot, SnapshotDelta, VoiceCallSession } from '../types';
+import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, Snapshot, SnapshotDelta, VoiceCallSession } from '../types';
 import type { RealtimeVoiceConfiguration } from './realtimeVoice';
 
 export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false) { super(message); } }
@@ -77,6 +77,27 @@ export type VoiceCallBilling={creditsPerMinute:number;creditBalance:number;charg
 export type ManageCallResult={call?:VoiceCallSession;status?:string;providerStatus?:string;message?:string;clientSecret?:string;expiresAt?:string;clientConfiguration?:RealtimeVoiceConfiguration;billing?:VoiceCallBilling;reconciliation?:{messageCount:number;reconciled:boolean}};
 export const manageCall = <T=ManageCallResult>(input:Record<string,unknown>) => invoke<T>('together-call',input);
 export const manageSharedScene = <T>(input:Record<string,unknown>) => invoke<T>('together-shared-scene',input);
+export const manageGroup = <T=GroupDetail>(input:Record<string,unknown>) => invoke<T>('together-group',input);
+export type GroupDialogueEvent=
+  |{type:'turn_started';turnId:string;sourceMessage?:Message;actions?:number;replayed?:boolean}
+  |{type:'speaker_typing';characterInstanceId:string;speakerName:string}
+    |{type:'message_started';characterInstanceId:string;speakerName:string}
+    |{type:'message_completed';message:Message}
+    |{type:'media_offer_created';offer:MediaOffer}
+    |{type:'reaction_added';reaction:MessageReaction}
+  |{type:'turn_yielded';turnId:string;replyCount?:number;reactionCount?:number;replayed?:boolean}
+  |{type:'turn_cancelled';turnId:string}
+  |{type:'heartbeat'};
+export async function sendGroupDialogue(input:{conversationId:string;message:string;attachmentIds?:string[];clientRequestId:string;mentionedCharacterInstanceIds?:string[];photoSubjectCharacterInstanceIds?:string[];replyToMessageId?:string;manualSpeakerInstanceId?:string;letThemTalk?:boolean},onEvent:(event:GroupDialogueEvent)=>void,signal?:AbortSignal):Promise<void>{
+  if(input.message.length>MESSAGE_CHARACTER_LIMIT)throw new ApiError(messageCharacterLimitError(),'VALIDATION_FAILED');
+  const response=await fetch(`${supabaseUrl}/functions/v1/together-group-dialogue`,{method:'POST',headers:{Authorization:`Bearer ${await token()}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify(input),signal});
+  if(!response.ok){const payload=await response.json().catch(()=>({})) as{error?:{message?:string;code?:string;retryable?:boolean}};throw new ApiError(payload.error?.message??'The group could not reply.',payload.error?.code,payload.error?.retryable);}
+  if(!response.body)throw new ApiError('The group response ended early.','STREAM_INTERRUPTED',true);
+  const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';
+  const process=(eventText:string)=>{const line=eventText.split('\n').find((item)=>item.startsWith('data: '));if(!line)return;const event=JSON.parse(line.slice(6)) as GroupDialogueEvent|{type:'error';error?:{message?:string;code?:string;retryable?:boolean}};if(event.type==='error')throw new ApiError(event.error?.message??'The group could not finish replying.',event.error?.code??'STREAM_INTERRUPTED',Boolean(event.error?.retryable));onEvent(event);};
+  while(true){const{value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const events=buffer.split('\n\n');buffer=events.pop()??'';for(const event of events)process(event);}
+  buffer+=decoder.decode();if(buffer.trim())process(buffer);
+}
 export const managePersona = <T>(input:Record<string,unknown>) => invoke<T>('together-persona',input);
 export const manageCreator = <T>(input:Record<string,unknown>) => invoke<T>('together-creator',input);
 export const createCreatorDraft = (input:{concept:string;worldId:string;relationshipGoal:'friendship'|'romance'|'either';requestId:string}) => manageCreator<{draft:CreatorDraft;idempotent:boolean}>({action:'create_draft',...input});

@@ -52,7 +52,7 @@ export function buildCharacterDaySchedule(input: {
       source: 'authored',
       currentStatus: current
         ? { activity: current.activity, location: current.location, locationId: current.locationId }
-        : { activity: 'Having some unstructured time at home', location: 'Home' },
+        : passiveHomeStatus(localMinute),
     };
   }
 
@@ -155,6 +155,15 @@ function localMinuteOfDay(value: Date, timezone: string) {
 
 function formatTime(value: Date, timezone: string) {
   return value.toLocaleTimeString([], { timeZone: timezone, hour: 'numeric', minute: '2-digit' });
+}
+
+/** Authored schedule gaps are private home time, expressed naturally for the viewer's clock. */
+function passiveHomeStatus(localMinute:number):Pick<CharacterDayScheduleEntry,'activity'|'location'>{
+  if(localMinute<7*60||localMinute>=23*60)return{activity:'Sleeping at home',location:'Home'};
+  if(localMinute<10*60)return{activity:'Starting the day at home',location:'Home'};
+  if(localMinute<17*60)return{activity:'Having some downtime at home',location:'Home'};
+  if(localMinute<22*60)return{activity:'Relaxing at home',location:'Home'};
+  return{activity:'Winding down at home',location:'Home'};
 }
 
 function formatMinute(value: number) {

@@ -15,8 +15,8 @@ describe('public landing content', () => {
 
   it('keeps every featured companion scoped to a published populated world', () => {
     const worldSlugs = new Set(PUBLIC_WORLDS.map((world) => world.slug));
-    expect(PUBLIC_COMPANIONS.length).toBe(6);
+    expect(PUBLIC_COMPANIONS.length).toBe(8);
     expect(PUBLIC_COMPANIONS.every((companion) => worldSlugs.has(companion.worldSlug))).toBe(true);
-    expect(PUBLIC_COMPANIONS.map((companion) => companion.worldSlug)).not.toContain('vespormoor');
+    expect(PUBLIC_COMPANIONS.map((companion) => companion.worldSlug)).toContain('vespormoor');
   });
 });

@@ -42,14 +42,12 @@ serve(async (request, correlationId) => {
   await enforceRateLimit(db, user.id, `together_conversation_${input.action}`, input.action === 'inbox' ? 240 : input.action === 'search' ? 40 : 20, 3600);
 
   if (input.action === 'inbox') {
-    const { data, error } = await db.from('together_conversations').select('*').eq('user_id', user.id).eq('continuity_id', continuity.id).is('archived_at', null).in('kind', ['direct', 'first_meeting']).order('last_message_at', { ascending: false, nullsFirst: false }).limit(100);
+    const { data, error } = await db.from('together_conversations').select('*').eq('user_id', user.id).eq('continuity_id', continuity.id).is('archived_at', null).in('kind', ['direct', 'first_meeting','group']).order('last_message_at', { ascending: false, nullsFirst: false }).limit(100);
     if (error) throw new AppError('INTERNAL_ERROR', 'Messages could not be loaded.', 500, true);
-    const enriched = await Promise.all((data ?? []).map(async (conversation) => {
-      const { data: preview, error: previewError } = await db.from('together_messages').select('content,created_at,role').eq('user_id', user.id).eq('conversation_id', conversation.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
-      if (previewError) throw new AppError('INTERNAL_ERROR', 'Message previews could not be loaded.', 500, true);
+    const enriched = (data ?? []).map((conversation) => {
       const unread = Boolean(conversation.last_assistant_message_at && (!conversation.last_read_at || new Date(conversation.last_assistant_message_at) > new Date(conversation.last_read_at)));
-      return { ...conversation, last_message_at: preview?.created_at ?? conversation.last_message_at, last_message_preview: preview?.content ?? null, last_message_role: preview?.role ?? null, unread };
-    }));
+      return { ...conversation, unread };
+    });
     await track(db, user.id, 'conversation_inbox_viewed', { conversationCount: enriched.length });
     return json({ data: enriched, correlationId }, 200, correlationId);
   }
@@ -86,11 +84,7 @@ serve(async (request, correlationId) => {
       .order('user_archived_at', { ascending: false })
       .limit(100);
     if (error) throw new AppError('INTERNAL_ERROR', 'Archived chats could not be loaded.', 500, true);
-    const enriched = await Promise.all((data ?? []).map(async (conversation) => {
-      const { data: preview, error: previewError } = await db.from('together_messages').select('content,created_at,role').eq('user_id', user.id).eq('conversation_id', conversation.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
-      if (previewError) throw new AppError('INTERNAL_ERROR', 'Archived chat previews could not be loaded.', 500, true);
-      return { ...conversation, message_count: Number(conversation.together_messages?.[0]?.count ?? 0), last_message_at: preview?.created_at ?? conversation.last_message_at, last_message_preview: preview?.content ?? null, last_message_role: preview?.role ?? null };
-    }));
+    const enriched = (data ?? []).map((conversation) => ({ ...conversation, message_count: Number(conversation.together_messages?.[0]?.count ?? 0) }));
     await track(db, user.id, 'conversation_archive_viewed', { conversationCount: enriched.length, purgedCount });
     return json({ data: enriched, correlationId }, 200, correlationId);
   }
@@ -200,10 +194,7 @@ serve(async (request, correlationId) => {
   if (input.action === 'history') {
     const { data, error } = await db.from('together_conversations').select('*,together_messages(count)').eq('user_id', user.id).eq('character_instance_id', input.characterInstanceId).is('user_archived_at', null).order('created_at', { ascending: false }).limit(100);
     if (error) throw new AppError('INTERNAL_ERROR', 'Conversation history could not be loaded.', 500, true);
-    const enriched = await Promise.all((data ?? []).map(async (conversation) => {
-      const { data: preview } = await db.from('together_messages').select('content,created_at,role').eq('conversation_id', conversation.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
-      return { ...conversation, message_count: Number(conversation.together_messages?.[0]?.count ?? 0), last_message_preview: preview?.content ?? null };
-    }));
+    const enriched = (data ?? []).map((conversation) => ({ ...conversation, message_count: Number(conversation.together_messages?.[0]?.count ?? 0) }));
     await track(db, user.id, 'conversation_history_viewed', { characterInstanceId: input.characterInstanceId });
     return json({ data: enriched, correlationId }, 200, correlationId);
   }
@@ -216,14 +207,14 @@ serve(async (request, correlationId) => {
       if (!anchor) throw new AppError('NOT_FOUND', 'That search result is no longer available.', 404);
       const half = Math.max(1, Math.floor(input.limit / 2));
       const [olderPage, newerPage] = await Promise.all([
-        db.from('together_messages').select('*').eq('user_id', user.id).eq('conversation_id', owned.id).lte('created_at', anchor.created_at).order('created_at', { ascending: false }).limit(half + 1),
-        db.from('together_messages').select('*').eq('user_id', user.id).eq('conversation_id', owned.id).gt('created_at', anchor.created_at).order('created_at', { ascending: true }).limit(half),
+        db.from('together_messages').select('*,together_message_reactions(*)').eq('user_id', user.id).eq('conversation_id', owned.id).lte('created_at', anchor.created_at).order('created_at', { ascending: false }).limit(half + 1),
+        db.from('together_messages').select('*,together_message_reactions(*)').eq('user_id', user.id).eq('conversation_id', owned.id).gt('created_at', anchor.created_at).order('created_at', { ascending: true }).limit(half),
       ]);
       if (olderPage.error || newerPage.error) throw new AppError('INTERNAL_ERROR', 'The surrounding conversation could not be loaded.', 500, true);
       const messages = [...(newerPage.data ?? []).reverse(), ...(olderPage.data ?? [])];
       return json({ data: { messages, hasMore: (olderPage.data?.length ?? 0) === half + 1, conversation: owned, anchorMessageId: anchor.id }, correlationId }, 200, correlationId);
     }
-    let query = db.from('together_messages').select('*').eq('user_id', user.id).eq('conversation_id', owned.id).order('created_at', { ascending: false }).limit(input.limit);
+    let query = db.from('together_messages').select('*,together_message_reactions(*)').eq('user_id', user.id).eq('conversation_id', owned.id).order('created_at', { ascending: false }).limit(input.limit);
     if (input.before) query = query.lt('created_at', input.before);
     const { data, error } = await query;
     if (error) throw new AppError('INTERNAL_ERROR', 'Messages could not be loaded.', 500, true);

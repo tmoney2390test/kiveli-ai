@@ -33,6 +33,24 @@ export function ActivePlanBar({ plan, locationName, busy = false, onContinue, on
   </View>;
 }
 
+export function PlanJoinBar({ plan, locationName, busy = false, onJoin, onDetails }: { plan: SharedPlan; locationName?: string; busy?: boolean; onJoin: () => void; onDetails: () => void }) {
+  return <View accessibilityLabel={`${plan.title}, ready to join`} style={styles.bar}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`Open ${plan.title} details`} onPress={onDetails} style={styles.identity}>
+      <View style={styles.icon}><CalendarDays size={16} color={colors.rose}/></View>
+      <View style={styles.copy}>
+        <Text style={styles.kicker}>PLAN READY</Text>
+        <Text numberOfLines={1} style={styles.title}>{plan.title}</Text>
+        {locationName?<Text numberOfLines={1} style={styles.location}>{locationName}</Text>:null}
+      </View>
+      <ChevronRight size={15} color={colors.dimmed}/>
+    </Pressable>
+    <View style={styles.actions}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Join ${plan.title}`} disabled={busy} onPress={onJoin} style={[styles.primary,busy&&styles.disabled]}>{busy?<ActivityIndicator size="small" color="#fff"/>:<Play size={13} color="#fff" fill="#fff"/>}<Text style={styles.primaryText}>{busy?'Joining…':'Join plan'}</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={`View ${plan.title} details`} disabled={busy} onPress={onDetails} style={[styles.secondary,busy&&styles.disabled]}><Text style={styles.secondaryText}>Details</Text></Pressable>
+    </View>
+  </View>;
+}
+
 export function EndPlanConfirmation({ visible, plan, busy, onConfirm, onClose }: { visible: boolean; plan: SharedPlan | null; busy: boolean; onConfirm: () => void; onClose: () => void }) {
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
     <Pressable accessibilityLabel="Close end plan confirmation" style={styles.backdrop} onPress={busy?undefined:onClose}>

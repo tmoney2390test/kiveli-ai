@@ -8,18 +8,20 @@ describe('Port Vervelle world seed',()=>{
     expect(portVervelleWorld.slug).toBe('port-vervelle');
     expect(portVervelleWorld.name).toBe('Port Vervelle');
     expect(portVervelleWorld.default_arrival_location_id).toBe(PORT_VERVELLE_ARRIVAL_ID);
-    expect(portVervelleWorld.metadata.residentCompanionCount).toBe(30);
-    expect(portVervelleWorld.metadata.residentPortraitStatus).toBe('pending');
+    expect(portVervelleWorld.metadata.residentCompanionCount).toBe(42);
+    expect(portVervelleWorld.metadata.maleResidentCompanionCount).toBe(12);
+    expect(portVervelleWorld.metadata.residentRosterVersion).toBe(2);
     expect(portVervelleLocations.find((location)=>location.id===PORT_VERVELLE_ARRIVAL_ID)?.slug).toBe('porto-marina');
   });
 
-  it('contains six districts and 42 public places with unique slugs',()=>{
-    expect(portVervelleLocations).toHaveLength(48);
+  it('contains six districts and 44 public places with unique slugs',()=>{
+    expect(portVervelleLocations).toHaveLength(50);
     expect(portVervelleLocations.filter((location)=>location.location_type==='district')).toHaveLength(6);
-    expect(new Set(portVervelleLocations.map((location)=>location.slug))).toHaveProperty('size',48);
+    expect(new Set(portVervelleLocations.map((location)=>location.slug))).toHaveProperty('size',50);
     const directory=buildWorldPlaceDirectory(portVervelleLocations,PORT_VERVELLE_WORLD_ID);
     expect(directory.sections.filter((section)=>section.kind==='district')).toHaveLength(6);
-    expect(directory.totalPlaceCount).toBe(42);
+    expect(directory.totalPlaceCount).toBe(44);
+    expect(directory.sections.find((section)=>section.district?.slug==='porto-vecchio')?.places.map((place)=>place.slug)).toEqual(expect.arrayContaining(['sotto-sale','museo-marittimo-vervelle']));
   });
 
   it('publishes the complete five-property lodging ladder',()=>{

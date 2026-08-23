@@ -1,7 +1,7 @@
 export const entitlementKeys=[
   'relationship_core','chat_core','memory_core','juniper_world','plans_dates_moments','custom_companion_basic',
-  'chat_unlimited','media_generation_unlimited','memory_deep','history_expanded','all_standard_worlds','proactive_messages','multiple_lives','multiple_custom_companions','priority_media','director_selective',
-  'memory_deepest','history_max','director_default','early_access_worlds','highest_priority_media','social_scenes_enhanced','voice_priority',
+  'chat_unlimited','media_generation_unlimited','explicit_dialogue_unlimited','memory_deep','history_expanded','all_standard_worlds','proactive_messages','multiple_lives','multiple_custom_companions','priority_media','director_selective',
+  'memory_deepest','history_max','director_default','early_access_worlds','highest_priority_media','social_scenes_enhanced','voice_priority','group_chat',
   // Legacy keys retained while older content gates and rows are migrated.
   'maya_relationship','text_basic','memory_basic','city_life','dinner_juniper','text_expanded','memory_long_term','moments_expanded','voice_notes','contextual_images','multiple_relationships','premium_models','group_interactions',
 ]as const;
@@ -53,6 +53,7 @@ const freeEntitlements:readonly EntitlementKey[]=[
 ];
 const plusEntitlements:readonly EntitlementKey[]=[...freeEntitlements,
   'chat_unlimited','memory_deep','history_expanded','all_standard_worlds','proactive_messages','multiple_lives','multiple_custom_companions','priority_media','director_selective',
+  'group_chat',
   'text_expanded','memory_long_term','moments_expanded','voice_notes','contextual_images','multiple_relationships',
 ];
 const maxEntitlements:readonly EntitlementKey[]=[...plusEntitlements,
@@ -73,7 +74,7 @@ export function capabilitiesForAccount(tier:string,metadata?:unknown):KivelleCap
   const grants=rawGrants.filter((value):value is EntitlementKey=>typeof value==='string'&&entitlementKeys.includes(value as EntitlementKey));
   if(!grants.length)return base;
   const entitlements=[...new Set<EntitlementKey>([...base.entitlements,...grants])];
-  return{...base,chatDailyLimit:entitlements.includes('chat_unlimited')?null:base.chatDailyLimit,userRequestedPhotoDailyLimit:entitlements.includes('media_generation_unlimited')?null:base.userRequestedPhotoDailyLimit,entitlements};
+  return{...base,chatDailyLimit:entitlements.includes('chat_unlimited')?null:base.chatDailyLimit,userRequestedPhotoDailyLimit:entitlements.includes('media_generation_unlimited')?null:base.userRequestedPhotoDailyLimit,explicitDialogueMonthlyLimit:entitlements.includes('explicit_dialogue_unlimited')?null:base.explicitDialogueMonthlyLimit,entitlements};
 }
 export function entitlementsForTier(tier:string):ReadonlySet<EntitlementKey>{return new Set(capabilitiesForTier(tier).entitlements);}
 export function hasEntitlement(tier:string,key:EntitlementKey):boolean{return capabilitiesForTier(tier).entitlements.includes(key);}

@@ -14,6 +14,8 @@ export type VeniceEditInput = {
   safeMode: boolean;
   forceMultiEdit?: boolean;
   includeAspectRatio?: boolean;
+  resolution?: string;
+  outputFormat?: 'png' | 'jpeg' | 'webp';
 };
 
 export type VeniceEditResult = {
@@ -92,7 +94,7 @@ export class VeniceImageClient {
     }
   }
 
-  async assessQuality(input: { imageUrl: string; prompt: string; model?: string }): Promise<VeniceQualityResult> {
+  async assessQuality(input: { imageUrl: string; referenceImageUrls?:string[]; prompt: string; model?: string }): Promise<VeniceQualityResult> {
     const model = input.model ?? 'qwen3-vl-235b-a22b';
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), Math.min(this.timeoutMs, 45_000));
@@ -108,6 +110,7 @@ export class VeniceImageClient {
             content: [
               { type: 'text', text: input.prompt },
               { type: 'image_url', image_url: { url: input.imageUrl } },
+              ...(input.referenceImageUrls??[]).slice(0,2).map((url)=>({type:'image_url',image_url:{url}})),
             ],
           }],
           max_completion_tokens: 48,

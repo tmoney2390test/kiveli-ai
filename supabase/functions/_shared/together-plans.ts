@@ -62,7 +62,7 @@ export async function createSharedPlan(db:any, input:CreatePlanInput) {
     return{kind:'date' as const,commitment:data,created:true};
   }
 
-  const metadata={requestId:input.requestId,durationMinutes:resolved.durationMinutes,significance:resolved.significance,completionSummary:`User and their companion spent time together for ${resolved.title}.`,locationSlug:resolved.location.slug,...(input.replacementPlanId?{replacesPlanId:input.replacementPlanId,switchState:'staged'}:{})};
+  const metadata={requestId:input.requestId,durationMinutes:resolved.durationMinutes,significance:resolved.significance,completionSummary:`User and their companion spent time together for ${resolved.title}.`,locationSlug:resolved.location.slug,immediate:input.immediate===true,...(input.replacementPlanId?{replacesPlanId:input.replacementPlanId,switchState:'staged'}:{})};
   // Send every required commitment field explicitly. PostgREST can materialize
   // omitted JSON properties as NULL rather than applying the SQL default, which
   // would reject an otherwise valid plan after the commitment migrations added
@@ -218,7 +218,7 @@ async function matchingDateSession(db:any,userId:string,instanceId:string,locati
   return(sessions??[]).find((session:any)=>session.together_date_templates?.location_id===locationId&&normalize(session.together_date_templates?.name??'').includes(firstWord))??null;
 }
 
-function planCardMetadata(plan:any,locationName?:string){return{title:plan.title,startsAt:plan.starts_at,endsAt:plan.ends_at,status:plan.status,worldId:plan.world_id,locationId:plan.location_id,location:locationName??'Current place',activityKey:plan.activity_key,note:plan.note??null};}
+function planCardMetadata(plan:any,locationName?:string){return{title:plan.title,startsAt:plan.starts_at,endsAt:plan.ends_at,status:plan.status,worldId:plan.world_id,locationId:plan.location_id,location:locationName??'Current place',activityKey:plan.activity_key,note:plan.note??null,immediate:plan.metadata?.immediate===true,timingChoice:plan.metadata?.immediate===true?'now':undefined};}
 function defaultTitle(activity:string,location:string){const label=activity.replace(/\b\w/g,(letter)=>letter.toUpperCase());if(/^(walk|shopping|books|records|art|photos|quiet browsing)$/i.test(activity))return`${label} at ${location}`;return`${label} at ${location}`;}
 function durationFor(activity:string){if(/movie|basketball|hockey|soccer|boxing|sport/.test(activity))return 150;if(/trivia|music|dinner|karaoke|comedy/.test(activity))return 120;if(/walk|shopping|gallery|books|records|photos/.test(activity))return 90;if(/coffee|pastry/.test(activity))return 60;return 90;}
 function significanceFor(activity:string,metadata:Record<string,unknown>){if(/rooftop|romantic|celebration/.test(activity)||((metadata.tags as unknown[])??[]).includes('romantic'))return.72;if(/basketball|hockey|soccer|boxing|sport/.test(activity))return.62;if(/trivia|music|dinner|karaoke|gallery/.test(activity))return.55;if(/coffee|pastry|errands/.test(activity))return.35;return.48;}

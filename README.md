@@ -75,13 +75,17 @@ KIVELLE_DIRECTOR_GEMINI_MODEL=gemini-2.5-flash
 
 The existing `OPENAI_API_KEY` / `GEMINI_API_KEY` configuration is reused. Director calls time out quickly and fall back to the deterministic response brief.
 
-Dialogue routing defaults to `KIVELLE_OPENAI_DIALOGUE_MODEL=gpt-5.6-luna` with reasoning disabled. The optional adult-explicit route requires `XAI_API_KEY`, `KIVELLE_XAI_ENABLED=true`, and `KIVELLE_XAI_EXPLICIT_ENABLED=true`; it defaults to `KIVELLE_XAI_DIALOGUE_MODEL=grok-4.3`. `KIVELLE_AI_COST_TELEMETRY_ENABLED=true` records server-only normalized token, cache, latency, routing, and cost events without storing prompts.
+Dialogue routing defaults to `KIVELLE_OPENAI_DIALOGUE_MODEL=gpt-5.6-luna` with reasoning disabled. The optional adult-explicit route requires `XAI_API_KEY`, `KIVELLE_XAI_ENABLED=true`, and `KIVELLE_XAI_EXPLICIT_ENABLED=true`; it defaults to `KIVELLE_XAI_DIALOGUE_MODEL=grok-4.3`. `KIVELLE_AI_COST_TELEMETRY_ENABLED=true` records server-only normalized token, cache, latency, routing, and cost events without storing prompts. Database-backed provider semaphores default to `KIVELLE_OPENAI_MAX_CONCURRENCY=64` and `KIVELLE_XAI_MAX_CONCURRENCY=32`; exhausted capacity engages the normal retry/fallback path instead of opening unbounded upstream connections.
 
 Contextual image and short-video records are surfaced only when a real media provider has produced a ready asset. Media routing is provider-neutral; WaveSpeed runs through a durable asynchronous job/webhook/recovery path and never becomes a second source of character or world truth. Higher-intensity routes remain independently gated by age verification, user preferences, character boundaries, validated model routes, and server feature flags.
+
+Media dispatch uses request-time kicks plus a one-minute Supabase Cron recovery sweep. Configure the same random value as the Edge Function secret `TOGETHER_MEDIA_DISPATCH_SECRET` and the Vault secret `together_media_dispatch_secret`; Vault also needs `together_project_url`. `KIVELLE_MEDIA_MAX_INFLIGHT` defaults to `48` and provides server-side global image/video backpressure. Conversation turns, provider polling, and media finalization use expiring database leases so multiple Edge instances and devices cannot commit the same work concurrently.
 
 See [WaveSpeed media operations](docs/wavespeed-media.md) for secrets, reference synchronization, canary rollout, recovery, and deployment.
 
 See [Kivelle voice](docs/voice.md) for xAI TTS/realtime setup, native development-build requirements, transcript writeback, privacy, and usage accounting.
+
+See [Kivelle group chat](docs/group-chat.md) for participant authority, isolated speaker context, witnessed knowledge, turn interruption, entitlements, and the Shared Scene bridge.
 
 ## Run locally
 

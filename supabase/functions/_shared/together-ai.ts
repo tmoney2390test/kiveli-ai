@@ -7,8 +7,9 @@ import { deterministicPlaceOpinionCandidates as derivePlaceOpinionCandidates, va
 import { detectFlirtSignal, scoreConversationEngagement } from '../../../packages/together-domain/src/relationship.ts';
 import { isDurableUserMemory, isRelationshipDirectedPreferenceMemory } from '../../../packages/together-domain/src/memory.ts';
 import { resolveConversationStyle } from '../../../packages/together-domain/src/conversation-style.ts';
-import { buildResponsesRequestBody, canRetryStreamFailure, deriveOpaquePromptCacheKey, dialogueFallbackProvider, executeResponsesHttp, extractResponsesText, isDialogueHardBlocked, normalizeResponsesUsage, parseResponsesStreamEvent, type DialogueProviderName, type DialogueRoutingDecision, type IntimacyStance, type NormalizedAiUsage, type NormalizedModerationResult } from '../../../packages/together-domain/src/index.ts';
+import { buildResponsesRequestBody, canRetryStreamFailure, deriveOpaquePromptCacheKey, dialogueFallbackProvider, executeResponsesHttp, extractResponsesText, isCapabilityStyleExplicitRefusal, isDialogueHardBlocked, normalizeResponsesUsage, parseResponsesStreamEvent, type DialogueProviderName, type DialogueRoutingDecision, type IntimacyStance, type NormalizedAiUsage, type NormalizedModerationResult } from '../../../packages/together-domain/src/index.ts';
 import { recordAiUsage, type AiUsageScope } from './kivelle-ai-usage.ts';
+import { acquireProviderSlot, releaseProviderSlot } from './kivelle-provider-concurrency.ts';
 
 export type DialogueContext = KivelleConversationContext & { contentMode?:string;intimacyStance?:IntimacyStance;dialogueRouting?:Record<string,unknown> };
 export type DialogueRunMetadata={provider:DialogueProviderName;model:string;routeReason:string;contentMode:string;cachedInputTokens:number;inputTokens:number;outputTokens:number;reasoningTokens:number;latencyMs:number;fallback?:boolean};
@@ -46,7 +47,15 @@ export function dialogueProviderName(): 'openai' | 'gemini' | 'deterministic' {
 export class ConfiguredDialogueProvider implements DialogueProvider {
   async generate(context: DialogueContext,options:DialogueRunOptions): Promise<DialogueGenerationResult> {
     if(options.route.provider==='openai'||options.route.provider==='xai'){
-      try{return await generateResponses(context,options);}catch(error){
+      try{
+        const generated=await generateResponses(context,options);
+        if(options.route.provider==='xai'&&options.route.explicit&&context.intimacyStance?.shouldReciprocate===true&&isCapabilityStyleExplicitRefusal(generated.text)){
+          const repairContext={...context,dialogueRouting:{...(context.dialogueRouting??{}),responseRepair:'explicit_capability_refusal'}};
+          const repairOptions={...options,operation:`${operationName(options,'xai')}_repair`};
+          try{return await generateResponses(repairContext,repairOptions);}catch{return generated;}
+        }
+        return generated;
+      }catch(error){
         if(options.route.provider==='xai')return generateAdultProviderDowngrade(context,options);
         if(!isDialogueProviderTimeout(error)&&dialogueFallbackProvider(options.route.provider,Boolean(geminiKey()))==='gemini'){
           const started=Date.now();const text=await generateGemini(context,geminiKey()!);
@@ -90,6 +99,7 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
 async function generateResponses(context:DialogueContext,options:DialogueRunOptions):Promise<DialogueGenerationResult>{
   const provider=options.route.provider as 'openai'|'xai',key=provider==='openai'?apiKey():xaiKey(),modelName=provider==='openai'?openAIDialogueModel():xaiDialogueModel();
   if(!key)throw new Error(`${provider}_not_configured`);
+  const slot=await acquireProviderSlot(options.usageScope,provider,operationName(options,provider));
   const started=Date.now();let response:Response|undefined;const controller=new AbortController();
   try{
     response=await withDialogueProviderDeadline(executeResponsesHttp(deadlineFetch(controller),provider,key,await responsesBody(context,options,modelName,false)),controller);const latency=Date.now()-started;
@@ -98,10 +108,12 @@ async function generateResponses(context:DialogueContext,options:DialogueRunOpti
     await recordAiUsage(options.usageScope,{provider,model:modelName,operation:operationName(options,provider),usage,latencyMs:latency,success:true,httpStatus:response.status,cacheHit:usage.cachedInputTokens>0,metadata:{sharedSceneParticipant:options.sharedSceneParticipant===true}});
     if(!text)throw new Error('empty_provider_response');return{text,metadata:metadataFor(options,provider,modelName,usage,latency)};
   }catch(error){if(!response)await recordAiUsage(options.usageScope,{provider,model:modelName,operation:operationName(options,provider),latencyMs:Date.now()-started,success:false,errorCode:'NETWORK_ERROR',metadata:{sharedSceneParticipant:options.sharedSceneParticipant===true}});throw error;}
+  finally{await releaseProviderSlot(options.usageScope,slot);}
 }
 
 async function* streamResponses(context:DialogueContext,options:DialogueRunOptions):AsyncIterable<DialogueStreamEvent>{
   const provider=options.route.provider as 'openai'|'xai',key=provider==='openai'?apiKey():xaiKey(),modelName=provider==='openai'?openAIDialogueModel():xaiDialogueModel();if(!key)throw new Error(`${provider}_not_configured`);
+  const slot=await acquireProviderSlot(options.usageScope,provider,operationName(options,provider));
   const started=Date.now();let response:Response|undefined,recorded=false;const controller=new AbortController();
   try{
     response=await withDialogueProviderDeadline(executeResponsesHttp(deadlineFetch(controller),provider,key,await responsesBody(context,options,modelName,true)),controller);
@@ -110,6 +122,7 @@ async function* streamResponses(context:DialogueContext,options:DialogueRunOptio
     for await(const data of sseData(response.body,{inactivityMs:dialogueProviderInactivityMs(),onTimeout:()=>controller.abort()})){const parsed=parseResponsesStreamEvent(JSON.parse(data));if(parsed.token)yield{type:'token',token:parsed.token};if(parsed.usage)usage=normalizeResponsesUsage(provider,parsed.usage);}
     const latency=Date.now()-started;await recordAiUsage(options.usageScope,{provider,model:modelName,operation:operationName(options,provider),usage,latencyMs:latency,success:true,httpStatus:response.status,cacheHit:Boolean(usage?.cachedInputTokens),metadata:{sharedSceneParticipant:options.sharedSceneParticipant===true}});recorded=true;yield{type:'complete',metadata:metadataFor(options,provider,modelName,usage,latency)};
   }catch(error){if(!recorded)await recordAiUsage(options.usageScope,{provider,model:modelName,operation:operationName(options,provider),latencyMs:Date.now()-started,success:false,httpStatus:response?.status??null,errorCode:isDialogueProviderTimeout(error)?'PROVIDER_TIMEOUT':response?'STREAM_INTERRUPTED':'NETWORK_ERROR',metadata:{sharedSceneParticipant:options.sharedSceneParticipant===true}});throw error;}
+  finally{await releaseProviderSlot(options.usageScope,slot);}
 }
 
 async function responsesBody(context:DialogueContext,options:DialogueRunOptions,modelName:string,stream:boolean){return buildResponsesRequestBody({model:modelName,prompt:buildCompanionPrompt(context),maxOutputTokens:responseTokenBudget(context),stream,...(options.route.provider==='xai'?{promptCacheKey:await deriveOpaquePromptCacheKey({conversationId:options.usageScope?.conversationId,continuityId:options.usageScope?.continuityId,characterInstanceId:options.usageScope?.characterInstanceId})}:{})});}

@@ -56,7 +56,7 @@ describe('character day schedule', () => {
       }],
     } as unknown as Snapshot;
     const result = buildCharacterDaySchedule({ snapshot: authoredSnapshot, instance, characterVersionId: 'maya-v1', timezone: 'America/New_York', now: new Date('2026-08-18T06:00:00.000Z') });
-    expect(result.currentStatus).toEqual({ activity: 'Having some unstructured time at home', location: 'Home' });
+    expect(result.currentStatus).toEqual({ activity: 'Sleeping at home', location: 'Home' });
   });
 
   it('uses the viewer clock instead of the character world clock', () => {
@@ -76,6 +76,6 @@ describe('character day schedule', () => {
       now: new Date('2026-08-20T16:50:00.000Z'),
     });
     expect(result.entries[0]).toMatchObject({ time: '12:00 AM–3:00 AM', current: false, past: true });
-    expect(result.currentStatus).toEqual({ activity: 'Having some unstructured time at home', location: 'Home' });
+    expect(result.currentStatus).toEqual({ activity: 'Having some downtime at home', location: 'Home' });
   });
 });

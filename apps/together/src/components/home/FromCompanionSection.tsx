@@ -15,7 +15,7 @@ export function FromCompanionSection({ name, items, fallbackSource, onViewAll, o
 function MediaCard({ item, onPress }: { item: CompanionMediaItem; onPress: () => void }) {
   const date = new Date(item.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
   return <Pressable accessibilityRole="button" accessibilityLabel={`${item.locked ? 'Locked media' : item.title}, ${item.subtitle}`} onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
-    <DetailPreservingArtwork source={{ uri: item.thumbnailUrl ?? item.url }} accessibilityLabel={item.title} blurRadius={item.locked ? 15 : 0} dim={.08} />
+    <DetailPreservingArtwork source={{ uri: item.thumbnailUrl ?? item.url, cacheKey: item.cacheKey }} accessibilityLabel={item.title} blurRadius={item.locked ? 15 : 0} dim={.08} priority="low" recyclingKey={item.id} />
     <View style={styles.cardShade} />
     {item.locked ? <View style={styles.lock}><LockKeyhole size={13} color="#FFF4F7" /><Text style={styles.lockText}>PRIVATE</Text></View> : item.type === 'video' ? <View style={styles.play}><Play size={15} color="#fff" fill="#fff" /></View> : null}
     <View style={styles.cardCopy}><Text style={styles.kicker}>{item.context ?? 'FROM HER'} · {date.toUpperCase()}</Text><Text numberOfLines={2} style={styles.title}>{item.title}</Text><Text numberOfLines={1} style={styles.subtitle}>{item.locked ? 'Something for you' : item.subtitle}</Text></View>

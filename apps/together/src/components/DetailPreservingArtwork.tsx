@@ -9,6 +9,7 @@ type Props = {
   blurRadius?: number;
   dim?: number;
   priority?: 'low' | 'normal' | 'high';
+  recyclingKey?: string;
   onError?: () => void;
 };
 
@@ -25,6 +26,7 @@ export function DetailPreservingArtwork({
   blurRadius = 0,
   dim = .16,
   priority = 'normal',
+  recyclingKey,
   onError,
 }: Props) {
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -36,6 +38,7 @@ export function DetailPreservingArtwork({
       blurRadius={Math.max(14, blurRadius)}
       cachePolicy="memory-disk"
       priority={priority}
+      recyclingKey={recyclingKey?`${recyclingKey}:backdrop`:undefined}
       onError={onError}
     />
     <View style={[StyleSheet.absoluteFill, { backgroundColor: `rgba(7,5,10,${dim})` }]} />
@@ -50,6 +53,7 @@ export function DetailPreservingArtwork({
         transition={180}
         cachePolicy="memory-disk"
         priority={priority}
+        recyclingKey={recyclingKey}
         onError={onError}
       />
     </View>

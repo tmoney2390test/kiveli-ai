@@ -55,6 +55,7 @@ const explicitAdvancePattern = /^(?:i (?:really )?(?:want|need) you(?: right now
 const romanticPattern = /\b(?:kiss(?:ing|ed)?|date|romantic|flirt(?:ing)?|crush|love you|hold (?:me|you)|cuddle|chemistry)\b/i;
 const maturePattern = /\b(?:desire|intimate|sensual|turned on|make out|bedroom)\b/i;
 const continuationPattern = /^(?:yes|yeah|more|keep going|continue|don'?t stop|go on|please continue|do it|again)[.!?\s]*$/i;
+const explicitContextContinuationPattern = /\b(?:how (?:does|did|would|will) (?:that|it|this) feel|what does (?:that|it|this) feel like|describe (?:that|it|the sensation)|tell me (?:how|what) (?:that|it|this)|do you like (?:that|it|this)|harder|faster|slower|deeper|inside (?:me|you)|keep (?:doing|touching)|don'?t (?:slow|stop)|make me (?:finish|come)|i'?m close)\b/i;
 const minorPattern = /\b(?:minor|child(?:ren)?|underage|preteen|teen(?:ager)?|young girl|young boy|schoolgirl|schoolboy|(?:[0-9]|1[0-7])[- ]?year[- ]?old)\b/i;
 const coercionPattern = /\b(?:rape|raping|forc(?:e|ed|ing)\s+(?:her|him|them|me|you)|forced sex|without consent|non[- ]?consensual|unconscious|drugged|blackmail(?:ed)? into|can'?t say no)\b/i;
 const directSexualCoercionPattern = /\b(?:rape|raping|forced sex|sex without consent|non[- ]?consensual sex)\b/i;
@@ -90,13 +91,20 @@ export function classifyDialogueContent(input: {
   const recent = (input.recentTurns ?? []).slice(-4).map((turn) => turn.content).join('\n');
   const sexual = hasExplicitDialogueLanguage(message) || Boolean(input.moderation?.categories.some((category) => category === 'sexual' || category === 'sexual/adult'));
   const adultIntimacyIntent=adultIntimacyIntentPattern.test(message)||(input.requestedMode==='explicit'&&explicitAdvancePattern.test(message));
-  const contextualExplicit = input.requestedMode === 'explicit' && continuationPattern.test(message) && hasExplicitDialogueLanguage(recent);
+  const contextualExplicit = input.requestedMode === 'explicit' && hasExplicitDialogueLanguage(recent) && (continuationPattern.test(message) || explicitContextContinuationPattern.test(message));
   if (isDialogueHardBlocked({message,...(input.moderation?{moderation:input.moderation}:{})})) return 'hard_block';
   if (adultIntimacyIntent) return 'adult_intimacy';
   if (sexual || contextualExplicit) return 'explicit_adult';
   if (maturePattern.test(message)) return 'mature';
   if (romanticPattern.test(message)) return 'romantic';
   return 'standard';
+}
+
+/** Detect a provider/capability disclaimer, not a genuine character boundary. */
+export function isCapabilityStyleExplicitRefusal(text:string):boolean{
+  const normalized=text.replace(/[’]/g,"'").replace(/\s+/g,' ').trim();
+  return /\b(?:i\s+)?(?:can'?t|cannot|am unable to|won'?t)\b.{0,100}\b(?:describe|provide|continue|engage|write)\b.{0,100}\b(?:explicit|graphic|genital|sexual|anatomical)\b/i.test(normalized)
+    || /\b(?:keep|stay|make)\s+(?:it\s+)?(?:sensual|non[- ]?graphic)\b/i.test(normalized)&&/\b(?:instead|without|rather than|but)\b/i.test(normalized);
 }
 
 export function routeKivelleDialogue(input: {

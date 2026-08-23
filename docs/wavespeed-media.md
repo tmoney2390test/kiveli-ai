@@ -9,10 +9,15 @@ Set secrets only in Supabase. Never place `WAVESPEED_API_KEY` or `WAVESPEED_WEBH
 ```sh
 pnpm exec supabase secrets set --project-ref YOUR_PROJECT_REF \
   WAVESPEED_API_KEY=... WAVESPEED_WEBHOOK_SECRET=... \
+  TOGETHER_MEDIA_DISPATCH_SECRET=... KIVELLE_MEDIA_MAX_INFLIGHT=48 \
   KIVELLE_WAVESPEED_ENABLED=true KIVELLE_WAVESPEED_CANARY_PERCENT=5
 ```
 
+Store the same dispatcher value in Supabase Vault as `together_media_dispatch_secret`; Vault also needs `together_project_url`. The migration schedules a one-minute recovery sweep. Request-time kicks remain the fast path, so a dropped HTTP kick adds bounded delay instead of stranding a queued request.
+
 Increase the canary only after the benchmark set and production telemetry are healthy. `KIVELLE_IMAGE_PROVIDER=wavespeed` opts all eligible image requests into WaveSpeed; otherwise the stable hash canary selects requests. Video and LoRA are independently gated.
+
+Two-character group photos use the dedicated `wavespeed-ai/qwen-image-2.0-pro/edit` route with two ordered identity references, or three references when editing an existing group photo. Enable standard and romantic group photos with `KIVELLE_WAVESPEED_GROUP_IMAGES_ENABLED=true`. Adult group levels additionally require `KIVELLE_ADULT_MEDIA_ENABLED=true` and `KIVELLE_WAVESPEED_GROUP_ADULT_ROUTE_VALIDATED=true`; every selected companion still passes Kivelle's independent age, fictionality, relationship, preference, consent, and boundary checks before submission. This route is excluded from direct-chat routing.
 
 The API key supplied to Kivelle is a server secret. If it has ever been pasted into a ticket, screenshot, or public log, rotate it in WaveSpeed before production rollout. WaveSpeed also supplies a separate webhook-signing secret; an API key is not a substitute for that secret.
 
@@ -21,9 +26,9 @@ The API key supplied to Kivelle is a server secret. If it has ever been pasted i
 1. Kivelle records a canonical media row and spends credits idempotently.
 2. The dispatcher records a durable provider job before submission.
 3. It submits exactly once. A submission timeout becomes `submission_unknown`; Kivelle does not blindly repeat the POST.
-4. A signed webhook or recovery poll matches `(provider, provider_request_id)`.
+4. A signed webhook or atomically leased recovery poll matches `(provider, provider_request_id)`.
 5. Kivelle downloads the temporary output, validates MIME/size, and copies it to the private `together-user-media` bucket.
-6. Finalization is idempotent. Terminal failure refunds the original transaction once.
+6. Webhooks and pollers compete for the same expiring finalization lease, so only one worker downloads and stores the result. Terminal failure refunds the original transaction once.
 
 Webhook verification uses the raw request body, the `webhook-id`, `webhook-timestamp`, and `webhook-signature` headers, HMAC-SHA256, constant-time comparison, and a five-minute replay window. Webhook IDs are persisted to reject replays.
 
@@ -64,7 +69,9 @@ This records the route/scenario matrix and review rubric. It deliberately does n
 
 ## Recovery
 
-The dispatcher reconciles confirmed WaveSpeed requests by provider ID before claiming new work. Webhooks are the primary completion path; polling is the recovery path. Confirmed async submissions are excluded from the generic stale-job requeue function.
+The dispatcher reconciles confirmed WaveSpeed requests by provider ID before claiming new work. Webhooks are the primary completion path; polling is the recovery path. Poll claims use `FOR UPDATE SKIP LOCKED`, and finalization has a separate owner token. Confirmed async submissions are excluded from the generic stale-job requeue function.
+
+Queued image/video claims are globally bounded by `KIVELLE_MEDIA_MAX_INFLIGHT`, distributed across users, subscription-prioritized, and aged so old standard-priority jobs cannot be starved indefinitely.
 
 To inspect without exposing prompts or secrets:
 
@@ -72,6 +79,11 @@ To inspect without exposing prompts or secrets:
 select provider, route_id, status, count(*)
 from together_media_provider_jobs
 group by provider, route_id, status;
+
+select status,count(*),min(created_at) as oldest
+from together_generated_media
+where media_type in ('image','video') and status in ('queued','generating')
+group by status;
 ```
 
 Jobs older than 45 minutes fail safely and refund. `submission_unknown` is intentionally terminal and requires a new user action rather than a hidden duplicate submission.

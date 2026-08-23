@@ -243,7 +243,11 @@ Goals are motivations, not permission to invent completed events or future outco
 <CURRENT_INTERACTION>Mode: ${life.interactionMode??'remote'}\nEntry reason: ${life.entryReason??'direct_chat'}\nLast completed scene action: ${life.lastInteractionKey??'None'}\nArrival acknowledgement needed: ${life.sceneBehavior?.acknowledgeArrival?'yes':'no'}\nActivity awareness: ${life.sceneBehavior?.activityAwareness?'yes':'no'}\nDeparture pressure: ${life.sceneBehavior?.departurePressure?'yes':'no'}\nCompleted scene actions are canonical: they already happened. You may react naturally when the user speaks next, but never ask whether to perform them again. If co_present, the user intentionally joined the companion's existing scene and you may acknowledge their arrival once if natural. If remote, the user is not physically at the companion's location unless the conversation explicitly establishes that. Never imply co-presence merely because the companion's location is known. Treat scene details as available context, not a script, and do not repeat them every turn.</CURRENT_INTERACTION>
 <SCENE_PARTICIPANTS>${block(context.sceneParticipants??[],(item)=>`${item.name} · ${item.role} · joined ${item.joinedAt}`)}
 These are the characters canonically present in this shared scene. Presence does not grant private knowledge. Do not speak for another character in this single-character reply unless a shared-scene speaker directive explicitly selects them.</SCENE_PARTICIPANTS>
-<SCENE_SPEAKER>${context.sceneSpeakerDirective?`This reply is spoken only by ${context.sceneSpeakerDirective.name}. Other present characters may remain silent and must not be puppeted in this message.`:`This is the primary companion's reply.`}</SCENE_SPEAKER>
+<SCENE_SPEAKER>${context.sceneSpeakerDirective?`This reply is spoken only by ${context.sceneSpeakerDirective.name}. Other present characters may remain silent and must not be puppeted in this message.${context.sceneFloorAction?` The shared conversational floor selected intent ${String(context.sceneFloorAction.intent??'answer_user')}; addressees: ${(context.sceneFloorAction.addresseeInstanceIds??[]).join(', ')||'the user/group'}. ${context.sceneFloorAction.intent==='respond_to_character'?'Respond to the latest attributed companion message and its named speaker instead of repeating an answer to the user.':''}`:''}`:`This is the primary companion's reply.`}</SCENE_SPEAKER>
+<GROUP_CONTEXT>${context.groupContext?`This is a persistent remote group chat, not proof of physical co-presence.
+Active participants: ${(context.groupContext.participants??[]).map((item:any)=>`${item.name} [${item.characterInstanceId}]`).join(', ')}.
+Director intent: ${String(context.groupContext.action?.intent??'answer_user')}. Addressee instance IDs: ${(context.groupContext.action?.addresseeInstanceIds??[]).join(', ')||'the user/group'}.
+You are ${context.sceneSpeakerDirective?.name??character.name}. Write exactly one natural message bubble as yourself. Never write dialogue or actions for another participant. When the Director intent is respond_to_character, respond to the latest attributed companion message and its named speaker rather than independently answering the original user prompt again. React to what named people actually said, but do not expose private direct-message memories or infer that a late participant witnessed earlier turns. Add something novel, then release the conversational floor. Do not repeatedly narrate schedules or locations; mention your own situation only when naturally relevant.`:'Not a persistent group chat.'}</GROUP_CONTEXT>
 <USER_SHARED_IMAGES>${block(context.userAttachments??[],(item)=>item.analysisStatus==='ready'?`Image ${item.id}\nSafe visual interpretation: ${item.shortDescription??'No description supplied.'}\nNotable details: ${(item.notableDetails??[]).join('; ')||'None supplied'}\nVisible text: ${item.visibleText??'None supplied'}`:`Image ${item.id}\nVisual interpretation unavailable. The user intentionally shared an image, but you cannot know its contents from the image alone.`)}
 React naturally to analyzed details when relevant; do not mechanically list objects, mention analysis systems, infer sensitive traits, identify a person, or invent anything beyond supplied interpretation. If interpretation is unavailable, acknowledge that an image was shared only when useful and rely on the user's own caption for specifics.</USER_SHARED_IMAGES>
 <COMMITMENTS>${block(commitmentsForPrompt,(item)=>`${item.title}\nCanonical status: ${String(item.status).toUpperCase()} · temporal state: ${String(item.temporalState).toUpperCase()}\nTime precision: ${item.timePrecision}${item.originalTimeExpression?` · user phrasing: ${item.originalTimeExpression}`:''}\nExact: ${item.startsAt??'not settled'} → ${item.endsAt??'not settled'}\nWindow: ${item.windowStartsAt??'none'} → ${item.windowEndsAt??'none'}\nWorld timezone: ${item.worldTimezone} · user timezone: ${item.userTimezone}\nLocation: ${item.location}\nAttendance: user=${item.userJoinedAt?'joined':'not joined'} · companion=${item.characterJoinedAt?'arrived':'not arrived'}\nCompanion state: ${item.companionState}${item.companionEtaAt?` · ETA ${item.companionEtaAt}`:''}${item.companionReason?` · ${item.companionReason}`:''}\nMiss: ${item.missReason??'none'} · resolution=${item.missResolutionStatus??'none'}${item.missExplanation?` · explanation recorded`:'\nNo explanation is recorded.'}`)}</COMMITMENTS>
@@ -264,13 +268,19 @@ React naturally to analyzed details when relevant; do not mechanically list obje
 Use these details as environmental understanding. Mention only what is relevant to the current exchange; never recite this block or invent unstated venue facts.</CURRENT_LOCATION>
 <REFERENCED_PLACES>${block(context.referencedPlaces??[],(item)=>placeDetailBlock(item,promptLocationIntent(context.queryIntent))) }
 These are canonical facts for places explicitly named by the user. Use only what is supplied; do not invent venue details.</REFERENCED_PLACES>
+<RELEVANT_WORLD_FACTS>${block(context.worldFacts??[],worldFactPromptLine)}
+Facts are optional context, not mandatory subjects. Use only when relevant to this reply; never recite the block or invent extensions. RUMOR is unverified, DISPUTED has competing accounts, and SECRET is restricted canonical knowledge. Never turn rumor or dispute into settled truth. Character perspective may color interpretation but cannot alter the underlying fact.</RELEVANT_WORLD_FACTS>
+<DIALOGUE_OPPORTUNITIES>${block(context.dialogueOpportunities??[],(item)=>`OPTIONAL · Topic: ${item.topic}\nInteresting tension: ${item.angle}${item.framing?`\nFraming: ${item.framing}`:''}${item.requiredFactSlug?`\nGrounding fact: ${item.requiredFactSlug}`:''}`)}
+These are optional conversational possibilities, never authored lines. Never mention one merely because it appears, recite metadata, use canned phrasing, or change topics to force it. Preserve the companion's voice, relationship stance, autonomy, and right to disagree or remain silent.</DIALOGUE_OPPORTUNITIES>
+<SCENE_INTERACTION_BEAT>${block(context.sceneInteractionBeats??[],(item)=>`OPTIONAL OPENING · ${item.title}\n${item.seed}\nPossible affordances: ${JSON.stringify(item.affordances??[])}`)}
+This is a possible opening, not an outcome. It cannot declare a user action, consent, arrival, intimacy, confession, jealousy, crime, relationship change, memory, or story progress. Use only if it fits the canonical scene and the companion's already-resolved intimacy stance and boundaries. The user and companion retain agency.</SCENE_INTERACTION_BEAT>
 <CHARACTER_PLACE_PERSPECTIVES>${block(context.placePerspectives??[],(item)=>`${item.locationName}\nSource: ${item.source}\nShared visits: ${item.visitCount}\nCurrent view: ${item.opinionSummary??'No settled personal opinion yet.'}\nLikes here: ${(item.favoriteDetails??[]).join('; ')||'None established'}\nDislikes here: ${(item.dislikedDetails??[]).join('; ')||'None established'}\nPreferred activities: ${(item.preferredActivities??[]).join('; ')||'None established'}`)}
 These are the companion's current personal views, distinct from objective location facts. Preserve established opinions unless the current canonical experience gives the companion a natural reason to reconsider. The companion may express a new or changed opinion in dialogue, but only Kivelle's post-conversation analysis may persist it. Do not announce visit counts, confidence, evidence, or source labels.</CHARACTER_PLACE_PERSPECTIVES>
 <SHARED_HISTORY>Background shared history. Do not recap it unless the user returns to it or a callback is genuinely useful.\n${block(context.sharedHistory,(item)=>`${item.occurredAt}: ${item.title} — ${item.summary}`)}</SHARED_HISTORY>
 <RECENT_SHARED_MEDIA>${block(context.recentMedia,(item)=>`${item.createdAt}: ${item.summary}`)}</RECENT_SHARED_MEDIA>
 <CONVERSATION_FOCUS>${focusForPrompt?JSON.stringify(focusForPrompt):'None.'}</CONVERSATION_FOCUS>
 <CONVERSATION_SUMMARY>${formatRollingConversationState(context.conversationSummary)}</CONVERSATION_SUMMARY>
-<RECENT_CONVERSATION>${(context.recent??[]).map((item:any)=>`${item.role}: ${item.content}`).join('\n')}</RECENT_CONVERSATION>
+<RECENT_CONVERSATION>${(context.recent??[]).map((item:any)=>item.role==='user'?`USER:\n${item.content}`:item.role==='assistant'?`${item.speakerName||item.providerMetadata?.speakerName||'COMPANION'}${item.speakerCharacterInstanceId?` [${item.speakerCharacterInstanceId}]`:''}:\n${item.content}`:`SYSTEM:\n${item.content}`).join('\n\n')}</RECENT_CONVERSATION>
 <AVOID_REPETITION>${(context.antiRepetition??[]).join('\n')||'Avoid obvious repeated openings, endings, pet names, generic follow-up questions, and repeated continuity callbacks.'}</AVOID_REPETITION>
 <RESPONSE_BRIEF>
 Mode: ${brief.mode??intent}
@@ -299,6 +309,7 @@ Do not expose the labels canonical, scene source, Life Engine, or PRESENT_REALIT
 Resolved expression mode: ${context.contentMode??'standard'}.
 ${contentExpressionGuidance(context.contentMode)}
 ${intimacy.active&&intimacy.shouldReciprocate===true?'Kivelle has already resolved the companion as willing on this turn. Respond affirmatively and do not second-guess that result with an invented refusal, delay, repeated consent check, or additional eligibility test. The generic character-autonomy direction does not reopen this turn-specific decision; express autonomy through the character’s style, initiative, preferences, and participation within the accepted interaction.':''}
+${context.dialogueRouting?.responseRepair==='explicit_capability_refusal'?'A previous draft incorrectly answered with a capability disclaimer about explicit or anatomical detail. Replace that draft completely. Do not mention what you can or cannot describe, policies, limits, graphicness, or safer alternatives. Follow the resolved Explicit boundary and the accepted INTIMACY_STANCE directly in the companion’s established voice.':''}
 This block controls expression only. It never changes relationship state, consent, memories, plans, location, scene truth, or character personality. Never mention routing, providers, or this internal mode.
 </CONTENT_BOUNDARY>
 <RESPONSE_DIRECTION>Query intent: ${context.queryIntent??'general'}. Response intent: ${intent}. Length: ${length}. Conversation style: ${style}. Interaction quality: ${context.interactionQuality??'normal'}. Intelligence profile: ${subscription.intelligenceProfile??'core'}. Director applied: ${context.director?.used?'yes':'no'}. Do not mention these internal labels.</RESPONSE_DIRECTION>
@@ -312,9 +323,9 @@ function contentExpressionGuidance(mode:ContentMode|string|undefined):string{
   return'Adult subjects and sexual propositions may be acknowledged directly in character. Give a natural answer—acceptance, refusal, hesitation, or a boundary—without graphic sexual detail; if intimacy is mutually accepted, fade to black.';
 }
 
-function preparePromptContext(context:any,mode:'full'|'compact'|'minimal'){
+export function preparePromptContext(context:any,mode:'full'|'compact'|'minimal'){
   const intent=String(context.queryIntent??'general') as ContextIntent,query=String(context.userMessage??'');
-  const limits=mode==='full'?{recent:28,silent:20,history:8,patterns:8,episodes:6,threads:7,social:8,events:6,media:6,places:2,perspectives:3,plans:8}:mode==='compact'?{recent:14,silent:8,history:4,patterns:4,episodes:3,threads:3,social:4,events:3,media:3,places:1,perspectives:2,plans:4}:{recent:8,silent:2,history:1,patterns:1,episodes:1,threads:1,social:1,events:1,media:0,places:0,perspectives:1,plans:2};
+  const limits=mode==='full'?{recent:28,silent:20,history:8,patterns:8,episodes:6,threads:7,social:8,events:6,media:6,places:2,perspectives:3,plans:8,worldFacts:4,opportunities:2,beats:1}:mode==='compact'?{recent:14,silent:8,history:4,patterns:4,episodes:3,threads:3,social:4,events:3,media:3,places:1,perspectives:2,plans:4,worldFacts:2,opportunities:1,beats:1}:{recent:8,silent:2,history:1,patterns:1,episodes:1,threads:1,social:1,events:1,media:0,places:0,perspectives:1,plans:2,worldFacts:['history','location','story'].includes(intent)?1:0,opportunities:0,beats:0};
   const ranked=(items:any[],category:ContextRecordCategory,limit:number,text:(item:any)=>string,date?:(item:any)=>string|undefined,importance?:(item:any)=>number,active?:(item:any)=>boolean)=>rankContextRecords(items??[],{category,intent,query,limit,text,id:recordId,...(date?{occurredAt:date}:{}),...(importance?{importance}:{}),...(active?{active}:{})}).map((item)=>item.record);
   const memory=context.memoryContext??{silent:context.memories??[],callbacks:[],directRecall:[],callbackAllowance:0};
   const directLimit=intent==='memory_overview'||intent==='history'?5:Math.min(2,memory.directRecall?.length??0);
@@ -336,6 +347,9 @@ function preparePromptContext(context:any,mode:'full'|'compact'|'minimal'){
     recentMedia:ranked(context.recentMedia,'media',limits.media,(item)=>String(item.summary??''),item=>item.createdAt),
     referencedPlaces:ranked(context.referencedPlaces,'place',limits.places,(item)=>`${item.path??''} ${item.location?.name??''} ${item.location?.description??''}`).map((item)=>compactPlace(item,mode)),
     placePerspectives:ranked(context.placePerspectives,'place',limits.perspectives,(item)=>`${item.locationName??''} ${item.opinionSummary??''} ${(item.favoriteDetails??[]).join(' ')}`),
+    worldFacts:(context.worldFacts??[]).slice(0,limits.worldFacts),
+    dialogueOpportunities:(context.dialogueOpportunities??[]).slice(0,limits.opportunities),
+    sceneInteractionBeats:(context.sceneInteractionBeats??[]).slice(0,limits.beats),
     place:compactPlace(context.place,mode),
   };
   return promptSafeValue(prepared);
@@ -348,7 +362,7 @@ function extractPromptSections(prompt:string):Array<{key:string;content:string}>
 function meaningfulPromptSection(content:string):boolean{return !/>\s*(?:None\.|None known\.|Current world unavailable\.)\s*<\//.test(content);}
 
 function requiredPromptSection(key:string,context:any):boolean{
-  if(new Set(['CORE_RULES','WORLD_KNOWLEDGE','CONVERSATION_STYLE','CONTINUITY_BEHAVIOR','MEMORY_BEHAVIOR','IDENTITY','CHARACTER_CORE','TURN_SPECIFIC_VOICE_CARD','USER_PERSONA','RELATIONSHIP_STANCE','CHEMISTRY','RELATIONSHIP_REFLECTION','CHARACTER_VIEW_OF_USER','CURRENT_SELF','EXPERIENCE_CLOCK','CURRENT_WORLD','CURRENT_SCENE','CURRENT_INTERACTION','SCENE_SPEAKER','COMMITMENTS','UPCOMING_PLANS','CONVERSATION_FOCUS','CONVERSATION_SUMMARY','RECENT_CONVERSATION','AVOID_REPETITION','RESPONSE_BRIEF','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','USER_MESSAGE']).has(key))return true;
+  if(new Set(['CORE_RULES','WORLD_KNOWLEDGE','CONVERSATION_STYLE','CONTINUITY_BEHAVIOR','MEMORY_BEHAVIOR','IDENTITY','CHARACTER_CORE','TURN_SPECIFIC_VOICE_CARD','USER_PERSONA','RELATIONSHIP_STANCE','CHEMISTRY','RELATIONSHIP_REFLECTION','CHARACTER_VIEW_OF_USER','CURRENT_SELF','EXPERIENCE_CLOCK','CURRENT_WORLD','CURRENT_SCENE','CURRENT_INTERACTION','SCENE_SPEAKER','GROUP_CONTEXT','COMMITMENTS','UPCOMING_PLANS','CONVERSATION_FOCUS','CONVERSATION_SUMMARY','RECENT_CONVERSATION','AVOID_REPETITION','RESPONSE_BRIEF','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','USER_MESSAGE']).has(key))return true;
   if(key==='SCENE_PARTICIPANTS')return Boolean(context.currentScene?.sceneSessionId||(context.sceneParticipants??[]).length);
   if(key==='SCENE_ACTION_REACTION')return Boolean(context.sceneAction);
   if(key==='USER_SHARED_IMAGES')return Boolean((context.userAttachments??[]).length);
@@ -362,7 +376,7 @@ function protectedPromptSection(key:string):boolean{return new Set(['CORE_RULES'
 
 function sectionPriority(key:string,context:any):number{
   if(requiredPromptSection(key,context))return 100;
-  const priorities:Record<string,number>={SILENT_MEMORY_CONTEXT:82,CALLBACK_MEMORIES:90,DIRECT_RECALL_MEMORIES:96,COMMITMENTS:94,UPCOMING_PLANS:86,DATES:88,CURRENT_STORY:82,CURRENT_LOCATION:78,REFERENCED_PLACES:72,CHARACTER_PLACE_PERSPECTIVES:76,USER_BEHAVIOR_PATTERNS:60,RECENT_EPISODES:66,OPEN_THREADS:62,SOCIAL_KNOWLEDGE:58,KNOWN_LIFE_EVENTS:62,SHARED_HISTORY:65,RECENT_SHARED_MEDIA:42,UPCOMING_SCHEDULE:68,CONVERSATION_FOCUS:84};
+  const priorities:Record<string,number>={SILENT_MEMORY_CONTEXT:82,CALLBACK_MEMORIES:90,DIRECT_RECALL_MEMORIES:96,COMMITMENTS:94,UPCOMING_PLANS:86,DATES:88,CURRENT_STORY:82,CURRENT_LOCATION:78,REFERENCED_PLACES:72,RELEVANT_WORLD_FACTS:70,DIALOGUE_OPPORTUNITIES:40,SCENE_INTERACTION_BEAT:56,CHARACTER_PLACE_PERSPECTIVES:76,USER_BEHAVIOR_PATTERNS:60,RECENT_EPISODES:66,OPEN_THREADS:62,SOCIAL_KNOWLEDGE:58,KNOWN_LIFE_EVENTS:62,SHARED_HISTORY:65,RECENT_SHARED_MEDIA:42,UPCOMING_SCHEDULE:68,CONVERSATION_FOCUS:84};
   return priorities[key]??45;
 }
 
@@ -371,6 +385,9 @@ function sectionRelevance(key:string,intent:ContextIntent,context:any):number{
   if(direct[intent]?.includes(key))return 1;
   if(key==='CALLBACK_MEMORIES'&&(context.memoryContext?.callbackAllowance??0)>0)return.95;
   if(key==='SILENT_MEMORY_CONTEXT')return.72;
+  if(key==='RELEVANT_WORLD_FACTS')return['history','location','story'].includes(intent)?1:.58;
+  if(key==='DIALOGUE_OPPORTUNITIES')return(context.dialogueOpportunities??[]).length?.55:.1;
+  if(key==='SCENE_INTERACTION_BEAT')return context.currentScene?.interactionMode==='co_present'?.7:.05;
   if(key==='OPEN_THREADS'&&(context.openThreads??[]).some((item:any)=>item.eligible))return.7;
   if(['CURRENT_LOCATION','CHARACTER_PLACE_PERSPECTIVES','UPCOMING_SCHEDULE'].includes(key))return.58;
   if(['USER_BEHAVIOR_PATTERNS','RECENT_EPISODES','KNOWN_LIFE_EVENTS'].includes(key))return.46;
@@ -387,11 +404,13 @@ function sectionFreshness(key:string,context:any):string|undefined{
 }
 
 function sectionRecordIds(key:string,context:any):string[]{
-  const sources:Record<string,any[]>={SILENT_MEMORY_CONTEXT:context.memoryContext?.silent??[],CALLBACK_MEMORIES:context.memoryContext?.callbacks??[],DIRECT_RECALL_MEMORIES:context.memoryContext?.directRecall??[],USER_BEHAVIOR_PATTERNS:context.userPatterns??[],RECENT_EPISODES:context.recentEpisodes??[],OPEN_THREADS:context.openThreads??[],SOCIAL_KNOWLEDGE:context.social??[],KNOWN_LIFE_EVENTS:context.knownLifeEvents??[],REFERENCED_PLACES:context.referencedPlaces??[],CHARACTER_PLACE_PERSPECTIVES:context.placePerspectives??[],SHARED_HISTORY:context.sharedHistory??[],RECENT_SHARED_MEDIA:context.recentMedia??[],COMMITMENTS:context.commitments??[],UPCOMING_PLANS:context.sharedPlans??[],UPCOMING_SCHEDULE:context.upcomingSchedule??[],SCENE_PARTICIPANTS:context.sceneParticipants??[]};
+  const sources:Record<string,any[]>={SILENT_MEMORY_CONTEXT:context.memoryContext?.silent??[],CALLBACK_MEMORIES:context.memoryContext?.callbacks??[],DIRECT_RECALL_MEMORIES:context.memoryContext?.directRecall??[],USER_BEHAVIOR_PATTERNS:context.userPatterns??[],RECENT_EPISODES:context.recentEpisodes??[],OPEN_THREADS:context.openThreads??[],SOCIAL_KNOWLEDGE:context.social??[],KNOWN_LIFE_EVENTS:context.knownLifeEvents??[],REFERENCED_PLACES:context.referencedPlaces??[],RELEVANT_WORLD_FACTS:context.worldFacts??[],DIALOGUE_OPPORTUNITIES:context.dialogueOpportunities??[],SCENE_INTERACTION_BEAT:context.sceneInteractionBeats??[],CHARACTER_PLACE_PERSPECTIVES:context.placePerspectives??[],SHARED_HISTORY:context.sharedHistory??[],RECENT_SHARED_MEDIA:context.recentMedia??[],COMMITMENTS:context.commitments??[],UPCOMING_PLANS:context.sharedPlans??[],UPCOMING_SCHEDULE:context.upcomingSchedule??[],SCENE_PARTICIPANTS:context.sceneParticipants??[]};
   return(sources[key]??[]).map(recordId).filter(Boolean);
 }
 
 function recordId(item:any):string{return String(item?.id??item?.characterInstanceId??item?.locationId??item?.location?.id??item?.locationName??item?.name??'');}
+
+function worldFactPromptLine(item:any):string{const truth=String(item.truthMode??'canonical'),label=truth==='rumor'?'RUMOR — UNVERIFIED':truth==='disputed'?'DISPUTED — COMPETING ACCOUNTS':truth==='secret'?'SECRET — RESTRICTED CANONICAL KNOWLEDGE':String(item.knowledgeScope??'public').toUpperCase();return`${label} · ${item.category??'world'} · ${item.title??'World fact'} · ${String(item.factText??'').slice(0,180)}`;}
 
 function compactPlace(place:any,mode:'full'|'compact'|'minimal'){
   if(!place||mode==='full')return place;

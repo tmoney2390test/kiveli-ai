@@ -12,6 +12,7 @@ import { acknowledgeConversationScene } from '../_shared/together-conversation.t
 import { resolveDialogueRouting } from '../_shared/kivelle-ai-routing.ts';
 import { compileIntimacyStance, type DialogueContentMode } from '../../../packages/together-domain/src/index.ts';
 import { conversationDialogueContentMode } from '../_shared/conversation-content-mode.ts';
+import { attachAuthoredDepthContext } from '../_shared/kivelle-authored-depth-context.ts';
 
 const schema=z.object({conversationId:z.string().uuid(),characterInstanceId:z.string().uuid(),sceneActionId:z.string().uuid(),clientRequestId:z.string().min(8).max(120)});
 const dialogue=new ConfiguredDialogueProvider();
@@ -44,6 +45,7 @@ Deno.serve(async(request)=>{
     (context as Record<string,unknown>).dialogueRouting={provider:route.provider,reason:route.reason,classification:route.classification,requestedMode:route.requestedMode,contentMode:route.resolvedMode,explicit:route.explicit};
     const intimacyStance=compileIntimacyStance({message:label,recentTurns:context.recent,relationship:{...context.relationship,spiceLevel:context.character?.spice_level,personality:context.character?.personality_config},personality:context.character?.personality_config,interactionMode:context.currentScene?.interactionMode,availability:context.currentScene?.interruptibility??context.currentScene?.availability,requestedMode});
     (context as Record<string,unknown>).intimacyStance=intimacyStance;
+    await attachAuthoredDepthContext({db,userId:user.id,continuityId:continuity.id,conversationId:conversation.id,characterInstanceId:input.characterInstanceId,characterVersionId:String(instance.character_version_id??''),context,now});
     const usageScope={db,userId:user.id,continuityId:continuity.id,conversationId:conversation.id,characterInstanceId:input.characterInstanceId,subscriptionTier:context.subscription?.tier,routeReason:route.reason,contentMode:route.resolvedMode,correlationId};
     const generated=await dialogue.generate(context,{route,usageScope,operation:route.provider==='openai'?'dialogue_openai':route.provider==='xai'?'dialogue_xai':'dialogue_gemini'});
     const safe=await moderation.check(generated.text,{...usageScope,metadata:{direction:'output',source:'scene_action'}});const reply=safe.allowed?generated.text:`${String(instance.together_character_templates?.name??'Your companion')} pauses for a second, then smiles.`;

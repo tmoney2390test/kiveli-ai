@@ -5,27 +5,28 @@ import type{MediaContentLevel,MediaShotType}from'../../../packages/together-doma
 import{AppError}from'./types.ts';
 import{track}from'./together.ts';
 import{generatedPhotosEnabled}from'./together-photo-preferences.ts';
-import{isFictionalCompanion,MEDIA_OFFER_COMPANION_SELECT}from'./together-media-character.ts';
+import{isFictionalCompanion}from'./together-media-character.ts';
+import{loadValidatedMediaSubjects,normalizeMediaSubjectIds}from'./together-media-subjects.ts';
 
 export type CreateMediaOfferInput={
   userId:string;characterInstanceId:string;source:MediaOfferSource;
+  subjectCharacterInstanceIds?:string[];
   conversationId?:string;messageId?:string;lifeEventId?:string;dateSessionId?:string;momentId?:string;storyArcId?:string;sceneSessionId?:string;sharedPlanId?:string;
   title?:string;companionMessage?:string;contentLevel?:MediaContentLevel;shotType?:MediaShotType;offerKey?:string;previewMetadata?:Record<string,unknown>;
 };
 
 export async function createMediaOffer(db:SupabaseClient,input:CreateMediaOfferInput):Promise<Record<string,any>|null>{
-  const[instanceResult,profileResult,tier]=await Promise.all([
-    db.from('together_character_instances').select(MEDIA_OFFER_COMPANION_SELECT).eq('id',input.characterInstanceId).eq('user_id',input.userId).maybeSingle(),
+  const subjectIds=normalizeMediaSubjectIds(input.characterInstanceId,input.subjectCharacterInstanceIds);
+  const[subjects,profileResult,tier]=await Promise.all([
+    loadValidatedMediaSubjects(db,{userId:input.userId,characterInstanceId:input.characterInstanceId,subjectCharacterInstanceIds:subjectIds,conversationId:input.conversationId}),
     db.from('together_profiles').select('age_verified_at,photo_preferences,multimodal_preferences').eq('user_id',input.userId).maybeSingle(),
     resolveOfferSubscriptionTier(db,input.userId),
   ]);
-  if(instanceResult.error)throw new AppError('INTERNAL_ERROR','The picture request could not be prepared.',500,true);
   if(profileResult.error)throw new AppError('INTERNAL_ERROR','Your photo settings could not be checked.',500,true);
-  const instance=instanceResult.data,profile=profileResult.data;
-  if(!instance)throw new AppError('NOT_FOUND','That companion is unavailable.',404);
+  const instance=subjects[0]!,profile=profileResult.data;
   const template=instance.together_character_templates as unknown as Record<string,unknown>,version=(instance.together_character_versions??{}) as unknown as Record<string,unknown>,preferences=(profile?.photo_preferences??{}) as Record<string,unknown>;
   if(!generatedPhotosEnabled(profile))return null;
-  if(!profile?.age_verified_at||Number(template.age)<18||!isFictionalCompanion(template,version))return null;
+  if(!profile?.age_verified_at||subjects.some((subject)=>{const subjectTemplate=subject.together_character_templates as Record<string,unknown>,subjectVersion=(subject.together_character_versions??{}) as Record<string,unknown>;return Number(subjectTemplate.age)<18||!isFictionalCompanion(subjectTemplate,subjectVersion);} ))return null;
   let includedDatePhotosUsed=0;
   if(input.source==='date'&&tier!=='free'){
     if(!input.dateSessionId)throw new AppError('VALIDATION_FAILED','A completed Date is required for its souvenir photo.',400);
@@ -38,12 +39,12 @@ export async function createMediaOffer(db:SupabaseClient,input:CreateMediaOfferI
   if(!policy.createOffer)return null;
   const offerKey=input.offerKey??canonicalOfferKey(input);
   const expiresAt=policy.expiresInHours===null?null:new Date(Date.now()+policy.expiresInHours*3600000).toISOString();
-  const title=input.title?.trim().slice(0,120)||offerTitle(input.source),name=String(template.name??'Your companion');
+  const title=input.title?.trim().slice(0,120)||offerTitle(input.source),subjectNames=subjects.map((subject)=>String((subject.together_character_templates as Record<string,unknown>).name??'Companion')),name=subjectNames.join(' & ');
   const companionMessage=input.companionMessage?.trim().slice(0,500)||offerMessage(name,input.source,input.previewMetadata);
-  const row={user_id:input.userId,continuity_id:String(instance.continuity_id),character_instance_id:input.characterInstanceId,conversation_id:input.conversationId??null,message_id:input.messageId??null,life_event_id:input.lifeEventId??null,date_session_id:input.dateSessionId??null,moment_id:input.momentId??null,story_arc_id:input.storyArcId??null,scene_session_id:input.sceneSessionId??null,shared_plan_id:input.sharedPlanId??null,offer_key:offerKey,source:input.source,status:'pending',content_level:normalizeOfferLevel(input.contentLevel,input.source),quality_tier:policy.qualityTier,shot_type:input.shotType??(input.source==='user_request'?'selfie':'scene'),credit_action:policy.creditAction,credit_cost:policy.creditCost,title,companion_message:companionMessage,preview_metadata:{...(input.previewMetadata??{}),characterName:name,providerRequested:false,autoAcceptIncludedBenefit:policy.autoAccept},included_subscription_benefit:policy.includedSubscriptionBenefit,included_benefit_type:policy.includedBenefitType,subscription_tier_at_creation:tier,expires_at:expiresAt};
+  const row={user_id:input.userId,continuity_id:String(instance.continuity_id),character_instance_id:input.characterInstanceId,subject_character_instance_ids:subjectIds,conversation_id:input.conversationId??null,message_id:input.messageId??null,life_event_id:input.lifeEventId??null,date_session_id:input.dateSessionId??null,moment_id:input.momentId??null,story_arc_id:input.storyArcId??null,scene_session_id:input.sceneSessionId??null,shared_plan_id:input.sharedPlanId??null,offer_key:offerKey,source:input.source,status:'pending',content_level:normalizeOfferLevel(input.contentLevel,input.source),quality_tier:policy.qualityTier,shot_type:input.shotType??(input.source==='user_request'?'selfie':'scene'),credit_action:policy.creditAction,credit_cost:policy.creditCost,title,companion_message:companionMessage,preview_metadata:{...(input.previewMetadata??{}),characterName:name,subjectNames,subjectCount:subjectIds.length,providerRequested:false,autoAcceptIncludedBenefit:policy.autoAccept},included_subscription_benefit:policy.includedSubscriptionBenefit,included_benefit_type:policy.includedBenefitType,subscription_tier_at_creation:tier,expires_at:expiresAt};
   const{data,error}=await db.from('together_media_offers').insert(row).select('*').single();
   if(error){const{data:existing}=await db.from('together_media_offers').select('*').eq('user_id',input.userId).eq('offer_key',offerKey).maybeSingle();if(existing)return existing;throw new AppError('INTERNAL_ERROR','The photo offer could not be prepared.',500,true);}
-  await track(db,input.userId,'media_offer_created',{offerId:data.id,source:input.source,tier,creditCost:policy.creditCost,contentLevel:row.content_level,qualityTier:row.quality_tier,characterInstanceId:input.characterInstanceId});
+  await track(db,input.userId,'media_offer_created',{offerId:data.id,source:input.source,tier,creditCost:policy.creditCost,contentLevel:row.content_level,qualityTier:row.quality_tier,characterInstanceId:input.characterInstanceId,subjectCount:subjectIds.length});
   return data;
 }
 

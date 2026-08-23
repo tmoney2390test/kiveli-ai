@@ -68,6 +68,24 @@ describe('requested photo composition',()=>{
   });
 
   it.each([
+    'I take my penis out. Care to touch?',
+    'I take off my clothes and move closer.',
+    'Take your panties off.',
+    'Give me your hand and come here.',
+    'I touch your breasts gently.',
+  ])('keeps physical or erotic dialogue out of PhotoGen without a visual cue: %s',(message)=>{
+    expect(classifyPhotoIntent(message).requested).toBe(false);
+  });
+
+  it.each([
+    'Take a nude for me.',
+    'Give me a picture of you naked.',
+    'Show me your penis.',
+  ])('still recognizes an explicit request with a photo or visual cue: %s',(message)=>{
+    expect(classifyPhotoIntent(message)).toMatchObject({requested:true,requestedContentLevel:'explicit'});
+  });
+
+  it.each([
     'Can you send me a pic?',
     'Could I get a picture of you?',
     'Snap me a selfie',

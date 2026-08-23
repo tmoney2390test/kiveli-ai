@@ -81,6 +81,10 @@ verify_jwt = false
 verify_jwt = false
 [functions.together-shared-scene]
 verify_jwt = false
+[functions.together-group]
+verify_jwt = false
+[functions.together-group-dialogue]
+verify_jwt = false
 
 [functions.together-dialogue-suggestion]
 verify_jwt = false

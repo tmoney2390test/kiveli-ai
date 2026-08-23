@@ -55,7 +55,7 @@ export async function enforceChatAllowance(db:SupabaseClient,userId:string,capab
 export async function enforceExplicitDialogueAllowance(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities,now=new Date()):Promise<void>{
   const limit=capabilities.explicitDialogueMonthlyLimit;if(limit===null)return;
   const start=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),1)).toISOString();
-  const{count,error}=await db.from('together_ai_usage_events').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('provider','xai').eq('success',true).in('operation',['dialogue_xai','shared_scene_dialogue']).gte('created_at',start);
+  const{count,error}=await db.from('together_ai_usage_events').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('provider','xai').eq('success',true).in('operation',['dialogue_xai','shared_scene_dialogue','group_dialogue_xai']).gte('created_at',start);
   if(error)throw new AppError('INTERNAL_ERROR','Monthly conversation allowance could not be checked.',500,true);
   if(Number(count??0)>=limit)throw new AppError('PLAN_LIMIT_REACHED',`${capabilities.displayName} includes ${limit.toLocaleString()} adult dialogue responses each month. Standard and romantic chat are still available, or you can upgrade for a higher allowance.`,429);
 }

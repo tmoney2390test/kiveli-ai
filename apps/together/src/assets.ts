@@ -3,9 +3,9 @@ import { worldHeroAssets } from './world-assets';
 import { mappedLocationAsset } from './location-assets';
 
 export const characterAssets:Record<string,number>={
-  maya:require('../assets/maya-portrait.png'),
-  chloe:require('../assets/chloe-portrait.png'),
-  alex:require('../assets/alex-portrait.png'),
+  maya:require('../assets/maya-portrait.jpg'),
+  chloe:require('../assets/chloe-portrait.jpg'),
+  alex:require('../assets/alex-portrait.jpg'),
   'miranda-serrano':require('../assets/characters/juniper-city/miranda-serrano.jpg'),
   'nia-brooks':require('../assets/characters/juniper-city/nia-brooks.jpg'),
   'sophie-laurent':require('../assets/characters/juniper-city/sophie-laurent.jpg'),
@@ -80,7 +80,7 @@ export const characterAssets:Record<string,number>={
   'talia-okafor':require('../assets/characters/neon-kyo/talia-okafor.jpg'),
   iori:require('../assets/characters/neon-kyo/iori.jpg'),
 };
-export const cityLifeAsset=require('../assets/locations/juniper-city/juniper-city.png');
+export const cityLifeAsset=require('../assets/locations/juniper-city/juniper-city.jpg');
 export const appIconAsset=require('../assets/icon.png');
 export {worldHeroAssets};
 export function worldHeroAsset(slug?:string|null):ImageSource{if(!slug||slug==='juniper-city')return cityLifeAsset;return worldHeroAssets[slug]??cityLifeAsset;}

@@ -37,6 +37,8 @@ Kivelle keeps canonical state in Supabase and sends only the compiled turn conte
 
 Companion voice notes and live calls extend those same provider-neutral boundaries. xAI TTS voice notes are available to Kivelle+ and Max. Realtime calls are available to every tier and spend Kivelle Credits per started minute using server-authoritative, idempotent metering. Native realtime PCM capture/playback requires an Expo development build because `@edkimmel/expo-audio-stream` is not present in Expo Go. See [the voice operations guide](../../docs/voice.md) for secrets, flags, transport details, transcript reconciliation, and rollout.
 
+First-class group chat uses the same canonical conversation, memory, relationship, safety, and provider layers. Each selected speaker gets a fresh private context; group membership, witnessed sequence boundaries, turn cancellation, and the subscription gate remain server-authoritative. See [the group chat architecture guide](../../docs/group-chat.md).
+
 ## Boundaries
 
 - Character templates and immutable versions define canonical identity.

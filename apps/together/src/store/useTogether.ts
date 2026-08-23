@@ -3,6 +3,8 @@ import { loadSnapshot } from '../lib/api';
 import type { CharacterInstance, Conversation, ConversationAction, GeneratedMedia, Memory, Moment, Relationship, SceneSession, SharedPlan, Snapshot, SnapshotDelta } from '../types';
 import { demoSnapshot } from '../demo';
 import{beginPendingDialogue,finishPendingDialogue,type PendingDialogue,type PendingDialogueMap}from'../lib/pendingDialogue';
+import { mergeReconciledMedia } from '../lib/mediaReconciliation';
+import { mergeInboxConversations } from '../lib/messageInbox';
 
 type State={
   snapshot:Snapshot|null;
@@ -47,7 +49,10 @@ export const useTogether=create<State>((set)=>{
     removeMemory:(memoryId)=>patchSnapshot((snapshot)=>({...snapshot,memories:snapshot.memories.filter((item)=>item.id!==memoryId)})),
     upsertMoment:(moment)=>patchSnapshot((snapshot)=>({...snapshot,moments:upsert(snapshot.moments,moment)})),
     upsertPlan:(plan)=>patchSnapshot((snapshot)=>({...snapshot,sharedPlans:upsert(snapshot.sharedPlans,plan)})),
-    upsertMedia:(media)=>patchSnapshot((snapshot)=>({...snapshot,generatedMedia:upsert(snapshot.generatedMedia??[],media)})),
+    upsertMedia:(media)=>patchSnapshot((snapshot)=>{
+      const current=(snapshot.generatedMedia??[]).find((item)=>item.id===media.id);
+      return{...snapshot,generatedMedia:upsert(snapshot.generatedMedia??[],mergeReconciledMedia(current,media))};
+    }),
     removeMedia:(mediaId)=>patchSnapshot((snapshot)=>({...snapshot,generatedMedia:(snapshot.generatedMedia??[]).filter((item)=>item.id!==mediaId)})),
     upsertConversationAction:(action)=>patchSnapshot((snapshot)=>({...snapshot,conversationActions:upsert(snapshot.conversationActions??[],action)})),
     removeConversationAction:(actionId)=>patchSnapshot((snapshot)=>({...snapshot,conversationActions:(snapshot.conversationActions??[]).filter((item)=>item.id!==actionId)})),
@@ -79,7 +84,7 @@ export const useTogether=create<State>((set)=>{
       const generation=refreshGeneration;
       const sequence=++refreshSequence;
       set({loading:true,error:null});
-      const request=(async()=>{try{const snapshot=await loadSnapshot();if(generation===refreshGeneration&&sequence===refreshSequence)set({snapshot,loading:false,error:null});}catch(error){if(generation===refreshGeneration&&sequence===refreshSequence)set({loading:false,error:error instanceof Error?error.message:'Could not load Kivelle.'});}finally{if(generation===refreshGeneration&&sequence===refreshSequence)refreshRequest=null;}})();
+      const request=(async()=>{try{const snapshot=await loadSnapshot();if(generation===refreshGeneration&&sequence===refreshSequence)set((state)=>({snapshot:{...snapshot,conversations:mergeInboxConversations(snapshot.conversations,state.snapshot?.conversations??[])},loading:false,error:null}));}catch(error){if(generation===refreshGeneration&&sequence===refreshSequence)set({loading:false,error:error instanceof Error?error.message:'Could not load Kivelle.'});}finally{if(generation===refreshGeneration&&sequence===refreshSequence)refreshRequest=null;}})();
       refreshRequest=request;
       return request;
     },

@@ -66,6 +66,7 @@ export const mediaProviderCostRegistry:Readonly<Record<string,number>>={
   'venice-adult-two-stage':0.08,
   'wavespeed-kontext-pro-multiref':0.04,
   'wavespeed-kontext-max-multiref':0.08,
+  'wavespeed-qwen2-pro-group-multiref':0.07,
   'wavespeed-multiref':0.025,
   'wavespeed-video':0.10,
 };

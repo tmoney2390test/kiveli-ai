@@ -9,7 +9,7 @@ export type PublicWorld = {
 export type PublicCompanion = {
   slug: string;
   name: string;
-  worldSlug: Exclude<PublicWorld['slug'], 'vespormoor'>;
+  worldSlug: PublicWorld['slug'];
   worldName: string;
   location: string;
   description: string;
@@ -45,8 +45,8 @@ export const PUBLIC_WORLDS: readonly PublicWorld[] = [
   {
     slug: 'vespormoor',
     name: 'Vespormoor',
-    eyebrow: 'FOG · FOREST · COVENANT',
-    description: 'A mountain town of old promises, quiet magic, and something stirring beneath the lake.',
+    eyebrow: 'GOTHIC ROMANCE · MYSTERY · UNIVERSITY',
+    description: 'Old estates, intimate nights, subtle magic, and a castle university above a dark mountain lake.',
     new: true,
   },
 ] as const;
@@ -105,5 +105,23 @@ export const PUBLIC_COMPANIONS: readonly PublicCompanion[] = [
     location: 'Maison Vice',
     description: 'A clever stylist with an eye for reinvention and a secretly sentimental streak.',
     tags: ['Fashion', 'Photography', 'Indie music'],
+  },
+  {
+    slug: 'evelyn-harrow',
+    name: 'Evelyn Harrow',
+    worldSlug: 'vespormoor',
+    worldName: 'Vespormoor',
+    location: 'Morrow & Quill',
+    description: 'A thoughtful bookseller whose gentleness hides a dry wit—and a book that predicts what happens next.',
+    tags: ['Gothic novels', 'Poetry', 'Local history'],
+  },
+  {
+    slug: 'mirelle-voss',
+    name: 'Mirelle Voss',
+    worldSlug: 'vespormoor',
+    worldName: 'Vespormoor',
+    location: 'Velvet Thorn',
+    description: 'An elegant, perceptive proprietor who remembers more of Vespormoor’s oldest winter than she admits.',
+    tags: ['Jazz', 'Psychology', 'Old secrets'],
   },
 ] as const;

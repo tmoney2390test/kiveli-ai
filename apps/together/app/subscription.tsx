@@ -167,6 +167,7 @@ function PlanCard({ plan,billingInterval, current, actionLabel, actionConfigured
     `${plan.introductoryChatDailyLimit} messages/day for ${plan.introductoryChatDays} days · ${plan.chatDailyLimit}/day after`, 'Core relationship continuity', '1 Life · 1 custom companion', 'All published worlds', '50 welcome credits',
   ] : [
     plan.chatDailyLimit === null ? 'Unlimited chat' : 'Daily chat',
+    'Multi-character group chats',
     intelligenceLabel(plan.intelligenceProfile),
     'All published worlds',
     `${plan.maxLives} Lives · ${plan.maxCustomCompanions} custom companions`,
