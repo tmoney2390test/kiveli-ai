@@ -19,8 +19,8 @@ select has_index('public','together_voice_call_transcript_events','together_voic
 select has_index('public','together_voice_call_transcript_events','together_voice_transcript_sequence_idx','transcript sequence fallback idempotency is indexed');
 select has_index('public','together_messages','together_voice_call_canonical_message_idx','canonical voice messages are idempotent for both speakers');
 select has_index('public','together_conversation_events','together_conversation_voice_call_event_idx','voice call timeline markers are idempotent');
-select like((select pg_get_constraintdef(oid) from pg_constraint where conrelid='public.together_conversation_events'::regclass and conname='together_conversation_events_event_type_check'),'%voice_call%','voice call is an allowed timeline event');
-select like((select pg_get_constraintdef(oid) from pg_constraint where conrelid='public.together_conversation_events'::regclass and conname='together_conversation_events_entity_type_check'),'%voice_call_session%','voice call sessions are allowed timeline entities');
+select alike((select pg_get_constraintdef(oid) from pg_constraint where conrelid='public.together_conversation_events'::regclass and conname='together_conversation_events_event_type_check'),'%voice_call%','voice call is an allowed timeline event');
+select alike((select pg_get_constraintdef(oid) from pg_constraint where conrelid='public.together_conversation_events'::regclass and conname='together_conversation_events_entity_type_check'),'%voice_call_session%','voice call sessions are allowed timeline entities');
 select has_index('public','together_voice_usage_events','together_voice_usage_call_success_idx','call accounting is idempotent');
 select policies_are('public','together_voice_call_transcript_events',array['together_voice_call_transcript_own_read'],'transcripts are privately readable');
 select policies_are('public','together_voice_usage_events',array['together_voice_usage_own_read'],'voice costs are privately readable');

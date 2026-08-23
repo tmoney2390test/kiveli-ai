@@ -7,13 +7,13 @@ select has_column('public','together_location_lore_layers','required_story_keys'
 
 select ok((select count(*)>=174 from public.together_locations location join public.together_worlds world on world.id=location.world_id where world.slug in('juniper-city','port-vervelle','neon-kyo','vespormoor')),'Every current four-world location record is in scope, including private and work locations');
 select ok((select count(*)>=28 from public.together_locations location join public.together_worlds world on world.id=location.world_id where world.slug='juniper-city'),'Juniper City retains its public catalog plus existing private and work locations');
-select is((select count(*)::integer from public.together_locations location join public.together_worlds world on world.id=location.world_id where world.slug='port-vervelle'),48,'Port Vervelle includes its expanded 48-location catalog');
+select is((select count(*)::integer from public.together_locations location join public.together_worlds world on world.id=location.world_id where world.slug='port-vervelle'),50,'Port Vervelle includes its expanded 50-location catalog');
 select is((select count(*)::integer from public.together_locations location join public.together_worlds world on world.id=location.world_id where world.slug='neon-kyo'),51,'Neon Kyo retains 51 locations');
 select is((select count(*)::integer from public.together_locations location join public.together_worlds world on world.id=location.world_id where world.slug='vespormoor'),51,'Vespormoor retains 51 locations');
 
 select is(
   (select count(*)::integer from public.together_locations location join public.together_worlds world on world.id=location.world_id where world.slug in('juniper-city','port-vervelle','neon-kyo','vespormoor') and location.canonical_lore->>'version'='2' and location.canonical_lore->>'authored'='true'),
-  (select count(*)::integer from public.together_locations location join public.together_worlds world on world.id=location.world_id where world.slug in('juniper-city','port-vervelle','neon-kyo','vespormoor'),
+  (select count(*)::integer from public.together_locations location join public.together_worlds world on world.id=location.world_id where world.slug in('juniper-city','port-vervelle','neon-kyo','vespormoor')),
   'Every current location has authored v2 lore'
 );
 select ok(not exists(select 1 from public.together_locations location join public.together_worlds world on world.id=location.world_id where world.slug in('juniper-city','port-vervelle','neon-kyo','vespormoor') and(jsonb_array_length(location.canonical_lore->'sensoryDetails')<3 or jsonb_array_length(location.canonical_lore->'signatureDetails')<3 or jsonb_array_length(location.canonical_lore->'layout')<3 or location.canonical_lore->'crowdRhythm'='{}'::jsonb or location.canonical_lore->'activityNotes'='{}'::jsonb)),'Every bible has sensory, signature, layout, daypart, and activity depth');

@@ -17,7 +17,7 @@ select ok(exists(select 1 from pg_indexes where schemaname='public' and indexnam
 select ok(exists(select 1 from pg_constraint where conrelid='public.together_character_reset_operations'::regclass and contype='u' and conname='together_character_reset_operations_user_id_request_id_key'),'Request ids are unique per user');
 select ok(exists(select 1 from pg_indexes where schemaname='public' and indexname='together_destructive_action_audit_request_idx'),'Reset audit lookup is indexed');
 select ok((select prosecdef from pg_proc where oid='public.kivelle_start_over_character(uuid,uuid,text)'::regprocedure),'Reset function is security definer');
-select ok((select proconfig @> array['search_path=public,extensions'] from pg_proc where oid='public.kivelle_start_over_character(uuid,uuid,text)'::regprocedure),'Reset function pins its search path');
+select ok((select exists(select 1 from unnest(coalesce(proconfig,'{}'::text[])) as config(setting) where replace(setting,' ','')='search_path=public,extensions') from pg_proc where oid='public.kivelle_start_over_character(uuid,uuid,text)'::regprocedure),'Reset function pins its search path');
 
 select * from finish();
 rollback;

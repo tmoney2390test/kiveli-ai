@@ -4,7 +4,7 @@ select plan(35);
 select has_table('public','together_conversation_participants','group conversations have an authoritative roster');
 select has_table('public','together_dialogue_turns','group turns have persistent floor state');
 select has_table('public','together_message_reactions','character reactions are canonical records');
-select like((select pg_get_constraintdef(oid) from pg_constraint where conrelid='public.together_conversations'::regclass and conname='together_conversations_kind_check'),'%group%','group is a first-class conversation kind');
+select alike((select pg_get_constraintdef(oid) from pg_constraint where conrelid='public.together_conversations'::regclass and conname='together_conversations_kind_check'),'%group%','group is a first-class conversation kind');
 select has_column('public','together_conversations','message_sequence','group conversations own an atomic sequence');
 select has_column('public','together_conversation_participants','witnessed_from_sequence','participant knowledge has a lower witness boundary');
 select has_column('public','together_conversation_participants','witnessed_to_sequence','participant knowledge has an upper witness boundary');
@@ -32,9 +32,9 @@ select ok(not has_function_privilege('authenticated','public.kivelle_commit_grou
 select trigger_is('public','together_messages','together_messages_group_sequence','public','kivelle_assign_group_message_sequence','group message ordering is assigned atomically');
 select trigger_is('public','together_conversation_participants','together_conversation_participants_validate','public','kivelle_validate_group_participant','participant identity is validated at the database boundary');
 select trigger_is('public','together_message_reactions','together_message_reactions_validate','public','kivelle_validate_group_reaction','reaction identity is validated at the database boundary');
-select like(pg_get_functiondef('public.kivelle_commit_group_message(uuid,integer,uuid,text,jsonb)'::regprocedure),'%v_turn.version<>p_version%','stale turn versions cannot commit messages');
-select like(pg_get_functiondef('public.kivelle_commit_group_message(uuid,integer,uuid,text,jsonb)'::regprocedure),'%p.left_at is null%','removed participants cannot commit messages');
-select like(pg_get_functiondef('public.kivelle_commit_group_reaction(uuid,integer,uuid,uuid,text,jsonb)'::regprocedure),'%c.archived_at is null%','archived groups reject queued reactions');
+select alike(pg_get_functiondef('public.kivelle_commit_group_message(uuid,integer,uuid,text,jsonb)'::regprocedure),'%v_turn.version<>p_version%','stale turn versions cannot commit messages');
+select alike(pg_get_functiondef('public.kivelle_commit_group_message(uuid,integer,uuid,text,jsonb)'::regprocedure),'%p.left_at is null%','removed participants cannot commit messages');
+select alike(pg_get_functiondef('public.kivelle_commit_group_reaction(uuid,integer,uuid,uuid,text,jsonb)'::regprocedure),'%c.archived_at is null%','archived groups reject queued reactions');
 select trigger_is('public','together_messages','together_message_relationship_evidence_v2','public','kivelle_message_relationship_evidence_v2','direct relationship evidence remains on its canonical trigger');
 
 select * from finish();

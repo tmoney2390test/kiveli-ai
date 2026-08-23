@@ -1,7 +1,7 @@
 begin;
 select plan(8);
 
-select like(
+select alike(
   pg_get_constraintdef((select oid from pg_constraint where conname='together_conversation_events_event_type_check')),
   '%plan_switched%',
   'the conversation timeline accepts compact plan switch events'
@@ -20,31 +20,31 @@ select function_privs_are(
   'only the backend can switch an active plan'
 );
 
-select like(
+select alike(
   pg_get_functiondef('public.kivelle_switch_plan_experience(uuid,uuid,uuid,uuid,uuid,uuid,text,timestamp with time zone)'::regprocedure),
   '%pg_advisory_xact_lock%',
   'switches serialize for one user and companion'
 );
 
-select like(
+select alike(
   pg_get_functiondef('public.kivelle_switch_plan_experience(uuid,uuid,uuid,uuid,uuid,uuid,text,timestamp with time zone)'::regprocedure),
   '%kivelle_finish_plan_experience%',
   'the current plan uses canonical completion'
 );
 
-select like(
+select alike(
   pg_get_functiondef('public.kivelle_switch_plan_experience(uuid,uuid,uuid,uuid,uuid,uuid,text,timestamp with time zone)'::regprocedure),
   '%kivelle_begin_plan_experience%',
   'the replacement uses canonical attendance and scene start'
 );
 
-select like(
+select alike(
   pg_get_functiondef('public.kivelle_switch_plan_experience(uuid,uuid,uuid,uuid,uuid,uuid,text,timestamp with time zone)'::regprocedure),
   '%date experience owns completion%',
   'date-owned experiences cannot be switched from chat'
 );
 
-select like(
+select alike(
   pg_get_functiondef('public.kivelle_switch_plan_experience(uuid,uuid,uuid,uuid,uuid,uuid,text,timestamp with time zone)'::regprocedure),
   '%switchedToPlanId%',
   'the superseded completion event is marked for timeline deduplication'

@@ -3,8 +3,8 @@ select plan(8);
 
 select is(
   (select count(*)::integer from public.together_locations where world_id='10000000-0000-4000-8000-000000000008'::uuid),
-  48,
-  'Port Vervelle has four new properties and its existing Hôtel Celeste'
+  50,
+  'Port Vervelle retains its full catalog alongside the five-property lodging ladder'
 );
 
 select is(

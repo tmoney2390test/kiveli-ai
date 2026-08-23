@@ -14,11 +14,11 @@ select has_trigger('public','together_media_offers','together_media_offers_valid
 select has_trigger('public','together_generated_media','together_generated_media_sync_subjects','Generated media keeps normalized subjects synchronized');
 select has_trigger('public','together_media_offers','together_media_offers_sync_subjects','Media offers keep normalized subjects synchronized');
 select ok(to_regprocedure('public.kivelle_validate_media_subject_roster()') is not null,'The shared roster validator exists');
-select like(pg_get_functiondef('public.kivelle_validate_media_subject_roster()'::regprocedure),'%media subjects must be unique%','Duplicate subjects are rejected');
-select like(pg_get_functiondef('public.kivelle_validate_media_subject_roster()'::regprocedure),'%same user and Kivelle Life%','Cross-user and cross-Life subjects are rejected');
-select like(pg_get_functiondef('public.kivelle_validate_media_subject_roster()'::regprocedure),'%active conversation participants%','Group subjects must be active participants');
-select like(pg_get_constraintdef(oid),'%cardinality(subject_character_instance_ids)%2%','Generated media is limited to one or two subjects') from pg_constraint where conname='together_generated_media_subject_count_check';
-select like(pg_get_constraintdef(oid),'%cardinality(subject_character_instance_ids)%2%','Media offers are limited to one or two subjects') from pg_constraint where conname='together_media_offers_subject_count_check';
+select alike(pg_get_functiondef('public.kivelle_validate_media_subject_roster()'::regprocedure),'%media subjects must be unique%','Duplicate subjects are rejected');
+select alike(pg_get_functiondef('public.kivelle_validate_media_subject_roster()'::regprocedure),'%same user and Kivelle Life%','Cross-user and cross-Life subjects are rejected');
+select alike(pg_get_functiondef('public.kivelle_validate_media_subject_roster()'::regprocedure),'%active conversation participants%','Group subjects must be active participants');
+select alike(pg_get_constraintdef(oid),'%cardinality(subject_character_instance_ids)%2%','Generated media is limited to one or two subjects') from pg_constraint where conname='together_generated_media_subject_count_check';
+select alike(pg_get_constraintdef(oid),'%cardinality(subject_character_instance_ids)%2%','Media offers are limited to one or two subjects') from pg_constraint where conname='together_media_offers_subject_count_check';
 
 select * from finish();
 rollback;

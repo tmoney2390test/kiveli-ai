@@ -84,10 +84,11 @@ select ok(exists(
 ), 'Nia has deterministic outcome-eligible activity content');
 
 select ok(exists(
-  select 1 from public.together_character_activity_templates activity
-  join public.together_character_versions version on version.id=activity.character_version_id
+  select 1 from public.together_character_versions version
   join public.together_character_templates template on template.id=version.character_template_id
-  where template.slug='sophie-laurent' and activity.location_slugs@>array['moss-and-crumb']
+  where template.slug='sophie-laurent'
+    and version.version=template.current_published_version
+    and version.life_config->'occupation'->>'primaryLocationSlug'='moss-and-crumb'
 ), 'Sophie remains grounded in Moss and Crumb');
 
 select ok(exists(

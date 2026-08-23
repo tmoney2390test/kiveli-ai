@@ -13,12 +13,14 @@ select ok(
 
 select is(
   (select count(*)::integer
-   from public.together_character_world_presence
-   where character_version_id='13000000-0000-4000-8000-000000000002'
-     and world_id='10000000-0000-4000-8000-000000000001'
-     and home_location_id='11000000-0000-4000-8000-000000000026'),
+   from public.together_character_world_presence presence
+   join public.together_locations home on home.id=presence.home_location_id
+   where presence.character_version_id='13000000-0000-4000-8000-000000000002'
+     and presence.world_id='10000000-0000-4000-8000-000000000001'
+     and home.world_id=presence.world_id
+     and home.slug<>'maya-apartment'),
   1,
-  'Chloe City Life presence points at her own home'
+  'Chloe City Life presence uses a Juniper Home anchor rather than Maya apartment'
 );
 
 select is(

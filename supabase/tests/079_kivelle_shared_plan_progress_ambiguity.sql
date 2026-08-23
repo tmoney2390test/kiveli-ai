@@ -8,7 +8,7 @@ select has_function(
   'shared plan core progression exists'
 );
 
-select unlike(
+select unalike(
   pg_get_functiondef(
     'public.kivelle_progress_shared_plans_core(uuid,uuid,timestamptz)'::regprocedure
   ),
@@ -16,7 +16,7 @@ select unlike(
   'shared plan progression does not use an ambiguous relationship-stage target'
 );
 
-select like(
+select alike(
   pg_get_functiondef(
     'public.kivelle_progress_shared_plans_core(uuid,uuid,timestamptz)'::regprocedure
   ),

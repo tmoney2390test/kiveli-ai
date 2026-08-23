@@ -22,19 +22,19 @@ select has_trigger(
   'legacy memory writers receive a stable subject key'
 );
 
-select like(
+select alike(
   pg_get_functiondef('public.kivelle_materialize_completed_plan_history(uuid)'::regprocedure),
   '%shared-plan:%',
   'plan memories use an idempotent plan-scoped identity'
 );
 
-select like(
+select alike(
   pg_get_functiondef('public.kivelle_materialize_completed_plan_history(uuid)'::regprocedure),
   '%episodic%',
   'completed shared plans become episodic memories'
 );
 
-select like(
+select alike(
   pg_get_functiondef('public.kivelle_materialize_completed_plan_history(uuid)'::regprocedure),
   '%plan_row.status <> ''completed''%',
   'only completed plans are materialized'

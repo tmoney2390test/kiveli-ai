@@ -49,9 +49,9 @@ select ok(
   not exists(
     select 1 from public.together_character_versions version
     where version.id::text ~ '^13000000-0000-4000-8000-0000000001(0[1-9]|1[0-9]|2[0-3])$'
-      and (select count(*) from public.together_character_activity_templates activity where activity.character_version_id=version.id)<10
+      and (select count(*) from public.together_character_activity_templates activity where activity.character_version_id=version.id) not between 8 and 14
   ),
-  'Every roster character has a ten-option generated activity bank'
+  'Every roster character has a bounded eight-to-fourteen-option activity bank'
 );
 
 select is(

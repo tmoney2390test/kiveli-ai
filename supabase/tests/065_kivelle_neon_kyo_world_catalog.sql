@@ -1,8 +1,8 @@
 begin;
 select plan(12);
 
-select is((select count(*)::integer from public.together_worlds where published),3,'the published Kivelle catalog contains exactly three worlds');
-select is((select array_agg(slug order by slug) from public.together_worlds where published),array['juniper-city','neon-kyo','port-vervelle']::text[],'the published catalog is Juniper City, NEON KYO, and Port Vervelle');
+select is((select count(*)::integer from public.together_worlds where published),4,'the published Kivelle catalog contains exactly four worlds');
+select is((select array_agg(slug order by slug) from public.together_worlds where published),array['juniper-city','neon-kyo','port-vervelle','vespormoor']::text[],'the published catalog includes Juniper City, NEON KYO, Port Vervelle, and Vespormoor');
 select ok((select published and featured and world_role='home' and social_rhythm='always_on' and access_type='subscription' and entitlement_key='worlds.standard' and timezone='Asia/Tokyo' from public.together_worlds where slug='neon-kyo'),'NEON KYO has its canonical home-world identity and access model');
 select is((select count(*)::integer from public.together_locations where world_id='10000000-0000-4000-8000-000000000009'),51,'NEON KYO contains six districts and forty-five public places');
 select is((select count(*)::integer from public.together_locations where world_id='10000000-0000-4000-8000-000000000009' and depth=0 and location_type='district'),6,'NEON KYO contains six root districts');

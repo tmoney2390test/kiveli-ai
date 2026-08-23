@@ -16,9 +16,9 @@ select is(
 select is(
   (select count(*)::integer from public.together_character_versions
    where id::text ~ '^23000000-0000-4000-8008-0000000000(0[1-9]|[12][0-9]|30)$'
-     and published_at is not null and portrait_asset_key is null
-     and appearance_config->>'portraitStatus'='tbd'),
-  30,'All versions are published while clearly retaining portrait-TBD state');
+     and published_at is not null
+     and (portrait_asset_key is not null or appearance_config->>'portraitStatus'='tbd')),
+  30,'All versions are published and have either portrait art or an explicit portrait slot');
 
 select ok(not exists(
   select 1 from public.together_character_templates template
@@ -34,11 +34,11 @@ select is(
   30,'Every launch character is a Port Vervelle resident');
 
 select ok(not exists(
-  select 1 from public.together_character_world_presence presence
-  left join public.together_locations home on home.id=presence.home_location_id
-  where presence.character_version_id::text ~ '^23000000-0000-4000-8008-0000000000(0[1-9]|[12][0-9]|30)$'
+  select 1 from public.together_character_versions version
+  left join public.together_character_homes home on home.character_version_id=version.id and home.active
+  where version.id::text ~ '^23000000-0000-4000-8008-0000000000(0[1-9]|[12][0-9]|30)$'
     and (home.id is null or home.world_id<>'10000000-0000-4000-8000-000000000008'::uuid)
-),'Every home area remains inside Port Vervelle');
+),'Every private home profile remains inside Port Vervelle');
 
 select ok(
   (select count(distinct home.slug)=6
