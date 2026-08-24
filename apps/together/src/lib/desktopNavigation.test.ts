@@ -30,6 +30,7 @@ describe('desktop navigation', () => {
     ['/home', 'home'],
     ['/world/places', 'explore'],
     ['/location/velvet-hour', 'explore'],
+    ['/chat-tab', 'messages'],
     ['/group-chat', 'messages'],
     ['/conversation/123', 'messages'],
     ['/media/123', 'moments'],

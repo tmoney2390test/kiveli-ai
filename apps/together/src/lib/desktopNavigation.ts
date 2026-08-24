@@ -48,7 +48,7 @@ export function desktopNavigationKey(pathname: string): DesktopNavigationKey | n
   const path = normalizeDesktopPath(pathname);
   if (path === '/home') return 'home';
   if (path === '/explore' || path === '/world/places' || path.startsWith('/location/') || path.startsWith('/story/')) return 'explore';
-  if (path === '/chat' || path === '/group-chat' || path === '/new-group' || path === '/archived-chats' || path.startsWith('/conversation/') || path.startsWith('/conversations/')) return 'messages';
+  if (path === '/chat-tab' || path === '/chat' || path === '/group-chat' || path === '/new-group' || path === '/archived-chats' || path.startsWith('/conversation/') || path.startsWith('/conversations/')) return 'messages';
   if (path === '/moments' || path.startsWith('/moment/') || path.startsWith('/media/')) return 'moments';
   if (path === '/dates' || path === '/plan-live' || path.startsWith('/plan/') || path.startsWith('/date/')) return 'plans';
   if (path === '/companions' || path === '/singles' || path.startsWith('/character/') || path.startsWith('/create/companion')) return 'companions';

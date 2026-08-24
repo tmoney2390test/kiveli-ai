@@ -8,10 +8,15 @@ import { colors } from '../theme';
 import { AppShellContext, mobileAppShellState } from './AppShellContext';
 import { DesktopSidebar } from './DesktopSidebar';
 
+// Expo Router can remount the authenticated shell while swapping route trees.
+// Keep pointer intent outside the component so a click inside the expanded rail
+// cannot make the replacement shell flash back to its collapsed default.
+let desktopSidebarHoverIntent = false;
+
 export function ResponsiveAppShell({ children, enabled }: PropsWithChildren<{ enabled: boolean }>) {
   const { width } = useWindowDimensions();
   const desktop = enabled && Platform.OS === 'web' && width >= DESKTOP_SHELL_BREAKPOINT;
-  const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(() => desktopSidebarHoverIntent);
   const collapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSidebarHoverChange = useCallback((hovered: boolean) => {
@@ -21,6 +26,7 @@ export function ResponsiveAppShell({ children, enabled }: PropsWithChildren<{ en
     }
 
     if (hovered) {
+      desktopSidebarHoverIntent = true;
       setSidebarHovered(true);
       return;
     }
@@ -31,15 +37,20 @@ export function ResponsiveAppShell({ children, enabled }: PropsWithChildren<{ en
       // is still physically over the persistent rail. Trust the rendered rail's
       // actual hover state before collapsing it.
       if (desktopSidebarStillHovered()) {
+        desktopSidebarHoverIntent = true;
         setSidebarHovered(true);
         return;
       }
+      desktopSidebarHoverIntent = false;
       setSidebarHovered(false);
     }, 140);
   }, []);
 
   useEffect(() => {
-    if (!desktop) setSidebarHovered(false);
+    if (!desktop) {
+      desktopSidebarHoverIntent = false;
+      setSidebarHovered(false);
+    }
   }, [desktop]);
 
   useEffect(() => () => {
