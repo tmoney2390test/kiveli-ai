@@ -15,9 +15,17 @@ describe('session routing', () => {
   });
 
   it('keeps valid in-app deep links and rejects external or auth loops', () => {
+    expect(safeAppReturnPath('/home')).toBe('/home');
+    expect(safeAppReturnPath('/chat?conversation=123')).toBe('/chat?conversation=123');
     expect(safeAppReturnPath('/character/maya?from=home')).toBe('/character/maya?from=home');
     expect(safeAppReturnPath('/auth')).toBeNull();
+    expect(safeAppReturnPath('/auth/callback?code=secret')).toBeNull();
+    expect(safeAppReturnPath('/age-confirmation')).toBeNull();
     expect(safeAppReturnPath('//example.com/home')).toBeNull();
+    expect(safeAppReturnPath('/\\evil.example')).toBeNull();
+    expect(safeAppReturnPath('/%5C%5Cevil.example')).toBeNull();
+    expect(safeAppReturnPath('/%2F%2Fevil.example')).toBeNull();
+    expect(safeAppReturnPath('/%252F%252Fevil.example')).toBeNull();
     expect(safeAppReturnPath('https://example.com/home')).toBeNull();
   });
 
@@ -39,6 +47,7 @@ describe('session routing', () => {
 
   it('allows first-life setup routes to finish after bootstrap', () => {
     expect(isLifeSetupPath('/choose-companion')).toBe(true);
+    expect(isLifeSetupPath('/age-confirmation')).toBe(true);
     expect(isLifeSetupPath('/create/companion')).toBe(true);
     expect(isLifeSetupPath('/home')).toBe(false);
   });

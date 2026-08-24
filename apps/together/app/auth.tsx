@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Check, Eye, EyeOff, Sparkles } from 'lucide-react-native';
+import { Eye, EyeOff, Sparkles } from 'lucide-react-native';
 import { GradientButton, KivelleLogo, Screen } from '../src/components';
+import { GoogleMark } from '../src/components/GoogleMark';
 import { cityLifeAsset } from '../src/assets';
 import { colors, radius, typography } from '../src/theme';
 import { useAuth } from '../src/hooks/useAuth';
 import { useTogether } from '../src/store/useTogether';
 import { safeAppReturnPath } from '../src/lib/sessionRouting';
+import { resolvePostAuthDestination } from '../src/lib/authRouting';
 import type { SocialAuthProvider } from '../src/lib/socialAuth';
 
 export default function Auth() {
@@ -19,12 +21,12 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [visible, setVisible] = useState(false);
-  const [adult, setAdult] = useState(false);
   const [busy, setBusy] = useState(false);
   const [socialBusy,setSocialBusy]=useState<SocialAuthProvider|null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const { signIn, signInWithSocial, signUp, requestPasswordReset,socialAuth } = useAuth();
+  const [confirmationEmail, setConfirmationEmail] = useState('');
+  const { signIn, signInWithSocial, signUp, resendSignUpConfirmation, requestPasswordReset,socialAuth } = useAuth();
   const refresh = useTogether((state) => state.refresh);
 
   const switchMode = (nextCreating: boolean) => {
@@ -43,28 +45,23 @@ export default function Auth() {
       setError('Your password needs at least 8 characters.');
       return;
     }
-    if (creating && !adult) {
-      setError('Confirm that you are 18 or older to continue.');
-      return;
-    }
     setBusy(true);
     setError('');
     setNotice('');
     try {
       if (creating) {
-        await signUp(normalizedEmail, password);
-        await refresh();
-        const state = useTogether.getState();
-        if (!state.snapshot) throw new Error(state.error ?? 'Kivelle could not open your world.');
-        const next = safeAppReturnPath(params.next);
-        router.replace((state.snapshot.profile ? (next ?? '/home') : '/choose-companion?adultConfirmed=1') as never);
+        const result = await signUp(normalizedEmail, password);
+        if (result.needsEmailConfirmation) {
+          setConfirmationEmail(normalizedEmail);
+          setNotice('Check your email for a secure link to finish creating your account.');
+          return;
+        }
       } else {
         await signIn(normalizedEmail, password);
         await refresh();
         const state = useTogether.getState();
         if (!state.snapshot) throw new Error(state.error ?? 'Kivelle could not open your world.');
-        const next = safeAppReturnPath(params.next);
-        router.replace((state.snapshot.profile ? (next ?? '/home') : '/choose-companion') as never);
+        router.replace(resolvePostAuthDestination({authenticated:true,snapshot:state.snapshot,requestedNext:params.next}) as never);
       }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : creating ? 'Account creation failed.' : 'Sign in failed.';
@@ -97,14 +94,13 @@ export default function Auth() {
   };
 
   const socialSignIn=async(provider:SocialAuthProvider)=>{
-    if(creating&&!adult){setError('Confirm that you are 18 or older to continue.');return;}
     setSocialBusy(provider);setError('');setNotice('');
     try{
-      const requestedNext=safeAppReturnPath(params.next),onboardingNext=creating?'/choose-companion?adultConfirmed=1':requestedNext;
-      await signInWithSocial(provider,onboardingNext);
+      const requestedNext=safeAppReturnPath(params.next);
+      await signInWithSocial(provider,requestedNext);
       if(Platform.OS==='web')return;
       await refresh();const state=useTogether.getState();if(!state.snapshot)throw new Error(state.error??'Kivelle could not open your world.');
-      router.replace((state.snapshot.profile?(requestedNext??'/home'):creating?'/choose-companion?adultConfirmed=1':'/choose-companion') as never);
+      router.replace(resolvePostAuthDestination({authenticated:true,snapshot:state.snapshot,requestedNext}) as never);
     }catch(caught){setError(caught instanceof Error?caught.message:`${provider==='google'?'Google':'Apple'} sign-in failed.`);}finally{setSocialBusy(null);}
   };
 
@@ -147,21 +143,14 @@ export default function Auth() {
             <Pressable accessibilityLabel={visible ? 'Hide password' : 'Show password'} onPress={() => setVisible(!visible)} style={styles.eye}>{visible ? <EyeOff size={20} color={colors.text} /> : <Eye size={20} color={colors.text} />}</Pressable>
           </View>
 
-          {creating ? <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: adult }} onPress={() => setAdult(!adult)} style={[styles.age, adult && styles.ageActive]}>
-            <View style={[styles.check, adult && styles.checkActive]}>{adult ? <Check size={14} color="#fff" /> : null}</View>
-            <View style={styles.ageCopy}>
-              <Text style={styles.ageTitle}>I’m 18 or older</Text>
-              <Text style={styles.ageBody}>Adult romantic themes · fictional AI characters</Text>
-            </View>
-          </Pressable> : null}
-
           {error ? <View style={styles.errorBox}><Text style={styles.error}>{error}</Text></View> : null}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+          {confirmationEmail ? <Pressable disabled={busy} onPress={() => void resendSignUpConfirmation(confirmationEmail).then(() => setNotice('A fresh secure sign-in link was sent.')).catch((caught) => setError(caught instanceof Error ? caught.message : 'Could not resend the link.'))}><Text style={styles.secondary}>Resend secure sign-in link</Text></Pressable> : null}
 
           <GradientButton label={busy ? 'Connecting…' : creating ? 'Choose your world' : 'Sign in'} disabled={busy} onPress={() => void submit()} />
 
           {socialAuth.google||socialAuth.apple?<><View style={styles.divider}><View style={styles.dividerLine}/><Text style={styles.dividerText}>OR CONTINUE WITH</Text><View style={styles.dividerLine}/></View><View style={styles.socialRow}>
-            {socialAuth.google?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Google" disabled={busy||Boolean(socialBusy)} onPress={()=>void socialSignIn('google')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><Text style={[styles.providerMark,{color:'#E9A2D0'}]}>G</Text><Text style={styles.socialText}>{socialBusy==='google'?'Connecting…':'Google'}</Text></Pressable>:null}
+            {socialAuth.google?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Google" disabled={busy||Boolean(socialBusy)} onPress={()=>void socialSignIn('google')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><GoogleMark/><Text style={styles.socialText}>{socialBusy==='google'?'Connecting…':'Google'}</Text></Pressable>:null}
             {socialAuth.apple?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Apple" disabled={busy||Boolean(socialBusy)} onPress={()=>void socialSignIn('apple')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><Text style={styles.providerMark}></Text><Text style={styles.socialText}>{socialBusy==='apple'?'Connecting…':'Apple'}</Text></Pressable>:null}
           </View></>:null}
 

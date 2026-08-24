@@ -37,7 +37,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
   const [title, setTitle] = useState('');
   const [responseStyle, setResponseStyle] = useState<ConversationStyle>('texting');
   const [textSize, setTextSize] = useState<ChatTextSize>('medium');
-  const [contentMode, setContentMode] = useState<DialogueContentMode>('romance');
+  const [contentMode, setContentMode] = useState<DialogueContentMode>('explicit');
   const [contentModeOpen, setContentModeOpen] = useState(false);
   const [spiceLevel, setSpiceLevel] = useState<SpiceLevel>(2);
   const [voicePreset, setVoicePreset] = useState<CompanionVoicePreset | null>(null);
@@ -67,8 +67,8 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     { label: `${name}'s default`, detail: 'Authored character voice', value: null as CompanionVoicePreset | null },
     ...voiceOptions,
   ];
-  const contentModeOptions = adultVerified ? chatDialogueContentModeOptions : chatDialogueContentModeOptions.slice(0, 2);
-  const selectedContentMode = chatDialogueContentModeOptions.find((option) => option.value === contentMode) ?? chatDialogueContentModeOptions[1]!;
+  const contentModeOptions = adultVerified ? chatDialogueContentModeOptions : chatDialogueContentModeOptions.filter((option) => option.value === 'romance');
+  const selectedContentMode = chatDialogueContentModeOptions.find((option) => option.value === contentMode) ?? chatDialogueContentModeOptions.at(-1)!;
 
   useEffect(() => {
     if (!visible || !conversation) return;

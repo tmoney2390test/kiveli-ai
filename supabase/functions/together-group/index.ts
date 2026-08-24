@@ -33,8 +33,20 @@ const schema = z.discriminatedUnion("action", [
     title: z.string().trim().max(80).optional(),
     requestId: z.string().min(8).max(120),
   }),
-  z.object({ action: z.literal("detail"), conversationId: z.string().uuid() }),
+  z.object({ action: z.literal("detail"), conversationId: z.string().uuid(), messageLimit:z.number().int().min(20).max(80).default(60) }),
+  z.object({ action: z.literal("changes"), conversationId: z.string().uuid(), since:z.string().datetime() }),
+  z.object({ action: z.literal("messages"), conversationId: z.string().uuid(), before:z.string().datetime(), limit:z.number().int().min(20).max(60).default(50) }),
   z.object({ action: z.literal("list") }),
+  z.object({
+    action: z.literal("fresh"),
+    conversationId: z.string().uuid(),
+    requestId: z.string().min(8).max(120),
+  }),
+  z.object({
+    action: z.literal("set_favorite"),
+    conversationId: z.string().uuid(),
+    favorite: z.boolean(),
+  }),
   z.object({
     action: z.literal("rename"),
     conversationId: z.string().uuid(),
@@ -236,9 +248,42 @@ serve(async (request, correlationId) => {
         true,
       );
     }
+    const groupIds = (groups ?? []).map((group: any) => String(group.id));
+    const { data: participantRows, error: participantError } = groupIds.length
+      ? await db.from("together_conversation_participants").select(
+        "*,together_character_instances(*,together_character_templates(*),together_character_versions(portrait_asset_key,visual_identity,personality_config,communication_style,boundaries))",
+      ).eq("user_id", user.id).eq("continuity_id", continuity.id).in(
+        "conversation_id",
+        groupIds,
+      ).is("left_at", null).order("joined_at")
+      : { data: [], error: null };
+    if (participantError) {
+      throw new AppError(
+        "INTERNAL_ERROR",
+        "Group rosters could not be loaded.",
+        500,
+        true,
+      );
+    }
+    const participantsByConversation = new Map<string, any[]>();
+    for (const participant of participantRows ?? []) {
+      const key = String(participant.conversation_id);
+      participantsByConversation.set(key, [
+        ...(participantsByConversation.get(key) ?? []),
+        participant,
+      ]);
+    }
     const details = await Promise.all(
       (groups ?? []).map((group: any) =>
-        groupDetail(db, user.id, continuity.id, group, false)
+        groupDetail(
+          db,
+          user.id,
+          continuity.id,
+          group,
+          false,
+          60,
+          participantsByConversation.get(String(group.id)) ?? [],
+        )
       ),
     );
     return json(
@@ -246,6 +291,20 @@ serve(async (request, correlationId) => {
       200,
       correlationId,
     );
+  }
+  if (input.action === "fresh") {
+    const { data: existingFresh } = await db.from("together_conversations")
+      .select("*").eq("user_id", user.id).eq("continuity_id", continuity.id)
+      .eq("kind", "group").contains("metadata", {
+        groupCreateRequestId: input.requestId,
+        freshFromConversationId: input.conversationId,
+      }).is("archived_at", null).maybeSingle();
+    if (existingFresh) {
+      return json({
+        data: await groupDetail(db, user.id, continuity.id, existingFresh),
+        correlationId,
+      }, 200, correlationId);
+    }
   }
   const conversation = await requireOwnedGroupConversation(db, {
     userId: user.id,
@@ -266,12 +325,184 @@ serve(async (request, correlationId) => {
           user.id,
           continuity.id,
           readConversation ?? conversation,
+          true,
+          input.messageLimit,
         ),
         correlationId,
       },
       200,
       correlationId,
     );
+  }
+  if (input.action === "messages") {
+    return json({ data: await groupMessagePage(db, user.id, conversation.id, input.limit, input.before), correlationId }, 200, correlationId);
+  }
+  if (input.action === "changes") {
+    return json({ data: await groupChanges(db, user.id, continuity.id, conversation, input.since), correlationId }, 200, correlationId);
+  }
+  if (input.action === "fresh") {
+    await enforceRateLimit(db, user.id, "together_group_fresh", 12, 3600);
+    const { data: existingFresh } = await db.from("together_conversations")
+      .select("*").eq("user_id", user.id).eq("continuity_id", continuity.id)
+      .eq("kind", "group").contains("metadata", {
+        groupCreateRequestId: input.requestId,
+        freshFromConversationId: conversation.id,
+      }).maybeSingle();
+    if (existingFresh) {
+      return json({
+        data: await groupDetail(db, user.id, continuity.id, existingFresh),
+        correlationId,
+      }, 200, correlationId);
+    }
+    const roster = await activeGroupParticipants(db, {
+      userId: user.id,
+      continuityId: continuity.id,
+      conversationId: conversation.id,
+    });
+    if (roster.length < 2) {
+      throw new AppError(
+        "CONFLICT",
+        "This group no longer has enough active companions to start fresh.",
+        409,
+        true,
+      );
+    }
+    const now = new Date(), nowIso = now.toISOString(),
+      restoreUntil = new Date(now.getTime() + 30 * 86_400_000).toISOString(),
+      metadata = {
+        ...(conversation.metadata ?? {}),
+        groupCreateRequestId: input.requestId,
+        freshFromConversationId: conversation.id,
+      };
+    const { data: fresh, error: freshError } = await db.from(
+      "together_conversations",
+    ).insert({
+      user_id: user.id,
+      continuity_id: continuity.id,
+      character_instance_id: roster[0]!.character_instance_id,
+      kind: "group",
+      group_world_id: conversation.group_world_id,
+      title: conversation.title,
+      metadata,
+    }).select("*").single();
+    if (freshError || !fresh) {
+      throw new AppError(
+        "INTERNAL_ERROR",
+        "A fresh group chat could not be created.",
+        500,
+        true,
+      );
+    }
+    const { error: participantError } = await db.from(
+      "together_conversation_participants",
+    ).insert(roster.map((participant: any, index: number) => ({
+      user_id: user.id,
+      continuity_id: continuity.id,
+      conversation_id: fresh.id,
+      character_instance_id: participant.character_instance_id,
+      role: index === 0 ? "owner_companion" : "member",
+      added_by: "user",
+      witnessed_from_sequence: 1,
+      metadata: { freshFromConversationId: conversation.id },
+    })));
+    if (participantError) {
+      await db.from("together_conversations").delete().eq("id", fresh.id)
+        .eq("user_id", user.id);
+      throw new AppError(
+        "INTERNAL_ERROR",
+        "The fresh group roster could not be created.",
+        500,
+        true,
+      );
+    }
+    const planMove = await db.from("together_shared_plans").update({
+      source_conversation_id: fresh.id,
+      updated_at: nowIso,
+    }).eq("source_conversation_id", conversation.id).eq("user_id", user.id)
+      .eq("continuity_id", continuity.id).in("status", [
+        "proposed",
+        "scheduled",
+        "active",
+      ]);
+    if (planMove.error) {
+      await db.from("together_conversations").delete().eq("id", fresh.id)
+        .eq("user_id", user.id);
+      throw new AppError(
+        "INTERNAL_ERROR",
+        "The current group plan could not be carried into the fresh chat.",
+        500,
+        true,
+      );
+    }
+    const archiveOld = await db.from("together_conversations").update({
+      archived_at: nowIso,
+      user_archived_at: nowIso,
+      restore_until: restoreUntil,
+      updated_at: nowIso,
+    }).eq("id", conversation.id).eq("user_id", user.id).is(
+      "archived_at",
+      null,
+    ).select("id").maybeSingle();
+    if (archiveOld.error || !archiveOld.data) {
+      await db.from("together_shared_plans").update({
+        source_conversation_id: conversation.id,
+        updated_at: nowIso,
+      }).eq("source_conversation_id", fresh.id).eq("user_id", user.id).in(
+        "status",
+        ["proposed", "scheduled", "active"],
+      );
+      await db.from("together_conversations").delete().eq("id", fresh.id)
+        .eq("user_id", user.id);
+      throw new AppError(
+        "CONFLICT",
+        "This group changed while the fresh chat was being created.",
+        409,
+        true,
+      );
+    }
+    await db.from("together_dialogue_turns").update({
+      state: "cancelled",
+      cancelled_at: nowIso,
+      updated_at: nowIso,
+    }).eq("conversation_id", conversation.id).in("state", [
+      "planning",
+      "generating",
+    ]);
+    await track(db, user.id, "group_fresh_chat_started", {
+      conversationId: fresh.id,
+      previousConversationId: conversation.id,
+      participantCount: roster.length,
+    });
+    return json({
+      data: await groupDetail(db, user.id, continuity.id, fresh),
+      correlationId,
+    }, 201, correlationId);
+  }
+  if (input.action === "set_favorite") {
+    const metadata = {
+      ...(conversation.metadata ?? {}),
+      favorite: input.favorite,
+    };
+    const { data, error } = await db.from("together_conversations").update({
+      metadata,
+      updated_at: new Date().toISOString(),
+    }).eq("id", conversation.id).eq("user_id", user.id).select("*").single();
+    if (error || !data) {
+      throw new AppError(
+        "INTERNAL_ERROR",
+        "That favorite could not be saved.",
+        500,
+        true,
+      );
+    }
+    await track(db, user.id, "group_favorite_updated", {
+      conversationId: conversation.id,
+      favorite: input.favorite,
+    });
+    return json({
+      data: await groupDetail(db, user.id, continuity.id, data),
+      correlationId,
+    }, 200, correlationId);
   }
   if (input.action === "rename") {
     const { data } = await db.from("together_conversations").update({
@@ -549,8 +780,11 @@ async function groupDetail(
   continuityId: string,
   conversation: any,
   includeTimeline = true,
+  messageLimit = 60,
+  participantRows?: any[],
 ) {
-  const participants = await activeGroupParticipants(db, {
+  const syncedAt = new Date().toISOString();
+  const participants = participantRows ?? await activeGroupParticipants(db, {
     userId,
     continuityId,
     conversationId: String(conversation.id),
@@ -561,96 +795,41 @@ async function groupDetail(
     mediaOffers: any[] = [],
     sharedPlans: any[] = [],
     conversationActions: any[] = [],
-    conversationEvents: any[] = [];
+    conversationEvents: any[] = [],
+    hasMoreMessages = false;
   if (includeTimeline) {
-    const [result, reactionResult, mediaResult, offerResult, planResult, actionResult, eventResult] = await Promise
+    const [page, activeMediaResult, activeOfferResult, planResult, actionResult, eventResult] = await Promise
       .all([
-        db.from("together_messages").select(
-          "*,together_conversation_attachments(*)",
-        ).eq("conversation_id", conversation.id).order(
-          "conversation_sequence",
-          { ascending: true, nullsFirst: false },
-        ).order("created_at", { ascending: true }).limit(300),
-        db.from("together_message_reactions").select("*").eq(
-          "conversation_id",
-          conversation.id,
-        ).order("created_at"),
-        db.from("together_generated_media").select("*").eq(
-          "conversation_id",
-          conversation.id,
-        ).order("created_at"),
-        db.from("together_media_offers").select("*").eq(
-          "conversation_id",
-          conversation.id,
-        ).order("created_at"),
+        groupMessagePage(db, userId, conversation.id, messageLimit),
+        db.from("together_generated_media").select("*").eq("conversation_id", conversation.id).in("status", ["queued", "generating"]).order("created_at", { ascending: false }).limit(20),
+        db.from("together_media_offers").select("*").eq("conversation_id", conversation.id).in("status", ["pending", "accepted", "failed"]).order("created_at", { ascending: false }).limit(20),
         db.from("together_shared_plans").select(
           "*,together_locations(id,name,slug),together_plan_attendance(*),together_plan_participant_responses(*)",
         ).eq("source_conversation_id", conversation.id).eq("user_id", userId)
           .eq("continuity_id", continuityId).order("starts_at", {
-            ascending: true,
+            ascending: false,
             nullsFirst: false,
-          }),
+          }).limit(100),
         db.from("together_conversation_actions").select("*").eq(
           "conversation_id",
           conversation.id,
         ).eq("user_id", userId).eq("continuity_id", continuityId).eq(
           "status",
           "pending",
-        ).order("created_at"),
+        ).order("created_at").limit(40),
         db.from("together_conversation_events").select("*").eq(
           "conversation_id",
           conversation.id,
-        ).eq("user_id", userId).order("created_at"),
+        ).eq("user_id", userId).order("created_at", { ascending: false }).limit(120),
       ]);
-    messages = result.data ?? [];
-    reactions = reactionResult.data ?? [];
-    generatedMedia = mediaResult.data ?? [];
-    mediaOffers = offerResult.data ?? [];
-    sharedPlans = (planResult.data ?? []).map((plan: any) => {
-      const attendance = plan.together_plan_attendance ?? [];
-      return {
-        ...plan,
-        participant_responses: plan.together_plan_participant_responses ?? [],
-        attendance: {
-          user: attendance.find((row: any) => row.participant_type === "user") ?? null,
-          character: attendance.find((row: any) =>
-            row.participant_type === "character" &&
-            String(row.character_instance_id) === String(plan.character_instance_id)
-          ) ?? null,
-        },
-      };
-    });
+    messages = page.messages;
+    reactions = page.reactions;
+    generatedMedia = mergeRows(page.generatedMedia, activeMediaResult.data ?? []);
+    mediaOffers = mergeRows(page.mediaOffers, activeOfferResult.data ?? []);
+    hasMoreMessages = page.hasMore;
+    sharedPlans = (planResult.data ?? []).map(decorateGroupPlan);
     conversationActions = actionResult.data ?? [];
-    conversationEvents = eventResult.data ?? [];
-    const paths = [
-      ...messages.flatMap((message: any) =>
-        message.together_conversation_attachments ?? []
-      ).map((attachment: any) => String(attachment.storage_path ?? "")),
-      ...generatedMedia.filter((media: any) => media.status === "ready").map((
-        media: any,
-      ) => String(media.storage_path ?? "")),
-    ].filter(Boolean);
-    if (paths.length) {
-      const { data: signed } = await db.storage.from("together-user-media")
-        .createSignedUrls([...new Set(paths)], 3600);
-      const byPath = new Map(
-        (signed ?? []).map((item: any) => [String(item.path), item.signedUrl]),
-      );
-      messages = messages.map((message: any) => ({
-        ...message,
-        together_conversation_attachments:
-          (message.together_conversation_attachments ?? []).map((
-            attachment: any,
-          ) => ({
-            ...attachment,
-            signed_url: byPath.get(String(attachment.storage_path)) ?? null,
-          })),
-      }));
-      generatedMedia = generatedMedia.map((media: any) => ({
-        ...media,
-        signed_url: byPath.get(String(media.storage_path)) ?? null,
-      }));
-    }
+    conversationEvents = [...(eventResult.data ?? [])].reverse();
   }
   return {
     conversation,
@@ -663,5 +842,56 @@ async function groupDetail(
     conversationActions,
     conversationEvents,
     settings: normalizeGroupSettings(conversation.metadata),
+    hasMoreMessages,
+    syncedAt,
   };
+}
+
+async function groupMessagePage(db: any, userId: string, conversationId: string, limit: number, before?: string) {
+  let query = db.from("together_messages").select("*,together_conversation_attachments(*)").eq("user_id", userId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(limit + 1);
+  if (before) query = query.lt("created_at", before);
+  const { data, error } = await query;
+  if (error) throw new AppError("INTERNAL_ERROR", "Group messages could not be loaded.", 500, true);
+  const rows = data ?? [], hasMore = rows.length > limit, messages = [...rows.slice(0, limit)].reverse(), ids = messages.map((message: any) => String(message.id));
+  const [reactionResult, mediaResult, offerResult] = ids.length
+    ? await Promise.all([
+      db.from("together_message_reactions").select("*").eq("conversation_id", conversationId).in("message_id", ids).order("created_at"),
+      db.from("together_generated_media").select("*").eq("user_id", userId).eq("conversation_id", conversationId).in("message_id", ids).order("created_at"),
+      db.from("together_media_offers").select("*").eq("user_id", userId).eq("conversation_id", conversationId).in("message_id", ids).order("created_at"),
+    ])
+    : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
+  const failed = [reactionResult, mediaResult, offerResult].find((result: any) => result.error);
+  if (failed?.error) throw new AppError("INTERNAL_ERROR", "Group message details could not be loaded.", 500, true);
+  const signed = await signGroupAssets(db, messages, mediaResult.data ?? []);
+  return { messages: signed.messages, reactions: reactionResult.data ?? [], generatedMedia: signed.media, mediaOffers: offerResult.data ?? [], hasMore };
+}
+
+async function groupChanges(db: any, userId: string, continuityId: string, conversation: any, since: string) {
+  const syncedAt = new Date().toISOString();
+  const [messageResult, reactionResult, mediaResult, offerResult, planResult, actionResult, eventResult, conversationResult] = await Promise.all([
+    db.from("together_messages").select("*,together_conversation_attachments(*)").eq("user_id", userId).eq("conversation_id", conversation.id).gt("created_at", since).order("created_at").limit(80),
+    db.from("together_message_reactions").select("*").eq("conversation_id", conversation.id).gt("created_at", since).order("created_at").limit(100),
+    db.from("together_generated_media").select("*").eq("user_id", userId).eq("conversation_id", conversation.id).gt("updated_at", since).order("updated_at").limit(40),
+    db.from("together_media_offers").select("*").eq("user_id", userId).eq("conversation_id", conversation.id).gt("updated_at", since).order("updated_at").limit(40),
+    db.from("together_shared_plans").select("*,together_locations(id,name,slug),together_plan_attendance(*),together_plan_participant_responses(*)").eq("source_conversation_id", conversation.id).eq("user_id", userId).eq("continuity_id", continuityId).gt("updated_at", since).order("updated_at").limit(40),
+    db.from("together_conversation_actions").select("*").eq("conversation_id", conversation.id).eq("user_id", userId).eq("continuity_id", continuityId).gt("updated_at", since).order("updated_at").limit(40),
+    db.from("together_conversation_events").select("*").eq("conversation_id", conversation.id).eq("user_id", userId).gt("created_at", since).order("created_at").limit(80),
+    db.from("together_conversations").select("*").eq("id", conversation.id).eq("user_id", userId).maybeSingle(),
+  ]);
+  const failed = [messageResult, reactionResult, mediaResult, offerResult, planResult, actionResult, eventResult, conversationResult].find((result: any) => result.error);
+  if (failed?.error) throw new AppError("INTERNAL_ERROR", "The group could not catch up.", 500, true);
+  const signed = await signGroupAssets(db, messageResult.data ?? [], mediaResult.data ?? []);
+  return { conversation: conversationResult.data ?? conversation, messages: signed.messages, reactions: reactionResult.data ?? [], generatedMedia: signed.media, mediaOffers: offerResult.data ?? [], sharedPlans: (planResult.data ?? []).map(decorateGroupPlan), conversationActions: actionResult.data ?? [], conversationEvents: eventResult.data ?? [], syncedAt };
+}
+
+function decorateGroupPlan(plan: any) {
+  const attendance = plan.together_plan_attendance ?? [];
+  return { ...plan, participant_responses: plan.together_plan_participant_responses ?? [], attendance: { user: attendance.find((row: any) => row.participant_type === "user") ?? null, character: attendance.find((row: any) => row.participant_type === "character" && String(row.character_instance_id) === String(plan.character_instance_id)) ?? null } };
+}
+function mergeRows<T extends { id: string }>(left: T[], right: T[]) { const values = new Map(left.map((item) => [item.id, item])); for (const item of right) values.set(item.id, item); return [...values.values()]; }
+async function signGroupAssets(db: any, messages: any[], media: any[]) {
+  const paths = [...messages.flatMap((message: any) => message.together_conversation_attachments ?? []).map((attachment: any) => String(attachment.storage_path ?? "")), ...media.filter((item: any) => item.status === "ready" && item.storage_path).map((item: any) => String(item.storage_path))].filter(Boolean), unique = [...new Set(paths)];
+  if (!unique.length) return { messages, media };
+  const { data: signed } = await db.storage.from("together-user-media").createSignedUrls(unique, 3600), byPath = new Map((signed ?? []).map((item: any) => [String(item.path), item.signedUrl]));
+  return { messages: messages.map((message: any) => ({ ...message, together_conversation_attachments: (message.together_conversation_attachments ?? []).map((attachment: any) => ({ ...attachment, signed_url: byPath.get(String(attachment.storage_path)) ?? null })) })), media: media.map((item: any) => ({ ...item, signed_url: item.storage_path ? byPath.get(String(item.storage_path)) ?? null : null })) };
 }

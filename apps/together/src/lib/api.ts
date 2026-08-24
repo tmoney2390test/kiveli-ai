@@ -1,23 +1,50 @@
 import { supabase, supabasePublishableKey, supabaseUrl } from './supabase';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import { MESSAGE_CHARACTER_LIMIT, messageCharacterLimitError } from '@together/domain/src/message-limits';
 import type { CompanionVoicePreset } from '@together/domain/src/voice-presets';
-import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, Snapshot, SnapshotDelta, VoiceCallSession } from '../types';
+import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, Snapshot, SnapshotDelta, VoiceCallSession } from '../types';
 import type { RealtimeVoiceConfiguration } from './realtimeVoice';
 
 export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false) { super(message); } }
 type Envelope<T> = { data: T; correlationId: string };
 function deviceTimezone():string{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';}catch{return'UTC';}}
 
+type ClientPerformanceEvent={surface:string;operation:string;durationMs:number;success:boolean;statusCode?:number;platform:string;appVersion:string;buildId:string;metadata:Record<string,string|number|boolean|null>};
+const performanceSurfaces=new Set(['together-bootstrap','together-group','together-conversation','together-media','together-dialogue','together-group-dialogue']);
+const performanceQueue:ClientPerformanceEvent[]=[];let performanceFlushTimer:ReturnType<typeof setTimeout>|null=null,performanceFlushRunning=false;
+export function queueClientPerformance(input:Omit<ClientPerformanceEvent,'platform'|'appVersion'|'buildId'>){
+  if(process.env.EXPO_PUBLIC_KIVELLE_PERFORMANCE_REPORTING_ENABLED==='false')return;
+  performanceQueue.push({...input,platform:Platform.OS,appVersion:Constants.expoConfig?.version??'unknown',buildId:Constants.expoConfig?.runtimeVersion?String(Constants.expoConfig.runtimeVersion):'unknown'});
+  if(performanceQueue.length>=20){void flushClientPerformance();return;}
+  if(!performanceFlushTimer)performanceFlushTimer=setTimeout(()=>void flushClientPerformance(),15_000);
+}
+async function flushClientPerformance(){
+  if(performanceFlushRunning||!performanceQueue.length)return;
+  if(performanceFlushTimer){clearTimeout(performanceFlushTimer);performanceFlushTimer=null;}
+  const events=performanceQueue.splice(0,25);performanceFlushRunning=true;
+  try{const{data}=await supabase.auth.getSession();if(!data.session)return;await fetch(`${supabaseUrl}/functions/v1/together-ops`,{method:'POST',headers:{Authorization:`Bearer ${data.session.access_token}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify({action:'report_client_performance',events})});}
+  catch{/* Performance reporting must never affect the product path. */}
+  finally{performanceFlushRunning=false;if(performanceQueue.length&&!performanceFlushTimer)performanceFlushTimer=setTimeout(()=>void flushClientPerformance(),15_000);}
+}
+
 async function token(): Promise<string> { const { data } = await supabase.auth.getSession(); if (!data.session) throw new ApiError('Sign in to continue.', 'AUTH_REQUIRED'); return data.session.access_token; }
 export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POST' = 'POST'): Promise<T> {
-  const response = await fetch(`${supabaseUrl}/functions/v1/${name}`, { method, headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json','x-kivelle-timezone':deviceTimezone() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-  const payload = await response.json().catch(() => ({})) as Envelope<T> & { error?: {message?:string;code?:string;retryable?:boolean} };
-  if (!response.ok) throw new ApiError(payload.error?.message ?? 'Something went wrong.', payload.error?.code, payload.error?.retryable);
-  return payload.data;
+  const started=Date.now(),surface=name.split('?')[0]!,operation=typeof body==='object'&&body&&'action'in body?String((body as Record<string,unknown>).action):method.toLowerCase();let response:Response|undefined;
+  try{
+    response = await fetch(`${supabaseUrl}/functions/v1/${name}`, { method, headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json','x-kivelle-timezone':deviceTimezone() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const payload = await response.json().catch(() => ({})) as Envelope<T> & { error?: {message?:string;code?:string;retryable?:boolean} };
+    if (!response.ok) throw new ApiError(payload.error?.message ?? 'Something went wrong.', payload.error?.code, payload.error?.retryable);
+    return payload.data;
+  }finally{
+    if(performanceSurfaces.has(surface))queueClientPerformance({surface,operation,durationMs:Date.now()-started,success:Boolean(response?.ok),...(response?{statusCode:response.status}:{}),metadata:{method}});
+  }
 }
 export const loadSnapshot = () => invoke<Snapshot>('together-bootstrap', undefined, 'GET');
+export const confirmAdultAge = () => invoke<Snapshot>('together-bootstrap', {action:'confirm_age',ageConfirmed:true});
+export const loadCharacterPresence = (characterInstanceId:string) => invoke<CharacterPresenceSnapshot>(`together-bootstrap?scope=presence&characterInstanceId=${encodeURIComponent(characterInstanceId)}`,undefined,'GET');
 export const loadPlaceDetail = (locationId:string) => invoke<{place:PlaceContext}>('together-place',{locationId});
-export const bootstrap = (input: {ageConfirmed:true;onboardingChoice?:'companion'|'skip';displayName?:string;characterTemplateId?:string;worldId?:string;interests:string[];goals:Array<'Dating'|'Friendship'|'Stories'|'Social worlds'>}) => invoke<Snapshot>('together-bootstrap', {...input,experienceTimezone:deviceTimezone()});
+export const bootstrap = (input: {ageConfirmed:true;onboardingChoice?:'companion'|'skip';displayName?:string;characterTemplateId?:string;worldId?:string;interests:string[];goals:Array<'Dating'|'Friendship'|'Stories'|'Social worlds'>}) => invoke<Snapshot>('together-bootstrap', {action:'complete_onboarding',...input,experienceTimezone:deviceTimezone()});
 export const setActiveCompanion = (characterInstanceId:string, source:'home_switcher'|'discover_profile'|'companion_manager'='home_switcher') => invoke<Snapshot>('together-companion',{action:'set_active',characterInstanceId,source});
 export const meetCompanion = (characterTemplateId:string, source:'onboarding'|'discover_profile'='discover_profile') => invoke<Snapshot>('together-companion',{action:'meet',characterTemplateId,source});
 export const setCharacterFavorite = (characterTemplateId:string,favorite:boolean,source:'home_featured'|'discover'|'chat_menu'='home_featured') => invoke<{characterTemplateId:string;favorite:boolean;favoriteCharacterTemplateIds:string[]}>('together-companion',{action:'set_favorite',characterTemplateId,favorite,source});
@@ -90,13 +117,18 @@ export type GroupDialogueEvent=
   |{type:'heartbeat'};
 export async function sendGroupDialogue(input:{conversationId:string;message:string;attachmentIds?:string[];clientRequestId:string;mentionedCharacterInstanceIds?:string[];photoSubjectCharacterInstanceIds?:string[];replyToMessageId?:string;manualSpeakerInstanceId?:string;letThemTalk?:boolean},onEvent:(event:GroupDialogueEvent)=>void,signal?:AbortSignal):Promise<void>{
   if(input.message.length>MESSAGE_CHARACTER_LIMIT)throw new ApiError(messageCharacterLimitError(),'VALIDATION_FAILED');
+  const started=Date.now();let firstActivityRecorded=false,statusCode:number|undefined;
+  try{
   const response=await fetch(`${supabaseUrl}/functions/v1/together-group-dialogue`,{method:'POST',headers:{Authorization:`Bearer ${await token()}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify(input),signal});
+  statusCode=response.status;
   if(!response.ok){const payload=await response.json().catch(()=>({})) as{error?:{message?:string;code?:string;retryable?:boolean}};throw new ApiError(payload.error?.message??'The group could not reply.',payload.error?.code,payload.error?.retryable);}
   if(!response.body)throw new ApiError('The group response ended early.','STREAM_INTERRUPTED',true);
   const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';
-  const process=(eventText:string)=>{const line=eventText.split('\n').find((item)=>item.startsWith('data: '));if(!line)return;const event=JSON.parse(line.slice(6)) as GroupDialogueEvent|{type:'error';error?:{message?:string;code?:string;retryable?:boolean}};if(event.type==='error')throw new ApiError(event.error?.message??'The group could not finish replying.',event.error?.code??'STREAM_INTERRUPTED',Boolean(event.error?.retryable));onEvent(event);};
+  const process=(eventText:string)=>{const line=eventText.split('\n').find((item)=>item.startsWith('data: '));if(!line)return;const event=JSON.parse(line.slice(6)) as GroupDialogueEvent|{type:'error';error?:{message?:string;code?:string;retryable?:boolean}};if(event.type==='error')throw new ApiError(event.error?.message??'The group could not finish replying.',event.error?.code??'STREAM_INTERRUPTED',Boolean(event.error?.retryable));if(!firstActivityRecorded&&(event.type==='speaker_typing'||event.type==='message_started'||event.type==='message_completed')){firstActivityRecorded=true;queueClientPerformance({surface:'together-group-dialogue',operation:'first_activity',durationMs:Date.now()-started,success:true,metadata:{event:event.type}});}onEvent(event);};
   while(true){const{value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const events=buffer.split('\n\n');buffer=events.pop()??'';for(const event of events)process(event);}
   buffer+=decoder.decode();if(buffer.trim())process(buffer);
+  queueClientPerformance({surface:'together-group-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:true,metadata:{firstActivity:firstActivityRecorded}});
+  }catch(caught){queueClientPerformance({surface:'together-group-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:false,...(statusCode?{statusCode}:{}),metadata:{firstActivity:firstActivityRecorded}});throw caught;}
 }
 export const managePersona = <T>(input:Record<string,unknown>) => invoke<T>('together-persona',input);
 export const manageCreator = <T>(input:Record<string,unknown>) => invoke<T>('together-creator',input);
@@ -120,16 +152,21 @@ export async function createTogetherAccount(email: string, password: string): Pr
 
 export async function sendDialogue(input: {conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;sceneActionId?:string;autoDialogueSuggestionId?:string;autoDialogueSuggestionSource?:AutoDialogueSuggestion['source'];autoDialogueSuggestionEdited?:boolean;autoDialogueSuggestionIntent?:AutoDialogueSuggestion['intent'];autoDialogueSuggestionPreference?:AutoDialoguePreference;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta}> {
   if (input.message.length > MESSAGE_CHARACTER_LIMIT) throw new ApiError(messageCharacterLimitError(), 'VALIDATION_FAILED');
+  const started=Date.now();let firstTokenRecorded=false,statusCode:number|undefined;
+  try{
   const response = await fetch(`${supabaseUrl}/functions/v1/together-dialogue`, { method: 'POST', headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+  statusCode=response.status;
   if (!response.ok) { const error = await response.json().catch(() => ({})); throw new ApiError(error.error?.message ?? 'Your companion could not reply.', error.error?.code, error.error?.retryable); }
   if (!response.body) throw new ApiError('The response stream ended early.', 'STREAM_INTERRUPTED', true);
   const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''; let final: Message | null = null; let additionalMessages:Message[]|undefined;let generatedMedia:GeneratedMedia|undefined;let mediaOffer:MediaOffer|undefined;let photoRequestError:{code:string;message:string;retryable:boolean}|undefined;let delta:SnapshotDelta|undefined;
-  const processEvents=(events:string[])=>{for(const event of events){const line=event.split('\n').find((item)=>item.startsWith('data: '));if(!line)continue;const data=JSON.parse(line.slice(6));if(data.type==='token')onToken(data.token);if(data.type==='done'){final=data.message;additionalMessages=data.additionalMessages;generatedMedia=data.generatedMedia;mediaOffer=data.mediaOffer;photoRequestError=data.photoRequestError;delta=data.delta;}if(data.type==='error')throw new ApiError(data.error?.message??'Your companion could not finish the reply.',data.error?.code??'STREAM_INTERRUPTED',Boolean(data.error?.retryable));}};
+  const processEvents=(events:string[])=>{for(const event of events){const line=event.split('\n').find((item)=>item.startsWith('data: '));if(!line)continue;const data=JSON.parse(line.slice(6));if(data.type==='token'){if(!firstTokenRecorded){firstTokenRecorded=true;queueClientPerformance({surface:'together-dialogue',operation:'first_token',durationMs:Date.now()-started,success:true,metadata:{stream:true}});}onToken(data.token);}if(data.type==='done'){final=data.message;additionalMessages=data.additionalMessages;generatedMedia=data.generatedMedia;mediaOffer=data.mediaOffer;photoRequestError=data.photoRequestError;delta=data.delta;}if(data.type==='error')throw new ApiError(data.error?.message??'Your companion could not finish the reply.',data.error?.code??'STREAM_INTERRUPTED',Boolean(data.error?.retryable));}};
   while(true){const{value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const events=buffer.split('\n\n');buffer=events.pop()??'';processEvents(events);}
   buffer+=decoder.decode();
   if(buffer.trim())processEvents([buffer]);
   if (!final) throw new ApiError('The reply was interrupted. Try again.', 'STREAM_INTERRUPTED', true);
+  queueClientPerformance({surface:'together-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:true,metadata:{firstToken:firstTokenRecorded}});
   return {message:final,...(additionalMessages?.length?{additionalMessages}:{}),...(generatedMedia?{generatedMedia}:{}),...(mediaOffer?{mediaOffer}:{}),...(photoRequestError?{photoRequestError}:{}),...(delta?{delta}:{})};
+  }catch(caught){queueClientPerformance({surface:'together-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:false,...(statusCode?{statusCode}:{}),metadata:{firstToken:firstTokenRecorded}});throw caught;}
 }
 
 export async function suggestDialogue(input:{conversationId:string;characterInstanceId:string;anchorMessageId:string;clientRequestId:string;preference?:AutoDialoguePreference},signal?:AbortSignal):Promise<AutoDialogueSuggestion>{

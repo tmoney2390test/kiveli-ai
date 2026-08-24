@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Image, type ImageSource } from 'expo-image';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Link, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Brain, CalendarDays, Camera, Check, ChevronRight, Copy, Heart, ImagePlus, MapPin, MessageCircle, Mic, MoreHorizontal, Pause, Phone, Play, Send, Sparkles, Square, Star, Trash2, Undo2, Volume2, Wand2, X } from 'lucide-react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import * as Clipboard from 'expo-clipboard';
@@ -37,7 +37,7 @@ import { reconcileMessages } from '../src/lib/messageReconciliation';
 import { endPlanExperience, getPlanExperience, joinCommitment, switchPlanExperience } from '../src/lib/commitments';
 import { activePlanForChat, attendedPlansForLifecycleReconciliation, collapsePlanTimelineEvents, conversationPlanMenuItems, isPlanLifecycleDividerEvent, joinablePlanForChat, planActionAvailability, planLifecycleDividerLabel, shouldShowPlanConversationAction, shouldShowPlanTimelineEvent } from '../src/lib/planActions';
 import { hideVoiceNoteConfirmation, isVoiceNoteConfirmationHidden } from '../src/lib/voiceNoteConfirmation';
-import { chatSessionRouteKey, conversationWithLastMessage } from '../src/lib/messageInbox';
+import { chatSessionRouteKey, conversationWithLastMessage, MESSAGES_INBOX_HREF } from '../src/lib/messageInbox';
 import { mergeDictationTranscript } from '../src/lib/dictation';
 import { useChatDictation, type ChatDictationPhase } from '../src/hooks/useChatDictation';
 import { cleanupNormalizedImage, normalizeUserImage } from '../src/lib/imageUploads';
@@ -154,6 +154,11 @@ function ChatSession() {
     }
     throw lastError;
   },[]);
+  const markConversationRead=useCallback(async(conversationId:string)=>{
+    const result=await manageConversation<{last_read_at:string}>({action:'read',conversationId});
+    const current=useTogether.getState().snapshot?.conversations.find((item)=>item.id===conversationId);
+    if(current)upsertConversation({...current,last_read_at:result.last_read_at,unread:false});
+  },[upsertConversation]);
   useEffect(()=>{
     if(!snapshot||!character||conversation)return;
     let cancelled=false;
@@ -203,10 +208,10 @@ function ChatSession() {
       const hasOlder=page.length===PAGE_SIZE;
       messageCache.current.set(conversationId,{messages:page,hasMore:hasOlder});
       setMessages(page);setHasMore(hasOlder);setLoadedConversationId(conversationId);setLoading(false);
-      void manageConversation({action:'read',conversationId}).then(()=>refresh()).catch(()=>undefined);
+      void markConversationRead(conversationId).catch(()=>undefined);
     })();
     return()=>{cancelled=true;};
-  },[conversation?.id,refresh]);
+  },[conversation?.id,markConversationRead]);
   useEffect(()=>{if(loadedConversationId)messageCache.current.set(loadedConversationId,{messages,hasMore});},[hasMore,loadedConversationId,messages]);
   useEffect(()=>{
     if(!conversation||loadedConversationId!==conversation.id)return;
@@ -230,10 +235,10 @@ function ChatSession() {
       const hasOlder=page.length===PAGE_SIZE;
       messageCache.current.set(conversationId,{messages:page,hasMore:hasOlder});
       bottomAlignedConversation.current=null;setMessages(page);setHasMore(hasOlder);setLoadedConversationId(conversationId);setLoading(false);
-      await refresh();
+      await markConversationRead(conversationId).catch(()=>undefined);
     })();
     return()=>{active=false;};
-  },[conversation?.id,refresh]));
+  },[conversation?.id,markConversationRead]));
   useEffect(()=>{
     const currentRequest=pendingDialogue?.clientRequestId??null;
     const previousRequest=observedPendingRequest.current;
@@ -249,15 +254,15 @@ function ChatSession() {
       const hasOlder=page.length===PAGE_SIZE;
       messageCache.current.set(conversationId,{messages:page,hasMore:hasOlder});
       bottomAlignedConversation.current=null;setMessages(page);setHasMore(hasOlder);setLoadedConversationId(conversationId);setLoading(false);
-      await Promise.all([refresh(),manageConversation({action:'read',conversationId}).catch(()=>undefined)]);
+      await markConversationRead(conversationId).catch(()=>undefined);
     })();
     return()=>{cancelled=true;};
-  },[conversation?.id,pendingDialogue?.clientRequestId,refresh]);
+  },[conversation?.id,markConversationRead,pendingDialogue?.clientRequestId]);
   useEffect(()=>{autoDialogueRequest.current?.abort();autoDialogueRequest.current=null;setAutoDialogue(null);setAutoDialogueBusy(false);setShowAutoDialogueOptions(false);},[conversation?.id]);
   useEffect(()=>()=>autoDialogueRequest.current?.abort(),[]);
   const simulationStale=Boolean(character&&(Date.now()-new Date(character.last_simulated_at).getTime()>2*60000||!(snapshot?.scheduleEvents??[]).some((item)=>item.character_instance_id===character.id&&new Date(item.ends_at)>new Date())));
-  useEffect(()=>{if(!character?.id||!simulationStale)return;let cancelled=false;void simulate(character.id).then(()=>cancelled?undefined:refresh()).catch(()=>undefined);return()=>{cancelled=true;};},[character?.id,refresh,simulationStale]);
-  useFocusEffect(useCallback(()=>{if(!character)return;const channel=supabase.channel(`kivelle-media-${character.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'*',schema:'public',table:'together_generated_media',filter:`character_instance_id=eq.${character.id}`},(payload)=>{const id=String((payload.new as Record<string,unknown>|null)?.id??'');if(id)void manageMedia<{media:GeneratedMedia}>({action:'status',mediaId:id}).then((result)=>{upsertMedia(result.media);if(!mediaReconciliationComplete(result.media))setReconcilingMediaId(id);}).catch(()=>setReconcilingMediaId(id));else void refresh();}).subscribe();return()=>{void supabase.removeChannel(channel);};},[character?.id,refresh,upsertMedia]));
+  useEffect(()=>{if(!character?.id||!simulationStale)return;let cancelled=false;void simulate(character.id).then(()=>cancelled?undefined:refresh({scope:'presence',characterInstanceId:character.id})).catch(()=>undefined);return()=>{cancelled=true;};},[character?.id,refresh,simulationStale]);
+  useFocusEffect(useCallback(()=>{if(!character)return;const channel=supabase.channel(`kivelle-media-${character.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'*',schema:'public',table:'together_generated_media',filter:`character_instance_id=eq.${character.id}`},(payload)=>{const id=String((payload.new as Record<string,unknown>|null)?.id??'');if(id)void manageMedia<{media:GeneratedMedia}>({action:'status',mediaId:id}).then((result)=>{upsertMedia(result.media);if(!mediaReconciliationComplete(result.media))setReconcilingMediaId(id);}).catch(()=>setReconcilingMediaId(id));}).subscribe();return()=>{void supabase.removeChannel(channel);};},[character?.id,upsertMedia]));
   useFocusEffect(useCallback(()=>{
     if(!character?.id||!conversation?.id||(__DEV__&&process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE==='true'))return;
     let cancelled=false;
@@ -272,7 +277,7 @@ function ChatSession() {
     return()=>{cancelled=true;};
   },[character?.id,conversation?.id,upsertMedia]));
   useFocusEffect(useCallback(()=>{if(!conversation?.id)return;const channel=supabase.channel(`kivelle-conversation-actions-${conversation.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'*',schema:'public',table:'together_conversation_actions',filter:`conversation_id=eq.${conversation.id}`},(payload)=>{const next=payload.new as ConversationAction|undefined,previous=payload.old as Partial<ConversationAction>|undefined,id=String(next?.id??previous?.id??'');if(next?.id&&next.status==='pending')upsertConversationAction(next);else if(id)removeConversationAction(id);}).subscribe();return()=>{void supabase.removeChannel(channel);};},[conversation?.id,removeConversationAction,upsertConversationAction]));
-  useFocusEffect(useCallback(()=>{if(!conversation?.id)return;const channel=supabase.channel(`kivelle-conversation-events-${conversation.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'together_conversation_events',filter:`conversation_id=eq.${conversation.id}`},()=>void refresh()).subscribe();return()=>{void supabase.removeChannel(channel);};},[conversation?.id,refresh]));
+  useFocusEffect(useCallback(()=>{if(!conversation?.id)return;const channel=supabase.channel(`kivelle-conversation-events-${conversation.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'together_conversation_events',filter:`conversation_id=eq.${conversation.id}`},(payload)=>{const event=payload.new as ConversationEvent|undefined;if(!event?.id)return;const current=useTogether.getState().snapshot;if(current&&!current.conversationEvents.some((item)=>item.id===event.id))setCoreState({conversationEvents:[...current.conversationEvents,event]});}).subscribe();return()=>{void supabase.removeChannel(channel);};},[conversation?.id,setCoreState]));
   useFocusEffect(useCallback(()=>{
     if(!character?.id||!conversation?.id){setMediaOffers([]);return;}
     let cancelled=false,retryTimer:ReturnType<typeof setTimeout>|undefined;
@@ -285,10 +290,11 @@ function ChatSession() {
     const reconcile=async()=>{
       const pending=(useTogether.getState().snapshot?.generatedMedia??[]).filter((item)=>item.character_instance_id===character.id&&item.conversation_id===conversation.id&&item.media_type!=='voice_note'&&!mediaReconciliationComplete(item));
       if(!pending.length){setReconcilingMediaId(null);return;}
-      const results=await Promise.allSettled(pending.map((item)=>manageMedia<{media:GeneratedMedia}>({action:'status',mediaId:item.id})));
+      let refreshed:GeneratedMedia[]=[];
+      try{const result=await manageMedia<{media:GeneratedMedia[]}>({action:'batch_status',mediaIds:pending.map((item)=>item.id).slice(0,20)});refreshed=result.media??[];}catch{refreshed=[];}
       if(cancelled)return;
-      let incomplete=false;
-      for(const result of results){if(result.status==='fulfilled'){upsertMedia(result.value.media);if(!mediaReconciliationComplete(result.value.media))incomplete=true;}else incomplete=true;}
+      let incomplete=refreshed.length!==pending.length;
+      for(const media of refreshed){upsertMedia(media);if(!mediaReconciliationComplete(media))incomplete=true;}
       if(!incomplete){setReconcilingMediaId(null);return;}
       timer=setTimeout(()=>void reconcile(),3000);
     };
@@ -317,7 +323,7 @@ function ChatSession() {
   // The signature is intentional: reconciliation should restart only when the
   // server changes the lifecycle set, not on unrelated snapshot object churn.
   },[lifecyclePlanSignature,refresh]);
-  useFocusEffect(useCallback(()=>{if(!character)return;const channel=supabase.channel(`kivelle-presence-${character.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'*',schema:'public',table:'together_character_schedule_events',filter:`character_instance_id=eq.${character.id}`},()=>void refresh()).on('postgres_changes',{event:'UPDATE',schema:'public',table:'together_character_instances',filter:`id=eq.${character.id}`},()=>void refresh()).subscribe();return()=>{void supabase.removeChannel(channel);};},[character?.id,refresh]));
+  useFocusEffect(useCallback(()=>{if(!character)return;const refreshPresence=()=>void refresh({scope:'presence',characterInstanceId:character.id});const channel=supabase.channel(`kivelle-presence-${character.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'*',schema:'public',table:'together_character_schedule_events',filter:`character_instance_id=eq.${character.id}`},refreshPresence).on('postgres_changes',{event:'UPDATE',schema:'public',table:'together_character_instances',filter:`id=eq.${character.id}`},refreshPresence).subscribe();return()=>{void supabase.removeChannel(channel);};},[character?.id,refresh]));
   useEffect(() => {
     if(prepending.current||!keepPinnedToBottom.current||!conversationReady||bottomAlignedConversation.current!==conversation?.id)return;
     const timer=setTimeout(()=>{if(keepPinnedToBottom.current)scroll.current?.scrollToEnd({animated:true});},40);
@@ -506,7 +512,7 @@ function ChatSession() {
   };
   const resolveMilestone = async (action:RelationshipMilestone['choices'][number]['id']) => { if(!milestone||resolvingMilestone)return;setResolvingMilestone(true);setError('');try{const result=await resolveRelationshipMilestone(milestone.id,action);setSnapshot(result.snapshot);if(milestone.kind==='first_date_invitation'&&action==='accept')setFeedback({kind:'moment',title:`${milestone.title} unlocked`,body:'Your shared experience is ready in Dates.'});}catch(caught){setError(caught instanceof Error?caught.message:'That choice could not be saved.');}finally{setResolvingMilestone(false);} };
   const startNewConversation=()=>confirmAction({title:'Start a fresh chat?',message:`This creates a clean transcript with ${character.together_character_templates.name}. Your memories, plans, relationship, and relationship day will continue; use "Start over" in Conversation settings to erase them.`,confirmLabel:'Start fresh chat',onConfirm:async()=>{try{await manageConversation({action:'new',characterInstanceId:character.id});setMessages([]);setShowConversationMenu(false);await refresh();}catch(caught){setError(caught instanceof Error?caught.message:'A new conversation could not be started.');}}});
-  const deleteConversation=()=>confirmAction({title:'Delete this conversation?',message:`It will disappear from Messages and conversation history, but you can restore it from Settings → Archived Chats for 30 days.\n\n${character.together_character_templates.name} will still remember saved memories, and your relationship, Moments, and shared photos will remain.`,confirmLabel:'Delete conversation',destructive:true,onConfirm:async()=>{try{const archived=await manageConversation<Snapshot['conversations'][number]>({action:'delete',conversationId:conversation.id});setMessages([]);setShowConversationMenu(false);await refresh();const latest=useTogether.getState().snapshot;if(latest)useTogether.getState().setCoreState({conversations:latest.conversations.map((item)=>item.id===archived.id?archived:item)});router.replace('/(tabs)/chat-tab');}catch(caught){setError(caught instanceof Error?caught.message:'The conversation could not be archived.');}}});
+  const deleteConversation=()=>confirmAction({title:'Delete this conversation?',message:`It will disappear from Messages and conversation history, but you can restore it from Settings → Archived Chats for 30 days.\n\n${character.together_character_templates.name} will still remember saved memories, and your relationship, Moments, and shared photos will remain.`,confirmLabel:'Delete conversation',destructive:true,onConfirm:async()=>{try{const archived=await manageConversation<Snapshot['conversations'][number]>({action:'delete',conversationId:conversation.id});setMessages([]);setShowConversationMenu(false);await refresh();const latest=useTogether.getState().snapshot;if(latest)useTogether.getState().setCoreState({conversations:latest.conversations.map((item)=>item.id===archived.id?archived:item)});router.replace(MESSAGES_INBOX_HREF as never);}catch(caught){setError(caught instanceof Error?caught.message:'The conversation could not be archived.');}}});
   const toggleFavorite=async()=>{if(favoriteBusy)return;const previous=snapshot.favoriteCharacterTemplateIds??[],next=isFavorite?previous.filter((id)=>id!==character.character_template_id):[...new Set([...previous,character.character_template_id])];setFavoriteBusy(true);setCoreState({favoriteCharacterTemplateIds:next});try{const result=await setCharacterFavorite(character.character_template_id,!isFavorite,'chat_menu');setCoreState({favoriteCharacterTemplateIds:result.favoriteCharacterTemplateIds});}catch(caught){setCoreState({favoriteCharacterTemplateIds:previous});setError(caught instanceof Error?caught.message:'That favorite could not be saved.');}finally{setFavoriteBusy(false);}};
   const messageTypography=chatMessageTypography(conversation);
   const choosePhoto=async(source:'camera'|'library')=>{try{if(source==='camera'){const permission=await ImagePicker.requestCameraPermissionsAsync();if(!permission.granted){setError('Camera access is needed to take a photo.');return;}}else{const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();if(!permission.granted){setError('Photo access is needed to choose a photo.');return;}}const result=source==='camera'?await ImagePicker.launchCameraAsync({mediaTypes:['images'],quality:1}):await ImagePicker.launchImageLibraryAsync({mediaTypes:['images'],quality:1,allowsMultipleSelection:false});if(result.canceled||!result.assets[0])return;const asset=result.assets[0],normalized=await normalizeUserImage({uri:asset.uri,width:asset.width,height:asset.height,fileSize:asset.fileSize,fileName:asset.fileName},.88);cleanupNormalizedImage(pendingImage?.uri);setPendingImage(normalized);setError('');}catch(caught){setError(caught instanceof Error?caught.message:'That photo could not be opened.');}};
@@ -518,7 +524,7 @@ function ChatSession() {
       {showLeft ? <LeftRail snapshot={snapshot} active={slug} /> : null}
       <View style={styles.conversation}>
         <ChatAmbientGlow compact={width < 720} />
-        <ChatHeader character={character} location={location} backToInbox={!showLeft} onCall={()=>router.push(`/call?character=${character.id}&conversation=${conversation.id}` as never)} onMenu={()=>setShowConversationMenu((value)=>!value)} />
+        <ChatHeader character={character} location={location} onCall={()=>router.push(`/call?character=${character.id}&conversation=${conversation.id}` as never)} onMenu={()=>setShowConversationMenu((value)=>!value)} />
         <ConnectionBanner sendFailed={messages.some((item)=>item.delivery_status==='failed')}/>
         {!showRight&&chatContext.nextCommitment?<Pressable onPress={()=>chatContext.nextCommitment?.kind==='plan'&&router.push(`/plan/${chatContext.nextCommitment.id}` as never)} style={styles.mobileCommitment}><CalendarDays size={14} color={colors.rose}/><Text style={styles.mobileCommitmentText} numberOfLines={1}>{new Date(chatContext.nextCommitment.startsAt).toLocaleDateString([],{weekday:'short'})} · {chatContext.nextCommitment.title}</Text><ChevronRight size={14} color={colors.muted}/></Pressable>:null}
         {showConversationMenu ? <ConversationMenu name={character.together_character_templates.name} activePlan={Boolean(activeSharedPlan)} favorite={isFavorite} favoriteBusy={favoriteBusy} onClose={()=>setShowConversationMenu(false)} actions={{favorite:toggleFavorite,profile:()=>router.push(`/character/${slug}` as never),createPlan:()=>{openPlanPicker();setShowConversationMenu(false);},changePlan:()=>{if(activeSharedPlan)openPlanPicker();setShowConversationMenu(false);},endPlan:()=>{setShowConversationMenu(false);if(activeSharedPlan)requestEndPlan(activeSharedPlan);},edit:()=>{setShowConversationMenu(false);setShowChatSettings(true);},start:startNewConversation,remove:deleteConversation}} /> : null}
@@ -575,7 +581,7 @@ function ChatAmbientGlow({compact}:{compact:boolean}) {
   </View>;
 }
 
-function ChatHeader({character,location,backToInbox,onCall,onMenu}:{character:CharacterInstance;location:string;backToInbox:boolean;onCall:()=>void;onMenu:()=>void}) { const slug=character.together_character_templates.slug,locationStatus=location.trim().toLowerCase()==='home'?'At home':`At ${location}`;const leaveChat=()=>{if(backToInbox){router.replace('/(tabs)/chat-tab');return;}if(router.canGoBack())router.back();else router.replace('/home');};return <View style={[styles.header, Platform.OS === 'web' && styles.webHeader]}><Pressable accessibilityLabel={backToInbox?'Back to Messages':'Back'} onPress={leaveChat} style={styles.icon}><ArrowLeft color={colors.text}/></Pressable><Pressable accessibilityLabel={`View ${character.together_character_templates.name}'s profile`} onPress={()=>router.push(`/character/${slug}` as never)}><CharacterAvatar slug={slug} name={character.together_character_templates.name} size={42}/></Pressable><Pressable onPress={()=>router.push(`/character/${slug}` as never)} style={styles.headerIdentity}><Text numberOfLines={1} style={styles.name}>{character.together_character_templates.name}</Text><Text numberOfLines={1} style={styles.status}>{locationStatus}</Text></Pressable><Pressable accessibilityLabel={`Call ${character.together_character_templates.name}`} onPress={onCall} style={styles.icon}><Phone size={18} color={colors.text}/></Pressable><Pressable accessibilityLabel="Conversation menu" onPress={onMenu} style={styles.icon}><MoreHorizontal color={colors.text}/></Pressable></View>; }
+function ChatHeader({character,location,onCall,onMenu}:{character:CharacterInstance;location:string;onCall:()=>void;onMenu:()=>void}) { const slug=character.together_character_templates.slug,locationStatus=location.trim().toLowerCase()==='home'?'At home':`At ${location}`;return <View style={[styles.header, Platform.OS === 'web' && styles.webHeader]}><Link href={MESSAGES_INBOX_HREF as never} dismissTo asChild><Pressable accessibilityLabel="Back to Messages" style={styles.icon}><ArrowLeft color={colors.text}/></Pressable></Link><Pressable accessibilityLabel={`View ${character.together_character_templates.name}'s profile`} onPress={()=>router.push(`/character/${slug}` as never)}><CharacterAvatar slug={slug} name={character.together_character_templates.name} size={42}/></Pressable><Pressable onPress={()=>router.push(`/character/${slug}` as never)} style={styles.headerIdentity}><Text numberOfLines={1} style={styles.name}>{character.together_character_templates.name}</Text><Text numberOfLines={1} style={styles.status}>{locationStatus}</Text></Pressable><Pressable accessibilityLabel={`Call ${character.together_character_templates.name}`} onPress={onCall} style={styles.icon}><Phone size={18} color={colors.text}/></Pressable><Pressable accessibilityLabel="Conversation menu" onPress={onMenu} style={styles.icon}><MoreHorizontal color={colors.text}/></Pressable></View>; }
 
 function ConversationMenu({name,activePlan,favorite,favoriteBusy,onClose,actions}:{name:string;activePlan:boolean;favorite:boolean;favoriteBusy:boolean;onClose:()=>void;actions:Record<'favorite'|'profile'|'createPlan'|'changePlan'|'endPlan'|'edit'|'start'|'remove',()=>void>}) { const item=(label:string,action:()=>void,danger=false)=><Pressable key={label} accessibilityRole="button" onPress={action} style={styles.menuItem}><Text style={[styles.menuItemText,danger&&{color:colors.danger}]}>{label}</Text></Pressable>;return <FrostedSurface intensity={82} style={styles.menu}><View style={styles.menuTop}><Text style={styles.menuTitle}>{name}</Text><Pressable accessibilityRole="button" accessibilityLabel="Close conversation menu" onPress={onClose}><Text style={styles.closeText}>Close</Text></Pressable></View><Text style={styles.menuSection}>COMPANION</Text><Pressable accessibilityRole="button" accessibilityState={{selected:favorite,disabled:favoriteBusy}} disabled={favoriteBusy} onPress={actions.favorite} style={styles.menuFavorite}><Star size={15} color={favorite?'#FFD27A':colors.muted} fill={favorite?'#FFD27A':'transparent'}/><Text style={styles.menuItemText}>{favorite?'Remove from favorites':'Add to favorites'}</Text></Pressable>{item('View profile',actions.profile)}<Text style={styles.menuSection}>PLAN</Text>{conversationPlanMenuItems(activePlan).map((planItem)=>item(planItem.label,actions[planItem.key],planItem.danger))}<Text style={styles.menuSection}>CONVERSATION</Text>{item('Edit chat settings',actions.edit)}{item('Start a fresh chat',actions.start)}<Text style={styles.menuSection}>MANAGE</Text>{item('Delete this conversation',actions.remove,true)}</FrostedSurface>; }
 
@@ -771,6 +777,7 @@ function AutoDialogueOptionsModal({visible,name,hasSuggestion,onChoose,onClose}:
 
 void LegacyComposer;
 function Composer({compact,inputRef,conversationId,character,input,onChangeInput,onDictation,onDictationError,onDictationStart,pendingImage,onAddPhoto,onRemovePhoto,sending,onSend,onPhoto,autoDialogue,autoDialogueBusy,canSuggest,onSuggest,onSuggestOptions,onClearSuggestion}:{compact:boolean;inputRef:{current:TextInput|null};conversationId:string;character:CharacterInstance;input:string;onChangeInput:(value:string)=>void;onDictation:(text:string)=>void;onDictationError:(message:string)=>void;onDictationStart:()=>void;pendingImage:PendingImage|null;onAddPhoto:()=>void;onRemovePhoto:()=>void;sending:boolean;onSend:()=>void;onPhoto:()=>void;autoDialogue:AutoDialogueSuggestion|null;autoDialogueBusy:boolean;canSuggest:boolean;onSuggest:()=>void;onSuggestOptions:()=>void;onClearSuggestion:()=>void}) {
+  const [composerFocused,setComposerFocused]=useState(false);
   const dictation=useChatDictation({conversationId,characterInstanceId:character.id,disabled:sending||autoDialogueBusy,onBeforeStart:onDictationStart,onTranscript:onDictation,onError:onDictationError});
   const dictationBusy=dictation.phase!=='idle',overLimit=input.length>MESSAGE_CHARACTER_LIMIT,suggestMode=!input.trim()&&!pendingImage,actionDisabled=sending||autoDialogueBusy||dictationBusy||overLimit||(suggestMode&&!canSuggest),autoDialogueEdited=Boolean(autoDialogue&&input!==autoDialogue.text);
   const disclosure=<Text style={[styles.aiNote,compact&&styles.aiNoteCompact]}>{character.together_character_templates.name} is a fictional AI character. Important memories stay in your control.</Text>;
@@ -778,7 +785,7 @@ function Composer({compact,inputRef,conversationId,character,input,onChangeInput
   return <View style={[styles.composerWrap,compact&&styles.composerWrapCompact]}>
     {pendingImage?<View style={styles.attachmentPreview}><Image source={{uri:pendingImage.uri}} style={styles.attachmentPreviewImage} contentFit="cover"/><View style={{flex:1,minWidth:0}}><Text style={styles.attachmentPreviewTitle}>Photo ready to share</Text><Text style={styles.attachmentPreviewMeta}>{pendingImage.fileName??'Selected image'} · {Math.max(1,Math.round(pendingImage.byteSize/1024))} KB</Text><Pressable accessibilityLabel="Replace selected photo" onPress={onAddPhoto}><Text style={styles.attachmentReplace}>Replace</Text></Pressable></View><Pressable accessibilityLabel="Remove selected photo" onPress={onRemovePhoto} style={styles.attachmentRemove}><X size={16} color={colors.text}/></Pressable></View>:null}
     {compact?<>{disclosure}{counter}</>:null}
-    <View style={[styles.composer,styles.composerAligned]}><View style={[styles.composerInputShell,styles.composerInputShellAligned,autoDialogue&&!autoDialogueEdited&&styles.composerInputSuggested]}><AiMediaButton name={character.together_character_templates.name} onPress={onPhoto} disabled={sending||autoDialogueBusy||dictationBusy}/><TextInput ref={inputRef} value={input} onChangeText={onChangeInput} editable={!autoDialogueBusy&&!dictationBusy} placeholder={dictation.phase==='recording'?'Listening…':dictation.phase==='transcribing'?'Turning voice into text…':autoDialogueBusy?'Thinking of what you might say…':`Message ${character.together_character_templates.name}…`} placeholderTextColor={colors.dimmed} multiline style={[styles.input,styles.inputFitted,styles.embeddedInput,styles.embeddedInputAligned]} textAlignVertical="top"/>{autoDialogue&&!autoDialogueEdited?<View style={[styles.autoDialogueInline,styles.autoDialogueInlineAligned]}><Pressable accessibilityRole="button" accessibilityLabel={`Adjust suggested ${autoDialogueIntentLabel(autoDialogue.intent).toLowerCase()} reply`} onPress={onSuggestOptions} style={styles.autoDialogueInlineAction}><Sparkles size={14} color="#D4BEFF"/></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Clear suggested reply" onPress={onClearSuggestion} style={styles.autoDialogueInlineAction}><X size={14} color={colors.muted}/></Pressable></View>:null}<DictationButton phase={dictation.phase} elapsedMs={dictation.elapsedMs} disabled={sending||autoDialogueBusy} onPress={()=>void dictation.toggle()}/></View><Pressable accessibilityLabel={suggestMode?'Suggest a reply. Hold for reply options.':'Send message'} onPress={suggestMode?onSuggest:onSend} onLongPress={suggestMode&&canSuggest?onSuggestOptions:undefined} delayLongPress={350} disabled={actionDisabled} style={[styles.send,suggestMode&&styles.suggestButton,actionDisabled&&styles.sendDisabled]}>{autoDialogueBusy?<ActivityIndicator color="#fff" size="small"/>:suggestMode?<Sparkles color="#fff" size={19}/>:<Send color="#fff" size={19}/>}</Pressable></View>
+    <View style={[styles.composer,styles.composerAligned]}><View style={[styles.composerInputShell,styles.composerInputShellAligned,autoDialogue&&!autoDialogueEdited&&styles.composerInputSuggested,composerFocused&&styles.composerInputFocused]}><AiMediaButton name={character.together_character_templates.name} onPress={onPhoto} disabled={sending||autoDialogueBusy||dictationBusy}/><TextInput ref={inputRef} value={input} onChangeText={onChangeInput} onFocus={()=>setComposerFocused(true)} onBlur={()=>setComposerFocused(false)} editable={!autoDialogueBusy&&!dictationBusy} placeholder={dictation.phase==='recording'?'Listening…':dictation.phase==='transcribing'?'Turning voice into text…':autoDialogueBusy?'Thinking of what you might say…':`Message ${character.together_character_templates.name}…`} placeholderTextColor={colors.dimmed} multiline style={[styles.input,styles.inputFitted,styles.embeddedInput,styles.embeddedInputAligned,styles.composerTextInput]} textAlignVertical="top"/>{autoDialogue&&!autoDialogueEdited?<View style={[styles.autoDialogueInline,styles.autoDialogueInlineAligned]}><Pressable accessibilityRole="button" accessibilityLabel={`Adjust suggested ${autoDialogueIntentLabel(autoDialogue.intent).toLowerCase()} reply`} onPress={onSuggestOptions} style={styles.autoDialogueInlineAction}><Sparkles size={14} color="#D4BEFF"/></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Clear suggested reply" onPress={onClearSuggestion} style={styles.autoDialogueInlineAction}><X size={14} color={colors.muted}/></Pressable></View>:null}<DictationButton phase={dictation.phase} elapsedMs={dictation.elapsedMs} disabled={sending||autoDialogueBusy} onPress={()=>void dictation.toggle()}/></View><Pressable accessibilityLabel={suggestMode?'Suggest a reply. Hold for reply options.':'Send message'} onPress={suggestMode?onSuggest:onSend} onLongPress={suggestMode&&canSuggest?onSuggestOptions:undefined} delayLongPress={350} disabled={actionDisabled} style={[styles.send,suggestMode&&styles.suggestButton,actionDisabled&&styles.sendDisabled]}>{autoDialogueBusy?<ActivityIndicator color="#fff" size="small"/>:suggestMode?<Sparkles color="#fff" size={19}/>:<Send color="#fff" size={19}/>}</Pressable></View>
     {!compact?<>{counter}{disclosure}</>:null}
   </View>;
 }
@@ -1030,6 +1037,8 @@ const styles=StyleSheet.create({
   ,attachmentReplace:{color:colors.rose,fontSize:10,fontWeight:'800',marginTop:5}
   ,attachmentRemove:{width:34,height:34,borderRadius:17,alignItems:'center',justifyContent:'center',backgroundColor:colors.surface}
   ,composerInputShell:{flex:1,minWidth:0,minHeight:54,maxHeight:124,flexDirection:'row',alignItems:'flex-end',gap:4,paddingLeft:5,paddingRight:4,borderRadius:27,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border}
+  ,composerInputFocused:{backgroundColor:'rgba(43,27,56,.98)',borderColor:'rgba(188,142,216,.20)',shadowOpacity:0}
+  ,composerTextInput:{...(Platform.OS==='web'?({outlineStyle:'none'} as never):{})}
   ,composerInputSuggested:{borderColor:'rgba(203,168,255,.48)',backgroundColor:'rgba(70,42,108,.28)',shadowColor:'#8F5BFF',shadowOpacity:.18,shadowRadius:10,shadowOffset:{width:0,height:3}}
   ,autoDialogueInline:{flexDirection:'row',alignItems:'center',gap:2,marginRight:3,marginBottom:9}
   ,autoDialogueInlineAction:{width:29,height:29,borderRadius:15,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(154,104,255,.14)'}

@@ -38,7 +38,9 @@ EXPO_PUBLIC_KIVELLE_GOOGLE_AUTH_ENABLED=true
 EXPO_PUBLIC_KIVELLE_APPLE_AUTH_ENABLED=true
 ```
 
-Web/Android OAuth uses Supabase PKCE. iOS uses native Sign in with Apple with a hashed nonce and sends the resulting identity token to Supabase. Keep `https://ttutten-together.expo.app/auth/callback` and `together://auth/callback` in the Supabase Auth redirect allowlist. Apple only supplies a person's name on first consent, so Kivelle saves it immediately as account metadata while Persona identity remains separate.
+Web/Android OAuth uses Supabase PKCE. iOS uses native Sign in with Apple with a hashed nonce and sends the resulting identity token to Supabase. Because this shared Supabase project keeps global auto-confirm for another app, Kivelle password signup creates an unconfirmed user server-side and sends a PKCE email magic link with user creation disabled; Kivelle never administratively marks a typed email as verified. After any provider authenticates, server-owned account state routes new users through explicit 18+ confirmation and then companion onboarding. Authentication itself never implies adulthood.
+
+The production redirect allowlist is `https://kivelli.app/auth/callback`, `https://kivelli.app/reset-password`, `together://auth/callback`, and `together://reset-password`, plus the documented localhost and temporary Expo preview equivalents. Native auth sessions use chunked SecureStore persistence with one-time AsyncStorage migration; web keeps browser storage. Apple only supplies a person's name on first consent, so Kivelle saves it immediately as account metadata while Persona identity remains separate.
 
 ## Billing provider boundary
 
@@ -55,7 +57,7 @@ STRIPE_PRICE_CREDITS_100=price_...
 STRIPE_PRICE_CREDITS_300=price_...
 STRIPE_PRICE_CREDITS_800=price_...
 STRIPE_PRICE_CREDITS_2000=price_...
-KIVELLE_PUBLIC_APP_URL=https://ttutten-together.expo.app
+KIVELLE_PUBLIC_APP_URL=https://kivelli.app
 ```
 
 Register `together-billing-webhook` as the Stripe webhook endpoint and subscribe to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, and `invoice.payment_failed`. Signature validation uses the raw request body and a five-minute replay window. Checkout and credit grants are idempotent. Until Stripe is configured, the plan screen still provides status and credit balances and clearly reports that checkout is unavailable.

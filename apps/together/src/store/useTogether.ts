@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { loadSnapshot } from '../lib/api';
+import { loadCharacterPresence, loadSnapshot } from '../lib/api';
 import type { CharacterInstance, Conversation, ConversationAction, GeneratedMedia, Memory, Moment, Relationship, SceneSession, SharedPlan, Snapshot, SnapshotDelta } from '../types';
 import { demoSnapshot } from '../demo';
 import{beginPendingDialogue,finishPendingDialogue,type PendingDialogue,type PendingDialogueMap}from'../lib/pendingDialogue';
@@ -30,13 +30,14 @@ type State={
   setBrowsedWorldId:(worldId:string|null)=>void;
   beginPendingDialogue:(pending:PendingDialogue)=>void;
   finishPendingDialogue:(conversationId:string,clientRequestId:string)=>void;
-  refresh:(options?:{force?:boolean})=>Promise<void>;
+  refresh:(options?:{force?:boolean;scope?:'full'|'presence';characterInstanceId?:string})=>Promise<void>;
   clear:()=>void;
 };
 const demoMode=__DEV__&&process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE==='true';
 let refreshRequest:Promise<void>|null=null;
 let refreshGeneration=0;
 let refreshSequence=0;
+const presenceRequests=new Map<string,Promise<void>>();
 export const useTogether=create<State>((set)=>{
   const patchSnapshot=(update:(snapshot:Snapshot)=>Snapshot)=>set((state)=>state.snapshot?{snapshot:update(state.snapshot),error:null}:state);
   return {snapshot:demoMode?demoSnapshot:null,browsedWorldId:null,loading:false,error:null,pendingDialogues:{},
@@ -80,6 +81,14 @@ export const useTogether=create<State>((set)=>{
     finishPendingDialogue:(conversationId,clientRequestId)=>set((state)=>({pendingDialogues:finishPendingDialogue(state.pendingDialogues,conversationId,clientRequestId)})),
     refresh:async(options)=>{
       if(demoMode)return;
+      if(options?.scope==='presence'&&options.characterInstanceId){
+        const characterInstanceId=options.characterInstanceId;
+        const existing=presenceRequests.get(characterInstanceId);
+        if(existing&&!options.force)return existing;
+        const request=loadCharacterPresence(characterInstanceId).then((delta)=>set((state)=>state.snapshot?{snapshot:{...state.snapshot,characters:upsert(state.snapshot.characters,delta.character),scheduleEvents:[...(state.snapshot.scheduleEvents??[]).filter((event)=>event.character_instance_id!==characterInstanceId),...delta.scheduleEvents]},error:null}:state)).catch((error)=>set({error:error instanceof Error?error.message:'Companion presence could not be refreshed.'})).finally(()=>{if(presenceRequests.get(characterInstanceId)===request)presenceRequests.delete(characterInstanceId);});
+        presenceRequests.set(characterInstanceId,request);
+        return request;
+      }
       if(refreshRequest&&!options?.force)return refreshRequest;
       const generation=refreshGeneration;
       const sequence=++refreshSequence;
@@ -88,7 +97,7 @@ export const useTogether=create<State>((set)=>{
       refreshRequest=request;
       return request;
     },
-    clear:()=>{refreshGeneration+=1;refreshSequence+=1;refreshRequest=null;set({snapshot:demoMode?demoSnapshot:null,browsedWorldId:null,loading:false,error:null,pendingDialogues:{}});},
+    clear:()=>{refreshGeneration+=1;refreshSequence+=1;refreshRequest=null;presenceRequests.clear();set({snapshot:demoMode?demoSnapshot:null,browsedWorldId:null,loading:false,error:null,pendingDialogues:{}});},
   };
 });
 

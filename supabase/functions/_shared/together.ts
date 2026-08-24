@@ -26,6 +26,24 @@ export const TOGETHER_IDS = {
 
 export const relationshipMetrics = ['trust','comfort','attraction','affinity','familiarity','respect','conflict','romantic_interest','commitment'] as const;
 const phaseOrder = ['arrival','ordering','early_conversation','personal_conversation','unexpected_moment','dessert','after_date','resolution'] as const;
+const SNAPSHOT_CATALOG_TTL_MS=60_000;
+type SnapshotCatalogQuery={data:Array<Record<string,any>>|null;error:unknown};
+type SnapshotCatalog={worlds:SnapshotCatalogQuery;locations:SnapshotCatalogQuery;characterWorldPresence:SnapshotCatalogQuery;trips:SnapshotCatalogQuery;photoOpportunities:SnapshotCatalogQuery};
+let snapshotCatalogCache:{expiresAt:number;value:Promise<SnapshotCatalog>}|null=null;
+
+function loadSnapshotCatalog(db:SupabaseClient){
+  if(snapshotCatalogCache&&snapshotCatalogCache.expiresAt>Date.now())return snapshotCatalogCache.value;
+  const value:Promise<SnapshotCatalog>=Promise.all([
+    db.from('together_worlds').select('*').eq('published',true),
+    db.from('together_locations').select('*'),
+    db.from('together_character_world_presence').select('*'),
+    db.from('together_trip_templates').select('*').eq('active',true),
+    db.from('together_photo_opportunities').select('*').eq('active',true),
+  ]).then(([worlds,locations,characterWorldPresence,trips,photoOpportunities])=>({worlds,locations,characterWorldPresence,trips,photoOpportunities}));
+  snapshotCatalogCache={expiresAt:Date.now()+SNAPSHOT_CATALOG_TTL_MS,value};
+  void value.catch(()=>{if(snapshotCatalogCache?.value===value)snapshotCatalogCache=null;});
+  return value;
+}
 
 export function clampRelationship(current: Record<string, unknown>, proposal: Record<string, unknown>, limit = 2): Record<string, number> {
   const source=limit>=8?'date':limit>=4?'meaningful_disclosure':'ordinary_chat';
@@ -167,20 +185,25 @@ export async function track(db: SupabaseClient, userId: string, eventName: strin
 }
 
 export async function buildSnapshot(db: SupabaseClient, userId: string): Promise<Record<string, unknown>> {
-  const profileCheck=await db.from('together_profiles').select('user_id').eq('user_id',userId).maybeSingle();
+  const profileCheck=await db.from('together_profiles').select('*').eq('user_id',userId).maybeSingle();
   if(profileCheck.error)throw new AppError('INTERNAL_ERROR','Kivelle could not load your account.',500,true);
-  if(!profileCheck.data)return buildOnboardingSnapshot(db,userId);
+  if(!profileCheck.data)return buildOnboardingSnapshot(db,userId,null);
+  if(!profileCheck.data.onboarding_completed_at)return buildOnboardingSnapshot(db,userId,profileCheck.data);
   const continuity=await activeContinuity(db,userId);
-  const scheduleTemplates=fetchAllScheduleTemplates(db);
+  const catalog=loadSnapshotCatalog(db);
+  const instanceRows=await db.from('together_character_instances').select('*, together_character_templates(*), together_character_versions(*)').eq('user_id', userId).eq('continuity_id',continuity.id);
+  if(instanceRows.error)throw new AppError('INTERNAL_ERROR','Kivelle could not load your companions.',500,true);
+  const activeVersionIds=[...new Set((instanceRows.data??[]).map((instance)=>String(instance.character_version_id??'')).filter(Boolean))];
+  const scheduleTemplates=fetchScheduleTemplates(db,activeVersionIds);
   const [profile, personas, continuities, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, favorites, schedules, scheduleEvents, relationships, relationshipPlaces, milestones, dates, moments, memories, threads, conversations, sceneSessions, sceneParticipants, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions] = await Promise.all([
     db.from('together_profiles').select('*').eq('user_id', userId).maybeSingle(),
     db.from('together_user_personas').select('*').eq('user_id',userId).order('is_default',{ascending:false}).order('created_at'),
     db.from('together_continuities').select('*,together_user_personas(*)').eq('user_id',userId).order('kind').order('created_at'),
-    db.from('together_worlds').select('*').eq('published', true),
-    db.from('together_locations').select('*'),
+    catalog.then((value)=>value.worlds),
+    catalog.then((value)=>value.locations),
     db.from('together_user_worlds').select('*').eq('user_id',userId),
-    db.from('together_character_world_presence').select('*'),
-    db.from('together_character_instances').select('*, together_character_templates(*), together_character_versions(*)').eq('user_id', userId).eq('continuity_id',continuity.id),
+    catalog.then((value)=>value.characterWorldPresence),
+    Promise.resolve(instanceRows),
     db.from('together_character_templates').select('*,together_character_versions(*)').or(`and(published.eq.true,can_be_selected.eq.true),creator_id.eq.${userId}`).neq('lifecycle_status','archived').order('name'),
     db.from('together_character_favorites').select('character_template_id').eq('user_id',userId).order('created_at',{ascending:false}),
     scheduleTemplates,
@@ -202,8 +225,8 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
     db.from('together_entitlements').select('*').eq('user_id', userId).maybeSingle(),
     db.from('together_notification_preferences').select('*').eq('user_id', userId).maybeSingle(),
     db.from('together_story_arc_instances').select('*,together_story_arc_templates(slug,title,priority,chapters,world_scope,specific_world_id)').eq('user_id', userId).eq('continuity_id',continuity.id).in('status', ['active','paused']).order('updated_at', { ascending: false }),
-    db.from('together_trip_templates').select('*').eq('active', true),
-    db.from('together_photo_opportunities').select('*').eq('active', true),
+    catalog.then((value)=>value.trips),
+    catalog.then((value)=>value.photoOpportunities),
     db.from('together_generated_media').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).order('created_at', { ascending: false }).limit(60),
     db.from('together_conversation_actions').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).eq('status','pending').or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`).order('created_at',{ascending:false}).limit(20),
   ]);
@@ -261,11 +284,49 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
   return { profile: profilePayload, activePersona:continuity.together_user_personas??null,activeContinuity:continuity,personas:personas.data??[],continuities:continuities.data??[],worlds:publishedWorlds,userWorlds:publishedWorldAccess,characterWorldPresence:publishedCharacterPresence,currentPlaceContext,locations:snapshotLocations,relationshipPlaces:relationshipPlaces.data??[],characterPlaceProfiles,characters:visibleInstances,discoverableCharacters,favoriteCharacterTemplateIds:(favorites.data??[]).map((item)=>String(item.character_template_id)),schedules:schedules.data??[],scheduleEvents:(scheduleEvents.data??[]).filter((event)=>!event.metadata?.suppressedByPlanId&&(!event.location_id||publishedLocationIds.has(String(event.location_id)))),relationships:relationships.data??[],relationshipMilestones:(milestones.data??[]).filter((milestone)=>milestone.status==='pending'),relationshipMilestoneHistory:(milestones.data??[]).filter((milestone)=>milestone.status!=='pending'),relationshipCues,dates:publishedDates,moments:moments.data??[],memories:durableMemories,openThreads:threads.data??[],conversations:conversationMetadata,sceneSessions:activeScenes,sceneParticipants:sceneParticipants.data??[],sharedPlans:publishedSharedPlans,conversationEvents:conversationEvents.data??[],lifeEvents:publishedLifeEvents,proactiveMessages:proactive.data??[],storyArcs:storyArcs.data??[],trips:trips.data??[],photoOpportunities:photoOpportunities.data??[],generatedMedia:mediaPayload,conversationActions:conversationActions.data??[],entitlements:entitlements.data,experienceCapabilities,notificationPreferences:preferences.data };
 }
 
-async function buildOnboardingSnapshot(db:SupabaseClient,userId:string):Promise<Record<string,unknown>>{
+export async function buildCharacterPresenceSnapshot(
+  db: SupabaseClient,
+  userId: string,
+  characterInstanceId: string,
+): Promise<Record<string, unknown>> {
+  const continuity=await activeContinuity(db,userId);
+  const catalog=loadSnapshotCatalog(db);
+  const instanceResult=await db.from('together_character_instances').select('*, together_character_templates(*), together_character_versions(*)').eq('id',characterInstanceId).eq('user_id',userId).eq('continuity_id',continuity.id).maybeSingle();
+  if(instanceResult.error||!instanceResult.data)throw new AppError('NOT_FOUND','That companion is unavailable.',404);
+  const instance=instanceResult.data as Record<string,any>,nowDate=new Date(),now=nowDate.getTime(),versionId=String(instance.character_version_id);
+  const [schedules, scheduleEvents, worlds, locations, presence, scenes, dates, plans, lifeEvents]=await Promise.all([
+    db.from('together_schedule_templates').select('*').eq('character_version_id',versionId).order('day_of_week').order('start_minute'),
+    db.from('together_character_schedule_events').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).eq('character_instance_id',characterInstanceId).gte('ends_at',new Date(now-86400000).toISOString()).lte('starts_at',new Date(now+8*86400000).toISOString()).order('starts_at').limit(120),
+    catalog.then((value)=>value.worlds),
+    catalog.then((value)=>value.locations),
+    catalog.then((value)=>({...value.characterWorldPresence,data:(value.characterWorldPresence.data??[]).filter((row:Record<string,unknown>)=>String(row.character_version_id)===versionId)})),
+    db.from('together_scene_sessions').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).eq('character_instance_id',characterInstanceId).is('ended_at',null).order('started_at',{ascending:false}).limit(1),
+    db.from('together_date_sessions').select('*, together_date_templates(*)').eq('user_id',userId).eq('continuity_id',continuity.id).eq('character_instance_id',characterInstanceId).in('status',['scheduled','active']),
+    db.from('together_shared_plans').select('*,together_plan_attendance(*),together_plan_participant_responses(*)').eq('user_id',userId).eq('continuity_id',continuity.id).eq('character_instance_id',characterInstanceId).in('status',['scheduled','active','started']).limit(20),
+    db.from('together_life_events').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).eq('character_instance_id',characterInstanceId).lte('starts_at',new Date(now+3*60*60*1000).toISOString()).order('starts_at',{ascending:false}).limit(20),
+  ]);
+  const failed=[schedules,scheduleEvents,worlds,locations,presence,scenes,dates,plans,lifeEvents].find((result)=>result.error);
+  if(failed?.error)throw new AppError('INTERNAL_ERROR','Companion presence could not be refreshed.',500,true);
+  const publishedWorlds=worlds.data??[],worldIds=new Set(publishedWorlds.map((world)=>String(world.id))),publishedLocations=(locations.data??[]).filter((location)=>worldIds.has(String(location.world_id))),locationIds=new Set(publishedLocations.map((location)=>String(location.id)));
+  const activeScene=(scenes.data??[]).find((scene)=>{const expected=scene.expected_end_at?new Date(String(scene.expected_end_at)).getTime():new Date(String(scene.started_at)).getTime()+3*60*60*1000;return Number.isFinite(expected)&&expected>now&&worldIds.has(String(scene.world_id));});
+  const visible=activeScene
+    ? {...instance,current_location_id:activeScene.location_id,current_activity:sceneSnapshotActivity(activeScene),current_interruptibility:'open',current_presence_source:'scene'}
+    : hasActiveSnapshotCommitment(characterInstanceId,nowDate,dates.data??[],(plans.data??[]).map(decorateSnapshotSharedPlan))
+    ? instance
+    : (()=>{const event=activeAuthoritativeLifeEvent(characterInstanceId,nowDate,lifeEvents.data??[]);if(event)return{...instance,current_location_id:event.location_id??instance.current_location_id,current_activity:event.narrative_summary??event.title??instance.current_activity,current_presence_source:'life_event'};const authored=resolveAuthoredSnapshotPresence(instance,nowDate,schedules.data??[],publishedLocations,publishedWorlds,presence.data??[]);return authored?{...instance,current_location_id:authored.locationId,current_activity:authored.activity,current_energy:authored.energy,current_interruptibility:authored.interruptibility,current_presence_source:'schedule',current_schedule_event_id:null}:instance;})();
+  return{
+    character:visible,
+    scheduleEvents:(scheduleEvents.data??[]).filter((event)=>!event.metadata?.suppressedByPlanId&&(!event.location_id||locationIds.has(String(event.location_id)))),
+    refreshedAt:new Date().toISOString(),
+  };
+}
+
+async function buildOnboardingSnapshot(db:SupabaseClient,userId:string,profile:Record<string,unknown>|null):Promise<Record<string,unknown>>{
+  const catalog=loadSnapshotCatalog(db);
   const[worlds,locations,characterWorldPresence,discoverable,entitlements,preferences]=await Promise.all([
-    db.from('together_worlds').select('*').eq('published',true),
-    db.from('together_locations').select('*'),
-    db.from('together_character_world_presence').select('*'),
+    catalog.then((value)=>value.worlds),
+    catalog.then((value)=>value.locations),
+    catalog.then((value)=>value.characterWorldPresence),
     db.from('together_character_templates').select('*,together_character_versions(*)').eq('published',true).eq('can_be_selected',true).neq('lifecycle_status','archived').order('name'),
     db.from('together_entitlements').select('*').eq('user_id',userId).maybeSingle(),
     db.from('together_notification_preferences').select('*').eq('user_id',userId).maybeSingle(),
@@ -277,7 +338,7 @@ async function buildOnboardingSnapshot(db:SupabaseClient,userId:string):Promise<
   const discoverableCharacters=await hydrateDiscoverableCharacters(db,discoverable.data??[]);
   const entitlementKeys=(entitlements.data?.entitlement_keys??[]).map(String);
   return{
-    profile:null,activePersona:null,activeContinuity:null,personas:[],continuities:[],
+    profile,activePersona:null,activeContinuity:null,personas:[],continuities:[],
     worlds:publishedWorlds,userWorlds:[],characterWorldPresence:(characterWorldPresence.data??[]).filter((presence)=>publishedWorldIds.has(String(presence.world_id))),currentPlaceContext:null,locations:publishedLocations,relationshipPlaces:[],characterPlaceProfiles:[],
     characters:[],discoverableCharacters,favoriteCharacterTemplateIds:[],schedules:[],scheduleEvents:[],relationships:[],relationshipMilestones:[],relationshipMilestoneHistory:[],relationshipCues:{},dates:[],moments:[],memories:[],openThreads:[],conversations:[],sceneSessions:[],sceneParticipants:[],sharedPlans:[],conversationEvents:[],lifeEvents:[],proactiveMessages:[],storyArcs:[],trips:[],photoOpportunities:[],generatedMedia:[],conversationActions:[],
     entitlements:entitlements.data??null,experienceCapabilities:resolveServerExperienceCapabilities(normalizeMultimodalPreferences(undefined),entitlementKeys).experience,notificationPreferences:preferences.data??null,
@@ -297,13 +358,13 @@ function compactSnapshotLocation(location:Record<string,any>){
   return{...location,canonical_lore:compactLocationLoreForDirectory(location.canonical_lore),canonical_visual_context:{indoorOutdoor:visual.indoorOutdoor,visualAnchors:Array.isArray(visual.visualAnchors)?visual.visualAnchors.slice(0,3):[]}};
 }
 
-async function fetchAllScheduleTemplates(db:SupabaseClient){
-  const pageSize=1000,rows:Array<Record<string,unknown>>=[];
-  for(let from=0;from<5000;from+=pageSize){
-    const page=await db.from('together_schedule_templates').select('*').order('character_version_id').order('day_of_week').order('start_minute').range(from,from+pageSize-1);
+async function fetchScheduleTemplates(db:SupabaseClient,characterVersionIds:string[]){
+  if(!characterVersionIds.length)return{data:[],error:null};
+  const chunkSize=100,rows:Array<Record<string,unknown>>=[];
+  for(let index=0;index<characterVersionIds.length;index+=chunkSize){
+    const page=await db.from('together_schedule_templates').select('*').in('character_version_id',characterVersionIds.slice(index,index+chunkSize)).order('character_version_id').order('day_of_week').order('start_minute');
     if(page.error)return{data:null,error:page.error};
     rows.push(...(page.data??[]));
-    if((page.data?.length??0)<pageSize)break;
   }
   return{data:rows,error:null};
 }

@@ -37,6 +37,7 @@ import {
 import { colors, radius, spacing, typography } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
 import { useAuth } from '../src/hooks/useAuth';
+import { authProviderState } from '../src/lib/authProviders';
 import { activeCompanion } from '../src/lib/companionLife';
 import { manageAccount } from '../src/lib/api';
 import { supabase } from '../src/lib/supabase';
@@ -61,7 +62,8 @@ export default function Settings() {
   const scroll = useRef<ScrollView | null>(null);
   const [section, setSection] = useState<SettingsSection>('profile');
   const { snapshot, refresh, clear } = useTogether();
-  const { session, signOut, resendEmailVerification, signOutOthers } = useAuth();
+  const { session, signOut, resendPendingEmailChange, signOutOthers } = useAuth();
+  const providerState = authProviderState(session?.user);
   const profile = snapshot?.profile;
   const [name, setName] = useState(profile?.display_name ?? '');
   const [about, setAbout] = useState(profile?.about_me ?? '');
@@ -194,7 +196,7 @@ export default function Settings() {
         <ScrollView ref={scroll} style={styles.main} contentContainerStyle={styles.mainContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {!snapshot ? <LoadingSkeleton label="Loading your profile…" /> : <>
             {section === 'profile' ? <ProfilePanel avatar={avatar} name={name} setName={setName} about={about} setAbout={setAbout} interests={interests} setInterests={setInterests} goals={goals} setGoals={setGoals} busy={busy} email={session?.user.email} personaName={snapshot.activePersona?.display_name} lifeTitle={snapshot.activeContinuity?.title} onAvatar={() => void pickAvatar()} onSave={() => void saveProfile()} /> : null}
-            {section === 'account' ? <AccountPanel email={session?.user.email} verified={Boolean(session?.user.email_confirmed_at)} tier={subscriptionLabel(snapshot.entitlements?.tier)} onRoute={(route) => router.push(route as never)} onResend={() => void resendEmailVerification().then(() => Alert.alert('Verification sent', 'Check your inbox.')).catch((error) => Alert.alert('Could not send email', error.message))} onSignOutOthers={() => Alert.alert('Sign out everywhere else?', 'This device will remain signed in.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out others', style: 'destructive', onPress: () => void signOutOthers().then(() => Alert.alert('Other sessions signed out.')).catch((error) => Alert.alert('Could not update sessions', error.message)) }])} /> : null}
+            {section === 'account' ? <AccountPanel email={session?.user.email} providerLabel={providerState.label} verified={providerState.verifiedEmail} pendingEmail={providerState.pendingEmail} tier={subscriptionLabel(snapshot.entitlements?.tier)} onRoute={(route) => router.push(route as never)} onResend={() => void resendPendingEmailChange().then(() => Alert.alert('Confirmation sent', 'Check the new email address.')).catch((error) => Alert.alert('Could not send email', error.message))} onSignOutOthers={() => Alert.alert('Sign out everywhere else?', 'This device will remain signed in.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out others', style: 'destructive', onPress: () => void signOutOthers().then(() => Alert.alert('Other sessions signed out.')).catch((error) => Alert.alert('Could not update sessions', error.message)) }])} /> : null}
             {section === 'identity' ? <IdentityPanel snapshot={snapshot} onRoute={(route) => router.push(route as never)} /> : null}
             {section === 'experience' ? <ExperiencePanel snapshot={snapshot} onRoute={(route) => router.push(route as never)} /> : null}
             {section === 'relationships' ? <RelationshipsPanel snapshot={snapshot} onRoute={(route) => router.push(route as never)} /> : null}
@@ -239,12 +241,12 @@ function ProfilePanel(props: {
   </View>;
 }
 
-function AccountPanel({ email, verified, tier, onRoute, onResend, onSignOutOthers }: { email?: string; verified: boolean; tier: string; onRoute: (route: string) => void; onResend: () => void; onSignOutOthers: () => void }) {
+function AccountPanel({ email, providerLabel, verified, pendingEmail, tier, onRoute, onResend, onSignOutOthers }: { email?: string; providerLabel:string; verified: boolean; pendingEmail:string|null; tier: string; onRoute: (route: string) => void; onResend: () => void; onSignOutOthers: () => void }) {
   return <View style={styles.panel}><PanelHeading title="Account" body="Manage sign-in, billing, and security without changing who you are inside a Kivelle Life." />
-    <View style={styles.summaryCard}><View style={styles.summaryIcon}><KeyRound color={colors.violet} /></View><View style={{ flex: 1 }}><Text style={styles.summaryKicker}>SIGNED IN AS</Text><Text style={styles.summaryTitle}>{email ?? 'Your Kivelle account'}</Text><View style={styles.verified}><Check size={12} color={verified ? colors.success : colors.warm} /><Text style={[styles.verifiedText, { color: verified ? colors.success : colors.warm }]}>{verified ? 'Email verified' : 'Verification pending'}</Text></View></View></View>
+    <View style={styles.summaryCard}><View style={styles.summaryIcon}><KeyRound color={colors.violet} /></View><View style={{ flex: 1 }}><Text style={styles.summaryKicker}>{providerLabel.toUpperCase()}</Text><Text style={styles.summaryTitle}>{email ?? 'Your Kivelle account'}</Text><View style={styles.verified}><Check size={12} color={verified ? colors.success : colors.warm} /><Text style={[styles.verifiedText, { color: verified ? colors.success : colors.warm }]}>{verified ? 'Verified email' : 'Email verification pending'}</Text></View>{pendingEmail?<Text style={styles.verifiedText}>Pending change: {pendingEmail}</Text>:null}</View></View>
     <SettingsGroup>
       <SettingsRow icon={<UserRound />} title="Account details & password" body="Change email, password, and your account avatar." onPress={() => onRoute('/account')} />
-      {!verified ? <SettingsRow icon={<Check />} title="Resend verification email" body="Send another verification link to your inbox." onPress={onResend} /> : null}
+      {pendingEmail ? <SettingsRow icon={<Check />} title="Resend email-change confirmation" body="Send another confirmation link to your new address." onPress={onResend} /> : null}
       <SettingsRow icon={<CreditCard />} title="Subscription & credits" body={tier} onPress={() => onRoute('/subscription')} />
       <SettingsRow icon={<Shield />} title="Active devices" body="Sign out other browser and mobile sessions." onPress={onSignOutOthers} />
     </SettingsGroup>

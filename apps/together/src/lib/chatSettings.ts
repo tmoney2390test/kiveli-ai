@@ -10,7 +10,6 @@ export const chatTextSizeOptions: Array<{ value: ChatTextSize; label: string; fo
 ];
 
 export const chatDialogueContentModeOptions: Array<{ value: DialogueContentMode; label: string }> = [
-  { value: 'standard', label: 'Standard' },
   { value: 'romance', label: 'Romantic' },
   { value: 'mature', label: 'Mature' },
   { value: 'explicit', label: 'Explicit' },
@@ -47,9 +46,9 @@ export function resolveChatVoicePreset(conversation?: Pick<Conversation, 'metada
 
 export function resolveChatContentMode(conversation: Pick<Conversation, 'metadata'> | null | undefined, profile: Snapshot['profile']): DialogueContentMode {
   const chatMode = chatPreferencesFromConversation(conversation).contentMode;
-  if (chatMode) return chatMode;
+  if (chatMode) return chatMode === 'standard' ? 'explicit' : chatMode;
   const accountMode = profile?.content_preferences?.contentMode;
-  return isDialogueContentMode(accountMode) ? accountMode : profile?.content_preferences?.romanceEnabled === false ? 'standard' : 'romance';
+  return isDialogueContentMode(accountMode) && accountMode !== 'standard' ? accountMode : 'explicit';
 }
 
 export function chatMessageTypography(conversation?: Pick<Conversation, 'metadata'> | null): { fontSize: number; lineHeight: number } {

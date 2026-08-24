@@ -10,6 +10,7 @@ import { bootstrap } from '../src/lib/api';
 import { featuredCompanionsMatchingGender, type FeaturedCompanion } from '../src/lib/featuredCompanions';
 import { onboardingCompanionsForWorld, onboardingWorldFantasy, onboardingWorlds } from '../src/lib/onboardingCatalog';
 import { quickStartProfile, skipQuickStartProfile } from '../src/lib/quickStart';
+import { resolveKivelleAccountStage } from '../src/lib/authRouting';
 import { useTogether } from '../src/store/useTogether';
 import type { Snapshot, World } from '../src/types';
 import { colors, radius, spacing, typography } from '../src/theme';
@@ -55,6 +56,11 @@ export default function ChooseCompanion() {
 
   if (!snapshot) return <LoadingSkeleton label="Opening Kivelle…" />;
 
+  if (resolveKivelleAccountStage(snapshot.profile) === 'age_confirmation') {
+    router.replace('/age-confirmation' as never);
+    return <LoadingSkeleton label="Opening age confirmation…" />;
+  }
+
   const chooseWorld = (world: World) => {
     setSelectedWorldId(world.id);
     setPreview(null);
@@ -70,7 +76,7 @@ export default function ChooseCompanion() {
     setBusy(true);
     setError('');
     try {
-      const next = await bootstrap(quickStartProfile(companion.id, selectedWorld.id));
+      const next = await bootstrap(quickStartProfile(companion.id, selectedWorld.id, { ageConfirmed: true }));
       setSnapshot(next);
       setBrowsedWorldId(selectedWorld.id);
       setPreview(null);
@@ -86,7 +92,7 @@ export default function ChooseCompanion() {
     setBusy(true);
     setError('');
     try {
-      const next = await bootstrap(skipQuickStartProfile(selectedWorld?.id));
+      const next = await bootstrap(skipQuickStartProfile(selectedWorld?.id, { ageConfirmed: true }));
       setSnapshot(next);
       setBrowsedWorldId(selectedWorld?.id ?? null);
       nav.replace(selectedWorld ? `/(tabs)/explore?world=${encodeURIComponent(selectedWorld.slug)}` : '/(tabs)/explore');
@@ -155,7 +161,6 @@ export default function ChooseCompanion() {
       </View> : null}
 
       {error && !preview ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-      <Text style={styles.disclosure}>Your starting choice does not lock other companions or worlds.</Text>
     </Screen>
 
     <CompanionPreview companion={preview} snapshot={snapshot} desktop={desktop} busy={busy} error={error} onClose={() => { if (!busy) setPreview(null); }} onMeet={() => { if (preview) void startMeeting(preview); }} />
@@ -261,7 +266,6 @@ const styles = StyleSheet.create({
   emptyPeopleBody: { color: colors.muted, fontSize: 10, textAlign: 'center' },
   showMore: { alignSelf: 'center', minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 16, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.borderBright, backgroundColor: colors.surface },
   showMoreText: { color: colors.text, fontSize: 11, fontWeight: '900' },
-  disclosure: { color: colors.dimmed, fontSize: 9, textAlign: 'center' },
   skipPressed: { opacity: .65 },
   error: { color: '#FF9BA7', fontSize: 11, lineHeight: 16, textAlign: 'center' },
   modalRoot: { flex: 1, padding: 12 },

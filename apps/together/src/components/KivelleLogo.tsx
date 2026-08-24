@@ -1,11 +1,10 @@
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Platform, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 
-// The supplied source is intentionally kept untouched. This frame crops only the
-// empty canvas around the horizontal mark at render time.
+// Keep the supplied source untouched and crop only its transparent canvas at render time.
 const SOURCE_SIZE = 1254;
-const CROP = { left: 74, top: 500, width: 1100, height: 285 } as const;
+const CROP = { left: 53, top: 467, width: 1173, height: 361 } as const;
 
 export function KivelleLogo({ height = 32, style }: { height?: number; style?: StyleProp<ViewStyle> }) {
   const scale = height / CROP.height;
@@ -21,7 +20,6 @@ export function KivelleLogo({ height = 32, style }: { height?: number; style?: S
       style={[
         styles.image,
         { width: sourceSize, height: sourceSize, left: -CROP.left * scale, top: -CROP.top * scale },
-        Platform.OS === 'web' && styles.webImage,
       ]}
       contentFit="fill"
       transition={0}
@@ -32,5 +30,4 @@ export function KivelleLogo({ height = 32, style }: { height?: number; style?: S
 const styles = StyleSheet.create({
   frame: { flexGrow: 0, flexShrink: 0, overflow: 'hidden' },
   image: { position: 'absolute' },
-  webImage: { mixBlendMode: 'screen' } as never,
 });

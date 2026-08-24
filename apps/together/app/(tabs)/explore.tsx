@@ -12,6 +12,8 @@ import { setCharacterFavorite } from '../../src/lib/api';
 import { activeCompanion } from '../../src/lib/companionLife';
 import { characterCanPlanInWorld, characterResidentWorld } from '../../src/lib/place';
 import { buildExploreContext, locationsForExploreCategory, type ExploreCategoryId } from '../../src/lib/explore';
+import { responsivePlaceGrid } from '../../src/lib/responsivePlaceGrid';
+import { useAppShell } from '../../src/shell/AppShellContext';
 import type { FeaturedCompanion } from '../../src/lib/featuredCompanions';
 import type { Location, World } from '../../src/types';
 
@@ -20,6 +22,7 @@ const EMPTY_FAVORITE_IDS:string[]=[];
 let lastExploreCatalogRefreshAt=0;
 export default function Explore(){
   const{width}=useWindowDimensions();
+  const{desktop,sidebarWidth}=useAppShell();
   const params=useLocalSearchParams<{world?:string}>();
   const{snapshot,browsedWorldId,setBrowsedWorldId,refresh}=useTogether();
   const[worldPickerOpen,setWorldPickerOpen]=useState(false);
@@ -49,9 +52,9 @@ export default function Explore(){
   const isCurrentWorld=companionWorld?.id===selectedWorld.id;
   const discussionHandle=companion?.id;
   const peopleCardWidth=width>=1000?344:width>=700?300:Math.min(306,width-58);
-  const placeGridWidth=Math.max(240,Math.min(width,840)-40);
-  const placeCardWidth=placeGridWidth>=300?Math.floor((placeGridWidth-10)/2):placeGridWidth;
-  const placeCardHeight=width<700&&placeGridWidth>=300?placeCardWidth:175;
+  const placeGrid=responsivePlaceGrid({viewportWidth:width,sidebarWidth:desktop?sidebarWidth:0,outerPadding:desktop?64:40,gap:10});
+  const placeCardWidth=placeGrid.cardWidth;
+  const placeCardHeight=!desktop&&placeGrid.columns===2?placeCardWidth:Math.max(175,Math.min(220,Math.round(placeCardWidth*.66)));
   const openLocation=(location:Location)=>nav.push(`/location/${location.slug}?world=${selectedWorld.slug}`);
   const chooseWorld=(world:World)=>{setBrowsedWorldId(world.id);setWorldPickerOpen(false);nav.setParams({world:world.slug});};
   const primaryWorldAction=()=>localCompanion

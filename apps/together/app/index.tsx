@@ -3,6 +3,7 @@ import { ErrorState, LoadingSkeleton } from '../src/components';
 import { PublicLandingPage } from '../src/components/landing/PublicLandingPage';
 import { useAuth } from '../src/hooks/useAuth';
 import { useTogether } from '../src/store/useTogether';
+import { resolveKivelleAccountStage } from '../src/lib/authRouting';
 
 export default function Index() {
   const { session, loading: authLoading } = useAuth();
@@ -12,6 +13,8 @@ export default function Index() {
   if (!session) return <PublicLandingPage />;
   if (loading || (!snapshot && !error)) return <LoadingSkeleton label="Opening your world…" />;
   if (error) return <ErrorState message={error} onRetry={() => void refresh()} />;
-  if (!snapshot?.profile) return <Redirect href="/choose-companion" />;
+  const stage = resolveKivelleAccountStage(snapshot?.profile ?? null);
+  if (stage === 'age_confirmation') return <Redirect href={'/age-confirmation' as never} />;
+  if (stage === 'onboarding') return <Redirect href="/choose-companion" />;
   return <Redirect href="/home" />;
 }

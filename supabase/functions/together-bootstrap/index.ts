@@ -4,11 +4,12 @@ import { authenticated, enforceRateLimit } from '../_shared/context.ts';
 import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
-import { buildSnapshot, resolveLifeState, track } from '../_shared/together.ts';
+import { buildCharacterPresenceSnapshot, buildSnapshot, resolveLifeState, track } from '../_shared/together.ts';
 import { getActiveConversation } from '../_shared/together-conversation.ts';
 import { ensureMainContinuity } from '../_shared/together-continuity.ts';
 
-const schema = z.object({
+const onboardingSchema = z.object({
+  action: z.literal('complete_onboarding').optional(),
   ageConfirmed: z.literal(true),
   onboardingChoice:z.enum(['companion','skip']).default('companion'),
   displayName: z.string().trim().min(1).max(50).optional(),
@@ -18,6 +19,10 @@ const schema = z.object({
   goals: z.array(z.enum(['Dating','Friendship','Stories','Social worlds'])).max(4).default([]),
   experienceTimezone:z.string().trim().min(1).max(80).default('UTC'),
 });
+const schema = z.union([
+  z.object({ action: z.literal('confirm_age'), ageConfirmed: z.literal(true) }),
+  onboardingSchema,
+]);
 const relationOne=(value:unknown):Record<string,unknown>|null=>{const row=Array.isArray(value)?value[0]:value;return row&&typeof row==='object'?row as Record<string,unknown>:null;};
 type BootstrapTemplate={id:string;name:string;slug:string;current_published_version:number;first_meeting?:Record<string,unknown>|null};
 type BootstrapVersion={id:string};
@@ -26,6 +31,12 @@ type BootstrapLocation={id:string;world_id:string};
 serve(async (request, correlationId) => {
   if (request.method === 'GET') {
     const { user, db } = await authenticated(request);
+    const url=new URL(request.url),scope=url.searchParams.get('scope');
+    if(scope==='presence'){
+      const characterInstanceId=z.string().uuid().safeParse(url.searchParams.get('characterInstanceId'));
+      if(!characterInstanceId.success)throw new AppError('VALIDATION_ERROR','Choose a companion to refresh.',400);
+      return json({data:await buildCharacterPresenceSnapshot(db,user.id,characterInstanceId.data),correlationId},200,correlationId);
+    }
     const requestedTimezone=request.headers.get('x-kivelle-timezone');
     if(requestedTimezone){try{new Intl.DateTimeFormat('en-US',{timeZone:requestedTimezone}).format(new Date());const updatedAt=new Date().toISOString();await Promise.all([db.from('together_profiles').update({experience_timezone:requestedTimezone,updated_at:updatedAt}).eq('user_id',user.id),db.from('together_notification_preferences').update({timezone:requestedTimezone,updated_at:updatedAt}).eq('user_id',user.id)]);}catch{/* ignore malformed client timezone */}}
     return json({ data: await buildSnapshot(db, user.id), correlationId }, 200, correlationId);
@@ -34,6 +45,15 @@ serve(async (request, correlationId) => {
   await enforceRateLimit(db, user.id, 'together_bootstrap', 20, 3600);
   const input = await parseBody(request, schema);
   const now = new Date().toISOString();
+  if ('action' in input && input.action === 'confirm_age') {
+    await confirmAdultProfile(db, user, now);
+    await track(db, user.id, 'adult_age_confirmed', { source: 'explicit_confirmation' });
+    return json({data:await buildSnapshot(db,user.id),correlationId},201,correlationId);
+  }
+
+  const existingProfile=await db.from('together_profiles').select('user_id,age_verified_at').eq('user_id',user.id).maybeSingle();
+  if(existingProfile.error)throw new AppError('INTERNAL_ERROR','Kivelle could not verify your account setup.',500,true);
+  if(!existingProfile.data?.age_verified_at)throw new AppError('CONFLICT','Confirm that you are 18 or older before choosing a companion.',409);
   const skip=input.onboardingChoice==='skip';
   let selectedWorld:Record<string,unknown>|null=null;
   if(input.worldId){const{data,error}=await db.from('together_worlds').select('id,slug,name').eq('id',input.worldId).eq('published',true).maybeSingle();if(error||!data)throw new AppError('VALIDATION_ERROR','Choose an available world to continue.',400);selectedWorld=data;}
@@ -59,7 +79,9 @@ serve(async (request, correlationId) => {
   }
 
   let experienceTimezone='UTC';try{new Intl.DateTimeFormat('en-US',{timeZone:input.experienceTimezone}).format(new Date());experienceTimezone=input.experienceTimezone;}catch{/* use UTC */}
-  const{error:profileError}=await db.from('together_profiles').upsert({user_id:user.id,display_name:input.displayName??user.user_metadata?.display_name??user.email?.split('@')[0]??'You',age_verified_at:now,interests:input.interests,experience_goals:input.goals,experience_timezone:experienceTimezone,onboarding_completed_at:now,updated_at:now},{onConflict:'user_id'});
+  const profileUpdates:Record<string,unknown>={interests:input.interests,experience_goals:input.goals,experience_timezone:experienceTimezone,onboarding_completed_at:now,updated_at:now};
+  if(input.displayName)profileUpdates.display_name=input.displayName;
+  const{error:profileError}=await db.from('together_profiles').update(profileUpdates).eq('user_id',user.id).not('age_verified_at','is',null);
   if(profileError)throw new AppError('INTERNAL_ERROR','Could not start your Kivelle story.',500,true);
   const continuity=await ensureMainContinuity(db,user.id);
   await Promise.all([db.from('together_notification_preferences').upsert({user_id:user.id,timezone:experienceTimezone},{onConflict:'user_id'}),db.from('together_entitlements').upsert({user_id:user.id,revenuecat_app_user_id:user.id},{onConflict:'user_id',ignoreDuplicates:true})]);
@@ -95,6 +117,22 @@ serve(async (request, correlationId) => {
   await track(db, user.id, 'onboarding_completed', { world: meetingWorld, character_template_id: selectedTemplate.id, mode:'companion' });
   return json({ data: await buildSnapshot(db, user.id), correlationId }, 201, correlationId);
 });
+
+async function confirmAdultProfile(db:SupabaseClient,user:{id:string;email?:string|null;user_metadata?:Record<string,unknown>},now:string){
+  const existing=await db.from('together_profiles').select('user_id,age_verified_at').eq('user_id',user.id).maybeSingle();
+  if(existing.error)throw new AppError('INTERNAL_ERROR','Kivelle could not confirm your age.',500,true);
+  if(!existing.data){
+    const metadata=user.user_metadata??{};
+    const candidate=[metadata.display_name,metadata.full_name,metadata.name,user.email?.split('@')[0]].find((value)=>typeof value==='string'&&value.trim());
+    const displayName=typeof candidate==='string'?candidate.trim().slice(0,50):'You';
+    const created=await db.from('together_profiles').insert({user_id:user.id,display_name:displayName,age_verified_at:now,onboarding_completed_at:null,updated_at:now});
+    if(created.error&&!/duplicate|unique/i.test(created.error.message))throw new AppError('INTERNAL_ERROR','Kivelle could not confirm your age.',500,true);
+  }
+  // This field is analytics-only. Authorization remains tied to the authenticated
+  // user and server-owned Kivelle profile, never editable user metadata.
+  const metadata=user.user_metadata??{};
+  if(metadata.signup_app!=='together')await db.auth.admin.updateUserById(user.id,{user_metadata:{...metadata,signup_app:'together'}});
+}
 
 async function unlockOnboardingWorlds(db:SupabaseClient,userId:string,visitedWorldId:string|null,now:string){
   const{data:freeWorlds}=await db.from('together_worlds').select('id').eq('published',true).eq('access_type','free');

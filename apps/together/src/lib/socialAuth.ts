@@ -6,7 +6,7 @@ export function resolveSocialAuthCapabilities(input:{google?:string;apple?:strin
 }
 
 export function parseOAuthCallbackUrl(value:string):{code?:string;error?:string}{
-  try{const url=new URL(value),code=url.searchParams.get('code')??undefined,error=url.searchParams.get('error_description')??url.searchParams.get('error')??undefined;return{...(code?{code}:{}),...(error?{error}: {})};}
+  try{const url=new URL(value),fragment=new URLSearchParams(url.hash.replace(/^#/,'')),code=url.searchParams.get('code')??fragment.get('code')??undefined,error=url.searchParams.get('error_description')??url.searchParams.get('error')??fragment.get('error_description')??fragment.get('error')??undefined;return{...(code?{code}:{}),...(error?{error}: {})};}
   catch{return{error:'The sign-in callback was invalid.'};}
 }
 

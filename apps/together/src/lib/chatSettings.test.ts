@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chatMessageTypography, chatPreferencesFromConversation, isSubscribedTier, resolveChatContentMode, resolveChatResponseStyle, resolveChatSpiceLevel, resolveChatTextSize, resolveChatVoicePreset, withLocalChatSettings } from './chatSettings';
+import { chatDialogueContentModeOptions, chatMessageTypography, chatPreferencesFromConversation, isSubscribedTier, resolveChatContentMode, resolveChatResponseStyle, resolveChatSpiceLevel, resolveChatTextSize, resolveChatVoicePreset, withLocalChatSettings } from './chatSettings';
 
 describe('chat settings', () => {
   it('reads valid per-chat preferences and ignores malformed metadata', () => {
@@ -39,6 +39,8 @@ describe('chat settings', () => {
     expect(resolveChatContentMode(conversation, profile)).toBe('mature');
     const updated = withLocalChatSettings(conversation, { title: null, responseStyle: 'texting', textSize: 'medium', contentMode: 'explicit' });
     expect(resolveChatContentMode(updated, profile)).toBe('explicit');
-    expect(resolveChatContentMode(null, { content_preferences: { romanceEnabled: false } } as never)).toBe('standard');
+    expect(resolveChatContentMode(null, { content_preferences: { romanceEnabled: false } } as never)).toBe('explicit');
+    expect(resolveChatContentMode({ metadata: { chatPreferences: { contentMode: 'standard' } } } as never, null)).toBe('explicit');
+    expect(chatDialogueContentModeOptions.some((option) => option.value === 'standard')).toBe(false);
   });
 });

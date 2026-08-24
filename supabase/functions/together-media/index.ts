@@ -29,6 +29,7 @@ const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('decline_offer'),offerId:z.string().uuid()}),
   z.object({action:z.literal('retry'),mediaId:z.string().uuid()}),
   z.object({action:z.literal('status'),mediaId:z.string().uuid()}),
+  z.object({action:z.literal('batch_status'),mediaIds:z.array(z.string().uuid()).min(1).max(20).refine((ids)=>new Set(ids).size===ids.length,'Media IDs must be unique.')}),
   z.object({action:z.literal('list_recent'),characterInstanceId:z.string().uuid(),conversationId:z.string().uuid(),createdAfter:z.string().datetime(),limit:z.number().int().min(1).max(20).default(10)}),
   z.object({action:z.literal('feedback'),mediaId:z.string().uuid(),feedback:z.enum(['positive','negative'])}),
   z.object({action:z.literal('edit'),mediaId:z.string().uuid(),requestId:z.string().trim().min(8).max(120),instruction:z.string().trim().min(2).max(400)}),
@@ -88,12 +89,15 @@ serve(async(request,correlationId)=>{
     if(!conversation)throw new AppError('NOT_FOUND','That conversation is unavailable in this Kivelle Life.',404);
     const{data:rows,error}=await db.from('together_generated_media').select('*').eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_instance_id',input.characterInstanceId).eq('conversation_id',input.conversationId).gte('created_at',input.createdAfter).order('created_at',{ascending:false}).limit(input.limit);
     if(error)throw new AppError('INTERNAL_ERROR','Recent photos could not be loaded.',500,true);
-    const media=await Promise.all((rows??[]).map(async(row:Record<string,unknown>)=>{
-      let signedUrl:string|null=null;
-      if(row.status==='ready'&&typeof row.storage_path==='string'&&row.storage_path){const{data}=await db.storage.from('together-user-media').createSignedUrl(row.storage_path,3600);signedUrl=data?.signedUrl??null;}
-      return{...row,signed_url:signedUrl};
-    }));
+    const media=await signMediaRows(db,rows??[]);
     return json({data:{media},correlationId},200,correlationId);
+  }
+  if(input.action==='batch_status'){
+    const continuity=await activeContinuity(db,user.id);
+    const{data:rows,error}=await db.from('together_generated_media').select('*').eq('user_id',user.id).eq('continuity_id',continuity.id).in('id',input.mediaIds);
+    if(error)throw new AppError('INTERNAL_ERROR','Photo status could not be refreshed.',500,true);
+    if((rows??[]).some((row)=>row.status==='queued'||row.status==='generating'))waitUntil(kickMediaDispatcher());
+    return json({data:{media:await signMediaRows(db,rows??[])},correlationId},200,correlationId);
   }
   const continuity=await activeContinuity(db,user.id),{data:media}=await db.from('together_generated_media').select('*').eq('id',input.mediaId).eq('user_id',user.id).eq('continuity_id',continuity.id).maybeSingle();
   if(!media)throw new AppError('NOT_FOUND','That photo is unavailable.',404);
@@ -153,3 +157,10 @@ serve(async(request,correlationId)=>{
   await track(db,user.id,'media_removed',{mediaId:media.id,characterInstanceId:media.character_instance_id});
   return json({data:{removed:true},correlationId},200,correlationId);
 });
+
+async function signMediaRows(db:any,rows:Array<Record<string,any>>){
+  const paths=[...new Set(rows.filter((row)=>row.status==='ready'&&typeof row.storage_path==='string'&&row.storage_path).map((row)=>String(row.storage_path)))];
+  const signed=paths.length?await db.storage.from('together-user-media').createSignedUrls(paths,3600):{data:[]};
+  const byPath=new Map((signed.data??[]).map((item:any)=>[String(item.path),item.signedUrl]));
+  return rows.map((row)=>({...row,signed_url:row.storage_path?byPath.get(String(row.storage_path))??null:null}));
+}

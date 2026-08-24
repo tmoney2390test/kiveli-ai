@@ -5,6 +5,7 @@ type Props = {
   source: ImageSource | number;
   accessibilityLabel?: string;
   contentPosition?: ImageContentPosition;
+  foregroundFit?: 'contain' | 'cover';
   frameStyle?: StyleProp<ViewStyle>;
   blurRadius?: number;
   dim?: number;
@@ -22,6 +23,7 @@ export function DetailPreservingArtwork({
   source,
   accessibilityLabel,
   contentPosition = 'center',
+  foregroundFit = 'contain',
   frameStyle,
   blurRadius = 0,
   dim = .16,
@@ -47,7 +49,7 @@ export function DetailPreservingArtwork({
         accessibilityLabel={accessibilityLabel}
         source={source}
         style={StyleSheet.absoluteFill}
-        contentFit="contain"
+        contentFit={foregroundFit}
         contentPosition={contentPosition}
         blurRadius={blurRadius}
         transition={180}

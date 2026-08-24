@@ -390,17 +390,21 @@ async function deliverAlert(
       : ["dashboard"],
     metadata: Record<string, unknown> = { dashboard: "recorded" };
   let requestedExternal = 0, succeeded = 0;
-  const payload = {
-    event: "kivelle_ops_alert",
-    name: String(rule.name),
-    severity: String(rule.severity),
-    metric: String(rule.metric),
-    value,
-    threshold: Number(rule.threshold),
-    incidentId,
-    occurredAt: new Date().toISOString(),
-    dashboardUrl: "https://ttutten-together.expo.app/ops",
-  };
+  const publicAppUrl =
+      (Deno.env.get("KIVELLE_PUBLIC_APP_URL") || "https://kivelli.app")
+        .replace(/\/+$/, ""),
+    dashboardUrl = `${publicAppUrl}/ops`,
+    payload = {
+      event: "kivelle_ops_alert",
+      name: String(rule.name),
+      severity: String(rule.severity),
+      metric: String(rule.metric),
+      value,
+      threshold: Number(rule.threshold),
+      incidentId,
+      occurredAt: new Date().toISOString(),
+      dashboardUrl,
+    };
   if (requested.includes("webhook")) {
     requestedExternal += 1;
     const url = Deno.env.get("KIVELLE_OPS_ALERT_WEBHOOK_URL");
@@ -441,7 +445,7 @@ async function deliverAlert(
             }] Kivelle · ${rule.name}`,
             text: `${rule.name}\n${rule.metric}: ${
               formatMetric(value)
-            }\nIncident: ${incidentId}\nOpen: https://ttutten-together.expo.app/ops`,
+            }\nIncident: ${incidentId}\nOpen: ${dashboardUrl}`,
           }),
           signal: AbortSignal.timeout(8000),
         });

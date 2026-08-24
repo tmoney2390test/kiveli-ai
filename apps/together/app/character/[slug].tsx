@@ -12,6 +12,7 @@ import {
   MoodBadge,
   RelationshipBadge,
   Screen,
+  SpiceBadge,
   resolveCharacterPortraitSource,
 } from '../../src/components';
 import { DetailPreservingArtwork } from '../../src/components/DetailPreservingArtwork';
@@ -197,7 +198,10 @@ export default function CharacterProfile() {
           {instance && known ? <RelationshipBadge stage={instance.relationship_stage} /> : <Text style={styles.newBadge}>NEW CONNECTION</Text>}
         </View>
 
-        <Text style={styles.heading}>{known ? `Your relationship with ${template.name}` : `Meet ${template.name}`}</Text>
+        <View style={styles.relationshipHeading}>
+          <Text style={[styles.heading, styles.relationshipHeadingText]}>{known ? `Your relationship with ${template.name}` : `Meet ${template.name}`}</Text>
+          {known ? <SpiceBadge level={template.spice_level} /> : null}
+        </View>
         <Body muted>{template.biography}</Body>
 
         {known ? <View style={styles.history}>
@@ -282,6 +286,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   newBadge: { color: colors.rose, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
+  relationshipHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  relationshipHeadingText: { flex: 1 },
   heading: { fontFamily: typography.display, fontSize: 26, lineHeight: 31, color: colors.text, fontWeight: '600' },
   history: { flexDirection: 'row', gap: 8 },
   stat: { flex: 1, minWidth: 0, paddingHorizontal: 8, paddingVertical: 12, borderRadius: radius.md, backgroundColor: colors.surface, alignItems: 'center', borderWidth: 1, borderColor: colors.border },

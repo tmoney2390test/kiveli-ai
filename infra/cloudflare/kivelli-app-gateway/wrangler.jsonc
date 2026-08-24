@@ -1,0 +1,19 @@
+{
+  "name": "kivelli-app-gateway",
+  "main": "index.js",
+  "compatibility_date": "2026-08-24",
+  "workers_dev": false,
+  "observability": {
+    "enabled": true
+  },
+  "routes": [
+    {
+      "pattern": "kivelli.app",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.kivelli.app",
+      "custom_domain": true
+    }
+  ]
+}

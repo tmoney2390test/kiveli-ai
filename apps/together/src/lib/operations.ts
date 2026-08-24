@@ -79,6 +79,15 @@ export type OperationsDashboard = {
       estimatedCost: number;
     }
   >;
+  clientPerformance: Array<{
+    surface:string;
+    operation:string;
+    requests:number;
+    failures:number;
+    successRate:number;
+    p50DurationMs:number;
+    p95DurationMs:number;
+  }>;
   recentErrors: Array<Record<string, unknown>>;
   supportTickets: Array<Record<string, unknown>>;
   incidents: OperationsIncident[];

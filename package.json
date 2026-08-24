@@ -9,6 +9,7 @@
   "scripts": {
     "web": "pnpm --filter @together/app web",
     "web:build": "pnpm --filter @together/app web:build",
+    "web:budget": "node scripts/check-web-performance-budget.mjs",
     "typecheck": "pnpm --filter @together/app typecheck && pnpm --filter @together/domain typecheck",
     "test": "pnpm --filter @together/app test && pnpm --filter @together/domain test",
     "lint": "eslint .",

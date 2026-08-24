@@ -264,11 +264,12 @@ serve(async (request, correlationId) => {
     const currentMetadata = (conversation.metadata ?? {}) as Record<string, unknown>;
     const storedPreferences = currentMetadata.chatPreferences;
     const currentPreferences = storedPreferences && typeof storedPreferences === 'object' && !Array.isArray(storedPreferences) ? storedPreferences as Record<string, unknown> : {};
-    const chatPreferences = { ...currentPreferences, responseStyle: input.responseStyle, textSize: input.textSize, ...(input.contentMode !== undefined ? { contentMode: input.contentMode } : {}), ...(input.spiceLevel !== undefined ? { spiceLevel: input.spiceLevel } : {}), ...(voicePreset ? { voicePreset } : {}) };
+    const contentMode=input.contentMode==='standard'?'explicit':input.contentMode;
+    const chatPreferences = { ...currentPreferences, responseStyle: input.responseStyle, textSize: input.textSize, ...(contentMode !== undefined ? { contentMode } : {}), ...(input.spiceLevel !== undefined ? { spiceLevel: input.spiceLevel } : {}), ...(voicePreset ? { voicePreset } : {}) };
     if (input.voicePreset === null) delete chatPreferences.voicePreset;
     const { data, error } = await db.from('together_conversations').update({ title: input.title, metadata: { ...currentMetadata, chatPreferences }, updated_at: new Date().toISOString() }).eq('id', conversation.id).eq('user_id', user.id).select('*').single();
     if (error || !data) throw new AppError('INTERNAL_ERROR', 'Chat settings could not be saved.', 500, true);
-    await track(db, user.id, 'chat_settings_updated', { conversationId: conversation.id, responseStyle: input.responseStyle, textSize: input.textSize, contentMode: input.contentMode, customSpice: input.spiceLevel !== undefined, customVoice: Boolean(voicePreset) });
+    await track(db, user.id, 'chat_settings_updated', { conversationId: conversation.id, responseStyle: input.responseStyle, textSize: input.textSize, contentMode, customSpice: input.spiceLevel !== undefined, customVoice: Boolean(voicePreset) });
     return json({ data, correlationId }, 200, correlationId);
   }
   if (input.action === 'read') {
@@ -287,6 +288,9 @@ serve(async (request, correlationId) => {
     const archive = conversationArchiveFields(now);
     const { data, error } = await db.from('together_conversations').update({ ...archive, updated_at: archive.archived_at }).eq('id', conversation.id).eq('user_id', user.id).is('archived_at', null).select('*').maybeSingle();
     if (error || !data) throw new AppError('CONFLICT', 'This chat is already archived.', 409);
+    if (conversation.kind === 'group') {
+      await db.from('together_dialogue_turns').update({ state:'cancelled',cancelled_at:archive.archived_at,updated_at:archive.archived_at }).eq('conversation_id',conversation.id).in('state',['planning','generating']);
+    }
     await track(db, user.id, 'conversation_archived', { conversationId: conversation.id, requestedAction: input.action, restoreUntil: archive.restore_until });
     return json({ data, correlationId }, 200, correlationId);
   }

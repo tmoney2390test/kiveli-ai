@@ -68,7 +68,7 @@ export function detectContextQueryIntent(message: string): ContextQueryIntent {
 
 export async function buildKivelleConversationContext(input: {
   db: SupabaseClient; userId:string; instance:Row; conversation:Row; userMessage:string;
-  lifeRun:Row; semanticRows?:Row[]; attachments?:Row[]; now?:Date; visibleHistoryFromSequence?:number; visibleSceneSessionId?:string; visibleSceneFromSequence?:number; forceRemoteInteraction?:boolean;
+  lifeRun:Row; semanticRows?:Row[]; attachments?:Row[]; now?:Date; visibleHistoryFromSequence?:number; visibleSceneSessionId?:string; visibleSceneFromSequence?:number; forceRemoteInteraction?:boolean;conversationSceneResolution?:Row;
 }): Promise<KivelleConversationContext> {
   const { db, userId, instance, conversation, userMessage } = input;
   const now = input.now ?? new Date();
@@ -117,7 +117,7 @@ export async function buildKivelleConversationContext(input: {
   const activePlanRow=(plans.data??[]).find((plan:Row)=>['scheduled','active'].includes(String(plan.status))&&plan.starts_at&&plan.ends_at&&new Date(plan.starts_at).getTime()-30*60_000<=now.getTime()&&new Date(plan.ends_at).getTime()>now.getTime()) as Row|undefined;
   const activePlanAttendance=activePlanRow?await db.from('together_plan_attendance').select('id,joined_at').eq('plan_id',activePlanRow.id).eq('user_id',userId).eq('participant_type','user').is('left_at',null).maybeSingle():{data:null};
   const activeDateRow=(dates.data??[]).find((date:Row)=>date.status==='active') as Row|undefined;
-  const sceneResolution=await resolveActiveConversationScene({db,userId,conversation,characterInstanceId:String(instance.id),now});
+  const sceneResolution=input.conversationSceneResolution??await resolveActiveConversationScene({db,userId,conversation,characterInstanceId:String(instance.id),now});
   // Persistent group chat is remote by definition. A companion can have a live
   // one-to-one/shared scene elsewhere without pulling that physical presence into
   // this group's private speaker context.

@@ -9,9 +9,11 @@ pnpm install
 pnpm web
 ```
 
-Public Supabase values have safe project defaults. Copy `.env.example` when overriding them locally. Never add AI keys or Supabase privileged credentials to the Expo environment.
+Copy `.env.example` and provide both public Supabase values before starting the app. Missing configuration fails fast instead of silently connecting a local build to production. Never add AI keys or Supabase privileged credentials to the Expo environment.
 
-Google and Apple login are implemented through Supabase Auth and default off. Configure each provider in Supabase, add the Kivelle web and `together://` callback URLs to its allowlist, then set the matching `EXPO_PUBLIC_KIVELLE_*_AUTH_ENABLED=true` build flag. Provider secrets stay in Supabase/Apple/Google configuration; only the boolean availability flags belong in Expo.
+Google and Apple login are implemented through Supabase Auth. Configure each provider in Supabase, add the Kivelle web and `together://` callback URLs to its allowlist, then set the matching `EXPO_PUBLIC_KIVELLE_*_AUTH_ENABLED=true` build flag. Provider secrets stay in Supabase/Apple/Google configuration; only the boolean availability flags belong in Expo. Production Google is enabled; Apple remains fail-closed until its Supabase provider configuration is complete.
+
+Canonical callbacks are `https://kivelli.app/auth/callback`, `https://kivelli.app/reset-password`, `together://auth/callback`, and `together://reset-password`. Local web uses the same paths on `http://localhost:8082`. All providers route profileless users through `/age-confirmation`; only an explicit confirmation creates `age_verified_at`, and onboarding completion is tracked separately.
 
 For a local visual fixture without creating an account, start with `EXPO_PUBLIC_TOGETHER_DEMO_MODE=true`. The fixture is development-only and cannot activate in a production bundle.
 

@@ -52,6 +52,20 @@ const schema = z.discriminatedUnion("action", [
     buildId: z.string().max(100).default("unknown"),
   }),
   z.object({
+    action: z.literal("report_client_performance"),
+    events: z.array(z.object({
+      surface: z.string().trim().min(1).max(100),
+      operation: z.string().trim().min(1).max(160),
+      durationMs: z.number().int().min(0).max(600000),
+      success: z.boolean(),
+      statusCode: z.number().int().min(100).max(599).optional(),
+      platform: z.string().trim().max(40).optional(),
+      appVersion: z.string().trim().max(40).optional(),
+      buildId: z.string().trim().max(100).optional(),
+      metadata: z.record(z.string(), z.union([z.string().max(120), z.number(), z.boolean(), z.null()])).default({}),
+    })).min(1).max(25),
+  }),
+  z.object({
     action: z.literal("create_support_ticket"),
     category: z.enum([
       "bug",
@@ -212,6 +226,27 @@ serve(async (request, correlationId) => {
       );
     }
     return json({ data: { ok: true }, correlationId }, 200, correlationId);
+  }
+  if (input.action === "report_client_performance") {
+    await enforceRateLimit(db, user.id, "client_performance", 120, 3600);
+    const createdAt = new Date().toISOString();
+    const { error } = await db.from("together_client_performance_events").insert(
+      input.events.map((event) => ({
+        user_id: user.id,
+        surface: event.surface,
+        operation: event.operation,
+        duration_ms: event.durationMs,
+        success: event.success,
+        status_code: event.statusCode ?? null,
+        platform: event.platform ?? null,
+        app_version: event.appVersion ?? null,
+        build_id: event.buildId ?? null,
+        metadata: event.metadata,
+        created_at: createdAt,
+      })),
+    );
+    if (error) throw new AppError("INTERNAL_ERROR", "Performance diagnostics could not be recorded.", 500, true);
+    return json({ data: { accepted: input.events.length }, correlationId }, 202, correlationId);
   }
   if (input.action === "create_support_ticket") {
     await enforceRateLimit(db, user.id, "support_ticket", 8, 86400);

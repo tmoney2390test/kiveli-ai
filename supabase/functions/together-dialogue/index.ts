@@ -148,11 +148,11 @@ Deno.serve(async (request) => {
     const activeScene=(conversation.metadata?.activeScene??{}) as Record<string,any>;
     const extended=await extendScheduleForConversation({db,userId:user.id,characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,scheduleEventId:typeof activeScene.scheduleEventId==='string'?activeScene.scheduleEventId:undefined,now}).catch(()=>null);
     if(extended)await track(db,user.id,'scene_extended_past_schedule_boundary',{characterInstanceId:input.characterInstanceId,scheduleEventId:activeScene.scheduleEventId});
+    const semanticStartedAt=performance.now();
     const queryEmbedding = semanticRecallNeeded(contextText)?await embeddings.embed(contextText,{...usageBase,purpose:'memory_query'}):null;
     const recallThreshold=/\b(remember|forgot|what was|what did we|who is|when did|where did)\b/i.test(contextText)?.48:/\b(last time|before|our first|used to|history)\b/i.test(contextText)?.54:/\b(scene|here|this place|tonight)\b/i.test(contextText)?.58:.60;
     const semanticResult = queryEmbedding ? await db.rpc('together_match_memories_server', { p_user_id:user.id, p_character_instance_id:input.characterInstanceId, p_embedding:queryEmbedding, p_limit:12, p_min_similarity:recallThreshold }) : { data:[], error:null };
-    const refreshedScene=await resolveActiveConversationScene({db,userId:user.id,conversation,characterInstanceId:input.characterInstanceId,now});
-    if(refreshedScene.expired){conversation.metadata=mergeConversationSceneMetadata((conversation.metadata??{}) as Record<string,any>,null);await db.from('together_conversations').update({metadata:conversation.metadata,updated_at:now.toISOString()}).eq('id',conversation.id).eq('user_id',user.id);await track(db,user.id,'scene_expired',{characterInstanceId:input.characterInstanceId});}else if(refreshedScene.scene)conversation.metadata=mergeConversationSceneMetadata((conversation.metadata??{}) as Record<string,any>,refreshedScene.scene);
+    const semanticDurationMs=Math.round(performance.now()-semanticStartedAt);
     // runLifeSimulation may have moved the character after the conversation
     // query loaded its nested instance. Carry its freshly resolved passive
     // state forward so a pre-simulation row can never reclaim present reality.
@@ -165,7 +165,9 @@ Deno.serve(async (request) => {
       current_interruptibility:freshLifeState.interruptibility??presence.interruptibility??instance.current_interruptibility,
       current_presence_source:(lifeRun as Record<string,unknown>).stateSource??instance.current_presence_source,
     };
-    let dialogueContext = await buildKivelleConversationContext({ db, userId:user.id, instance:currentInstance, conversation, userMessage:contextText, lifeRun, semanticRows:semanticResult.data??[], attachments, now,correlationId });
+    const contextStartedAt=performance.now();
+    let dialogueContext = await buildKivelleConversationContext({ db, userId:user.id, instance:currentInstance, conversation, userMessage:contextText, lifeRun, semanticRows:semanticResult.data??[], attachments, now,correlationId,conversationSceneResolution:sceneResolution });
+    console.log(JSON.stringify({level:'info',correlationId,operation:'dialogue_preflight',semanticDurationMs,contextDurationMs:Math.round(performance.now()-contextStartedAt),semanticRecall:Boolean(queryEmbedding),queryIntent:dialogueContext.queryIntent}));
     (dialogueContext as Record<string,unknown>).conversation=conversation;
     (dialogueContext as Record<string,unknown>).conversationId=String(conversation.id);
     dialogueContext.photoRequest=photoIntent.requested;

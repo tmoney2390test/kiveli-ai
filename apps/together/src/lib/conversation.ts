@@ -22,6 +22,15 @@ export function mergeOlderMessages(olderDescending: Message[], currentChronologi
   return [...olderDescending].reverse().filter((message) => !currentIds.has(message.id)).concat(currentChronological);
 }
 
+export function mostRecentlyMessagedConversation(conversations: Conversation[]): Conversation | undefined {
+  return conversations
+    .filter((conversation) => isActiveConversation(conversation) && Boolean(conversation.last_message_at))
+    .reduce<Conversation | undefined>((latest, conversation) => {
+      if (!latest) return conversation;
+      return conversationActivityTime(conversation) > conversationActivityTime(latest) ? conversation : latest;
+    }, undefined);
+}
+
 export function scopedConversationMessages(messages: Message[], conversationId: string, loadedConversationId: string | null, loading: boolean): Message[] {
   if (loading || loadedConversationId !== conversationId) return [];
   return messages.filter((message) => message.conversation_id === conversationId);

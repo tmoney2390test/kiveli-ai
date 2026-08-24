@@ -10,6 +10,7 @@ describe('social authentication foundation',()=>{
   it('parses PKCE callbacks without trusting unrelated URL state',()=>{
     expect(parseOAuthCallbackUrl('together://auth/callback?code=abc123')).toEqual({code:'abc123'});
     expect(parseOAuthCallbackUrl('together://auth/callback?error_description=Access%20denied')).toEqual({error:'Access denied'});
+    expect(parseOAuthCallbackUrl('not a callback')).toEqual({error:'The sign-in callback was invalid.'});
   });
 
   it('presents missing provider configuration clearly',()=>{

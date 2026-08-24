@@ -1,4 +1,5 @@
 const PUBLIC_PATHS = new Set(['/', '/auth', '/auth/callback', '/reset-password', '/terms', '/privacy-policy', '/community-guidelines', '/help']);
+const ONBOARDING_PATHS = new Set(['/age-confirmation', '/choose-companion']);
 
 export function isPublicAppPath(pathname: string) {
   return PUBLIC_PATHS.has(normalizePathname(pathname));
@@ -6,15 +7,33 @@ export function isPublicAppPath(pathname: string) {
 
 export function isLifeSetupPath(pathname: string) {
   const normalized = normalizePathname(pathname);
-  return normalized === '/choose-companion' || normalized === '/create/companion';
+  return ONBOARDING_PATHS.has(normalized) || normalized === '/create/companion';
+}
+
+export function isAgeConfirmationPath(pathname: string) {
+  return normalizePathname(pathname) === '/age-confirmation';
+}
+
+export function isCompanionOnboardingPath(pathname: string) {
+  return normalizePathname(pathname) === '/choose-companion';
 }
 
 export function safeAppReturnPath(value?: string | string[] | null) {
   const candidate = Array.isArray(value) ? value[0] : value;
   if (!candidate || !candidate.startsWith('/') || candidate.startsWith('//')) return null;
   if (/[\r\n\\]/.test(candidate)) return null;
-  const pathname = normalizePathname(candidate.split(/[?#]/, 1)[0] ?? candidate);
-  return isPublicAppPath(pathname) ? null : candidate;
+  let decoded = candidate;
+  try {
+    for (let depth = 0; depth < 3; depth += 1) {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      decoded = next;
+    }
+  } catch { return null; }
+  if (!decoded.startsWith('/') || decoded.startsWith('//') || /[\r\n\\]/.test(decoded)) return null;
+  const pathname = normalizePathname(decoded.split(/[?#]/, 1)[0] ?? decoded).toLowerCase();
+  if (isPublicAppPath(pathname) || ONBOARDING_PATHS.has(pathname) || pathname.startsWith('/auth/')) return null;
+  return candidate;
 }
 
 export function signInPathFor(pathname: string) {

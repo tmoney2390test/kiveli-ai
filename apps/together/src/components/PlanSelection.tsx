@@ -27,6 +27,7 @@ type Props = {
   pluralCompanions?: boolean;
   participants?: CharacterInstance[];
   plannerWorldId?: string | null;
+  plannerConversationId?: string | null;
   hideViewAllPlaces?: boolean;
   busy: boolean;
   error?: string;
@@ -35,7 +36,7 @@ type Props = {
 };
 
 /** Every planning entry point deliberately shares the same three timing choices. */
-export function PlanSelection({ snapshot, character, scopedLocationId, currentLocationId, initialActivityKey, repeatPlanId, proposal, initialTimingChoice, mode='create', currentPlan, interests, companionLabel, pluralCompanions=false, participants, plannerWorldId, hideViewAllPlaces=false, busy, error, onPlan, onClose }: Props) {
+export function PlanSelection({ snapshot, character, scopedLocationId, currentLocationId, initialActivityKey, repeatPlanId, proposal, initialTimingChoice, mode='create', currentPlan, interests, companionLabel, pluralCompanions=false, participants, plannerWorldId, plannerConversationId, hideViewAllPlaces=false, busy, error, onPlan, onClose }: Props) {
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [selectedDateTime, setSelectedDateTime] = useState<string | null>(null);
   const [timingChoice, setTimingChoice] = useState<PlanTimingChoice | null>(mode==='switch'?'now':initialTimingChoice??null);
@@ -175,7 +176,13 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
     carousel.current?.scrollTo({ x: index * (heroCardWidth + 12), animated: true });
   };
   const moveHero = (direction: -1 | 1) => selectHero(Math.min(Math.max(activeHeroIndex + direction, 0), Math.max(heroOptions.length - 1, 0)));
-  const viewAllPlaces = () => { if (selectedWorld) router.push(`/world/places?world=${selectedWorld.slug}&character=${encodeURIComponent(character.id)}&planning=1` as never); };
+  const viewAllPlaces = () => {
+    if (!selectedWorld) return;
+    const groupQuery = plannerConversationId
+      ? `&group=${encodeURIComponent(plannerConversationId)}`
+      : "";
+    router.push(`/world/places?world=${selectedWorld.slug}&character=${encodeURIComponent(character.id)}&planning=1${groupQuery}` as never);
+  };
   const confirm = () => { if(!choice||!timingChoice)return;if(timingChoice==='custom'){if(selectedDateTime)onPlan(choice,{choice:'custom',startsAt:selectedDateTime});return;}onPlan(choice,{choice:timingChoice}); };
   const companionName = companionLabel?.trim() || character.together_character_templates.name;
   const availability = pluralCompanions ? 'Check everyone below' : availabilityCopy(character);

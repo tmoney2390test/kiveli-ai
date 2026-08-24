@@ -29,7 +29,7 @@ Deno.serve(async(request)=>{
       db.from('together_messages').select('id,role,content,created_at,provider_metadata').eq('conversation_id',input.conversationId).eq('user_id',user.id).order('created_at',{ascending:false}).limit(1).maybeSingle(),
       db.from('together_relationship_milestones').select('id').eq('user_id',user.id).eq('character_instance_id',input.characterInstanceId).eq('status','pending').maybeSingle(),
       db.from('together_entitlements').select('tier,expires_at').eq('user_id',user.id).maybeSingle(),
-      db.from('together_profiles').select('content_preferences').eq('user_id',user.id).maybeSingle(),
+      db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id',user.id).maybeSingle(),
     ]);
     if(!conversation)throw new AppError('NOT_FOUND','That conversation is unavailable.',404);
     const active=await getActiveConversation(db,user.id,input.characterInstanceId);

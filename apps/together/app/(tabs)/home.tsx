@@ -17,7 +17,7 @@ import { buildHomeViewModel, mostRecentHomeCompanion, type HomeTargetAction, typ
 import { getCompanionMedia, getMemoryPresentation, getRelationshipPresentation, getWorldHook, selectFeaturedMemory } from '../../src/lib/homePresentation';
 import { locationHeroAsset } from '../../src/assets';
 import { selectPortraitVersion } from '../../src/lib/selectors';
-import { featuredCompanionsForWorld } from '../../src/lib/featuredCompanions';
+import { featuredCompanionsForWorld, type FeaturedCompanion } from '../../src/lib/featuredCompanions';
 import { homeWorldDiscoveryOptions } from '../../src/lib/homeWorldDiscovery';
 import type { Snapshot } from '../../src/types';
 import { useSubscriptionStatus } from '../../src/hooks/useSubscriptionStatus';
@@ -34,21 +34,42 @@ export default function Home() {
   const homeCompanionId=homeCompanion?.id;
 
   const simulationStale=!homeCompanion||Date.now()-new Date(homeCompanion.last_simulated_at).getTime()>2*60000||!(snapshot?.scheduleEvents??[]).some((item)=>item.character_instance_id===homeCompanionId&&new Date(item.ends_at)>new Date());
-  useEffect(()=>{if(!homeCompanionId||!simulationStale)return;let cancelled=false;void simulate(homeCompanionId).then(()=>cancelled?undefined:refresh()).catch(()=>undefined);return()=>{cancelled=true;};},[homeCompanionId,refresh,simulationStale]);
+  useEffect(()=>{if(!homeCompanionId||!simulationStale)return;let cancelled=false;void simulate(homeCompanionId).then(()=>cancelled?undefined:refresh({scope:'presence',characterInstanceId:homeCompanionId})).catch(()=>undefined);return()=>{cancelled=true;};},[homeCompanionId,refresh,simulationStale]);
 
   if (loading && !snapshot) return <CinematicHomeLoading />;
   if (error && !snapshot) return <HomeError message={error} onRetry={() => void refresh()} />;
   if (!snapshot) return <EmptyState title="Opening your world" body="Your companion and first conversation are being prepared automatically." />;
 
+  const publishedWorlds=snapshot.worlds.filter((world)=>world.published);
+  const fallbackWorld=publishedWorlds.find((world)=>world.id===browsedWorldId)??publishedWorlds[0];
+  const toggleFavorite = async (item: FeaturedCompanion, favorite: boolean) => {
+    const previous = snapshot.favoriteCharacterTemplateIds ?? [];
+    const optimistic = favorite ? [...new Set([...previous, item.id])] : previous.filter((id) => id !== item.id);
+    setCoreState({ favoriteCharacterTemplateIds: optimistic });
+    try {
+      const result = await setCharacterFavorite(item.id, favorite, 'home_featured');
+      setCoreState({ favoriteCharacterTemplateIds: result.favoriteCharacterTemplateIds });
+    } catch (favoriteError) {
+      setCoreState({ favoriteCharacterTemplateIds: previous });
+      throw favoriteError;
+    }
+  };
   const model = buildHomeViewModel(snapshot);
-  if (!model) return <Screen contentStyle={styles.emptyLife}><EmptyState title="Start a conversation" body="Home follows your most recently active chat. Meet someone new or continue a conversation to bring it here." /><GradientButton label="Open conversations" onPress={() => router.push('/(tabs)/chat-tab')} /></Screen>;
+  if (!model) {
+    const featuredCompanions=fallbackWorld?featuredCompanionsForWorld(snapshot,fallbackWorld.id):[];
+    return <Screen contentStyle={desktop?styles.contentDesktop:styles.content}>
+      <View pointerEvents="none" style={styles.ambientGlow}/>
+      {!desktop?<HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name??snapshot.profile?.display_name??'You'} onCredits={()=>router.push('/subscription')} onProfile={()=>router.push('/settings')}/>:null}
+      <View style={styles.emptyLife}><Text accessibilityRole="header" style={styles.emptyLifeTitle}>Start a conversation</Text><GradientButton label="Explore" onPress={()=>router.push('/(tabs)/explore')}/></View>
+      {fallbackWorld?<FeaturedCompanionsSection companions={featuredCompanions} world={fallbackWorld} worlds={publishedWorlds} favoriteIds={snapshot.favoriteCharacterTemplateIds??[]} onOpen={(item)=>router.push(`/character/${item.public_handle??item.slug}`)} onViewAll={()=>{setBrowsedWorldId(fallbackWorld.id);router.push(`/(tabs)/singles?world=${fallbackWorld.slug}`);}} onSelectWorld={setBrowsedWorldId} onToggleFavorite={toggleFavorite}/>:null}
+    </Screen>;
+  }
 
   const { companion } = model;
   const template = companion.together_character_templates;
   const handle = template.public_handle ?? template.slug;
   const portraitVersion = selectPortraitVersion(snapshot, companion);
   const portraitSource = resolveCharacterPortraitSource(template, portraitVersion, template.slug);
-  const publishedWorlds=snapshot.worlds.filter((world)=>world.published);
   const selectedWorld = publishedWorlds.find((world) => world.id === browsedWorldId) ?? model.currentWorld ?? publishedWorlds[0];
   const featuredCompanions = selectedWorld ? featuredCompanionsForWorld(snapshot, selectedWorld.id, template.id) : [];
   const discoveryWorlds=homeWorldDiscoveryOptions(snapshot.worlds,model.currentWorld?.id);
@@ -62,7 +83,8 @@ export default function Home() {
     return record?.location_id === upcomingLocation?.id;
   });
   const upcomingSource = nearbyMedia ? { uri: nearbyMedia.thumbnailUrl ?? nearbyMedia.url } : locationHeroAsset(upcomingWorld?.slug, upcomingLocation?.slug);
-  const timelineTitle = currentDaypart(snapshot) === 'evening' || currentDaypart(snapshot) === 'night' ? 'Tonight' : 'Today';
+  const companionFirstName = template.name.trim().split(/\s+/)[0] || template.name;
+  const timelineTitle = `${companionFirstName}'s Day`;
   const wideCards = width >= 760;
 
   const openCompanion = async (proactiveMessageId?: string) => {
@@ -85,19 +107,6 @@ export default function Home() {
     }
     if (item.kind === 'event') router.push(`/(tabs)/chat-tab?character=${encodeURIComponent(handle)}`);
   };
-  const toggleFavorite = async (item: typeof featuredCompanions[number], favorite: boolean) => {
-    const previous = snapshot.favoriteCharacterTemplateIds ?? [];
-    const optimistic = favorite ? [...new Set([...previous, item.id])] : previous.filter((id) => id !== item.id);
-    setCoreState({ favoriteCharacterTemplateIds: optimistic });
-    try {
-      const result = await setCharacterFavorite(item.id, favorite, 'home_featured');
-      setCoreState({ favoriteCharacterTemplateIds: result.favoriteCharacterTemplateIds });
-    } catch (favoriteError) {
-      setCoreState({ favoriteCharacterTemplateIds: previous });
-      throw favoriteError;
-    }
-  };
-
   return <Screen contentStyle={desktop ? styles.contentDesktop : styles.content}>
     <View pointerEvents="none" style={styles.ambientGlow} />
     {!desktop ? <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push('/subscription')} onProfile={() => router.push('/settings')} /> : null}
@@ -119,12 +128,6 @@ function resolveUpcomingLocation(snapshot: Snapshot, action: HomeTargetAction) {
   return undefined;
 }
 
-function currentDaypart(snapshot: Snapshot) {
-  if (snapshot.currentPlaceContext?.clock.daypart) return snapshot.currentPlaceContext.clock.daypart.toLowerCase();
-  const hour = new Date().getHours();
-  return hour >= 18 ? 'evening' : hour < 6 ? 'night' : hour < 12 ? 'morning' : 'afternoon';
-}
-
 function CinematicHomeLoading() {
   return <Screen contentStyle={styles.content}><View style={styles.loadingHeader}><View style={styles.loadingBrand} /><View style={styles.loadingChip} /></View><View style={styles.loadingHero}><View style={styles.loadingGlow} /><View style={styles.loadingCopy}><View style={styles.loadingEyebrow} /><View style={styles.loadingTitle} /><View style={styles.loadingLine} /><View style={styles.loadingButton} /></View></View><View style={styles.loadingSectionTitle} /><View style={styles.loadingRail}>{[0, 1, 2].map((item) => <View key={item} style={styles.loadingMedia} />)}</View></Screen>;
 }
@@ -140,7 +143,8 @@ const styles = StyleSheet.create({
   heroPair:{flexDirection:'row',alignItems:'stretch',gap:14},
   heroPairStack:{flexDirection:'column'},
   heroPane:{flex:1,minWidth:0},
-  emptyLife: { flex: 1, justifyContent: 'center', gap: spacing.lg },
+  emptyLife: { gap: spacing.md, paddingVertical: spacing.lg },
+  emptyLifeTitle: { color: colors.text, fontFamily: typography.display, fontSize: 36, lineHeight: 42, fontWeight: '600' },
   moments: { gap: 13 },
   momentsTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { color: colors.text, fontFamily: typography.display, fontSize: 30, fontWeight: '600', letterSpacing: -.5 },

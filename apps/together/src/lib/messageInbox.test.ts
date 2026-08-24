@@ -164,6 +164,56 @@ describe("message inbox presentation", () => {
     ).toBe("group-chat");
   });
 
+  it("lets an explicit group favorite override member favorites", () => {
+    const baseGroup = {
+        ...conversation(
+          "group-chat",
+          "maya",
+          "2026-08-18T15:00:00.000Z",
+          "Hello group",
+        ),
+        kind: "group",
+        title: "Maya & Chloe",
+      },
+      detail = {
+        conversation: baseGroup,
+        participants: characters.map((item, index) => ({
+          id: `participant-${index}`,
+          character_instance_id: item.id,
+          together_character_instances: item,
+        })),
+        messages: [],
+        reactions: [],
+        generatedMedia: [],
+        mediaOffers: [],
+        settings: { responseMode: "automatic", energy: "balanced" },
+      } as unknown as GroupDetail;
+    const favorited = {
+        ...baseGroup,
+        metadata: { favorite: true },
+      },
+      notFavorited = {
+        ...baseGroup,
+        metadata: { favorite: false },
+      };
+    expect(buildInboxRows(
+      [favorited],
+      characters,
+      [],
+      "",
+      "favorites",
+      [{ ...detail, conversation: favorited }],
+    )).toHaveLength(1);
+    expect(buildInboxRows(
+      [notFavorited],
+      characters,
+      ["maya-template"],
+      "",
+      "favorites",
+      [{ ...detail, conversation: notFavorited }],
+    )).toHaveLength(0);
+  });
+
   it("filters favorites and searches names or previews", () => {
     expect(
       buildInboxRows(
@@ -249,6 +299,11 @@ describe("message inbox presentation", () => {
 
   it("forwards existing chat intents while leaving a plain tab visit in the inbox", () => {
     expect(chatHrefFromInboxParams({})).toBeNull();
+    expect(chatHrefFromInboxParams({
+      inbox: "1",
+      character: "maya",
+      plan: "1",
+    })).toBeNull();
     expect(
       chatHrefFromInboxParams({
         character: "maya",

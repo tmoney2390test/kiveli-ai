@@ -6,9 +6,12 @@ import { ArrowLeft, ArrowUpRight, CalendarDays, LockKeyhole, Palmtree, Plus, Spa
 import { EmptyState, LoadingSkeleton, PageTitle, Screen, SectionHeader, SpiceBadge } from '../../src/components';
 import { CompanionGenderToggle, useCompanionGenderPreference } from '../../src/components/CompanionGenderToggle';
 import { CompanionPortraitCard } from '../../src/components/CompanionPortraitCard';
+import { CompanionWorldToggle } from '../../src/components/CompanionWorldToggle';
 import { listCreatorDrafts, setCharacterFavorite } from '../../src/lib/api';
 import { companionGenderFromSignals, featuredCompanionGender, type FeaturedGenderFilter } from '../../src/lib/featuredCompanions';
 import { characterCatalogForWorld } from '../../src/lib/place';
+import { responsiveCompanionGrid } from '../../src/lib/responsiveCompanionGrid';
+import { useAppShell } from '../../src/shell/AppShellContext';
 import { useTogether } from '../../src/store/useTogether';
 import { colors, radius } from '../../src/theme';
 import type { CreatorDraft, Snapshot } from '../../src/types';
@@ -18,7 +21,7 @@ const stageOrder = ['stranger', 'acquaintance', 'friend', 'flirting', 'dating', 
 const creatorSteps = ['identity', 'appearance', 'personality', 'life', 'connection', 'meeting', 'review'] as const;
 
 export default function Discover() {
-  const snapshot = useTogether((state) => state.snapshot);
+  const { snapshot, browsedWorldId, setBrowsedWorldId } = useTogether();
   const { world: worldSlug } = useLocalSearchParams<{world?: string}>();
   const [tab, setTab] = useState<Tab>('People');
   const [gender, setGender] = useCompanionGenderPreference();
@@ -39,10 +42,23 @@ export default function Discover() {
 
   useEffect(() => { void loadDrafts(); }, [loadDrafts]);
 
+  const publishedWorlds = snapshot?.worlds.filter((world) => world.published) ?? [];
+  const requestedWorld = worldSlug ? publishedWorlds.find((world) => world.slug === worldSlug) : undefined;
+  const selectedWorld = requestedWorld ?? publishedWorlds.find((world) => world.id === browsedWorldId) ?? publishedWorlds[0];
+  useEffect(() => {
+    if (selectedWorld && selectedWorld.id !== browsedWorldId) setBrowsedWorldId(selectedWorld.id);
+  }, [browsedWorldId, selectedWorld?.id, setBrowsedWorldId]);
+
   if (!snapshot) return <LoadingSkeleton label="Curating people and experiences…" />;
-  const selectedWorld = worldSlug ? snapshot.worlds.find((world) => world.slug === worldSlug) : undefined;
-  if (worldSlug && !selectedWorld) return <EmptyState title="That world is unavailable" body="Choose a published world from Explore to meet its residents." />;
-  return <Screen>
+  if (worldSlug && !requestedWorld) return <EmptyState title="That world is unavailable" body="Choose a published world from Explore to meet its residents." />;
+  if (!selectedWorld) return <EmptyState title="No worlds are available" body="Published worlds will appear here as soon as they are ready." />;
+  const chooseWorld = (worldId: string) => {
+    const world = publishedWorlds.find((item) => item.id === worldId);
+    if (!world) return;
+    setBrowsedWorldId(world.id);
+    router.setParams({ world: world.slug });
+  };
+  return <Screen contentStyle={styles.content}>
     {selectedWorld ? <Pressable accessibilityRole="button" accessibilityLabel={`Back to Explore in ${selectedWorld.name}`} onPress={() => router.replace(`/(tabs)/explore?world=${selectedWorld.slug}` as never)} style={({ pressed }) => [styles.backToExplore, pressed && styles.backToExplorePressed]}><ArrowLeft size={17} color={colors.rose} /><Text style={styles.backToExploreText}>Back to Explore</Text></Pressable> : null}
     <View>
       <PageTitle>Discover</PageTitle>
@@ -60,23 +76,24 @@ export default function Discover() {
       {(['People', 'Experiences'] as const).map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} onPress={() => setTab(item)} style={[styles.tab, tab === item && styles.tabSelected]}><Text style={[styles.tabText, tab === item && styles.tabTextSelected]}>{item}</Text></Pressable>)}
     </View>
     {tab === 'People'
-      ? <><CompanionGenderToggle value={gender} onChange={setGender} /><People snapshot={snapshot} drafts={drafts} draftsLoading={draftsLoading} worldId={selectedWorld?.id} gender={gender} /></>
+      ? <><View style={styles.filters}><CompanionGenderToggle value={gender} onChange={setGender} /><CompanionWorldToggle worlds={publishedWorlds} value={selectedWorld.id} onChange={chooseWorld} /></View><People snapshot={snapshot} drafts={drafts} draftsLoading={draftsLoading} worldId={selectedWorld.id} gender={gender} /></>
       : <Experiences snapshot={snapshot} />}
   </Screen>;
 }
 
 function People({ snapshot, drafts, draftsLoading, worldId, gender }: { snapshot: Snapshot; drafts: CreatorDraft[]; draftsLoading: boolean; worldId?: string; gender: FeaturedGenderFilter }) {
   const { width } = useWindowDimensions();
+  const { desktop, sidebarWidth } = useAppShell();
+  const [visibleOfficialCount,setVisibleOfficialCount]=useState(12);
   const legacyDraftIds = useMemo(() => new Set(drafts.map((draft) => draft.legacy_template_id).filter(Boolean)), [drafts]);
   const worldCharacterIds = useMemo(() => worldId ? new Set(characterCatalogForWorld(snapshot, worldId).map((entry) => entry.template.id)) : null, [snapshot, worldId]);
   const worldDrafts = worldId ? drafts.filter((draft) => draft.world_id === worldId) : drafts;
   const visibleDrafts = worldDrafts.filter((draft) => gender === 'any' || companionGenderFromSignals(draft.identity_config.pronouns, draft.identity_config.biography, draft.appearance_config) === gender);
   const creations = (snapshot.discoverableCharacters ?? []).filter((item) => Boolean(item.creator_id) && !legacyDraftIds.has(item.id) && (!worldCharacterIds || worldCharacterIds.has(item.id))).filter((item) => gender === 'any' || featuredCompanionGender(item) === gender);
   const official = (snapshot.discoverableCharacters ?? []).filter((item) => !item.creator_id && (!worldCharacterIds || worldCharacterIds.has(item.id))).filter((item) => gender === 'any' || featuredCompanionGender(item) === gender);
-  const contentWidth = Math.max(280, Math.min(width, 840) - 40);
-  const columns = width >= 720 ? 2 : 1;
-  const cardWidth = Math.floor((contentWidth - (columns - 1) * 12) / columns);
-  const cardHeight = columns === 2 ? 430 : Math.max(410, Math.min(480, Math.round(cardWidth * 1.24)));
+  useEffect(()=>setVisibleOfficialCount(12),[gender,worldId]);
+  const visibleOfficial=official.slice(0,visibleOfficialCount);
+  const { cardWidth, cardHeight } = responsiveCompanionGrid({ viewportWidth: width, desktop, sidebarWidth });
   if (!official.length && !creations.length && !visibleDrafts.length && !draftsLoading) {
     const worldName = snapshot.worlds.find((world) => world.id === worldId)?.name;
     return <EmptyState title={gender === 'any' ? 'New people are on the way' : `No ${gender} companions here yet`} body={gender === 'any' ? 'Your current relationships are still waiting on Home.' : `Try Any to see everyone${worldName ? ` available in ${worldName}` : ''}.`} />;
@@ -91,7 +108,8 @@ function People({ snapshot, drafts, draftsLoading, worldId, gender }: { snapshot
       </View>
     </> : null}
     <SectionHeader title="People you might connect with" />
-    <View style={styles.peopleGrid}>{official.map((template) => <Person key={template.id} template={template} snapshot={snapshot} width={cardWidth} height={cardHeight} />)}</View>
+    <View style={styles.peopleGrid}>{visibleOfficial.map((template) => <Person key={template.id} template={template} snapshot={snapshot} width={cardWidth} height={cardHeight} />)}</View>
+    {visibleOfficialCount<official.length?<Pressable accessibilityRole="button" onPress={()=>setVisibleOfficialCount((value)=>Math.min(official.length,value+12))} style={styles.loadMore}><Text style={styles.loadMoreText}>Show more people</Text></Pressable>:null}
   </>;
 }
 
@@ -172,6 +190,7 @@ function Experiences({ snapshot }: { snapshot: Snapshot }) {
 }
 
 const styles = StyleSheet.create({
+  content: { paddingTop: 22 },
   backToExplore: { alignSelf: 'flex-start', minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.borderBright, backgroundColor: colors.surface },
   backToExplorePressed: { opacity: .72, transform: [{ scale: .98 }] },
   backToExploreText: { color: colors.rose, fontSize: 11, fontWeight: '900' },
@@ -179,9 +198,11 @@ const styles = StyleSheet.create({
   create: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: radius.lg, backgroundColor: colors.violet },
   createTitle: { color: '#fff', fontFamily: 'Georgia', fontSize: 20 }, createCopy: { color: 'rgba(255,255,255,.78)', fontSize: 11, marginTop: 2 },
   tabs: { flexDirection: 'row', gap: 7, padding: 4, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  filters: { flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, zIndex: 30 },
   tab: { flex: 1, minHeight: 40, justifyContent: 'center', alignItems: 'center', borderRadius: radius.sm }, tabSelected: { backgroundColor: colors.rose }, tabText: { color: colors.muted, fontSize: 12, fontWeight: '800' }, tabTextSelected: { color: '#fff' },
   stack: { gap: 10 }, person: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 13, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   peopleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }, personName: { flex:1,fontFamily: 'Georgia', fontSize: 21, color: colors.text }, personMeta: { color: colors.rose, fontSize: 11, fontWeight: '700', marginTop: 2 }, summary: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 5 }, action: { color: colors.rose, fontSize: 11, fontWeight: '900', marginTop: 7 },
+  loadMore:{alignSelf:'center',minHeight:42,justifyContent:'center',paddingHorizontal:18,borderRadius:radius.pill,backgroundColor:'rgba(216,62,234,.08)',borderWidth:1,borderColor:colors.border},loadMoreText:{color:colors.rose,fontSize:11,fontWeight:'900'},
   draftPortrait: { width: 76, height: 90, borderRadius: radius.md, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.elevated }, draftBadge: { position: 'absolute', left: 5, bottom: 5, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8, backgroundColor: 'rgba(8,11,19,.82)' }, draftBadgeText: { color: '#fff', fontSize: 7, fontWeight: '900', letterSpacing: .7 },
   progressTrack: { height: 3, marginTop: 9, borderRadius: 2, overflow: 'hidden', backgroundColor: colors.border }, progressFill: { height: 3, backgroundColor: colors.rose }, progressMeta: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }, stepCopy: { color: colors.dimmed, fontSize: 8, textTransform: 'capitalize' },
   skeleton: { opacity: .65 }, skeletonLine: { height: 9, borderRadius: 5, backgroundColor: colors.elevated },

@@ -452,6 +452,18 @@ function Overview(
           ))}
         </Panel>
       </View>
+      <Panel
+        title="Client surface performance"
+        hint="Measured end-to-end on real app requests; no message or prompt content is collected."
+      >
+        {data.clientPerformance.slice(0,12).map((surface)=><View key={`${surface.surface}:${surface.operation}`} style={styles.providerRow}>
+          <View style={{flex:1}}><Text style={styles.recordTitle}>{surface.surface}</Text><Text style={styles.recordMeta}>{surface.operation} · {surface.requests} requests · {surface.failures} failed</Text></View>
+          <Text style={surface.successRate<.95?styles.badValue:styles.goodValue}>{(surface.successRate*100).toFixed(1)}%</Text>
+          <Text style={styles.providerMetric}>p50 {duration(surface.p50DurationMs/1000)}</Text>
+          <Text style={styles.providerMetric}>p95 {duration(surface.p95DurationMs/1000)}</Text>
+        </View>)}
+        {!data.clientPerformance.length?<Text style={styles.muted}>Client timing samples will appear after the instrumented app reaches users.</Text>:null}
+      </Panel>
     </>
   );
 }

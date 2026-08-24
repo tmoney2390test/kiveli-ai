@@ -16,8 +16,8 @@ enabled = true
 
 [auth]
 enabled = true
-site_url = "http://localhost:8082"
-additional_redirect_urls = ["together://auth/callback", "together://auth/reset-password", "https://ttutten-together.expo.app/auth/callback", "https://ttutten-together.expo.app/reset-password", "http://localhost:8082/auth/callback", "http://localhost:8082/reset-password"]
+site_url = "https://kivelli.app"
+additional_redirect_urls = ["together://auth/callback", "together://reset-password", "https://kivelli.app/auth/callback", "https://kivelli.app/reset-password", "https://ttutten-together.expo.app/auth/callback", "https://ttutten-together.expo.app/reset-password", "http://localhost:8082/auth/callback", "http://localhost:8082/reset-password"]
 enable_signup = true
 
 [auth.email]

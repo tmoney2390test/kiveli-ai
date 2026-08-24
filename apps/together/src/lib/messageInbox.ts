@@ -12,6 +12,7 @@ export type InboxRow = {
   group?: GroupDetail;
 };
 export type ChatLaunchParams = {
+  inbox?: string;
   compose?: string;
   character?: string;
   plan?: string;
@@ -22,6 +23,12 @@ export type ChatLaunchParams = {
   planId?: string;
   repeatPlanId?: string;
 };
+
+/**
+ * A deliberate inbox destination. The sentinel prevents stale launch params
+ * from reopening the conversation that the user just left.
+ */
+export const MESSAGES_INBOX_HREF = "/chat-tab?inbox=1";
 
 const chatLaunchKeys = [
   "character",
@@ -37,6 +44,7 @@ const chatLaunchKeys = [
 export function chatHrefFromInboxParams(
   params: ChatLaunchParams,
 ): string | null {
+  if (params.inbox === "1") return null;
   const entries = chatLaunchKeys.flatMap((key) =>
     params[key] ? [[key, params[key]] as const] : []
   );
@@ -104,16 +112,19 @@ export function buildInboxRows(
       row.character !== undefined &&
       (row.conversation.kind !== "group" || row.group !== undefined)
     )
-    .filter(({ character, group }) => {
+    .filter(({ conversation, character, group }) => {
       if (filter === "all") return true;
       if (filter === "groups") return Boolean(group);
-      return group
-        ? group.participants.some((participant) =>
+      if (group) {
+        const explicitFavorite = conversation.metadata?.favorite;
+        if (typeof explicitFavorite === "boolean") return explicitFavorite;
+        return group.participants.some((participant) =>
           favorites.has(
             participant.together_character_instances.character_template_id,
           )
-        )
-        : favorites.has(character.character_template_id);
+        );
+      }
+      return favorites.has(character.character_template_id);
     })
     .filter(({ conversation, character, group }) => {
       if (!normalizedQuery) return true;

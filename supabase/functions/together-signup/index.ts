@@ -1,6 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { adminClient, enforceRateLimit, serverEnv } from '../_shared/context.ts';
+import { adminClient, enforceRateLimit } from '../_shared/context.ts';
 import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
@@ -18,40 +17,28 @@ serve(async (request, correlationId) => {
   await enforceRateLimit(db, await fingerprint(`ip:${forwarded}`), 'together_public_signup', 20, 3600);
   await enforceRateLimit(db, await fingerprint(`email:${input.email}`), 'together_public_signup_email', 5, 3600);
 
-  // A successful password grant proves this is an existing confirmed account.
-  const publicAuth = createClient(serverEnv('SUPABASE_URL'), serverEnv('SUPABASE_ANON_KEY'), { auth: { persistSession: false, autoRefreshToken: false } });
-  const existingSession = await publicAuth.auth.signInWithPassword(input);
-  if (existingSession.data.session) return json({ data: { ready: true, existing: true }, correlationId }, 200, correlationId);
+  // This Supabase project has a global auto-confirm policy for another app.
+  // Kivelle creates password users explicitly unconfirmed; the client then
+  // requests a PKCE email magic link with shouldCreateUser=false so the verifier
+  // remains on that device and clicking the link proves ownership.
+  // Never repair, confirm, or replace a password for an existing email here.
+  const { error } = await db.auth.admin.createUser({
+    email: input.email,
+    password: input.password,
+    email_confirm: false,
+    user_metadata: { signup_app: 'together' },
+  });
 
-  // GoTrue validates the password before returning email_not_confirmed. This lets
-  // Together repair accounts created by its previous confirmation-based flow
-  // without weakening Jukestr's project-wide signup policy.
-  if (existingSession.error?.code === 'email_not_confirmed') {
-    const user = await findUserByEmail(input.email);
-    if (!user) throw new AppError('CONFLICT', 'This account could not be prepared for Together.', 409);
-    const { error } = await db.auth.admin.updateUserById(user.id, { email_confirm: true, user_metadata: { ...user.user_metadata, signup_app: 'together' } });
-    if (error) throw new AppError('INTERNAL_ERROR', 'This account could not be prepared for Together.', 500, true);
-    return json({ data: { ready: true, existing: true }, correlationId }, 200, correlationId);
+  if (error && !isDuplicateUser(error.message)) {
+    throw new AppError('INTERNAL_ERROR', 'Your Kivelle account could not be created.', 500, true);
   }
 
-  const { error } = await db.auth.admin.createUser({ email: input.email, password: input.password, email_confirm: true, user_metadata: { signup_app: 'together' } });
-  if (error) {
-    const duplicate = /already|registered|exists/i.test(error.message);
-    throw new AppError(duplicate ? 'CONFLICT' : 'INTERNAL_ERROR', duplicate ? 'An account with this email already exists. Sign in instead.' : 'Your Together account could not be created.', duplicate ? 409 : 500, !duplicate);
-  }
-  return json({ data: { ready: true, existing: false }, correlationId }, 201, correlationId);
+  // Keep new and existing addresses indistinguishable to callers.
+  return json({ data: { needsEmailConfirmation: true }, correlationId }, 202, correlationId);
 });
 
-async function findUserByEmail(email: string) {
-  const db = adminClient();
-  for (let page = 1; page <= 20; page += 1) {
-    const { data, error } = await db.auth.admin.listUsers({ page, perPage: 1000 });
-    if (error) throw new AppError('INTERNAL_ERROR', 'This account could not be prepared for Together.', 500, true);
-    const match = data.users.find((user) => user.email?.toLowerCase() === email);
-    if (match) return match;
-    if (data.users.length < 1000) return null;
-  }
-  return null;
+function isDuplicateUser(message: string) {
+  return /already|registered|exists|duplicate/i.test(message);
 }
 
 async function fingerprint(value: string) {
