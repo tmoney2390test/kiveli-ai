@@ -8,6 +8,8 @@
     "android": "expo run:android",
     "web": "expo start --web --port 8082",
     "web:build": "expo export --platform web --output-dir dist-web --clear",
+    "web:build:production": "expo export --platform web --output-dir dist --clear && node ../../scripts/verify-together-web-config.mjs dist",
+    "web:verify:production": "node ../../scripts/verify-together-web-config.mjs dist",
     "prebuild": "expo prebuild",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

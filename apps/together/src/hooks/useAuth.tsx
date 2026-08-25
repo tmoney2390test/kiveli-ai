@@ -28,7 +28,10 @@ type AuthValue = {
 
 const AuthContext = createContext<AuthValue | null>(null);
 const socialAuth = resolveSocialAuthCapabilities({
-  google: process.env.EXPO_PUBLIC_KIVELLE_GOOGLE_AUTH_ENABLED,
+  // Google is an established production provider. Keep its entry point
+  // visible if an Expo environment snapshot omits the rollout flag; Supabase
+  // remains authoritative and will still reject a disabled provider.
+  google: process.env.EXPO_PUBLIC_KIVELLE_GOOGLE_AUTH_ENABLED ?? 'true',
   apple: process.env.EXPO_PUBLIC_KIVELLE_APPLE_AUTH_ENABLED,
 });
 void WebBrowser.maybeCompleteAuthSession();
