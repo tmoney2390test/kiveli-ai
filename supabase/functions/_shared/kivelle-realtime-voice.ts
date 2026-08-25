@@ -143,7 +143,7 @@ function compactContext(context: Record<string, unknown>): Record<string, unknow
   const relationship = record(context.relationship);
   const scene = record(context.currentScene ?? context.life);
   return {
-    character: pick(safeCharacter, ['name','age','slug','personality_config','communication_style','character_bible','boundaries','spice_level']),
+    character: pick(safeCharacter, ['name','age','pronouns','occupation','biography','interests','slug','personality_config','communication_style','character_bible','boundaries','spice_level']),
     persona: pick(record(context.persona), ['name','display_name','pronouns','about','interests','goals']),
     relationship: pick(relationship, ['relationship_stage','romance_enabled','romance_path_status','relationship_stance','qualitative_stance','conflict','chemistry_heat']),
     scene: pick(scene, ['locationId','locationName','activity','mood','timeOfDay','outfitDescription','availability','source']),

@@ -13,14 +13,14 @@ export type PlanActionAvailability = {
 };
 
 export type ConversationPlanMenuItem = {
-  key: 'createPlan' | 'changePlan' | 'endPlan';
-  label: 'Plan something' | 'Change plan' | 'End plan';
+  key: 'createPlan' | 'continuePlan' | 'changePlan' | 'endPlan';
+  label: 'Plan something' | 'Continue plan' | 'Change plan' | 'End plan';
   danger?: boolean;
 };
 
 export function conversationPlanMenuItems(hasActivePlan: boolean): ConversationPlanMenuItem[] {
   return hasActivePlan
-    ? [{ key: 'changePlan', label: 'Change plan' }, { key: 'endPlan', label: 'End plan', danger: true }]
+    ? [{ key: 'continuePlan', label: 'Continue plan' }, { key: 'changePlan', label: 'Change plan' }, { key: 'endPlan', label: 'End plan', danger: true }]
     : [{ key: 'createPlan', label: 'Plan something' }];
 }
 

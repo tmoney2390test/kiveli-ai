@@ -37,8 +37,15 @@ serve(async(request,correlationId)=>{
   }
 
   if(input.action==='set_active'){
-    const{data:target}=await db.from('together_character_instances').select('id,contact_added_at,introduced_at,together_character_templates(can_be_selected)').eq('id',input.characterInstanceId).eq('user_id',user.id).eq('continuity_id',continuity.id).maybeSingle();
-    const selectable=Boolean(relationOne(target?.together_character_templates)?.can_be_selected);
+    const{data:target}=await db.from('together_character_instances').select('id,contact_added_at,introduced_at,together_character_templates(can_be_selected,discovery_metadata)').eq('id',input.characterInstanceId).eq('user_id',user.id).eq('continuity_id',continuity.id).maybeSingle();
+    const targetTemplate=relationOne(target?.together_character_templates);
+    const catalogRetired=targetTemplate?.discovery_metadata&&typeof targetTemplate.discovery_metadata==='object'
+      ?(targetTemplate.discovery_metadata as Record<string,unknown>).catalogRetired===true
+      :false;
+    // Catalog retirement removes a thin character from new discovery without
+    // invalidating a relationship the user already established. Other disabled
+    // templates remain blocked from activation.
+    const selectable=Boolean(targetTemplate?.can_be_selected||catalogRetired);
     if(!target||!selectable||(!target.contact_added_at&&!target.introduced_at))throw new AppError('CONFLICT','Meet this companion before making them active.',409);
     const previous=continuity.active_companion_instance_id;
     const{error}=await db.from('together_continuities').update({active_companion_instance_id:target.id,updated_at:now}).eq('id',continuity.id).eq('user_id',user.id);

@@ -37,6 +37,23 @@ serve(async (request, correlationId) => {
       if(!characterInstanceId.success)throw new AppError('VALIDATION_ERROR','Choose a companion to refresh.',400);
       return json({data:await buildCharacterPresenceSnapshot(db,user.id,characterInstanceId.data),correlationId},200,correlationId);
     }
+    if(scope==='character_schedule'){
+      const characterTemplateId=z.string().uuid().safeParse(url.searchParams.get('characterTemplateId'));
+      if(!characterTemplateId.success)throw new AppError('VALIDATION_ERROR','Choose a companion whose routine you want to view.',400);
+      const{data:template,error:templateError}=await db.from('together_character_templates')
+        .select('id,current_published_version,published,can_be_selected,creator_id,visibility,lifecycle_status')
+        .eq('id',characterTemplateId.data).maybeSingle();
+      const officialAvailable=Boolean(template?.published&&template?.can_be_selected);
+      const privateCreation=Boolean(template?.creator_id===user.id&&template?.visibility==='private'&&['ready','published'].includes(String(template?.lifecycle_status)));
+      if(templateError||!template||(!officialAvailable&&!privateCreation))throw new AppError('NOT_FOUND','That companion schedule is unavailable.',404);
+      const{data:version,error:versionError}=await db.from('together_character_versions').select('id')
+        .eq('character_template_id',template.id).eq('version',template.current_published_version).maybeSingle();
+      if(versionError||!version)throw new AppError('NOT_FOUND','That companion schedule is unavailable.',404);
+      const{data:schedules,error:scheduleError}=await db.from('together_schedule_templates').select('*')
+        .eq('character_version_id',version.id).order('day_of_week').order('start_minute').limit(100);
+      if(scheduleError)throw new AppError('INTERNAL_ERROR','That routine could not be loaded right now.',500,true);
+      return json({data:{characterTemplateId:template.id,characterVersionId:version.id,schedules:schedules??[]},correlationId},200,correlationId);
+    }
     const requestedTimezone=request.headers.get('x-kivelle-timezone');
     if(requestedTimezone){try{new Intl.DateTimeFormat('en-US',{timeZone:requestedTimezone}).format(new Date());const updatedAt=new Date().toISOString();await Promise.all([db.from('together_profiles').update({experience_timezone:requestedTimezone,updated_at:updatedAt}).eq('user_id',user.id),db.from('together_notification_preferences').update({timezone:requestedTimezone,updated_at:updatedAt}).eq('user_id',user.id)]);}catch{/* ignore malformed client timezone */}}
     return json({ data: await buildSnapshot(db, user.id), correlationId }, 200, correlationId);

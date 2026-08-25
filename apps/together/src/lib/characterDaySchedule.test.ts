@@ -46,6 +46,20 @@ describe('character day schedule', () => {
     expect(['Starting slow at home', 'Getting ready for the river shift']).toContain(result.entries[0]?.activity);
   });
 
+  it('renders an on-demand authored routine before the user has met the character', () => {
+    const discoveredSnapshot = {
+      ...snapshot,
+      schedules: [{
+        id: 'port-routine', character_version_id: 'port-v1', day_of_week: 2, start_minute: 720, end_minute: 960,
+        location_id: 'studio', activity: 'restoring the harbor archive', availability: 'busy', energy_delta: -1,
+        metadata: { scheduleMode: 'authored', displayLocation: 'Maritime Museum' },
+      }],
+    } as unknown as Snapshot;
+    const result = buildCharacterDaySchedule({ snapshot: discoveredSnapshot, characterVersionId: 'port-v1', now: new Date('2026-08-18T16:30:00.000Z') });
+    expect(result.source).toBe('authored');
+    expect(result.entries[0]).toMatchObject({ activity: 'Restoring the harbor archive', location: 'Maritime Museum', current: true });
+  });
+
   it('keeps authored passive presence at home outside the visible timetable', () => {
     const authoredSnapshot = {
       ...snapshot,

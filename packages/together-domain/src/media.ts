@@ -158,7 +158,7 @@ const REQUESTED_POSE_CUES:Array<[RegExp,string]>=[
 const NATURAL_DIRECTIONS:Record<PhotoShotType,Array<[string,string]>>={
   selfie:[
     ['body relaxed with one shoulder subtly closer to the lens','slight three-quarter head turn with a relaxed glance toward the lens'],
-    ['handheld camera held just off center rather than perfectly square','eyes near the lens while the head remains softly angled'],
+    ['slightly off-center close selfie perspective rather than a perfectly square pose','eyes near the lens while the head remains softly angled'],
     ['casual asymmetrical selfie posture','brief natural side glance as though reacting to the current activity'],
   ],
   portrait:[
@@ -234,6 +234,13 @@ export function classifyPhotoIntent(text:string):PhotoIntent{
   const requestedContentLevel:MediaLevel|undefined=directBodyExposureRequest||adult.explicit?'explicit':/\b(?:suggestive|lingerie|sexy|thirst trap)\b/i.test(contentClassificationText)?'suggestive':/\b(?:romantic|kiss)\b/i.test(contentClassificationText)?'romance':undefined;return{requested,subject,...(shotPreference?{shotPreference}:{}),...(requestedContentLevel?{requestedContentLevel}:{}),confidence:requested?.94:0};
 }
 
+const VISIBLE_CAPTURE_DEVICE_REQUEST=/\b(?:hold(?:ing)?|show(?:ing)?|display(?:ing)?|raise(?:d|ing)?|grip(?:ping)?|include|visible)\b[^.!?]{0,40}\b(?:smart\s*phone|phone|camera|selfie stick)\b|\b(?:smart\s*phone|phone|camera|selfie stick)\b[^.!?]{0,40}\b(?:visible|in (?:the )?(?:frame|shot|mirror)|in (?:your|her|his|their) hand|being held|held up)\b/i;
+
+/** Plain selfie framing never implies that the capture device appears in-frame. */
+export function photoRequestWantsVisibleCaptureDevice(text?:string):boolean{
+  return VISIBLE_CAPTURE_DEVICE_REQUEST.test(normalizePhotoIntentText(text??''));
+}
+
 export function resolvePhotoComposition(input:{source:string;shotType:PhotoShotType;requestText?:string}):PhotoComposition{
   if(input.source==='user_request'){
     const normalizedRequest=normalizePhotoIntentText(input.requestText??'');
@@ -245,7 +252,8 @@ export function resolvePhotoComposition(input:{source:string;shotType:PhotoShotT
     if(input.shotType==='portrait'&&CLOSE_DETAIL_REQUEST.test(normalizedRequest)&&hasAdultUpperBodyLanguage(normalizedRequest))return{shotType:'portrait',aspectRatio:'4:5',framing:'tight close-up upper-body detail framing centered on the specifically requested area, with coherent natural anatomy, believable camera distance, and enough of the same adult companion visible to preserve identity; preserve the requested tight detail crop'};
     if(input.shotType==='portrait')return{shotType:'portrait',aspectRatio:'4:5',framing:'chest-up environmental portrait with a large, sharply detailed, naturally proportioned face'};
     if(input.shotType==='candid')return{shotType:'candid',aspectRatio:'4:5',framing:'medium three-quarter environmental portrait; the companion is the clear primary subject, with a large crisp face and enough background to establish the exact activity and location'};
-    return{shotType:'selfie',aspectRatio:'4:5',framing:'close personal smartphone selfie with a large, sharply detailed, recognizable face and a small amount of truthful environmental context'};
+    const visibleCaptureDevice=photoRequestWantsVisibleCaptureDevice(input.requestText);
+    return{shotType:'selfie',aspectRatio:'4:5',framing:visibleCaptureDevice?'close personal selfie with a large, sharply detailed, recognizable face, a small amount of truthful environmental context, and only the specifically requested phone or camera visible naturally':'close personal front-facing selfie perspective with a large, sharply detailed, recognizable face and a small amount of truthful environmental context; the unseen capture device remains completely outside the image, with no visible phone, camera, selfie stick, phone reflection, or device-holding hand'};
   }
   return{shotType:input.shotType,aspectRatio:input.shotType==='scene'?'16:9':input.shotType==='selfie'||input.shotType==='full_body'?'4:5':'1:1',framing:'grounded framing with useful environmental context'};
 }

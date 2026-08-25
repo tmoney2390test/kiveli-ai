@@ -32,6 +32,7 @@ import {
 } from "../_shared/kivelle-speaker-context.ts";
 import {
   ConfiguredDialogueProvider,
+  ConfiguredEmbeddingProvider,
   ConfiguredModerationProvider,
   type DialogueRunOptions,
 } from "../_shared/together-ai.ts";
@@ -42,6 +43,8 @@ import { track } from "../_shared/together.ts";
 import { createMediaOffer } from "../_shared/together-media-offers.ts";
 import { classifyPhotoRequest } from "../_shared/together-media.ts";
 import { AppError } from "../_shared/types.ts";
+import { waitUntil } from "../_shared/background.ts";
+import { consolidateConversationEpisodes } from "../_shared/kivelle-conversation-episodes.ts";
 import { attachAuthoredDepthContext } from "../_shared/kivelle-authored-depth-context.ts";
 import {
   activateConversationTurn,
@@ -74,6 +77,7 @@ const schema = z.object({
   { message: "Write a message or attach a photo." },
 );
 const dialogue = new ConfiguredDialogueProvider(),
+  episodeEmbeddings = new ConfiguredEmbeddingProvider(),
   moderation = new ConfiguredModerationProvider(),
   encoder = new TextEncoder();
 
@@ -903,6 +907,10 @@ function groupStream(input: any): Response {
           input.conversation.id,
           input.userId,
         );
+        waitUntil(consolidateConversationEpisodes({
+          db:input.db,userId:input.userId,conversationId:input.conversation.id,
+          embed:(text)=>episodeEmbeddings.embed(text,{db:input.db,userId:input.userId,continuityId:input.continuityId,conversationId:input.conversation.id,purpose:"group_conversation_episode"}),
+        }).catch((error)=>console.warn(JSON.stringify({level:"warn",operation:"group_episode_consolidation",conversationId:input.conversation.id,message:error instanceof Error?error.message:"unknown_error"}))));
         await track(input.db, input.userId, "group_turn_yielded", {
           conversationId: input.conversation.id,
           replyCount,
@@ -1312,6 +1320,7 @@ async function updateAttributedGroupSummary(
       .slice(-7000),
     summary_message_count: data.length,
     summary_through: now,
+    summary_through_sequence: Math.max(...chronological.map((message: any) => Number(message.conversation_sequence ?? 0))),
     updated_at: now,
   }).eq("id", conversationId).eq("user_id", userId);
   await Promise.all((participants ?? []).map((participant: any) => {

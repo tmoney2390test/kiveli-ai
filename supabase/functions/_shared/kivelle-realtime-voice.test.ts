@@ -35,12 +35,16 @@ Deno.test('realtime intimacy preserves friends-only boundaries', () => {
 
 Deno.test('realtime calls inherit the required companion curiosity and reciprocity contract',()=>{
   const instructions=buildKivelleRealtimeInstructions({
-    character:{name:'Brooke',age:29,character_bible:{voice:{curiosity:{domains:['art','ambition'],style:'direct_specific',disclosureBeforeQuestion:'sometimes',preferredMoves:{casual:['Notice what the user chose before asking why.']},avoids:['stacked questions']}}}},
+    character:{name:'Brooke',age:29,pronouns:'she/her',occupation:'Gallery coordinator',biography:'Direct, observant, and ambitious.',interests:['art','climbing'],character_bible:{voice:{curiosity:{domains:['art','ambition'],style:'direct_specific',disclosureBeforeQuestion:'sometimes',preferredMoves:{casual:['Notice what the user chose before asking why.']},avoids:['stacked questions']}}}},
     relationship:{relationship_stage:'friend'},currentScene:{availability:'available'},contentMode:'standard',
   });
   assert(instructions.includes('Keep the call reciprocal'));
   assert(instructions.includes('After two substantive companion turns'));
   assert(instructions.includes('"style":"direct_specific"'));
+  assert(instructions.includes('"age":29'));
+  assert(instructions.includes('"pronouns":"she/her"'));
+  assert(instructions.includes('"occupation":"Gallery coordinator"'));
+  assert(instructions.includes('"interests":["art","climbing"]'));
 });
 
 Deno.test('realtime calls keep identity and geography inside Kivelle context',()=>{

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { AlignLeft, Brain, Check, ChevronDown, ChevronRight, Flame, History, MessageCircle, Pause, Play, RotateCcw, Settings, Type, Volume2, X } from 'lucide-react-native';
+import { AlignLeft, Brain, Check, ChevronDown, ChevronRight, Flame, History, LockKeyhole, MessageCircle, Pause, Play, RotateCcw, Settings, Type, Volume2, X } from 'lucide-react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { router } from 'expo-router';
 import { companionVoiceGenderFromSignals, companionVoicePresetsForGender, type CompanionVoicePreset } from '@together/domain/src/voice-presets';
@@ -50,6 +50,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
   const subscribed = isSubscribedTier(snapshot?.entitlements?.tier);
   const adultVerified = Boolean(snapshot?.profile?.age_verified_at);
   const voiceEntitled = snapshot?.experienceCapabilities?.voiceNotes === true || snapshot?.entitlements?.entitlement_keys?.includes('voice_notes') === true;
+  const memoryInspector = snapshot?.entitlements?.entitlement_keys?.includes('memory_inspector') === true;
   const name = character?.together_character_templates.name ?? 'this companion';
   const voiceGender = companionVoiceGenderFromSignals(
     character?.together_character_templates.discovery_metadata?.gender,
@@ -257,7 +258,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
           <Text style={styles.manageTitle}>CONVERSATION TOOLS</Text>
           <View style={styles.tools}>
             <ToolRow icon={<History size={18} color={colors.textSecondary} />} title="History & search" body="Find messages or manage earlier chats." onPress={() => navigate(onHistory)} />
-            <ToolRow icon={<Brain size={18} color={colors.violet} />} title={`What ${name} remembers`} body="Review or forget relationship memories." onPress={() => navigate(onMemories)} />
+            <ToolRow icon={memoryInspector?<Brain size={18} color={colors.violet}/>:<LockKeyhole size={18} color={colors.violet}/>} title={`What ${name} remembers`} body={memoryInspector?'Search, review, or correct relationship memories.':'Memory Center · available with Kivelle+'} onPress={() => navigate(onMemories)} />
             <ToolRow icon={<RotateCcw size={18} color={colors.warm} />} title="Advanced relationship controls" body="Reset progress or start over completely." onPress={() => navigate(onAdvanced)} />
           </View>
         </ScrollView>

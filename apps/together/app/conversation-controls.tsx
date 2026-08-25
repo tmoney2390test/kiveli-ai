@@ -71,7 +71,7 @@ export default function ConversationControls() {
     {meaningful.map((character) => {
       const name = character.together_character_templates.name;
       const conversations = snapshot.conversations.filter((item) => item.character_instance_id === character.id && !item.user_archived_at).length;
-      const memories = snapshot.memories.filter((item) => item.character_instance_id === character.id).length;
+      const memories = snapshot.memoryCounts?.[character.id] ?? snapshot.memories.filter((item) => item.character_instance_id === character.id).length;
       const moments = snapshot.moments.filter((item) => item.character_instance_id === character.id || item.participant_instance_ids.includes(character.id)).length;
       return <View key={character.id} style={styles.card}>
         <View style={styles.person}><CharacterAvatar slug={character.together_character_templates.slug} size={48} ring /><View style={{ flex: 1 }}><Text style={styles.name}>{name}</Text><Text style={styles.meta}>{character.relationship_stage.replace('_', ' ')} Â· {conversations} conversations Â· {memories} memories Â· {moments} Moments</Text></View></View>

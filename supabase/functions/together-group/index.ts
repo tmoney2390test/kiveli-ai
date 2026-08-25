@@ -35,7 +35,15 @@ const schema = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("detail"), conversationId: z.string().uuid(), messageLimit:z.number().int().min(20).max(80).default(60) }),
   z.object({ action: z.literal("changes"), conversationId: z.string().uuid(), since:z.string().datetime() }),
-  z.object({ action: z.literal("messages"), conversationId: z.string().uuid(), before:z.string().datetime(), limit:z.number().int().min(20).max(60).default(50) }),
+  z.object({
+    action: z.literal("messages"),
+    conversationId: z.string().uuid(),
+    before: z.string().datetime().optional(),
+    beforeSequence: z.number().int().positive().optional(),
+    limit: z.number().int().min(20).max(60).default(50),
+  }).refine((value) => value.beforeSequence !== undefined || value.before !== undefined, {
+    message: "A message cursor is required.",
+  }),
   z.object({ action: z.literal("list") }),
   z.object({
     action: z.literal("fresh"),
@@ -335,7 +343,10 @@ serve(async (request, correlationId) => {
     );
   }
   if (input.action === "messages") {
-    return json({ data: await groupMessagePage(db, user.id, conversation.id, input.limit, input.before), correlationId }, 200, correlationId);
+    return json({
+      data: await groupMessagePage(db, user.id, conversation.id, input.limit, input.beforeSequence, input.before),
+      correlationId,
+    }, 200, correlationId);
   }
   if (input.action === "changes") {
     return json({ data: await groupChanges(db, user.id, continuity.id, conversation, input.since), correlationId }, 200, correlationId);
@@ -847,9 +858,24 @@ async function groupDetail(
   };
 }
 
-async function groupMessagePage(db: any, userId: string, conversationId: string, limit: number, before?: string) {
-  let query = db.from("together_messages").select("*,together_conversation_attachments(*)").eq("user_id", userId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(limit + 1);
-  if (before) query = query.lt("created_at", before);
+async function groupMessagePage(
+  db: any,
+  userId: string,
+  conversationId: string,
+  limit: number,
+  beforeSequence?: number,
+  before?: string,
+) {
+  let query = db.from("together_messages")
+    .select("*,together_conversation_attachments(*)")
+    .eq("user_id", userId)
+    .eq("conversation_id", conversationId)
+    .order("conversation_sequence", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(limit + 1);
+  if (beforeSequence !== undefined) query = query.lt("conversation_sequence", beforeSequence);
+  else if (before) query = query.lt("created_at", before);
   const { data, error } = await query;
   if (error) throw new AppError("INTERNAL_ERROR", "Group messages could not be loaded.", 500, true);
   const rows = data ?? [], hasMore = rows.length > limit, messages = [...rows.slice(0, limit)].reverse(), ids = messages.map((message: any) => String(message.id));

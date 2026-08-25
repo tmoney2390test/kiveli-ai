@@ -10,6 +10,8 @@ import { normalizeMultimodalPreferences, resolveServerExperienceCapabilities } f
 import type { RelevantWorldFact } from './kivelle-world-facts.ts';
 import type { RelevantDialogueOpportunity } from './kivelle-dialogue-opportunities.ts';
 import type { RelevantSceneInteractionBeat } from './kivelle-scene-beats.ts';
+import { filterMemoriesForPreferences } from './kivelle-memory-access.ts';
+import { resolveRelevantConversationEpisodes, type RelevantConversationEpisode } from './kivelle-conversation-episodes.ts';
 
 type Row = Record<string, any>;
 
@@ -53,6 +55,7 @@ export type KivelleConversationContext = {
   dialogueOpportunities:RelevantDialogueOpportunity[];
   sceneInteractionBeats:RelevantSceneInteractionBeat[];
   sharedHistory: Array<{ id:string; type:'moment'|'date'|'plan'; title:string; summary:string; occurredAt:string }>;
+  conversationEpisodes:RelevantConversationEpisode[];
   conversationSummary: string;
   conversationSummaryUpdatedAt?:string;
   conversationFocus: Row|null;
@@ -68,7 +71,7 @@ export function detectContextQueryIntent(message: string): ContextQueryIntent {
 
 export async function buildKivelleConversationContext(input: {
   db: SupabaseClient; userId:string; instance:Row; conversation:Row; userMessage:string;
-  lifeRun:Row; semanticRows?:Row[]; attachments?:Row[]; now?:Date; visibleHistoryFromSequence?:number; visibleSceneSessionId?:string; visibleSceneFromSequence?:number; forceRemoteInteraction?:boolean;conversationSceneResolution?:Row;
+  lifeRun:Row; semanticRows?:Row[]; semanticQueryEmbedding?:number[]|null; attachments?:Row[]; now?:Date; visibleHistoryFromSequence?:number; visibleSceneSessionId?:string; visibleSceneFromSequence?:number; forceRemoteInteraction?:boolean;conversationSceneResolution?:Row;
 }): Promise<KivelleConversationContext> {
   const { db, userId, instance, conversation, userMessage } = input;
   const now = input.now ?? new Date();
@@ -78,16 +81,12 @@ export async function buildKivelleConversationContext(input: {
   const historyIntent=intent==='history'||intent==='memory_overview'||intent==='story';
   const socialIntent=intent==='social'||Boolean(conversation.metadata?.activeScene?.sceneSessionId);
   const emptyRows=()=>Promise.resolve({data:[] as Row[],error:null});
+  const conversationEpisodesPromise=resolveRelevantConversationEpisodes({db,userId,continuityId:String(instance.continuity_id),conversationId:String(conversation.id),userMessage,queryEmbedding:input.semanticQueryEmbedding,minimumSequence:Number(input.visibleHistoryFromSequence??1),limit:8});
   let recentMessageQuery=db.from('together_messages').select('role,content,created_at,provider_metadata,speaker_character_instance_id,character_instance_id,conversation_sequence').eq('conversation_id',conversation.id);
   if(input.visibleSceneSessionId)recentMessageQuery=recentMessageQuery.eq('scene_session_id',input.visibleSceneSessionId).gte('scene_sequence',Number(input.visibleSceneFromSequence??1));
   else if(conversation.kind==='group'&&Number(input.visibleHistoryFromSequence??1)>1)recentMessageQuery=recentMessageQuery.gte('conversation_sequence',Number(input.visibleHistoryFromSequence));
-  const [profile,entitlements, continuity, prefs, relationship, milestone, memories, threads, messages, schedules, events, plans, dates, stories, edges, instances, worlds, locations, media, moments, episodes, patterns, residue,relationshipPlaceRows,placeProfileRows] = await Promise.all([
-    db.from('together_profiles').select('experience_timezone,interests,content_preferences,conversation_preferences,multimodal_preferences,privacy_settings').eq('user_id', userId).maybeSingle(),
-    db.from('together_entitlements').select('entitlement_keys').eq('user_id',userId).maybeSingle(),
-    db.from('together_continuities').select('id,kind,title,together_user_personas(*)').eq('id',instance.continuity_id).eq('user_id',userId).single(),
-    db.from('together_notification_preferences').select('timezone').eq('user_id', userId).maybeSingle(),
-    db.from('together_relationship_states').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).single(),
-    db.from('together_relationship_milestones').select('id,kind,title,body,prompt,choices').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status', 'pending').maybeSingle(),
+  const [core, memories, threads, messages, schedules, events, plans, dates, stories, edges, instances, worlds, locations, media, moments, episodes,relationshipPlaceRows,placeProfileRows,conversationEpisodes] = await Promise.all([
+    db.rpc('kivelle_dialogue_context_core',{p_user_id:userId,p_continuity_id:String(instance.continuity_id),p_character_instance_id:String(instance.id)}),
     db.from('together_memories').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).in('status', intent === 'history' || intent === 'memory_overview' ? ['active','superseded'] : ['active']).order('pinned', { ascending:false }).order('importance', { ascending:false }).limit(intent === 'memory_overview' ? 40 : 20),
     db.from('together_open_threads').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).is('resolved_at', null).order('expected_at', { ascending:true, nullsFirst:false }).limit(10),
     recentMessageQuery.order('conversation_sequence', { ascending:false, nullsFirst:false }).order('created_at', { ascending:false }).limit(18),
@@ -103,13 +102,16 @@ export async function buildKivelleConversationContext(input: {
     historyIntent?db.from('together_generated_media').select('id,location_id,metadata,created_at').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status','ready').order('created_at', { ascending:false }).limit(6):emptyRows(),
     historyIntent?db.from('together_moments').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).order('occurred_at', { ascending:false }).limit(intent === 'history' ? 20 : 6):emptyRows(),
     historyIntent?db.from('together_scene_episodes').select('*').eq('user_id',userId).eq('character_instance_id',instance.id).order('ended_at',{ascending:false}).limit(intent==='history'?12:5):emptyRows(),
-    db.from('together_companion_user_patterns').select('*').eq('user_id',userId).eq('character_instance_id',instance.id).eq('status','active').order('confidence',{ascending:false}).limit(8),
-    db.from('together_emotional_residue').select('*').eq('user_id',userId).eq('character_instance_id',instance.id).maybeSingle(),
     planningIntent?db.from('together_relationship_places').select('location_id,visit_count,sentiment,confidence,opinion_summary,evidence_count').eq('user_id',userId).eq('character_instance_id',instance.id):emptyRows(),
     planningIntent?db.from('together_character_place_profiles').select('location_id,sentiment,confidence,opinion_summary,preferred_activities').eq('character_version_id',instance.character_version_id):emptyRows(),
+    conversationEpisodesPromise,
   ]);
+  if(core.error)throw core.error;
+  const coreData=(core.data??{}) as Row;
+  const profile={data:coreData.profile??null},entitlements={data:coreData.entitlements??null},continuity={data:coreData.continuity??null,error:null},prefs={data:coreData.notificationPreferences??null},relationship={data:coreData.relationship??null,error:null},milestone={data:coreData.milestone??null},patterns={data:Array.isArray(coreData.patterns)?coreData.patterns:[]},residue={data:coreData.residue??null};
   if (relationship.error) throw relationship.error;
-  if(continuity.error)throw continuity.error;
+  if(!relationship.data)throw new Error('relationship_context_missing');
+  if(!continuity.data)throw new Error('continuity_context_missing');
   const locationById = new Map((locations.data ?? []).map((item:Row) => [String(item.id), item]));
   const returnedState = (input.lifeRun.state ?? {}) as Row;
   const presence=(input.lifeRun.presence??{}) as Row;
@@ -159,8 +161,11 @@ export async function buildKivelleConversationContext(input: {
     ...(activeEvent ? { activeEvent:{ id:String(activeEvent.id), title:String(activeEvent.title), summary:String(activeEvent.narrative_summary), endsAt:activeEvent.ends_at ?? null } } : {}),
   };
   const personalizationEnabled=(profile.data?.privacy_settings as Row|undefined)?.personalization!==false;
+  const memoryPreferences=(profile.data?.memory_categories??{}) as Record<string,unknown>;
+  const enabledStoredMemories=filterMemoriesForPreferences(memories.data??[],memoryPreferences);
+  const enabledSemanticMemories=filterMemoriesForPreferences(input.semanticRows??[],memoryPreferences);
   const memoryContext:ActivatedMemoryContext=personalizationEnabled
-    ?await retrieveActivatedMemories({db,userId,characterInstanceId:String(instance.id),userMessage,intent,storedRows:memories.data??[],semanticRows:input.semanticRows??[],currentScene:{...currentScene,worldId:place?.world.id},relationship:relationship.data??{},recentAssistantMessages:(messages.data??[]).filter((item:Row)=>item.role==='assistant'),now})
+    ?await retrieveActivatedMemories({db,userId,characterInstanceId:String(instance.id),userMessage,intent,storedRows:enabledStoredMemories,semanticRows:enabledSemanticMemories,currentScene:{...currentScene,worldId:place?.world.id},relationship:relationship.data??{},recentAssistantMessages:(messages.data??[]).filter((item:Row)=>item.role==='assistant'),now})
     :{silent:[],callbacks:[],directRecall:[],callbackAllowance:0,retrievedIds:[]};
   const memoryRows=[...memoryContext.silent,...memoryContext.callbacks,...memoryContext.directRecall];
   const plansView = (plans.data ?? []).map((plan:Row) => ({
@@ -218,13 +223,13 @@ export async function buildKivelleConversationContext(input: {
     activeStory, memories:memoryRows.map((item)=>({id:String(item.id),text:String(item.text),type:String(item.type),pinned:Boolean(item.pinned),importance:Number(item.importance??0),characterInstanceId:String(instance.id)})),memoryContext,emotionalResidue,
     userPatterns:personalizationEnabled?(patterns.data??[]).map((item:Row)=>({id:String(item.id),patternKey:String(item.pattern_key),category:String(item.category),summary:String(item.summary),confidence:Number(item.confidence??0)})):[],
     recentEpisodes:personalizationEnabled?(episodes.data??[]).map((item:Row)=>({id:String(item.id),title:String(item.title),summary:String(item.summary),significance:Number(item.significance??0),locationId:item.location_id??null,endedAt:String(item.ended_at)})):[],
-    openThreads:personalizationEnabled?(threads.data??[]).map((thread:Row)=>threadContext(thread)):[], social,
+    openThreads:personalizationEnabled&&memoryPreferences.open_thread!==false?(threads.data??[]).map((thread:Row)=>threadContext(thread)):[], social,
     knownLifeEvents:(events.data??[]).filter((item:Row)=>item.user_should_know!==false).map((item:Row)=>({id:String(item.id),title:String(item.title),summary:String(item.narrative_summary),startsAt:String(item.starts_at)})).slice(0,6),
     location:currentLocation,place,referencedPlaces,placePerspectives,userAttachments,sceneParticipants,worldFacts:[],dialogueOpportunities:[],sceneInteractionBeats:[],
     recentMedia:personalizationEnabled?(media.data??[]).map((item:Row)=>({id:String(item.id),summary:String(item.metadata?.sceneSummary??'A recent shared photo.'),createdAt:String(item.created_at),locationId:item.location_id})):[],
-    sharedHistory:history, conversationSummary:typeof conversation.summary==='string'?conversation.summary:'', conversationSummaryUpdatedAt:conversation.summary_through??conversation.updated_at??undefined, conversationFocus:resolveConversationFocus(conversation.metadata?.focus as Row|null,plansView,now),
+    sharedHistory:history,conversationEpisodes, conversationSummary:typeof conversation.summary==='string'?conversation.summary:'', conversationSummaryUpdatedAt:conversation.summary_through??conversation.updated_at??undefined, conversationFocus:resolveConversationFocus(conversation.metadata?.focus as Row|null,plansView,now),
     recent:(messages.data??[]).reverse().map(attributedRecentTurn), userMessage, queryIntent:intent,
-    debug:{sources:['persona','continuity','life-engine','schedule','shared-plans','dates','stories','memory','open-threads','social-graph','location','history'],limits:{memories:memoryRows.length,threads:(threads.data??[]).length,recentMessages:(messages.data??[]).length,history:history.length}},
+    debug:{sources:['persona','continuity','life-engine','schedule','shared-plans','dates','stories','memory','open-threads','social-graph','location','history','conversation-episodes'],limits:{memories:memoryRows.length,threads:memoryPreferences.open_thread===false?0:(threads.data??[]).length,recentMessages:(messages.data??[]).length,history:history.length,conversationEpisodes:conversationEpisodes.length}},
   };
 }
 

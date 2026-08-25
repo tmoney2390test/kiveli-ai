@@ -94,6 +94,19 @@ Deno.test("group image prompt keeps two identities distinct and bounded", () => 
     prompt.includes("does not establish either companion’s current location"),
   );
   assert(!prompt.includes("One person only"));
+  assert(prompt.includes("Treat selfie as viewpoint and framing only"));
+  assert(prompt.includes("no visible phone"));
+});
+
+Deno.test("group image prompt permits a visible phone only when explicitly requested", () => {
+  const input = request();
+  input.generationIntent = {
+    requestText: "Take a group selfie holding the phone visibly in the mirror.",
+    requestedContentLevel: "standard",
+  };
+  const prompt = buildImagePrompt(input);
+  assert(prompt.includes("explicitly asks for a visible phone or camera"));
+  assert(!prompt.includes("Treat selfie as viewpoint and framing only"));
 });
 
 Deno.test("multireference provider input preserves both ordered identity references", () => {

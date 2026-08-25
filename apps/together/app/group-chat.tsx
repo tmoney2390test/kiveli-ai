@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  FlatList,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -29,6 +30,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ImagePlus,
+  LockKeyhole,
   MapPin,
   Mic,
   MoreHorizontal,
@@ -57,6 +59,7 @@ import {
   FrostedSurface,
   MediaTile,
   MessageCharacterCounter,
+  MobileChatMediaHeader,
   resolveCharacterPortraitSource,
   VoiceNotePurchaseModal,
 } from "../src/components";
@@ -75,12 +78,13 @@ import {
   prepareUserImage,
   quoteVoiceNote,
   refreshVoiceNote,
+  rememberMessage,
   reportMessage,
   requestVoiceNote,
   sendGroupDialogue,
   type VoiceNoteQuote,
 } from "../src/lib/api";
-import { locationHeroAsset } from "../src/assets";
+import { characterAssets, locationHeroAsset } from "../src/assets";
 import { endPlanExperience, getPlanExperience, joinCommitment, switchPlanExperience } from "../src/lib/commitments";
 import { activePlanForGroup, collapsePlanTimelineEvents, conversationPlanMenuItems, isPlanLifecycleDividerEvent, joinablePlanForGroup, planActionAvailability, planLifecycleDividerLabel, shouldShowPlanTimelineEvent } from "../src/lib/planActions";
 import type { PlanOption, PlanTimingSelection } from "../src/lib/plans";
@@ -106,6 +110,7 @@ import { presentMemoryText } from "../src/lib/memoryPresentation";
 import { mediaWithoutActivePhotoOffer, photoMediaForOffer, visibleChatPhotoMedia } from "../src/lib/photoRequestPresentation";
 import { characterResidentWorld } from "../src/lib/place";
 import { placeHoursStatus } from "../src/lib/placeHours";
+import { latestConversationHeaderImage } from "../src/lib/chatHeaderMedia";
 import { supabase } from "../src/lib/supabase";
 import {
   hideVoiceNoteConfirmation,
@@ -135,6 +140,11 @@ import type {
   SharedPlan,
   Snapshot,
 } from "../src/types";
+
+type GroupTimelineItem =
+  | { kind: "message"; value: Message }
+  | { kind: "action"; value: ConversationAction }
+  | { kind: "event"; value: ConversationEvent };
 
 export default function GroupChatScreen() {
   const params = useLocalSearchParams<{
@@ -187,7 +197,7 @@ export default function GroupChatScreen() {
     deltaRefreshRunning=useRef(false),
     deltaRefreshQueued=useRef(false),
     detailRef=useRef<GroupDetail|null>(null),
-    scrollRef = useRef<ScrollView | null>(null),
+    scrollRef = useRef<FlatList<GroupTimelineItem> | null>(null),
     contentHeightRef=useRef(0),
     prependHeightRef=useRef<number|null>(null),
     bottomAlignedConversation = useRef<string | null>(null),
@@ -485,7 +495,7 @@ export default function GroupChatScreen() {
     };
   }, [groupPlanReconciliationKey, params.id,refreshGroupDelta]);
   const groupTimeline = useMemo(() => {
-    if (!detail) return [] as Array<{kind:"message";value:Message}|{kind:"action";value:ConversationAction}|{kind:"event";value:ConversationEvent}>;
+    if (!detail) return [] as GroupTimelineItem[];
     const events = collapsePlanTimelineEvents((detail.conversationEvents ?? []).filter((event) => event.entity_type === "shared_plan" && shouldShowPlanTimelineEvent(event)));
     return [
       ...detail.messages.map((value) => ({ kind: "message" as const, value })),
@@ -940,6 +950,7 @@ export default function GroupChatScreen() {
       const page = await manageGroup<GroupTimelinePage>({
         action: "messages",
         conversationId: current.conversation.id,
+        ...(oldestMessage.conversation_sequence ? { beforeSequence: oldestMessage.conversation_sequence } : {}),
         before: oldestMessage.created_at,
         limit: 50,
       });
@@ -1214,6 +1225,11 @@ export default function GroupChatScreen() {
       </View>
     );
   }
+  const headerCharacter=detail.participants[0]?.together_character_instances;
+  const headerTemplate=headerCharacter?.together_character_templates;
+  const groupPortraitSource=resolveCharacterPortraitSource(headerTemplate,headerCharacter?.together_character_versions,headerTemplate?.slug)??characterAssets[headerTemplate?.slug??'']??characterAssets.maya!;
+  const latestHeaderMedia=latestConversationHeaderImage(detail.generatedMedia??[],detail.conversation.id);
+  const groupWorldName=snapshot?.worlds.find((world) => world.id === detail.conversation.group_world_id)?.name;
   return (
     <KeyboardAvoidingView
       style={styles.screen}
@@ -1222,13 +1238,23 @@ export default function GroupChatScreen() {
       <View style={styles.shell}>
         <View style={styles.conversation}>
       <GroupAmbientGlow compact={width < 720} />
-      <GroupHeader
+      {width<720?<MobileChatMediaHeader
+        key={detail.conversation.id}
+        name={detail.conversation.title??"Group"}
+        subtitle={`${groupWorldName?`${groupWorldName} · `:""}${detail.participants.length} companions`}
+        portraitSource={groupPortraitSource}
+        mediaSource={latestHeaderMedia?.signed_url?{uri:latestHeaderMedia.signed_url}:groupPortraitSource}
+        hasMedia={Boolean(latestHeaderMedia)}
+        onBack={()=>router.replace(MESSAGES_INBOX_HREF as never)}
+        onProfile={()=>setShowDetails(true)}
+        onPhoto={openPhotoMenu}
+        onMenu={()=>setShowGroupMenu((value)=>!value)}
+        onMedia={latestHeaderMedia?()=>router.push(`/media/${latestHeaderMedia.id}` as never):undefined}
+      />:<GroupHeader
         detail={detail}
-        worldName={snapshot?.worlds.find((world) =>
-          world.id === detail.conversation.group_world_id
-        )?.name}
+        worldName={groupWorldName}
         onDetails={() => setShowGroupMenu((value) => !value)}
-      />
+      />}
       <ConnectionBanner sendFailed={detail.messages.some((message)=>message.delivery_status==="failed")}/>
       {showGroupMenu ? <GroupConversationMenu
         title={detail.conversation.title ?? "Group"}
@@ -1238,6 +1264,7 @@ export default function GroupChatScreen() {
         onClose={() => setShowGroupMenu(false)}
         onDetails={() => { setShowGroupMenu(false); setShowDetails(true); }}
         onCreatePlan={() => openGroupPlanner(false)}
+        onContinuePlan={() => setShowGroupMenu(false)}
         onChangePlan={() => openGroupPlanner(true)}
         onEndPlan={() => activeGroupPlan && requestEndGroupPlan(activeGroupPlan)}
         onFavorite={() => void toggleGroupFavorite()}
@@ -1275,8 +1302,10 @@ export default function GroupChatScreen() {
           </ScrollView>
         </View>
       </Modal>
-      <ScrollView
+      <FlatList
         ref={scrollRef}
+        data={groupTimeline}
+        keyExtractor={(item) => `${item.kind}:${item.value.id}`}
         style={styles.timeline}
         contentContainerStyle={styles.timelineContent}
         keyboardShouldPersistTaps="handled"
@@ -1303,7 +1332,9 @@ export default function GroupChatScreen() {
           contentHeightRef.current = height;
           if (previousHeight !== null) {
             prependHeightRef.current = null;
-            scrollRef.current?.scrollTo({ y: Math.max(0, height - previousHeight), animated: false });
+            if (Platform.OS === "web") {
+              scrollRef.current?.scrollToOffset({ offset: Math.max(0, height - previousHeight), animated: false });
+            }
             return;
           }
           if (bottomAlignedConversation.current !== params.id) {
@@ -1316,8 +1347,7 @@ export default function GroupChatScreen() {
             scrollRef.current?.scrollToEnd({ animated: false });
           }
         }}
-      >
-        {detail.hasMoreMessages ? <Pressable
+        ListHeaderComponent={detail.hasMoreMessages ? <Pressable
           accessibilityRole="button"
           accessibilityLabel="Load earlier group messages"
           disabled={olderLoading}
@@ -1326,7 +1356,7 @@ export default function GroupChatScreen() {
         >
           <Text style={styles.earlierText}>{olderLoading ? "Loading earlier messages…" : "Load earlier messages"}</Text>
         </Pressable> : null}
-        {groupTimeline.map((item, index) => {
+        renderItem={({ item, index }) => {
           const previous = groupTimeline[index - 1],
             dayLabel = groupTimelineDayLabel(item.value.created_at, previous?.value.created_at);
           if (item.kind === "event") {
@@ -1403,12 +1433,41 @@ export default function GroupChatScreen() {
                   ?.companionVoiceNotes !== false}
                 voiceEnabled={snapshot?.experienceCapabilities?.voiceNotes !==
                   false}
+                memoryManualControl={Boolean(
+                  participant &&
+                    snapshot?.entitlements?.entitlement_keys?.includes(
+                      "memory_manual_control",
+                    ),
+                )}
+                onRemember={participant
+                  ? async () => {
+                    try {
+                      await rememberMessage(
+                        message.id,
+                        participant.character_instance_id,
+                      );
+                      await refresh();
+                      Alert.alert(
+                        "Remembered",
+                        `${participant.together_character_instances.together_character_templates.name.split(" ")[0]} will keep this in mind.`,
+                      );
+                    } catch (caught) {
+                      Alert.alert(
+                        "Could not remember that",
+                        caught instanceof Error
+                          ? caught.message
+                          : "Please try again.",
+                      );
+                    }
+                  }
+                  : undefined}
                 onRetry={message.delivery_status==="failed"&&message.content!=="[Photo]"?()=>void send(message.content,false,message.client_request_id??undefined,message.id):undefined}
                 textStyle={messageTypography}
               />
             </Fragment>
           );
-        })}
+        }}
+        ListFooterComponent={<>
         {(detail.mediaOffers ?? []).filter((offer) =>
           offer.status === "pending" && !offer.message_id
         ).map((offer) => (
@@ -1424,7 +1483,14 @@ export default function GroupChatScreen() {
           />
         ))}
         {typing.length ? <TypingIndicator people={typing} /> : null}
-      </ScrollView>
+        </>}
+        initialNumToRender={18}
+        maxToRenderPerBatch={12}
+        updateCellsBatchingPeriod={24}
+        windowSize={9}
+        removeClippedSubviews={Platform.OS !== "web"}
+        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+      />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {mentionOptions.length
         ? (
@@ -2064,8 +2130,8 @@ function GroupHeader(
     </View>
   );
 }
-function GroupConversationMenu({title,hasActivePlan,favorite,favoriteBusy,onClose,onDetails,onCreatePlan,onChangePlan,onEndPlan,onFavorite,onSettings,onFresh,onDelete}:{title:string;hasActivePlan:boolean;favorite:boolean;favoriteBusy:boolean;onClose:()=>void;onDetails:()=>void;onCreatePlan:()=>void;onChangePlan:()=>void;onEndPlan:()=>void;onFavorite:()=>void;onSettings:()=>void;onFresh:()=>void;onDelete:()=>void}) {
-  const actions={createPlan:onCreatePlan,changePlan:onChangePlan,endPlan:onEndPlan};
+function GroupConversationMenu({title,hasActivePlan,favorite,favoriteBusy,onClose,onDetails,onCreatePlan,onContinuePlan,onChangePlan,onEndPlan,onFavorite,onSettings,onFresh,onDelete}:{title:string;hasActivePlan:boolean;favorite:boolean;favoriteBusy:boolean;onClose:()=>void;onDetails:()=>void;onCreatePlan:()=>void;onContinuePlan:()=>void;onChangePlan:()=>void;onEndPlan:()=>void;onFavorite:()=>void;onSettings:()=>void;onFresh:()=>void;onDelete:()=>void}) {
+  const actions={createPlan:onCreatePlan,continuePlan:onContinuePlan,changePlan:onChangePlan,endPlan:onEndPlan};
   return <FrostedSurface intensity={88} style={styles.groupMenu}>
     <View style={styles.groupMenuTop}><Text numberOfLines={1} style={styles.groupMenuTitle}>{title}</Text><Pressable onPress={onClose}><Text style={styles.groupMenuClose}>Close</Text></Pressable></View>
     <Text style={styles.groupMenuSection}>GROUP</Text>
@@ -2188,6 +2254,10 @@ function GroupContextRail({
     memories = snapshot.memories.filter((item) =>
       item.character_instance_id === character.id
     ).slice(0, 3),
+    memoryInspector = snapshot.entitlements?.entitlement_keys?.includes(
+      "memory_inspector",
+    ) === true,
+    memoryCount = snapshot.memoryCounts?.[character.id] ?? memories.length,
     story = snapshot.storyArcs?.find((item) =>
       item.character_instance_id === character.id && item.status === "active"
     ),
@@ -2319,7 +2389,7 @@ function GroupContextRail({
         : null}
 
       <GroupContextSection title={`WHAT ${template.name.split(" ")[0]!.toUpperCase()} REMEMBERS`}>
-        {memories.length
+        {memoryInspector && memories.length
           ? memories.map((memory) => (
             <Pressable
               key={memory.id}
@@ -2332,7 +2402,19 @@ function GroupContextRail({
               </Text>
             </Pressable>
           ))
-          : <Text style={styles.contextMuted}>Meaningful details will collect here.</Text>}
+          : memoryInspector
+          ? <Text style={styles.contextMuted}>Meaningful details will collect here.</Text>
+          : (
+            <Pressable
+              onPress={() => router.push(`/memories?character=${template.slug}` as never)}
+              style={styles.contextMemoryLine}
+            >
+              <LockKeyhole size={14} color={colors.violet} />
+              <Text style={styles.contextCopy}>
+                {memoryCount} saved {memoryCount === 1 ? "detail" : "details"} · Kivelle+
+              </Text>
+            </Pressable>
+          )}
       </GroupContextSection>
 
       {!activePlan
@@ -2354,8 +2436,12 @@ function GroupContextRail({
         onPress={() => router.push(`/memories?character=${template.slug}` as never)}
         style={styles.contextSecondaryButton}
       >
-        <Brain size={16} color={colors.rose} />
-        <Text style={styles.contextSecondaryButtonText}>Memory Center</Text>
+        {memoryInspector
+          ? <Brain size={16} color={colors.rose} />
+          : <LockKeyhole size={16} color={colors.rose} />}
+        <Text style={styles.contextSecondaryButtonText}>
+          {memoryInspector ? "Memory Center" : "Memory Center · Kivelle+"}
+        </Text>
       </Pressable>
     </ScrollView>
   );
@@ -2424,6 +2510,8 @@ function GroupBubble({
   onReply,
   voiceVisible,
   voiceEnabled,
+  memoryManualControl,
+  onRemember,
   onRetry,
   textStyle,
 }: {
@@ -2443,6 +2531,8 @@ function GroupBubble({
   onReply: () => void;
   voiceVisible: boolean;
   voiceEnabled: boolean;
+  memoryManualControl: boolean;
+  onRemember?: () => Promise<void>;
   onRetry?:()=>void;
   textStyle: { fontSize: number; lineHeight: number };
 }) {
@@ -2506,6 +2596,9 @@ function GroupBubble({
           text: "Report response",
           onPress: () => void reportMessage(message.id, "other"),
         }]
+        : []),
+      ...(memoryManualControl && onRemember
+        ? [{ text: "Remember this", onPress: () => void onRemember() }]
         : []),
       { text: "Cancel", style: "cancel" },
     ] as never);

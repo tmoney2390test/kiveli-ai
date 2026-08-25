@@ -97,6 +97,7 @@ function buildUnbudgetedCompanionPrompt(context:any):string{
   const {intent,length,style}=resolveResponseDirection(context);
   const block=(items:any[],format:(item:any)=>string)=>items?.length?items.map(format).join('\n'):'None.';
   const bible=dialogueSafeContext(character.character_bible??{});
+  const selfKnowledge=dialogueSafeContext(character.selfKnowledge??character.character_bible?.selfKnowledge??null);
   const characterBoundaries=dialogueSafeContext(character.boundaries??[]);
   const voice=context.characterVoice??{};
   const userView=context.characterUserView??{};
@@ -152,7 +153,17 @@ Explicit callback allowance: ${memoryContext.callbackAllowance??0}.
 When allowance is zero, do not use "I remember", "you told me", "last time you said", or "like we discussed" unless a direct factual correction is essential.
 Never force a callback merely because a memory exists.
 </MEMORY_BEHAVIOR>
-<IDENTITY>${character.name??'Companion'} · ${character.occupation??'Unknown'}\n${character.biography??''}</IDENTITY>
+<IDENTITY>
+Name: ${character.name??'Companion'}
+Age: ${Number.isFinite(Number(character.age))?Number(character.age):'Not authored'}
+${character.pronouns?`Pronouns: ${character.pronouns}`:''}
+Occupation: ${character.occupation??'Unknown'}
+Biography: ${character.biography??'Not authored'}
+${Array.isArray(character.interests)&&character.interests.length?`Interests: ${character.interests.map(String).join(', ')}`:''}
+${selfKnowledge?`Private self-knowledge: ${JSON.stringify(selfKnowledge)}
+This is conscious identity truth the companion knows about themself, not a rumor, inference, or configuration label. Never deny, forget, or express uncertainty about it. Privacy and disclosure still follow the companion's authored boundaries.`:''}
+These are stable facts the companion knows about themself. Answer direct questions about them consistently and naturally, without reciting this profile unprompted. Internal configuration, eligibility, routing, and numeric controls are not part of the companion's self-knowledge.
+</IDENTITY>
 <CHARACTER_CORE>
 Personality: ${personalityGuidance(character.personality_config,character.name??'The companion')}
 Communication: ${JSON.stringify(character.communication_style??{})}
@@ -277,6 +288,7 @@ This is a possible opening, not an outcome. It cannot declare a user action, con
 <CHARACTER_PLACE_PERSPECTIVES>${block(context.placePerspectives??[],(item)=>`${item.locationName}\nSource: ${item.source}\nShared visits: ${item.visitCount}\nCurrent view: ${item.opinionSummary??'No settled personal opinion yet.'}\nLikes here: ${(item.favoriteDetails??[]).join('; ')||'None established'}\nDislikes here: ${(item.dislikedDetails??[]).join('; ')||'None established'}\nPreferred activities: ${(item.preferredActivities??[]).join('; ')||'None established'}`)}
 These are the companion's current personal views, distinct from objective location facts. Preserve established opinions unless the current canonical experience gives the companion a natural reason to reconsider. The companion may express a new or changed opinion in dialogue, but only Kivelle's post-conversation analysis may persist it. Do not announce visit counts, confidence, evidence, or source labels.</CHARACTER_PLACE_PERSPECTIVES>
 <SHARED_HISTORY>Background shared history. Do not recap it unless the user returns to it or a callback is genuinely useful.\n${block(context.sharedHistory,(item)=>`${item.occurredAt}: ${item.title} — ${item.summary}`)}</SHARED_HISTORY>
+<RELEVANT_CONVERSATION_EPISODES>Retrieved older conversation ranges. Preserve speaker attribution and use only when the user's current message naturally refers to one. These summaries are retrieval aids; canonical messages and structured Kivelle state remain authoritative. Never imply that a late group participant witnessed an episode outside their visible sequence range.\n${block(context.conversationEpisodes??[],(item)=>`${item.title} · messages ${item.startSequence}–${item.endSequence}\n${item.summary}\nAttributed excerpts:\n${String(item.attributedSummary??'').slice(-1_100)}`)}</RELEVANT_CONVERSATION_EPISODES>
 <RECENT_SHARED_MEDIA>${block(context.recentMedia,(item)=>`${item.createdAt}: ${item.summary}`)}</RECENT_SHARED_MEDIA>
 <CONVERSATION_FOCUS>${focusForPrompt?JSON.stringify(focusForPrompt):'None.'}</CONVERSATION_FOCUS>
 <CONVERSATION_SUMMARY>${formatRollingConversationState(context.conversationSummary)}</CONVERSATION_SUMMARY>
@@ -325,20 +337,21 @@ function contentExpressionGuidance(mode:ContentMode|string|undefined):string{
 
 export function preparePromptContext(context:any,mode:'full'|'compact'|'minimal'){
   const intent=String(context.queryIntent??'general') as ContextIntent,query=String(context.userMessage??'');
-  const limits=mode==='full'?{recent:28,silent:20,history:8,patterns:8,episodes:6,threads:7,social:8,events:6,media:6,places:2,perspectives:3,plans:8,worldFacts:4,opportunities:2,beats:1}:mode==='compact'?{recent:14,silent:8,history:4,patterns:4,episodes:3,threads:3,social:4,events:3,media:3,places:1,perspectives:2,plans:4,worldFacts:2,opportunities:1,beats:1}:{recent:8,silent:2,history:1,patterns:1,episodes:1,threads:1,social:1,events:1,media:0,places:0,perspectives:1,plans:2,worldFacts:['history','location','story'].includes(intent)?1:0,opportunities:0,beats:0};
+  const limits=mode==='full'?{recent:28,silent:20,history:8,conversationEpisodes:6,patterns:8,episodes:6,threads:7,social:8,events:6,media:6,places:2,perspectives:3,plans:8,worldFacts:4,opportunities:2,beats:1}:mode==='compact'?{recent:14,silent:8,history:4,conversationEpisodes:3,patterns:4,episodes:3,threads:3,social:4,events:3,media:3,places:1,perspectives:2,plans:4,worldFacts:2,opportunities:1,beats:1}:{recent:8,silent:2,history:1,conversationEpisodes:['history','memory_overview','story'].includes(intent)?1:0,patterns:1,episodes:1,threads:1,social:1,events:1,media:0,places:0,perspectives:1,plans:2,worldFacts:['history','location','story'].includes(intent)?1:0,opportunities:0,beats:0};
   const ranked=(items:any[],category:ContextRecordCategory,limit:number,text:(item:any)=>string,date?:(item:any)=>string|undefined,importance?:(item:any)=>number,active?:(item:any)=>boolean)=>rankContextRecords(items??[],{category,intent,query,limit,text,id:recordId,...(date?{occurredAt:date}:{}),...(importance?{importance}:{}),...(active?{active}:{})}).map((item)=>item.record);
   const memory=context.memoryContext??{silent:context.memories??[],callbacks:[],directRecall:[],callbackAllowance:0};
   const directLimit=intent==='memory_overview'||intent==='history'?5:Math.min(2,memory.directRecall?.length??0);
   const character=context.character??{},reflection=context.relationshipReflection??{};
   const prepared={
     ...context,
-    character:{...character,character_bible:mode==='full'?character.character_bible:compactRecord(character.character_bible,mode==='compact'?3:2,mode==='compact'?14:7,mode==='compact'?420:180),communication_style:mode==='minimal'?compactRecord(character.communication_style,2,8,160):character.communication_style,boundaries:Array.isArray(character.boundaries)?character.boundaries.slice(0,mode==='minimal'?8:20):character.boundaries},
+    character:{...character,selfKnowledge:character.selfKnowledge??character.character_bible?.selfKnowledge??null,character_bible:mode==='full'?character.character_bible:compactRecord(character.character_bible,mode==='compact'?3:2,mode==='compact'?14:7,mode==='compact'?420:180),communication_style:mode==='minimal'?compactRecord(character.communication_style,2,8,160):character.communication_style,boundaries:Array.isArray(character.boundaries)?character.boundaries.slice(0,mode==='minimal'?8:20):character.boundaries},
     relationshipReflection:{...reflection,recurring_dynamics:(reflection.recurring_dynamics??reflection.recurringDynamics??[]).slice(0,mode==='minimal'?2:4),unresolved_tension:(reflection.unresolved_tension??reflection.unresolvedTension??[]).slice(0,mode==='minimal'?2:4),shared_references:(reflection.shared_references??reflection.sharedReferences??[]).slice(0,mode==='minimal'?2:4)},
     recent:recentTurnsForPrompt(context).slice(-limits.recent),
     memoryContext:{...memory,silent:(memory.silent??[]).slice(0,limits.silent),callbacks:(memory.callbacks??[]).slice(0,1),directRecall:(memory.directRecall??[]).slice(0,directLimit)},
     commitments:ranked(context.commitments,'plan',limits.plans,(item)=>`${item.title??''} ${item.location??''} ${item.status??''}`,item=>item.startsAt,item=>Number(item.relevance??.5),item=>['active','grace','missed'].includes(String(item.temporalState??item.status))),
     sharedPlans:ranked(context.sharedPlans,'plan',limits.plans,(item)=>`${item.title??''} ${item.location??''} ${item.activityKey??''} ${item.status??''}`,item=>item.startsAt,item=>['active','scheduled'].includes(String(item.status))?.9:.5,item=>item.status==='active'),
     sharedHistory:ranked(context.sharedHistory,'history',limits.history,(item)=>`${item.title??''} ${item.summary??''}`,item=>item.occurredAt,item=>Number(item.significance??.55)),
+    conversationEpisodes:ranked(context.conversationEpisodes,'history',limits.conversationEpisodes,(item)=>`${item.title??''} ${item.summary??''} ${item.attributedSummary??''}`,item=>item.createdAt,item=>Number(item.relevance??.7)),
     userPatterns:ranked(context.userPatterns,'pattern',limits.patterns,(item)=>`${item.category??''} ${item.summary??''}`,undefined,item=>Number(item.confidence??.5)),
     recentEpisodes:ranked(context.recentEpisodes,'episode',limits.episodes,(item)=>`${item.title??''} ${item.summary??''}`,item=>item.endedAt,item=>Number(item.significance??.5)),
     openThreads:ranked(context.openThreads,'thread',limits.threads,(item)=>`${item.displaySubject??''} ${item.followupPrompt??''}`,item=>item.expectedAt,item=>item.eligible?.9:.5,item=>Boolean(item.eligible)),
@@ -382,15 +395,16 @@ function protectedPromptSection(key:string):boolean{return new Set(['CORE_RULES'
 
 function sectionPriority(key:string,context:any):number{
   if(requiredPromptSection(key,context))return 100;
-  const priorities:Record<string,number>={SILENT_MEMORY_CONTEXT:82,CALLBACK_MEMORIES:90,DIRECT_RECALL_MEMORIES:96,COMMITMENTS:94,UPCOMING_PLANS:86,DATES:88,CURRENT_STORY:82,CURRENT_LOCATION:78,REFERENCED_PLACES:72,RELEVANT_WORLD_FACTS:70,DIALOGUE_OPPORTUNITIES:40,SCENE_INTERACTION_BEAT:56,CHARACTER_PLACE_PERSPECTIVES:76,USER_BEHAVIOR_PATTERNS:60,RECENT_EPISODES:66,OPEN_THREADS:62,SOCIAL_KNOWLEDGE:58,KNOWN_LIFE_EVENTS:62,SHARED_HISTORY:65,RECENT_SHARED_MEDIA:42,UPCOMING_SCHEDULE:68,CONVERSATION_FOCUS:84};
+  const priorities:Record<string,number>={SILENT_MEMORY_CONTEXT:82,CALLBACK_MEMORIES:90,DIRECT_RECALL_MEMORIES:96,COMMITMENTS:94,UPCOMING_PLANS:86,DATES:88,CURRENT_STORY:82,CURRENT_LOCATION:78,REFERENCED_PLACES:72,RELEVANT_WORLD_FACTS:70,DIALOGUE_OPPORTUNITIES:40,SCENE_INTERACTION_BEAT:56,CHARACTER_PLACE_PERSPECTIVES:76,USER_BEHAVIOR_PATTERNS:60,RECENT_EPISODES:66,OPEN_THREADS:62,SOCIAL_KNOWLEDGE:58,KNOWN_LIFE_EVENTS:62,SHARED_HISTORY:65,RELEVANT_CONVERSATION_EPISODES:84,RECENT_SHARED_MEDIA:42,UPCOMING_SCHEDULE:68,CONVERSATION_FOCUS:84};
   return priorities[key]??45;
 }
 
 function sectionRelevance(key:string,intent:ContextIntent,context:any):number{
-  const direct:Partial<Record<ContextIntent,string[]>>={location:['CURRENT_LOCATION','REFERENCED_PLACES','CHARACTER_PLACE_PERSPECTIVES','UPCOMING_SCHEDULE'],plan:['COMMITMENTS','UPCOMING_PLANS','CONVERSATION_FOCUS','CURRENT_LOCATION'],schedule:['COMMITMENTS','UPCOMING_PLANS','UPCOMING_SCHEDULE'],date:['DATES','COMMITMENTS','CURRENT_LOCATION'],story:['CURRENT_STORY','KNOWN_LIFE_EVENTS','RECENT_EPISODES'],memory_overview:['DIRECT_RECALL_MEMORIES','SILENT_MEMORY_CONTEXT','SHARED_HISTORY','RECENT_EPISODES'],history:['DIRECT_RECALL_MEMORIES','SHARED_HISTORY','RECENT_EPISODES','RECENT_SHARED_MEDIA'],social:['SOCIAL_KNOWLEDGE','SCENE_PARTICIPANTS','RECENT_EPISODES']};
+  const direct:Partial<Record<ContextIntent,string[]>>={location:['CURRENT_LOCATION','REFERENCED_PLACES','CHARACTER_PLACE_PERSPECTIVES','UPCOMING_SCHEDULE'],plan:['COMMITMENTS','UPCOMING_PLANS','CONVERSATION_FOCUS','CURRENT_LOCATION'],schedule:['COMMITMENTS','UPCOMING_PLANS','UPCOMING_SCHEDULE'],date:['DATES','COMMITMENTS','CURRENT_LOCATION'],story:['CURRENT_STORY','KNOWN_LIFE_EVENTS','RECENT_EPISODES','RELEVANT_CONVERSATION_EPISODES'],memory_overview:['DIRECT_RECALL_MEMORIES','SILENT_MEMORY_CONTEXT','SHARED_HISTORY','RECENT_EPISODES','RELEVANT_CONVERSATION_EPISODES'],history:['DIRECT_RECALL_MEMORIES','SHARED_HISTORY','RECENT_EPISODES','RELEVANT_CONVERSATION_EPISODES','RECENT_SHARED_MEDIA'],social:['SOCIAL_KNOWLEDGE','SCENE_PARTICIPANTS','RECENT_EPISODES']};
   if(direct[intent]?.includes(key))return 1;
   if(key==='CALLBACK_MEMORIES'&&(context.memoryContext?.callbackAllowance??0)>0)return.95;
   if(key==='SILENT_MEMORY_CONTEXT')return.72;
+  if(key==='RELEVANT_CONVERSATION_EPISODES')return(context.conversationEpisodes??[]).length?.86:.05;
   if(key==='RELEVANT_WORLD_FACTS')return['history','location','story'].includes(intent)?1:.58;
   if(key==='DIALOGUE_OPPORTUNITIES')return(context.dialogueOpportunities??[]).length?.55:.1;
   if(key==='SCENE_INTERACTION_BEAT')return context.currentScene?.interactionMode==='co_present'?.7:.05;
@@ -405,12 +419,12 @@ function sectionRelevance(key:string,intent:ContextIntent,context:any):number{
 function sectionReasonCodes(key:string,intent:ContextIntent,context:any):string[]{const relevance=sectionRelevance(key,intent,context);return[relevance>=.9?'intent_match':'',relevance>=.5?'context_relevant':'background'].filter(Boolean);}
 
 function sectionFreshness(key:string,context:any):string|undefined{
-  const sources:Record<string,any[]>={RECENT_CONVERSATION:context.recent??[],COMMITMENTS:context.commitments??[],UPCOMING_PLANS:context.sharedPlans??[],UPCOMING_SCHEDULE:context.upcomingSchedule??[],SHARED_HISTORY:context.sharedHistory??[],RECENT_EPISODES:context.recentEpisodes??[],KNOWN_LIFE_EVENTS:context.knownLifeEvents??[],RECENT_SHARED_MEDIA:context.recentMedia??[]};
+  const sources:Record<string,any[]>={RECENT_CONVERSATION:context.recent??[],COMMITMENTS:context.commitments??[],UPCOMING_PLANS:context.sharedPlans??[],UPCOMING_SCHEDULE:context.upcomingSchedule??[],SHARED_HISTORY:context.sharedHistory??[],RELEVANT_CONVERSATION_EPISODES:context.conversationEpisodes??[],RECENT_EPISODES:context.recentEpisodes??[],KNOWN_LIFE_EVENTS:context.knownLifeEvents??[],RECENT_SHARED_MEDIA:context.recentMedia??[]};
   const values=(sources[key]??[]).flatMap((item:any)=>[item.createdAt,item.updatedAt,item.occurredAt,item.endedAt,item.startsAt].filter(Boolean)).map((value)=>String(value)).sort();return values.at(-1)??context.conversationSummaryUpdatedAt;
 }
 
 function sectionRecordIds(key:string,context:any):string[]{
-  const sources:Record<string,any[]>={SILENT_MEMORY_CONTEXT:context.memoryContext?.silent??[],CALLBACK_MEMORIES:context.memoryContext?.callbacks??[],DIRECT_RECALL_MEMORIES:context.memoryContext?.directRecall??[],USER_BEHAVIOR_PATTERNS:context.userPatterns??[],RECENT_EPISODES:context.recentEpisodes??[],OPEN_THREADS:context.openThreads??[],SOCIAL_KNOWLEDGE:context.social??[],KNOWN_LIFE_EVENTS:context.knownLifeEvents??[],REFERENCED_PLACES:context.referencedPlaces??[],RELEVANT_WORLD_FACTS:context.worldFacts??[],DIALOGUE_OPPORTUNITIES:context.dialogueOpportunities??[],SCENE_INTERACTION_BEAT:context.sceneInteractionBeats??[],CHARACTER_PLACE_PERSPECTIVES:context.placePerspectives??[],SHARED_HISTORY:context.sharedHistory??[],RECENT_SHARED_MEDIA:context.recentMedia??[],COMMITMENTS:context.commitments??[],UPCOMING_PLANS:context.sharedPlans??[],UPCOMING_SCHEDULE:context.upcomingSchedule??[],SCENE_PARTICIPANTS:context.sceneParticipants??[]};
+  const sources:Record<string,any[]>={SILENT_MEMORY_CONTEXT:context.memoryContext?.silent??[],CALLBACK_MEMORIES:context.memoryContext?.callbacks??[],DIRECT_RECALL_MEMORIES:context.memoryContext?.directRecall??[],USER_BEHAVIOR_PATTERNS:context.userPatterns??[],RECENT_EPISODES:context.recentEpisodes??[],OPEN_THREADS:context.openThreads??[],SOCIAL_KNOWLEDGE:context.social??[],KNOWN_LIFE_EVENTS:context.knownLifeEvents??[],REFERENCED_PLACES:context.referencedPlaces??[],RELEVANT_WORLD_FACTS:context.worldFacts??[],DIALOGUE_OPPORTUNITIES:context.dialogueOpportunities??[],SCENE_INTERACTION_BEAT:context.sceneInteractionBeats??[],CHARACTER_PLACE_PERSPECTIVES:context.placePerspectives??[],SHARED_HISTORY:context.sharedHistory??[],RELEVANT_CONVERSATION_EPISODES:context.conversationEpisodes??[],RECENT_SHARED_MEDIA:context.recentMedia??[],COMMITMENTS:context.commitments??[],UPCOMING_PLANS:context.sharedPlans??[],UPCOMING_SCHEDULE:context.upcomingSchedule??[],SCENE_PARTICIPANTS:context.sceneParticipants??[]};
   return(sources[key]??[]).map(recordId).filter(Boolean);
 }
 

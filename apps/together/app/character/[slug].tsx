@@ -17,7 +17,7 @@ import {
 } from '../../src/components';
 import { DetailPreservingArtwork } from '../../src/components/DetailPreservingArtwork';
 import { characterProfilePhotos } from '../../src/character-profile-assets';
-import { meetCompanion } from '../../src/lib/api';
+import { loadCharacterSchedule, meetCompanion } from '../../src/lib/api';
 import { buildCharacterDaySchedule, type CharacterDayScheduleEntry } from '../../src/lib/characterDaySchedule';
 import { relationshipDaysKnown } from '../../src/lib/companionLife';
 import { worldForLocation } from '../../src/lib/place';
@@ -140,11 +140,11 @@ export default function CharacterProfile() {
           />
         </View>
         {activePhoto && !activePhotoFailed ? <DetailPreservingArtwork
-          accessibilityLabel={`${template.name}, ${template.occupation}. Photo ${activePhotoIndex + 1} of ${profilePhotos.length}.`}
+          accessibilityLabel={`${template.name}, age ${template.age}, ${template.occupation}. Photo ${activePhotoIndex + 1} of ${profilePhotos.length}.`}
           source={activePhoto}
           contentPosition={focal}
           frameStyle={desktop ? styles.portraitFrameDesktop : styles.portraitFrameMobile}
-          dim={.12}
+          dim={0}
           priority="high"
           onError={() => setFailedPhotoIndexes((current) => ({ ...current, [activePhotoIndex]: true }))}
         /> : null}
@@ -179,7 +179,7 @@ export default function CharacterProfile() {
           </View>
         </> : null}
         <View pointerEvents="none" style={styles.portraitTitle}>
-          <Text style={styles.name}>{template.name}</Text>
+          <Text style={styles.name}>{template.name} <Text style={styles.age}>· {template.age}</Text></Text>
           <Text style={styles.job}>{template.occupation}</Text>
         </View>
       </View>
@@ -193,15 +193,15 @@ export default function CharacterProfile() {
           </View>
         </View> : null}
 
-        <View style={styles.badges}>
-          {instance ? <MoodBadge mood={instance.current_mood} /> : null}
-          {instance && known ? <RelationshipBadge stage={instance.relationship_stage} /> : <Text style={styles.newBadge}>NEW CONNECTION</Text>}
-        </View>
+        {instance ? <View style={styles.badges}>
+          <MoodBadge mood={instance.current_mood} />
+          {known ? <RelationshipBadge stage={instance.relationship_stage} /> : null}
+        </View> : null}
 
-        <View style={styles.relationshipHeading}>
-          <Text style={[styles.heading, styles.relationshipHeadingText]}>{known ? `Your relationship with ${template.name}` : `Meet ${template.name}`}</Text>
-          {known ? <SpiceBadge level={template.spice_level} /> : null}
-        </View>
+        {known ? <View style={styles.relationshipHeading}>
+          <Text style={[styles.heading, styles.relationshipHeadingText]}>{`Your relationship with ${template.name}`}</Text>
+          <SpiceBadge level={template.spice_level} />
+        </View> : null}
         <Body muted>{template.biography}</Body>
 
         {known ? <View style={styles.history}>
@@ -221,10 +221,7 @@ export default function CharacterProfile() {
           <Info label="Interests" value={(version.interests ?? []).join(', ') || 'Still discovering'} />
         </View>
 
-        <View style={styles.schedule}>
-          <View style={styles.scheduleHeader}><View style={styles.scheduleIcon}><CalendarDays size={17} color={colors.rose}/></View><View style={styles.flex}><Text style={styles.scheduleTitle}>Today</Text><Text style={styles.scheduleDate}>{daySchedule.dateLabel}</Text></View></View>
-          {daySchedule.entries.length ? <View style={styles.scheduleList}>{daySchedule.entries.map((entry)=><ScheduleRow key={entry.id} entry={entry}/>)}</View> : <View style={styles.scheduleEmpty}><Clock3 size={16} color={colors.muted}/><Text style={styles.scheduleEmptyText}>{template.name} has an open day.</Text></View>}
-        </View>
+        <CharacterScheduleCard snapshot={snapshot} instance={instance} characterTemplateId={template.id} characterVersionId={version.id} characterName={template.name}/>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {canTalk ? <GradientButton
@@ -253,6 +250,33 @@ function Stat({ value, label }: { value: string; label: string }) {
   return <View style={styles.stat}><Text style={styles.statValue}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>;
 }
 
+function CharacterScheduleCard({snapshot,instance,characterTemplateId,characterVersionId,characterName}:{snapshot:NonNullable<ReturnType<typeof useTogether.getState>['snapshot']>;instance?:NonNullable<ReturnType<typeof useTogether.getState>['snapshot']>['characters'][number];characterTemplateId:string;characterVersionId:string;characterName:string}){
+  const setCoreState=useTogether((state)=>state.setCoreState);
+  const hasSchedule=snapshot.schedules.some((item)=>item.character_version_id===characterVersionId);
+  const[loading,setLoading]=useState(!hasSchedule);
+  const[loadError,setLoadError]=useState('');
+  const[retry,setRetry]=useState(0);
+  useEffect(()=>{
+    let cancelled=false;
+    if(hasSchedule){setLoading(false);setLoadError('');return()=>{cancelled=true;};}
+    setLoading(true);setLoadError('');
+    void loadCharacterSchedule(characterTemplateId).then((result)=>{
+      if(cancelled)return;
+      setCoreState({schedules:[...snapshot.schedules.filter((item)=>item.character_version_id!==result.characterVersionId),...result.schedules]});
+      setLoading(false);
+    }).catch(()=>{if(!cancelled){setLoading(false);setLoadError('Today’s routine could not be loaded.');}});
+    return()=>{cancelled=true;};
+  },[characterTemplateId,characterVersionId,hasSchedule,retry,setCoreState]);
+  const daySchedule=buildCharacterDaySchedule({snapshot,instance,characterVersionId,timezone:snapshot.profile?.experience_timezone});
+  return <View style={styles.schedule}>
+    <View style={styles.scheduleHeader}><View style={styles.scheduleIcon}><CalendarDays size={17} color={colors.rose}/></View><View style={styles.flex}><Text style={styles.scheduleTitle}>Today</Text><Text style={styles.scheduleDate}>{daySchedule.dateLabel}</Text></View></View>
+    {daySchedule.entries.length?<View style={styles.scheduleList}>{daySchedule.entries.map((entry)=><ScheduleRow key={entry.id} entry={entry}/>)}</View>
+      :loading?<View style={styles.scheduleEmpty}><Clock3 size={16} color={colors.rose}/><Text style={styles.scheduleLoadingText}>Loading {characterName}’s routine…</Text></View>
+      :loadError?<View style={styles.scheduleEmpty}><Text style={styles.scheduleEmptyText}>{loadError}</Text><Pressable accessibilityRole="button" onPress={()=>setRetry((value)=>value+1)} style={styles.scheduleRetry}><Text style={styles.scheduleRetryText}>Try again</Text></Pressable></View>
+      :<View style={styles.scheduleEmpty}><Clock3 size={16} color={colors.muted}/><Text style={styles.scheduleEmptyText}>{characterName} is keeping today flexible.</Text></View>}
+  </View>;
+}
+
 function ScheduleRow({entry}:{entry:CharacterDayScheduleEntry}) {
   return <View style={[styles.scheduleRow,entry.current&&styles.scheduleRowCurrent,entry.past&&styles.scheduleRowPast]}><View style={[styles.scheduleRail,entry.current&&styles.scheduleRailCurrent]}/><View style={styles.scheduleTimeWrap}><Text style={[styles.scheduleTime,entry.current&&styles.scheduleTimeCurrent]}>{entry.current?'NOW':entry.time}</Text>{entry.current?<Text style={styles.scheduleCurrentRange}>{entry.time}</Text>:null}</View><View style={styles.scheduleCopy}><Text style={styles.scheduleActivity}>{entry.activity}</Text>{entry.location?<View style={styles.schedulePlace}><MapPin size={11} color={colors.muted}/><Text style={styles.scheduleLocation}>{entry.location}</Text></View>:null}</View></View>;
 }
@@ -268,7 +292,7 @@ const styles = StyleSheet.create({
   portraitFallback: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.plum },
   portraitFrameMobile: { top: 4, right: 4, bottom: 4, left: 4 },
   portraitFrameDesktop: { top: 5, right: 5, bottom: 5, left: 5 },
-  portraitShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(8,6,12,.08)', borderBottomWidth: 90, borderBottomColor: 'rgba(6,4,9,.70)' },
+  portraitShade: { position: 'absolute', right: 0, bottom: 0, left: 0, height: 96, backgroundColor: 'rgba(6,4,9,.70)' },
   back: { position: 'absolute', top: 14, left: 14, zIndex: 3, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(8,11,19,.68)', borderWidth: 1, borderColor: 'rgba(255,255,255,.16)', alignItems: 'center', justifyContent: 'center' },
   photoButton: { position: 'absolute', top: '46%', zIndex: 4, width: 38, height: 46, borderRadius: 19, backgroundColor: 'rgba(8,11,19,.62)', borderWidth: 1, borderColor: 'rgba(255,255,255,.18)', alignItems: 'center', justifyContent: 'center' },
   previousPhoto: { left: 12 },
@@ -280,12 +304,12 @@ const styles = StyleSheet.create({
   photoDotActive: { width: 18, backgroundColor: '#fff' },
   portraitTitle: { position: 'absolute', right: 20, bottom: 18, left: 20 },
   name: { fontFamily: typography.display, fontSize: 36, lineHeight: 39, color: '#fff', fontWeight: '600', textShadowColor: '#000', textShadowRadius: 14 },
+  age: { fontFamily: typography.interface, fontSize: 21, lineHeight: 27, color: 'rgba(255,255,255,.76)', fontWeight: '700' },
   job: { color: 'rgba(255,255,255,.88)', fontSize: 14, marginTop: 3, fontWeight: '700', textShadowColor: '#000', textShadowRadius: 8 },
   details: { width: '100%', gap: spacing.md, padding: spacing.lg, borderRadius: radius.xl, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
   detailsDesktop: { flex: 1, width: 'auto', minHeight: 430, backgroundColor: colors.glass },
   flex: { flex: 1 },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-  newBadge: { color: colors.rose, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
   relationshipHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   relationshipHeadingText: { flex: 1 },
   heading: { fontFamily: typography.display, fontSize: 26, lineHeight: 31, color: colors.text, fontWeight: '600' },
@@ -318,6 +342,8 @@ const styles = StyleSheet.create({
   scheduleLocation: { color: colors.muted, fontSize: 9 },
   scheduleEmpty: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderTopWidth: 1, borderTopColor: colors.border },
   scheduleEmptyText: { color: colors.muted, fontSize: 11 },
+  scheduleLoadingText: { color: colors.rose, fontSize: 11, fontWeight: '800' },
+  scheduleRetry: { minHeight: 34, justifyContent: 'center', paddingHorizontal: 9 }, scheduleRetryText: { color: colors.rose, fontSize: 10, fontWeight: '900', textDecorationLine: 'underline' },
   welcome: { flexDirection: 'row', gap: 10, padding: 13, borderRadius: radius.md, backgroundColor: 'rgba(216,62,234,.10)', borderWidth: 1, borderColor: 'rgba(216,62,234,.22)' },
   welcomeTitle: { color: colors.text, fontWeight: '900' },
   welcomeCopy: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 3 },

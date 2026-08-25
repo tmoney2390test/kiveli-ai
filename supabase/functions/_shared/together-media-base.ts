@@ -18,6 +18,7 @@ import {
   hasUsableCharacterIdentityReference,
   type MediaPresenceState,
   photoRequestAllowsHiddenFace,
+  photoRequestWantsVisibleCaptureDevice,
   resolveCanonicalMediaPresence,
   resolveMediaSceneBoundary,
   resolvePhotoComposition,
@@ -665,6 +666,9 @@ export function buildImagePrompt(
     ].join("\n");
   }
   const place = request.context.place, location = request.context.location;
+  const visibleCaptureDevice = photoRequestWantsVisibleCaptureDevice(
+    request.generationIntent?.requestText,
+  );
   const sceneBoundary = resolveMediaSceneBoundary({
     locationName: place?.location.name ?? location?.name ??
       "the current canonical place",
@@ -826,6 +830,10 @@ export function buildImagePrompt(
     }. Pose: ${direction.poseDirection}. Facial direction: ${direction.faceDirection}. The identity reference defines appearance only and must never pull the pose, head angle, gaze, or expression back to its source orientation.`,
     "CAMERA STYLE",
     `One coherent photorealistic personal smartphone or camera photograph, natural lighting, subtle sensor and lens character, realistic environment, natural expression, and visible natural skin detail. ${faceGuidance} No illustration, anime, painting, CGI, 3D render, doll-like face, waxy or plastic skin, collage, inset, diptych, screenshot, user interface, phone screen displaying a portrait, printed portrait, framed portrait, reference sheet, caption, prompt text, location label, watermark, or logo. Avoid glossy advertising, glamour-campaign staging, fantasy rendering, oversaturation, malformed or duplicated facial features, smeared eyes or mouth, impossible mirror geometry, and identity drift.`,
+    "CAPTURE DEVICE",
+    visibleCaptureDevice
+      ? "The approved request explicitly asks for a visible phone or camera. Include only that requested device, held naturally without obscuring the companion’s identity or introducing impossible mirror geometry."
+      : "The photograph may use a close selfie viewpoint, but the capture device is outside the frame. Do not show a phone, smartphone, camera, selfie stick, device reflection, phone screen, or a hand posed as though visibly holding one.",
     "ANATOMICAL REALISM",
     "Preserve a coherent adult skeleton and natural body proportions from head through torso and limbs. Shoulders, elbows, wrists, hips, knees, and ankles must connect and bend plausibly. Every visible hand has one palm, five distinct naturally arranged fingers, correct thumb placement, separated digits, and believable nails. Do not fuse, erase, duplicate, stretch, twist, or add limbs, joints, fingers, toes, facial features, or body parts. Visible adult anatomy must have natural contours, believable volume, fine skin texture, and complete photographic detail rather than smooth, melted, vague, featureless, or synthetic regions.",
     "CONTINUITY REQUIREMENTS",
@@ -866,6 +874,9 @@ export function buildGroupImagePrompt(
     place = request.context.place,
     location = request.context.location,
     staged = request.context.groupSceneMode === "staged_group_portrait";
+  const visibleCaptureDevice = photoRequestWantsVisibleCaptureDevice(
+    request.generationIntent?.requestText,
+  );
   if (subjects.length !== 2) {
     throw new AppError(
       "PROVIDER_REQUEST_INVALID",
@@ -951,6 +962,10 @@ export function buildGroupImagePrompt(
       )
     }`,
     "Keep both intended subjects readable in one camera image. Exactly two people: no third person, duplicate person, extra face, merged body, or cropped-away selected companion.",
+    "CAPTURE DEVICE",
+    visibleCaptureDevice
+      ? "The approved request explicitly asks for a visible phone or camera. Include only that requested device and keep both companion identities unobstructed."
+      : "Treat selfie as viewpoint and framing only. The capture device is outside the image: no visible phone, smartphone, camera, selfie stick, device reflection, phone screen, or device-holding hand.",
     "WARDROBE",
     "Give each subject distinct natural clothing appropriate to the approved request and shared setting unless the approved adult request explicitly changes coverage. Identity references never define wardrobe.",
     "ANATOMICAL REALISM",

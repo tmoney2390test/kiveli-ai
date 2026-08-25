@@ -13,6 +13,7 @@ import { finalizeExpiredPlanExperience } from './together-plan-experience.ts';
 import { isDurableUserMemory, lifeEventEstablishesPresentReality, selectGroupPlanReminder, shouldSendPlanWaitingCheckIn } from '../../../packages/together-domain/src/index.ts';
 import type { GroupPlanReminderCandidate } from '../../../packages/together-domain/src/index.ts';
 import { sendCompanionPush } from './kivelle-push.ts';
+import { filterMemoriesForPreferences } from './kivelle-memory-access.ts';
 
 type LifeRunInput = { db: SupabaseClient; userId: string; characterInstanceId?: string; now?: Date; evaluateProactive?: boolean; persistCharacterState?:boolean; trigger: 'conversation_continued' | 'home_opened' | 'scheduled_dispatch' };
 type EventRow = Record<string, any>;
@@ -41,7 +42,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
     db.from('together_relationship_states').select('*').eq('character_instance_id', instance.id).single(),
     getActiveConversation(db, userId, instance.id, true).then((data) => ({ data, error: null })),
     db.from('together_notification_preferences').select('*').eq('user_id', userId).maybeSingle(),
-    db.from('together_profiles').select('age_verified_at,content_preferences,experience_timezone').eq('user_id', userId).maybeSingle(),
+    db.from('together_profiles').select('age_verified_at,content_preferences,experience_timezone,memory_categories').eq('user_id', userId).maybeSingle(),
     db.from('together_life_events').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).gte('starts_at', recentCutoff).order('starts_at', { ascending: false }).limit(20),
     db.from('together_proactive_messages').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).order('created_at', { ascending: false }).limit(10),
     db.from('together_memories').select('canonical_text,memory_type,pinned,importance,sensitivity_category').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status', 'active').neq('sensitivity_category', 'sensitive').order('pinned', { ascending: false }).order('importance', { ascending: false }).limit(8),
@@ -122,9 +123,12 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const presenceSource=activePlan?'plan':eventPresenceInfluence?'life_event':passivePresence?.source==='schedule'?'schedule':passivePresence?.source==='plan'?'plan':passivePresence?.source==='life_event'?'life_event':'fallback';
   if(persistCharacterState)await db.from('together_character_instances').update({ ...(life.locationId?{current_location_id:life.locationId}:{}), current_activity: life.activity, current_mood: life.mood, current_energy: life.energy, current_schedule_event_id:presenceSource==='schedule'?passivePresence?.scheduleEventId??null:null,current_interruptibility:passivePresence?.interruptibility??'open',current_presence_source:presenceSource,life_engine_version:'life_engine_v3_user_timezone', last_simulated_at: now.toISOString(), ...(simulateEvents ? { last_event_simulated_at: now.toISOString() } : {}), updated_at: now.toISOString() }).eq('id', instance.id).eq('user_id', userId);
 
-  const { data: dueThreads } = await db.from('together_open_threads').update({ follow_up_eligible: true, updated_at: now.toISOString() }).eq('user_id', userId).eq('character_instance_id', instance.id).is('resolved_at', null).lte('expected_at', now.toISOString()).select('*');
+  const memoryPreferences=(profile.data?.memory_categories??{}) as Record<string,unknown>;
+  const { data: dueThreads } = memoryPreferences.open_thread===false
+    ? {data:[] as EventRow[]}
+    : await db.from('together_open_threads').update({ follow_up_eligible: true, updated_at: now.toISOString() }).eq('user_id', userId).eq('character_instance_id', instance.id).is('resolved_at', null).lte('expected_at', now.toISOString()).select('*');
   const prefs = preferences.data ?? { character_initiated_messages: true, push_enabled: false, quiet_hours_start: '23:00', quiet_hours_end: '08:00', timezone: 'UTC' };
-  const durableMemory=(memories.data??[]).find((memory)=>isDurableUserMemory({memoryType:String(memory.memory_type??'semantic'),canonicalText:String(memory.canonical_text??'')}));
+  const durableMemory=filterMemoriesForPreferences(memories.data??[],memoryPreferences).find((memory)=>isDurableUserMemory({memoryType:String(memory.memory_type??'semantic'),canonicalText:String(memory.canonical_text??'')}));
   let proactive: EventRow | null = null;
   const remindersOnly=prefs.character_initiated_messages===false;
   if(remindersOnly){

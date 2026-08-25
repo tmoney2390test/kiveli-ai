@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, ArrowUpRight, CalendarDays, LockKeyhole, Palmtree, Plus, Sparkles, UserRound } from 'lucide-react-native';
+import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, CalendarDays, Flame, LockKeyhole, Palmtree, Plus, Sparkles, UserRound } from 'lucide-react-native';
 import { EmptyState, LoadingSkeleton, PageTitle, Screen, SectionHeader, SpiceBadge } from '../../src/components';
 import { CompanionGenderToggle, useCompanionGenderPreference } from '../../src/components/CompanionGenderToggle';
 import { CompanionPortraitCard } from '../../src/components/CompanionPortraitCard';
 import { CompanionWorldToggle } from '../../src/components/CompanionWorldToggle';
 import { listCreatorDrafts, setCharacterFavorite } from '../../src/lib/api';
 import { companionGenderFromSignals, featuredCompanionGender, type FeaturedGenderFilter } from '../../src/lib/featuredCompanions';
+import { nextAgeSort, nextSpiceSort, sortCompanionResults, type CompanionSortMode } from '../../src/lib/companionSort';
 import { characterCatalogForWorld } from '../../src/lib/place';
 import { responsiveCompanionGrid } from '../../src/lib/responsiveCompanionGrid';
 import { useAppShell } from '../../src/shell/AppShellContext';
@@ -85,13 +86,14 @@ function People({ snapshot, drafts, draftsLoading, worldId, gender }: { snapshot
   const { width } = useWindowDimensions();
   const { desktop, sidebarWidth } = useAppShell();
   const [visibleOfficialCount,setVisibleOfficialCount]=useState(12);
+  const [sortMode, setSortMode] = useState<CompanionSortMode>('recommended');
   const legacyDraftIds = useMemo(() => new Set(drafts.map((draft) => draft.legacy_template_id).filter(Boolean)), [drafts]);
   const worldCharacterIds = useMemo(() => worldId ? new Set(characterCatalogForWorld(snapshot, worldId).map((entry) => entry.template.id)) : null, [snapshot, worldId]);
   const worldDrafts = worldId ? drafts.filter((draft) => draft.world_id === worldId) : drafts;
-  const visibleDrafts = worldDrafts.filter((draft) => gender === 'any' || companionGenderFromSignals(draft.identity_config.pronouns, draft.identity_config.biography, draft.appearance_config) === gender);
-  const creations = (snapshot.discoverableCharacters ?? []).filter((item) => Boolean(item.creator_id) && !legacyDraftIds.has(item.id) && (!worldCharacterIds || worldCharacterIds.has(item.id))).filter((item) => gender === 'any' || featuredCompanionGender(item) === gender);
-  const official = (snapshot.discoverableCharacters ?? []).filter((item) => !item.creator_id && (!worldCharacterIds || worldCharacterIds.has(item.id))).filter((item) => gender === 'any' || featuredCompanionGender(item) === gender);
-  useEffect(()=>setVisibleOfficialCount(12),[gender,worldId]);
+  const visibleDrafts = sortCompanionResults(worldDrafts.filter((draft) => gender === 'any' || companionGenderFromSignals(draft.identity_config.pronouns, draft.identity_config.biography, draft.appearance_config) === gender), sortMode, (draft) => ({ age: draft.identity_config.age, spiceLevel: draft.connection_config.spiceLevel }));
+  const creations = sortCompanionResults((snapshot.discoverableCharacters ?? []).filter((item) => Boolean(item.creator_id) && !legacyDraftIds.has(item.id) && (!worldCharacterIds || worldCharacterIds.has(item.id))).filter((item) => gender === 'any' || featuredCompanionGender(item) === gender), sortMode, (item) => ({ age: item.age, spiceLevel: item.spice_level }));
+  const official = sortCompanionResults((snapshot.discoverableCharacters ?? []).filter((item) => !item.creator_id && (!worldCharacterIds || worldCharacterIds.has(item.id))).filter((item) => gender === 'any' || featuredCompanionGender(item) === gender), sortMode, (item) => ({ age: item.age, spiceLevel: item.spice_level }));
+  useEffect(()=>setVisibleOfficialCount(12),[gender,worldId,sortMode]);
   const visibleOfficial=official.slice(0,visibleOfficialCount);
   const { cardWidth, cardHeight } = responsiveCompanionGrid({ viewportWidth: width, desktop, sidebarWidth });
   if (!official.length && !creations.length && !visibleDrafts.length && !draftsLoading) {
@@ -99,6 +101,7 @@ function People({ snapshot, drafts, draftsLoading, worldId, gender }: { snapshot
     return <EmptyState title={gender === 'any' ? 'New people are on the way' : `No ${gender} companions here yet`} body={gender === 'any' ? 'Your current relationships are still waiting on Home.' : `Try Any to see everyone${worldName ? ` available in ${worldName}` : ''}.`} />;
   }
   return <>
+    <CompanionSortControls value={sortMode} onChange={setSortMode} />
     {visibleDrafts.length || creations.length || draftsLoading ? <>
       <SectionHeader title="Your creations" action={`${visibleDrafts.length + creations.length}`} />
       <View style={styles.stack}>
@@ -111,6 +114,37 @@ function People({ snapshot, drafts, draftsLoading, worldId, gender }: { snapshot
     <View style={styles.peopleGrid}>{visibleOfficial.map((template) => <Person key={template.id} template={template} snapshot={snapshot} width={cardWidth} height={cardHeight} />)}</View>
     {visibleOfficialCount<official.length?<Pressable accessibilityRole="button" onPress={()=>setVisibleOfficialCount((value)=>Math.min(official.length,value+12))} style={styles.loadMore}><Text style={styles.loadMoreText}>Show more people</Text></Pressable>:null}
   </>;
+}
+
+function CompanionSortControls({ value, onChange }: { value: CompanionSortMode; onChange: (value: CompanionSortMode) => void }) {
+  const spiceActive = value.startsWith('spice');
+  const ageActive = value.startsWith('age');
+  return <View style={styles.sortBar} accessibilityRole="toolbar" accessibilityLabel="Sort companions">
+    <Text style={styles.sortLabel}>SORT BY</Text>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: spiceActive }}
+      accessibilityLabel={spiceActive ? `Spice level, ${value === 'spice-desc' ? 'highest first' : 'lowest first'}. Tap to reverse.` : 'Sort by Spice level, highest first'}
+      onPress={() => onChange(nextSpiceSort(value))}
+      style={({ pressed }) => [styles.sortControl, spiceActive && styles.sortControlActive, pressed && styles.sortControlPressed]}
+    >
+      <Flame size={15} color={spiceActive ? colors.rose : colors.muted} />
+      <View><Text style={[styles.sortControlTitle, spiceActive && styles.sortControlTitleActive]}>Spice level</Text>{spiceActive ? <Text style={styles.sortDirection}>{value === 'spice-desc' ? 'Highest first' : 'Lowest first'}</Text> : null}</View>
+      {spiceActive ? value === 'spice-desc' ? <ArrowDown size={14} color={colors.rose} /> : <ArrowUp size={14} color={colors.rose} /> : null}
+    </Pressable>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: ageActive }}
+      accessibilityLabel={ageActive ? `Age, ${value === 'age-asc' ? 'youngest first' : 'oldest first'}. Tap to reverse.` : 'Sort by age, youngest first'}
+      onPress={() => onChange(nextAgeSort(value))}
+      style={({ pressed }) => [styles.sortControl, ageActive && styles.sortControlActive, pressed && styles.sortControlPressed]}
+    >
+      <CalendarDays size={15} color={ageActive ? colors.rose : colors.muted} />
+      <View><Text style={[styles.sortControlTitle, ageActive && styles.sortControlTitleActive]}>Age</Text>{ageActive ? <Text style={styles.sortDirection}>{value === 'age-asc' ? 'Youngest first' : 'Oldest first'}</Text> : null}</View>
+      {ageActive ? value === 'age-asc' ? <ArrowUp size={14} color={colors.rose} /> : <ArrowDown size={14} color={colors.rose} /> : null}
+    </Pressable>
+    {value !== 'recommended' ? <Pressable accessibilityRole="button" accessibilityLabel="Clear companion sorting" onPress={() => onChange('recommended')} style={({ pressed }) => [styles.sortReset, pressed && styles.sortControlPressed]}><Text style={styles.sortResetText}>Reset</Text></Pressable> : null}
+  </View>;
 }
 
 function DraftPerson({ draft }: { draft: CreatorDraft }) {
@@ -199,6 +233,15 @@ const styles = StyleSheet.create({
   createTitle: { color: '#fff', fontFamily: 'Georgia', fontSize: 20 }, createCopy: { color: 'rgba(255,255,255,.78)', fontSize: 11, marginTop: 2 },
   tabs: { flexDirection: 'row', gap: 7, padding: 4, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
   filters: { flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, zIndex: 30 },
+  sortBar: { minHeight: 48, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, paddingVertical: 2 },
+  sortLabel: { color: colors.dimmed, fontSize: 9, fontWeight: '900', letterSpacing: 1.1, marginRight: 2 },
+  sortControl: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 11, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  sortControlActive: { borderColor: 'rgba(216,62,234,.48)', backgroundColor: 'rgba(216,62,234,.11)' },
+  sortControlPressed: { opacity: .72, transform: [{ scale: .98 }] },
+  sortControlTitle: { color: colors.muted, fontSize: 11, fontWeight: '900' },
+  sortControlTitleActive: { color: colors.text },
+  sortDirection: { color: colors.rose, fontSize: 8, fontWeight: '800', marginTop: 1 },
+  sortReset: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 7 }, sortResetText: { color: colors.muted, fontSize: 10, fontWeight: '800', textDecorationLine: 'underline' },
   tab: { flex: 1, minHeight: 40, justifyContent: 'center', alignItems: 'center', borderRadius: radius.sm }, tabSelected: { backgroundColor: colors.rose }, tabText: { color: colors.muted, fontSize: 12, fontWeight: '800' }, tabTextSelected: { color: '#fff' },
   stack: { gap: 10 }, person: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 13, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   peopleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }, personName: { flex:1,fontFamily: 'Georgia', fontSize: 21, color: colors.text }, personMeta: { color: colors.rose, fontSize: 11, fontWeight: '700', marginTop: 2 }, summary: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 5 }, action: { color: colors.rose, fontSize: 11, fontWeight: '900', marginTop: 7 },

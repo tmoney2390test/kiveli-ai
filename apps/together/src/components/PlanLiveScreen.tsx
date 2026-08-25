@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft, CheckCircle2, Clock3, MapPin, MoreHorizontal, Send } from 'lucide-react-native';
@@ -18,10 +18,11 @@ import { userExperienceTimezone } from '../lib/experienceTimezone';
 type InteractionResponse = { scene: SceneSession; interactions: InteractionCandidate[]; destinations: InteractionCandidate[]; action?: { id: string }; place?: { path?: string } };
 
 export function PlanLiveScreen({ planId }: { planId: string }) {
-  const { snapshot, refresh } = useTogether();
+  const { snapshot, refresh, upsertPlan, upsertSceneSession } = useTogether();
   const [experience, setExperience] = useState<PlanExperience | null>(null);
   const [loadedPlan, setLoadedPlan] = useState<Commitment | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionsLoading, setActionsLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [composer, setComposer] = useState('');
@@ -30,6 +31,11 @@ export function PlanLiveScreen({ planId }: { planId: string }) {
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [loadedAt, setLoadedAt] = useState(() => Date.now());
+  const experienceRef = useRef<PlanExperience | null>(null);
+  const loadedPlanRef = useRef<Commitment | null>(null);
+  const loadInFlightRef = useRef<Promise<void> | null>(null);
+  const actionResolveGeneration = useRef(0);
+  const realtimeReloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const snapshotPlan = snapshot?.sharedPlans.find((item) => item.id === planId);
   const canonicalPlan = experience?.plan ?? loadedPlan ?? snapshotPlan;
@@ -48,33 +54,64 @@ export function PlanLiveScreen({ planId }: { planId: string }) {
     return formatDuration(recorded + liveDelta);
   }, [clockNow, experience?.participation.attendedSeconds, experience?.participation.userPresent, loadedAt]);
 
-  const load = useCallback(async () => {
-    if (!snapshot) return;
-    setLoading(true);
-    try {
-      const plan = snapshotPlan ?? loadedPlan ?? await getCommitment(planId);
-      if (!snapshotPlan && !loadedPlan) setLoadedPlan(plan);
-      const planCharacter = snapshot.characters.find((item) => item.id === plan.character_instance_id);
-      if (!planCharacter) throw new Error('The companion for this plan is unavailable in the current Life.');
-      const value = await getPlanExperience(planId, planCharacter.id);
-      setExperience(value);
-      setLoadedAt(Date.now());
-      if (value.scene && !value.scene.ended_at) await resolveActions(value.scene, value.scene.conversation_id ?? value.plan.source_conversation_id, planCharacter.id);
-      setError('');
-    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Together Now could not load.'); }
-    finally { setLoading(false); }
-  }, [loadedPlan, planId, snapshot, snapshotPlan]);
-
-  const resolveActions = useCallback(async (scene: SceneSession, conversationId?: string | null, characterInstanceId = character?.id) => {
-    const actionConversation = (conversationId ? snapshot?.conversations.find((item) => item.id === conversationId) : null) ?? conversation;
+  const resolveActions = useCallback(async (scene: SceneSession, conversationId?: string | null, characterInstanceId?: string) => {
+    const currentSnapshot = useTogether.getState().snapshot;
+    const actionConversation = (conversationId ? currentSnapshot?.conversations.find((item) => item.id === conversationId) : null) ?? currentSnapshot?.conversations.find((item) => item.character_instance_id === characterInstanceId && !item.archived_at);
     if (!characterInstanceId || !actionConversation) return;
+    const generation = ++actionResolveGeneration.current;
+    setActionsLoading(true);
     try {
       const result = await manageInteraction<InteractionResponse>({ action: 'resolve', characterInstanceId, conversationId: actionConversation.id });
-      setExperience((current) => current ? { ...current, scene: result.scene ?? scene, interactions: result.interactions ?? [], destinations: result.destinations ?? [] } : current);
+      if (generation !== actionResolveGeneration.current) return;
+      if (result.scene) upsertSceneSession(result.scene);
+      setExperience((current) => {
+        if (!current) return current;
+        const next = { ...current, scene: result.scene ?? scene, interactions: result.interactions ?? [], destinations: result.destinations ?? [] };
+        experienceRef.current = next;
+        return next;
+      });
     } catch { /* Waiting and stale scenes are rendered from the authoritative plan state. */ }
-  }, [character, conversation]);
+    finally { if (generation === actionResolveGeneration.current) setActionsLoading(false); }
+  }, [upsertSceneSession]);
 
-  useEffect(() => { void load(); }, [load]);
+  const load = useCallback((): Promise<void> => {
+    if (loadInFlightRef.current) return loadInFlightRef.current;
+    const request = (async () => {
+      const currentSnapshot = useTogether.getState().snapshot;
+      if (!currentSnapshot) return;
+      const blocking = !experienceRef.current;
+      if (blocking) setLoading(true);
+      try {
+        const cachedPlan = currentSnapshot.sharedPlans.find((item) => item.id === planId);
+        const plan = cachedPlan ?? loadedPlanRef.current ?? await getCommitment(planId);
+        if (!cachedPlan && !loadedPlanRef.current) {
+          loadedPlanRef.current = plan;
+          setLoadedPlan(plan);
+        }
+        const planCharacter = currentSnapshot.characters.find((item) => item.id === plan.character_instance_id);
+        if (!planCharacter) throw new Error('The companion for this plan is unavailable in the current Life.');
+        const value = await getPlanExperience(planId, planCharacter.id);
+        const previous = experienceRef.current;
+        const displayValue = previous?.scene?.id && previous.scene.id === value.scene?.id
+          ? { ...value, interactions: previous.interactions, destinations: previous.destinations }
+          : value;
+        experienceRef.current = displayValue;
+        setExperience(displayValue);
+        upsertPlan(displayValue.plan);
+        if (displayValue.scene) upsertSceneSession(displayValue.scene);
+        setLoadedAt(Date.now());
+        setLoading(false);
+        setError('');
+        if (displayValue.scene && !displayValue.scene.ended_at) void resolveActions(displayValue.scene, displayValue.scene.conversation_id ?? displayValue.plan.source_conversation_id, planCharacter.id);
+      } catch (caught) { setError(caught instanceof Error ? caught.message : 'Together Now could not load.'); }
+      finally { if (blocking) setLoading(false); }
+    })();
+    loadInFlightRef.current = request;
+    void request.finally(() => { if (loadInFlightRef.current === request) loadInFlightRef.current = null; });
+    return request;
+  }, [planId, resolveActions, upsertPlan, upsertSceneSession]);
+
+  useEffect(() => { if (snapshot) void load(); }, [Boolean(snapshot), load]);
   useEffect(() => {
     const ticker = setInterval(() => setClockNow(Date.now()), 15_000);
     return () => clearInterval(ticker);
@@ -87,12 +124,16 @@ export function PlanLiveScreen({ planId }: { planId: string }) {
     return () => clearTimeout(timer);
   }, [experience?.plan.ends_at, experience?.plan.status, load]);
   useEffect(() => {
+    const scheduleReload = () => {
+      if (realtimeReloadTimer.current) clearTimeout(realtimeReloadTimer.current);
+      realtimeReloadTimer.current = setTimeout(() => { realtimeReloadTimer.current = null; void load(); }, 160);
+    };
     const channel = supabase.channel(`plan-live:${planId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'together_plan_attendance', filter: `plan_id=eq.${planId}` }, () => { void load(); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'together_shared_plans', filter: `id=eq.${planId}` }, () => { void load(); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'together_scene_sessions', filter: `shared_plan_id=eq.${planId}` }, () => { void load(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'together_plan_attendance', filter: `plan_id=eq.${planId}` }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'together_shared_plans', filter: `id=eq.${planId}` }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'together_scene_sessions', filter: `shared_plan_id=eq.${planId}` }, scheduleReload)
       .subscribe();
-    return () => { void supabase.removeChannel(channel); };
+    return () => { if (realtimeReloadTimer.current) clearTimeout(realtimeReloadTimer.current); realtimeReloadTimer.current = null; void supabase.removeChannel(channel); };
   }, [load, planId]);
 
   if (!snapshot || loading) return <View style={styles.center}><ActivityIndicator color={colors.rose}/><Text style={styles.muted}>Loading the shared experience…</Text></View>;
@@ -100,7 +141,7 @@ export function PlanLiveScreen({ planId }: { planId: string }) {
 
   const join = async () => {
     setBusy(true); setError('');
-    try { const value = await joinCommitment(planId, character.id); setExperience(value); await refresh(); if (value.scene) await resolveActions(value.scene, value.scene.conversation_id ?? value.plan.source_conversation_id); }
+    try { const value = await joinCommitment(planId, character.id); experienceRef.current = value; setExperience(value); upsertPlan(value.plan); if (value.scene) { upsertSceneSession(value.scene); void resolveActions(value.scene, value.scene.conversation_id ?? value.plan.source_conversation_id); } void refresh(); }
     catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not join this plan.'); }
     finally { setBusy(false); }
   };
@@ -110,7 +151,8 @@ export function PlanLiveScreen({ planId }: { planId: string }) {
     setBusy(true); setError('');
     try {
       const result = await manageInteraction<InteractionResponse>({ action: 'execute', characterInstanceId: character.id, conversationId: conversation.id, sceneId: activeScene.id, interactionKey: candidate.interactionKey, requestId: createClientRequestId(), reactionMode: 'generate' });
-      setExperience((current) => current ? { ...current, scene: result.scene, interactions: result.interactions ?? [], destinations: result.destinations ?? [], phase: 'together' } : current);
+      upsertSceneSession(result.scene);
+      setExperience((current) => { if (!current) return current; const next = { ...current, scene: result.scene, interactions: result.interactions ?? [], destinations: result.destinations ?? [], phase: 'together' as const }; experienceRef.current = next; return next; });
       if (result.action?.id) {
         setStream('');
         try {
@@ -118,7 +160,7 @@ export function PlanLiveScreen({ planId }: { planId: string }) {
           setMessages((current) => [...current, reaction.message]);
         } finally { setStream(''); }
       }
-      await refresh();
+      void refresh();
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'That action is no longer available.'); }
     finally { setBusy(false); }
   };
@@ -129,7 +171,8 @@ export function PlanLiveScreen({ planId }: { planId: string }) {
     setBusy(true); setError('');
     try {
       const result = await manageInteraction<InteractionResponse>({ action: 'move', characterInstanceId: character.id, conversationId: conversation.id, sceneId: activeScene.id, destinationLocationId: destination, requestId: createClientRequestId() });
-      setExperience((current) => current ? { ...current, scene: result.scene, interactions: result.interactions ?? [], destinations: result.destinations ?? [] } : current);
+      upsertSceneSession(result.scene);
+      setExperience((current) => { if (!current) return current; const next = { ...current, scene: result.scene, interactions: result.interactions ?? [], destinations: result.destinations ?? [] }; experienceRef.current = next; return next; });
       if (result.action?.id) {
         setStream('');
         try {
@@ -137,7 +180,7 @@ export function PlanLiveScreen({ planId }: { planId: string }) {
           setMessages((current) => [...current, reaction.message]);
         } finally { setStream(''); }
       }
-      await refresh();
+      void refresh();
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'That move is no longer available.'); }
     finally { setBusy(false); }
   };
@@ -147,7 +190,7 @@ export function PlanLiveScreen({ planId }: { planId: string }) {
     setBusy(true); setError('');
     try {
       const value = await endPlanExperience(planId, character.id, activeScene?.id);
-      setExperience(value); setLoadedAt(Date.now()); setShowEndConfirm(false); await refresh({force:true});
+      experienceRef.current = value; setExperience(value); upsertPlan(value.plan); if (value.scene) upsertSceneSession(value.scene); setLoadedAt(Date.now()); setShowEndConfirm(false); void refresh({force:true});
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
     catch (caught) { setError(caught instanceof Error ? caught.message : 'The plan could not be ended.'); }
@@ -161,7 +204,7 @@ export function PlanLiveScreen({ planId }: { planId: string }) {
     setComposer(''); setBusy(true); setError('');
     try {
       const result = await sendDialogue({ conversationId: conversation.id, characterInstanceId: character.id, message: text, clientRequestId: createClientRequestId(), focusPlanId: planId }, (token) => setStream((current) => current + token));
-      setMessages((current) => [...current, result.message]); setStream(''); await refresh();
+      setMessages((current) => [...current, result.message]); setStream(''); void refresh();
     } catch (caught) { setStream(''); setError(caught instanceof Error ? caught.message : 'The message could not be sent.'); }
     finally { setBusy(false); }
   };
@@ -190,7 +233,7 @@ export function PlanLiveScreen({ planId }: { planId: string }) {
       {activeScene ? <>
         <View style={styles.quote}><Text style={styles.quoteName}>{companionName}</Text><Text style={styles.quoteText}>{stream || latestReaction(messages) || `“I was wondering if you’d actually make me go first.”`}</Text></View>
         <Text style={styles.sectionLabel}>{experience.phase === 'wrapping_up' ? 'WINDING DOWN' : String(experience.plan.title).toUpperCase()}</Text>
-        <View style={styles.actions}>{experience.interactions.slice(0, 6).map((candidate) => <Pressable key={candidate.id} disabled={busy} onPress={() => void execute(candidate)} style={[styles.action, candidate.presentation?.emphasis === 'recommended' && styles.actionFeatured]}><Text style={styles.actionText}>{candidate.label}</Text></Pressable>)}</View>
+        {actionsLoading && !experience.interactions.length ? <View accessibilityLiveRegion="polite" style={styles.actionsLoading}><ActivityIndicator size="small" color={colors.rose}/><Text style={styles.actionsLoadingText}>Loading things to do…</Text></View> : <View style={styles.actions}>{experience.interactions.slice(0, 6).map((candidate) => <Pressable key={candidate.id} disabled={busy} onPress={() => void execute(candidate)} style={[styles.action, candidate.presentation?.emphasis === 'recommended' && styles.actionFeatured]}><Text style={styles.actionText}>{candidate.label}</Text></Pressable>)}</View>}
         {experience.destinations.length ? <><Text style={styles.sectionLabel}>GO SOMEWHERE ELSE</Text><View style={styles.actions}>{experience.destinations.slice(0, 3).map((candidate) => <Pressable key={candidate.id} disabled={busy} onPress={() => void move(candidate)} style={styles.action}><MapPin size={14} color={colors.rose}/><Text style={styles.actionText}>{candidate.label}</Text></Pressable>)}</View></> : null}
         {canEndManually ? <Pressable accessibilityRole="button" accessibilityLabel={`End ${experience.plan.title}`} onPress={() => setShowEndConfirm(true)} disabled={busy} style={styles.wrap}><Clock3 size={15} color={colors.muted}/><Text style={styles.wrapText}>End plan</Text></Pressable> : null}
       </> : null}
@@ -217,4 +260,4 @@ function formatCompletionMeta(experience: PlanExperience, timezone: string) {
 
 const styles = StyleSheet.create({
   composerArea: { gap: 4 },
-  root: { flex: 1, backgroundColor: colors.background }, content: { gap: spacing.md, padding: spacing.lg, paddingBottom: 32, maxWidth: 760, width: '100%', alignSelf: 'center' }, center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', gap: 10 }, muted: { color: colors.muted, fontSize: 12 }, top: { flexDirection: 'row', alignItems: 'center', gap: 10 }, icon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }, iconSpacer: { width: 40, height: 40 }, topCopy: { flex: 1 }, kicker: { color: colors.rose, fontSize: 9, fontWeight: '900', letterSpacing: 1.5 }, headerTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 22, marginTop: 2 }, hero: { height: 255, borderRadius: radius.xl, overflow: 'hidden', position: 'relative', backgroundColor: colors.surface }, heroImage: { width: '100%', height: '100%' }, heroShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(12,8,16,.34)' }, heroCopy: { position: 'absolute', left: 18, right: 18, bottom: 18 }, place: { color: '#fff', fontSize: 11, fontWeight: '800' }, activity: { color: '#fff', fontFamily: 'Georgia', fontSize: 32, marginTop: 4, textTransform: 'capitalize' }, sub: { color: 'rgba(255,255,255,.8)', fontSize: 11, marginTop: 6 }, timeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }, timeText: { color: colors.warm, fontSize: 11, fontWeight: '800' }, quote: { padding: 16, borderRadius: radius.lg, backgroundColor: colors.elevated, borderWidth: 1, borderColor: colors.border }, quoteName: { color: colors.rose, fontSize: 10, fontWeight: '900', letterSpacing: 1 }, quoteText: { color: colors.text, fontFamily: 'Georgia', fontSize: 19, lineHeight: 26, marginTop: 6 }, sectionLabel: { color: colors.dimmed, fontSize: 9, fontWeight: '900', letterSpacing: 1.4, marginTop: 6 }, actions: { gap: 8 }, action: { minHeight: 48, paddingHorizontal: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 8 }, actionFeatured: { borderColor: colors.rose, backgroundColor: 'rgba(216,62,234,.12)' }, actionText: { color: colors.text, fontSize: 13, fontWeight: '800' }, waiting: { padding: 18, borderRadius: radius.lg, backgroundColor: colors.elevated, borderWidth: 1, borderColor: 'rgba(216,62,234,.24)' }, waitingTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 21 }, waitingBody: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 5 }, waitingButton: { marginTop: 14, minHeight: 42, borderRadius: radius.md, backgroundColor: colors.rose, alignItems: 'center', justifyContent: 'center' }, waitingButtonText: { color: '#fff', fontSize: 12, fontWeight: '900' }, endConfirm: { gap: 10, padding: 17, borderRadius: radius.lg, borderWidth: 1, borderColor: 'rgba(216,62,234,.28)', backgroundColor: colors.elevated }, endTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 21 }, endCopy: { color: colors.muted, fontSize: 12, lineHeight: 18 }, endActions: { flexDirection: 'row', gap: 9 }, keepButton: { minHeight: 44, flex: 1, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 }, keepText: { color: colors.text, fontSize: 11, fontWeight: '900' }, endButton: { minHeight: 44, flex: 1, borderRadius: radius.md, backgroundColor: colors.rose, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 }, endButtonText: { color: '#fff', fontSize: 11, fontWeight: '900' }, wrap: { alignSelf: 'center', flexDirection: 'row', gap: 7, alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14 }, wrapText: { color: colors.muted, fontSize: 11, fontWeight: '800' }, completed: { gap: 12, padding: 18, borderRadius: radius.xl, borderWidth: 1, borderColor: 'rgba(78,203,141,.24)', backgroundColor: colors.elevated }, completedCopy: { gap: 5 }, completedKicker: { color: colors.success, fontSize: 9, fontWeight: '900', letterSpacing: 1.3 }, completedTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 24 }, completedBody: { color: colors.muted, fontSize: 12, lineHeight: 18 }, completedMeta: { color: colors.dimmed, fontSize: 10, fontWeight: '800', marginTop: 3 }, completedActions: { gap: 8, marginTop: 3 }, message: { alignSelf: 'flex-start', maxWidth: '88%', padding: 12, borderRadius: radius.lg, backgroundColor: colors.surface }, messageText: { color: colors.text, fontSize: 13, lineHeight: 18 }, join: { minHeight: 48, borderRadius: radius.md, backgroundColor: colors.rose, alignItems: 'center', justifyContent: 'center' }, joinText: { color: '#fff', fontSize: 13, fontWeight: '900' }, composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 4 }, input: { flex: 1, minHeight: 48, maxHeight: 120, borderRadius: 24, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, color: colors.text, paddingHorizontal: 16, paddingVertical: 12 }, send: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.rose, alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: .45 }, error: { color: colors.danger, fontSize: 12, textAlign: 'center' }, } as const);
+  root: { flex: 1, backgroundColor: colors.background }, content: { gap: spacing.md, padding: spacing.lg, paddingBottom: 32, maxWidth: 760, width: '100%', alignSelf: 'center' }, center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', gap: 10 }, muted: { color: colors.muted, fontSize: 12 }, top: { flexDirection: 'row', alignItems: 'center', gap: 10 }, icon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }, iconSpacer: { width: 40, height: 40 }, topCopy: { flex: 1 }, kicker: { color: colors.rose, fontSize: 9, fontWeight: '900', letterSpacing: 1.5 }, headerTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 22, marginTop: 2 }, hero: { height: 255, borderRadius: radius.xl, overflow: 'hidden', position: 'relative', backgroundColor: colors.surface }, heroImage: { width: '100%', height: '100%' }, heroShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(12,8,16,.34)' }, heroCopy: { position: 'absolute', left: 18, right: 18, bottom: 18 }, place: { color: '#fff', fontSize: 11, fontWeight: '800' }, activity: { color: '#fff', fontFamily: 'Georgia', fontSize: 32, marginTop: 4, textTransform: 'capitalize' }, sub: { color: 'rgba(255,255,255,.8)', fontSize: 11, marginTop: 6 }, timeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }, timeText: { color: colors.warm, fontSize: 11, fontWeight: '800' }, quote: { padding: 16, borderRadius: radius.lg, backgroundColor: colors.elevated, borderWidth: 1, borderColor: colors.border }, quoteName: { color: colors.rose, fontSize: 10, fontWeight: '900', letterSpacing: 1 }, quoteText: { color: colors.text, fontFamily: 'Georgia', fontSize: 19, lineHeight: 26, marginTop: 6 }, sectionLabel: { color: colors.dimmed, fontSize: 9, fontWeight: '900', letterSpacing: 1.4, marginTop: 6 }, actions: { gap: 8 }, actionsLoading: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }, actionsLoadingText: { color: colors.muted, fontSize: 12, fontWeight: '700' }, action: { minHeight: 48, paddingHorizontal: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 8 }, actionFeatured: { borderColor: colors.rose, backgroundColor: 'rgba(216,62,234,.12)' }, actionText: { color: colors.text, fontSize: 13, fontWeight: '800' }, waiting: { padding: 18, borderRadius: radius.lg, backgroundColor: colors.elevated, borderWidth: 1, borderColor: 'rgba(216,62,234,.24)' }, waitingTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 21 }, waitingBody: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 5 }, waitingButton: { marginTop: 14, minHeight: 42, borderRadius: radius.md, backgroundColor: colors.rose, alignItems: 'center', justifyContent: 'center' }, waitingButtonText: { color: '#fff', fontSize: 12, fontWeight: '900' }, endConfirm: { gap: 10, padding: 17, borderRadius: radius.lg, borderWidth: 1, borderColor: 'rgba(216,62,234,.28)', backgroundColor: colors.elevated }, endTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 21 }, endCopy: { color: colors.muted, fontSize: 12, lineHeight: 18 }, endActions: { flexDirection: 'row', gap: 9 }, keepButton: { minHeight: 44, flex: 1, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 }, keepText: { color: colors.text, fontSize: 11, fontWeight: '900' }, endButton: { minHeight: 44, flex: 1, borderRadius: radius.md, backgroundColor: colors.rose, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 }, endButtonText: { color: '#fff', fontSize: 11, fontWeight: '900' }, wrap: { alignSelf: 'center', flexDirection: 'row', gap: 7, alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14 }, wrapText: { color: colors.muted, fontSize: 11, fontWeight: '800' }, completed: { gap: 12, padding: 18, borderRadius: radius.xl, borderWidth: 1, borderColor: 'rgba(78,203,141,.24)', backgroundColor: colors.elevated }, completedCopy: { gap: 5 }, completedKicker: { color: colors.success, fontSize: 9, fontWeight: '900', letterSpacing: 1.3 }, completedTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 24 }, completedBody: { color: colors.muted, fontSize: 12, lineHeight: 18 }, completedMeta: { color: colors.dimmed, fontSize: 10, fontWeight: '800', marginTop: 3 }, completedActions: { gap: 8, marginTop: 3 }, message: { alignSelf: 'flex-start', maxWidth: '88%', padding: 12, borderRadius: radius.lg, backgroundColor: colors.surface }, messageText: { color: colors.text, fontSize: 13, lineHeight: 18 }, join: { minHeight: 48, borderRadius: radius.md, backgroundColor: colors.rose, alignItems: 'center', justifyContent: 'center' }, joinText: { color: '#fff', fontSize: 13, fontWeight: '900' }, composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 4 }, input: { flex: 1, minHeight: 48, maxHeight: 120, borderRadius: 24, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, color: colors.text, paddingHorizontal: 16, paddingVertical: 12 }, send: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.rose, alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: .45 }, error: { color: colors.danger, fontSize: 12, textAlign: 'center' }, } as const);

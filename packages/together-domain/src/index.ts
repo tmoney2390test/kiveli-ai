@@ -29,6 +29,7 @@ export * from './creator.ts';
 export * from './conversation-style.ts';
 export * from './context-budget.ts';
 export * from './conversation-state.ts';
+export * from './conversation-episodes.ts';
 export * from './multimodal.ts';
 export * from './media-routing.ts';
 export * from './media-economics.ts';

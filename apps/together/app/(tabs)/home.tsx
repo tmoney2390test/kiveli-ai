@@ -74,7 +74,11 @@ export default function Home() {
   const featuredCompanions = selectedWorld ? featuredCompanionsForWorld(snapshot, selectedWorld.id, template.id) : [];
   const discoveryWorlds=homeWorldDiscoveryOptions(snapshot.worlds,model.currentWorld?.id);
   const relationship = getRelationshipPresentation(snapshot, companion, model.relationshipDay);
-  const memory = getMemoryPresentation(selectFeaturedMemory(snapshot, companion.id), template.name);
+  const memoryInspector=snapshot.entitlements?.entitlement_keys?.includes('memory_inspector')===true;
+  const rememberedCount=snapshot.memoryCounts?.[companion.id]??snapshot.memories.filter((item)=>item.character_instance_id===companion.id).length;
+  const memory = !memoryInspector&&rememberedCount>0
+    ? {eyebrow:`${template.name.toUpperCase()} REMEMBERS`,text:`${rememberedCount} saved ${rememberedCount===1?'detail':'details'} · unlock the Memory Center with Kivelle+`}
+    : getMemoryPresentation(selectFeaturedMemory(snapshot, companion.id), template.name);
   const media = getCompanionMedia(snapshot, companion.id);
   const upcomingLocation = resolveUpcomingLocation(snapshot, model.upcoming.action) ?? model.currentLocation;
   const upcomingWorld = upcomingLocation ? snapshot.worlds.find((item) => item.id === upcomingLocation.world_id) : model.currentWorld;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMemoryRecallPlan, decayEmotionalResidue, evaluateBehaviorPattern, isDurableUserMemory, isRelationshipDirectedPreferenceMemory, scoreEpisodeSignificance } from './memory.ts';
+import { buildMemoryRecallPlan, decayEmotionalResidue, evaluateBehaviorPattern, isDurableUserMemory, isRelationshipDirectedPreferenceMemory, mergeMemory, scoreEpisodeSignificance } from './memory.ts';
 
 const now = new Date('2026-08-16T20:00:00.000Z');
 
@@ -56,5 +56,19 @@ describe('Memory Engine V2', () => {
     expect(isDurableUserMemory({ memoryType:'preference', canonicalText:'User likes football.' })).toBe(true);
     expect(isDurableUserMemory({ memoryType:'relationship', canonicalText:'User told Brooke they love her.' })).toBe(true);
     expect(isDurableUserMemory({ memoryType:'episodic', canonicalText:'Brooke and Tim watched the sunset at Riverwalk.' })).toBe(true);
+  });
+
+  it('preserves correction provenance when newer evidence replaces an old fact', () => {
+    const previous = {
+      id:'favorite-drink', type:'preference' as const, canonicalText:'User likes coffee.', importance:.6, confidence:.8,
+      sensitivity:'none' as const, dedupeKey:'preference:coffee', subjectKey:'preference:drink', metadata:{}, pinned:false,
+      status:'active' as const, createdAt:'2026-08-01T00:00:00.000Z', updatedAt:'2026-08-01T00:00:00.000Z',
+    };
+    const corrected = mergeMemory(previous, {
+      type:'preference', canonicalText:'User prefers tea.', importance:.7, confidence:.95, sensitivity:'none',
+      dedupeKey:'preference:tea', subjectKey:'preference:drink', metadata:{source:'newer_statement'},
+    }, '2026-08-24T00:00:00.000Z');
+    expect(corrected.canonicalText).toBe('User prefers tea.');
+    expect(corrected.metadata).toMatchObject({previousText:'User likes coffee.',source:'newer_statement'});
   });
 });

@@ -22,6 +22,7 @@ describe('chat plan presentation', () => {
   it('replaces plan creation with change and end settings while a plan is active', () => {
     expect(conversationPlanMenuItems(false)).toEqual([{key:'createPlan',label:'Plan something'}]);
     expect(conversationPlanMenuItems(true)).toEqual([
+      {key:'continuePlan',label:'Continue plan'},
       {key:'changePlan',label:'Change plan'},
       {key:'endPlan',label:'End plan',danger:true},
     ]);

@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { MESSAGE_CHARACTER_LIMIT, messageCharacterLimitError } from '@together/domain/src/message-limits';
 import type { CompanionVoicePreset } from '@together/domain/src/voice-presets';
-import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, Snapshot, SnapshotDelta, VoiceCallSession } from '../types';
+import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, MemoryCenterItem, MemoryCenterResponse, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, ScheduleItem, Snapshot, SnapshotDelta, VoiceCallSession } from '../types';
 import type { RealtimeVoiceConfiguration } from './realtimeVoice';
 
 export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false) { super(message); } }
@@ -11,7 +11,7 @@ type Envelope<T> = { data: T; correlationId: string };
 function deviceTimezone():string{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';}catch{return'UTC';}}
 
 type ClientPerformanceEvent={surface:string;operation:string;durationMs:number;success:boolean;statusCode?:number;platform:string;appVersion:string;buildId:string;metadata:Record<string,string|number|boolean|null>};
-const performanceSurfaces=new Set(['together-bootstrap','together-group','together-conversation','together-media','together-dialogue','together-group-dialogue']);
+const performanceSurfaces=new Set(['together-bootstrap','together-group','together-conversation','together-media','together-dialogue','together-group-dialogue','together-plan','together-interaction','together-memory']);
 const performanceQueue:ClientPerformanceEvent[]=[];let performanceFlushTimer:ReturnType<typeof setTimeout>|null=null,performanceFlushRunning=false;
 export function queueClientPerformance(input:Omit<ClientPerformanceEvent,'platform'|'appVersion'|'buildId'>){
   if(process.env.EXPO_PUBLIC_KIVELLE_PERFORMANCE_REPORTING_ENABLED==='false')return;
@@ -43,12 +43,15 @@ export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POS
 export const loadSnapshot = () => invoke<Snapshot>('together-bootstrap', undefined, 'GET');
 export const confirmAdultAge = () => invoke<Snapshot>('together-bootstrap', {action:'confirm_age',ageConfirmed:true});
 export const loadCharacterPresence = (characterInstanceId:string) => invoke<CharacterPresenceSnapshot>(`together-bootstrap?scope=presence&characterInstanceId=${encodeURIComponent(characterInstanceId)}`,undefined,'GET');
+export const loadCharacterSchedule = (characterTemplateId:string) => invoke<{characterTemplateId:string;characterVersionId:string;schedules:ScheduleItem[]}>(`together-bootstrap?scope=character_schedule&characterTemplateId=${encodeURIComponent(characterTemplateId)}`,undefined,'GET');
 export const loadPlaceDetail = (locationId:string) => invoke<{place:PlaceContext}>('together-place',{locationId});
 export const bootstrap = (input: {ageConfirmed:true;onboardingChoice?:'companion'|'skip';displayName?:string;characterTemplateId?:string;worldId?:string;interests:string[];goals:Array<'Dating'|'Friendship'|'Stories'|'Social worlds'>}) => invoke<Snapshot>('together-bootstrap', {action:'complete_onboarding',...input,experienceTimezone:deviceTimezone()});
 export const setActiveCompanion = (characterInstanceId:string, source:'home_switcher'|'discover_profile'|'companion_manager'='home_switcher') => invoke<Snapshot>('together-companion',{action:'set_active',characterInstanceId,source});
 export const meetCompanion = (characterTemplateId:string, source:'onboarding'|'discover_profile'='discover_profile') => invoke<Snapshot>('together-companion',{action:'meet',characterTemplateId,source});
 export const setCharacterFavorite = (characterTemplateId:string,favorite:boolean,source:'home_featured'|'discover'|'chat_menu'='home_featured') => invoke<{characterTemplateId:string;favorite:boolean;favoriteCharacterTemplateIds:string[]}>('together-companion',{action:'set_favorite',characterTemplateId,favorite,source});
 export const mutateMemory = (input: Record<string,unknown>) => invoke('together-memory', input);
+export const getMemoryCenter = (characterInstanceId:string,privacyMode=false) => invoke<MemoryCenterResponse>('together-memory',{action:'overview',characterInstanceId,privacyMode});
+export const rememberMessage = (messageId:string,characterInstanceId:string) => invoke<MemoryCenterItem>('together-memory',{action:'remember_message',messageId,characterInstanceId});
 export const mutateDate = <T>(input: Record<string,unknown>) => invoke<T>('together-date', input);
 export const simulate = (characterInstanceId?: string) => invoke('together-simulate', { characterInstanceId, evaluateProactive: true });
 export const markProactiveOpened = (proactiveMessageId: string) => invoke('together-notifications', { action: 'opened', proactiveMessageId });

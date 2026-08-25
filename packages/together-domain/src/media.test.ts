@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHARACTER_PHOTO_REALISM_GUIDANCE, PHOTO_ONLY_MESSAGE_CONTENT, classifyPhotoIntent, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, isPhotoOnlyConversationMessage, photoRequestAllowsHiddenFace, resolveAdultNudityScope, resolveCanonicalMediaPresence, resolvePhotoComposition, resolvePhotoDirection, resolveSpecificAnatomyExposure, sanitizePhotoDeliveryAcknowledgement } from './media';
+import { CHARACTER_PHOTO_REALISM_GUIDANCE, PHOTO_ONLY_MESSAGE_CONTENT, classifyPhotoIntent, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, isPhotoOnlyConversationMessage, photoRequestAllowsHiddenFace, photoRequestWantsVisibleCaptureDevice, resolveAdultNudityScope, resolveCanonicalMediaPresence, resolvePhotoComposition, resolvePhotoDirection, resolveSpecificAnatomyExposure, sanitizePhotoDeliveryAcknowledgement } from './media';
 
 describe('extractPhotoWardrobeDescription',()=>{
   it('retains canonical clothing claims from a companion reply',()=>{
@@ -157,6 +157,20 @@ describe('requested photo composition',()=>{
     expect(composition).toMatchObject({shotType:'portrait',aspectRatio:'4:5'});
     expect(composition.framing).toContain('tight close-up');
     expect(composition.framing).not.toContain('generic selfie');
+  });
+
+  it('treats selfie as framing without inventing a visible phone',()=>{
+    expect(photoRequestWantsVisibleCaptureDevice('Send me a selfie')).toBe(false);
+    const composition=resolvePhotoComposition({source:'user_request',shotType:'selfie',requestText:'Send me a selfie'});
+    expect(composition.framing).toContain('unseen capture device');
+    expect(composition.framing).toContain('no visible phone');
+  });
+
+  it('allows a capture device only when the user explicitly asks to see it',()=>{
+    expect(photoRequestWantsVisibleCaptureDevice('Send a mirror selfie holding your phone where I can see it')).toBe(true);
+    const composition=resolvePhotoComposition({source:'user_request',shotType:'selfie',requestText:'Send a mirror selfie holding your phone where I can see it'});
+    expect(composition.framing).toContain('specifically requested phone or camera');
+    expect(composition.framing).not.toContain('unseen capture device');
   });
 
   it.each([

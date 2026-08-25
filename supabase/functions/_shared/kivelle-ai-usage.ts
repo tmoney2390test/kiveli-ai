@@ -1,4 +1,5 @@
 import { estimateAiCost, type DialogueRouteReason, type NormalizedAiUsage } from '../../../packages/together-domain/src/index.ts';
+import { waitUntil } from './background.ts';
 
 export type AiUsageScope = {
   db?: any;
@@ -58,6 +59,10 @@ export async function recordAiUsage(scope: AiUsageScope | undefined, event: AiUs
     error_code:event.errorCode??null,
     metadata:{...(scope.metadata??{}),...(event.metadata??{}),...(scope.correlationId?{correlationId:scope.correlationId}:{})},
   };
-  const {error}=await scope.db.from('together_ai_usage_events').insert(row);
-  if(error)console.warn('AI usage telemetry insert failed',error.code??'unknown_error');
+  const write=scope.db.from('together_ai_usage_events').insert(row).then(({error}:{error:{code?:string}|null})=>{
+    if(error)console.warn('AI usage telemetry insert failed',error.code??'unknown_error');
+  });
+  // EdgeRuntime.waitUntil keeps cost/latency telemetry reliable without adding a
+  // database round trip to the user's time-to-first-token.
+  waitUntil(write);
 }

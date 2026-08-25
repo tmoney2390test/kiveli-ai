@@ -1,4 +1,4 @@
-const UPSTREAM_ORIGIN = "https://ttutten-together.expo.app";
+const UPSTREAM_ORIGIN = "https://ttutten-together--5bm7m5asoi.expo.app";
 const CANONICAL_ORIGIN = "https://kivelli.app";
 
 addEventListener("fetch", (event) => {
@@ -24,11 +24,27 @@ async function handleRequest(request) {
   upstreamRequest.headers.delete("host");
   upstreamRequest.headers.set("x-forwarded-host", incomingUrl.host);
   upstreamRequest.headers.set("x-forwarded-proto", "https");
+  const acceptsHtml =
+    (request.method === "GET" || request.method === "HEAD") &&
+    (request.headers.get("accept") || "").includes("text/html");
+
+  if (acceptsHtml) {
+    upstreamRequest.headers.set("cache-control", "no-cache");
+  }
 
   try {
-    const upstreamResponse = await fetch(upstreamRequest, { redirect: "manual" });
+    const upstreamResponse = await fetch(upstreamRequest, {
+      redirect: "manual",
+      ...(acceptsHtml
+        ? { cf: { cacheTtlByStatus: { "200-599": -1 } } }
+        : {}),
+    });
     const responseHeaders = new Headers(upstreamResponse.headers);
     const location = responseHeaders.get("location");
+
+    if (acceptsHtml) {
+      responseHeaders.set("cache-control", "no-cache, must-revalidate");
+    }
 
     if (location) {
       try {

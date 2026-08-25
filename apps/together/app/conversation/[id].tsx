@@ -23,11 +23,11 @@ export default function ArchivedConversation() {
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState('');
 
-  const load = async (before?: string) => {
+  const load = async (before?: { createdAt: string; sequence?: number | null }) => {
     if (!id) return;
     if (before) setOlder(true); else setLoading(true);
     try {
-      const page = await manageConversation<Page>({ action: 'messages', conversationId: id, before, ...(!before && messageId ? { anchorMessageId: messageId } : {}), limit: 50 });
+      const page = await manageConversation<Page>({ action: 'messages', conversationId: id, ...(before ? { before: before.createdAt, ...(before.sequence ? { beforeSequence: before.sequence } : {}) } : {}), ...(!before && messageId ? { anchorMessageId: messageId } : {}), limit: 50 });
       setConversation(page.conversation);
       setHasMore(page.hasMore);
       const ordered = [...page.messages].reverse();
@@ -49,7 +49,7 @@ export default function ArchivedConversation() {
   const restoreConversation = async () => { if (!character || restoring) return; setRestoring(true); try { await manageConversation({ action: 'restore', conversationId: conversation.id }); await refresh(); router.replace(`/chat?character=${character.together_character_templates.slug}` as never); } catch (caught) { setError(caught instanceof Error ? caught.message : 'This chat could not be restored.'); setRestoring(false); } };
   return <Screen>
     <View style={styles.header}><Pressable accessibilityLabel="Back" onPress={() => router.back()}><ArrowLeft color={colors.text} /></Pressable><View style={{ flex: 1 }}><PageTitle>{conversation.title ?? 'Conversation'}</PageTitle><View style={styles.archived}><Archive size={13} color={colors.violet} /><Text style={styles.archivedText}>{conversation.archived_at ? 'Archived conversation' : 'Current conversation'}</Text></View></View></View>
-    {hasMore ? <Pressable disabled={older} onPress={() => void load(messages[0]?.created_at)} style={styles.load}><Text style={styles.loadText}>{older ? 'Loading…' : 'Load earlier messages'}</Text></Pressable> : <Text style={styles.start}>Beginning of conversation</Text>}
+    {hasMore ? <Pressable disabled={older} onPress={() => { const oldest=messages[0]; if(oldest) void load({createdAt:oldest.created_at,sequence:oldest.conversation_sequence}); }} style={styles.load}><Text style={styles.loadText}>{older ? 'Loading…' : 'Load earlier messages'}</Text></Pressable> : <Text style={styles.start}>Beginning of conversation</Text>}
     <View style={styles.messages}>{messages.map((message) => <View key={message.id} style={[styles.bubble, message.role === 'user' ? styles.user : styles.companion, message.id === messageId && styles.match]}><Text style={styles.text}>{message.content}</Text><Text style={styles.time}>{new Date(message.created_at).toLocaleString()}</Text></View>)}</View>
     {conversation.archived_at ? <View style={styles.notice}><Text style={styles.noticeTitle}>{conversation.user_archived_at?'Deleted chat':'Archived conversation'}</Text><Text style={styles.noticeCopy}>{conversation.user_archived_at?`This transcript is read-only. ${archiveRetentionLabel(conversation.restore_until)}.`:'This transcript is read-only. It is not automatically used as current chat context.'}</Text></View> : null}
     {error?<Text style={styles.error}>{error}</Text>:null}

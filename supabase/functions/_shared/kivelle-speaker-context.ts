@@ -23,6 +23,41 @@ export type SpeakerContextInput = {
 };
 
 /**
+ * Reuses a context that was already built for the conversation's anchor
+ * companion. This is intentionally strict: it is only valid when the loaded
+ * instance is the selected speaker and all speaker-private fields still point
+ * at that same instance.
+ */
+export function bindPreparedSpeakerContext(input: {
+  instance: Row;
+  context: KivelleConversationContext;
+  speakerCharacterInstanceId: string;
+}): { instance: Row; context: KivelleConversationContext } {
+  const instanceId = String(input.instance.id ?? "");
+  if (!instanceId || instanceId !== input.speakerCharacterInstanceId) {
+    throw new AppError(
+      "INTERNAL_ERROR",
+      "Prepared speaker context does not belong to the selected companion.",
+      500,
+    );
+  }
+  const template = input.instance.together_character_templates ?? {};
+  const context = {
+    ...input.context,
+    speakerPrivateContextOwnerId: instanceId,
+    characterVoiceOwnerId: instanceId,
+    sceneSpeakerDirective: {
+      characterInstanceId: instanceId,
+      name: String(
+        template.name ?? input.context.character?.name ?? "Companion",
+      ),
+    },
+  } as KivelleConversationContext;
+  assertSpeakerPrivateContext(context, instanceId);
+  return { instance: input.instance, context };
+}
+
+/**
  * The only supported boundary for generating a non-anchor companion turn.
  * It deliberately rebuilds every private source from the selected instance;
  * callers cannot pass an already-compiled character context to be mutated.

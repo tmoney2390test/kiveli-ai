@@ -146,9 +146,91 @@ export const characterProfilePhotoExtras: Record<string, readonly CharacterProfi
     require('../assets/character-profile/neon-kyo/iori/photo-3.jpg'),
     require('../assets/character-profile/neon-kyo/iori/photo-4.jpg'),
   ],
+  'noah-williams': [
+    require('../assets/character-profile/juniper-city/noah-williams/photo-2.jpg'),
+    require('../assets/character-profile/juniper-city/noah-williams/photo-3.jpg'),
+  ],
+  'daniel-kim': [
+    require('../assets/character-profile/juniper-city/daniel-kim/photo-2.jpg'),
+    require('../assets/character-profile/juniper-city/daniel-kim/photo-3.jpg'),
+  ],
+  'gabriel-ortiz': [
+    require('../assets/character-profile/juniper-city/gabriel-ortiz/photo-2.jpg'),
+    require('../assets/character-profile/juniper-city/gabriel-ortiz/photo-3.jpg'),
+  ],
+  'malcolm-reed': [
+    require('../assets/character-profile/juniper-city/malcolm-reed/photo-2.jpg'),
+    require('../assets/character-profile/juniper-city/malcolm-reed/photo-3.jpg'),
+  ],
+  'javier-morales': [
+    require('../assets/character-profile/juniper-city/javier-morales/photo-2.jpg'),
+    require('../assets/character-profile/juniper-city/javier-morales/photo-3.jpg'),
+  ],
+  'vincent-hale': [
+    require('../assets/character-profile/juniper-city/vincent-hale/photo-2.jpg'),
+    require('../assets/character-profile/juniper-city/vincent-hale/photo-3.jpg'),
+  ],
+  'omar-haddad': [
+    require('../assets/character-profile/juniper-city/omar-haddad/photo-2.jpg'),
+    require('../assets/character-profile/juniper-city/omar-haddad/photo-3.jpg'),
+  ],
+  'caleb-bennett': [
+    require('../assets/character-profile/juniper-city/caleb-bennett/photo-2.jpg'),
+  ],
+  'leila-rahman': [
+    require('../assets/character-profile/juniper-city/leila-rahman/photo-2.jpg'),
+    require('../assets/character-profile/juniper-city/leila-rahman/photo-3.jpg'),
+  ],
+  'naomi-chen': [
+    require('../assets/character-profile/juniper-city/naomi-chen/photo-2.jpg'),
+  ],
+  'adriana-vega': [
+    require('../assets/character-profile/port-vervelle/adriana-vega/photo-2.jpg'),
+    require('../assets/character-profile/port-vervelle/adriana-vega/photo-3.jpg'),
+  ],
+  'celine-haddad': [
+    require('../assets/character-profile/port-vervelle/celine-haddad/photo-2.jpg'),
+    require('../assets/character-profile/port-vervelle/celine-haddad/photo-3.jpg'),
+  ],
+  'elise-ben-youssef': [
+    require('../assets/character-profile/port-vervelle/elise-ben-youssef/photo-2.jpg'),
+    require('../assets/character-profile/port-vervelle/elise-ben-youssef/photo-3.jpg'),
+  ],
+  'emilia-rossi': [
+    require('../assets/character-profile/port-vervelle/emilia-rossi/photo-2.jpg'),
+    require('../assets/character-profile/port-vervelle/emilia-rossi/photo-3.jpg'),
+  ],
+  'francesca-leone': [
+    require('../assets/character-profile/port-vervelle/francesca-leone/photo-2.jpg'),
+    require('../assets/character-profile/port-vervelle/francesca-leone/photo-3.jpg'),
+  ],
+  'inez-el-mansouri': [
+    require('../assets/character-profile/port-vervelle/inez-el-mansouri/photo-2.jpg'),
+    require('../assets/character-profile/port-vervelle/inez-el-mansouri/photo-3.jpg'),
+  ],
+  'juliette-baptiste': [
+    require('../assets/character-profile/port-vervelle/juliette-baptiste/photo-2.jpg'),
+    require('../assets/character-profile/port-vervelle/juliette-baptiste/photo-3.jpg'),
+  ],
+  'livia-santoro': [
+    require('../assets/character-profile/port-vervelle/livia-santoro/photo-2.jpg'),
+    require('../assets/character-profile/port-vervelle/livia-santoro/photo-3.jpg'),
+  ],
+  'noemie-diop': [
+    require('../assets/character-profile/port-vervelle/noemie-diop/photo-2.jpg'),
+    require('../assets/character-profile/port-vervelle/noemie-diop/photo-3.jpg'),
+  ],
+  'sara-moretti': [
+    require('../assets/character-profile/port-vervelle/sara-moretti/photo-2.jpg'),
+    require('../assets/character-profile/port-vervelle/sara-moretti/photo-3.jpg'),
+  ],
   'adelaide-hawthorne': [
     require('../assets/character-profile/vespormoor/adelaide-hawthorne/photo-2.jpg'),
     require('../assets/character-profile/vespormoor/adelaide-hawthorne/photo-3.jpg'),
+  ],
+  'adrian-bell': [
+    require('../assets/character-profile/vespormoor/adrian-bell/photo-2.jpg'),
+    require('../assets/character-profile/vespormoor/adrian-bell/photo-3.jpg'),
   ],
   'amara-nwosu': [
     require('../assets/character-profile/vespormoor/amara-nwosu/photo-2.jpg'),
@@ -157,6 +239,9 @@ export const characterProfilePhotoExtras: Record<string, readonly CharacterProfi
   'astrid-nygaard': [
     require('../assets/character-profile/vespormoor/astrid-nygaard/photo-2.jpg'),
     require('../assets/character-profile/vespormoor/astrid-nygaard/photo-3.jpg'),
+  ],
+  'callum-reid': [
+    require('../assets/character-profile/vespormoor/callum-reid/photo-2.jpg'),
   ],
   'camille-laurent-vespormoor': [
     require('../assets/character-profile/vespormoor/camille-laurent-vespormoor/photo-2.jpg'),
@@ -174,9 +259,17 @@ export const characterProfilePhotoExtras: Record<string, readonly CharacterProfi
     require('../assets/character-profile/vespormoor/dahlia-kane/photo-2.jpg'),
     require('../assets/character-profile/vespormoor/dahlia-kane/photo-3.jpg'),
   ],
+  'dorian-bellamy': [
+    require('../assets/character-profile/vespormoor/dorian-bellamy/photo-2.jpg'),
+    require('../assets/character-profile/vespormoor/dorian-bellamy/photo-3.jpg'),
+  ],
   'elara-vale': [
     require('../assets/character-profile/vespormoor/elara-vale/photo-2.jpg'),
     require('../assets/character-profile/vespormoor/elara-vale/photo-3.jpg'),
+  ],
+  'elodie-marchand': [
+    require('../assets/character-profile/vespormoor/elodie-marchand/photo-2.jpg'),
+    require('../assets/character-profile/vespormoor/elodie-marchand/photo-3.jpg'),
   ],
   'evelyn-harrow': [
     require('../assets/character-profile/vespormoor/evelyn-harrow/photo-2.jpg'),
@@ -195,6 +288,10 @@ export const characterProfilePhotoExtras: Record<string, readonly CharacterProfi
     require('../assets/character-profile/vespormoor/isabella-reyes-vespormoor/photo-2.jpg'),
     require('../assets/character-profile/vespormoor/isabella-reyes-vespormoor/photo-3.jpg'),
   ],
+  'julian-ashcroft': [
+    require('../assets/character-profile/vespormoor/julian-ashcroft/photo-2.jpg'),
+    require('../assets/character-profile/vespormoor/julian-ashcroft/photo-3.jpg'),
+  ],
   'jun-park': [
     require('../assets/character-profile/vespormoor/jun-park/photo-2.jpg'),
     require('../assets/character-profile/vespormoor/jun-park/photo-3.jpg'),
@@ -203,13 +300,32 @@ export const characterProfilePhotoExtras: Record<string, readonly CharacterProfi
     require('../assets/character-profile/vespormoor/katya-morozova/photo-2.jpg'),
     require('../assets/character-profile/vespormoor/katya-morozova/photo-3.jpg'),
   ],
+  'keira-sullivan': [
+    require('../assets/character-profile/vespormoor/keira-sullivan/photo-2.jpg'),
+    require('../assets/character-profile/vespormoor/keira-sullivan/photo-3.jpg'),
+  ],
+  'lena-kovacs': [
+    require('../assets/character-profile/vespormoor/lena-kovacs/photo-2.jpg'),
+    require('../assets/character-profile/vespormoor/lena-kovacs/photo-3.jpg'),
+  ],
+  'luca-ferraro': [
+    require('../assets/character-profile/vespormoor/luca-ferraro/photo-2.jpg'),
+    require('../assets/character-profile/vespormoor/luca-ferraro/photo-3.jpg'),
+  ],
   'lyra-vane': [
     require('../assets/character-profile/vespormoor/lyra-vane/photo-2.jpg'),
     require('../assets/character-profile/vespormoor/lyra-vane/photo-3.jpg'),
   ],
+  'marcus-reed': [
+    require('../assets/character-profile/vespormoor/marcus-reed/photo-2.jpg'),
+  ],
   'maeve-kearney': [
     require('../assets/character-profile/vespormoor/maeve-kearney/photo-2.jpg'),
     require('../assets/character-profile/vespormoor/maeve-kearney/photo-3.jpg'),
+  ],
+  'mateo-serrano': [
+    require('../assets/character-profile/vespormoor/mateo-serrano/photo-2.jpg'),
+    require('../assets/character-profile/vespormoor/mateo-serrano/photo-3.jpg'),
   ],
   'maya-bennett-vespormoor': [
     require('../assets/character-profile/vespormoor/maya-bennett-vespormoor/photo-2.jpg'),
@@ -221,6 +337,18 @@ export const characterProfilePhotoExtras: Record<string, readonly CharacterProfi
   'naomi-okafor': [
     require('../assets/character-profile/vespormoor/naomi-okafor/photo-2.jpg'),
     require('../assets/character-profile/vespormoor/naomi-okafor/photo-3.jpg'),
+  ],
+  'nia-holloway': [
+    require('../assets/character-profile/vespormoor/nia-holloway/photo-2.jpg'),
+    require('../assets/character-profile/vespormoor/nia-holloway/photo-3.jpg'),
+  ],
+  'owen-mercer': [
+    require('../assets/character-profile/vespormoor/owen-mercer/photo-2.jpg'),
+    require('../assets/character-profile/vespormoor/owen-mercer/photo-3.jpg'),
+  ],
+  'rafael-ortega': [
+    require('../assets/character-profile/vespormoor/rafael-ortega/photo-2.jpg'),
+    require('../assets/character-profile/vespormoor/rafael-ortega/photo-3.jpg'),
   ],
   'rowan-hale': [
     require('../assets/character-profile/vespormoor/rowan-hale/photo-2.jpg'),
@@ -238,6 +366,9 @@ export const characterProfilePhotoExtras: Record<string, readonly CharacterProfi
     require('../assets/character-profile/vespormoor/sofia-alvarez/photo-2.jpg'),
     require('../assets/character-profile/vespormoor/sofia-alvarez/photo-3.jpg'),
   ],
+  'tomas-ferreira': [
+    require('../assets/character-profile/vespormoor/tomas-ferreira/photo-2.jpg'),
+  ],
   'vivienne-blackwood': [
     require('../assets/character-profile/vespormoor/vivienne-blackwood/photo-2.jpg'),
     require('../assets/character-profile/vespormoor/vivienne-blackwood/photo-3.jpg'),
@@ -245,6 +376,189 @@ export const characterProfilePhotoExtras: Record<string, readonly CharacterProfi
   'willow-thorne': [
     require('../assets/character-profile/vespormoor/willow-thorne/photo-2.jpg'),
     require('../assets/character-profile/vespormoor/willow-thorne/photo-3.jpg'),
+  ],
+  'zuri-campbell': [
+    require('../assets/character-profile/vespormoor/zuri-campbell/photo-2.jpg'),
+  ],
+  'mara-ellison': [
+    require('../assets/character-profile/northvale/mara-ellison/photo-2.jpg'),
+    require('../assets/character-profile/northvale/mara-ellison/photo-3.jpg'),
+  ],
+  'leila-haddad': [
+    require('../assets/character-profile/northvale/leila-haddad/photo-2.jpg'),
+    require('../assets/character-profile/northvale/leila-haddad/photo-3.jpg'),
+  ],
+  'sofia-reyes': [
+    require('../assets/character-profile/northvale/sofia-reyes/photo-2.jpg'),
+    require('../assets/character-profile/northvale/sofia-reyes/photo-3.jpg'),
+  ],
+  'june-nakashima': [
+    require('../assets/character-profile/northvale/june-nakashima/photo-2.jpg'),
+    require('../assets/character-profile/northvale/june-nakashima/photo-3.jpg'),
+  ],
+  'tessa-ward': [
+    require('../assets/character-profile/northvale/tessa-ward/photo-2.jpg'),
+    require('../assets/character-profile/northvale/tessa-ward/photo-3.jpg'),
+  ],
+  'eli-navarro': [
+    require('../assets/character-profile/northvale/eli-navarro/photo-2.jpg'),
+    require('../assets/character-profile/northvale/eli-navarro/photo-3.jpg'),
+  ],
+  'malcolm-price': [
+    require('../assets/character-profile/northvale/malcolm-price/photo-2.jpg'),
+    require('../assets/character-profile/northvale/malcolm-price/photo-3.jpg'),
+  ],
+  'celeste-park': [
+    require('../assets/character-profile/northvale/celeste-park/photo-2.jpg'),
+    require('../assets/character-profile/northvale/celeste-park/photo-3.jpg'),
+  ],
+  'amara-okoye': [
+    require('../assets/character-profile/northvale/amara-okoye/photo-2.jpg'),
+    require('../assets/character-profile/northvale/amara-okoye/photo-3.jpg'),
+  ],
+  'elena-petrova': [
+    require('../assets/character-profile/northvale/elena-petrova/photo-2.jpg'),
+    require('../assets/character-profile/northvale/elena-petrova/photo-3.jpg'),
+  ],
+  'priya-desai': [
+    require('../assets/character-profile/northvale/priya-desai/photo-2.jpg'),
+    require('../assets/character-profile/northvale/priya-desai/photo-3.jpg'),
+  ],
+  'gabriela-flores': [
+    require('../assets/character-profile/northvale/gabriela-flores/photo-2.jpg'),
+    require('../assets/character-profile/northvale/gabriela-flores/photo-3.jpg'),
+  ],
+  'theo-marchand': [
+    require('../assets/character-profile/northvale/theo-marchand/photo-2.jpg'),
+    require('../assets/character-profile/northvale/theo-marchand/photo-3.jpg'),
+  ],
+  'marcus-chen': [
+    require('../assets/character-profile/northvale/marcus-chen/photo-2.jpg'),
+    require('../assets/character-profile/northvale/marcus-chen/photo-3.jpg'),
+  ],
+  'riley-hart': [
+    require('../assets/character-profile/northvale/riley-hart/photo-2.jpg'),
+    require('../assets/character-profile/northvale/riley-hart/photo-3.jpg'),
+  ],
+  'sabine-diarra': [
+    require('../assets/character-profile/northvale/sabine-diarra/photo-2.jpg'),
+    require('../assets/character-profile/northvale/sabine-diarra/photo-3.jpg'),
+  ],
+  'valeria-cruz': [
+    require('../assets/character-profile/northvale/valeria-cruz/photo-2.jpg'),
+    require('../assets/character-profile/northvale/valeria-cruz/photo-3.jpg'),
+  ],
+  'signe-dahl': [
+    require('../assets/character-profile/northvale/signe-dahl/photo-2.jpg'),
+    require('../assets/character-profile/northvale/signe-dahl/photo-3.jpg'),
+  ],
+  'aisha-grant': [
+    require('../assets/character-profile/northvale/aisha-grant/photo-2.jpg'),
+    require('../assets/character-profile/northvale/aisha-grant/photo-3.jpg'),
+  ],
+  'mateo-silva': [
+    require('../assets/character-profile/northvale/mateo-silva/photo-2.jpg'),
+    require('../assets/character-profile/northvale/mateo-silva/photo-3.jpg'),
+  ],
+  'owen-kearney': [
+    require('../assets/character-profile/northvale/owen-kearney/photo-2.jpg'),
+    require('../assets/character-profile/northvale/owen-kearney/photo-3.jpg'),
+  ],
+  'avery-callahan': [
+    require('../assets/character-profile/northvale/avery-callahan/photo-2.jpg'),
+    require('../assets/character-profile/northvale/avery-callahan/photo-3.jpg'),
+  ],
+  'imani-brooks': [
+    require('../assets/character-profile/northvale/imani-brooks/photo-2.jpg'),
+    require('../assets/character-profile/northvale/imani-brooks/photo-3.jpg'),
+  ],
+  'lucia-serrano': [
+    require('../assets/character-profile/northvale/lucia-serrano/photo-2.jpg'),
+    require('../assets/character-profile/northvale/lucia-serrano/photo-3.jpg'),
+  ],
+  'mika-tanaka': [
+    require('../assets/character-profile/northvale/mika-tanaka/photo-2.jpg'),
+    require('../assets/character-profile/northvale/mika-tanaka/photo-3.jpg'),
+  ],
+  'mila-novak': [
+    require('../assets/character-profile/northvale/mila-novak/photo-2.jpg'),
+    require('../assets/character-profile/northvale/mila-novak/photo-3.jpg'),
+  ],
+  'sana-rahman': [
+    require('../assets/character-profile/northvale/sana-rahman/photo-2.jpg'),
+    require('../assets/character-profile/northvale/sana-rahman/photo-3.jpg'),
+  ],
+  'caleb-morgan': [
+    require('../assets/character-profile/northvale/caleb-morgan/photo-2.jpg'),
+    require('../assets/character-profile/northvale/caleb-morgan/photo-3.jpg'),
+  ],
+  'nico-alvarez': [
+    require('../assets/character-profile/northvale/nico-alvarez/photo-2.jpg'),
+    require('../assets/character-profile/northvale/nico-alvarez/photo-3.jpg'),
+  ],
+  'liam-oconnell': [
+    require('../assets/character-profile/northvale/liam-oconnell/photo-2.jpg'),
+    require('../assets/character-profile/northvale/liam-oconnell/photo-3.jpg'),
+  ],
+  'andre-baptiste': [
+    require('../assets/character-profile/northvale/andre-baptiste/photo-2.jpg'),
+    require('../assets/character-profile/northvale/andre-baptiste/photo-3.jpg'),
+  ],
+  'rowan-lee': [
+    require('../assets/character-profile/northvale/rowan-lee/photo-2.jpg'),
+    require('../assets/character-profile/northvale/rowan-lee/photo-3.jpg'),
+  ],
+  'maribel-morales': [
+    require('../assets/character-profile/northvale/maribel-morales/photo-2.jpg'),
+    require('../assets/character-profile/northvale/maribel-morales/photo-3.jpg'),
+  ],
+  'ingrid-solberg': [
+    require('../assets/character-profile/northvale/ingrid-solberg/photo-2.jpg'),
+    require('../assets/character-profile/northvale/ingrid-solberg/photo-3.jpg'),
+  ],
+  'dalia-farouk': [
+    require('../assets/character-profile/northvale/dalia-farouk/photo-2.jpg'),
+    require('../assets/character-profile/northvale/dalia-farouk/photo-3.jpg'),
+  ],
+  'nadine-baptiste': [
+    require('../assets/character-profile/northvale/nadine-baptiste/photo-2.jpg'),
+    require('../assets/character-profile/northvale/nadine-baptiste/photo-3.jpg'),
+  ],
+  'evan-cho': [
+    require('../assets/character-profile/northvale/evan-cho/photo-2.jpg'),
+    require('../assets/character-profile/northvale/evan-cho/photo-3.jpg'),
+  ],
+  'samir-patel': [
+    require('../assets/character-profile/northvale/samir-patel/photo-2.jpg'),
+    require('../assets/character-profile/northvale/samir-patel/photo-3.jpg'),
+  ],
+  'talia-valdez': [
+    require('../assets/character-profile/northvale/talia-valdez/photo-2.jpg'),
+    require('../assets/character-profile/northvale/talia-valdez/photo-3.jpg'),
+  ],
+  'anika-vogel': [
+    require('../assets/character-profile/northvale/anika-vogel/photo-2.jpg'),
+    require('../assets/character-profile/northvale/anika-vogel/photo-3.jpg'),
+  ],
+  'marisol-vega': [
+    require('../assets/character-profile/northvale/marisol-vega/photo-2.jpg'),
+    require('../assets/character-profile/northvale/marisol-vega/photo-3.jpg'),
+  ],
+  'cassidy-reed': [
+    require('../assets/character-profile/northvale/cassidy-reed/photo-2.jpg'),
+    require('../assets/character-profile/northvale/cassidy-reed/photo-3.jpg'),
+  ],
+  'tomas-ibarra': [
+    require('../assets/character-profile/northvale/tomas-ibarra/photo-2.jpg'),
+    require('../assets/character-profile/northvale/tomas-ibarra/photo-3.jpg'),
+  ],
+  'yusuf-demir': [
+    require('../assets/character-profile/northvale/yusuf-demir/photo-2.jpg'),
+    require('../assets/character-profile/northvale/yusuf-demir/photo-3.jpg'),
+  ],
+  'graham-pike': [
+    require('../assets/character-profile/northvale/graham-pike/photo-2.jpg'),
+    require('../assets/character-profile/northvale/graham-pike/photo-3.jpg'),
   ],
 };
 

@@ -23,7 +23,7 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('rename'), conversationId: z.string().uuid(), title: z.string().trim().min(1).max(80) }),
   z.object({ action: z.literal('settings'), conversationId: z.string().uuid(), title: z.string().trim().max(80).nullable(), responseStyle: z.enum(['texting','paragraph']), textSize: z.enum(['small','medium','large']), contentMode: z.enum(['standard','romance','mature','explicit']).optional(), spiceLevel: z.union([z.literal(1),z.literal(2),z.literal(3)]).optional(), voicePreset: z.enum(['warm','bright','clear','strong','balanced']).nullable().optional() }),
   z.object({ action: z.literal('history'), characterInstanceId: z.string().uuid() }),
-  z.object({ action: z.literal('messages'), conversationId: z.string().uuid(), before: z.string().datetime().optional(), anchorMessageId: z.string().uuid().optional(), limit: z.number().int().min(1).max(60).default(50) }),
+  z.object({ action: z.literal('messages'), conversationId: z.string().uuid(), before: z.string().datetime().optional(), beforeSequence: z.number().int().positive().optional(), anchorMessageId: z.string().uuid().optional(), limit: z.number().int().min(1).max(60).default(50) }),
   z.object({ action: z.literal('search'), characterInstanceId: z.string().uuid(), query: z.string().trim().min(2).max(100), conversationId: z.string().uuid().optional() }),
   z.object({ action: z.literal('read'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('reset'), characterInstanceId: z.string().uuid(), mode: z.enum(['memory','relationship','full']), requestId: z.string().uuid().optional() }),
@@ -202,23 +202,31 @@ serve(async (request, correlationId) => {
   if (input.action === 'messages') {
     const owned = await ownedConversation(db, user.id,continuity.id,input.conversationId);
     if (owned.user_archived_at && conversationArchiveExpired(owned.restore_until, new Date())) throw new AppError('NOT_FOUND', 'That archived chat is no longer available.', 404);
-    if (input.anchorMessageId && !input.before) {
-      const { data: anchor } = await db.from('together_messages').select('id,created_at').eq('id', input.anchorMessageId).eq('conversation_id', owned.id).eq('user_id', user.id).maybeSingle();
+    if (input.anchorMessageId && !input.before && input.beforeSequence === undefined) {
+      const { data: anchor } = await db.from('together_messages').select('id,created_at,conversation_sequence').eq('id', input.anchorMessageId).eq('conversation_id', owned.id).eq('user_id', user.id).maybeSingle();
       if (!anchor) throw new AppError('NOT_FOUND', 'That search result is no longer available.', 404);
       const half = Math.max(1, Math.floor(input.limit / 2));
-      const [olderPage, newerPage] = await Promise.all([
-        db.from('together_messages').select('*,together_message_reactions(*)').eq('user_id', user.id).eq('conversation_id', owned.id).lte('created_at', anchor.created_at).order('created_at', { ascending: false }).limit(half + 1),
-        db.from('together_messages').select('*,together_message_reactions(*)').eq('user_id', user.id).eq('conversation_id', owned.id).gt('created_at', anchor.created_at).order('created_at', { ascending: true }).limit(half),
+      const anchorSequence = Number(anchor.conversation_sequence ?? 0);
+      const olderQuery = db.from('together_messages').select('*,together_message_reactions(*)').eq('user_id', user.id).eq('conversation_id', owned.id);
+      const newerQuery = db.from('together_messages').select('*,together_message_reactions(*)').eq('user_id', user.id).eq('conversation_id', owned.id);
+      const [olderPage, newerPage] = await Promise.all(anchorSequence > 0 ? [
+        olderQuery.lte('conversation_sequence', anchorSequence).order('conversation_sequence', { ascending: false }).order('id', { ascending: false }).limit(half + 1),
+        newerQuery.gt('conversation_sequence', anchorSequence).order('conversation_sequence', { ascending: true }).order('id', { ascending: true }).limit(half),
+      ] : [
+        olderQuery.lte('created_at', anchor.created_at).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(half + 1),
+        newerQuery.gt('created_at', anchor.created_at).order('created_at', { ascending: true }).order('id', { ascending: true }).limit(half),
       ]);
       if (olderPage.error || newerPage.error) throw new AppError('INTERNAL_ERROR', 'The surrounding conversation could not be loaded.', 500, true);
       const messages = [...(newerPage.data ?? []).reverse(), ...(olderPage.data ?? [])];
       return json({ data: { messages, hasMore: (olderPage.data?.length ?? 0) === half + 1, conversation: owned, anchorMessageId: anchor.id }, correlationId }, 200, correlationId);
     }
-    let query = db.from('together_messages').select('*,together_message_reactions(*)').eq('user_id', user.id).eq('conversation_id', owned.id).order('created_at', { ascending: false }).limit(input.limit);
-    if (input.before) query = query.lt('created_at', input.before);
+    let query = db.from('together_messages').select('*,together_message_reactions(*)').eq('user_id', user.id).eq('conversation_id', owned.id).order('conversation_sequence', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(input.limit+1);
+    if (input.beforeSequence !== undefined) query = query.lt('conversation_sequence', input.beforeSequence);
+    else if (input.before) query = query.lt('created_at', input.before);
     const { data, error } = await query;
     if (error) throw new AppError('INTERNAL_ERROR', 'Messages could not be loaded.', 500, true);
-    return json({ data: { messages: data ?? [], hasMore: (data?.length ?? 0) === input.limit, conversation: owned }, correlationId }, 200, correlationId);
+    const rows=data??[];
+    return json({ data: { messages: rows.slice(0,input.limit), hasMore: rows.length>input.limit, conversation: owned }, correlationId }, 200, correlationId);
   }
 
   if (input.action === 'search') {

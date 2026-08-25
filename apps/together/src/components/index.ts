@@ -12,3 +12,4 @@ export * from './ActivePlanBar';
 export * from './VoiceNotePurchaseModal';
 export * from './PlanningCompanionPicker';
 export * from './ConnectionBanner';
+export * from './MobileChatMediaHeader';

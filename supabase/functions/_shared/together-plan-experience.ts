@@ -118,10 +118,13 @@ export async function loadPlanExperience(input: {
   let canonicalScene = activeScene as Row | null;
   const beforeScheduledEnd = !plan.ends_at || new Date(String(plan.ends_at)).getTime() > now.getTime();
   if (!canonicalScene && activeUser && activeCharacter && beforeScheduledEnd && ['scheduled', 'active'].includes(String(plan.status))) canonicalScene = await ensurePlanScene({ db: input.db, userId: input.userId, continuityId: input.continuityId, characterInstanceId: input.characterInstanceId, plan, conversationId: plan.source_conversation_id, now });
-  if (canonicalScene && activeUser && activeCharacter && !canonicalScene.ended_at) {
-    await reconcilePlanSceneParticipant({ db: input.db, userId: input.userId, continuityId: input.continuityId, characterInstanceId: input.characterInstanceId, planId: String(plan.id), sceneId: String(canonicalScene.id), now });
-  }
-  const participation = calculatePlanParticipation({ attendance: userRows, segments: segments ?? [], actions: await loadActions(input.db, input.planId, input.userId, canonicalScene?.id ?? latestScene?.id), now, activeUser, activeCharacter });
+  const [actions] = await Promise.all([
+    loadActions(input.db, input.planId, input.userId, canonicalScene?.id ?? latestScene?.id),
+    canonicalScene && activeUser && activeCharacter && !canonicalScene.ended_at
+      ? reconcilePlanSceneParticipant({ db: input.db, userId: input.userId, continuityId: input.continuityId, characterInstanceId: input.characterInstanceId, planId: String(plan.id), sceneId: String(canonicalScene.id), now })
+      : Promise.resolve(),
+  ]);
+  const participation = calculatePlanParticipation({ attendance: userRows, segments: segments ?? [], actions, now, activeUser, activeCharacter });
   const state = String(plan.status);
   let phase: PlanExperiencePhase;
   if (['completed', 'missed', 'cancelled'].includes(state)) phase = 'completed';
