@@ -45,8 +45,8 @@ export const vespormoorWorld:World={
     locationCatalogStatus:'ready',
     residentRosterStatus:'ready',
     photoStatus:'hero_ready',
-    locationPhotoStatus:'individual_slots_ready',
-    mappedLocationPhotoCount:0,
+    locationPhotoStatus:'ready',
+    mappedLocationPhotoCount:51,
     locationCount:51,
     districtCount:6,
     publicPlaceCount:45,
@@ -103,7 +103,7 @@ function location(input:VespormoorLocationSeed):Location{
       avoid:vespormoorVisualAvoid,
     },
     canonical_lore:locationSeedLore({world:'Vespormoor',district,name:input.name,description:input.description,category:input.category,type:input.type,activities:input.activities,atmosphere:['mist-bound','historic','quietly supernatural'],sensory:['rain on old stone and dark wood','warm lamps diffused through cool mist'],weather:['Fog shortens familiar sightlines and changes how routes feel.','Rain and snow make shelter, access, and travel part of the scene.']}),
-    metadata:{tags:input.activities,district:districtNode?true:district,photoStatus:'slot_ready',source:'vespormoor_world_v1'},
+    metadata:{tags:input.activities,district:districtNode?true:district,photoStatus:'ready',source:'vespormoor_world_v1'},
   };
 }
 

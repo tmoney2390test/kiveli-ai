@@ -1,4 +1,4 @@
-const UPSTREAM_ORIGIN = "https://ttutten-together--nxxu6ryphr.expo.app";
+const UPSTREAM_ORIGIN = "https://ttutten-together--zmqz4pc326.expo.app";
 const CANONICAL_ORIGIN = "https://kivelli.app";
 const SUPABASE_ORIGIN = "https://mfysnlghlhxxcwnwpxog.supabase.co";
 const SUPABASE_PROXY_PREFIX = "/supabase";

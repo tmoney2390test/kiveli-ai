@@ -31,14 +31,15 @@ describe('Vespormoor playable world',()=>{
     expect(subLocations).toHaveLength(45);
     expect(vespormoorLocations.find((location)=>location.id===VESPORMOOR_ARRIVAL_ID)?.slug).toBe('vesper-square');
     expect(vespormoorLocations.every((location)=>location.canonical_visual_context?.canonicalPrompt?.includes('Vespormoor'))).toBe(true);
-    expect(vespormoorLocations.every((location)=>location.metadata?.photoStatus==='slot_ready')).toBe(true);
+    expect(vespormoorLocations.every((location)=>location.metadata?.photoStatus==='ready')).toBe(true);
     expect(vespormoorLocations.every((location)=>location.visual_asset_key===`vespormoor-location-${location.slug}`)).toBe(true);
   });
 
   it('packages the supplied hero and distinct per-location image slots',()=>{
     expect(vespormoorWorld.hero_asset_key).toBe('vespormoor-hero');
     expect(vespormoorWorld.metadata.photoStatus).toBe('hero_ready');
-    expect(vespormoorWorld.metadata.locationPhotoStatus).toBe('individual_slots_ready');
+    expect(vespormoorWorld.metadata.locationPhotoStatus).toBe('ready');
+    expect(vespormoorWorld.metadata.mappedLocationPhotoCount).toBe(51);
   });
 
   it('packages a full v2 public location bible without leaking gated story layers',()=>{
