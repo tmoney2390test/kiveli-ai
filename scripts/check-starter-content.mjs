@@ -16,6 +16,7 @@ const scanRoots = [
 
 // Starter names are valid only in compatibility identifiers and authored content packs.
 const allowlist = new Set([
+  'supabase/functions/_shared/kivelle-stories-content.ts',
   'supabase/functions/_shared/together-content.ts',
   'supabase/functions/_shared/together.ts',
 ]);
