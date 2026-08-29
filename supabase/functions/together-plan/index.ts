@@ -73,7 +73,7 @@ serve(async(request,correlationId)=>{
       if(!member)throw new AppError('CONFLICT','That companion is no longer part of the group.',409,true);
     }else if(String(conversation.character_instance_id)!==input.characterInstanceId)throw new AppError('NOT_FOUND','That conversation is no longer available.',404);
     if(String(currentExperience.plan.location_id)===input.locationId&&String(currentExperience.plan.activity_key)===input.activityKey)throw new AppError('VALIDATION_FAILED','Choose a different activity or place before switching.',400);
-    const staged=await createSharedPlan(db,{userId:user.id,characterInstanceId:input.characterInstanceId,activityKey:input.activityKey,locationId:input.locationId,startsAt:now.toISOString(),source:'chat',sourceConversationId:input.sourceConversationId,requestId:input.requestId,title:input.title,durationMinutes:input.durationMinutes,immediate:true,replacementPlanId:input.currentPlanId,deferSideEffects:true});
+    const staged=await createSharedPlan(db,{userId:user.id,characterInstanceId:input.characterInstanceId,activityKey:input.activityKey,locationId:input.locationId,startsAt:now.toISOString(),source:'chat',sourceConversationId:input.sourceConversationId,requestId:input.requestId,title:input.title,durationMinutes:input.durationMinutes,immediate:true,replacementPlanId:input.currentPlanId,replacingActivePlan:true,deferSideEffects:true});
     if(staged.kind!=='shared_plan')throw new AppError('CONFLICT','A Date cannot replace an active shared plan from chat.',409,true);
     const replacementId=String(staged.commitment.id);
     let switched:Record<string,unknown>;

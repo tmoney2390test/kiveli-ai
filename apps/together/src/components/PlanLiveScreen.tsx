@@ -14,6 +14,7 @@ import type { InteractionCandidate, Message, PlanExperience, SceneSession } from
 import { colors, radius, spacing } from '../theme';
 import { MessageCharacterCounter } from './MessageCharacterCounter';
 import { userExperienceTimezone } from '../lib/experienceTimezone';
+import { shouldConsumeComposerEnter, shouldSendComposerOnEnter } from '../lib/composerKeyboard';
 
 type InteractionResponse = { scene: SceneSession; interactions: InteractionCandidate[]; destinations: InteractionCandidate[]; action?: { id: string }; place?: { path?: string } };
 
@@ -28,6 +29,7 @@ export function PlanLiveScreen({ planId }: { planId: string }) {
   const [composer, setComposer] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [stream, setStream] = useState('');
+  const [pendingActivity, setPendingActivity] = useState<string | null>(null);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [loadedAt, setLoadedAt] = useState(() => Date.now());
@@ -148,21 +150,30 @@ export function PlanLiveScreen({ planId }: { planId: string }) {
 
   const execute = async (candidate: InteractionCandidate) => {
     if (!character || !conversation || !activeScene || busy) return;
-    setBusy(true); setError('');
+    const previous=experienceRef.current;
+    setBusy(true); setError(''); setPendingActivity(candidate.label);
+    setExperience((current)=>{
+      if(!current)return current;
+      const next={...current,interactions:current.interactions.filter((item)=>item.interactionKey!==candidate.interactionKey),scene:current.scene?{...current.scene,state:{...(current.scene.state??{}),activityLabel:candidate.label}}:current.scene};
+      experienceRef.current=next;return next;
+    });
+    let committed=false;
     try {
       const result = await manageInteraction<InteractionResponse>({ action: 'execute', characterInstanceId: character.id, conversationId: conversation.id, sceneId: activeScene.id, interactionKey: candidate.interactionKey, requestId: createClientRequestId(), reactionMode: 'generate' });
+      committed=true;
       upsertSceneSession(result.scene);
       setExperience((current) => { if (!current) return current; const next = { ...current, scene: result.scene, interactions: result.interactions ?? [], destinations: result.destinations ?? [], phase: 'together' as const }; experienceRef.current = next; return next; });
       if (result.action?.id) {
         setStream('');
         try {
-          const reaction = await sendSceneReaction({ conversationId: conversation.id, characterInstanceId: character.id, sceneActionId: result.action.id, clientRequestId: createClientRequestId() }, (token) => setStream((current) => current + token));
-          setMessages((current) => [...current, reaction.message]);
-        } finally { setStream(''); }
+          const reaction = await sendSceneReaction({ conversationId: conversation.id, characterInstanceId: character.id, sceneActionId: result.action.id, clientRequestId: createClientRequestId() }, (token) => setStream((current) => current + token),()=>setStream(''));
+          setMessages((current) => current.some((message)=>message.id===reaction.message.id)?current:[...current, reaction.message]);
+        } catch { setError(`${candidate.label} is saved. Reconnecting ${companionName}’s response…`); }
+        finally { setStream(''); }
       }
       void refresh();
-    } catch (caught) { setError(caught instanceof Error ? caught.message : 'That action is no longer available.'); }
-    finally { setBusy(false); }
+    } catch (caught) { if(!committed&&previous){experienceRef.current=previous;setExperience(previous);}setError(caught instanceof Error ? caught.message : 'That action is no longer available.'); }
+    finally { setPendingActivity(null); setBusy(false); }
   };
 
   const move = async (candidate: InteractionCandidate) => {
@@ -233,7 +244,8 @@ export function PlanLiveScreen({ planId }: { planId: string }) {
       {activeScene ? <>
         <View style={styles.quote}><Text style={styles.quoteName}>{companionName}</Text><Text style={styles.quoteText}>{stream || latestReaction(messages) || `“I was wondering if you’d actually make me go first.”`}</Text></View>
         <Text style={styles.sectionLabel}>{experience.phase === 'wrapping_up' ? 'WINDING DOWN' : String(experience.plan.title).toUpperCase()}</Text>
-        {actionsLoading && !experience.interactions.length ? <View accessibilityLiveRegion="polite" style={styles.actionsLoading}><ActivityIndicator size="small" color={colors.rose}/><Text style={styles.actionsLoadingText}>Loading things to do…</Text></View> : <View style={styles.actions}>{experience.interactions.slice(0, 6).map((candidate) => <Pressable key={candidate.id} disabled={busy} onPress={() => void execute(candidate)} style={[styles.action, candidate.presentation?.emphasis === 'recommended' && styles.actionFeatured]}><Text style={styles.actionText}>{candidate.label}</Text></Pressable>)}</View>}
+        {pendingActivity?<View accessibilityLiveRegion="polite" style={styles.actionsLoading}><ActivityIndicator size="small" color={colors.rose}/><Text style={styles.actionsLoadingText}>Starting {pendingActivity}…</Text></View>:null}
+        {actionsLoading && !experience.interactions.length && !pendingActivity ? <View accessibilityLiveRegion="polite" style={styles.actionsLoading}><ActivityIndicator size="small" color={colors.rose}/><Text style={styles.actionsLoadingText}>Loading things to do…</Text></View> : <View style={styles.actions}>{experience.interactions.slice(0, 6).map((candidate) => <Pressable key={candidate.id} disabled={busy} onPress={() => void execute(candidate)} style={[styles.action, candidate.presentation?.emphasis === 'recommended' && styles.actionFeatured]}><Text style={styles.actionText}>{candidate.label}</Text></Pressable>)}</View>}
         {experience.destinations.length ? <><Text style={styles.sectionLabel}>GO SOMEWHERE ELSE</Text><View style={styles.actions}>{experience.destinations.slice(0, 3).map((candidate) => <Pressable key={candidate.id} disabled={busy} onPress={() => void move(candidate)} style={styles.action}><MapPin size={14} color={colors.rose}/><Text style={styles.actionText}>{candidate.label}</Text></Pressable>)}</View></> : null}
         {canEndManually ? <Pressable accessibilityRole="button" accessibilityLabel={`End ${experience.plan.title}`} onPress={() => setShowEndConfirm(true)} disabled={busy} style={styles.wrap}><Clock3 size={15} color={colors.muted}/><Text style={styles.wrapText}>End plan</Text></Pressable> : null}
       </> : null}
@@ -242,7 +254,7 @@ export function PlanLiveScreen({ planId }: { planId: string }) {
       {messages.map((message) => <View key={message.id} style={styles.message}><Text style={styles.messageText}>{message.content}</Text></View>)}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {!activeScene && !experience.participation.userPresent && (experience.phase === 'early' || waiting) ? <Pressable disabled={busy} onPress={() => void join()} style={styles.join}><Text style={styles.joinText}>{busy ? 'Joining…' : `Join ${companionName}`}</Text></Pressable> : null}
-      {conversation && !completed && !didNotHappen ? <View style={styles.composerArea}><View style={styles.composer}><TextInput value={composer} onChangeText={setComposer} placeholder={`Message ${companionName}…`} placeholderTextColor={colors.dimmed} style={styles.input} multiline/><Pressable onPress={() => void send()} disabled={!composer.trim() || busy || composer.length > MESSAGE_CHARACTER_LIMIT} style={[styles.send, (!composer.trim() || busy || composer.length > MESSAGE_CHARACTER_LIMIT) && styles.disabled]}><Send size={17} color="#fff"/></Pressable></View><MessageCharacterCounter value={composer}/></View> : null}
+      {conversation && !completed && !didNotHappen ? <View style={styles.composerArea}><View style={styles.composer}><TextInput value={composer} onChangeText={setComposer} onKeyPress={(event)=>{const nativeEvent=event.nativeEvent as typeof event.nativeEvent&{shiftKey?:boolean;isComposing?:boolean},intent={platform:Platform.OS,key:nativeEvent.key,shiftKey:nativeEvent.shiftKey,isComposing:nativeEvent.isComposing,hasContent:Boolean(composer.trim()),disabled:busy||composer.length>MESSAGE_CHARACTER_LIMIT};if(!shouldConsumeComposerEnter(intent))return;event.preventDefault();if(shouldSendComposerOnEnter(intent))void send();}} placeholder={`Message ${companionName}…`} placeholderTextColor={colors.dimmed} style={styles.input} multiline/><Pressable onPress={() => void send()} disabled={!composer.trim() || busy || composer.length > MESSAGE_CHARACTER_LIMIT} style={[styles.send, (!composer.trim() || busy || composer.length > MESSAGE_CHARACTER_LIMIT) && styles.disabled]}><Send size={17} color="#fff"/></Pressable></View><MessageCharacterCounter value={composer}/></View> : null}
     </ScrollView>
   </KeyboardAvoidingView>;
 }

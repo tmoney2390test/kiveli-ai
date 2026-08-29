@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, Animated, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image, type ImageContentPosition, type ImageSource } from 'expo-image';
 import { ArrowRight, MapPin } from 'lucide-react-native';
-import { SpiceBadge } from '../SpiceBadge';
 import { colors, typography } from '../../theme';
 import type { CharacterInstance, CharacterVersion } from '../../types';
 
@@ -47,7 +46,6 @@ export function CinematicCompanionHero({ companion, portraitVersion, source, loc
     <View pointerEvents="none" style={styles.tint} />
     <View pointerEvents="none" style={[styles.scrim, Platform.OS === 'web' ? styles.webScrim : styles.nativeScrim]} />
     <View pointerEvents="none" style={[styles.vignette, Platform.OS === 'web' ? styles.webVignette : undefined]} />
-    <SpiceBadge level={template.spice_level} overlay />
     <View style={[styles.content, compact && styles.contentCompact]}>
       <View style={[styles.bottom, desktop && styles.bottomDesktop]}>
         <Pressable accessibilityRole="button" accessibilityLabel={`View ${firstName}'s profile`} onPress={onProfile}>
@@ -55,7 +53,7 @@ export function CinematicCompanionHero({ companion, portraitVersion, source, loc
         </Pressable>
         {placeLine ? <View style={styles.placeLine}><MapPin size={13} strokeWidth={2.1} color="#F6C5D7" /><Text numberOfLines={1} style={styles.placeText}>{placeLine}</Text></View> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={`Continue with ${firstName}`} onPress={onContinue} style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
-          <Text style={styles.ctaText}>Continue with {firstName}</Text><ArrowRight size={19} color="#fff" />
+          <Text style={styles.ctaText}>Continue with {firstName}</Text><ArrowRight size={15} color="#F5DDE6" />
         </Pressable>
       </View>
     </View>
@@ -81,7 +79,7 @@ const styles = StyleSheet.create({
   headingCompact: { fontSize: 34, lineHeight: 37, letterSpacing: -.7 },
   placeLine: { maxWidth: '100%', alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6 },
   placeText: { flexShrink: 1, color: '#F5E8ED', fontSize: 12, fontWeight: '700', textShadowColor: 'rgba(0,0,0,.9)', textShadowRadius: 9 },
-  cta: { alignSelf: 'flex-start', minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 18, marginTop: 2, borderRadius: 16, backgroundColor: colors.rose, borderWidth: 1, borderColor: 'rgba(255,255,255,.2)', shadowColor: colors.rose, shadowOpacity: .35, shadowRadius: 20, shadowOffset: { width: 0, height: 9 } },
-  ctaPressed: { opacity: .9, transform: [{ translateY: 1 }, { scale: .988 }] },
-  ctaText: { color: '#fff', fontSize: 15, fontWeight: '900' },
+  cta: { alignSelf: 'flex-start', minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 13, marginTop: 1, borderRadius: 12, backgroundColor: 'rgba(14,9,18,.72)', borderWidth: 1, borderColor: 'rgba(231,149,183,.34)' },
+  ctaPressed: { opacity: .82, transform: [{ translateY: 1 }, { scale: .988 }] },
+  ctaText: { color: '#F8EAF0', fontSize: 12, fontWeight: '800' },
 });

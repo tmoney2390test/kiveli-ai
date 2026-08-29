@@ -253,7 +253,7 @@ export default function Operations() {
       <View style={styles.header}>
         <Pressable
           accessibilityLabel="Go back"
-          onPress={() => router.back()}
+          onPress={() => router.canGoBack() ? router.back() : router.replace('/settings')}
           style={styles.iconButton}
         >
           <ArrowLeft color={colors.text} />

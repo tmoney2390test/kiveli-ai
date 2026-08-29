@@ -17,12 +17,13 @@ export class PlatformRealtimeAudioEngine implements RealtimeAudioEngine {
   async requestPermission():Promise<'granted'|'denied'>{const{ExpoPlayAudioStream}=await this.module();const result=await ExpoPlayAudioStream.requestPermissionsAsync();return result.granted?'granted':'denied';}
   async open(input:{sampleRate:number;onInput:(base64Pcm16:string)=>void;onError:(error:Error)=>void}){
     const{ExpoPlayAudioStream,Pipeline,PlaybackModes}=await this.module();
-    await setAudioModeAsync({playsInSilentMode:true,allowsRecording:true,shouldPlayInBackground:false,allowsBackgroundRecording:false,interruptionMode:'doNotMix',shouldRouteThroughEarpiece:false});
+    await setAudioModeAsync({playsInSilentMode:true,allowsRecording:true,shouldPlayInBackground:true,allowsBackgroundRecording:true,interruptionMode:'doNotMix',shouldRouteThroughEarpiece:false});
     await Pipeline.connect({sampleRate:input.sampleRate,channelCount:1,targetBufferMs:80,playbackMode:PlaybackModes.CONVERSATION,audioMode:'doNotMix'});
     this.pipelineSubscriptions.push(Pipeline.onError(({message})=>input.onError(new Error(message))));
     const started=await ExpoPlayAudioStream.startMicrophone({sampleRate:24_000,channels:1,encoding:'pcm_16bit',interval:60,enableProcessing:true,onAudioStream:(event)=>{if(!this.muted&&typeof event.data==='string')input.onInput(event.data);return Promise.resolve();},onError:(event)=>{if(event.isFatal)input.onError(new Error(event.message));}});
     this.microphoneSubscription=started.subscription??null;this.microphoneActive=true;
   }
+  resetForReconnect(){return this.close();}
   async close(){
     const nativeAudio=this.nativeAudio;if(!nativeAudio)return;const{ExpoPlayAudioStream,Pipeline}=nativeAudio;
     this.microphoneSubscription?.remove();this.microphoneSubscription=null;
@@ -38,7 +39,7 @@ export class PlatformRealtimeAudioEngine implements RealtimeAudioEngine {
     await setAudioModeAsync({allowsRecording:false,shouldPlayInBackground:false,allowsBackgroundRecording:false,shouldRouteThroughEarpiece:false,interruptionMode:'mixWithOthers'}).catch(()=>undefined);
   }
   setMuted(muted:boolean){this.muted=muted;this.nativeAudio?.ExpoPlayAudioStream.toggleSilence(muted);return Promise.resolve();}
-  async setSpeakerEnabled(enabled:boolean){await setAudioModeAsync({allowsRecording:true,playsInSilentMode:true,interruptionMode:'doNotMix',shouldRouteThroughEarpiece:!enabled});}
+  async setSpeakerEnabled(enabled:boolean){await setAudioModeAsync({allowsRecording:true,playsInSilentMode:true,shouldPlayInBackground:true,allowsBackgroundRecording:true,interruptionMode:'doNotMix',shouldRouteThroughEarpiece:!enabled});}
   pushOutput(input:{audio:string;turnId:string;first:boolean}){this.nativeAudio?.Pipeline.pushAudioSync({audio:input.audio,turnId:input.turnId,isFirstChunk:input.first});}
   endOutput(turnId:string){this.nativeAudio?.Pipeline.pushAudioSync({audio:'',turnId,isLastChunk:true});}
   async interrupt(turnId:string){await this.nativeAudio?.Pipeline.invalidateTurn({turnId});}

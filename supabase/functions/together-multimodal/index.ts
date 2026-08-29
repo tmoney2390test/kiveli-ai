@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { validateUserImage } from "../../../packages/together-domain/src/multimodal.ts";
-import { imageDimensions } from "../../../packages/together-domain/src/index.ts";
+import {
+  hasSexualDialogueLanguage,
+  imageDimensions,
+} from "../../../packages/together-domain/src/index.ts";
+import { chatLanguageFromMessageMetadata, chatLanguagePreferences, chatLanguagePreviewText, normalizeChatLanguage } from "../../../packages/together-domain/src/chat-language.ts";
 import { parseBody } from "../_shared/body.ts";
 import { authenticated, enforceRateLimit } from "../_shared/context.ts";
 import { json, serve } from "../_shared/http.ts";
@@ -21,7 +25,8 @@ import { track } from "../_shared/together.ts";
 import { synchronizedGeneratedPhotoPreferences } from "../_shared/together-photo-preferences.ts";
 import { AppError } from "../_shared/types.ts";
 import { prepareCompanionSpeech } from "../_shared/voice-performance.ts";
-import { creditCost } from "../../../packages/together-domain/src/entitlements.ts";
+import { buildVoiceNoteMediaMutation } from "../_shared/voice-note-media.ts";
+import { voiceNotePricing } from "../../../packages/together-domain/src/entitlements.ts";
 import { refundCredits, resolveSubscriptionState, spendCredits } from "../_shared/kivelle-subscription.ts";
 import {
   activeVoiceEntitlement,
@@ -70,6 +75,7 @@ const schema = z.discriminatedUnion("action", [
     action: z.literal("preview_voice"),
     conversationId: uuid,
     voicePreset: z.enum(["warm", "bright", "clear", "strong", "balanced"]).nullable(),
+    chatLanguage: z.enum(chatLanguagePreferences).optional(),
     requestId: z.string().trim().min(8).max(120),
   }),
   z.object({ action: z.literal("media_status"), mediaId: uuid }),
@@ -388,7 +394,7 @@ serve(async (request, correlationId) => {
       throw new AppError("PLAN_LIMIT_REACHED", "Voice previews are available with Kivelle+.", 403);
     }
     const { data: conversation } = await db.from("together_conversations").select(
-      "id,continuity_id,character_instance_id",
+      "id,continuity_id,character_instance_id,metadata",
     ).eq("id", input.conversationId).eq("user_id", user.id).eq(
       "continuity_id",
       continuity.id,
@@ -398,13 +404,16 @@ serve(async (request, correlationId) => {
     await requireInstanceInActiveContinuity(db, user.id, characterInstanceId);
     const voicePreset = await validateCompanionVoicePreset(db, characterInstanceId, input.voicePreset);
     const presetKey = voicePreset ?? "default";
+    const chatLanguage = normalizeChatLanguage(input.chatLanguage ?? conversationChatLanguage(conversation.metadata));
+    const languageKey = chatLanguage.replace(/[^a-zA-Z0-9-]/g, "-");
+    const previewKey = `${presetKey}-${languageKey}`;
     const storageFolder = `${user.id}/voice-previews/${characterInstanceId}/v1`;
     const { data: storedPreviews, error: storedPreviewError } = await db.storage
       .from("together-user-media")
-      .list(storageFolder, { limit: 10, search: `${presetKey}.` });
+      .list(storageFolder, { limit: 20, search: `${previewKey}.` });
     if (!storedPreviewError) {
       const storedPreview = storedPreviews?.find((entry) =>
-        entry.name === `${presetKey}.mp3` || entry.name === `${presetKey}.wav`
+        entry.name === `${previewKey}.mp3` || entry.name === `${previewKey}.wav`
       );
       if (storedPreview) {
         const storagePath = `${storageFolder}/${storedPreview.name}`;
@@ -440,11 +449,11 @@ serve(async (request, correlationId) => {
       throw new AppError("PROVIDER_UNAVAILABLE", "Voice previews are not available for this rollout yet.", 503, false);
     }
     const voice = await resolveCompanionVoiceProfile(db, characterInstanceId, voicePreset);
-    const previewText = "Hello there.";
+    const previewText = chatLanguagePreviewText(chatLanguage);
     try {
-      const result = await provider.synthesize({ text: previewText, voice, outputFormat: "mp3" });
+      const result = await provider.synthesize({ text: previewText, voice, language: chatLanguage, outputFormat: "mp3" });
       const extension = result.contentType.includes("mpeg") ? "mp3" : "wav";
-      const storagePath = `${storageFolder}/${presetKey}.${extension}`;
+      const storagePath = `${storageFolder}/${previewKey}.${extension}`;
       const { error: uploadError } = await db.storage.from("together-user-media").upload(storagePath, result.bytes, {
         contentType: result.contentType,
         upsert: true,
@@ -497,16 +506,24 @@ serve(async (request, correlationId) => {
   if (input.action === "voice_note_quote") {
     if (preferences.companionVoiceNotes === false) throw new AppError("FORBIDDEN", "Voice notes are turned off in Settings.", 403);
     if (!capabilities.experience.voiceNotes) throw new AppError("PLAN_LIMIT_REACHED", "Voice notes are available with Kivelle+.", 403);
-    const { data: message } = await db.from("together_messages").select("id,together_conversations!inner(continuity_id)").eq("id", input.messageId).eq("user_id", user.id).eq("role", "assistant").maybeSingle();
+    const { data: message } = await db.from("together_messages").select("id,content,together_conversations!inner(continuity_id)").eq("id", input.messageId).eq("user_id", user.id).eq("role", "assistant").maybeSingle();
     const conversation = message?.together_conversations as Record<string, unknown> | undefined;
     if (!message || String(conversation?.continuity_id) !== continuity.id) throw new AppError("NOT_FOUND", "That companion message is unavailable.", 404);
+    const canonicalText = String(message.content ?? "").trim();
+    if (hasSexualDialogueLanguage(canonicalText)) {
+      throw new AppError(
+        "FORBIDDEN",
+        "Sexual messages are not available as voice notes.",
+        403,
+      );
+    }
     const requestKey = `voice-note:${message.id}`;
     const [{ data: duplicate }, subscription] = await Promise.all([
       db.from("together_generated_media").select("id,status").eq("user_id", user.id).eq("request_key", requestKey).maybeSingle(),
       resolveSubscriptionState(db, user.id),
     ]);
-    const generationRequired = !duplicate || duplicate.status === "failed", cost = generationRequired ? creditCost("voice_note") : 0;
-    return json({ data: { creditCost: cost, creditBalance: subscription.creditBalance.total, canAfford: subscription.creditBalance.total >= cost, generationRequired }, correlationId }, 200, correlationId);
+    const generationRequired = !duplicate || duplicate.status === "failed", pricing=voiceNotePricing(canonicalText.length),cost=generationRequired?pricing.creditCost:0;
+    return json({ data: { creditCost: cost, creditBalance: subscription.creditBalance.total, canAfford: subscription.creditBalance.total >= cost, generationRequired, characterCount:pricing.characterCount, shortened:pricing.shortened }, correlationId }, 200, correlationId);
   }
 
   if (input.action === "request_voice_note") {
@@ -543,6 +560,21 @@ serve(async (request, correlationId) => {
         "NOT_FOUND",
         "That companion message is unavailable.",
         404,
+      );
+    }
+    const canonicalText = String(message.content ?? "").trim();
+    if (!canonicalText) {
+      throw new AppError(
+        "VALIDATION_FAILED",
+        "There is no spoken message to play.",
+        422,
+      );
+    }
+    if (hasSexualDialogueLanguage(canonicalText)) {
+      throw new AppError(
+        "FORBIDDEN",
+        "Sexual messages are not available as voice notes.",
+        403,
       );
     }
     const characterInstanceId = String(
@@ -585,17 +617,10 @@ serve(async (request, correlationId) => {
       );
     }
     const storedVoicePreset = chatVoicePreset(conversation?.metadata);
+    const chatLanguage = chatLanguageFromMessageMetadata(message.provider_metadata);
     const voicePreset = storedVoicePreset ? await validateCompanionVoicePreset(db, characterInstanceId, storedVoicePreset) : null;
     const voice = await resolveCompanionVoiceProfile(db, characterInstanceId, voicePreset);
     const mediaId = String(duplicate?.id ?? crypto.randomUUID());
-    const canonicalText = String(message.content ?? "").trim();
-    if (!canonicalText) {
-      throw new AppError(
-        "VALIDATION_FAILED",
-        "There is no spoken message to play.",
-        422,
-      );
-    }
     let performance;
     try {
       performance = prepareCompanionSpeech({
@@ -620,35 +645,35 @@ serve(async (request, correlationId) => {
         422,
       );
     }
+    const pricing=voiceNotePricing(canonicalText.length);
     const attemptNumber=Math.max(1,Number(duplicate?.attempt_count??0)+1);
-    const charged=await spendCredits(db,{userId:user.id,action:"voice_note",idempotencyKey:`voice-note:${message.id}:attempt:${attemptNumber}`,referenceType:"generated_media",referenceId:mediaId,metadata:{messageId:message.id,characterInstanceId,attemptNumber}});
-    const mediaMutation = {
+    const charged=await spendCredits(db,{userId:user.id,action:"voice_note",amount:pricing.creditCost,idempotencyKey:`voice-note:${message.id}:attempt:${attemptNumber}`,referenceType:"generated_media",referenceId:mediaId,metadata:{messageId:message.id,characterInstanceId,attemptNumber,sourceCharacterCount:pricing.characterCount,spokenTextShortened:performance.shortened}});
+    const mediaMutation = buildVoiceNoteMediaMutation({
       id: mediaId,
-      user_id: user.id,
-      continuity_id: continuity.id,
-      character_instance_id: characterInstanceId,
-      conversation_id: conversation?.id,
-      message_id: message.id,
-      media_type: "voice_note",
-      status: "generating",
-      request_key: requestKey,
+      userId: user.id,
+      continuityId: continuity.id,
+      characterInstanceId,
+      conversationId: String(conversation?.id),
+      messageId: message.id,
+      requestKey,
       provider: provider.id,
-      canonical_text: canonicalText,
-      failure_code: null,
-      failure_reason_safe: null,
-      attempt_count: attemptNumber,
+      canonicalText,
+      attemptNumber,
       metadata: {
         source: "assistant_message",
         voiceKey: voice.voiceKey,
+        chatLanguage,
         spokenTextVersion: performance.spokenText,
+        sourceCharacterCount: pricing.characterCount,
+        spokenCharacterCount: performance.characterCount,
+        spokenTextShortened: performance.shortened,
         requestId: input.requestId,
         contextVersion: 2,
         creditTransactionId:charged.transactionId,
         creditCost:charged.cost,
         creditRefunded:false,
       },
-      updated_at: new Date().toISOString(),
-    };
+    });
     const { data: media, error: mediaError } = duplicate
       ? await db.from("together_generated_media").update(mediaMutation).eq(
         "id",
@@ -677,6 +702,7 @@ serve(async (request, correlationId) => {
       const result = await provider.synthesize({
         text: performance.spokenText,
         voice,
+        language: chatLanguage,
         outputFormat: "mp3",
         delivery: { speed: performance.speed },
       });
@@ -793,6 +819,16 @@ serve(async (request, correlationId) => {
   if (!media) {
     throw new AppError("NOT_FOUND", "That media is unavailable.", 404);
   }
+  if (
+    media.media_type === "voice_note" &&
+    hasSexualDialogueLanguage(String(media.canonical_text ?? ""))
+  ) {
+    throw new AppError(
+      "FORBIDDEN",
+      "Sexual messages are not available as voice notes.",
+      403,
+    );
+  }
   return json(
     { data: await mediaPayload(db, media), correlationId },
     200,
@@ -851,7 +887,7 @@ async function transcribeAudio(
 
   const continuity = await activeContinuity(db, userId);
   await requireInstanceInActiveContinuity(db, userId, characterInstanceId);
-  await requireConversation(
+  const conversation = await requireConversation(
     db,
     userId,
     continuity.id,
@@ -875,6 +911,7 @@ async function transcribeAudio(
     bytes: new Uint8Array(await audio.arrayBuffer()),
     contentType,
     fileName: suppliedName,
+    language: conversationChatLanguage(conversation.metadata),
   });
   await track(db, userId, "chat_dictation_transcribed", {
     conversationId,
@@ -902,7 +939,7 @@ async function requireConversation(
   conversationId: string,
   characterInstanceId: string,
 ) {
-  const { data } = await db.from("together_conversations").select("id").eq(
+  const { data } = await db.from("together_conversations").select("id,metadata").eq(
     "id",
     conversationId,
   ).eq("user_id", userId).eq("continuity_id", continuityId).eq(
@@ -912,6 +949,17 @@ async function requireConversation(
   if (!data) {
     throw new AppError("NOT_FOUND", "That conversation is unavailable.", 404);
   }
+  return data as Record<string, unknown>;
+}
+
+function conversationChatLanguage(metadata: unknown) {
+  const record = metadata && typeof metadata === "object" && !Array.isArray(metadata)
+    ? metadata as Record<string, unknown>
+    : {};
+  const preferences = record.chatPreferences && typeof record.chatPreferences === "object" && !Array.isArray(record.chatPreferences)
+    ? record.chatPreferences as Record<string, unknown>
+    : {};
+  return normalizeChatLanguage(preferences.chatLanguage);
 }
 
 async function requireAttachment(

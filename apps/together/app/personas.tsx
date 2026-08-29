@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { Image } from 'expo-image';
 import { ArrowLeft, Check, ChevronRight, Pencil, Plus, Trash2, UserRound } from 'lucide-react-native';
 import { EmptyState, GlassCard, LoadingSkeleton, PageTitle, Screen, SectionHeader } from '../src/components';
 import { managePersona } from '../src/lib/api';
+import { useProfileAvatarUrl } from '../src/hooks/useProfileAvatarUrl';
 import { useTogether } from '../src/store/useTogether';
 import { colors, radius } from '../src/theme';
 import type { KivelleContinuity, Snapshot, UserPersona } from '../src/types';
@@ -46,13 +48,13 @@ export default function Personas() {
   );
 
   return <Screen>
-    <View style={styles.header}><Pressable onPress={() => router.back()}><ArrowLeft color={colors.text} /></Pressable><View style={{flex:1}}><PageTitle>You in Kivelle</PageTitle><Text style={styles.subtitle}>A Life keeps one identity, relationships, memories, plans, and history together.</Text></View></View>
+    <View style={styles.header}><Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/settings')}><ArrowLeft color={colors.text} /></Pressable><View style={{flex:1}}><PageTitle>You in Kivelle</PageTitle><Text style={styles.subtitle}>A Life keeps one identity, relationships, memories, plans, and history together.</Text></View></View>
     {active ? <GlassCard style={styles.activeSummary}><Text style={styles.activeKicker}>YOU'RE CURRENTLY HERE</Text><Text style={styles.activeName}>{active.together_user_personas?.display_name ?? active.title}</Text><Text style={styles.activeMeta}>{active.kind === 'main' ? 'Main Life' : active.title}{active.together_user_personas?.occupation ? ` · ${active.together_user_personas.occupation}` : ''}</Text></GlassCard> : null}
 
     <SectionHeader title="Your Lives" />
     {lives.length ? lives.map((life) => <LifeCard key={life.id} life={life} active={life.id === active?.id} busy={busy === life.id} onSwitch={() => void switchLife(life)} onEdit={() => router.push(`/persona-editor?persona=${life.persona_id}` as never)} onDelete={life.kind==='alternate'?() => removeLife(life):undefined} />) : <EmptyState title="Your Main Life is being prepared" body="Refresh Kivelle to finish account setup." />}
 
-    {unusedPersonas.length ? <><SectionHeader title="Ready for a new Life" />{unusedPersonas.map((persona) => <View key={persona.id} style={styles.persona}><UserRound color={colors.violet} /><Pressable onPress={() => router.push(`/persona-editor?persona=${persona.id}` as never)} style={{ flex: 1 }}><Text style={styles.name}>{persona.display_name}</Text><Text style={styles.meta}>{[persona.occupation, persona.age].filter(Boolean).join(' · ') || 'Identity ready'}</Text></Pressable><Pressable onPress={() => start(persona)} style={styles.start}><Text style={styles.startText}>Start Life</Text><ChevronRight size={15} color={colors.rose} /></Pressable></View>)}</> : null}
+    {unusedPersonas.length ? <><SectionHeader title="Ready for a new Life" />{unusedPersonas.map((persona) => <View key={persona.id} style={styles.persona}><PersonaAvatar persona={persona}/><Pressable onPress={() => router.push(`/persona-editor?persona=${persona.id}` as never)} style={{ flex: 1 }}><Text style={styles.name}>{persona.display_name}</Text><Text style={styles.meta}>{[persona.occupation, persona.age].filter(Boolean).join(' · ') || 'Identity ready'}</Text></Pressable><Pressable onPress={() => start(persona)} style={styles.start}><Text style={styles.startText}>Start Life</Text><ChevronRight size={15} color={colors.rose} /></Pressable></View>)}</> : null}
 
     <Pressable onPress={() => router.push('/persona-editor')} style={styles.add}><Plus size={18} color={colors.rose} /><Text style={styles.addText}>Create another identity</Text></Pressable>
     <GlassCard><Text style={styles.empty}>Alternate Lives never merge relationship history. Switching Life changes who you are in Kivelle without rewriting another Life.</Text></GlassCard>
@@ -61,8 +63,10 @@ export default function Personas() {
 
 function LifeCard({ life, active, busy, onSwitch, onEdit, onDelete }: { life: KivelleContinuity; active: boolean; busy: boolean; onSwitch: () => void; onEdit: () => void; onDelete?: () => void }) {
   const persona = life.together_user_personas;
-  return <View style={[styles.life, active && styles.active]}><Pressable onPress={onEdit} style={styles.avatar}><Text style={styles.initial}>{(persona?.display_name ?? 'Y')[0]}</Text></Pressable><Pressable onPress={onSwitch} disabled={busy} style={{ flex: 1 }}><Text style={styles.kicker}>{life.kind === 'main' ? 'MAIN LIFE' : 'ALTERNATE LIFE'}</Text><Text style={styles.name}>{persona?.display_name ?? life.title}</Text><Text style={styles.meta}>{busy ? 'Switching…' : active ? 'Currently active' : persona?.occupation ?? 'Tap to enter this Life'}</Text></Pressable>{active ? <View style={styles.pill}><Check size={13} color="#fff" /><Text style={styles.pillText}>ACTIVE</Text></View> : <Pressable accessibilityLabel={`Switch to ${persona?.display_name ?? life.title}`} onPress={onSwitch}><ChevronRight color={colors.muted} /></Pressable>}<Pressable accessibilityLabel={`Edit ${persona?.display_name ?? life.title}`} onPress={onEdit}><Pencil size={16} color={colors.muted} /></Pressable>{onDelete ? <Pressable accessibilityLabel={`Delete ${life.title}`} onPress={onDelete}><Trash2 size={16} color={colors.danger} /></Pressable> : null}</View>;
+  return <View style={[styles.life, active && styles.active]}><Pressable onPress={onEdit}><PersonaAvatar persona={persona}/></Pressable><Pressable onPress={onSwitch} disabled={busy} style={{ flex: 1 }}><Text style={styles.kicker}>{life.kind === 'main' ? 'MAIN LIFE' : 'ALTERNATE LIFE'}</Text><Text style={styles.name}>{persona?.display_name ?? life.title}</Text><Text style={styles.meta}>{busy ? 'Switching…' : active ? 'Currently active' : persona?.occupation ?? 'Tap to enter this Life'}</Text></Pressable>{active ? <View style={styles.pill}><Check size={13} color="#fff" /><Text style={styles.pillText}>ACTIVE</Text></View> : <Pressable accessibilityLabel={`Switch to ${persona?.display_name ?? life.title}`} onPress={onSwitch}><ChevronRight color={colors.muted} /></Pressable>}<Pressable accessibilityLabel={`Edit ${persona?.display_name ?? life.title}`} onPress={onEdit}><Pencil size={16} color={colors.muted} /></Pressable>{onDelete ? <Pressable accessibilityLabel={`Delete ${life.title}`} onPress={onDelete}><Trash2 size={16} color={colors.danger} /></Pressable> : null}</View>;
 }
+
+function PersonaAvatar({persona}:{persona?:UserPersona}){const path=typeof persona?.appearance_config?.avatarPath==='string'?persona.appearance_config.avatarPath:null;const url=useProfileAvatarUrl(path);return <View style={styles.avatar}>{url?<Image source={{uri:url}} style={StyleSheet.absoluteFill} contentFit="cover"/>:persona?<Text style={styles.initial}>{persona.display_name[0]?.toUpperCase()}</Text>:<UserRound size={22} color={colors.violet}/>}</View>;}
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 14 }, subtitle: { color: colors.muted, fontSize: 12, marginTop: 3, lineHeight:18 },

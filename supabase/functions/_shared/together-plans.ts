@@ -24,6 +24,7 @@ type CreatePlanInput = {
   durationMinutes?:number;
   immediate?:boolean;
   replacementPlanId?:string;
+  replacingActivePlan?:boolean;
   deferSideEffects?:boolean;
 };
 
@@ -49,13 +50,13 @@ export async function createSharedPlan(db:any, input:CreatePlanInput) {
   const start=new Date(input.startsAt);
   if(!Number.isFinite(start.getTime())) throw new AppError('VALIDATION_FAILED','Choose a valid date and time.',400);
   const end=new Date(start.getTime()+resolved.durationMinutes*60000);
-  const availability=await validateAvailability(db,{userId:input.userId,characterInstanceId:input.characterInstanceId,characterVersionId:instance.character_version_id,location:resolved.location,activityKey:resolved.activityKey,start,end,immediate:input.immediate,excludePlanId:input.replacementPlanId});
+  const availability=await validateAvailability(db,{userId:input.userId,characterInstanceId:input.characterInstanceId,characterVersionId:instance.character_version_id,location:resolved.location,activityKey:resolved.activityKey,start,end,immediate:input.immediate,excludePlanId:input.replacementPlanId,replacingActivePlan:input.replacingActivePlan});
   if(roster.participantInstanceIds.length>1){
     const{data:groupInstances,error:groupInstancesError}=await db.from('together_character_instances').select('id,character_version_id,together_character_templates(name)').eq('user_id',input.userId).eq('continuity_id',continuity.id).in('id',roster.participantInstanceIds);
     if(groupInstancesError||(groupInstances??[]).length!==roster.participantInstanceIds.length)throw new AppError('CONFLICT','The group roster changed. Reopen the group and try again.',409,true);
     for(const member of groupInstances??[]){
       if(String(member.id)===input.characterInstanceId)continue;
-      try{await validateAvailability(db,{userId:input.userId,characterInstanceId:String(member.id),characterVersionId:String(member.character_version_id),location:resolved.location,activityKey:resolved.activityKey,start,end,immediate:input.immediate,excludePlanId:input.replacementPlanId});}
+      try{await validateAvailability(db,{userId:input.userId,characterInstanceId:String(member.id),characterVersionId:String(member.character_version_id),location:resolved.location,activityKey:resolved.activityKey,start,end,immediate:input.immediate,excludePlanId:input.replacementPlanId,replacingActivePlan:input.replacingActivePlan});}
       catch(error){if(error instanceof AppError)throw new AppError(error.code,`${member.together_character_templates?.name??'A group member'} cannot make that plan. ${error.message}`,error.status,error.retryable);throw error;}
     }
   }
@@ -188,14 +189,15 @@ async function resolvePlanOption(db:any,locationId:string,activityValue:string,t
   return{location,activityKey,title:titleValue?.trim().slice(0,160)||defaultTitle(activityLabel,location.name),durationMinutes,significance:significanceFor(activityLabel,metadata)};
 }
 
-async function validateAvailability(db:any,input:{userId:string;characterInstanceId:string;characterVersionId:string;location:any;activityKey:string;start:Date;end:Date;excludePlanId?:string;immediate?:boolean}){
+async function validateAvailability(db:any,input:{userId:string;characterInstanceId:string;characterVersionId:string;location:any;activityKey:string;start:Date;end:Date;excludePlanId?:string;immediate?:boolean;replacingActivePlan?:boolean}){
   if(!planStartSatisfiesLeadTime(input.start,input.immediate===true))throw new AppError('VALIDATION_FAILED',input.immediate?'Start Now expired. Choose it again.':'Choose a time at least ten minutes from now.',400);
   if(input.start.getTime()>Date.now()+60*86400000)throw new AppError('VALIDATION_FAILED','Plans can be scheduled up to 60 days ahead.',400);
   const place=await resolvePlaceContext({db,locationId:String(input.location.id),userId:input.userId,characterInstanceId:input.characterInstanceId,now:input.start});
   const timezone=safeTimezone(place.clock.timezone);
   validateVenueProgram(input.location,input.activityKey,input.start,timezone);
   if(!locationIsOpen(input.location,input.start,input.end,timezone)){const startMinute=experienceClock(timezone,input.start).minuteOfDay,duration=Math.max(30,(input.end.getTime()-input.start.getTime())/60000);throw new AppError('LOCATION_CLOSED',closedLocationPlanMessage({name:String(input.location.name),hours:input.location.hours,startMinute,durationMinutes:duration}),409,true);}
-  let plans=db.from('together_shared_plans').select('id,title,starts_at,ends_at').eq('user_id',input.userId).contains('participant_instance_ids',[input.characterInstanceId]).in('status',['proposed','scheduled','active']).lt('starts_at',input.end.toISOString()).gt('ends_at',input.start.toISOString());
+  const conflictStatuses=input.replacingActivePlan?['proposed','scheduled']:['proposed','scheduled','active'];
+  let plans=db.from('together_shared_plans').select('id,title,starts_at,ends_at').eq('user_id',input.userId).contains('participant_instance_ids',[input.characterInstanceId]).in('status',conflictStatuses).lt('starts_at',input.end.toISOString()).gt('ends_at',input.start.toISOString());
   if(input.excludePlanId)plans=plans.neq('id',input.excludePlanId);
   const[{data:conflicts},{data:dates},{data:schedules}]=await Promise.all([plans,db.from('together_date_sessions').select('id,scheduled_for,together_date_templates(name)').eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).eq('status','upcoming'),db.from('together_schedule_templates').select('*,together_locations!inner(world_id)').eq('character_version_id',input.characterVersionId).eq('together_locations.world_id',input.location.world_id)]);
   if(conflicts?.length)throw new AppError('PLAN_CONFLICT',`You already have ${conflicts[0].title} from ${minuteLabel(experienceClock(timezone,new Date(conflicts[0].starts_at)).minuteOfDay)} to ${minuteLabel(experienceClock(timezone,new Date(conflicts[0].ends_at)).minuteOfDay)}. Move it or choose another time.`,409,true);

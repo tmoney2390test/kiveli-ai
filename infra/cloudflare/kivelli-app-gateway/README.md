@@ -1,15 +1,13 @@
 # Kivelli app gateway
 
-This Worker makes `https://kivelli.app` the canonical web origin while EAS Hosting remains the deployment origin. The upstream is pinned to an immutable EAS deployment URL so every Cloudflare location serves the same release even while Expo's mutable production alias is propagating.
-
-After publishing a new EAS production deployment, update `UPSTREAM_ORIGIN` in `index.js` to the returned immutable deployment URL and redeploy this Worker. Build assets stay on EAS and are not copied to Cloudflare.
+This Worker hosts the Kivelli web export directly on Cloudflare Static Assets at
+`https://kivelli.app`. It does not depend on Expo/EAS Hosting.
 
 Build production web exports through EAS environment injection and clear Metro's
 cache so an earlier placeholder configuration cannot be reused:
 
 ```sh
 eas env:exec production "pnpm web:build:production" --non-interactive
-eas deploy --prod --environment production --non-interactive
 ```
 
 The production build script fails before deployment if the compiled entry
@@ -23,10 +21,10 @@ account/API service solely because it uses a third-party hostname. It forwards
 auth, REST, Storage, Functions, and realtime upgrades without caching their
 responses; permanent Supabase credentials remain server-side only.
 
-Deploy from this directory with a narrowly scoped Cloudflare API token:
+After building, deploy from this directory with a narrowly scoped Cloudflare API token:
 
 ```sh
-pnpm exec wrangler deploy --config wrangler.jsonc
+pnpm dlx wrangler@latest deploy --config wrangler.jsonc
 ```
 
 Required permissions, scoped to the Kivelli account and `kivelli.app` zone:

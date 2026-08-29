@@ -19,6 +19,7 @@ import {
 } from "../../../packages/together-domain/src/place-opinion-analysis.ts";
 import {
   detectFlirtSignal,
+  mergeRelationshipAnalysisChanges,
   scoreConversationEngagement,
 } from "../../../packages/together-domain/src/relationship.ts";
 import {
@@ -1215,7 +1216,7 @@ ${
 Return this shape:
 {"relationshipChanges":{"trust":0,"comfort":0,"attraction":0,"affinity":0,"familiarity":0,"respect":0,"conflict":0,"romantic_interest":0,"commitment":0},"chemistry":{"userFlirtSignal":0.0,"characterFlirtSignal":0.0,"mutualChemistry":0.0,"heatDelta":0},"memoryCandidates":[{"memory_type":"semantic|preference|episodic|relationship|emotional","canonical_text":"User ...","subject_key":"stable topic key","importance":0.0,"confidence":0.0,"sensitivity_category":"none|personal|sensitive","metadata":{}}],"placeOpinionCandidates":[{"placeRef":"allowed-place-slug","sentiment":0.0,"confidence":0.0,"summary":"Durable neutral summary of the companion's expressed view.","tags":[],"favoriteDetails":[],"dislikedDetails":[],"reasoningCode":"explicit_character_opinion|opinion_changed|shared_experience_reaction"}],"resolvedThreadIds":[],"newThreads":[{"topic":"Ask how ... went.","subject":"presentation","expected_at":"ISO timestamp or null","importance":0.0}],"mentionedMemoryIds":[],"reinforcedMemoryIds":[],"correctedMemorySubjects":[],"momentCandidate":false,"moodEffects":{}}
 
-Rules: relationship deltas must be integers from -4 to 4. Ordinary chat should be 0 to 2. Memory-worthiness is not relationship significance: an ordinary preference or biographical fact may become memory but must not receive vulnerability-level trust/comfort changes. Direct declarations to the companion such as "I love you" or "I like you" are relationship evidence, never preference memories; do not produce text such as "User likes you." Momentary user state and generic actions belong only to recent conversation context: never create durable memories such as "User is in bed," "User is eating," "User is tired," "User is at home," or "User is watching television." Store only stable facts/preferences, meaningful relationship evidence, future-relevant commitments, or genuinely significant shared episodes. Chemistry signals are 0 to 1 and require actual romantic/flirt evidence; generic positivity such as "you're cool", "nice", or "you're funny" is not flirting. Never infer private facts. Do not create a memory from the character response. A correction must use the same subject_key as the earlier fact. Mentioned/reinforced memory IDs must be from the available list and only if the assistant actually referenced them. Resolve only an eligible thread that this user message actually answers. A place opinion candidate is allowed only when the CHARACTER RESPONSE explicitly expresses or changes a durable personal view of one listed place. Never turn the user's opinion, objective venue description, or a passing observation into the companion's opinion. Use only an allowed placeRef and never invent an ID.`;
+Rules: relationship deltas must be integers from -4 to 4. Ordinary genuine conversation should normally earn 1 trust and 1 familiarity. Familiarity reflects sustained back-and-forth and learning stable details about each other. Trust reflects continued respectful interaction and should decline only for a clear negative trust event such as deception, hostility, manipulation, a boundary violation, or a broken commitment; ordinary disagreement is not a trust violation. Deeper disclosure, demonstrated reliability, support, or repair may justify larger changes. Memory-worthiness is not relationship significance: an ordinary preference or biographical fact may become memory but must not receive vulnerability-level trust/comfort changes. Direct declarations to the companion such as "I love you" or "I like you" are relationship evidence, never preference memories; do not produce text such as "User likes you." Momentary user state and generic actions belong only to recent conversation context: never create durable memories such as "User is in bed," "User is eating," "User is tired," "User is at home," or "User is watching television." Store only stable facts/preferences, meaningful relationship evidence, future-relevant commitments, or genuinely significant shared episodes. Chemistry signals are 0 to 1 and require actual romantic/flirt evidence; generic positivity such as "you're cool", "nice", or "you're funny" is not flirting. Never infer private facts. Do not create a memory from the character response. A correction must use the same subject_key as the earlier fact. Mentioned/reinforced memory IDs must be from the available list and only if the assistant actually referenced them. Resolve only an eligible thread that this user message actually answers. A place opinion candidate is allowed only when the CHARACTER RESPONSE explicitly expresses or changes a durable personal view of one listed place. Never turn the user's opinion, objective venue description, or a passing observation into the companion's opinion. Use only an allowed placeRef and never invent an ID.`;
 }
 
 function validateAnalysisJson(
@@ -1384,9 +1385,10 @@ function mergeAnalysis(
   }
   return {
     ...modelProposal,
-    relationshipChanges: Number(base.relationshipChanges.conflict ?? 0) !== 0
-      ? base.relationshipChanges
-      : modelProposal.relationshipChanges,
+    relationshipChanges: mergeRelationshipAnalysisChanges({
+      deterministic: base.relationshipChanges,
+      analyzed: modelProposal.relationshipChanges,
+    }),
     memoryCandidates: [...memories.values()],
     resolvedThreadIds: [
       ...new Set([

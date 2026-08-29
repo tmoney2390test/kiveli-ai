@@ -5,10 +5,12 @@ import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { track } from '../_shared/together.ts';
+import { reconcilePersonaIdentity } from '../_shared/kivelle-persona.ts';
+import { ensureMainContinuity } from '../_shared/together-continuity.ts';
 
 const goals = z.enum(['Dating', 'Friendship', 'Stories', 'Social worlds']);
 const schema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('profile'), displayName: z.string().trim().min(1).max(50), aboutMe: z.string().trim().max(280), interests: z.array(z.string().trim().min(1).max(40)).max(10), goals: z.array(goals).max(4), avatarPath: z.string().max(500).nullable() }),
+  z.object({ action: z.literal('profile'), displayName: z.string().trim().min(1).max(50), aboutMe: z.string().trim().max(280), interests: z.array(z.string().trim().min(1).max(40)).max(10), goals: z.array(goals).max(4), avatarPath: z.string().max(500).nullable(), syncMainPersona: z.boolean().default(true) }),
   z.object({ action: z.literal('privacy'), settings: z.record(z.string(), z.boolean()) }),
   z.object({ action: z.literal('content'), romanceEnabled: z.boolean() }),
   z.object({ action: z.literal('conversation_style'), responseStyle: z.enum(['texting','paragraph']) }),
@@ -26,8 +28,21 @@ serve(async (request, correlationId) => {
   if (input.action === 'profile') {
     const { data, error } = await db.from('together_profiles').update({ display_name: input.displayName, about_me: input.aboutMe, interests: input.interests, experience_goals: input.goals, avatar_path: input.avatarPath, updated_at: new Date().toISOString() }).eq('user_id', user.id).select('*').single();
     if (error || !data) throw new AppError('INTERNAL_ERROR', 'Could not save your profile.', 500, true);
-    await track(db, user.id, 'account_profile_updated');
-    return json({ data, correlationId }, 200, correlationId);
+    let mainPersona=null;
+    if(input.syncMainPersona){
+      await ensureMainContinuity(db,user.id);
+      const{data:before}=await db.from('together_user_personas').select('*').eq('user_id',user.id).eq('is_default',true).maybeSingle();
+      if(before){
+        const appearance={...record(before.appearance_config)};if(input.avatarPath)appearance.avatarPath=input.avatarPath;else delete appearance.avatarPath;
+        const metadata={...record(before.metadata),experienceGoals:input.goals,accountProfileSyncedAt:new Date().toISOString()};
+        const updated=await db.from('together_user_personas').update({name:input.displayName,display_name:input.displayName,biography:input.aboutMe||null,interests:input.interests,appearance_config:appearance,metadata,updated_at:new Date().toISOString()}).eq('id',before.id).eq('user_id',user.id).select('*').single();
+        if(updated.error||!updated.data)throw new AppError('INTERNAL_ERROR','Your account was saved, but Main Persona could not be synchronized.',500,true);
+        await reconcilePersonaIdentity({db,userId:user.id,personaId:String(before.id),before,after:updated.data});
+        mainPersona=updated.data;
+      }
+    }
+    await track(db, user.id, 'account_profile_updated',{main_persona_synced:input.syncMainPersona});
+    return json({ data:{profile:data,mainPersona}, correlationId }, 200, correlationId);
   }
 
   if (input.action === 'privacy') {
@@ -84,3 +99,5 @@ async function removeOwnedMediaForAccount(db:SupabaseClient,userId:string){
   for(const row of generated.data??[])add('together-user-media',row.storage_path);for(const row of attachments.data??[])add('together-user-media',row.storage_path);for(const row of creatorAssets.data??[])add('kivelle-character-reference',row.storage_path);for(const row of references.data??[])add(String(row.storage_bucket),row.storage_path);for(const row of profiles.data??[]){add(String(row.model_storage_bucket??'kivelle-model-assets'),row.model_storage_path);const metadata=(row.metadata??{}) as Record<string,unknown>;add(String(metadata.trainingArchiveBucket??'kivelle-model-assets'),metadata.trainingArchivePath);}
   for(const[bucket,paths]of byBucket){const values=[...paths];for(let index=0;index<values.length;index+=100){const removal=await db.storage.from(bucket).remove(values.slice(index,index+100));if(removal.error)console.warn(JSON.stringify({level:'warn',operation:'account_storage_cleanup',bucket,count:Math.min(100,values.length-index)}));}}
 }
+
+function record(value:unknown):Record<string,unknown>{return value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};}

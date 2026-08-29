@@ -17,12 +17,18 @@ enabled = true
 [auth]
 enabled = true
 site_url = "https://kivelli.app"
-additional_redirect_urls = ["together://auth/callback", "together://reset-password", "https://kivelli.app/auth/callback", "https://kivelli.app/reset-password", "https://ttutten-together.expo.app/auth/callback", "https://ttutten-together.expo.app/reset-password", "http://localhost:8082/auth/callback", "http://localhost:8082/reset-password"]
+additional_redirect_urls = ["jukestr://auth/callback", "jukestr://auth/reset-password", "exp://127.0.0.1:8081/--/auth/callback", "exp://localhost:8081/--/auth/callback", "exp://*.exp.direct/--/auth/callback", "http://localhost:8081/auth/callback", "http://localhost:8082/auth/callback", "http://localhost:8082/reset-password", "http://127.0.0.1:8082/auth/callback", "http://127.0.0.1:8082/reset-password", "together://auth/callback", "together://reset-password", "https://kivelli.app/auth/callback", "https://kivelli.app/reset-password"]
 enable_signup = true
 
 [auth.email]
 enable_signup = true
 enable_confirmations = false
+max_frequency = "1m0s"
+otp_length = 8
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
 
 [functions.together-bootstrap]
 verify_jwt = false
@@ -46,6 +52,8 @@ verify_jwt = false
 verify_jwt = false
 [functions.together-life-dispatch]
 verify_jwt = false
+[functions.together-world-pulse]
+verify_jwt = false
 [functions.together-account]
 verify_jwt = false
 [functions.together-activity]
@@ -65,6 +73,9 @@ verify_jwt = false
 [functions.together-subscription]
 verify_jwt = false
 [functions.together-billing-webhook]
+verify_jwt = false
+
+[functions.together-billing-grants]
 verify_jwt = false
 
 [functions.together-wavespeed-webhook]
@@ -89,4 +100,10 @@ verify_jwt = false
 [functions.together-dialogue-suggestion]
 verify_jwt = false
 [functions.together-ops]
+verify_jwt = false
+
+[functions.together-stories]
+verify_jwt = false
+
+[functions.together-story-dialogue]
 verify_jwt = false

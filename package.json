@@ -10,6 +10,7 @@
     "web": "pnpm --filter @together/app web",
     "web:build": "pnpm --filter @together/app web:build",
     "web:budget": "node scripts/check-web-performance-budget.mjs",
+    "audit:navigation": "node scripts/audit-navigation-controls.mjs",
     "typecheck": "pnpm --filter @together/app typecheck && pnpm --filter @together/domain typecheck",
     "test": "pnpm --filter @together/app test && pnpm --filter @together/domain test",
     "lint": "eslint .",
@@ -18,8 +19,13 @@
     "supabase:test": "supabase test db",
     "life:simulate": "node --experimental-strip-types scripts/simulate-life-engine.ts",
     "media:sync-references": "node --experimental-strip-types scripts/sync-kivelle-reference-media.ts",
+    "media:audit-character-references": "node --experimental-strip-types scripts/audit-kivelle-character-references.ts",
+    "voice:audit-production": "node --experimental-strip-types scripts/audit-kivelle-voice-production.ts",
+    "voice:smoke-production": "node --experimental-strip-types scripts/smoke-kivelle-voice-production.ts",
+    "eos:audit-production": "node --experimental-strip-types scripts/audit-eos-meridian-production.ts",
     "media:prepare-lora": "node --experimental-strip-types scripts/prepare-kivelle-character-lora.ts",
-    "media:create-benchmark": "node --experimental-strip-types scripts/create-kivelle-media-benchmark.ts"
+    "media:create-benchmark": "node --experimental-strip-types scripts/create-kivelle-media-benchmark.ts",
+    "stories:validate": "node --experimental-strip-types scripts/validate-kivelli-stories.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

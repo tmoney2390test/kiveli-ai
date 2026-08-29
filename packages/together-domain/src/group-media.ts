@@ -4,9 +4,9 @@ export type GroupPhotoSubjectResolution=
   |{ok:true;subjectCharacterInstanceIds:string[];reason:'explicit_selection'|'named_subjects'|'whole_group'|'pair_language'|'speaker_fallback'}
   |{ok:false;code:'NO_SUBJECT'|'TOO_MANY_SUBJECTS'|'AMBIGUOUS_PAIR'|'INVALID_SUBJECT';message:string};
 
-const GROUP_LANGUAGE=/\b(?:all of you|you all|everyone|everybody|the whole group|group (?:photo|picture|pic|selfie))\b/i;
-const PAIR_LANGUAGE=/\b(?:both of you|you two|the two of you|together)\b/i;
-const PHOTO_NOUN=/\b(?:photos?|pictures?|pics?|selfies?|snaps?|images?)\b/i;
+const GROUP_LANGUAGE=/(?:\b(?:all of you|you all|everyone|everybody|the whole group|group (?:photo|picture|pic|selfie)|todos ustedes|todo el grupo|tout le monde|tout le groupe|tutti voi|tutto il gruppo|ihr alle|die ganze gruppe|vocês todos|todo o grupo)\b|みんな|全員|모두|다 같이|大家|所有人)/iu;
+const PAIR_LANGUAGE=/(?:\b(?:both of you|you two|the two of you|together|los dos|ambos|juntos|vous deux|tous les deux|ensemble|voi due|entrambi|insieme|ihr beide|beide zusammen|vocês dois|os dois|juntos)\b|二人|二人とも|一緒に|둘 다|두 사람|같이|你们两个|你们俩|一起)/iu;
+const PHOTO_NOUN=/(?:\b(?:photos?|pictures?|pics?|selfies?|snaps?|images?|fotos?|fotografías?|imágenes?|immagini|bilder?|fotos?|imagens?)\b|写真|画像|自撮り|사진|이미지|셀카|照片|图片|自拍)/iu;
 
 function unique(values:string[]):string[]{return[...new Set(values.filter(Boolean))];}
 function containsName(text:string,name:string):boolean{
@@ -48,15 +48,15 @@ export function resolveGroupPhotoSubjects(input:{
   // "Take a photo of Priya" makes Priya the subject even if Mara is being
   // addressed as the photographer. "A selfie with Priya" includes the sender.
   const noun=PHOTO_NOUN.exec(input.text),tail=noun?input.text.slice(noun.index+noun[0].length):'';
-  const ofClause=/^\s+of\s+(.+)$/i.exec(tail)?.[1];
+  const ofClause=/^\s+(?:of|de|di|von)\s+(.+)$/iu.exec(tail)?.[1];
   if(ofClause){
     const namedInClause=input.participants.filter((item)=>containsName(ofClause,item.name)).map((item)=>item.characterInstanceId);
     if(namedInClause.length){
-      const includesAddressedPhotographer=/\b(?:you|yourself)\b/i.test(ofClause);
+      const includesAddressedPhotographer=/(?:\b(?:you|yourself|ti|tú|toi|te|tu|dir|dich|você)\b|あなた|君|너|你)/iu.test(ofClause);
       return validate([...(includesAddressedPhotographer?[input.fallbackSpeakerCharacterInstanceId??'']:[]),...namedInClause],'named_subjects');
     }
   }
-  const withClause=/^\s+with\s+(.+)$/i.exec(tail)?.[1];
+  const withClause=/^\s+(?:with|con|avec|mit|com)\s+(.+)$/iu.exec(tail)?.[1];
   if(withClause){
     const namedWith=input.participants.filter((item)=>containsName(withClause,item.name)).map((item)=>item.characterInstanceId);
     return validate([input.fallbackSpeakerCharacterInstanceId??'',...namedWith],'named_subjects');

@@ -83,6 +83,8 @@ export function resolvePresentReality(input:PresentRealityInput):PresentReality{
 
 export function classifyConversationQuery(message:string):ConversationQueryIntent{
   const text=message.toLowerCase().replace(/[’]/g,"'");
+  const multilingualIntent=classifyMultilingualConversationQuery(text);
+  if(multilingualIntent)return multilingualIntent;
   if(/\b(remember|memories|what do you know about me|forgot)\b/.test(text))return'memory_overview';
   const historicalMarker=/\b(yesterday|last (?:time|night|week|month|year)|before|earlier|back then|our first|history|moment|used to)\b/.test(text);
   const historicalLocation=/\bwhere (?:were|was)\b|\bwhere did (?:we|you|they|she|he) go\b/.test(text)&&historicalMarker;
@@ -96,6 +98,20 @@ export function classifyConversationQuery(message:string):ConversationQueryInten
   if(/\b(where|location|juniper|rooftop|riverwalk|northside|studio)\b/.test(text))return'location';
   if(/\b(last time|before|our first|history|moment)\b/.test(text))return'history';
   return'general';
+}
+
+/** High-confidence launch-language phrases keep context retrieval working even
+ * though canonical world names and stored facts remain authored in English. */
+function classifyMultilingualConversationQuery(text:string):ConversationQueryIntent|null{
+  if(/(?:\b(?:recuerd(?:as|a|o)|memorias?|qué sabes de mí|olvidaste|souviens|souvenir|mémoire|ricord(?:i|a)|memori[ae]|dimenticat|erinnerst|erinnerung|vergessen|lembra|memórias?|esqueceu)\b|覚えて|思い出|忘れた|記憶|기억|추억|잊었|记得|回忆|忘了)/iu.test(text))return'memory_overview';
+  if(/(?:\b(?:ayer|anoche|la última vez|antes|en aquel entonces|hier|la dernière fois|autrefois|avant|ieri|l['’]ultima volta|prima|un tempo|gestern|letztes mal|damals|vorher|ontem|da última vez|antigamente|antes)\b|昨日|前回|昔|以前|어제|지난번|예전에|이전에|昨天|上次|以前|从前)/iu.test(text))return'history';
+  if(/(?:\b(?:dónde (?:estás|estamos|andas)|en qué lugar|sigues (?:en|ahí)|où (?:es-tu|sommes-nous|êtes-vous)|quel endroit|dove (?:sei|siamo)|sei ancora (?:a|lì)|wo (?:bist du|sind wir)|bist du noch|onde (?:você está|estamos)|ainda está)\b|tu es où|どこにいる|今どこ|まだ.+にいる|어디에 있어|지금 어디|아직.+있어|你在哪里|现在在哪|还在.+吗)/iu.test(text))return'location';
+  if(/(?:\b(?:cuándo|horario|hoy|mañana|esta noche|libre|ocupad[oa]|disponible|quand|horaire|aujourd['’]hui|demain|ce soir|libre|occupé|disponible|quando|orario|oggi|domani|stasera|liber[oa]|impegnat[oa]|wann|zeitplan|heute|morgen|heute abend|frei|beschäftigt|quando|horário|hoje|amanhã|esta noite|livre|ocupad[oa]|disponível)\b|今日|明日|今夜|予定|空いて|忙しい|오늘|내일|오늘 밤|일정|시간 있어|바빠|今天|明天|今晚|日程|有空|忙吗)/iu.test(text))return'schedule';
+  if(/(?:\b(?:planear|planes|cancelar|reprogramar|cambiar la hora|planifier|annuler|reprogrammer|faire des projets|pianificare|annullare|riprogrammare|fare programmi|planen|absagen|verschieben|pläne machen|planejar|planos|cancelar|reagendar)\b|予定を立て|計画|キャンセル|変更し|계획|약속 잡|취소|일정 변경|计划|安排|取消|改时间)/iu.test(text))return'plan';
+  if(/(?:\b(?:una cita|salir contigo|cena romántica|rendez-vous|sortir ensemble|dîner romantique|appuntamento|uscire insieme|cena romantica|verabredung|date mit|romantisches essen|encontro romântico|sair com você|jantar romântico)\b|デート|데이트|约会)/iu.test(text))return'date';
+  if(/(?:\b(?:historia|qué pasó después|histoire|que s['’]est-il passé ensuite|storia|cosa è successo dopo|geschichte|was geschah als nächstes|história|o que aconteceu depois)\b|物語|次に何が起き|이야기|다음에 무슨 일이|故事|接下来发生了什么)/iu.test(text))return'story';
+  if(/(?:\b(?:amig[oa]s?|a quién conoces|quién conoces|amis?|qui connais-tu|amic[oi]|chi conosci|freunde|wen kennst du|amig[oa]s?|quem você conhece)\b|友達|誰を知って|친구|누구를 알아|朋友|你认识谁)/iu.test(text))return'social';
+  return null;
 }
 export function planLifecycle(plan:SharedPlanLike,now=new Date()):'scheduled'|'active'|'completed'|'cancelled'{if(plan.status==='cancelled')return'cancelled';const start=new Date(plan.startsAt).getTime(),end=plan.endsAt?new Date(plan.endsAt).getTime():start+2*3600000;if(now.getTime()<start)return'scheduled';if(now.getTime()<=end)return'active';return'completed';}
 export function currentEvent<T extends SharedPlanLike>(events:T[],now=new Date()):T|undefined{return events.filter((event)=>planLifecycle(event,now)==='active').sort((a,b)=>new Date(b.startsAt).getTime()-new Date(a.startsAt).getTime())[0];}

@@ -26,6 +26,7 @@ export default function Account() {
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [syncMainPersona, setSyncMainPersona] = useState(true);
   const hydrated = useRef(false);
 
   useEffect(() => {
@@ -59,6 +60,7 @@ export default function Account() {
         interests: splitList(interests, 10),
         goals: splitList(goals, 4),
         avatarPath: profile?.avatar_path ?? null,
+        syncMainPersona,
       });
       await refresh();
       Alert.alert('Profile saved', 'Your Kivelle preferences are up to date.');
@@ -88,7 +90,7 @@ export default function Account() {
       if (error) throw error;
       await manageAccount({
         action: 'profile', displayName: name.trim() || profile?.display_name || 'You', aboutMe: about.trim(),
-        interests: splitList(interests, 10), goals: splitList(goals, 4), avatarPath: path,
+        interests: splitList(interests, 10), goals: splitList(goals, 4), avatarPath: path, syncMainPersona,
       });
       const { data: signed } = await supabase.storage.from('together-user-media').createSignedUrl(path, 3600);
       setAvatar(signed?.signedUrl ?? avatar);
@@ -119,7 +121,7 @@ export default function Account() {
   };
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Profile</PageTitle></View>
+    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.canGoBack() ? router.back() : router.replace('/settings')}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Profile</PageTitle></View>
     <View style={styles.hero}>
       <Pressable accessibilityRole="button" accessibilityLabel="Change profile photo" onPress={() => void pick()} style={styles.avatar}>
         {avatar ? <Image source={{ uri: avatar }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Text style={styles.initial}>{(name || 'Y')[0]?.toUpperCase()}</Text>}
@@ -139,6 +141,7 @@ export default function Account() {
     <TextInput accessibilityLabel="Interests" value={interests} onChangeText={setInterests} style={styles.input} placeholder="Movies, travel, music" placeholderTextColor={colors.muted} />
     <Label text="What you are here for" />
     <TextInput accessibilityLabel="What you are here for" value={goals} onChangeText={setGoals} style={styles.input} placeholder="Dating, Friendship, Stories" placeholderTextColor={colors.muted} />
+    <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: syncMainPersona }} onPress={() => setSyncMainPersona((value) => !value)} style={styles.syncRow}><View style={[styles.checkBox, syncMainPersona && styles.checkBoxActive]}>{syncMainPersona ? <Check size={14} color="#fff" /> : null}</View><View style={{ flex: 1 }}><Text style={styles.syncTitle}>Also update my Main Persona</Text><Text style={styles.syncCopy}>Keeps your Main Life name, bio, interests, and photo in sync.</Text></View></Pressable>
     <GradientButton label={busy ? 'Saving…' : 'Save profile'} disabled={busy || !name.trim()} onPress={() => void save()} />
 
     <Section title="Sign-in & security" />
@@ -163,4 +166,5 @@ const styles = StyleSheet.create({
   label: { color: colors.muted, fontSize: 12, fontWeight: '700', marginTop: 5 }, input: { minHeight: 52, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, color: colors.text, paddingHorizontal: 14, paddingVertical: 12 },
   about: { height: 92, textAlignVertical: 'top' }, section: { fontFamily: 'Georgia', fontSize: 22, color: colors.text, marginTop: 16 }, row: { minHeight: 52, flexDirection: 'row', gap: 11, alignItems: 'center', paddingHorizontal: 14, borderRadius: radius.md, backgroundColor: colors.surface },
   rowText: { color: colors.text, fontWeight: '700' }, link: { paddingVertical: 8 }, linkText: { color: colors.rose, fontWeight: '700', fontSize: 13 },
+  syncRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 12, borderRadius: radius.md, backgroundColor: colors.surface }, checkBox: { width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border }, checkBoxActive: { backgroundColor: colors.violet, borderColor: colors.violet }, syncTitle: { color: colors.text, fontWeight: '800' }, syncCopy: { color: colors.muted, fontSize: 11, marginTop: 2 },
 });

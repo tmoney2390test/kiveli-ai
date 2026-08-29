@@ -1,6 +1,26 @@
 import type { CharacterLifeState, LifeEventTemplate, ScheduleEntry, SimulatedLifeEvent } from './types.ts';
 
 export type LifeSimulationTrigger='conversation_continued'|'home_opened'|'scheduled_dispatch';
+export const initiativeLevels=['off','occasional','natural','frequent'] as const;
+export type InitiativeLevel=typeof initiativeLevels[number];
+export type InitiativePolicy={minimumConversationHours:number;minimumProactiveHours:number;probabilityMultiplier:number};
+
+const initiativePolicies:Record<InitiativeLevel,InitiativePolicy>={
+  off:{minimumConversationHours:Number.POSITIVE_INFINITY,minimumProactiveHours:Number.POSITIVE_INFINITY,probabilityMultiplier:0},
+  occasional:{minimumConversationHours:12,minimumProactiveHours:36,probabilityMultiplier:.55},
+  natural:{minimumConversationHours:5,minimumProactiveHours:18,probabilityMultiplier:1},
+  frequent:{minimumConversationHours:3,minimumProactiveHours:8,probabilityMultiplier:1.35},
+};
+
+export function normalizeInitiativeLevel(value:unknown,fallback:InitiativeLevel='natural'):InitiativeLevel{
+  return typeof value==='string'&&initiativeLevels.includes(value as InitiativeLevel)?value as InitiativeLevel:fallback;
+}
+export function initiativePolicy(level:unknown):InitiativePolicy{return initiativePolicies[normalizeInitiativeLevel(level)];}
+export function effectiveInitiativeLevel(input:{entitled:boolean;globalLevel:unknown;characterOverride?:unknown;legacyEnabled?:boolean}):InitiativeLevel{
+  if(!input.entitled)return'off';
+  const fallback=input.legacyEnabled===false?'off':'natural';
+  return normalizeInitiativeLevel(input.characterOverride,normalizeInitiativeLevel(input.globalLevel,fallback));
+}
 export function shouldMaterializeLifeEvents(trigger:LifeSimulationTrigger):boolean{return trigger==='conversation_continued';}
 /** Media requests observe the current world state; they must not create a new
  * narrative event merely because the user asked to see it. */
@@ -25,10 +45,11 @@ export function simulateSince(lastSimulatedAt:Date,now:Date,templates:readonly L
   }
   return candidates.sort((a,b)=>b.significance-a.significance||b.occurredAt.localeCompare(a.occurredAt)).slice(0,2).sort((a,b)=>a.occurredAt.localeCompare(b.occurredAt));
 }
-export function shouldInitiateMessage(input:{event?:LifeEventTemplate;hoursSinceConversation:number;hoursSinceProactive?:number;quietHours:boolean;relationshipStage:string;seed:string}):boolean{
-  if(input.quietHours||input.hoursSinceConversation<5||(input.hoursSinceProactive??Infinity)<18||!input.event?.proactiveEligible||input.event.significance<.55)return false;
+export function shouldInitiateMessage(input:{event?:LifeEventTemplate;hoursSinceConversation:number;hoursSinceProactive?:number;quietHours:boolean;relationshipStage:string;seed:string;initiativeLevel?:InitiativeLevel}):boolean{
+  const policy=initiativePolicy(input.initiativeLevel);
+  if(input.quietHours||input.hoursSinceConversation<policy.minimumConversationHours||(input.hoursSinceProactive??Infinity)<policy.minimumProactiveHours||!input.event?.proactiveEligible||input.event.significance<.55)return false;
   const stageWeight=['friend','flirting','dating','exclusive','long_term'].includes(input.relationshipStage)?35:10;
-  return(hash(input.seed)%100)<Math.min(72,stageWeight+Math.floor(input.hoursSinceConversation));
+  return(hash(input.seed)%100)<Math.min(92,Math.round((stageWeight+Math.floor(input.hoursSinceConversation))*policy.probabilityMultiplier));
 }
 export function isQuietHours(now:Date,start='23:00',end='08:00',timezone='UTC'):boolean{
   const minute=localMinute(now,timezone),startMinute=parseMinute(start),endMinute=parseMinute(end);return startMinute>endMinute?minute>=startMinute||minute<endMinute:minute>=startMinute&&minute<endMinute;

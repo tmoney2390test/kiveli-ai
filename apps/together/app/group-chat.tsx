@@ -16,12 +16,13 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { isChatNearBottom } from "../src/lib/chatScroll";
+import { shouldKeepChatPinned } from "../src/lib/chatScroll";
+import { shouldConsumeComposerEnter, shouldSendComposerOnEnter } from "../src/lib/composerKeyboard";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
-import { Link, router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import {
   Archive,
   Brain,
@@ -29,18 +30,23 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
+  Copy,
+  FastForward,
+  Flag,
+  Heart,
   ImagePlus,
   LockKeyhole,
   MapPin,
+  MessageCircle,
   Mic,
   MoreHorizontal,
   Pause,
   Play,
   Plus,
+  RefreshCw,
   Send,
   Sparkles,
   Square,
-  Star,
   Upload,
   UserMinus,
   Volume2,
@@ -53,15 +59,23 @@ import {
 } from "@together/domain/src/message-limits";
 import {
   CharacterAvatar,
+  CharacterMentionText,
+  CharacterProfilePreviewModal,
+  ChatConversationRail,
   ChatPhotoRequestCard,
   ConnectionBanner,
+  ConversationOverflowMenu,
   EmptyState,
+  FailedMessageRecovery,
   FrostedSurface,
   MediaTile,
   MessageCharacterCounter,
+  MessageActionSheet,
+  MemorySavedToast,
   MobileChatMediaHeader,
   resolveCharacterPortraitSource,
   VoiceNotePurchaseModal,
+  type MessageActionDefinition,
 } from "../src/components";
 import { GroupChatSettingsModal } from "../src/components/GroupChatSettingsModal";
 import { PlanSelection } from "../src/components/PlanSelection";
@@ -75,6 +89,7 @@ import {
   manageGroup,
   manageMedia,
   managePlan,
+  meetCompanion,
   prepareUserImage,
   quoteVoiceNote,
   refreshVoiceNote,
@@ -82,17 +97,23 @@ import {
   reportMessage,
   requestVoiceNote,
   sendGroupDialogue,
+  setMessageFavorite,
   type VoiceNoteQuote,
 } from "../src/lib/api";
 import { characterAssets, locationHeroAsset } from "../src/assets";
 import { endPlanExperience, getPlanExperience, joinCommitment, switchPlanExperience } from "../src/lib/commitments";
-import { activePlanForGroup, collapsePlanTimelineEvents, conversationPlanMenuItems, isPlanLifecycleDividerEvent, joinablePlanForGroup, planActionAvailability, planLifecycleDividerLabel, shouldShowPlanTimelineEvent } from "../src/lib/planActions";
+import { activePlanForGroup, collapsePlanTimelineEvents, isPlanLifecycleDividerEvent, joinablePlanForGroup, planActionAvailability, planLifecycleDividerLabel, shouldShowPlanTimelineEvent } from "../src/lib/planActions";
 import type { PlanOption, PlanTimingSelection } from "../src/lib/plans";
 import { createClientRequestId } from "../src/lib/requestId";
 import { reconcileMessages } from "../src/lib/messageReconciliation";
-import { MESSAGES_INBOX_HREF } from "../src/lib/messageInbox";
+import { returnToMessagesInbox } from "../src/lib/messageInbox";
 import { chatMessageTypography } from "../src/lib/chatSettings";
 import { applyGroupDetailDelta, mergeGroupMedia, prependGroupTimelinePage } from "../src/lib/groupDetailReconciliation";
+import {
+  cacheCompleteGroupDetail,
+  cacheGroupDetailSummary,
+  readCachedGroupDetail,
+} from "../src/lib/groupDetailCache";
 import { confirmAction } from "../src/lib/dialogs";
 import {
   cleanupNormalizedImage,
@@ -108,9 +129,12 @@ import { mergeDictationTranscript } from "../src/lib/dictation";
 import { privateStoredImageSource } from "../src/lib/mediaImageSource";
 import { presentMemoryText } from "../src/lib/memoryPresentation";
 import { mediaWithoutActivePhotoOffer, photoMediaForOffer, visibleChatPhotoMedia } from "../src/lib/photoRequestPresentation";
-import { characterResidentWorld } from "../src/lib/place";
+import { characterCatalogForWorld, characterResidentWorld } from "../src/lib/place";
+import type { FeaturedCompanion } from "../src/lib/featuredCompanions";
 import { placeHoursStatus } from "../src/lib/placeHours";
 import { latestConversationHeaderImage } from "../src/lib/chatHeaderMedia";
+import { newGroupPrefillHref } from "../src/lib/groupInvite";
+import { canContinueMessage, isMessageFavorite, isVisibleChatMessage } from "../src/lib/messageActions";
 import { supabase } from "../src/lib/supabase";
 import {
   hideVoiceNoteConfirmation,
@@ -150,17 +174,26 @@ export default function GroupChatScreen() {
   const params = useLocalSearchParams<{
       id?: string;
       details?: string;
+      settings?: string;
       plan?: string;
       location?: string;
       activity?: string;
+      switchPlanId?: string;
     }>(),
     { width } = useWindowDimensions(),
     snapshot = useTogether((state) => state.snapshot),
     refresh = useTogether((state) => state.refresh),
+    setSnapshot = useTogether((state) => state.setSnapshot),
     upsertConversation = useTogether((state) => state.upsertConversation);
-  const{session}=useAuth(),{online}=useNetworkStatus();
-  const [detail, setDetail] = useState<GroupDetail | null>(null),
-    [loading, setLoading] = useState(true),
+  const{session}=useAuth(),{online,phase:connectionPhase}=useNetworkStatus();
+  const groupCacheScope = snapshot?.activeContinuity?.id ?? "default";
+  const initialGroupCache = useRef(
+    params.id ? readCachedGroupDetail(groupCacheScope, params.id) : undefined,
+  ).current;
+  const [detailState, setDetail] = useState<GroupDetail | null>(
+      initialGroupCache?.detail ?? null,
+    ),
+    [loading, setLoading] = useState(!initialGroupCache?.complete),
     [error, setError] = useState(""),
     [input, setInput] = useState(""),
     [pendingImage, setPendingImage] = useState<NormalizedUserImage | null>(
@@ -176,7 +209,8 @@ export default function GroupChatScreen() {
     [photoRequestBusy, setPhotoRequestBusy] = useState(false),
     [showDetails, setShowDetails] = useState(params.details === "1"),
     [showGroupMenu, setShowGroupMenu] = useState(false),
-    [showChatSettings, setShowChatSettings] = useState(false),
+    [showChatSettings, setShowChatSettings] = useState(params.settings === "1"),
+    [characterPreview,setCharacterPreview]=useState<FeaturedCompanion|null>(null),
     [favoriteBusy, setFavoriteBusy] = useState(false),
     [contextParticipantId, setContextParticipantId] = useState<string | null>(
       null,
@@ -185,9 +219,17 @@ export default function GroupChatScreen() {
     [switchPlanId, setSwitchPlanId] = useState<string | null>(null),
     [pendingGroupActionId, setPendingGroupActionId] = useState<string | null>(null),
     [planActionBusyId, setPlanActionBusyId] = useState<string | null>(null),
+    [showSendConnectionNotice,setShowSendConnectionNotice]=useState(false),
+    [memorySavedNotice,setMemorySavedNotice]=useState<{id:number;name:string}|null>(null),
     [sending, setSending] = useState(false),
     [olderLoading,setOlderLoading]=useState(false),
     [busy, setBusy] = useState(false);
+  const cachedRouteDetail = params.id
+    ? readCachedGroupDetail(groupCacheScope, params.id)
+    : undefined;
+  const detail = detailState?.conversation.id === params.id
+    ? detailState
+    : cachedRouteDetail?.detail ?? null;
   const clearStoredDraft=usePersistentMessageDraft({userId:session?.user.id,conversationId:params.id,kind:"group",value:input,setValue:setInput});
   const abortRef = useRef<AbortController | null>(null),
     lastSendRef = useRef<{ text: string; startedAt: number } | null>(null),
@@ -201,10 +243,60 @@ export default function GroupChatScreen() {
     contentHeightRef=useRef(0),
     prependHeightRef=useRef<number|null>(null),
     bottomAlignedConversation = useRef<string | null>(null),
-    keepPinnedToBottom = useRef(true);
+    keepPinnedToBottom = useRef(true),
+    forcePinnedUntil = useRef(0),
+    initialBottomPinConversation = useRef<string | null>(null),
+    initialBottomPinReleaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedGroupRef = useRef<string | null>(null);
   const planLaunchHandledRef = useRef<string | null>(null);
   useEffect(()=>{detailRef.current=detail;},[detail]);
+  useEffect(() => {
+    if (!params.id) {
+      setDetail(null);
+      setLoading(false);
+      return;
+    }
+    const cached = readCachedGroupDetail(groupCacheScope, params.id);
+    setDetail((current) =>
+      current?.conversation.id === params.id
+        ? current
+        : cached?.detail ?? null
+    );
+    setLoading(!cached?.complete);
+  }, [groupCacheScope, params.id]);
+  useEffect(() => {
+    if (!detailState || detailState.conversation.id !== params.id) return;
+    if (loadedGroupRef.current === params.id) {
+      cacheCompleteGroupDetail(groupCacheScope, detailState);
+    } else {
+      cacheGroupDetailSummary(groupCacheScope, detailState);
+    }
+  }, [detailState, groupCacheScope, params.id]);
+  useEffect(()=>{if(connectionPhase==='online')setShowSendConnectionNotice(false);},[connectionPhase]);
+  useEffect(()=>{setShowSendConnectionNotice(false);setMemorySavedNotice(null);},[params.id]);
+  const beginInitialBottomPin=useCallback((conversationId:string)=>{
+    if(initialBottomPinReleaseTimer.current)clearTimeout(initialBottomPinReleaseTimer.current);
+    initialBottomPinReleaseTimer.current=null;
+    initialBottomPinConversation.current=conversationId;
+    keepPinnedToBottom.current=true;
+  },[]);
+  const cancelInitialBottomPin=useCallback(()=>{
+    if(initialBottomPinReleaseTimer.current)clearTimeout(initialBottomPinReleaseTimer.current);
+    initialBottomPinReleaseTimer.current=null;
+    initialBottomPinConversation.current=null;
+  },[]);
+  const settleInitialBottomPin=useCallback((conversationId:string)=>{
+    if(initialBottomPinConversation.current!==conversationId)return;
+    if(initialBottomPinReleaseTimer.current)clearTimeout(initialBottomPinReleaseTimer.current);
+    initialBottomPinReleaseTimer.current=setTimeout(()=>{
+      if(initialBottomPinConversation.current!==conversationId)return;
+      scrollRef.current?.scrollToEnd({animated:false});
+      initialBottomPinConversation.current=null;
+      initialBottomPinReleaseTimer.current=null;
+      forcePinnedUntil.current=Date.now()+600;
+      keepPinnedToBottom.current=true;
+    },180);
+  },[]);
   const refreshGroupDelta=useCallback(async function refreshGroupDeltaTask(){
     const current=detailRef.current;if(!params.id||!current?.syncedAt)return;
     if(deltaRefreshRunning.current){deltaRefreshQueued.current=true;return;}
@@ -219,7 +311,7 @@ export default function GroupChatScreen() {
     let cancelled=false;
     if(initial)setLoading(true);
     bottomAlignedConversation.current = null;
-    keepPinnedToBottom.current = true;
+    beginInitialBottomPin(conversationId);
     const request=initial
       ? manageGroup<GroupDetail>({action:"detail",conversationId}).then((next)=>{if(cancelled)return;loadedGroupRef.current=conversationId;setDetail(next);})
       : refreshGroupDelta();
@@ -228,8 +320,9 @@ export default function GroupChatScreen() {
       cancelled=true;
       abortRef.current?.abort();
       if (mediaRefreshTimer.current) clearTimeout(mediaRefreshTimer.current);
+      if (initialBottomPinReleaseTimer.current) clearTimeout(initialBottomPinReleaseTimer.current);
     };
-  }, [params.id,refreshGroupDelta]));
+  }, [beginInitialBottomPin,params.id,refreshGroupDelta]));
   useEffect(() => {
     if (!params.id) return;
     const refreshDetail = () => {
@@ -320,9 +413,9 @@ export default function GroupChatScreen() {
   }, [mediaNeedsRefresh, params.id]);
   useEffect(() => {
     if (!params.id || bottomAlignedConversation.current !== params.id ||
-      !keepPinnedToBottom.current) return;
+      (initialBottomPinConversation.current!==params.id&&!keepPinnedToBottom.current&&forcePinnedUntil.current<=Date.now())) return;
     const timer = setTimeout(() => {
-      if (keepPinnedToBottom.current) {
+      if (initialBottomPinConversation.current===params.id||keepPinnedToBottom.current||forcePinnedUntil.current>Date.now()) {
         scrollRef.current?.scrollToEnd({ animated: true });
       }
     }, 30);
@@ -337,6 +430,12 @@ export default function GroupChatScreen() {
       ),
     [detail?.participants],
   );
+  const mentionCharacters=useMemo<FeaturedCompanion[]>(()=>{
+    const worldId=detail?.conversation.group_world_id;
+    return snapshot&&worldId
+      ?characterCatalogForWorld(snapshot,worldId).map(({template,version})=>({...template,together_character_versions:version}))
+      :[];
+  },[detail?.conversation.group_world_id,snapshot]);
   const mentionQuery = /(?:^|\s)@([\p{L}\p{N}_-]*)$/u.exec(input)?.[1]
     ?.toLocaleLowerCase();
   const mentionOptions = mentionQuery === undefined
@@ -367,7 +466,8 @@ export default function GroupChatScreen() {
     contextParticipant = detail?.participants.find((participant) =>
       participant.character_instance_id === contextParticipantId
     ) ?? detail?.participants[0],
-    messageTypography = chatMessageTypography(detail?.conversation),
+    messageTypography = chatMessageTypography(detail?.conversation,{desktop:width>=920}),
+    showConversationRail = width >= 1080,
     showRightRail = width >= 920;
   useEffect(() => {
     if (!detail?.participants.length) {
@@ -387,13 +487,13 @@ export default function GroupChatScreen() {
   );
   useEffect(() => {
     if (!detail || !anchorParticipant || params.plan !== "1") return;
-    const launchKey = `${detail.conversation.id}:${params.location ?? "any"}:${params.activity ?? "any"}`;
+    const launchKey = `${detail.conversation.id}:${params.location ?? "any"}:${params.activity ?? "any"}:${params.switchPlanId??"create"}`;
     if (planLaunchHandledRef.current === launchKey) return;
     planLaunchHandledRef.current = launchKey;
     setPendingGroupActionId(null);
-    setSwitchPlanId(null);
+    setSwitchPlanId(params.switchPlanId??null);
     setShowPlans(true);
-  }, [anchorParticipant, detail, params.activity, params.location, params.plan]);
+  }, [anchorParticipant, detail, params.activity, params.location, params.plan, params.switchPlanId]);
   useEffect(() => {
     if (params.plan !== "1") planLaunchHandledRef.current = null;
   }, [params.plan]);
@@ -498,7 +598,7 @@ export default function GroupChatScreen() {
     if (!detail) return [] as GroupTimelineItem[];
     const events = collapsePlanTimelineEvents((detail.conversationEvents ?? []).filter((event) => event.entity_type === "shared_plan" && shouldShowPlanTimelineEvent(event)));
     return [
-      ...detail.messages.map((value) => ({ kind: "message" as const, value })),
+      ...detail.messages.filter(isVisibleChatMessage).map((value) => ({ kind: "message" as const, value })),
       ...(activeGroupPlan ? [] : (detail.conversationActions ?? []).filter((value) => value.status === "pending").map((value) => ({ kind: "action" as const, value }))),
       ...events.map((value) => ({ kind: "event" as const, value })),
     ].sort((left, right) => {
@@ -573,12 +673,14 @@ export default function GroupChatScreen() {
       setError(messageCharacterLimitError());
       return;
     }
+    if(connectionPhase!=='online')setShowSendConnectionNotice(true);
     if(!online){setError("You’re offline. Your draft is saved and ready when you reconnect.");return;}
     const previousSend=lastSendRef.current;
     if(previousSend?.text===message&&Date.now()-previousSend.startedAt<750)return;
     lastSendRef.current={text:message,startedAt:Date.now()};
     abortRef.current?.abort();
     keepPinnedToBottom.current = true;
+    forcePinnedUntil.current = Date.now() + 800;
     const controller = new AbortController();
     abortRef.current = controller;
     if (!letThemTalk) setInput("");
@@ -597,7 +699,7 @@ export default function GroupChatScreen() {
     ).map((participant) => participant.character_instance_id);
     const reply = replyTo;
     const clientRequestId=retryRequestId??createClientRequestId();
-    const optimistic:Message={id:retryMessageId??`local-${Date.now()}`,conversation_id:detail.conversation.id,role:"user",content:message,client_request_id:clientRequestId,delivery_status:"pending",created_at:new Date().toISOString(),attachments:[]};
+    const optimistic:Message={id:retryMessageId??`local-${Date.now()}`,conversation_id:detail.conversation.id,role:"user",content:message,client_request_id:clientRequestId,delivery_status:"pending",created_at:new Date().toISOString(),provider_metadata:letThemTalk?{uiHidden:true,messageAction:'let_them_talk'}:undefined,attachments:[]};
     setDetail((current)=>current?{...current,messages:retryMessageId?current.messages.map((item)=>item.id===retryMessageId?optimistic:item):[...current.messages,optimistic]}:current);
     setReplyTo(null);
     try {
@@ -643,6 +745,7 @@ export default function GroupChatScreen() {
       setError(messageCharacterLimitError());
       return;
     }
+    if(connectionPhase!=='online')setShowSendConnectionNotice(true);
     if(!online){setError("You’re offline. Your draft is saved and ready when you reconnect.");return;}
     const submissionKey=`${message}\u0000${selectedImage?.uri??""}`;
     const previousSend=lastSendRef.current;
@@ -650,6 +753,7 @@ export default function GroupChatScreen() {
     lastSendRef.current={text:submissionKey,startedAt:Date.now()};
     abortRef.current?.abort();
     keepPinnedToBottom.current = true;
+    forcePinnedUntil.current = Date.now() + 800;
     const controller = new AbortController();
     abortRef.current = controller;
     setInput("");
@@ -827,22 +931,29 @@ export default function GroupChatScreen() {
       }
     }
   };
-  const acceptMediaOffer = async (offer: MediaOffer) => {
+  const acceptMediaOffer = async (offer: MediaOffer,paymentMethod:"credits"|"daily_included"="credits") => {
     setMediaOfferBusy(offer.id);
     try {
       const result = await manageMedia<
         {
-          state: "accepted" | "needs_credits" | "expired";
+          state: "accepted" | "needs_credits" | "daily_unavailable" | "expired";
           offer: MediaOffer;
           media?: GeneratedMedia;
           creditBalance: number;
           required?: number;
+          dailyPhotoAllowanceRemaining?: number;
         }
       >({
         action: "accept_offer",
         offerId: offer.id,
         requestId: crypto.randomUUID(),
+        paymentMethod,
       });
+      if(result.state==="daily_unavailable"){
+        setDetail((current)=>current?{...current,mediaOffers:(current.mediaOffers??[]).map((item)=>item.source==="user_request"&&item.status==="pending"?{...item,preview_metadata:{...item.preview_metadata,dailyPhotoAllowanceRemaining:0}}:item)}:current);
+        Alert.alert("Included photos used","You have used today’s included photos. You can still create this one with Credits.");
+        return;
+      }
       if (result.state === "needs_credits") {
         setError(
           `This photo needs ${
@@ -851,12 +962,18 @@ export default function GroupChatScreen() {
         );
         return;
       }
+      if(result.state==="expired"){
+        setDetail((current)=>current?{...current,mediaOffers:(current.mediaOffers??[]).filter((item)=>item.id!==offer.id)}:current);
+        setError("That photo moment has passed.");
+        return;
+      }
+      const dailyRemaining=Math.max(0,Number(result.dailyPhotoAllowanceRemaining??result.offer.preview_metadata?.dailyPhotoAllowanceRemaining??0));
       setDetail((current) =>
         current
           ? {
             ...current,
             mediaOffers: (current.mediaOffers ?? []).map((item) =>
-              item.id === offer.id ? result.offer : item
+              item.id === offer.id ? {...result.offer,preview_metadata:{...result.offer.preview_metadata,dailyPhotoAllowanceRemaining:dailyRemaining}} : paymentMethod==="daily_included"&&item.source==="user_request"&&item.status==="pending"?{...item,preview_metadata:{...item.preview_metadata,dailyPhotoAllowanceRemaining:dailyRemaining}}:item
             ),
             generatedMedia: result.media
               ? [
@@ -1044,7 +1161,7 @@ export default function GroupChatScreen() {
       setShowPlans(false);
       setSwitchPlanId(null);
       setPendingGroupActionId(null);
-      router.setParams({ plan: undefined, location: undefined, activity: undefined });
+      router.setParams({ plan: undefined, location: undefined, activity: undefined, switchPlanId:undefined });
       await reloadGroup();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The group plan could not be saved.");
@@ -1164,6 +1281,13 @@ export default function GroupChatScreen() {
       },
     });
   };
+  const toggleGroupMessageSaved=async(message:Message)=>{
+    if(!detail||message.id.startsWith('local-'))return;
+    const favorite=!isMessageFavorite(message),previous=message.user_metadata;
+    setDetail((current)=>current?{...current,messages:current.messages.map((item)=>item.id===message.id?{...item,user_metadata:{...(item.user_metadata??{}),favorite}}:item)}:current);
+    try{const updated=await setMessageFavorite(detail.conversation.id,message.id,favorite);setDetail((current)=>current?{...current,messages:current.messages.map((item)=>item.id===message.id?{...item,...updated}:item)}:current);}
+    catch(caught){setDetail((current)=>current?{...current,messages:current.messages.map((item)=>item.id===message.id?{...item,user_metadata:previous}:item)}:current);setError(caught instanceof Error?caught.message:'That message could not be saved.');}
+  };
   const deleteGroupConversation = () => {
     if (!detail) return;
     confirmAction({
@@ -1181,7 +1305,7 @@ export default function GroupChatScreen() {
           });
           setShowGroupMenu(false);
           await refresh();
-          router.replace(MESSAGES_INBOX_HREF as never);
+          returnToMessagesInbox({reset:(href)=>router.replace(href as never),navigate:(href)=>router.push(href as never)});
         } catch (caught) {
           setError(
             caught instanceof Error
@@ -1199,6 +1323,12 @@ export default function GroupChatScreen() {
       participant.together_character_instances.together_character_templates.name
         .split(" ")[0];
     setInput((value) => value.replace(/@[^\s@]*$/, `@${first} `));
+  };
+  const openMessagesInbox=()=>{
+    returnToMessagesInbox({
+      reset:(href)=>router.replace(href as never),
+      navigate:(href)=>router.push(href as never),
+    });
   };
   if (!params.id) {
     return (
@@ -1230,12 +1360,35 @@ export default function GroupChatScreen() {
   const groupPortraitSource=resolveCharacterPortraitSource(headerTemplate,headerCharacter?.together_character_versions,headerTemplate?.slug)??characterAssets[headerTemplate?.slug??'']??characterAssets.maya!;
   const latestHeaderMedia=latestConversationHeaderImage(detail.generatedMedia??[],detail.conversation.id);
   const groupWorldName=snapshot?.worlds.find((world) => world.id === detail.conversation.group_world_id)?.name;
+  const invitePreviewToGroup=async(person:FeaturedCompanion)=>{
+    if(!snapshot){setCharacterPreview(null);setError('This group is still loading.');return;}
+    let currentSnapshot=snapshot;
+    let invited=currentSnapshot.characters.find((item)=>item.character_template_id===person.id||item.together_character_templates.slug===person.slug);
+    try{
+      if(!invited?.introduced_at&&!invited?.contact_added_at){
+        currentSnapshot=await meetCompanion(person.id,'group_invite');
+        setSnapshot(currentSnapshot);
+        invited=currentSnapshot.characters.find((item)=>item.character_template_id===person.id||item.together_character_templates.slug===person.slug);
+      }
+      if(!invited)throw new Error(`${person.name} could not be prepared for this group.`);
+      const worldId=detail.conversation.group_world_id??characterResidentWorld(currentSnapshot,invited)?.id;
+      if(!worldId||characterResidentWorld(currentSnapshot,invited)?.id!==worldId)throw new Error('Group companions must belong to the same world.');
+      setCharacterPreview(null);
+      router.push(newGroupPrefillHref({currentParticipantIds:detail.participants.map((item)=>item.character_instance_id),invitedCharacterId:invited.id,worldId}) as never);
+    }catch(caught){
+      setCharacterPreview(null);
+      setError(caught instanceof Error?caught.message:`${person.name} could not be invited right now.`);
+    }
+  };
   return (
     <KeyboardAvoidingView
       style={styles.screen}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.shell}>
+        {showConversationRail
+          ? <ChatConversationRail snapshot={snapshot!} activeConversationId={detail.conversation.id} />
+          : null}
         <View style={styles.conversation}>
       <GroupAmbientGlow compact={width < 720} />
       {width<720?<MobileChatMediaHeader
@@ -1245,7 +1398,7 @@ export default function GroupChatScreen() {
         portraitSource={groupPortraitSource}
         mediaSource={latestHeaderMedia?.signed_url?{uri:latestHeaderMedia.signed_url}:groupPortraitSource}
         hasMedia={Boolean(latestHeaderMedia)}
-        onBack={()=>router.replace(MESSAGES_INBOX_HREF as never)}
+        onBack={openMessagesInbox}
         onProfile={()=>setShowDetails(true)}
         onPhoto={openPhotoMenu}
         onMenu={()=>setShowGroupMenu((value)=>!value)}
@@ -1253,18 +1406,24 @@ export default function GroupChatScreen() {
       />:<GroupHeader
         detail={detail}
         worldName={groupWorldName}
+        onBack={openMessagesInbox}
         onDetails={() => setShowGroupMenu((value) => !value)}
       />}
-      <ConnectionBanner sendFailed={detail.messages.some((message)=>message.delivery_status==="failed")}/>
-      {showGroupMenu ? <GroupConversationMenu
+      <ConnectionBanner sendFailed={detail.messages.some((message)=>message.delivery_status==="failed")} sendScoped={showSendConnectionNotice}/>
+      {showGroupMenu ? <ConversationOverflowMenu
         title={detail.conversation.title ?? "Group"}
+        kind="group"
         hasActivePlan={Boolean(activeGroupPlan)}
         favorite={groupFavorite}
         favoriteBusy={favoriteBusy}
+        memoryLocked={snapshot?.entitlements?.entitlement_keys?.includes("memory_inspector") !== true}
         onClose={() => setShowGroupMenu(false)}
         onDetails={() => { setShowGroupMenu(false); setShowDetails(true); }}
+        onMemory={contextParticipant ? () => {
+          setShowGroupMenu(false);
+          router.push(`/memories?character=${contextParticipant.together_character_instances.together_character_templates.slug}` as never);
+        } : undefined}
         onCreatePlan={() => openGroupPlanner(false)}
-        onContinuePlan={() => setShowGroupMenu(false)}
         onChangePlan={() => openGroupPlanner(true)}
         onEndPlan={() => activeGroupPlan && requestEndGroupPlan(activeGroupPlan)}
         onFavorite={() => void toggleGroupFavorite()}
@@ -1297,7 +1456,7 @@ export default function GroupChatScreen() {
               busy={busy}
               error={error}
               onPlan={(option, timing) => void saveGroupPlan(option, timing)}
-              onClose={() => { if (!busy) { setShowPlans(false); setSwitchPlanId(null); setPendingGroupActionId(null); router.setParams({plan:undefined,location:undefined,activity:undefined}); } }}
+              onClose={() => { if (!busy) { setShowPlans(false); setSwitchPlanId(null); setPendingGroupActionId(null); router.setParams({plan:undefined,location:undefined,activity:undefined,switchPlanId:undefined}); } }}
             /> : null}
           </ScrollView>
         </View>
@@ -1311,13 +1470,14 @@ export default function GroupChatScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={32}
+        onScrollBeginDrag={()=>{cancelInitialBottomPin();forcePinnedUntil.current=0;keepPinnedToBottom.current=false;}}
         onScroll={(event) => {
           const native = event.nativeEvent;
-          keepPinnedToBottom.current = isChatNearBottom({
+          keepPinnedToBottom.current = shouldKeepChatPinned({
             contentHeight: native.contentSize.height,
             viewportHeight: native.layoutMeasurement.height,
             offsetY: native.contentOffset.y,
-          });
+          }, initialBottomPinConversation.current===params.id?Number.POSITIVE_INFINITY:forcePinnedUntil.current);
         }}
         onLayout={() => {
           if (params.id && keepPinnedToBottom.current &&
@@ -1332,9 +1492,14 @@ export default function GroupChatScreen() {
           contentHeightRef.current = height;
           if (previousHeight !== null) {
             prependHeightRef.current = null;
-            if (Platform.OS === "web") {
-              scrollRef.current?.scrollToOffset({ offset: Math.max(0, height - previousHeight), animated: false });
-            }
+            setTimeout(() => scrollRef.current?.scrollToOffset({ offset: Math.max(0, height - previousHeight), animated: false }), 0);
+            return;
+          }
+          if(initialBottomPinConversation.current===params.id){
+            keepPinnedToBottom.current=true;
+            scrollRef.current?.scrollToEnd({animated:false});
+            bottomAlignedConversation.current=params.id;
+            settleInitialBottomPin(params.id);
             return;
           }
           if (bottomAlignedConversation.current !== params.id) {
@@ -1343,7 +1508,7 @@ export default function GroupChatScreen() {
             bottomAlignedConversation.current = params.id;
             return;
           }
-          if (keepPinnedToBottom.current) {
+          if (keepPinnedToBottom.current || forcePinnedUntil.current > Date.now()) {
             scrollRef.current?.scrollToEnd({ animated: false });
           }
         }}
@@ -1356,6 +1521,12 @@ export default function GroupChatScreen() {
         >
           <Text style={styles.earlierText}>{olderLoading ? "Loading earlier messages…" : "Load earlier messages"}</Text>
         </Pressable> : null}
+        ListEmptyComponent={loading
+          ? <View style={styles.timelineLoading}>
+            <ActivityIndicator color={colors.rose} />
+            <Text style={styles.timelineLoadingText}>Opening conversation…</Text>
+          </View>
+          : null}
         renderItem={({ item, index }) => {
           const previous = groupTimeline[index - 1],
             dayLabel = groupTimelineDayLabel(item.value.created_at, previous?.value.created_at);
@@ -1413,6 +1584,8 @@ export default function GroupChatScreen() {
               <GroupBubble
                 message={message}
                 participant={participant}
+                mentionCharacters={mentionCharacters}
+                onCharacterMention={setCharacterPreview}
                 grouped={grouped}
                 reactions={detail.reactions.filter((reaction) =>
                   reaction.message_id === message.id
@@ -1425,7 +1598,7 @@ export default function GroupChatScreen() {
                 offerBusy={mediaOfferBusy === offer?.id}
                 activeVoiceId={activeVoiceId}
                 onVoiceActive={setActiveVoiceId}
-                onOfferAccept={(item) => void acceptMediaOffer(item)}
+                onOfferAccept={(item,paymentMethod) => void acceptMediaOffer(item,paymentMethod)}
                 onOfferDecline={(item) => void declineMediaOffer(item)}
                 onMediaRetry={(item) => void retryGeneratedMedia(item)}
                 onReply={() => setReplyTo(message)}
@@ -1439,6 +1612,12 @@ export default function GroupChatScreen() {
                       "memory_manual_control",
                     ),
                 )}
+                favorite={isMessageFavorite(message)}
+                canContinue={canContinueMessage(message,detail.messages.filter(isVisibleChatMessage))&&!sending}
+                onFavorite={()=>toggleGroupMessageSaved(message)}
+                onContinue={()=>send("Keep talking among yourselves for a moment.",true)}
+                onPlan={()=>openGroupPlanner(false)}
+                onPhoto={openPhotoMenu}
                 onRemember={participant
                   ? async () => {
                     try {
@@ -1447,10 +1626,10 @@ export default function GroupChatScreen() {
                         participant.character_instance_id,
                       );
                       await refresh();
-                      Alert.alert(
-                        "Remembered",
-                        `${participant.together_character_instances.together_character_templates.name.split(" ")[0]} will keep this in mind.`,
-                      );
+                      setMemorySavedNotice({
+                        id: Date.now(),
+                        name: participant.together_character_instances.together_character_templates.name,
+                      });
                     } catch (caught) {
                       Alert.alert(
                         "Could not remember that",
@@ -1462,6 +1641,8 @@ export default function GroupChatScreen() {
                   }
                   : undefined}
                 onRetry={message.delivery_status==="failed"&&message.content!=="[Photo]"?()=>void send(message.content,false,message.client_request_id??undefined,message.id):undefined}
+                onEditFailed={message.delivery_status==="failed"?()=>{setDetail((current)=>current?{...current,messages:current.messages.filter((item)=>item.id!==message.id)}:current);setInput(message.content);setError("");}:undefined}
+                onDiscardFailed={message.delivery_status==="failed"?()=>{setDetail((current)=>current?{...current,messages:current.messages.filter((item)=>item.id!==message.id)}:current);if(input.trim()===message.content.trim())setInput("");setError("");}:undefined}
                 textStyle={messageTypography}
               />
             </Fragment>
@@ -1476,7 +1657,7 @@ export default function GroupChatScreen() {
             offer={offer}
             media={photoMediaForOffer(detail.generatedMedia ?? [],offer.generated_media_id)}
             busy={mediaOfferBusy === offer.id}
-            onAccept={() => void acceptMediaOffer(offer)}
+            onAccept={(paymentMethod) => void acceptMediaOffer(offer,paymentMethod)}
             onDecline={() => void declineMediaOffer(offer)}
             onBuyCredits={() => router.push("/subscription")}
             readyContentFit="contain"
@@ -1489,7 +1670,6 @@ export default function GroupChatScreen() {
         updateCellsBatchingPeriod={24}
         windowSize={9}
         removeClippedSubviews={Platform.OS !== "web"}
-        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {mentionOptions.length
@@ -1607,15 +1787,7 @@ export default function GroupChatScreen() {
           </View>
         )
         : null}
-      {activeGroupPlan ? <GroupActivePlanBar
-        plan={activeGroupPlan}
-        participantCount={activeGroupPlan.participant_instance_ids?.length ?? detail.participants.length}
-        locationName={activeGroupPlan.together_locations?.name ?? snapshot?.locations.find((location) => location.id === activeGroupPlan.location_id)?.name}
-        busy={planActionBusyId === activeGroupPlan.id || busy}
-        onDetails={() => router.push(`/plan/${activeGroupPlan.id}` as never)}
-        onChange={() => openGroupPlanner(true)}
-        onEnd={() => requestEndGroupPlan(activeGroupPlan)}
-      /> : waitingGroupPlan ? <GroupPlanWaitingBar
+      {waitingGroupPlan ? <GroupPlanWaitingBar
         plan={waitingGroupPlan}
         locationName={waitingGroupPlan.together_locations?.name ?? snapshot?.locations.find((location) => location.id === waitingGroupPlan.location_id)?.name}
         onDetails={() => router.push(`/plan/${waitingGroupPlan.id}` as never)}
@@ -1626,6 +1798,7 @@ export default function GroupChatScreen() {
         onJoin={() => void startGroupPlan(joinableGroupPlan)}
         onDetails={() => router.push(`/plan/${joinableGroupPlan.id}` as never)}
       /> : null}
+      {memorySavedNotice ? <MemorySavedToast key={memorySavedNotice.id} name={memorySavedNotice.name} onDismiss={() => setMemorySavedNotice(null)} /> : null}
       <GroupComposer
         conversationId={detail.conversation.id}
         characterInstanceId={String(
@@ -1760,19 +1933,21 @@ export default function GroupChatScreen() {
         onChanged={(next) => setDetail(next)}
         onArchived={async () => {
           await refresh();
-          router.replace(MESSAGES_INBOX_HREF as never);
+          returnToMessagesInbox({reset:(href)=>router.replace(href as never),navigate:(href)=>router.push(href as never)});
         }}
       />
       <GroupChatSettingsModal
         visible={showChatSettings}
         conversation={detail.conversation}
+        settings={detail.settings}
         onClose={() => setShowChatSettings(false)}
-        onSaved={(conversation) => {
+        onSaved={(conversation, settings) => {
           setDetail((current) => current
-            ? { ...current, conversation }
+            ? { ...current, conversation, settings }
             : current);
         }}
       />
+      <CharacterProfilePreviewModal companion={characterPreview} onClose={()=>setCharacterPreview(null)} onViewProfile={(person)=>{setCharacterPreview(null);router.push(`/character/${person.slug}` as never);}} onInviteToGroup={invitePreviewToGroup} />
         </View>
         {showRightRail && contextParticipant && snapshot
           ? <GroupContextRail
@@ -1863,6 +2038,23 @@ function GroupComposer({
             onChangeText={onChange}
             onFocus={() => setComposerFocused(true)}
             onBlur={() => setComposerFocused(false)}
+            onKeyPress={(event) => {
+              const nativeEvent = event.nativeEvent as typeof event.nativeEvent & {
+                shiftKey?: boolean;
+                isComposing?: boolean;
+              };
+              const intent = {
+                platform: Platform.OS,
+                key: nativeEvent.key,
+                shiftKey: nativeEvent.shiftKey,
+                isComposing: nativeEvent.isComposing,
+                hasContent: Boolean(input.trim() || hasPendingImage),
+                disabled,
+              };
+              if (!shouldConsumeComposerEnter(intent)) return;
+              event.preventDefault();
+              if (shouldSendComposerOnEnter(intent)) onSend();
+            }}
             editable={!dictationBusy}
             placeholder={dictation.phase === "recording"
               ? "Listening…"
@@ -2092,22 +2284,22 @@ function GroupAmbientGlow({ compact }: { compact: boolean }) {
 }
 
 function GroupHeader(
-  { detail, worldName, onDetails }: {
+  { detail, worldName, onBack, onDetails }: {
     detail: GroupDetail;
     worldName?: string;
+    onBack: () => void;
     onDetails: () => void;
   },
 ) {
   return (
     <View style={styles.header}>
-      <Link href={MESSAGES_INBOX_HREF as never} dismissTo asChild>
-        <Pressable
-          accessibilityLabel="Back to Messages"
-          style={styles.headerButton}
-        >
-          <ChevronLeft size={25} color={colors.text} />
-        </Pressable>
-      </Link>
+      <Pressable
+        accessibilityLabel="Back to Messages"
+        onPress={onBack}
+        style={styles.headerButton}
+      >
+        <ChevronLeft size={25} color={colors.text} />
+      </Pressable>
       <Pressable onPress={onDetails} style={styles.headerMain}>
         <AvatarStack participants={detail.participants} />
         <View style={styles.headerCopy}>
@@ -2129,22 +2321,6 @@ function GroupHeader(
       </Pressable>
     </View>
   );
-}
-function GroupConversationMenu({title,hasActivePlan,favorite,favoriteBusy,onClose,onDetails,onCreatePlan,onContinuePlan,onChangePlan,onEndPlan,onFavorite,onSettings,onFresh,onDelete}:{title:string;hasActivePlan:boolean;favorite:boolean;favoriteBusy:boolean;onClose:()=>void;onDetails:()=>void;onCreatePlan:()=>void;onContinuePlan:()=>void;onChangePlan:()=>void;onEndPlan:()=>void;onFavorite:()=>void;onSettings:()=>void;onFresh:()=>void;onDelete:()=>void}) {
-  const actions={createPlan:onCreatePlan,continuePlan:onContinuePlan,changePlan:onChangePlan,endPlan:onEndPlan};
-  return <FrostedSurface intensity={88} style={styles.groupMenu}>
-    <View style={styles.groupMenuTop}><Text numberOfLines={1} style={styles.groupMenuTitle}>{title}</Text><Pressable onPress={onClose}><Text style={styles.groupMenuClose}>Close</Text></Pressable></View>
-    <Text style={styles.groupMenuSection}>GROUP</Text>
-    <Pressable accessibilityRole="button" accessibilityState={{selected:favorite,disabled:favoriteBusy}} disabled={favoriteBusy} onPress={onFavorite} style={styles.groupMenuFavorite}><Star size={15} color={favorite?'#FFD27A':colors.muted} fill={favorite?'#FFD27A':'transparent'}/><Text style={styles.groupMenuItemText}>{favorite?'Remove from favorites':'Add to favorites'}</Text></Pressable>
-    <Pressable onPress={onDetails} style={styles.groupMenuItem}><Text style={styles.groupMenuItemText}>Group details</Text></Pressable>
-    <Text style={styles.groupMenuSection}>PLAN</Text>
-    {conversationPlanMenuItems(hasActivePlan).map((item)=><Pressable key={item.key} onPress={actions[item.key]} style={styles.groupMenuItem}><Text style={[styles.groupMenuItemText,item.danger&&{color:colors.danger}]}>{item.label}</Text></Pressable>)}
-    <Text style={styles.groupMenuSection}>CONVERSATION</Text>
-    <Pressable onPress={onSettings} style={styles.groupMenuItem}><Text style={styles.groupMenuItemText}>Edit chat settings</Text></Pressable>
-    <Pressable onPress={onFresh} style={styles.groupMenuItem}><Text style={styles.groupMenuItemText}>Start a fresh chat</Text></Pressable>
-    <Text style={styles.groupMenuSection}>MANAGE</Text>
-    <Pressable onPress={onDelete} style={styles.groupMenuItem}><Text style={[styles.groupMenuItemText,{color:colors.danger}]}>Delete this conversation</Text></Pressable>
-  </FrostedSurface>;
 }
 function GroupLocationPlanSuggestion({action,participants,locationRecord,busy,onAccept,onChange,onDismiss}:{action:ConversationAction;participants:GroupParticipant[];locationRecord?:Location;busy:boolean;onAccept:(timing:"now"|"in_one_hour")=>void;onChange:()=>void;onDismiss:()=>void}) {
   const location=String(action.payload.location??"that place"),worldSlug=typeof action.payload.worldSlug==="string"?action.payload.worldSlug:undefined,locationSlug=typeof action.payload.locationSlug==="string"?action.payload.locationSlug:undefined;
@@ -2173,13 +2349,6 @@ function GroupPlanTimelineEvent({event,plan,participants,groupLabel,busy,onOpen,
     </Pressable>
     {plan&&(availability?.primary||availability?.canEnd||availability?.canCancel)?<View style={styles.groupPlanEventActions}>{availability.primary?<Pressable disabled={busy||!availability.primaryEnabled} onPress={()=>onStart(plan)} style={[styles.groupPlanPrimary,(busy||!availability.primaryEnabled)&&styles.groupPlanDisabled]}><Play size={13} color="#fff" fill="#fff"/><Text style={styles.groupPlanPrimaryText}>{busy?'Starting…':'Join plan'}</Text></Pressable>:null}{availability.canEnd?<Pressable disabled={busy} onPress={()=>onEnd(plan)} style={styles.groupPlanSecondary}><Text style={styles.groupPlanDangerText}>End plan</Text></Pressable>:null}{availability.canCancel?<Pressable disabled={busy} onPress={()=>onCancel(plan)} style={styles.groupPlanSecondary}><Text style={styles.groupPlanDangerText}>Cancel plan</Text></Pressable>:null}</View>:null}
   </View>;
-}
-function GroupActivePlanBar({plan,participantCount,locationName,busy,onDetails,onChange,onEnd}:{plan:SharedPlan;participantCount:number;locationName?:string;busy:boolean;onDetails:()=>void;onChange:()=>void;onEnd:()=>void}) {
-  const[now,setNow]=useState(Date.now());
-  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),30000);return()=>clearInterval(timer);},[]);
-  const start=new Date(plan.starts_at).getTime(),end=new Date(plan.ends_at).getTime(),duration=Math.max(1,end-start),progress=Math.max(0,Math.min(1,(now-start)/duration)),remaining=Math.max(0,end-now);
-  const remainingLabel=remaining<60000?'ending soon':`${Math.ceil(remaining/60000)} min left`;
-  return <View style={styles.groupPlanBar}><View style={styles.groupPlanBarIcon}><CalendarDays size={17} color={colors.rose}/></View><Pressable accessibilityRole="button" accessibilityLabel={`Open active group plan, ${plan.title}`} onPress={onDetails} style={styles.groupPlanBarContent}><View style={styles.groupPlanBarHeading}><Text style={styles.groupPlanBarKicker}>TOGETHER NOW · {participantCount} COMPANIONS</Text><Text style={styles.groupPlanBarClock}>{remainingLabel}</Text></View><Text numberOfLines={1} style={styles.groupPlanBarTitle}>{plan.title}</Text><Text numberOfLines={1} style={styles.groupPlanBarMeta}>{locationName??'Shared place'}</Text><View style={styles.groupPlanProgressTrack}><View style={[styles.groupPlanProgressFill,{width:`${Math.round(progress*100)}%`}]}/></View></Pressable><View style={styles.groupPlanBarButtons}><Pressable accessibilityRole="button" accessibilityLabel="Change active group plan" disabled={busy} onPress={onChange} style={styles.groupPlanBarAction}><Text style={styles.groupPlanBarActionText}>Change</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="End active group plan" disabled={busy} onPress={onEnd} style={styles.groupPlanBarAction}><Text style={[styles.groupPlanBarActionText,{color:colors.danger}]}>{busy?'Ending…':'End'}</Text></Pressable></View></View>;
 }
 function GroupPlanResponseStrip({plan,participants}:{plan:SharedPlan;participants:GroupParticipant[]}){
   const responses=participants.filter((participant)=>(plan.participant_instance_ids??[plan.character_instance_id]).includes(participant.character_instance_id)).map((participant)=>({participant,response:plan.participant_responses?.find((item)=>item.character_instance_id===participant.character_instance_id)}));
@@ -2290,7 +2459,7 @@ function GroupContextRail({
           onPress={() => onCycle(-1)}
           style={styles.memberCycleButton}
         >
-          <ChevronLeft size={17} color={colors.text} />
+          <ChevronLeft size={15} color={colors.text} />
         </Pressable>
         <Text style={styles.memberCounter}>
           {currentIndex + 1} OF {detail.participants.length}
@@ -2300,7 +2469,7 @@ function GroupContextRail({
           onPress={() => onCycle(1)}
           style={styles.memberCycleButton}
         >
-          <ChevronRight size={17} color={colors.text} />
+          <ChevronRight size={15} color={colors.text} />
         </Pressable>
       </View>
       <ScrollView
@@ -2318,7 +2487,7 @@ function GroupContextRail({
               onPress={() => onSelect(item.character_instance_id)}
               style={[styles.memberThumb, selected && styles.memberThumbActive]}
             >
-              <CharacterAvatarForParticipant participant={item} size={31} />
+              <CharacterAvatarForParticipant participant={item} size={27} />
             </Pressable>
           );
         })}
@@ -2334,7 +2503,7 @@ function GroupContextRail({
         )
         : (
           <View style={styles.contextPortraitFallback}>
-            <CharacterAvatarForParticipant participant={participant} size={104} />
+            <CharacterAvatarForParticipant participant={participant} size={72} />
           </View>
         )}
       <Text style={styles.contextName}>{template.name}</Text>
@@ -2496,6 +2665,8 @@ function groupRelationshipLabel(stage: string) {
 function GroupBubble({
   message,
   participant,
+  mentionCharacters,
+  onCharacterMention,
   grouped,
   reactions,
   participants,
@@ -2511,12 +2682,22 @@ function GroupBubble({
   voiceVisible,
   voiceEnabled,
   memoryManualControl,
+  favorite,
+  canContinue,
+  onFavorite,
+  onContinue,
+  onPlan,
+  onPhoto,
   onRemember,
   onRetry,
+  onEditFailed,
+  onDiscardFailed,
   textStyle,
 }: {
   message: Message;
   participant?: GroupParticipant;
+  mentionCharacters: FeaturedCompanion[];
+  onCharacterMention: (character: FeaturedCompanion) => void;
   grouped: boolean;
   reactions: MessageReaction[];
   participants: Map<string, GroupParticipant>;
@@ -2525,19 +2706,28 @@ function GroupBubble({
   offerBusy: boolean;
   activeVoiceId: string | null;
   onVoiceActive: (id: string | null) => void;
-  onOfferAccept: (offer: MediaOffer) => void;
+    onOfferAccept: (offer: MediaOffer,paymentMethod:"credits"|"daily_included") => void;
   onOfferDecline: (offer: MediaOffer) => void;
   onMediaRetry: (media: GeneratedMedia) => void;
   onReply: () => void;
   voiceVisible: boolean;
   voiceEnabled: boolean;
   memoryManualControl: boolean;
+  favorite: boolean;
+  canContinue: boolean;
+  onFavorite: () => void | Promise<void>;
+  onContinue: () => void | Promise<void>;
+  onPlan: () => void;
+  onPhoto: () => void;
   onRemember?: () => Promise<void>;
   onRetry?:()=>void;
+  onEditFailed?:()=>void;
+  onDiscardFailed?:()=>void;
   textStyle: { fontSize: number; lineHeight: number };
 }) {
   const opacity = useRef(new Animated.Value(0)).current,
     translate = useRef(new Animated.Value(8)).current;
+  const [actionsOpen,setActionsOpen]=useState(false),[voiceRequestToken,setVoiceRequestToken]=useState(0);
   useEffect(() => {
     Animated.parallel([
       Animated.timing(opacity, {
@@ -2567,6 +2757,8 @@ function GroupBubble({
       participant?.together_character_instances.together_character_templates
         .name.split(" ")[0] ??
         String(message.provider_metadata?.speakerName ?? "Companion"),
+    speakerSlug = participant?.together_character_instances.together_character_templates.slug ??
+      String(message.provider_metadata?.speakerSlug ?? ""),
     offerPreviewSources =
       (offer?.subject_character_instance_ids?.length
         ? offer.subject_character_instance_ids
@@ -2584,24 +2776,17 @@ function GroupBubble({
         }).filter(Boolean) as Array<
           Exclude<ReturnType<typeof resolveCharacterPortraitSource>, undefined>
         >;
-  const messageActions = () =>
-    Alert.alert("Message actions", undefined, [
-      { text: "Reply", onPress: onReply },
-      {
-        text: "Copy",
-        onPress: () => void Clipboard.setStringAsync(message.content),
-      },
-      ...(!user
-        ? [{
-          text: "Report response",
-          onPress: () => void reportMessage(message.id, "other"),
-        }]
-        : []),
-      ...(memoryManualControl && onRemember
-        ? [{ text: "Remember this", onPress: () => void onRemember() }]
-        : []),
-      { text: "Cancel", style: "cancel" },
-    ] as never);
+  const actionItems:MessageActionDefinition[]=[
+    {key:'reply',label:'Reply',icon:<MessageCircle size={23} color={colors.textSecondary}/>,onPress:onReply},
+    ...(!user&&canContinue?[{key:'continue',label:'Let them talk',icon:<FastForward size={23} color={colors.textSecondary}/>,onPress:onContinue}]:[]),
+    ...(memoryManualControl&&onRemember&&!message.id.startsWith('local-')?[{key:'memory',label:'Memory',icon:<Brain size={23} color={colors.textSecondary}/>,onPress:onRemember}]:[]),
+    {key:'copy',label:'Copy',icon:<Copy size={23} color={colors.textSecondary}/>,onPress:()=>Clipboard.setStringAsync(message.content)},
+    ...(!message.id.startsWith('local-')?[{key:'favorite',label:favorite?'Favorited':'Favorite',icon:<Heart size={23} color={favorite?colors.rose:colors.textSecondary} fill={favorite?colors.rose:'transparent'}/>,selected:favorite,onPress:onFavorite}]:[]),
+    ...(!user&&voiceVisible?[{key:'voice',label:'Voice',icon:<Volume2 size={23} color={voiceEnabled?colors.textSecondary:colors.muted}/>,onPress:()=>setVoiceRequestToken((value)=>value+1)}]:[]),
+    ...(!user?[{key:'plan',label:'Plan with group',icon:<CalendarDays size={23} color={colors.textSecondary}/>,onPress:onPlan},{key:'photo',label:'Group photo',icon:<Camera size={23} color={colors.textSecondary}/>,onPress:onPhoto}]:[]),
+    ...(!user&&!message.id.startsWith('local-')?[{key:'report',label:'Report',icon:<Flag size={23} color={colors.muted}/>,onPress:()=>reportMessage(message.id,'other')}]:[]),
+    ...(message.delivery_status==='failed'&&onRetry?[{key:'retry',label:'Retry send',icon:<RefreshCw size={23} color={colors.rose}/>,onPress:onRetry}]:[]),
+  ];
   return (
     <Animated.View
       style={[
@@ -2656,8 +2841,9 @@ function GroupBubble({
             visibleImages.length
           ? (
             <Pressable
-              onPress={message.delivery_status==="failed"?onRetry:undefined}
-              onLongPress={messageActions}
+              accessibilityLabel={`${user?'Your':speakerName} message. Tap for actions.`}
+              onPress={()=>setActionsOpen(true)}
+              onLongPress={()=>setActionsOpen(true)}
               style={[
                 styles.bubble,
                 user ? styles.userBubble : styles.assistantBubble,
@@ -2665,7 +2851,9 @@ function GroupBubble({
               ]}
             >
               {message.content !== "[Photo]"
-                ? <Text style={[styles.bubbleText, textStyle]}>{message.content}</Text>
+                ? user
+                  ? <Text style={[styles.bubbleText, textStyle]}>{message.content}</Text>
+                  : <CharacterMentionText text={message.content} characters={mentionCharacters} excludeSlug={speakerSlug} onCharacterPress={onCharacterMention} style={[styles.bubbleText,textStyle]}/>
                 : null}
               {attachments.map((attachment) => (
                 <Pressable
@@ -2704,12 +2892,13 @@ function GroupBubble({
                     activeVoiceId={activeVoiceId}
                     onVoiceActive={onVoiceActive}
                     enabled={voiceEnabled}
+                    requestToken={voiceRequestToken}
                   />
                 )
                 : null}
               <View style={styles.messageTimeRow}>
                 {message.delivery_status==="failed"?<Text style={[styles.timestamp,{color:colors.danger}]}>Not sent · Tap to retry</Text>:null}
-                <Text style={styles.timestamp}>
+                <Text style={[styles.timestamp, { opacity: .58 }]}>
                   {new Date(message.created_at).toLocaleTimeString([], {
                     hour: "numeric",
                     minute: "2-digit",
@@ -2726,7 +2915,7 @@ function GroupBubble({
               media={offerMedia}
               previewSources={offerPreviewSources}
               busy={offerBusy}
-              onAccept={() => onOfferAccept(offer)}
+                onAccept={(paymentMethod) => onOfferAccept(offer,paymentMethod)}
               onDecline={() => onOfferDecline(offer)}
               onBuyCredits={() => router.push("/subscription")}
               readyContentFit="contain"
@@ -2743,6 +2932,9 @@ function GroupBubble({
             />
           )
           : null}
+        {message.delivery_status === "failed" && onRetry && onEditFailed && onDiscardFailed
+          ? <FailedMessageRecovery onRetry={onRetry} onEdit={onEditFailed} onDiscard={onDiscardFailed} />
+          : null}
         <View style={styles.bubbleMeta}>
           {reactions.map((reaction) => (
             <View key={reaction.id} style={styles.reaction}>
@@ -2754,11 +2946,9 @@ function GroupBubble({
               </Text>
             </View>
           ))}
-          <Pressable onPress={onReply} hitSlop={8}>
-            <Text style={styles.replyAction}>Reply</Text>
-          </Pressable>
         </View>
       </View>
+      <MessageActionSheet visible={actionsOpen} message={message.content} senderName={speakerName} sentAt={message.created_at} userMessage={user} actions={actionItems} onClose={()=>setActionsOpen(false)}/>
     </Animated.View>
   );
 }
@@ -2770,6 +2960,7 @@ function GroupVoiceNote({
   activeVoiceId,
   onVoiceActive,
   enabled,
+  requestToken,
 }: {
   message: Message;
   name: string;
@@ -2777,11 +2968,13 @@ function GroupVoiceNote({
   activeVoiceId: string | null;
   onVoiceActive: (id: string | null) => void;
   enabled: boolean;
+  requestToken: number;
 }) {
   const [media, setMedia] = useState(initialMedia),
     [quote, setQuote] = useState<VoiceNoteQuote | null>(null),
     [busy, setBusy] = useState(false),
     [failed, setFailed] = useState(false);
+  const handledRequestToken=useRef(0);
   const source = media?.status === "ready" && media.signed_url
       ? media.signed_url
       : null,
@@ -2844,9 +3037,15 @@ function GroupVoiceNote({
       setBusy(false);
     }
   };
+  useEffect(()=>{
+    if(requestToken<=0||handledRequestToken.current===requestToken)return;
+    handledRequestToken.current=requestToken;
+    void listen();
+  // listen intentionally reflects the current media/player state for this explicit request.
+  },[requestToken]);
   return (
     <>
-      <Pressable
+      {media||busy||failed?<Pressable
         accessibilityLabel={status.playing
           ? "Pause voice note"
           : `${
@@ -2875,12 +3074,13 @@ function GroupVoiceNote({
             ? "Listen · Kivelle+"
             : (failed || media?.status === "failed" ? "Retry" : "Listen")}
         </Text>
-      </Pressable>
+      </Pressable>:null}
       <VoiceNotePurchaseModal
         visible={Boolean(quote)}
         name={name}
         creditCost={quote?.creditCost ?? 0}
         creditBalance={quote?.creditBalance ?? 0}
+        shortened={quote?.shortened}
         busy={busy}
         onClose={() => setQuote(null)}
         onConfirm={(hide) => void generate(hide)}
@@ -2946,12 +3146,8 @@ function GroupDetailsModal({
   onChanged: (detail: GroupDetail) => void;
   onArchived: () => void;
 }) {
-  const [title, setTitle] = useState(detail.conversation.title ?? ""),
-    [adding, setAdding] = useState(false),
+  const [adding, setAdding] = useState(false),
     [mutationError,setMutationError]=useState("");
-  useEffect(() => setTitle(detail.conversation.title ?? ""), [
-    detail.conversation.title,
-  ]);
   useEffect(() => {
     if (visible) setMutationError("");
   }, [visible]);
@@ -3009,24 +3205,6 @@ function GroupDetailsModal({
             </Pressable>
           </View>
           <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.detailsLabel}>GROUP NAME</Text>
-            <View style={styles.renameRow}>
-              <TextInput
-                value={title}
-                onChangeText={setTitle}
-                maxLength={80}
-                style={styles.renameInput}
-              />
-              <Pressable
-                disabled={busy || !title.trim() ||
-                  title.trim() === detail.conversation.title}
-                onPress={() =>
-                  void mutate({ action: "rename", title: title.trim() })}
-                style={styles.saveSmall}
-              >
-                <Text style={styles.saveSmallText}>Save</Text>
-              </Pressable>
-            </View>
             <Text style={styles.detailsLabel}>PARTICIPANTS</Text>
             {detail.participants.map((participant) => {
               const blockingPlan=groupPlanBlockingParticipantRemoval(detail.sharedPlans??[],participant.character_instance_id);
@@ -3114,34 +3292,6 @@ function GroupDetailsModal({
                 </View>
               )
               : null}
-            <Text style={styles.detailsLabel}>WHO RESPONDS</Text>
-            <Segment
-              options={[["automatic", "Automatic"], [
-                "choose_speaker",
-                "Choose speaker",
-              ]]}
-              value={detail.settings.responseMode}
-              onChange={(value) =>
-                void mutate({
-                  action: "settings",
-                  responseMode: value,
-                  energy: detail.settings.energy,
-                })}
-            />
-            <Text style={styles.detailsLabel}>GROUP ENERGY</Text>
-            <Segment
-              options={[["quiet", "Quiet"], ["balanced", "Balanced"], [
-                "lively",
-                "Lively",
-              ]]}
-              value={detail.settings.energy}
-              onChange={(value) =>
-                void mutate({
-                  action: "settings",
-                  responseMode: detail.settings.responseMode,
-                  energy: value,
-                })}
-            />
             {mutationError?<Text accessibilityRole="alert" style={styles.detailError}>{mutationError}</Text>:null}
             <Pressable
               accessibilityRole="button"
@@ -3179,37 +3329,6 @@ function GroupDetailsModal({
         </FrostedSurface>
       </View>
     </Modal>
-  );
-}
-function Segment(
-  { options, value, onChange }: {
-    options: Array<[string, string]>;
-    value: string;
-    onChange: (value: string) => void;
-  },
-) {
-  return (
-    <View style={styles.segment}>
-      {options.map(([key, label]) => (
-        <Pressable
-          key={key}
-          accessibilityRole="button"
-          accessibilityState={{selected:value===key}}
-          accessibilityLabel={label}
-          onPress={() => onChange(key)}
-          style={[styles.segmentOption, value === key && styles.segmentActive]}
-        >
-          <Text
-            style={[
-              styles.segmentText,
-              value === key && styles.segmentTextActive,
-            ]}
-          >
-            {label}
-          </Text>
-        </Pressable>
-      ))}
-    </View>
   );
 }
 function mentionedParticipants(
@@ -3377,8 +3496,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   headerCopy: { minWidth: 0, flex: 1 },
-  headerTitle: { color: colors.text, fontSize: 17, fontWeight: "900" },
-  headerSub: { color: colors.muted, fontSize: 11, marginTop: 3 },
+  headerTitle: { color: colors.text, fontSize: 18, fontWeight: "900" },
+  headerSub: { color: colors.muted, fontSize: 12, marginTop: 3 },
   avatarStack: { width: 64, height: 38, position: "relative" },
   avatarStackItem: {
     position: "absolute",
@@ -3397,22 +3516,24 @@ const styles = StyleSheet.create({
   groupMenuItemText:{color:colors.text,fontSize:12,fontWeight:"700"},
   rightRail: {
     width: 310,
+    maxWidth: 310,
+    flexGrow: 0,
     flexShrink: 0,
     borderRightWidth: 1,
     borderColor: colors.border,
     backgroundColor: "rgba(10,10,17,.78)",
   },
-  rightRailContent: { padding: 18, paddingBottom: 36 },
+  rightRailContent: { padding: 12, paddingBottom: 26 },
   memberNavigator: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   memberCycleButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -3428,14 +3549,14 @@ const styles = StyleSheet.create({
   memberStrip: {
     flexGrow: 1,
     justifyContent: "center",
-    gap: 8,
-    paddingVertical: 4,
-    marginBottom: 12,
+    gap: 6,
+    paddingVertical: 2,
+    marginBottom: 9,
   },
   memberThumb: {
-    width: 39,
-    height: 39,
-    borderRadius: 20,
+    width: 33,
+    height: 33,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
@@ -3444,13 +3565,13 @@ const styles = StyleSheet.create({
   memberThumbActive: { borderColor: colors.violet },
   contextPortrait: {
     width: "100%",
-    height: 214,
+    height: 148,
     borderRadius: radius.lg,
     backgroundColor: colors.elevated,
   },
   contextPortraitFallback: {
     width: "100%",
-    height: 214,
+    height: 148,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: radius.lg,
@@ -3459,17 +3580,17 @@ const styles = StyleSheet.create({
   contextName: {
     color: colors.text,
     fontFamily: "Georgia",
-    fontSize: 24,
+    fontSize: 21,
     fontWeight: "800",
-    marginTop: 14,
+    marginTop: 11,
   },
-  contextBio: { color: colors.muted, fontSize: 11, marginTop: 4 },
+  contextBio: { color: colors.muted, fontSize: 11, lineHeight: 15, marginTop: 3 },
   contextSection: {
-    paddingTop: 18,
-    marginTop: 18,
+    paddingTop: 13,
+    marginTop: 13,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    gap: 9,
+    gap: 7,
   },
   contextSectionTitle: {
     color: colors.dimmed,
@@ -3477,11 +3598,11 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: 1.15,
   },
-  contextLine: { flexDirection: "row", alignItems: "flex-start", gap: 9 },
+  contextLine: { flexDirection: "row", alignItems: "flex-start", gap: 7 },
   contextLineIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 10,
+    width: 24,
+    height: 24,
+    borderRadius: 9,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,.04)",
@@ -3501,8 +3622,8 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   contextPlanButton: {
-    minHeight: 44,
-    marginTop: 20,
+    minHeight: 40,
+    marginTop: 15,
     borderRadius: radius.pill,
     flexDirection: "row",
     alignItems: "center",
@@ -3512,9 +3633,9 @@ const styles = StyleSheet.create({
   },
   contextPlanButtonText: { color: "#fff", fontSize: 11, fontWeight: "900" },
   contextSecondaryButton: {
-    minHeight: 42,
-    marginTop: 9,
-    paddingHorizontal: 13,
+    minHeight: 38,
+    marginTop: 7,
+    paddingHorizontal: 10,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.border,
@@ -3530,13 +3651,20 @@ const styles = StyleSheet.create({
   timeline: { flex: 1 },
   timelineContent: {
     width: "100%",
-    maxWidth: 760,
-    alignSelf: "center",
+    minWidth: 0,
     paddingHorizontal: 14,
     paddingTop: 18,
     paddingBottom: 24,
     gap: 8,
   },
+  timelineLoading: {
+    flex: 1,
+    minHeight: 220,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  timelineLoadingText: { color: colors.muted, fontSize: 11 },
   earlierButton: {
     alignSelf: "center",
     minHeight: 36,
@@ -3652,6 +3780,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "flex-end",
     alignItems: "center",
+    gap: 6,
     marginTop: 5,
   },
   timestamp: { color: "rgba(255,255,255,.48)", fontSize: 9 },
@@ -3857,7 +3986,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flex: 1,
     maxHeight: 116,
-    minHeight: 44,
+    minHeight: 40,
     paddingLeft: 4,
     paddingRight: 7,
     paddingVertical: 10,

@@ -1,4 +1,5 @@
-import { estimateAiCost, type DialogueRouteReason, type NormalizedAiUsage } from '../../../packages/together-domain/src/index.ts';
+import { estimateAiCost, type NormalizedAiUsage } from '../../../packages/together-domain/src/ai-usage.ts';
+import type { DialogueRouteReason } from '../../../packages/together-domain/src/ai-routing.ts';
 import { waitUntil } from './background.ts';
 
 export type AiUsageScope = {

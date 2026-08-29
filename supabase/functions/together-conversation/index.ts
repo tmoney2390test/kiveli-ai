@@ -11,6 +11,7 @@ import { resolvePlaceContext, resolveWorldAccess } from '../_shared/together-pla
 import { resolveSubscriptionState } from '../_shared/kivelle-subscription.ts';
 import { conversationArchiveExpired, conversationArchiveFields } from '../_shared/together-conversation-archive.ts';
 import { validateCompanionVoicePreset } from '../_shared/companion-voice-selection.ts';
+import { chatLanguagePreferences } from '../../../packages/together-domain/src/chat-language.ts';
 
 const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('inbox') }),
@@ -21,11 +22,12 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('delete'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('restore'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('rename'), conversationId: z.string().uuid(), title: z.string().trim().min(1).max(80) }),
-  z.object({ action: z.literal('settings'), conversationId: z.string().uuid(), title: z.string().trim().max(80).nullable(), responseStyle: z.enum(['texting','paragraph']), textSize: z.enum(['small','medium','large']), contentMode: z.enum(['standard','romance','mature','explicit']).optional(), spiceLevel: z.union([z.literal(1),z.literal(2),z.literal(3)]).optional(), voicePreset: z.enum(['warm','bright','clear','strong','balanced']).nullable().optional() }),
+  z.object({ action: z.literal('settings'), conversationId: z.string().uuid(), title: z.string().trim().max(80).nullable(), responseStyle: z.enum(['texting','paragraph']), textSize: z.enum(['small','medium','large']), contentMode: z.enum(['standard','romance','mature','explicit']).optional(), spiceLevel: z.union([z.literal(1),z.literal(2),z.literal(3)]).optional(), voicePreset: z.enum(['warm','bright','clear','strong','balanced']).nullable().optional(), chatLanguage: z.enum(chatLanguagePreferences).optional() }),
   z.object({ action: z.literal('history'), characterInstanceId: z.string().uuid() }),
   z.object({ action: z.literal('messages'), conversationId: z.string().uuid(), before: z.string().datetime().optional(), beforeSequence: z.number().int().positive().optional(), anchorMessageId: z.string().uuid().optional(), limit: z.number().int().min(1).max(60).default(50) }),
   z.object({ action: z.literal('search'), characterInstanceId: z.string().uuid(), query: z.string().trim().min(2).max(100), conversationId: z.string().uuid().optional() }),
   z.object({ action: z.literal('read'), conversationId: z.string().uuid() }),
+  z.object({ action: z.literal('message_favorite'), conversationId: z.string().uuid(), messageId: z.string().uuid(), favorite: z.boolean() }),
   z.object({ action: z.literal('reset'), characterInstanceId: z.string().uuid(), mode: z.enum(['memory','relationship','full']), requestId: z.string().uuid().optional() }),
   z.object({ action: z.literal('reset_preview'), characterInstanceId: z.string().uuid() }),
   z.object({ action: z.literal('start_over'), characterInstanceId: z.string().uuid(), requestId: z.string().uuid() }),
@@ -39,7 +41,7 @@ serve(async (request, correlationId) => {
   const owned = 'characterInstanceId' in input && input.action !== 'start_over'
     ? await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId)
     : null;
-  await enforceRateLimit(db, user.id, `together_conversation_${input.action}`, input.action === 'inbox' ? 240 : input.action === 'search' ? 40 : 20, 3600);
+  await enforceRateLimit(db, user.id, `together_conversation_${input.action}`, input.action === 'inbox' ? 240 : input.action === 'message_favorite' ? 240 : input.action === 'search' ? 40 : 20, 3600);
 
   if (input.action === 'inbox') {
     const { data, error } = await db.from('together_conversations').select('*').eq('user_id', user.id).eq('continuity_id', continuity.id).is('archived_at', null).in('kind', ['direct', 'first_meeting','group']).order('last_message_at', { ascending: false, nullsFirst: false }).limit(100);
@@ -263,21 +265,21 @@ serve(async (request, correlationId) => {
 
   const conversation = await ownedConversation(db, user.id,continuity.id,input.conversationId);
   if (input.action === 'settings') {
-    if (input.spiceLevel !== undefined || input.voicePreset !== undefined) {
+    if (input.voicePreset !== undefined) {
       const subscription = await resolveSubscriptionState(db, user.id);
-      if (input.spiceLevel !== undefined && subscription.tier === 'free') throw new AppError('PLAN_LIMIT_REACHED', 'Custom spice levels are available with Kivelle+ or Max.', 403);
       if (input.voicePreset !== undefined && !subscription.entitlementKeys.includes('voice_notes')) throw new AppError('PLAN_LIMIT_REACHED', 'Custom companion voices are available with Kivelle+ or Max.', 403);
     }
     const voicePreset = input.voicePreset === undefined ? undefined : await validateCompanionVoicePreset(db, String(conversation.character_instance_id), input.voicePreset);
     const currentMetadata = (conversation.metadata ?? {}) as Record<string, unknown>;
     const storedPreferences = currentMetadata.chatPreferences;
     const currentPreferences = storedPreferences && typeof storedPreferences === 'object' && !Array.isArray(storedPreferences) ? storedPreferences as Record<string, unknown> : {};
-    const contentMode=input.contentMode==='standard'?'explicit':input.contentMode;
-    const chatPreferences = { ...currentPreferences, responseStyle: input.responseStyle, textSize: input.textSize, ...(contentMode !== undefined ? { contentMode } : {}), ...(input.spiceLevel !== undefined ? { spiceLevel: input.spiceLevel } : {}), ...(voicePreset ? { voicePreset } : {}) };
+    const contentMode='mature';
+    const chatPreferences:Record<string,unknown> = { ...currentPreferences, responseStyle: input.responseStyle, textSize: input.textSize, contentMode, ...(voicePreset ? { voicePreset } : {}), ...(input.chatLanguage !== undefined ? { chatLanguage: input.chatLanguage } : {}) };
+    delete chatPreferences.spiceLevel;
     if (input.voicePreset === null) delete chatPreferences.voicePreset;
     const { data, error } = await db.from('together_conversations').update({ title: input.title, metadata: { ...currentMetadata, chatPreferences }, updated_at: new Date().toISOString() }).eq('id', conversation.id).eq('user_id', user.id).select('*').single();
     if (error || !data) throw new AppError('INTERNAL_ERROR', 'Chat settings could not be saved.', 500, true);
-    await track(db, user.id, 'chat_settings_updated', { conversationId: conversation.id, responseStyle: input.responseStyle, textSize: input.textSize, contentMode, customSpice: input.spiceLevel !== undefined, customVoice: Boolean(voicePreset) });
+    await track(db, user.id, 'chat_settings_updated', { conversationId: conversation.id, responseStyle: input.responseStyle, textSize: input.textSize, contentMode, chatLanguage: input.chatLanguage ?? currentPreferences.chatLanguage ?? 'en', customSpice: false, customVoice: Boolean(voicePreset) });
     return json({ data, correlationId }, 200, correlationId);
   }
   if (input.action === 'read') {
@@ -301,6 +303,18 @@ serve(async (request, correlationId) => {
     }
     await track(db, user.id, 'conversation_archived', { conversationId: conversation.id, requestedAction: input.action, restoreUntil: archive.restore_until });
     return json({ data, correlationId }, 200, correlationId);
+  }
+
+  if (input.action === 'message_favorite') {
+    const owned = await ownedConversation(db, user.id,continuity.id,input.conversationId);
+    const {data:message,error:messageError}=await db.from('together_messages').select('id,user_metadata').eq('id',input.messageId).eq('conversation_id',owned.id).eq('user_id',user.id).maybeSingle();
+    if(messageError)throw new AppError('INTERNAL_ERROR','That message could not be updated.',500,true);
+    if(!message)throw new AppError('NOT_FOUND','That message is no longer available.',404);
+    const userMetadata={...(message.user_metadata&&typeof message.user_metadata==='object'?message.user_metadata:{}),favorite:input.favorite,favoritedAt:input.favorite?new Date().toISOString():null};
+    const{data:updated,error}=await db.from('together_messages').update({user_metadata:userMetadata}).eq('id',message.id).eq('conversation_id',owned.id).eq('user_id',user.id).select('*,together_message_reactions(*)').single();
+    if(error||!updated)throw new AppError('INTERNAL_ERROR','That saved message could not be updated.',500,true);
+    await track(db,user.id,'message_favorite_changed',{conversationId:owned.id,messageId:message.id,favorite:input.favorite});
+    return json({data:updated,correlationId},200,correlationId);
   }
 
   if (input.action === 'restore') {

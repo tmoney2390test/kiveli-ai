@@ -95,6 +95,19 @@ const SPELLING_ALIASES:Array<[RegExp,string]>=[
   [/\bbootay\b/gi,'booty'],
 ];
 
+const MULTILINGUAL_ALIASES:Array<[RegExp,string]>=[
+  [/\b(?:desnud[oa]s?|sin ropa)\b/giu,'nude'],[/\b(?:genitales|partes intimas)\b/giu,'genitals'],[/\b(?:vulva|clitoris)\b/giu,'vulva'],[/\bvagina\b/giu,'vagina'],[/\b(?:pene|testiculos)\b/giu,'penis'],[/\b(?:tetas?|pezones?)\b/giu,'breasts'],[/\b(?:culo|nalgas)\b/giu,'buttocks'],
+  [/\b(?:nu(?:e|es|s)?|sans vetements)\b/giu,'nude'],[/\b(?:organes genitaux|parties intimes)\b/giu,'genitals'],[/\b(?:vulve|clitoris)\b/giu,'vulva'],[/\bvagin\b/giu,'vagina'],[/\b(?:penis|testicules)\b/giu,'penis'],[/\b(?:seins|tetons?)\b/giu,'breasts'],[/\b(?:fesses|anus)\b/giu,'buttocks'],
+  [/\b(?:nud[oaie]|senza vestiti)\b/giu,'nude'],[/\b(?:genitali|parti intime)\b/giu,'genitals'],[/\b(?:vulva|clitoride)\b/giu,'vulva'],[/\bvagina\b/giu,'vagina'],[/\b(?:pene|testicoli)\b/giu,'penis'],[/\b(?:seni|tette|capezzoli)\b/giu,'breasts'],[/\b(?:culo|natiche)\b/giu,'buttocks'],
+  [/\b(?:nackt|oben ohne)\b/giu,'nude'],[/\b(?:genitalien|intimbereich)\b/giu,'genitals'],[/\b(?:vulva|scheide|klitoris)\b/giu,'vulva'],[/\b(?:penis|hoden)\b/giu,'penis'],[/\b(?:bruste|brustwarzen)\b/giu,'breasts'],[/\b(?:hintern|anus)\b/giu,'buttocks'],
+  [/\b(?:nu[ao]s?|sem roupa)\b/giu,'nude'],[/\b(?:genitais|partes intimas)\b/giu,'genitals'],[/\b(?:vulva|clitoris)\b/giu,'vulva'],[/\bvagina\b/giu,'vagina'],[/\b(?:penis|testiculos)\b/giu,'penis'],[/\b(?:seios|tetas|mamilos)\b/giu,'breasts'],[/\b(?:bunda|nadegas|anus)\b/giu,'buttocks'],
+  [/(?:全裸|ヌード|裸(?=(?:に|で|を|の姿)))/gu,'nude'],[/(?:性器|陰部)/gu,'genitals'],[/(?:外陰部|膣|クリトリス)/gu,'vulva'],[/(?:ペニス|陰茎|睾丸)/gu,'penis'],[/(?:おっぱい|乳首)/gu,'breasts'],[/(?:お尻|肛門)/gu,'buttocks'],
+  [/(?:나체|누드|전라)/gu,'nude'],[/(?:성기|음부)/gu,'genitals'],[/(?:외음부|클리토리스)/gu,'vulva'],[/(?:음경|페니스|고환)/gu,'penis'],[/(?:젖꼭지)/gu,'breasts'],[/(?:엉덩이|항문)/gu,'buttocks'],
+  [/(?:裸体|全裸|裸照)/gu,'nude'],[/(?:生殖器|阴部)/gu,'genitals'],[/(?:外阴|阴道|阴蒂)/gu,'vulva'],[/(?:阴茎|睾丸)/gu,'penis'],[/(?:乳房|乳头)/gu,'breasts'],[/(?:屁股|臀部|肛门)/gu,'buttocks'],
+  [/\b(?:follame|cogeme|sexo oral|masturb(?:ame|acion)|orgasmo|baise-moi|sexe oral|masturbation|orgasme|scopami|fare sesso|sesso orale|masturbazione|orgasmo|fick mich|oralverkehr|masturbation|orgasmus|me fode|sexo oral|masturbacao|orgasmo)\b/giu,'explicit'],
+  [/(?:セックス|オーラルセックス|オナニー|絶頂|섹스|오럴 ?섹스|자위|오르가슴|做爱|口交|手淫|高潮)/gu,'explicit'],
+];
+
 const EMOJI_ALIASES:Array<[RegExp,string]>=[
   [/[🍆🍌🌭🥒🥖🐓]/gu,' eggplant symbol '],
   [/[🍑]/gu,' peach symbol '],
@@ -119,9 +132,13 @@ function hasPossessiveReference(normalized:string,term:string):boolean{
 }
 
 export function normalizeAdultLanguageText(text:string):string{
-  let normalized=text.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[\u2018\u2019]/g,"'");
+  // Strip Latin accents for compact matching while preserving Japanese
+  // dakuten and Korean syllables. Removing every combining mark after NFKD
+  // silently changed both scripts and made valid requests unrecognizable.
+  let normalized=text.normalize('NFD').replace(/(?<=\p{Script=Latin})\p{M}+/gu,'').normalize('NFC').toLowerCase().replace(/[\u2018\u2019]/g,"'");
   for(const [pattern,replacement] of EMOJI_ALIASES)normalized=normalized.replace(pattern,replacement);
   for(const [pattern,replacement] of SPELLING_ALIASES)normalized=normalized.replace(pattern,` ${replacement} `);
+  for(const [pattern,replacement] of MULTILINGUAL_ALIASES)normalized=normalized.replace(pattern,` ${replacement} `);
   return normalized.replace(/[-_./\\]+/g,' ').replace(/\s+/g,' ').trim();
 }
 

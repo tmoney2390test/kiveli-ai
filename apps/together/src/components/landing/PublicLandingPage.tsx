@@ -24,11 +24,11 @@ import {
   Sparkles,
   Users,
 } from 'lucide-react-native';
-import { characterAssets, worldHeroAsset } from '../../assets';
 import { KivelleLogo } from '../KivelleLogo';
 import { radius, typography } from '../../theme';
 import { joinPathFor } from '../../lib/sessionRouting';
 import { PUBLIC_COMPANIONS, PUBLIC_LANDING_COPY, PUBLIC_WORLDS, type PublicCompanion, type PublicWorld } from '../../lib/publicLanding';
+import { publicCompanionAssets, publicWorldAssets } from './publicLandingAssets';
 
 type LandingSection = 'worlds' | 'why' | 'companions';
 
@@ -103,7 +103,7 @@ export function PublicLandingPage() {
         </View>
 
         <View onLayout={recordSection('worlds')} style={styles.section}>
-          <SectionHeading compact={!tablet} title="Featured Worlds" action="Meet every world" onAction={() => join(juniperPath)} />
+          <SectionHeading compact={!tablet} title="Featured Worlds" action="Meet every world" onAction={() => join('/explore')} />
           <View style={styles.worldGrid}>
             {PUBLIC_WORLDS.map((world) => <WorldCard key={world.slug} world={world} desktop={desktop} tablet={tablet} onPress={() => join(`/singles?world=${world.slug}`)} />)}
           </View>
@@ -188,11 +188,11 @@ function HeaderLink({ label, onPress }: { label: string; onPress: () => void }) 
 }
 
 function Hero({ desktop, compact, onEnter, onMeet }: { desktop: boolean; compact: boolean; onEnter: () => void; onMeet: () => void }) {
-  const heroPortrait = characterAssets['becka-shaw'];
+  const heroPortrait = publicCompanionAssets['becka-shaw'];
   return <View style={[styles.hero, desktop ? styles.heroDesktop : styles.heroStacked, compact && styles.heroCompact]}>
-    <Image accessible accessibilityLabel="Juniper City skyline at dusk" source={worldHeroAsset('juniper-city')} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" priority="high" />
+    <Image accessible accessibilityLabel="Juniper City skyline at dusk" source={publicWorldAssets['juniper-city']} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" loading="eager" priority="high" />
     <View style={[styles.heroPortraitFrame, desktop ? styles.heroPortraitDesktop : styles.heroPortraitStacked, compact && styles.heroPortraitCompact]}>
-      <Image accessible accessibilityLabel="Becka Shaw in Juniper City" source={heroPortrait} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" priority="high" />
+      <Image accessible accessibilityLabel="Becka Shaw in Juniper City" source={heroPortrait} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" loading="eager" priority="high" />
     </View>
     <View pointerEvents="none" style={styles.heroBaseShade} />
     <View pointerEvents="none" style={[
@@ -217,14 +217,14 @@ function Hero({ desktop, compact, onEnter, onMeet }: { desktop: boolean; compact
     {desktop ? <>
       <View style={styles.chatCard}>
         <View style={styles.chatHeader}>
-          <Image source={characterAssets['becka-shaw']} style={styles.chatAvatar} contentFit="cover" contentPosition="top" />
+          <Image source={publicCompanionAssets['becka-shaw']} style={styles.chatAvatar} contentFit="cover" contentPosition="top" />
           <View style={styles.chatNameWrap}><Text style={styles.chatName}>Becka</Text><Text style={styles.chatMeta}>Riverwalk · Juniper City</Text></View>
           <Text style={styles.chatTime}>just now</Text>
         </View>
         <Text style={styles.chatMessage}>Found a rooftop with the best sunset. You in? 🌆</Text>
       </View>
       <View style={styles.worldPreview}>
-        <Image source={worldHeroAsset('juniper-city')} style={styles.worldPreviewImage} contentFit="cover" />
+        <Image source={publicWorldAssets['juniper-city']} style={styles.worldPreviewImage} contentFit="cover" />
         <View style={styles.worldPreviewCopy}>
           <Text style={styles.worldPreviewTitle}>Juniper City</Text>
           <Text style={styles.worldPreviewMeta}>A living world</Text>
@@ -237,11 +237,11 @@ function Hero({ desktop, compact, onEnter, onMeet }: { desktop: boolean; compact
 }
 
 function SocialProof({ compact }: { compact: boolean }) {
-  const portraits = PUBLIC_COMPANIONS.slice(0, 5);
+  const portraits = PUBLIC_COMPANIONS.slice(0, compact ? 3 : 5);
   return <View style={[styles.socialProof, compact && styles.socialProofCompact]}>
     <View style={styles.avatarStack}>
       {portraits.map((companion, index) => <View key={companion.slug} style={[styles.proofAvatarFrame, index > 0 && styles.proofAvatarOverlap]}>
-        <Image source={characterAssets[companion.slug]} style={styles.proofAvatar} contentFit="cover" contentPosition="top" />
+        <Image source={publicCompanionAssets[companion.slug]} style={styles.proofAvatar} contentFit="cover" contentPosition="top" priority="low" />
       </View>)}
     </View>
     <View>
@@ -272,7 +272,7 @@ function SectionHeading({ title, subtitle, action, onAction, compact = false }: 
 
 function WorldCard({ world, desktop, tablet, onPress }: { world: PublicWorld; desktop: boolean; tablet: boolean; onPress: () => void }) {
   return <Pressable accessibilityRole="link" accessibilityLabel={`Explore ${world.name}`} onPress={onPress} style={({ pressed }) => [styles.worldCard, desktop ? styles.worldCardDesktop : tablet ? styles.worldCardTablet : styles.worldCardCompact, pressed && styles.cardPressed]}>
-    <Image source={worldHeroAsset(world.slug)} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={`${world.name} world artwork`} />
+    <Image source={publicWorldAssets[world.slug]} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={`${world.name} world artwork`} loading="lazy" priority="low" />
     <View style={styles.worldShade} />
     <View style={styles.worldCardTop}>
       <Text style={styles.worldEyebrow}>{world.eyebrow}</Text>
@@ -290,7 +290,7 @@ function WorldCard({ world, desktop, tablet, onPress }: { world: PublicWorld; de
 
 function CompanionCard({ companion, compact, onPress }: { companion: PublicCompanion; compact: boolean; onPress: () => void }) {
   return <Pressable accessibilityRole="link" accessibilityLabel={`Meet ${companion.name} from ${companion.worldName}`} onPress={onPress} style={({ pressed }) => [styles.companionCard, compact && styles.companionCardCompact, pressed && styles.cardPressed]}>
-    <Image source={characterAssets[companion.slug]} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" accessibilityLabel={`${companion.name} portrait`} />
+    <Image source={publicCompanionAssets[companion.slug]} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" accessibilityLabel={`${companion.name} portrait`} loading="lazy" priority="low" />
     <View style={styles.companionShade} />
     <View style={styles.companionWorldPill}><Text style={styles.companionWorldText}>{companion.worldName}</Text></View>
     <View style={styles.companionContent}>

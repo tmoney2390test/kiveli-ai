@@ -3,7 +3,10 @@ import type { DialogueContentMode } from '../../../packages/together-domain/src/
 type Row = Record<string, unknown>;
 
 export function normalizeDialogueContentMode(value: unknown): DialogueContentMode {
-  return value === 'romance' || value === 'mature' ? value : 'explicit';
+  // Mature is Kivelle's production ceiling. Treat old explicit/standard values
+  // and missing preferences as mature so stale clients cannot reopen the
+  // retired explicit route while existing conversations keep working.
+  return value === 'romance' ? 'romance' : 'mature';
 }
 
 export function conversationDialogueContentMode(profile: Row | null | undefined, conversation: Row | null | undefined): DialogueContentMode {
@@ -11,7 +14,7 @@ export function conversationDialogueContentMode(profile: Row | null | undefined,
   const chatPreferences = record(metadata.chatPreferences);
   const contentPreferences = record(profile?.content_preferences);
   const requestedMode=normalizeDialogueContentMode(chatPreferences.contentMode ?? contentPreferences.contentMode);
-  return !profile?.age_verified_at&&(requestedMode==='mature'||requestedMode==='explicit')?'romance':requestedMode;
+  return !profile?.age_verified_at&&requestedMode==='mature'?'romance':requestedMode;
 }
 
 function record(value: unknown): Row {

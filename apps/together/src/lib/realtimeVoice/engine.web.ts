@@ -3,7 +3,7 @@ import type { RealtimeAudioEngine } from './engine.types';
 type BrowserAudioContext=AudioContext;
 export class PlatformRealtimeAudioEngine implements RealtimeAudioEngine {
   readonly speakerControlAvailable=true;
-  private context:BrowserAudioContext|null=null;private stream:MediaStream|null=null;private processor:ScriptProcessorNode|null=null;
+  private context:BrowserAudioContext|null=null;private stream:MediaStream|null=null;private primedStream:MediaStream|null=null;private processor:ScriptProcessorNode|null=null;
   private inputSource:MediaStreamAudioSourceNode|null=null;private keepAlive:GainNode|null=null;private output:GainNode|null=null;
   private sources=new Set<AudioBufferSourceNode>();private nextOutputAt=0;private muted=false;private closing=false;
   async requestPermission():Promise<'granted'|'denied'>{
@@ -11,8 +11,9 @@ export class PlatformRealtimeAudioEngine implements RealtimeAudioEngine {
       // Create and resume the audio context while this method is still being
       // called from the user's Call-button gesture. Mobile browsers can leave
       // a context created later (after the session fetch) suspended forever.
+      if(this.primedStream?.getAudioTracks().some((track)=>track.readyState==='live'))return'granted';
       const context=this.ensureContext(),resume=context.resume();
-      const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach((track)=>track.stop());
+      this.primedStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
       await settleAudioContext(resume,context);
       return'granted';
     }catch{await this.close().catch(()=>undefined);return'denied';}
@@ -20,7 +21,7 @@ export class PlatformRealtimeAudioEngine implements RealtimeAudioEngine {
   async open(input:{sampleRate:number;onInput:(base64Pcm16:string)=>void;onError:(error:Error)=>void}){
     try{
       this.closing=false;
-      this.stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      this.stream=this.primedStream??await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});this.primedStream=null;
       this.context=this.ensureContext();await settleAudioContext(this.context.resume(),this.context);
       this.output=this.context.createGain();this.output.gain.value=1;this.output.connect(this.context.destination);
       this.inputSource=this.context.createMediaStreamSource(this.stream);this.processor=this.context.createScriptProcessor(4096,1,1);this.keepAlive=this.context.createGain();this.keepAlive.gain.value=0;
@@ -28,17 +29,19 @@ export class PlatformRealtimeAudioEngine implements RealtimeAudioEngine {
       this.inputSource.connect(this.processor);this.processor.connect(this.keepAlive);this.keepAlive.connect(this.context.destination);
     }catch(error){input.onError(error instanceof Error?error:new Error('Microphone setup failed.'));throw error;}
   }
-  async close(){
+  resetForReconnect(){return this.teardown(false);}
+  close(){return this.teardown(true);}
+  private async teardown(closeContext:boolean){
     this.closing=true;
-    const context=this.context,stream=this.stream,processor=this.processor,inputSource=this.inputSource,keepAlive=this.keepAlive,output=this.output;
+    const context=this.context,stream=this.stream,primedStream=this.primedStream,processor=this.processor,inputSource=this.inputSource,keepAlive=this.keepAlive,output=this.output;
     // Muting the gain node is synchronous, so Hang Up is silent even while the
     // browser finishes closing its AudioContext asynchronously.
     if(output)output.gain.value=0;
     if(processor)processor.onaudioprocess=null;
     for(const source of this.sources)try{source.stop();}catch{/* A source may already have ended. */}
-    this.sources.clear();this.context=null;this.stream=null;this.processor=null;this.inputSource=null;this.keepAlive=null;this.output=null;this.nextOutputAt=0;
-    processor?.disconnect();inputSource?.disconnect();keepAlive?.disconnect();output?.disconnect();stream?.getTracks().forEach((track)=>track.stop());
-    await context?.close().catch(()=>undefined);
+    this.sources.clear();if(closeContext)this.context=null;this.stream=null;this.primedStream=null;this.processor=null;this.inputSource=null;this.keepAlive=null;this.output=null;this.nextOutputAt=0;
+    processor?.disconnect();inputSource?.disconnect();keepAlive?.disconnect();output?.disconnect();stream?.getTracks().forEach((track)=>track.stop());primedStream?.getTracks().forEach((track)=>track.stop());
+    if(closeContext)await context?.close().catch(()=>undefined);
   }
   setMuted(muted:boolean){this.muted=muted;this.stream?.getAudioTracks().forEach((track)=>{track.enabled=!muted;});return Promise.resolve();}
   setSpeakerEnabled(enabled:boolean){if(this.output)this.output.gain.value=enabled?1:0;return Promise.resolve();}

@@ -33,6 +33,7 @@ export type WaveSpeedPrediction={id:string;model:string;status:WaveSpeedStatus;o
 export type WaveSpeedSubmission={provider:'wavespeed';providerRequestId:string;model:string;status:'submitted'|'completed';result?:WaveSpeedPrediction};
 export type WaveSpeedRunResult={prediction:WaveSpeedPrediction|null;providerRequestId:string;model:string;timedOut:boolean};
 export type WaveSpeedSubmitOptions={webhook?:boolean|undefined}&WaveSpeedRequestOptions;
+export type WaveSpeedQuote={amountUsd:number;currency:'USD';rawUnit?:string};
 
 export type WaveSpeedEnvelope={code?:number;message?:string;data?:{id?:string;model?:string;status?:string;outputs?:unknown;error?:unknown;created_at?:string;urls?:{get?:string};timings?:{inference?:number};has_nsfw_contents?:unknown}};
 
@@ -68,6 +69,23 @@ export class WaveSpeedClient{
     }catch(error){if(error instanceof AppError)throw error;throw new AppError('PROVIDER_TIMEOUT','The provider result could not be checked right now.',503,true);}finally{clearTimeout(timeout);}
   }
 
+  /**
+   * WaveSpeed's server-side price endpoint evaluates the exact model/input
+   * combination. Kivelle never trusts a client price or submits a paid video
+   * when the provider cannot return a finite quote.
+   */
+  async quote(model:string,input:Record<string,unknown>):Promise<WaveSpeedQuote>{
+    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20_000);
+    try{
+      const response=await fetch(`${API_BASE}/model/price`,{method:'POST',headers:{Authorization:`Bearer ${this.apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model_id:model,inputs:input}),signal:controller.signal});
+      const text=await response.text();let payload:unknown;try{payload=JSON.parse(text);}catch{payload=null;}
+      if(!response.ok)throw providerError(response.status,safeProviderError(payload));
+      const amount=findQuoteAmount(payload);
+      if(!Number.isFinite(amount)||amount<0)throw new AppError('PROVIDER_UNAVAILABLE','The video model could not be priced safely.',503,true);
+      return{amountUsd:amount,currency:'USD',rawUnit:'provider_quote'};
+    }catch(error){if(error instanceof AppError)throw error;throw new AppError('PROVIDER_TIMEOUT','The video model price could not be checked right now.',503,true);}finally{clearTimeout(timeout);}
+  }
+
   async runToCompletion(model:string,input:Record<string,unknown>,timeoutMs=30_000,options:WaveSpeedRequestOptions={}):Promise<WaveSpeedRunResult>{
     const submitted=await this.submit(model,input,{webhook:false,...options});
     if(submitted.status==='completed'&&submitted.result)return{prediction:submitted.result,providerRequestId:submitted.providerRequestId,model:submitted.model,timedOut:false};
@@ -82,6 +100,21 @@ export class WaveSpeedClient{
     }
     return{prediction:lastPrediction,providerRequestId:submitted.providerRequestId,model:lastPrediction?.model||submitted.model,timedOut:true};
   }
+}
+
+export function findQuoteAmount(payload:unknown):number{
+  const candidates:string[]=['price','amount','cost','total','total_price','estimated_cost','usd'];
+  const visit=(value:unknown,depth:number):number=>{
+    if(depth>5||value==null)return Number.NaN;
+    if(typeof value==='number')return value;
+    if(typeof value==='string'){const parsed=Number(value.replace(/[^0-9.eE+-]/g,''));return Number.isFinite(parsed)?parsed:Number.NaN;}
+    if(typeof value!=='object')return Number.NaN;
+    const record=value as Record<string,unknown>;
+    for(const key of candidates){if(key in record){const found=visit(record[key],depth+1);if(Number.isFinite(found))return found;}}
+    for(const key of ['data','result','quote','pricing']){if(key in record){const found=visit(record[key],depth+1);if(Number.isFinite(found))return found;}}
+    return Number.NaN;
+  };
+  return visit(payload,0);
 }
 
 async function parseEnvelope(response:Response):Promise<WaveSpeedEnvelope>{const text=await response.text();try{return JSON.parse(text) as WaveSpeedEnvelope;}catch{return{code:response.status,message:text.slice(0,160)}};}

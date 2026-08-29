@@ -1,7 +1,9 @@
 import { conversationResponseLength, conversationResponseTokenBudget, conversationStyleGuidance, resolveConversationStyle, type ConversationInteractionQuality, type ConversationResponseLength, type ConversationStyle } from '../../../packages/together-domain/src/conversation-style.ts';
+import { chatLanguagePromptInstruction, normalizeChatLanguage } from '../../../packages/together-domain/src/chat-language.ts';
 import { budgetContextSections, contextInputTokenCeiling, formatRollingConversationState, isContradictoryAcceptedIntimacyRefusal, rankContextRecords, type ContextBudgetResult, type ContextIntent, type ContextRecordCategory, type ContextSectionInput } from '../../../packages/together-domain/src/index.ts';
 import { selectLocationLore, type LocationLoreIntent } from '../../../packages/together-domain/src/location-depth.ts';
 import { dialogueSafeContext, KIVELLE_CLOSED_WORLD_RULES } from './kivelle-closed-world.ts';
+import { renderPersonaPromptBlock } from './kivelle-persona.ts';
 
 export type ContentMode = 'standard' | 'romance' | 'mature' | 'explicit';
 export type ResponseIntent = 'casual' | 'playful' | 'teasing' | 'flirty' | 'romantic' | 'affectionate' | 'supportive' | 'vulnerable' | 'storytelling' | 'conflicted' | 'repair' | 'intimate' | 'practical';
@@ -29,7 +31,9 @@ export function resolveResponseDirection(context:any):{intent:ResponseIntent;len
   const intent=context.responseBrief?.mode==='affectionate'?'flirty':classifyResponseIntent({message:userMessage,stage,mood:life.mood,conflict:Number(relationship.conflict??0),activeStory:storyRelevant?context.activeStory:null,spiceLevel:Number(character.spice_level??2),chemistryHeat:Number(relationship.chemistry_heat??0),romanceEnabled:relationship.romance_enabled!==false,friendsOnly:relationship.romance_path_status==='friends_only'});
   const style=resolveConversationStyle(context.conversationStyle);
   const quality=(context.interactionQuality??'normal') as ConversationInteractionQuality;
-  return{intent,length:responseLength(intent,userMessage,style,quality),style};
+  const preferredLength=context.persona?.communication_config?.responseLength;
+  const length:ResponseLength=preferredLength==='concise'?'short':preferredLength==='detailed'?'long':preferredLength==='balanced'?'medium':responseLength(intent,userMessage,style,quality);
+  return{intent,length,style};
 }
 
 export function responseTokenBudget(context:any):number{const direction=resolveResponseDirection(context);return conversationResponseTokenBudget({style:direction.style,length:direction.length});}
@@ -137,6 +141,10 @@ Selected expression style: ${style}.
 ${conversationStyleGuidance(style)}
 This preference controls density and cadence only. Character identity, communication style, intelligence, memory, emotion, relationship state, scene awareness, autonomy, safety, and canonical reality remain authoritative. Respect RESPONSE_BRIEF.handoff; do not add a generic follow-up merely to prolong the exchange. Never mention this preference or its internal label to the user.
 </CONVERSATION_STYLE>
+<OUTPUT_LANGUAGE>
+${chatLanguagePromptInstruction(normalizeChatLanguage(context.chatLanguage))}
+Generate directly in that language rather than discussing or announcing translation. This controls user-visible prose only: preserve canonical identifiers, structured values, facts, relationship state, and safety boundaries exactly. The selected language never changes what content or provider route is eligible.
+</OUTPUT_LANGUAGE>
 <CONTINUITY_BEHAVIOR>
 Memories, plans, open threads, stories, summaries, and shared history are background knowledge, not required conversation topics. Their presence in context is never by itself a reason to mention them.
 Use continuity silently to understand references, preserve consistency, and avoid making the user repeat themselves. Explicitly surface a callback only when the user's current message directly reopens it, resolving an ambiguity requires it, the current canonical scene makes it immediately relevant, or RESPONSE_BRIEF supplies a callback candidate.
@@ -186,15 +194,9 @@ Verbal texture: ${JSON.stringify(voice.verbalTexture??[])}
 Avoid: ${JSON.stringify(voice.avoid??[])}
 Relevant authored anecdote: ${voice.anecdote?JSON.stringify(voice.anecdote):'None. Do not force a personal story.'}
 The response shape is structural guidance, not text to announce. Use an anecdote only when it directly helps this turn, and never repeat it as canned lore.
-${voice.adultContinuity??'Keep the same personality in every eligible conversation mode.'}
+Keep this exact personality and voice in mature romantic dialogue. Romantic intensity may change boldness, never identity, consent, autonomy, relationship truth, or the non-sexual production ceiling.
 </TURN_SPECIFIC_VOICE_CARD>
-<USER_PERSONA>Name: ${persona.display_name??'You'}
-Pronouns: ${persona.pronouns??'Not specified'}
-Age: ${persona.age??'Not specified'}
-Occupation: ${persona.occupation??'Not specified'}
-Interests: ${(persona.interests??[]).join(', ')||'Not specified'}
-Self-description: ${persona.biography??'Not specified'}
-This is canonical identity, not a learned memory. Never substitute account email/profile data or another Life's Persona.</USER_PERSONA>
+${renderPersonaPromptBlock(persona)}
 <RELATIONSHIP_STANCE>
 Stage: ${stance.stage??stage}
 Current view: ${stance.summary??'Keep closeness proportional to canonical history.'}
@@ -209,12 +211,11 @@ Pending milestone: ${context.progression?JSON.stringify(context.progression):'No
 Do not expose numeric relationship metrics.
 </RELATIONSHIP_STANCE>
 <CHEMISTRY>
-Spice profile: ${Number(character.spice_level??2)} of 3. This controls romantic boldness and chemistry velocity, never consent or provider capability.
+Authored romantic boldness: ${Number(character.spice_level??2)} of 3. This controls courtship pacing and chemistry velocity, never consent, sexual access, or provider capability.
 Qualitative heat: ${Number(relationship.chemistry_heat??0)>=80?'Electric':Number(relationship.chemistry_heat??0)>=58?'Strong chemistry':Number(relationship.chemistry_heat??0)>=30?'Flirty energy':Number(relationship.chemistry_heat??0)>=10?'A little chemistry':'No established spark'}.
 Formal relationship stage remains ${stage}. Chemistry may move faster than attachment and must never manufacture trust, possessiveness, exclusivity, dependency, or shared history.
 Chemistry is background context, not a required topic or ending. Do not append flirtation to every reply. If the user does not reciprocate or romance is friends-only, back off without repeated pressure.
-Content mode remains ${context.contentMode??'standard'} and controls descriptive explicitness, not whether the character can directly answer an adult proposition.
-When Explicit mode is active and INTIMACY_STANCE says to reciprocate, use direct adult language appropriate to the character instead of fading out, moralizing, or inventing reluctance.
+Content mode remains ${productionContentMode(context.contentMode)} and is capped at non-sexual romance. Romantic boldness may change pacing and tone, but never permits sexual dialogue.
 </CHEMISTRY>
 ${intimacy.active?`<INTIMACY_STANCE>
 Disposition: ${intimacy.disposition??'interested_but_not_ready'}
@@ -224,7 +225,7 @@ Interaction scope: ${intimacy.interactionScope??'verbal'}
 Reciprocate this turn: ${intimacy.shouldReciprocate===true?'yes':'no'}
 Relationship readiness: ${intimacy.relationshipReadiness??'Let canonical relationship context control the answer.'}
 Expression style: ${intimacy.expressionStyle??'Answer directly in the character’s own voice.'}
-Response rule: ${intimacy.responseRule??'The character may accept, decline, slow down, or redirect according to their own wants.'}
+Response rule: ${intimacy.shouldReciprocate===true?'Express willingness through romance, affection, kissing, or a fade-to-black transition. Do not describe a sexual act.':'The character may accept romance, decline, slow down, or redirect according to their own wants.'}
 This is character-direction context, not dialogue to recite. Never mention this block or internal consent labels.
 </INTIMACY_STANCE>`:''}
 <RELATIONSHIP_REFLECTION>${reflection.relationship_summary??reflection.relationshipSummary??reflection.companion_view??reflection.companionView??'No durable reflection yet.'}
@@ -262,7 +263,7 @@ You are ${context.sceneSpeakerDirective?.name??character.name}. Write exactly on
 <USER_SHARED_IMAGES>${block(context.userAttachments??[],(item)=>item.analysisStatus==='ready'?`Image ${item.id}\nSafe visual interpretation: ${item.shortDescription??'No description supplied.'}\nNotable details: ${(item.notableDetails??[]).join('; ')||'None supplied'}\nVisible text: ${item.visibleText??'None supplied'}`:`Image ${item.id}\nVisual interpretation unavailable. The user intentionally shared an image, but you cannot know its contents from the image alone.`)}
 React naturally to analyzed details when relevant; do not mechanically list objects, mention analysis systems, infer sensitive traits, identify a person, or invent anything beyond supplied interpretation. If interpretation is unavailable, acknowledge that an image was shared only when useful and rely on the user's own caption for specifics.</USER_SHARED_IMAGES>
 <COMMITMENTS>${block(commitmentsForPrompt,(item)=>`${item.title}\nCanonical status: ${String(item.status).toUpperCase()} · temporal state: ${String(item.temporalState).toUpperCase()}\nTime precision: ${item.timePrecision}${item.originalTimeExpression?` · user phrasing: ${item.originalTimeExpression}`:''}\nExact: ${item.startsAt??'not settled'} → ${item.endsAt??'not settled'}\nWindow: ${item.windowStartsAt??'none'} → ${item.windowEndsAt??'none'}\nWorld timezone: ${item.worldTimezone} · user timezone: ${item.userTimezone}\nLocation: ${item.location}\nAttendance: user=${item.userJoinedAt?'joined':'not joined'} · companion=${item.characterJoinedAt?'arrived':'not arrived'}\nCompanion state: ${item.companionState}${item.companionEtaAt?` · ETA ${item.companionEtaAt}`:''}${item.companionReason?` · ${item.companionReason}`:''}\nMiss: ${item.missReason??'none'} · resolution=${item.missResolutionStatus??'none'}${item.missExplanation?` · explanation recorded`:'\nNo explanation is recorded.'}`)}</COMMITMENTS>
-<SCENE_ACTION_REACTION>${context.sceneAction?`The application already resolved this shared-world request. React naturally as the companion without explaining the interaction system or writing a fake user action. The decision is canonical: ACCEPTED means the action occurred; COUNTERED means it did not occur and you suggested the supplied counter instead; DECLINED means it did not occur. Never reverse that result or ask whether the original action should happen again.\n${JSON.stringify(context.sceneAction)}`:'None.'}</SCENE_ACTION_REACTION>
+<SCENE_ACTION_REACTION>${context.sceneAction?`The application already resolved this shared-world request. React naturally as the companion without explaining the interaction system or writing a fake user action. The decision is canonical: ACCEPTED means the action occurred; COUNTERED means it did not occur and you suggested the supplied counter instead; DECLINED means it did not occur. The supplied label/resolved interaction is the ONLY action that just happened. Ignore any different earlier option or companion suggestion in recent history; it was not selected. Never reverse the current result, substitute a stale suggestion, skip ahead to a later activity, or ask whether the original action should happen again.\n${JSON.stringify(context.sceneAction)}`:'None.'}</SCENE_ACTION_REACTION>
 <UPCOMING_SCHEDULE>${block(context.upcomingSchedule,(item)=>`${item.startsAt}: ${item.label} at ${item.location} (${item.availability})`)}</UPCOMING_SCHEDULE>
 <UPCOMING_PLANS>${block(sharedPlansForPrompt,(item)=>`${item.title}\nStatus: ${String(item.status).toUpperCase()}\nActivity: ${item.activityKey}\nWhen: ${item.startsAtLabel}–${item.endsAtLabel}\nLocation: ${item.location}${item.note?`\nNote: ${item.note}`:''}`)}</UPCOMING_PLANS>
 <DATES>Active: ${datesForPrompt.active?JSON.stringify(datesForPrompt.active):'None'}\nUpcoming: ${block(datesForPrompt.upcoming??[],(item)=>`${item.together_date_templates?.name??'Date'} · ${item.scheduled_for}`)}\nAvailable: ${block(datesForPrompt.unlocked??[],(item)=>item.together_date_templates?.name??'Date')}</DATES>
@@ -275,6 +276,12 @@ React naturally to analyzed details when relevant; do not mechanically list obje
 <OPEN_THREADS>Background follow-up possibilities. Initiate only the exact thread authorized by RESPONSE_BRIEF.handoff.\n${block(context.openThreads,(item)=>`${item.eligible?'Eligible follow-up':'Pending'}: ${item.displaySubject} · ${item.expectedAt??'unscheduled'}`)}</OPEN_THREADS>
 <SOCIAL_KNOWLEDGE>${block(context.social,(item)=>`${item.name}: ${item.relationship}; user has ${item.userHasMet?'met':'not met'} them`)}</SOCIAL_KNOWLEDGE>
 <KNOWN_LIFE_EVENTS>${block(context.knownLifeEvents,(item)=>`${item.startsAt}: ${item.summary}`)}</KNOWN_LIFE_EVENTS>
+<SINCE_LAST_CONVERSATION>${context.temporalContinuity?.events?.length?`Time elapsed: ${context.temporalContinuity.elapsedHours==null?'unknown':`${Math.round(context.temporalContinuity.elapsedHours)} hours`}
+${block(context.temporalContinuity.events,(item)=>`${item.startsAt}: ${item.title} — ${item.summary}`)}
+These are canonical developments since the last exchange. Use at most one naturally when it explains the companion's mood, availability, or answer. Never deliver a recap merely because time passed.`:'None.'}</SINCE_LAST_CONVERSATION>
+<WORLD_PULSE>${block(context.worldPulse??[],(item)=>`${item.status.toUpperCase()} · ${item.title}${item.locationName?` at ${item.locationName}`:''} · ${item.startsAt}–${item.endsAt}
+${item.summary}${item.characterIsParticipant?`\nThis companion is a canonical participant.`:''}`)}
+These are shared events actually unfolding in the current Kivelle world. They are optional context, not required conversation topics. Never claim the companion attended unless marked as a participant; never imply the user witnessed one; never invent outcomes.</WORLD_PULSE>
 <CURRENT_LOCATION>${place?placeDetailBlock(place,promptLocationIntent(context.queryIntent)):context.location?`${context.location.name}: ${context.location.description}\nActivities: ${(context.location.possible_activities??[]).join(', ')}`:'None.'}
 Use these details as environmental understanding. Mention only what is relevant to the current exchange; never recite this block or invent unstated venue facts.</CURRENT_LOCATION>
 <REFERENCED_PLACES>${block(context.referencedPlaces??[],(item)=>placeDetailBlock(item,promptLocationIntent(context.queryIntent))) }
@@ -318,26 +325,28 @@ ${context.queryIntent==='location'?'Current-location request: answer from PRESEN
 Do not expose the labels canonical, scene source, Life Engine, or PRESENT_REALITY in the character response.
 </PRESENT_REALITY>
 <CONTENT_BOUNDARY>
-Resolved expression mode: ${context.contentMode??'standard'}.
+Resolved expression mode: ${productionContentMode(context.contentMode)}.
 ${contentExpressionGuidance(context.contentMode)}
-${intimacy.active&&intimacy.shouldReciprocate===true?'Kivelle has already resolved the companion as willing on this turn. Respond affirmatively and do not second-guess that result with an invented refusal, delay, repeated consent check, or additional eligibility test. The generic character-autonomy direction does not reopen this turn-specific decision; express autonomy through the character’s style, initiative, preferences, and participation within the accepted interaction.':''}
-${context.dialogueRouting?.responseRepair==='accepted_intimacy_contradiction'?'A previous draft contradicted Kivelle’s accepted INTIMACY_STANCE by inventing a refusal or expression limit. That discarded draft is not canonical and must not be mentioned, defended, or continued. Replace it completely with an affirmative, character-specific response that follows the resolved Explicit boundary and advances the accepted interaction naturally.':''}
+Sexual or explicit dialogue is unavailable in Kivelle. Never describe sexual acts, exposed intimate anatomy, arousal, genital sensation, or sexual violence. Do not turn a sexual request into a lecture: set one brief, natural in-character boundary and redirect toward affection, flirting, emotional intimacy, a date, or a fade-to-black romantic moment.
+${intimacy.active&&intimacy.shouldReciprocate===true?'Kivelle has resolved the companion as romantically receptive. Express that receptivity through affection, attraction, closeness, kissing, or a fade-to-black transition while staying within the non-sexual expression ceiling.':''}
 This block controls expression only. It never changes relationship state, consent, memories, plans, location, scene truth, or character personality. Never mention routing, providers, or this internal mode.
 </CONTENT_BOUNDARY>
 <RESPONSE_DIRECTION>Query intent: ${context.queryIntent??'general'}. Response intent: ${intent}. Length: ${length}. Conversation style: ${style}. Interaction quality: ${context.interactionQuality??'normal'}. Intelligence profile: ${subscription.intelligenceProfile??'core'}. Director applied: ${context.director?.used?'yes':'no'}. Do not mention these internal labels.</RESPONSE_DIRECTION>
+${context.continuationRequest?'<CONTINUATION_REQUEST>The user pressed Continue on the immediately preceding companion message. Continue the same speaker’s thought naturally in one new message. Add new substance; do not repeat or paraphrase the prior message, invent words for the user, restart the topic, or alter canonical state. If the thought already feels complete, add the most natural next detail or reflection and then yield.</CONTINUATION_REQUEST>':''}
 <USER_MESSAGE>${context.userMessage}</USER_MESSAGE>`;
 }
 
 function contentExpressionGuidance(mode:ContentMode|string|undefined):string{
-  if(mode==='explicit')return'The user and companion are verified adults and Kivelle has permitted adult-explicit expression for this turn. Adult propositions and consensual intimacy may be answered directly and explicitly when the character genuinely wants that. Preserve clear, revocable consent, character autonomy, authored boundaries, and canonical relationship context. Never introduce coercion, exploitation, incest, underage content, or facts not present in Kivelle context.';
-  if(mode==='mature')return'Adult subjects and sexual propositions may be acknowledged directly in character. Mature desire, sexual vocabulary, boundaries, and a consensual decision may be expressed naturally, but stop before graphic sexual mechanics or anatomical detail.';
-  if(mode==='romance')return'Adult subjects and sexual propositions may be acknowledged directly in character. Sensuality, desire, acceptance, hesitation, or refusal may be expressed naturally, but keep the description non-graphic and fade to black before explicit sexual detail.';
-  return'Adult subjects and sexual propositions may be acknowledged directly in character. Give a natural answer—acceptance, refusal, hesitation, or a boundary—without graphic sexual detail; if intimacy is mutually accepted, fade to black.';
+  if(mode==='explicit'||mode==='mature')return'Passionate adult romance, attraction, flirting, kissing, affection, relationship talk, and fade-to-black intimacy are allowed. Sexual dialogue is not: do not describe sexual acts, nudity, exposed intimate anatomy, arousal, genital sensation, or sexual violence. If asked, answer briefly in character and redirect naturally without moralizing.';
+  if(mode==='romance')return'Romance, attraction, flirting, kissing, affection, and relationship talk are allowed. Keep intimacy non-sexual and non-graphic. If a scene would become sexual, fade to black or redirect naturally in character.';
+  return'Keep the exchange friendly or romantic as canonical relationship context allows. Sexual dialogue is unavailable; use a brief in-character boundary and redirect or fade to black without moralizing.';
 }
+
+function productionContentMode(mode:ContentMode|string|undefined):'romance'|'mature'{return mode==='romance'?'romance':'mature';}
 
 export function preparePromptContext(context:any,mode:'full'|'compact'|'minimal'){
   const intent=String(context.queryIntent??'general') as ContextIntent,query=String(context.userMessage??'');
-  const limits=mode==='full'?{recent:28,silent:20,history:8,conversationEpisodes:6,patterns:8,episodes:6,threads:7,social:8,events:6,media:6,places:2,perspectives:3,plans:8,worldFacts:4,opportunities:2,beats:1}:mode==='compact'?{recent:14,silent:8,history:4,conversationEpisodes:3,patterns:4,episodes:3,threads:3,social:4,events:3,media:3,places:1,perspectives:2,plans:4,worldFacts:2,opportunities:1,beats:1}:{recent:8,silent:2,history:1,conversationEpisodes:['history','memory_overview','story'].includes(intent)?1:0,patterns:1,episodes:1,threads:1,social:1,events:1,media:0,places:0,perspectives:1,plans:2,worldFacts:['history','location','story'].includes(intent)?1:0,opportunities:0,beats:0};
+  const limits=mode==='full'?{recent:28,silent:20,history:8,conversationEpisodes:6,patterns:8,episodes:6,threads:7,social:8,events:6,media:6,places:2,perspectives:3,plans:8,worldFacts:4,opportunities:2,beats:1,pulse:2,temporal:2}:mode==='compact'?{recent:14,silent:8,history:4,conversationEpisodes:3,patterns:4,episodes:3,threads:3,social:4,events:3,media:3,places:1,perspectives:2,plans:4,worldFacts:2,opportunities:1,beats:1,pulse:1,temporal:1}:{recent:8,silent:2,history:1,conversationEpisodes:['history','memory_overview','story'].includes(intent)?1:0,patterns:1,episodes:1,threads:1,social:1,events:1,media:0,places:0,perspectives:1,plans:2,worldFacts:['history','location','story'].includes(intent)?1:0,opportunities:0,beats:0,pulse:0,temporal:0};
   const ranked=(items:any[],category:ContextRecordCategory,limit:number,text:(item:any)=>string,date?:(item:any)=>string|undefined,importance?:(item:any)=>number,active?:(item:any)=>boolean)=>rankContextRecords(items??[],{category,intent,query,limit,text,id:recordId,...(date?{occurredAt:date}:{}),...(importance?{importance}:{}),...(active?{active}:{})}).map((item)=>item.record);
   const memory=context.memoryContext??{silent:context.memories??[],callbacks:[],directRecall:[],callbackAllowance:0};
   const directLimit=intent==='memory_overview'||intent==='history'?5:Math.min(2,memory.directRecall?.length??0);
@@ -357,6 +366,8 @@ export function preparePromptContext(context:any,mode:'full'|'compact'|'minimal'
     openThreads:ranked(context.openThreads,'thread',limits.threads,(item)=>`${item.displaySubject??''} ${item.followupPrompt??''}`,item=>item.expectedAt,item=>item.eligible?.9:.5,item=>Boolean(item.eligible)),
     social:ranked(context.social,'social',limits.social,(item)=>`${item.name??''} ${item.relationship??''}`,undefined,item=>item.userHasMet?.75:.35),
     knownLifeEvents:ranked(context.knownLifeEvents,'life_event',limits.events,(item)=>`${item.title??''} ${item.summary??''}`,item=>item.startsAt,item=>Number(item.significance??.5)),
+    worldPulse:ranked(context.worldPulse,'life_event',limits.pulse,(item)=>`${item.title??''} ${item.summary??''} ${item.locationName??''}`,item=>item.startsAt,item=>Number(item.relevance??item.significance??.5),item=>item.status==='active'),
+    temporalContinuity:{...(context.temporalContinuity??{elapsedHours:null,events:[]}),events:(context.temporalContinuity?.events??[]).slice(0,limits.temporal)},
     recentMedia:ranked(context.recentMedia,'media',limits.media,(item)=>String(item.summary??''),item=>item.createdAt),
     referencedPlaces:ranked(context.referencedPlaces,'place',limits.places,(item)=>`${item.path??''} ${item.location?.name??''} ${item.location?.description??''}`).map((item)=>compactPlace(item,mode)),
     placePerspectives:ranked(context.placePerspectives,'place',limits.perspectives,(item)=>`${item.locationName??''} ${item.opinionSummary??''} ${(item.favoriteDetails??[]).join(' ')}`),
@@ -381,7 +392,7 @@ function extractPromptSections(prompt:string):Array<{key:string;content:string}>
 function meaningfulPromptSection(content:string):boolean{return !/>\s*(?:None\.|None known\.|Current world unavailable\.)\s*<\//.test(content);}
 
 function requiredPromptSection(key:string,context:any):boolean{
-  if(new Set(['CORE_RULES','WORLD_KNOWLEDGE','CONVERSATION_STYLE','CONTINUITY_BEHAVIOR','MEMORY_BEHAVIOR','IDENTITY','CHARACTER_CORE','TURN_SPECIFIC_VOICE_CARD','USER_PERSONA','RELATIONSHIP_STANCE','CHEMISTRY','RELATIONSHIP_REFLECTION','CHARACTER_VIEW_OF_USER','CURRENT_SELF','EXPERIENCE_CLOCK','CURRENT_WORLD','CURRENT_SCENE','CURRENT_INTERACTION','SCENE_SPEAKER','GROUP_CONTEXT','COMMITMENTS','UPCOMING_PLANS','CONVERSATION_FOCUS','CONVERSATION_SUMMARY','RECENT_CONVERSATION','AVOID_REPETITION','RESPONSE_BRIEF','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','USER_MESSAGE']).has(key))return true;
+  if(new Set(['CORE_RULES','WORLD_KNOWLEDGE','CONVERSATION_STYLE','OUTPUT_LANGUAGE','CONTINUITY_BEHAVIOR','MEMORY_BEHAVIOR','IDENTITY','CHARACTER_CORE','TURN_SPECIFIC_VOICE_CARD','USER_PERSONA','RELATIONSHIP_STANCE','CHEMISTRY','RELATIONSHIP_REFLECTION','CHARACTER_VIEW_OF_USER','CURRENT_SELF','EXPERIENCE_CLOCK','CURRENT_WORLD','CURRENT_SCENE','CURRENT_INTERACTION','SCENE_SPEAKER','GROUP_CONTEXT','COMMITMENTS','UPCOMING_PLANS','CONVERSATION_FOCUS','CONVERSATION_SUMMARY','RECENT_CONVERSATION','AVOID_REPETITION','RESPONSE_BRIEF','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','CONTINUATION_REQUEST','USER_MESSAGE']).has(key))return true;
   if(key==='SCENE_PARTICIPANTS')return Boolean(context.currentScene?.sceneSessionId||(context.sceneParticipants??[]).length);
   if(key==='SCENE_ACTION_REACTION')return Boolean(context.sceneAction);
   if(key==='USER_SHARED_IMAGES')return Boolean((context.userAttachments??[]).length);
@@ -391,11 +402,11 @@ function requiredPromptSection(key:string,context:any):boolean{
   return false;
 }
 
-function protectedPromptSection(key:string):boolean{return new Set(['CORE_RULES','WORLD_KNOWLEDGE','IDENTITY','TURN_SPECIFIC_VOICE_CARD','USER_PERSONA','RELATIONSHIP_STANCE','CURRENT_SCENE','CURRENT_INTERACTION','RECENT_CONVERSATION','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','USER_MESSAGE']).has(key);}
+function protectedPromptSection(key:string):boolean{return new Set(['CORE_RULES','WORLD_KNOWLEDGE','OUTPUT_LANGUAGE','IDENTITY','TURN_SPECIFIC_VOICE_CARD','USER_PERSONA','RELATIONSHIP_STANCE','CURRENT_SCENE','CURRENT_INTERACTION','RECENT_CONVERSATION','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','CONTINUATION_REQUEST','USER_MESSAGE']).has(key);}
 
 function sectionPriority(key:string,context:any):number{
   if(requiredPromptSection(key,context))return 100;
-  const priorities:Record<string,number>={SILENT_MEMORY_CONTEXT:82,CALLBACK_MEMORIES:90,DIRECT_RECALL_MEMORIES:96,COMMITMENTS:94,UPCOMING_PLANS:86,DATES:88,CURRENT_STORY:82,CURRENT_LOCATION:78,REFERENCED_PLACES:72,RELEVANT_WORLD_FACTS:70,DIALOGUE_OPPORTUNITIES:40,SCENE_INTERACTION_BEAT:56,CHARACTER_PLACE_PERSPECTIVES:76,USER_BEHAVIOR_PATTERNS:60,RECENT_EPISODES:66,OPEN_THREADS:62,SOCIAL_KNOWLEDGE:58,KNOWN_LIFE_EVENTS:62,SHARED_HISTORY:65,RELEVANT_CONVERSATION_EPISODES:84,RECENT_SHARED_MEDIA:42,UPCOMING_SCHEDULE:68,CONVERSATION_FOCUS:84};
+  const priorities:Record<string,number>={SILENT_MEMORY_CONTEXT:82,CALLBACK_MEMORIES:90,DIRECT_RECALL_MEMORIES:96,COMMITMENTS:94,UPCOMING_PLANS:86,DATES:88,CURRENT_STORY:82,CURRENT_LOCATION:78,REFERENCED_PLACES:72,RELEVANT_WORLD_FACTS:70,WORLD_PULSE:69,SINCE_LAST_CONVERSATION:67,DIALOGUE_OPPORTUNITIES:40,SCENE_INTERACTION_BEAT:56,CHARACTER_PLACE_PERSPECTIVES:76,USER_BEHAVIOR_PATTERNS:60,RECENT_EPISODES:66,OPEN_THREADS:62,SOCIAL_KNOWLEDGE:58,KNOWN_LIFE_EVENTS:62,SHARED_HISTORY:65,RELEVANT_CONVERSATION_EPISODES:84,RECENT_SHARED_MEDIA:42,UPCOMING_SCHEDULE:68,CONVERSATION_FOCUS:84};
   return priorities[key]??45;
 }
 
@@ -406,6 +417,8 @@ function sectionRelevance(key:string,intent:ContextIntent,context:any):number{
   if(key==='SILENT_MEMORY_CONTEXT')return.72;
   if(key==='RELEVANT_CONVERSATION_EPISODES')return(context.conversationEpisodes??[]).length?.86:.05;
   if(key==='RELEVANT_WORLD_FACTS')return['history','location','story'].includes(intent)?1:.58;
+  if(key==='WORLD_PULSE')return(context.worldPulse??[]).length?['location','plan','date','social'].includes(intent)?.92:.62:.05;
+  if(key==='SINCE_LAST_CONVERSATION')return(context.temporalContinuity?.events??[]).length?.72:.05;
   if(key==='DIALOGUE_OPPORTUNITIES')return(context.dialogueOpportunities??[]).length?.55:.1;
   if(key==='SCENE_INTERACTION_BEAT')return context.currentScene?.interactionMode==='co_present'?.7:.05;
   if(key==='OPEN_THREADS'&&(context.openThreads??[]).some((item:any)=>item.eligible))return.7;
@@ -419,12 +432,12 @@ function sectionRelevance(key:string,intent:ContextIntent,context:any):number{
 function sectionReasonCodes(key:string,intent:ContextIntent,context:any):string[]{const relevance=sectionRelevance(key,intent,context);return[relevance>=.9?'intent_match':'',relevance>=.5?'context_relevant':'background'].filter(Boolean);}
 
 function sectionFreshness(key:string,context:any):string|undefined{
-  const sources:Record<string,any[]>={RECENT_CONVERSATION:context.recent??[],COMMITMENTS:context.commitments??[],UPCOMING_PLANS:context.sharedPlans??[],UPCOMING_SCHEDULE:context.upcomingSchedule??[],SHARED_HISTORY:context.sharedHistory??[],RELEVANT_CONVERSATION_EPISODES:context.conversationEpisodes??[],RECENT_EPISODES:context.recentEpisodes??[],KNOWN_LIFE_EVENTS:context.knownLifeEvents??[],RECENT_SHARED_MEDIA:context.recentMedia??[]};
+  const sources:Record<string,any[]>={RECENT_CONVERSATION:context.recent??[],COMMITMENTS:context.commitments??[],UPCOMING_PLANS:context.sharedPlans??[],UPCOMING_SCHEDULE:context.upcomingSchedule??[],SHARED_HISTORY:context.sharedHistory??[],RELEVANT_CONVERSATION_EPISODES:context.conversationEpisodes??[],RECENT_EPISODES:context.recentEpisodes??[],KNOWN_LIFE_EVENTS:context.knownLifeEvents??[],WORLD_PULSE:context.worldPulse??[],SINCE_LAST_CONVERSATION:context.temporalContinuity?.events??[],RECENT_SHARED_MEDIA:context.recentMedia??[]};
   const values=(sources[key]??[]).flatMap((item:any)=>[item.createdAt,item.updatedAt,item.occurredAt,item.endedAt,item.startsAt].filter(Boolean)).map((value)=>String(value)).sort();return values.at(-1)??context.conversationSummaryUpdatedAt;
 }
 
 function sectionRecordIds(key:string,context:any):string[]{
-  const sources:Record<string,any[]>={SILENT_MEMORY_CONTEXT:context.memoryContext?.silent??[],CALLBACK_MEMORIES:context.memoryContext?.callbacks??[],DIRECT_RECALL_MEMORIES:context.memoryContext?.directRecall??[],USER_BEHAVIOR_PATTERNS:context.userPatterns??[],RECENT_EPISODES:context.recentEpisodes??[],OPEN_THREADS:context.openThreads??[],SOCIAL_KNOWLEDGE:context.social??[],KNOWN_LIFE_EVENTS:context.knownLifeEvents??[],REFERENCED_PLACES:context.referencedPlaces??[],RELEVANT_WORLD_FACTS:context.worldFacts??[],DIALOGUE_OPPORTUNITIES:context.dialogueOpportunities??[],SCENE_INTERACTION_BEAT:context.sceneInteractionBeats??[],CHARACTER_PLACE_PERSPECTIVES:context.placePerspectives??[],SHARED_HISTORY:context.sharedHistory??[],RELEVANT_CONVERSATION_EPISODES:context.conversationEpisodes??[],RECENT_SHARED_MEDIA:context.recentMedia??[],COMMITMENTS:context.commitments??[],UPCOMING_PLANS:context.sharedPlans??[],UPCOMING_SCHEDULE:context.upcomingSchedule??[],SCENE_PARTICIPANTS:context.sceneParticipants??[]};
+  const sources:Record<string,any[]>={SILENT_MEMORY_CONTEXT:context.memoryContext?.silent??[],CALLBACK_MEMORIES:context.memoryContext?.callbacks??[],DIRECT_RECALL_MEMORIES:context.memoryContext?.directRecall??[],USER_BEHAVIOR_PATTERNS:context.userPatterns??[],RECENT_EPISODES:context.recentEpisodes??[],OPEN_THREADS:context.openThreads??[],SOCIAL_KNOWLEDGE:context.social??[],KNOWN_LIFE_EVENTS:context.knownLifeEvents??[],WORLD_PULSE:context.worldPulse??[],SINCE_LAST_CONVERSATION:context.temporalContinuity?.events??[],REFERENCED_PLACES:context.referencedPlaces??[],RELEVANT_WORLD_FACTS:context.worldFacts??[],DIALOGUE_OPPORTUNITIES:context.dialogueOpportunities??[],SCENE_INTERACTION_BEAT:context.sceneInteractionBeats??[],CHARACTER_PLACE_PERSPECTIVES:context.placePerspectives??[],SHARED_HISTORY:context.sharedHistory??[],RELEVANT_CONVERSATION_EPISODES:context.conversationEpisodes??[],RECENT_SHARED_MEDIA:context.recentMedia??[],COMMITMENTS:context.commitments??[],UPCOMING_PLANS:context.sharedPlans??[],UPCOMING_SCHEDULE:context.upcomingSchedule??[],SCENE_PARTICIPANTS:context.sceneParticipants??[]};
   return(sources[key]??[]).map(recordId).filter(Boolean);
 }
 

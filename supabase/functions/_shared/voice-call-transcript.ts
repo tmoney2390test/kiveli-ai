@@ -5,6 +5,7 @@ import {
   detectFlirtSignal,
   evolveCharacterUserView,
   isDurableUserMemory,
+  normalizeChatLanguage,
   normalizeRealtimeTranscriptEvents,
   type RealtimeTranscriptEvent,
   type RelationshipState,
@@ -155,6 +156,7 @@ export async function finalizeVoiceCallTranscript(input: {
           0,
           Number(input.call.connected_duration_ms ?? 0),
         ),
+        chatLanguage: normalizeChatLanguage(record(input.call.metadata)['chatLanguage']),
       };
       const row: Record<string, unknown> = {
         conversation_id: input.call.conversation_id,

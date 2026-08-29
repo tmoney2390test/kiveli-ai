@@ -18,7 +18,7 @@ import { userExperienceTimezone } from '../../src/lib/experienceTimezone';
 import { placeHoursStatus } from '../../src/lib/placeHours';
 
 export default function LocationDetail() {
-  const { slug, world: worldSlug, character: characterKey, group } = useLocalSearchParams<{slug:string;world?:string;character?:string;planning?:string;group?:string}>();
+  const { slug, world: worldSlug, character: characterKey, group, switchPlanId } = useLocalSearchParams<{slug:string;world?:string;character?:string;planning?:string;group?:string;switchPlanId?:string}>();
   const snapshot = useTogether((state) => state.snapshot);
   const upsertConversation = useTogether((state) => state.upsertConversation);
   const [placeDetail,setPlaceDetail]=useState<PlaceContext|null>(null);
@@ -69,13 +69,14 @@ export default function LocationDetail() {
   const chooseLocalCompanion=()=>router.push(`/(tabs)/singles?world=${encodeURIComponent(locationWorld?.slug??'')}` as never);
   const choosePlanningCompanion=(character:typeof snapshot.characters[number])=>{const routeKey=character.together_character_templates.public_handle??character.together_character_templates.slug??character.id;router.setParams({character:routeKey,planning:'1'});};
   const planHere=(activity?:string,draft?:string)=>{
-    if(planningGroup){router.push(`/group-chat?id=${planningGroup.id}&plan=1&location=${encodeURIComponent(location.slug)}${activity?`&activity=${encodeURIComponent(activity)}`:''}` as never);return;}
+    const switchQuery=switchPlanId?`&switchPlanId=${encodeURIComponent(switchPlanId)}`:'';
+    if(planningGroup){router.push(`/group-chat?id=${planningGroup.id}&plan=1&location=${encodeURIComponent(location.slug)}${activity?`&activity=${encodeURIComponent(activity)}`:''}${switchQuery}` as never);return;}
     if(!active){chooseLocalCompanion();return;}
     const routeKey=active.together_character_templates.public_handle??active.together_character_templates.slug??active.id;
-    const href=chatHrefFromInboxParams({character:routeKey,plan:'1',location:location.slug,world:locationWorld?.slug,activity,draft});
+    const href=chatHrefFromInboxParams({character:routeKey,plan:'1',location:location.slug,world:locationWorld?.slug,activity,draft,switchPlanId});
     if(href)router.push(href as never);
   };
-  const nearbyHref=(placeSlug:string)=>`/location/${placeSlug}?world=${encodeURIComponent(locationWorld?.slug??'')}${characterKey&&active?`&character=${encodeURIComponent(active.id)}&planning=1`:''}${planningGroup?`&group=${encodeURIComponent(planningGroup.id)}`:''}`;
+  const nearbyHref=(placeSlug:string)=>`/location/${placeSlug}?world=${encodeURIComponent(locationWorld?.slug??'')}${characterKey&&active?`&character=${encodeURIComponent(active.id)}&planning=1`:''}${planningGroup?`&group=${encodeURIComponent(planningGroup.id)}`:''}${switchPlanId?`&switchPlanId=${encodeURIComponent(switchPlanId)}`:''}`;
   const join = async (person:typeof people[number]['person'],includeOthers=false) => {
     const event = currentScheduleEvent(snapshot.scheduleEvents, person.id, now, person.current_schedule_event_id);
     const interruptibility = event?.interruptibility ?? person.current_interruptibility ?? 'open';

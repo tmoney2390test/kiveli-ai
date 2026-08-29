@@ -4,7 +4,6 @@ import { router } from 'expo-router';
 import { Check, ChevronDown, Plus, X } from 'lucide-react-native';
 import { CharacterAvatar } from './ui';
 import { FrostedBackdrop, FrostedSurface } from './FrostedGlass';
-import { SpiceBadge } from './SpiceBadge';
 import { colors, radius, spacing } from '../theme';
 import { setActiveCompanion } from '../lib/api';
 import { useTogether } from '../store/useTogether';
@@ -61,7 +60,7 @@ export function CompanionSwitcher({ active, variant = 'default' }: { active: Cha
             <Pressable onPress={() => setOpen(false)} style={styles.close}><X size={20} color={colors.text} /></Pressable>
           </View>
           {companions.map((item) => <Pressable key={item.id} disabled={Boolean(busy)} onPress={() => void choose(item)} style={styles.row}>
-            <View style={styles.avatar}><CharacterAvatar slug={item.together_character_templates.slug} name={item.together_character_templates.name} size={50} /><SpiceBadge level={item.together_character_templates.spice_level} overlay compact /></View>
+            <View style={styles.avatar}><CharacterAvatar slug={item.together_character_templates.slug} name={item.together_character_templates.name} size={50} /></View>
             <View style={{ flex: 1 }}><Text style={styles.rowName}>{item.together_character_templates.name}</Text><Text style={styles.meta}>{busy === item.id ? 'Switching…' : item.current_activity}</Text></View>
             {item.id === active.id ? <Check color={colors.rose} /> : null}
           </Pressable>)}

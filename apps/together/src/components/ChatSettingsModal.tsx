@@ -1,45 +1,36 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { AlignLeft, Brain, Check, ChevronDown, ChevronRight, Flame, History, LockKeyhole, MessageCircle, Pause, Play, RotateCcw, Settings, Type, Volume2, X } from 'lucide-react-native';
+import { AlignLeft, Check, ChevronDown, ChevronRight, Languages, MessageCircle, Pause, Play, Settings, Type, Volume2, X } from 'lucide-react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { router } from 'expo-router';
 import { companionVoiceGenderFromSignals, companionVoicePresetsForGender, type CompanionVoicePreset } from '@together/domain/src/voice-presets';
 import { manageConversation, previewCompanionVoice } from '../lib/api';
-import { chatDialogueContentModeOptions, chatTextSizeOptions, isSubscribedTier, resolveChatContentMode, resolveChatResponseStyle, resolveChatSpiceLevel, resolveChatTextSize, resolveChatVoicePreset, withLocalChatSettings } from '../lib/chatSettings';
+import { chatTextSizeOptions, resolveChatLanguage, resolveChatResponseStyle, resolveChatTextSize, resolveChatVoicePreset, withLocalChatSettings } from '../lib/chatSettings';
 import { conversationStyleOptions } from '../lib/conversationStyle';
 import { useTogether } from '../store/useTogether';
 import { colors, radius, spacing, typography } from '../theme';
-import type { CharacterInstance, ChatTextSize, Conversation, ConversationStyle, DialogueContentMode, SpiceLevel } from '../types';
+import type { CharacterInstance, ChatTextSize, Conversation, ConversationStyle } from '../types';
 import { FrostedSurface } from './FrostedGlass';
 import { createClientRequestId } from '../lib/requestId';
 import { cachedVoicePreview, rememberVoicePreview, type VoicePreview } from '../lib/voicePreviewCache';
+import { chatLanguageOptions, type ChatLanguagePreference } from '@together/domain/src/chat-language';
 
 type Props = {
   visible: boolean;
   conversation: Conversation | null;
   character: CharacterInstance | null;
   onClose: () => void;
-  onHistory: () => void;
-  onMemories: () => void;
-  onAdvanced: () => void;
   onSaved?: (conversation: Conversation) => void;
 };
 
 const demoMode = __DEV__ && process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === 'true';
-const spiceOptions: Array<{ value: SpiceLevel; label: string }> = [
-  { value: 1, label: 'Mild' },
-  { value: 2, label: 'Medium' },
-  { value: 3, label: 'Spicy' },
-];
-
-export function ChatSettingsModal({ visible, conversation, character, onClose, onHistory, onMemories, onAdvanced, onSaved }: Props) {
+export function ChatSettingsModal({ visible, conversation, character, onClose, onSaved }: Props) {
   const { snapshot, upsertConversation } = useTogether();
   const [title, setTitle] = useState('');
   const [responseStyle, setResponseStyle] = useState<ConversationStyle>('texting');
   const [textSize, setTextSize] = useState<ChatTextSize>('medium');
-  const [contentMode, setContentMode] = useState<DialogueContentMode>('explicit');
-  const [contentModeOpen, setContentModeOpen] = useState(false);
-  const [spiceLevel, setSpiceLevel] = useState<SpiceLevel>(2);
+  const [chatLanguage, setChatLanguage] = useState<ChatLanguagePreference>('en');
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [voicePreset, setVoicePreset] = useState<CompanionVoicePreset | null>(null);
   const [voicePreview, setVoicePreview] = useState<VoicePreview | null>(null);
   const [voicePreviewBusy, setVoicePreviewBusy] = useState(false);
@@ -47,10 +38,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
   const [saving, setSaving] = useState(false);
   const voicePlayer = useAudioPlayer(null, { updateInterval: 200 });
   const voicePlayerStatus = useAudioPlayerStatus(voicePlayer);
-  const subscribed = isSubscribedTier(snapshot?.entitlements?.tier);
-  const adultVerified = Boolean(snapshot?.profile?.age_verified_at);
   const voiceEntitled = snapshot?.experienceCapabilities?.voiceNotes === true || snapshot?.entitlements?.entitlement_keys?.includes('voice_notes') === true;
-  const memoryInspector = snapshot?.entitlements?.entitlement_keys?.includes('memory_inspector') === true;
   const name = character?.together_character_templates.name ?? 'this companion';
   const voiceGender = companionVoiceGenderFromSignals(
     character?.together_character_templates.discovery_metadata?.gender,
@@ -68,20 +56,18 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     { label: `${name}'s default`, detail: 'Authored character voice', value: null as CompanionVoicePreset | null },
     ...voiceOptions,
   ];
-  const contentModeOptions = adultVerified ? chatDialogueContentModeOptions : chatDialogueContentModeOptions.filter((option) => option.value === 'romance');
-  const selectedContentMode = chatDialogueContentModeOptions.find((option) => option.value === contentMode) ?? chatDialogueContentModeOptions.at(-1)!;
+  const selectedLanguage = chatLanguageOptions.find((option) => option.value === chatLanguage) ?? chatLanguageOptions[1]!;
 
   useEffect(() => {
     if (!visible || !conversation) return;
     setTitle(conversation.title ?? '');
     setResponseStyle(resolveChatResponseStyle(conversation, snapshot?.profile ?? null));
     setTextSize(resolveChatTextSize(conversation));
-    const savedContentMode = resolveChatContentMode(conversation, snapshot?.profile ?? null);
-    setContentMode(!adultVerified && (savedContentMode === 'mature' || savedContentMode === 'explicit') ? 'romance' : savedContentMode);
-    setContentModeOpen(false);
-    setSpiceLevel(resolveChatSpiceLevel(conversation, character?.together_character_templates.spice_level));
+    setChatLanguage(resolveChatLanguage(conversation));
+    setLanguageMenuOpen(false);
     const selectedVoice = resolveChatVoicePreset(conversation);
-    const cachedPreview = cachedVoicePreview(conversation.id, selectedVoice);
+    const selectedLanguage = resolveChatLanguage(conversation);
+    const cachedPreview = cachedVoicePreview(conversation.id, selectedVoice, selectedLanguage);
     setVoicePreset(selectedVoice);
     setVoicePreview(cachedPreview);
     setVoiceMenuOpen(false);
@@ -94,7 +80,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
 
   const selectVoice = (next: CompanionVoicePreset | null) => {
     voicePlayer.pause();
-    const cachedPreview = conversation ? cachedVoicePreview(conversation.id, next) : null;
+    const cachedPreview = conversation ? cachedVoicePreview(conversation.id, next, chatLanguage) : null;
     setVoicePreview(cachedPreview);
     if (cachedPreview) voicePlayer.replace(cachedPreview.signedUrl);
     setVoicePreset(next);
@@ -103,7 +89,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
 
   const testVoice = async () => {
     if (!conversation || voicePreviewBusy) return;
-    if (voicePreview && voicePreview.selection === voicePreset) {
+    if (voicePreview && voicePreview.selection === voicePreset && voicePreview.language === chatLanguage) {
       if (voicePlayerStatus.playing) voicePlayer.pause();
       else {
         if (voicePlayerStatus.didJustFinish) void voicePlayer.seekTo(0);
@@ -113,11 +99,12 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     }
     setVoicePreviewBusy(true);
     try {
-      const result = await previewCompanionVoice({ conversationId: conversation.id, voicePreset, requestId: createClientRequestId() });
-      const preview = { ...result.preview, selection: voicePreset };
+      const result = await previewCompanionVoice({ conversationId: conversation.id, voicePreset, chatLanguage, requestId: createClientRequestId() });
+      const preview = { ...result.preview, selection: voicePreset, language: chatLanguage };
       rememberVoicePreview(conversation.id, preview);
       setVoicePreview(preview);
       voicePlayer.replace(result.preview.signedUrl);
+      voicePlayer.play();
     } catch (error) {
       Alert.alert('Voice preview unavailable', error instanceof Error ? error.message : 'Please try again.');
     } finally {
@@ -130,7 +117,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     const cleanTitle = title.trim() || null;
     setSaving(true);
     try {
-      const input = { title: cleanTitle, responseStyle, textSize, contentMode, ...(subscribed ? { spiceLevel } : {}), ...(voiceEntitled ? { voicePreset } : {}) };
+      const input = { title: cleanTitle, responseStyle, textSize, chatLanguage, ...(voiceEntitled ? { voicePreset } : {}) };
       const updated = demoMode
         ? withLocalChatSettings(conversation, input)
         : await manageConversation<Conversation>({ action: 'settings', conversationId: conversation.id, ...input });
@@ -143,8 +130,6 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
       setSaving(false);
     }
   };
-
-  const navigate = (action: () => void) => { onClose(); action(); };
 
   return <Modal transparent visible={visible && Boolean(conversation && character)} animationType="fade" onRequestClose={onClose}>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalRoot}>
@@ -210,57 +195,32 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
             </View>
           </SettingSection>
 
-          <SettingSection icon={<Flame size={16} color="#FF6F7D" />} label="Dialogue intensity">
-            <Pressable accessibilityRole="button" accessibilityLabel={`Dialogue intensity: ${selectedContentMode.label}`} accessibilityState={{ expanded: contentModeOpen, disabled: saving }} disabled={saving} onPress={() => { setVoiceMenuOpen(false); setContentModeOpen(true); }} style={({ pressed }) => [styles.intensitySelect, pressed && styles.pressed]}>
-              <View style={styles.intensityIcon}><Flame size={16} color="#fff" /></View>
-              <Text style={styles.intensityValue}>{selectedContentMode.label}</Text>
+          <SettingSection icon={<Languages size={16} color={colors.violet} />} label="Chat language">
+            <Pressable accessibilityRole="button" accessibilityLabel={`Chat language: ${selectedLanguage.label}`} accessibilityState={{ expanded: languageMenuOpen, disabled: saving }} disabled={saving} onPress={() => { setVoiceMenuOpen(false); setLanguageMenuOpen(true); }} style={({ pressed }) => [styles.intensitySelect, pressed && styles.pressed]}>
+              <View style={styles.intensityIcon}><Languages size={16} color="#fff" /></View>
+              <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.intensityValue}>{selectedLanguage.nativeLabel}</Text>{selectedLanguage.nativeLabel !== selectedLanguage.label ? <Text numberOfLines={1} style={styles.languageDetail}>{selectedLanguage.label}</Text> : null}</View>
               <ChevronDown size={17} color={colors.muted} />
             </Pressable>
+            <Text style={styles.languageHint}>Companion replies, suggestions, and voice use this language.</Text>
           </SettingSection>
 
           <SettingSection icon={<Volume2 size={16} color={colors.violet} />} label="Companion voice">
             {voiceEntitled ? <>
               <View style={styles.voiceControlRow}>
-                <Pressable accessibilityRole="button" accessibilityLabel={`Companion voice: ${selectedVoice.label}`} accessibilityState={{ expanded: voiceMenuOpen, disabled: saving || voicePreviewBusy }} disabled={saving || voicePreviewBusy} onPress={() => { setContentModeOpen(false); setVoiceMenuOpen(true); }} style={({ pressed }) => [styles.voiceSelect, voiceMenuOpen && styles.voiceSelectOpen, pressed && styles.pressed]}>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Companion voice: ${selectedVoice.label}`} accessibilityState={{ expanded: voiceMenuOpen, disabled: saving || voicePreviewBusy }} disabled={saving || voicePreviewBusy} onPress={() => { setLanguageMenuOpen(false); setVoiceMenuOpen(true); }} style={({ pressed }) => [styles.voiceSelect, voiceMenuOpen && styles.voiceSelectOpen, pressed && styles.pressed]}>
                   <View style={styles.voiceSelectIcon}><Volume2 size={15} color="#fff" /></View>
                   <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.voiceSelectLabel}>{selectedVoice.label}</Text><Text numberOfLines={1} style={styles.voiceSelectDetail}>{selectedVoice.detail}</Text></View>
                   <ChevronDown size={17} color={colors.muted} style={{ transform: [{ rotate: voiceMenuOpen ? '180deg' : '0deg' }] }} />
                 </Pressable>
                 <Pressable accessibilityRole="button" accessibilityLabel={voicePreview ? voicePlayerStatus.playing ? 'Pause voice sample' : 'Play voice sample' : 'Prepare voice sample'} disabled={saving || voicePreviewBusy} onPress={() => void testVoice()} style={({ pressed }) => [styles.voicePreviewButton, (saving || voicePreviewBusy) && styles.disabled, pressed && styles.pressed]}>
                   {voicePreviewBusy ? <ActivityIndicator size="small" color="#fff" /> : voicePreview ? voicePlayerStatus.playing ? <Pause size={14} color="#fff" fill="#fff" /> : <Play size={14} color="#fff" fill="#fff" /> : <Volume2 size={14} color="#fff" />}
-                  <Text style={styles.voicePreviewButtonText}>{voicePreviewBusy ? 'Loading…' : voicePreview ? voicePlayerStatus.playing ? 'Pause' : 'Sample' : 'Test'}</Text>
+                  <Text style={styles.voicePreviewButtonText}>{voicePreviewBusy ? 'Loading…' : voicePreview && voicePlayerStatus.playing ? 'Pause' : 'Play'}</Text>
                 </Pressable>
               </View>
-              {voicePreview && !voicePlayerStatus.isLoaded ? <Text accessibilityLiveRegion="polite" style={styles.voiceLoadingText}>{voicePlayerStatus.error ? 'The sample could not load. Try it again.' : 'Sample ready · tap Play sample.'}</Text> : null}
+              {voicePreview && !voicePlayerStatus.isLoaded && voicePlayerStatus.error ? <Text accessibilityLiveRegion="polite" style={styles.voiceLoadingText}>The sample could not load. Try it again.</Text> : null}
             </> : <Pressable accessibilityRole="button" onPress={() => { onClose(); router.push('/subscription'); }} style={styles.voiceLocked}><Volume2 size={18} color={colors.muted} /><View style={{ flex: 1 }}><Text style={styles.voiceLockedTitle}>Custom voices are available with Kivelle+</Text><Text style={styles.voiceLockedCopy}>Your companion’s authored voice is still used by default.</Text></View><ChevronRight size={16} color={colors.dimmed} /></Pressable>}
           </SettingSection>
 
-          {subscribed ? <SettingSection icon={<Flame size={16} color="#FF6F7D" />} label="Spice level">
-            <View accessibilityRole="adjustable" accessibilityLabel="Spice level" accessibilityValue={{ min: 1, max: 3, now: spiceLevel, text: spiceOptions.find((item) => item.value === spiceLevel)?.label ?? 'Medium' }} style={styles.spiceControl}>
-              <View style={styles.spiceTrack}><View style={[styles.spiceFill, { width: spiceLevel === 1 ? '0%' : spiceLevel === 2 ? '50%' : '100%' }]} /></View>
-              <View style={styles.spiceStops}>
-                {spiceOptions.map((option) => <Pressable
-                  key={option.value}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: option.value === spiceLevel, disabled: saving }}
-                  disabled={saving}
-                  onPress={() => setSpiceLevel(option.value)}
-                  style={styles.spiceStop}
-                >
-                  <View style={[styles.spiceDot, option.value === spiceLevel && styles.spiceThumb]}>{option.value === spiceLevel && option.value === 3 ? <Flame size={16} color="#fff" fill="#fff" /> : null}</View>
-                </Pressable>)}
-              </View>
-              <View style={styles.spiceLabels}>{spiceOptions.map((option) => <Text key={option.value} style={[styles.spiceLabel, option.value === spiceLevel && styles.spiceLabelActive]}>{option.label}</Text>)}</View>
-            </View>
-          </SettingSection> : null}
-
-          <View style={styles.divider} />
-          <Text style={styles.manageTitle}>CONVERSATION TOOLS</Text>
-          <View style={styles.tools}>
-            <ToolRow icon={<History size={18} color={colors.textSecondary} />} title="History & search" body="Find messages or manage earlier chats." onPress={() => navigate(onHistory)} />
-            <ToolRow icon={memoryInspector?<Brain size={18} color={colors.violet}/>:<LockKeyhole size={18} color={colors.violet}/>} title={`What ${name} remembers`} body={memoryInspector?'Search, review, or correct relationship memories.':'Memory Center · available with Kivelle+'} onPress={() => navigate(onMemories)} />
-            <ToolRow icon={<RotateCcw size={18} color={colors.warm} />} title="Advanced relationship controls" body="Reset progress or start over completely." onPress={() => navigate(onAdvanced)} />
-          </View>
         </ScrollView>
 
         <View style={styles.footer}>
@@ -268,14 +228,14 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
           <Pressable disabled={saving} onPress={() => void save()} style={({ pressed }) => [styles.save, saving && styles.disabled, pressed && styles.pressed]}><Text style={styles.saveText}>{saving ? 'Saving…' : 'Save changes'}</Text></Pressable>
         </View>
       </FrostedSurface>
-      {contentModeOpen ? <View style={styles.intensityOverlay}>
-        <Pressable accessibilityLabel="Close dialogue intensity selector" onPress={() => setContentModeOpen(false)} style={StyleSheet.absoluteFill} />
+      {languageMenuOpen ? <View style={styles.intensityOverlay}>
+        <Pressable accessibilityLabel="Close chat language selector" onPress={() => setLanguageMenuOpen(false)} style={StyleSheet.absoluteFill} />
         <FrostedSurface intensity={96} style={styles.intensityPopup}>
-          <View style={styles.intensityPopupHeader}><Text style={styles.intensityPopupTitle}>Dialogue intensity</Text><Pressable accessibilityLabel="Close" onPress={() => setContentModeOpen(false)} style={styles.close}><X size={18} color={colors.muted} /></Pressable></View>
-          <View accessibilityRole="radiogroup" style={styles.intensityOptions}>{contentModeOptions.map((option) => {
-            const active = option.value === contentMode;
-            return <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={() => { setContentMode(option.value); setContentModeOpen(false); }} style={({ pressed }) => [styles.intensityOption, active && styles.intensityOptionActive, pressed && styles.pressed]}><Text style={[styles.intensityOptionText, active && styles.optionTextActive]}>{option.label}</Text>{active ? <Check size={17} color="#C778FF" strokeWidth={3} /> : null}</Pressable>;
-          })}</View>
+          <View style={styles.intensityPopupHeader}><Text style={styles.intensityPopupTitle}>Chat language</Text><Pressable accessibilityLabel="Close" onPress={() => setLanguageMenuOpen(false)} style={styles.close}><X size={18} color={colors.muted} /></Pressable></View>
+          <ScrollView style={styles.languageList} showsVerticalScrollIndicator={false}><View accessibilityRole="radiogroup" style={styles.intensityOptions}>{chatLanguageOptions.map((option) => {
+            const active = option.value === chatLanguage;
+            return <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={() => { voicePlayer.pause(); setVoicePreview(null); setChatLanguage(option.value); setLanguageMenuOpen(false); }} style={({ pressed }) => [styles.voicePopupOption, active && styles.intensityOptionActive, pressed && styles.pressed]}><View style={{ flex: 1, minWidth: 0 }}><Text style={[styles.voicePopupLabel, active && styles.optionTextActive]}>{option.nativeLabel}</Text>{option.nativeLabel !== option.label ? <Text style={styles.voicePopupDetail}>{option.label}</Text> : null}</View>{active ? <Check size={17} color="#C778FF" strokeWidth={3} /> : null}</Pressable>;
+          })}</View></ScrollView>
         </FrostedSurface>
       </View> : null}
       {voiceMenuOpen ? <View style={styles.intensityOverlay}>
@@ -294,10 +254,6 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
 
 function SettingSection({ icon, label, optional = false, children }: { icon: React.ReactNode; label: string; optional?: boolean; children: React.ReactNode }) {
   return <View style={styles.section}><View style={styles.sectionLabel}>{icon}<Text style={styles.sectionLabelText}>{label}</Text>{optional ? <Text style={styles.optional}>(optional)</Text> : null}</View>{children}</View>;
-}
-
-function ToolRow({ icon, title, body, onPress }: { icon: React.ReactNode; title: string; body: string; onPress: () => void }) {
-  return <Pressable onPress={onPress} style={({ pressed }) => [styles.toolRow, pressed && styles.pressed]}>{icon}<View style={{ flex: 1 }}><Text style={styles.toolTitle}>{title}</Text><Text style={styles.toolBody}>{body}</Text></View><ChevronRight size={17} color={colors.dimmed} /></Pressable>;
 }
 
 const styles = StyleSheet.create({
@@ -328,6 +284,9 @@ const styles = StyleSheet.create({
   intensitySelect: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.04)', borderWidth: 1, borderColor: 'rgba(199,120,255,.30)' },
   intensityIcon: { width: 31, height: 31, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#A845F2' },
   intensityValue: { flex: 1, color: colors.text, fontSize: 13, fontWeight: '900' },
+  languageDetail: { color: colors.muted, fontSize: 10, lineHeight: 13, marginTop: 2 },
+  languageHint: { color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: -3 },
+  languageList: { maxHeight: 430 },
   intensityOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 20, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, backgroundColor: 'rgba(3,2,7,.62)' },
   intensityPopup: { width: '100%', maxWidth: 380, overflow: 'hidden', borderRadius: radius.xl, padding: 16, backgroundColor: 'rgba(28,21,39,.98)', borderColor: 'rgba(199,120,255,.38)', shadowColor: '#000', shadowOpacity: .55, shadowRadius: 28, shadowOffset: { width: 0, height: 15 } },
   intensityPopupHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
@@ -351,16 +310,6 @@ const styles = StyleSheet.create({
   voiceLocked: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.025)', borderWidth: 1, borderColor: colors.border },
   voiceLockedTitle: { color: colors.textSecondary, fontSize: 11, fontWeight: '900' },
   voiceLockedCopy: { color: colors.muted, fontSize: 9, lineHeight: 13, marginTop: 3 },
-  spiceControl: { paddingHorizontal: 8, paddingTop: 12 },
-  spiceTrack: { position: 'absolute', left: 24, right: 24, top: 29, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,.14)', overflow: 'hidden' },
-  spiceFill: { height: 4, borderRadius: 2, backgroundColor: '#B168E5' },
-  spiceStops: { flexDirection: 'row', justifyContent: 'space-between' },
-  spiceStop: { width: 48, height: 38, alignItems: 'center', justifyContent: 'center' },
-  spiceDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#B168E5', borderWidth: 2, borderColor: '#D7B2F2' },
-  spiceThumb: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F24F66', borderWidth: 0, shadowColor: '#F24F66', shadowOpacity: .36, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-  spiceLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 },
-  spiceLabel: { width: 72, color: colors.muted, fontSize: 11, textAlign: 'center' },
-  spiceLabelActive: { color: colors.text, fontWeight: '900' },
   divider: { height: 1, backgroundColor: colors.border },
   manageTitle: { color: colors.dimmed, fontSize: 9, fontWeight: '900', letterSpacing: 1.2, marginBottom: -14 },
   tools: { gap: 7 },

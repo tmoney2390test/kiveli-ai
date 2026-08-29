@@ -3,6 +3,8 @@ import { authenticated, enforceRateLimit } from '../_shared/context.ts';
 import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { runLifeSimulation } from '../_shared/together-life.ts';
+// Keep transitive subscription/media dependencies in Supabase's API deployment bundle.
+import '../_shared/kivelle-subscription.ts';
 
 const schema = z.object({ characterInstanceId: z.string().uuid().optional(), now: z.string().datetime().optional(), evaluateProactive: z.boolean().default(true) });
 

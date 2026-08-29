@@ -34,5 +34,18 @@ describe('conversation context budgeter', () => {
 
   it('uses a conservative token estimate rather than raw character count', () => {
     expect(estimateContextTokens('a'.repeat(360))).toBe(100);
+    expect(estimateContextTokens('今日は図書館で静かに本を読んでいたよ。')).toBeGreaterThan(15);
+    expect(estimateContextTokens('😊😊')).toBe(4);
+    expect(estimateContextTokens('A short English sentence.')).toBeLessThan(12);
+  });
+
+  it('uses non-Latin terms when ranking same-language context', () => {
+    const records = [
+      { id: 'match', text: '図書館で読んだ本の話' },
+      { id: 'other', text: '明日のコーヒーの予定' },
+    ];
+    const ranked = rankContextRecords(records, { category: 'memory', intent: 'memory_overview', query: '図書館の本を覚えてる？', text: (item) => item.text, id: (item) => item.id });
+    expect(ranked[0]?.record.id).toBe('match');
+    expect(ranked[0]?.reasonCodes).toContain('lexical_match');
   });
 });

@@ -1,11 +1,15 @@
 import { z } from "zod";
 import {
   boundedGroupSocialDelta,
+  chatLanguageChangeSubject,
+  chatLanguageSafetyBoundary,
   classifyGroupSocialEvent,
   compileIntimacyStance,
+  hasSexualDialogueLanguage,
   isLocationPlanDismissalCoolingDown,
   LOCATION_PLAN_DISMISSAL_COOLDOWN_MS,
   matchAssistantLocationPlan,
+  normalizeChatLanguage,
   type DialogueContentMode,
   extractMemoryCandidates,
   resolveGroupPhotoSubjects,
@@ -101,6 +105,7 @@ Deno.serve(async (request) => {
       continuityId: continuity.id,
       conversationId: input.conversationId,
     });
+    const chatLanguage=normalizeChatLanguage(conversation.metadata?.chatPreferences?.chatLanguage);
     const roster = await activeGroupParticipants(db, {
       userId: user.id,
       continuityId: continuity.id,
@@ -258,6 +263,8 @@ Deno.serve(async (request) => {
         mentionedCharacterInstanceIds: input.mentionedCharacterInstanceIds,
         providerMetadata: {
           source: "group_chat",
+          chatLanguage,
+          ...(input.letThemTalk?{uiHidden:true,messageAction:'let_them_talk'}:{}),
           mentions: input.mentionedCharacterInstanceIds,
           replyToMessageId: input.replyToMessageId ?? null,
           requestFingerprint,
@@ -627,7 +634,7 @@ function groupStream(input: any): Response {
           };
           let route = resolveDialogueRouting(routeInput);
           if (route.hardBlocked) {
-            const boundary = `I'm not going to take this conversation there.`;
+            const boundary = chatLanguageSafetyBoundary(speakerName,context.chatLanguage,canonicalUserText);
             const committed = await commitMessage(input, action, boundary, {
               provider: "deterministic",
               model: "kivelle-boundary",
@@ -636,6 +643,7 @@ function groupStream(input: any): Response {
               speakerName,
               speakerSlug: template.slug,
               directorReasonCodes: action.reasonCodes,
+              chatLanguage:normalizeChatLanguage(context.chatLanguage),
             });
             const saved=committed?.message;
             if (!saved) {
@@ -648,6 +656,7 @@ function groupStream(input: any): Response {
             break;
           }
           if (action.intent === "media_offer") {
+            const firstName = speakerName.trim().split(/\s+/)[0] || speakerName;
             const committed = await commitMessage(input, action, "[Photo]", {
               provider: "kivelle-media",
               mediaOnly: true,
@@ -655,13 +664,13 @@ function groupStream(input: any): Response {
               speakerSlug: template.slug,
               directorReasonCodes: action.reasonCodes,
               groupEnergy: input.settings.energy,
+              chatLanguage:normalizeChatLanguage(context.chatLanguage),
             });
             const saved=committed?.message;
             if (!saved) {
               emit({ type: "turn_cancelled", turnId: input.turn.id });
               return;
             }
-            const firstName = speakerName.trim().split(/\s+/)[0] || speakerName;
             const photoSubjectIds = input.photoSubjectCharacterInstanceIds
               .length
               ? input.photoSubjectCharacterInstanceIds
@@ -771,15 +780,16 @@ function groupStream(input: any): Response {
             ...usageScope,
             metadata: { direction: "output", groupChat: true },
           });
-          const text = outputSafety.allowed
+          const text = outputSafety.allowed && !hasSexualDialogueLanguage(generated.text)
             ? generated.text
-            : `Let's change the subject.`;
+            : chatLanguageChangeSubject(context.chatLanguage,canonicalUserText);
           const committed = await commitMessage(input, action, text, {
             ...generated.metadata,
             speakerName,
             speakerSlug: template.slug,
             directorReasonCodes: action.reasonCodes,
             groupEnergy: input.settings.energy,
+            chatLanguage:normalizeChatLanguage(context.chatLanguage),
           });
           const saved=committed?.message;
           if (!saved) {

@@ -1,31 +1,50 @@
-import { useEffect, useRef, type PropsWithChildren } from 'react';
+import { lazy, Suspense, useEffect, useRef, type PropsWithChildren } from 'react';
 import { router, usePathname, useUnstableGlobalHref } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
-import { ErrorState, LoadingSkeleton } from '../components';
+import { Platform, StyleSheet, View } from 'react-native';
+import { LoadingSkeleton } from '../components/RouteState';
 import { useAuth } from '../hooks/useAuth';
-import { isAgeConfirmationPath, isCompanionOnboardingPath, isPublicAppPath, signInPathFor } from '../lib/sessionRouting';
-import { resolveKivelleAccountStage } from '../lib/authRouting';
-import { useTogether } from '../store/useTogether';
-import { desktopShellAllowed } from '../lib/desktopNavigation';
-import { ResponsiveAppShell } from '../shell/ResponsiveAppShell';
+import { isPublicAppPath, signInPathFor } from '../lib/sessionRouting';
+import { consumeWebEntryHref, entryPathname, initialWebEntryHref } from '../lib/webEntryRoute';
+
+const AuthenticatedSessionGate = lazy(() => import('./AuthenticatedSessionGate').then((module) => ({ default: module.AuthenticatedSessionGate })));
 
 const demoMode = __DEV__ && process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === 'true';
 
 export function KivelleSessionGate({ children }: PropsWithChildren) {
-  const pathname = usePathname();
+  const routerPathname = usePathname();
+  const pathname = Platform.OS === 'web' && typeof window !== 'undefined'
+    ? window.location.pathname
+    : routerPathname;
   const href = useUnstableGlobalHref();
   const { session, loading: authLoading } = useAuth();
-  const { snapshot, loading, error, refresh, clear } = useTogether();
   const redirectTarget = useRef<string | null>(null);
   const publicPath = isPublicAppPath(pathname);
-  const agePath = isAgeConfirmationPath(pathname);
-  const companionOnboardingPath = isCompanionOnboardingPath(pathname);
+  const entryHref = Platform.OS === 'web' ? initialWebEntryHref() : null;
+  const entryPath = entryHref ? entryPathname(entryHref) : null;
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || authLoading) return;
+    if (!entryHref || entryPath === '/') {
+      consumeWebEntryHref();
+      return;
+    }
+    // Keep the captured deep link alive through Expo's short hydration window.
+    // The router can report the correct route first and only then fall back to
+    // its authenticated index, so consuming it immediately would miss the race.
+    if (pathname === entryPath) {
+      const timer = setTimeout(consumeWebEntryHref, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [authLoading, entryHref, entryPath, pathname]);
 
   useEffect(() => {
     if (demoMode) return;
     if (authLoading) return;
     if (!session) {
-      if (snapshot) clear();
+      // Avoid loading the authenticated world store into signed-out public pages.
+      void import('../store/useTogether').then(({ useTogether }) => {
+        if (useTogether.getState().snapshot) useTogether.getState().clear();
+      });
       if (!publicPath) {
         const target = signInPathFor(href);
         if (redirectTarget.current !== target) {
@@ -35,46 +54,21 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
       }
       return;
     }
-
     redirectTarget.current = null;
-    if (!snapshot && !loading && !error) void refresh();
-  }, [authLoading, session?.user.id, snapshot, loading, error, publicPath, href, refresh, clear]);
+  }, [authLoading, session?.user.id, publicPath, href]);
 
-  useEffect(() => {
-    if (demoMode || authLoading || !session || !snapshot || publicPath) return;
-    const stage = resolveKivelleAccountStage(snapshot.profile);
-    const target = stage === 'age_confirmation'
-      ? (agePath ? null : '/age-confirmation')
-      : stage === 'onboarding'
-        ? (companionOnboardingPath ? null : '/choose-companion')
-        : (agePath || companionOnboardingPath ? '/home' : null);
-    if (!target) return;
-    if (redirectTarget.current !== target) {
-      redirectTarget.current = target;
-      router.replace(target as never);
-    }
-  }, [agePath, authLoading, companionOnboardingPath, publicPath, session?.user.id, snapshot]);
-
-  if (demoMode) return children;
+  if (demoMode || session) {
+    return <Suspense fallback={<LoadingSkeleton label="Opening your world…" />}>
+      <AuthenticatedSessionGate>{children}</AuthenticatedSessionGate>
+    </Suspense>;
+  }
 
   let blocker = null;
   if (authLoading) blocker = <LoadingSkeleton label="Restoring your session…" />;
   else if (!session && !publicPath) blocker = <LoadingSkeleton label="Opening sign in…" />;
-  if (session && !snapshot && !publicPath) {
-    blocker = error
-      ? <ErrorState message={error} onRetry={() => void refresh()} />
-      : <LoadingSkeleton label="Opening your world…" />;
-  }
-  if (session && snapshot && !publicPath) {
-    const stage = resolveKivelleAccountStage(snapshot.profile);
-    if ((stage === 'age_confirmation' && !agePath) || (stage === 'onboarding' && !companionOnboardingPath) || (stage === 'ready' && (agePath || companionOnboardingPath))) {
-      blocker = <LoadingSkeleton label={stage === 'age_confirmation' ? 'Opening age confirmation…' : stage === 'onboarding' ? 'Preparing your first meeting…' : 'Opening your world…'} />;
-    }
-  }
 
-  const shellEnabled = Boolean(session && snapshot && resolveKivelleAccountStage(snapshot.profile) === 'ready' && desktopShellAllowed(pathname));
   return <>
-    <ResponsiveAppShell enabled={shellEnabled}>{children}</ResponsiveAppShell>
+    {children}
     {blocker ? <View style={styles.blocker}>{blocker}</View> : null}
   </>;
 }

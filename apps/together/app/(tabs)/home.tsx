@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image } from 'expo-image';
 import { router as expoRouter } from 'expo-router';
 import { Sparkles } from 'lucide-react-native';
 import { EmptyState, GradientButton, MomentCarousel, Screen, resolveCharacterPortraitSource } from '../../src/components';
@@ -10,6 +11,7 @@ import { HomeHeader } from '../../src/components/home/HomeHeader';
 import { HomeTimeline } from '../../src/components/home/HomeTimeline';
 import { HomeWorldSection } from '../../src/components/home/HomeWorldSection';
 import { HomeWorldDiscoveryHero } from '../../src/components/home/HomeWorldDiscoveryHero';
+import { AroundTownSection } from '../../src/components/home/AroundTownSection';
 import { colors, spacing, typography } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { markProactiveOpened, setCharacterFavorite, simulate } from '../../src/lib/api';
@@ -22,6 +24,8 @@ import { homeWorldDiscoveryOptions } from '../../src/lib/homeWorldDiscovery';
 import type { Snapshot } from '../../src/types';
 import { useSubscriptionStatus } from '../../src/hooks/useSubscriptionStatus';
 import { useAppShell } from '../../src/shell/AppShellContext';
+import { storyConceptAssets } from '../../src/stories/assets';
+import { useWorldPulse } from '../../src/hooks/useWorldPulse';
 
 const router = expoRouter as unknown as { push: (href: string) => void };
 
@@ -32,6 +36,8 @@ export default function Home() {
   const { width } = useWindowDimensions();
   const homeCompanion=snapshot?mostRecentHomeCompanion(snapshot):undefined;
   const homeCompanionId=homeCompanion?.id;
+  const pulseWorldId=snapshot?(browsedWorldId??buildHomeViewModel(snapshot)?.currentWorld?.id??snapshot.worlds.find(world=>world.published)?.id):null;
+  const {data:worldPulse}=useWorldPulse(pulseWorldId,Boolean(snapshot&&pulseWorldId));
 
   const simulationStale=!homeCompanion||Date.now()-new Date(homeCompanion.last_simulated_at).getTime()>2*60000||!(snapshot?.scheduleEvents??[]).some((item)=>item.character_instance_id===homeCompanionId&&new Date(item.ends_at)>new Date());
   useEffect(()=>{if(!homeCompanionId||!simulationStale)return;let cancelled=false;void simulate(homeCompanionId).then(()=>cancelled?undefined:refresh({scope:'presence',characterInstanceId:homeCompanionId})).catch(()=>undefined);return()=>{cancelled=true;};},[homeCompanionId,refresh,simulationStale]);
@@ -118,6 +124,12 @@ export default function Home() {
       <View style={styles.heroPane}><CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} location={model.currentLocation?.name} world={model.currentWorld?.name} onContinue={() => void openCompanion()} onProfile={() => router.push(`/character/${handle}`)} /></View>
       {discoveryWorlds.length?<View style={styles.heroPane}><HomeWorldDiscoveryHero worlds={discoveryWorlds} onExplore={(world)=>{setBrowsedWorldId(world.id);router.push(`/(tabs)/explore?world=${world.slug}`);}}/></View>:null}
     </View>
+    <Pressable accessibilityRole="button" accessibilityLabel="Open Kivelli Stories" onPress={()=>router.push('/stories' as never)} style={({pressed})=>[styles.storiesBanner,pressed&&{opacity:.9}]}>
+      <Image source={storyConceptAssets.library} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center"/>
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill,styles.storiesShade]}/>
+      <View style={styles.storiesCopy}><Text style={styles.storiesKicker}>KIVELLI STORIES · NEW</Text><Text style={styles.storiesTitle}>A night you can change—if you learn enough.</Text><Text style={styles.storiesText}>Enter a replayable Vespormoor mystery with its own clues, timeline, and endings.</Text><Text style={styles.storiesAction}>Open the archive →</Text></View>
+    </Pressable>
+    {selectedWorld&&worldPulse?.worldId===selectedWorld.id?<AroundTownSection worldName={selectedWorld.name} items={worldPulse.items} onOpen={(item)=>{if(item.locationSlug)return router.push(`/location/${item.locationSlug}?world=${selectedWorld.slug}`);router.push(`/(tabs)/explore?world=${selectedWorld.slug}`);}}/>:null}
     {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions} world={selectedWorld} worlds={publishedWorlds} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onViewAll={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/singles?world=${selectedWorld.slug}`); }} onSelectWorld={setBrowsedWorldId} onToggleFavorite={toggleFavorite} /> : null}
     <FromCompanionSection name={template.name} items={media} fallbackSource={portraitSource} onViewAll={() => router.push('/(tabs)/moments')} onOpen={(item) => router.push(item.locked ? '/subscription' : `/media/${item.id}`)} onAsk={() => router.push(`/(tabs)/chat-tab?character=${encodeURIComponent(handle)}&draft=${encodeURIComponent('Send me a photo from where you are.')}`)} />
     <HomeWorldSection wide={wideCards} upcoming={{ eyebrow: model.upcoming.eyebrow, title: model.upcoming.title, meta: model.upcoming.meta }} relationship={{ eyebrow: `YOU + ${template.name.toUpperCase()}`, title: relationship.headline, meta: relationship.detail }} hook={getWorldHook(model)} memory={memory} upcomingSource={upcomingSource} relationshipSource={portraitSource} onUpcoming={() => void runAction(model.upcoming.action)} onRelationship={() => router.push(`/character/${handle}`)} />
@@ -147,6 +159,13 @@ const styles = StyleSheet.create({
   heroPair:{flexDirection:'row',alignItems:'stretch',gap:14},
   heroPairStack:{flexDirection:'column'},
   heroPane:{flex:1,minWidth:0},
+  storiesBanner:{minHeight:190,borderRadius:25,overflow:'hidden',borderWidth:1,borderColor:'rgba(103,215,193,.22)',justifyContent:'center'},
+  storiesShade:{backgroundColor:'rgba(7,8,14,.74)'},
+  storiesCopy:{padding:22,maxWidth:650,gap:5},
+  storiesKicker:{color:'#78DCC8',fontSize:10,fontWeight:'900',letterSpacing:1.4},
+  storiesTitle:{color:colors.text,fontFamily:typography.display,fontSize:27,lineHeight:32},
+  storiesText:{color:'#B7B0BA',fontSize:13,lineHeight:19},
+  storiesAction:{color:'#8EE6D5',fontSize:12,fontWeight:'900',marginTop:5},
   emptyLife: { gap: spacing.md, paddingVertical: spacing.lg },
   emptyLifeTitle: { color: colors.text, fontFamily: typography.display, fontSize: 36, lineHeight: 42, fontWeight: '600' },
   moments: { gap: 13 },

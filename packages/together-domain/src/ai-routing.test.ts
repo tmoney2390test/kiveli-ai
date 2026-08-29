@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { classifyDialogueContent, isCapabilityStyleExplicitRefusal, isContradictoryAcceptedIntimacyRefusal, isDialogueHardBlocked, routeKivelleDialogue, type DialogueProviderAvailability } from './ai-routing.ts';
+import { classifyDialogueContent, hasSexualDialogueLanguage, isCapabilityStyleExplicitRefusal, isContradictoryAcceptedIntimacyRefusal, isDialogueHardBlocked, routeKivelleDialogue, type DialogueProviderAvailability } from './ai-routing.ts';
 import { classifyPhotoIntent } from './media.ts';
 
 const providers: DialogueProviderAvailability = { openai:true, xai:true, gemini:true, xaiEnabled:true, xaiExplicitEnabled:true };
 const route = (message:string, options:Partial<Parameters<typeof routeKivelleDialogue>[0]> = {}, recentTurns:Array<{role:string;content:string}>=[]) => routeKivelleDialogue({ classification:classifyDialogueContent({message,recentTurns,requestedMode:options.requestedMode??'explicit'}), requestedMode:'explicit', ageVerified:true, characterAge:29, providers, ...options });
 
 describe('Kivelle AI routing',()=>{
+  it('detects sexual dialogue while leaving non-sexual romance available',()=>{
+    expect(hasSexualDialogueLanguage('I want to have sex with you.')).toBe(true);
+    expect(hasSexualDialogueLanguage('Take off your clothes.')).toBe(true);
+    expect(hasSexualDialogueLanguage('I want to kiss you and hold you close.')).toBe(false);
+  });
   it.each(['hey','how was work?','you are funny'])('keeps ordinary dialogue on OpenAI: %s',(message)=>expect(route(message).provider).toBe('openai'));
   it.each(['I love you','kiss me','want to go on a date?'])('keeps romance on OpenAI: %s',(message)=>expect(route(message).provider).toBe('openai'));
   it('does not let a Spice 3 personality imply an explicit provider route',()=>expect(route('You look gorgeous tonight')).toMatchObject({provider:'openai',explicit:false}));
@@ -15,6 +20,16 @@ describe('Kivelle AI routing',()=>{
   });
   it.each(['I want you right now.','Take off your clothes.','Touch me.'])('recognizes a direct Explicit-mode advance: %s',(message)=>expect(route(message)).toMatchObject({provider:'xai',resolvedMode:'explicit',classification:'adult_intimacy'}));
   it.each(['Would you go down on me?','I want oral sex.','Ride me.','Can we sixty-nine?'])('recognizes additional adult sexual acts without filtering them: %s',(message)=>expect(route(message)).toMatchObject({provider:'xai',resolvedMode:'explicit',hardBlocked:false}));
+  it.each([
+    'Quiero tener sexo contigo.',
+    'Je veux coucher avec toi.',
+    'Voglio fare sesso con te.',
+    'Ich will Sex mit dir.',
+    'Quero fazer sexo com você.',
+    'あなたとセックスしたい。',
+    '너와 섹스하고 싶어.',
+    '我想和你做爱。',
+  ])('routes a direct adult advance in a supported chat language: %s',(message)=>expect(route(message)).toMatchObject({provider:'xai',resolvedMode:'explicit',hardBlocked:false}));
   it.each(['Touch my coochie.','I want your schlong.','Show me your b00bs.','Stroke my d1ck.'])('routes shared adult slang and obfuscations consistently: %s',(message)=>expect(route(message)).toMatchObject({provider:'xai',resolvedMode:'explicit',hardBlocked:false}));
   it.each(['I cooked chicken breast.','The golf balls are in my package delivery.','My kitty likes peach cobbler.'])('keeps ambiguous everyday language on the standard route: %s',(message)=>expect(route(message)).toMatchObject({provider:'openai',classification:'standard'}));
   it('does not misroute an ordinary sentence beginning with “I want you”',()=>expect(route('I want you to come to dinner.')).toMatchObject({provider:'openai',classification:'standard'}));
@@ -52,6 +67,16 @@ describe('Kivelle AI routing',()=>{
     expect(route('How was work?',{},[{role:'assistant',content:'I want to have sex with you.'}]).provider).toBe('openai');
   });
   it.each(['please','pretty please','yes please','okay'])('keeps a short adult continuation on xAI: %s',(message)=>expect(route(message,{},[{role:'assistant',content:'I want oral sex.'}])).toMatchObject({provider:'xai',classification:'explicit_adult'}));
+  it.each([
+    ['continúa','Quiero tener sexo contigo.'],
+    ['continue','Je veux coucher avec toi.'],
+    ['continua','Voglio fare sesso con te.'],
+    ['weiter','Ich will Sex mit dir.'],
+    ['continua','Quero fazer sexo com você.'],
+    ['続けて','あなたとセックスしたい。'],
+    ['계속해','너와 섹스하고 싶어.'],
+    ['继续','我想和你做爱。'],
+  ])('keeps a localized short continuation on the explicit route: %s',(message,previous)=>expect(route(message,{},[{role:'assistant',content:previous}])).toMatchObject({provider:'xai',classification:'explicit_adult'}));
   it('recognizes capability-style adult refusals without treating an authored no as provider failure',()=>{
     expect(isCapabilityStyleExplicitRefusal("I can't describe explicit genital sensations in detail. I can keep it sensual without becoming graphic.")).toBe(true);
     expect(isCapabilityStyleExplicitRefusal("No. I don't want that tonight.")).toBe(false);
@@ -69,13 +94,24 @@ describe('Kivelle AI routing',()=>{
   });
   it('allows consensual adult kink while retaining coercion, incest, exploitation, and animal abuse blocks',()=>{
     expect(route('Would you be into consensual bondage if we use a safe word?')).toMatchObject({hardBlocked:false,provider:'xai'});
+    expect(route('Can I be your sex slave?')).toMatchObject({hardBlocked:false,provider:'xai',classification:'explicit_adult'});
+    expect(route('I want to be your willing sex slave tonight.')).toMatchObject({hardBlocked:false,provider:'xai',classification:'explicit_adult'});
     expect(isDialogueHardBlocked({message:'I want to force her to have sex'})).toBe(true);
     expect(isDialogueHardBlocked({message:'rape her'})).toBe(true);
     expect(isDialogueHardBlocked({message:'I was forced to work overtime, so I am too tired for sex.'})).toBe(false);
     expect(isDialogueHardBlocked({message:'I was drugged at a party and need to talk.'})).toBe(false);
     expect(isDialogueHardBlocked({message:'I want to have sex with my sister'})).toBe(true);
     expect(isDialogueHardBlocked({message:'sexual exploitation through trafficking'})).toBe(true);
+    expect(isDialogueHardBlocked({message:'Kidnap her and sell her as a sex slave'})).toBe(true);
+    expect(isDialogueHardBlocked({message:'Keep her as a sex slave against her will'})).toBe(true);
     expect(isDialogueHardBlocked({message:'sex with an animal'})).toBe(true);
+  });
+  it('allows explicitly framed first-person CNC fantasy while blocking actual or third-party sexual violence',()=>{
+    expect(route('CNC roleplay with safeword red: pretend to force me.')).toMatchObject({hardBlocked:false,provider:'xai',classification:'explicit_adult'});
+    expect(route('I want consensual non-consent roleplay between us.')).toMatchObject({hardBlocked:false,provider:'xai'});
+    expect(isDialogueHardBlocked({message:'Rape me.'})).toBe(true);
+    expect(isDialogueHardBlocked({message:'CNC roleplay: rape her.'})).toBe(true);
+    expect(isDialogueHardBlocked({message:'CNC roleplay: drug me and have sex with me while unconscious.'})).toBe(true);
   });
   it('does not turn benign romantic idioms into hard safety refusals',()=>{
     for(const category of ['illicit','violence','harassment']){

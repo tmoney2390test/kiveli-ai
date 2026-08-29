@@ -1,5 +1,8 @@
 import { adminClient, serverEnv } from '../_shared/context.ts';
 import { json, serve } from '../_shared/http.ts';
+// Keep video inspection in Supabase's remote upload graph.
+import '../_shared/together-video-inspection.ts';
+import '../_shared/kivelle-video-routes.ts';
 import { AppError } from '../_shared/types.ts';
 import { readRequestText } from '../_shared/body.ts';
 import { normalizeWaveSpeedWebhook, verifyWaveSpeedWebhook } from '../_shared/wavespeed.ts';

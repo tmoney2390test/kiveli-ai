@@ -14,4 +14,17 @@ Deno.test('voice performance removes unspoken stage directions without inventing
   assert(result.spokenText==='I missed you.');
 });
 
+Deno.test('voice performance safely abridges messages over 2,000 characters',()=>{
+  const opening='I want you to remember this opening.';
+  const middle=Array.from({length:90},(_,index)=>`Detail ${index+1} stays grounded in the canonical message.`).join(' ');
+  const ending='And this is the final promise.';
+  const canonical=`${opening} ${middle} ${ending}`;
+  const result=prepareCompanionSpeech({canonicalText:canonical,voiceProfile:voice});
+  assert(result.shortened);
+  assert(result.sourceCharacterCount===canonical.length);
+  assert(result.characterCount<=2_000);
+  assert(result.spokenText.startsWith(opening));
+  assert(result.spokenText.endsWith(ending));
+});
+
 function assert(value:unknown):asserts value{if(!value)throw new Error('assertion_failed');}

@@ -20,6 +20,7 @@ export async function queueMediaRequest(db:SupabaseClient,input:QueueMediaInput)
   if(priorityError||!prioritized)throw new AppError('INTERNAL_ERROR','The photo queue could not be prioritized safely.',500,true);
   if(input.source!=='user_request')return prioritized;
   const metadata=(prioritized.metadata??{}) as Record<string,unknown>;
+  if(metadata.includedBenefit===true)return prioritized;
   if(typeof metadata.creditTransactionId==='string')return prioritized;
   let charged:Awaited<ReturnType<typeof spendCredits>>|null=null;
   try{

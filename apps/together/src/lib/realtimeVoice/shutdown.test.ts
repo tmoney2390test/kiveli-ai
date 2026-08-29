@@ -7,6 +7,7 @@ describe('realtime transport shutdown',()=>it('silences audio before closing the
   const audio:RealtimeAudioEngine={
     speakerControlAvailable:true,
     requestPermission:vi.fn(()=>Promise.resolve('granted' as const)),open:vi.fn(()=>Promise.resolve()),
+    resetForReconnect:vi.fn(()=>Promise.resolve()),
     close:vi.fn(()=>{order.push('audio:close');return Promise.resolve();}),setMuted:vi.fn(()=>Promise.resolve()),setSpeakerEnabled:vi.fn(()=>Promise.resolve()),
     pushOutput:vi.fn(),endOutput:vi.fn(),interrupt:vi.fn((turnId:string)=>{order.push(`audio:interrupt:${turnId}`);return Promise.resolve();}),
   };

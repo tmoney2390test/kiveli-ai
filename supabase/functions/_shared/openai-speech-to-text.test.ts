@@ -2,19 +2,20 @@ import { configuredSpeechToTextProvider } from './kivelle-multimodal.ts';
 import { OpenAiSpeechToTextProvider } from './openai-speech-to-text.ts';
 
 Deno.test('OpenAI speech-to-text sends multipart audio without exposing the server key', async () => {
-  let url = '', authorization = '', model = '', fileName = '';
+  let url = '', authorization = '', model = '', fileName = '', language = '';
   const provider = new OpenAiSpeechToTextProvider('server-secret', 'gpt-4o-mini-transcribe', 'https://openai.test/v1', 1_000, async (input, init) => {
     url = String(input);
     authorization = new Headers(init?.headers).get('authorization') ?? '';
     const form = init?.body as FormData;
     model = String(form.get('model'));
+    language = String(form.get('language'));
     const file = form.get('file') as File;
     fileName = file.name;
     return new Response(JSON.stringify({ text: '  Hello   from voice.  ' }), { status: 200, headers: { 'x-request-id': 'stt-1' } });
   });
-  const result = await provider.transcribe({ bytes: new Uint8Array([1, 2, 3, 4]), contentType: 'audio/webm', fileName: 'dictation.webm' });
+  const result = await provider.transcribe({ bytes: new Uint8Array([1, 2, 3, 4]), contentType: 'audio/webm', fileName: 'dictation.webm', language: 'es-MX' });
   assert(url === 'https://openai.test/v1/audio/transcriptions');
-  assert(authorization === 'Bearer server-secret' && model === 'gpt-4o-mini-transcribe' && fileName === 'dictation.webm');
+  assert(authorization === 'Bearer server-secret' && model === 'gpt-4o-mini-transcribe' && fileName === 'dictation.webm' && language === 'es');
   assert(result.text === 'Hello from voice.' && result.providerRequestId === 'stt-1');
   assert(!JSON.stringify(result).includes('server-secret'));
 });

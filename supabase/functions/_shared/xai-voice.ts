@@ -1,4 +1,6 @@
 import type { CompanionVoiceProfile } from "../../../packages/together-domain/src/multimodal.ts";
+import { resolveXaiVoiceId } from "../../../packages/together-domain/src/voice-provider-mapping.ts";
+import { xaiVoiceLanguage } from "../../../packages/together-domain/src/chat-language.ts";
 import type {
   RealtimeVoiceProvider,
   RealtimeVoiceSession,
@@ -15,22 +17,6 @@ export const XAI_TTS_CHARACTER_COST_USD = 15 / 1_000_000;
 export const XAI_REALTIME_AUDIO_COST_USD_PER_MINUTE = .08;
 
 const XAI_API_BASE = "https://api.x.ai/v1";
-// Keep this list aligned with GET /v1/tts/voices. Custom voice IDs remain
-// valid through providerMappings.xai and are deliberately not constrained to
-// this built-in catalog.
-const builtInVoices = ["eve", "ara", "sal", "leo", "rex"] as const;
-const retiredSeedVoices = new Set([
-  "carina",
-  "luna",
-  "iris",
-  "celeste",
-  "aurora",
-  "liora",
-  "sirius",
-  "lumen",
-  "ursa",
-]);
-
 type XaiTtsEnvelope = {
   audio: string;
   content_type: string;
@@ -63,7 +49,7 @@ export class XaiTextToSpeechProvider implements TextToSpeechProvider {
     const response = await this.requestWithRetry({
       text,
       voice_id: voiceId,
-      language: "auto",
+      language: xaiVoiceLanguage(input.language),
       output_format: codec === "wav"
         ? { codec: "wav", sample_rate: 24_000 }
         : { codec: "mp3", sample_rate: 24_000, bit_rate: 128_000 },
@@ -255,30 +241,7 @@ export class XaiRealtimeVoiceProvider implements RealtimeVoiceProvider {
 }
 
 export function xaiVoiceId(voice: CompanionVoiceProfile): string {
-  const explicit = voice.providerMappings?.xai?.trim();
-  if (explicit) {
-    const normalized = explicit.toLowerCase();
-    if ((builtInVoices as readonly string[]).includes(normalized)) {
-      return normalized;
-    }
-    // The first rollout seeded names from a pre-release catalog. Recover
-    // those profiles deterministically while still allowing arbitrary custom
-    // xAI voice IDs authored by a user or operator.
-    if (!retiredSeedVoices.has(normalized)) return explicit;
-  }
-  const warmth = unit(voice.characteristics.warmth, .6);
-  const energy = unit(voice.characteristics.energy, .55);
-  const softness = unit(voice.characteristics.softness, .45);
-  const expressiveness = unit(voice.characteristics.expressiveness, .55);
-  const preferred = softness >= .72 || warmth >= .82
-    ? ["eve", "ara", "sal"]
-    : energy >= .72 || expressiveness >= .72
-    ? ["ara", "eve", "sal"]
-    : ["sal", "eve", "ara"];
-  return preferred[stableHash(voice.voiceKey) % preferred.length] ??
-    builtInVoices[
-      stableHash(voice.characterTemplateId) % builtInVoices.length
-    ] ?? "eve";
+  return resolveXaiVoiceId(voice);
 }
 
 export function xaiVoiceConfigurationAvailable(
@@ -421,11 +384,6 @@ function stableHash(value: string): number {
     hash = Math.imul(hash, 16777619);
   }
   return hash >>> 0;
-}
-
-function unit(value: unknown, fallback: number): number {
-  const number = Number(value);
-  return Number.isFinite(number) ? clamp(number, 0, 1) : fallback;
 }
 
 function envBoolean(name: string): boolean {

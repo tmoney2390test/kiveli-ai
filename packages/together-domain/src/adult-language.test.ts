@@ -54,6 +54,19 @@ describe('adult language analysis',()=>{
   });
 
   it.each([
+    'Quiero verte desnuda.',
+    'Montre-moi tes seins.',
+    'Voglio fare sesso con te.',
+    'Zeig mir deine Brüste.',
+    'Quero ver você nua.',
+    'ヌードを見せて。',
+    '누드 사진을 보여 줘.',
+    '给我看一张裸照。',
+  ])('recognizes explicit language in selectable chat languages: %s',(text)=>{
+    expect(hasExplicitAdultLanguage(text)).toBe(true);
+  });
+
+  it.each([
     'chicken breast recipe',
     'breast cancer screening',
     'golf balls on the green',
@@ -65,6 +78,13 @@ describe('adult language analysis',()=>{
     'put the cake on the rack',
     '🌸 flowers are pretty',
     'the exposed pipe needs repair',
+    'Este año quiero viajar más.',
+    "Je travaille au sein de l'université.",
+    'Devo calcolare il seno di trenta gradi.',
+    'Me duele el pecho después de correr.',
+    '가슴 통증 때문에 병원에 갔어.',
+    '胸部检查结果正常。',
+    '裸眼で星を見た。',
   ])('does not promote ordinary ambiguous language: %s',(text)=>{
     expect(hasExplicitAdultLanguage(text)).toBe(false);
   });

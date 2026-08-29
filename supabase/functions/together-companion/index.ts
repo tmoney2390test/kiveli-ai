@@ -9,7 +9,7 @@ import {activeContinuity} from '../_shared/together-continuity.ts';
 
 const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('set_active'),characterInstanceId:z.string().uuid(),source:z.enum(['home_switcher','discover_profile','companion_manager']).default('home_switcher')}),
-  z.object({action:z.literal('meet'),characterTemplateId:z.string().uuid(),source:z.enum(['onboarding','discover_profile']).default('discover_profile')}),
+  z.object({action:z.literal('meet'),characterTemplateId:z.string().uuid(),source:z.enum(['onboarding','discover_profile','group_invite']).default('discover_profile')}),
   z.object({action:z.literal('set_favorite'),characterTemplateId:z.string().uuid(),favorite:z.boolean(),source:z.enum(['home_featured','discover','chat_menu']).default('home_featured')}),
 ]);
 const relationOne=(value:unknown):Record<string,unknown>|null=>{const row=Array.isArray(value)?value[0]:value;return row&&typeof row==='object'?row as Record<string,unknown>:null;};
@@ -77,6 +77,12 @@ serve(async(request,correlationId)=>{
     if(updated.data)instance=updated.data;
   }
   await db.from('together_relationship_states').upsert({character_instance_id:instance.id,user_id:user.id},{onConflict:'character_instance_id',ignoreDuplicates:true});
+  if(input.source==='group_invite'){
+    // Inviting someone is a valid introduction, but it must not silently replace
+    // the active companion or manufacture a separate direct conversation.
+    await track(db,user.id,'group_invite_companion_prepared',{continuity_id:continuity.id,character_template_id:template.id,character_instance_id:instance.id});
+    return json({data:await buildSnapshot(db,user.id),correlationId},201,correlationId);
+  }
   await Promise.all([db.from('together_continuities').update({active_companion_instance_id:instance.id,updated_at:now}).eq('id',continuity.id).eq('user_id',user.id),db.from('together_profiles').update({active_companion_instance_id:instance.id,updated_at:now}).eq('user_id',user.id)]);
   const conversation=await getActiveConversation(db,user.id,instance.id,true);
   const meeting=(template.first_meeting??{}) as Record<string,unknown>;

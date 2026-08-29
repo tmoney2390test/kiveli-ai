@@ -174,7 +174,7 @@ export default function MessageInbox() {
       router.push(
         `/group-chat?id=${
           encodeURIComponent(row.conversation.id)
-        }&details=1` as never,
+        }&settings=1` as never,
       );
       return;
     }
@@ -388,24 +388,6 @@ export default function MessageInbox() {
         onSaved={(updated) =>
           setConversations((current) =>
             current.map((item) => item.id === updated.id ? updated : item)
-          )}
-        onHistory={() => settingsRow &&
-          router.push(`/conversations/${settingsRow.character.id}` as never)}
-        onMemories={() =>
-          settingsRow &&
-          router.push(
-            `/memories?character=${
-              encodeURIComponent(
-                settingsRow.character.together_character_templates.slug,
-              )
-            }` as never,
-          )}
-        onAdvanced={() =>
-          settingsRow &&
-          router.push(
-            `/conversation-controls?character=${
-              encodeURIComponent(settingsRow.character.id)
-            }` as never,
           )}
       />
     </SafeAreaView>
@@ -694,7 +676,7 @@ function ConversationActions(
                     Edit chat settings
                   </Text>
                   <Text style={styles.sheetActionCopy}>
-                    Name, response style, text size, and conversation tools
+                    Name, response style, text size, language, and voice
                   </Text>
                 </View>
               </Pressable>

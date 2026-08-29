@@ -22,6 +22,7 @@ export type ChatLaunchParams = {
   activity?: string;
   planId?: string;
   repeatPlanId?: string;
+  switchPlanId?: string;
 };
 
 /**
@@ -29,6 +30,48 @@ export type ChatLaunchParams = {
  * from reopening the conversation that the user just left.
  */
 export const MESSAGES_INBOX_HREF = "/chat-tab?inbox=1";
+export const MESSAGES_INBOX_ROUTE = "/(tabs)/chat-tab?inbox=1";
+
+/**
+ * Leaves a root Stack conversation for the explicit nested Messages route.
+ * The route-group segment matters here: the public `/chat-tab` URL is
+ * ambiguous to Expo Router when navigation begins outside the Tabs navigator
+ * and can restore its first tab (Home) instead.
+ */
+export function returnToMessagesInbox({
+  reset,
+  navigate,
+  schedule = (action) => setTimeout(action, 32),
+}: {
+  reset: (href: string) => void;
+  navigate: (href: string) => void;
+  schedule?: (action: () => void) => unknown;
+}): void {
+  // A root Stack screen cannot reliably select a nested Expo tab in the same
+  // navigation transaction: the Tabs navigator mounts its initial Home route.
+  // Mount the tab shell first, then select Messages on the following frame.
+  reset('/home');
+  schedule(() => navigate(MESSAGES_INBOX_HREF));
+}
+
+export function shouldOpenMostRecentChat(pathname:string):boolean{
+  const normalized=pathname.replace(/^\/\(tabs\)/,'').replace(/\/$/,'')||'/';
+  return ['/home','/explore','/moments'].includes(normalized);
+}
+
+export function mostRecentChatHref(conversations:Conversation[],characters:CharacterInstance[]):string|null{
+  const ordered=conversations.filter(isActiveInboxConversation).sort((left,right)=>conversationActivityTime(right)-conversationActivityTime(left));
+  for(const conversation of ordered){
+    if(conversation.kind==='group')return`/group-chat?id=${encodeURIComponent(conversation.id)}`;
+    const character=characters.find((item)=>item.id===conversation.character_instance_id);
+    if(character){
+      const template=character.together_character_templates;
+      const handle=template.public_handle??template.slug;
+      if(handle)return`/chat?character=${encodeURIComponent(handle)}`;
+    }
+  }
+  return null;
+}
 
 const chatLaunchKeys = [
   "character",
@@ -39,6 +82,7 @@ const chatLaunchKeys = [
   "activity",
   "planId",
   "repeatPlanId",
+  "switchPlanId",
 ] as const;
 
 export function chatHrefFromInboxParams(
@@ -72,6 +116,7 @@ export function chatSessionRouteKey(
     params.location,
     params.activity,
     params.repeatPlanId,
+    params.switchPlanId,
   ].map((value) => value ?? "").join(":");
   return `${base}:plan:${scope}`;
 }
@@ -236,4 +281,8 @@ function timestamp(value: string | null): number {
   if (!value) return 0;
   const result = new Date(value).getTime();
   return Number.isNaN(result) ? 0 : result;
+}
+
+function conversationActivityTime(conversation:Conversation):number{
+  return timestamp(conversation.last_message_at??conversation.updated_at??conversation.created_at??null);
 }

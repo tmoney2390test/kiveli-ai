@@ -3,6 +3,7 @@ import { neonKyoLocations, neonKyoWorld } from './worlds/neon-kyo';
 import { portVervelleLocations, portVervelleWorld } from './worlds/port-vervelle';
 import { vespormoorLocations, vespormoorWorld } from './worlds/vespormoor';
 import { northvaleLocations, northvaleWorld } from './worlds/northvale';
+import { eosMeridianLocations, eosMeridianWorld } from './worlds/eos-meridian';
 
 const templates = {
   maya: { id:'12000000-0000-4000-8000-000000000001',name:'Maya',slug:'maya' as const,age:26,occupation:'Photographer',biography:'Creative, independent, and always seeing the world through a different lens. Loves live music, sushi, and sunset light.' },
@@ -14,7 +15,7 @@ const character=(slug:keyof typeof templates,index:number,location:string,activi
 export const demoSnapshot={
   discoverableCharacters:[{...templates.maya,character_role:'primary_companion',can_be_selected:true,can_be_romanced:true,together_character_versions:{id:'13000000-0000-4000-8000-000000000001',portrait_asset_key:'maya-portrait',interests:['Photography','Movies','Sushi','Live Music','Football'],personality_config:{}}}],
   profile:{display_name:'Tim',active_companion_instance_id:'20000000-0000-4000-8000-000000000001',interests:['Sports','Movies','Photography'],experience_goals:['Dating','Stories'],memory_categories:{semantic:true,preference:true,episodic:true,relationship:true,emotional:true,open_thread:true}},
-  worlds:[{id:'10000000-0000-4000-8000-000000000001',slug:'juniper-city',name:'Juniper City',description:'A city full of people, places, and stories.',access_type:'free',timezone:'America/New_York',sort_order:0,featured:true,published:true,visual_context:{setting:'A contemporary creative city.'},metadata:{}},portVervelleWorld,neonKyoWorld,vespormoorWorld,northvaleWorld],
+  worlds:[{id:'10000000-0000-4000-8000-000000000001',slug:'juniper-city',name:'Juniper City',description:'A city full of people, places, and stories.',access_type:'free',timezone:'America/New_York',sort_order:0,featured:true,published:true,visual_context:{setting:'A contemporary creative city.'},metadata:{}},portVervelleWorld,neonKyoWorld,vespormoorWorld,northvaleWorld,eosMeridianWorld],
   locations:[
     {id:'11000000-0000-4000-8000-000000000001',world_id:'10000000-0000-4000-8000-000000000001',location_type:'venue',name:'Juniper Café',slug:'juniper-cafe',description:'A warm neighborhood café.',category:'café',possible_activities:['coffee','open mic']},
     {id:'11000000-0000-4000-8000-000000000002',world_id:'10000000-0000-4000-8000-000000000001',location_type:'residence',name:"Maya's Apartment",slug:'maya-apartment',description:'Maya’s apartment.',category:'home',possible_activities:['rest']},
@@ -26,6 +27,7 @@ export const demoSnapshot={
     ...neonKyoLocations,
     ...vespormoorLocations,
     ...northvaleLocations,
+    ...eosMeridianLocations,
   ],
   characters:[character('maya',1,'11000000-0000-4000-8000-000000000001','having coffee with Chloe','playful'),character('chloe',2,'11000000-0000-4000-8000-000000000003','heading to Skyline Rooftop','adventurous'),character('alex',3,'11000000-0000-4000-8000-000000000005','finishing a photo walk','thoughtful')],
   schedules:[],
@@ -46,5 +48,5 @@ export const demoSnapshot={
   dates:[{id:'80000000-0000-4000-8000-000000000001',character_instance_id:'20000000-0000-4000-8000-000000000001',status:'unlocked',current_phase:'arrival',phase_index:0,state:{},scheduled_for:'2026-08-15T23:00:00Z',completed_at:null,together_date_templates:{id:'15000000-0000-4000-8000-000000000001',name:'Dinner at Juniper',description:'An intimate dinner.',phases:[{id:'arrival',title:'Arrival',choices:[{id:'ask-day',label:'Ask about her day'},{id:'airport-callback',label:'Tease her about the airport joke'}]},{id:'ordering',title:'Ordering',choices:[{id:'listen-recommendation',label:'Let Maya choose'}]},{id:'early_conversation',title:'Easy Conversation',choices:[{id:'ask-photography',label:'Ask about her photography'}]},{id:'personal_conversation',title:'Something Real',choices:[{id:'listen-carefully',label:'Listen without fixing it'}]},{id:'unexpected_moment',title:'The Spicy Roll',choices:[{id:'order-rescue',label:'Order a rescue drink'}]},{id:'dessert',title:'Dessert',choices:[{id:'share-dessert',label:'Order dessert to share'}]},{id:'after_date',title:'After Dinner',choices:[{id:'riverwalk',label:'Suggest a Riverwalk stroll'}]},{id:'resolution',title:'A New Memory',choices:[]}]} }],
   moments:[{id:'90000000-0000-4000-8000-000000000001',character_instance_id:'20000000-0000-4000-8000-000000000001',title:'Airport Joke',summary:'Maya officially decided your airport navigation skills are hopeless.',occurred_at:'2026-08-03T12:00:00Z',location_id:'11000000-0000-4000-8000-000000000001',participant_instance_ids:['20000000-0000-4000-8000-000000000001'],linked_memory_ids:[],relationship_stage_at_creation:'flirting',moment_type:'memory',media:[{asset:'maya-portrait'}]}],
   entitlements:{tier:'free',entitlement_keys:['maya_relationship','text_basic','memory_basic','city_life','dinner_juniper']},
-  notificationPreferences:{push_enabled:false,character_initiated_messages:true,quiet_hours_start:'23:00',quiet_hours_end:'08:00',timezone:'America/New_York'},
+  notificationPreferences:{push_enabled:false,character_initiated_messages:true,initiative_level:'natural',companion_initiative_levels:{},quiet_hours_start:'23:00',quiet_hours_end:'08:00',timezone:'America/New_York'},
 } as unknown as Snapshot;

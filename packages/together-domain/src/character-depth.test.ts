@@ -74,7 +74,7 @@ describe('character depth compiler',()=>{
   it('preserves the same character identity in eligible adult dialogue',()=>{
     const card=compileCharacterVoiceCard({bible:brookeBible,characterName:'Brooke',message:'I want you.',mode:'affectionate',relationshipStage:'long_term',trust:90});
     expect(card.conversationalMove).toContain('precise attention');
-    expect(card.adultContinuity).toContain('eligible adult dialogue');
-    expect(card.adultContinuity).toContain('never identity, consent, autonomy, or relationship truth');
+    expect(card.adultContinuity).toContain('mature romantic dialogue');
+    expect(card.adultContinuity).toContain('non-sexual production ceiling');
   });
 });

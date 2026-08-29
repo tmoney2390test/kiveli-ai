@@ -12,8 +12,8 @@ const eligible = {
   explicitProviderEnabled: true,
 };
 
-Deno.test("realtime explicit mode requires every canonical route gate", () => {
-  assert(resolveRealtimeVoiceContentMode(eligible) === "explicit");
+Deno.test("realtime voice caps legacy explicit mode at mature", () => {
+  assert(resolveRealtimeVoiceContentMode(eligible) === "mature");
   assert(
     resolveRealtimeVoiceContentMode({ ...eligible, ageVerified: false }) !==
       "explicit",
@@ -34,7 +34,7 @@ Deno.test("realtime explicit mode requires every canonical route gate", () => {
     resolveRealtimeVoiceContentMode({
       ...eligible,
       explicitProviderEnabled: false,
-    }) !== "explicit",
+    }) === "mature",
   );
 });
 

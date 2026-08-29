@@ -6,6 +6,8 @@ import type{ProviderCompletedMedia}from'./together-media-providers.ts';
 import{gateGeneratedImageQuality}from'./together-media-quality.ts';
 import{completeMediaUsageAttempt,markMediaOfferOutcome}from'./together-media-usage.ts';
 import{imageDimensions,isSafeExternalHttpsUrl,matchesDeclaredMediaSignature}from'../../../packages/together-domain/src/index.ts';
+import{consumeDailyPhotoAllowance,dailyPhotoReservationKey,releaseDailyPhotoAllowance}from'./kivelle-subscription.ts';
+import{detectActualVideoAudioBehavior}from'./together-video-inspection.ts';
 
 const MAX_IMAGE_BYTES=20*1024*1024;
 const MAX_VIDEO_BYTES=80*1024*1024;
@@ -40,6 +42,16 @@ async function finalizeProviderMediaClaimed(db:SupabaseClient,input:{jobId:strin
   if(!media)throw new AppError('NOT_FOUND','That media request is unavailable.',404);
   if(job.finalized_at&&media.status==='ready')return media as Record<string,unknown>;
   if(job.status==='failed'||job.status==='cancelled')throw new AppError('CONFLICT','That media job has already ended.',409);
+  if(String(media.media_type)==='video'&&providerOutputCountInvalid(input.providerStatus)){
+    await failProviderMedia(db,{jobId:input.jobId,failureCode:'provider_output_count_invalid',failureReasonSafe:'The video provider returned an invalid result. Your credits were returned.',providerMetadata:{outputCount:input.providerStatus?.outputCount}});
+    const{data:failed}=await db.from('together_generated_media').select('*').eq('id',media.id).maybeSingle();
+    return(failed??media) as Record<string,unknown>;
+  }
+  if(String(media.media_type)==='video'&&providerSafetyViolation(input.providerStatus,input.result.providerMetadata)){
+    await failProviderMedia(db,{jobId:input.jobId,failureCode:'provider_content_violation',failureReasonSafe:'The video did not pass Kivelle’s safety check. Your credits were returned.',providerMetadata:{hasNsfwContents:true}});
+    const{data:failed}=await db.from('together_generated_media').select('*').eq('id',media.id).maybeSingle();
+    return(failed??media) as Record<string,unknown>;
+  }
 
   const quality=await gateGeneratedImageQuality(db,job,media,input.result);
   if(quality.action==='deferred')return media as Record<string,unknown>;
@@ -54,6 +66,7 @@ async function finalizeProviderMediaClaimed(db:SupabaseClient,input:{jobId:strin
   const downloaded=input.result.bytes?{bytes:input.result.bytes,contentType:input.result.contentType??defaultContentType(String(media.media_type))}:await downloadProviderOutput(String(input.result.outputUrl??''),String(media.media_type));
   validateOutput(downloaded.bytes,downloaded.contentType,String(media.media_type));
   const dimensions=String(media.media_type)==='image'?imageDimensions(downloaded.bytes,downloaded.contentType):null;
+  const actualAudioBehavior=String(media.media_type)==='video'?detectActualVideoAudioBehavior(downloaded.bytes,downloaded.contentType):null;
   const extension=extensionFor(downloaded.contentType,String(media.media_type));
   const storagePath=`${media.user_id}/${media.character_instance_id}/${media.id}.${extension}`;
   await uploadGeneratedMediaWithRetry({upload:()=>db.storage.from('together-user-media').upload(storagePath,downloaded.bytes,{contentType:downloaded.contentType,upsert:true,cacheControl:'31536000'})});
@@ -62,17 +75,21 @@ async function finalizeProviderMediaClaimed(db:SupabaseClient,input:{jobId:strin
   const safeProviderMetadata={model:input.result.model,estimatedCost:input.result.estimatedCost??null,generationMs:input.result.generationMs??null,...sanitizeProviderMetadata(input.result.providerMetadata??{}),...sanitizeProviderMetadata(input.providerStatus??{})};
   const{data:updated,error:updateError}=await db.from('together_generated_media').update({
     status:'ready',storage_path:storagePath,content_type:downloaded.contentType,byte_size:downloaded.bytes.byteLength,
-    width:input.result.width??dimensions?.width??media.width??null,height:input.result.height??dimensions?.height??media.height??null,duration_ms:input.result.durationMs??media.duration_ms??null,
+    width:input.result.width??dimensions?.width??media.width??null,height:input.result.height??dimensions?.height??media.height??null,duration_ms:input.result.durationMs??media.duration_ms??null,actual_audio_behavior:actualAudioBehavior,
     provider:String(job.provider),provider_request_id:String(job.provider_request_id??input.result.providerRequestId??'')||null,
     generation_ms:input.result.generationMs??media.generation_ms??null,failure_code:null,failure_reason_safe:null,claimed_at:null,next_attempt_at:null,
     metadata:{...metadata,providerRouteId:job.route_id,providerModel:input.result.model,providerJobId:job.id,providerStatus:'completed'},updated_at:now,
   }).eq('id',media.id).in('status',['generating','queued','ready']).select('*').single();
   if(updateError||!updated)throw new AppError('INTERNAL_ERROR','The generated media status could not be saved.',500,true);
-  const{data:completedJob,error:completedJobError}=await db.from('together_media_provider_jobs').update({status:'completed',provider_completed_at:job.provider_completed_at??now,finalized_at:now,output_storage_path:storagePath,poll_lease_token:null,poll_lease_expires_at:null,finalization_lease_token:null,finalization_lease_expires_at:null,provider_metadata:{...((job.provider_metadata??{}) as Record<string,unknown>),...safeProviderMetadata},failure_code:null,failure_reason_safe:null,updated_at:now}).eq('id',job.id).eq('finalization_lease_token',leaseToken).is('finalized_at',null).select('id').maybeSingle();
+  const actualProviderCost=Number((input.result.providerMetadata??{}).actualProviderCostUsd);
+  const{data:completedJob,error:completedJobError}=await db.from('together_media_provider_jobs').update({status:'completed',provider_completed_at:job.provider_completed_at??now,finalized_at:now,output_storage_path:storagePath,actual_provider_cost_usd:Number.isFinite(actualProviderCost)?actualProviderCost:job.actual_provider_cost_usd??null,actual_audio_behavior:actualAudioBehavior,poll_lease_token:null,poll_lease_expires_at:null,finalization_lease_token:null,finalization_lease_expires_at:null,provider_metadata:{...((job.provider_metadata??{}) as Record<string,unknown>),...safeProviderMetadata},failure_code:null,failure_reason_safe:null,updated_at:now}).eq('id',job.id).eq('finalization_lease_token',leaseToken).is('finalized_at',null).select('id').maybeSingle();
   if(completedJobError||!completedJob)throw new AppError('CONFLICT','Another worker completed this media delivery.',409,true);
   await completeMediaUsageAttempt(db,{providerJobId:String(job.id),attemptNumber:Number(job.attempt_count??1),success:true,generationMs:input.result.generationMs});
   await markMediaOfferOutcome(db,{media:updated,status:'fulfilled'});
-  await track(db,String(media.user_id),String(media.media_type)==='video'?'media_video_ready':'media_generation_completed',{mediaId:media.id,provider:job.provider,model:input.result.model,routeId:job.route_id,source:metadata.source,contentLevel:media.content_level,duration:input.result.generationMs??null,creditCost:metadata.creditCost??0});
+  if(metadata.includedBenefitType==='daily_companion_photo')await consumeDailyPhotoAllowance(db,{userId:String(media.user_id),reservationKey:dailyPhotoReservationKey(metadata)});
+  const completionEvent=String(media.media_type)==='video'?'video_generation_completed':'media_generation_completed';
+  const videoLatencies=String(media.media_type)==='video'?mediaDeliveryLatencies(job,now):{};
+  await track(db,String(media.user_id),completionEvent,{mediaId:media.id,provider:job.provider,model:input.result.model,routeId:job.route_id,source:metadata.source,contentLevel:media.content_level,generationLatencyMs:input.result.generationMs??null,...videoLatencies,creditCost:metadata.creditCost??0,quotedProviderCostUsd:job.quoted_provider_cost_usd??null,actualProviderCostUsd:Number.isFinite(actualProviderCost)?actualProviderCost:null,actualAudioBehavior});
   return updated as Record<string,unknown>;
 }
 
@@ -91,9 +108,14 @@ export async function failProviderMedia(db:SupabaseClient,input:{jobId:string;fa
   if(!media)return;
   const metadata=(media.metadata??{}) as Record<string,unknown>;let nextMetadata=metadata;
   if(typeof metadata.creditTransactionId==='string'&&metadata.creditRefunded!==true){const refunded=await refundCredits(db,{userId:String(media.user_id),transactionId:String(metadata.creditTransactionId),idempotencyKey:`refund:${String(metadata.creditTransactionId)}`,metadata:{reason:'terminal_media_failure',mediaId:String(media.id),failureCode:input.failureCode}});if(refunded)nextMetadata={...metadata,creditRefunded:true,creditRefundedAt:now};}
+  if(metadata.includedBenefitType==='daily_companion_photo'){const released=await releaseDailyPhotoAllowance(db,{userId:String(media.user_id),reservationKey:dailyPhotoReservationKey(metadata)});if(released)nextMetadata={...nextMetadata,dailyPhotoBenefitReleasedAt:now};}
   await db.from('together_generated_media').update({status:'failed',failure_code:input.failureCode,failure_reason_safe:input.failureReasonSafe,claimed_at:null,next_attempt_at:null,metadata:nextMetadata,updated_at:now}).eq('id',media.id).in('status',['queued','generating']);
   await markMediaOfferOutcome(db,{media:{...media,metadata:nextMetadata},status:'failed',failureCode:input.failureCode,failureReasonSafe:input.failureReasonSafe,creditRefunded:nextMetadata.creditRefunded===true});
   await track(db,String(media.user_id),'media_generation_failed',{mediaId:media.id,provider:job.provider,routeId:job.route_id,failureCode:input.failureCode,creditRefunded:nextMetadata.creditRefunded===true});
+  if(String(media.media_type)==='video'){
+    await track(db,String(media.user_id),'video_generation_failed',{mediaId:media.id,provider:job.provider,model:job.model,routeId:job.route_id,failureCode:input.failureCode,creditRefunded:nextMetadata.creditRefunded===true,quotedProviderCostUsd:job.quoted_provider_cost_usd??null,actualProviderCostUsd:job.actual_provider_cost_usd??null,...mediaDeliveryLatencies(job,now)});
+    if(nextMetadata.creditRefunded===true)await track(db,String(media.user_id),'video_generation_refunded',{mediaId:media.id,provider:job.provider,routeId:job.route_id,failureCode:input.failureCode});
+  }
 }
 
 /**
@@ -108,10 +130,29 @@ export async function failMediaBeforeProvider(db:SupabaseClient,input:{media:Rec
   if(!media||!['queued','generating'].includes(String(media.status)))return;
   const now=new Date().toISOString(),metadata=(media.metadata??{}) as Record<string,unknown>;let nextMetadata=metadata;
   if(typeof metadata.creditTransactionId==='string'&&metadata.creditRefunded!==true){const refunded=await refundCredits(db,{userId:String(media.user_id),transactionId:String(metadata.creditTransactionId),idempotencyKey:`refund:${String(metadata.creditTransactionId)}`,metadata:{reason:'media_rejected_before_provider',mediaId,failureCode:input.failureCode}});if(refunded)nextMetadata={...metadata,creditRefunded:true,creditRefundedAt:now};}
+  if(metadata.includedBenefitType==='daily_companion_photo'){const released=await releaseDailyPhotoAllowance(db,{userId:String(media.user_id),reservationKey:dailyPhotoReservationKey(metadata)});if(released)nextMetadata={...nextMetadata,dailyPhotoBenefitReleasedAt:now};}
   const{data:updated}=await db.from('together_generated_media').update({status:'failed',failure_code:input.failureCode,failure_reason_safe:input.failureReasonSafe,claimed_at:null,next_attempt_at:null,metadata:nextMetadata,updated_at:now}).eq('id',mediaId).in('status',['queued','generating']).select('*').maybeSingle();
   if(!updated)return;
   await markMediaOfferOutcome(db,{media:updated,status:'failed',failureCode:input.failureCode,failureReasonSafe:input.failureReasonSafe,creditRefunded:nextMetadata.creditRefunded===true});
   await track(db,String(media.user_id),'media_generation_failed',{mediaId,provider:null,routeId:null,failureCode:input.failureCode,creditRefunded:nextMetadata.creditRefunded===true,providerRequestCreated:false});
+  if(String(media.media_type)==='video'){
+    await track(db,String(media.user_id),'video_generation_failed',{mediaId,provider:null,routeId:media.video_route_id??null,failureCode:input.failureCode,creditRefunded:nextMetadata.creditRefunded===true,providerRequestCreated:false,totalLatencyMs:elapsedMs(media.created_at,now)});
+    if(nextMetadata.creditRefunded===true)await track(db,String(media.user_id),'video_generation_refunded',{mediaId,provider:null,routeId:media.video_route_id??null,failureCode:input.failureCode});
+  }
+}
+
+function elapsedMs(from:unknown,to:unknown):number|null{
+  const start=Date.parse(String(from??'')),end=Date.parse(String(to??''));
+  return Number.isFinite(start)&&Number.isFinite(end)?Math.max(0,end-start):null;
+}
+
+function mediaDeliveryLatencies(job:Record<string,any>,finalizedAt:string){
+  return{
+    queueLatencyMs:elapsedMs(job.created_at,job.submitted_at),
+    generationLatencyMs:elapsedMs(job.submitted_at,job.provider_completed_at),
+    finalizationLatencyMs:elapsedMs(job.provider_completed_at,finalizedAt),
+    totalLatencyMs:elapsedMs(job.created_at,finalizedAt),
+  };
 }
 
 export async function finalizeLoraProviderJob(db:SupabaseClient,input:{jobId:string;result:ProviderCompletedMedia;providerStatus?:Record<string,unknown>}):Promise<Record<string,unknown>>{
@@ -232,3 +273,5 @@ function validateOutput(bytes:Uint8Array,contentType:string,mediaType:string){co
 function extensionFor(contentType:string,mediaType:string){if(contentType==='image/webp')return'webp';if(contentType==='image/png')return'png';if(contentType==='video/webm')return'webm';return mediaType==='video'?'mp4':'jpg';}
 function defaultContentType(mediaType:string){return mediaType==='video'?'video/mp4':'image/jpeg';}
 function sanitizeProviderMetadata(value:Record<string,unknown>):Record<string,unknown>{const allowed=['status','hasNsfwContents','inferenceMs','outputCount','webhookReceivedAt'];return Object.fromEntries(allowed.filter((key)=>key in value).map((key)=>[key,value[key]]));}
+function providerSafetyViolation(...values:Array<Record<string,unknown>|undefined>):boolean{return values.some((value)=>{const flag=value?.hasNsfwContents??value?.has_nsfw_contents??value?.providerSafetyFlag;return flag===true||(Array.isArray(flag)&&flag.some(Boolean));});}
+function providerOutputCountInvalid(value:Record<string,unknown>|undefined):boolean{const count=Number(value?.outputCount);return Number.isFinite(count)&&count!==1;}

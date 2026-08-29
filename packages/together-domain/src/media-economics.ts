@@ -5,7 +5,7 @@ export const mediaOfferSources=['user_request','life_event','story','moment','da
 export type MediaOfferSource=typeof mediaOfferSources[number];
 export const mediaOfferStatuses=['pending','accepted','declined','expired','fulfilled','failed'] as const;
 export type MediaOfferStatus=typeof mediaOfferStatuses[number];
-export type IncludedMediaBenefit='date_completion_photo';
+export type IncludedMediaBenefit='date_completion_photo'|'daily_companion_photo';
 
 export type MediaOfferPolicyInput={
   source:MediaOfferSource;

@@ -68,6 +68,17 @@ describe('Interaction domain', () => {
     expect(state.activity?.['actions']).toContain('karaoke.let_them_pick_your_song');
   });
 
+  it('keeps the selected cinema activity distinct from a stale companion suggestion', () => {
+    const location = { id: 'cinema', name: 'Rooftop Cinema', category: 'cinema', locationType: 'venue', possibleActivities: ['movie'] };
+    const candidates = resolveInteractions({ character: creativeCharacter, relationship, location, life: { availability: 'open' }, seed: 'cinema-choice', limit: 10 });
+    const selected = candidates.find((item) => item.interactionKey === 'cinema.pick_a_movie')!;
+    const state = applyInteractionSceneState({ pendingProposalId: 'stay-for-credits', activity: { type: 'cinema', phase: 'before_movie', stayedForCredits: true } }, selected);
+    expect(state.activityLabel).toBe('Pick a movie');
+    expect(state.selectedBy).toBe('user');
+    expect(state.activity).toMatchObject({ type: 'cinema', phase: 'choosing_movie', moviePickedBy: 'user', stayedForCredits: false });
+    expect(state.recentActionKeys).toEqual(['cinema.pick_a_movie']);
+  });
+
   it('lets shared history influence scene options without replacing current place rules', () => {
     const location = { id: 'lucky-note', name: 'Any karaoke', category: 'karaoke', locationType: 'venue', possibleActivities: ['karaoke'] };
     const candidates = resolveInteractions({ character: creativeCharacter, relationship, location, life: { availability: 'open' }, memoryCues: [{ memoryId:'episode', type:'shared_activity', activityTags:['karaoke'], locationId:'lucky-note', strength:.9, valence:.8 }], seed:'memory-karaoke' });

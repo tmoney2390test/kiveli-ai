@@ -7,8 +7,10 @@ import{hasUsableCharacterIdentityReference,resolveAdultNudityScope,resolvePhotoD
 import{resolveVenicePipeline,VENICE_ADULT_EDIT_MODEL,VENICE_ADULT_FALLBACK_EDIT_MODEL,VENICE_ADULT_FINAL_EDIT_MODEL,VENICE_QUALITY_EDIT_MODEL,VENICE_STANDARD_EDIT_MODEL,VENICE_STANDARD_FALLBACK_EDIT_MODEL,veniceModelCostUsd}from'../../../packages/together-domain/src/venice-media.ts';
 import{configuredVeniceClient,type VeniceEditResult,type VeniceImageClient}from'./venice.ts';
 import{buildMediaEditConstraint,classifyMediaEditSemantics}from'../../../packages/together-domain/src/media-edit.ts';
+import{buildMediaWorldContainmentInstruction}from'./together-media-world.ts';
+import{buildVideoProviderPayload,configuredVideoRouteCatalog,type VideoAspectRatio,type VideoMotionPreset,type VideoRouteId}from'./kivelle-video-routes.ts';
 
-export type CanonicalMediaRequest=CanonicalImageGenerationRequest&{mediaType:'image'|'video';motionPrompt?:string;durationSeconds?:number};
+export type CanonicalMediaRequest=CanonicalImageGenerationRequest&{mediaType:'image'|'video';videoRouteId?:VideoRouteId;motionPreset?:VideoMotionPreset;videoAspectRatio?:VideoAspectRatio;durationSeconds?:number};
 export type ProviderAttempt={attemptNumber:number;stage:string;provider:string;model:string;routeId:string;estimatedCost?:number;generationMs?:number;success:boolean;failureCode?:string;providerRequestId?:string};
 export type ProviderCompletedMedia={bytes?:Uint8Array;outputUrl?:string;contentType?:string;width?:number;height?:number;durationMs?:number;providerRequestId?:string;model:string;estimatedCost?:number;generationMs?:number;providerAttempts?:ProviderAttempt[];providerMetadata?:Record<string,unknown>};
 export type ProviderSubmission={provider:string;providerRequestId:string;model:string;status:'submitted'|'completed';result?:ProviderCompletedMedia};
@@ -38,8 +40,11 @@ export function configuredMediaRegistry():MediaRouteCapability[]{
     entry('wavespeed-zimage-i2i-lora','wavespeed',env('WAVESPEED_MODEL_STANDARD_I2I_LORA','wavespeed-ai/z-image-turbo/image-to-image-lora'),'z-image',['image'],standard,{character:true,location:true,max:1,lora:true,loraFamilies:['z-image'],edit:true,priority:112,enabled:wave&&envBoolean('KIVELLE_WAVESPEED_LORA_ENABLED')}),
     entry('wavespeed-flux-edit-lora','wavespeed',env('WAVESPEED_MODEL_MULTIREF_LORA','wavespeed-ai/flux-2-klein-4b/edit-lora'),'flux',['image'],standard,{character:true,location:true,max:4,lora:true,loraFamilies:['flux'],edit:true,priority:114,enabled:wave&&envBoolean('KIVELLE_WAVESPEED_LORA_ENABLED')&&envBoolean('KIVELLE_WAVESPEED_EXPERIMENTAL_ROUTES')}),
     entry('wavespeed-chroma','wavespeed',env('WAVESPEED_MODEL_EXPLICIT','wavespeed-ai/chroma'),'chroma',['image'],adult?['suggestive','mature','explicit']:[],{priority:80,enabled:wave&&adult&&envBoolean('KIVELLE_WAVESPEED_ADULT_ROUTE_VALIDATED')}),
-    entry('wavespeed-video','wavespeed',env('WAVESPEED_MODEL_VIDEO','wavespeed-ai/ltx-2.3-spicy/image-to-video'),'ltx',['video'],adult&&envBoolean('KIVELLE_WAVESPEED_ADULT_VIDEO_ROUTE_VALIDATED')?['standard','romance','suggestive','mature','explicit']:standard,{character:true,location:true,max:1,i2v:true,cost:estimatedMediaProviderCost('wavespeed-video')??undefined,priority:120,enabled:wave&&video}),
-    entry('wavespeed-video-lora','wavespeed',env('WAVESPEED_MODEL_VIDEO_LORA','wavespeed-ai/ltx-2.3-spicy/image-to-video-lora'),'ltx',['video'],standard,{character:true,location:true,max:1,lora:true,loraFamilies:['ltx'],i2v:true,priority:125,enabled:wave&&video&&envBoolean('KIVELLE_WAVESPEED_LORA_ENABLED')&&envBoolean('KIVELLE_WAVESPEED_VIDEO_LORA_VALIDATED')}),
+    // Legacy LTX/"spicy" video routes are intentionally disabled. Tester
+    // video is selected only through the canonical route catalog below.
+    entry('wavespeed-video','wavespeed',env('WAVESPEED_MODEL_VIDEO','wavespeed-ai/ltx-2.3-spicy/image-to-video'),'ltx',['video'],standard,{character:true,location:true,max:1,i2v:true,priority:1,enabled:false}),
+    entry('wavespeed-video-lora','wavespeed',env('WAVESPEED_MODEL_VIDEO_LORA','wavespeed-ai/ltx-2.3-spicy/image-to-video-lora'),'ltx',['video'],standard,{character:true,location:true,max:1,lora:true,loraFamilies:['ltx'],i2v:true,priority:1,enabled:false}),
+    ...configuredVideoRouteCatalog().map((route)=>entry(route.id,route.provider,route.model,route.id.includes('minimax')?'minimax':route.id.includes('gemini')?'gemini-video':'p-video',['video'],standard,{character:route.mediaMode==='reference_to_video',max:route.mediaMode==='reference_to_video'?3:1,i2v:true,cost:route.estimatedProviderCostUsd,priority:160,enabled:route.enabled})),
   ];
   const sync=configuredImageProvider();if(sync)registry.push(entry(`${sync.id}-image`,sync.id,sync.id==='openai'?env('KIVELLE_IMAGE_MODEL','gpt-image-2'):env('KIVELLE_IMAGE_MODEL','gemini-3.1-flash-image'),sync.id==='openai'?'openai-image':'gemini-image',['image'],standard,{character:true,location:true,max:2,edit:true,priority:50,enabled:true,async:false}));
   return registry;
@@ -135,7 +140,14 @@ export function waveSpeedInput(request:CanonicalMediaRequest,route:MediaRouteCap
   const identity=request.referenceImages.find((item)=>item.role==='character_identity'&&item.signedUrl);
   if(request.mediaType==='image'&&request.generationKind!=='creator_identity'&&(!identity||!route.supportsCharacterReference||route.maxReferenceImages<1))throw new AppError('CHARACTER_REFERENCE_REQUIRED','This provider route cannot preserve the companion reference identity.',409,true);
   const refs=((request.subjects?.length??1)>1?request.referenceImages.filter((item)=>item.signedUrl):[...(identity?[identity]:[]),...request.referenceImages.filter((item)=>item.signedUrl&&item!==identity)]).slice(0,route.maxReferenceImages),size=dimensions(request.composition.aspectRatio,request.qualityTier),prompt=request.mediaType==='video'?buildVideoPrompt(request):route.id===WAVESPEED_GROUP_QWEN_ROUTE_ID?buildWaveSpeedGroupImagePrompt(request,refs):buildImagePrompt(request);
-  if(request.mediaType==='video')return{image:request.sourceImage?.signedUrl??refs[0]?.signedUrl,prompt,preset:'tuned',resolution:request.qualityTier==='premium'?'720p':'480p',duration:Math.max(3,Math.min(10,request.durationSeconds??5)),seed:-1};
+  if(request.mediaType==='video'){
+    const definition=configuredVideoRouteCatalog().find((item)=>item.id===route.id);
+    if(!definition||!definition.enabled||request.videoRouteId!==definition.id)throw new AppError('PROVIDER_NOT_CONFIGURED','The selected video model is no longer available.',503);
+    const sourceImageUrl=request.sourceImage?.signedUrl;
+    if(!sourceImageUrl)throw new AppError('VALIDATION_ERROR','A source image is required to create a video.',422);
+    const canonicalReferenceUrls=request.referenceImages.filter((item)=>item.role==='character_identity'&&Boolean(item.signedUrl)).map((item)=>String(item.signedUrl));
+    return buildVideoProviderPayload(definition,{sourceImageUrl,canonicalReferenceUrls,sourceAspectRatio:request.videoAspectRatio??'9:16',motionPreset:request.motionPreset??'subtle'});
+  }
   if(route.id===WAVESPEED_GROUP_QWEN_ROUTE_ID)return{prompt,images:refs.map((item)=>item.signedUrl),seed:-1,enable_safety_checker:!ADULT_CONTENT_LEVELS.includes(request.contentLevel)};
   if(['wavespeed-kontext-pro-multiref','wavespeed-kontext-max-multiref'].includes(route.id))return{prompt,images:refs.map((item)=>item.signedUrl),seed:-1,guidance_scale:3.5,aspect_ratio:request.composition.aspectRatio==='4:5'?'3:4':request.composition.aspectRatio};
   const common={prompt,size:`${size.width}*${size.height}`,seed:-1,output_format:'jpeg',num_images:1};
@@ -162,11 +174,11 @@ export function buildWaveSpeedGroupImagePrompt(request:CanonicalMediaRequest,ref
     return`Figure ${figureIndex+1}→${index===0?'LEFT':'RIGHT'} ${subject.companion.name}, adult ${subject.companion.age} (${clipWaveSpeedPrompt(traits,85)})`;
   }).join('. ');
   const action=request.generationKind==='photo_edit'?'Edit the approved source into one coherent photorealistic camera photograph.':'Create one coherent photorealistic personal camera photograph.';
-  const content=waveSpeedGroupContentGuidance(request.contentLevel);
+  const content=waveSpeedGroupContentGuidance(request.contentLevel),containment=request.context.worldContainment,worldLock=containment?clipWaveSpeedPrompt(`Only ${containment.worldName}; exact setting ${containment.locationName??'native setting'}; never Earth or another world; avoid ${Array.isArray(containment.worldVisualContext.avoid)?containment.worldVisualContext.avoid.slice(0,2).join(', '):'non-canonical scenery'}.`,115):'';
   const approved=intent?`Approved request: ${clipVenicePrompt(intent,120)}.`:'';
   const composition=`${request.composition.shotType.replace('_',' ')}, ${request.composition.aspectRatio}; both subjects clearly readable.`;
   const qualityRetry=request.qualityRetry?`Correct: ${clipVenicePrompt(request.qualityRetry.reasonCodes.join(', '),70)}.`:'';
-  return clipWaveSpeedPrompt([action,supportingFigureRoles?`${supportingFigureRoles}.`:'',`IDENTITY LOCK: ${identityLocks}. Each side matches only its figure. Preserve face, facial structure, complexion, hair, and heritage. Two visibly different people; no copying, blending, swapping, averaging, duplication, or ethnic redesign.`,approved,content,composition,qualityRetry,'Photorealistic skin and anatomy. Exactly two people; no extra/missing/merged subject, text, watermark, collage, illustration, CGI, or visible reference.'].filter(Boolean).join(' '),800);
+  return clipWaveSpeedPrompt([action,worldLock?`WORLD/SETTING LOCK: ${worldLock}`:'',supportingFigureRoles?`${supportingFigureRoles}.`:'',`IDENTITY LOCK: ${identityLocks}. Each side matches only its figure. Preserve face, facial structure, complexion, hair, and heritage. Two visibly different people; no copying, blending, swapping, averaging, duplication, or ethnic redesign.`,approved,content,composition,qualityRetry,'Photorealistic skin and anatomy. Exactly two people; no extra/missing/merged subject, text, watermark, collage, illustration, CGI, or visible reference.'].filter(Boolean).join(' '),800);
 }
 
 function waveSpeedGroupContentGuidance(level:CanonicalMediaRequest['contentLevel']):string{
@@ -179,7 +191,7 @@ function waveSpeedGroupContentGuidance(level:CanonicalMediaRequest['contentLevel
 
 function clipWaveSpeedPrompt(value:string,max:number):string{const normalized=value.replace(/\s+/g,' ').trim();return normalized.length<=max?normalized:`${normalized.slice(0,Math.max(0,max-1)).trimEnd()}…`;}
 
-export function buildVideoPrompt(request:CanonicalMediaRequest):string{return['Animate this exact approved Kivelle image without redesigning it.',request.motionPrompt??'Subtle natural breathing, blinking, small expression and hair movement, with a gentle handheld camera drift.','Preserve the companion face, adult age, body proportions, hair, clothing, location, lighting, framing, and current scene.','Avoid morphing, identity drift, outfit changes, location changes, unexplained people or objects, warped hands, text, cuts, and sudden camera jumps.'].join('\n');}
+export function buildVideoPrompt(request:CanonicalMediaRequest):string{return['Animate this exact approved Kivelle image without redesigning it.','Preserve the companion face, adult age, body proportions, hair, clothing, location, lighting, framing, and current scene.','Avoid morphing, identity drift, outfit changes, location changes, unexplained people or objects, warped hands, text, cuts, and sudden camera jumps.'].join('\n');}
 
 function predictionResult(prediction:WaveSpeedPrediction,estimatedCost?:number):ProviderCompletedMedia{return{outputUrl:prediction.outputs[0],providerRequestId:prediction.id,model:prediction.model,estimatedCost,generationMs:prediction.inferenceMs};}
 function syncResult(result:ImageGenerationResult):ProviderCompletedMedia{return{bytes:result.bytes,contentType:result.contentType,width:result.width,height:result.height,providerRequestId:result.providerRequestId,model:result.model,estimatedCost:result.estimatedCost};}
@@ -250,7 +262,8 @@ function adultEditPrompt(request:CanonicalMediaRequest):string{
   const intent=request.generationIntent?.requestText?.trim();if(!intent)throw new AppError('PROVIDER_REQUEST_INVALID','The approved adult photo request was incomplete.',422,false);
   const direction=resolvePhotoDirection({requestText:intent,shotType:request.composition.shotType,seed:request.mediaId}),faceGuidance=direction.faceMayBeHidden?'Keep the face hidden or away exactly as requested. No eye contact, camera-facing smile, over-shoulder glance, or inserted face; preserve identity through body and hair.':`Keep the same sharp, undistorted, recognizable face when visible. ${direction.faceDirection}`,nudityScope=resolveAdultNudityScope(intent),nudityGuidance=adultNudityGuidance(nudityScope,intent),preservationGuidance=adultPreservationGuidance(nudityScope,intent);
   const instruction=request.generationKind==='photo_edit'?buildMediaEditConstraint(intent,classifyMediaEditSemantics(intent)):`Edit only this approved change: ${clipVenicePrompt(intent,300)}.`;
-  return[instruction,`${request.companion.name} is one fictional consenting adult age ${request.companion.age}.`,`Pose: ${clipVenicePrompt(direction.poseDirection,260)}. ${clipVenicePrompt(direction.faceDirection,120)}`,nudityGuidance,preservationGuidance,clipVenicePrompt(faceGuidance,180),'One coherent adult body, realistic skin and anatomy, natural joints, connected limbs, and five fingers per visible hand. No duplication, fusion, distortion, blank anatomy, censorship, collage, caption, watermark, or text.'].join('\n').slice(0,1_200);
+  const containment=request.context.worldContainment,worldLock=containment?`Only ${containment.worldName}; exact setting ${containment.locationName??'a native canonical setting'}; never Earth, another world, or generic real-world scenery.`:buildMediaWorldContainmentInstruction(undefined);
+  return[instruction,`${request.companion.name} is one fictional consenting adult age ${request.companion.age}.`,`WORLD/SETTING LOCK: ${clipVenicePrompt(worldLock,180)}`,`Pose: ${clipVenicePrompt(direction.poseDirection,260)}. ${clipVenicePrompt(direction.faceDirection,120)}`,nudityGuidance,preservationGuidance,clipVenicePrompt(faceGuidance,180),'One coherent adult body, realistic skin and anatomy, natural joints, connected limbs, and five fingers per visible hand. No duplication, fusion, distortion, blank anatomy, censorship, collage, caption, watermark, or text.'].join('\n').slice(0,1_400);
 }
 function adultPreservationGuidance(scope:ReturnType<typeof resolveAdultNudityScope>,intent:string):string{
   if(scope==='specific_anatomy'&&resolveSpecificAnatomyExposure(intent)==='uncovered')return'Preserve the same adult identity, hair, body proportions, lighting, background, location, activity, and all unrelated clothing. Preserve the camera direction and overall pose only where they keep the specifically requested anatomy clearly visible; minimally reframe, reposition, or adjust the crop when necessary to satisfy that visibility requirement.';
@@ -278,6 +291,7 @@ export function buildVeniceImagePrompt(request:CanonicalMediaRequest):string{
     'Use the input image only to preserve the exact same adult face, hair, eyes, skin tone, body identity, age, and identifying features. Do not copy its clothing, pose, crop, background, or lighting.',
     `Identity: ${clipVenicePrompt(identity.canonicalDescription,260)} Hair: ${clipVenicePrompt(identity.hair,100)}. Eyes: ${clipVenicePrompt(identity.eyes,70)}. Build: ${clipVenicePrompt(identity.build,100)}.`,
     `Scene: ${clipVenicePrompt(place?.path??location?.name??'the canonical current place',120)}. ${clipVenicePrompt(locationDescription,360)}`,
+    `WORLD/SETTING LOCK: ${clipVenicePrompt(buildMediaWorldContainmentInstruction(request.context.worldContainment),380)}`,
     `Activity: ${clipVenicePrompt(request.context.activity,180)}. Mood: ${clipVenicePrompt(request.context.mood,100)}. Time: ${clipVenicePrompt(place?`${place.clock.weekday} ${place.clock.localTime}, ${place.clock.daypart}`:request.context.timeOfDay,120)}.`,
     `Wardrobe: ${clipVenicePrompt(wardrobe,240)}.`,
     `Composition: ${request.composition.shotType.replace('_',' ')} photo; ${clipVenicePrompt(request.composition.framing,180)}. Pose: ${direction.poseDirection}.`,

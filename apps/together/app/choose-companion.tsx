@@ -3,7 +3,7 @@ import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWind
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Check, ChevronRight, MapPin, Sparkles, X } from 'lucide-react-native';
-import { FrostedBackdrop, FrostedSurface, GradientButton, KivelleLogo, LoadingSkeleton, Screen, SpiceBadge, resolveCharacterPortraitSource } from '../src/components';
+import { FrostedBackdrop, FrostedSurface, GradientButton, KivelleLogo, LoadingSkeleton, Screen, resolveCharacterPortraitSource } from '../src/components';
 import { CompanionGenderToggle, useCompanionGenderPreference } from '../src/components/CompanionGenderToggle';
 import { worldHeroAsset } from '../src/assets';
 import { bootstrap } from '../src/lib/api';
@@ -172,7 +172,6 @@ function CompanionCard({ person, desktop, onPress }: { person: FeaturedCompanion
   return <Pressable accessibilityRole="button" accessibilityLabel={`Preview ${person.name}, ${person.age}, ${person.occupation}`} onPress={onPress} style={({ pressed }) => [styles.person, desktop && styles.personDesktop, pressed && styles.cardPressed]}>
     {portrait ? <Image source={portrait} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" /> : <View style={[StyleSheet.absoluteFill, styles.personFallback]}><Text style={styles.personInitial}>{person.name[0]}</Text></View>}
     <View style={styles.personShade} />
-    <SpiceBadge level={person.spice_level} overlay compact />
     <View style={styles.personCopy}>
       <Text numberOfLines={1} style={styles.personName}>{person.name} <Text style={styles.personAge}>{person.age}</Text></Text>
       <Text numberOfLines={1} style={styles.personOccupation}>{person.occupation}</Text>
@@ -197,7 +196,6 @@ function CompanionPreview({ companion, snapshot, desktop, busy, error, onClose, 
           {portrait ? <Image source={portrait} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" /> : <View style={[StyleSheet.absoluteFill, styles.personFallback]} />}
           <View style={styles.previewShade} />
           <Pressable accessibilityRole="button" accessibilityLabel="Close preview" onPress={onClose} style={styles.close}><X size={19} color="#fff" /></Pressable>
-          <SpiceBadge level={companion.spice_level} overlay />
           <View style={styles.previewIdentity}>
             <Text style={styles.previewName}>{companion.name} <Text style={styles.previewAge}>{companion.age}</Text></Text>
             <Text style={styles.previewOccupation}>{companion.occupation}</Text>

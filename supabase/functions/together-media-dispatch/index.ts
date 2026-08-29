@@ -2,6 +2,9 @@ import { z } from 'zod';
 import { adminClient, serverEnv } from '../_shared/context.ts';
 import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
+// Keep video route/inspection modules in Supabase's remote upload graph.
+import '../_shared/kivelle-video-routes.ts';
+import '../_shared/together-video-inspection.ts';
 import { AppError } from '../_shared/types.ts';
 import { dispatchMediaJobs } from '../_shared/together-media-dispatcher.ts';
 // Explicit deployment roots for the async provider graph. Supabase's remote

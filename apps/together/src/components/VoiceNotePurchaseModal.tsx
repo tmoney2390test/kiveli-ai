@@ -1,12 +1,13 @@
 import{useEffect,useState}from'react';
 import{ActivityIndicator,Modal,Pressable,StyleSheet,Text,View}from'react-native';
-import{Check,Coins,Volume2,X}from'lucide-react-native';
+import{Check,Volume2,X}from'lucide-react-native';
 import{colors,radius}from'../theme';
 import{FrostedBackdrop,FrostedSurface}from'./FrostedGlass';
+import{KivelleCreditIcon}from'./KivelleCreditIcon';
 
-type Props={visible:boolean;name:string;creditCost:number;creditBalance:number;busy:boolean;onConfirm:(hideFuture:boolean)=>void;onClose:()=>void;onBuyCredits:()=>void};
+type Props={visible:boolean;name:string;creditCost:number;creditBalance:number;shortened?:boolean;busy:boolean;onConfirm:(hideFuture:boolean)=>void;onClose:()=>void;onBuyCredits:()=>void};
 
-export function VoiceNotePurchaseModal({visible,name,creditCost,creditBalance,busy,onConfirm,onClose,onBuyCredits}:Props){
+export function VoiceNotePurchaseModal({visible,name,creditCost,creditBalance,shortened=false,busy,onConfirm,onClose,onBuyCredits}:Props){
   const[hideFuture,setHideFuture]=useState(false),canAfford=creditBalance>=creditCost;
   useEffect(()=>{if(visible)setHideFuture(false);},[visible]);
   return <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={busy?undefined:onClose}>
@@ -16,8 +17,8 @@ export function VoiceNotePurchaseModal({visible,name,creditCost,creditBalance,bu
         <FrostedSurface intensity={92} style={styles.card}>
           <View style={styles.header}><View style={styles.icon}><Volume2 size={23} color={colors.rose}/></View><Pressable accessibilityLabel="Close" disabled={busy} onPress={onClose} style={styles.close}><X size={18} color={colors.muted}/></Pressable></View>
           <Text style={styles.title}>Generate voice note?</Text>
-          <Text style={styles.copy}>Hear this message in {name}&apos;s selected voice.</Text>
-          <View style={styles.price}><Coins size={21} color={colors.warm}/><Text style={styles.priceNumber}>{creditCost}</Text><View><Text style={styles.priceLabel}>KIVELLE CREDITS</Text><Text style={styles.balance}>{creditBalance.toLocaleString()} available</Text></View></View>
+          <Text style={styles.copy}>{shortened?'A concise, faithful version will be spoken.':`Hear this in ${name}'s voice.`}</Text>
+          <View style={styles.price}><KivelleCreditIcon size={25}/><Text style={styles.priceNumber}>{creditCost}</Text><View><Text style={styles.priceLabel}>KIVELLE CREDITS</Text><Text style={styles.balance}>{creditBalance.toLocaleString()} available</Text></View></View>
           <Pressable accessibilityRole="checkbox" accessibilityState={{checked:hideFuture}} accessibilityLabel="Don't show this confirmation again" disabled={busy} onPress={()=>setHideFuture((value)=>!value)} style={styles.checkboxRow}><View style={[styles.checkbox,hideFuture&&styles.checkboxChecked]}>{hideFuture?<Check size={13} color="#fff" strokeWidth={3}/>:null}</View><Text style={styles.checkboxText}>Don&apos;t show this again</Text></Pressable>
           <View style={styles.actions}><Pressable accessibilityRole="button" disabled={busy} onPress={onClose} style={[styles.secondary,busy&&styles.disabled]}><Text style={styles.secondaryText}>Not now</Text></Pressable><Pressable accessibilityRole="button" disabled={busy} onPress={canAfford?()=>onConfirm(hideFuture):onBuyCredits} style={[styles.primary,busy&&styles.disabled]}>{busy?<ActivityIndicator size="small" color="#fff"/>:null}<Text style={styles.primaryText}>{busy?'Generating…':canAfford?'Generate audio':'Get credits'}</Text></Pressable></View>
         </FrostedSurface>

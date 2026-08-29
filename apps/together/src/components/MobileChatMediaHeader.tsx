@@ -79,7 +79,9 @@ export function MobileChatMediaHeader({
     Math.abs(gesture.dy) > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx) * 1.15;
   const panResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: wantsVerticalGesture,
-    onMoveShouldSetPanResponderCapture: wantsVerticalGesture,
+    // Keep header buttons responsive even when a tap includes a little motion.
+    // A deliberate drag can still be claimed through the bubbling responder.
+    onMoveShouldSetPanResponderCapture: () => false,
     onPanResponderGrant: () => {
       gestureStart.current = modeRef.current === 'expanded' ? 1 : 0;
       progress.stopAnimation();
@@ -171,7 +173,7 @@ export function MobileChatMediaHeader({
       <Animated.View pointerEvents="none" style={[styles.purpleWash, { opacity: headerOpacity }]} />
 
       <Animated.View style={[styles.headerContents, { opacity: headerOpacity }]}>
-        <Pressable accessibilityLabel="Back to Messages" onPress={onBack} style={[styles.action, styles.back, { top: actionTop }]}>
+        <Pressable accessibilityLabel="Back to Messages" hitSlop={10} onPress={onBack} style={[styles.action, styles.back, { top: actionTop }]}>
           <ArrowLeft size={22} color={colors.text} />
         </Pressable>
 

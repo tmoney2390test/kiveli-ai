@@ -4,7 +4,6 @@ import { colors, typography } from '../theme';
 import type { FeaturedCompanion } from '../lib/featuredCompanions';
 import { resolveCharacterPortraitSource } from './ui';
 import { DetailPreservingArtwork } from './DetailPreservingArtwork';
-import { SpiceBadge } from './SpiceBadge';
 
 export function CompanionPortraitCard({ companion, width, height = 390, favorite, favoriteBusy, subtitle, actionLabel = 'View profile', onFavorite, onPress }: {
   companion: FeaturedCompanion;
@@ -23,7 +22,6 @@ export function CompanionPortraitCard({ companion, width, height = 390, favorite
     {source ? <DetailPreservingArtwork accessibilityLabel={`${companion.name}, ${companion.occupation}`} source={source} contentPosition="top" foregroundFit="cover" dim={.1} /> : <View style={[StyleSheet.absoluteFill, styles.fallback]}><Text style={styles.fallbackInitial}>{companion.name[0]}</Text></View>}
     <View style={styles.cardShade} />
     <View style={styles.badge}><Sparkles size={11} color="#FFE1A8" /><Text style={styles.badgeText}>{label}</Text></View>
-    <SpiceBadge level={companion.spice_level} overlay />
     <View style={styles.cardCopy}>
       <View style={styles.nameRow}>
         <Text numberOfLines={1} style={styles.name}>{companion.name} <Text style={styles.age}>{companion.age}</Text></Text>

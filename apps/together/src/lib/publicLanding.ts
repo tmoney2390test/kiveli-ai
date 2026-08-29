@@ -1,5 +1,5 @@
 export type PublicWorld = {
-  slug: 'juniper-city' | 'port-vervelle' | 'neon-kyo' | 'vespormoor';
+  slug: 'juniper-city' | 'port-vervelle' | 'neon-kyo' | 'vespormoor' | 'northvale' | 'eos-meridian';
   name: string;
   eyebrow: string;
   description: string;
@@ -47,6 +47,20 @@ export const PUBLIC_WORLDS: readonly PublicWorld[] = [
     name: 'Vespormoor',
     eyebrow: 'GOTHIC ROMANCE · MYSTERY · UNIVERSITY',
     description: 'Old estates, intimate nights, subtle magic, and a castle university above a dark mountain lake.',
+    new: true,
+  },
+  {
+    slug: 'northvale',
+    name: 'Northvale',
+    eyebrow: 'ALPINE LIVES · WINTER HEAT',
+    description: 'A working mountain town of ski patrols, storm nights, close friendships, and complicated second chances.',
+    new: true,
+  },
+  {
+    slug: 'eos-meridian',
+    name: 'Eos Meridian',
+    eyebrow: 'FRONTIER ROMANCE · LIVING COLONY',
+    description: 'A human colony beneath a fixed twilight sky, where work, independence, and an impossible signal shape ordinary intimacy.',
     new: true,
   },
 ] as const;
@@ -123,5 +137,41 @@ export const PUBLIC_COMPANIONS: readonly PublicCompanion[] = [
     location: 'Velvet Thorn',
     description: 'An elegant, perceptive proprietor who remembers more of Vespormoor’s oldest winter than she admits.',
     tags: ['Jazz', 'Psychology', 'Old secrets'],
+  },
+  {
+    slug: 'avery-callahan',
+    name: 'Avery Callahan',
+    worldSlug: 'northvale',
+    worldName: 'Northvale',
+    location: 'Ski Patrol Headquarters',
+    description: 'A capable patrol captain whose composure leaves room for dry humor and hard-earned tenderness.',
+    tags: ['Ski patrol', 'Mountains', 'Quiet evenings'],
+  },
+  {
+    slug: 'mara-ellison',
+    name: 'Mara Ellison',
+    worldSlug: 'northvale',
+    worldName: 'Northvale',
+    location: 'Old Vale',
+    description: 'A grounded local with a sharp eye for weather, people, and the choices they avoid making.',
+    tags: ['Winter', 'Community', 'Local stories'],
+  },
+  {
+    slug: 'commander-rhea-navarro',
+    name: 'Commander Rhea Navarro',
+    worldSlug: 'eos-meridian',
+    worldName: 'Eos Meridian',
+    location: 'Ascension Port',
+    description: 'A disciplined port commander balancing public duty, private history, and the colony’s uncertain future.',
+    tags: ['Command', 'Flight', 'Colony politics'],
+  },
+  {
+    slug: 'imani-laurent',
+    name: 'Imani Laurent',
+    worldSlug: 'eos-meridian',
+    worldName: 'Eos Meridian',
+    location: 'Solace Biome',
+    description: 'A perceptive biome engineer who makes artificial rain and hard truths feel unexpectedly intimate.',
+    tags: ['Ecology', 'Artificial rain', 'Research'],
   },
 ] as const;

@@ -6,145 +6,182 @@ export const characterProfilePhotoExtras: Record<string, readonly CharacterProfi
   'aya-mori': [
     require('../assets/character-profile/neon-kyo/aya-mori/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/aya-mori/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/aya-mori/photo-4.jpg'),
   ],
   'emi-takahashi': [
     require('../assets/character-profile/neon-kyo/emi-takahashi/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/emi-takahashi/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/emi-takahashi/photo-4.jpg'),
   ],
   'chloe-mercier': [
     require('../assets/character-profile/neon-kyo/chloe-mercier/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/chloe-mercier/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/chloe-mercier/photo-4.jpg'),
   ],
   'noa-7': [
     require('../assets/character-profile/neon-kyo/noa-7/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/noa-7/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/noa-7/photo-4.jpg'),
   ],
   'sora-hayashi': [
     require('../assets/character-profile/neon-kyo/sora-hayashi/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/sora-hayashi/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/sora-hayashi/photo-4.jpg'),
   ],
   'yumi-kato': [
     require('../assets/character-profile/neon-kyo/yumi-kato/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/yumi-kato/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/yumi-kato/photo-4.jpg'),
   ],
   'mina-seo': [
     require('../assets/character-profile/neon-kyo/mina-seo/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/mina-seo/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/mina-seo/photo-4.jpg'),
   ],
   'elena-volkov': [
     require('../assets/character-profile/neon-kyo/elena-volkov/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/elena-volkov/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/elena-volkov/photo-4.jpg'),
   ],
   'zhen-li': [
     require('../assets/character-profile/neon-kyo/zhen-li/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/zhen-li/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/zhen-li/photo-4.jpg'),
   ],
   'reina-kuroda': [
     require('../assets/character-profile/neon-kyo/reina-kuroda/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/reina-kuroda/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/reina-kuroda/photo-4.jpg'),
+  ],
+  'rika-senzaki': [
+    require('../assets/character-profile/neon-kyo/rika-senzaki/photo-2.jpg'),
+    require('../assets/character-profile/neon-kyo/rika-senzaki/photo-3.jpg'),
   ],
   'piper-shaw': [
     require('../assets/character-profile/neon-kyo/piper-shaw/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/piper-shaw/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/piper-shaw/photo-4.jpg'),
   ],
   'lexi-morgan': [
     require('../assets/character-profile/neon-kyo/lexi-morgan/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/lexi-morgan/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/lexi-morgan/photo-4.jpg'),
   ],
   'vittoria-bellandi': [
     require('../assets/character-profile/neon-kyo/vittoria-bellandi/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/vittoria-bellandi/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/vittoria-bellandi/photo-4.jpg'),
   ],
   'eva-aoyama': [
     require('../assets/character-profile/neon-kyo/eva-aoyama/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/eva-aoyama/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/eva-aoyama/photo-4.jpg'),
   ],
   'yuna-park': [
     require('../assets/character-profile/neon-kyo/yuna-park/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/yuna-park/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/yuna-park/photo-4.jpg'),
   ],
   'rin-akiyama': [
     require('../assets/character-profile/neon-kyo/rin-akiyama/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/rin-akiyama/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/rin-akiyama/photo-4.jpg'),
   ],
   'natsumi-endo': [
     require('../assets/character-profile/neon-kyo/natsumi-endo/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/natsumi-endo/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/natsumi-endo/photo-4.jpg'),
   ],
   'laleh-rahimi': [
     require('../assets/character-profile/neon-kyo/laleh-rahimi/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/laleh-rahimi/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/laleh-rahimi/photo-4.jpg'),
   ],
   'kira-3': [
     require('../assets/character-profile/neon-kyo/kira-3/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/kira-3/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/kira-3/photo-4.jpg'),
   ],
   'mia-lindstrom': [
     require('../assets/character-profile/neon-kyo/mia-lindstrom/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/mia-lindstrom/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/mia-lindstrom/photo-4.jpg'),
   ],
   'mika-sato': [
     require('../assets/character-profile/neon-kyo/mika-sato/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/mika-sato/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/mika-sato/photo-4.jpg'),
   ],
   'ana-luiza-ribeiro': [
     require('../assets/character-profile/neon-kyo/ana-luiza-ribeiro/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/ana-luiza-ribeiro/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/ana-luiza-ribeiro/photo-4.jpg'),
   ],
   'mei-watanabe': [
     require('../assets/character-profile/neon-kyo/mei-watanabe/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/mei-watanabe/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/mei-watanabe/photo-4.jpg'),
   ],
   'freya-keller': [
     require('../assets/character-profile/neon-kyo/freya-keller/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/freya-keller/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/freya-keller/photo-4.jpg'),
   ],
   'akari-fujimoto': [
     require('../assets/character-profile/neon-kyo/akari-fujimoto/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/akari-fujimoto/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/akari-fujimoto/photo-4.jpg'),
   ],
   'fumi-arai': [
     require('../assets/character-profile/neon-kyo/fumi-arai/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/fumi-arai/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/fumi-arai/photo-4.jpg'),
   ],
   'isabella-reyes': [
     require('../assets/character-profile/neon-kyo/isabella-reyes/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/isabella-reyes/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/isabella-reyes/photo-4.jpg'),
   ],
   'talia-okafor': [
     require('../assets/character-profile/neon-kyo/talia-okafor/photo-2.jpg'),
+    require('../assets/character-profile/neon-kyo/talia-okafor/photo-3.jpg'),
   ],
   iori: [
     require('../assets/character-profile/neon-kyo/iori/photo-2.jpg'),
     require('../assets/character-profile/neon-kyo/iori/photo-3.jpg'),
-    require('../assets/character-profile/neon-kyo/iori/photo-4.jpg'),
+  ],
+  'ren-ishikawa': [
+    require('../assets/character-profile/neon-kyo/ren-ishikawa/photo-2.jpg'),
+    require('../assets/character-profile/neon-kyo/ren-ishikawa/photo-3.jpg'),
+  ],
+  'jae-min-han': [
+    require('../assets/character-profile/neon-kyo/jae-min-han/photo-2.jpg'),
+    require('../assets/character-profile/neon-kyo/jae-min-han/photo-3.jpg'),
+  ],
+  'theo-laurent': [
+    require('../assets/character-profile/neon-kyo/theo-laurent/photo-2.jpg'),
+    require('../assets/character-profile/neon-kyo/theo-laurent/photo-3.jpg'),
+  ],
+  'daisuke-arata': [
+    require('../assets/character-profile/neon-kyo/daisuke-arata/photo-2.jpg'),
+    require('../assets/character-profile/neon-kyo/daisuke-arata/photo-3.jpg'),
+  ],
+  'malik-okoye': [
+    require('../assets/character-profile/neon-kyo/malik-okoye/photo-2.jpg'),
+    require('../assets/character-profile/neon-kyo/malik-okoye/photo-3.jpg'),
+  ],
+  'adrian-petrescu': [
+    require('../assets/character-profile/neon-kyo/adrian-petrescu/photo-2.jpg'),
+    require('../assets/character-profile/neon-kyo/adrian-petrescu/photo-3.jpg'),
+  ],
+  'kenji-watanabe': [
+    require('../assets/character-profile/neon-kyo/kenji-watanabe/photo-2.jpg'),
+    require('../assets/character-profile/neon-kyo/kenji-watanabe/photo-3.jpg'),
+  ],
+  'gabriel-moreau': [
+    require('../assets/character-profile/neon-kyo/gabriel-moreau/photo-2.jpg'),
+    require('../assets/character-profile/neon-kyo/gabriel-moreau/photo-3.jpg'),
+  ],
+  'haruto-seki': [
+    require('../assets/character-profile/neon-kyo/haruto-seki/photo-2.jpg'),
+    require('../assets/character-profile/neon-kyo/haruto-seki/photo-3.jpg'),
+  ],
+  'nico-serrano': [
+    require('../assets/character-profile/neon-kyo/nico-serrano/photo-2.jpg'),
+    require('../assets/character-profile/neon-kyo/nico-serrano/photo-3.jpg'),
+  ],
+  'sol-9': [
+    require('../assets/character-profile/neon-kyo/sol-9/photo-2.jpg'),
+    require('../assets/character-profile/neon-kyo/sol-9/photo-3.jpg'),
+  ],
+  'min-jun-park': [
+    require('../assets/character-profile/neon-kyo/min-jun-park/photo-2.jpg'),
+    require('../assets/character-profile/neon-kyo/min-jun-park/photo-3.jpg'),
+  ],
+  'tiago-nascimento': [
+    require('../assets/character-profile/neon-kyo/tiago-nascimento/photo-2.jpg'),
+    require('../assets/character-profile/neon-kyo/tiago-nascimento/photo-3.jpg'),
+  ],
+  'kaito-fujimori': [
+    require('../assets/character-profile/neon-kyo/kaito-fujimori/photo-2.jpg'),
+    require('../assets/character-profile/neon-kyo/kaito-fujimori/photo-3.jpg'),
+  ],
+  'arun-mehta': [
+    require('../assets/character-profile/neon-kyo/arun-mehta/photo-2.jpg'),
+    require('../assets/character-profile/neon-kyo/arun-mehta/photo-3.jpg'),
   ],
   'noah-williams': [
     require('../assets/character-profile/juniper-city/noah-williams/photo-2.jpg'),
@@ -274,7 +311,6 @@ export const characterProfilePhotoExtras: Record<string, readonly CharacterProfi
   'evelyn-harrow': [
     require('../assets/character-profile/vespormoor/evelyn-harrow/photo-2.jpg'),
     require('../assets/character-profile/vespormoor/evelyn-harrow/photo-3.jpg'),
-    require('../assets/character-profile/vespormoor/evelyn-harrow/photo-4.jpg'),
   ],
   'freya-lind': [
     require('../assets/character-profile/vespormoor/freya-lind/photo-2.jpg'),
@@ -560,6 +596,143 @@ export const characterProfilePhotoExtras: Record<string, readonly CharacterProfi
     require('../assets/character-profile/northvale/graham-pike/photo-2.jpg'),
     require('../assets/character-profile/northvale/graham-pike/photo-3.jpg'),
   ],
+  'dr-lena-okafor': [
+    require('../assets/character-profile/eos-meridian/dr-lena-okafor/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/dr-lena-okafor/photo-3.jpg'),
+  ],
+  'cassian-vale': [
+    require('../assets/character-profile/eos-meridian/cassian-vale/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/cassian-vale/photo-3.jpg'),
+  ],
+  'mara-venn': [
+    require('../assets/character-profile/eos-meridian/mara-venn/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/mara-venn/photo-3.jpg'),
+  ],
+  'jonah-sato': [
+    require('../assets/character-profile/eos-meridian/jonah-sato/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/jonah-sato/photo-3.jpg'),
+  ],
+  'talia-reyes': [
+    require('../assets/character-profile/eos-meridian/talia-reyes/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/talia-reyes/photo-3.jpg'),
+  ],
+  'imani-laurent': [
+    require('../assets/character-profile/eos-meridian/imani-laurent/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/imani-laurent/photo-3.jpg'),
+  ],
+  'elian-park': [
+    require('../assets/character-profile/eos-meridian/elian-park/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/elian-park/photo-3.jpg'),
+  ],
+  'sora-bell': [
+    require('../assets/character-profile/eos-meridian/sora-bell/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/sora-bell/photo-3.jpg'),
+  ],
+  'naomi-varga': [
+    require('../assets/character-profile/eos-meridian/naomi-varga/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/naomi-varga/photo-3.jpg'),
+  ],
+  'ari-mendoza': [
+    require('../assets/character-profile/eos-meridian/ari-mendoza/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/ari-mendoza/photo-3.jpg'),
+  ],
+  'commander-rhea-navarro': [
+    require('../assets/character-profile/eos-meridian/commander-rhea-navarro/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/commander-rhea-navarro/photo-3.jpg'),
+  ],
+  'kellan-ro': [
+    require('../assets/character-profile/eos-meridian/kellan-ro/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/kellan-ro/photo-3.jpg'),
+  ],
+  'mina-zhao': [
+    require('../assets/character-profile/eos-meridian/mina-zhao/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/mina-zhao/photo-3.jpg'),
+  ],
+  'owen-calder': [
+    require('../assets/character-profile/eos-meridian/owen-calder/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/owen-calder/photo-3.jpg'),
+  ],
+  'zahra-benali': [
+    require('../assets/character-profile/eos-meridian/zahra-benali/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/zahra-benali/photo-3.jpg'),
+  ],
+  'dax-holloway': [
+    require('../assets/character-profile/eos-meridian/dax-holloway/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/dax-holloway/photo-3.jpg'),
+  ],
+  'nia-calder': [
+    require('../assets/character-profile/eos-meridian/nia-calder/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/nia-calder/photo-3.jpg'),
+  ],
+  'mateo-singh': [
+    require('../assets/character-profile/eos-meridian/mateo-singh/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/mateo-singh/photo-3.jpg'),
+  ],
+  'freya-solberg': [
+    require('../assets/character-profile/eos-meridian/freya-solberg/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/freya-solberg/photo-3.jpg'),
+  ],
+  'luc-moreau': [
+    require('../assets/character-profile/eos-meridian/luc-moreau/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/luc-moreau/photo-3.jpg'),
+  ],
+  'dr-selene-ward': [
+    require('../assets/character-profile/eos-meridian/dr-selene-ward/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/dr-selene-ward/photo-3.jpg'),
+  ],
+  'aya-nakamura': [
+    require('../assets/character-profile/eos-meridian/aya-nakamura/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/aya-nakamura/photo-3.jpg'),
+  ],
+  'elias-thorne': [
+    require('../assets/character-profile/eos-meridian/elias-thorne/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/elias-thorne/photo-3.jpg'),
+  ],
+  'priya-nwosu': [
+    require('../assets/character-profile/eos-meridian/priya-nwosu/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/priya-nwosu/photo-3.jpg'),
+  ],
+  'theo-vance': [
+    require('../assets/character-profile/eos-meridian/theo-vance/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/theo-vance/photo-3.jpg'),
+  ],
+  'vesper-quinn': [
+    require('../assets/character-profile/eos-meridian/vesper-quinn/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/vesper-quinn/photo-3.jpg'),
+  ],
+  'camille-arden': [
+    require('../assets/character-profile/eos-meridian/camille-arden/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/camille-arden/photo-3.jpg'),
+  ],
+  'rafael-costa': [
+    require('../assets/character-profile/eos-meridian/rafael-costa/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/rafael-costa/photo-3.jpg'),
+  ],
+  'june-callahan': [
+    require('../assets/character-profile/eos-meridian/june-callahan/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/june-callahan/photo-3.jpg'),
+  ],
+  'malik-orison': [
+    require('../assets/character-profile/eos-meridian/malik-orison/photo-2.jpg'),
+    require('../assets/character-profile/eos-meridian/malik-orison/photo-3.jpg'),
+  ],
+  'amaya-flores': [require('../assets/character-profile/eos-meridian/amaya-flores/photo-2.jpg'), require('../assets/character-profile/eos-meridian/amaya-flores/photo-3.jpg')],
+  'celeste-ren': [require('../assets/character-profile/eos-meridian/celeste-ren/photo-2.jpg'), require('../assets/character-profile/eos-meridian/celeste-ren/photo-3.jpg')],
+  'milo-jensen': [require('../assets/character-profile/eos-meridian/milo-jensen/photo-2.jpg'), require('../assets/character-profile/eos-meridian/milo-jensen/photo-3.jpg')],
+  'liora-haddad': [require('../assets/character-profile/eos-meridian/liora-haddad/photo-2.jpg'), require('../assets/character-profile/eos-meridian/liora-haddad/photo-3.jpg')],
+  'hana-petrov': [require('../assets/character-profile/eos-meridian/hana-petrov/photo-2.jpg'), require('../assets/character-profile/eos-meridian/hana-petrov/photo-3.jpg')],
+  'zoe-mercer': [require('../assets/character-profile/eos-meridian/zoe-mercer/photo-2.jpg'), require('../assets/character-profile/eos-meridian/zoe-mercer/photo-3.jpg')],
+  'yara-kwon': [require('../assets/character-profile/eos-meridian/yara-kwon/photo-2.jpg'), require('../assets/character-profile/eos-meridian/yara-kwon/photo-3.jpg')],
+  'leona-baptiste': [require('../assets/character-profile/eos-meridian/leona-baptiste/photo-2.jpg'), require('../assets/character-profile/eos-meridian/leona-baptiste/photo-3.jpg')],
+  'micah-torres': [require('../assets/character-profile/eos-meridian/micah-torres/photo-2.jpg'), require('../assets/character-profile/eos-meridian/micah-torres/photo-3.jpg')],
+  'poppy-reyes': [require('../assets/character-profile/eos-meridian/poppy-reyes/photo-2.jpg'), require('../assets/character-profile/eos-meridian/poppy-reyes/photo-3.jpg')],
+  'samira-cole': [require('../assets/character-profile/eos-meridian/samira-cole/photo-2.jpg'), require('../assets/character-profile/eos-meridian/samira-cole/photo-3.jpg')],
+  'noah-adeyemi': [require('../assets/character-profile/eos-meridian/noah-adeyemi/photo-2.jpg'), require('../assets/character-profile/eos-meridian/noah-adeyemi/photo-3.jpg')],
+  'iris-vale': [require('../assets/character-profile/eos-meridian/iris-vale/photo-2.jpg'), require('../assets/character-profile/eos-meridian/iris-vale/photo-3.jpg')],
+  'noura-castillo': [require('../assets/character-profile/eos-meridian/noura-castillo/photo-2.jpg'), require('../assets/character-profile/eos-meridian/noura-castillo/photo-3.jpg')],
+  'kenji-brooks': [require('../assets/character-profile/eos-meridian/kenji-brooks/photo-2.jpg'), require('../assets/character-profile/eos-meridian/kenji-brooks/photo-3.jpg')],
+  'eden-baptiste': [require('../assets/character-profile/eos-meridian/eden-baptiste/photo-2.jpg'), require('../assets/character-profile/eos-meridian/eden-baptiste/photo-3.jpg')],
+  'mae-lin': [require('../assets/character-profile/eos-meridian/mae-lin/photo-2.jpg'), require('../assets/character-profile/eos-meridian/mae-lin/photo-3.jpg')],
 };
 
 export function characterProfilePhotos(slug: string, primary?: CharacterProfilePhotoSource): CharacterProfilePhotoSource[] {

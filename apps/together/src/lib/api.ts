@@ -3,15 +3,19 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { MESSAGE_CHARACTER_LIMIT, messageCharacterLimitError } from '@together/domain/src/message-limits';
 import type { CompanionVoicePreset } from '@together/domain/src/voice-presets';
-import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, MemoryCenterItem, MemoryCenterResponse, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, ScheduleItem, Snapshot, SnapshotDelta, VoiceCallSession } from '../types';
+import type { ChatLanguagePreference } from '@together/domain/src/chat-language';
+import type { AroundTownItem, WorldPulseEvent } from '@together/domain/src/world-pulse';
+import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, MemoryCenterCategory, MemoryCenterItem, MemoryCenterResponse, MemoryCenterSort, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, ScheduleItem, Snapshot, SnapshotDelta, VideoDiagnostics, VideoGenerationOptions, VideoMotionPreset, VideoRouteOption, VoiceCallSession } from '../types';
 import type { RealtimeVoiceConfiguration } from './realtimeVoice';
+import type { StoryAction, StoryActionResponse, StoryCampaign, StoryLibrary } from '../stories/types';
+import { withIdempotentRetry } from './requestRetry';
 
 export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false) { super(message); } }
 type Envelope<T> = { data: T; correlationId: string };
 function deviceTimezone():string{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';}catch{return'UTC';}}
 
 type ClientPerformanceEvent={surface:string;operation:string;durationMs:number;success:boolean;statusCode?:number;platform:string;appVersion:string;buildId:string;metadata:Record<string,string|number|boolean|null>};
-const performanceSurfaces=new Set(['together-bootstrap','together-group','together-conversation','together-media','together-dialogue','together-group-dialogue','together-plan','together-interaction','together-memory']);
+const performanceSurfaces=new Set(['together-bootstrap','together-group','together-conversation','together-media','together-dialogue','together-group-dialogue','together-plan','together-interaction','together-memory','together-stories','together-story-dialogue','together-world-pulse']);
 const performanceQueue:ClientPerformanceEvent[]=[];let performanceFlushTimer:ReturnType<typeof setTimeout>|null=null,performanceFlushRunning=false;
 export function queueClientPerformance(input:Omit<ClientPerformanceEvent,'platform'|'appVersion'|'buildId'>){
   if(process.env.EXPO_PUBLIC_KIVELLE_PERFORMANCE_REPORTING_ENABLED==='false')return;
@@ -34,7 +38,7 @@ export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POS
   try{
     response = await fetch(`${supabaseUrl}/functions/v1/${name}`, { method, headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json','x-kivelle-timezone':deviceTimezone() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     const payload = await response.json().catch(() => ({})) as Envelope<T> & { error?: {message?:string;code?:string;retryable?:boolean} };
-    if (!response.ok) throw new ApiError(payload.error?.message ?? 'Something went wrong.', payload.error?.code, payload.error?.retryable);
+    if (!response.ok) throw new ApiError(payload.error?.message ?? 'Something went wrong.', payload.error?.code, payload.error?.retryable ?? (response.status === 408 || response.status === 429 || response.status >= 500));
     return payload.data;
   }finally{
     if(performanceSurfaces.has(surface))queueClientPerformance({surface,operation,durationMs:Date.now()-started,success:Boolean(response?.ok),...(response?{statusCode:response.status}:{}),metadata:{method}});
@@ -45,12 +49,14 @@ export const confirmAdultAge = () => invoke<Snapshot>('together-bootstrap', {act
 export const loadCharacterPresence = (characterInstanceId:string) => invoke<CharacterPresenceSnapshot>(`together-bootstrap?scope=presence&characterInstanceId=${encodeURIComponent(characterInstanceId)}`,undefined,'GET');
 export const loadCharacterSchedule = (characterTemplateId:string) => invoke<{characterTemplateId:string;characterVersionId:string;schedules:ScheduleItem[]}>(`together-bootstrap?scope=character_schedule&characterTemplateId=${encodeURIComponent(characterTemplateId)}`,undefined,'GET');
 export const loadPlaceDetail = (locationId:string) => invoke<{place:PlaceContext}>('together-place',{locationId});
+export const loadWorldPulse = (worldId?:string) => invoke<{worldId:string|null;events:WorldPulseEvent[];items:AroundTownItem[];generatedAt:string}>(`together-world-pulse${worldId?`?worldId=${encodeURIComponent(worldId)}`:''}`,undefined,'GET');
 export const bootstrap = (input: {ageConfirmed:true;onboardingChoice?:'companion'|'skip';displayName?:string;characterTemplateId?:string;worldId?:string;interests:string[];goals:Array<'Dating'|'Friendship'|'Stories'|'Social worlds'>}) => invoke<Snapshot>('together-bootstrap', {action:'complete_onboarding',...input,experienceTimezone:deviceTimezone()});
 export const setActiveCompanion = (characterInstanceId:string, source:'home_switcher'|'discover_profile'|'companion_manager'='home_switcher') => invoke<Snapshot>('together-companion',{action:'set_active',characterInstanceId,source});
-export const meetCompanion = (characterTemplateId:string, source:'onboarding'|'discover_profile'='discover_profile') => invoke<Snapshot>('together-companion',{action:'meet',characterTemplateId,source});
+export const meetCompanion = (characterTemplateId:string, source:'onboarding'|'discover_profile'|'group_invite'='discover_profile') => invoke<Snapshot>('together-companion',{action:'meet',characterTemplateId,source});
 export const setCharacterFavorite = (characterTemplateId:string,favorite:boolean,source:'home_featured'|'discover'|'chat_menu'='home_featured') => invoke<{characterTemplateId:string;favorite:boolean;favoriteCharacterTemplateIds:string[]}>('together-companion',{action:'set_favorite',characterTemplateId,favorite,source});
 export const mutateMemory = (input: Record<string,unknown>) => invoke('together-memory', input);
-export const getMemoryCenter = (characterInstanceId:string,privacyMode=false) => invoke<MemoryCenterResponse>('together-memory',{action:'overview',characterInstanceId,privacyMode});
+export const getMemoryCenter = (characterInstanceId:string,options:{privacyMode?:boolean;query?:string;category?:MemoryCenterCategory;sort?:MemoryCenterSort;cursor?:string;limit?:number;includeSummary?:boolean}={}) => invoke<MemoryCenterResponse>('together-memory',{action:'overview',characterInstanceId,...options});
+export const getMemoryHistory = (memoryId:string) => invoke<{revisions:MemoryCenterItem[]}>('together-memory',{action:'history',memoryId});
 export const rememberMessage = (messageId:string,characterInstanceId:string) => invoke<MemoryCenterItem>('together-memory',{action:'remember_message',messageId,characterInstanceId});
 export const mutateDate = <T>(input: Record<string,unknown>) => invoke<T>('together-date', input);
 export const simulate = (characterInstanceId?: string) => invoke('together-simulate', { characterInstanceId, evaluateProactive: true });
@@ -65,14 +71,22 @@ export const confirmConversationAction = <T>(candidateId:string,input?:{startsAt
 export const dismissConversationAction = <T>(candidateId:string) => invoke<T>('together-plan',{action:'dismiss_proposal',candidateId});
 export const resolveRelationshipMilestone = (milestoneId:string,action:'accept'|'defer'|'stay_friends'|'talk_it_out'|'give_space') => invoke<{snapshot:Snapshot}>('together-relationship',{milestoneId,action});
 export const manageConversation = <T>(input: Record<string, unknown>) => invoke<T>('together-conversation', input);
+export const setMessageFavorite = (conversationId:string,messageId:string,favorite:boolean) => manageConversation<Message>({action:'message_favorite',conversationId,messageId,favorite});
 export const ensureConversation = (characterInstanceId:string) => manageConversation<Conversation>({action:'ensure',characterInstanceId});
 export const previewCharacterReset = (characterInstanceId:string) => manageConversation<CharacterResetPreview>({action:'reset_preview',characterInstanceId});
 export const startOverCharacter = (characterInstanceId:string,requestId:string) => manageConversation<CharacterResetResult>({action:'start_over',characterInstanceId,requestId});
-export const manageInteraction = <T = {scene:SceneSession;action?:SceneAction;interactions:InteractionCandidate[];destinations:InteractionCandidate[];characterProposal?:CharacterInteractionProposal}>(input: Record<string, unknown>) => invoke<T>('together-interaction', input);
+export const manageInteraction = <T = {scene:SceneSession;action?:SceneAction;interactions:InteractionCandidate[];destinations:InteractionCandidate[];characterProposal?:CharacterInteractionProposal}>(input: Record<string, unknown>) => typeof input.requestId === 'string'
+  ? withIdempotentRetry(() => invoke<T>('together-interaction', input), { attempts: 2, delayMs: 180 })
+  : invoke<T>('together-interaction', input);
 export const enterScene = <T>(input:{characterInstanceId:string;locationId:string;conversationId?:string}) => invoke<T>('together-conversation',{action:'enter_scene',...input});
 export const manageMedia = <T>(input: Record<string, unknown>) => invoke<T>('together-media', input);
 export const rateGeneratedMedia = (mediaId:string,feedback:'positive'|'negative') => manageMedia<{mediaId:string;userFeedback:'positive'|'negative';userFeedbackAt:string}>({action:'feedback',mediaId,feedback});
-export const animateMedia = (mediaId:string,requestId:string,motionPrompt?:string,durationSeconds=5) => manageMedia<{media:GeneratedMedia;creditCost?:number}>({action:'animate',mediaId,requestId,motionPrompt,durationSeconds});
+export const getVideoGenerationOptions = (sourceMediaId:string) => manageMedia<VideoGenerationOptions>({action:'video_options',sourceMediaId});
+export const trackVideoSelectorEvent = (sourceMediaId:string,event:'option_sheet_opened'|'model_selected'|'motion_selected',videoRouteId?:string,motionPreset?:VideoMotionPreset) => manageMedia<{recorded:boolean}>({action:'video_event',sourceMediaId,event,videoRouteId,motionPreset});
+export const animateMedia = (sourceMediaId:string,videoRouteId:string,motionPreset:VideoMotionPreset,requestId:string) => manageMedia<{media:GeneratedMedia;creditCost:number;creditBalance:number;route:VideoRouteOption}>({action:'animate',sourceMediaId,videoRouteId,motionPreset,requestId});
+export const submitVideoFeedback = (mediaId:string,verdict:'looks_good'|'needs_work',reasonCodes:string[]=[],otherText?:string) => manageMedia<{feedback:Record<string,unknown>}>({action:'video_feedback',mediaId,verdict,reasonCodes,otherText});
+export const recordVideoPlayback = (mediaId:string) => manageMedia<{recorded:boolean}>({action:'video_playback',mediaId});
+export const getVideoDiagnostics = (mediaId:string) => manageMedia<{diagnostics:VideoDiagnostics}>({action:'video_diagnostics',mediaId});
 export const editGeneratedMedia = (mediaId:string,requestId:string,instruction:string) => manageMedia<{media:GeneratedMedia;creditCost:number;creditBalance?:{permanentBalance:number;subscriptionBalance:number;total:number}}>({action:'edit',mediaId,requestId,instruction});
 export const saveMediaContentPreferences = (input:{suggestiveMediaEnabled:boolean;matureMediaEnabled:boolean;explicitMediaEnabled:boolean;adultVideoEnabled:boolean}) => manageMedia<{saved:boolean;preferences:Record<string,unknown>}>({action:'content_preferences',...input});
 export const manageMultimodal = <T>(input:Record<string,unknown>) => invoke<T>('together-multimodal',input);
@@ -81,10 +95,10 @@ export const saveMultimodalPreferences = (preferences:Required<MultimodalPrefere
 export const prepareUserImage = (input:{conversationId:string;characterInstanceId:string;mimeType:'image/jpeg'|'image/png'|'image/webp';byteSize:number;width?:number;height?:number;requestId:string}) => manageMultimodal<{attachment:ConversationAttachment;upload:{bucket:string;path:string}}>({action:'prepare_user_image',...input});
 export const confirmUserImage = (attachmentId:string) => manageMultimodal<{attachment:ConversationAttachment;upload:{bucket:string;path:string}}>({action:'confirm_user_image',attachmentId});
 export const removePendingAttachment = (attachmentId:string) => manageMultimodal<{removed:boolean}>({action:'remove_attachment',attachmentId});
-export type VoiceNoteQuote={creditCost:number;creditBalance:number;canAfford:boolean;generationRequired:boolean};
+export type VoiceNoteQuote={creditCost:number;creditBalance:number;canAfford:boolean;generationRequired:boolean;characterCount:number;shortened:boolean};
 export const quoteVoiceNote = (messageId:string) => manageMultimodal<VoiceNoteQuote>({action:'voice_note_quote',messageId});
 export const requestVoiceNote = (messageId:string,requestId:string) => manageMultimodal<{status?:string;providerStatus?:string;message?:string;media?:GeneratedMedia}>({action:'request_voice_note',messageId,requestId});
-export const previewCompanionVoice = (input:{conversationId:string;voicePreset:CompanionVoicePreset|null;requestId:string}) => manageMultimodal<{preview:{signedUrl:string;durationMs:number;contentType:string;voicePreset:CompanionVoicePreset|null;cached:boolean}}>({action:'preview_voice',...input});
+export const previewCompanionVoice = (input:{conversationId:string;voicePreset:CompanionVoicePreset|null;chatLanguage:ChatLanguagePreference;requestId:string}) => manageMultimodal<{preview:{signedUrl:string;durationMs:number;contentType:string;voicePreset:CompanionVoicePreset|null;cached:boolean}}>({action:'preview_voice',...input});
 export const refreshVoiceNote = (mediaId:string) => manageMultimodal<{media:GeneratedMedia}>({action:'media_status',mediaId});
 export async function transcribeChatAudio(input:{conversationId:string;characterInstanceId:string;uri:string;durationMs:number;contentType:string;fileName:string}):Promise<{text:string;provider:string;model:string}>{
   const source=await fetch(input.uri);
@@ -103,8 +117,9 @@ export async function transcribeChatAudio(input:{conversationId:string;character
   if(!response.ok)throw new ApiError(payload.error?.message??'That recording could not be transcribed.',payload.error?.code,payload.error?.retryable);
   return payload.data;
 }
-export type VoiceCallBilling={creditsPerMinute:number;creditBalance:number;chargedMinutes:number;remainingMinutes:number};
-export type ManageCallResult={call?:VoiceCallSession;status?:string;providerStatus?:string;message?:string;clientSecret?:string;expiresAt?:string;clientConfiguration?:RealtimeVoiceConfiguration;billing?:VoiceCallBilling;reconciliation?:{messageCount:number;reconciled:boolean}};
+export type VoiceCallBilling={route:'standard'|'express';creditsPerMinute:number;creditBalance:number;chargedMinutes:number;remainingMinutes:number;includedMinutes:number;includedMinutesUsed:number;includedMinutesRemaining:number};
+export type VoiceRouteOption={route:'standard'|'express';displayName:string;description:string;creditsPerMinute:number;includedMinutes:number;available:boolean;unavailableReason?:string;billing:VoiceCallBilling};
+export type ManageCallResult={call?:VoiceCallSession;status?:string;providerStatus?:string;message?:string;clientSecret?:string;expiresAt?:string;clientConfiguration?:RealtimeVoiceConfiguration;billing?:VoiceCallBilling;routes?:VoiceRouteOption[];reconciliation?:{messageCount:number;reconciled:boolean}};
 export const manageCall = <T=ManageCallResult>(input:Record<string,unknown>) => invoke<T>('together-call',input);
 export const manageSharedScene = <T>(input:Record<string,unknown>) => invoke<T>('together-shared-scene',input);
 export const manageGroup = <T=GroupDetail>(input:Record<string,unknown>) => invoke<T>('together-group',input);
@@ -146,6 +161,27 @@ export const selectCreatorFirstMeeting = (draftId:string,meetingId:string) => ma
 export const finalizeCreatorDraft = (draftId:string,requestId:string) => manageCreator<{draft:CreatorDraft;result:{draftId:string;characterTemplateId:string;characterVersionId:string;publicHandle:string;idempotent:boolean}}>({action:'finalize_draft',draftId,requestId});
 export const archiveCreatorDraft = (draftId:string) => manageCreator<{archived:boolean;draftId:string}>({action:'archive_draft',draftId});
 export const manageSubscription = <T>(input?:Record<string,unknown>) => input?invoke<T>('together-subscription',input):invoke<T>('together-subscription',undefined,'GET');
+export const loadStoryLibrary=()=>invoke<StoryLibrary>('together-stories',{action:'library'});
+export const loadStoryCampaign=(campaignId:string)=>invoke<{campaign:StoryCampaign}>('together-stories',{action:'campaign',campaignId});
+export const startStoryCampaign=(storySlug:string,requestId:string)=>invoke<{campaign:StoryCampaign}>('together-stories',{action:'start',storySlug,requestId});
+export const restartStoryCampaign=(campaignId:string,requestId:string)=>invoke<{campaign:StoryCampaign}>('together-stories',{action:'restart',campaignId,requestId,confirmed:true});
+export const abandonStoryCampaign=(campaignId:string,expectedVersion:number,clientActionId:string)=>invoke<{campaign:StoryCampaign}>('together-stories',{action:'abandon',campaignId,expectedVersion,clientActionId});
+export const applyStoryCampaignAction=(campaignId:string,expectedVersion:number,storyAction:StoryAction,clientActionId:string)=>invoke<StoryActionResponse>('together-stories',{action:'apply',campaignId,expectedVersion,storyAction,clientActionId});
+export const pinStoryItem=(campaignId:string,expectedVersion:number,target:'evidence'|'character'|'event',id:string|null,clientActionId:string)=>invoke<{campaign:StoryCampaign}>('together-stories',{action:'pin',campaignId,expectedVersion,target,id,clientActionId});
+export const updateStorySettings=(campaignId:string,expectedVersion:number,settings:StoryCampaign['settings'],clientActionId:string)=>invoke<{campaign:StoryCampaign}>('together-stories',{action:'settings',campaignId,expectedVersion,settings:{textSize:settings.textSize??'medium',sound:settings.sound??true,motion:settings.motion??true,content:settings.content??'standard',guidance:settings.guidance??'balanced'},clientActionId});
+
+export async function sendStoryDialogue(input:{campaignId:string;expectedVersion:number;characterId:string;message:string;approachId?:string;evidenceId?:string;clientMessageId:string},onToken:(token:string)=>void):Promise<{campaign:StoryCampaign;replayed:boolean;evidenceDiscovered:string[];deductionsCompleted:string[]}>{
+  const started=Date.now();let response:Response|undefined,firstToken=false;
+  try{
+    response=await fetch(`${supabaseUrl}/functions/v1/together-story-dialogue`,{method:'POST',headers:{Authorization:`Bearer ${await token()}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify(input)});
+    if(!response.ok){const error=await response.json().catch(()=>({})) as{error?:{message?:string;code?:string;retryable?:boolean}};throw new ApiError(error.error?.message??'The story reply could not be generated.',error.error?.code,error.error?.retryable);}
+    if(!response.body)throw new ApiError('The story reply ended early.','STREAM_INTERRUPTED',true);
+    const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',final:{campaign:StoryCampaign;replayed:boolean;evidenceDiscovered:string[];deductionsCompleted:string[]}|null=null;
+    const consume=(events:string[])=>{for(const event of events){const line=event.split('\n').find((item)=>item.startsWith('data: '));if(!line)continue;const data=JSON.parse(line.slice(6));if(data.type==='token'){firstToken=true;onToken(String(data.token??''));}if(data.type==='done')final={campaign:data.campaign,replayed:Boolean(data.replayed),evidenceDiscovered:data.evidenceDiscovered??[],deductionsCompleted:data.deductionsCompleted??[]};if(data.type==='error')throw new ApiError(data.error?.message??'The story reply was interrupted.',data.error?.code??'STREAM_INTERRUPTED',Boolean(data.error?.retryable));}};
+    while(true){const{value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const events=buffer.split('\n\n');buffer=events.pop()??'';consume(events);}buffer+=decoder.decode();if(buffer.trim())consume([buffer]);
+    if(!final)throw new ApiError('The story reply was interrupted.','STREAM_INTERRUPTED',true);return final;
+  }finally{queueClientPerformance({surface:'together-story-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:Boolean(response?.ok),...(response?{statusCode:response.status}:{}),metadata:{firstToken}});}
+}
 
 export async function createTogetherAccount(email: string, password: string): Promise<void> {
   const response = await fetch(`${supabaseUrl}/functions/v1/together-signup`, { method: 'POST', headers: { apikey: supabasePublishableKey, Authorization: `Bearer ${supabasePublishableKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
@@ -153,7 +189,7 @@ export async function createTogetherAccount(email: string, password: string): Pr
   if (!response.ok) throw new ApiError(payload.error?.message ?? 'Your Kivelle account could not be created.', payload.error?.code, payload.error?.retryable);
 }
 
-export async function sendDialogue(input: {conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;sceneActionId?:string;autoDialogueSuggestionId?:string;autoDialogueSuggestionSource?:AutoDialogueSuggestion['source'];autoDialogueSuggestionEdited?:boolean;autoDialogueSuggestionIntent?:AutoDialogueSuggestion['intent'];autoDialogueSuggestionPreference?:AutoDialoguePreference;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta}> {
+export async function sendDialogue(input: {conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;sceneActionId?:string;messageAction?:'continue';anchorMessageId?:string;autoDialogueSuggestionId?:string;autoDialogueSuggestionSource?:AutoDialogueSuggestion['source'];autoDialogueSuggestionEdited?:boolean;autoDialogueSuggestionIntent?:AutoDialogueSuggestion['intent'];autoDialogueSuggestionPreference?:AutoDialoguePreference;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta}> {
   if (input.message.length > MESSAGE_CHARACTER_LIMIT) throw new ApiError(messageCharacterLimitError(), 'VALIDATION_FAILED');
   const started=Date.now();let firstTokenRecorded=false,statusCode:number|undefined;
   try{
@@ -179,11 +215,13 @@ export async function suggestDialogue(input:{conversationId:string;characterInst
   return payload.data;
 }
 
-export async function sendSceneReaction(input:{conversationId:string;characterInstanceId:string;sceneActionId:string;clientRequestId:string},onToken:(token:string)=>void):Promise<{message:Message}>{
-  const response=await fetch(`${supabaseUrl}/functions/v1/together-scene-reaction`,{method:'POST',headers:{Authorization:`Bearer ${await token()}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify(input)});
-  if(!response.ok){const error=await response.json().catch(()=>({}));throw new ApiError(error.error?.message??'Your companion could not react to that right now.',error.error?.code,error.error?.retryable);}
-  if(!response.body)throw new ApiError('The reaction stream ended early.','STREAM_INTERRUPTED',true);
-  const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',final:Message|null=null;
-  while(true){const{value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const events=buffer.split('\n\n');buffer=events.pop()??'';for(const event of events){const line=event.split('\n').find((item)=>item.startsWith('data: '));if(!line)continue;const data=JSON.parse(line.slice(6));if(data.type==='token')onToken(data.token);if(data.type==='done')final=data.message;if(data.type==='error')throw new ApiError(data.error?.message??'Your companion could not finish that reaction.',data.error?.code??'STREAM_INTERRUPTED',Boolean(data.error?.retryable));}}
-  if(!final)throw new ApiError('The reaction was interrupted. Try again.','STREAM_INTERRUPTED',true);return{message:final};
+export async function sendSceneReaction(input:{conversationId:string;characterInstanceId:string;sceneActionId:string;clientRequestId:string},onToken:(token:string)=>void,onRetry?:()=>void):Promise<{message:Message}>{
+  return withIdempotentRetry(async()=>{
+    const response=await fetch(`${supabaseUrl}/functions/v1/together-scene-reaction`,{method:'POST',headers:{Authorization:`Bearer ${await token()}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify(input)});
+    if(!response.ok){const error=await response.json().catch(()=>({})) as{error?:{message?:string;code?:string;retryable?:boolean}};throw new ApiError(error.error?.message??'Your companion could not react to that right now.',error.error?.code,error.error?.retryable??(response.status===408||response.status===429||response.status>=500));}
+    if(!response.body)throw new ApiError('The reaction stream ended early.','STREAM_INTERRUPTED',true);
+    const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',final:Message|null=null;
+    while(true){const{value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const events=buffer.split('\n\n');buffer=events.pop()??'';for(const event of events){const line=event.split('\n').find((item)=>item.startsWith('data: '));if(!line)continue;const data=JSON.parse(line.slice(6));if(data.type==='token')onToken(data.token);if(data.type==='done')final=data.message;if(data.type==='error')throw new ApiError(data.error?.message??'Your companion could not finish that reaction.',data.error?.code??'STREAM_INTERRUPTED',Boolean(data.error?.retryable));}}
+    if(!final)throw new ApiError('The reaction was interrupted. Try again.','STREAM_INTERRUPTED',true);return{message:final};
+  },{attempts:2,delayMs:220,onRetry:()=>onRetry?.()});
 }

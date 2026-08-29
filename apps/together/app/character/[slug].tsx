@@ -12,7 +12,6 @@ import {
   MoodBadge,
   RelationshipBadge,
   Screen,
-  SpiceBadge,
   resolveCharacterPortraitSource,
 } from '../../src/components';
 import { DetailPreservingArtwork } from '../../src/components/DetailPreservingArtwork';
@@ -200,7 +199,6 @@ export default function CharacterProfile() {
 
         {known ? <View style={styles.relationshipHeading}>
           <Text style={[styles.heading, styles.relationshipHeadingText]}>{`Your relationship with ${template.name}`}</Text>
-          <SpiceBadge level={template.spice_level} />
         </View> : null}
         <Body muted>{template.biography}</Body>
 

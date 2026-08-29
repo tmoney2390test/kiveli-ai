@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
+import { renderPersonaPromptBlock } from './kivelle-persona.ts';
 
 export type UserPersonaRow={id:string;user_id:string;name:string;display_name:string;pronouns:string|null;age:number|null;occupation:string|null;biography:string|null;interests:string[];appearance_config:Record<string,unknown>;communication_config:Record<string,unknown>;metadata:Record<string,unknown>;is_default:boolean};
 export type ContinuityRow={id:string;user_id:string;persona_id:string;kind:'main'|'alternate';title:string;active_companion_instance_id:string|null;metadata:Record<string,unknown>;together_user_personas?:UserPersonaRow};
@@ -35,7 +36,7 @@ export async function requireInstanceInActiveContinuity(db:SupabaseClient,userId
 }
 
 export function personaPromptBlock(persona:UserPersonaRow):string{
-  return `<USER_PERSONA>\nName: ${persona.display_name}\nPronouns: ${persona.pronouns??'Not specified'}\nAge: ${persona.age??'Not specified'}\nOccupation: ${persona.occupation??'Not specified'}\nInterests: ${(persona.interests??[]).join(', ')||'Not specified'}\nSelf-description: ${persona.biography??'Not specified'}\nCommunication preferences: ${JSON.stringify(persona.communication_config??{})}\n</USER_PERSONA>`;
+  return renderPersonaPromptBlock(persona);
 }
 
 function normalizeContinuity(row:Record<string,any>):ContinuityRow{const persona=Array.isArray(row.together_user_personas)?row.together_user_personas[0]:row.together_user_personas;return{...row,together_user_personas:persona} as ContinuityRow;}

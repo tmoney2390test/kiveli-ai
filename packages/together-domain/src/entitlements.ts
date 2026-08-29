@@ -12,7 +12,7 @@ export type SubscriptionTier=typeof subscriptionTiers[number];
 export type LegacySubscriptionTier='together_plus'|'unlimited';
 export type IntelligenceProfile='core'|'deep'|'director';
 export type MediaQueuePriority='standard'|'priority'|'highest';
-export type CreditAction='companion_photo'|'photo_edit'|'photo_variant'|'premium_photo'|'creator_appearance_set'|'short_video'|'voice_note'|'voice_minute';
+export type CreditAction='companion_photo'|'photo_edit'|'photo_variant'|'premium_photo'|'creator_appearance_set'|'short_video'|'voice_note'|'voice_minute'|'voice_standard_minute';
 
 export type KivelleCapabilities={
   tier:SubscriptionTier;
@@ -24,6 +24,7 @@ export type KivelleCapabilities={
   introductoryChatDailyLimit:number|null;
   introductoryChatDays:number;
   explicitDialogueMonthlyLimit:number|null;
+  includedCompanionPhotoDailyLimit:number;
   includedDatePhotoMonthlyLimit:number;
   intelligenceProfile:IntelligenceProfile;
   memoryRetrievalBudget:number;
@@ -63,19 +64,25 @@ const maxEntitlements:readonly EntitlementKey[]=[...plusEntitlements,
 ];
 
 export const subscriptionCatalog:Record<SubscriptionTier,KivelleCapabilities>={
-  free:{tier:'free',displayName:'Kivelle Free',monthlyPriceUsd:0,annualPriceUsd:null,chatDailyLimit:20,userRequestedPhotoDailyLimit:12,introductoryChatDailyLimit:40,introductoryChatDays:7,explicitDialogueMonthlyLimit:null,includedDatePhotoMonthlyLimit:0,intelligenceProfile:'core',memoryRetrievalBudget:6,recentTurnBudget:10,historyRetrievalBudget:1,directorPolicy:'major_only',maxLives:1,maxCustomCompanions:1,worldAccess:'free',earlyWorldAccess:false,monthlyCreditGrant:0,subscriptionCreditRolloverCap:0,welcomeCredits:50,mediaQueue:'standard',entitlements:freeEntitlements},
-  kivelle_plus:{tier:'kivelle_plus',displayName:'Kivelle+',monthlyPriceUsd:14.99,annualPriceUsd:149.99,chatDailyLimit:null,userRequestedPhotoDailyLimit:12,introductoryChatDailyLimit:null,introductoryChatDays:0,explicitDialogueMonthlyLimit:500,includedDatePhotoMonthlyLimit:1,intelligenceProfile:'deep',memoryRetrievalBudget:12,recentTurnBudget:18,historyRetrievalBudget:3,directorPolicy:'meaningful',maxLives:3,maxCustomCompanions:5,worldAccess:'all_standard',earlyWorldAccess:false,monthlyCreditGrant:300,subscriptionCreditRolloverCap:600,welcomeCredits:50,mediaQueue:'priority',entitlements:plusEntitlements},
-  kivelle_max:{tier:'kivelle_max',displayName:'Kivelle Max',monthlyPriceUsd:34.99,annualPriceUsd:349.99,chatDailyLimit:null,userRequestedPhotoDailyLimit:12,introductoryChatDailyLimit:null,introductoryChatDays:0,explicitDialogueMonthlyLimit:1500,includedDatePhotoMonthlyLimit:3,intelligenceProfile:'director',memoryRetrievalBudget:20,recentTurnBudget:28,historyRetrievalBudget:6,directorPolicy:'normal_and_up',maxLives:10,maxCustomCompanions:20,worldAccess:'all_standard',earlyWorldAccess:true,monthlyCreditGrant:1000,subscriptionCreditRolloverCap:2000,welcomeCredits:50,mediaQueue:'highest',entitlements:maxEntitlements},
+  free:{tier:'free',displayName:'Kivelle Free',monthlyPriceUsd:0,annualPriceUsd:null,chatDailyLimit:20,userRequestedPhotoDailyLimit:12,introductoryChatDailyLimit:40,introductoryChatDays:7,explicitDialogueMonthlyLimit:null,includedCompanionPhotoDailyLimit:0,includedDatePhotoMonthlyLimit:0,intelligenceProfile:'core',memoryRetrievalBudget:6,recentTurnBudget:10,historyRetrievalBudget:1,directorPolicy:'major_only',maxLives:1,maxCustomCompanions:1,worldAccess:'free',earlyWorldAccess:false,monthlyCreditGrant:0,subscriptionCreditRolloverCap:0,welcomeCredits:50,mediaQueue:'standard',entitlements:freeEntitlements},
+  kivelle_plus:{tier:'kivelle_plus',displayName:'Kivelle+',monthlyPriceUsd:19.99,annualPriceUsd:199.99,chatDailyLimit:null,userRequestedPhotoDailyLimit:12,introductoryChatDailyLimit:null,introductoryChatDays:0,explicitDialogueMonthlyLimit:null,includedCompanionPhotoDailyLimit:1,includedDatePhotoMonthlyLimit:1,intelligenceProfile:'deep',memoryRetrievalBudget:12,recentTurnBudget:18,historyRetrievalBudget:3,directorPolicy:'meaningful',maxLives:3,maxCustomCompanions:5,worldAccess:'all_standard',earlyWorldAccess:false,monthlyCreditGrant:500,subscriptionCreditRolloverCap:1000,welcomeCredits:50,mediaQueue:'priority',entitlements:plusEntitlements},
+  kivelle_max:{tier:'kivelle_max',displayName:'Kivelle Max',monthlyPriceUsd:39.99,annualPriceUsd:399.99,chatDailyLimit:null,userRequestedPhotoDailyLimit:12,introductoryChatDailyLimit:null,introductoryChatDays:0,explicitDialogueMonthlyLimit:null,includedCompanionPhotoDailyLimit:3,includedDatePhotoMonthlyLimit:3,intelligenceProfile:'director',memoryRetrievalBudget:20,recentTurnBudget:28,historyRetrievalBudget:6,directorPolicy:'normal_and_up',maxLives:10,maxCustomCompanions:20,worldAccess:'all_standard',earlyWorldAccess:true,monthlyCreditGrant:1200,subscriptionCreditRolloverCap:2400,welcomeCredits:50,mediaQueue:'highest',entitlements:maxEntitlements},
 };
 
-export const creditCosts:Record<CreditAction,number>={companion_photo:10,photo_edit:10,photo_variant:10,premium_photo:20,creator_appearance_set:40,short_video:125,voice_note:2,voice_minute:8};
+export const creditCosts:Record<CreditAction,number>={companion_photo:10,photo_edit:10,photo_variant:10,premium_photo:20,creator_appearance_set:40,short_video:125,voice_note:2,voice_minute:8,voice_standard_minute:3};
+export const VOICE_NOTE_FULL_SYNTHESIS_CHARACTER_LIMIT=2_000;
+export type VoiceNotePricing={creditCost:2|3|4;characterCount:number;shortened:boolean};
+export function voiceNotePricing(characterCount:unknown):VoiceNotePricing{
+  const count=Math.max(0,Math.ceil(Number(characterCount)||0));
+  return{characterCount:count,creditCost:count<=600?2:count<=1_200?3:4,shortened:count>VOICE_NOTE_FULL_SYNTHESIS_CHARACTER_LIMIT};
+}
 export function capabilitiesForTier(tier:string):KivelleCapabilities{return subscriptionCatalog[normalizeSubscriptionTier(tier)];}
 export function capabilitiesForAccount(tier:string,metadata?:unknown):KivelleCapabilities{
   const base=capabilitiesForTier(tier),record=isRecord(metadata)?metadata:{},overrides=isRecord(record['entitlementOverrides'])?record['entitlementOverrides']:{},rawGrants=Array.isArray(overrides['grants'])?overrides['grants']:[];
   const grants=rawGrants.filter((value):value is EntitlementKey=>typeof value==='string'&&entitlementKeys.includes(value as EntitlementKey));
   if(!grants.length)return base;
   const entitlements=[...new Set<EntitlementKey>([...base.entitlements,...grants])];
-  return{...base,chatDailyLimit:entitlements.includes('chat_unlimited')?null:base.chatDailyLimit,userRequestedPhotoDailyLimit:entitlements.includes('media_generation_unlimited')?null:base.userRequestedPhotoDailyLimit,explicitDialogueMonthlyLimit:entitlements.includes('explicit_dialogue_unlimited')?null:base.explicitDialogueMonthlyLimit,entitlements};
+  return{...base,chatDailyLimit:entitlements.includes('chat_unlimited')?null:base.chatDailyLimit,userRequestedPhotoDailyLimit:entitlements.includes('media_generation_unlimited')?null:base.userRequestedPhotoDailyLimit,explicitDialogueMonthlyLimit:null,entitlements};
 }
 export function entitlementsForTier(tier:string):ReadonlySet<EntitlementKey>{return new Set(capabilitiesForTier(tier).entitlements);}
 export function hasEntitlement(tier:string,key:EntitlementKey):boolean{return capabilitiesForTier(tier).entitlements.includes(key);}

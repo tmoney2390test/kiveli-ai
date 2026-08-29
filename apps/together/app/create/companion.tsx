@@ -59,7 +59,7 @@ export default function CreateCompanionEntry() {
   const desktop = width >= 900;
   return <Screen contentStyle={styles.screen}>
     <View style={styles.header}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={colors.text} size={21} /></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => router.canGoBack() ? router.back() : router.replace('/singles')} style={styles.back}><ArrowLeft color={colors.text} size={21} /></Pressable>
       <View style={{ flex: 1 }}><Text style={styles.kicker}>KIVELLE CREATOR</Text><PageTitle>Create someone</PageTitle><Text style={styles.subtitle}>Describe a person. Kivelle will help you shape an identity, a life, and a real first meeting.</Text></View>
     </View>
 

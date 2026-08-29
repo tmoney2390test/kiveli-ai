@@ -1,20 +1,21 @@
-import { Redirect } from 'expo-router';
-import { ErrorState, LoadingSkeleton } from '../src/components';
+import { lazy, Suspense } from 'react';
+import Head from 'expo-router/head';
+import { LoadingSkeleton } from '../src/components/RouteState';
 import { PublicLandingPage } from '../src/components/landing/PublicLandingPage';
 import { useAuth } from '../src/hooks/useAuth';
-import { useTogether } from '../src/store/useTogether';
-import { resolveKivelleAccountStage } from '../src/lib/authRouting';
+
+const AuthenticatedIndex = lazy(() => import('../src/components/AuthenticatedIndex'));
+const LANDING_HERO = '/landing/juniper-city.87558d22e240d5a06f101484d48933e8.jpg';
 
 export default function Index() {
   const { session, loading: authLoading } = useAuth();
-  const { snapshot, loading, error, refresh } = useTogether();
 
-  if (authLoading) return <LoadingSkeleton label="Opening Kivelle…" />;
-  if (!session) return <PublicLandingPage />;
-  if (loading || (!snapshot && !error)) return <LoadingSkeleton label="Opening your world…" />;
-  if (error) return <ErrorState message={error} onRetry={() => void refresh()} />;
-  const stage = resolveKivelleAccountStage(snapshot?.profile ?? null);
-  if (stage === 'age_confirmation') return <Redirect href={'/age-confirmation' as never} />;
-  if (stage === 'onboarding') return <Redirect href="/choose-companion" />;
-  return <Redirect href="/home" />;
+  return <>
+    <Head><link rel="preload" href={LANDING_HERO} as="image" fetchPriority="high" /></Head>
+    {authLoading
+      ? <LoadingSkeleton label="Opening Kivelle…" />
+      : !session
+        ? <PublicLandingPage />
+        : <Suspense fallback={<LoadingSkeleton label="Opening your world…" />}><AuthenticatedIndex /></Suspense>}
+  </>;
 }

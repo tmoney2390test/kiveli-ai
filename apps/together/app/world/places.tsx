@@ -17,13 +17,14 @@ import{colors,radius,typography}from'../../src/theme';
 import type{Location,World}from'../../src/types';
 
 export default function Places(){
-  const{world:worldSlug,character:characterKey,planning,group}=useLocalSearchParams<{world?:string;character?:string;planning?:string;group?:string}>();
+  const{world:worldSlug,character:characterKey,planning,group,switchPlanId,openNow:openNowParam}=useLocalSearchParams<{world?:string;character?:string;planning?:string;group?:string;switchPlanId?:string;openNow?:string}>();
   const snapshot=useTogether((state)=>state.snapshot);
   const{width}=useWindowDimensions();
   const{desktop,sidebarWidth}=useAppShell();
   const[query,setQuery]=useState('');
   const[category,setCategory]=useState<ExploreCategoryId|null>(null);
-  const[openNow,setOpenNow]=useState(false);
+  const lockOpenNow=Boolean(switchPlanId);
+  const[openNow,setOpenNow]=useState(openNowParam==='1'||lockOpenNow);
   const[now,setNow]=useState(()=>new Date());
   const[expanded,setExpanded]=useState<Set<string>>(new Set());
 
@@ -47,8 +48,12 @@ export default function Places(){
     setExpanded(new Set());
   },[world?.id]);
 
+  useEffect(()=>{
+    if(lockOpenNow)setOpenNow(true);
+  },[lockOpenNow]);
+
   if(!snapshot)return <LoadingSkeleton label="Mapping places…"/>;
-  if(!world||!directory||!baseDirectory)return <EmptyState title="World unavailable" body="No published world is available yet." action="Back" onAction={()=>router.back()}/>;
+  if(!world||!directory||!baseDirectory)return <EmptyState title="World unavailable" body="No published world is available yet." action="Back" onAction={()=>router.canGoBack()?router.back():router.replace('/explore')}/>;
 
   const placeGrid=responsivePlaceGrid({viewportWidth:width,sidebarWidth:desktop?sidebarWidth:0,outerPadding:desktop?64:40,innerPadding:26,gap:12});
   const cardWidth=placeGrid.cardWidth;
@@ -78,9 +83,9 @@ export default function Places(){
     <View style={styles.controls}>
       <View style={styles.search}><Search size={17} color={colors.muted}/><TextInput accessibilityLabel={`Search places in ${world.name}`} value={query} onChangeText={setQuery} placeholder={`Search ${world.name}`} placeholderTextColor={colors.muted} style={styles.searchInput}/>{query?<Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={()=>setQuery('')}><Text style={styles.clear}>Clear</Text></Pressable>:null}</View>
       <PlaceCategoryFilters categories={baseDirectory.categories} value={category} onChange={setCategory}/>
-      <Pressable accessibilityRole="checkbox" accessibilityState={{checked:openNow}} accessibilityLabel={`Open now, ${openNowCount} places at ${formatViewerTime(now,timezone)}`} onPress={()=>setOpenNow((value)=>!value)} style={[styles.openNowFilter,openNow&&styles.openNowFilterActive]}>
+      <Pressable accessibilityRole="checkbox" accessibilityState={{checked:openNow,disabled:lockOpenNow}} accessibilityLabel={`${lockOpenNow?'Open now required':'Open now'}, ${openNowCount} places at ${formatViewerTime(now,timezone)}`} disabled={lockOpenNow} onPress={()=>setOpenNow((value)=>!value)} style={[styles.openNowFilter,openNow&&styles.openNowFilterActive]}>
         <View style={[styles.openNowIcon,openNow&&styles.openNowIconActive]}><Clock3 size={17} color={openNow?'#BEE8C8':colors.muted}/></View>
-        <View style={styles.openNowCopy}><Text style={[styles.openNowTitle,openNow&&styles.openNowTitleActive]}>Open now</Text><Text style={styles.openNowMeta}>{openNowCount} {openNowCount===1?'place':'places'} · your local time, {formatViewerTime(now,timezone)}</Text></View>
+        <View style={styles.openNowCopy}><Text style={[styles.openNowTitle,openNow&&styles.openNowTitleActive]}>{lockOpenNow?'Open now · required':'Open now'}</Text><Text style={styles.openNowMeta}>{lockOpenNow?'Changing an active plan only shows places available now.':`${openNowCount} ${openNowCount===1?'place':'places'} · your local time, ${formatViewerTime(now,timezone)}`}</Text></View>
         <View style={[styles.openNowToggle,openNow&&styles.openNowToggleActive]}><View style={[styles.openNowKnob,openNow&&styles.openNowKnobActive]}/></View>
       </Pressable>
       <Text style={styles.hoursCoverage}>{publishedHoursCount===baseDirectory.totalPlaceCount?'Hours are published for every place.':publishedHoursCount?`${publishedHoursCount} of ${baseDirectory.totalPlaceCount} places have published hours. Places without hours are excluded from Open now.`:'This world has no published place hours yet. Open now will stay empty until schedules are authored.'}</Text>
@@ -89,12 +94,12 @@ export default function Places(){
 
     {directory.sections.length?<View style={styles.sections}>{directory.sections.map((section)=>{
       const isOpen=filtering||expanded.has(section.id);
-      return <DistrictSection key={section.id} section={section} world={world} isOpen={isOpen} onToggle={()=>toggle(section.id)} cardWidth={cardWidth} cardHeight={cardHeight} now={now} timezone={timezone} characterId={planningCharacter?.id} groupConversationId={planningGroup?.id}/>;
+      return <DistrictSection key={section.id} section={section} world={world} isOpen={isOpen} onToggle={()=>toggle(section.id)} cardWidth={cardWidth} cardHeight={cardHeight} now={now} timezone={timezone} characterId={planningCharacter?.id} groupConversationId={planningGroup?.id} switchPlanId={switchPlanId}/>;
     })}</View>:<EmptyState title={openNow?'Nothing is listed as open now':'No places match'} body={openNow?(publishedHoursCount?'Try clearing a category or check back at another time.':'This world does not have published place hours yet.'):'Try another name, activity, or category.'}/>}
   </Screen>;
 }
 
-function DistrictSection({section,world,isOpen,onToggle,cardWidth,cardHeight,now,timezone,characterId,groupConversationId}:{section:WorldPlaceDirectorySection;world:World;isOpen:boolean;onToggle:()=>void;cardWidth:number;cardHeight:number;now:Date;timezone:string;characterId?:string;groupConversationId?:string}){
+function DistrictSection({section,world,isOpen,onToggle,cardWidth,cardHeight,now,timezone,characterId,groupConversationId,switchPlanId}:{section:WorldPlaceDirectorySection;world:World;isOpen:boolean;onToggle:()=>void;cardWidth:number;cardHeight:number;now:Date;timezone:string;characterId?:string;groupConversationId?:string;switchPlanId?:string}){
   const[visibleCount,setVisibleCount]=useState(8);
   const placeSignature=section.places.map((place)=>place.id).join(':');
   useEffect(()=>setVisibleCount(8),[section.id,placeSignature]);
@@ -117,16 +122,16 @@ function DistrictSection({section,world,isOpen,onToggle,cardWidth,cardHeight,now
     </Pressable>
 
     {isOpen?<View style={styles.expanded}>
-      {district?<View style={styles.districtActions}><Text style={styles.insideLabel}>INSIDE {district.name.toUpperCase()}</Text><Pressable accessibilityRole="link" onPress={()=>router.push(locationHref(district.slug,world.slug,characterId,groupConversationId) as never)} style={styles.detailsLink}><Text style={styles.detailsLinkText}>District details</Text><ArrowUpRight size={14} color={colors.rose}/></Pressable></View>:<Text style={styles.citywideNote}>These places are visible now and can move into a district as the world map becomes more detailed.</Text>}
-      {section.places.length?<><View style={styles.placeGrid}>{visiblePlaces.map((place)=><PlaceCard key={place.id} place={place} world={world} width={cardWidth} height={cardHeight} districtName={district?.name} districtSlug={district?.slug} now={now} timezone={timezone} characterId={characterId} groupConversationId={groupConversationId}/>)}</View>{visibleCount<section.places.length?<Pressable accessibilityRole="button" onPress={()=>setVisibleCount((value)=>Math.min(section.places.length,value+8))} style={styles.showMore}><Text style={styles.showMoreText}>Show {Math.min(8,section.places.length-visibleCount)} more places</Text><ChevronDown size={15} color={colors.rose}/></Pressable>:null}</>:<View style={styles.emptyDistrict}><Text style={styles.emptyDistrictTitle}>No matching places here</Text><Text style={styles.emptyDistrictCopy}>Try another filter to explore this district.</Text></View>}
+      {district?<View style={styles.districtActions}><Text style={styles.insideLabel}>INSIDE {district.name.toUpperCase()}</Text><Pressable accessibilityRole="link" onPress={()=>router.push(locationHref(district.slug,world.slug,characterId,groupConversationId,switchPlanId) as never)} style={styles.detailsLink}><Text style={styles.detailsLinkText}>District details</Text><ArrowUpRight size={14} color={colors.rose}/></Pressable></View>:<Text style={styles.citywideNote}>These places are visible now and can move into a district as the world map becomes more detailed.</Text>}
+      {section.places.length?<><View style={styles.placeGrid}>{visiblePlaces.map((place)=><PlaceCard key={place.id} place={place} world={world} width={cardWidth} height={cardHeight} districtName={district?.name} districtSlug={district?.slug} now={now} timezone={timezone} characterId={characterId} groupConversationId={groupConversationId} switchPlanId={switchPlanId}/>)}</View>{visibleCount<section.places.length?<Pressable accessibilityRole="button" onPress={()=>setVisibleCount((value)=>Math.min(section.places.length,value+8))} style={styles.showMore}><Text style={styles.showMoreText}>Show {Math.min(8,section.places.length-visibleCount)} more places</Text><ChevronDown size={15} color={colors.rose}/></Pressable>:null}</>:<View style={styles.emptyDistrict}><Text style={styles.emptyDistrictTitle}>No matching places here</Text><Text style={styles.emptyDistrictCopy}>Try another filter to explore this district.</Text></View>}
     </View>:null}
   </View>;
 }
 
-function PlaceCard({place,world,width,height,districtName,districtSlug,now,timezone,characterId,groupConversationId}:{place:Location;world:World;width:number;height:number;districtName?:string;districtSlug?:string;now:Date;timezone:string;characterId?:string;groupConversationId?:string}){
+function PlaceCard({place,world,width,height,districtName,districtSlug,now,timezone,characterId,groupConversationId,switchPlanId}:{place:Location;world:World;width:number;height:number;districtName?:string;districtSlug?:string;now:Date;timezone:string;characterId?:string;groupConversationId?:string;switchPlanId?:string}){
   const activities=place.possible_activities.slice(0,3).map(friendly).join(' · ');
   const availability=placeHoursStatus(place.hours,now,timezone);
-  return <Pressable accessibilityRole="link" accessibilityLabel={`Open ${place.name}${districtName?` in ${districtName}`:''}. ${availability.statusLabel}.`} onPress={()=>router.push(locationHref(place.slug,world.slug,characterId,groupConversationId) as never)} style={({pressed})=>[styles.placeCard,{width,height},pressed&&styles.placeCardPressed]}>
+  return <Pressable accessibilityRole="link" accessibilityLabel={`Open ${place.name}${districtName?` in ${districtName}`:''}. ${availability.statusLabel}.`} onPress={()=>router.push(locationHref(place.slug,world.slug,characterId,groupConversationId,switchPlanId) as never)} style={({pressed})=>[styles.placeCard,{width,height},pressed&&styles.placeCardPressed]}>
     <Image source={locationHeroAsset(world.slug,place.slug,districtSlug?[districtSlug]:[])} style={StyleSheet.absoluteFill} contentFit="cover"/>
     <View style={styles.placeShade}/>
     <View style={styles.placeTop}><Text style={styles.placeType}>{friendly(place.category)}</Text></View>
@@ -144,7 +149,7 @@ function PlaceCard({place,world,width,height,districtName,districtSlug,now,timez
 function friendly(value:string){return value.replace(/_/g,' ').replace(/\b\w/g,(letter)=>letter.toUpperCase());}
 function districtCountLabel(count:number){return`${count} ${count===1?'district':'districts'}`;}
 function formatViewerTime(now:Date,timezone:string){try{return new Intl.DateTimeFormat([],{timeZone:timezone,hour:'numeric',minute:'2-digit'}).format(now);}catch{return now.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}}
-function locationHref(slug:string,worldSlug:string,characterId?:string,groupConversationId?:string){return`/location/${slug}?world=${encodeURIComponent(worldSlug)}${characterId?`&character=${encodeURIComponent(characterId)}&planning=1`:''}${groupConversationId?`&group=${encodeURIComponent(groupConversationId)}`:''}`;}
+function locationHref(slug:string,worldSlug:string,characterId?:string,groupConversationId?:string,switchPlanId?:string){return`/location/${slug}?world=${encodeURIComponent(worldSlug)}${characterId?`&character=${encodeURIComponent(characterId)}&planning=1`:''}${groupConversationId?`&group=${encodeURIComponent(groupConversationId)}`:''}${switchPlanId?`&switchPlanId=${encodeURIComponent(switchPlanId)}`:''}`;}
 
 const styles=StyleSheet.create({
   content:{paddingTop:22,gap:20},

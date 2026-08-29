@@ -29,9 +29,11 @@ import {
   activeVoiceEntitlement,
   chargeVoiceCallThroughMinute,
   recordVoiceCallUsage,
+  estimateStandardVoicePipelineCost,
   refundUnconnectedVoiceCallCredit,
   resolveVoiceCreditBilling,
   voiceBilledMinute,
+  voiceCallShouldStartBilling,
   voiceMeterMinuteAvailable,
 } from "../_shared/voice-usage.ts";
 import {
@@ -45,6 +47,14 @@ import {
   voiceCallLeaseExpiresAt,
   voiceCallSessionIsStale,
 } from "../_shared/voice-call-lifecycle.ts";
+import {
+  normalizeVoiceCallRoute,
+  type VoiceCallRoute,
+  voiceRoutePolicy,
+  XAI_STANDARD_DIALOGUE_MODEL,
+} from "../_shared/voice-routes.ts";
+import { verifyVoiceRelayUsageProof } from "../_shared/voice-relay-token.ts";
+import { normalizeChatLanguage } from "../../../packages/together-domain/src/chat-language.ts";
 
 const transcriptEvent = z.object({
   sequence: z.number().int().positive().max(1_000_000),
@@ -65,12 +75,31 @@ const usage = z.object({
     .optional(),
   reconnectCount: z.number().int().nonnegative().max(20).optional(),
 }).default({});
+const pipelineUsage = z.object({
+  proof: z.string().trim().min(32).max(128),
+  sequence: z.number().int().positive().max(1_000_000),
+  sttBillableMs: z.number().int().nonnegative().max(3_600_000).default(0),
+  inputSpeechMs: z.number().int().nonnegative().max(3_600_000).default(0),
+  dialogueInputTokens: z.number().int().nonnegative().max(2_000_000).default(0),
+  dialogueCachedInputTokens: z.number().int().nonnegative().max(2_000_000).default(0),
+  dialogueOutputTokens: z.number().int().nonnegative().max(100_000).default(0),
+  ttsCharacters: z.number().int().nonnegative().max(60_000).default(0),
+  outputAudioMs: z.number().int().nonnegative().max(3_600_000).default(0),
+  discardedOutputAudioMs: z.number().int().nonnegative().max(3_600_000).default(0),
+  sttFinalLatencyMs: z.number().int().nonnegative().max(120_000).optional(),
+  dialogueFirstTokenLatencyMs: z.number().int().nonnegative().max(120_000).optional(),
+  ttsFirstAudioLatencyMs: z.number().int().nonnegative().max(120_000).optional(),
+  status: z.enum(["success", "interrupted", "failure"]),
+  failureCode: z.string().trim().min(1).max(80).optional(),
+});
 const schema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("options") }),
   z.object({
     action: z.literal("create"),
     characterInstanceId: z.string().uuid(),
     conversationId: z.string().uuid(),
     requestId: z.string().trim().min(8).max(120),
+    route: z.enum(["standard", "express"]).default("express"),
   }),
   z.object({ action: z.literal("status"), callSessionId: z.string().uuid() }),
   z.object({
@@ -106,6 +135,11 @@ const schema = z.discriminatedUnion("action", [
     events: z.array(transcriptEvent).min(1).max(50),
   }),
   z.object({
+    action: z.literal("pipeline_usage"),
+    callSessionId: z.string().uuid(),
+    event: pipelineUsage,
+  }),
+  z.object({
     action: z.literal("fail"),
     callSessionId: z.string().uuid(),
     failureCode: z.string().trim().min(1).max(80).optional(),
@@ -134,6 +168,27 @@ const terminalStatuses = new Set(["ended", "failed"]);
 serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
   const input = await parseBody(request, schema);
+
+  if (input.action === "options") {
+    const { data: entitlement } = await db.from("together_entitlements").select("*")
+      .eq("user_id", user.id).maybeSingle();
+    const voiceEntitlement = activeVoiceEntitlement(entitlement);
+    const routes = await Promise.all((["standard", "express"] as const).map(async (route) => {
+      const policy = voiceRoutePolicy(route, voiceEntitlement.tier);
+      const billing = await resolveVoiceCreditBilling(db, user.id, 0, false, route);
+      const available = Boolean(configuredRealtimeVoiceProvider(route, user.id));
+      return {
+        ...policy,
+        available,
+        ...(!available && policy.available
+          ? { unavailableReason: "This voice route is not available for this account yet." }
+          : {}),
+        billing,
+      };
+    }));
+    return json({ data: { routes }, correlationId }, 200, correlationId);
+  }
+
   const continuity = await activeContinuity(db, user.id);
 
   if (input.action === "create") {
@@ -144,29 +199,39 @@ serve(async (request, correlationId) => {
       12,
       3_600,
     );
-    const { instance } = await requireInstanceInActiveContinuity(
-      db,
-      user.id,
-      input.characterInstanceId,
-    );
-    const { data: conversation } = await db.from("together_conversations")
-      .select("*")
-      .eq("id", input.conversationId).eq("user_id", user.id).eq(
-        "continuity_id",
-        continuity.id,
-      )
-      .eq("character_instance_id", input.characterInstanceId).maybeSingle();
-    if (!conversation) {
-      throw new AppError("NOT_FOUND", "That conversation is unavailable.", 404);
-    }
-
-    const [{ data: profile }, { data: entitlement }] = await Promise.all([
+    const [
+      { data: instance },
+      { data: conversation },
+      { data: profile },
+      { data: entitlement },
+      { data: duplicate },
+    ] = await Promise.all([
+      db.from("together_character_instances").select("*")
+        .eq("id", input.characterInstanceId).eq("user_id", user.id)
+        .eq("continuity_id", continuity.id).maybeSingle(),
+      db.from("together_conversations").select("*")
+        .eq("id", input.conversationId).eq("user_id", user.id).eq(
+          "continuity_id",
+          continuity.id,
+        ).eq("character_instance_id", input.characterInstanceId).maybeSingle(),
       db.from("together_profiles").select(
         "multimodal_preferences,age_verified_at,content_preferences",
       ).eq("user_id", user.id).single(),
       db.from("together_entitlements").select("*").eq("user_id", user.id)
         .maybeSingle(),
+      db.from("together_voice_call_sessions").select("*")
+        .eq("user_id", user.id).eq("request_id", input.requestId).maybeSingle(),
     ]);
+    if (!instance) {
+      throw new AppError(
+        "NOT_FOUND",
+        "That companion is not part of this Kivelle Life.",
+        404,
+      );
+    }
+    if (!conversation) {
+      throw new AppError("NOT_FOUND", "That conversation is unavailable.", 404);
+    }
     const preferences = normalizeMultimodalPreferences(
       profile?.multimodal_preferences,
     );
@@ -178,14 +243,19 @@ serve(async (request, correlationId) => {
         403,
       );
     }
-    const provider = configuredRealtimeVoiceProvider();
+    const route = normalizeVoiceCallRoute(input.route);
+    const routePolicy = voiceRoutePolicy(route, voiceEntitlement.tier);
+    const provider = configuredRealtimeVoiceProvider(route, user.id);
     if (!provider) {
+      const unavailableReason = routePolicy.available
+        ? "This voice route is not available for this account yet."
+        : routePolicy.unavailableReason;
       return json(
         {
           data: {
             status: "not_configured",
             providerStatus: "not_configured",
-            message: "Live voice calls aren't connected yet.",
+            message: unavailableReason ?? `${routePolicy.displayName} Voice isn't connected yet.`,
           },
           correlationId,
         },
@@ -193,9 +263,6 @@ serve(async (request, correlationId) => {
         correlationId,
       );
     }
-    const { data: duplicate } = await db.from("together_voice_call_sessions")
-      .select("*").eq("user_id", user.id).eq("request_id", input.requestId)
-      .maybeSingle();
     if (duplicate) {
       if (terminalStatuses.has(String(duplicate.status))) {
         return json(
@@ -204,17 +271,26 @@ serve(async (request, correlationId) => {
           correlationId,
         );
       }
+      const duplicateRoute = normalizeVoiceCallRoute(duplicate.route);
+      const duplicateProvider = configuredRealtimeVoiceProvider(duplicateRoute, user.id);
+      if (!duplicateProvider) throw new AppError("PROVIDER_UNAVAILABLE", "That voice route is temporarily unavailable.", 503, true);
       const prepared = await prepareProviderSession({
         db,
         userId: user.id,
         call: duplicate,
         instance,
         conversation,
-        provider,
+        provider: duplicateProvider,
         profile,
         correlationId,
       });
-      const billing = await resolveVoiceCreditBilling(db, user.id, 1);
+      const billing = await resolveVoiceCreditBilling(
+        db,
+        user.id,
+        duplicate.billing_started_at ? voiceMeterMinuteAvailable(duplicate.billing_started_at) : 0,
+        false,
+        duplicateRoute,
+      );
       return json(
         {
           data: {
@@ -229,7 +305,7 @@ serve(async (request, correlationId) => {
       );
     }
 
-    await resolveVoiceCreditBilling(db, user.id, 0, true);
+    await resolveVoiceCreditBilling(db, user.id, 0, true, route);
 
     const { data: otherCall } = await db.from("together_voice_call_sessions")
       .select("*").eq("user_id", user.id).eq("continuity_id", continuity.id).in(
@@ -293,9 +369,12 @@ serve(async (request, correlationId) => {
       status: "creating",
       request_id: input.requestId,
       provider: provider.id,
-      model: XAI_REALTIME_VOICE_MODEL,
+      model: route === "standard" ? XAI_STANDARD_DIALOGUE_MODEL : XAI_REALTIME_VOICE_MODEL,
+      route,
+      billing_mode: "credits",
+      credits_per_minute: routePolicy.creditsPerMinute,
       lease_expires_at: voiceCallLeaseExpiresAt("creating"),
-      metadata: { contextVersion: 2, transport: "websocket_json_pcm16" },
+      metadata: { contextVersion: 2, route, chatLanguage:normalizeChatLanguage(conversation.metadata?.chatPreferences?.chatLanguage), transport: route === "standard" ? "kivelle_relay_websocket_pcm16" : "websocket_json_pcm16" },
     }).select("*").single();
     if (error || !created) {
       throw new AppError(
@@ -305,18 +384,13 @@ serve(async (request, correlationId) => {
         true,
       );
     }
-    let firstMinuteTransactionId = "";
     try {
-      const billing = await chargeVoiceCallThroughMinute(db, {
-        userId: user.id,
-        callSessionId: id,
-        throughMinute: 1,
-      });
-      firstMinuteTransactionId = billing.lastTransactionId;
+      const billing = await resolveVoiceCreditBilling(db, user.id, 0, false, route);
       await track(db, user.id, "voice_call_started", {
         callSessionId: id,
         characterInstanceId: input.characterInstanceId,
         creditsPerMinute: billing.creditsPerMinute,
+        route,
       });
       const prepared = await prepareProviderSession({
         db,
@@ -347,13 +421,11 @@ serve(async (request, correlationId) => {
         correlationId,
       );
     } catch (error) {
-      if (firstMinuteTransactionId) {
-        await refundUnconnectedVoiceCallCredit(db, {
-          userId: user.id,
-          callSessionId: id,
-          transactionId: firstMinuteTransactionId,
-        });
-      }
+      // Backward-compatible cleanup for calls created before deferred billing.
+      await refundUnconnectedVoiceCallCredit(db, {
+        userId: user.id,
+        callSessionId: id,
+      });
       const endedAt = new Date().toISOString();
       await db.from("together_voice_call_sessions").update({
         status: "failed",
@@ -402,7 +474,7 @@ serve(async (request, correlationId) => {
         correlationId,
       );
     }
-    const activeProvider = configuredRealtimeVoiceProvider();
+    const activeProvider = configuredRealtimeVoiceProvider(normalizeVoiceCallRoute(abandoned.route), user.id);
     if (activeProvider && abandoned.provider_session_id) {
       await activeProvider.endSession(String(abandoned.provider_session_id))
         .catch(() => undefined);
@@ -494,7 +566,7 @@ serve(async (request, correlationId) => {
         false,
       );
     }
-    const availableMinute = voiceMeterMinuteAvailable(call.connected_at);
+    const availableMinute = voiceMeterMinuteAvailable(call.billing_started_at);
     if (!availableMinute || input.minute > availableMinute) {
       throw new AppError(
         "CONFLICT",
@@ -507,15 +579,19 @@ serve(async (request, correlationId) => {
       userId: user.id,
       callSessionId: String(call.id),
       throughMinute: input.minute,
+      route: normalizeVoiceCallRoute(call.route),
     });
     const renewedAt = new Date();
     await db.from("together_voice_call_sessions").update({
+      included_minutes_charged: billing.includedMinutesUsed,
+      credits_per_minute: billing.creditsPerMinute,
       metadata: {
         ...(call.metadata ?? {}),
         billing: {
           type: "kivelle_credits_per_started_minute",
           creditsPerMinute: billing.creditsPerMinute,
           chargedMinutes: billing.chargedMinutes,
+          includedMinutesUsed: billing.includedMinutesUsed,
         },
       },
       lease_expires_at: voiceCallLeaseExpiresAt("active", renewedAt),
@@ -533,7 +609,7 @@ serve(async (request, correlationId) => {
         false,
       );
     }
-    const provider = configuredRealtimeVoiceProvider();
+    const provider = configuredRealtimeVoiceProvider(normalizeVoiceCallRoute(call.route), user.id);
     if (!provider) {
       throw new AppError(
         "PROVIDER_UNAVAILABLE",
@@ -661,12 +737,123 @@ serve(async (request, correlationId) => {
         false,
       );
     }
+    let transcriptCall = call;
+    let billing:
+      | Awaited<ReturnType<typeof chargeVoiceCallThroughMinute>>
+      | undefined;
+    const firstUserResponse = voiceCallShouldStartBilling(
+      call.billing_started_at,
+      input.events,
+    );
+    if (firstUserResponse) {
+      billing = await chargeVoiceCallThroughMinute(db, {
+        userId: user.id,
+        callSessionId: String(call.id),
+        throughMinute: 1,
+        route: normalizeVoiceCallRoute(call.route),
+      });
+      const respondedAt = new Date().toISOString();
+      const { data: activated, error: activationError } = await db.from(
+        "together_voice_call_sessions",
+      ).update({
+        first_user_response_at: respondedAt,
+        billing_started_at: respondedAt,
+        included_minutes_charged: billing.includedMinutesUsed,
+        credits_per_minute: billing.creditsPerMinute,
+        metadata: {
+          ...(call.metadata ?? {}),
+          billing: {
+            type: "kivelle_credits_per_started_minute",
+            startsOn: "first_final_user_response",
+            creditsPerMinute: billing.creditsPerMinute,
+            chargedMinutes: billing.chargedMinutes,
+            includedMinutesUsed: billing.includedMinutesUsed,
+          },
+        },
+        updated_at: respondedAt,
+      }).eq("id", call.id).eq("user_id", user.id).is(
+        "billing_started_at",
+        null,
+      ).select("*").maybeSingle();
+      if (activationError) {
+        throw new AppError(
+          "INTERNAL_ERROR",
+          "Voice billing could not be activated.",
+          500,
+          true,
+        );
+      }
+      if (activated) {
+        transcriptCall = activated;
+        await track(db, user.id, "voice_call_billing_started", {
+          callSessionId: call.id,
+          characterInstanceId: call.character_instance_id,
+          route: normalizeVoiceCallRoute(call.route),
+          creditsPerMinute: billing.creditsPerMinute,
+        });
+      } else {
+        const { data: current } = await db.from("together_voice_call_sessions")
+          .select("*").eq("id", call.id).eq("user_id", user.id).single();
+        if (current) transcriptCall = current;
+      }
+    }
     const result = await ingestVoiceTranscriptEvents({
       db,
-      call,
+      call: transcriptCall,
       events: input.events,
     });
-    return json({ data: result, correlationId }, 202, correlationId);
+    return json({
+      data: {
+        ...result,
+        call: sanitizeCall(transcriptCall),
+        ...(billing ? { billing } : {}),
+      },
+      correlationId,
+    }, 202, correlationId);
+  }
+
+  if (input.action === "pipeline_usage") {
+    if (normalizeVoiceCallRoute(call.route) !== "standard") {
+      throw new AppError("VALIDATION_FAILED", "Pipeline usage is only valid for Essential Voice.", 422, false);
+    }
+    const event = input.event;
+    const relaySecret = Deno.env.get("KIVELLE_VOICE_RELAY_SIGNING_SECRET")?.trim() ?? "";
+    const proofValid = await verifyVoiceRelayUsageProof({
+      callSessionId: String(call.id),
+      event,
+      proof: event.proof,
+      secret: relaySecret,
+    });
+    if (!proofValid) {
+      throw new AppError("FORBIDDEN", "Voice usage proof is invalid.", 403, false);
+    }
+    const estimatedCostUsd = estimateStandardVoicePipelineCost(event);
+    const { error } = await db.from("together_voice_pipeline_usage_events").upsert({
+      user_id: user.id,
+      call_session_id: call.id,
+      sequence: event.sequence,
+      route: "standard",
+      stt_billable_ms: event.sttBillableMs,
+      input_speech_ms: event.inputSpeechMs,
+      dialogue_input_tokens: event.dialogueInputTokens,
+      dialogue_cached_input_tokens: event.dialogueCachedInputTokens,
+      dialogue_output_tokens: event.dialogueOutputTokens,
+      tts_characters: event.ttsCharacters,
+      output_audio_ms: event.outputAudioMs,
+      discarded_output_audio_ms: event.discardedOutputAudioMs,
+      stt_final_latency_ms: event.sttFinalLatencyMs ?? null,
+      dialogue_first_token_latency_ms: event.dialogueFirstTokenLatencyMs ?? null,
+      tts_first_audio_latency_ms: event.ttsFirstAudioLatencyMs ?? null,
+      estimated_cost_usd: estimatedCostUsd,
+      status: event.status,
+      failure_code: event.failureCode ?? null,
+    }, { onConflict: "call_session_id,sequence" });
+    if (error) throw new AppError("INTERNAL_ERROR", "Voice usage could not be recorded.", 500, true);
+    await db.from("together_voice_call_sessions").update({
+      last_usage_sequence: Math.max(Number(call.last_usage_sequence ?? 0), event.sequence),
+      updated_at: new Date().toISOString(),
+    }).eq("id", call.id).eq("user_id", user.id);
+    return json({ data: { accepted: true, sequence: event.sequence }, correlationId }, 202, correlationId);
   }
 
   const isFailure = input.action === "fail";
@@ -677,7 +864,7 @@ serve(async (request, correlationId) => {
       correlationId,
     );
   }
-  const activeProvider = configuredRealtimeVoiceProvider();
+  const activeProvider = configuredRealtimeVoiceProvider(normalizeVoiceCallRoute(call.route), user.id);
   if (activeProvider && call.provider_session_id) {
     await activeProvider.endSession(String(call.provider_session_id)).catch(
       () => undefined,
@@ -689,7 +876,7 @@ serve(async (request, correlationId) => {
       : 0;
   const reported = input.usage;
   const connectedDurationMs = Math.min(
-    7_200_000,
+    86_400_000,
     wallDuration,
     Math.max(0, reported.connectedDurationMs ?? wallDuration),
   );
@@ -745,14 +932,20 @@ serve(async (request, correlationId) => {
       );
     }
   }
-  let billing = await resolveVoiceCreditBilling(db, user.id);
-  if (call.connected_at) {
-    const throughMinute = voiceBilledMinute(connectedDurationMs);
+  const callRoute = normalizeVoiceCallRoute(call.route);
+  let billing = await resolveVoiceCreditBilling(db, user.id, 0, false, callRoute);
+  if (call.billing_started_at) {
+    const billingDurationMs = Math.max(
+      0,
+      endedAt.getTime() - new Date(call.billing_started_at).getTime(),
+    );
+    const throughMinute = voiceBilledMinute(billingDurationMs);
     try {
       billing = await chargeVoiceCallThroughMinute(db, {
         userId: user.id,
         callSessionId: String(call.id),
         throughMinute,
+        route: callRoute,
       });
     } catch (error) {
       if (
@@ -769,14 +962,18 @@ serve(async (request, correlationId) => {
         db,
         user.id,
         Math.max(1, throughMinute - 1),
+        false,
+        callRoute,
       );
     }
   } else {
+    // Normally a no-op for deferred-billing calls; retained so legacy sessions
+    // that charged at creation are repaired when they end before a response.
     await refundUnconnectedVoiceCallCredit(db, {
       userId: user.id,
       callSessionId: String(call.id),
     });
-    billing = await resolveVoiceCreditBilling(db, user.id);
+    billing = await resolveVoiceCreditBilling(db, user.id, 0, false, callRoute);
   }
   const { data: entitlement } = await db.from("together_entitlements").select(
     "tier,entitlement_keys,expires_at",
@@ -817,6 +1014,12 @@ serve(async (request, correlationId) => {
       });
     }
   }
+  let standardPipelineCost: number | undefined;
+  if (callRoute === "standard") {
+    const { data: pipelineRows } = await db.from("together_voice_pipeline_usage_events")
+      .select("estimated_cost_usd").eq("call_session_id", call.id).eq("user_id", user.id);
+    standardPipelineCost = (pipelineRows ?? []).reduce((sum, row) => sum + Math.max(0, Number(row.estimated_cost_usd ?? 0)), 0);
+  }
   const estimatedCostUsd = await recordVoiceCallUsage(db, {
     userId: user.id,
     continuityId: String(call.continuity_id),
@@ -827,6 +1030,8 @@ serve(async (request, correlationId) => {
     model: String(call.model ?? XAI_REALTIME_VOICE_MODEL),
     planTier: voiceEntitlement.tier,
     status: isFailure ? "failure" : "success",
+    route: callRoute,
+    ...(standardPipelineCost == null ? {} : { estimatedCostUsdOverride: standardPipelineCost }),
     connectedDurationMs,
     inputAudioDurationMs,
     outputAudioDurationMs,
@@ -842,6 +1047,8 @@ serve(async (request, correlationId) => {
     "together_voice_call_sessions",
   ).update({
     estimated_cost_usd: estimatedCostUsd,
+    included_minutes_charged: billing.includedMinutesUsed,
+    credits_per_minute: billing.creditsPerMinute,
     usage_metadata: {
       ...(call.usage_metadata ?? {}),
       connectedDurationMs,
@@ -853,6 +1060,8 @@ serve(async (request, correlationId) => {
         creditsPerMinute: billing.creditsPerMinute,
         chargedMinutes: billing.chargedMinutes,
         creditBalance: billing.creditBalance,
+        includedMinutesUsed: billing.includedMinutesUsed,
+        includedMinutesRemaining: billing.includedMinutesRemaining,
       },
     },
     updated_at: endedAt.toISOString(),
@@ -893,6 +1102,7 @@ async function prepareProviderSession(
     correlationId: string;
   },
 ): Promise<{ call: Record<string, any>; session: RealtimeVoiceSession }> {
+  const preparationStartedAt = Date.now();
   const lifeRun = await resolveVoiceCallLifeRun({
     db: input.db,
     userId: input.userId,
@@ -902,48 +1112,71 @@ async function prepareProviderSession(
     correlationId: input.correlationId,
     phase: "session_creation",
   });
-  const context = await buildKivelleConversationContext({
-    db: input.db,
-    userId: input.userId,
-    instance: input.instance,
-    conversation: input.conversation,
-    userMessage: "The user is starting a private live voice call.",
-    lifeRun,
-    semanticRows: [],
-    now: new Date(),
-    correlationId: input.correlationId,
-  });
+  const storedVoicePreset = chatVoicePreset(input.conversation.metadata);
+  const [context, voice] = await Promise.all([
+    buildKivelleConversationContext({
+      db: input.db,
+      userId: input.userId,
+      instance: input.instance,
+      conversation: input.conversation,
+      userMessage: "The user is starting a private live voice call.",
+      lifeRun,
+      semanticRows: [],
+      now: new Date(),
+      correlationId: input.correlationId,
+    }),
+    (async () => {
+      const voicePreset = storedVoicePreset
+        ? await validateCompanionVoicePreset(
+          input.db,
+          String(input.call.character_instance_id),
+          storedVoicePreset,
+        )
+        : null;
+      return await resolveCompanionVoiceProfile(
+        input.db,
+        String(input.call.character_instance_id),
+        voicePreset,
+      );
+    })(),
+  ]);
   context.contentMode = resolvedRealtimeContentMode(
     context,
     input.profile,
     input.instance,
     input.conversation,
   );
-  const storedVoicePreset = chatVoicePreset(input.conversation.metadata);
-  const voicePreset = storedVoicePreset
-    ? await validateCompanionVoicePreset(
-      input.db,
-      String(input.call.character_instance_id),
-      storedVoicePreset,
-    )
-    : null;
-  const voice = await resolveCompanionVoiceProfile(
-    input.db,
-    String(input.call.character_instance_id),
-    voicePreset,
+  const voiceUsageSequenceStart = Math.max(
+    0,
+    Number(input.call.last_usage_sequence ?? 0),
   );
+  const providerStartedAt = Date.now();
   const session = await input.provider.createSession({
     callSessionId: String(input.call.id),
     voice,
-    context: safeRealtimeContext(context),
+    context: safeRealtimeContext({
+      ...context,
+      voiceUsageSequenceStart,
+    }),
   });
-  const now = new Date().toISOString(),
-    providerMetadata = record(session.providerMetadata);
+  const providerLatencyMs = Date.now() - providerStartedAt;
+  const now = new Date().toISOString();
+  const rawProviderMetadata = record(session.providerMetadata);
+  const providerMetadata: Record<string, any> = {
+    ...rawProviderMetadata,
+    startup: {
+      ...record(rawProviderMetadata.startup),
+      contextAndVoiceLatencyMs: providerStartedAt - preparationStartedAt,
+      providerSessionLatencyMs: providerLatencyMs,
+      totalPreparationLatencyMs: Date.now() - preparationStartedAt,
+    },
+  };
   const { data: updated, error } = await input.db.from(
     "together_voice_call_sessions",
   ).update({
     status: "connecting",
     provider_session_id: session.providerSessionId,
+    relay_session_id: providerMetadata.relaySessionId ?? input.call.relay_session_id ?? null,
     model: String(
       providerMetadata.model ?? input.call.model ?? XAI_REALTIME_VOICE_MODEL,
     ),
@@ -951,6 +1184,8 @@ async function prepareProviderSession(
     metadata: {
       ...record(input.call.metadata),
       contextVersion: 2,
+      route: normalizeVoiceCallRoute(input.call.route),
+      chatLanguage:normalizeChatLanguage(context.chatLanguage),
       providerMetadata,
     },
     updated_at: now,
@@ -1023,6 +1258,13 @@ async function resolveVoiceCallLifeRun(input: {
   correlationId: string;
   phase: "session_creation" | "reconciliation";
 }): Promise<Record<string, unknown>> {
+  // Session setup only needs the latest canonical presence snapshot. Running
+  // the complete world simulation here added many reads/writes to the user's
+  // wait before audio could connect. Full simulation still runs during the
+  // bounded post-call reconciliation phase below.
+  if (input.phase === "session_creation") {
+    return voiceCallFallbackLifeRun(input.instance);
+  }
   try {
     return await runLifeSimulation({
       db: input.db,
@@ -1085,6 +1327,7 @@ function safeRealtimeContext(
     recent: context.recent,
     currentWorld: context.currentWorld,
     contentMode: context.contentMode,
+    chatLanguage: context.chatLanguage,
     boundaries: context.boundaries,
     conversationStyle: context.conversationStyle,
   };
@@ -1097,7 +1340,11 @@ function sessionForClient(session: RealtimeVoiceSession) {
   };
 }
 function sanitizeCall(call: Record<string, any>) {
-  const { provider_session_id: _providerSessionId, ...safe } = call;
+  const {
+    provider_session_id: _providerSessionId,
+    relay_session_id: _relaySessionId,
+    ...safe
+  } = call;
   return safe;
 }
 function record(value: unknown): Record<string, any> {
@@ -1121,6 +1368,7 @@ async function recordFailedCallUsage(
     model: String(call.model ?? XAI_REALTIME_VOICE_MODEL),
     planTier,
     status: "failure",
+    route: normalizeVoiceCallRoute(call.route),
     connectedDurationMs: 0,
     failureCode,
   }).catch(() => undefined);

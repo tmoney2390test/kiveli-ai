@@ -23,6 +23,8 @@ describe('group photo subjects',()=>{
   it('resolves pair language only when the pair is unambiguous',()=>{
     expect(resolveGroupPhotoSubjects({text:'Both of you send a selfie.',participants:participants.slice(0,2),fallbackSpeakerCharacterInstanceId:'mara'})).toMatchObject({ok:true,subjectCharacterInstanceIds:['mara','priya']});
     expect(resolveGroupPhotoSubjects({text:'Both of you send a selfie.',participants,fallbackSpeakerCharacterInstanceId:'mara'})).toMatchObject({ok:false,code:'AMBIGUOUS_PAIR'});
+    expect(resolveGroupPhotoSubjects({text:'Manden una foto de los dos.',participants:participants.slice(0,2),fallbackSpeakerCharacterInstanceId:'mara'})).toMatchObject({ok:true,subjectCharacterInstanceIds:['mara','priya']});
+    expect(resolveGroupPhotoSubjects({text:'二人とも写真を送って。',participants:participants.slice(0,2),fallbackSpeakerCharacterInstanceId:'mara'})).toMatchObject({ok:true,subjectCharacterInstanceIds:['mara','priya']});
   });
   it('falls back to the selected speaker for ordinary requests',()=>{
     expect(resolveGroupPhotoSubjects({text:'Send me a selfie.',participants,fallbackSpeakerCharacterInstanceId:'evelyn'})).toMatchObject({ok:true,subjectCharacterInstanceIds:['evelyn'],reason:'speaker_fallback'});

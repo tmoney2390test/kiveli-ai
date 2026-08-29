@@ -56,4 +56,11 @@ describe('Moments feed', () => {
     const other = { ...unlinkedPhoto, id: 'photo-2', character_instance_id: 'chloe' };
     expect(buildMomentsFeed({ ...snapshot, generatedMedia: [unlinkedPhoto, other] }, 'maya', 'Photos').map((item) => item.id)).toEqual(['photo-1']);
   });
+
+  it('keeps queued and completed videos discoverable with their source photo as a poster', () => {
+    const video: GeneratedMedia = { id:'video-1',character_instance_id:'maya',parent_media_id:'photo-1',media_type:'video',content_level:'standard',status:'generating',created_at:'2026-08-18T15:00:00.000Z' };
+    const feed=buildMomentsFeed({...snapshot,generatedMedia:[unlinkedPhoto,video]},'maya','Videos');
+    expect(feed).toHaveLength(1);
+    expect(feed[0]).toMatchObject({kind:'video',id:'video-1',poster:{id:'photo-1'}});
+  });
 });

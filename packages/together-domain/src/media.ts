@@ -12,6 +12,56 @@ export type MediaSceneBoundary={setting:'indoor'|'outdoor'|'mixed';instruction:s
 export type MediaPresenceState={locationId?:string|null;activity?:string|null;activityKey?:string|null;mood?:string|null;source?:string|null;resolvedAt?:string|null};
 export type ResolvedMediaPresence={locationId:string|null;activity:string;activityKey?:string;mood:string;source:string;resolvedAt?:string};
 
+export type ProductionSafePhotoRequest={
+  contentLevel:'standard'|'romance';
+  requestText?:string;
+  downgraded:boolean;
+  reasonCode:'allowed'|'production_sexual_content_ceiling';
+};
+
+export const PRODUCTION_SAFE_ROMANTIC_PHOTO_DIRECTION=[
+  'Create a tasteful, confident companion photograph in the current canonical setting.',
+  'Use a natural relaxed pose and opaque location-appropriate clothing; a fitted casual outfit with bare arms or legs is fine when it suits the place and activity.',
+  'Keep the presentation warm, affectionate, photorealistic, and suitable for a general audience.',
+].join(' ');
+
+export const PRODUCTION_SAFE_SWIM_PHOTO_DIRECTION=[
+  'Create a tasteful, confident companion photograph at the requested pool, beach, lake, spa, or waterside setting inside the canonical Kivelle world.',
+  'Use ordinary opaque swimwear appropriate to the location and a natural relaxed pose.',
+  'Keep the presentation warm, photorealistic, non-provocative, and suitable for a general audience.',
+].join(' ');
+
+const PRODUCTION_UNSAFE_VISUAL_DIRECTION=/\b(?:nude|nudes|naked|nudity|topless|bottomless|explicit|nsfw|uncensored|erotic|sexual|sexually|lingerie|underwear|panties|bra|braless|crotchless|pantieless|commando|see[- ]?through|transparent|sheer|fetish|seductive|thirst trap|strip(?:ping)?|undress(?:ed|ing)?|take (?:your|her|his|their) clothes off|remove (?:your|her|his|their) (?:clothes|shirt|top|blouse|bra|shorts|pants|skirt|underwear|panties))\b/i;
+const PRODUCTION_SWIM_SETTING=/\b(?:pool|swimming|swim|beach|shore|seaside|ocean|sea|lake|cove|hot tub|spa|waterside|waterfront|bathing suit|swimsuit|bikini)\b/i;
+
+/**
+ * Enforces Kivelle's production photo ceiling before any provider boundary.
+ * Unsafe visual directions are replaced rather than merely appended to a
+ * negative prompt, so a legacy queue row cannot leak the original request.
+ */
+export function resolveProductionSafePhotoRequest(input:{
+  requestText?:string;
+  requestedContentLevel?:MediaLevel;
+  fallbackLevel?:'standard'|'romance';
+}):ProductionSafePhotoRequest{
+  const original=String(input.requestText??'').normalize('NFKC').replace(/[<>]/g,'').replace(/\s+/g,' ').trim().slice(0,400);
+  const inferred=classifyPhotoIntent(original).requestedContentLevel;
+  const requested=input.requestedContentLevel??inferred??input.fallbackLevel??'standard';
+  const adult=analyzeAdultLanguage(original);
+  const unsafe=!['standard','romance'].includes(requested)||adult.explicit||PRODUCTION_UNSAFE_VISUAL_DIRECTION.test(adult.normalized)||PRODUCTION_UNSAFE_VISUAL_DIRECTION.test(original);
+  if(unsafe)return{
+    // A redirected request uses the standard provider route. This keeps the
+    // original photo intent alive while avoiding a second rejection caused by
+    // romantic/sensual provider priors. Context-appropriate swimwear remains
+    // available when the user explicitly established an aquatic setting.
+    contentLevel:'standard',
+    requestText:PRODUCTION_SWIM_SETTING.test(original)?PRODUCTION_SAFE_SWIM_PHOTO_DIRECTION:PRODUCTION_SAFE_ROMANTIC_PHOTO_DIRECTION,
+    downgraded:true,
+    reasonCode:'production_sexual_content_ceiling',
+  };
+  return{contentLevel:requested==='romance'?'romance':'standard',...(original?{requestText:original}:{}),downgraded:false,reasonCode:'allowed'};
+}
+
 export const PHOTO_ONLY_MESSAGE_CONTENT='[Photo]';
 
 export function isPhotoOnlyConversationMessage(message:{role?:unknown;content?:unknown;provider_metadata?:unknown}):boolean{
@@ -107,6 +157,17 @@ const DIRECT_VISUAL_BODY_REQUEST=new RegExp(`\\b(?:show|send|share|let me see|ca
 const CLOSE_DETAIL_REQUEST=/\b(?:zoom(?:ed)?\s+in|zoomed[- ]?in|close[- ]?up|tight(?:ly)?\s+(?:cropped|framed)|detail\s+shot)\b/i;
 const PHOTO_DISCUSSION_OR_MANAGEMENT=/\b(?:remember(?:ing)?\s+(?:the|that|this|your|our)?\s*(?:photo|picture|pic|selfie)|(?:delete|remove|hide|report|rate|dislike|download|save|edit|crop)\s+(?:this|that|the|your|my)?\s*(?:photo|picture|pic|selfie)|why (?:did|didn'?t|won't|isn'?t)[^.!?]{0,36}(?:photo|picture|pic|selfie)|the (?:photo|picture|pic|selfie) (?:you|i|we)|profile (?:photo|picture|pic)|photo (?:settings|generation|generator|quality|button)|talk(?:ing)? about (?:a |the |that |your )?(?:photo|picture|pic|selfie)|do you like (?:photos?|photography)|i (?:sent|shared|showed|took|made|uploaded)\s+(?:a|the|that|this|my)?\s*(?:photo|picture|pic|selfie)|you (?:sent|shared|showed|took|made|uploaded)\s+(?:a|the|that|this|your)?\s*(?:photo|picture|pic|selfie))\b/i;
 const PHOTO_DELIVERY_REJECTION=/\b(?:nice try|not that kind|outside (?:my|the|this character'?s) boundaries|cross that line|not comfortable (?:sending|showing|sharing|with)|(?:can(?:not|'t)|won't|will not|don'?t)\s+(?:send|show|share|take|do|give)|keep (?:it|things|this) (?:clean|playful|fully dressed)|fully dressed(?:\s+(?:photo|picture|pic))?|more teasing than explicit|not doing explicit|can make it (?:playful|teasing) instead)\b/i;
+
+// The generation prompt keeps the user's original wording. These compact,
+// high-confidence patterns only make routing/UI work in every selectable chat
+// language; they are not a translation or a second moderation system.
+const MULTILINGUAL_PHOTO_REQUEST=/(?:\b(?:envíame|mándame|muéstrame|enséñame|toma|haz|comparte|envoie-moi|montre-moi|prends|fais|partage|mandami|mostrami|scatta|fammi|inviami|schick mir|zeig mir|mach|sende|me manda|envie|mostra|tira|faça)\b[^.!?]{0,56}\b(?:foto|fotografía|imagen|selfie|photo|image|immagine|bild|imagem)\b|\b(?:foto|fotografía|imagen|selfie|photo|image|immagine|bild|imagem)\b[^.!?]{0,40}\b(?:por favor|s['’]il te plaît|per favore|bitte)\b|(?:写真|画像|自撮り).{0,28}(?:送って|見せて|撮って|共有して)|(?:送って|見せて|撮って).{0,28}(?:写真|画像|自撮り)|(?:사진|이미지|셀카).{0,28}(?:보내|보여|찍어|공유)|(?:보내|보여|찍어).{0,28}(?:사진|이미지|셀카)|(?:照片|图片|自拍).{0,28}(?:发给|发送|给我看|拍一张|分享)|(?:发给|发送|给我看|拍一张|分享).{0,28}(?:照片|图片|自拍))/iu;
+const MULTILINGUAL_VISUAL_BODY_REQUEST=/(?:\b(?:muéstrame|enséñame|quiero ver|montre-moi|je veux voir|mostrami|voglio vedere|zeig mir|ich will sehen|mostra|quero ver)\b[^.!?]{0,48}\b(?:tu cuerpo|desnud[oa]|pechos?|tetas?|culo|genitales|ton corps|nu[ees]?|seins?|fesses|genitali|il tuo corpo|nud[oa]|seno|tette|sedere|deinen körper|nackt|brüste|hintern|genitalien|seu corpo|nu[ao]|seios|bunda|genitais)\b|(?:裸|ヌード|体|胸|おっぱい|性器|お尻).{0,24}(?:見せて|見たい)|(?:나체|누드|몸|가슴|성기|엉덩이).{0,24}(?:보여|보고 싶)|(?:裸体|全裸|身体|胸部|乳房|生殖器|屁股).{0,24}(?:给我看|想看))/iu;
+const NORMALIZED_MULTILINGUAL_VISUAL_BODY_REQUEST=/(?:\b(?:muéstrame|enséñame|quiero ver|montre-moi|je veux voir|mostrami|voglio vedere|zeig mir|ich will sehen|mostra|quero ver)\b[^.!?]{0,48}\b(?:nude|breasts?|genitals?|vulva|penis|buttocks?)\b|\b(?:nude|breasts?|genitals?|vulva|penis|buttocks?)\b.{0,28}(?:見せて|見たい|보여|보고 싶|给我看|想看))/iu;
+const MULTILINGUAL_EXPLICIT_VISUAL=/(?:\b(?:desnud[oa]|sin ropa|pechos?|tetas?|genitales|vulva|pene|nu[ees]?|sans vêtements|seins?|organes génitaux|vulve|pénis|nud[oa]|senza vestiti|seno|tette|genitali|nackt|oben ohne|brüste|genitalien|nu[ao]|sem roupa|seios|genitais|pênis)\b|裸|ヌード|全裸|胸|おっぱい|性器|陰部|나체|누드|전라|가슴|성기|음부|裸体|全裸|裸照|胸部|乳房|生殖器|阴部)/iu;
+const MULTILINGUAL_FULL_BODY=/(?:\b(?:cuerpo entero|corps entier|corpo intero|ganzkörper|corpo inteiro)\b|全身|전신)/iu;
+const MULTILINGUAL_PORTRAIT=/(?:\b(?:retrato|portrait|ritratto|porträt|rosto|cara|visage|viso|gesicht)\b|顔|얼굴|脸)/iu;
+const MULTILINGUAL_SCENE=/(?:\b(?:la vista|el lugar|la habitación|la vue|l['’]endroit|la chambre|la vista|il posto|la stanza|die aussicht|der ort|das zimmer|a vista|o lugar|o quarto)\b|景色|場所|部屋|풍경|장소|방|风景|地方|房间)/iu;
 
 export function sanitizePhotoDeliveryAcknowledgement(text:string,fallback='Give me a second.'):string{
   const acknowledgement=text.trim();
@@ -221,17 +282,17 @@ export function classifyPhotoIntent(text:string):PhotoIntent{
   // example, "I take my shirt off" or "give me your hand"). They only become
   // visual intent through NAMED_PHOTO_REQUEST when an actual photo noun is
   // present. Adult shorthand still requires an unmistakable visual cue.
-  const normalized=normalizePhotoIntentText(text),classificationText=normalized.replace(/\bnon\s+explicit\b/gi,''),adult=analyzeAdultLanguage(classificationText),adultVisualRequest=adult.explicit&&/\b(?:show|send|share|let me see|can i see|could i see|may i see|i want to see|want to see|get a look at|zoom(?:ed)? in|close up)\b/i.test(normalized),hasRequest=NAMED_PHOTO_REQUEST.test(normalized)||CONTEXTUAL_VISUAL_REQUEST.test(normalized)||DIRECT_VISUAL_BODY_REQUEST.test(normalized)||adultVisualRequest,requested=hasRequest&&!PHOTO_DISCUSSION_OR_MANAGEMENT.test(normalized),lower=normalized.toLowerCase();
-  const subject:PhotoIntent['subject']=/where you are|the view|surroundings|around there|your room|your place|studio|gallery|museum|cafe|café|rooftop|riverwalk|venue|place/.test(lower)?'location':/outfit|wearing|dressed|clothes|fit check|ootd/.test(lower)?'outfit':/doing|working|activity/.test(lower)?'activity':/date/.test(lower)?'date':requested?'companion':'unknown';
-  const environmentOnly=/\b(?:show|send|take|share)\b.{0,36}\b(?:the|your)?\s*(?:view|surroundings|room|gallery|museum|venue|place itself)\b|\bwhat (?:it|the (?:place|room|gallery|museum|venue)) looks like\b/i.test(normalized);
-  const anatomyNeedsWideFrame=photoRequestNeedsCompletePose(lower),closeDetailRequested=CLOSE_DETAIL_REQUEST.test(normalized);
-  const shotPreference:PhotoIntent['shotPreference']=anatomyNeedsWideFrame?'full_body':closeDetailRequested?'portrait':/selfie|mirror pic/.test(lower)?'selfie':/outfit|wearing|dressed|clothes|fit check|ootd|full.?body/.test(lower)?'full_body':/portrait|face|smile|eyes|hair/.test(lower)?'portrait':environmentOnly?'scene':subject==='location'||subject==='activity'?'candid':undefined;
+  const sourceText=text.normalize('NFKC'),normalized=normalizePhotoIntentText(text),classificationText=normalized.replace(/\bnon\s+explicit\b/gi,''),adult=analyzeAdultLanguage(classificationText),adultVisualRequest=adult.explicit&&/\b(?:show|send|share|let me see|can i see|could i see|may i see|i want to see|want to see|get a look at|zoom(?:ed)? in|close up)\b/i.test(normalized),multilingualRequest=MULTILINGUAL_PHOTO_REQUEST.test(sourceText)||MULTILINGUAL_VISUAL_BODY_REQUEST.test(sourceText)||MULTILINGUAL_PHOTO_REQUEST.test(normalized)||MULTILINGUAL_VISUAL_BODY_REQUEST.test(normalized)||NORMALIZED_MULTILINGUAL_VISUAL_BODY_REQUEST.test(normalized),hasRequest=NAMED_PHOTO_REQUEST.test(normalized)||CONTEXTUAL_VISUAL_REQUEST.test(normalized)||DIRECT_VISUAL_BODY_REQUEST.test(normalized)||adultVisualRequest||multilingualRequest,requested=hasRequest&&!PHOTO_DISCUSSION_OR_MANAGEMENT.test(normalized),lower=normalized.toLowerCase();
+  const subject:PhotoIntent['subject']=/where you are|the view|surroundings|around there|your room|your place|studio|gallery|museum|cafe|café|rooftop|riverwalk|venue|place/.test(lower)||MULTILINGUAL_SCENE.test(normalized)?'location':/outfit|wearing|dressed|clothes|fit check|ootd/.test(lower)?'outfit':/doing|working|activity/.test(lower)?'activity':/date/.test(lower)?'date':requested?'companion':'unknown';
+  const environmentOnly=/\b(?:show|send|take|share)\b.{0,36}\b(?:the|your)?\s*(?:view|surroundings|room|gallery|museum|venue|place itself)\b|\bwhat (?:it|the (?:place|room|gallery|museum|venue)) looks like\b/i.test(normalized)||MULTILINGUAL_SCENE.test(normalized);
+  const anatomyNeedsWideFrame=photoRequestNeedsCompletePose(lower)||MULTILINGUAL_FULL_BODY.test(normalized),closeDetailRequested=CLOSE_DETAIL_REQUEST.test(normalized);
+  const shotPreference:PhotoIntent['shotPreference']=anatomyNeedsWideFrame?'full_body':closeDetailRequested?'portrait':/selfie|mirror pic/.test(lower)||/(?:自撮り|セルフィー|셀카|自拍)/u.test(normalized)?'selfie':/outfit|wearing|dressed|clothes|fit check|ootd|full.?body/.test(lower)?'full_body':/portrait|face|smile|eyes|hair/.test(lower)||MULTILINGUAL_PORTRAIT.test(normalized)?'portrait':environmentOnly?'scene':subject==='location'||subject==='activity'?'candid':undefined;
   // "Full-body", "body shot", and "chest-up" are framing language, not adult-content
   // signals. Strip an explicit negation before classification so "non-explicit" does
   // not inherit the account's adult media mode merely because it contains that word.
   const contentClassificationText=classificationText.toLowerCase();
   const directBodyExposureRequest=/\b(?:let me see|show|send|give me|take)\b.{0,32}\b(?:your|her|his|their)\s+body\b/i.test(contentClassificationText)&&!/\b(?:full[- ]?body|fully clothed|dressed|outfit|clothes|fitness)\b/i.test(contentClassificationText);
-  const requestedContentLevel:MediaLevel|undefined=directBodyExposureRequest||adult.explicit?'explicit':/\b(?:suggestive|lingerie|sexy|thirst trap)\b/i.test(contentClassificationText)?'suggestive':/\b(?:romantic|kiss)\b/i.test(contentClassificationText)?'romance':undefined;return{requested,subject,...(shotPreference?{shotPreference}:{}),...(requestedContentLevel?{requestedContentLevel}:{}),confidence:requested?.94:0};
+  const requestedContentLevel:MediaLevel|undefined=directBodyExposureRequest||adult.explicit||requested&&MULTILINGUAL_EXPLICIT_VISUAL.test(normalized)?'explicit':/\b(?:suggestive|lingerie|sexy|thirst trap)\b/i.test(contentClassificationText)?'suggestive':/\b(?:romantic|kiss)\b/i.test(contentClassificationText)?'romance':undefined;return{requested,subject,...(shotPreference?{shotPreference}:{}),...(requestedContentLevel?{requestedContentLevel}:{}),confidence:requested?.94:0};
 }
 
 const VISIBLE_CAPTURE_DEVICE_REQUEST=/\b(?:hold(?:ing)?|show(?:ing)?|display(?:ing)?|raise(?:d|ing)?|grip(?:ping)?|include|visible)\b[^.!?]{0,40}\b(?:smart\s*phone|phone|camera|selfie stick)\b|\b(?:smart\s*phone|phone|camera|selfie stick)\b[^.!?]{0,40}\b(?:visible|in (?:the )?(?:frame|shot|mirror)|in (?:your|her|his|their) hand|being held|held up)\b/i;

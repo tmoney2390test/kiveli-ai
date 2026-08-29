@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import {
   DESKTOP_SHELL_BREAKPOINT,
@@ -6,7 +6,8 @@ import {
 } from '../lib/desktopNavigation';
 import { colors } from '../theme';
 import { AppShellContext, mobileAppShellState } from './AppShellContext';
-import { DesktopSidebar } from './DesktopSidebar';
+
+const DesktopSidebar = lazy(() => import('./DesktopSidebar').then((module) => ({ default: module.DesktopSidebar })));
 
 // Expo Router can remount the authenticated shell while swapping route trees.
 // Keep pointer intent outside the component so a click inside the expanded rail
@@ -63,7 +64,7 @@ export function ResponsiveAppShell({ children, enabled }: PropsWithChildren<{ en
 
   return <AppShellContext.Provider value={value}>
     <View style={[styles.shell, desktop && styles.desktopShell]}>
-      {desktop ? <View style={styles.sidebarSlot}><DesktopSidebar expanded={expanded} onHoverChange={handleSidebarHoverChange} /></View> : null}
+      {desktop ? <View style={styles.sidebarSlot}><Suspense fallback={null}><DesktopSidebar expanded={expanded} onHoverChange={handleSidebarHoverChange} /></Suspense></View> : null}
       <View style={[styles.content, desktop && styles.desktopContent]}>{children}</View>
     </View>
   </AppShellContext.Provider>;

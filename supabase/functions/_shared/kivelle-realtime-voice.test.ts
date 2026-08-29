@@ -9,14 +9,24 @@ Deno.test('call greetings use the companion first name with stable natural varia
   assert(companionCallGreeting({character:{}},'missing-name')==="Hey, it's me.");
 });
 
-Deno.test('realtime Explicit calls use the shared receptive intimacy policy', () => {
+Deno.test('call greetings and instructions honor the selected chat language',()=>{
+  assert(companionCallGreeting({character:{name:'Brooke Sullivan'},chatLanguage:'fr'},'call-fr').includes('Brooke'));
+  assert(companionCallGreeting({character:{name:'Brooke Sullivan'},chatLanguage:'auto',recent:[{role:'user',content:'今日はどうだった？'}]},'call-ja').includes('Brooke'));
+  assert(/[。、]/u.test(companionCallGreeting({character:{name:'Brooke Sullivan'},chatLanguage:'auto',recent:[{role:'user',content:'今日はどうだった？'}]},'call-ja')));
+  const instructions=buildKivelleRealtimeInstructions({character:{name:'Brooke',age:29},relationship:{relationship_stage:'friend'},currentScene:{availability:'available'},contentMode:'standard',chatLanguage:'fr'});
+  assert(instructions.includes('Reply in French'));
+  assert(instructions.includes('"chatLanguage":"fr"'));
+});
+
+Deno.test('realtime calls keep a receptive romantic stance non-sexual', () => {
   const instructions = buildKivelleRealtimeInstructions({
     character: { name: 'Brooke', age: 29, spice_level: 3, personality_config: { directness: .8 } },
     relationship: { relationship_stage: 'long_term', romance_enabled: true, romance_path_status: 'open', trust: 80, comfort: 82, attraction: 78, respect: 80, romantic_interest: 74, chemistry_heat: 70 },
     currentScene: { availability: 'available' },
     contentMode: 'explicit',
   });
-  assert(instructions.includes('reciprocate clearly and continue as explicit spoken dialogue'));
+  assert(instructions.includes('sexual or explicit spoken dialogue is not'));
+  assert(instructions.includes('must not describe sexual acts'));
   assert(instructions.includes('"shouldReciprocate":true'));
   assert(instructions.includes('A voice call remains verbal'));
 });
@@ -45,6 +55,15 @@ Deno.test('realtime calls inherit the required companion curiosity and reciproci
   assert(instructions.includes('"pronouns":"she/her"'));
   assert(instructions.includes('"occupation":"Gallery coordinator"'));
   assert(instructions.includes('"interests":["art","climbing"]'));
+});
+
+Deno.test('realtime calls receive the same complete active Persona as text chat',()=>{
+  const instructions=buildKivelleRealtimeInstructions({character:{name:'Brooke',age:29},persona:{display_name:'Jordan',pronouns:'they/them',age:41,occupation:'Architect',biography:'Restores old buildings.',interests:['design','travel'],communication_config:{responseLength:'detailed',questionFrequency:'high',tone:'direct'}},relationship:{relationship_stage:'friend'},currentScene:{availability:'available'},contentMode:'standard'});
+  assert(instructions.includes('"display_name":"Jordan"'));
+  assert(instructions.includes('"age":41'));
+  assert(instructions.includes('"occupation":"Architect"'));
+  assert(instructions.includes('"biography":"Restores old buildings."'));
+  assert(instructions.includes('"responseLength":"detailed"'));
 });
 
 Deno.test('realtime calls keep identity and geography inside Kivelle context',()=>{

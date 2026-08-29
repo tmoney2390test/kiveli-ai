@@ -20,6 +20,8 @@ describe('auto dialogue',()=>{
     expect(parseAutoDialogueSuggestion({text:'I promise I will move in with you.'},'Let me think about that.',input)).toBe('Let me think about that.');
     expect(parseAutoDialogueSuggestion({text:'I finally finished hanging the very last piece and I am exhausted.'},'How do you feel?',input)).toBe('How do you feel?');
     expect(parseAutoDialogueSuggestion({text:'x'.repeat(800)},'fallback',input)).toHaveLength(600);
+    const japanese={...input,chatLanguage:'ja' as const,latestAssistantMessage:'今日は図書館で静かに本を読んでいたよ。'};
+    expect(parseAutoDialogueSuggestion({text:'今日は図書館で静かに本を読んでいたよ。'},'もう少し聞かせて。',japanese)).toBe('もう少し聞かせて。');
   });
 
   it('learns length, register, emoji, and action habits only from sent user turns',()=>{
@@ -45,7 +47,7 @@ describe('auto dialogue',()=>{
     expect(prompt).toContain('Never write the companion');
     expect(prompt).toContain('rich conversational handoff with two beats');
     expect(prompt).toContain('Do not default to a generic interviewer question');
-    expect(prompt).toContain('effective spice 3 of 3');
+    expect(prompt).toContain('romantic boldness 3 of 3');
     expect(prompt).toContain('Meet Priya');
     expect(prompt).toContain('Maya');
     expect(prompt).toContain('The gallery opening');
@@ -53,13 +55,19 @@ describe('auto dialogue',()=>{
     expect(prompt).toContain(input.latestAssistantMessage);
   });
 
-  it('can continue a canonically accepted Explicit exchange without inventing companion consent',()=>{
+  it('keeps legacy Explicit conversations within the non-sexual romance ceiling',()=>{
     const explicit={...input,latestAssistantMessage:'I want you too.',contentMode:'explicit' as const,intimacyOutcome:'accepted' as const};
-    expect(inferAutoDialogueIntents(explicit)).toContain('flirt');
-    expect(deterministicAutoDialogue(explicit)).toBe('I want you too. Keep going.');
+    expect(deterministicAutoDialogue(explicit)).not.toMatch(/sex|nude|naked/i);
     const prompt=buildAutoDialoguePrompt(explicit);
-    expect(prompt).toContain('canonically reciprocated');
+    expect(prompt).toContain('non-sexual romance');
     expect(prompt).toContain('latest intimacy outcome: accepted');
-    expect(prompt).toContain('must not invent an unspoken physical action');
+    expect(prompt).toContain('Never draft a sexual request');
+    expect(parseAutoDialogueSuggestion({text:'I want to have sex with you.'},'Stay close to me.',explicit)).toBe('Stay close to me.');
+  });
+
+  it('generates user drafts directly in the selected chat language',()=>{
+    const french={...input,chatLanguage:'fr' as const};
+    expect(buildAutoDialoguePrompt(french)).toContain('Reply in French');
+    expect(deterministicAutoDialogue(french)).toBe('Dis-m’en plus.');
   });
 });

@@ -8,6 +8,7 @@ export type DesktopNavigationKey =
   | 'explore'
   | 'messages'
   | 'moments'
+  | 'stories'
   | 'plans'
   | 'companions'
   | 'settings';
@@ -50,6 +51,7 @@ export function desktopNavigationKey(pathname: string): DesktopNavigationKey | n
   if (path === '/explore' || path === '/world/places' || path.startsWith('/location/') || path.startsWith('/story/')) return 'explore';
   if (path === '/chat-tab' || path === '/chat' || path === '/group-chat' || path === '/new-group' || path === '/archived-chats' || path.startsWith('/conversation/') || path.startsWith('/conversations/')) return 'messages';
   if (path === '/moments' || path.startsWith('/moment/') || path.startsWith('/media/')) return 'moments';
+  if (path === '/stories' || path === '/story-library' || path.startsWith('/story-case/')) return 'stories';
   if (path === '/dates' || path === '/plan-live' || path.startsWith('/plan/') || path.startsWith('/date/')) return 'plans';
   if (path === '/companions' || path === '/singles' || path.startsWith('/character/') || path.startsWith('/create/companion')) return 'companions';
   if (

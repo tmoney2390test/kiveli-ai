@@ -6,7 +6,7 @@ import { router, usePathname } from 'expo-router';
 import {
   Bell,
   CalendarDays,
-  Coins,
+  BookOpenCheck,
   Compass,
   Home,
   Images,
@@ -16,29 +16,44 @@ import {
 } from 'lucide-react-native';
 import { CharacterAvatar } from '../components/ui';
 import { KivelleLogo } from '../components/KivelleLogo';
+import { KivelleCreditIcon } from '../components/KivelleCreditIcon';
 import { useSubscriptionStatus } from '../hooks/useSubscriptionStatus';
 import { useProfileAvatarUrl } from '../hooks/useProfileAvatarUrl';
 import { desktopNavigationKey, type DesktopNavigationKey } from '../lib/desktopNavigation';
-import { isActiveInboxConversation, MESSAGES_INBOX_HREF } from '../lib/messageInbox';
+import { isActiveInboxConversation, MESSAGES_INBOX_ROUTE, mostRecentChatHref, returnToMessagesInbox, shouldOpenMostRecentChat } from '../lib/messageInbox';
 import { useTogether } from '../store/useTogether';
 import { colors, typography } from '../theme';
 
 type Props = { expanded: boolean; onHoverChange: (hovered: boolean) => void };
-type NavItem = { key: DesktopNavigationKey; label: string; href: string; icon: (color: string) => ReactNode; count?: number };
+type NavItem = { key: DesktopNavigationKey; label: string; href: string; icon: (color: string) => ReactNode; count?: number; onPress?: () => void };
 
 export function DesktopSidebar({ expanded, onHoverChange }: Props) {
   const pathname = usePathname();
+  const settingsOpen = pathname === '/settings';
   const snapshot = useTogether((state) => state.snapshot);
   const browsedWorldId = useTogether((state) => state.browsedWorldId);
   const { data: subscription } = useSubscriptionStatus(Boolean(snapshot));
-  const profileAvatarUrl = useProfileAvatarUrl(snapshot?.profile?.avatar_path);
+  const personaAvatarPath=typeof snapshot?.activePersona?.appearance_config?.avatarPath==='string'
+    ?snapshot.activePersona.appearance_config.avatarPath
+    :snapshot?.activePersona?.is_default?snapshot?.profile?.avatar_path:null;
+  const profileAvatarUrl = useProfileAvatarUrl(personaAvatarPath);
   const [profileAvatarFailed, setProfileAvatarFailed] = useState(false);
   useEffect(() => setProfileAvatarFailed(false), [profileAvatarUrl]);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const contents = document.getElementById('kivelle-desktop-sidebar-contents');
+    if (!contents) return;
+    if (settingsOpen) contents.setAttribute('inert', '');
+    else contents.removeAttribute('inert');
+    return () => contents.removeAttribute('inert');
+  }, [settingsOpen]);
   const activeKey = desktopNavigationKey(pathname);
   const conversations = useMemo(() => (snapshot?.conversations ?? [])
     .filter(isActiveInboxConversation)
     .sort((left, right) => timestamp(right.last_message_at) - timestamp(left.last_message_at)), [snapshot?.conversations]);
   const unreadCount = conversations.filter((conversation) => conversation.unread).length;
+  const latestChatHref=snapshot?mostRecentChatHref(snapshot.conversations,snapshot.characters):null;
+  const messagesHref=shouldOpenMostRecentChat(pathname)?latestChatHref??MESSAGES_INBOX_ROUTE:MESSAGES_INBOX_ROUTE;
   const currentWorld = snapshot?.worlds.find((world) => world.id === browsedWorldId)
     ?? (snapshot?.currentPlaceContext ? snapshot.worlds.find((world) => world.id === snapshot.currentPlaceContext?.world.id) : undefined)
     ?? snapshot?.worlds.find((world) => world.published);
@@ -50,11 +65,16 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
     onHoverChange(true);
     router.push(href as never);
   };
+  const openMessagesInbox = () => {
+    onHoverChange(true);
+    returnToMessagesInbox({reset:(href)=>router.replace(href as never),navigate:(href)=>router.push(href as never)});
+  };
   const mainItems: NavItem[] = [
     { key: 'home', label: 'Home', href: '/home', icon: (color) => <Home size={24} color={color} /> },
     { key: 'explore', label: 'Explore', href: '/explore', icon: (color) => <Compass size={24} color={color} /> },
-    { key: 'messages', label: 'Messages', href: MESSAGES_INBOX_HREF, icon: (color) => <MessageCircle size={24} color={color} />, count: unreadCount },
+    { key: 'messages', label: 'Messages', href: messagesHref, icon: (color) => <MessageCircle size={24} color={color} />, count: unreadCount, onPress: messagesHref === MESSAGES_INBOX_ROUTE ? openMessagesInbox : () => navigate(messagesHref) },
     { key: 'moments', label: 'Moments', href: '/moments', icon: (color) => <Images size={24} color={color} /> },
+    { key: 'stories', label: 'Stories', href: '/stories', icon: (color) => <BookOpenCheck size={24} color={color} /> },
     { key: 'plans', label: 'Plans & Dates', href: '/dates', icon: (color) => <CalendarDays size={24} color={color} /> },
     { key: 'companions', label: 'Companions', href: '/companions', icon: (color) => <UsersRound size={24} color={color} /> },
   ];
@@ -62,19 +82,25 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
   return <View
     nativeID="kivelle-desktop-sidebar"
     accessibilityLabel="Desktop navigation"
-    onPointerEnter={() => onHoverChange(true)}
-    onPointerLeave={() => onHoverChange(false)}
+    onPointerEnter={() => { if (!settingsOpen) onHoverChange(true); }}
+    onPointerLeave={() => { if (!settingsOpen) onHoverChange(false); }}
     style={[styles.sidebar, expanded ? styles.sidebarExpanded : styles.sidebarCollapsed]}
   >
-    <BlurView tint="systemMaterialDark" intensity={84} style={StyleSheet.absoluteFill} />
-    <View style={[styles.brandRow, !expanded && styles.brandRowCollapsed]}>
-      {expanded ? <KivelleLogo height={33} /> : <Image accessible={false} source={require('../../assets/kivelle-icon-transparent.png')} style={styles.brandIcon} contentFit="contain" transition={0} />}
-    </View>
-
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.navGroup}>
-        {mainItems.map((item) => <SidebarAction key={item.key} expanded={expanded} label={item.label} icon={item.icon(activeKey === item.key ? '#E3A4F2' : colors.muted)} active={activeKey === item.key} count={item.count} onPress={() => navigate(item.href)} />)}
+    <View
+      nativeID="kivelle-desktop-sidebar-contents"
+      accessibilityElementsHidden={settingsOpen}
+      importantForAccessibility={settingsOpen ? 'no-hide-descendants' : 'auto'}
+      style={styles.sidebarContents}
+    >
+      <BlurView tint="systemMaterialDark" intensity={84} style={StyleSheet.absoluteFill} />
+      <View style={[styles.brandRow, !expanded && styles.brandRowCollapsed]}>
+        {expanded ? <KivelleLogo height={33} /> : <Image accessible={false} source={require('../../assets/kivelle-icon-transparent.png')} style={styles.brandIcon} contentFit="contain" transition={0} />}
       </View>
+
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.navGroup}>
+          {mainItems.map((item) => <SidebarAction key={item.key} expanded={expanded} label={item.label} icon={item.icon(activeKey === item.key ? '#E3A4F2' : colors.muted)} active={activeKey === item.key} count={item.count} onPress={item.onPress ?? (() => navigate(item.href))} />)}
+        </View>
 
       {expanded && currentWorld ? <View style={styles.section}>
         <Text style={styles.sectionLabel}>CURRENT WORLD</Text>
@@ -87,7 +113,7 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
       </View> : null}
 
       {expanded && conversations.length ? <View style={styles.section}>
-        <View style={styles.sectionHeading}><Text style={styles.sectionLabel}>RECENT</Text><Pressable onPress={() => navigate(MESSAGES_INBOX_HREF)}><Text style={styles.viewAll}>View all</Text></Pressable></View>
+        <View style={styles.sectionHeading}><Text style={styles.sectionLabel}>RECENT</Text><Pressable onPress={openMessagesInbox}><Text style={styles.viewAll}>View all</Text></Pressable></View>
         <View style={styles.recentList}>{conversations.slice(0, 4).map((conversation) => {
           const character = snapshot?.characters.find((item) => item.id === conversation.character_instance_id);
           const group = conversation.kind === 'group';
@@ -100,17 +126,27 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
           </Pressable>;
         })}</View>
       </View> : null}
-    </ScrollView>
+      </ScrollView>
 
-    <View style={styles.footer}>
-      <SidebarAction expanded={expanded} label={subscription ? `${subscription.creditBalance.total.toLocaleString()} Credits` : 'Kivelle Credits'} icon={<Coins size={23} color={colors.warm} />} onPress={() => navigate('/subscription')} />
-      <SidebarAction expanded={expanded} label="Notifications" icon={<Bell size={23} color={colors.muted} />} onPress={() => navigate('/notifications')} />
-      <Pressable accessibilityLabel="Open Settings" onPress={() => navigate('/settings')} style={({ pressed }) => [styles.account, !expanded && styles.accountCollapsed, activeKey === 'settings' && styles.accountActive, pressed && styles.rowPressed]}>
-        <View style={styles.initial}>{showProfileAvatar ? <Image source={{ uri: profileAvatarUrl!, cacheKey: `kivelle-user-avatar:${snapshot?.profile?.avatar_path}` }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" onError={() => setProfileAvatarFailed(true)} /> : <Text style={styles.initialText}>{personaName.trim()[0]?.toUpperCase() || 'Y'}</Text>}</View>
-        {expanded ? <View style={styles.accountCopy}><Text style={styles.accountName} numberOfLines={1}>{personaName}</Text><Text style={styles.accountTier}>{subscriptionLabel(subscription?.tier ?? snapshot?.entitlements?.tier)}</Text></View> : null}
-        {expanded ? <Settings size={22} color={activeKey === 'settings' ? colors.text : colors.muted} /> : null}
-      </Pressable>
+      <View style={styles.footer}>
+        <SidebarAction expanded={expanded} label={subscription ? `${subscription.creditBalance.total.toLocaleString()} Credits` : 'Kivelle Credits'} icon={<KivelleCreditIcon size={24} />} onPress={() => navigate('/subscription')} />
+        <SidebarAction expanded={expanded} label="Notifications" icon={<Bell size={23} color={colors.muted} />} onPress={() => navigate('/notifications')} />
+        <Pressable accessibilityLabel="Open Settings" onPress={() => navigate('/settings')} style={({ pressed }) => [styles.account, !expanded && styles.accountCollapsed, activeKey === 'settings' && styles.accountActive, pressed && styles.rowPressed]}>
+          <View style={styles.initial}>{showProfileAvatar ? <Image source={{ uri: profileAvatarUrl!, cacheKey: `kivelle-persona-avatar:${personaAvatarPath}` }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" onError={() => setProfileAvatarFailed(true)} /> : <Text style={styles.initialText}>{personaName.trim()[0]?.toUpperCase() || 'Y'}</Text>}</View>
+          {expanded ? <View style={styles.accountCopy}><Text style={styles.accountName} numberOfLines={1}>{personaName}</Text><Text style={styles.accountTier}>{subscriptionLabel(subscription?.tier ?? snapshot?.entitlements?.tier)}</Text></View> : null}
+          {expanded ? <Settings size={22} color={activeKey === 'settings' ? colors.text : colors.muted} /> : null}
+        </Pressable>
+      </View>
     </View>
+    {settingsOpen ? <Pressable
+      accessibilityLabel="Settings are open"
+      accessibilityRole="none"
+      onPress={() => undefined}
+      style={styles.settingsBlocker}
+    >
+      <BlurView pointerEvents="none" tint="systemChromeMaterialDark" intensity={100} style={StyleSheet.absoluteFill} />
+      <View pointerEvents="none" style={styles.settingsBlockerWash} />
+    </Pressable> : null}
   </View>;
 }
 
@@ -142,6 +178,7 @@ function subscriptionLabel(tier?: string | null) {
 
 const styles = StyleSheet.create({
   sidebar: { position: 'relative', zIndex: 300, flexShrink: 0, height: '100%', minHeight: 0, borderRightWidth: 1, borderRightColor: 'rgba(255,248,244,.10)', backgroundColor: 'rgba(11,10,14,.94)', ...(Platform.OS === 'web' ? ({ backdropFilter: 'blur(30px) saturate(122%)', transitionProperty: 'width', transitionDuration: '180ms', transitionTimingFunction: 'ease-out' } as never) : {}) },
+  sidebarContents: { position: 'relative', flex: 1, minHeight: 0 },
   sidebarExpanded: { width: 280, shadowColor: '#000', shadowOpacity: .48, shadowRadius: 24, shadowOffset: { width: 10, height: 0 }, elevation: 20 },
   sidebarCollapsed: { width: 72 },
   brandRow: { minHeight: 86, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 21, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,.08)' },
@@ -188,6 +225,18 @@ const styles = StyleSheet.create({
   accountCopy: { flex: 1, minWidth: 0 },
   accountName: { color: colors.text, fontSize: 14, fontWeight: '900' },
   accountTier: { color: colors.dimmed, fontSize: 11, marginTop: 3 },
+  settingsBlocker: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 1000,
+    backgroundColor: 'rgba(8,6,12,.34)',
+    ...(Platform.OS === 'web' ? ({ backdropFilter: 'blur(18px) saturate(55%)' } as never) : {}),
+  },
+  settingsBlockerWash: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(8,6,12,.47)',
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255,255,255,.05)',
+  },
   rowPressed: { backgroundColor: 'rgba(255,255,255,.055)' },
   pressed: { opacity: .72 },
 });

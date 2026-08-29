@@ -65,7 +65,7 @@ export default function ConversationControls() {
   const relationshipReset = (id: string, name: string) => confirmAction({ title: 'Reset relationship progress?', message: `Your messages, memories, Moments, and photos will remain, but your relationship with ${name} will return to the beginning and Dates will relock.`, confirmLabel: 'Review reset', onConfirm: () => confirmAction({ title: 'Reset relationship progress', message: `Completed Date Moments remain part of your history. Reset progression with ${name}?`, confirmLabel: 'Reset progress', destructive: true, onConfirm: () => reset(id, 'relationship') }) });
 
   return <Screen>
-    <View style={styles.header}><Pressable accessibilityLabel="Back" onPress={() => router.back()}><ArrowLeft color={colors.text} /></Pressable><PageTitle>{focused ? `${focused.together_character_templates.name} chat settings` : 'Conversations & resets'}</PageTitle></View>
+    <View style={styles.header}><Pressable accessibilityLabel="Back" onPress={() => router.canGoBack() ? router.back() : router.replace('/settings')}><ArrowLeft color={colors.text} /></Pressable><PageTitle>{focused ? `${focused.together_character_templates.name} chat settings` : 'Conversations & resets'}</PageTitle></View>
     <Text style={styles.lead}>{focused ? 'Manage this chat without changing the relationship unless you choose an advanced reset.' : 'A conversation is not the relationship. Choose exactly what you want to change.'}</Text>
     <SectionHeader title={focused ? 'Conversation' : 'Your companions'} />
     {meaningful.map((character) => {

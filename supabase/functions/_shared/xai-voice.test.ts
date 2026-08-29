@@ -10,11 +10,11 @@ Deno.test('xAI TTS sends the official REST contract and validates timed audio', 
     url=String(input);body=JSON.parse(String(init?.body));
     return new Response(JSON.stringify({audio:btoa('mp3-bytes'),content_type:'audio/mpeg',duration:1.25,audio_timestamps:{graph_chars:['H'],graph_times:[[0,1.25]]}}),{status:200,headers:{'content-type':'application/json','x-request-id':'tts-1'}});
   });
-  const result=await provider.synthesize({text:'Hello.',voice,outputFormat:'mp3',delivery:{speed:.95}});
+  const result=await provider.synthesize({text:'Bonjour.',voice,language:'fr',outputFormat:'mp3',delivery:{speed:.95}});
   assert(url==='https://xai.test/v1/tts');
-  assert(body.voice_id===xaiVoiceId(voice)&&body.language==='auto'&&body.with_timestamps===true&&body.speed===.95);
+  assert(body.voice_id===xaiVoiceId(voice)&&body.language==='fr'&&body.with_timestamps===true&&body.speed===.95);
   assert(result.contentType==='audio/mpeg'&&result.durationMs===1250&&result.providerRequestId==='tts-1'&&result.bytes.length>0);
-  assert(result.characterCount===6&&Number(result.estimatedCostUsd)>0);
+  assert(result.characterCount===8&&Number(result.estimatedCostUsd)>0);
 });
 
 Deno.test('xAI stable voice mapping honors authored provider ids', () => {
@@ -39,17 +39,18 @@ Deno.test('xAI realtime provider mints only an ephemeral secret and client confi
     captured=JSON.parse(String(init?.body));
     return new Response(JSON.stringify({value:'ephemeral-only',expires_at:Math.floor(Date.now()/1000)+300}),{status:200});
   });
-  const result=await provider.createSession({callSessionId:'call-1',voice,context:{character:{name:'Brooke',age:25},persona:{display_name:'Tim'},currentScene:{locationName:'Glassline Gallery'},currentWorld:{name:'Juniper City'},contentMode:'romance'}});
+  const result=await provider.createSession({callSessionId:'call-1',voice,context:{character:{name:'Brooke',age:25},persona:{display_name:'Tim'},currentScene:{locationName:'Glassline Gallery'},currentWorld:{name:'Juniper City'},contentMode:'romance',chatLanguage:'es-MX'}});
   assert((captured.expires_after as Record<string,unknown>).seconds===300);
   assert(result.clientSecret==='ephemeral-only'&&result.clientConfiguration?.model==='grok-voice-think-fast-2.0');
   assert(result.clientConfiguration?.greeting.includes('Brooke'));
   assert(!JSON.stringify(result).includes('permanent-secret'));
   const session=result.clientConfiguration?.session as Record<string,unknown>;
   assert(String(session.instructions).includes('Kivelle is authoritative'));
-  const audio=session.audio as {input:{format:{type:string;rate:number};transcription:{model:string;keyterms:string[]}};output:{format:{type:string;rate:number}}};
+  const audio=session.audio as {input:{format:{type:string;rate:number};transcription:{model:string;language_hint:string;keyterms:string[]}};output:{format:{type:string;rate:number}}};
   const turnDetection=session.turn_detection as {type:string};
   assert(audio.input.format.type==='audio/pcm'&&audio.input.format.rate===24_000&&audio.input.transcription.model==='grok-transcribe');
   assert(['Kivelle','Brooke','Tim','Glassline Gallery','Juniper City'].every((term)=>audio.input.transcription.keyterms.includes(term)));
+  assert(audio.input.transcription.language_hint==='es-MX');
   assert(audio.output.format.type==='audio/pcm'&&audio.output.format.rate===24_000&&turnDetection.type==='server_vad');
   assert((session.resumption as {enabled:boolean}).enabled===true);
 });

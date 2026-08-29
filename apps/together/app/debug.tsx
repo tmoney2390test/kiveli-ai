@@ -44,7 +44,7 @@ export default function Debug(){
   const inspectAiUsage=async()=>{try{setAiUsage(await invoke<Record<string,unknown>>('together-debug',{action:'inspect_ai_usage',...(companion?{characterInstanceId:companion.id}:{})}));}catch(error){Alert.alert('AI usage inspector',error instanceof Error?error.message:'Could not inspect AI usage.');}};
   const inspectMediaEconomics=async()=>{try{setMediaEconomics(await invoke<Record<string,unknown>>('together-debug',{action:'inspect_media_economics'}));}catch(error){Alert.alert('Media economics inspector',error instanceof Error?error.message:'Could not inspect media economics.');}};
   return <Screen>
-    <View style={styles.header}><Pressable onPress={()=>router.back()}><ArrowLeft color={colors.text}/></Pressable><PageTitle>Internal Tools</PageTitle></View>
+    <View style={styles.header}><Pressable onPress={()=>router.canGoBack()?router.back():router.replace('/home')}><ArrowLeft color={colors.text}/></Pressable><PageTitle>Internal Tools</PageTitle></View>
     <Text style={styles.warning}>DEVELOPMENT / INTERNAL BUILDS ONLY</Text>
     <SectionHeader title="Identity boundary"/>
     <Data label="Active Persona" value={snapshot?.activePersona?.display_name}/>

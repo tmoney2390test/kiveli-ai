@@ -4,6 +4,7 @@ import type {
   SpeechToTextResult,
 } from "./kivelle-multimodal.ts";
 import { AppError } from "./types.ts";
+import { openAiTranscriptionLanguage } from "../../../packages/together-domain/src/chat-language.ts";
 
 export const OPENAI_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe";
 const OPENAI_API_BASE = "https://api.openai.com/v1";
@@ -42,6 +43,8 @@ export class OpenAiSpeechToTextProvider implements SpeechToTextProvider {
       safeAudioFileName(input.fileName, input.contentType),
     );
     form.append("model", this.model);
+    const language = openAiTranscriptionLanguage(input.language);
+    if (language) form.append("language", language);
 
     const response = await this.requestWithRetry(form);
     const payload = await response.json().catch(() => null) as

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -8,17 +8,19 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Check, ChevronLeft, Lock, Users } from "lucide-react-native";
 import { CharacterAvatar, FrostedSurface } from "../src/components";
 import { manageGroup } from "../src/lib/api";
 import { groupWorldOptions } from "../src/lib/groupWorld";
+import { parseGroupPrefillParticipants } from "../src/lib/groupInvite";
 import { useTogether } from "../src/store/useTogether";
 import { colors, radius, spacing, typography } from "../src/theme";
 import type { GroupDetail } from "../src/types";
 
 export default function NewGroupScreen() {
-  const snapshot = useTogether((state) => state.snapshot),
+  const params = useLocalSearchParams<{ participants?: string | string[]; world?: string | string[] }>(),
+    snapshot = useTogether((state) => state.snapshot),
     browsedWorldId = useTogether((state) => state.browsedWorldId),
     refresh = useTogether((state) => state.refresh);
   const [selected, setSelected] = useState<string[]>([]),
@@ -26,12 +28,27 @@ export default function NewGroupScreen() {
     [title, setTitle] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const appliedPrefill = useRef<string | null>(null);
   const allowed =
     snapshot?.entitlements?.entitlement_keys?.includes("group_chat") === true;
   const worldOptions = useMemo(
     () => snapshot ? groupWorldOptions(snapshot) : [],
     [snapshot],
   );
+  const participantParam = routeParam(params.participants),
+    worldParam = routeParam(params.world),
+    prefillKey = `${participantParam ?? ""}|${worldParam ?? ""}`;
+  useEffect(() => {
+    if (!participantParam || !worldOptions.length || appliedPrefill.current === prefillKey) return;
+    const requestedIds = parseGroupPrefillParticipants(participantParam);
+    const option = worldOptions.find((item) => item.world.id === worldParam || item.world.slug === worldParam) ??
+      worldOptions.find((item) => item.characters.some((character) => requestedIds.includes(character.id)));
+    if (!option) return;
+    const eligibleIds = new Set(option.characters.map((character) => character.id));
+    setSelected(requestedIds.filter((id) => eligibleIds.has(id)));
+    setSelectedWorldId(option.world.id);
+    appliedPrefill.current = prefillKey;
+  }, [participantParam, prefillKey, worldOptions, worldParam]);
   const activeWorldId =
     worldOptions.some((option) => option.world.id === selectedWorldId)
       ? selectedWorldId
@@ -90,7 +107,7 @@ export default function NewGroupScreen() {
       <View style={styles.header}>
         <Pressable
           accessibilityLabel="Back to Messages"
-          onPress={() => router.back()}
+          onPress={() => router.canGoBack() ? router.back() : router.replace('/chat-tab?inbox=1')}
           style={styles.back}
         >
           <ChevronLeft size={24} color={colors.text} />
@@ -261,6 +278,10 @@ export default function NewGroupScreen() {
         )}
     </View>
   );
+}
+
+function routeParam(value?: string | string[]): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
 }
 
 const styles = StyleSheet.create({

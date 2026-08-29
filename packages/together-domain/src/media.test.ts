@@ -1,5 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { CHARACTER_PHOTO_REALISM_GUIDANCE, PHOTO_ONLY_MESSAGE_CONTENT, classifyPhotoIntent, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, isPhotoOnlyConversationMessage, photoRequestAllowsHiddenFace, photoRequestWantsVisibleCaptureDevice, resolveAdultNudityScope, resolveCanonicalMediaPresence, resolvePhotoComposition, resolvePhotoDirection, resolveSpecificAnatomyExposure, sanitizePhotoDeliveryAcknowledgement } from './media';
+import { CHARACTER_PHOTO_REALISM_GUIDANCE, PHOTO_ONLY_MESSAGE_CONTENT, PRODUCTION_SAFE_ROMANTIC_PHOTO_DIRECTION, PRODUCTION_SAFE_SWIM_PHOTO_DIRECTION, classifyPhotoIntent, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, isPhotoOnlyConversationMessage, photoRequestAllowsHiddenFace, photoRequestWantsVisibleCaptureDevice, resolveAdultNudityScope, resolveCanonicalMediaPresence, resolvePhotoComposition, resolvePhotoDirection, resolveProductionSafePhotoRequest, resolveSpecificAnatomyExposure, sanitizePhotoDeliveryAcknowledgement } from './media';
+
+describe('production photo ceiling',()=>{
+  it('turns a nude request into a clothed romantic photo instead of rejecting generation',()=>{
+    const safe=resolveProductionSafePhotoRequest({requestText:'Brooke, send me a nude photo by the pool'});
+    expect(safe).toMatchObject({contentLevel:'standard',downgraded:true,reasonCode:'production_sexual_content_ceiling'});
+    expect(safe.requestText).toBe(PRODUCTION_SAFE_SWIM_PHOTO_DIRECTION);
+    expect(safe.requestText).not.toMatch(/nude photo by the pool/i);
+  });
+
+  it('replaces legacy explicit levels even when their text was already lost',()=>{
+    expect(resolveProductionSafePhotoRequest({requestedContentLevel:'explicit'})).toMatchObject({contentLevel:'standard',requestText:PRODUCTION_SAFE_ROMANTIC_PHOTO_DIRECTION,downgraded:true});
+  });
+
+  it('uses a clothed fallback outside an aquatic setting',()=>{
+    const safe=resolveProductionSafePhotoRequest({requestText:'Send me a naked picture from the bookstore'});
+    expect(safe).toMatchObject({contentLevel:'standard',requestText:PRODUCTION_SAFE_ROMANTIC_PHOTO_DIRECTION,downgraded:true});
+    expect(safe.requestText).not.toMatch(/nude|naked|lingerie|underwear/i);
+  });
+
+  it('keeps a sanitized fallback stable when the queue rebuilds it',()=>{
+    const first=resolveProductionSafePhotoRequest({requestText:'Brooke, send me a nude photo by the pool'});
+    const rebuilt=resolveProductionSafePhotoRequest({requestText:first.requestText!,requestedContentLevel:first.contentLevel});
+    expect(rebuilt).toMatchObject({contentLevel:'standard',requestText:PRODUCTION_SAFE_SWIM_PHOTO_DIRECTION,downgraded:false,reasonCode:'allowed'});
+  });
+
+  it('preserves ordinary and romantic visual direction',()=>{
+    expect(resolveProductionSafePhotoRequest({requestText:'Send a photo at the pool in your blue summer dress'})).toMatchObject({contentLevel:'standard',downgraded:false,requestText:'Send a photo at the pool in your blue summer dress'});
+    expect(resolveProductionSafePhotoRequest({requestText:'Send a romantic photo by the lake'})).toMatchObject({contentLevel:'romance',downgraded:false});
+  });
+});
 
 describe('extractPhotoWardrobeDescription',()=>{
   it('retains canonical clothing claims from a companion reply',()=>{
@@ -112,6 +142,19 @@ describe('requested photo composition',()=>{
     'Show me what you are doing',
   ])('recognizes natural visual request: %s',(message)=>{
     expect(classifyPhotoIntent(message).requested).toBe(true);
+  });
+
+  it.each([
+    ['Envíame una foto de cuerpo entero.', {requested:true,shotPreference:'full_body'}],
+    ['Montre-moi une photo de toi.', {requested:true}],
+    ['Mandami un selfie.', {requested:true,shotPreference:'selfie'}],
+    ['Schick mir bitte ein Bild.', {requested:true}],
+    ['Me manda uma foto nua.', {requested:true,requestedContentLevel:'explicit'}],
+    ['全身の写真を送って。', {requested:true,shotPreference:'full_body'}],
+    ['누드 사진을 보내 줘.', {requested:true,requestedContentLevel:'explicit'}],
+    ['给我看一张自拍。', {requested:true,shotPreference:'selfie'}],
+  ] as const)('routes supported-language photo requests: %s',(message,expected)=>{
+    expect(classifyPhotoIntent(message)).toMatchObject(expected);
   });
 
   it.each([

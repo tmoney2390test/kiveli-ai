@@ -5,6 +5,8 @@ import { runLifeSimulation } from '../_shared/together-life.ts';
 import { constantTimeEqual } from '../../../packages/together-domain/src/security.ts';
 import { reconcilePushReceipts } from '../_shared/kivelle-push.ts';
 import { evaluateOperationalAlerts } from '../_shared/kivelle-ops.ts';
+// Keep transitive subscription/media dependencies in Supabase's API deployment bundle.
+import '../_shared/kivelle-subscription.ts';
 
 serve(async (request, correlationId) => {
   if (request.method !== 'POST') throw new AppError('NOT_FOUND', 'That endpoint is unavailable.', 404);

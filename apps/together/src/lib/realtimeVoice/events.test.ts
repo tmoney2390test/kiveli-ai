@@ -15,6 +15,8 @@ describe('xAI realtime events',()=>{
   it('keeps provider errors private while identifying fatal session failures',()=>{
     expect(parseXaiRealtimeEvent({type:'error',error:{type:'authentication_error',message:'secret provider detail'}},false)).toEqual({kind:'error',message:'The voice provider reported an error.',recoverable:false});
     expect(parseXaiRealtimeEvent({type:'error',error:{type:'server_error'}},false)).toEqual({kind:'error',message:'The voice provider reported an error.',recoverable:true});
+    expect(parseXaiRealtimeEvent({type:'error',error:{type:'authentication_error',code:'tts_websocket_unavailable',message:'private upstream detail'}},false)).toEqual({kind:'error',message:'Essential Voice could not start audio. Please try again.',recoverable:false});
+    expect(parseXaiRealtimeEvent({type:'error',error:{type:'authentication_error',code:'stt_ready_timeout'}},false)).toEqual({kind:'error',message:'Essential Voice could not start transcription. Please try again.',recoverable:false});
   });
   it('calculates PCM16 duration without decoding content',()=>expect(approximatePcm16DurationMs('A'.repeat(3200),24_000)).toBe(50));
 });

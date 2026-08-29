@@ -13,7 +13,7 @@ import {
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { cleanupNormalizedImage, normalizeUserImage, type NormalizedUserImage } from '../src/lib/imageUploads';
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import {
   Archive,
   Bell,
@@ -25,8 +25,10 @@ import {
   FileText,
   Heart,
   KeyRound,
+  LifeBuoy,
   LogOut,
   MessageCircle,
+  Scale,
   Shield,
   Sparkles,
   UserRound,
@@ -42,21 +44,24 @@ import { activeCompanion } from '../src/lib/companionLife';
 import { manageAccount } from '../src/lib/api';
 import { supabase } from '../src/lib/supabase';
 import { confirmAction } from '../src/lib/dialogs';
+import { shouldRenderSettingsRoute } from '../src/lib/settingsRoute';
 import { FrostedBackdrop, FrostedSurface, GradientButton, LoadingSkeleton } from '../src/components';
 
-type SettingsSection = 'profile' | 'account' | 'identity' | 'experience' | 'relationships' | 'privacy';
+type SettingsSection = 'profile' | 'account' | 'identity' | 'experience' | 'relationships' | 'legal' | 'support';
 
 const sections: Array<{ id: SettingsSection; label: string; icon: ReactElement<{ color?: string }> }> = [
-  { id: 'profile', label: 'Your profile', icon: <UserRound size={18} /> },
-  { id: 'account', label: 'Account', icon: <KeyRound size={18} /> },
-  { id: 'identity', label: 'Personas & Lives', icon: <Sparkles size={18} /> },
-  { id: 'experience', label: 'Experience', icon: <Heart size={18} /> },
-  { id: 'relationships', label: 'Relationships', icon: <UsersRound size={18} /> },
-  { id: 'privacy', label: 'Privacy & safety', icon: <Shield size={18} /> },
+  { id: 'profile', label: 'Your profile', icon: <UserRound size={20} /> },
+  { id: 'account', label: 'Account', icon: <KeyRound size={20} /> },
+  { id: 'identity', label: 'Personas & Lives', icon: <Sparkles size={20} /> },
+  { id: 'experience', label: 'Experience', icon: <Heart size={20} /> },
+  { id: 'relationships', label: 'Relationships', icon: <UsersRound size={20} /> },
+  { id: 'legal', label: 'Legal', icon: <Scale size={20} /> },
+  { id: 'support', label: 'Support', icon: <LifeBuoy size={20} /> },
 ];
 
 export default function Settings() {
   const router = useRouter();
+  const pathname = usePathname();
   const { width, height } = useWindowDimensions();
   const desktop = width >= 860;
   const scroll = useRef<ScrollView | null>(null);
@@ -71,6 +76,7 @@ export default function Settings() {
   const [goals, setGoals] = useState((profile?.experience_goals ?? []).join(', '));
   const [avatar, setAvatar] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [syncMainPersona, setSyncMainPersona] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
   const profileHydrated = useRef(false);
 
@@ -93,7 +99,10 @@ export default function Settings() {
     return () => { cancelled = true; };
   }, [profile?.avatar_path]);
 
-  const close = () => router.canGoBack() ? router.back() : router.replace('/(tabs)/home');
+  // Web Settings looks like a modal, but is intentionally a normal route.
+  // Replacing it prevents stale modal entries from resurfacing after navigating
+  // elsewhere or restoring a browser tab.
+  const close = () => router.replace('/home' as never);
   const selectSection = (next: SettingsSection) => {
     setSection(next);
     scroll.current?.scrollTo({ y: 0, animated: false });
@@ -109,6 +118,7 @@ export default function Settings() {
         interests: splitList(interests, 10),
         goals: splitList(goals, 4),
         avatarPath: profile?.avatar_path ?? null,
+        syncMainPersona,
       });
       await refresh();
       Alert.alert('Profile saved', 'Your account profile is up to date.');
@@ -135,7 +145,7 @@ export default function Settings() {
       if (error) throw error;
       await manageAccount({
         action: 'profile', displayName: name.trim() || profile?.display_name || 'You', aboutMe: about.trim(),
-        interests: splitList(interests, 10), goals: splitList(goals, 4), avatarPath: path,
+        interests: splitList(interests, 10), goals: splitList(goals, 4), avatarPath: path, syncMainPersona,
       });
       const { data: signed } = await supabase.storage.from('together-user-media').createSignedUrl(path, 3600);
       setAvatar(signed?.signedUrl ?? avatar);
@@ -152,27 +162,32 @@ export default function Settings() {
       clear();
       router.replace('/auth');
     } catch (error) {
-      Alert.alert('Could not sign out', error instanceof Error ? error.message : 'Please try again.');
+      Alert.alert('Could not log out', error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setSigningOut(false);
     }
   };
   const logout = () => confirmAction({
-    title: 'Sign out?',
+    title: 'Logout?',
     message: 'Your relationships and memories will still be here when you return.',
-    confirmLabel: 'Sign out',
+    confirmLabel: 'Logout',
     destructive: true,
     onConfirm: performLogout,
   });
 
-  const modalHeight = desktop ? Math.min(820, Math.max(620, height - 64)) : height;
+  const modalHeight = desktop ? Math.max(520, height - 36) : height;
 
-  return <View style={styles.backdrop}>
-    <FrostedBackdrop intensity={32} />
+  // React Navigation may retain inactive stack screens briefly. Never allow a
+  // retained Settings screen to draw over Home, Stories, or any other route.
+  const browserPath = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.pathname : null;
+  if (!shouldRenderSettingsRoute({ platform: Platform.OS, routerPathname: pathname, browserPathname: browserPath })) return null;
+
+  return <View style={[styles.backdrop, desktop && styles.backdropDesktop]}>
+    <FrostedBackdrop intensity={desktop ? 72 : 22} />
     <View pointerEvents="none" style={styles.ambientOne} />
     <View pointerEvents="none" style={styles.ambientTwo} />
     <Pressable accessibilityLabel="Close settings" onPress={close} style={StyleSheet.absoluteFill} />
-    <FrostedSurface intensity={78} style={[styles.modal, desktop ? styles.modalDesktop : styles.modalMobile, { height: modalHeight }]}>
+    <FrostedSurface intensity={68} style={[styles.modal, desktop ? styles.modalDesktop : styles.modalMobile, { height: modalHeight }]}>
       <View style={styles.header}>
         <View style={styles.brandMark}><Text style={styles.brandInitial}>{(name || 'Y')[0]?.toUpperCase()}</Text></View>
         <View style={styles.headerCopy}>
@@ -190,17 +205,19 @@ export default function Settings() {
         {desktop ? <View style={styles.sidebar}>
           <Text style={styles.sidebarEyebrow}>SETTINGS</Text>
           <View style={styles.sidebarLinks}>{sections.map((item) => <SectionTab key={item.id} item={item} active={section === item.id} onPress={() => selectSection(item.id)} />)}</View>
-          <View style={styles.sidebarFooter}><Text style={styles.sidebarFooterTitle}>Private by design</Text><Text style={styles.sidebarFooterCopy}>Your email, chats, memories, and relationship history are never public profile content.</Text></View>
+          <LogoutButton signingOut={signingOut} onPress={logout} />
         </View> : null}
 
-        <ScrollView ref={scroll} style={styles.main} contentContainerStyle={styles.mainContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scroll} style={styles.main} contentContainerStyle={[styles.mainContent, desktop && styles.mainContentDesktop]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {!snapshot ? <LoadingSkeleton label="Loading your profile…" /> : <>
-            {section === 'profile' ? <ProfilePanel avatar={avatar} name={name} setName={setName} about={about} setAbout={setAbout} interests={interests} setInterests={setInterests} goals={goals} setGoals={setGoals} busy={busy} email={session?.user.email} personaName={snapshot.activePersona?.display_name} lifeTitle={snapshot.activeContinuity?.title} onAvatar={() => void pickAvatar()} onSave={() => void saveProfile()} /> : null}
+            {section === 'profile' ? <ProfilePanel avatar={avatar} name={name} setName={setName} about={about} setAbout={setAbout} interests={interests} setInterests={setInterests} goals={goals} setGoals={setGoals} syncMainPersona={syncMainPersona} setSyncMainPersona={setSyncMainPersona} busy={busy} email={session?.user.email} personaName={snapshot.activePersona?.display_name} lifeTitle={snapshot.activeContinuity?.title} onAvatar={() => void pickAvatar()} onSave={() => void saveProfile()} /> : null}
             {section === 'account' ? <AccountPanel email={session?.user.email} providerLabel={providerState.label} verified={providerState.verifiedEmail} pendingEmail={providerState.pendingEmail} tier={subscriptionLabel(snapshot.entitlements?.tier)} onRoute={(route) => router.push(route as never)} onResend={() => void resendPendingEmailChange().then(() => Alert.alert('Confirmation sent', 'Check the new email address.')).catch((error) => Alert.alert('Could not send email', error.message))} onSignOutOthers={() => Alert.alert('Sign out everywhere else?', 'This device will remain signed in.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out others', style: 'destructive', onPress: () => void signOutOthers().then(() => Alert.alert('Other sessions signed out.')).catch((error) => Alert.alert('Could not update sessions', error.message)) }])} /> : null}
             {section === 'identity' ? <IdentityPanel snapshot={snapshot} onRoute={(route) => router.push(route as never)} /> : null}
             {section === 'experience' ? <ExperiencePanel snapshot={snapshot} onRoute={(route) => router.push(route as never)} /> : null}
             {section === 'relationships' ? <RelationshipsPanel snapshot={snapshot} onRoute={(route) => router.push(route as never)} /> : null}
-            {section === 'privacy' ? <PrivacyPanel onRoute={(route) => router.push(route as never)} onDisclosure={() => Alert.alert('About Kivelle characters', 'Kivelle companions are fictional AI characters. They can remember shared context and simulate a life, but they are not real people and do not have human consciousness.')} onLogout={logout} signingOut={signingOut} /> : null}
+            {section === 'legal' ? <LegalPanel onRoute={(route) => router.push(route as never)} onDisclosure={() => Alert.alert('About Kivelle characters', 'Kivelle companions are fictional AI characters. They can remember shared context and simulate a life, but they are not real people and do not have human consciousness.')} /> : null}
+            {section === 'support' ? <SupportPanel onRoute={(route) => router.push(route as never)} /> : null}
+            {!desktop ? <LogoutButton signingOut={signingOut} onPress={logout} mobile /> : null}
           </>}
         </ScrollView>
       </View>
@@ -217,6 +234,7 @@ function SectionTab({ item, active, compact = false, onPress }: { item: typeof s
 function ProfilePanel(props: {
   avatar: string | null; name: string; setName: (value: string) => void; about: string; setAbout: (value: string) => void;
   interests: string; setInterests: (value: string) => void; goals: string; setGoals: (value: string) => void;
+  syncMainPersona:boolean;setSyncMainPersona:(value:boolean)=>void;
   busy: boolean; email?: string; personaName?: string; lifeTitle?: string; onAvatar: () => void; onSave: () => void;
 }) {
   return <View style={styles.panel}>
@@ -236,7 +254,7 @@ function ProfilePanel(props: {
         <View style={styles.column}><Field label="What you're here for" helper="Dating, friendship, stories"><TextInput value={props.goals} onChangeText={props.setGoals} placeholder="Dating, Friendship" placeholderTextColor={colors.dimmed} style={styles.input} /></Field></View>
       </View>
     </View>
-    <View style={styles.personaNotice}><View style={styles.noticeIcon}><Sparkles size={18} color={colors.violet} /></View><View style={{ flex: 1 }}><Text style={styles.noticeTitle}>Currently living as {(props.personaName ?? props.name) || 'You'}</Text><Text style={styles.noticeCopy}>{props.lifeTitle ?? 'Main Life'} controls the Persona, companions, memories, plans, and history in your current reality. Changing account details does not rewrite that history.</Text></View></View>
+    <Pressable accessibilityRole="checkbox" accessibilityState={{checked:props.syncMainPersona}} onPress={()=>props.setSyncMainPersona(!props.syncMainPersona)} style={styles.personaNotice}><View style={[styles.noticeIcon,props.syncMainPersona&&styles.noticeIconSelected]}>{props.syncMainPersona?<Check size={17} color="#fff"/>:<Sparkles size={18} color={colors.violet}/>}</View><View style={{ flex: 1 }}><Text style={styles.noticeTitle}>Also update my Main Persona</Text><Text style={styles.noticeCopy}>Syncs name, bio, interests, goals, and avatar to Main Life. Alternate Lives remain separate.</Text></View></Pressable>
     <View style={styles.saveRow}><GradientButton label={props.busy ? 'Saving…' : 'Save profile'} disabled={props.busy || !props.name.trim()} onPress={props.onSave} /></View>
   </View>;
 }
@@ -269,7 +287,6 @@ function ExperiencePanel({ snapshot, onRoute }: { snapshot: NonNullable<ReturnTy
     <SettingsRow icon={<Bell />} title="Notifications" body={snapshot.notificationPreferences?.push_enabled ? 'Push notifications on' : 'Push notifications off'} onPress={() => onRoute('/notifications')} />
     <SettingsRow icon={<Camera />} title="Companion photos" body={snapshot.profile?.photo_preferences?.companionPhotos === false ? 'Photo generation off' : 'Photo generation on'} onPress={() => onRoute('/photo-settings')} />
     <SettingsRow icon={<Volume2 />} title="Media & voice" body="Photo sharing, voice notes, and live calls" onPress={() => onRoute('/media-preferences')} />
-    <SettingsRow icon={<Shield />} title="Media boundaries" body="Adult-only image and short-video permissions" onPress={() => onRoute('/media-content-settings')} />
     <SettingsRow icon={<CreditCard />} title="Plan & usage limits" body={subscriptionLabel(snapshot.entitlements?.tier)} onPress={() => onRoute('/subscription')} />
   </SettingsGroup><InfoCard title="Your controls are canonical">These settings constrain what Kivelle may generate. They do not force a character to ignore their own boundaries or relationship state.</InfoCard></View>;
 }
@@ -283,14 +300,22 @@ function RelationshipsPanel({ snapshot, onRoute }: { snapshot: NonNullable<Retur
   </View>;
 }
 
-function PrivacyPanel({ onRoute, onDisclosure, onLogout, signingOut }: { onRoute: (route: string) => void; onDisclosure: () => void; onLogout: () => void; signingOut: boolean }) {
-  return <View style={styles.panel}><PanelHeading title="Privacy & safety" body="Control your data, understand Kivelle's AI characters, and manage account access." /><SettingsGroup><SettingsRow icon={<Shield />} title="Privacy and data controls" body="Personalization, analytics, export, and account deletion." onPress={() => onRoute('/privacy')} /><SettingsRow icon={<FileText />} title="AI disclosure" body="How fictional Kivelle characters and simulation work." onPress={onDisclosure} /><SettingsRow icon={<FileText />} title="Terms of Service" body="Account, billing, content, and acceptable use." onPress={() => onRoute('/terms')} /><SettingsRow icon={<Shield />} title="Community & Safety Guidelines" body="Adult-only content, consent, real people, and reports." onPress={() => onRoute('/community-guidelines')} /><SettingsRow icon={<MessageCircle />} title="Help & Support" body="Answers, private support requests, and request status." onPress={() => onRoute('/help')} /><SettingsRow icon={<LogOut color={colors.danger} />} title={signingOut ? 'Signing out…' : 'Sign out'} body="Your relationships and history stay safely stored." onPress={onLogout} disabled={signingOut} danger /></SettingsGroup><InfoCard title="A healthier relationship design">Your memories are visible and editable. Kivelle does not use guilt, loneliness, or dependency language to pressure you to return.</InfoCard><Text style={styles.version}>Kivelle.AI · 1.0.0</Text></View>;
+function LegalPanel({ onRoute, onDisclosure }: { onRoute: (route: string) => void; onDisclosure: () => void }) {
+  return <View style={styles.panel}><PanelHeading title="Legal" body="Policies, data controls, disclosures, and safety standards in one place." /><SettingsGroup><SettingsRow icon={<Shield />} title="Privacy and data controls" body="Personalization, analytics, export, and account deletion." onPress={() => onRoute('/privacy')} /><SettingsRow icon={<FileText />} title="Privacy Policy" body="How Kivelle processes, protects, and retains your information." onPress={() => onRoute('/privacy-policy')} /><SettingsRow icon={<FileText />} title="Terms of Service" body="Account, billing, content, and acceptable use." onPress={() => onRoute('/terms')} /><SettingsRow icon={<FileText />} title="Refund & Cancellation Policy" body="Subscription cancellation, credit packs, failed generations, and refunds." onPress={() => onRoute('/refund-policy')} /><SettingsRow icon={<Shield />} title="Community & Safety Guidelines" body="Age, content, real people, and reports." onPress={() => onRoute('/community-guidelines')} /><SettingsRow icon={<FileText />} title="AI character disclosure" body="How fictional Kivelle characters and simulation work." onPress={onDisclosure} /></SettingsGroup><Text style={styles.version}>Kivelle.AI · 1.0.0</Text></View>;
+}
+
+function SupportPanel({ onRoute }: { onRoute: (route: string) => void }) {
+  return <View style={styles.panel}><PanelHeading title="Support" body="Find answers, contact the support team, or review an existing request." /><SettingsGroup><SettingsRow icon={<LifeBuoy />} title="Help center" body="Answers for accounts, conversations, media, billing, privacy, and safety." onPress={() => onRoute('/help')} /><SettingsRow icon={<MessageCircle />} title="Contact support" body="Send a private request and review its status." onPress={() => onRoute('/support')} /></SettingsGroup><InfoCard title="For a specific chat message">Use the message menu in chat to report a generated response. Support requests never attach unrelated conversation history.</InfoCard></View>;
+}
+
+function LogoutButton({ signingOut, onPress, mobile = false }: { signingOut: boolean; onPress: () => void; mobile?: boolean }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel="Logout" accessibilityState={{ disabled: signingOut }} disabled={signingOut} onPress={onPress} style={({ pressed }) => [styles.logoutButton, mobile && styles.logoutButtonMobile, signingOut && styles.logoutButtonDisabled, pressed && styles.pressed]}><LogOut size={18} color={colors.danger} /><Text style={styles.logoutButtonText}>{signingOut ? 'Logging out…' : 'Logout'}</Text></Pressable>;
 }
 
 function PanelHeading({ title, body }: { title: string; body: string }) { return <View style={styles.panelHeading}><Text style={styles.panelTitle}>{title}</Text><Text style={styles.panelBody}>{body}</Text></View>; }
 function Field({ label, helper, children }: { label: string; helper?: string; children: ReactNode }) { return <View style={styles.field}><View style={styles.labelRow}><Text style={styles.label}>{label}</Text>{helper ? <Text style={styles.helper}>{helper}</Text> : null}</View>{children}</View>; }
 function SettingsGroup({ children }: { children: ReactNode }) { return <View style={styles.group}>{children}</View>; }
-function SettingsRow({ icon, title, body, onPress, danger = false, disabled = false }: { icon: ReactElement; title: string; body: string; onPress: () => void; danger?: boolean; disabled?: boolean }) { return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.settingRow, disabled && { opacity: .55 }, pressed && styles.rowPressed]}><View style={[styles.rowIcon, danger && styles.rowIconDanger]}>{icon}</View><View style={{ flex: 1 }}><Text style={[styles.rowTitle, danger && { color: colors.danger }]}>{title}</Text><Text style={styles.rowBody}>{body}</Text></View><ChevronRight size={18} color={colors.dimmed} /></Pressable>; }
+function SettingsRow({ icon, title, body, onPress, danger = false, disabled = false, actionLabel = 'Open' }: { icon: ReactElement<{ color?: string; size?: number }>; title: string; body: string; onPress: () => void; danger?: boolean; disabled?: boolean; actionLabel?: string }) { return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.settingRow, disabled && { opacity: .55 }, pressed && styles.rowPressed]}><View style={styles.rowIcon}>{cloneElement(icon,{color:danger?colors.danger:colors.muted,size:20})}</View><View style={styles.rowCopy}><Text style={[styles.rowTitle, danger && { color: colors.danger }]}>{title}</Text><Text style={styles.rowBody}>{body}</Text></View><View style={[styles.rowAction,danger&&styles.rowActionDanger]}><Text style={[styles.rowActionText,danger&&styles.rowActionTextDanger]}>{actionLabel}</Text><ChevronRight size={15} color={danger?colors.danger:colors.textSecondary} /></View></Pressable>; }
 function Metric({ value, label }: { value: number; label: string }) { return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>; }
 function InfoCard({ title, children }: { title: string; children: ReactNode }) { return <View style={styles.infoCard}><Text style={styles.infoTitle}>{title}</Text><Text style={styles.infoBody}>{children}</Text></View>; }
 
@@ -298,49 +323,50 @@ function splitList(value: string, limit: number) { return value.split(',').map((
 function subscriptionLabel(tier?: string | null) { if (tier === 'kivelle_max' || tier === 'unlimited') return 'Kivelle Max'; if (tier === 'kivelle_plus' || tier === 'together_plus') return 'Kivelle+'; return 'Kivelle Free'; }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  ambientOne: { position: 'absolute', width: 520, height: 520, borderRadius: 260, backgroundColor: 'rgba(142,73,190,.16)', top: -170, right: -90, ...(Platform.OS === 'web' ? ({ filter: 'blur(70px)' } as never) : {}) },
-  ambientTwo: { position: 'absolute', width: 440, height: 440, borderRadius: 220, backgroundColor: 'rgba(221,82,132,.12)', bottom: -180, left: -80, ...(Platform.OS === 'web' ? ({ filter: 'blur(80px)' } as never) : {}) },
-  modal: { width: '100%', backgroundColor: 'rgba(17,15,23,.72)', overflow: 'hidden', borderColor: 'rgba(255,255,255,.16)' },
-  modalDesktop: { maxWidth: 1180, borderRadius: 30, borderWidth: 1, shadowColor: '#000', shadowOpacity: .6, shadowRadius: 45, shadowOffset: { width: 0, height: 24 } },
-  modalMobile: { borderRadius: 0 },
-  header: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: 'rgba(255,255,255,.018)' },
-  brandMark: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(155,99,215,.14)', borderWidth: 1, borderColor: 'rgba(155,99,215,.4)' },
-  brandInitial: { color: '#D6ACFF', fontFamily: typography.display, fontSize: 20 },
+  backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: 'rgba(5,4,8,.18)' },
+  backdropDesktop: { ...(Platform.OS === 'web' ? ({ position: 'fixed', inset: 0, zIndex: 1200, padding: 18, backgroundColor: 'rgba(4,3,7,.12)' } as never) : {}) },
+  ambientOne: { position: 'absolute', width: 600, height: 600, borderRadius: 300, backgroundColor: 'rgba(126,83,151,.055)', top: -250, right: -120, ...(Platform.OS === 'web' ? ({ filter: 'blur(100px)' } as never) : {}) },
+  ambientTwo: { position: 'absolute', width: 520, height: 520, borderRadius: 260, backgroundColor: 'rgba(167,85,121,.038)', bottom: -240, left: -140, ...(Platform.OS === 'web' ? ({ filter: 'blur(105px)' } as never) : {}) },
+  modal: { width: '100%', backgroundColor: 'rgba(20,17,25,.54)', overflow: 'hidden', borderColor: 'rgba(255,255,255,.115)' },
+  modalDesktop: { width: '96%', maxWidth: 1480, borderRadius: 24, borderWidth: 1, shadowColor: '#000', shadowOpacity: .48, shadowRadius: 44, shadowOffset: { width: 0, height: 22 } },
+  modalMobile: { borderRadius: 0, backgroundColor: 'rgba(17,15,22,.9)' },
+  header: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,.085)', backgroundColor: 'rgba(18,16,22,.24)' },
+  brandMark: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(151,116,171,.085)', borderWidth: 1, borderColor: 'rgba(204,176,221,.18)' },
+  brandInitial: { color: '#CFB6DD', fontFamily: typography.display, fontSize: 18 },
   headerCopy: { flex: 1 }, title: { color: colors.text, fontFamily: typography.display, fontWeight: '600', fontSize: 25 },
-  headerMeta: { color: colors.muted, fontSize: 10, marginTop: 2 },
-  close: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.035)', borderWidth: 1, borderColor: colors.border },
+  headerMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 3 },
+  close: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.018)', borderWidth: 1, borderColor: 'rgba(255,255,255,.08)' },
   pressed: { opacity: .72, transform: [{ scale: .98 }] },
   body: { flex: 1, flexDirection: 'row', minHeight: 0 },
-  sidebar: { width: 246, padding: spacing.lg, borderRightWidth: 1, borderRightColor: colors.border, backgroundColor: 'rgba(7,7,11,.55)', justifyContent: 'space-between' },
-  sidebarEyebrow: { color: colors.dimmed, fontSize: 9, fontWeight: '900', letterSpacing: 1.4, marginBottom: 12 },
-  sidebarLinks: { gap: 7 },
-  sidebarLink: { minHeight: 48, paddingHorizontal: 12, borderRadius: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  sidebarLinkActive: { backgroundColor: 'rgba(139,58,181,.24)', borderWidth: 1, borderColor: 'rgba(183,93,231,.36)' },
-  sidebarLinkText: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' }, sidebarLinkTextActive: { color: '#F1D7FF' },
-  sidebarFooter: { padding: 13, borderRadius: 15, backgroundColor: 'rgba(255,255,255,.025)', borderWidth: 1, borderColor: colors.border },
-  sidebarFooterTitle: { color: colors.text, fontSize: 11, fontWeight: '800' }, sidebarFooterCopy: { color: colors.dimmed, fontSize: 9, lineHeight: 14, marginTop: 5 },
+  sidebar: { width: 280, paddingTop: 18, paddingBottom: spacing.lg, borderRightWidth: 1, borderRightColor: 'rgba(255,255,255,.075)', backgroundColor: 'rgba(11,10,14,.23)' },
+  sidebarEyebrow: { color: colors.textSecondary, fontSize: 10.5, fontWeight: '900', letterSpacing: 1.5, marginBottom: 10, paddingHorizontal: 24 },
+  sidebarLinks: { gap: 2 },
+  sidebarLink: { minHeight: 56, paddingHorizontal: 24, borderLeftWidth: 3, borderLeftColor: 'transparent', flexDirection: 'row', alignItems: 'center', gap: 13 },
+  sidebarLinkActive: { backgroundColor: 'rgba(139,100,158,.13)', borderLeftColor: 'rgba(206,168,224,.72)' },
+  sidebarLinkText: { color: colors.textSecondary, fontSize: 15, fontWeight: '700' }, sidebarLinkTextActive: { color: '#F1E7F3' },
+  logoutButton: { minHeight: 48, marginTop: 'auto', marginHorizontal: 18, paddingHorizontal: 14, borderRadius: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, backgroundColor: 'rgba(255,113,129,.055)', borderWidth: 1, borderColor: 'rgba(255,113,129,.2)' },
+  logoutButtonMobile: { width: '100%', maxWidth: 780, alignSelf: 'center', marginTop: 2, marginHorizontal: 0 }, logoutButtonDisabled: { opacity: .55 }, logoutButtonText: { color: colors.danger, fontSize: 13, fontWeight: '900' },
   mobileTabsViewport: { flexGrow: 0, flexShrink: 0, height: 58, maxHeight: 58, borderBottomWidth: 1, borderBottomColor: colors.border },
   mobileTabs: { flexGrow: 0, alignItems: 'center', gap: 7, paddingHorizontal: spacing.md, paddingVertical: 9 },
   mobileTab: { flexGrow: 0, flexShrink: 0, alignSelf: 'center', height: 38, maxHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,.025)', borderWidth: 1, borderColor: colors.border },
-  mobileTabActive: { backgroundColor: 'rgba(139,58,181,.25)', borderColor: 'rgba(183,93,231,.4)' }, mobileTabText: { color: colors.muted, fontSize: 10, fontWeight: '800' },
-  main: { flex: 1 }, mainContent: { flexGrow: 1, padding: spacing.xl, paddingBottom: 70 },
-  panel: { width: '100%', maxWidth: 780, alignSelf: 'center', gap: 18 },
-  panelHeading: { gap: 5, marginBottom: 2 }, panelTitle: { color: colors.text, fontFamily: typography.display, fontSize: 30, fontWeight: '600' }, panelBody: { color: colors.muted, fontSize: 12, lineHeight: 18, maxWidth: 650 },
-  profileHero: { minHeight: 130, flexDirection: 'row', alignItems: 'center', gap: 18, padding: 20, borderRadius: radius.lg, backgroundColor: 'rgba(85,59,105,.18)', borderWidth: 1, borderColor: 'rgba(194,137,225,.2)' },
-  avatar: { width: 90, height: 90, borderRadius: 45, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#131219', borderWidth: 2, borderColor: 'rgba(199,104,234,.48)' },
-  avatarInitial: { color: '#D36CFF', fontFamily: typography.display, fontSize: 38 }, camera: { position: 'absolute', right: 2, bottom: 2, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.violet },
-  profileHeroCopy: { flex: 1, alignItems: 'flex-start' }, profileName: { color: colors.text, fontFamily: typography.display, fontSize: 25 }, profileEmail: { color: colors.muted, fontSize: 11, marginTop: 2 },
-  avatarButton: { minHeight: 35, marginTop: 12, paddingHorizontal: 13, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: 'rgba(255,255,255,.08)', borderWidth: 1, borderColor: colors.border }, avatarButtonText: { color: colors.text, fontSize: 10, fontWeight: '800' },
-  formCard: { gap: 16, padding: 20, borderRadius: radius.lg, backgroundColor: 'rgba(255,255,255,.028)', borderWidth: 1, borderColor: colors.borderBright },
-  field: { gap: 7 }, labelRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }, label: { color: colors.text, fontSize: 12, fontWeight: '800' }, helper: { color: colors.dimmed, fontSize: 9 },
-  input: { minHeight: 48, paddingHorizontal: 13, paddingVertical: 11, borderRadius: 12, color: colors.text, backgroundColor: 'rgba(7,6,11,.48)', borderWidth: 1, borderColor: 'rgba(255,255,255,.13)' }, multiline: { minHeight: 100 }, counter: { alignSelf: 'flex-end', color: colors.dimmed, fontSize: 9, marginTop: -2 },
+  mobileTabActive: { backgroundColor: 'rgba(139,100,158,.18)', borderColor: 'rgba(206,168,224,.28)' }, mobileTabText: { color: colors.textSecondary, fontSize: 12, fontWeight: '800' },
+  main: { flex: 1 }, mainContent: { flexGrow: 1, padding: spacing.xl, paddingBottom: 70 }, mainContentDesktop: { paddingTop: 38, paddingHorizontal: 34, paddingBottom: 76 },
+  panel: { width: '100%', maxWidth: 1060, alignSelf: 'flex-start', gap: 24 },
+  panelHeading: { gap: 8, marginBottom: 4 }, panelTitle: { color: colors.text, fontFamily: typography.display, fontSize: 37, fontWeight: '600' }, panelBody: { color: colors.textSecondary, fontSize: 14, lineHeight: 21, maxWidth: 760 },
+  profileHero: { minHeight: 130, flexDirection: 'row', alignItems: 'center', gap: 18, padding: 20, borderRadius: radius.lg, backgroundColor: 'rgba(104,82,116,.09)', borderWidth: 1, borderColor: 'rgba(217,192,228,.12)' },
+  avatar: { width: 90, height: 90, borderRadius: 45, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15,14,18,.74)', borderWidth: 1, borderColor: 'rgba(218,188,230,.26)' },
+  avatarInitial: { color: '#C7A8D5', fontFamily: typography.display, fontSize: 38 }, camera: { position: 'absolute', right: 2, bottom: 2, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(125,92,145,.88)' },
+  profileHeroCopy: { flex: 1, alignItems: 'flex-start' }, profileName: { color: colors.text, fontFamily: typography.display, fontSize: 27 }, profileEmail: { color: colors.textSecondary, fontSize: 13, marginTop: 3 },
+  avatarButton: { minHeight: 38, marginTop: 12, paddingHorizontal: 14, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: 'rgba(255,255,255,.045)', borderWidth: 1, borderColor: 'rgba(255,255,255,.08)' }, avatarButtonText: { color: colors.text, fontSize: 12, fontWeight: '800' },
+  formCard: { gap: 16, padding: 20, borderRadius: radius.lg, backgroundColor: 'rgba(255,255,255,.018)', borderWidth: 1, borderColor: 'rgba(255,255,255,.085)' },
+  field: { gap: 8 }, labelRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }, label: { color: colors.text, fontSize: 14, fontWeight: '800' }, helper: { color: colors.textSecondary, fontSize: 11 },
+  input: { minHeight: 50, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 12, color: colors.text, fontSize: 15, backgroundColor: 'rgba(10,9,13,.32)', borderWidth: 1, borderColor: 'rgba(255,255,255,.095)' }, multiline: { minHeight: 104 }, counter: { alignSelf: 'flex-end', color: colors.textSecondary, fontSize: 11, marginTop: -2 },
   twoColumns: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 }, column: { flex: 1, minWidth: 230 },
-  personaNotice: { flexDirection: 'row', gap: 12, padding: 15, borderRadius: radius.md, backgroundColor: 'rgba(92,67,125,.11)', borderWidth: 1, borderColor: 'rgba(155,99,215,.22)' }, noticeIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(155,99,215,.12)' }, noticeTitle: { color: colors.text, fontSize: 12, fontWeight: '800' }, noticeCopy: { color: colors.muted, fontSize: 10, lineHeight: 16, marginTop: 3 }, saveRow: { alignSelf: 'stretch' },
-  summaryCard: { minHeight: 105, flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: radius.lg, backgroundColor: 'rgba(99,62,126,.14)', borderWidth: 1, borderColor: 'rgba(155,99,215,.2)' }, summaryIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(155,99,215,.12)' }, summaryKicker: { color: colors.violet, fontSize: 9, fontWeight: '900', letterSpacing: 1.1 }, summaryTitle: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 3 }, verified: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 5 }, verifiedText: { fontSize: 9, fontWeight: '800' },
-  group: { overflow: 'hidden', borderRadius: radius.lg, borderWidth: 1, borderColor: colors.borderBright, backgroundColor: 'rgba(255,255,255,.024)' },
-  settingRow: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 15, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }, rowPressed: { backgroundColor: 'rgba(255,255,255,.045)' }, rowIcon: { width: 39, height: 39, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(155,99,215,.1)', color: colors.violet }, rowIconDanger: { backgroundColor: 'rgba(255,113,129,.08)' }, rowTitle: { color: colors.text, fontSize: 12, fontWeight: '800' }, rowBody: { color: colors.muted, fontSize: 9.5, lineHeight: 14, marginTop: 3 },
-  lifeHero: { minHeight: 116, flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: radius.lg, backgroundColor: 'rgba(109,58,121,.15)', borderWidth: 1, borderColor: 'rgba(232,82,137,.2)' }, lifeAvatar: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.elevated, borderWidth: 1, borderColor: 'rgba(232,82,137,.4)' }, lifeInitial: { color: colors.rose, fontFamily: typography.display, fontSize: 29 }, lifeName: { color: colors.text, fontFamily: typography.display, fontSize: 24, marginTop: 2 }, lifeMeta: { color: colors.muted, fontSize: 10, marginTop: 2 }, activePill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.rose }, activePillText: { color: '#fff', fontSize: 8, fontWeight: '900' },
-  infoCard: { padding: 16, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.025)', borderWidth: 1, borderColor: colors.border }, infoTitle: { color: colors.text, fontSize: 11, fontWeight: '800' }, infoBody: { color: colors.muted, fontSize: 10, lineHeight: 16, marginTop: 5 },
-  metricRow: { flexDirection: 'row', gap: 10 }, metric: { flex: 1, minHeight: 84, justifyContent: 'center', padding: 14, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.028)', borderWidth: 1, borderColor: colors.border }, metricValue: { color: colors.text, fontFamily: typography.display, fontSize: 27 }, metricLabel: { color: colors.muted, fontSize: 9, fontWeight: '800', marginTop: 3 }, version: { color: colors.dimmed, fontSize: 9, textAlign: 'center', marginTop: 6 },
+  personaNotice: { flexDirection: 'row', gap: 12, padding: 16, borderRadius: radius.md, backgroundColor: 'rgba(106,88,119,.07)', borderWidth: 1, borderColor: 'rgba(204,181,217,.12)' }, noticeIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(155,126,172,.085)' }, noticeIconSelected:{backgroundColor:'rgba(125,92,145,.88)'}, noticeTitle: { color: colors.text, fontSize: 14, fontWeight: '800' }, noticeCopy: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 4 }, saveRow: { alignSelf: 'stretch' },
+  summaryCard: { minHeight: 110, flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: radius.lg, backgroundColor: 'rgba(104,82,116,.075)', borderWidth: 1, borderColor: 'rgba(217,192,228,.11)' }, summaryIcon: { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(155,126,172,.075)' }, summaryKicker: { color: '#CCB5D7', fontSize: 10.5, fontWeight: '900', letterSpacing: 1.1 }, summaryTitle: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 3 }, verified: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 }, verifiedText: { fontSize: 11, fontWeight: '800' },
+  group: { overflow: 'hidden', borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,.085)', backgroundColor: 'rgba(255,255,255,.014)' },
+  settingRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 18, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,.065)' }, rowPressed: { backgroundColor: 'rgba(155,126,172,.055)' }, rowIcon: { width: 26, height: 34, alignItems: 'center', justifyContent: 'center' }, rowCopy: { flex: 1, minWidth: 0 }, rowTitle: { color: colors.text, fontSize: 14.5, fontWeight: '800' }, rowBody: { color: colors.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 4 }, rowAction: { minHeight: 36, paddingHorizontal: 12, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,.045)', borderWidth: 1, borderColor: 'rgba(255,255,255,.055)' }, rowActionDanger: { backgroundColor: 'rgba(255,113,129,.04)', borderColor: 'rgba(255,113,129,.12)' }, rowActionText: { color: colors.textSecondary, fontSize: 11, fontWeight: '800' }, rowActionTextDanger: { color: colors.danger },
+  lifeHero: { minHeight: 120, flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: radius.lg, backgroundColor: 'rgba(108,84,116,.075)', borderWidth: 1, borderColor: 'rgba(219,190,220,.11)' }, lifeAvatar: { width: 66, height: 66, borderRadius: 33, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(18,16,22,.56)', borderWidth: 1, borderColor: 'rgba(211,174,214,.23)' }, lifeInitial: { color: '#C9ADCC', fontFamily: typography.display, fontSize: 30 }, lifeName: { color: colors.text, fontFamily: typography.display, fontSize: 26, marginTop: 2 }, lifeMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 3 }, activePill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: 'rgba(125,92,145,.72)' }, activePillText: { color: '#fff', fontSize: 9.5, fontWeight: '900' },
+  infoCard: { padding: 17, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.025)', borderWidth: 1, borderColor: colors.border }, infoTitle: { color: colors.text, fontSize: 13, fontWeight: '800' }, infoBody: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 6 },
+  metricRow: { flexDirection: 'row', gap: 10 }, metric: { flex: 1, minHeight: 88, justifyContent: 'center', padding: 14, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.028)', borderWidth: 1, borderColor: colors.border }, metricValue: { color: colors.text, fontFamily: typography.display, fontSize: 29 }, metricLabel: { color: colors.textSecondary, fontSize: 11, fontWeight: '800', marginTop: 3 }, version: { color: colors.textSecondary, fontSize: 11, textAlign: 'center', marginTop: 6 },
 });

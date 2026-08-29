@@ -1,4 +1,6 @@
 import type { CharacterInstance, DateSession, Location, ScheduleItem, SharedPlan } from '../types';
+import { placeHoursStatus } from './placeHours';
+import { worldPulsePlanBoost, type WorldPulseEvent } from '@together/domain/src/world-pulse';
 
 export type PlanActivityId=string;
 export type PlanSource='chat'|'location'|'world'|'discover'|'home'|'story';
@@ -16,7 +18,7 @@ export type PlanDraft={
   confidence:{activity?:number;location?:number;time?:number};
 };
 export type PlanOption={id:string;title:string;description:string;locationId:string;locationName:string;activityKey:string;source:'location_activity'|'date'|'curated';tags:string[];durationMinutes:number;reason:string;hours?:Record<string,unknown>;program?:VenueProgram;score?:number;qualityLabel?:string};
-export type PlanContext={activity:string;mood:string;locationId?:string|null;excludedLocationId?:string|null;interests?:string[];userInterests?:string[];preferences?:string[];personality?:Record<string,number>;relationshipStage:string;hour?:number;locations:Location[];scopedLocationId?:string|null;chooseElsewhere?:boolean;previousPlans?:SharedPlan[];intent?:PlanDiscoveryIntent};
+export type PlanContext={activity:string;mood:string;locationId?:string|null;excludedLocationId?:string|null;interests?:string[];userInterests?:string[];preferences?:string[];personality?:Record<string,number>;relationshipStage:string;hour?:number;locations:Location[];scopedLocationId?:string|null;chooseElsewhere?:boolean;previousPlans?:SharedPlan[];intent?:PlanDiscoveryIntent;worldPulse?:WorldPulseEvent[]};
 export type PlanSlot={label:string;detail:string;value:string;reason?:string;best?:boolean};
 export type PlanTimingChoice='now'|'in_one_hour'|'custom';
 export type PlanTimingSelection={choice:'now'|'in_one_hour'}|{choice:'custom';startsAt:string};
@@ -25,7 +27,7 @@ export type GroupPlanAvailabilityState='free'|'override'|'busy'|'conflict';
 export type GroupPlanAvailability={characterInstanceId:string;name:string;state:GroupPlanAvailabilityState;detail:string;available:boolean};
 
 /** Fast client preview; the server repeats every check authoritatively on save. */
-export function resolveGroupPlanAvailability(input:{participants:CharacterInstance[];start:Date;durationMinutes:number;schedules:ScheduleItem[];plans:SharedPlan[];dates:DateSession[];immediate?:boolean;excludePlanId?:string}):GroupPlanAvailability[]{
+export function resolveGroupPlanAvailability(input:{participants:CharacterInstance[];start:Date;durationMinutes:number;schedules:ScheduleItem[];plans:SharedPlan[];dates:DateSession[];immediate?:boolean;excludePlanId?:string;replacingActivePlan?:boolean}):GroupPlanAvailability[]{
   const end=input.start.getTime()+input.durationMinutes*60000;
   const startMinute=input.start.getHours()*60+input.start.getMinutes();
   const endMinute=startMinute+input.durationMinutes;
@@ -33,6 +35,7 @@ export function resolveGroupPlanAvailability(input:{participants:CharacterInstan
     const name=participant.together_character_templates.name;
     const plan=input.plans.find((candidate)=>candidate.id!==input.excludePlanId
       && ['proposed','scheduled','active'].includes(candidate.status)
+      && !(input.replacingActivePlan&&candidate.status==='active')
       && (candidate.participant_instance_ids?.includes(participant.id)||candidate.character_instance_id===participant.id)
       && new Date(candidate.starts_at).getTime()<end&&new Date(candidate.ends_at).getTime()>input.start.getTime());
     if(plan)return{characterInstanceId:participant.id,name,state:'conflict',detail:`Already has ${plan.title}`,available:false};
@@ -111,7 +114,8 @@ export function recommendPlanOptions(context:PlanContext):PlanOption[]{
     if(context.intent==='date_night')score+=tags.some((tag)=>['romantic','restaurant','nightlife','rooftop'].includes(tag))?2:-.6;
     if(context.intent==='casual')score+=tags.some((tag)=>['coffee','park','bookstore','walk','bakery'].includes(tag))?2:-.35;
     if(context.intent==='tonight'&&tags.some((tag)=>['nightlife','music','bar','lounge','trivia'].includes(tag)))score+=1.5;
-    const reason=program?(program.scheduleNote??`${program.title} has a scheduled start time.`):recommendationReason({location,activity,companionWords,userWords,romantic,completed:completed.length,recent,currentLocation:location.id===context.locationId,intent:context.intent});
+    const pulse=worldPulsePlanBoost(location.id,context.worldPulse??[]);score+=pulse.score;
+    const reason=pulse.reason??(program?(program.scheduleNote??`${program.title} has a scheduled start time.`):recommendationReason({location,activity,companionWords,userWords,romantic,completed:completed.length,recent,currentLocation:location.id===context.locationId,intent:context.intent}));
     return{option:{id:`${location.id}:${activityKey}`,title:defaultTitle(activity,location.name),description:location.description,locationId:location.id,locationName:location.name,activityKey,source:'location_activity' as const,tags,durationMinutes:program?.durationMinutes??durationFor(activity),reason,hours:location.hours,program,score,qualityLabel:program?'Event time':qualityLabel(reason)},score};
   })).sort((left,right)=>right.score-left.score).slice(0,context.scopedLocationId&&!context.chooseElsewhere?8:8).map(({option})=>option);
 }
@@ -135,6 +139,13 @@ export function buildPlanSlots(input:Date|{now?:Date;option?:PlanOption;schedule
 export function localPlanDateValue(value=new Date()){return`${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}`;}
 export function defaultPlanTimeFields(now=new Date(),leadMinutes=30){const value=roundToQuarter(new Date(now.getTime()+Math.max(10,leadMinutes)*60000));return{date:localPlanDateValue(value),time:`${String(value.getHours()).padStart(2,'0')}:${String(value.getMinutes()).padStart(2,'0')}`};}
 export function isLocationOpen(location:Location,start:Date,durationMinutes:number){if(!location.hours)return true;const open=parseMinute(location.hours.open),close=parseMinute(location.hours.close);if(open===null||close===null)return true;const startMinute=start.getHours()*60+start.getMinutes(),endMinute=startMinute+durationMinutes;if(close>open)return startMinute>=open&&endMinute<=close;return(startMinute>=open||startMinute<close)&&((endMinute%1440)>open||(endMinute%1440)<=close);}
+/** Change-plan choices must be open now, remain open for the activity, and honor fixed event starts. */
+export function planOptionCanStartNow(option:PlanOption,now=new Date(),timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'){
+  if(!placeHoursStatus(option.hours as Location['hours'],now,timezone).isOpen)return false;
+  const endProbe=new Date(now.getTime()+option.durationMinutes*60000-1000);
+  if(!placeHoursStatus(option.hours as Location['hours'],endProbe,timezone).isOpen)return false;
+  return !option.program||isVenueProgramTime(option,now);
+}
 export function hasPlanConflict(start:Date,durationMinutes:number,plans:SharedPlan[],dates:DateSession[],excludePlanId?:string){const end=start.getTime()+durationMinutes*60000;const plan=plans.find((item)=>item.id!==excludePlanId&&['proposed','scheduled','active'].includes(item.status)&&new Date(item.starts_at).getTime()<end&&new Date(item.ends_at).getTime()>start.getTime());if(plan)return{kind:'plan' as const,title:plan.title,id:plan.id};const date=dates.find((item)=>item.status==='upcoming'&&item.scheduled_for&&new Date(item.scheduled_for).getTime()<end&&new Date(item.scheduled_for).getTime()+3*3600000>start.getTime());return date?{kind:'date' as const,title:date.together_date_templates.name,id:date.id}:null;}
 export function parseCustomPlanTime(dateValue:string,timeValue:string){const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue.trim()),time=/^(\d{1,2}):(\d{2})$/.exec(timeValue.trim());if(!match||!time)return null;const year=Number(match[1]),month=Number(match[2]),day=Number(match[3]),hour=Number(time[1]),minute=Number(time[2]);if(month<1||month>12||day<1||day>31||hour<0||hour>23||minute<0||minute>59)return null;const value=new Date(year,month-1,day,hour,minute,0,0);if(!Number.isFinite(value.getTime())||value.getFullYear()!==year||value.getMonth()!==month-1||value.getDate()!==day||value.getHours()!==hour||value.getMinutes()!==minute)return null;return value;}
 

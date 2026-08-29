@@ -24,11 +24,18 @@ import {
 import type { RealtimeVoiceClientConfiguration } from "./kivelle-realtime-voice.ts";
 import { applyCompanionVoicePreset } from "./companion-voice-selection.ts";
 import type { CompanionVoicePreset } from "../../../packages/together-domain/src/voice-presets.ts";
+import type { ChatLanguagePreference } from "../../../packages/together-domain/src/chat-language.ts";
 import {
   OPENAI_TRANSCRIPTION_MODEL,
   OpenAiSpeechToTextProvider,
   openAiSpeechToTextConfigurationAvailable,
 } from "./openai-speech-to-text.ts";
+import { XaiCascadedVoiceProvider } from "./xai-cascaded-voice.ts";
+import {
+  type VoiceCallRoute,
+  voiceRoutePolicy,
+  voiceRouteRolloutEligible,
+} from "./voice-routes.ts";
 
 export type VisionInput = {
   bytes: Uint8Array;
@@ -50,6 +57,7 @@ export interface VisionProvider {
 export type SpeechInput = {
   text: string;
   voice: CompanionVoiceProfile;
+  language?: ChatLanguagePreference;
   outputFormat?: "wav" | "mp3";
   delivery?: { speed?: number };
 };
@@ -73,6 +81,7 @@ export type SpeechToTextInput = {
   bytes: Uint8Array;
   contentType: string;
   fileName: string;
+  language?: ChatLanguagePreference;
 };
 export type SpeechToTextResult = {
   text: string;
@@ -226,9 +235,23 @@ export function configuredSpeechToTextProvider(): SpeechToTextProvider | null {
   return speechToTextProviderRegistry[selected]?.() ?? null;
 }
 
-export function configuredRealtimeVoiceProvider():
+export function configuredRealtimeVoiceProvider(
+  route: VoiceCallRoute = "express",
+  userId = "",
+):
   | RealtimeVoiceProvider
   | null {
+  if (route === "standard") {
+    const relayUrl = Deno.env.get("KIVELLE_VOICE_RELAY_URL")?.trim() ?? "";
+    const signingSecret = Deno.env.get("KIVELLE_VOICE_RELAY_SIGNING_SECRET")?.trim() ?? "";
+    if (
+      Deno.env.get("KIVELLE_XAI_CASCADED_VOICE_ENABLED") !== "true" ||
+      !/^wss:\/\//i.test(relayUrl) || !signingSecret || !userId ||
+      !voiceRouteRolloutEligible("standard", userId)
+    ) return null;
+    return new XaiCascadedVoiceProvider(relayUrl, signingSecret, userId);
+  }
+  if (userId && !voiceRouteRolloutEligible("express", userId)) return null;
   const selected = explicitProvider("KIVELLE_REALTIME_VOICE_PROVIDER");
   return realtimeVoiceProviderRegistry[selected]?.() ?? null;
 }
@@ -247,7 +270,7 @@ export function providerCapabilityStatuses(): Record<
         Deno.env.get("KIVELLE_XAI_TTS_ENABLED") === "false"
     ? "disabled"
     : "not_configured";
-  const realtimeStatus: CapabilityStatus = configuredRealtimeVoiceProvider()
+  const realtimeStatus: CapabilityStatus = configuredRealtimeVoiceProvider() || voiceRoutePolicy("standard", "free").available
     ? "available"
     : realtimeSelection === "xai" &&
         Deno.env.get("KIVELLE_XAI_REALTIME_VOICE_ENABLED") === "false"

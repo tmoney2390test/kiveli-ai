@@ -73,7 +73,11 @@ export function contextInputTokenCeiling(profile: unknown): number {
 /** Conservative tokenizer-independent estimate used to enforce a predictable preflight ceiling. */
 export function estimateContextTokens(value: string): number {
   if (!value) return 0;
-  return Math.max(1, Math.ceil(value.length / 3.6));
+  const codePoints = [...value];
+  const dense = codePoints.filter((character) => /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(character)).length;
+  const emoji = codePoints.filter((character) => /\p{Extended_Pictographic}/u.test(character)).length;
+  const remaining = Math.max(0, codePoints.length - dense - emoji);
+  return Math.max(1, Math.ceil(remaining / 3.6 + dense + emoji * 2));
 }
 
 export function budgetContextSections(sections: readonly ContextSectionInput[], input: { ceilingTokens: number; now?: Date }): ContextBudgetResult {
@@ -188,11 +192,12 @@ function truncateTaggedSection(content: string, targetTokens: number): string {
   const lastOpen = content.lastIndexOf('</');
   const opening = firstClose >= 0 ? content.slice(0, firstClose + 1) : '';
   const closing = lastOpen > firstClose ? content.slice(lastOpen) : '';
-  const budgetChars = Math.max(40, Math.floor(targetTokens * 3.6) - opening.length - closing.length - 2);
   const bodyStart = firstClose >= 0 ? firstClose + 1 : 0;
   const bodyEnd = lastOpen > bodyStart ? lastOpen : content.length;
   const body = content.slice(bodyStart, bodyEnd).trim();
-  return `${opening}${body.slice(0, budgetChars).trimEnd()}…${closing}`;
+  const wrapperTokens = estimateContextTokens(`${opening}…${closing}`);
+  const bodyBudget = Math.max(1, targetTokens - wrapperTokens);
+  return `${opening}${truncateToTokens(body, bodyBudget).trimEnd()}…${closing}`;
 }
 
 function selectedTokens(selected: Map<string, { tokens: number }>): number {
@@ -202,7 +207,28 @@ function selectedTokens(selected: Map<string, { tokens: number }>): number {
 }
 
 function terms(value: string): Set<string> {
-  return new Set(value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter((term) => term.length > 2 && !stopWords.has(term)));
+  const result = new Set<string>();
+  for (const token of value.normalize('NFKC').toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []) {
+    if (/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(token)) {
+      const characters = [...token];
+      if (characters.length === 1) result.add(characters[0]!);
+      else for (let index = 0; index < characters.length - 1; index += 1) result.add(`${characters[index]}${characters[index + 1]}`);
+      continue;
+    }
+    if (token.length > 2 && !stopWords.has(token)) result.add(token);
+  }
+  return result;
+}
+
+function truncateToTokens(value: string, targetTokens: number): string {
+  const characters = [...value];
+  let low = 0, high = characters.length;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (estimateContextTokens(characters.slice(0, middle).join('')) <= targetTokens) low = middle;
+    else high = middle - 1;
+  }
+  return characters.slice(0, low).join('');
 }
 
 function lexicalOverlap(left: Set<string>, right: Set<string>): number {

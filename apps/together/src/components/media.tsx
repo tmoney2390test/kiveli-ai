@@ -13,7 +13,6 @@ import {
 import { Image, type ImageSource } from "expo-image";
 import {
   Camera,
-  Coins,
   Play,
   RefreshCw,
   Sparkles,
@@ -25,6 +24,7 @@ import type { GeneratedMedia, MediaOffer } from "../types";
 import { colors, radius } from "../theme";
 import { rateGeneratedMedia } from "../lib/api";
 import { generatedMediaImageSource } from "../lib/mediaImageSource";
+import { KivelleCreditIcon } from "./KivelleCreditIcon";
 
 const PHOTO_GENERATION_LOADER = require(
   "../../assets/loaders/sparkles-loop-loader.svg",
@@ -204,7 +204,7 @@ export function ChatPhotoRequestCard({
   previewSources?: Array<ImageSource | number>;
   preparing?: boolean;
   busy: boolean;
-  onAccept: () => void;
+  onAccept: (paymentMethod: "credits" | "daily_included") => void;
   onDecline: () => void;
   onBuyCredits: () => void;
   onRetry?: () => void;
@@ -215,7 +215,16 @@ export function ChatPhotoRequestCard({
     generating = !ready && !failed &&
       (media?.status === "queued" || media?.status === "generating" ||
         offer?.status === "accepted"),
-    included = offer?.included_subscription_benefit === true;
+    included = offer?.included_subscription_benefit === true,
+    dailyRemaining = offer?.source === "user_request"
+      ? Math.max(0, Number(offer.preview_metadata?.dailyPhotoAllowanceRemaining ?? 0))
+      : 0,
+    requestedSetting = String(offer?.preview_metadata?.requestedSetting ?? "").trim(),
+    resolvedLocation = String(offer?.preview_metadata?.resolvedLocationName ?? "").trim(),
+    resolvedWorld = String(offer?.preview_metadata?.resolvedWorldName ?? "").trim(),
+    resolvedSettingLabel = requestedSetting && resolvedLocation
+      ? `${requestedSetting.toLocaleLowerCase() === resolvedLocation.toLocaleLowerCase() ? resolvedLocation : `${requestedSetting} → ${resolvedLocation}`}${resolvedWorld ? ` · ${resolvedWorld}` : ""}`
+      : "";
   if (ready && media?.signed_url) {
     return (
       <View
@@ -328,13 +337,38 @@ export function ChatPhotoRequestCard({
             <Text accessibilityRole="header" style={styles.offerMessage}>
               {offer.companion_message}
             </Text>
+            {resolvedSettingLabel
+              ? <Text style={styles.offerResolvedSetting}>{resolvedSettingLabel}</Text>
+              : null}
             <View style={styles.offerIcon}>
               <Camera size={29} color="#FFF8FB" strokeWidth={1.8} />
             </View>
+            {!included && dailyRemaining > 0
+              ? (
+                <>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Use an included daily photo. ${dailyRemaining} remaining today.`}
+                    disabled={busy}
+                    onPress={() => onAccept("daily_included")}
+                    style={[styles.offerIncluded, busy && { opacity: .55 }]}
+                  >
+                    <Sparkles size={17} color="#FFD8E7" />
+                    <Text style={styles.offerIncludedText}>Use today&apos;s included photo</Text>
+                    <Text style={styles.offerIncludedCount}>{dailyRemaining} left</Text>
+                  </Pressable>
+                  <View accessibilityLabel="or" style={styles.offerOrRow}>
+                    <View style={styles.offerOrLine} />
+                    <Text style={styles.offerOrText}>OR</Text>
+                    <View style={styles.offerOrLine} />
+                  </View>
+                </>
+              )
+              : null}
             <View style={styles.offerCost}>
               {included
                 ? <Sparkles size={18} color="#FFD8E7" />
-                : <Coins size={19} color="#FFD29B" />}
+                : <KivelleCreditIcon size={21} />}
               <Text style={styles.offerCostText}>
                 {included ? "Included" : offer.credit_cost}
               </Text>
@@ -358,11 +392,11 @@ export function ChatPhotoRequestCard({
                   included ? "no credits" : `${offer.credit_cost} credits`
                 }`}
                 disabled={busy}
-                onPress={onAccept}
+                onPress={() => onAccept("credits")}
                 style={[styles.offerPrimary, busy && { opacity: .55 }]}
               >
                 <Text style={styles.offerPrimaryText}>
-                  {busy ? "Preparing…" : "Accept"}
+                  {busy ? "Preparing…" : dailyRemaining > 0 ? `Use ${offer.credit_cost} Credits` : "Accept"}
                 </Text>
               </Pressable>
             </View>
@@ -802,10 +836,10 @@ const styles = StyleSheet.create({
   },
   chatPhotoOfferContent: {
     flex: 1,
-    gap: 20,
-    paddingHorizontal: 28,
-    paddingTop: 48,
-    paddingBottom: 28,
+    gap: 10,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 18,
     alignItems: "center",
     justifyContent: "space-between",
   },
@@ -841,10 +875,6 @@ const styles = StyleSheet.create({
   photoLoader: {
     width: 94,
     height: 94,
-    shadowColor: "#00DDB3",
-    shadowOpacity: .32,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 7 },
   },
   chatPhotoFailure: {
     flex: 1,
@@ -888,9 +918,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(10,7,14,.55)",
   },
   offerIcon: {
-    width: 82,
-    height: 82,
-    borderRadius: 41,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(245,237,243,.28)",
@@ -899,57 +929,83 @@ const styles = StyleSheet.create({
   },
   offerMessage: {
     color: "#FFF9FC",
-    fontSize: 24,
-    lineHeight: 33,
+    fontSize: 21,
+    lineHeight: 27,
     fontWeight: "800",
     textAlign: "center",
     maxWidth: 310,
     textShadowColor: "rgba(0,0,0,.38)",
     textShadowRadius: 8,
   },
+  offerResolvedSetting: {
+    marginTop: -4,
+    color: "rgba(255,241,248,.82)",
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "800",
+    textAlign: "center",
+  },
   offerCost: {
-    minHeight: 44,
+    minHeight: 38,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
     paddingHorizontal: 15,
-    paddingVertical: 9,
+    paddingVertical: 6,
     borderRadius: radius.pill,
     backgroundColor: "rgba(20,14,27,.62)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,.09)",
   },
-  offerCostText: { color: "#FFF7F1", fontSize: 25, fontWeight: "900" },
+  offerCostText: { color: "#FFF7F1", fontSize: 21, fontWeight: "900" },
   offerCostUnit: {
     color: "#F3C9D8",
     fontSize: 9,
     fontWeight: "900",
     letterSpacing: .8,
   },
-  offerActions: { width: "100%", flexDirection: "row", gap: 14, marginTop: 2 },
-  offerPrimary: {
-    flex: 1,
-    minHeight: 56,
+  offerIncluded: {
+    width: "100%",
+    minHeight: 44,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 20,
+    gap: 8,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: "rgba(116,72,154,.62)",
+    borderWidth: 1,
+    borderColor: "rgba(224,184,255,.38)",
+  },
+  offerIncludedText: { color: "#FFF8FC", fontSize: 13, fontWeight: "900" },
+  offerIncludedCount: { color: "#DCC9E8", fontSize: 10, fontWeight: "800" },
+  offerOrRow: { width: "72%", flexDirection: "row", alignItems: "center", gap: 9 },
+  offerOrLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,.22)" },
+  offerOrText: { color: "rgba(255,248,252,.72)", fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
+  offerActions: { width: "100%", flexDirection: "row", gap: 10 },
+  offerPrimary: {
+    flex: 1,
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 18,
     backgroundColor: "rgba(95,177,147,.68)",
     borderWidth: 1,
     borderColor: "rgba(130,242,198,.55)",
   },
-  offerPrimaryText: { color: "#fff", fontSize: 16, fontWeight: "900" },
+  offerPrimaryText: { color: "#fff", fontSize: 14, fontWeight: "900", textAlign: "center" },
   offerSecondary: {
     flex: 1,
-    minHeight: 56,
+    minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 20,
+    borderRadius: 18,
     backgroundColor: "rgba(177,92,128,.58)",
     borderWidth: 1,
     borderColor: "rgba(255,166,202,.38)",
   },
-  offerSecondaryText: { color: "#fff", fontSize: 16, fontWeight: "900" },
+  offerSecondaryText: { color: "#fff", fontSize: 14, fontWeight: "900" },
   offerFailure: { color: colors.danger, fontSize: 10, lineHeight: 15 },
   retry: {
     flexDirection: "row",

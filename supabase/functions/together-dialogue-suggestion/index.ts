@@ -44,6 +44,7 @@ Deno.serve(async(request)=>{
     const template=relationRecord(instance.together_character_templates),chatPreferences=relationRecord(conversation.metadata?.chatPreferences),subscribed=Boolean(entitlement?.tier&&entitlement.tier!=='free'&&(!entitlement.expires_at||new Date(String(entitlement.expires_at))>now)),override=Number(chatPreferences.spiceLevel),authoredSpice=Number(template.spice_level??context.character?.spice_level??2),effectiveSpice=subscribed&&[1,2,3].includes(override)?override:[1,2,3].includes(authoredSpice)?authoredSpice:2;
     const generationInput:AutoDialogueInput={
       characterName:speakerName,latestAssistantMessage:String(latest.content),recent:context.recent,preference:input.preference,
+      chatLanguage:context.chatLanguage,
       scene:{interactionMode:context.currentScene.interactionMode,location:context.currentScene.location,activity:context.currentScene.activity,mood:context.currentScene.mood,energy:context.currentScene.energy,availability:context.currentScene.availability,interruptibility:context.currentScene.interruptibility,departurePressure:context.currentScene.sceneBehavior.departurePressure,nextObligation:context.currentScene.nextObligation?.title,participantNames:context.sceneParticipants.map((participant)=>participant.name)},
       relationshipStage:String(context.relationship?.relationship_stage??instance.relationship_stage??'stranger'),
       contentMode:conversationDialogueContentMode(profile,conversation),intimacyOutcome:normalizeIntimacyOutcome(latest.provider_metadata?.intimacyOutcome),

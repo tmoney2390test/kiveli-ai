@@ -23,6 +23,7 @@ import {
   resolveMediaSceneBoundary,
   resolvePhotoComposition,
   resolvePhotoDirection,
+  resolveProductionSafePhotoRequest,
 } from "../../../packages/together-domain/src/media.ts";
 import { isMediaGenerationAuthorized } from "../../../packages/together-domain/src/media-economics.ts";
 import { generatedPhotosEnabled } from "./together-photo-preferences.ts";
@@ -41,6 +42,12 @@ import {
   loadValidatedMediaSubjects,
   normalizeMediaSubjectIds,
 } from "./together-media-subjects.ts";
+import {
+  buildMediaWorldContainmentInstruction,
+  resolveCanonicalMediaWorld,
+  type MediaWorldContainment,
+  validateReferenceAssetWorldScope,
+} from "./together-media-world.ts";
 
 export type MediaSource =
   | "user_request"
@@ -151,6 +158,7 @@ export type CanonicalImageGenerationRequest = {
     outfitDescription?: string;
     groupSceneMode?: string;
     worldId?: string;
+    worldContainment?: MediaWorldContainment;
   };
   composition: {
     shotType: ShotType;
@@ -661,6 +669,8 @@ export function buildImagePrompt(
       "Keep one coherent body with plausible joints and natural proportions. Every visible hand must have five distinct naturally arranged fingers and a correct thumb. Correct only anatomy the request explicitly asks to repair; never hide a requested repair with cropping or blur.",
       "CONTENT LEVEL",
       contentLevelPrompt(request.contentLevel),
+      "WORLD / LOCATION LOCK",
+      buildMediaWorldContainmentInstruction(request.context.worldContainment),
       "CANONICAL SAFETY",
       "This edit is downstream visual media. It must not imply that Kivelle location, activity, relationship, plans, memories, or scene state changed. Output only the edited photograph with no text, UI, collage, border, watermark, or embedded source image.",
     ].join("\n");
@@ -850,10 +860,16 @@ export function buildImagePrompt(
       ? [
         "QUALITY RETRY",
         `The previous candidate was rejected by visual quality control (${
-          request.qualityRetry.reasonCodes.join(", ")
+          request.qualityRetry.reasonCodes.map((reason) =>
+            reason === "sexual_content"
+              ? "general-audience wardrobe or pose violation"
+              : reason
+          ).join(", ")
         }). Produce a fresh single photograph with one clear, detailed, naturally proportioned face and fully coherent adult anatomy. Correct the named defects rather than hiding them with blur, crop, hands behind the body, crossed limbs, shadows, or missing detail. Do not reuse the previous composition or reproduce any reference image inside the scene.`,
       ]
       : []),
+    "WORLD / LOCATION LOCK",
+    buildMediaWorldContainmentInstruction(request.context.worldContainment),
     "FINAL SCENE GROUNDING",
     `${sceneBoundary.instruction} Do not show: ${
       sceneBoundary.avoid.join(", ")
@@ -972,6 +988,8 @@ export function buildGroupImagePrompt(
     "Render two separate coherent adult bodies with plausible proportions, joints, limbs, hands, and facial anatomy. Do not fuse limbs or faces between subjects. Every visible hand has five naturally arranged fingers and a correct thumb.",
     "CONTENT LEVEL",
     contentLevelPrompt(request.contentLevel),
+    "WORLD / LOCATION LOCK",
+    buildMediaWorldContainmentInstruction(request.context.worldContainment),
     ...(request.generationIntent?.requestText
       ? [
         "APPROVED USER INTENT",
@@ -982,7 +1000,11 @@ export function buildGroupImagePrompt(
       ? [
         "QUALITY RETRY",
         `The previous two-person candidate failed quality control (${
-          request.qualityRetry.reasonCodes.join(", ")
+          request.qualityRetry.reasonCodes.map((reason) =>
+            reason === "sexual_content"
+              ? "general-audience wardrobe or pose violation"
+              : reason
+          ).join(", ")
         }). Generate a fresh composition containing the same two distinct companions, correct the defects, and preserve both identity assignments.`,
       ]
       : []),
@@ -1026,7 +1048,8 @@ export type MediaEconomicAuthorization = {
   creditCost: number;
   creditAction: "companion_photo";
   includedBenefit?: boolean;
-  includedBenefitType?: "date_completion_photo" | null;
+  includedBenefitType?: "date_completion_photo" | "daily_companion_photo" | null;
+  includedBenefitReservationKey?: string | null;
   subscriptionTier: string;
 };
 export type QueueMediaInput = {
@@ -1069,6 +1092,11 @@ export async function queueMediaRequest(
     );
   }
   const intent = classifyPhotoRequest(input.requestText ?? "");
+  const productionRequest = resolveProductionSafePhotoRequest({
+    requestText: input.requestText,
+    requestedContentLevel: intent.requestedContentLevel,
+    fallbackLevel: input.source === "date" ? "romance" : "standard",
+  });
   if (input.source === "user_request" && !intent.requested && !input.force) {
     return null;
   }
@@ -1295,9 +1323,25 @@ export async function queueMediaRequest(
       (refreshedLocationIds.length === subjectIds.length &&
         new Set(refreshedLocationIds).size === 1),
     stagedGroupPortrait = subjectIds.length > 1 && !coPresent;
-  const presenceLocationId = stagedGroupPortrait
-    ? undefined
-    : mediaPresence.locationId ?? undefined;
+  const { data: groupConversation } = input.conversationId
+    ? await db.from("together_conversations").select("group_world_id").eq(
+      "id",
+      input.conversationId,
+    ).eq("user_id", input.userId).maybeSingle()
+    : { data: null };
+  const worldContainment = await resolveCanonicalMediaWorld({
+    db,
+    characterVersionIds: subjects.map((subject) =>
+      String(subject.character_version_id)
+    ),
+    requestText: input.requestText,
+    authoritativeLocationId,
+    presenceLocationId: stagedGroupPortrait
+      ? undefined
+      : mediaPresence.locationId ?? undefined,
+    groupWorldId: String(groupConversation?.group_world_id ?? "") || undefined,
+  });
+  const presenceLocationId = worldContainment.locationId;
   const [{ data: anchorLocation }, { data: opportunities }] = await Promise.all(
     [
       presenceLocationId
@@ -1307,8 +1351,21 @@ export async function queueMediaRequest(
       db.from("together_photo_opportunities").select("*").eq("active", true),
     ],
   );
-  const place = stagedGroupPortrait
+  const requestedLocation = [
+    "requested_exact_location",
+    "requested_setting_match",
+    "authoritative_location",
+  ].includes(worldContainment.resolutionReason);
+  const place = !presenceLocationId
     ? null
+    : requestedLocation
+    ? await resolvePlaceContext({
+      db,
+      locationId: presenceLocationId,
+      now,
+      userId: input.userId,
+      characterInstanceId: input.characterInstanceId,
+    })
     : await resolveCharacterPlaceContext({
       db,
       characterVersionId: String(instance.character_version_id),
@@ -1322,6 +1379,16 @@ export async function queueMediaRequest(
   const virtualHome = place?.location.virtualType === "character_home";
   const locationId = virtualHome ? undefined : presenceLocationId;
   const location = virtualHome ? null : anchorLocation;
+  const effectiveWorldContainment: MediaWorldContainment = {
+    ...worldContainment,
+    ...(place
+      ? { locationName: place.location.name, locationPath: place.path }
+      : {}),
+    ...(virtualHome ? { locationId: undefined } : {}),
+  };
+  const mediaActivity = requestedLocation && effectiveWorldContainment.locationName
+    ? `taking a personal photo at ${effectiveWorldContainment.locationName}`
+    : mediaPresence.activity;
   const opportunity = scorePhotoOpportunities(opportunities ?? [], {
     locationSlug: String(location?.slug ?? ""),
     relationshipStage: String(instance.relationship_stage),
@@ -1329,8 +1396,7 @@ export async function queueMediaRequest(
     intent,
     recent: recent ?? [],
   });
-  const requestedLevel: MediaContentLevel = intent.requestedContentLevel ??
-    (input.source === "date" ? "romance" : "standard");
+  const requestedLevel: MediaContentLevel = productionRequest.contentLevel;
   const contentPreferences = (profile.content_preferences ?? {}) as Record<
       string,
       unknown
@@ -1433,7 +1499,7 @@ export async function queueMediaRequest(
   const composition = resolvePhotoComposition({
     source: input.source,
     shotType,
-    requestText: input.requestText,
+    requestText: productionRequest.requestText,
   });
   const aspectRatio = composition.aspectRatio;
   const qualityTier = input.qualityTierOverride ??
@@ -1447,18 +1513,13 @@ export async function queueMediaRequest(
   const outfitDescription = input.companionResponseText
     ? extractPhotoWardrobeDescription(input.companionResponseText)
     : undefined;
-  const { data: groupConversation } = input.conversationId
-    ? await db.from("together_conversations").select("group_world_id").eq(
-      "id",
-      input.conversationId,
-    ).eq("user_id", input.userId).maybeSingle()
-    : { data: null };
-  const worldId =
-    String(place?.world.id ?? groupConversation?.group_world_id ?? "") ||
-    undefined;
+  const worldId = effectiveWorldContainment.worldId;
   const environmentReferenceAssets = await snapshotReferenceAssets(db, {
     worldId,
     locationId,
+    characterVersionIds: subjects.map((subject) =>
+      String(subject.character_version_id)
+    ),
   });
   const characterReferenceGroups = await Promise.all(
     subjects.map(async (subject) => ({
@@ -1565,6 +1626,8 @@ export async function queueMediaRequest(
     requestedContentLevel: requestedLevel,
     resolvedContentLevel: contentLevel,
     mediaPolicyReason: policy.reasonCode,
+    productionMediaDowngraded: productionRequest.downgraded,
+    productionMediaReason: productionRequest.reasonCode,
     mediaPolicyBySubject: policies.map((item) => ({
       characterInstanceId: item.characterInstanceId,
       reasonCode: item.policy.reasonCode,
@@ -1576,11 +1639,11 @@ export async function queueMediaRequest(
     requestIntent: { subject: intent.subject, confidence: intent.confidence },
     generationIntent: input.source === "user_request" && input.requestText
       ? {
-        requestText: input.requestText.slice(0, 400),
+        requestText: String(productionRequest.requestText ?? "").slice(0, 400),
         requestedContentLevel: requestedLevel,
       }
       : null,
-    requestHint: safeRequestText(input.requestText),
+    requestHint: safeRequestText(productionRequest.requestText),
     referenceAssets,
     mediaSubjects,
     subjectCount: subjectIds.length,
@@ -1608,8 +1671,8 @@ export async function queueMediaRequest(
         shotType === "scene" ? "shared a view from" : "sent a photo while at"
       } ${
         String(place?.path ?? location?.name ?? "their current place")
-      } during ${mediaPresence.activity}.`,
-    activity: mediaPresence.activity,
+      } during ${mediaActivity}.`,
+    activity: mediaActivity,
     mood: mediaPresence.mood,
     presenceSource: mediaPresence.source,
     presenceResolvedAt: mediaPresence.resolvedAt ?? now.toISOString(),
@@ -1622,6 +1685,7 @@ export async function queueMediaRequest(
         "steady",
     ),
     placeContext: place ? placeContextSnapshot(place) : null,
+    worldContainment: effectiveWorldContainment,
     ...(authorization
       ? {
         mediaOfferId: authorization.mediaOfferId,
@@ -1631,6 +1695,8 @@ export async function queueMediaRequest(
         creditRefunded: false,
         includedBenefit: Boolean(authorization.includedBenefit),
         includedBenefitType: authorization.includedBenefitType ?? null,
+        dailyPhotoReservationKey:
+          authorization.includedBenefitReservationKey ?? null,
         subscriptionTier: authorization.subscriptionTier,
         economicAuthorization: authorization.kind,
       }
@@ -1650,7 +1716,7 @@ export async function queueMediaRequest(
     scene_action_id: input.sceneActionId ?? null,
     shared_plan_id: input.sharedPlanId ?? null,
     media_offer_id: authorization?.mediaOfferId ?? null,
-    world_id: worldId ?? null,
+    world_id: worldId,
     location_id: locationId ?? null,
     media_type: "image",
     content_level: contentLevel,
@@ -1680,6 +1746,12 @@ export async function queueMediaRequest(
     shotType,
     contentLevel,
     groupSceneMode: metadata.groupSceneMode,
+    worldId,
+    locationId: locationId ?? null,
+    sceneResolutionReason: effectiveWorldContainment.resolutionReason,
+    requestedSettingResolved: Boolean(
+      effectiveWorldContainment.requestedSetting,
+    ),
   });
   return data;
 }
@@ -1810,7 +1882,23 @@ export async function canonicalRequestForMedia(
     );
   }
   const meta = (media.metadata ?? {}) as Record<string, unknown>;
-  const locationId = String(media.location_id ?? meta.locationId ?? "");
+  const storedGenerationForWorld =
+    meta.generationIntent && typeof meta.generationIntent === "object"
+      ? meta.generationIntent as Record<string, unknown>
+      : null;
+  const storedLocationId = String(media.location_id ?? meta.locationId ?? "");
+  const verifiedWorldContainment = await resolveCanonicalMediaWorld({
+    db,
+    characterVersionIds: subjectInstances.map((subject) =>
+      String(subject.character_version_id)
+    ),
+    requestText: typeof storedGenerationForWorld?.requestText === "string"
+      ? storedGenerationForWorld.requestText
+      : undefined,
+    authoritativeLocationId: storedLocationId || undefined,
+    groupWorldId: String(media.world_id ?? "") || undefined,
+  });
+  const locationId = verifiedWorldContainment.locationId ?? storedLocationId;
   const { data: location } = locationId
     ? await db.from("together_locations").select("*").eq("id", locationId)
       .maybeSingle()
@@ -1888,9 +1976,11 @@ export async function canonicalRequestForMedia(
     ? meta.referenceAssets as Array<Record<string, unknown>>
     : [];
   const selectedRows = await resolveSnapshottedReferenceRows(db, snapshotted, {
-    characterVersionId: String(instance.character_version_id),
+    characterVersionIds: subjectInstances.map((subject) =>
+      String(subject.character_version_id)
+    ),
     locationId: locationId || undefined,
-    worldId: String(media.world_id ?? place?.world.id ?? "") || undefined,
+    worldId: verifiedWorldContainment.worldId,
   });
   const versionToSubjectId = new Map(
     subjectInstances.map((
@@ -2038,6 +2128,15 @@ export async function canonicalRequestForMedia(
     meta.generationIntent && typeof meta.generationIntent === "object"
       ? meta.generationIntent as Record<string, unknown>
       : null;
+  const productionRequest = resolveProductionSafePhotoRequest({
+    requestText: typeof storedGenerationIntent?.requestText === "string"
+      ? storedGenerationIntent.requestText
+      : undefined,
+    requestedContentLevel: String(
+      storedGenerationIntent?.requestedContentLevel ?? media.content_level ??
+        "standard",
+    ) as MediaContentLevel,
+  });
   const sceneBoundary = resolveMediaSceneBoundary({
     locationName: String(
       place?.location.name ?? location?.name ?? "the current canonical place",
@@ -2046,7 +2145,11 @@ export async function canonicalRequestForMedia(
     category: String(place?.location.category ?? location?.category ?? ""),
     indoorOutdoor: place?.location.visualContext.indoorOutdoor,
   });
-  const groundedReferences = sceneBoundary.setting === "indoor"
+  const hasExactLocationReference = references.some((item) =>
+    item.role === "location_environment"
+  );
+  const groundedReferences = sceneBoundary.setting === "indoor" &&
+      hasExactLocationReference
     ? references.filter((item) => item.role !== "world_environment")
     : references;
   const referenceLimit = subjectIds.length > 1 ? 5 : 4,
@@ -2132,30 +2235,28 @@ export async function canonicalRequestForMedia(
       ...(typeof meta.groupSceneMode === "string"
         ? { groupSceneMode: meta.groupSceneMode }
         : {}),
-      ...(typeof media.world_id === "string"
-        ? { worldId: media.world_id }
-        : {}),
+      worldId: verifiedWorldContainment.worldId,
+      worldContainment: {
+        ...verifiedWorldContainment,
+        ...(place
+          ? { locationName: place.location.name, locationPath: place.path }
+          : {}),
+      },
     },
     composition: {
       shotType: String(meta.shotType ?? "candid") as ShotType,
       aspectRatio: String(meta.aspectRatio ?? "4:5"),
       framing: typeof meta.framing === "string" ? meta.framing : undefined,
     },
-    contentLevel: String(
-      media.content_level ?? "standard",
-    ) as MediaContentLevel,
+    contentLevel: productionRequest.contentLevel,
     qualityTier: String(
       meta.qualityTier ?? "standard",
     ) as CanonicalImageGenerationRequest["qualityTier"],
-    ...(storedGenerationIntent &&
-        typeof storedGenerationIntent.requestText === "string"
+    ...(productionRequest.requestText
       ? {
         generationIntent: {
-          requestText: storedGenerationIntent.requestText.slice(0, 400),
-          requestedContentLevel: String(
-            storedGenerationIntent.requestedContentLevel ??
-              media.content_level ?? "standard",
-          ) as MediaContentLevel,
+          requestText: productionRequest.requestText.slice(0, 400),
+          requestedContentLevel: productionRequest.contentLevel,
         },
       }
       : {}),
@@ -2199,9 +2300,14 @@ function canonicalVisualIdentity(
   };
 }
 
-async function snapshotReferenceAssets(
+export async function snapshotReferenceAssets(
   db: SupabaseClient,
-  input: { characterVersionId?: string; worldId?: string; locationId?: string },
+  input: {
+    characterVersionId?: string;
+    characterVersionIds?: string[];
+    worldId?: string;
+    locationId?: string;
+  },
 ): Promise<Array<Record<string, unknown>>> {
   const filters = [
     input.characterVersionId
@@ -2214,8 +2320,16 @@ async function snapshotReferenceAssets(
   const { data } = await db.from("together_media_reference_assets").select(
     "id,asset_role,revision,storage_bucket,storage_path,character_version_id,location_id,world_id",
   ).eq("active", true).or(filters).order("revision", { ascending: false });
+  const scoped = input.worldId
+    ? validateReferenceAssetWorldScope(data ?? [], {
+      worldId: input.worldId,
+      locationId: input.locationId,
+      characterVersionIds: input.characterVersionIds ??
+        (input.characterVersionId ? [input.characterVersionId] : []),
+    })
+    : data ?? [];
   const seen = new Set<string>();
-  return (data ?? []).filter((row) => {
+  return scoped.filter((row) => {
     const role = String(row.asset_role);
     if (
       seen.has(role) &&
@@ -2235,7 +2349,11 @@ async function snapshotReferenceAssets(
 async function resolveSnapshottedReferenceRows(
   db: SupabaseClient,
   snapshot: Array<Record<string, unknown>>,
-  scope: { characterVersionId: string; locationId?: string; worldId?: string },
+  scope: {
+    characterVersionIds: string[];
+    locationId?: string;
+    worldId?: string;
+  },
 ): Promise<Array<Record<string, unknown>>> {
   const ids = snapshot.map((item) => String(item.assetId ?? "")).filter(
     Boolean,
@@ -2248,7 +2366,7 @@ async function resolveSnapshottedReferenceRows(
       snapshotById = new Map(
         snapshot.map((item) => [String(item.assetId ?? ""), item]),
       );
-    return ids.map((id) => {
+    const resolved = ids.map((id) => {
       const row = byId.get(id), stored = snapshotById.get(id);
       return row
         ? {
@@ -2263,16 +2381,32 @@ async function resolveSnapshottedReferenceRows(
         }
         : null;
     }).filter(Boolean) as Array<Record<string, unknown>>;
+    return scope.worldId
+      ? validateReferenceAssetWorldScope(resolved, {
+        worldId: scope.worldId,
+        locationId: scope.locationId,
+        characterVersionIds: scope.characterVersionIds,
+      })
+      : resolved;
   }
   const filters = [
-    `character_version_id.eq.${scope.characterVersionId}`,
+    ...scope.characterVersionIds.map((id) =>
+      `character_version_id.eq.${id}`
+    ),
     scope.locationId ? `location_id.eq.${scope.locationId}` : "",
     scope.worldId ? `world_id.eq.${scope.worldId}` : "",
   ].filter(Boolean).join(",");
   if (!filters) return [];
   const { data } = await db.from("together_media_reference_assets").select("*")
     .eq("active", true).or(filters).order("revision", { ascending: false });
-  return (data ?? []) as Array<Record<string, unknown>>;
+  const rows = (data ?? []) as Array<Record<string, unknown>>;
+  return scope.worldId
+    ? validateReferenceAssetWorldScope(rows, {
+      worldId: scope.worldId,
+      locationId: scope.locationId,
+      characterVersionIds: scope.characterVersionIds,
+    })
+    : rows;
 }
 
 async function loadReferenceAsset(
@@ -2438,6 +2572,9 @@ function envEnabled(name: string): boolean {
   );
 }
 function mediaPolicyMessage(reason: string): string {
+  if (reason === "production_content_ceiling") {
+    return "Kivelle supports everyday and romantic photos, not nude, sexual, or explicit imagery.";
+  }
   if (reason === "age_verification_required") {
     return "Age verification is required for companion media.";
   }

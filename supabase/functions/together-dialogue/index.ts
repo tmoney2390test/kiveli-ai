@@ -21,10 +21,13 @@ import {
   applyConversationEngagement,
   applyInteractionProposal,
   boundedGroupSocialDelta,
+  chatLanguageSafetyBoundary,
+  classifyConversationQuery,
   type ChemistrySignal,
   classifyGroupSocialEvent,
   compileIntimacyStance,
   detectFlirtSignal,
+  hasSexualDialogueLanguage,
   evolveCharacterUserView,
   type GroupSpeakerCandidate,
   type GroupTurnAction,
@@ -36,7 +39,9 @@ import {
   matchAssistantLocationPlan,
   MESSAGE_CHARACTER_LIMIT,
   messageCharacterLimitError,
+  normalizeChatLanguage,
   PHOTO_ONLY_MESSAGE_CONTENT,
+  resolveProductionSafePhotoRequest,
   planGroupContinuation,
   planGroupTurn,
   type PlannableLocationMention,
@@ -122,6 +127,8 @@ const schema = z.object({
   characterInstanceId: z.string().uuid(),
   focusPlanId: z.string().uuid().optional(),
   sceneActionId: z.string().uuid().optional(),
+  messageAction: z.enum(["continue"]).optional(),
+  anchorMessageId: z.string().uuid().optional(),
   autoDialogueSuggestionId: z.string().min(8).max(120).optional(),
   autoDialogueSuggestionSource: z.enum([
     "openai",
@@ -158,7 +165,10 @@ const schema = z.object({
 }).refine(
   (value) => value.message.trim().length > 0 || value.attachmentIds.length > 0,
   { message: "Write a message or attach a photo." },
-);
+).superRefine((value,ctx)=>{
+  if(value.messageAction==='continue'&&!value.anchorMessageId)ctx.addIssue({code:z.ZodIssueCode.custom,path:['anchorMessageId'],message:'Choose the companion message to continue.'});
+  if(!value.messageAction&&value.anchorMessageId)ctx.addIssue({code:z.ZodIssueCode.custom,path:['messageAction'],message:'That message action is invalid.'});
+});
 const dialogue = new ConfiguredDialogueProvider();
 const moderation = new ConfiguredModerationProvider();
 const embeddings = new ConfiguredEmbeddingProvider();
@@ -193,11 +203,21 @@ Deno.serve(async (request) => {
             404,
           );
         }
+        const chatLanguage=normalizeChatLanguage(conversation.metadata?.chatPreferences?.chatLanguage);
         const userText = normalizeChatMessage(input.message);
+        const isContinuation=input.messageAction==='continue';
+        let continuationAnchor:Record<string,any>|null=null;
+        if(isContinuation){
+          const{data:latestRows,error:latestError}=await db.from('together_messages').select('id,role,content,delivery_status,provider_metadata,speaker_character_instance_id,character_instance_id,conversation_sequence,created_at').eq('user_id',user.id).eq('conversation_id',conversation.id).order('conversation_sequence',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false}).limit(20);
+          if(latestError)throw new AppError('INTERNAL_ERROR','That message could not be continued.',500,true);
+          const latestVisible=(latestRows??[]).find((row)=>row.provider_metadata?.uiHidden!==true);
+          if(!latestVisible||latestVisible.id!==input.anchorMessageId||latestVisible.role!=='assistant'||latestVisible.delivery_status!=='complete')throw new AppError('CONFLICT','That reply is no longer the latest message. Continue from the newest reply instead.',409);
+          continuationAnchor=latestVisible;
+        }
         const requestId = assertChatRequestId(input.clientRequestId);
-        const contextText = userText ||
+        const contextText = (isContinuation?String(continuationAnchor?.content??''):userText) ||
           "The user shared an image without a caption.";
-        const photoIntent = classifyPhotoRequest(contextText);
+        const photoIntent = classifyPhotoRequest(isContinuation?'':contextText);
         const activeConversation = await getActiveConversation(
           db,
           user.id,
@@ -216,11 +236,13 @@ Deno.serve(async (request) => {
         const requestFingerprint = await chatRequestFingerprint({
           conversationId: input.conversationId,
           characterInstanceId: input.characterInstanceId,
-          message: userText,
+          message: contextText,
           attachmentIds: [...input.attachmentIds].sort(),
           focusPlanId: input.focusPlanId ?? null,
           sceneActionId: input.sceneActionId ?? null,
           entryContext: input.entryContext ?? null,
+          messageAction: input.messageAction ?? null,
+          anchorMessageId: input.anchorMessageId ?? null,
         });
         const persistedContent = userText || "[Photo]";
         const existingUserMessage = await findExistingChatRequest(db, {
@@ -404,7 +426,7 @@ Deno.serve(async (request) => {
           routingRelationship?.romance_enabled !== false &&
           routingRelationship?.romance_path_status !== "friends_only";
         let route = resolveDialogueRouting({
-          message: userText,
+          message: contextText,
           recentTurns: [...(recentRoutingRows ?? [])].reverse(),
           requestedMode,
           ageVerified: Boolean(profile?.age_verified_at),
@@ -420,7 +442,7 @@ Deno.serve(async (request) => {
           (conversation.together_character_instances as Record<string, any>)
             .together_character_templates?.name ?? "Companion",
         );
-        const scriptedBoundary = boundaryResponseForRoute(characterName, route);
+        const scriptedBoundary = boundaryResponseForRoute(characterName, route,chatLanguage,contextText);
         if (scriptedBoundary) {
           const boundary = scriptedBoundary;
           const boundaryClaim = existingUserMessage
@@ -436,6 +458,7 @@ Deno.serve(async (request) => {
               requestId,
               attachmentIds: input.attachmentIds,
               providerMetadata: {
+                chatLanguage,
                 requestFingerprint,
                 requestAttachmentIds: [...input.attachmentIds].sort(),
                 safety_redirected: true,
@@ -467,6 +490,7 @@ Deno.serve(async (request) => {
             providerMetadata: {
               provider: "scripted-boundary",
               safety_category: boundary.category,
+              chatLanguage,
             },
           });
           const boundaryMessage = boundaryCommit.message;
@@ -518,8 +542,10 @@ Deno.serve(async (request) => {
             requestId,
             attachmentIds: input.attachmentIds,
             providerMetadata: {
+              chatLanguage,
               requestFingerprint,
               requestAttachmentIds: [...input.attachmentIds].sort(),
+              ...(isContinuation?{messageAction:'continue',anchorMessageId:input.anchorMessageId,uiHidden:true}:{}),
               ...(input.autoDialogueSuggestionId
                 ? {
                   autoDialogueSuggestionId: input.autoDialogueSuggestionId,
@@ -557,7 +583,7 @@ Deno.serve(async (request) => {
           });
         }
 
-        if (photoIntent.requested) {
+        if (photoIntent.requested&&!isContinuation) {
           const fastPathStartedAt = performance.now();
           const photoContext = derivePhotoOfferContext({
             instance: instanceAtRequest,
@@ -659,23 +685,14 @@ Deno.serve(async (request) => {
         }));
         const semanticStartedAt = performance.now();
         const semanticPromise = (async () => {
+          const semanticIntent=classifyConversationQuery(contextText);
           const queryEmbedding = semanticRecallNeeded(contextText)
             ? await embeddings.embed(contextText, {
               ...usageBase,
               purpose: "memory_query",
             })
             : null;
-          const recallThreshold =
-            /\b(remember|forgot|what was|what did we|who is|when did|where did)\b/i
-                .test(contextText)
-              ? .48
-              : /\b(last time|before|our first|used to|history)\b/i.test(
-                  contextText,
-                )
-              ? .54
-              : /\b(scene|here|this place|tonight)\b/i.test(contextText)
-              ? .58
-              : .60;
+          const recallThreshold=semanticIntent==='memory_overview' ? .48 : semanticIntent==='history' ? .54 : (semanticIntent==='location'||semanticIntent==='story') ? .58 : .60;
           const result = queryEmbedding
             ? await db.rpc("together_match_memories_server", {
               p_user_id: user.id,
@@ -796,6 +813,10 @@ Deno.serve(async (request) => {
           correlationId,
           conversationSceneResolution: sceneResolution,
         });
+        if(isContinuation){
+          dialogueContext.userMessage='';
+          (dialogueContext as Record<string,unknown>).continuationRequest={anchorMessageId:input.anchorMessageId,anchorSpeakerCharacterInstanceId:String(continuationAnchor?.speaker_character_instance_id??continuationAnchor?.character_instance_id??input.characterInstanceId)};
+        }
         const contextDurationMs = Math.round(
           performance.now() - contextStartedAt,
         );
@@ -856,7 +877,7 @@ Deno.serve(async (request) => {
               dialogueContext.currentScene.location,
           };
         }
-        if (dialogueContext.currentScene.sceneSessionId) {
+        if (dialogueContext.currentScene.sceneSessionId&&!isContinuation) {
           await recordSceneMessage(db, {
             userId: user.id,
             continuityId: continuity.id,
@@ -874,7 +895,12 @@ Deno.serve(async (request) => {
         const sceneMessageActions = scenePlan.actions.filter((action) =>
           action.type === "message"
         ).slice(0, 2);
-        const primaryAction: GroupTurnAction = sceneMessageActions[0] ?? {
+        const primaryAction: GroupTurnAction = isContinuation?{
+          id:`${String(continuationAnchor?.speaker_character_instance_id??continuationAnchor?.character_instance_id??input.characterInstanceId)}:continue`,
+          type:'message',
+          characterInstanceId:String(continuationAnchor?.speaker_character_instance_id??continuationAnchor?.character_instance_id??input.characterInstanceId),
+          addresseeInstanceIds:[],intent:'answer_user',reasonCodes:['user_continue_action'],priority:1,
+        }:sceneMessageActions[0] ?? {
           id: `${input.characterInstanceId}:scene-fallback`,
           type: "message",
           characterInstanceId: input.characterInstanceId,
@@ -883,9 +909,9 @@ Deno.serve(async (request) => {
           reasonCodes: ["primary_scene_fallback"],
           priority: 1,
         };
-        const remainingSceneActions = scenePlan.actions.filter((action) =>
+        const remainingSceneActions = (isContinuation?[]:scenePlan.actions.filter((action) =>
           action.id !== primaryAction.id
-        ).slice(0, 2);
+        )).slice(0, 2);
         const primarySpeakerId = primaryAction.characterInstanceId;
         const speakerContextStartedAt = performance.now();
         const selected = primarySpeakerId === input.characterInstanceId
@@ -917,7 +943,7 @@ Deno.serve(async (request) => {
         // the character who will actually speak so routing can never inherit the
         // wrong participant's permissions.
         const selectedRouteInput = {
-          message: userText,
+          message: contextText,
           recentTurns: [...(recentRoutingRows ?? [])].reverse(),
           requestedMode,
           ageVerified: Boolean(profile?.age_verified_at),
@@ -957,6 +983,8 @@ Deno.serve(async (request) => {
         const selectedSpeakerBoundary = boundaryResponseForRoute(
           selectedSpeakerName,
           route,
+          dialogueContext.chatLanguage,
+          dialogueContext.userMessage,
         );
         if (selectedSpeakerBoundary) {
           if (!await touchConversationTurn(db, turnLease)) {
@@ -978,6 +1006,7 @@ Deno.serve(async (request) => {
               safety_category: selectedSpeakerBoundary.category,
               speakerName: selectedSpeakerName,
               speakerSlug: dialogueContext.character?.slug,
+              chatLanguage:normalizeChatLanguage(dialogueContext.chatLanguage),
             },
           });
           const boundaryMessage = boundaryCommit.message;
@@ -1096,6 +1125,8 @@ Deno.serve(async (request) => {
           ? generated.text
           : outputBoundaryResponse(
             String(characterTemplate.name ?? "Companion"),
+            dialogueContext.chatLanguage,
+            dialogueContext.userMessage,
           );
         if (!outputSafety.allowed) {
           await db.from("together_safety_events").insert({
@@ -1124,9 +1155,11 @@ Deno.serve(async (request) => {
             ...generated.metadata,
             ...intimacyProviderMetadata(dialogueContext),
             ...handoffProviderMetadata(dialogueContext),
+            chatLanguage:normalizeChatLanguage(dialogueContext.chatLanguage),
             speakerName: characterTemplate.name,
             speakerSlug: characterTemplate.slug,
             directorUsed: dialogueContext.director?.used === true,
+            ...(isContinuation?{continuationOfMessageId:input.anchorMessageId}:{}),
           },
         });
         const assistantMessage = assistantCommit.message;
@@ -1145,7 +1178,7 @@ Deno.serve(async (request) => {
               characterInstanceId: primarySpeakerId,
             });
           }
-          scheduleConversationEffects(async () => {
+          if(!isContinuation)scheduleConversationEffects(async () => {
             await safelyApplyConversationEffects(
               db,
               user.id,
@@ -1663,18 +1696,19 @@ function deferPhotoRequestHousekeeping(
 }
 
 function semanticRecallNeeded(message: string): boolean {
-  return /\b(?:remember|forgot|remind me|what was|what did we|who is|when did|where did|last time|before|our first|used to|history|you told me|i told you)\b/i
-    .test(message);
+  const intent=classifyConversationQuery(message);
+  return ['memory_overview','history','location','story'].includes(intent)||/\b(?:remember|forgot|remind me|what was|what did we|who is|when did|where did|last time|before|our first|used to|history|you told me|i told you)\b/i.test(message);
 }
 
 function boundaryResponseForRoute(
   characterName: string,
   route: DialogueRoutingDecision,
+  language:unknown='en',
+  sourceText?:unknown,
 ): { text: string; storeOriginal: boolean; category: string } | null {
   if (route.reason === "safety_block") {
     return {
-      text:
-        `${characterName}'s expression turns serious. “No. I won't cross consent or safety boundaries. We need to take this in another direction.”`,
+      text:localizedSafetyBoundary(characterName,language,sourceText),
       storeOriginal: false,
       category: "hard_safety_block",
     };
@@ -1715,8 +1749,12 @@ function downgradeExplicitRoute(
       : "adult_expression_downgrade",
   };
 }
-function outputBoundaryResponse(characterName: string): string {
-  return `${characterName} stops the moment, voice firm. “No. I’m not willing to cross that line.”`;
+function outputBoundaryResponse(characterName: string,language:unknown='en',sourceText?:unknown): string {
+  return localizedSafetyBoundary(characterName,language,sourceText);
+}
+
+function localizedSafetyBoundary(characterName:string,language:unknown,sourceText?:unknown):string{
+  return chatLanguageSafetyBoundary(characterName,language,sourceText);
 }
 
 async function photoOnlyResponse(input: {
@@ -1740,6 +1778,7 @@ async function photoOnlyResponse(input: {
     providerMetadata: {
       provider: "kivelle-media",
       mediaOnly: true,
+      chatLanguage:normalizeChatLanguage(input.conversation.metadata?.chatPreferences?.chatLanguage),
       speakerName: character.name,
       speakerSlug: character.slug,
     },
@@ -1866,6 +1905,10 @@ function streamDialogue({
             needsRepair = false;
           const approveAndEmit = async (segment: string): Promise<boolean> => {
             const candidate = approved + segment;
+            if (hasSexualDialogueLanguage(candidate)) {
+              blockedCategories = ["production_sexual_content_ceiling"];
+              return false;
+            }
             if (
               runOptions.route.provider === "xai" &&
               context.intimacyStance?.shouldReciprocate === true &&
@@ -1948,6 +1991,8 @@ function streamDialogue({
             const boundary = `${content.trim() ? "\n\n" : ""}${
               outputBoundaryResponse(
                 String(context.character?.name ?? "Companion"),
+                context.chatLanguage,
+                context.userMessage,
               )
             }`;
             content += boundary;
@@ -2002,10 +2047,12 @@ function streamDialogue({
               }),
             ...intimacyProviderMetadata(context),
             ...handoffProviderMetadata(context),
+            chatLanguage:normalizeChatLanguage(context.chatLanguage),
             streamed: true,
             speakerName: context.character?.name,
             speakerSlug: context.character?.slug,
             directorUsed: context.director?.used === true,
+            ...(input.messageAction==='continue'?{continuationOfMessageId:input.anchorMessageId}:{}),
           },
         });
         const assistantMessage = assistantCommit.message;
@@ -2024,7 +2071,7 @@ function streamDialogue({
               characterInstanceId: primarySpeakerId,
             });
           }
-          scheduleConversationEffects(async () => {
+          if(input.messageAction!=='continue')scheduleConversationEffects(async () => {
             await safelyApplyConversationEffects(
               db,
               user.id,
@@ -2457,6 +2504,7 @@ async function generateAdditionalSceneReplies(
           ...generated.metadata,
           ...intimacyProviderMetadata(selected.context),
           ...handoffProviderMetadata(selected.context),
+          chatLanguage:normalizeChatLanguage(selected.context.chatLanguage),
           sharedSceneParticipant: true,
           speakerName: selected.context.character?.name,
           speakerSlug: selected.context.character?.slug,
@@ -2901,6 +2949,7 @@ async function safelyCreateConversationPhotoOffer(
   try {
     const currentScene = context.currentScene;
     const intent = classifyPhotoRequest(input.message);
+    const productionRequest=resolveProductionSafePhotoRequest({requestText:input.message,requestedContentLevel:intent.requestedContentLevel});
     const characterName = String(context.character.name ?? "Your companion")
       .trim();
     const firstName = characterName.split(/\s+/)[0] || characterName;
@@ -2921,7 +2970,7 @@ async function safelyCreateConversationPhotoOffer(
       offerKey: `user_request:${String(userMessage.id)}`,
       title: "Picture request",
       companionMessage: `${firstName} wants to send you a picture`,
-      contentLevel: intent.requestedContentLevel ?? "standard",
+      contentLevel: productionRequest.contentLevel,
       shotType: intent.shotPreference ?? "selfie",
       ...(currentScene.sceneSessionId
         ? { sceneSessionId: String(currentScene.sceneSessionId) }
@@ -2930,7 +2979,9 @@ async function safelyCreateConversationPhotoOffer(
         ? { sharedPlanId: String(currentScene.sharedPlanId) }
         : {}),
       previewMetadata: {
-        requestText: input.message.slice(0, 400),
+        requestText: String(productionRequest.requestText??'').slice(0, 400),
+        productionMediaDowngraded:productionRequest.downgraded,
+        productionMediaReason:productionRequest.reasonCode,
         ...(canonicalPresence ? { canonicalPresence } : {}),
         locationName: currentScene.location,
       },

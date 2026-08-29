@@ -1,7 +1,8 @@
 export type MediaQualityVerdict={status:'pass'|'fail'|'unavailable';reasonCodes:string[]};
 
-export function enforceMediaQualityRequirements(verdict:MediaQualityVerdict,input:{requiresVisibleSpecificAnatomy:boolean}):MediaQualityVerdict{
+export function enforceMediaQualityRequirements(verdict:MediaQualityVerdict,input:{requiresVisibleSpecificAnatomy:boolean;requiresWorldVerification?:boolean}):MediaQualityVerdict{
   if(input.requiresVisibleSpecificAnatomy&&verdict.status==='unavailable')return{status:'fail',reasonCodes:['requested_anatomy_unverified']};
+  if(input.requiresWorldVerification&&verdict.status==='unavailable')return{status:'fail',reasonCodes:['world_unverified']};
   return verdict;
 }
 
@@ -12,6 +13,8 @@ const KNOWN_REASONS=[
   'requested_anatomy_missing','requested_anatomy_unverified',
   'pose_mismatch','face_direction_mismatch',
   'embedded_reference','rendered_text','multiple_subjects','subject_count_mismatch','identity_mismatch','identity_swap',
+  'sexual_content',
+  'world_mismatch','location_mismatch','earth_leakage','world_unverified',
 ] as const;
 
 export function parseMediaQualityVerdict(output:unknown):MediaQualityVerdict{

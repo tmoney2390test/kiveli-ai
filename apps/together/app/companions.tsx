@@ -6,6 +6,7 @@ import { ArrowLeft, Brain, Check, MessageCircle } from 'lucide-react-native';
 import { EmptyState, LoadingSkeleton, PageTitle, Screen, resolveCharacterPortraitSource } from '../src/components';
 import { setActiveCompanion } from '../src/lib/api';
 import { responsiveCompanionGrid } from '../src/lib/responsiveCompanionGrid';
+import { recentCompanionDiscoveryHref } from '../src/lib/companionDiscovery';
 import { selectPortraitVersion } from '../src/lib/selectors';
 import { useAppShell } from '../src/shell/AppShellContext';
 import { colors, radius } from '../src/theme';
@@ -17,13 +18,14 @@ export default function Companions() {
   const { desktop, sidebarWidth } = useAppShell();
   const [busy, setBusy] = useState('');
   if (!snapshot) return <LoadingSkeleton />;
+  const discoveryHref = recentCompanionDiscoveryHref(snapshot);
   const companions = snapshot.characters.filter((item) => item.together_character_templates.can_be_selected && (item.contact_added_at || item.introduced_at));
-  if (!companions.length) return <EmptyState title="No established companions yet" body="Meet someone in Discover to begin a relationship." action="Open Discover" onAction={() => router.replace('/(tabs)/singles')} />;
+  if (!companions.length) return <EmptyState title="No established companions yet" body="Meet someone in Discover to begin a relationship." action="Open Discover" onAction={() => router.replace(discoveryHref as never)} />;
   const { cardWidth } = responsiveCompanionGrid({ viewportWidth: width, desktop, sidebarWidth });
   const activeCompanionId = snapshot.activeContinuity?.active_companion_instance_id ?? snapshot.profile?.active_companion_instance_id;
 
   return <Screen>
-    <View style={styles.header}><Pressable accessibilityLabel="Go back" onPress={() => router.back()}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Your companions</PageTitle></View>
+    <View style={styles.header}><Pressable accessibilityLabel="Go back" onPress={() => router.canGoBack() ? router.back() : router.replace('/home')}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Your companions</PageTitle></View>
     <Text style={styles.lead}>Switch the relationship in focus, revisit memories, or continue a conversation.</Text>
     <View style={styles.grid}>{companions.map((item) => {
       const template = item.together_character_templates;
@@ -57,7 +59,7 @@ export default function Companions() {
         </View>
       </View>;
     })}</View>
-    <Pressable onPress={() => router.push('/(tabs)/singles')} style={styles.discover}><Text style={styles.discoverText}>Discover someone new</Text></Pressable>
+    <Pressable onPress={() => router.push(discoveryHref as never)} style={styles.discover}><Text style={styles.discoverText}>Discover someone new</Text></Pressable>
   </Screen>;
 }
 

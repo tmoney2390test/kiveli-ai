@@ -812,8 +812,8 @@ async function groupDetail(
     const [page, activeMediaResult, activeOfferResult, planResult, actionResult, eventResult] = await Promise
       .all([
         groupMessagePage(db, userId, conversation.id, messageLimit),
-        db.from("together_generated_media").select("*").eq("conversation_id", conversation.id).in("status", ["queued", "generating"]).order("created_at", { ascending: false }).limit(20),
-        db.from("together_media_offers").select("*").eq("conversation_id", conversation.id).in("status", ["pending", "accepted", "failed"]).order("created_at", { ascending: false }).limit(20),
+        db.from("together_generated_media").select("*").eq("conversation_id", conversation.id).in("status", ["queued", "generating"]).in("content_level", ["standard", "romance"]).order("created_at", { ascending: false }).limit(20),
+        db.from("together_media_offers").select("*").eq("conversation_id", conversation.id).in("status", ["pending", "accepted", "failed"]).in("content_level", ["standard", "romance"]).order("created_at", { ascending: false }).limit(20),
         db.from("together_shared_plans").select(
           "*,together_locations(id,name,slug),together_plan_attendance(*),together_plan_participant_responses(*)",
         ).eq("source_conversation_id", conversation.id).eq("user_id", userId)
@@ -882,8 +882,8 @@ async function groupMessagePage(
   const [reactionResult, mediaResult, offerResult] = ids.length
     ? await Promise.all([
       db.from("together_message_reactions").select("*").eq("conversation_id", conversationId).in("message_id", ids).order("created_at"),
-      db.from("together_generated_media").select("*").eq("user_id", userId).eq("conversation_id", conversationId).in("message_id", ids).order("created_at"),
-      db.from("together_media_offers").select("*").eq("user_id", userId).eq("conversation_id", conversationId).in("message_id", ids).order("created_at"),
+      db.from("together_generated_media").select("*").eq("user_id", userId).eq("conversation_id", conversationId).in("message_id", ids).in("content_level", ["standard", "romance"]).order("created_at"),
+      db.from("together_media_offers").select("*").eq("user_id", userId).eq("conversation_id", conversationId).in("message_id", ids).in("content_level", ["standard", "romance"]).order("created_at"),
     ])
     : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
   const failed = [reactionResult, mediaResult, offerResult].find((result: any) => result.error);
@@ -897,8 +897,8 @@ async function groupChanges(db: any, userId: string, continuityId: string, conve
   const [messageResult, reactionResult, mediaResult, offerResult, planResult, actionResult, eventResult, conversationResult] = await Promise.all([
     db.from("together_messages").select("*,together_conversation_attachments(*)").eq("user_id", userId).eq("conversation_id", conversation.id).gt("created_at", since).order("created_at").limit(80),
     db.from("together_message_reactions").select("*").eq("conversation_id", conversation.id).gt("created_at", since).order("created_at").limit(100),
-    db.from("together_generated_media").select("*").eq("user_id", userId).eq("conversation_id", conversation.id).gt("updated_at", since).order("updated_at").limit(40),
-    db.from("together_media_offers").select("*").eq("user_id", userId).eq("conversation_id", conversation.id).gt("updated_at", since).order("updated_at").limit(40),
+    db.from("together_generated_media").select("*").eq("user_id", userId).eq("conversation_id", conversation.id).in("content_level", ["standard", "romance"]).gt("updated_at", since).order("updated_at").limit(40),
+    db.from("together_media_offers").select("*").eq("user_id", userId).eq("conversation_id", conversation.id).in("content_level", ["standard", "romance"]).gt("updated_at", since).order("updated_at").limit(40),
     db.from("together_shared_plans").select("*,together_locations(id,name,slug),together_plan_attendance(*),together_plan_participant_responses(*)").eq("source_conversation_id", conversation.id).eq("user_id", userId).eq("continuity_id", continuityId).gt("updated_at", since).order("updated_at").limit(40),
     db.from("together_conversation_actions").select("*").eq("conversation_id", conversation.id).eq("user_id", userId).eq("continuity_id", continuityId).gt("updated_at", since).order("updated_at").limit(40),
     db.from("together_conversation_events").select("*").eq("conversation_id", conversation.id).eq("user_id", userId).gt("created_at", since).order("created_at").limit(80),

@@ -1,5 +1,5 @@
 import{describe,expect,it}from'vitest';
-import{buildPlanSlots,companionPick,defaultPlanTimeFields,hasPlanConflict,isLocationOpen,isVenueProgramTime,localPlanDateValue,nextAvailableGroupPlanTime,parseCustomPlanTime,previewPlanTiming,recommendPlanOptions,resolveGroupPlanAvailability,resolvePlanDraft}from'./plans';
+import{buildPlanSlots,companionPick,defaultPlanTimeFields,hasPlanConflict,isLocationOpen,isVenueProgramTime,localPlanDateValue,nextAvailableGroupPlanTime,parseCustomPlanTime,planOptionCanStartNow,previewPlanTiming,recommendPlanOptions,resolveGroupPlanAvailability,resolvePlanDraft}from'./plans';
 import type{CharacterInstance,Location,SharedPlan}from'../types';
 
 const locations=[
@@ -38,6 +38,13 @@ describe('group availability',()=>{
     const conflict={id:'plan',character_instance_id:'chloe',participant_instance_ids:['chloe'],title:'Existing plan',activity_key:'walk',location_id:'river',starts_at:new Date(start.getTime()-60000).toISOString(),ends_at:new Date(start.getTime()+3600000).toISOString(),status:'active' as const,source:'chat' as const,created_at:start.toISOString(),updated_at:start.toISOString()};
     expect(resolveGroupPlanAvailability({participants:[chloe],start,durationMinutes:60,schedules:[schedule],plans:[conflict],dates:[],immediate:true})[0]).toMatchObject({available:false,state:'conflict'});
   });
+  it('ignores active-plan overlap only while replacing the active plan now',()=>{
+    const start=new Date();
+    const active={id:'active-plan',character_instance_id:'chloe',participant_instance_ids:['chloe'],title:'Movies',activity_key:'movie',location_id:'river',starts_at:new Date(start.getTime()-60000).toISOString(),ends_at:new Date(start.getTime()+3600000).toISOString(),status:'active' as const,source:'chat' as const,created_at:start.toISOString(),updated_at:start.toISOString()};
+    const scheduled={...active,id:'scheduled-plan',title:'Dinner later',status:'scheduled' as const};
+    expect(resolveGroupPlanAvailability({participants:[chloe],start,durationMinutes:60,schedules:[],plans:[active],dates:[],immediate:true,replacingActivePlan:true})[0]).toMatchObject({available:true});
+    expect(resolveGroupPlanAvailability({participants:[chloe],start,durationMinutes:60,schedules:[],plans:[scheduled],dates:[],immediate:true,replacingActivePlan:true})[0]).toMatchObject({available:false,state:'conflict'});
+  });
 });
 
 describe('venue programming',()=>{
@@ -71,6 +78,7 @@ describe('native shared-plan recommendations',()=>{
   it('uses personality to make companion picks meaningfully different',()=>{const playful=companionPick({...context,personality:{playful:.95},interests:['games']}),thoughtful=companionPick({...context,personality:{thoughtful:.95,homebody:.9},interests:['books']});expect(playful?.locationId).toBe('arcade');expect(thoughtful?.locationId).toBe('books');});
   it('does not rank a crowded activity first when the user dislikes crowds',()=>{const pick=companionPick({...context,userInterests:['games'],preferences:['User dislikes crowds'],personality:{playful:.9}});expect(pick?.locationId).not.toBe('arcade');});
   it('penalizes recently repeated places for something different',()=>{const prior={id:'old',character_instance_id:'maya',title:'Riverwalk',activity_key:'walk',location_id:'river',starts_at:new Date().toISOString(),ends_at:new Date(Date.now()+3600000).toISOString(),status:'completed',source:'chat',created_at:new Date().toISOString(),updated_at:new Date().toISOString()}satisfies SharedPlan;expect(recommendPlanOptions({...context,intent:'different',previousPlans:[prior]})[0]?.locationId).not.toBe('river');});
+  it('surfaces a canonical happening at its place without inventing a program',()=>{const pulse={id:'pulse',templateId:'template',worldId:'juniper',locationId:'river',districtLocationId:null,title:'River evening',summary:'A community walk is active.',eventType:'community',startsAt:new Date(Date.now()-60000).toISOString(),endsAt:new Date(Date.now()+3600000).toISOString(),status:'active' as const,knowledgeScope:'public' as const,significance:.9,topicTags:['river'],activityTags:['walk'],participantCharacterInstanceIds:[],planAffordances:{reason:'The Riverwalk has a community evening underway.'}};const first=recommendPlanOptions({...context,worldPulse:[pulse]})[0];expect(first?.locationId).toBe('river');expect(first?.reason).toContain('community evening');});
 });
 
 describe('real scheduling validation',()=>{
@@ -81,5 +89,12 @@ describe('real scheduling validation',()=>{
   it('strictly rejects rolled-over custom dates and invalid times',()=>{expect(parseCustomPlanTime('2026-02-30','19:30')).toBeNull();expect(parseCustomPlanTime('2026-08-15','25:00')).toBeNull();expect(parseCustomPlanTime('2026-08-15','23:15')).not.toBeNull();});
   it('moves a suggestion until after a busy companion schedule',()=>{const now=new Date('2026-08-14T12:00:00-04:00');const option=recommendPlanOptions({...context,scopedLocationId:'velvet'})[0]!;const slots=buildPlanSlots({now,option,schedules:[{id:'work',character_version_id:'maya-v1',day_of_week:5,start_minute:540,end_minute:1200,location_id:'studio',activity:'client shoot',availability:'busy',energy_delta:0}],plans:[],dates:[]});expect(new Date(slots[0]!.value).getHours()).toBeGreaterThanOrEqual(20);expect(slots[0]?.reason).toContain('free');});
   it('rejects a bakery after closing',()=>{expect(isLocationOpen(locations[2]!,new Date('2026-08-15T20:00:00-04:00'),60)).toBe(false);});
+  it('only offers switch-now activities that remain open for their full duration',()=>{
+    const bakeryOption=recommendPlanOptions({...context,locations:[locations[2]!],scopedLocationId:'bakery'})[0]!;
+    expect(planOptionCanStartNow(bakeryOption,new Date('2026-08-15T14:00:00-04:00'),'America/New_York')).toBe(true);
+    expect(planOptionCanStartNow(bakeryOption,new Date('2026-08-15T15:30:00-04:00'),'America/New_York')).toBe(false);
+    const unknownOption=recommendPlanOptions({...context,locations:[locations[1]!],scopedLocationId:'river'})[0]!;
+    expect(planOptionCanStartNow(unknownOption,new Date('2026-08-15T14:00:00-04:00'),'America/New_York')).toBe(false);
+  });
   it('detects overlapping canonical plans',()=>{const plan={id:'one',character_instance_id:'maya',title:'Rooftop Movie',activity_key:'movie',location_id:'velvet',starts_at:'2026-08-16T00:00:00Z',ends_at:'2026-08-16T02:00:00Z',status:'scheduled',source:'chat',created_at:'2026-08-14T12:00:00Z',updated_at:'2026-08-14T12:00:00Z'}satisfies SharedPlan;expect(hasPlanConflict(new Date('2026-08-16T01:00:00Z'),90,[plan],[])?.title).toBe('Rooftop Movie');});
 });

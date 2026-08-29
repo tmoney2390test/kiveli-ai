@@ -19,12 +19,13 @@ For a local visual fixture without creating an account, start with `EXPO_PUBLIC_
 
 ## Server configuration
 
-Dialogue, moderation, and embeddings are server-side provider interfaces. Standard dialogue defaults to OpenAI `gpt-5.6-luna` with reasoning disabled. Eligible adult-explicit dialogue can use xAI `grok-4.3` only when the server-side xAI key and both route flags are enabled. With `OPENAI_API_KEY` unset, standard dialogue falls back to Gemini or deterministic continuity behavior; embeddings are skipped without failing the conversation.
+Dialogue, moderation, and embeddings are server-side provider interfaces. Dialogue defaults to OpenAI `gpt-5.6-luna` with reasoning disabled and is capped at non-sexual romance. Legacy explicit settings are ignored and xAI is not used for text chat. With `OPENAI_API_KEY` unset, dialogue falls back to Gemini or deterministic continuity behavior; embeddings are skipped without failing the conversation. xAI may remain configured independently for non-sexual voice calls and voice notes.
 
 Optional server secrets:
 
 - `OPENAI_API_KEY`
 - `KIVELLE_OPENAI_DIALOGUE_MODEL` (defaults to `gpt-5.6-luna`)
+- `KIVELLE_PROACTIVE_VOICE_ENABLED` and `KIVELLE_PROACTIVE_MODEL` control the optional isolated character-voice pass for grounded companion initiative. See `docs/initiative.md`.
 - `XAI_API_KEY` (server only)
 - `KIVELLE_XAI_ENABLED`
 - `KIVELLE_XAI_DIALOGUE_MODEL` (defaults to `grok-4.3`)
@@ -37,7 +38,7 @@ Optional server secrets:
 
 Kivelle keeps canonical state in Supabase and sends only the compiled turn context from Edge Functions to the selected inference provider. Provider credentials never reach the mobile app. Prompt/message content is excluded from AI cost telemetry and operational logs.
 
-Companion voice notes and live calls extend those same provider-neutral boundaries. xAI TTS voice notes are available to Kivelle+ and Max. Realtime calls are available to every tier and spend Kivelle Credits per started minute using server-authoritative, idempotent metering. Native realtime PCM capture/playback requires an Expo development build because `@edkimmel/expo-audio-stream` is not present in Expo Go. See [the voice operations guide](../../docs/voice.md) for secrets, flags, transport details, transcript reconciliation, and rollout.
+Companion voice notes and live calls extend those same provider-neutral boundaries. xAI TTS voice notes are available to Kivelle+ and Max. Realtime calls are available to every tier through a customer-controlled Essential/Immersive selector. Both routes draw from the shared Kivelle Credit balance with server-authoritative, idempotent metering that begins at the first finalized user response. Native realtime PCM capture/playback requires an Expo development build because `@edkimmel/expo-audio-stream` is not present in Expo Go. See [the voice operations guide](../../docs/voice.md) for secrets, flags, transport details, transcript reconciliation, privacy, economics, and rollout.
 
 First-class group chat uses the same canonical conversation, memory, relationship, safety, and provider layers. Each selected speaker gets a fresh private context; group membership, witnessed sequence boundaries, turn cancellation, and the subscription gate remain server-authoritative. See [the group chat architecture guide](../../docs/group-chat.md).
 
@@ -50,6 +51,8 @@ First-class group chat uses the same canonical conversation, memory, relationshi
 - Memory extraction is secondary work and cannot roll back a saved conversation.
 
 ## Verification
+
+Web subscriptions and subscriber credit packs use Stripe-hosted Checkout; native purchases remain RevenueCat-owned. The client treats webhook-synchronized `together-subscription` state as authoritative and never grants from a redirect. See [the billing operations guide](../../docs/billing.md) for setup and test-mode verification.
 
 ```sh
 pnpm --filter @together/app typecheck

@@ -12,7 +12,12 @@ import {
   conversationWithLastMessage,
   formatInboxTimestamp,
   inboxPreview,
+  MESSAGES_INBOX_HREF,
+  MESSAGES_INBOX_ROUTE,
   mergeInboxConversations,
+  mostRecentChatHref,
+  returnToMessagesInbox,
+  shouldOpenMostRecentChat,
 } from "./messageInbox";
 
 const character = (
@@ -101,6 +106,22 @@ describe("message inbox presentation", () => {
       restore_until: "2026-09-17T14:05:00.000Z",
     },
   ];
+
+  it("targets the native tab navigator when leaving a conversation", () => {
+    expect(MESSAGES_INBOX_HREF).toBe("/chat-tab?inbox=1");
+    expect(MESSAGES_INBOX_ROUTE).toBe("/(tabs)/chat-tab?inbox=1");
+  });
+
+  it("explicitly targets the nested Messages tab from root-stack conversations", () => {
+    const navigated: string[] = [], order: string[] = [];
+    returnToMessagesInbox({
+      reset: (href) => order.push(`reset:${href}`),
+      navigate: (href) => { navigated.push(href); order.push(`navigate:${href}`); },
+      schedule: (action) => { order.push('scheduled'); action(); },
+    });
+    expect(navigated).toEqual([MESSAGES_INBOX_HREF]);
+    expect(order).toEqual(['reset:/home', 'scheduled', `navigate:${MESSAGES_INBOX_HREF}`]);
+  });
 
   it("shows active chats newest-first and excludes archived transcripts", () => {
     expect(
@@ -321,9 +342,21 @@ describe("message inbox presentation", () => {
       world: "juniper-city",
       activity: "late_night_coffee",
       draft: "Want to go?",
+      switchPlanId: "active-plan",
     })).toBe(
-      "/chat?character=maya-instance&plan=1&draft=Want%20to%20go%3F&location=juniper-cafe&world=juniper-city&activity=late_night_coffee",
+      "/chat?character=maya-instance&plan=1&draft=Want%20to%20go%3F&location=juniper-cafe&world=juniper-city&activity=late_night_coffee&switchPlanId=active-plan",
     );
+  });
+
+  it('opens the latest direct or group chat from discovery tabs',()=>{
+    const maya=character('maya-instance','maya-template','Maya');
+    const direct=conversation('maya-chat','maya-instance','2026-08-25T10:00:00.000Z','Hi');
+    const group={...conversation('friends-chat','maya-instance','2026-08-25T11:00:00.000Z','Later'),kind:'group'};
+    expect(mostRecentChatHref([direct,group],[maya])).toBe('/group-chat?id=friends-chat');
+    expect(mostRecentChatHref([direct],[maya])).toBe('/chat?character=maya');
+    expect(mostRecentChatHref([],[])).toBeNull();
+    expect(['/home','/(tabs)/explore','/moments/'].every(shouldOpenMostRecentChat)).toBe(true);
+    expect(shouldOpenMostRecentChat('/profile')).toBe(false);
   });
 
   it("gives a place planner a fresh session even when it reuses the current conversation", () => {
@@ -342,8 +375,16 @@ describe("message inbox presentation", () => {
       world: "juniper-city",
       location: "halcyon-park",
     });
+    const switching = chatSessionRouteKey("becka-chat", {
+      character: "becka-shaw",
+      plan: "1",
+      world: "juniper-city",
+      location: "halcyon-park",
+      switchPlanId: "active-plan",
+    });
     expect(riverwalk).not.toBe(ordinary);
     expect(park).not.toBe(riverwalk);
+    expect(switching).not.toBe(park);
     expect(
       chatSessionRouteKey("becka-chat", { character: "different-route-key" }),
     ).toBe(ordinary);

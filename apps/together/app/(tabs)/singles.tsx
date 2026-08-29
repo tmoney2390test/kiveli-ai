@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, CalendarDays, Flame, LockKeyhole, Palmtree, Plus, Sparkles, UserRound } from 'lucide-react-native';
-import { EmptyState, LoadingSkeleton, PageTitle, Screen, SectionHeader, SpiceBadge } from '../../src/components';
+import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, CalendarDays, LockKeyhole, Palmtree, Plus, Sparkles, UserRound } from 'lucide-react-native';
+import { EmptyState, LoadingSkeleton, PageTitle, Screen, SectionHeader } from '../../src/components';
 import { CompanionGenderToggle, useCompanionGenderPreference } from '../../src/components/CompanionGenderToggle';
 import { CompanionPortraitCard } from '../../src/components/CompanionPortraitCard';
 import { CompanionWorldToggle } from '../../src/components/CompanionWorldToggle';
 import { listCreatorDrafts, setCharacterFavorite } from '../../src/lib/api';
 import { companionGenderFromSignals, featuredCompanionGender, type FeaturedGenderFilter } from '../../src/lib/featuredCompanions';
-import { nextAgeSort, nextSpiceSort, sortCompanionResults, type CompanionSortMode } from '../../src/lib/companionSort';
+import { nextAgeSort, sortCompanionResults, type CompanionSortMode } from '../../src/lib/companionSort';
 import { characterCatalogForWorld } from '../../src/lib/place';
 import { responsiveCompanionGrid } from '../../src/lib/responsiveCompanionGrid';
 import { useAppShell } from '../../src/shell/AppShellContext';
@@ -117,21 +117,9 @@ function People({ snapshot, drafts, draftsLoading, worldId, gender }: { snapshot
 }
 
 function CompanionSortControls({ value, onChange }: { value: CompanionSortMode; onChange: (value: CompanionSortMode) => void }) {
-  const spiceActive = value.startsWith('spice');
   const ageActive = value.startsWith('age');
   return <View style={styles.sortBar} accessibilityRole="toolbar" accessibilityLabel="Sort companions">
     <Text style={styles.sortLabel}>SORT BY</Text>
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected: spiceActive }}
-      accessibilityLabel={spiceActive ? `Spice level, ${value === 'spice-desc' ? 'highest first' : 'lowest first'}. Tap to reverse.` : 'Sort by Spice level, highest first'}
-      onPress={() => onChange(nextSpiceSort(value))}
-      style={({ pressed }) => [styles.sortControl, spiceActive && styles.sortControlActive, pressed && styles.sortControlPressed]}
-    >
-      <Flame size={15} color={spiceActive ? colors.rose : colors.muted} />
-      <View><Text style={[styles.sortControlTitle, spiceActive && styles.sortControlTitleActive]}>Spice level</Text>{spiceActive ? <Text style={styles.sortDirection}>{value === 'spice-desc' ? 'Highest first' : 'Lowest first'}</Text> : null}</View>
-      {spiceActive ? value === 'spice-desc' ? <ArrowDown size={14} color={colors.rose} /> : <ArrowUp size={14} color={colors.rose} /> : null}
-    </Pressable>
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: ageActive }}
@@ -156,7 +144,6 @@ function DraftPerson({ draft }: { draft: CreatorDraft }) {
     <View style={styles.draftPortrait}>
       {draft.portraitUrl ? <Image source={{ uri: draft.portraitUrl }} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" /> : <UserRound size={28} color={colors.rose} />}
       <View style={styles.draftBadge}><Text style={styles.draftBadgeText}>DRAFT</Text></View>
-      <SpiceBadge level={draft.connection_config.spiceLevel} overlay compact />
     </View>
     <View style={{ flex: 1 }}>
       <Text style={styles.personName}>{identity.name || 'New companion'}{identity.age ? `, ${identity.age}` : ''}</Text>

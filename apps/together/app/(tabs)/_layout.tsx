@@ -1,15 +1,21 @@
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { Tabs } from 'expo-router';
+import { router, Tabs, usePathname } from 'expo-router';
 import { BlurView } from 'expo-blur';
-import { Compass, Home, Images, MessageCircle, UserRound } from 'lucide-react-native';
+import { BookOpenCheck, Compass, Home, Images, MessageCircle } from 'lucide-react-native';
 import { useAppShell } from '../../src/shell/AppShellContext';
+import { MESSAGES_INBOX_HREF, mostRecentChatHref, shouldOpenMostRecentChat } from '../../src/lib/messageInbox';
+import { useTogether } from '../../src/store/useTogether';
 
 const web = Platform.OS === 'web';
 
 export default function TabsLayout() {
   const { width } = useWindowDimensions();
   const { desktop } = useAppShell();
+  const pathname=usePathname();
+  const snapshot=useTogether((state)=>state.snapshot);
   const webBarWidth = Math.max(300, Math.min(720, width - 24));
+  const openLatestFromCurrentPage=shouldOpenMostRecentChat(pathname);
+  const latestChatHref=snapshot?mostRecentChatHref(snapshot.conversations,snapshot.characters):null;
   return <Tabs screenOptions={{
     headerShown: false,
     tabBarActiveTintColor: '#FF86AB',
@@ -47,9 +53,11 @@ export default function TabsLayout() {
     <Tabs.Screen
       name="chat-tab"
       options={{ title: 'Chat', tabBarIcon: ({ color, size, focused }) => <MessageCircle color={color} size={focused ? size + 2 : size} fill={focused ? 'rgba(239,82,137,.13)' : 'transparent'} /> }}
+      listeners={{tabPress:(event)=>{if(!openLatestFromCurrentPage)return;event.preventDefault();router.push((latestChatHref??MESSAGES_INBOX_HREF) as never);}}}
     />
     <Tabs.Screen name="moments" options={{ title: 'Moments', tabBarIcon: ({ color, size, focused }) => <Images color={color} size={focused ? size + 1 : size} /> }} />
-    <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, size, focused }) => <UserRound color={color} size={focused ? size + 2 : size} /> }} />
+    <Tabs.Screen name="stories" options={{ title: 'Stories', tabBarIcon: ({ color, size, focused }) => <BookOpenCheck color={color} size={focused ? size + 2 : size} /> }} />
+    <Tabs.Screen name="profile" options={{ href: null }} />
     <Tabs.Screen name="upgrade" options={{ href: null }} />
     <Tabs.Screen name="dates" options={{ href: null }} />
     <Tabs.Screen name="singles" options={{ href: null }} />

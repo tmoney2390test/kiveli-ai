@@ -34,9 +34,10 @@ describe('Neon Kyo world seed',()=>{
     expect(neonKyoWorld.metadata.photoStatus).toBe('ready');
     expect(neonKyoWorld.metadata.locationPhotoStatus).toBe('ready');
     expect(neonKyoWorld.metadata.mappedLocationPhotoCount).toBe(51);
-    expect(neonKyoWorld.metadata.residentCompanionCount).toBe(30);
+    expect(neonKyoWorld.metadata.residentCompanionCount).toBe(45);
     expect(neonKyoWorld.metadata.residentPortraitStatus).toBe('ready');
-    expect(neonKyoWorld.metadata.mappedResidentPortraitCount).toBe(30);
+    expect(neonKyoWorld.metadata.mappedResidentPortraitCount).toBe(45);
+    expect(neonKyoWorld.metadata.maleResidentCompanionCount).toBe(15);
     expect(neonKyoLocations.every((location)=>location.visual_asset_key===location.slug)).toBe(true);
     expect(neonKyoLocations.every((location)=>location.metadata?.photoStatus==='ready')).toBe(true);
   });

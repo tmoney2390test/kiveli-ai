@@ -1,6 +1,6 @@
 # Kivelle.AI
 
-Kivelle.AI is an adult relationship and living-world simulation built with Expo, TypeScript, and Supabase. A companion has persistent identity, memories, relationships, a schedule, a social world, story arcs, shared Dates, and historical Moments.
+Kivelle.AI is an interactive storytelling and living-world entertainment platform built with Expo, TypeScript, and Supabase. A fictional companion has persistent identity, memories, relationships, a schedule, a social world, story arcs, shared Dates, and historical Moments.
 
 ## Product systems
 
@@ -16,16 +16,17 @@ Kivelle.AI is an adult relationship and living-world simulation built with Expo,
 - Server-side AI orchestration with capability-gated content modes
 - Three subscription tiers plus Kivelle Credits for variable-cost media generation
 - Character-stable xAI voice notes and credit-metered realtime calls for every tier that reconcile into canonical Kivelle conversation history
+- Kivelli Stories: isolated, replayable authored mysteries with deterministic time loops, evidence, deductions, schedules, and multiple endings
 
 ## Kivelle plans and credits
 
 The capability catalog lives in `packages/together-domain/src/entitlements.ts` and is consumed server-side. Never gate canonical truth or basic character quality in the client only.
 
 - **Kivelle Free** — $0, 40 messages/day for the first 7 days and 20/day afterward, core continuity, 1 Life, 1 custom companion, free worlds, and 50 one-time welcome credits.
-- **Kivelle+** — $14.99/month or $149.99/year, unlimited conversations, deeper retrieval, all standard subscription worlds, 3 Lives, 5 custom companions, 300 monthly credits with rollover to 600, and one included Date souvenir photo per month.
-- **Kivelle Max** — $34.99/month or $349.99/year, deepest retrieval + Kivelle Director routing, 10 Lives, 20 custom companions, highest-priority media, 1,000 monthly credits with rollover to 2,000, three included Date souvenir photos per month, and explicitly flagged early-access worlds.
+- **Kivelle+** — $19.99/month or $199.99/year, unlimited conversations, deeper retrieval, all published worlds, 3 Lives, 5 custom companions, 500 monthly Credits with rollover to 1,000, one included successful photo per day, and one included Date souvenir photo per month.
+- **Kivelle Max** — $39.99/month or $399.99/year, deepest retrieval + Kivelle Director routing, 10 Lives, 20 custom companions, highest-priority media, 1,200 monthly Credits with rollover to 2,400, three included successful photos per day, three included Date souvenir photos per month, and early-access worlds.
 
-Credits meter variable-cost generation rather than relationship actions. Chat, relationship progression, memories, Plans, Dates, Stories, and Moments do not spend credits. Direct companion photos currently cost 10 credits and a four-image Creator appearance set costs 40. Life/Story/Moment photo opportunities remain provider-free until the user accepts a 10-credit offer; paid Date souvenir benefits are monthly-bounded. Terminal paid-generation failures refund the exact balance buckets that were spent.
+Credits meter variable-cost generation rather than relationship actions. Chat, relationship progression, memories, Plans, Dates, Stories, and Moments do not spend credits. Plus includes one successful companion photo per UTC day and Max includes three; the pending request card lets the user choose an included photo or 10 Credits. Daily photos do not accumulate, and failed generations restore the reserved slot. Edits, variants, video, and additional photos use Credits. A four-image Creator appearance set costs 40. Life/Story/Moment photo opportunities remain provider-free until accepted; Date souvenir benefits are separately monthly-bounded. Terminal paid-generation failures refund the exact balance buckets that were spent.
 
 ## Authentication providers
 
@@ -77,9 +78,9 @@ KIVELLE_DIRECTOR_GEMINI_MODEL=gemini-2.5-flash
 
 The existing `OPENAI_API_KEY` / `GEMINI_API_KEY` configuration is reused. Director calls time out quickly and fall back to the deterministic response brief.
 
-Dialogue routing defaults to `KIVELLE_OPENAI_DIALOGUE_MODEL=gpt-5.6-luna` with reasoning disabled. The optional adult-explicit route requires `XAI_API_KEY`, `KIVELLE_XAI_ENABLED=true`, and `KIVELLE_XAI_EXPLICIT_ENABLED=true`; it defaults to `KIVELLE_XAI_DIALOGUE_MODEL=grok-4.3`. `KIVELLE_AI_COST_TELEMETRY_ENABLED=true` records server-only normalized token, cache, latency, routing, and cost events without storing prompts. Database-backed provider semaphores default to `KIVELLE_OPENAI_MAX_CONCURRENCY=64` and `KIVELLE_XAI_MAX_CONCURRENCY=32`; exhausted capacity engages the normal retry/fallback path instead of opening unbounded upstream connections.
+Dialogue routing defaults to `KIVELLE_OPENAI_DIALOGUE_MODEL=gpt-5.6-luna` with reasoning disabled and a server-enforced non-sexual romance ceiling. Legacy explicit preferences are normalized away, and the xAI chat route is disabled even when stale chat flags are present. xAI may remain configured independently for non-sexual voice. `KIVELLE_AI_COST_TELEMETRY_ENABLED=true` records server-only normalized token, cache, latency, routing, and cost events without storing prompts. Database-backed provider semaphores default to `KIVELLE_OPENAI_MAX_CONCURRENCY=64`; exhausted capacity engages the normal retry/fallback path instead of opening unbounded upstream connections.
 
-Contextual image and short-video records are surfaced only when a real media provider has produced a ready asset. Media routing is provider-neutral; WaveSpeed runs through a durable asynchronous job/webhook/recovery path and never becomes a second source of character or world truth. Higher-intensity routes remain independently gated by age verification, user preferences, character boundaries, validated model routes, and server feature flags.
+Contextual image and short-video records are surfaced only when a real media provider has produced a ready asset. Media routing is provider-neutral; WaveSpeed runs through a durable asynchronous job/webhook/recovery path and never becomes a second source of character or world truth. Production media is limited to everyday and romantic imagery; legacy suggestive, mature, and explicit requests are rejected before provider selection and omitted from client snapshots.
 
 Media dispatch uses request-time kicks plus a one-minute Supabase Cron recovery sweep. Configure the same random value as the Edge Function secret `TOGETHER_MEDIA_DISPATCH_SECRET` and the Vault secret `together_media_dispatch_secret`; Vault also needs `together_project_url`. `KIVELLE_MEDIA_MAX_INFLIGHT` defaults to `48` and provides server-side global image/video backpressure. Conversation turns, provider polling, and media finalization use expiring database leases so multiple Edge instances and devices cannot commit the same work concurrently.
 
@@ -88,6 +89,10 @@ See [WaveSpeed media operations](docs/wavespeed-media.md) for secrets, reference
 See [Kivelle voice](docs/voice.md) for xAI TTS/realtime setup, native development-build requirements, transcript writeback, privacy, and usage accounting.
 
 See [Kivelle group chat](docs/group-chat.md) for participant authority, isolated speaker context, witnessed knowledge, turn interruption, entitlements, and the Shared Scene bridge.
+
+See [Kivelli Stories](docs/stories.md) for the content-driven Story Director, fact authorization, persistence policies, authoring validation, and campaign isolation.
+
+See [Kivelle web billing](docs/billing.md) for Stripe Checkout, Portal, signed webhooks, unified Stripe/RevenueCat entitlements, monthly credit grants, test-mode validation, and the production operator checklist.
 
 ## Run locally
 
@@ -111,6 +116,7 @@ supabase functions deploy together-dialogue
 supabase functions deploy together-date
 supabase functions deploy together-subscription
 supabase functions deploy together-billing-webhook
+supabase functions deploy together-billing-grants
 ```
 
 The CI workflow verifies linting, TypeScript, unit tests, starter-content isolation, Edge Function type checks, the web build, and database pgTAP integration tests.

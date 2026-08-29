@@ -32,7 +32,7 @@ serve(async (request, correlationId) => {
   const continuity = await activeContinuity(db, user.id);
   await requireInstanceInActiveContinuity(db, user.id, input.characterInstanceId);
   const now = new Date();
-  const context = await loadContext({ db, userId: user.id, continuityId: continuity.id, characterInstanceId: input.characterInstanceId, conversationId: input.conversationId, now });
+  const context = await loadContext({ db, userId: user.id, continuityId: continuity.id, characterInstanceId: input.characterInstanceId, conversationId: input.conversationId, sceneId:'sceneId' in input?input.sceneId:undefined, now });
 
   if (input.action === 'resolve') {
     const scene=await ensureScene({ ...context, db, userId:user.id,continuityId:continuity.id,now });
@@ -114,7 +114,10 @@ serve(async (request, correlationId) => {
   if (existing) return json({ data: await actionResponse({ ...context, sceneSession: scene }, existing), correlationId }, 200, correlationId);
   const definition = interactionDefinition(candidate.interactionKey);
   if (!definition) throw new AppError('ACTION_NOT_AVAILABLE', 'That interaction is not recognised.', 409);
-  const recentSameInteractionCount=await recentInteractionCount(db,scene.id,candidate.interactionKey);
+  const [recentSameInteractionCount]=await Promise.all([
+    recentInteractionCount(db,scene.id,candidate.interactionKey),
+    supersedePendingProposals(db,user.id,scene.id,input.interactionKey,now),
+  ]);
   const decision=resolveCharacterInteractionDecision({candidate,candidates:candidates.interactions,profile:context.profile,relationship:context.relationship,life:interactionLife(context,scene),scene:interactionScene(scene,context),seed:`${input.requestId}:${input.characterInstanceId}`,recentSameInteractionCount});
   const resolvedCandidate=decision.decision==='countered'?candidates.interactions.find((item)=>item.interactionKey===decision.counterInteractionKey):candidate;
   const action = await insertAction(db, { userId: user.id, continuityId: continuity.id, sceneId: scene.id, characterInstanceId: input.characterInstanceId, interactionKey: candidate.interactionKey, family: candidate.family, requestId: input.requestId, payload: { candidate: { label: candidate.label, durationMinutes: candidate.durationMinutes } },initiatedBy:'user',decisionStatus:decision.decision,respondingCharacterInstanceId:input.characterInstanceId,resolvedInteractionKey:decision.decision==='accepted'?candidate.interactionKey:decision.counterInteractionKey,decisionReasonCodes:decision.reasonCodes });
@@ -131,20 +134,27 @@ serve(async (request, correlationId) => {
   return json({ data: completed, correlationId }, 200, correlationId);
 });
 
-async function loadContext(input: { db: any; userId: string; continuityId: string; characterInstanceId: string; conversationId?: string; now: Date }) {
-  const [instanceResult, relationshipResult] = await Promise.all([
+async function loadContext(input: { db: any; userId: string; continuityId: string; characterInstanceId: string; conversationId?: string; sceneId?:string; now: Date }) {
+  const [instanceResult, relationshipResult,providedSceneResult] = await Promise.all([
     input.db.from('together_character_instances').select('*,together_character_templates(*),together_character_versions(*)').eq('id', input.characterInstanceId).eq('user_id', input.userId).eq('continuity_id', input.continuityId).maybeSingle(),
     input.db.from('together_relationship_states').select('*').eq('user_id', input.userId).eq('character_instance_id', input.characterInstanceId).eq('continuity_id', input.continuityId).maybeSingle(),
+    input.sceneId?input.db.from('together_scene_sessions').select('*').eq('id',input.sceneId).eq('user_id',input.userId).eq('continuity_id',input.continuityId).eq('character_instance_id',input.characterInstanceId).is('ended_at',null).maybeSingle():Promise.resolve({data:null,error:null}),
   ]);
   const instance = instanceResult.data as Row | null;
   if (instanceResult.error || !instance) throw new AppError('NOT_FOUND', 'That companion is unavailable.', 404);
   const conversation = input.conversationId ? await ownedConversation(input.db, input.userId, input.continuityId, input.conversationId) : await getActiveConversation(input.db, input.userId, input.characterInstanceId, true) as Row | null;
   if (!conversation) throw new AppError('NOT_FOUND', 'That conversation is unavailable.', 404);
-  const active = await resolveActiveConversationScene({ db: input.db, userId: input.userId, conversation, characterInstanceId: input.characterInstanceId, now: input.now });
+  const providedScene=providedSceneResult.data as Row|null;
+  if(input.sceneId&&(!providedScene||String(providedScene.conversation_id)!==String(conversation.id)))throw new AppError('SCENE_EXPIRED','That shared scene has already changed.',409);
+  if(providedScene?.expected_end_at&&new Date(String(providedScene.expected_end_at)).getTime()<=input.now.getTime())throw new AppError('SCENE_EXPIRED','That shared scene has ended.',409);
+  const activeScene=providedScene?{
+    version:1,characterInstanceId:input.characterInstanceId,locationId:String(providedScene.location_id),worldId:String(providedScene.world_id),interactionMode:'co_present',entryReason:providedScene.source==='date'?'active_date':providedScene.source==='shared_plan'?'shared_plan':'continued_scene',enteredAt:String(providedScene.started_at),source:'presence',sceneSessionId:String(providedScene.id),validUntil:providedScene.expected_end_at?String(providedScene.expected_end_at):undefined,activityKey:String(providedScene.state?.currentActivityKey??providedScene.activity_key??'together'),activityLabel:String(providedScene.state?.activityLabel??providedScene.activity_key??'Spending time together'),updatedAt:input.now.toISOString(),
+  }:null;
+  const active=activeScene?{scene:activeScene}:await resolveActiveConversationScene({ db: input.db, userId: input.userId, conversation, characterInstanceId: input.characterInstanceId, now: input.now });
   if (!active.scene || active.scene.interactionMode !== 'co_present') throw new AppError('SCENE_REQUIRED', 'Join them first to do something together.', 409);
-  const { data: currentScene } = active.scene.sceneSessionId
-    ? await input.db.from('together_scene_sessions').select('*').eq('id', active.scene.sceneSessionId).eq('user_id', input.userId).is('ended_at', null).maybeSingle()
-    : await input.db.from('together_scene_sessions').select('*').eq('user_id', input.userId).eq('continuity_id', input.continuityId).eq('character_instance_id', input.characterInstanceId).is('ended_at', null).order('started_at', { ascending: false }).limit(1).maybeSingle();
+  const currentScene = providedScene ?? (active.scene.sceneSessionId
+    ? (await input.db.from('together_scene_sessions').select('*').eq('id', active.scene.sceneSessionId).eq('user_id', input.userId).is('ended_at', null).maybeSingle()).data
+    : (await input.db.from('together_scene_sessions').select('*').eq('user_id', input.userId).eq('continuity_id', input.continuityId).eq('character_instance_id', input.characterInstanceId).is('ended_at', null).order('started_at', { ascending: false }).limit(1).maybeSingle()).data);
   const { data: activePlan } = currentScene?.shared_plan_id
     ? await input.db.from('together_shared_plans').select('*').eq('id', currentScene.shared_plan_id).eq('user_id', input.userId).maybeSingle()
     : await input.db.from('together_shared_plans').select('*').eq('user_id', input.userId).eq('continuity_id', input.continuityId).contains('participant_instance_ids', [input.characterInstanceId]).in('status', ['scheduled', 'active']).lte('starts_at', new Date(input.now.getTime() + 30 * 60_000).toISOString()).gt('ends_at', input.now.toISOString()).order('starts_at', { ascending: false }).limit(1).maybeSingle();
@@ -208,6 +218,13 @@ async function existingAction(db: any, sceneId: string, requestId: string): Prom
 
 async function recentInteractionCount(db:any,sceneId:string,interactionKey:string){const{count}=await db.from('together_scene_actions').select('id',{count:'exact',head:true}).eq('scene_session_id',sceneId).or(`interaction_key.eq.${interactionKey},resolved_interaction_key.eq.${interactionKey}`).in('decision_status',['accepted','completed']);return Number(count??0);}
 
+async function supersedePendingProposals(db:any,userId:string,sceneId:string,selectedInteractionKey:string,now:Date){
+  const{data}=await db.from('together_scene_actions').select('id,decision_reason_codes,result').eq('user_id',userId).eq('scene_session_id',sceneId).in('decision_status',['proposed','countered']);
+  const pending=(data??[]) as Row[];
+  if(!pending.length)return;
+  await Promise.all(pending.map((proposal)=>db.from('together_scene_actions').update({decision_status:'expired',decision_reason_codes:[...(proposal.decision_reason_codes??[]),'superseded_by_user_selection'],decided_at:now.toISOString(),completed_at:now.toISOString(),result:{...(proposal.result??{}),proposalSuperseded:true,selectedInteractionKey}}).eq('id',proposal.id).eq('user_id',userId).in('decision_status',['proposed','countered'])));
+}
+
 async function ownedProposal(db:any,userId:string,continuityId:string,sceneId:string,proposalActionId:string):Promise<Row>{const{data}=await db.from('together_scene_actions').select('*').eq('id',proposalActionId).eq('user_id',userId).eq('continuity_id',continuityId).eq('scene_session_id',sceneId).maybeSingle();if(!data)throw new AppError('ACTION_NOT_AVAILABLE','That suggestion is no longer available.',409);return data as Row;}
 
 function serializeProposal(action:Row|null|undefined){if(!action)return null;const candidate=action.payload?.candidate??{};const counter=action.result?.counterCandidate;return{actionId:String(action.id),interactionKey:String(counter?.interactionKey??action.resolved_interaction_key??action.interaction_key),label:String(counter?.label??candidate.label??action.result?.label??'Spend some time together'),status:String(action.decision_status??'proposed'),source:action.decision_status==='countered'?'counter':'character',expiresAt:action.expires_at??null,parentActionId:action.parent_action_id??null};}
@@ -241,13 +258,19 @@ async function completeAcceptedInteraction(input:any){
   if(decision.sceneTransition?.kind==='character_departure'||decision.sceneTransition?.kind==='end'){nextState={...nextState,pendingDeparture:{reason:decision.sceneTransition.reason,requestedAt:now.toISOString()}};expectedEnd=new Date(now.getTime()+3*60_000).toISOString();}
   const{data:updated,error}=await db.from('together_scene_sessions').update({activity_key:String(nextState.currentActivityKey??scene.activity_key??input.presence?.activityKey??'together'),state:nextState,expected_end_at:expectedEnd,updated_at:now.toISOString()}).eq('id',scene.id).eq('user_id',userId).select('*').single();
   if(error||!updated)throw new AppError('INTERNAL_ERROR','That interaction could not be saved.',500,true);
-  const evidenceRecorded=await maybeRecordEvidence(db,userId,input.characterInstanceId,action.id,candidate,decision.relationshipEvidence,input.place.clock.timezone,now);
-  const media=String(candidate.effects.mediaPolicy??'none')==='explicit'?await queueExplicitScenePhoto({db,userId,characterInstanceId:input.characterInstanceId,conversationId:input.conversation.id,sceneId:scene.id,sharedPlanId:scene.shared_plan_id??undefined,actionId:action.id,label:candidate.label}):null;
+  const [evidenceRecorded,media]=await Promise.all([
+    maybeRecordEvidence(db,userId,input.characterInstanceId,action.id,candidate,decision.relationshipEvidence,input.place.clock.timezone,now),
+    String(candidate.effects.mediaPolicy??'none')==='explicit'?queueExplicitScenePhoto({db,userId,characterInstanceId:input.characterInstanceId,conversationId:input.conversation.id,sceneId:scene.id,sharedPlanId:scene.shared_plan_id??undefined,actionId:action.id,label:candidate.label}):Promise.resolve(null),
+  ]);
   const result={label:candidate.label,decision:'accepted',reasonCodes:decision.reasonCodes,nextState,effects:candidate.effects,evidence:decision.relationshipEvidence??null,evidenceRecorded,sceneTransition:decision.sceneTransition??{kind:'stay'},...(media?{media:{id:media.id,status:media.status}}:{}),reactionContext:{interactionKey:candidate.interactionKey,label:candidate.label,location:input.place.path,decision:'accepted'}};
-  await db.from('together_scene_actions').update({decision_status:'accepted',resolved_interaction_key:candidate.interactionKey,decision_reason_codes:decision.reasonCodes,decided_at:now.toISOString(),result,completed_at:now.toISOString()}).eq('id',action.id).eq('user_id',userId);
-  await syncConversationScene(db,userId,input.conversation,updated,now);
-  await track(db,userId,'interaction_executed',{characterInstanceId:input.characterInstanceId,sceneId:scene.id,interactionKey:candidate.interactionKey,family:candidate.family,decision:'accepted'});
-  await track(db,userId,'interaction_family_used',{family:candidate.family});
+  await Promise.all([
+    db.from('together_scene_actions').update({decision_status:'accepted',resolved_interaction_key:candidate.interactionKey,decision_reason_codes:decision.reasonCodes,decided_at:now.toISOString(),result,completed_at:now.toISOString()}).eq('id',action.id).eq('user_id',userId),
+    syncConversationScene(db,userId,input.conversation,updated,now),
+  ]);
+  waitUntil(Promise.allSettled([
+    track(db,userId,'interaction_executed',{characterInstanceId:input.characterInstanceId,sceneId:scene.id,interactionKey:candidate.interactionKey,family:candidate.family,decision:'accepted'}),
+    track(db,userId,'interaction_family_used',{family:candidate.family}),
+  ]));
   return actionResponse({...input,sceneSession:updated},{...action,decision_status:'accepted',result});
 }
 
@@ -266,7 +289,7 @@ async function queueExplicitScenePhoto(input:{db:any;userId:string;characterInst
     return media as Row|null;
   }catch(error){
     // A photo failure must never roll back a completed shared action.
-    console.warn('Explicit scene photo unavailable',error instanceof Error?error.message:'unknown_error');
+    console.warn('Scene photo unavailable',error instanceof Error?error.message:'unknown_error');
     return null;
   }
 }

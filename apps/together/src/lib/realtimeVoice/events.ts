@@ -20,7 +20,7 @@ export function parseXaiRealtimeEvent(value: unknown, firstAudioForTurn: boolean
   if(type==='input_audio_buffer.speech_stopped')return{kind:'speaking',speaker:'user',speaking:false};
   if(type==='response.output_audio.started'||type==='response.output_audio_transcript.delta'||type==='response.audio_transcript.delta')return{kind:'speaking',speaker:'assistant',speaking:true};
   if(type==='response.done'||type==='response.output_audio.done'||type==='response.audio.done')return{kind:'speaking',speaker:'assistant',speaking:false};
-  if(type==='error')return{kind:'error',message:safeProviderError(),recoverable:providerErrorRecoverable(event)};
+  if(type==='error')return{kind:'error',message:safeProviderError(event),recoverable:providerErrorRecoverable(event)};
   return{kind:'ignored'};
 }
 
@@ -49,6 +49,13 @@ export function xaiForcedGreetingEvent(greeting:string):Record<string,unknown>{r
 
 function transcript(role:'user'|'assistant',content:unknown,id:unknown):ParsedXaiRealtimeEvent{const text=String(content??'').trim();return text?{kind:'transcript_final',role,content:text,providerEventId:typeof id==='string'&&id?id:undefined}:{kind:'ignored'};}
 function partial(role:'user'|'assistant',content:unknown):ParsedXaiRealtimeEvent{const text=String(content??'').trim();return text?{kind:'transcript_partial',role,content:text}:{kind:'ignored'};}
-function safeProviderError():string{return'The voice provider reported an error.';}
+function safeProviderError(event:Record<string,unknown>):string{
+  const error=record(event.error),code=String(error.code??event.code??'').toLowerCase();
+  if(code.startsWith('stt_'))return'Essential Voice could not start transcription. Please try again.';
+  if(code.startsWith('tts_'))return'Essential Voice could not start audio. Please try again.';
+  if(code==='relay_request_failed')return'Essential Voice could not finish connecting. Please try again.';
+  if(code==='relay_session_conflict')return'That call is already active. End it before starting another.';
+  return'The voice provider reported an error.';
+}
 function providerErrorRecoverable(event:Record<string,unknown>):boolean{const error=record(event.error),code=String(error.code??event.code??'').toLowerCase(),type=String(error.type??event.error_type??'').toLowerCase();return !['authentication','permission','invalid_request','unsupported','session_expired'].some((fatal)=>code.includes(fatal)||type.includes(fatal));}
 function record(value:unknown):Record<string,unknown>{return value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};}

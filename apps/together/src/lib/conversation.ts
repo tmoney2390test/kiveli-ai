@@ -1,4 +1,5 @@
 import type { Conversation, Message, SharedPlan } from '../types';
+import { isVisibleChatMessage } from './messageActions';
 
 export function isActiveConversation(conversation:Conversation):boolean{
   return !conversation.archived_at&&!conversation.user_archived_at&&['direct','first_meeting'].includes(conversation.kind);
@@ -33,7 +34,7 @@ export function mostRecentlyMessagedConversation(conversations: Conversation[]):
 
 export function scopedConversationMessages(messages: Message[], conversationId: string, loadedConversationId: string | null, loading: boolean): Message[] {
   if (loading || loadedConversationId !== conversationId) return [];
-  return messages.filter((message) => message.conversation_id === conversationId);
+  return messages.filter((message) => message.conversation_id === conversationId && isVisibleChatMessage(message));
 }
 
 export function planConversationDraft(plan:Pick<SharedPlan,'title'|'status'>):string{

@@ -45,13 +45,7 @@ export function resolveRealtimeVoiceContentMode(input: {
   const adultEligible = input.ageVerified && Number.isFinite(age) && age >= 18;
   const romanceAllowed = input.romanceEnabled && !input.friendsOnly;
 
-  if (requested === "explicit") {
-    if (adultEligible && romanceAllowed && input.explicitProviderEnabled) {
-      return "explicit";
-    }
-    return romanceAllowed ? "romance" : "standard";
-  }
-  if (requested === "mature") {
+  if (requested === "explicit" || requested === "mature") {
     return adultEligible && romanceAllowed
       ? "mature"
       : romanceAllowed

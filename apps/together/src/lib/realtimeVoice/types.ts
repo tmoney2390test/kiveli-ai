@@ -10,13 +10,18 @@ export type RealtimeCallState =
   | 'failed';
 
 export type RealtimeVoiceConfiguration = {
+  transport: 'xai_realtime' | 'xai_cascade';
+  route: VoiceCallRoute;
   url: string;
   model: string;
   voice: string;
   sampleRate: number;
   greeting?: string;
   session: Record<string, unknown>;
+  relayEnvelope?: string;
 };
+
+export type VoiceCallRoute = 'standard' | 'express';
 
 export type RealtimeVoiceCredentials = {
   clientSecret: string;
@@ -49,6 +54,25 @@ export type RealtimeVoiceCallbacks = {
   onPartialTranscript(role: 'user' | 'assistant', content: string): void;
   onSpeaking(speaker: 'user' | 'assistant', speaking: boolean): void;
   onError(error: Error, recoverable: boolean): void;
+  onPipelineUsage?(event: VoicePipelineUsageEvent): void;
+};
+
+export type VoicePipelineUsageEvent={
+  proof:string;
+  sequence:number;
+  sttBillableMs:number;
+  inputSpeechMs:number;
+  dialogueInputTokens:number;
+  dialogueCachedInputTokens:number;
+  dialogueOutputTokens:number;
+  ttsCharacters:number;
+  outputAudioMs:number;
+  discardedOutputAudioMs:number;
+  sttFinalLatencyMs?:number;
+  dialogueFirstTokenLatencyMs?:number;
+  ttsFirstAudioLatencyMs?:number;
+  status:'success'|'interrupted'|'failure';
+  failureCode?:string;
 };
 
 export interface RealtimeVoiceClient {

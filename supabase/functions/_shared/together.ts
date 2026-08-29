@@ -4,7 +4,7 @@ import { experienceClock } from './kivelle-time.ts';
 import { resolveCharacterPlaceContext, resolvePlaceContext } from './together-place.ts';
 import { activeContinuity } from './together-continuity.ts';
 import { normalizeMultimodalPreferences, resolveServerExperienceCapabilities } from './kivelle-multimodal.ts';
-import { applyRelationshipProposal, capabilitiesForAccount, firstDateEligibility, isDurableUserMemory, isRelationshipDirectedPreferenceObject, lifeEventHasExplicitPresenceAuthority, mergeRollingConversationState, nextRelationshipMilestone as selectRelationshipMilestone, relationshipCue, type RelationshipState } from '../../../packages/together-domain/src/index.ts';
+import { applyRelationshipProposal, capabilitiesForAccount, firstDateEligibility, hasSexualDialogueLanguage, isDurableUserMemory, isRelationshipDirectedPreferenceObject, lifeEventHasExplicitPresenceAuthority, mergeRollingConversationState, nextRelationshipMilestone as selectRelationshipMilestone, relationshipCue, type RelationshipState } from '../../../packages/together-domain/src/index.ts';
 import { compactLocationLoreForDirectory } from '../../../packages/together-domain/src/location-depth.ts';
 import { projectSnapshotMemories } from './kivelle-memory-access.ts';
 
@@ -265,7 +265,9 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
   const stageByInstance = new Map(visibleInstances.map((instance) => [instance.id, instance.relationship_stage]));
   const relationshipCues = Object.fromEntries((relationships.data ?? []).map((relationship) => [relationship.character_instance_id, describeRelationshipCue({ ...relationship, relationship_stage: stageByInstance.get(relationship.character_instance_id) })]));
   const conversationMetadata = (conversations.data ?? []).map((conversation) => ({ ...conversation, message_count: Number(conversation.together_messages?.[0]?.count ?? 0), unread: Boolean(conversation.last_assistant_message_at && (!conversation.last_read_at || new Date(conversation.last_assistant_message_at) > new Date(conversation.last_read_at))) }));
-  const mediaRows=generatedMedia.data??[];
+  const mediaRows=(generatedMedia.data??[]).filter((item)=>item.media_type==='voice_note'
+    ? !hasSexualDialogueLanguage(String(item.canonical_text??''))
+    : item.content_level==='standard'||item.content_level==='romance');
   const readyPaths=mediaRows.filter((item)=>item.status==='ready'&&item.storage_path).map((item)=>String(item.storage_path));
   const signed=readyPaths.length?await db.storage.from('together-user-media').createSignedUrls(readyPaths,3600):{data:[]};
   const urlByPath=new Map((signed.data??[]).map((item)=>[item.path,item.signedUrl]));
