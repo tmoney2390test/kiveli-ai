@@ -27,6 +27,9 @@ jobs:
       - run: pnpm guard:starter-content
       - run: pnpm edge:typecheck
       - run: pnpm --filter @together/app web:build
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
       - run: pnpm exec supabase start
       - name: Run database tests
         shell: bash
