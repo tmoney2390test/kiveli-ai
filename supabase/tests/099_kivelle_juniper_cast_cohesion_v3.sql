@@ -75,10 +75,15 @@ select ok(not exists(
   group by character_version_id having count(*)<5
 ),'Every new companion has at least five place perspectives');
 
-select ok(not exists(select 1 from public.together_character_templates
-  where id::text like '22000000-0000-4000-8001-0000000002%'
-    and discovery_metadata->>'portraitStatus'<>'ready'),
-  'Every expanded Juniper portrait slot is ready after the portrait pack');
+select ok(
+  (select count(*) from public.together_character_templates
+   where id::text like '22000000-0000-4000-8001-0000000002%'
+     and discovery_metadata->>'portraitStatus'='ready')=11
+  and
+  (select count(*) from public.together_character_templates
+   where id::text like '22000000-0000-4000-8001-0000000002%'
+     and discovery_metadata->>'portraitStatus'='pending')=2,
+  'The authored Juniper portrait pack has eleven ready assets and two honest pending slots');
 
 select is((select count(*)::integer from public.together_schedule_templates
   where metadata->>'source'='juniper_city_authored_schedule_v3'),1512,
