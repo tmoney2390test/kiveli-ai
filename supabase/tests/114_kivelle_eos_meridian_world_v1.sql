@@ -22,10 +22,10 @@ select is((select count(*)::integer from public.together_character_templates
   where id::text like '24000000-0000-4000-8012-%' and (discovery_metadata->>'gender')='woman'),29,
   'The complete Eos roster contains 29 women');
 select is((select count(*)::integer from public.together_character_templates
-  where right(id::text,12)::bigint between 31 and 47 and (discovery_metadata->>'gender')='woman'),13,
+  where id::text like '24000000-0000-4000-8012-%' and right(id::text,12)::bigint between 31 and 47 and (discovery_metadata->>'gender')='woman'),13,
   'The cast expansion is more than seventy percent women');
 select is((select count(*)::integer from public.together_character_templates
-  where right(id::text,12)::bigint between 31 and 47 and age between 18 and 22),15,
+  where id::text like '24000000-0000-4000-8012-%' and right(id::text,12)::bigint between 31 and 47 and age between 18 and 22),15,
   'The cast expansion leans strongly toward young adults ages 18 through 22');
 select is((select count(*)::integer from public.together_character_templates where id::text like '24000000-0000-4000-8012-%' and published and can_be_selected and can_be_romanced),47,
   'Every Eos companion is playable and romanceable');
@@ -66,7 +66,7 @@ select ok(not exists(select 1 from public.together_character_templates where id:
 select ok(not exists(select version.id from public.together_character_versions version
   left join public.together_character_world_presence presence on presence.character_version_id=version.id and presence.presence_type='resident'
   where version.id::text like '25000000-0000-4000-8012-%'
-  group by version.id having count(presence.world_id)<>1 or min(presence.world_id) is distinct from '10000000-0000-4000-8000-000000000012'::uuid),
+  group by version.id having count(presence.world_id)<>1 or min(presence.world_id::text) is distinct from '10000000-0000-4000-8000-000000000012'),
   'Every Eos companion has exactly one canonical resident world for group eligibility');
 select is((select count(distinct source_template_id)::integer from public.together_character_relationship_edges
   where world_id='10000000-0000-4000-8000-000000000012'),47,

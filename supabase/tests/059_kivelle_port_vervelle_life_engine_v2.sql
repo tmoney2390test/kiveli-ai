@@ -5,9 +5,9 @@ select is(
   (select count(*)::integer from public.together_character_versions version
    where version.id::text ~ '^23000000-0000-4000-8008-0000000000(0[1-9]|[12][0-9]|30)$'
      and (version.life_config->>'version')::integer=2
-     and version.life_config->'scheduling'->>'generationVersion'='life_engine_v2'
-     and version.life_config->'scheduling'->>'scheduleProfile'='port_vervelle_life_v2'),
-  30,'All Port Vervelle residents use the full Life Engine V2 profile');
+     and version.life_config->'scheduling'->>'generationVersion'='port_vervelle_authored_weekly_v3'
+     and version.life_config->'scheduling'->>'scheduleProfile'='port_vervelle_rich_weekly_v3'),
+  30,'All original Port Vervelle residents use the current Life Engine schedule profile');
 
 select ok(not exists(
   select 1 from public.together_character_versions version
@@ -57,24 +57,24 @@ select ok(not exists(
 select is(
   (select count(*)::integer from public.together_schedule_templates schedule
    where schedule.character_version_id::text ~ '^23000000-0000-4000-8008-0000000000(0[1-9]|[12][0-9]|30)$'
-     and schedule.metadata->>'source'='port_vervelle_authored_schedule_v1'),
-  1050,'Thirty residents each have five authored blocks for all seven days');
+     and schedule.metadata->>'source'='port_vervelle_authored_schedule_v3'),
+  1260,'Thirty original residents each have six authored blocks for all seven days');
 
 select ok(not exists(
   select 1
   from public.together_character_versions version cross join generate_series(0,6) day_number
   left join public.together_schedule_templates schedule
     on schedule.character_version_id=version.id and schedule.day_of_week=day_number
-   and schedule.metadata->>'source'='port_vervelle_authored_schedule_v1'
+   and schedule.metadata->>'source'='port_vervelle_authored_schedule_v3'
   where version.id::text ~ '^23000000-0000-4000-8008-0000000000(0[1-9]|[12][0-9]|30)$'
-  group by version.id,day_number having count(schedule.id)<>5
-),'Every resident-day has exactly five coherent schedule blocks');
+  group by version.id,day_number having count(schedule.id)<>6
+),'Every original resident-day has exactly six coherent schedule blocks');
 
 select ok(not exists(
   select 1 from public.together_schedule_templates schedule
   left join public.together_locations location on location.id=schedule.location_id
   where schedule.character_version_id::text ~ '^23000000-0000-4000-8008-0000000000(0[1-9]|[12][0-9]|30)$'
-    and schedule.metadata->>'source'='port_vervelle_authored_schedule_v1'
+    and schedule.metadata->>'source'='port_vervelle_authored_schedule_v3'
     and schedule.location_id is not null
     and location.world_id<>'10000000-0000-4000-8000-000000000008'::uuid
 ),'Authored schedule locations cannot cross worlds');
@@ -103,8 +103,8 @@ select is(
   (select count(*)::integer from public.together_character_world_presence presence
    where presence.character_version_id::text ~ '^23000000-0000-4000-8008-0000000000(0[1-9]|[12][0-9]|30)$'
      and presence.metadata->>'dynamicSchedule'='true'
-     and presence.metadata->>'scheduleProfile'='port_vervelle_life_v2'),
-  30,'World presence advertises dynamic schedule support for all residents');
+     and presence.metadata->>'scheduleProfile'='port_vervelle_rich_weekly_v3'),
+  30,'World presence advertises current dynamic schedule support for all original residents');
 
 select ok(not exists(
   select 1 from public.together_character_schedule_events event

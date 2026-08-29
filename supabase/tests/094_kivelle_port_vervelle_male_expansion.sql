@@ -93,7 +93,7 @@ select is(
 select is(
   (select count(*)::integer from public.together_schedule_templates
    where character_version_id::text ~ '^23000000-0000-4000-8008-0000000000(3[1-9]|4[0-2])$'
-     and metadata->>'source'='port_vervelle_male_schedule_v1'),
+     and metadata->>'source'='port_vervelle_authored_schedule_v3'),
   504,'Twelve residents each receive six authored blocks for all seven days');
 
 select ok(not exists(
@@ -101,7 +101,7 @@ select ok(not exists(
   from public.together_character_versions version cross join generate_series(0,6) day_number
   left join public.together_schedule_templates schedule
     on schedule.character_version_id=version.id and schedule.day_of_week=day_number
-   and schedule.metadata->>'source'='port_vervelle_male_schedule_v1'
+   and schedule.metadata->>'source'='port_vervelle_authored_schedule_v3'
   where version.id::text ~ '^23000000-0000-4000-8008-0000000000(3[1-9]|4[0-2])$'
   group by version.id,day_number having count(schedule.id)<>6
 ),'Every new resident-day has exactly six coherent schedule blocks');
@@ -112,8 +112,8 @@ select ok(not exists(
     on b.character_version_id=a.character_version_id and b.day_of_week=a.day_of_week and b.id<>a.id
    and a.start_minute<b.end_minute and b.start_minute<a.end_minute
   where a.character_version_id::text ~ '^23000000-0000-4000-8008-0000000000(3[1-9]|4[0-2])$'
-    and a.metadata->>'source'='port_vervelle_male_schedule_v1'
-    and b.metadata->>'source'='port_vervelle_male_schedule_v1'
+    and a.metadata->>'source'='port_vervelle_authored_schedule_v3'
+    and b.metadata->>'source'='port_vervelle_authored_schedule_v3'
 ),'No authored schedule places one character in two locations at once');
 
 with ordered as(
@@ -124,7 +124,7 @@ with ordered as(
     ) previous_end
   from public.together_schedule_templates schedule
   where schedule.character_version_id::text ~ '^23000000-0000-4000-8008-0000000000(3[1-9]|4[0-2])$'
-    and schedule.metadata->>'source'='port_vervelle_male_schedule_v1'
+    and schedule.metadata->>'source'='port_vervelle_authored_schedule_v3'
 ),daily as(
   select character_version_id,day_of_week,min(start_minute) first_minute,max(end_minute) last_minute
   from ordered group by character_version_id,day_of_week
@@ -138,7 +138,7 @@ select ok(not exists(
   select 1 from public.together_schedule_templates schedule
   left join public.together_locations location on location.id=schedule.location_id
   where schedule.character_version_id::text ~ '^23000000-0000-4000-8008-0000000000(3[1-9]|4[0-2])$'
-    and schedule.metadata->>'source'='port_vervelle_male_schedule_v1'
+    and schedule.metadata->>'source'='port_vervelle_authored_schedule_v3'
     and schedule.location_id is not null
     and location.world_id<>'10000000-0000-4000-8000-000000000008'
 ),'Every scheduled public location remains inside Port Vervelle');
@@ -152,7 +152,7 @@ select ok(not exists(
     and not exists(
       select 1 from public.together_schedule_templates schedule
       where schedule.character_version_id=version.id and schedule.day_of_week=day_number
-        and schedule.metadata->>'source'='port_vervelle_male_schedule_v1'
+        and schedule.metadata->>'source'='port_vervelle_authored_schedule_v3'
         and schedule.start_minute<=probe_minute and schedule.end_minute>probe_minute
     )
 ),'Schedules resolve at 00:00, 08:00, 12:00, 16:00, and 20:00 every day');
@@ -162,7 +162,7 @@ select ok(not exists(
   where version.id::text ~ '^23000000-0000-4000-8008-0000000000(3[1-9]|4[0-2])$'
     and (select count(distinct coalesce(schedule.location_id::text,schedule.metadata->>'displayLocation'))
          from public.together_schedule_templates schedule
-         where schedule.character_version_id=version.id and schedule.metadata->>'source'='port_vervelle_male_schedule_v1')<4
+         where schedule.character_version_id=version.id and schedule.metadata->>'source'='port_vervelle_authored_schedule_v3')<4
 ),'Every resident moves among at least four distinct public or private contexts');
 
 select is(
@@ -265,8 +265,8 @@ select ok(not exists(
   select 1 from public.together_character_versions version
   where version.id::text ~ '^23000000-0000-4000-8008-0000000000(3[1-9]|4[0-2])$'
     and (version.life_config->'occupation'->'scheduleBlocks' is null
-      or version.life_config->'scheduling'->>'scheduleProfile'<>'port_vervelle_male_v1')
-),'Every new companion uses the existing Life Engine with the authored expansion profile');
+      or version.life_config->'scheduling'->>'scheduleProfile'<>'port_vervelle_rich_weekly_v3')
+),'Every new companion uses the current authored Life Engine profile');
 
 select * from finish();
 rollback;

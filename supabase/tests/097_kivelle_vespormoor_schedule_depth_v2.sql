@@ -14,7 +14,7 @@ select is((
     where character_version_id::text like '23000000-0000-4000-8010-%'
     group by character_version_id,day_of_week having count(*)=6
   ) complete_days
-),315,'Every Vespormoor resident has exactly six blocks every day');
+),329,'Every Vespormoor resident has exactly six blocks every day');
 
 select ok(not exists(
   select 1 from public.together_schedule_templates left_schedule

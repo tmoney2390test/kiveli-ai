@@ -80,7 +80,7 @@ select ok(
 );
 
 select ok(
-  position('subject_key = previous.subject_key' in pg_get_functiondef(
+  position('subject_key=previous.subject_key' in pg_get_functiondef(
     'public.kivelle_edit_memory_v2(uuid,uuid,uuid,text)'::regprocedure
   )) > 0,
   'a correction retires stale active duplicates for the same subject'

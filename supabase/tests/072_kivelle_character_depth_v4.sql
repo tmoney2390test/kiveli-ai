@@ -13,8 +13,8 @@ select is(
      on version.character_template_id=template.id
     and version.version=template.current_published_version
    where template.published=true and version.character_bible->>'depthVersion'='5' and version.character_bible->>'depthAuthored'='true'),
-  91,
-  'All 91 current companions have authored Character Depth v5 profiles'
+  98,
+  'All 98 current companions covered by Character Depth v5 have authored profiles'
 );
 
 select is(

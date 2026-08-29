@@ -77,8 +77,8 @@ select ok(not exists(
 
 select ok(not exists(select 1 from public.together_character_templates
   where id::text like '22000000-0000-4000-8001-0000000002%'
-    and discovery_metadata->>'portraitStatus'<>'pending'),
-  'New portrait slots fail honestly as pending instead of claiming missing assets are ready');
+    and discovery_metadata->>'portraitStatus'<>'ready'),
+  'Every expanded Juniper portrait slot is ready after the portrait pack');
 
 select is((select count(*)::integer from public.together_schedule_templates
   where metadata->>'source'='juniper_city_authored_schedule_v3'),1512,
