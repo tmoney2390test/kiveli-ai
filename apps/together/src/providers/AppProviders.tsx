@@ -16,6 +16,7 @@ import { NetworkStatusProvider } from "./NetworkStatusProvider";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { reportClientHeartbeat } from "../lib/operations";
 import { PushNotificationBridge } from "./PushNotificationBridge";
+import { colors } from "../theme";
 
 function OperationsHeartbeat() {
   const { session } = useAuth();
@@ -47,7 +48,7 @@ export function AppProviders({ children }: PropsWithChildren) {
     })
   );
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <NetworkStatusProvider>
           <QueryClientProvider client={client}>

@@ -5,6 +5,7 @@ import { BookOpenCheck, Compass, Home, Images, MessageCircle } from 'lucide-reac
 import { useAppShell } from '../../src/shell/AppShellContext';
 import { MESSAGES_INBOX_HREF, mostRecentChatHref, shouldOpenMostRecentChat } from '../../src/lib/messageInbox';
 import { useTogether } from '../../src/store/useTogether';
+import { colors } from '../../src/theme';
 
 const web = Platform.OS === 'web';
 
@@ -18,6 +19,7 @@ export default function TabsLayout() {
   const latestChatHref=snapshot?mostRecentChatHref(snapshot.conversations,snapshot.characters):null;
   return <Tabs screenOptions={{
     headerShown: false,
+    sceneStyle: { backgroundColor: colors.background },
     tabBarActiveTintColor: '#FF86AB',
     tabBarInactiveTintColor: '#938996',
     tabBarActiveBackgroundColor: 'rgba(239,82,137,.18)',
