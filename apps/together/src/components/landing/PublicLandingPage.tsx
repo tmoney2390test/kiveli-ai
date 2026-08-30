@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { createElement, useEffect, useRef, useState } from 'react';
 import {
   InteractionManager,
   Platform,
@@ -29,7 +29,7 @@ import { KivelleLogo } from '../KivelleLogo';
 import { radius, typography } from '../../theme';
 import { joinPathFor } from '../../lib/sessionRouting';
 import { PUBLIC_COMPANIONS, PUBLIC_LANDING_COPY, PUBLIC_WORLDS, type PublicCompanion, type PublicWorld } from '../../lib/publicLanding';
-import { publicCompanionAssets, publicLandingHeroPortraitAsset, publicLandingMobileHeroAsset, publicWorldAssets } from './publicLandingAssets';
+import { publicCompanionAssets, publicLandingHeroPortraitAsset, publicLandingHeroUrls, publicLandingMobileHeroAsset, publicWorldAssets } from './publicLandingAssets';
 
 type LandingSection = 'worlds' | 'why' | 'companions';
 
@@ -201,10 +201,15 @@ function HeaderLink({ label, onPress }: { label: string; onPress: () => void }) 
 function Hero({ desktop, compact, onEnter, onMeet }: { desktop: boolean; compact: boolean; onEnter: () => void; onMeet: () => void }) {
   const heroPortrait = publicLandingHeroPortraitAsset;
   const [visualReady,setVisualReady]=useState(false);
+  useEffect(()=>{if(Platform.OS==='web')setVisualReady(true);},[]);
   return <View style={[styles.hero, desktop ? styles.heroDesktop : styles.heroStacked, compact && styles.heroCompact]}>
-    <Image accessible accessibilityLabel="Juniper City skyline at dusk" source={compact ? publicLandingMobileHeroAsset : publicWorldAssets['juniper-city']} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" loading="eager" priority="high" onLoad={()=>setVisualReady(true)} />
+    {Platform.OS==='web'
+      ? <WebLandingHeroBackground onLoad={()=>setVisualReady(true)}/>
+      : <Image accessible accessibilityLabel="Juniper City skyline at dusk" source={compact ? publicLandingMobileHeroAsset : publicWorldAssets['juniper-city']} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" loading="eager" priority="high" onLoad={()=>setVisualReady(true)} />}
     <View style={[styles.heroPortraitFrame, desktop ? styles.heroPortraitDesktop : styles.heroPortraitStacked, compact && styles.heroPortraitCompact]}>
-      <Image accessible accessibilityLabel="Becka Shaw in Juniper City" source={heroPortrait} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" loading="eager" priority="high" />
+      {Platform.OS==='web'
+        ? createElement('img',{src:publicLandingHeroUrls.portrait,alt:'Becka Shaw in Juniper City',loading:'eager',fetchPriority:'high',style:webHeroPortraitStyle})
+        : <Image accessible accessibilityLabel="Becka Shaw in Juniper City" source={heroPortrait} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" loading="eager" priority="high" />}
     </View>
     <View pointerEvents="none" style={styles.heroBaseShade} />
     <View pointerEvents="none" style={[
@@ -247,6 +252,11 @@ function Hero({ desktop, compact, onEnter, onMeet }: { desktop: boolean; compact
     </> : null}
   </View>;
 }
+
+const webHeroPictureStyle={position:'absolute',inset:0,display:'block',width:'100%',height:'100%'} as const;
+const webHeroImageStyle={display:'block',width:'100%',height:'100%',objectFit:'cover',objectPosition:'center'} as const;
+const webHeroPortraitStyle={position:'absolute',inset:0,display:'block',width:'100%',height:'100%',objectFit:'cover',objectPosition:'top center'} as const;
+function WebLandingHeroBackground({onLoad}:{onLoad:()=>void}){return createElement('picture',{style:webHeroPictureStyle},createElement('source',{media:'(max-width: 679px)',srcSet:publicLandingHeroUrls.mobile}),createElement('img',{src:publicLandingHeroUrls.desktop,alt:'Juniper City skyline at dusk',loading:'eager',fetchPriority:'high',style:webHeroImageStyle,onLoad}));}
 
 function SocialProof({ compact,visualReady }: { compact: boolean;visualReady:boolean }) {
   const portraits = PUBLIC_COMPANIONS.slice(0, compact ? 3 : 5);

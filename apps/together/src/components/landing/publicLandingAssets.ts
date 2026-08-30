@@ -1,8 +1,14 @@
 import type { ImageSource } from 'expo-image';
 import type { PublicWorld } from '../../lib/publicLanding';
 
+export const publicLandingHeroUrls = {
+  desktop: '/landing/juniper-city.53ab020b54a527943e9b4b3bb308190d.webp',
+  mobile: '/landing/juniper-city-mobile.1c4108fcc02f6799630e5fe041c335d4.webp',
+  portrait: '/landing/becka-shaw.412281e73f70efdbc1fa2998f7f9dd91.webp',
+} as const;
+
 export const publicWorldAssets: Record<PublicWorld['slug'], ImageSource> = {
-  'juniper-city': { uri: '/landing/juniper-city.53ab020b54a527943e9b4b3bb308190d.webp' },
+  'juniper-city': { uri: publicLandingHeroUrls.desktop },
   'neon-kyo': require('../../../assets/worlds/neon-kyo/neon-kyo-hero.jpg'),
   'port-vervelle': require('../../../assets/worlds/port-vervelle/port-vervelle-hero.jpg'),
   vespormoor: require('../../../assets/worlds/vespormoor/vespormoor-hero.jpg'),
@@ -11,11 +17,11 @@ export const publicWorldAssets: Record<PublicWorld['slug'], ImageSource> = {
 };
 
 export const publicLandingMobileHeroAsset: ImageSource = {
-  uri: '/landing/juniper-city-mobile.1c4108fcc02f6799630e5fe041c335d4.webp',
+  uri: publicLandingHeroUrls.mobile,
 };
 
 export const publicLandingHeroPortraitAsset: ImageSource = {
-  uri: '/landing/becka-shaw.412281e73f70efdbc1fa2998f7f9dd91.webp',
+  uri: publicLandingHeroUrls.portrait,
 };
 
 export const publicCompanionAssets: Record<string, ImageSource> = {

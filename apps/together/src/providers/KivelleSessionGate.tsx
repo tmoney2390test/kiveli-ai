@@ -64,7 +64,7 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
   }
 
   let blocker = null;
-  if (authLoading) blocker = <LoadingSkeleton label="Restoring your session…" />;
+  if (authLoading && !publicPath) blocker = <LoadingSkeleton label="Restoring your session…" />;
   else if (!session && !publicPath) blocker = <LoadingSkeleton label="Opening sign in…" />;
 
   return <>
