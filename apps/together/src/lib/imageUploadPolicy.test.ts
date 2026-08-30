@@ -8,7 +8,7 @@ describe('user image upload policy',()=>{
     expect(userImageResize({width:3000,height:5000})).toEqual({height:2048});
   });
   it('rejects oversized compressed files and decoded images',()=>{
-    expect(()=>validateUserImageSource({byteSize:25*1024*1024+1,width:100,height:100})).toThrow('25 MB');
+    expect(()=>validateUserImageSource({byteSize:10*1024*1024+1,width:100,height:100})).toThrow('10 MB');
     expect(()=>validateUserImageSource({byteSize:100,width:10_000,height:10_000})).toThrow('smaller dimensions');
   });
   it('creates a safe JPEG name',()=>expect(normalizedJpegName('My vacation photo.PNG')).toBe('My-vacation-photo.jpg'));

@@ -3,22 +3,35 @@ import { AppError } from './types.ts';
 import { capabilitiesForAccount, creditCost, effectiveChatDailyLimit, entitlementsForTier, normalizeSubscriptionTier, selectEffectiveBillingSubscription, subscriptionGrantPeriodKey, type BillingProvider, type CreditAction, type KivelleCapabilities, type NormalizedSubscriptionStatus, type SubscriptionTier } from '../../../packages/together-domain/src/index.ts';
 
 type CreditBalance={permanentBalance:number;subscriptionBalance:number;total:number;subscriptionExpiresAt?:string|null};
+export type KivelleSubscriptionAccess={tier:SubscriptionTier;capabilities:KivelleCapabilities;entitlementKeys:string[];billing:KivelleSubscriptionState['billing']};
 export type KivelleSubscriptionState={tier:SubscriptionTier;capabilities:KivelleCapabilities;creditBalance:CreditBalance;entitlementKeys:string[];billing:{provider?:string|null;customerId?:string|null;subscriptionId?:string|null;status?:string|null;productKey?:string|null;billingInterval?:'monthly'|'annual';periodStart?:string|null;periodEnd?:string|null;expiresAt?:string|null;trialEnd?:string|null;cancelAtPeriodEnd?:boolean;canceledAt?:string|null;paymentIssue?:boolean;mayPurchaseCredits?:boolean}};
 
 type NormalizedBillingRow={provider:BillingProvider;provider_customer_id:string|null;provider_subscription_id:string;provider_price_id:string|null;plan_key:SubscriptionTier;status:NormalizedSubscriptionStatus;billing_interval:'monthly'|'annual';current_period_start:string|null;current_period_end:string|null;trial_end:string|null;cancel_at_period_end:boolean;canceled_at:string|null;access_ends_at:string|null;updated_at:string|null};
 
 export async function resolveSubscriptionState(db:SupabaseClient,userId:string,now=new Date()):Promise<KivelleSubscriptionState>{
+  const access=await resolveSubscriptionAccess(db,userId,now);
+  await reconcileSubscriptionCreditLifecycle(db,userId,access.capabilities,now);
+  await ensureWelcomeCredits(db,userId,access.capabilities);
+  const balance=await creditBalance(db,userId);
+  return{...access,creditBalance:balance};
+}
+
+/** Resolve authoritative paid access without touching the Kivelle Credits ledger. */
+export async function resolveSubscriptionAccess(db:SupabaseClient,userId:string,now=new Date()):Promise<KivelleSubscriptionAccess>{
   let{data:row,error}=await db.from('together_entitlements').select('*').eq('user_id',userId).maybeSingle();
   if(error)throw new AppError('INTERNAL_ERROR','Subscription status could not be loaded.',500,true);
   if(!row){const created=await db.from('together_entitlements').insert({user_id:userId,tier:'free',entitlement_keys:[...entitlementsForTier('free')]}).select('*').single();if(created.error||!created.data)throw new AppError('INTERNAL_ERROR','Subscription status could not be prepared.',500,true);row=created.data;}
   const normalized=await loadNormalizedSubscriptions(db,userId),effective=selectEffectiveBillingSubscription(normalized.map((item)=>({provider:item.provider,planKey:item.plan_key,status:item.status,accessEndsAt:item.access_ends_at,currentPeriodEnd:item.current_period_end,updatedAt:item.updated_at})),now),selected=effective?normalized.find((item)=>item.provider===effective.provider&&item.plan_key===effective.planKey&&item.status===effective.status&&(item.access_ends_at??item.current_period_end)===(effective.accessEndsAt??effective.currentPeriodEnd)):newestBillingRow(normalized);
   const expired=Boolean(row.expires_at&&new Date(row.expires_at).getTime()<=now.getTime()),legacyTier=expired?'free':normalizeSubscriptionTier(row.tier),tier=effective?effective.planKey:normalized.length?'free':legacyTier,capabilities=capabilitiesForAccount(tier,row.metadata);
   if(row.tier!==tier||!sameKeys(row.entitlement_keys,capabilities.entitlements)||selected&&row.billing_status!==selected.status){const updated=await db.from('together_entitlements').update({tier,entitlement_keys:[...capabilities.entitlements],...(selected?{billing_provider:selected.provider,billing_customer_id:selected.provider_customer_id??row.billing_customer_id,billing_subscription_id:selected.provider_subscription_id,billing_status:selected.status,product_key:selected.provider_price_id??row.product_key,billing_period_start:selected.current_period_start??null,billing_period_end:selected.current_period_end??null,expires_at:effective?selected.access_ends_at??selected.current_period_end:null}:expired?{metadata:{...(row.metadata??{}),expiredAt:row.expires_at,expiredResolvedAt:now.toISOString()}}:{}),updated_at:now.toISOString()}).eq('user_id',userId).select('*').single();if(updated.data)row=updated.data;}
-  await reconcileSubscriptionCreditLifecycle(db,userId,capabilities,now);
-  await ensureWelcomeCredits(db,userId,capabilities);
-  const balance=await creditBalance(db,userId);
   const status=selected?.status??row.billing_status??null,interval=selected?.billing_interval??((row.metadata as Record<string,unknown>|null)?.billingInterval==='annual'?'annual':'monthly');
-  return{tier,capabilities,creditBalance:balance,entitlementKeys:[...capabilities.entitlements],billing:{provider:selected?.provider??row.billing_provider??null,customerId:selected?.provider_customer_id??row.billing_customer_id??null,subscriptionId:selected?.provider_subscription_id??row.billing_subscription_id??null,status,productKey:selected?.provider_price_id??row.product_key??null,billingInterval:interval,periodStart:selected?.current_period_start??row.billing_period_start??null,periodEnd:selected?.current_period_end??row.billing_period_end??null,expiresAt:selected?.access_ends_at??row.expires_at??null,trialEnd:selected?.trial_end??null,cancelAtPeriodEnd:Boolean(selected?.cancel_at_period_end),canceledAt:selected?.canceled_at??null,paymentIssue:['past_due','unpaid','incomplete'].includes(String(status)),mayPurchaseCredits:tier!=='free'&&status==='active'}};
+  return{tier,capabilities,entitlementKeys:[...capabilities.entitlements],billing:{provider:selected?.provider??row.billing_provider??null,customerId:selected?.provider_customer_id??row.billing_customer_id??null,subscriptionId:selected?.provider_subscription_id??row.billing_subscription_id??null,status,productKey:selected?.provider_price_id??row.product_key??null,billingInterval:interval,periodStart:selected?.current_period_start??row.billing_period_start??null,periodEnd:selected?.current_period_end??row.billing_period_end??null,expiresAt:selected?.access_ends_at??row.expires_at??null,trialEnd:selected?.trial_end??null,cancelAtPeriodEnd:Boolean(selected?.cancel_at_period_end),canceledAt:selected?.canceled_at??null,paymentIssue:['past_due','unpaid','incomplete'].includes(String(status)),mayPurchaseCredits:tier!=='free'&&status==='active'}};
+}
+
+export async function enforcePhotoSharingEntitlement(db:SupabaseClient,userId:string,now=new Date()):Promise<KivelleSubscriptionAccess>{
+  const access=await resolveSubscriptionAccess(db,userId,now);
+  if(!access.entitlementKeys.includes('photo_sharing'))throw new AppError('PLAN_LIMIT_REACHED','Share photos with your characters by upgrading to Kivelle+.',403,false);
+  return access;
 }
 
 async function ensureWelcomeCredits(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities):Promise<void>{

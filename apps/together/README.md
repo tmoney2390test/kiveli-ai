@@ -24,6 +24,7 @@ Dialogue, moderation, and embeddings are server-side provider interfaces. Dialog
 Optional server secrets:
 
 - `OPENAI_API_KEY`
+- `KIVELLE_VISION_PROVIDER=openai` and `KIVELLE_OPENAI_VISION_ENABLED=true` enable server-side moderation and visual understanding for Kivelle+ photo sharing; `KIVELLE_OPENAI_VISION_MODEL` optionally overrides the default Luna model.
 - `KIVELLE_OPENAI_DIALOGUE_MODEL` (defaults to `gpt-5.6-luna`)
 - `KIVELLE_PROACTIVE_VOICE_ENABLED` and `KIVELLE_PROACTIVE_MODEL` control the optional isolated character-voice pass for grounded companion initiative. See `docs/initiative.md`.
 - `XAI_API_KEY` (server only)

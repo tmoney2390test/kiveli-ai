@@ -27,7 +27,7 @@ import { AppError } from "../_shared/types.ts";
 import { prepareCompanionSpeech } from "../_shared/voice-performance.ts";
 import { buildVoiceNoteMediaMutation } from "../_shared/voice-note-media.ts";
 import { voiceNotePricing } from "../../../packages/together-domain/src/entitlements.ts";
-import { refundCredits, resolveSubscriptionState, spendCredits } from "../_shared/kivelle-subscription.ts";
+import { enforcePhotoSharingEntitlement, refundCredits, resolveSubscriptionState, spendCredits } from "../_shared/kivelle-subscription.ts";
 import {
   activeVoiceEntitlement,
   recordVoiceNoteUsage,
@@ -37,6 +37,7 @@ import {
   chatVoicePreset,
   validateCompanionVoicePreset,
 } from "../_shared/companion-voice-selection.ts";
+import { isAnimatedChatPhoto, matchesChatPhotoSignature } from "../_shared/chat-photo-policy.ts";
 
 const uuid = z.string().uuid();
 const schema = z.discriminatedUnion("action", [
@@ -60,8 +61,9 @@ const schema = z.discriminatedUnion("action", [
     height: z.number().int().positive().max(2_048).optional(),
     requestId: z.string().trim().min(8).max(120),
   }),
-  z.object({ action: z.literal("confirm_user_image"), attachmentId: uuid }),
+  z.object({ action: z.literal("confirm_user_image"), attachmentId: uuid, caption: z.string().trim().max(4_000).optional() }),
   z.object({ action: z.literal("remove_attachment"), attachmentId: uuid }),
+  z.object({ action: z.literal("delete_attachment"), attachmentId: uuid }),
   z.object({
     action: z.literal("voice_note_quote"),
     messageId: uuid,
@@ -152,6 +154,7 @@ serve(async (request, correlationId) => {
   }
 
   if (input.action === "prepare_user_image") {
+    await enforcePhotoSharingEntitlement(db, user.id);
     if (preferences.userPhotoUploads === false) {
       throw new AppError(
         "FORBIDDEN",
@@ -217,6 +220,10 @@ serve(async (request, correlationId) => {
         analysis_status: "pending",
         metadata: { requestId: input.requestId, contextVersion: 1 },
       }).select("*").single();
+    if (error?.code === "23505") {
+      const { data: raced } = await db.from("together_conversation_attachments").select("*").eq("user_id", user.id).eq("metadata->>requestId", input.requestId).maybeSingle();
+      if (raced) return json({ data: await attachmentPayload(db, raced), correlationId }, 200, correlationId);
+    }
     if (error || !data) {
       throw new AppError(
         "INTERNAL_ERROR",
@@ -237,12 +244,17 @@ serve(async (request, correlationId) => {
   }
 
   if (input.action === "confirm_user_image") {
+    await enforcePhotoSharingEntitlement(db, user.id);
     const attachment = await requireAttachment(
       db,
       user.id,
       continuity.id,
       input.attachmentId,
     );
+    if (attachment.analysis_status === "ready" && attachment.upload_status === "uploaded") {
+      return json({ data: await attachmentPayload(db, attachment), correlationId }, 200, correlationId);
+    }
+    if (!attachment.storage_path) throw new AppError("NOT_FOUND", "That photo is no longer available.", 404);
     const { data: file, error: downloadError } = await db.storage.from(
       "together-user-media",
     ).download(String(attachment.storage_path));
@@ -262,7 +274,8 @@ serve(async (request, correlationId) => {
     const actualDimensions = imageDimensions(bytes, String(attachment.mime_type));
     if (
       !actualValidation.valid ||
-      !matchesImageSignature(bytes, String(attachment.mime_type)) ||
+      !matchesChatPhotoSignature(bytes, String(attachment.mime_type)) ||
+      isAnimatedChatPhoto(bytes, String(attachment.mime_type)) ||
       !actualDimensions ||
       Math.max(actualDimensions.width, actualDimensions.height) > 2_048
     ) {
@@ -273,37 +286,23 @@ serve(async (request, correlationId) => {
         db.from("together_conversation_attachments").update({
           upload_status: "failed",
           analysis_status: "failed",
-          analysis_metadata: { validation: actualDimensions ? "image_dimensions_too_large" : "invalid_image_bytes" },
+          analysis_metadata: {},
           updated_at: new Date().toISOString(),
         }).eq("id", attachment.id).eq("user_id", user.id),
       ]);
       throw new AppError(
         "VALIDATION_FAILED",
-        actualDimensions ? "That photo is larger than Kivelle's 2048-pixel upload limit." : "That file is not a supported image.",
+        actualDimensions && Math.max(actualDimensions.width, actualDimensions.height) > 2_048 ? "That photo is larger than Kivelle's 2048-pixel upload limit." : "That file is not a supported, still image.",
         422,
       );
     }
     const provider = configuredVisionProvider();
     if (!provider) {
-      const { data } = await db.from("together_conversation_attachments")
-        .update({
-          byte_size: bytes.byteLength,
-          width: actualDimensions.width,
-          height: actualDimensions.height,
-          upload_status: "uploaded",
-          analysis_status: "unavailable",
-          analysis_metadata: { providerStatus: "not_configured" },
-          updated_at: new Date().toISOString(),
-        }).eq("id", attachment.id).eq("user_id", user.id).select("*").single();
-      return json(
-        {
-          data: await attachmentPayload(db, data ?? attachment),
-          correlationId,
-        },
-        200,
-        correlationId,
-      );
+      throw new AppError("PROVIDER_NOT_CONFIGURED", "Photo understanding is temporarily unavailable.", 503, true);
     }
+    const { count: processingCount, error: processingError } = await db.from("together_conversation_attachments").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("analysis_status", "processing").neq("id", attachment.id);
+    if (processingError) throw new AppError("INTERNAL_ERROR", "That photo could not be checked.", 500, true);
+    if (Number(processingCount ?? 0) >= 2) throw new AppError("RATE_LIMITED", "Two photos are already being checked. Try again in a moment.", 429, true);
     await db.from("together_conversation_attachments").update({
       byte_size: bytes.byteLength,
       width: actualDimensions.width,
@@ -316,13 +315,23 @@ serve(async (request, correlationId) => {
       const result = await provider.analyze({
         bytes,
         contentType: String(attachment.mime_type),
+        userCaption: input.caption,
+        safetyIdentifier: await opaqueSafetyIdentifier(user.id),
       });
       const { data } = await db.from("together_conversation_attachments")
         .update({
           analysis_status: "ready",
           analysis_metadata: {
-            ...result,
+            shortDescription: result.shortDescription,
+            notableDetails: result.notableDetails,
+            visibleText: result.visibleText,
+            safetyCategories: result.safetyCategories,
+            confidence: result.confidence,
+            containsRealPerson: result.containsRealPerson === true,
+            containsMinor: result.containsMinor === true,
             provider: provider.id,
+            model: result.model,
+            providerRequestId: result.providerRequestId,
             contextVersion: 1,
           },
           updated_at: new Date().toISOString(),
@@ -339,38 +348,27 @@ serve(async (request, correlationId) => {
         correlationId,
       );
     } catch (error) {
-      const { data } = await db.from("together_conversation_attachments")
+      await db.from("together_conversation_attachments")
         .update({
           analysis_status: "failed",
-          analysis_metadata: {
-            provider: provider.id,
-            error: error instanceof Error ? error.name : "unknown",
-          },
+          analysis_metadata: {},
           updated_at: new Date().toISOString(),
-        }).eq("id", attachment.id).eq("user_id", user.id).select("*").single();
-      return json(
-        {
-          data: await attachmentPayload(db, data ?? attachment),
-          warning: "This image couldn't be analyzed, but it can still be sent.",
-          correlationId,
-        },
-        200,
-        correlationId,
-      );
+        }).eq("id", attachment.id).eq("user_id", user.id);
+      throw error instanceof AppError ? error : new AppError("PROVIDER_UNAVAILABLE", "That photo could not be understood. Try again.", 503, true);
     }
   }
 
-  if (input.action === "remove_attachment") {
+  if (input.action === "remove_attachment" || input.action === "delete_attachment") {
     const attachment = await requireAttachment(
       db,
       user.id,
       continuity.id,
       input.attachmentId,
     );
-    if (attachment.message_id) {
+    if (input.action === "remove_attachment" && attachment.message_id) {
       throw new AppError(
         "CONFLICT",
-        "Sent photos remain part of the conversation.",
+        "Use Delete photo to remove a sent photo.",
         409,
       );
     }
@@ -383,6 +381,7 @@ serve(async (request, correlationId) => {
         String(attachment.storage_path),
       ]);
     }
+    await track(db, user.id, input.action === "delete_attachment" ? "user_photo_deleted" : "user_photo_removed", { attachmentId: attachment.id });
     return json({ data: { removed: true }, correlationId }, 200, correlationId);
   }
 
@@ -982,7 +981,7 @@ async function requireAttachment(
 
 async function attachmentPayload(db: any, attachment: Record<string, any>) {
   let signedUrl: string | null = null;
-  if (attachment.upload_status === "uploaded") {
+  if (attachment.upload_status === "uploaded" && attachment.storage_path) {
     signedUrl = (await db.storage.from("together-user-media").createSignedUrl(
       String(attachment.storage_path),
       3600,
@@ -1009,20 +1008,7 @@ async function mediaPayload(db: any, media: Record<string, any>) {
   };
 }
 
-function matchesImageSignature(bytes: Uint8Array, mimeType: string): boolean {
-  if (mimeType === "image/jpeg") {
-    return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 &&
-      bytes[2] === 0xff;
-  }
-  if (mimeType === "image/png") {
-    return bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 &&
-      bytes[2] === 0x4e && bytes[3] === 0x47 && bytes[4] === 0x0d &&
-      bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a;
-  }
-  if (mimeType === "image/webp") {
-    return bytes.length >= 12 &&
-      String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&
-      String.fromCharCode(...bytes.slice(8, 12)) === "WEBP";
-  }
-  return false;
+async function opaqueSafetyIdentifier(userId: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(userId));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }

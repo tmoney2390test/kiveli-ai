@@ -23,3 +23,4 @@ export * from './MemorySavedToast';
 export * from './ChatConversationRail';
 export * from './VideoGenerationSheet';
 export * from './MediaRequestModal';
+export * from './PhotoSharingPaywallModal';
