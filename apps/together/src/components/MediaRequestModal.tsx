@@ -3,7 +3,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, Sc
 import { Camera, Check, Film, Home, ImagePlus, MapPin, Send, Sparkles, Volume2, VolumeX, X } from 'lucide-react-native';
 import { createDirectVideo, getDirectVideoGenerationOptions } from '../lib/api';
 import { customPhotoRequestText } from '../lib/photoRequestPresentation';
-import { directVideoLocationReady, selectedDirectVideoLocation } from '../lib/directVideoLocation';
+import { directVideoLocationReady } from '../lib/directVideoLocation';
 import { createClientRequestId } from '../lib/requestId';
 import { preferredVideoRouteId, videoCreditCost, videoDurationRangeLabel } from '../lib/videoGeneration';
 import { colors, radius } from '../theme';
@@ -26,10 +26,6 @@ type Props={
   onClose:()=>void;
 };
 
-const PHOTO_OPTIONS=[
-  {label:'What they’re doing',request:`Show me what you're doing right now.`},
-  {label:'Where they are',request:`Show me where you are.`},
-];
 const VIDEO_PROMPTS=['Look toward the camera and smile','Walk naturally through the scene','A quiet cinematic moment'];
 
 export function MediaRequestModal({visible,character,conversationId,onPhotoRequest,photoSharingEntitled,onShareLibrary,onTakePhoto,onPhotoSharingUpgrade,onVideoCreated,onBuyCredits,onClose}:Props){
@@ -43,7 +39,7 @@ export function MediaRequestModal({visible,character,conversationId,onPhotoReque
   },[character.id,visible]);
   const route=useMemo(()=>options?.routes.find((item)=>item.id===routeId)??null,[options,routeId]);
   useEffect(()=>{if(route&&!route.allowedDurations.includes(durationSeconds))setDurationSeconds(route.durationSeconds);},[durationSeconds,route]);
-  const selectedLocation=selectedDirectVideoLocation(options,locationSource,locationId),locationReady=directVideoLocationReady(options,locationSource,locationId);
+  const locationReady=directVideoLocationReady(options,locationSource,locationId);
   const balance=Number(options?.creditBalance??0),creditCost=route?videoCreditCost(route,durationSeconds):0,insufficient=Boolean(route&&balance<creditCost),canCreate=Boolean(route&&description.trim()&&route.allowedDurations.includes(durationSeconds)&&locationReady&&!submitting&&!options?.activeVideo&&!insufficient);
   const submitPhoto=()=>{const request=customPhotoRequestText(description);if(!request)return;setDescription('');onPhotoRequest(request);};
   const submitVideo=async()=>{if(!canCreate||!route)return;setSubmitting(true);setError(null);try{const result=await createDirectVideo({characterInstanceId:character.id,conversationId,videoRouteId:route.id,motionPreset,durationSeconds,aspectRatio,locationSource,...(locationSource==='place'&&locationId?{locationId}:{}),requestText:description.trim(),requestId:createClientRequestId()});onVideoCreated(result.media);}catch(cause){setError(cause instanceof Error?cause.message:'The video could not be started.');}finally{setSubmitting(false);}};
@@ -61,10 +57,8 @@ export function MediaRequestModal({visible,character,conversationId,onPhotoReque
             <View style={styles.portrait}><CharacterAvatar slug={character.together_character_templates.slug} name={name} template={character.together_character_templates} version={character.together_character_versions} size={80}/></View>
             <Text style={styles.title}>Share or create a moment</Text>
             {mode==='photo'?<PhotoComposer name={name} description={description} setDescription={setDescription} onRequest={onPhotoRequest} onSubmit={submitPhoto} photoSharingEntitled={photoSharingEntitled} onShareLibrary={onShareLibrary} onTakePhoto={onTakePhoto} onPhotoSharingUpgrade={onPhotoSharingUpgrade}/>:<>
-              <Text style={styles.copy}>Create a video from your direction using {name}’s approved identity and the place you choose—no photo setup required.</Text>
               {loading?<View style={styles.loading}><ActivityIndicator color={colors.rose}/><Text style={styles.muted}>Loading video models…</Text></View>:null}
               {!loading&&options&&!options.available?<ErrorCopy text="Direct video is not available for this account yet."/>:null}
-              {options?.referenceSummary?<View style={styles.referenceCard}><Sparkles size={15} color="#C7A6FF"/><Text style={styles.referenceText}>{options.referenceSummary.identity} approved identity reference{options.referenceSummary.identity===1?'':'s'} · {selectedLocation?.name??options.referenceSummary.locationName??'current location'}</Text></View>:null}
               {options?.routes.length?<>
                 <Text style={styles.label}>VIDEO MODEL</Text>
                 <View accessibilityRole="radiogroup" style={styles.routeList}>{options.routes.map((item)=><Pressable key={item.id} accessibilityRole="radio" accessibilityState={{selected:item.id===routeId}} accessibilityLabel={`${item.displayName}. ${item.badge}. ${videoDurationRangeLabel(item)}. ${item.audioLabel}`} onPress={()=>setRouteId(item.id)} style={[styles.route,item.id===routeId&&styles.routeSelected]}><View style={styles.routeTop}><Text style={styles.routeName}>{item.displayName}</Text><View style={styles.routeBadges}>{item.badge?<Text style={styles.routeBadge}>{item.badge}</Text>:null}{item.id===routeId?<Check size={15} color={colors.rose}/>:null}</View></View><Text style={styles.routeCopy}>{item.description} · {videoDurationRangeLabel(item)} · {item.audioLabel}</Text></Pressable>)}</View>
@@ -115,12 +109,8 @@ function PhotoComposer({name,description,setDescription,onRequest,onSubmit,photo
     <Text style={styles.privateCopy}>One photo per message · Private · Originals expire after 30 days</Text>
   </View>
   <View style={styles.createDivider}><View style={styles.dividerLine}/><View style={styles.createLabel}><Sparkles size={13} color="#C7A6FF"/><Text style={styles.createLabelText}>CREATE AN IMAGE</Text><KivelleCreditIcon size={15}/></View><View style={styles.dividerLine}/></View>
-  <Text style={styles.copy}>Ask {name} for a generated photo grounded in where they are and what they’re doing right now.</Text>
-  <Text style={styles.label}>PRICE SHOWN BEFORE GENERATION</Text>
   <Pressable accessibilityLabel={`Ask ${name} for a selfie`} onPress={()=>onRequest('Send me a selfie from where you are.')} style={styles.primary}><Sparkles size={17} color="#fff"/><Text style={styles.primaryText}>Send me a selfie</Text></Pressable>
-  <Text style={styles.label}>OR SHOW ME</Text>
-  <View style={styles.photoOptions}>{PHOTO_OPTIONS.map((option)=><Pressable key={option.label} onPress={()=>onRequest(option.request)} style={styles.photoOption}><Camera size={14} color="#C7A6FF"/><Text style={styles.photoOptionText}>{option.label}</Text></Pressable>)}</View>
-  <Text style={styles.label}>DESCRIBE WHAT YOU WANT</Text>
+  <Text style={styles.label}>CUSTOM PROMPT</Text>
   <View style={styles.descriptionRow}><TextInput accessibilityLabel="Describe the exact photo you want" value={description} onChangeText={setDescription} onSubmitEditing={onSubmit} placeholder="Describe what you want…" placeholderTextColor={colors.dimmed} maxLength={320} returnKeyType="send" style={styles.descriptionInput}/><Pressable accessibilityRole="button" accessibilityLabel={`Ask ${name} for this photo`} accessibilityState={{disabled:!description.trim()}} disabled={!description.trim()} onPress={onSubmit} style={[styles.descriptionSubmit,!description.trim()&&styles.disabled]}><Send size={17} color="#fff"/></Pressable></View>
 </>}
 function LocationChoice({icon,label,detail,selected,onPress}:{icon:'home'|'pin';label:string;detail:string;selected:boolean;onPress:()=>void}){const Icon=icon==='home'?Home:MapPin;return <Pressable accessibilityRole="radio" accessibilityState={{selected}} accessibilityLabel={`${label}, ${detail}`} onPress={onPress} style={[styles.locationChoice,selected&&styles.locationChoiceSelected]}><Icon size={17} color={selected?'#fff':'#C7A6FF'}/><View style={{flex:1}}><Text style={[styles.locationLabel,selected&&styles.choiceTextSelected]}>{label}</Text><Text numberOfLines={1} style={styles.locationDetail}>{detail}</Text></View>{selected?<Check size={15} color={colors.rose}/>:null}</Pressable>}
