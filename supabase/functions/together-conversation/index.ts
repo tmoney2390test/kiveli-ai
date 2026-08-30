@@ -15,6 +15,7 @@ import { chatLanguagePreferences } from '../../../packages/together-domain/src/c
 
 const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('inbox') }),
+  z.object({ action: z.literal('inbox_v2'), limit: z.number().int().min(10).max(100).default(40), offset: z.number().int().min(0).max(5000).default(0) }),
   z.object({ action: z.literal('archived') }),
   z.object({ action: z.literal('ensure'), characterInstanceId: z.string().uuid() }),
   z.object({ action: z.literal('new'), characterInstanceId: z.string().uuid() }),
@@ -42,7 +43,7 @@ serve(async (request, correlationId) => {
   const owned = 'characterInstanceId' in input && input.action !== 'start_over'
     ? await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId)
     : null;
-  await enforceRateLimit(db, user.id, `together_conversation_${input.action}`, input.action === 'inbox' ? 240 : input.action === 'message_favorite' ? 240 : input.action === 'search' ? 40 : 20, 3600);
+  await enforceRateLimit(db, user.id, `together_conversation_${input.action}`, input.action === 'inbox' || input.action === 'inbox_v2' ? 240 : input.action === 'message_favorite' ? 240 : input.action === 'search' ? 40 : 20, 3600);
 
   if (input.action === 'inbox') {
     const { data, error } = await db.from('together_conversations').select('*').eq('user_id', user.id).eq('continuity_id', continuity.id).is('archived_at', null).in('kind', ['direct', 'first_meeting','group']).order('last_message_at', { ascending: false, nullsFirst: false }).limit(100);
@@ -51,8 +52,44 @@ serve(async (request, correlationId) => {
       const unread = Boolean(conversation.last_assistant_message_at && (!conversation.last_read_at || new Date(conversation.last_assistant_message_at) > new Date(conversation.last_read_at)));
       return { ...conversation, unread };
     });
-    await track(db, user.id, 'conversation_inbox_viewed', { conversationCount: enriched.length });
+    await track(db, user.id, 'conversation_inbox_viewed', { conversationCount: enriched.length, version: 1 });
     return json({ data: enriched, correlationId }, 200, correlationId);
+  }
+
+  if (input.action === 'inbox_v2') {
+    const { data, error } = await db.from('together_conversations').select('*').eq('user_id', user.id).eq('continuity_id', continuity.id).is('archived_at', null).in('kind', ['direct', 'first_meeting','group']).order('last_message_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).range(input.offset, input.offset + input.limit);
+    if (error) throw new AppError('INTERNAL_ERROR', 'Messages could not be loaded.', 500, true);
+    const page = (data ?? []).slice(0, input.limit);
+    const conversationIds = page.map((conversation) => String(conversation.id));
+    const groupIds = page.filter((conversation) => conversation.kind === 'group').map((conversation) => String(conversation.id));
+    const [participantResult, pendingResult] = await Promise.all([
+      groupIds.length
+        ? db.from('together_conversation_participants').select('*,together_character_instances(*,together_character_templates(*),together_character_versions(portrait_asset_key,visual_identity,personality_config,communication_style,boundaries))').eq('user_id', user.id).eq('continuity_id', continuity.id).in('conversation_id', groupIds).is('left_at', null).order('joined_at')
+        : Promise.resolve({ data: [], error: null }),
+      conversationIds.length
+        ? db.from('together_dialogue_turns').select('conversation_id').eq('user_id', user.id).in('conversation_id', conversationIds).in('state', ['planning','generating'])
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+    if (participantResult.error) throw new AppError('INTERNAL_ERROR', 'Group rosters could not be loaded.', 500, true);
+    if (pendingResult.error) throw new AppError('INTERNAL_ERROR', 'Message status could not be loaded.', 500, true);
+    const pendingIds = new Set((pendingResult.data ?? []).map((turn) => String(turn.conversation_id)));
+    const enriched = page.map((conversation) => {
+      const unread = Boolean(conversation.last_assistant_message_at && (!conversation.last_read_at || new Date(conversation.last_assistant_message_at) > new Date(conversation.last_read_at)));
+      return { ...conversation, unread, reply_pending: pendingIds.has(String(conversation.id)) };
+    });
+    const conversationById = new Map(enriched.map((conversation) => [String(conversation.id), conversation]));
+    const participantsByConversation = new Map<string, any[]>();
+    for (const participant of participantResult.data ?? []) {
+      const key = String(participant.conversation_id);
+      participantsByConversation.set(key, [...(participantsByConversation.get(key) ?? []), participant]);
+    }
+    const groups = groupIds.map((conversationId) => ({
+      conversation: conversationById.get(conversationId),
+      participants: participantsByConversation.get(conversationId) ?? [],
+    })).filter((group) => Boolean(group.conversation));
+    const hasMore = (data?.length ?? 0) > input.limit;
+    await track(db, user.id, 'conversation_inbox_viewed', { conversationCount: enriched.length, offset: input.offset, hasMore });
+    return json({ data: { conversations: enriched, groups, pageInfo: { hasMore, nextOffset: hasMore ? input.offset + enriched.length : null } }, correlationId }, 200, correlationId);
   }
 
   if (input.action === 'archived') {

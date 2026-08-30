@@ -18,6 +18,7 @@ import {
 import { eligibleGroupInstances } from "../_shared/kivelle-group-eligibility.ts";
 import { track } from "../_shared/together.ts";
 import { AppError } from "../_shared/types.ts";
+import { conversationArchiveFields } from "../_shared/together-conversation-archive.ts";
 
 const schema = z.discriminatedUnion("action", [
   z.object({
@@ -717,22 +718,24 @@ serve(async (request, correlationId) => {
   if(currentPlanError)throw new AppError("INTERNAL_ERROR","Current group plans could not be checked.",500,true);
   const blockingArchivePlan=currentGroupPlan(currentPlans??[]);
   if(blockingArchivePlan)throw new AppError("CONFLICT",`${blockingArchivePlan.title} is still current. End or cancel it before archiving this group.`,409,true);
-  const now = new Date().toISOString();
-  await Promise.all([
+  const archive = conversationArchiveFields(new Date());
+  const [archiveResult] = await Promise.all([
     db.from("together_conversations").update({
-      archived_at: now,
-      updated_at: now,
-    }).eq("id", conversation.id).eq("user_id", user.id),
+      ...archive,
+      updated_at: archive.archived_at,
+    }).eq("id", conversation.id).eq("user_id", user.id).is("archived_at", null).select("*").maybeSingle(),
     db.from("together_dialogue_turns").update({
       state: "cancelled",
-      cancelled_at: now,
-      updated_at: now,
+      cancelled_at: archive.archived_at,
+      updated_at: archive.archived_at,
     }).eq("conversation_id", conversation.id).in("state", [
       "planning",
       "generating",
     ]),
   ]);
-  return json({ data: { archived: true }, correlationId }, 200, correlationId);
+  if (archiveResult.error || !archiveResult.data) throw new AppError("CONFLICT", "This group is already archived.", 409);
+  await track(db,user.id,"conversation_archived",{conversationId:conversation.id,kind:"group",restoreUntil:archive.restore_until});
+  return json({ data: { archived: true, conversation: archiveResult.data }, correlationId }, 200, correlationId);
 });
 
 async function requireCommonResidentWorld(db: any, instances: any[]) {

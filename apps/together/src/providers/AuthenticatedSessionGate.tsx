@@ -11,6 +11,8 @@ import { useTogether } from '../store/useTogether';
 import { useAuth } from '../hooks/useAuth';
 import { readSessionSnapshot, writeSessionSnapshot } from '../lib/sessionSnapshotCache';
 
+const demoMode = __DEV__ && process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === 'true';
+
 export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   const routerPathname = usePathname();
   // During static web hydration Expo can briefly report the root or an older
@@ -33,17 +35,17 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   }, [pathname]);
 
   useEffect(() => {
-    const userId=session?.user.id;
+    const userId=demoMode?'demo':session?.user.id;
     if(!userId||snapshot||loading||error||hydrationUserId.current===userId)return;
     hydrationUserId.current=userId;
-    const cached=Platform.OS==='web'?readSessionSnapshot(userId):null;
+    const cached=!demoMode&&Platform.OS==='web'?readSessionSnapshot(userId):null;
     if(cached)setSnapshot(cached);
     void refresh({force:Boolean(cached)});
   }, [error,loading,refresh,session?.user.id,setSnapshot,snapshot]);
 
   useEffect(()=>{
     const userId=session?.user.id;
-    if(Platform.OS!=='web'||!userId||!snapshot)return;
+    if(demoMode||Platform.OS!=='web'||!userId||!snapshot)return;
     const timer=setTimeout(()=>writeSessionSnapshot(userId,snapshot),500);
     return()=>clearTimeout(timer);
   },[session?.user.id,snapshot]);

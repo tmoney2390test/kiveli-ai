@@ -1,7 +1,7 @@
 import{useCallback,useState}from'react';
 import{Alert,Pressable,StyleSheet,Text,View}from'react-native';
 import{router,useFocusEffect}from'expo-router';
-import{Archive,ArrowLeft,ChevronRight,Undo2}from'lucide-react-native';
+import{Archive,ArrowLeft,ChevronRight,Undo2,Users}from'lucide-react-native';
 import{CharacterAvatar,EmptyState,LoadingSkeleton,PageTitle,Screen}from'../src/components';
 import{archiveRetentionLabel}from'../src/lib/chatArchive';
 import{manageConversation}from'../src/lib/api';
@@ -35,8 +35,8 @@ export default function ArchivedChats(){
 
   const restore=(chat:ArchivedChat)=>{
     const character=snapshot?.characters.find((item)=>item.id===chat.character_instance_id);
-    const name=character?.together_character_templates.name??'this companion';
-    const hasCurrent=snapshot?.conversations.some((item)=>item.id!==chat.id&&item.character_instance_id===chat.character_instance_id&&!item.archived_at);
+    const name=chat.kind==='group'?(chat.title??'this group'):(character?.together_character_templates.name??'this companion');
+    const hasCurrent=chat.kind!=='group'&&snapshot?.conversations.some((item)=>item.id!==chat.id&&item.character_instance_id===chat.character_instance_id&&!item.archived_at);
     confirmAction({
       title:`Restore chat with ${name}?`,
       message:hasCurrent?'This transcript will become the current chat. The newer current thread will remain safely available in conversation history.':'This transcript will return to Messages as the current chat.',
@@ -57,19 +57,19 @@ export default function ArchivedChats(){
 
   if(!snapshot)return <EmptyState title="Archived Chats unavailable" body="Reload Kivelle and try again."/>;
   return <Screen contentStyle={styles.content}>
-    <View style={styles.header}><Pressable accessibilityLabel="Back to Settings" onPress={()=>router.canGoBack()?router.back():router.replace('/settings')} style={styles.back}><ArrowLeft color={colors.text}/></Pressable><View style={{flex:1}}><PageTitle>Archived Chats</PageTitle><Text style={styles.subtitle}>Deleted chats stay here for 30 days before permanent removal.</Text></View></View>
-    <View style={styles.notice}><Archive color={colors.violet}/><View style={{flex:1}}><Text style={styles.noticeTitle}>A recoverable delete</Text><Text style={styles.noticeCopy}>Archived chats disappear from Messages and conversation history. Restoring one does not change relationship progress, saved memories, Moments, or photos.</Text></View></View>
+    <View style={styles.header}><Pressable accessibilityLabel="Back to Settings" onPress={()=>router.canGoBack()?router.back():router.replace('/settings')} style={styles.back}><ArrowLeft color={colors.text}/></Pressable><View style={{flex:1}}><PageTitle>Archived Chats</PageTitle><Text style={styles.subtitle}>Archived chats stay here for 30 days before permanent removal.</Text></View></View>
+    <View style={styles.notice}><Archive color={colors.violet}/><View style={{flex:1}}><Text style={styles.noticeTitle}>Recoverable for 30 days</Text><Text style={styles.noticeCopy}>Archived chats leave Messages and conversation history. Restoring one does not change relationship progress, saved memories, or Moments.</Text></View></View>
     {error?<Pressable onPress={()=>setReloadKey((value)=>value+1)} style={styles.error}><Text style={styles.errorText}>{error}</Text><Text style={styles.retry}>Tap to retry</Text></Pressable>:null}
     {loading&&!items.length?<LoadingSkeleton label="Loading archived chats…"/>:null}
-    {!loading&&!items.length?<EmptyState title="No archived chats" body="Chats you delete will be recoverable here for 30 days."/>:null}
+    {!loading&&!items.length?<EmptyState title="No archived chats" body="Chats you archive will be recoverable here for 30 days."/>:null}
     <View style={styles.list}>{items.map((chat)=>{
       const character=snapshot.characters.find((item)=>item.id===chat.character_instance_id);
       const template=character?.together_character_templates;
-      const name=template?.name??'Unavailable companion';
+      const name=chat.kind==='group'?(chat.title??'Group chat'):(template?.name??'Unavailable companion');
       const busy=busyId===chat.id;
       return <View key={chat.id} style={[styles.card,busy&&styles.busy]}>
         <Pressable accessibilityLabel={`Open archived chat with ${name}`} disabled={busy} onPress={()=>router.push(`/conversation/${chat.id}` as never)} style={({pressed})=>[styles.cardMain,pressed&&styles.pressed]}>
-          {character?<CharacterAvatar slug={template!.slug} name={name} template={template} version={character.together_character_versions} size={52}/>:<View style={styles.fallback}><Archive size={21} color={colors.violet}/></View>}
+          {chat.kind==='group'?<View style={styles.fallback}><Users size={21} color={colors.violet}/></View>:character?<CharacterAvatar slug={template!.slug} name={name} template={template} version={character.together_character_versions} size={52}/>:<View style={styles.fallback}><Archive size={21} color={colors.violet}/></View>}
           <View style={styles.copy}><View style={styles.nameRow}><Text numberOfLines={1} style={styles.name}>{name}</Text><ChevronRight size={17} color={colors.dimmed}/></View><Text numberOfLines={2} style={styles.preview}>{chat.last_message_preview??'No messages in this chat.'}</Text><Text style={styles.meta}>{chat.message_count??0} {(chat.message_count??0)===1?'message':'messages'} · {archiveRetentionLabel(chat.restore_until)}</Text></View>
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={`Restore chat with ${name}`} disabled={busy} onPress={()=>restore(chat)} style={({pressed})=>[styles.restore,pressed&&styles.pressed]}><Undo2 size={16} color="#fff"/><Text style={styles.restoreText}>{busy?'Restoring…':'Restore'}</Text></Pressable>

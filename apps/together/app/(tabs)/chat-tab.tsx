@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
+  SectionList,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,14 +20,18 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Swipeable } from "react-native-gesture-handler";
 import {
+  Archive,
+  CloudOff,
   MessageCircle,
   MoreVertical,
   Pin,
   Plus,
+  RefreshCw,
   Search,
   Settings,
-  Trash2,
+  Undo2,
   Users,
   X,
 } from "lucide-react-native";
@@ -38,115 +45,187 @@ import { manageConversation, manageGroup, setConversationPinned } from "../../sr
 import { confirmAction } from "../../src/lib/dialogs";
 import {
   buildInboxRows,
+  buildInboxSections,
   chatHrefFromInboxParams,
   type ChatLaunchParams,
   formatInboxTimestamp,
   type InboxFilter,
+  type InboxGroupDetail,
+  type InboxPage,
   inboxPreview,
   isConversationPinned,
   type InboxRow,
   isActiveInboxConversation,
   mergeInboxConversations,
+  mergeInboxGroups,
+  mergeInboxPages,
 } from "../../src/lib/messageInbox";
+import { loadInboxFilter, saveInboxFilter } from "../../src/lib/messageInboxPreference";
+import { loadMessageDrafts } from "../../src/lib/messageDrafts";
 import { useTogether } from "../../src/store/useTogether";
 import { colors, radius, spacing, typography } from "../../src/theme";
 import type {
   CharacterInstance,
   Conversation,
-  GroupDetail,
 } from "../../src/types";
 import { useAppShell } from "../../src/shell/AppShellContext";
+import { useAuth } from "../../src/hooks/useAuth";
+import { useNetworkStatus } from "../../src/providers/NetworkStatusProvider";
 
 const demoMode = __DEV__ &&
   process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === "true";
-const inboxCache = new Map<string, Conversation[]>();
+const INBOX_PAGE_SIZE = 40;
+type InboxCacheEntry = { conversations: Conversation[]; groups: InboxGroupDetail[]; pageInfo: InboxPage["pageInfo"] };
+const inboxCache = new Map<string, InboxCacheEntry>();
+
+function normalizeInboxPage(value: InboxPage | Conversation[]): InboxPage {
+  if (Array.isArray(value)) {
+    return { conversations: value, groups: [], pageInfo: { hasMore: false, nextOffset: null } };
+  }
+  return value;
+}
 
 export default function MessageInbox() {
   const params = useLocalSearchParams<ChatLaunchParams>();
   const { desktop } = useAppShell();
+  const { session } = useAuth();
+  const { online, phase: connectionPhase } = useNetworkStatus();
   const { snapshot, refresh, setCoreState } = useTogether();
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [groups, setGroups] = useState<GroupDetail[]>([]);
+  const [groups, setGroups] = useState<InboxGroupDetail[]>([]);
   const [filter, setFilter] = useState<InboxFilter>("all");
   const [query, setQuery] = useState("");
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [menuRow, setMenuRow] = useState<InboxRow | null>(null);
   const [settingsRow, setSettingsRow] = useState<InboxRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [error, setError] = useState("");
-  const [reloadKey, setReloadKey] = useState(0);
+  const [archiveUndo, setArchiveUndo] = useState<{ row: InboxRow; restoring: boolean } | null>(null);
+  const conversationsRef = useRef<Conversation[]>([]);
+  const groupsRef = useRef<InboxGroupDetail[]>([]);
+  const nextOffsetRef = useRef<number | null>(0);
+  const hasMoreRef = useRef(true);
+  const requestSequence = useRef(0);
+  const fetchingMoreRef = useRef(false);
+  const fetchingRefreshRef = useRef(false);
   const chatHref = chatHrefFromInboxParams(params);
 
   useEffect(() => {
     if (params.compose) setShowNewConversation(true);
   }, [params.compose]);
 
+  const fetchInbox = useCallback(async (mode: "refresh" | "more") => {
+    if (chatHref || demoMode) return;
+    const currentSnapshot = useTogether.getState().snapshot;
+    if (!currentSnapshot) return;
+    if (mode === "more" && (!hasMoreRef.current || fetchingMoreRef.current || fetchingRefreshRef.current)) return;
+    if (mode === "refresh" && fetchingRefreshRef.current) return;
+    if (!online) {
+      setLoading(false);
+      setRefreshing(false);
+      setLoadingMore(false);
+      return;
+    }
+    const scope = `${session?.user.id ?? "anonymous"}:${currentSnapshot.activeContinuity?.id ?? "default"}`;
+    const offset = mode === "more" ? nextOffsetRef.current ?? 0 : 0;
+    const requestId = ++requestSequence.current;
+    if (mode === "more") {
+      fetchingMoreRef.current = true;
+      setLoadingMore(true);
+    } else {
+      fetchingRefreshRef.current = true;
+      setLoading(conversationsRef.current.length === 0);
+      setRefreshing(conversationsRef.current.length > 0);
+      setError("");
+    }
+    try {
+      const page = normalizeInboxPage(await manageConversation<InboxPage | Conversation[]>({ action: "inbox_v2", limit: INBOX_PAGE_SIZE, offset }));
+      if (requestSequence.current !== requestId) return;
+      const nextConversations = mode === "more" ? mergeInboxPages(conversationsRef.current, page.conversations) : page.conversations;
+      const nextGroups = mode === "more" ? mergeInboxGroups(groupsRef.current, page.groups) : page.groups;
+      conversationsRef.current = nextConversations;
+      groupsRef.current = nextGroups;
+      nextOffsetRef.current = page.pageInfo.nextOffset;
+      hasMoreRef.current = page.pageInfo.hasMore;
+      setConversations(nextConversations);
+      setGroups(nextGroups);
+      inboxCache.set(scope, { conversations: nextConversations, groups: nextGroups, pageInfo: page.pageInfo });
+      const latest = useTogether.getState().snapshot;
+      if (latest && latest.activeContinuity?.id === currentSnapshot.activeContinuity?.id) {
+        setCoreState({ conversations: mergeInboxConversations(latest.conversations, nextConversations) });
+      }
+    } catch (caught) {
+      if (requestSequence.current === requestId) setError(caught instanceof Error ? caught.message : "Messages could not be loaded.");
+    } finally {
+      if (requestSequence.current === requestId) {
+        setLoading(false);
+        setRefreshing(false);
+        setLoadingMore(false);
+        fetchingMoreRef.current = false;
+        fetchingRefreshRef.current = false;
+      }
+    }
+  }, [chatHref, online, session?.user.id, setCoreState]);
+
   useFocusEffect(useCallback(() => {
     if (chatHref) return;
     const currentSnapshot = useTogether.getState().snapshot;
     if (!currentSnapshot) return;
-    const scope = currentSnapshot.activeContinuity?.id ?? "default";
-    const canUseGroups =
-      currentSnapshot.entitlements?.entitlement_keys?.includes("group_chat") ===
-        true;
-    const hasExistingGroups = currentSnapshot.conversations.some((
-      conversation,
-    ) =>
-      isActiveInboxConversation(conversation) && conversation.kind === "group"
-    );
+    const scope = `${session?.user.id ?? "anonymous"}:${currentSnapshot.activeContinuity?.id ?? "default"}`;
+    const cached = inboxCache.get(scope);
     const local = mergeInboxConversations(
       currentSnapshot.conversations.filter(isActiveInboxConversation),
-      inboxCache.get(scope) ?? [],
+      cached?.conversations ?? [],
     );
+    conversationsRef.current = local;
+    groupsRef.current = cached?.groups ?? [];
+    nextOffsetRef.current = cached?.pageInfo.nextOffset ?? 0;
+    hasMoreRef.current = cached?.pageInfo.hasMore ?? true;
     setConversations(local);
+    setGroups(cached?.groups ?? []);
+    setLoading(local.length === 0);
     if (demoMode) {
       setLoading(false);
       return;
     }
-    let cancelled = false;
-    setLoading(true);
-    setError("");
-    const groupRequest = canUseGroups || hasExistingGroups
-      ? manageGroup<{ groups: GroupDetail[] }>({ action: "list" }).catch(
-        () => ({ groups: [] }),
-      )
-      : Promise.resolve({ groups: [] as GroupDetail[] });
-    void Promise.all([
-      manageConversation<Conversation[]>({ action: "inbox" }),
-      groupRequest,
-    ])
-      .then(([items, groupResult]) => {
-        if (cancelled) return;
-        setGroups(groupResult.groups);
-        inboxCache.set(scope, items);
-        setConversations(items);
-        const latest = useTogether.getState().snapshot;
-        if (
-          latest &&
-          latest.activeContinuity?.id === currentSnapshot.activeContinuity?.id
-        ) {
-          setCoreState({
-            conversations: mergeInboxConversations(latest.conversations, items),
-          });
-        }
-      })
-      .catch((caught) => {
-        if (!cancelled) {
-          setError(
-            caught instanceof Error
-              ? caught.message
-              : "Messages could not be loaded.",
-          );
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    void fetchInbox("refresh");
     return () => {
-      cancelled = true;
+      requestSequence.current += 1;
+      fetchingMoreRef.current = false;
+      fetchingRefreshRef.current = false;
     };
-  }, [chatHref, reloadKey, setCoreState, snapshot?.activeContinuity?.id]));
+  }, [chatHref, fetchInbox, session?.user.id, snapshot?.activeContinuity?.id]));
+
+  useEffect(() => {
+    const userId = session?.user.id;
+    const continuityId = snapshot?.activeContinuity?.id;
+    if (!userId || !continuityId) return;
+    let cancelled = false;
+    setFilter("all");
+    void loadInboxFilter(userId, continuityId).then((saved) => { if (!cancelled) setFilter(saved); });
+    return () => { cancelled = true; };
+  }, [session?.user.id, snapshot?.activeContinuity?.id]);
+
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId || !conversations.length) {
+      setDrafts({});
+      return;
+    }
+    let cancelled = false;
+    void loadMessageDrafts(userId, conversations).then((loaded) => { if (!cancelled) setDrafts(loaded); });
+    return () => { cancelled = true; };
+  }, [conversations, session?.user.id]);
+
+  useEffect(() => {
+    if (!archiveUndo || archiveUndo.restoring) return;
+    const timer = setTimeout(() => setArchiveUndo(null), 8000);
+    return () => clearTimeout(timer);
+  }, [archiveUndo]);
 
   const rows = useMemo(() =>
     snapshot
@@ -159,6 +238,15 @@ export default function MessageInbox() {
         groups,
       )
       : [], [conversations, filter, groups, query, snapshot]);
+  const sections = useMemo(() => buildInboxSections(rows), [rows]);
+  const hasGroups = conversations.some((conversation) => conversation.kind === "group");
+
+  const selectFilter = (next: InboxFilter) => {
+    setFilter(next);
+    const userId = session?.user.id;
+    const continuityId = snapshot?.activeContinuity?.id;
+    if (userId && continuityId) void saveInboxFilter(userId, continuityId, next);
+  };
 
   const openChat = (row: InboxRow) =>
     row.conversation.kind === "group"
@@ -185,44 +273,34 @@ export default function MessageInbox() {
   const archive = (row: InboxRow) => {
     setMenuRow(null);
     confirmAction({
-      title:
-        `Delete chat with ${row.character.together_character_templates.name}?`,
+      title: `Archive ${row.conversation.kind === "group" ? row.conversation.title ?? "this group" : `chat with ${row.character.together_character_templates.name}`}?`,
       message:
-        "The chat will disappear from Messages and conversation history. You can restore it from Settings → Archived Chats for 30 days. Your relationship and memories will not change.",
-      confirmLabel: "Delete chat",
-      destructive: true,
+        "It will leave Messages now and remain recoverable from Archived Chats for 30 days. Relationships, memories, and Moments will not change.",
+      confirmLabel: "Archive chat",
       onConfirm: async () => {
         setBusyId(row.conversation.id);
         try {
           const archived = row.conversation.kind === "group"
-            ? null
-            : await manageConversation<Conversation>({
-              action: "delete",
+            ? (await manageGroup<{ archived: boolean; conversation: Conversation }>({
+              action: "archive",
               conversationId: row.conversation.id,
-            });
-          if (row.conversation.kind === "group") {
-            await manageGroup({
+            })).conversation
+            : await manageConversation<Conversation>({
               action: "archive",
               conversationId: row.conversation.id,
             });
-          }
-          setConversations((current) =>
-            current.filter((conversation) =>
-              conversation.id !== row.conversation.id
-            )
-          );
-          await refresh();
-          const latest = useTogether.getState().snapshot;
-          if (latest && archived) {
-            useTogether.getState().setCoreState({
-              conversations: latest.conversations.map((conversation) =>
-                conversation.id === archived.id ? archived : conversation
-              ),
-            });
-          }
+          const nextConversations = conversationsRef.current.filter((conversation) => conversation.id !== row.conversation.id);
+          const nextGroups = groupsRef.current.filter((group) => group.conversation.id !== row.conversation.id);
+          conversationsRef.current = nextConversations;
+          groupsRef.current = nextGroups;
+          setConversations(nextConversations);
+          setGroups(nextGroups);
+          useTogether.getState().upsertConversation(archived);
+          setArchiveUndo({ row: { ...row, conversation: archived }, restoring: false });
+          void refresh();
         } catch (caught) {
           Alert.alert(
-            "Could not delete chat",
+            "Could not archive chat",
             caught instanceof Error ? caught.message : "Please try again.",
           );
         } finally {
@@ -231,13 +309,30 @@ export default function MessageInbox() {
       },
     });
   };
+  const undoArchive = async () => {
+    if (!archiveUndo || archiveUndo.restoring) return;
+    const row = archiveUndo.row;
+    setArchiveUndo({ ...archiveUndo, restoring: true });
+    try {
+      const restored = await manageConversation<Conversation>({ action: "restore", conversationId: row.conversation.id });
+      useTogether.getState().upsertConversation(restored);
+      setArchiveUndo(null);
+      await fetchInbox("refresh");
+      void refresh();
+    } catch (caught) {
+      setArchiveUndo({ row, restoring: false });
+      Alert.alert("Could not restore chat", caught instanceof Error ? caught.message : "Please try again.");
+    }
+  };
   const togglePinned = async (row: InboxRow) => {
     setMenuRow(null);
     setBusyId(row.conversation.id);
     const pinned = !isConversationPinned(row.conversation);
     try {
       const updated = await setConversationPinned(row.conversation.id, pinned);
-      setConversations((current) => current.map((item) => item.id === updated.id ? updated : item));
+      const next = conversationsRef.current.map((item) => item.id === updated.id ? updated : item);
+      conversationsRef.current = next;
+      setConversations(next);
       const latest = useTogether.getState().snapshot;
       if (latest) useTogether.getState().upsertConversation(updated);
     } catch (caught) {
@@ -256,21 +351,70 @@ export default function MessageInbox() {
       />
     );
   }
+  const status = !online
+    ? { icon: <CloudOff size={15} color={colors.text} />, text: "Offline · Showing saved conversations", tone: "offline" as const }
+    : refreshing && conversations.length
+    ? { icon: <RefreshCw size={15} color={colors.text} />, text: "Updating messages…", tone: "updating" as const }
+    : connectionPhase === "reconnected"
+    ? { icon: <RefreshCw size={15} color={colors.text} />, text: "Back online · Updating messages", tone: "online" as const }
+    : null;
+  const emptyTitle = query
+    ? "No matching chats"
+    : filter === "unread"
+    ? "You’re all caught up"
+    : filter === "favorites"
+    ? "No favorite chats yet"
+    : filter === "groups"
+    ? "No group conversations yet"
+    : "No conversations yet";
+  const emptyBody = query
+    ? "Try a companion name or another word from the message."
+    : filter === "unread"
+    ? "New messages will appear here."
+    : filter === "favorites"
+    ? "Favorite a companion to keep their chat close."
+    : filter === "groups"
+    ? "Create a group from the + button when you are ready."
+    : "Your conversations will appear here.";
   return (
     <SafeAreaView edges={["top"]} style={styles.screen}>
       <View pointerEvents="none" style={styles.glowTop} />
       <View pointerEvents="none" style={styles.glowBottom} />
-      <ScrollView
+      <SectionList
+        accessibilityLabel="Messages list"
+        sections={sections}
+        keyExtractor={(row) => row.conversation.id}
+        renderItem={({ item }) => (
+          <SwipeableConversationRow
+            row={item}
+            draft={drafts[item.conversation.id]}
+            busy={busyId === item.conversation.id}
+            onOpen={() => openChat(item)}
+            onMenu={() => setMenuRow(item)}
+            onTogglePinned={() => void togglePinned(item)}
+          />
+        )}
+        renderSectionHeader={({ section }) => (
+          <Text accessibilityRole="header" style={styles.sectionTitle}>{section.title}</Text>
+        )}
+        stickySectionHeadersEnabled={false}
+        initialNumToRender={12}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS !== "web"}
+        onEndReached={() => void fetchInbox("more")}
+        onEndReachedThreshold={0.35}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void fetchInbox("refresh")} tintColor={colors.rose} colors={[colors.rose]} />}
         contentContainerStyle={[styles.content, desktop && styles.contentDesktop]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-      >
+        ListHeaderComponent={<>
         <View style={styles.header}>
           <View style={styles.headerSpacer} />
-          <Text style={styles.title}>Messages</Text>
+          <Text accessibilityRole="header" style={styles.title}>Messages</Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="New conversation"
+            accessibilityLabel="Start a new conversation"
             onPress={() => setShowNewConversation(true)}
             style={styles.newButton}
           >
@@ -301,34 +445,19 @@ export default function MessageInbox() {
             )
             : null}
         </View>
-        <View style={styles.filters}>
-          <FilterButton
-            label="Favorites"
-            active={filter === "favorites"}
-            onPress={() => setFilter("favorites")}
-          />
-          <FilterButton
-            label="All chats"
-            active={filter === "all"}
-            onPress={() => setFilter("all")}
-          />
-          {groups.length ||
-              conversations.some((conversation) =>
-                conversation.kind === "group"
-              )
-            ? (
-              <FilterButton
-                label="Groups"
-                active={filter === "groups"}
-                onPress={() => setFilter("groups")}
-              />
-            )
-            : null}
-        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} accessibilityRole="tablist" style={styles.filtersScroller} contentContainerStyle={styles.filters}>
+          <FilterButton label="All" active={filter === "all"} onPress={() => selectFilter("all")} />
+          <FilterButton label="Unread" active={filter === "unread"} onPress={() => selectFilter("unread")} />
+          <FilterButton label="Favorites" active={filter === "favorites"} onPress={() => selectFilter("favorites")} />
+          {hasGroups || filter === "groups" ? <FilterButton label="Groups" active={filter === "groups"} onPress={() => selectFilter("groups")} /> : null}
+        </ScrollView>
+        {status ? <View accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.status, status.tone === "offline" && styles.statusOffline]}>{status.icon}<Text style={styles.statusText}>{status.text}</Text></View> : null}
         {error
           ? (
             <Pressable
-              onPress={() => setReloadKey((value) => value + 1)}
+              accessibilityRole="button"
+              accessibilityLabel={`${error}. Retry loading messages`}
+              onPress={() => void fetchInbox("refresh")}
               style={styles.error}
             >
               <Text style={styles.errorText}>{error}</Text>
@@ -336,41 +465,12 @@ export default function MessageInbox() {
             </Pressable>
           )
           : null}
-        <View style={styles.list}>
-          {rows.map((row) => (
-            <ConversationRow
-              key={row.conversation.id}
-              row={row}
-              busy={busyId === row.conversation.id}
-              onOpen={() => openChat(row)}
-              onMenu={() => setMenuRow(row)}
-            />
-          ))}
-          {!rows.length && !loading
-            ? (
-              <EmptyState
-                title={query
-                  ? "No matching chats"
-                  : filter === "favorites"
-                  ? "No favorite chats yet"
-                  : filter === "groups"
-                  ? "No group conversations yet"
-                  : "No conversations yet"}
-                body={query
-                  ? "Try a companion name or another word from the message."
-                  : filter === "favorites"
-                  ? "Favorite a companion to keep their chat close."
-                  : filter === "groups"
-                  ? "Create a group from the + button when you are ready."
-                  : "Your conversations will appear here."}
-              />
-            )
-            : null}
-          {loading && !rows.length
-            ? <Text style={styles.loading}>Loading messages…</Text>
-            : null}
-        </View>
-      </ScrollView>
+        </>}
+        ListEmptyComponent={loading
+          ? <View accessibilityLiveRegion="polite" style={styles.loadingRow}><ActivityIndicator color={colors.rose} /><Text style={styles.loading}>Loading messages…</Text></View>
+          : <EmptyState title={emptyTitle} body={emptyBody} />}
+        ListFooterComponent={loadingMore ? <View accessibilityLiveRegion="polite" style={styles.loadingMore}><ActivityIndicator color={colors.rose} /><Text style={styles.loadingMoreText}>Loading more conversations…</Text></View> : null}
+      />
       <ConversationActions
         row={menuRow}
         onClose={() => setMenuRow(null)}
@@ -405,11 +505,25 @@ export default function MessageInbox() {
         conversation={settingsRow?.conversation ?? null}
         character={settingsRow?.character ?? null}
         onClose={() => setSettingsRow(null)}
-        onSaved={(updated) =>
-          setConversations((current) =>
-            current.map((item) => item.id === updated.id ? updated : item)
-          )}
+        onSaved={(updated) => {
+          const next = conversationsRef.current.map((item) => item.id === updated.id ? updated : item);
+          conversationsRef.current = next;
+          setConversations(next);
+          useTogether.getState().upsertConversation(updated);
+        }}
       />
+      {archiveUndo ? (
+        <View accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.undoToast, desktop && styles.undoToastDesktop]}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.undoTitle}>Chat archived</Text>
+            <Text numberOfLines={1} style={styles.undoCopy}>Recoverable for 30 days from Archived Chats.</Text>
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Undo archive" disabled={archiveUndo.restoring} onPress={() => void undoArchive()} style={styles.undoButton}>
+            {archiveUndo.restoring ? <ActivityIndicator size="small" color={colors.text} /> : <Undo2 size={16} color={colors.text} />}
+            <Text style={styles.undoButtonText}>{archiveUndo.restoring ? "Restoring" : "Undo"}</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -423,7 +537,8 @@ function FilterButton(
 ) {
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole="tab"
+      accessibilityLabel={`${label} conversations`}
       accessibilityState={{ selected: active }}
       onPress={onPress}
       style={[styles.filter, active && styles.filterActive]}
@@ -436,8 +551,9 @@ function FilterButton(
 }
 
 function ConversationRow(
-  { row, busy, onOpen, onMenu }: {
+  { row, draft, busy, onOpen, onMenu }: {
     row: InboxRow;
+    draft?: string;
     busy: boolean;
     onOpen: () => void;
     onMenu: () => void;
@@ -446,12 +562,12 @@ function ConversationRow(
   const { character, conversation } = row;
   const template = character.together_character_templates;
   const group = conversation.kind === "group" ? row.group : undefined;
-  const displayName = group
+  const displayName = conversation.kind === "group"
     ? conversation.title ||
-      group.participants.map((participant) =>
+      group?.participants.map((participant) =>
         participant.together_character_instances.together_character_templates
           .name.split(" ")[0]
-      ).join(", ")
+      ).join(", ") || "Group chat"
     : template.name;
   return (
     <View style={[styles.row, busy && styles.rowBusy]}>
@@ -462,7 +578,7 @@ function ConversationRow(
         disabled={busy}
         style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
       >
-        {group ? <GroupAvatarStack group={group} /> : (
+        {conversation.kind === "group" ? <GroupAvatarStack group={group} /> : (
           <CharacterAvatar
             slug={template.slug}
             name={template.name}
@@ -494,7 +610,7 @@ function ConversationRow(
             ]}
             numberOfLines={2}
           >
-            {inboxPreview(conversation)}
+            {inboxPreview(conversation, { draft })}
           </Text>
         </View>
       </Pressable>
@@ -509,6 +625,43 @@ function ConversationRow(
         <MoreVertical size={22} color={colors.muted} />
       </Pressable>
     </View>
+  );
+}
+
+function SwipeableConversationRow(
+  { row, draft, busy, onOpen, onMenu, onTogglePinned }: {
+    row: InboxRow;
+    draft?: string;
+    busy: boolean;
+    onOpen: () => void;
+    onMenu: () => void;
+    onTogglePinned: () => void;
+  },
+) {
+  const pinned = isConversationPinned(row.conversation);
+  return (
+    <Swipeable
+      enabled={!busy}
+      friction={2}
+      rightThreshold={44}
+      overshootRight={false}
+      renderRightActions={(_progress, _drag, swipeable) => (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={pinned ? "Unpin chat" : "Pin chat"}
+          onPress={() => {
+            swipeable.close();
+            onTogglePinned();
+          }}
+          style={[styles.swipeAction, pinned && styles.swipeActionPinned]}
+        >
+          <Pin size={18} color={colors.text} fill={pinned ? colors.text : "transparent"} />
+          <Text style={styles.swipeActionText}>{pinned ? "Unpin" : "Pin"}</Text>
+        </Pressable>
+      )}
+    >
+      <ConversationRow row={row} draft={draft} busy={busy} onOpen={onOpen} onMenu={onMenu} />
+    </Swipeable>
   );
 }
 
@@ -608,10 +761,11 @@ function NewConversationModal({
   );
 }
 
-function GroupAvatarStack({ group }: { group: GroupDetail }) {
-  const items = group.participants.slice(0, 3);
+function GroupAvatarStack({ group }: { group?: InboxGroupDetail }) {
+  const items = group?.participants.slice(0, 3) ?? [];
   return (
     <View style={styles.groupAvatarStack}>
+      {!items.length ? <View style={styles.groupAvatarFallback}><Users size={22} color={colors.violet} /></View> : null}
       {items.map((participant, index) => {
         const character = participant.together_character_instances,
           template = character.together_character_templates;
@@ -633,9 +787,7 @@ function GroupAvatarStack({ group }: { group: GroupDetail }) {
           </View>
         );
       })}
-      <View style={styles.groupBadge}>
-        <Users size={11} color={colors.text} />
-      </View>
+      {items.length ? <View style={styles.groupBadge}><Users size={11} color={colors.text} /></View> : null}
     </View>
   );
 }
@@ -668,7 +820,7 @@ function ConversationActions(
             <FrostedSurface intensity={88} style={styles.sheet}>
               <View style={styles.sheetHandle} />
               <View style={styles.sheetHeader}>
-                {row.group
+                {row.conversation.kind === "group"
                   ? <GroupAvatarStack group={row.group} />
                   : (
                     <CharacterAvatar
@@ -696,6 +848,7 @@ function ConversationActions(
               </View>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel={isConversationPinned(row.conversation) ? "Unpin chat" : "Pin chat"}
                 onPress={() => onTogglePinned(row)}
                 style={({ pressed }) => [styles.sheetAction, pressed && styles.pressed]}
               >
@@ -707,6 +860,7 @@ function ConversationActions(
               </Pressable>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel="Edit chat settings"
                 onPress={() => onSettings(row)}
                 style={(
                   { pressed },
@@ -724,20 +878,21 @@ function ConversationActions(
               </Pressable>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel="Archive chat"
                 onPress={() => onArchive(row)}
                 style={(
                   { pressed },
                 ) => [styles.sheetAction, pressed && styles.pressed]}
               >
-                <Trash2 size={19} color={colors.danger} />
+                <Archive size={19} color={colors.danger} />
                 <View style={{ flex: 1 }}>
                   <Text
                     style={[styles.sheetActionTitle, { color: colors.danger }]}
                   >
-                    Delete chat
+                    Archive chat
                   </Text>
                   <Text style={styles.sheetActionCopy}>
-                    Remove it now; restore it from Settings for 30 days
+                    Move it out of Messages; restore it for 30 days
                   </Text>
                 </View>
               </Pressable>
@@ -823,20 +978,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  filtersScroller: { marginTop: 28, marginBottom: 20 },
   filters: {
     flexDirection: "row",
     gap: 4,
-    marginTop: 28,
-    marginBottom: 24,
     padding: 4,
+    paddingRight: 12,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: "rgba(14,12,20,.62)",
   },
   filter: {
-    flex: 1,
+    minWidth: 92,
     minHeight: 50,
+    paddingHorizontal: 18,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: radius.pill,
@@ -848,14 +1004,35 @@ const styles = StyleSheet.create({
   },
   filterText: { color: colors.muted, fontSize: 14, fontWeight: "700" },
   filterTextActive: { color: colors.text, fontWeight: "900" },
-  list: { gap: 3 },
+  sectionTitle: {
+    color: colors.dimmed,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 1.25,
+    marginTop: 18,
+    marginBottom: 4,
+    paddingVertical: 5,
+    backgroundColor: colors.background,
+  },
   row: {
     minHeight: 92,
     flexDirection: "row",
     alignItems: "center",
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,248,244,.055)",
+    backgroundColor: colors.background,
   },
+  swipeAction: {
+    width: 82,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    backgroundColor: "rgba(154,104,255,.38)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,248,244,.055)",
+  },
+  swipeActionPinned: { backgroundColor: "rgba(78,61,92,.72)" },
+  swipeActionText: { color: colors.text, fontSize: 11, fontWeight: "900" },
   rowBusy: { opacity: .48 },
   rowMain: {
     minWidth: 0,
@@ -877,6 +1054,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.background,
     borderRadius: 24,
+  },
+  groupAvatarFallback: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(154,104,255,.12)",
+    borderWidth: 1,
+    borderColor: "rgba(154,104,255,.25)",
   },
   groupBadge: {
     position: "absolute",
@@ -928,12 +1115,27 @@ const styles = StyleSheet.create({
   preview: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 7 },
   unreadPreview: { color: colors.textSecondary },
   more: {
-    width: 42,
+    width: 44,
     height: 50,
     marginLeft: 4,
     alignItems: "flex-end",
     justifyContent: "center",
   },
+  status: {
+    minHeight: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginBottom: 12,
+    paddingHorizontal: 13,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(91,145,255,.11)",
+    borderWidth: 1,
+    borderColor: "rgba(91,145,255,.2)",
+  },
+  statusOffline: { backgroundColor: "rgba(255,180,92,.09)", borderColor: "rgba(255,180,92,.2)" },
+  statusText: { color: colors.textSecondary, fontSize: 12, fontWeight: "700" },
   error: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -947,7 +1149,37 @@ const styles = StyleSheet.create({
   },
   errorText: { minWidth: 0, flex: 1, color: colors.danger, fontSize: 12 },
   retry: { color: colors.text, fontSize: 11, fontWeight: "900" },
-  loading: { color: colors.muted, textAlign: "center", paddingVertical: 46 },
+  loadingRow: { minHeight: 150, alignItems: "center", justifyContent: "center", gap: 12 },
+  loading: { color: colors.muted, textAlign: "center" },
+  loadingMore: { minHeight: 72, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
+  loadingMoreText: { color: colors.muted, fontSize: 12 },
+  undoToast: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 18,
+    minHeight: 66,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    paddingLeft: 16,
+    paddingRight: 10,
+    borderRadius: radius.lg,
+    backgroundColor: "rgba(35,28,43,.98)",
+    borderWidth: 1,
+    borderColor: colors.borderBright,
+    shadowColor: "#000",
+    shadowOpacity: .35,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+  },
+  undoToastDesktop: { left: undefined, right: undefined, width: 560, alignSelf: "center" },
+  undoTitle: { color: colors.text, fontSize: 13, fontWeight: "900" },
+  undoCopy: { color: colors.muted, fontSize: 11, marginTop: 3 },
+  undoButton: { minWidth: 86, minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 12, borderRadius: radius.md, backgroundColor: "rgba(154,104,255,.16)" },
+  undoButtonText: { color: colors.text, fontSize: 12, fontWeight: "900" },
   pressed: { opacity: .7 },
   modalRoot: {
     flex: 1,

@@ -1,15 +1,29 @@
 import type {
   CharacterInstance,
   Conversation,
-  GroupDetail,
+  GroupParticipant,
   Message,
 } from "../types";
 
-export type InboxFilter = "favorites" | "all" | "groups";
+export type InboxFilter = "all" | "unread" | "favorites" | "groups";
+export type InboxGroupDetail = {
+  conversation: Conversation;
+  participants: GroupParticipant[];
+};
+export type InboxPage = {
+  conversations: Conversation[];
+  groups: InboxGroupDetail[];
+  pageInfo: { hasMore: boolean; nextOffset: number | null };
+};
 export type InboxRow = {
   conversation: Conversation;
   character: CharacterInstance;
-  group?: GroupDetail;
+  group?: InboxGroupDetail;
+};
+export type InboxSection = {
+  key: "pinned" | "recent";
+  title: "Pinned" | "Recent";
+  data: InboxRow[];
 };
 export type ChatLaunchParams = {
   inbox?: string;
@@ -127,7 +141,7 @@ export function buildInboxRows(
   favoriteCharacterTemplateIds: string[],
   query: string,
   filter: InboxFilter,
-  groups: GroupDetail[] = [],
+  groups: InboxGroupDetail[] = [],
 ): InboxRow[] {
   const favorites = new Set(favoriteCharacterTemplateIds);
   const normalizedQuery = query.trim().toLocaleLowerCase();
@@ -139,7 +153,7 @@ export function buildInboxRows(
       ): {
         conversation: Conversation;
         character: CharacterInstance | undefined;
-        group?: GroupDetail;
+        group?: InboxGroupDetail;
       } => {
         const group = groups.find((item) =>
           item.conversation.id === conversation.id
@@ -153,21 +167,19 @@ export function buildInboxRows(
         };
       },
     )
-    .filter((row): row is InboxRow =>
-      row.character !== undefined &&
-      (row.conversation.kind !== "group" || row.group !== undefined)
-    )
+    .filter((row): row is InboxRow => row.character !== undefined)
     .filter(({ conversation, character, group }) => {
       if (filter === "all") return true;
-      if (filter === "groups") return Boolean(group);
-      if (group) {
+      if (filter === "unread") return conversation.unread === true;
+      if (filter === "groups") return conversation.kind === "group";
+      if (conversation.kind === "group") {
         const explicitFavorite = conversation.metadata?.favorite;
         if (typeof explicitFavorite === "boolean") return explicitFavorite;
-        return group.participants.some((participant) =>
+        return group?.participants.some((participant) =>
           favorites.has(
             participant.together_character_instances.character_template_id,
           )
-        );
+        ) ?? false;
       }
       return favorites.has(character.character_template_id);
     })
@@ -192,6 +204,37 @@ export function buildInboxRows(
     });
 }
 
+export function buildInboxSections(rows: InboxRow[]): InboxSection[] {
+  const pinned = rows.filter((row) => isConversationPinned(row.conversation));
+  const recent = rows.filter((row) => !isConversationPinned(row.conversation));
+  return [
+    ...(pinned.length
+      ? [{ key: "pinned" as const, title: "Pinned" as const, data: pinned }]
+      : []),
+    ...(recent.length
+      ? [{ key: "recent" as const, title: "Recent" as const, data: recent }]
+      : []),
+  ];
+}
+
+export function mergeInboxGroups(
+  current: InboxGroupDetail[],
+  incoming: InboxGroupDetail[],
+): InboxGroupDetail[] {
+  const merged = new Map(current.map((group) => [group.conversation.id, group]));
+  for (const group of incoming) merged.set(group.conversation.id, group);
+  return [...merged.values()];
+}
+
+export function mergeInboxPages(
+  current: Conversation[],
+  incoming: Conversation[],
+): Conversation[] {
+  const merged = new Map(current.map((conversation) => [conversation.id, conversation]));
+  for (const conversation of incoming) merged.set(conversation.id, conversation);
+  return [...merged.values()];
+}
+
 export function isConversationPinned(conversation: Conversation): boolean {
   return conversation.metadata?.pinned === true;
 }
@@ -207,10 +250,32 @@ export function isActiveInboxConversation(
     ["direct", "first_meeting", "group"].includes(conversation.kind);
 }
 
-export function inboxPreview(conversation: Conversation): string {
+export function inboxPreview(
+  conversation: Conversation,
+  options: { draft?: string | null } = {},
+): string {
+  const draft = options.draft?.replace(/\s+/g, " ").trim();
+  if (draft) return `Draft: ${draft}`;
+  if (conversation.last_message_delivery_status === "failed") {
+    return "Message failed · Open to retry";
+  }
+  if (conversation.reply_pending) return "Generating a response…";
   const preview = conversation.last_message_preview?.replace(/\s+/g, " ")
     .trim();
-  if (preview) return preview;
+  const attachment = conversation.last_message_attachment_kind === "image"
+    ? "Photo"
+    : conversation.last_message_attachment_kind === "audio"
+    ? "Voice message"
+    : conversation.last_message_attachment_kind === "video"
+    ? "Video"
+    : "";
+  const cleanedPreview = preview === "[Photo]" ? "" : preview ?? "";
+  const content = attachment && cleanedPreview
+    ? `${attachment} · ${cleanedPreview}`
+    : attachment || cleanedPreview;
+  if (content) {
+    return conversation.last_message_role === "user" ? `You: ${content}` : content;
+  }
   return conversation.last_message_at
     ? "Loading latest message…"
     : "Start the conversation.";
@@ -240,6 +305,9 @@ export function mergeInboxConversations(
       last_message_at: cached.last_message_at ?? conversation.last_message_at,
       last_message_preview: cached.last_message_preview,
       last_message_role: cached.last_message_role,
+      last_message_delivery_status: cached.last_message_delivery_status,
+      last_message_attachment_kind: cached.last_message_attachment_kind,
+      reply_pending: conversation.reply_pending ?? cached.reply_pending,
       message_count: cached.message_count ?? conversation.message_count,
       unread: conversation.unread ?? cached.unread,
     };

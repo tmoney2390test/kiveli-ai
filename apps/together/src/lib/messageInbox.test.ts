@@ -7,6 +7,7 @@ import type {
 } from "../types";
 import {
   buildInboxRows,
+  buildInboxSections,
   chatHrefFromInboxParams,
   chatSessionRouteKey,
   conversationWithLastMessage,
@@ -15,6 +16,8 @@ import {
   MESSAGES_INBOX_HREF,
   MESSAGES_INBOX_ROUTE,
   mergeInboxConversations,
+  mergeInboxGroups,
+  mergeInboxPages,
   isConversationPinned,
   mostRecentChatHref,
   returnToMessagesInbox,
@@ -132,7 +135,7 @@ describe("message inbox presentation", () => {
     ).toEqual(["chloe-chat", "maya-chat"]);
   });
 
-  it("never renders a group as its compatibility-anchor direct companion while roster details load", () => {
+  it("keeps a clearly identified group row visible while roster details load", () => {
     const group = {
       ...conversation(
         "group-chat",
@@ -143,11 +146,9 @@ describe("message inbox presentation", () => {
       kind: "group",
       title: "Maya & Chloe",
     };
-    expect(
-      buildInboxRows([...conversations, group], characters, [], "", "all").map((
-        row,
-      ) => row.conversation.id),
-    ).not.toContain("group-chat");
+    const row = buildInboxRows([...conversations, group], characters, [], "", "all").find((item) => item.conversation.id === "group-chat");
+    expect(row?.conversation.kind).toBe("group");
+    expect(row?.group).toBeUndefined();
   });
 
   it("gives hydrated group conversations their own inbox filter", () => {
@@ -256,6 +257,15 @@ describe("message inbox presentation", () => {
         row.character.id
       ),
     ).toEqual(["maya"]);
+    expect(
+      buildInboxRows(
+        conversations.map((item) => ({ ...item, unread: item.id === "maya-chat" })),
+        characters,
+        [],
+        "",
+        "unread",
+      ).map((row) => row.conversation.id),
+    ).toEqual(["maya-chat"]);
   });
 
   it("formats compact timestamps and safe empty previews", () => {
@@ -274,6 +284,23 @@ describe("message inbox presentation", () => {
         conversation("hydrating", "maya", "2026-08-18T12:00:00.000Z", ""),
       ),
     ).toBe("Loading latest message…");
+    expect(inboxPreview({
+      ...conversation("outgoing", "maya", "2026-08-18T12:00:00.000Z", "See you soon"),
+      last_message_role: "user",
+    })).toBe("You: See you soon");
+    expect(inboxPreview({
+      ...conversation("photo", "maya", "2026-08-18T12:00:00.000Z", "What do you think?"),
+      last_message_role: "user",
+      last_message_attachment_kind: "image",
+    })).toBe("You: Photo · What do you think?");
+    expect(inboxPreview({
+      ...conversation("pending", "maya", "2026-08-18T12:00:00.000Z", "Hello"),
+      reply_pending: true,
+    })).toBe("Generating a response…");
+    expect(inboxPreview(
+      conversation("draft", "maya", "2026-08-18T12:00:00.000Z", "Hello"),
+      { draft: "  Finish\nthis  " },
+    )).toBe("Draft: Finish this");
   });
 
   it("preserves a hydrated preview across a broader snapshot refresh", () => {
@@ -402,5 +429,19 @@ describe("message inbox presentation", () => {
     const rows = buildInboxRows([newer, pinned], [maya, chloe], [], "", "all");
     expect(rows.map((row) => row.conversation.id)).toEqual(["maya-chat", "chloe-chat"]);
     expect(isConversationPinned(pinned)).toBe(true);
+    expect(buildInboxSections(rows).map((section) => ({ title: section.title, ids: section.data.map((row) => row.conversation.id) }))).toEqual([
+      { title: "Pinned", ids: ["maya-chat"] },
+      { title: "Recent", ids: ["chloe-chat"] },
+    ]);
+  });
+
+  it("merges paginated conversations and group rosters without duplicates", () => {
+    const maya = conversation("maya-chat", "maya", "2026-08-20T10:00:00.000Z", "Earlier");
+    const updatedMaya = { ...maya, last_message_preview: "Updated" };
+    const chloe = conversation("chloe-chat", "chloe", "2026-08-20T11:00:00.000Z", "Later");
+    expect(mergeInboxPages([maya], [updatedMaya, chloe])).toEqual([updatedMaya, chloe]);
+    const first = { conversation: maya, participants: [] };
+    const updated = { conversation: updatedMaya, participants: [] };
+    expect(mergeInboxGroups([first], [updated])).toEqual([updated]);
   });
 });
