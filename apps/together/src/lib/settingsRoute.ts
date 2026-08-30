@@ -15,3 +15,15 @@ export function shouldRenderSettingsRoute(input: {
     : input.routerPathname;
   return isSettingsPath(pathname);
 }
+
+export function shouldUseDesktopSettingsLayout(input: {
+  platform: string;
+  width: number;
+  webHydrated: boolean;
+}) {
+  // Static web output has no trustworthy viewport width. Keep the server and
+  // first browser render on the same mobile-safe tree, then enhance to the
+  // desktop layout after hydration.
+  if (input.platform === 'web' && !input.webHydrated) return false;
+  return input.width >= 860;
+}

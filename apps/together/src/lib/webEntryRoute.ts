@@ -21,3 +21,13 @@ export function consumeWebEntryHref() {
 export function entryPathname(href: string) {
   return href.split(/[?#]/, 1)[0]?.replace(/\/+$/, '') || '/';
 }
+
+export function shouldRecoverWebEntry(input: {
+  entryHref?: string | null;
+  browserPathname?: string | null;
+}) {
+  if (!input.entryHref) return false;
+  const entryPath = entryPathname(input.entryHref);
+  return entryPath !== '/' && entryPath !== input.browserPathname &&
+    (input.browserPathname === '/' || input.browserPathname === '/home');
+}

@@ -5,7 +5,7 @@ import { ErrorState, LoadingSkeleton } from './RouteState';
 import { resolveKivelleAccountStage } from '../lib/authRouting';
 import { useTogether } from '../store/useTogether';
 import { shouldRunAuthenticatedIndexRedirect } from '../lib/rootRoute';
-import { entryPathname, initialWebEntryHref } from '../lib/webEntryRoute';
+import { initialWebEntryHref, shouldRecoverWebEntry } from '../lib/webEntryRoute';
 
 export default function AuthenticatedIndex() {
   const pathname = usePathname();
@@ -14,11 +14,7 @@ export default function AuthenticatedIndex() {
     ? window.location.pathname
     : null;
   const entryHref = Platform.OS === 'web' ? initialWebEntryHref() : null;
-  const entryPath = entryHref ? entryPathname(entryHref) : null;
-  const recoverDeepLink = Boolean(
-    entryHref && entryPath !== '/' && entryPath !== browserPath &&
-    (browserPath === '/' || browserPath === '/home'),
-  );
+  const recoverDeepLink = shouldRecoverWebEntry({ entryHref, browserPathname: browserPath });
   const isActiveRoot = shouldRunAuthenticatedIndexRedirect({
     platform: Platform.OS,
     routerPathname: pathname,
@@ -27,12 +23,11 @@ export default function AuthenticatedIndex() {
   const stage = snapshot ? resolveKivelleAccountStage(snapshot.profile) : null;
 
   useEffect(() => {
-    if (recoverDeepLink && entryHref && typeof window !== 'undefined') {
-      // Static hydration can mount the index route after initially recognizing
-      // a deep link. Restore the captured URL through the browser history event
-      // so Expo's now-mounted navigator resolves the intended screen.
-      window.history.replaceState(window.history.state, '', entryHref);
-      window.dispatchEvent(new PopStateEvent('popstate'));
+    if (recoverDeepLink && entryHref) {
+      // Let Expo Router resolve the captured route. Manually dispatching a
+      // popstate event here raced the authenticated index and could strand a
+      // refreshed Settings deep link on Home.
+      router.replace(entryHref as never);
       return;
     }
     if (!isActiveRoot || loading || error || !stage) return;

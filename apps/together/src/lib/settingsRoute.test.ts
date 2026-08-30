@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isSettingsPath, shouldRenderSettingsRoute } from './settingsRoute';
+import { isSettingsPath, shouldRenderSettingsRoute, shouldUseDesktopSettingsLayout } from './settingsRoute';
 
 describe('settings route visibility', () => {
   it('renders the settings overlay only on the settings route', () => {
@@ -31,5 +31,12 @@ describe('settings route visibility', () => {
       routerPathname: '/settings',
       browserPathname: '/stories',
     })).toBe(true);
+  });
+
+  it('keeps the static and first browser render on the same layout', () => {
+    expect(shouldUseDesktopSettingsLayout({ platform: 'web', width: 1440, webHydrated: false })).toBe(false);
+    expect(shouldUseDesktopSettingsLayout({ platform: 'web', width: 1440, webHydrated: true })).toBe(true);
+    expect(shouldUseDesktopSettingsLayout({ platform: 'web', width: 390, webHydrated: true })).toBe(false);
+    expect(shouldUseDesktopSettingsLayout({ platform: 'ios', width: 1024, webHydrated: false })).toBe(true);
   });
 });
