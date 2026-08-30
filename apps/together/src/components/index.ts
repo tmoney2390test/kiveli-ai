@@ -22,3 +22,4 @@ export * from './MessageActionSheet';
 export * from './MemorySavedToast';
 export * from './ChatConversationRail';
 export * from './VideoGenerationSheet';
+export * from './MediaRequestModal';

@@ -11,7 +11,7 @@ import { MESSAGE_CHARACTER_LIMIT, messageCharacterLimitError } from '@together/d
 import { isPhotoOnlyConversationMessage } from '@together/domain/src/media';
 import { shouldGroupChatMessages } from '@together/domain/src/group-chat';
 import { preservedPrependOffset, shouldKeepChatPinned, shouldLoadOlderChatMessages } from '../src/lib/chatScroll';
-import { CharacterAvatar, CharacterMentionText, CharacterProfilePreviewModal, ChatConversationRail, ChatPhotoRequestCard, ConnectionBanner, ConversationOverflowMenu, DateTimeFields, EndPlanConfirmation, ErrorState, FailedMessageRecovery, FrostedBackdrop, FrostedSurface, LoadingSkeleton, MediaTile, MemorySavedToast, MessageActionSheet, MessageCharacterCounter, MobileChatMediaHeader, PlanDetailsModal, PlanJoinBar, VoiceNotePurchaseModal, resolveCharacterPortraitSource, type MessageActionDefinition } from '../src/components';
+import { CharacterAvatar, CharacterMentionText, CharacterProfilePreviewModal, ChatConversationRail, ChatPhotoRequestCard, ConnectionBanner, ConversationOverflowMenu, DateTimeFields, EndPlanConfirmation, ErrorState, FailedMessageRecovery, FrostedBackdrop, FrostedSurface, LoadingSkeleton, MediaRequestModal, MediaTile, MemorySavedToast, MessageActionSheet, MessageCharacterCounter, MobileChatMediaHeader, PlanDetailsModal, PlanJoinBar, VoiceNotePurchaseModal, resolveCharacterPortraitSource, type MessageActionDefinition } from '../src/components';
 import { characterAssets, cityLifeAsset, locationHeroAsset, worldHeroAsset } from '../src/assets';
 import { colors, radius, spacing } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
@@ -30,7 +30,7 @@ import { createClientRequestId } from '../src/lib/requestId';
 import { characterCatalogForWorld, characterResidentWorld, worldForLocation } from '../src/lib/place';
 import type { FeaturedCompanion } from '../src/lib/featuredCompanions';
 import { presentMemoryText } from '../src/lib/memoryPresentation';
-import { customPhotoRequestText, mediaWithoutActivePhotoOffer, photoMediaForOffer, photoOfferForMessage, photoOffersWithoutVisibleMessages, shouldShowPhotoGenerationPending, visibleChatPhotoMedia } from '../src/lib/photoRequestPresentation';
+import { mediaWithoutActivePhotoOffer, photoMediaForOffer, photoOfferForMessage, photoOffersWithoutVisibleMessages, shouldShowPhotoGenerationPending, visibleChatPhotoMedia } from '../src/lib/photoRequestPresentation';
 import { latestMediaOfferPreviewUri } from '../src/lib/mediaOfferPresentation';
 import { interactionFeedback, interactionFeedbackCopy, proposalHeading, type InteractionFeedbackPresentation } from '../src/lib/interactionPresentation';
 import { dialogueFailureMayHavePersisted } from '../src/lib/dialogueRecovery';
@@ -752,7 +752,7 @@ function ChatSession() {
         <ChatSettingsModal visible={showChatSettings} conversation={conversation} character={character} onClose={()=>setShowChatSettings(false)} />
         <CharacterProfilePreviewModal companion={characterPreview} onClose={()=>setCharacterPreview(null)} onViewProfile={(person)=>{setCharacterPreview(null);router.push(`/character/${person.slug}` as never);}} onInviteToGroup={invitePreviewToGroup} />
         <VoiceNotePurchaseModal visible={Boolean(voiceNotePrompt)} name={voiceNotePrompt?.name??character.together_character_templates.name} creditCost={voiceNotePrompt?.creditCost??0} creditBalance={voiceNotePrompt?.creditBalance??0} shortened={voiceNotePrompt?.shortened} busy={voiceNotePromptBusy} onClose={()=>finishVoiceNotePrompt(null)} onConfirm={(hideFuture)=>finishVoiceNotePrompt({hideFuture})} onBuyCredits={()=>{finishVoiceNotePrompt(null);router.push('/subscription');}}/>
-        <PhotoRequestModal visible={showPhotoRequests} character={character} onRequest={(request)=>{setShowPhotoRequests(false);void send(request);}} onShare={()=>{setShowPhotoRequests(false);openPhotoPicker();}} onClose={()=>setShowPhotoRequests(false)}/>
+        <MediaRequestModal visible={showPhotoRequests} character={character} conversationId={conversation.id} onPhotoRequest={(request)=>{setShowPhotoRequests(false);void send(request);}} onShare={()=>{setShowPhotoRequests(false);openPhotoPicker();}} onVideoCreated={(media)=>{upsertMedia(media);setReconcilingMediaId(media.id);setShowPhotoRequests(false);router.push(`/media/${media.id}` as never);}} onBuyCredits={()=>{setShowPhotoRequests(false);router.push('/subscription');}} onClose={()=>setShowPhotoRequests(false)}/>
         <AutoDialogueOptionsModal visible={showAutoDialogueOptions} name={character.together_character_templates.name} hasSuggestion={Boolean(autoDialogue)} onChoose={(preference)=>void requestAutoDialogue(preference)} onClose={()=>setShowAutoDialogueOptions(false)}/>
         <PlanDetailsModal visible={Boolean(planModal)} planId={planModal?.planId??null} confirmCancel={planModal?.confirmCancel} onClose={()=>setPlanModal(null)}/>
         <EndPlanConfirmation visible={Boolean(planEndTarget)} plan={planEndTarget} busy={Boolean(planEndTarget&&planActionBusyId===planEndTarget.id)} onClose={()=>{if(!planActionBusyId)setPlanEndTarget(null);}} onConfirm={()=>void confirmEndPlan()}/>
@@ -1015,45 +1015,6 @@ function LegacyComposer({character,compact,input,setInput,sending,onSend,onPlan,
   void onInteraction; void onMove; void coPresent;
   const overLimit=input.length>MESSAGE_CHARACTER_LIMIT;
   return <View style={styles.composerWrap}><View style={styles.quickActions}><Pressable onPress={onPhoto} style={[styles.quickAction,styles.quickActionFitted]}><Camera size={14} color={colors.rose}/><Text numberOfLines={1} style={[styles.quickText,styles.quickTextFitted]}>{compact?'Photo':'Ask for a photo'}</Text></Pressable><Pressable onPress={onPlan} style={[styles.quickAction,styles.quickActionFitted]}><CalendarDays size={14} color={colors.warm}/><Text numberOfLines={1} style={[styles.quickText,styles.quickTextFitted]}>{compact?'Plan':'Plan something'}</Text></Pressable><Pressable onPress={()=>router.push('/memories')} style={[styles.quickAction,styles.quickActionFitted]}><Brain size={14} color={colors.violet}/><Text numberOfLines={1} style={[styles.quickText,styles.quickTextFitted]}>Memories</Text></Pressable></View><View style={styles.composer}><TextInput value={input} onChangeText={setInput} placeholder={`Message ${character.together_character_templates.name}…`} placeholderTextColor={colors.dimmed} multiline style={[styles.input,styles.inputFitted]} textAlignVertical="top"/><Pressable accessibilityLabel="Send message" onPress={onSend} disabled={!input.trim()||sending||overLimit} style={[styles.send,(!input.trim()||sending||overLimit)&&styles.sendDisabled]}><Send color="#fff" size={19}/></Pressable></View><MessageCharacterCounter value={input}/></View>; }
-
-function PhotoRequestModal({visible,character,onRequest,onShare,onClose}:{visible:boolean;character:CharacterInstance;onRequest:(request:string)=>void;onShare:()=>void;onClose:()=>void}){
-  const name=character.together_character_templates.name;
-  const[description,setDescription]=useState('');
-  useEffect(()=>{if(!visible)setDescription('');},[visible]);
-  const options=[
-    {label:'What they’re doing',request:`Show me what you're doing right now.`},
-    {label:'Where they are',request:`Show me where you are.`},
-  ];
-  const submitDescription=()=>{const request=customPhotoRequestText(description);if(!request)return;setDescription('');onRequest(request);};
-  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-    <Pressable accessibilityLabel="Close photo options" style={styles.mediaModalBackdrop} onPress={onClose}>
-      <FrostedBackdrop intensity={34}/>
-      <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':Platform.OS==='android'?'height':undefined} style={styles.mediaModalFrame}>
-      <Pressable onPress={()=>undefined}>
-        <FrostedSurface intensity={82} style={styles.mediaModal}>
-          <Pressable accessibilityLabel="Close photo options" onPress={onClose} style={styles.mediaModalClose}><X size={18} color={colors.muted}/></Pressable>
-          <View style={styles.mediaModalPortrait}>
-            <CharacterAvatar slug={character.together_character_templates.slug} name={name} template={character.together_character_templates} version={character.together_character_versions} size={80}/>
-          </View>
-          <Text style={styles.mediaModalTitle}>See this moment</Text>
-          <Text style={styles.mediaModalCopy}>Ask {name} for a photo grounded in where they are and what they’re doing right now.</Text>
-          <Text style={styles.mediaOptionLabel}>PRICE SHOWN BEFORE GENERATION</Text>
-          <Pressable accessibilityLabel={`Ask ${name} for a selfie`} onPress={()=>onRequest('Send me a selfie from where you are.')} style={styles.mediaPrimaryAction}>
-            <Sparkles size={17} color="#fff"/>
-            <Text style={styles.mediaPrimaryText}>Send me a selfie</Text>
-          </Pressable>
-          <Text style={styles.mediaOptionLabel}>OR SHOW ME</Text>
-          <View style={styles.mediaOptions}>{options.map((option)=><Pressable key={option.label} onPress={()=>onRequest(option.request)} style={styles.mediaOption}><Camera size={14} color="#C7A6FF"/><Text style={styles.mediaOptionText}>{option.label}</Text></Pressable>)}</View>
-          <Text style={styles.mediaOptionLabel}>DESCRIBE WHAT YOU WANT</Text>
-          <View style={styles.mediaDescriptionRow}><TextInput accessibilityLabel="Describe the exact photo you want" value={description} onChangeText={setDescription} onSubmitEditing={submitDescription} placeholder="Describe what you want…" placeholderTextColor={colors.dimmed} maxLength={320} returnKeyType="send" style={styles.mediaDescriptionInput}/><Pressable accessibilityRole="button" accessibilityLabel={`Ask ${name} for this photo`} accessibilityState={{disabled:!description.trim()}} disabled={!description.trim()} onPress={submitDescription} style={[styles.mediaDescriptionSubmit,!description.trim()&&styles.sendDisabled]}><Send size={17} color="#fff"/></Pressable></View>
-          <Pressable accessibilityLabel="Share your own photo" onPress={onShare} style={styles.mediaShareAction}><ImagePlus size={15} color={colors.rose}/><Text style={styles.mediaShareText}>Share your own photo</Text></Pressable>
-          <Pressable onPress={onClose} style={styles.mediaCancel}><Text style={styles.mediaCancelText}>Not now</Text></Pressable>
-        </FrostedSurface>
-      </Pressable>
-      </KeyboardAvoidingView>
-    </Pressable>
-  </Modal>;
-}
 
 function AutoDialogueOptionsModal({visible,name,hasSuggestion,onChoose,onClose}:{visible:boolean;name:string;hasSuggestion:boolean;onChoose:(preference:AutoDialoguePreference)=>void;onClose:()=>void}){
   const options:Array<{value:AutoDialoguePreference;label:string;detail:string}>=[
