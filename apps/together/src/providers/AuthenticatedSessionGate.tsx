@@ -4,7 +4,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { ErrorState } from '../components/RouteState';
 import { RouteLoadingState } from '../components/RouteLoadingState';
 import { resolveKivelleAccountStage } from '../lib/authRouting';
-import { desktopShellAllowed } from '../lib/desktopNavigation';
+import { authenticatedShellEnabled } from '../lib/desktopNavigation';
 import { isAgeConfirmationPath, isCompanionOnboardingPath, isPublicAppPath } from '../lib/sessionRouting';
 import { ResponsiveAppShell } from '../shell/ResponsiveAppShell';
 import { useTogether } from '../store/useTogether';
@@ -87,7 +87,8 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
     }
   }
 
-  const shellEnabled = Boolean(snapshot && resolveKivelleAccountStage(snapshot.profile) === 'ready' && desktopShellAllowed(pathname));
+  const accountStage=snapshot?resolveKivelleAccountStage(snapshot.profile):null;
+  const shellEnabled=authenticatedShellEnabled(pathname,accountStage);
   return <>
     <ResponsiveAppShell enabled={shellEnabled}>{children}</ResponsiveAppShell>
     {blocker ? <View style={styles.blocker}>{blocker}</View> : null}

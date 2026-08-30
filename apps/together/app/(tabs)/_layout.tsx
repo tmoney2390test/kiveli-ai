@@ -8,12 +8,14 @@ import { MESSAGES_INBOX_HREF, mostRecentChatHref, shouldOpenMostRecentChat } fro
 import { useTogether } from '../../src/store/useTogether';
 import { colors } from '../../src/theme';
 import { markRouteIntent, scheduleCoreRouteWarmup, warmRoute } from '../../src/lib/routeWarmup';
+import { isDesktopShellViewport } from '../../src/lib/desktopNavigation';
 
 const web = Platform.OS === 'web';
 
 export default function TabsLayout() {
   const { width } = useWindowDimensions();
   const { desktop } = useAppShell();
+  const desktopViewport=isDesktopShellViewport(Platform.OS,width);
   const pathname=usePathname();
   const snapshot=useTogether((state)=>state.snapshot);
   const webBarWidth = Math.max(300, Math.min(720, width - 24));
@@ -29,7 +31,7 @@ export default function TabsLayout() {
     tabBarActiveBackgroundColor: 'rgba(239,82,137,.18)',
     tabBarBackground: () => <FrostedTabBarBackground />,
     tabBarStyle: {
-      display: desktop ? 'none' : 'flex',
+      display: desktop||desktopViewport ? 'none' : 'flex',
       position: 'absolute',
       zIndex: 100,
       left: 12,

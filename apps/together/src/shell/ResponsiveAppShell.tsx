@@ -1,8 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import {
-  DESKTOP_SHELL_BREAKPOINT,
   DESKTOP_SIDEBAR_COLLAPSED_WIDTH,
+  isDesktopShellViewport,
 } from '../lib/desktopNavigation';
 import { colors } from '../theme';
 import { AppShellContext, mobileAppShellState } from './AppShellContext';
@@ -16,7 +16,7 @@ let desktopSidebarHoverIntent = false;
 
 export function ResponsiveAppShell({ children, enabled }: PropsWithChildren<{ enabled: boolean }>) {
   const { width } = useWindowDimensions();
-  const desktop = enabled && Platform.OS === 'web' && width >= DESKTOP_SHELL_BREAKPOINT;
+  const desktop = enabled && isDesktopShellViewport(Platform.OS,width);
   const [sidebarHovered, setSidebarHovered] = useState(() => desktopSidebarHoverIntent);
   const collapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 

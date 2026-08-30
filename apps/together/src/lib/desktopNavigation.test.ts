@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  authenticatedShellEnabled,
   defaultDesktopSidebarExpanded,
   desktopNavigationKey,
   desktopShellAllowed,
+  isDesktopShellViewport,
   isImmersiveDesktopPath,
   normalizeDesktopPath,
 } from './desktopNavigation';
@@ -24,6 +26,19 @@ describe('desktop navigation', () => {
     expect(desktopShellAllowed('/help')).toBe(false);
     expect(desktopShellAllowed('/home')).toBe(true);
     expect(desktopShellAllowed('/create/companion')).toBe(true);
+  });
+
+  it('uses the authenticated desktop shell while account data is restoring',()=>{
+    expect(authenticatedShellEnabled('/home',null)).toBe(true);
+    expect(authenticatedShellEnabled('/home','ready')).toBe(true);
+    expect(authenticatedShellEnabled('/home','onboarding')).toBe(false);
+    expect(authenticatedShellEnabled('/choose-companion',null)).toBe(false);
+  });
+
+  it('never treats native or a narrow web viewport as desktop',()=>{
+    expect(isDesktopShellViewport('web',900)).toBe(true);
+    expect(isDesktopShellViewport('web',899)).toBe(false);
+    expect(isDesktopShellViewport('ios',1200)).toBe(false);
   });
 
   it.each([

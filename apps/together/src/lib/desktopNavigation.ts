@@ -40,6 +40,14 @@ export function desktopShellAllowed(pathname: string) {
   return !shellFreePaths.has(normalizeDesktopPath(pathname));
 }
 
+export function authenticatedShellEnabled(pathname:string,accountStage:'age_confirmation'|'onboarding'|'ready'|null){
+  return desktopShellAllowed(pathname)&&(accountStage===null||accountStage==='ready');
+}
+
+export function isDesktopShellViewport(platform:string,width:number){
+  return platform==='web'&&width>=DESKTOP_SHELL_BREAKPOINT;
+}
+
 export function isImmersiveDesktopPath(pathname: string) {
   const path = normalizeDesktopPath(pathname);
   return path === '/call' || path === '/plan-live';
