@@ -29,7 +29,7 @@ import { KivelleLogo } from '../KivelleLogo';
 import { radius, typography } from '../../theme';
 import { joinPathFor } from '../../lib/sessionRouting';
 import { PUBLIC_COMPANIONS, PUBLIC_LANDING_COPY, PUBLIC_WORLDS, type PublicCompanion, type PublicWorld } from '../../lib/publicLanding';
-import { publicCompanionAssets, publicLandingMobileHeroAsset, publicWorldAssets } from './publicLandingAssets';
+import { publicCompanionAssets, publicLandingHeroPortraitAsset, publicLandingMobileHeroAsset, publicWorldAssets } from './publicLandingAssets';
 
 type LandingSection = 'worlds' | 'why' | 'companions';
 
@@ -199,7 +199,7 @@ function HeaderLink({ label, onPress }: { label: string; onPress: () => void }) 
 }
 
 function Hero({ desktop, compact, onEnter, onMeet }: { desktop: boolean; compact: boolean; onEnter: () => void; onMeet: () => void }) {
-  const heroPortrait = publicCompanionAssets['becka-shaw'];
+  const heroPortrait = publicLandingHeroPortraitAsset;
   const [visualReady,setVisualReady]=useState(false);
   return <View style={[styles.hero, desktop ? styles.heroDesktop : styles.heroStacked, compact && styles.heroCompact]}>
     <Image accessible accessibilityLabel="Juniper City skyline at dusk" source={compact ? publicLandingMobileHeroAsset : publicWorldAssets['juniper-city']} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" loading="eager" priority="high" onLoad={()=>setVisualReady(true)} />

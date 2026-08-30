@@ -14,6 +14,10 @@ export const publicLandingMobileHeroAsset: ImageSource = {
   uri: '/landing/juniper-city-mobile.1c4108fcc02f6799630e5fe041c335d4.webp',
 };
 
+export const publicLandingHeroPortraitAsset: ImageSource = {
+  uri: '/landing/becka-shaw.412281e73f70efdbc1fa2998f7f9dd91.webp',
+};
+
 export const publicCompanionAssets: Record<string, ImageSource> = {
   'becka-shaw': require('../../../assets/characters/juniper-city/becka-shaw.jpg'),
   'sophie-laurent': require('../../../assets/characters/juniper-city/sophie-laurent.jpg'),
