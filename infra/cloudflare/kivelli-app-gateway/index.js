@@ -83,7 +83,12 @@ async function proxySupabaseRequest(request, incomingUrl) {
 
     const responseHeaders = new Headers(upstreamResponse.headers);
     responseHeaders.set("cache-control", "no-store");
-    responseHeaders.set("x-kivelle-api-proxy", "supabase");
+    responseHeaders.set("x-kivelli-api-proxy", "supabase");
+    if ((responseHeaders.get("content-type") || "").startsWith("video/")) {
+      responseHeaders.set("accept-ranges", "bytes");
+      responseHeaders.set("content-disposition", "inline");
+      responseHeaders.set("x-content-type-options", "nosniff");
+    }
     return new Response(upstreamResponse.body, {
       status: upstreamResponse.status,
       statusText: upstreamResponse.statusText,

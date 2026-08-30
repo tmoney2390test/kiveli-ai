@@ -51,7 +51,9 @@ async function main():Promise<void>{
   }
 
   const delivery=await verifySignedDelivery(db,finalStoragePath);
-  console.log(JSON.stringify({mediaId,bytes:normalized.bytes.byteLength,relocated:normalized.relocated,republished:needsCacheBustingPath,adjustedChunkOffsets:normalized.adjustedChunkOffsets,delivery}));
+  const proxyUrl=process.env.KIVELLI_VIDEO_BACKFILL_PROXY_URL;
+  const gatewayDelivery=proxyUrl?await verifySignedDelivery(db,finalStoragePath,proxyUrl):null;
+  console.log(JSON.stringify({mediaId,bytes:normalized.bytes.byteLength,codec:mp4Codec(normalized.bytes),relocated:normalized.relocated,republished:needsCacheBustingPath,adjustedChunkOffsets:normalized.adjustedChunkOffsets,delivery,gatewayDelivery}));
 }
 
 function requiredEnvironment(name:string):string{
@@ -66,16 +68,33 @@ function versionedStoragePath(storagePath:string):string{
   return`${stem}-faststart-${randomUUID()}.mp4`;
 }
 
-async function verifySignedDelivery(db:SupabaseClient,storagePath:string):Promise<Record<string,unknown>>{
+async function verifySignedDelivery(db:SupabaseClient,storagePath:string,proxyUrl?:string):Promise<Record<string,unknown>>{
   const{data,error}=await db.storage.from('together-user-media').createSignedUrl(storagePath,60);
   if(error||!data?.signedUrl)throw error??new Error('A signed playback URL could not be created.');
-  const response=await fetch(data.signedUrl,{headers:{Range:'bytes=0-65535'}});
+  const deliveryUrl=proxyUrl?proxiedSignedUrl(data.signedUrl,proxyUrl):data.signedUrl;
+  const response=await fetch(deliveryUrl,{headers:{Range:'bytes=0-65535'}});
   if(response.status!==200&&response.status!==206)throw new Error('The signed playback response was unavailable.');
   const bytes=new Uint8Array(await response.arrayBuffer()),boxOrder=topLevelBoxOrder(bytes);
   const moovIndex=boxOrder.indexOf('moov'),mdatIndex=boxOrder.indexOf('mdat');
   if(moovIndex<0||mdatIndex<0||moovIndex>mdatIndex)throw new Error('The signed playback response was not fast-start compatible.');
-  return{status:response.status,contentType:response.headers.get('content-type'),contentRange:response.headers.get('content-range'),boxOrder,receivedBytes:bytes.byteLength};
+  return{status:response.status,contentType:response.headers.get('content-type'),contentRange:response.headers.get('content-range'),acceptRanges:response.headers.get('accept-ranges'),contentDisposition:response.headers.get('content-disposition'),cors:response.headers.get('access-control-allow-origin'),boxOrder,receivedBytes:bytes.byteLength};
 }
+
+function proxiedSignedUrl(signedUrl:string,proxyUrl:string):string{
+  const signed=new URL(signedUrl),proxy=new URL(proxyUrl);
+  return`${proxy.origin}${proxy.pathname.replace(/\/$/,'')}${signed.pathname}${signed.search}`;
+}
+
+function mp4Codec(bytes:Uint8Array):Record<string,unknown>{
+  for(let index=4;index+8<bytes.byteLength;index+=1){
+    if(String.fromCharCode(...bytes.subarray(index,index+4))!=='avcC')continue;
+    const profile=bytes[index+5]??0,compatibility=bytes[index+6]??0,level=bytes[index+7]??0;
+    return{family:'avc1',profile,level,codec:`avc1.${hex(profile)}${hex(compatibility)}${hex(level)}`};
+  }
+  return{family:'unknown'};
+}
+
+function hex(value:number):string{return value.toString(16).padStart(2,'0');}
 
 function topLevelBoxOrder(bytes:Uint8Array):string[]{
   const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),types:string[]=[];
