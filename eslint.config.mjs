@@ -3,7 +3,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['**/node_modules/**', '**/dist/**', '**/dist-*/**', '**/.expo/**', '**/worker-configuration.d.ts', 'supabase/functions/**/*.ts', 'scripts/simulate-life-engine.ts', 'scripts/sync-kivelle-reference-media.ts', 'scripts/audit-kivelle-character-references.ts', 'scripts/audit-kivelle-voice-production.ts', 'scripts/audit-eos-meridian-production.ts', 'scripts/smoke-kivelle-voice-production.ts', 'scripts/prepare-kivelle-character-lora.ts', 'scripts/create-kivelle-media-benchmark.ts', 'apps/together/babel.config.js', 'apps/together/metro.config.js'] },
+  { ignores: ['**/node_modules/**', '**/dist/**', '**/dist-*/**', '**/.expo/**', '**/worker-configuration.d.ts', 'supabase/functions/**/*.ts', 'scripts/simulate-life-engine.ts', 'scripts/sync-kivelle-reference-media.ts', 'scripts/audit-kivelle-character-references.ts', 'scripts/audit-kivelle-voice-production.ts', 'scripts/audit-eos-meridian-production.ts', 'scripts/smoke-kivelle-voice-production.ts', 'scripts/prepare-kivelle-character-lora.ts', 'scripts/create-kivelle-media-benchmark.ts', 'scripts/normalize-kivelli-video-faststart.ts', 'apps/together/babel.config.js', 'apps/together/metro.config.js'] },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {

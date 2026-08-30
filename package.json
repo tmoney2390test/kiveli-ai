@@ -25,6 +25,7 @@
     "eos:audit-production": "node --experimental-strip-types scripts/audit-eos-meridian-production.ts",
     "media:prepare-lora": "node --experimental-strip-types scripts/prepare-kivelle-character-lora.ts",
     "media:create-benchmark": "node --experimental-strip-types scripts/create-kivelle-media-benchmark.ts",
+    "media:normalize-video-faststart": "node --experimental-strip-types scripts/normalize-kivelli-video-faststart.ts",
     "stories:validate": "node --experimental-strip-types scripts/validate-kivelli-stories.mjs"
   },
   "devDependencies": {

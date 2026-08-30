@@ -7,7 +7,7 @@ import{gateGeneratedImageQuality}from'./together-media-quality.ts';
 import{completeMediaUsageAttempt,markMediaOfferOutcome}from'./together-media-usage.ts';
 import{imageDimensions,isSafeExternalHttpsUrl,matchesDeclaredMediaSignature}from'../../../packages/together-domain/src/index.ts';
 import{consumeDailyPhotoAllowance,dailyPhotoReservationKey,releaseDailyPhotoAllowance}from'./kivelle-subscription.ts';
-import{detectActualVideoAudioBehavior}from'./together-video-inspection.ts';
+import{detectActualVideoAudioBehavior,normalizeMp4FastStart}from'./together-video-inspection.ts';
 
 const MAX_IMAGE_BYTES=20*1024*1024;
 const MAX_VIDEO_BYTES=80*1024*1024;
@@ -65,20 +65,22 @@ async function finalizeProviderMediaClaimed(db:SupabaseClient,input:{jobId:strin
 
   const downloaded=input.result.bytes?{bytes:input.result.bytes,contentType:input.result.contentType??defaultContentType(String(media.media_type))}:await downloadProviderOutput(String(input.result.outputUrl??''),String(media.media_type));
   validateOutput(downloaded.bytes,downloaded.contentType,String(media.media_type));
-  const dimensions=String(media.media_type)==='image'?imageDimensions(downloaded.bytes,downloaded.contentType):null;
-  const actualAudioBehavior=String(media.media_type)==='video'?detectActualVideoAudioBehavior(downloaded.bytes,downloaded.contentType):null;
+  const fastStart=String(media.media_type)==='video'?normalizeMp4FastStart(downloaded.bytes,downloaded.contentType):{bytes:downloaded.bytes,fastStart:false,relocated:false,adjustedChunkOffsets:0};
+  const deliveryBytes=fastStart.bytes;
+  const dimensions=String(media.media_type)==='image'?imageDimensions(deliveryBytes,downloaded.contentType):null;
+  const actualAudioBehavior=String(media.media_type)==='video'?detectActualVideoAudioBehavior(deliveryBytes,downloaded.contentType):null;
   const extension=extensionFor(downloaded.contentType,String(media.media_type));
   const storagePath=`${media.user_id}/${media.character_instance_id}/${media.id}.${extension}`;
-  await uploadGeneratedMediaWithRetry({upload:()=>db.storage.from('together-user-media').upload(storagePath,downloaded.bytes,{contentType:downloaded.contentType,upsert:true,cacheControl:'31536000'})});
+  await uploadGeneratedMediaWithRetry({upload:()=>db.storage.from('together-user-media').upload(storagePath,deliveryBytes,{contentType:downloaded.contentType,upsert:true,cacheControl:'31536000'})});
 
   const now=new Date().toISOString(),metadata=(media.metadata??{}) as Record<string,unknown>;
   const safeProviderMetadata={model:input.result.model,estimatedCost:input.result.estimatedCost??null,generationMs:input.result.generationMs??null,...sanitizeProviderMetadata(input.result.providerMetadata??{}),...sanitizeProviderMetadata(input.providerStatus??{})};
   const{data:updated,error:updateError}=await db.from('together_generated_media').update({
-    status:'ready',storage_path:storagePath,content_type:downloaded.contentType,byte_size:downloaded.bytes.byteLength,
+    status:'ready',storage_path:storagePath,content_type:downloaded.contentType,byte_size:deliveryBytes.byteLength,
     width:input.result.width??dimensions?.width??media.width??null,height:input.result.height??dimensions?.height??media.height??null,duration_ms:input.result.durationMs??media.duration_ms??null,actual_audio_behavior:actualAudioBehavior,
     provider:String(job.provider),provider_request_id:String(job.provider_request_id??input.result.providerRequestId??'')||null,
     generation_ms:input.result.generationMs??media.generation_ms??null,failure_code:null,failure_reason_safe:null,claimed_at:null,next_attempt_at:null,
-    metadata:{...metadata,providerRouteId:job.route_id,providerModel:input.result.model,providerJobId:job.id,providerStatus:'completed'},updated_at:now,
+    metadata:{...metadata,providerRouteId:job.route_id,providerModel:input.result.model,providerJobId:job.id,providerStatus:'completed',...(String(media.media_type)==='video'?{fastStart:fastStart.fastStart,fastStartNormalized:fastStart.relocated,fastStartChunkOffsetsAdjusted:fastStart.adjustedChunkOffsets}:{})},updated_at:now,
   }).eq('id',media.id).in('status',['generating','queued','ready']).select('*').single();
   if(updateError||!updated)throw new AppError('INTERNAL_ERROR','The generated media status could not be saved.',500,true);
   const actualProviderCost=Number((input.result.providerMetadata??{}).actualProviderCostUsd);
