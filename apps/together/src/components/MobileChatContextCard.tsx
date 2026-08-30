@@ -6,6 +6,7 @@ import { colors, radius } from "../theme";
 export function MobileChatContextCard({
   identityKey,
   name,
+  accessibilityName,
   location,
   activity,
   next,
@@ -16,6 +17,7 @@ export function MobileChatContextCard({
 }: {
   identityKey: string;
   name: string;
+  accessibilityName?: string;
   location: string;
   activity: string;
   next?: { title: string; detail: string; onPress?: () => void } | null;
@@ -30,7 +32,7 @@ export function MobileChatContextCard({
     <View style={styles.card}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${expanded ? "Hide" : "Show"} conversation context for ${name}`}
+        accessibilityLabel={`${expanded ? "Hide" : "Show"} conversation context for ${accessibilityName ?? name}`}
         accessibilityState={{ expanded }}
         onPress={() => setExpanded((value) => !value)}
         style={({ pressed }) => [styles.summary, pressed && styles.pressed]}

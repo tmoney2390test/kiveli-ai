@@ -1491,6 +1491,7 @@ export default function GroupChatScreen() {
       {!showRightRail&&contextParticipant&&snapshot?<MobileChatContextCard
         identityKey={`${detail.conversation.id}:${contextParticipant.character_instance_id}`}
         name={contextParticipant.together_character_instances.together_character_templates.name}
+        accessibilityName={detail.conversation.title??"this group"}
         location={snapshot.locations.find((location)=>location.id===contextParticipant.together_character_instances.current_location_id)?.name??"Home"}
         activity={contextParticipant.together_character_instances.current_activity||"Taking some private time"}
         next={(activeGroupPlan??waitingGroupPlan)?{title:(activeGroupPlan??waitingGroupPlan)!.title,detail:(activeGroupPlan??waitingGroupPlan)!.status==="active"?"Together now":new Date((activeGroupPlan??waitingGroupPlan)!.starts_at).toLocaleString([],{weekday:"short",hour:"numeric",minute:"2-digit"}),onPress:()=>router.push(`/plan/${(activeGroupPlan??waitingGroupPlan)!.id}` as never)}:null}
@@ -2347,6 +2348,7 @@ function GroupDictationButton({
       (phase === "idle" && disabled);
   return (
     <Pressable
+      accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{
         disabled: buttonDisabled,
