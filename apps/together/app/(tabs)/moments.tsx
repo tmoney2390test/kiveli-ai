@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ChevronDown, Search, Sparkles } from 'lucide-react-native';
@@ -10,6 +10,7 @@ import { worldForLocation } from '../../src/lib/place';
 import { buildMomentsFeed, planSummary, type MomentsFeedEntry, type MomentsFeedFilter } from '../../src/lib/momentsFeed';
 import { mostRecentlyMessagedConversation } from '../../src/lib/conversation';
 import { locationHeroAsset } from '../../src/assets';
+import { explicitMomentsCompanionSelection, loadMomentsCompanionSelection, restoredMomentsCompanionSelection, saveMomentsCompanionSelection } from '../../src/lib/momentsCompanionPreference';
 import type { Moment, Snapshot } from '../../src/types';
 
 const filters: MomentsFeedFilter[] = ['All', 'Experiences', 'Milestones', 'Memories', 'Photos', 'Videos'];
@@ -22,17 +23,41 @@ function MomentsFeed() {
   const snapshot = useTogether((state) => state.snapshot);
   const params=useLocalSearchParams<{character?:string;filter?:MomentsFeedFilter}>();
   const active = snapshot ? selectActiveCompanion(snapshot) : undefined;
-  const companions = snapshot?.characters.filter((item) => item.contact_added_at || item.introduced_at) ?? [];
-  const requested=companions.find((item)=>item.together_character_templates.slug===params.character||item.together_character_templates.public_handle===params.character||item.id===params.character);
+  const companions = useMemo(()=>snapshot?.characters.filter((item) => item.contact_added_at || item.introduced_at) ?? [],[snapshot?.characters]);
+  const snapshotReady=Boolean(snapshot);
+  const requestedCompanionId=explicitMomentsCompanionSelection(params.character,companions);
   const recentConversation=snapshot?mostRecentlyMessagedConversation(snapshot.conversations):undefined;
   const recentCompanion=companions.find((item)=>item.id===recentConversation?.character_instance_id);
-  const defaultCompanionId=requested?.id??recentCompanion?.id??active?.id??'all';
+  const fallbackCompanionId=recentCompanion?.id??active?.id??'all';
+  const defaultCompanionId=requestedCompanionId??fallbackCompanionId;
   const [companionId, setCompanionId] = useState<string>(() => defaultCompanionId);
+  const restoredPreference=useRef(false);
   const [showCompanions,setShowCompanions]=useState(false);
   const [filter, setFilter] = useState<MomentsFeedFilter>(()=>filters.includes(params.filter as MomentsFeedFilter)?params.filter as MomentsFeedFilter:'All');
   const [query, setQuery] = useState('');
   const [visibleCount,setVisibleCount]=useState(48);
-  useFocusEffect(useCallback(()=>{setCompanionId(defaultCompanionId);setShowCompanions(false);},[defaultCompanionId]));
+  useFocusEffect(useCallback(()=>{setShowCompanions(false);},[]));
+  useEffect(()=>{
+    if(!snapshotReady)return;
+    if(requestedCompanionId){
+      setCompanionId(requestedCompanionId);
+      void saveMomentsCompanionSelection(requestedCompanionId);
+      return;
+    }
+    if(restoredPreference.current)return;
+    restoredPreference.current=true;
+    let cancelled=false;
+    void loadMomentsCompanionSelection().then((stored)=>{
+      if(!cancelled)setCompanionId(restoredMomentsCompanionSelection(stored,companions,fallbackCompanionId));
+    });
+    return()=>{cancelled=true;};
+  },[companions,fallbackCompanionId,requestedCompanionId,snapshotReady]);
+  const chooseCompanion=useCallback((selection:string)=>{
+    setCompanionId(selection);
+    setShowCompanions(false);
+    router.setParams({character:selection});
+    void saveMomentsCompanionSelection(selection);
+  },[]);
   const selected = companions.find((item) => item.id === companionId);
   const entries = useMemo(() => snapshot ? buildMomentsFeed(snapshot, companionId, filter, query) : [], [companionId, filter, query, snapshot]);
   useEffect(()=>setVisibleCount(48),[companionId,filter,query]);
@@ -41,7 +66,7 @@ function MomentsFeed() {
 
   return <Screen>
     <View style={styles.header}><View style={{flex:1}}><PageTitle>Moments</PageTitle><Text style={styles.subtitle}>{name ? `Your living history with ${name}.` : 'Experiences, milestones, memories, and photos from every story.'}</Text></View></View>
-    {companions.length>1?<View style={styles.selectorWrap}><Pressable onPress={()=>setShowCompanions((value)=>!value)} style={styles.selector}>{selected?<CharacterAvatar slug={selected.together_character_templates.slug} name={selected.together_character_templates.name} template={selected.together_character_templates} version={snapshot?selectPortraitVersion(snapshot,selected):selected.together_character_versions} size={30}/>:<View style={styles.allAvatar}><Sparkles size={14} color={colors.rose}/></View>}<View style={{flex:1}}><Text style={styles.selectorLabel}>SHARED HISTORY</Text><Text style={styles.selectorName}>{name??'All companions'}</Text></View><ChevronDown size={17} color={colors.muted}/></Pressable>{showCompanions?<FrostedSurface style={styles.picker}><Pressable onPress={()=>{setCompanionId('all');setShowCompanions(false);}} style={styles.pickerRow}><View style={styles.allAvatar}><Sparkles size={14} color={colors.rose}/></View><Text style={styles.pickerName}>All companions</Text></Pressable>{companions.map((companion)=><Pressable key={companion.id} onPress={()=>{setCompanionId(companion.id);setShowCompanions(false);}} style={styles.pickerRow}><CharacterAvatar slug={companion.together_character_templates.slug} name={companion.together_character_templates.name} template={companion.together_character_templates} version={snapshot?selectPortraitVersion(snapshot,companion):companion.together_character_versions} size={32}/><Text style={styles.pickerName}>{companion.together_character_templates.name}</Text></Pressable>)}</FrostedSurface>:null}</View>:null}
+    {companions.length>1?<View style={styles.selectorWrap}><Pressable onPress={()=>setShowCompanions((value)=>!value)} style={styles.selector}>{selected?<CharacterAvatar slug={selected.together_character_templates.slug} name={selected.together_character_templates.name} template={selected.together_character_templates} version={snapshot?selectPortraitVersion(snapshot,selected):selected.together_character_versions} size={30}/>:<View style={styles.allAvatar}><Sparkles size={14} color={colors.rose}/></View>}<View style={{flex:1}}><Text style={styles.selectorLabel}>SHARED HISTORY</Text><Text style={styles.selectorName}>{name??'All companions'}</Text></View><ChevronDown size={17} color={colors.muted}/></Pressable>{showCompanions?<FrostedSurface style={styles.picker}><Pressable onPress={()=>chooseCompanion('all')} style={styles.pickerRow}><View style={styles.allAvatar}><Sparkles size={14} color={colors.rose}/></View><Text style={styles.pickerName}>All companions</Text></Pressable>{companions.map((companion)=><Pressable key={companion.id} onPress={()=>chooseCompanion(companion.id)} style={styles.pickerRow}><CharacterAvatar slug={companion.together_character_templates.slug} name={companion.together_character_templates.name} template={companion.together_character_templates} version={snapshot?selectPortraitVersion(snapshot,companion):companion.together_character_versions} size={32}/><Text style={styles.pickerName}>{companion.together_character_templates.name}</Text></Pressable>)}</FrostedSurface>:null}</View>:null}
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>{filters.map((item)=><Pressable key={item} onPress={()=>setFilter(item)} style={[styles.tab,filter===item&&styles.active]}><Text style={[styles.tabText,filter===item&&styles.activeText]}>{item}</Text></Pressable>)}</ScrollView>
     {entries.length >= 6 ? <View style={styles.search}><Search size={16} color={colors.muted}/><TextInput value={query} onChangeText={setQuery} placeholder="Search people, places, or memories" placeholderTextColor={colors.muted} style={styles.searchInput}/></View> : null}
     {entries.length ? <>{groups.map((group)=><View key={group.label} style={styles.group}><Text style={styles.groupTitle}>{group.label}</Text><View style={styles.grid}>{group.items.map((entry)=><FeedCard key={`${entry.kind}:${entry.id}`} entry={entry} companionId={companionId}/>)}</View></View>)}{visibleCount<entries.length?<Pressable accessibilityRole="button" onPress={()=>setVisibleCount((value)=>Math.min(entries.length,value+48))} style={styles.loadMore}><Text style={styles.loadMoreText}>Show more moments</Text></Pressable>:null}</> : <View style={styles.emptyWrap}><View style={styles.emptyIcon}><Sparkles size={24} color={colors.rose}/></View><EmptyState title={emptyTitle(filter,name)} body={emptyBody(filter,name)}/></View>}
