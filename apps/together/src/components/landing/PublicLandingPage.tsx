@@ -208,7 +208,7 @@ function Hero({ desktop, compact, onEnter, onMeet }: { desktop: boolean; compact
       : <Image accessible accessibilityLabel="Juniper City skyline at dusk" source={compact ? publicLandingMobileHeroAsset : publicWorldAssets['juniper-city']} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" loading="eager" priority="high" onLoad={()=>setVisualReady(true)} />}
     <View style={[styles.heroPortraitFrame, desktop ? styles.heroPortraitDesktop : styles.heroPortraitStacked, compact && styles.heroPortraitCompact]}>
       {Platform.OS==='web'
-        ? createElement('img',{src:publicLandingHeroUrls.portrait,alt:'Becka Shaw in Juniper City',loading:'eager',fetchPriority:'high',style:webHeroPortraitStyle})
+        ? createElement('img',{src:publicLandingHeroUrls.portrait,alt:'Becka Shaw in Juniper City',loading:'lazy',fetchPriority:'low',style:webHeroPortraitStyle})
         : <Image accessible accessibilityLabel="Becka Shaw in Juniper City" source={heroPortrait} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" loading="eager" priority="high" />}
     </View>
     <View pointerEvents="none" style={styles.heroBaseShade} />

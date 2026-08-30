@@ -4,16 +4,16 @@ import { localToUtc } from '../../../packages/together-domain/src/life-engine.ts
 import { experienceClock } from './kivelle-time.ts';
 
 type Row=Record<string,any>;
+export const WORLD_PULSE_EVENT_SELECT='*,together_world_event_templates(title,event_type,knowledge_scope,significance,topic_tags,activity_tags,plan_affordances,metadata),together_locations!together_world_event_instances_location_id_fkey(name,slug),together_world_event_participants(character_instance_id,together_character_instances(together_character_templates(name)))';
 
 export async function materializeWorldPulse(input:{db:SupabaseClient;userId:string;continuityId:string;worldId:string;timezone:string;now?:Date;days?:number}){
   const now=input.now??new Date(),days=Math.max(1,Math.min(8,input.days??7));
   const [{data:templates,error:templateError},{data:characters,error:characterError}]=await Promise.all([
     input.db.from('together_world_event_templates').select('*').eq('world_id',input.worldId).eq('active',true).limit(72),
-    input.db.from('together_character_instances').select('id,character_template_id,together_character_templates(slug,name,world_id)').eq('user_id',input.userId).eq('continuity_id',input.continuityId).not('introduced_at','is',null),
+    input.db.from('together_character_instances').select('id,character_template_id,together_character_templates(slug,name),together_locations(world_id)').eq('user_id',input.userId).eq('continuity_id',input.continuityId).not('introduced_at','is',null),
   ]);
   if(templateError)throw templateError;if(characterError)throw characterError;
-  const clock=experienceClock(input.timezone,now),charactersBySlug=new Map<string,Row>();
-  for(const character of characters??[]){const template=Array.isArray(character.together_character_templates)?character.together_character_templates[0]:character.together_character_templates;if(template?.slug&&String(template.world_id)===input.worldId)charactersBySlug.set(String(template.slug),{...character,template});}
+  const clock=experienceClock(input.timezone,now),charactersBySlug=worldPulseCharactersBySlug(characters??[],input.worldId);
   const candidates:Array<{template:Row;row:Row}>=[];
   // Materialize a short look-back as well as the next week so returning users
   // can receive real temporal continuity instead of a world that began today.
@@ -37,9 +37,19 @@ export async function materializeWorldPulse(input:{db:SupabaseClient;userId:stri
   return{templates:Number(templates?.length??0),materialized:Number(instances?.length??0)};
 }
 
+export function worldPulseCharactersBySlug(characters:Row[],worldId:string):Map<string,Row>{
+  const result=new Map<string,Row>();
+  for(const character of characters){
+    const template=Array.isArray(character.together_character_templates)?character.together_character_templates[0]:character.together_character_templates;
+    const location=Array.isArray(character.together_locations)?character.together_locations[0]:character.together_locations;
+    if(template?.slug&&String(location?.world_id??'')===worldId)result.set(String(template.slug),{...character,template});
+  }
+  return result;
+}
+
 export async function loadWorldPulse(input:{db:SupabaseClient;userId:string;continuityId:string;worldId:string;from?:Date;to?:Date;limit?:number}):Promise<WorldPulseEvent[]>{
   const now=new Date(),from=input.from??new Date(now.getTime()-18*3600000),to=input.to??new Date(now.getTime()+7*86400000);
-  const {data,error}=await input.db.from('together_world_event_instances').select('*,together_world_event_templates(title,event_type,knowledge_scope,significance,topic_tags,activity_tags,plan_affordances,metadata),together_locations(name,slug),together_world_event_participants(character_instance_id,together_character_instances(together_character_templates(name)))').eq('user_id',input.userId).eq('continuity_id',input.continuityId).eq('world_id',input.worldId).neq('status','cancelled').gte('ends_at',from.toISOString()).lte('starts_at',to.toISOString()).order('starts_at').limit(Math.max(1,Math.min(96,input.limit??72)));
+  const {data,error}=await input.db.from('together_world_event_instances').select(WORLD_PULSE_EVENT_SELECT).eq('user_id',input.userId).eq('continuity_id',input.continuityId).eq('world_id',input.worldId).neq('status','cancelled').gte('ends_at',from.toISOString()).lte('starts_at',to.toISOString()).order('starts_at').limit(Math.max(1,Math.min(96,input.limit??72)));
   if(error)throw error;
   return(data??[]).map(mapWorldPulseEvent);
 }
