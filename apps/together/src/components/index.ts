@@ -17,6 +17,7 @@ export * from './ConversationOverflowMenu';
 export * from './FailedMessageRecovery';
 export * from './ImageLightbox';
 export * from './VideoLightbox';
+export * from './WebVideoSurface';
 export * from './CharacterMentionText';
 export * from './CharacterProfilePreviewModal';
 export * from './MessageActionSheet';

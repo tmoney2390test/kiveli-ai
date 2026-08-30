@@ -5,6 +5,7 @@ import{Minimize2,Volume2}from'lucide-react-native';
 import{useSafeAreaInsets}from'react-native-safe-area-context';
 import{containedMediaFrame}from'../lib/mediaViewer';
 import{colors,radius}from'../theme';
+import{WebVideoSurface}from'./WebVideoSurface';
 
 export function VideoLightbox({visible,uri,aspectRatio,onClose}:{visible:boolean;uri:string;aspectRatio:number;onClose:()=>void}){
   const{width,height}=useWindowDimensions(),insets=useSafeAreaInsets(),[ready,setReady]=useState(false);
@@ -16,7 +17,7 @@ export function VideoLightbox({visible,uri,aspectRatio,onClose}:{visible:boolean
     <View testID="full-screen-video" accessibilityViewIsModal style={styles.root}>
       <View style={[styles.stage,{paddingTop:topSpace,paddingBottom:controlsSpace}]}>
         <View style={[styles.frame,{width:frame.width,height:frame.height}]}>
-          <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls playsInline fullscreenOptions={{enable:true,orientation:'default'}} onFirstFrameRender={()=>setReady(true)}/>
+          {Platform.OS==='web'?<WebVideoSurface uri={uri} accessibilityLabel="Full-screen companion video" active={visible} autoPlay muted loop onReady={()=>setReady(true)}/>:<VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls playsInline fullscreenOptions={{enable:true,orientation:'default'}} onFirstFrameRender={()=>setReady(true)}/>}
           {!ready?<View pointerEvents="none" style={styles.loading}><ActivityIndicator color={colors.rose}/><Text style={styles.loadingText}>Loading full video…</Text></View>:null}
         </View>
       </View>
