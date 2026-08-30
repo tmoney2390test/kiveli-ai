@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { InteractionManager, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { router as expoRouter } from 'expo-router';
 import { Sparkles } from 'lucide-react-native';
@@ -26,6 +26,7 @@ import { useSubscriptionStatus } from '../../src/hooks/useSubscriptionStatus';
 import { useAppShell } from '../../src/shell/AppShellContext';
 import { storyLibraryHomeAsset } from '../../src/stories/homeAsset';
 import { useWorldPulse } from '../../src/hooks/useWorldPulse';
+import { scheduleDeferredHomeWork } from '../../src/lib/homeDeferredWork';
 
 const router = expoRouter as unknown as { push: (href: string) => void };
 
@@ -143,7 +144,7 @@ export default function Home() {
 
 function useDeferredHomeWork(){
   const[ready,setReady]=useState(false);
-  useEffect(()=>{let timer:ReturnType<typeof setTimeout>|undefined;const task=InteractionManager.runAfterInteractions(()=>{timer=setTimeout(()=>setReady(true),450);});return()=>{task.cancel();if(timer)clearTimeout(timer);};},[]);
+  useEffect(()=>scheduleDeferredHomeWork(()=>setReady(true)),[]);
   return ready;
 }
 
