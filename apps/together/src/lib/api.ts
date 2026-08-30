@@ -95,8 +95,9 @@ export const manageMultimodal = <T>(input:Record<string,unknown>) => invoke<T>('
 export const getExperienceCapabilities = () => manageMultimodal<{experience:KivelleExperienceCapabilities;providers:KivelleExperienceCapabilities['providers']}>({action:'capabilities'});
 export const saveMultimodalPreferences = (preferences:Required<MultimodalPreferences>) => manageMultimodal<{preferences:MultimodalPreferences;experience:KivelleExperienceCapabilities}>({action:'preferences',...preferences});
 export const prepareUserImage = (input:{conversationId:string;characterInstanceId:string;mimeType:'image/jpeg'|'image/png'|'image/webp';byteSize:number;width?:number;height?:number;requestId:string}) => manageMultimodal<{attachment:ConversationAttachment;upload:{bucket:string;path:string}}>({action:'prepare_user_image',...input});
-export const confirmUserImage = (attachmentId:string) => manageMultimodal<{attachment:ConversationAttachment;upload:{bucket:string;path:string}}>({action:'confirm_user_image',attachmentId});
+export const confirmUserImage = (attachmentId:string,caption?:string) => manageMultimodal<{attachment:ConversationAttachment;upload:{bucket:string;path:string}}>({action:'confirm_user_image',attachmentId,...(caption?.trim()?{caption:caption.trim()}: {})});
 export const removePendingAttachment = (attachmentId:string) => manageMultimodal<{removed:boolean}>({action:'remove_attachment',attachmentId});
+export const deleteConversationAttachment = (attachmentId:string) => manageMultimodal<{removed:boolean}>({action:'delete_attachment',attachmentId});
 export type VoiceNoteQuote={creditCost:number;creditBalance:number;canAfford:boolean;generationRequired:boolean;characterCount:number;shortened:boolean};
 export const quoteVoiceNote = (messageId:string) => manageMultimodal<VoiceNoteQuote>({action:'voice_note_quote',messageId});
 export const requestVoiceNote = (messageId:string,requestId:string) => manageMultimodal<{status?:string;providerStatus?:string;message?:string;media?:GeneratedMedia}>({action:'request_voice_note',messageId,requestId});

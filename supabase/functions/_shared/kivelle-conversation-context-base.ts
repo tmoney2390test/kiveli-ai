@@ -88,7 +88,7 @@ export async function buildKivelleConversationContext(input: {
   const socialIntent=intent==='social'||Boolean(conversation.metadata?.activeScene?.sceneSessionId);
   const emptyRows=()=>Promise.resolve({data:[] as Row[],error:null});
   const conversationEpisodesPromise=resolveRelevantConversationEpisodes({db,userId,continuityId:String(instance.continuity_id),conversationId:String(conversation.id),userMessage,queryEmbedding:input.semanticQueryEmbedding,minimumSequence:Number(input.visibleHistoryFromSequence??1),limit:8});
-  let recentMessageQuery=db.from('together_messages').select('role,content,created_at,provider_metadata,speaker_character_instance_id,character_instance_id,conversation_sequence').eq('conversation_id',conversation.id);
+  let recentMessageQuery=db.from('together_messages').select('id,role,content,created_at,provider_metadata,speaker_character_instance_id,character_instance_id,conversation_sequence').eq('conversation_id',conversation.id);
   if(input.visibleSceneSessionId)recentMessageQuery=recentMessageQuery.eq('scene_session_id',input.visibleSceneSessionId).gte('scene_sequence',Number(input.visibleSceneFromSequence??1));
   else if(conversation.kind==='group'&&Number(input.visibleHistoryFromSequence??1)>1)recentMessageQuery=recentMessageQuery.gte('conversation_sequence',Number(input.visibleHistoryFromSequence));
   const [core, memories, threads, messages, schedules, events, plans, dates, stories, edges, instances, worlds, locations, media, moments, episodes,relationshipPlaceRows,placeProfileRows,conversationEpisodes] = await Promise.all([
@@ -204,7 +204,20 @@ export async function buildKivelleConversationContext(input: {
   const activeStory = buildActiveStory(stories.data?.[0] ?? null);
   const history = retrieveSharedHistory({ intent, moments: moments.data ?? [], dates: dateRows, plans: plansView, now }).slice(0, intent === 'history' ? 12 : 5);
   const emotionalResidue=personalizationEnabled?activeEmotionalResidue(residue.data??null,now):null;
-  const attachmentRows=input.attachments??[];
+  let attachmentRows=input.attachments??[];
+  // Keep only a single, recent, safe interpretation available for immediate
+  // follow-up turns. The private file is never reloaded or sent to the dialogue
+  // model, and this context is deliberately separate from long-term memory.
+  if(!attachmentRows.length){
+    const recentMessageIds=(messages.data??[]).slice(0,6).map((item:Row)=>String(item.id)).filter(Boolean);
+    if(recentMessageIds.length){
+      const{data:recentAttachments}=await db.from('together_conversation_attachments')
+        .select('id,message_id,analysis_status,analysis_metadata,created_at')
+        .eq('user_id',userId).eq('conversation_id',conversation.id).eq('analysis_status','ready')
+        .in('message_id',recentMessageIds).order('created_at',{ascending:false}).limit(1);
+      attachmentRows=recentAttachments??[];
+    }
+  }
   const userAttachments=attachmentRows.map((attachment:Row)=>{const analysis=(attachment.analysis_metadata??{}) as Row;return{id:String(attachment.id),kind:'image' as const,analysisStatus:String(attachment.analysis_status??'unavailable'),...(attachment.analysis_status==='ready'&&analysis.shortDescription?{shortDescription:String(analysis.shortDescription)}:{}),notableDetails:attachment.analysis_status==='ready'&&Array.isArray(analysis.notableDetails)?analysis.notableDetails.map(String).slice(0,12):[],...(attachment.analysis_status==='ready'&&analysis.visibleText?{visibleText:String(analysis.visibleText).slice(0,500)}:{})};});
   let sceneParticipants:KivelleConversationContext['sceneParticipants']=[];
   if(currentScene.sceneSessionId){

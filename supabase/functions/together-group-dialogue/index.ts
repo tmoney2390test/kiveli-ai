@@ -42,7 +42,7 @@ import {
 } from "../_shared/together-ai.ts";
 import { resolveDialogueRouting } from "../_shared/kivelle-ai-routing.ts";
 import { conversationDialogueContentMode } from "../_shared/conversation-content-mode.ts";
-import { enforceExplicitDialogueAllowance } from "../_shared/kivelle-subscription.ts";
+import { enforceExplicitDialogueAllowance, enforcePhotoSharingEntitlement } from "../_shared/kivelle-subscription.ts";
 import { track } from "../_shared/together.ts";
 import { createMediaOffer } from "../_shared/together-media-offers.ts";
 import { classifyPhotoRequest } from "../_shared/together-media.ts";
@@ -69,7 +69,7 @@ import {
 const schema = z.object({
   conversationId: z.string().uuid(),
   message: z.string().trim().max(4000).default(""),
-  attachmentIds: z.array(z.string().uuid()).max(4).refine((ids) => new Set(ids).size === ids.length, "The same attachment cannot be sent twice.").default([]),
+  attachmentIds: z.array(z.string().uuid()).max(1).refine((ids) => new Set(ids).size === ids.length, "The same attachment cannot be sent twice.").default([]),
   clientRequestId: z.string().uuid(),
   mentionedCharacterInstanceIds: z.array(z.string().uuid()).max(5).refine((ids) => new Set(ids).size === ids.length, "A companion can only be mentioned once.").default([]),
   photoSubjectCharacterInstanceIds: z.array(z.string().uuid()).max(2).refine((ids) => new Set(ids).size === ids.length, "A photo subject can only be selected once.").default([]),
@@ -187,9 +187,10 @@ Deno.serve(async (request) => {
     }
     let attachments: Record<string, any>[] = [];
     if (input.attachmentIds.length) {
+      await enforcePhotoSharingEntitlement(db, user.id);
       let attachmentQuery = db.from("together_conversation_attachments").select("*").in("id", input.attachmentIds)
         .eq("user_id", user.id).eq("continuity_id", continuity.id).eq("conversation_id", conversation.id)
-        .eq("kind", "image").eq("upload_status", "uploaded");
+        .eq("kind", "image").eq("upload_status", "uploaded").eq("analysis_status", "ready");
       attachmentQuery = existingUserMessage
         ? attachmentQuery.eq("message_id", existingUserMessage.id)
         : attachmentQuery.is("message_id", null);

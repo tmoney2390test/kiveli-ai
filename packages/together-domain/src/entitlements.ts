@@ -1,5 +1,6 @@
 export const entitlementKeys=[
   'relationship_core','chat_core','memory_core','juniper_world','plans_dates_moments','custom_companion_basic',
+  'photo_sharing',
   'chat_unlimited','media_generation_unlimited','explicit_dialogue_unlimited','memory_deep','history_expanded','all_standard_worlds','proactive_messages','multiple_lives','multiple_custom_companions','priority_media','director_selective',
   'memory_inspector','memory_manual_control',
   'memory_deepest','history_max','director_default','early_access_worlds','highest_priority_media','social_scenes_enhanced','voice_priority','group_chat',
@@ -54,6 +55,7 @@ const freeEntitlements:readonly EntitlementKey[]=[
   'maya_relationship','text_basic','memory_basic','city_life','dinner_juniper',
 ];
 const plusEntitlements:readonly EntitlementKey[]=[...freeEntitlements,
+  'photo_sharing',
   'chat_unlimited','memory_deep','memory_inspector','memory_manual_control','history_expanded','all_standard_worlds','proactive_messages','multiple_lives','multiple_custom_companions','priority_media','director_selective',
   'group_chat',
   'text_expanded','memory_long_term','moments_expanded','voice_notes','contextual_images','multiple_relationships',

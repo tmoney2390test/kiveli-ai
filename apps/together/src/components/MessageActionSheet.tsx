@@ -11,6 +11,7 @@ export type MessageActionDefinition = {
   onPress: () => unknown;
   disabled?: boolean;
   selected?: boolean;
+  destructive?: boolean;
 };
 
 export function MessageActionSheet({
@@ -75,10 +76,10 @@ export function MessageActionSheet({
                 accessibilityState={{ disabled: action.disabled, selected: action.selected }}
                 disabled={action.disabled || Boolean(busyKey)}
                 onPress={() => run(action)}
-                style={({ pressed }) => [styles.action, action.selected && styles.actionSelected, (pressed || busyKey === action.key) && styles.actionPressed, action.disabled && styles.actionDisabled]}
+                style={({ pressed }) => [styles.action, action.selected && styles.actionSelected, action.destructive&&styles.actionDestructive, (pressed || busyKey === action.key) && styles.actionPressed, action.disabled && styles.actionDisabled]}
               >
                 <View style={styles.actionIcon}>{busyKey === action.key ? <ActivityIndicator color={colors.rose} size="small"/> : action.icon}</View>
-                <Text numberOfLines={2} style={[styles.actionLabel, action.selected && styles.actionLabelSelected]}>{action.label}</Text>
+                <Text numberOfLines={2} style={[styles.actionLabel, action.selected && styles.actionLabelSelected,action.destructive&&styles.actionLabelDestructive]}>{action.label}</Text>
               </Pressable>)}
             </View>
           </FrostedSurface>
@@ -102,11 +103,13 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   action: { width: '22%', minWidth: 70, minHeight: 92, flexGrow: 1, flexBasis: 70, borderRadius: radius.md, borderWidth: 1, borderColor: 'rgba(255,255,255,.12)', backgroundColor: 'rgba(14,12,20,.34)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, paddingVertical: 12 },
   actionSelected: { borderColor: 'rgba(216,62,234,.58)', backgroundColor: 'rgba(116,36,128,.26)' },
+  actionDestructive:{borderColor:'rgba(255,113,129,.25)',backgroundColor:'rgba(255,113,129,.055)'},
   actionPressed: { opacity: .72, transform: [{ scale: .98 }] },
   actionDisabled: { opacity: .38 },
   actionIcon: { height: 30, alignItems: 'center', justifyContent: 'center' },
   actionLabel: { color: colors.textSecondary, fontSize: 13, lineHeight: 16, fontWeight: '700', textAlign: 'center' },
   actionLabelSelected: { color: colors.text },
+  actionLabelDestructive:{color:colors.danger},
   preview: { maxWidth: 450, borderRadius: radius.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderWidth: 1, borderColor: colors.border },
   assistantPreview: { alignSelf: 'flex-start', backgroundColor: 'rgba(19,17,27,.94)' },
   userPreview: { alignSelf: 'flex-end', backgroundColor: 'rgba(154,35,177,.88)' },

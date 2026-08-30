@@ -73,6 +73,7 @@ import {
   MessageActionSheet,
   MemorySavedToast,
   MobileChatMediaHeader,
+  PhotoSharingPaywallModal,
   resolveCharacterPortraitSource,
   VoiceNotePurchaseModal,
   type MessageActionDefinition,
@@ -80,9 +81,11 @@ import {
 import { GroupChatSettingsModal } from "../src/components/GroupChatSettingsModal";
 import { PlanSelection } from "../src/components/PlanSelection";
 import {
+  ApiError,
   confirmUserImage,
   confirmConversationAction,
   createSharedPlan,
+  deleteConversationAttachment,
   dismissConversationAction,
   type GroupDialogueEvent,
   manageConversation,
@@ -91,6 +94,7 @@ import {
   managePlan,
   meetCompanion,
   prepareUserImage,
+  removePendingAttachment,
   quoteVoiceNote,
   refreshVoiceNote,
   rememberMessage,
@@ -135,6 +139,7 @@ import { placeHoursStatus } from "../src/lib/placeHours";
 import { latestConversationHeaderImage } from "../src/lib/chatHeaderMedia";
 import { newGroupPrefillHref } from "../src/lib/groupInvite";
 import { canContinueMessage, isMessageFavorite, isVisibleChatMessage } from "../src/lib/messageActions";
+import { handlePhotoSharingTap } from "../src/lib/photoSharing";
 import { supabase } from "../src/lib/supabase";
 import {
   hideVoiceNoteConfirmation,
@@ -150,6 +155,7 @@ import {
 } from "../src/hooks/useChatDictation";
 import { colors, radius, typography } from "../src/theme";
 import type {
+  ConversationAttachment,
   GeneratedMedia,
   ConversationAction,
   ConversationEvent,
@@ -169,6 +175,8 @@ type GroupTimelineItem =
   | { kind: "message"; value: Message }
   | { kind: "action"; value: ConversationAction }
   | { kind: "event"; value: ConversationEvent };
+type PhotoUploadPhase="idle"|"preparing"|"uploading"|"processing"|"sending"|"failed";
+type PendingGroupImage=NormalizedUserImage&{requestId:string};
 
 export default function GroupChatScreen() {
   const params = useLocalSearchParams<{
@@ -196,7 +204,7 @@ export default function GroupChatScreen() {
     [loading, setLoading] = useState(!initialGroupCache?.complete),
     [error, setError] = useState(""),
     [input, setInput] = useState(""),
-    [pendingImage, setPendingImage] = useState<NormalizedUserImage | null>(
+    [pendingImage, setPendingImage] = useState<PendingGroupImage | null>(
       null,
     ),
     [activeVoiceId, setActiveVoiceId] = useState<string | null>(null),
@@ -205,6 +213,8 @@ export default function GroupChatScreen() {
     [replyTo, setReplyTo] = useState<Message | null>(null),
     [manualSpeaker, setManualSpeaker] = useState<string | null>(null),
     [showPhotoMenu, setShowPhotoMenu] = useState(false),
+    [showPhotoPaywall,setShowPhotoPaywall]=useState(false),
+    [photoUploadPhase,setPhotoUploadPhase]=useState<PhotoUploadPhase>("idle"),
     [photoSubjects, setPhotoSubjects] = useState<string[]>([]),
     [photoRequestBusy, setPhotoRequestBusy] = useState(false),
     [showDetails, setShowDetails] = useState(params.details === "1"),
@@ -230,9 +240,13 @@ export default function GroupChatScreen() {
   const detail = detailState?.conversation.id === params.id
     ? detailState
     : cachedRouteDetail?.detail ?? null;
+  const photoSharingEntitled=snapshot?.entitlements?.entitlement_keys?.includes("photo_sharing")===true;
   const clearStoredDraft=usePersistentMessageDraft({userId:session?.user.id,conversationId:params.id,kind:"group",value:input,setValue:setInput});
   const abortRef = useRef<AbortController | null>(null),
     lastSendRef = useRef<{ text: string; startedAt: number } | null>(null),
+    pendingPhotoMessageRequestRef=useRef<string|null>(null),
+    pendingPhotoOptimisticMessageIdRef=useRef<string|null>(null),
+    pendingImageRef=useRef<PendingGroupImage|null>(null),
     planRequestIdRef = useRef(createClientRequestId()),
     freshRequestIdRef = useRef(createClientRequestId()),
     mediaRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
@@ -250,6 +264,8 @@ export default function GroupChatScreen() {
   const loadedGroupRef = useRef<string | null>(null);
   const planLaunchHandledRef = useRef<string | null>(null);
   useEffect(()=>{detailRef.current=detail;},[detail]);
+  useEffect(()=>{pendingImageRef.current=pendingImage;},[pendingImage]);
+  useEffect(()=>()=>cleanupNormalizedImage(pendingImageRef.current?.uri),[]);
   useEffect(() => {
     if (!params.id) {
       setDetail(null);
@@ -761,12 +777,16 @@ export default function GroupChatScreen() {
     setError("");
     const mentions = mentionedParticipants(message, detail.participants),
       reply = replyTo;
-    const clientRequestId=createClientRequestId(),optimistic:Message={id:`local-${Date.now()}`,conversation_id:detail.conversation.id,role:"user",content:message||"[Photo]",client_request_id:clientRequestId,delivery_status:"pending",created_at:new Date().toISOString(),attachments:[]};
-    setDetail((current)=>current?{...current,messages:[...current.messages,optimistic]}:current);
+    const clientRequestId=selectedImage?(pendingPhotoMessageRequestRef.current??createClientRequestId()):createClientRequestId();
+    const optimisticId=selectedImage?(pendingPhotoOptimisticMessageIdRef.current??`local-${Date.now()}`):`local-${Date.now()}`;
+    if(selectedImage){pendingPhotoMessageRequestRef.current=clientRequestId;pendingPhotoOptimisticMessageIdRef.current=optimisticId;}
+    const optimistic:Message={id:optimisticId,conversation_id:detail.conversation.id,role:"user",content:message||"[Photo]",client_request_id:clientRequestId,delivery_status:"pending",created_at:new Date().toISOString(),attachments:[]};
+    setDetail((current)=>current?{...current,messages:current.messages.some((item)=>item.id===optimisticId)?current.messages.map((item)=>item.id===optimisticId?optimistic:item):[...current.messages,optimistic]}:current);
     setReplyTo(null);
+    let attachmentId: string | undefined;
     try {
-      let attachmentId: string | undefined;
       if (selectedImage) {
+        setPhotoUploadPhase("preparing");
         const anchor = detail.conversation.character_instance_id ??
           detail.participants[0]?.character_instance_id;
         if (!anchor) throw new Error("This group has no available companion.");
@@ -777,8 +797,10 @@ export default function GroupChatScreen() {
           byteSize: selectedImage.byteSize,
           width: selectedImage.width,
           height: selectedImage.height,
-          requestId: crypto.randomUUID(),
+          requestId: selectedImage.requestId,
         });
+        attachmentId=prepared.attachment.id;
+        setPhotoUploadPhase("uploading");
         const blob = await fetch(selectedImage.uri).then((response) =>
           response.blob()
         );
@@ -786,11 +808,12 @@ export default function GroupChatScreen() {
           prepared.upload.bucket,
         ).upload(prepared.upload.path, blob, {
           contentType: selectedImage.mimeType,
-          upsert: false,
+          upsert: true,
         });
         if (uploadError) throw new Error("That photo could not be uploaded.");
-        attachmentId =
-          (await confirmUserImage(prepared.attachment.id)).attachment.id;
+        setPhotoUploadPhase("processing");
+        attachmentId=(await confirmUserImage(prepared.attachment.id,message)).attachment.id;
+        setPhotoUploadPhase("sending");
       }
       await sendGroupDialogue(
         {
@@ -811,10 +834,16 @@ export default function GroupChatScreen() {
       if (selectedImage) {
         cleanupNormalizedImage(selectedImage.uri);
         setPendingImage(null);
+        setPhotoUploadPhase("idle");
+        pendingPhotoMessageRequestRef.current=null;
+        pendingPhotoOptimisticMessageIdRef.current=null;
       }
       await clearStoredDraft();
     } catch (caught) {
       if ((caught as Error)?.name !== "AbortError") {
+        if(attachmentId)void removePendingAttachment(attachmentId).catch(()=>undefined);
+        if(selectedImage)setPhotoUploadPhase("failed");
+        if(caught instanceof ApiError&&caught.code==="PLAN_LIMIT_REACHED")setShowPhotoPaywall(true);
         setError(
           caught instanceof Error
             ? caught.message
@@ -831,19 +860,19 @@ export default function GroupChatScreen() {
       }
     }
   };
-  const choosePhoto = async () => {
+  const choosePhoto = async (source:"camera"|"library"="library") => {
+    if(!photoSharingEntitled){setShowPhotoMenu(false);setShowPhotoPaywall(true);return;}
     try {
-      const permission = await ImagePicker
-        .requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        setError("Photo access is needed to choose a photo.");
-        return;
+      if(Platform.OS!=="web"){
+        const permission=source==="camera"?await ImagePicker.requestCameraPermissionsAsync():await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if(!permission.granted){setError(source==="camera"?"Camera access is needed to take a photo.":"Photo access is needed to choose a photo.");return;}
       }
-      const result = await ImagePicker.launchImageLibraryAsync({
+      const result = source==="camera"?await ImagePicker.launchCameraAsync({mediaTypes:["images"],quality:1}):await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         quality: 1,
         allowsMultipleSelection: false,
       });
+      setShowPhotoMenu(false);
       if (result.canceled || !result.assets[0]) return;
       const asset = result.assets[0],
         normalized = await normalizeUserImage({
@@ -854,9 +883,15 @@ export default function GroupChatScreen() {
           fileName: asset.fileName,
         }, .88);
       cleanupNormalizedImage(pendingImage?.uri);
-      setPendingImage(normalized);
+      const previousOptimisticId=pendingPhotoOptimisticMessageIdRef.current;
+      if(previousOptimisticId)setDetail((current)=>current?{...current,messages:current.messages.filter((item)=>item.id!==previousOptimisticId)}:current);
+      setPendingImage({...normalized,requestId:createClientRequestId()});
+      pendingPhotoMessageRequestRef.current=null;
+      pendingPhotoOptimisticMessageIdRef.current=null;
+      setPhotoUploadPhase("idle");
       setError("");
     } catch (caught) {
+      setShowPhotoMenu(false);
       setError(
         caught instanceof Error
           ? caught.message
@@ -864,6 +899,7 @@ export default function GroupChatScreen() {
       );
     }
   };
+  const requestSharePhoto=(source:"camera"|"library")=>handlePhotoSharingTap(photoSharingEntitled,{openPicker:()=>void choosePhoto(source),openPaywall:()=>{setShowPhotoMenu(false);setShowPhotoPaywall(true);}});
   const openPhotoMenu = () => {
     if (!detail) return;
     const preferred = manualSpeaker &&
@@ -1288,12 +1324,13 @@ export default function GroupChatScreen() {
     try{const updated=await setMessageFavorite(detail.conversation.id,message.id,favorite);setDetail((current)=>current?{...current,messages:current.messages.map((item)=>item.id===message.id?{...item,...updated}:item)}:current);}
     catch(caught){setDetail((current)=>current?{...current,messages:current.messages.map((item)=>item.id===message.id?{...item,user_metadata:previous}:item)}:current);setError(caught instanceof Error?caught.message:'That message could not be saved.');}
   };
+  const deleteSharedPhoto=(attachment:ConversationAttachment)=>confirmAction({title:"Delete this photo?",message:"The private file and its derived visual description will be removed immediately. This cannot be undone.",confirmLabel:"Delete photo",destructive:true,onConfirm:async()=>{try{await deleteConversationAttachment(attachment.id);setDetail((current)=>current?{...current,messages:current.messages.map((message)=>({...message,attachments:(message.attachments??message.together_conversation_attachments??[]).filter((item)=>item.id!==attachment.id),together_conversation_attachments:(message.together_conversation_attachments??[]).filter((item)=>item.id!==attachment.id)}))}:current);}catch(caught){setError(caught instanceof Error?caught.message:"The photo could not be deleted.");}}});
   const deleteGroupConversation = () => {
     if (!detail) return;
     confirmAction({
       title: "Delete this conversation?",
       message:
-        "It will disappear from Messages, but can be restored from Settings → Archived Chats for 30 days. Companion memories, relationships, Moments, and shared photos remain.",
+        "It will disappear from Messages, but its text can be restored from Settings → Archived Chats for 30 days. Uploaded photos are removed immediately and cannot be restored. Companion memories, relationships, and Moments remain.",
       confirmLabel: "Delete conversation",
       destructive: true,
       onConfirm: async () => {
@@ -1640,6 +1677,7 @@ export default function GroupChatScreen() {
                     }
                   }
                   : undefined}
+                onDeletePhoto={deleteSharedPhoto}
                 onRetry={message.delivery_status==="failed"&&message.content!=="[Photo]"?()=>void send(message.content,false,message.client_request_id??undefined,message.id):undefined}
                 onEditFailed={message.delivery_status==="failed"?()=>{setDetail((current)=>current?{...current,messages:current.messages.filter((item)=>item.id!==message.id)}:current);setInput(message.content);setError("");}:undefined}
                 onDiscardFailed={message.delivery_status==="failed"?()=>{setDetail((current)=>current?{...current,messages:current.messages.filter((item)=>item.id!==message.id)}:current);if(input.trim()===message.content.trim())setInput("");setError("");}:undefined}
@@ -1760,7 +1798,7 @@ export default function GroupChatScreen() {
         : null}
       {pendingImage
         ? (
-          <View style={styles.attachmentPreview}>
+          <View accessibilityLiveRegion="polite" accessibilityLabel={`Selected photo. ${groupPhotoUploadStatus(photoUploadPhase)}`} style={styles.attachmentPreview}>
             <Image
               source={{ uri: pendingImage.uri }}
               style={styles.attachmentPreviewImage}
@@ -1768,22 +1806,36 @@ export default function GroupChatScreen() {
             />
             <View style={{ flex: 1 }}>
               <Text style={styles.attachmentPreviewTitle}>
-                Photo ready to share
+                {groupPhotoUploadStatus(photoUploadPhase)}
               </Text>
               <Text style={styles.attachmentPreviewMeta}>
                 {Math.max(1, Math.round(pendingImage.byteSize / 1024))} KB
               </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Replace selected photo"
+                disabled={sending}
+                onPress={()=>requestSharePhoto("library")}
+                style={styles.attachmentReplaceButton}
+              >
+                <Text style={styles.attachmentReplaceText}>Replace</Text>
+              </Pressable>
             </View>
-            <Pressable
+            {sending?<ActivityIndicator color={colors.rose}/>:<Pressable
               accessibilityLabel="Remove selected photo"
               onPress={() => {
                 cleanupNormalizedImage(pendingImage.uri);
                 setPendingImage(null);
+                setPhotoUploadPhase("idle");
+                pendingPhotoMessageRequestRef.current=null;
+                const optimisticId=pendingPhotoOptimisticMessageIdRef.current;
+                if(optimisticId)setDetail((current)=>current?{...current,messages:current.messages.filter((item)=>item.id!==optimisticId)}:current);
+                pendingPhotoOptimisticMessageIdRef.current=null;
               }}
-              style={styles.iconButton}
+              style={styles.attachmentRemoveButton}
             >
               <X size={17} color={colors.text} />
-            </Pressable>
+            </Pressable>}
           </View>
         )
         : null}
@@ -1849,7 +1901,7 @@ export default function GroupChatScreen() {
                 <X size={19} color={colors.text} />
               </Pressable>
             </View>
-            <Text style={styles.photoMenuLabel}>REQUEST FROM UP TO TWO</Text>
+            <Text style={styles.photoMenuLabel}>CREATE AN IMAGE · CREDITS SHOWN BEFORE GENERATION</Text>
             <View style={styles.photoSubjectGrid}>
               {(detail?.participants ?? []).map((participant) => {
                 const selected = photoSubjects.includes(
@@ -1904,25 +1956,27 @@ export default function GroupChatScreen() {
               </Text>
             </Pressable>
             <View style={styles.photoMenuDivider} />
+            <Text style={styles.photoMenuLabel}>SHARE A PHOTO {photoSharingEntitled?'':'· KIVELLE+'}</Text>
             <Pressable
-              onPress={() => {
-                setShowPhotoMenu(false);
-                void choosePhoto();
-              }}
+              accessibilityRole="button"
+              accessibilityLabel="Choose a photo from your library"
+              onPress={() => void requestSharePhoto("library")}
               style={styles.photoUploadButton}
             >
               <Upload size={18} color={colors.rose} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.photoUploadTitle}>Upload your photo</Text>
+                <Text style={styles.photoUploadTitle}>Share a photo</Text>
                 <Text style={styles.photoUploadCopy}>
-                  Share an image from your device with the group.
+                  Share one private photo and an optional caption with the group. No credits.
                 </Text>
               </View>
               <ChevronRight size={18} color={colors.dimmed} />
             </Pressable>
+            {Platform.OS!=="web"?<Pressable accessibilityRole="button" accessibilityLabel="Take a photo" onPress={()=>void requestSharePhoto("camera")} style={styles.photoUploadButton}><Camera size={18} color={colors.rose}/><View style={{flex:1}}><Text style={styles.photoUploadTitle}>Take photo</Text><Text style={styles.photoUploadCopy}>Use your camera, then review it before sending.</Text></View><ChevronRight size={18} color={colors.dimmed}/></Pressable>:null}
           </Pressable>
         </Pressable>
       </Modal>
+      <PhotoSharingPaywallModal visible={showPhotoPaywall} onClose={()=>setShowPhotoPaywall(false)} onUpgrade={()=>{setShowPhotoPaywall(false);router.push("/subscription?source=share-photo" as never);}}/>
       <GroupDetailsModal
         visible={showDetails}
         detail={detail}
@@ -2662,6 +2716,7 @@ function groupRelationshipLabel(stage: string) {
     long_term: "Building a life",
   } as Record<string, string>)[stage] ?? "Getting closer";
 }
+function groupPhotoUploadStatus(phase:PhotoUploadPhase):string{return({idle:"Photo ready to share",preparing:"Preparing private upload…",uploading:"Uploading photo…",processing:"Checking and understanding photo…",sending:"Sending photo and caption…",failed:"Upload failed · tap Send to retry"} satisfies Record<PhotoUploadPhase,string>)[phase];}
 function GroupBubble({
   message,
   participant,
@@ -2689,6 +2744,7 @@ function GroupBubble({
   onPlan,
   onPhoto,
   onRemember,
+  onDeletePhoto,
   onRetry,
   onEditFailed,
   onDiscardFailed,
@@ -2720,6 +2776,7 @@ function GroupBubble({
   onPlan: () => void;
   onPhoto: () => void;
   onRemember?: () => Promise<void>;
+  onDeletePhoto:(attachment:ConversationAttachment)=>void;
   onRetry?:()=>void;
   onEditFailed?:()=>void;
   onDiscardFailed?:()=>void;
@@ -2784,6 +2841,7 @@ function GroupBubble({
     ...(!message.id.startsWith('local-')?[{key:'favorite',label:favorite?'Favorited':'Favorite',icon:<Heart size={23} color={favorite?colors.rose:colors.textSecondary} fill={favorite?colors.rose:'transparent'}/>,selected:favorite,onPress:onFavorite}]:[]),
     ...(!user&&voiceVisible?[{key:'voice',label:'Voice',icon:<Volume2 size={23} color={voiceEnabled?colors.textSecondary:colors.muted}/>,onPress:()=>setVoiceRequestToken((value)=>value+1)}]:[]),
     ...(!user?[{key:'plan',label:'Plan with group',icon:<CalendarDays size={23} color={colors.textSecondary}/>,onPress:onPlan},{key:'photo',label:'Group photo',icon:<Camera size={23} color={colors.textSecondary}/>,onPress:onPhoto}]:[]),
+    ...(user&&attachments.length&&!message.id.startsWith('local-')?[{key:'delete-photo',label:'Delete photo',icon:<X size={23} color={colors.danger}/>,destructive:true,onPress:()=>onDeletePhoto(attachments[0]!)}]:[]),
     ...(!user&&!message.id.startsWith('local-')?[{key:'report',label:'Report',icon:<Flag size={23} color={colors.muted}/>,onPress:()=>reportMessage(message.id,'other')}]:[]),
     ...(message.delivery_status==='failed'&&onRetry?[{key:'retry',label:'Retry send',icon:<RefreshCw size={23} color={colors.rose}/>,onPress:onRetry}]:[]),
   ];
@@ -3906,6 +3964,9 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   attachmentPreviewMeta: { color: colors.muted, fontSize: 9, marginTop: 3 },
+  attachmentReplaceButton:{alignSelf:"flex-start",minHeight:44,justifyContent:"center",marginTop:-4},
+  attachmentReplaceText:{color:colors.rose,fontSize:10,fontWeight:"800"},
+  attachmentRemoveButton:{width:44,height:44,borderRadius:22,alignItems:"center",justifyContent:"center"},
   groupPlanBar:{minHeight:68,marginHorizontal:10,marginTop:7,padding:10,borderRadius:radius.lg,flexDirection:"row",alignItems:"center",gap:9,backgroundColor:"rgba(30,22,40,.98)",borderWidth:1,borderColor:"rgba(216,62,234,.25)"},
   groupPlanBarIcon:{width:36,height:36,borderRadius:18,alignItems:"center",justifyContent:"center",backgroundColor:"rgba(216,62,234,.10)"},
   groupPlanBarContent:{flex:1,minWidth:0},

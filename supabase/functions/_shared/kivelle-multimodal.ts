@@ -36,11 +36,13 @@ import {
   voiceRoutePolicy,
   voiceRouteRolloutEligible,
 } from "./voice-routes.ts";
+import { OPENAI_VISION_MODEL, OpenAiVisionProvider, openAiVisionConfigurationAvailable } from "./openai-vision.ts";
 
 export type VisionInput = {
   bytes: Uint8Array;
   contentType: string;
   userCaption?: string;
+  safetyIdentifier?: string;
 };
 export type VisionResult = {
   shortDescription: string;
@@ -48,6 +50,10 @@ export type VisionResult = {
   visibleText?: string;
   safetyCategories: string[];
   confidence: number;
+  containsRealPerson?: boolean;
+  containsMinor?: boolean;
+  model?: string;
+  providerRequestId?: string;
 };
 export interface VisionProvider {
   readonly id: string;
@@ -218,9 +224,12 @@ const realtimeVoiceProviderRegistry: Readonly<
 };
 
 export function configuredVisionProvider(): VisionProvider | null {
-  const selected = explicitProvider("KIVELLE_VISION_PROVIDER");
+  const selected = explicitProvider("KIVELLE_VISION_PROVIDER") || (openAiVisionConfigurationAvailable() ? "openai" : "");
   if (selected === "deterministic_test" && testProvidersEnabled()) {
     return new DeterministicVisionProvider();
+  }
+  if (selected === "openai" && openAiVisionConfigurationAvailable()) {
+    return new OpenAiVisionProvider(String(Deno.env.get("OPENAI_API_KEY")), Deno.env.get("KIVELLE_OPENAI_VISION_MODEL")?.trim() || OPENAI_VISION_MODEL);
   }
   return null;
 }
@@ -327,8 +336,8 @@ export function resolveServerExperienceCapabilities(
       providerStatuses: providers,
       preferences,
       product: {
-        userImageUploads: true,
-        visionUnderstanding: true,
+        userImageUploads: entitled("photo_sharing"),
+        visionUnderstanding: entitled("photo_sharing"),
         voiceNotes: entitled("voice_notes"),
         // Live calls are purchased with Kivelle Credits per started minute.
         // Subscription tiers may grant more credits, but are not an access gate.

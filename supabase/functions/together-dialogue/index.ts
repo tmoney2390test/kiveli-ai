@@ -81,7 +81,7 @@ import type {
   DialogueContentMode,
   DialogueRoutingDecision,
 } from "../../../packages/together-domain/src/index.ts";
-import { enforceExplicitDialogueAllowance } from "../_shared/kivelle-subscription.ts";
+import { enforceExplicitDialogueAllowance, enforcePhotoSharingEntitlement } from "../_shared/kivelle-subscription.ts";
 import {
   assertSpeakerPrivateContext,
   bindPreparedSpeakerContext,
@@ -119,7 +119,7 @@ const schema = z.object({
   conversationId: z.string().uuid(),
   message: z.string().max(MESSAGE_CHARACTER_LIMIT, messageCharacterLimitError())
     .default(""),
-  attachmentIds: z.array(z.string().uuid()).max(4).refine(
+  attachmentIds: z.array(z.string().uuid()).max(1).refine(
     (ids) => new Set(ids).size === ids.length,
     "The same attachment cannot be sent twice.",
   ).default([]),
@@ -283,12 +283,13 @@ Deno.serve(async (request) => {
 
         let attachments: Record<string, any>[] = [];
         if (input.attachmentIds.length) {
+          await enforcePhotoSharingEntitlement(db, user.id);
           let attachmentQuery = db.from("together_conversation_attachments")
             .select("*").in("id", input.attachmentIds).eq("user_id", user.id)
             .eq("continuity_id", continuity.id).eq(
               "conversation_id",
               input.conversationId,
-            ).eq("kind", "image").eq("upload_status", "uploaded");
+            ).eq("kind", "image").eq("upload_status", "uploaded").eq("analysis_status", "ready");
           attachmentQuery = existingUserMessage
             ? attachmentQuery.eq("message_id", existingUserMessage.id)
             : attachmentQuery.is("message_id", null);

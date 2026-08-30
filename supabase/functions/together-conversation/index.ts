@@ -301,6 +301,14 @@ serve(async (request, correlationId) => {
     if (conversation.kind === 'group') {
       await db.from('together_dialogue_turns').update({ state:'cancelled',cancelled_at:archive.archived_at,updated_at:archive.archived_at }).eq('conversation_id',conversation.id).in('state',['planning','generating']);
     }
+    const{data:attachments,error:attachmentError}=await db.from('together_conversation_attachments').select('id,storage_path').eq('conversation_id',conversation.id).eq('user_id',user.id);
+    if(attachmentError)throw new AppError('INTERNAL_ERROR','The chat was archived, but its photos could not be removed yet.',500,true);
+    const paths=(attachments??[]).map((attachment)=>attachment.storage_path).filter((path):path is string=>typeof path==='string'&&path.length>0);
+    if((attachments??[]).length){
+      const{error:deleteAttachmentError}=await db.from('together_conversation_attachments').delete().eq('conversation_id',conversation.id).eq('user_id',user.id);
+      if(deleteAttachmentError)throw new AppError('INTERNAL_ERROR','The chat was archived, but its photos could not be removed yet.',500,true);
+      await removeStoragePaths(db,user.id,paths);
+    }
     await track(db, user.id, 'conversation_archived', { conversationId: conversation.id, requestedAction: input.action, restoreUntil: archive.restore_until });
     return json({ data, correlationId }, 200, correlationId);
   }
