@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VideoRouteOption } from '../types';
-import { canSubmitVideoSelection, validVideoFeedback, videoOutputLabel, videoWaitLabel } from './videoGeneration';
+import { canSubmitVideoSelection, preferredVideoRouteId, validVideoFeedback, videoDurationRangeLabel, videoOutputLabel, videoWaitLabel } from './videoGeneration';
 
 const route:VideoRouteOption={id:'wavespeed-p-video-i2v',provider:'wavespeed',displayName:'P-Video',description:'Fast preview',badge:'Recommended',mediaMode:'image_to_video',sourceModes:['existing_photo'],durationSeconds:10,allowedDurations:[10,15,20],resolution:'720p',supportedAspectRatios:['9:16','16:9'],referenceImageRequirements:{source:1,canonicalCharacterMin:0,canonicalCharacterMax:0},audioBehavior:'silent',audioLabel:'Silent video',estimatedProviderCostUsd:.04,estimatedWaitSeconds:{min:30,max:150,median:62},creditCost:250,creditCostPerSecond:25,testingOnly:true};
 
@@ -23,5 +23,12 @@ describe('video generation confirmation helpers',()=>{
     expect(validVideoFeedback('looks_good',['audio_problem'])).toBe(false);
     expect(validVideoFeedback('needs_work',[])).toBe(false);
     expect(validVideoFeedback('needs_work',['audio_problem'])).toBe(true);
+  });
+
+  it('defaults to P-Video and clearly presents its 10–20 second range',()=>{
+    const slower={...route,id:'cinematic-v2',displayName:'Cinematic',badge:'High fidelity'};
+    expect(preferredVideoRouteId({routes:[slower,route],defaultRouteId:slower.id})).toBe(route.id);
+    expect(preferredVideoRouteId({routes:[slower,route],defaultRouteId:slower.id},slower.id)).toBe(slower.id);
+    expect(videoDurationRangeLabel(route)).toBe('10–20 seconds');
   });
 });

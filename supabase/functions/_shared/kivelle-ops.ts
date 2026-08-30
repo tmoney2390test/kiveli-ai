@@ -11,6 +11,7 @@ export type OperationalMetricKey =
   | "push_failures_30m"
   | "refunds_24h"
   | "auth_client_errors_15m"
+  | "photo_cleanup_failures_30m"
   | "dialogue_oldest_seconds"
   | "proactive_oldest_seconds";
 
@@ -148,6 +149,7 @@ export async function collectOperationalAlertMetrics(
     pushFailures,
     refunds,
     authErrors,
+    photoCleanupCycles,
   ] = await Promise.all([
     db.from("together_generated_media").select("created_at").in("status", [
       "queued",
@@ -186,6 +188,7 @@ export async function collectOperationalAlertMetrics(
       head: true,
       count: "exact",
     }).or("route.ilike.%auth%,surface.ilike.%auth%").gte("created_at", since15),
+    db.from("together_analytics_events").select("properties").eq("event_name","chat_photo_cleanup_cycle").gte("created_at",since30).limit(100),
   ]);
   const failed = [
     mediaOldest,
@@ -197,6 +200,7 @@ export async function collectOperationalAlertMetrics(
     pushFailures,
     refunds,
     authErrors,
+    photoCleanupCycles,
   ].find((result) => result.error);
   if (failed?.error) {
     throw new AppError(
@@ -224,6 +228,7 @@ export async function collectOperationalAlertMetrics(
     push_failures_30m: Number(pushFailures.count ?? 0),
     refunds_24h: Number(refunds.count ?? 0),
     auth_client_errors_15m: Number(authErrors.count ?? 0),
+    photo_cleanup_failures_30m: sumPhotoCleanupFailures(photoCleanupCycles.data??[]),
     dialogue_oldest_seconds: ageSeconds(dialogueOldest.data?.created_at, now),
     proactive_oldest_seconds: ageSeconds(
       proactiveOldest.data?.eligible_at,
@@ -231,6 +236,8 @@ export async function collectOperationalAlertMetrics(
     ),
   };
 }
+
+export function sumPhotoCleanupFailures(rows:Array<{properties?:unknown}>):number{return rows.reduce((total,row)=>{const properties=row.properties&&typeof row.properties==='object'&&!Array.isArray(row.properties)?row.properties as Record<string,unknown>:{};const failures=Number(properties.failures??0);return total+(Number.isFinite(failures)&&failures>0?failures:0);},0);}
 
 export async function evaluateOperationalAlerts(
   db: SupabaseClient,

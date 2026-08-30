@@ -6,7 +6,7 @@ export const publicWorldAssets: Record<PublicWorld['slug'], ImageSource> = {
   'neon-kyo': require('../../../assets/worlds/neon-kyo/neon-kyo-hero.jpg'),
   'port-vervelle': require('../../../assets/worlds/port-vervelle/port-vervelle-hero.jpg'),
   vespormoor: require('../../../assets/worlds/vespormoor/vespormoor-hero.jpg'),
-  northvale: require('../../../assets/worlds/northvale/northvale-hero.png'),
+  northvale: require('../../../assets/worlds/northvale/northvale-hero.jpg'),
   'eos-meridian': require('../../../assets/worlds/eos-meridian/eos-meridian-hero.jpg'),
 };
 

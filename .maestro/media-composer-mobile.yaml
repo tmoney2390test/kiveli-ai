@@ -1,0 +1,28 @@
+appId: com.together.world
+name: Media composer works on a signed-in mobile device
+---
+- launchApp:
+    clearState: false
+- openLink: together://chat
+- extendedWaitUntil:
+    visible:
+      id: chat-media-menu-button
+    timeout: 15000
+- tapOn:
+    id: chat-media-menu-button
+- assertVisible: Share or create a moment
+- tapOn:
+    id: media-mode-video
+- assertVisible: DESCRIBE THE VIDEO
+- assertVisible: 10 sec.*
+- assertVisible: 15 sec.*
+- assertVisible: 20 sec.*
+- tapOn:
+    id: direct-video-prompt
+- inputText: Look toward the camera, smile, and wave naturally
+- assertVisible: Your prompt guides the action.*
+- tapOn:
+    id: media-mode-photo
+- assertVisible: Share a photo
+- assertVisible:
+    id: share-photo-library

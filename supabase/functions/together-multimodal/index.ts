@@ -38,6 +38,7 @@ import {
   validateCompanionVoicePreset,
 } from "../_shared/companion-voice-selection.ts";
 import { isAnimatedChatPhoto, matchesChatPhotoSignature } from "../_shared/chat-photo-policy.ts";
+import { chatPhotoByteBucket, chatPhotoEdgeBucket, chatPhotoFailureCode, chatPhotoLatencyBucket, safeChatPhotoTelemetry } from "../_shared/chat-photo-observability.ts";
 
 const uuid = z.string().uuid();
 const schema = z.discriminatedUnion("action", [
@@ -235,6 +236,8 @@ serve(async (request, correlationId) => {
     await track(db, user.id, "user_photo_attached", {
       attachmentId: data.id,
       characterInstanceId: input.characterInstanceId,
+      byteSizeBucket: chatPhotoByteBucket(input.byteSize),
+      longEdgeBucket: chatPhotoEdgeBucket(Math.max(input.width??0,input.height??0)),
     });
     return json(
       { data: await attachmentPayload(db, data), correlationId },
@@ -244,6 +247,7 @@ serve(async (request, correlationId) => {
   }
 
   if (input.action === "confirm_user_image") {
+    const photoProcessingStartedAt=Date.now();
     await enforcePhotoSharingEntitlement(db, user.id);
     const attachment = await requireAttachment(
       db,
@@ -259,6 +263,7 @@ serve(async (request, correlationId) => {
       "together-user-media",
     ).download(String(attachment.storage_path));
     if (downloadError || !file) {
+      await track(db,user.id,"user_photo_processing_failed",safeChatPhotoTelemetry({stage:"private_storage",failureCode:"UPLOAD_NOT_FOUND",latencyBucket:chatPhotoLatencyBucket(Date.now()-photoProcessingStartedAt)}));
       throw new AppError(
         "VALIDATION_FAILED",
         "Finish uploading the photo before sending it.",
@@ -290,6 +295,7 @@ serve(async (request, correlationId) => {
           updated_at: new Date().toISOString(),
         }).eq("id", attachment.id).eq("user_id", user.id),
       ]);
+      await track(db,user.id,"user_photo_processing_failed",safeChatPhotoTelemetry({stage:"validation",failureCode:"VALIDATION_FAILED",latencyBucket:chatPhotoLatencyBucket(Date.now()-photoProcessingStartedAt),byteSizeBucket:chatPhotoByteBucket(bytes.byteLength)}));
       throw new AppError(
         "VALIDATION_FAILED",
         actualDimensions && Math.max(actualDimensions.width, actualDimensions.height) > 2_048 ? "That photo is larger than Kivelle's 2048-pixel upload limit." : "That file is not a supported, still image.",
@@ -298,11 +304,12 @@ serve(async (request, correlationId) => {
     }
     const provider = configuredVisionProvider();
     if (!provider) {
+      await track(db,user.id,"user_photo_processing_failed",safeChatPhotoTelemetry({stage:"configuration",failureCode:"PROVIDER_NOT_CONFIGURED",latencyBucket:chatPhotoLatencyBucket(Date.now()-photoProcessingStartedAt),byteSizeBucket:chatPhotoByteBucket(bytes.byteLength),longEdgeBucket:chatPhotoEdgeBucket(Math.max(actualDimensions.width,actualDimensions.height))}));
       throw new AppError("PROVIDER_NOT_CONFIGURED", "Photo understanding is temporarily unavailable.", 503, true);
     }
     const { count: processingCount, error: processingError } = await db.from("together_conversation_attachments").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("analysis_status", "processing").neq("id", attachment.id);
     if (processingError) throw new AppError("INTERNAL_ERROR", "That photo could not be checked.", 500, true);
-    if (Number(processingCount ?? 0) >= 2) throw new AppError("RATE_LIMITED", "Two photos are already being checked. Try again in a moment.", 429, true);
+    if (Number(processingCount ?? 0) >= 2){await track(db,user.id,"user_photo_processing_failed",safeChatPhotoTelemetry({stage:"concurrency",failureCode:"RATE_LIMITED",latencyBucket:chatPhotoLatencyBucket(Date.now()-photoProcessingStartedAt)}));throw new AppError("RATE_LIMITED", "Two photos are already being checked. Try again in a moment.", 429, true);}
     await db.from("together_conversation_attachments").update({
       byte_size: bytes.byteLength,
       width: actualDimensions.width,
@@ -338,6 +345,10 @@ serve(async (request, correlationId) => {
         }).eq("id", attachment.id).eq("user_id", user.id).select("*").single();
       await track(db, user.id, "user_photo_analysis_ready", {
         attachmentId: attachment.id,
+        provider: provider.id,
+        latencyBucket: chatPhotoLatencyBucket(Date.now()-photoProcessingStartedAt),
+        byteSizeBucket: chatPhotoByteBucket(bytes.byteLength),
+        longEdgeBucket: chatPhotoEdgeBucket(Math.max(actualDimensions.width,actualDimensions.height)),
       });
       return json(
         {
@@ -354,6 +365,7 @@ serve(async (request, correlationId) => {
           analysis_metadata: {},
           updated_at: new Date().toISOString(),
         }).eq("id", attachment.id).eq("user_id", user.id);
+      await track(db,user.id,"user_photo_processing_failed",safeChatPhotoTelemetry({stage:"vision",failureCode:chatPhotoFailureCode(error),latencyBucket:chatPhotoLatencyBucket(Date.now()-photoProcessingStartedAt),byteSizeBucket:chatPhotoByteBucket(bytes.byteLength),longEdgeBucket:chatPhotoEdgeBucket(Math.max(actualDimensions.width,actualDimensions.height))}));
       throw error instanceof AppError ? error : new AppError("PROVIDER_UNAVAILABLE", "That photo could not be understood. Try again.", 503, true);
     }
   }

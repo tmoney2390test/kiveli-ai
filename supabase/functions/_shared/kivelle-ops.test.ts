@@ -1,5 +1,5 @@
 import{assertEquals,assertThrows}from'jsr:@std/assert@1';
-import{compareOperationalAlert,operationsRoleForUser,requireOperationsRole,sanitizeOperationsText}from'./kivelle-ops.ts';
+import{compareOperationalAlert,operationsRoleForUser,requireOperationsRole,sanitizeOperationsText,sumPhotoCleanupFailures}from'./kivelle-ops.ts';
 
 Deno.test('operations roles preserve least privilege',()=>{
   assertEquals(operationsRoleForUser({id:'viewer',app_metadata:{together_ops_role:'viewer'}} as never),'viewer');
@@ -22,4 +22,8 @@ Deno.test('operations sanitizer removes credentials and email addresses',()=>{
   assertEquals(safe.includes('person@example.com'),false);
   assertEquals(safe.includes('sk-secretvalue'),false);
   assertEquals(safe.includes('abc.def_123'),false);
+});
+
+Deno.test('photo cleanup health sums only aggregate failure counts',()=>{
+  assertEquals(sumPhotoCleanupFailures([{properties:{failures:2,expired:4}},{properties:{failures:1}},{properties:{failures:'invalid'}}]),3);
 });

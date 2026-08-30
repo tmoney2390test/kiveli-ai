@@ -3,9 +3,9 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   // Keep identifiers stable so existing installations and service configuration continue to work.
-  name: 'Kivelle.AI', slug: 'together', scheme: 'together', version: '1.0.0', orientation: 'portrait', userInterfaceStyle: 'dark',
+  name: 'Kivelle.AI', slug: 'together', scheme: 'together', version: '1.0.0', orientation: 'default', userInterfaceStyle: 'dark',
   icon: './assets/icon.png',
-  ios: { supportsTablet: true, bundleIdentifier: 'com.together.world', usesAppleSignIn:true, infoPlist: { NSPhotoLibraryUsageDescription: 'Choose a profile photo for your Kivelle profile.',NSMicrophoneUsageDescription:'Use your microphone for private voice-to-text and live calls with your Kivelle companion.',UIBackgroundModes:['audio'] } },
+  ios: { supportsTablet: true, bundleIdentifier: 'com.together.world', usesAppleSignIn:true, infoPlist: { NSPhotoLibraryUsageDescription: 'Choose a photo to share privately in Kivelle Chat.',NSMicrophoneUsageDescription:'Use your microphone for private voice-to-text and live calls with your Kivelle companion.',UIBackgroundModes:['audio'] } },
   android: { package: 'com.together.world', adaptiveIcon: { foregroundImage: './assets/icon.png', backgroundColor: '#080B13' }, permissions: ['POST_NOTIFICATIONS','RECORD_AUDIO','MODIFY_AUDIO_SETTINGS'] },
   web: { bundler: 'metro', output: 'static', favicon: './assets/kivelle-icon-transparent.png' },
   plugins: [[

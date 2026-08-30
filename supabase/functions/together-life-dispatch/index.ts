@@ -17,6 +17,9 @@ serve(async (request, correlationId) => {
   const now = new Date();
   await reconcilePushReceipts(db);
   const photoCleanup = await cleanupPrivateChatPhotos(db, now);
+  const{error:photoCleanupAuditError}=await db.from('together_analytics_events').insert({user_id:null,event_name:'chat_photo_cleanup_cycle',properties:{expired:photoCleanup.expired,orphans:photoCleanup.orphans,retried:photoCleanup.retried,failures:photoCleanup.failures}});
+  if(photoCleanupAuditError)console.error(JSON.stringify({level:'error',operation:'chat_photo_cleanup_audit',message:'aggregate_record_failed'}));
+  console.log(JSON.stringify({level:'info',operation:'chat_photo_cleanup',...photoCleanup}));
   const cutoff = new Date(now.getTime() - 20 * 60000).toISOString();
   const { data: instances, error } = await db.from('together_character_instances').select('id,user_id').or(`last_simulated_at.lt.${cutoff},last_simulated_at.is.null`).order('last_simulated_at', { ascending: true, nullsFirst: true }).limit(25);
   if (error) throw new AppError('INTERNAL_ERROR', 'Life dispatch could not load characters.', 500, true);

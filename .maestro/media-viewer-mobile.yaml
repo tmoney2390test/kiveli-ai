@@ -1,0 +1,21 @@
+appId: com.together.world
+name: Generated video remains contained in portrait and landscape
+env:
+  MEDIA_ID: ${MEDIA_ID}
+---
+- launchApp:
+    clearState: false
+- openLink: together://media/${MEDIA_ID}
+- extendedWaitUntil:
+    visible: Open full-screen video
+    timeout: 20000
+- tapOn: Open full-screen video
+- assertVisible:
+    id: full-screen-video
+- setOrientation: LANDSCAPE
+- assertVisible:
+    id: full-screen-video
+- setOrientation: PORTRAIT
+- assertVisible:
+    id: full-screen-video
+- tapOn: Close full-screen video

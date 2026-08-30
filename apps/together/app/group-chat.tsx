@@ -123,7 +123,9 @@ import {
   cleanupNormalizedImage,
   type NormalizedUserImage,
   normalizeUserImage,
+  userImagePickerOptions,
 } from "../src/lib/imageUploads";
+import { photoUploadPresentation, type PhotoUploadPhase } from "../src/lib/photoUploadPresentation";
 import { groupAddCandidates } from "../src/lib/groupWorld";
 import {
   groupMediaNeedsRefresh,
@@ -175,7 +177,6 @@ type GroupTimelineItem =
   | { kind: "message"; value: Message }
   | { kind: "action"; value: ConversationAction }
   | { kind: "event"; value: ConversationEvent };
-type PhotoUploadPhase="idle"|"preparing"|"uploading"|"processing"|"sending"|"failed";
 type PendingGroupImage=NormalizedUserImage&{requestId:string};
 
 export default function GroupChatScreen() {
@@ -867,11 +868,7 @@ export default function GroupChatScreen() {
         const permission=source==="camera"?await ImagePicker.requestCameraPermissionsAsync():await ImagePicker.requestMediaLibraryPermissionsAsync();
         if(!permission.granted){setError(source==="camera"?"Camera access is needed to take a photo.":"Photo access is needed to choose a photo.");return;}
       }
-      const result = source==="camera"?await ImagePicker.launchCameraAsync({mediaTypes:["images"],quality:1}):await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        quality: 1,
-        allowsMultipleSelection: false,
-      });
+      const options=userImagePickerOptions(source),result = source==="camera"?await ImagePicker.launchCameraAsync(options):await ImagePicker.launchImageLibraryAsync(options);
       setShowPhotoMenu(false);
       if (result.canceled || !result.assets[0]) return;
       const asset = result.assets[0],
@@ -1397,6 +1394,7 @@ export default function GroupChatScreen() {
   const groupPortraitSource=resolveCharacterPortraitSource(headerTemplate,headerCharacter?.together_character_versions,headerTemplate?.slug)??characterAssets[headerTemplate?.slug??'']??characterAssets.maya!;
   const latestHeaderMedia=latestConversationHeaderImage(detail.generatedMedia??[],detail.conversation.id);
   const groupWorldName=snapshot?.worlds.find((world) => world.id === detail.conversation.group_world_id)?.name;
+  const photoUploadState=photoUploadPresentation(photoUploadPhase);
   const invitePreviewToGroup=async(person:FeaturedCompanion)=>{
     if(!snapshot){setCharacterPreview(null);setError('This group is still loading.');return;}
     let currentSnapshot=snapshot;
@@ -1774,7 +1772,7 @@ export default function GroupChatScreen() {
       {replyTo
         ? (
           <View style={styles.replyPreview}>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.replyLabel}>
                 Replying to {replyTo.role === "assistant"
                   ? participantById.get(
@@ -1798,19 +1796,20 @@ export default function GroupChatScreen() {
         : null}
       {pendingImage
         ? (
-          <View accessibilityLiveRegion="polite" accessibilityLabel={`Selected photo. ${groupPhotoUploadStatus(photoUploadPhase)}`} style={styles.attachmentPreview}>
+          <View accessibilityLiveRegion="polite" accessibilityLabel={`Selected photo. ${photoUploadState.label}${photoUploadState.retry?'. Send again to retry.':''}`} style={styles.attachmentPreview}>
             <Image
               source={{ uri: pendingImage.uri }}
               style={styles.attachmentPreviewImage}
-              contentFit="cover"
+              contentFit="contain"
             />
             <View style={{ flex: 1 }}>
               <Text style={styles.attachmentPreviewTitle}>
-                {groupPhotoUploadStatus(photoUploadPhase)}
+                {photoUploadState.label}
               </Text>
               <Text style={styles.attachmentPreviewMeta}>
                 {Math.max(1, Math.round(pendingImage.byteSize / 1024))} KB
               </Text>
+              {photoUploadState.busy?<View accessibilityRole="progressbar" accessibilityValue={{min:0,max:100,now:Math.round(photoUploadState.progress*100)}} style={styles.attachmentProgressTrack}><View style={[styles.attachmentProgressFill,{width:`${Math.round(photoUploadState.progress*100)}%`}]}/></View>:null}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Replace selected photo"
@@ -1820,8 +1819,10 @@ export default function GroupChatScreen() {
               >
                 <Text style={styles.attachmentReplaceText}>Replace</Text>
               </Pressable>
+              {photoUploadState.retry?<Text style={styles.attachmentRetry}>Tap Send to retry</Text>:null}
             </View>
             {sending?<ActivityIndicator color={colors.rose}/>:<Pressable
+              accessibilityRole="button"
               accessibilityLabel="Remove selected photo"
               onPress={() => {
                 cleanupNormalizedImage(pendingImage.uri);
@@ -2716,7 +2717,6 @@ function groupRelationshipLabel(stage: string) {
     long_term: "Building a life",
   } as Record<string, string>)[stage] ?? "Getting closer";
 }
-function groupPhotoUploadStatus(phase:PhotoUploadPhase):string{return({idle:"Photo ready to share",preparing:"Preparing private upload…",uploading:"Uploading photo…",processing:"Checking and understanding photo…",sending:"Sending photo and caption…",failed:"Upload failed · tap Send to retry"} satisfies Record<PhotoUploadPhase,string>)[phase];}
 function GroupBubble({
   message,
   participant,
@@ -3964,6 +3964,9 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   attachmentPreviewMeta: { color: colors.muted, fontSize: 9, marginTop: 3 },
+  attachmentProgressTrack:{height:3,borderRadius:2,overflow:"hidden",backgroundColor:"rgba(255,255,255,.10)",marginTop:7},
+  attachmentProgressFill:{height:3,borderRadius:2,backgroundColor:colors.rose},
+  attachmentRetry:{color:colors.danger,fontSize:10,fontWeight:"800",marginBottom:4},
   attachmentReplaceButton:{alignSelf:"flex-start",minHeight:44,justifyContent:"center",marginTop:-4},
   attachmentReplaceText:{color:colors.rose,fontSize:10,fontWeight:"800"},
   attachmentRemoveButton:{width:44,height:44,borderRadius:22,alignItems:"center",justifyContent:"center"},

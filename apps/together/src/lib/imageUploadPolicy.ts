@@ -21,3 +21,9 @@ export function normalizedJpegName(fileName?:string|null):string{
   const stem=(fileName??'shared-photo').replace(/\.[^.]+$/,'').replace(/[^a-z0-9._-]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,80)||'shared-photo';
   return`${stem}.jpg`;
 }
+
+export function userImageNormalizationError(fileName?:string|null):string{
+  return /\.(heic|heif)$/i.test(fileName??'')
+    ? 'This device could not convert that HEIC photo. In Photos, choose Share or Export with “Most Compatible,” then try again.'
+    : 'That photo could not be opened safely. Try a JPEG, PNG, or WebP image.';
+}

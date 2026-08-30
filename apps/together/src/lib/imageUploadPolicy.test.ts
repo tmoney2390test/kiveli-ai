@@ -1,5 +1,5 @@
 import{describe,expect,it}from'vitest';
-import{normalizedJpegName,userImageResize,validateUserImageSource}from'./imageUploadPolicy';
+import{normalizedJpegName,userImageNormalizationError,userImageResize,validateUserImageSource}from'./imageUploadPolicy';
 
 describe('user image upload policy',()=>{
   it('keeps small images and bounds either long edge',()=>{
@@ -12,4 +12,8 @@ describe('user image upload policy',()=>{
     expect(()=>validateUserImageSource({byteSize:100,width:10_000,height:10_000})).toThrow('smaller dimensions');
   });
   it('creates a safe JPEG name',()=>expect(normalizedJpegName('My vacation photo.PNG')).toBe('My-vacation-photo.jpg'));
+  it('gives HEIC users a compatible export recovery path',()=>{
+    expect(userImageNormalizationError('IMG_001.HEIC')).toContain('Most Compatible');
+    expect(userImageNormalizationError('photo.svg')).toContain('JPEG, PNG, or WebP');
+  });
 });

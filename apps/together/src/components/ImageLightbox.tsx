@@ -16,6 +16,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { Minus, Plus, RotateCcw, X } from "lucide-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, radius } from "../theme";
 import { clampImageZoom, MAX_IMAGE_ZOOM, MIN_IMAGE_ZOOM } from "../lib/imageZoom";
 
@@ -33,6 +34,7 @@ export function ImageLightbox({
   onClose: () => void;
 }) {
   const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const stageRef = useRef<View>(null);
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
@@ -157,11 +159,11 @@ export function ImageLightbox({
           accessibilityRole="button"
           accessibilityLabel="Close full-size photo"
           onPress={onClose}
-          style={({ pressed }) => [styles.close, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.close, { top: Platform.OS === "web" ? 18 : Math.max(16, insets.top + 8) }, pressed && styles.pressed]}
         >
           <X size={23} color="#fff" />
         </Pressable>
-        <View style={styles.controls}>
+        <View style={[styles.controls, { bottom: Platform.OS === "web" ? 42 : Math.max(56, insets.bottom + 38) }]}>
           <Pressable accessibilityRole="button" accessibilityLabel="Zoom out" onPress={() => setZoom(savedScale.value / 1.35)} style={styles.controlButton}>
             <Minus size={18} color="#fff" />
           </Pressable>
@@ -172,7 +174,7 @@ export function ImageLightbox({
             <Plus size={18} color="#fff" />
           </Pressable>
         </View>
-        <Text pointerEvents="none" style={styles.hint}>
+        <Text pointerEvents="none" style={[styles.hint, { bottom: Platform.OS === "web" ? 16 : Math.max(20, insets.bottom + 8) }]}>
           {Platform.OS === "web" ? "Scroll to zoom · drag to move · double-click to reset" : "Pinch to zoom · drag to move · double-tap to reset"}
         </Text>
       </View>
@@ -204,7 +206,6 @@ const styles = StyleSheet.create({
   close: {
     position: "absolute",
     right: 18,
-    top: Platform.OS === "web" ? 18 : 48,
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -216,7 +217,6 @@ const styles = StyleSheet.create({
   },
   controls: {
     position: "absolute",
-    bottom: Platform.OS === "web" ? 42 : 64,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
@@ -235,7 +235,6 @@ const styles = StyleSheet.create({
   },
   hint: {
     position: "absolute",
-    bottom: Platform.OS === "web" ? 16 : 32,
     color: colors.textSecondary,
     fontSize: 10,
     fontWeight: "700",

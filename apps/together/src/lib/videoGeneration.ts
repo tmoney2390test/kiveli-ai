@@ -21,3 +21,14 @@ export function canSubmitVideoSelection(input:{route:VideoRouteOption|null;durat
 export function validVideoFeedback(verdict:'looks_good'|'needs_work',reasonCodes:string[]):boolean{
   return verdict==='looks_good'?reasonCodes.length===0:reasonCodes.length>0;
 }
+
+export function preferredVideoRouteId(options:Pick<VideoGenerationOptions,'routes'|'defaultRouteId'>,current=''):string{
+  if(options.routes.some((route)=>route.id===current))return current;
+  const recommended=options.routes.find((route)=>route.badge.toLowerCase()==='recommended'||route.id.toLowerCase().includes('p-video'));
+  return recommended?.id??(options.defaultRouteId&&options.routes.some((route)=>route.id===options.defaultRouteId)?options.defaultRouteId:options.routes[0]?.id)??'';
+}
+
+export function videoDurationRangeLabel(route:Pick<VideoRouteOption,'allowedDurations'>):string{
+  const durations=[...route.allowedDurations].sort((a,b)=>a-b),first=durations[0],last=durations.at(-1);
+  return first===last?`${first} seconds`:`${first}–${last} seconds`;
+}
