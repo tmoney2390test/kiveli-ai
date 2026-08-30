@@ -18,8 +18,9 @@ describe('captured web entry routes', () => {
   });
 
   it('keeps a deep link until its route and authenticated snapshot are both ready',()=>{
-    expect(shouldConsumeWebEntry({entryHref:'/explore?world=eos-meridian',browserPathname:'/explore',snapshotReady:false})).toBe(false);
-    expect(shouldConsumeWebEntry({entryHref:'/explore?world=eos-meridian',browserPathname:'/home',snapshotReady:true})).toBe(false);
-    expect(shouldConsumeWebEntry({entryHref:'/explore?world=eos-meridian',browserPathname:'/explore',snapshotReady:true})).toBe(true);
+    expect(shouldConsumeWebEntry({entryHref:'/explore?world=eos-meridian',browserPathname:'/explore',routerPathname:'/explore',snapshotReady:false})).toBe(false);
+    expect(shouldConsumeWebEntry({entryHref:'/explore?world=eos-meridian',browserPathname:'/explore',routerPathname:'/',snapshotReady:true})).toBe(false);
+    expect(shouldConsumeWebEntry({entryHref:'/explore?world=eos-meridian',browserPathname:'/home',routerPathname:'/home',snapshotReady:true})).toBe(false);
+    expect(shouldConsumeWebEntry({entryHref:'/explore?world=eos-meridian',browserPathname:'/explore',routerPathname:'/explore',snapshotReady:true})).toBe(true);
   });
 });

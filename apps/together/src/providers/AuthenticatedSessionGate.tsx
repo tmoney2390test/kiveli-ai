@@ -54,8 +54,8 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   useEffect(()=>{
     if(Platform.OS!=='web'||!snapshot)return;
     const entryHref=initialWebEntryHref();
-    if(shouldConsumeWebEntry({entryHref,browserPathname:pathname,snapshotReady:Boolean(snapshot)}))consumeWebEntryHref();
-  },[pathname,snapshot]);
+    if(shouldConsumeWebEntry({entryHref,browserPathname:pathname,routerPathname,snapshotReady:Boolean(snapshot)}))consumeWebEntryHref();
+  },[pathname,routerPathname,snapshot]);
 
   useEffect(() => {
     if (!snapshot || publicPath) return;

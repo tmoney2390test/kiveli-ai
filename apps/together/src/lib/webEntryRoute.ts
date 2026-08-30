@@ -32,6 +32,8 @@ export function shouldRecoverWebEntry(input: {
     (input.browserPathname === '/' || input.browserPathname === '/home');
 }
 
-export function shouldConsumeWebEntry(input:{entryHref?:string|null;browserPathname?:string|null;snapshotReady:boolean}){
-  return Boolean(input.snapshotReady&&input.entryHref&&entryPathname(input.entryHref)===input.browserPathname);
+export function shouldConsumeWebEntry(input:{entryHref?:string|null;browserPathname?:string|null;routerPathname?:string|null;snapshotReady:boolean}){
+  if(!input.snapshotReady||!input.entryHref)return false;
+  const entryPath=entryPathname(input.entryHref);
+  return entryPath===input.browserPathname&&entryPath===input.routerPathname;
 }
