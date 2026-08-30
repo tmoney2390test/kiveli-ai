@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { entryPathname, shouldRecoverWebEntry } from './webEntryRoute';
+import { entryPathname, shouldConsumeWebEntry, shouldRecoverWebEntry } from './webEntryRoute';
 
 describe('captured web entry routes', () => {
   it('preserves query parameters while comparing the pathname', () => {
@@ -15,5 +15,11 @@ describe('captured web entry routes', () => {
     expect(shouldRecoverWebEntry({ entryHref: '/settings', browserPathname: '/settings' })).toBe(false);
     expect(shouldRecoverWebEntry({ entryHref: '/', browserPathname: '/' })).toBe(false);
     expect(shouldRecoverWebEntry({ entryHref: '/settings', browserPathname: '/stories' })).toBe(false);
+  });
+
+  it('keeps a deep link until its route and authenticated snapshot are both ready',()=>{
+    expect(shouldConsumeWebEntry({entryHref:'/explore?world=eos-meridian',browserPathname:'/explore',snapshotReady:false})).toBe(false);
+    expect(shouldConsumeWebEntry({entryHref:'/explore?world=eos-meridian',browserPathname:'/home',snapshotReady:true})).toBe(false);
+    expect(shouldConsumeWebEntry({entryHref:'/explore?world=eos-meridian',browserPathname:'/explore',snapshotReady:true})).toBe(true);
   });
 });

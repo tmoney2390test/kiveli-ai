@@ -4,7 +4,7 @@ import { authenticated, enforceRateLimit } from '../_shared/context.ts';
 import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
-import { buildCharacterPresenceSnapshot, buildSnapshot, resolveLifeState, track } from '../_shared/together.ts';
+import { buildCharacterPresenceSnapshot, buildExploreCatalogSnapshot, buildSnapshot, resolveLifeState, track } from '../_shared/together.ts';
 import { getActiveConversation } from '../_shared/together-conversation.ts';
 import { ensureMainContinuity } from '../_shared/together-continuity.ts';
 
@@ -37,6 +37,7 @@ serve(async (request, correlationId) => {
       if(!characterInstanceId.success)throw new AppError('VALIDATION_ERROR','Choose a companion to refresh.',400);
       return json({data:await buildCharacterPresenceSnapshot(db,user.id,characterInstanceId.data),correlationId},200,correlationId);
     }
+    if(scope==='explore')return json({data:await buildExploreCatalogSnapshot(db,user.id),correlationId},200,correlationId);
     if(scope==='character_schedule'){
       const characterTemplateId=z.string().uuid().safeParse(url.searchParams.get('characterTemplateId'));
       if(!characterTemplateId.success)throw new AppError('VALIDATION_ERROR','Choose a companion whose routine you want to view.',400);

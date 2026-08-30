@@ -1,20 +1,22 @@
 import type { CharacterInstance, Location, Snapshot } from '../types';
 import type { FeaturedCompanion } from './featuredCompanions';
+import { featuredCompanionGender, type FeaturedGenderFilter } from './featuredCompanions';
 import { recommendPlanOptions, type PlanContext, type PlanOption } from './plans';
 import { characterCatalogForWorld } from './place';
 
 export type ExploreCategoryId='food'|'nightlife'|'lodging'|'quiet'|'entertainment';
 export type ExploreRecommendation={id:'tonight'|'companion'|'different'|'liked';title:string;subtitle:string;option:PlanOption;location:Location};
 export type ExploreContext={locations:Location[];featuredLocations:Location[];categories:Array<{id:ExploreCategoryId;label:string;count:number}>;recommendations:ExploreRecommendation[];worldEvents:Snapshot['lifeEvents'];people:FeaturedCompanion[]};
+export type ExplorePeopleOptions={gender?:FeaturedGenderFilter;limit?:number};
 
 export const EXPLORE_CATEGORIES:Array<{id:ExploreCategoryId;label:string}>=[{id:'food',label:'Food'},{id:'nightlife',label:'Nightlife'},{id:'lodging',label:'Lodging'},{id:'quiet',label:'Quiet Spots'},{id:'entertainment',label:'Entertainment'}];
 
-export function buildExploreContext(snapshot:Snapshot,companion:CharacterInstance|undefined,worldId:string):ExploreContext{
+export function buildExploreContext(snapshot:Snapshot,companion:CharacterInstance|undefined,worldId:string,peopleOptions:ExplorePeopleOptions={}):ExploreContext{
   const locations=snapshot.locations.filter((location)=>location.world_id===worldId&&isBrowsableLocation(location));
   const recommendations=companion?buildRecommendations(snapshot,companion,locations):[];
   const featuredLocations=featureLocations(locations,recommendations.map((item)=>item.location.id));
   const worldEvents=snapshot.lifeEvents.filter((event)=>event.location_id&&snapshot.locations.find((location)=>location.id===event.location_id)?.world_id===worldId).sort((left,right)=>new Date(right.starts_at).getTime()-new Date(left.starts_at).getTime()).slice(0,4);
-  const people=peopleForWorld(snapshot,worldId).slice(0,8);
+  const people=peopleForWorld(snapshot,worldId,companion,peopleOptions);
   return{locations,featuredLocations,categories:EXPLORE_CATEGORIES.map((category)=>({...category,count:locationsForExploreCategory(locations,category.id).length})).filter((category)=>category.count>0),recommendations,worldEvents,people};
 }
 
@@ -38,5 +40,50 @@ function featureLocations(locations:Location[],priorityIds:string[]){const score
 function hasArtPriority(slug:string){return['velvet-hour','riverwalk','pixel-and-pint','paper-trail','moss-and-crumb','juniper-civic-arena'].includes(slug);}
 export function isBrowsableLocation(location:Location){const explicitlyPublic=location.metadata?.directoryVisibility==='public';return!['region','district','neighborhood','room','zone'].includes(location.location_type)&&location.category!=='home'&&(location.category!=='work'||explicitlyPublic)&&location.metadata?.private!==true&&location.metadata?.directoryVisibility!=='private';}
 export function matchesExploreCategory(location:Location,category:ExploreCategoryId){const tags=Array.isArray(location.metadata?.tags)?location.metadata.tags:[];const words=`${location.category} ${location.possible_activities.join(' ')} ${tags.join(' ')}`.toLowerCase();if(category==='food')return/restaurant|dinner|dining|food|taco|brunch|coffee|cafe|café|bakery|pastry|breakfast|lunch|seafood|tavern|diner/.test(words);if(category==='nightlife')return/bar|lounge|nightlife|cocktail|music|karaoke|comedy|drinks/.test(words);if(category==='lodging')return/hotel|inn|guesthouse|lodg|resort|cabin|accommodation|overnight stay/.test(words);if(category==='quiet')return/quiet|book|park|gallery|walk|outdoor|reading|coffee/.test(words);return/entertainment|cinema|movie|arcade|games|music|comedy|karaoke|trivia|sport|arena|basketball|hockey|soccer|boxing/.test(words);}
-function peopleForWorld(snapshot:Snapshot,worldId:string):FeaturedCompanion[]{return characterCatalogForWorld(snapshot,worldId).map((entry)=>({...entry.template,together_character_versions:entry.version}));}
+export function exploreCompanionBadge(snapshot:Snapshot,person:FeaturedCompanion,index:number):string|null{
+  const instance=snapshot.characters.find((item)=>item.character_template_id===person.id);
+  const favorite=(snapshot.favoriteCharacterTemplateIds??[]).includes(person.id);
+  if(instance?.contact_added_at||instance?.introduced_at)return'CONNECTED';
+  if(favorite)return'FAVORITE';
+  if(person.discovery_metadata?.trending===true)return'POPULAR';
+  if(person.discovery_metadata?.new===true&&index<2)return'NEW TO YOU';
+  if(person.discovery_metadata?.featured===true&&index<4)return'FEATURED';
+  return null;
+}
+
+function peopleForWorld(snapshot:Snapshot,worldId:string,active:CharacterInstance|undefined,options:ExplorePeopleOptions):FeaturedCompanion[]{
+  const gender=options.gender??'any';
+  const activeTemplateId=active?.character_template_id;
+  const profileInterests=new Set((snapshot.profile?.interests??[]).map(normalize));
+  const goals=new Set((snapshot.profile?.experience_goals??[]).map(normalize));
+  const favorites=new Set(snapshot.favoriteCharacterTemplateIds??[]);
+  const ranked=characterCatalogForWorld(snapshot,worldId)
+    .map((entry,index)=>{
+      const person={...entry.template,together_character_versions:entry.version};
+      if(gender!=='any'&&featuredCompanionGender(person)!==gender)return null;
+      const established=Boolean(entry.instance?.contact_added_at||entry.instance?.introduced_at);
+      const personInterests=(entry.version.interests??[]).map(normalize);
+      const interestOverlap=personInterests.filter((interest)=>profileInterests.has(interest)).length;
+      const relationshipGoal=normalize(entry.template.relationship_goal??'either');
+      const goalMatch=(goals.has('dating')||goals.has('romance'))&&relationshipGoal!=='friendship'
+        ||goals.has('friendship')&&relationshipGoal!=='romance';
+      const metadata=entry.template.discovery_metadata??{};
+      const score=Number(entry.template.id!==activeTemplateId)*30
+        +Number(!established)*22
+        +Number(goalMatch)*8
+        +interestOverlap*5
+        +Number(metadata.featured===true)*7
+        +Number(metadata.trending===true)*5
+        +Number(favorites.has(entry.template.id))*3
+        -Number(established)*8
+        -index*.001;
+      return{person,score};
+    })
+    .filter((item):item is{person:FeaturedCompanion;score:number}=>Boolean(item))
+    .sort((left,right)=>right.score-left.score||left.person.name.localeCompare(right.person.name));
+  const withoutActive=ranked.filter((item)=>item.person.id!==activeTemplateId);
+  const results=withoutActive.length?withoutActive:ranked;
+  return results.slice(0,options.limit??24).map((item)=>item.person);
+}
 function friendly(value:string){return value.replace(/_/g,' ').replace(/\b\w/g,(letter)=>letter.toUpperCase())}
+function normalize(value:string){return value.trim().toLowerCase().replace(/[_-]+/g,' ')}

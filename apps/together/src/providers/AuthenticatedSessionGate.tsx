@@ -10,6 +10,7 @@ import { ResponsiveAppShell } from '../shell/ResponsiveAppShell';
 import { useTogether } from '../store/useTogether';
 import { useAuth } from '../hooks/useAuth';
 import { readSessionSnapshot, writeSessionSnapshot } from '../lib/sessionSnapshotCache';
+import { consumeWebEntryHref, initialWebEntryHref, shouldConsumeWebEntry } from '../lib/webEntryRoute';
 
 const demoMode = __DEV__ && process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === 'true';
 
@@ -49,6 +50,12 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
     const timer=setTimeout(()=>writeSessionSnapshot(userId,snapshot),500);
     return()=>clearTimeout(timer);
   },[session?.user.id,snapshot]);
+
+  useEffect(()=>{
+    if(Platform.OS!=='web'||!snapshot)return;
+    const entryHref=initialWebEntryHref();
+    if(shouldConsumeWebEntry({entryHref,browserPathname:pathname,snapshotReady:Boolean(snapshot)}))consumeWebEntryHref();
+  },[pathname,snapshot]);
 
   useEffect(() => {
     if (!snapshot || publicPath) return;

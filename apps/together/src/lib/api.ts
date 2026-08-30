@@ -5,7 +5,7 @@ import { MESSAGE_CHARACTER_LIMIT, messageCharacterLimitError } from '@together/d
 import type { CompanionVoicePreset } from '@together/domain/src/voice-presets';
 import type { ChatLanguagePreference } from '@together/domain/src/chat-language';
 import type { AroundTownItem, WorldPulseEvent } from '@together/domain/src/world-pulse';
-import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, MemoryCenterCategory, MemoryCenterItem, MemoryCenterResponse, MemoryCenterSort, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, ScheduleItem, Snapshot, SnapshotDelta, VideoDiagnostics, VideoGenerationOptions, VideoMotionPreset, VideoRouteOption, VoiceCallSession } from '../types';
+import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, ExploreCatalogSnapshot, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, MemoryCenterCategory, MemoryCenterItem, MemoryCenterResponse, MemoryCenterSort, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, ScheduleItem, Snapshot, SnapshotDelta, VideoDiagnostics, VideoGenerationOptions, VideoMotionPreset, VideoRouteOption, VoiceCallSession } from '../types';
 import type { RealtimeVoiceConfiguration } from './realtimeVoice';
 import type { StoryAction, StoryActionResponse, StoryCampaign, StoryLibrary } from '../stories/types';
 import { withIdempotentRetry } from './requestRetry';
@@ -45,6 +45,7 @@ export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POS
   }
 }
 export const loadSnapshot = () => invoke<Snapshot>('together-bootstrap', undefined, 'GET');
+export const loadExploreCatalog = () => invoke<ExploreCatalogSnapshot>('together-bootstrap?scope=explore',undefined,'GET');
 export const confirmAdultAge = () => invoke<Snapshot>('together-bootstrap', {action:'confirm_age',ageConfirmed:true});
 export const loadCharacterPresence = (characterInstanceId:string) => invoke<CharacterPresenceSnapshot>(`together-bootstrap?scope=presence&characterInstanceId=${encodeURIComponent(characterInstanceId)}`,undefined,'GET');
 export const loadCharacterSchedule = (characterTemplateId:string) => invoke<{characterTemplateId:string;characterVersionId:string;schedules:ScheduleItem[]}>(`together-bootstrap?scope=character_schedule&characterTemplateId=${encodeURIComponent(characterTemplateId)}`,undefined,'GET');

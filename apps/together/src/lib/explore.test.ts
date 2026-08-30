@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildExploreContext, locationsForExploreCategory } from './explore';
+import { buildExploreContext, exploreCompanionBadge, locationsForExploreCategory } from './explore';
 import type { CharacterInstance, Snapshot } from '../types';
 
 const companion={
@@ -49,6 +49,36 @@ describe('Explore view model',()=>{
     const people=buildExploreContext(scoped,companion,'neon').people;
     expect(people.map((person)=>person.name)).toEqual(['Kyo Resident']);
     expect(people[0]?.together_character_versions.portrait_asset_key).toBe('kyo-resident');
+  });
+
+  it('ranks unseen matching people ahead of the active or established companion',()=>{
+    const active={...companion,character_template_id:'active-template'} as CharacterInstance;
+    const scoped={
+      ...snapshot,
+      profile:{...snapshot.profile,interests:['books'],experience_goals:['Dating']},
+      characters:[active],
+      discoverableCharacters:[
+        {id:'active-template',name:'Active Person',slug:'active',age:29,occupation:'Photographer',biography:'',relationship_goal:'romance',can_be_selected:true,lifecycle_status:'published',together_character_versions:{id:'active-version',portrait_asset_key:'active',interests:['books'],personality_config:{},pronouns:'she/her'}},
+        {id:'match-template',name:'Best Match',slug:'best-match',age:31,occupation:'Bookseller',biography:'',relationship_goal:'romance',can_be_selected:true,lifecycle_status:'published',discovery_metadata:{featured:true,gender:'female'},together_character_versions:{id:'match-version',portrait_asset_key:'best-match',interests:['books'],personality_config:{},pronouns:'she/her'}},
+        {id:'other-template',name:'Other Person',slug:'other',age:32,occupation:'Engineer',biography:'',relationship_goal:'friendship',can_be_selected:true,lifecycle_status:'published',together_character_versions:{id:'other-version',portrait_asset_key:'other',interests:['engines'],personality_config:{},pronouns:'he/him'}},
+      ],
+      characterWorldPresence:[
+        {id:'active-home',character_version_id:'active-version',world_id:'neon',presence_type:'resident',familiarity:1,visited_count:1,metadata:{}},
+        {id:'match-home',character_version_id:'match-version',world_id:'neon',presence_type:'resident',familiarity:1,visited_count:1,metadata:{}},
+        {id:'other-home',character_version_id:'other-version',world_id:'neon',presence_type:'resident',familiarity:1,visited_count:1,metadata:{}},
+      ],
+    } as unknown as Snapshot;
+    const people=buildExploreContext(scoped,active,'neon',{gender:'female'}).people;
+    expect(people.map((person)=>person.name)).toEqual(['Best Match']);
+  });
+
+  it('uses relationship-aware badges and limits repetitive new labels',()=>{
+    const connected={id:'connected',name:'Connected',slug:'connected',age:28,occupation:'Writer',biography:'',together_character_versions:{id:'connected-version',portrait_asset_key:'connected',interests:[],personality_config:{}}} as Snapshot['discoverableCharacters'][number];
+    const fresh={id:'fresh',name:'Fresh',slug:'fresh',age:28,occupation:'Writer',biography:'',discovery_metadata:{new:true},together_character_versions:{id:'fresh-version',portrait_asset_key:'fresh',interests:[],personality_config:{}}} as Snapshot['discoverableCharacters'][number];
+    const scoped={...snapshot,characters:[{...companion,character_template_id:'connected'}]} as unknown as Snapshot;
+    expect(exploreCompanionBadge(scoped,connected,0)).toBe('CONNECTED');
+    expect(exploreCompanionBadge(scoped,fresh,1)).toBe('NEW TO YOU');
+    expect(exploreCompanionBadge(scoped,fresh,4)).toBeNull();
   });
 
   it('builds useful place categories from canonical location metadata',()=>{

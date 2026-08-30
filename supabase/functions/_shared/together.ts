@@ -186,6 +186,33 @@ export async function track(db: SupabaseClient, userId: string, eventName: strin
   if (error) console.warn('Together analytics failed', eventName, error.message);
 }
 
+export async function buildExploreCatalogSnapshot(db:SupabaseClient,userId:string):Promise<Record<string,unknown>>{
+  const catalog=loadSnapshotCatalog(db);
+  const continuity=await activeContinuity(db,userId);
+  const[worlds,locations,characterWorldPresence,discoverable,favorites,events]=await Promise.all([
+    catalog.then((value)=>value.worlds),
+    catalog.then((value)=>value.locations),
+    catalog.then((value)=>value.characterWorldPresence),
+    db.from('together_character_templates').select('*,together_character_versions(*)').or(`and(published.eq.true,can_be_selected.eq.true),creator_id.eq.${userId}`).neq('lifecycle_status','archived').order('name'),
+    db.from('together_character_favorites').select('character_template_id').eq('user_id',userId).order('created_at',{ascending:false}),
+    db.from('together_life_events').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).lte('starts_at',new Date(Date.now()+7*86400000).toISOString()).or(`ends_at.is.null,ends_at.gte.${new Date(Date.now()-6*60*60*1000).toISOString()}`).order('starts_at').limit(40),
+  ]);
+  const failed=[worlds,locations,characterWorldPresence,discoverable,favorites,events].find((result)=>result.error);
+  if(failed?.error)throw new AppError('INTERNAL_ERROR','Explore could not refresh right now.',500,true);
+  const publishedWorlds=worlds.data??[],worldIds=new Set(publishedWorlds.map((world)=>String(world.id)));
+  const publishedLocations=(locations.data??[]).filter((location)=>worldIds.has(String(location.world_id)));
+  const locationIds=new Set(publishedLocations.map((location)=>String(location.id)));
+  return{
+    worlds:publishedWorlds,
+    locations:publishedLocations.map(compactSnapshotLocation),
+    characterWorldPresence:(characterWorldPresence.data??[]).filter((presence)=>worldIds.has(String(presence.world_id))),
+    discoverableCharacters:await hydrateDiscoverableCharacters(db,discoverable.data??[]),
+    favoriteCharacterTemplateIds:(favorites.data??[]).map((item)=>String(item.character_template_id)),
+    lifeEvents:(events.data??[]).filter((event)=>!event.location_id||locationIds.has(String(event.location_id))),
+    refreshedAt:new Date().toISOString(),
+  };
+}
+
 export async function buildSnapshot(db: SupabaseClient, userId: string, requestedTimezone?: string | null): Promise<Record<string, unknown>> {
   const profileCheck=await db.from('together_profiles').select('*').eq('user_id',userId).maybeSingle();
   if(profileCheck.error)throw new AppError('INTERNAL_ERROR','Kivelle could not load your account.',500,true);

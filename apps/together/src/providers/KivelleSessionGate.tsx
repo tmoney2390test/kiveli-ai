@@ -21,7 +21,8 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
   const redirectTarget = useRef<string | null>(null);
   const previousUserId=useRef<string|null>(null);
   const publicPath = isPublicAppPath(pathname);
-  const entryHref = Platform.OS === 'web' ? initialWebEntryHref() : null;
+  const entryHrefRef=useRef<string|null>(Platform.OS==='web'?initialWebEntryHref():null);
+  const entryHref = entryHrefRef.current;
   const entryPath = entryHref ? entryPathname(entryHref) : null;
 
   useEffect(() => {
@@ -30,13 +31,9 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
       consumeWebEntryHref();
       return;
     }
-    // Keep the captured deep link alive through Expo's short hydration window.
-    // The router can report the correct route first and only then fall back to
-    // its authenticated index, so consuming it immediately would miss the race.
-    if (pathname === entryPath) {
-      const timer = setTimeout(consumeWebEntryHref, 5000);
-      return () => clearTimeout(timer);
-    }
+    // AuthenticatedSessionGate consumes the entry only after the account
+    // snapshot is ready. Slow restores must not lose /explore (or another deep
+    // link) to Expo's transient authenticated index route.
   }, [authLoading, entryHref, entryPath, pathname]);
 
   useEffect(() => {

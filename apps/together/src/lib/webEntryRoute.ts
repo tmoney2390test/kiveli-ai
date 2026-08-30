@@ -31,3 +31,7 @@ export function shouldRecoverWebEntry(input: {
   return entryPath !== '/' && entryPath !== input.browserPathname &&
     (input.browserPathname === '/' || input.browserPathname === '/home');
 }
+
+export function shouldConsumeWebEntry(input:{entryHref?:string|null;browserPathname?:string|null;snapshotReady:boolean}){
+  return Boolean(input.snapshotReady&&input.entryHref&&entryPathname(input.entryHref)===input.browserPathname);
+}

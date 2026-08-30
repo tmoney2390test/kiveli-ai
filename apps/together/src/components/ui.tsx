@@ -1,4 +1,4 @@
-import type { PropsWithChildren, ReactNode } from 'react';
+import type { ComponentProps, PropsWithChildren, ReactNode, RefObject } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { Image, type ImageSource } from 'expo-image';
 import { ChevronRight, LockKeyhole, MapPin } from 'lucide-react-native';
@@ -21,7 +21,7 @@ export function resolveCharacterPortraitSource(template?:CharacterTemplate,versi
   return undefined;
 }
 
-export function Screen({children,scroll=true,contentStyle}:{children:ReactNode;scroll?:boolean;contentStyle?:ViewStyle}){const{desktop}=useAppShell();if(!scroll)return <View style={styles.screen}><View style={[styles.contentFrame,{flex:1},desktop&&styles.contentFrameDesktop,contentStyle]}>{children}</View></View>;return <ScrollView style={styles.screen} contentContainerStyle={[styles.content,styles.contentFrame,desktop&&styles.contentDesktop,desktop&&styles.contentFrameDesktop,contentStyle]} showsVerticalScrollIndicator={false}>{children}</ScrollView>;}
+export function Screen({children,scroll=true,contentStyle,scrollRef,onScroll,onContentSizeChange,scrollEventThrottle=16}:{children:ReactNode;scroll?:boolean;contentStyle?:ViewStyle;scrollRef?:RefObject<ScrollView|null>;onScroll?:ComponentProps<typeof ScrollView>['onScroll'];onContentSizeChange?:ComponentProps<typeof ScrollView>['onContentSizeChange'];scrollEventThrottle?:number}){const{desktop}=useAppShell();if(!scroll)return <View style={styles.screen}><View style={[styles.contentFrame,{flex:1},desktop&&styles.contentFrameDesktop,contentStyle]}>{children}</View></View>;return <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={[styles.content,styles.contentFrame,desktop&&styles.contentDesktop,desktop&&styles.contentFrameDesktop,contentStyle]} showsVerticalScrollIndicator={false} onScroll={onScroll} onContentSizeChange={onContentSizeChange} scrollEventThrottle={scrollEventThrottle}>{children}</ScrollView>;}
 export function GlassCard({children,style}:{children:ReactNode;style?:ViewStyle}){return <View style={[styles.card,style]}>{children}</View>;}
 export function GradientButton({label,onPress,disabled=false,icon}: {label:string;onPress?:()=>void;disabled?:boolean;icon?:ReactNode}){return <Pressable accessibilityRole="button" accessibilityState={{disabled}} disabled={disabled} onPress={onPress} style={({pressed})=>[styles.button,disabled&&styles.disabled,pressed&&styles.buttonPressed]}>{icon}<Text style={styles.buttonText}>{label}</Text></Pressable>;}
 export function SectionHeader({title,action,onAction}:{title:string;action?:string;onAction?:()=>void}){return <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>{title}</Text>{action&&onAction?<Pressable onPress={onAction}><Text style={styles.action}>{action}</Text></Pressable>:action?<Text style={styles.rowMeta}>{action}</Text>:null}</View>;}
