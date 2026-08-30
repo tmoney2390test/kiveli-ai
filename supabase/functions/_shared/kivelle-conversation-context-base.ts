@@ -55,7 +55,7 @@ export type KivelleConversationContext = {
   referencedPlaces: PlaceContext[];
   placePerspectives: PlacePerspectiveView[];
   recentMedia: Array<{ id:string; summary:string; createdAt:string; locationId?:string|null }>;
-  userAttachments:Array<{id:string;kind:'image';analysisStatus:string;shortDescription?:string;notableDetails:string[];visibleText?:string}>;
+  userAttachments:Array<{id:string;kind:'image';source:'current_turn'|'recent_context';analysisStatus:string;shortDescription?:string;notableDetails:string[];visibleText?:string}>;
   sceneParticipants:Array<{characterInstanceId:string;name:string;role:string;joinedAt:string;socialEnergy?:number;directness?:number;relationshipRelevance?:number;socialAffinity?:number;socialTension?:number;relationshipType?:string}>;
   worldFacts:RelevantWorldFact[];
   dialogueOpportunities:RelevantDialogueOpportunity[];
@@ -205,6 +205,7 @@ export async function buildKivelleConversationContext(input: {
   const history = retrieveSharedHistory({ intent, moments: moments.data ?? [], dates: dateRows, plans: plansView, now }).slice(0, intent === 'history' ? 12 : 5);
   const emotionalResidue=personalizationEnabled?activeEmotionalResidue(residue.data??null,now):null;
   let attachmentRows=input.attachments??[];
+  const attachmentSource:KivelleConversationContext['userAttachments'][number]['source']=attachmentRows.length?'current_turn':'recent_context';
   // Keep only a single, recent, safe interpretation available for immediate
   // follow-up turns. The private file is never reloaded or sent to the dialogue
   // model, and this context is deliberately separate from long-term memory.
@@ -218,7 +219,7 @@ export async function buildKivelleConversationContext(input: {
       attachmentRows=recentAttachments??[];
     }
   }
-  const userAttachments=attachmentRows.map((attachment:Row)=>{const analysis=(attachment.analysis_metadata??{}) as Row;return{id:String(attachment.id),kind:'image' as const,analysisStatus:String(attachment.analysis_status??'unavailable'),...(attachment.analysis_status==='ready'&&analysis.shortDescription?{shortDescription:String(analysis.shortDescription)}:{}),notableDetails:attachment.analysis_status==='ready'&&Array.isArray(analysis.notableDetails)?analysis.notableDetails.map(String).slice(0,12):[],...(attachment.analysis_status==='ready'&&analysis.visibleText?{visibleText:String(analysis.visibleText).slice(0,500)}:{})};});
+  const userAttachments=attachmentRows.map((attachment:Row)=>{const analysis=(attachment.analysis_metadata??{}) as Row;return{id:String(attachment.id),kind:'image' as const,source:attachmentSource,analysisStatus:String(attachment.analysis_status??'unavailable'),...(attachment.analysis_status==='ready'&&analysis.shortDescription?{shortDescription:String(analysis.shortDescription)}:{}),notableDetails:attachment.analysis_status==='ready'&&Array.isArray(analysis.notableDetails)?analysis.notableDetails.map(String).slice(0,12):[],...(attachment.analysis_status==='ready'&&analysis.visibleText?{visibleText:String(analysis.visibleText).slice(0,500)}:{})};});
   let sceneParticipants:KivelleConversationContext['sceneParticipants']=[];
   if(currentScene.sceneSessionId){
     const{data:participantRows}=await db.from('together_scene_participants').select('role,joined_at,character_instance_id,together_character_instances(character_template_id,together_character_templates(name),together_character_versions(personality_config))').eq('scene_session_id',currentScene.sceneSessionId).is('left_at',null).order('joined_at');
