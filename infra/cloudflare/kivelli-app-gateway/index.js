@@ -1,6 +1,7 @@
 const CANONICAL_ORIGIN = "https://kivelli.app";
 const SUPABASE_ORIGIN = "https://mfysnlghlhxxcwnwpxog.supabase.co";
 const SUPABASE_PROXY_PREFIX = "/supabase";
+const APP_RELEASE = "2026-08-30-video-player-3";
 const FINGERPRINTED_ASSET = /(?:\.|-)[a-f0-9]{16,}\.(?:avif|css|gif|ico|jpe?g|js|mjs|png|svg|ttf|otf|webp|woff2?)$/i;
 
 export default {
@@ -35,7 +36,16 @@ async function serveAppAsset(request, env) {
       "cache-control",
       browserCacheControl(new URL(request.url).pathname, contentType),
     );
-
+    if (contentType.includes("text/html")) {
+      responseHeaders.set("x-kivelli-release", APP_RELEASE);
+      if (!hasCookieValue(request.headers.get("cookie"), "kivelli_release", APP_RELEASE)) {
+        responseHeaders.set("clear-site-data", '"cache"');
+        responseHeaders.append(
+          "set-cookie",
+          `kivelli_release=${APP_RELEASE}; Path=/; Max-Age=604800; Secure; SameSite=Lax`,
+        );
+      }
+    }
     responseHeaders.set("x-kivelli-host", "cloudflare-assets");
     return new Response(assetResponse.body, {
       status: assetResponse.status,
@@ -54,12 +64,19 @@ async function serveAppAsset(request, env) {
 }
 
 function browserCacheControl(pathname, contentType) {
-  if (contentType.includes("text/html")) return "no-cache, must-revalidate";
+  if (contentType.includes("text/html")) return "no-store";
   if (FINGERPRINTED_ASSET.test(pathname)) {
     return "public, max-age=31536000, immutable";
   }
   if (pathname === "/favicon.ico") return "public, max-age=86400";
   return "public, max-age=3600, stale-while-revalidate=86400";
+}
+
+function hasCookieValue(cookieHeader, name, value) {
+  if (!cookieHeader) return false;
+  return cookieHeader
+    .split(";")
+    .some((cookie) => cookie.trim() === `${name}=${value}`);
 }
 
 async function proxySupabaseRequest(request, incomingUrl) {

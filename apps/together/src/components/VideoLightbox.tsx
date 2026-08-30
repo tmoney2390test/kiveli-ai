@@ -7,7 +7,7 @@ import{containedMediaFrame}from'../lib/mediaViewer';
 import{colors,radius}from'../theme';
 import{WebVideoSurface}from'./WebVideoSurface';
 
-export function VideoLightbox({visible,uri,aspectRatio,onClose}:{visible:boolean;uri:string;aspectRatio:number;onClose:()=>void}){
+export function VideoLightbox({visible,uri,posterUri,aspectRatio,onClose}:{visible:boolean;uri:string;posterUri?:string|null;aspectRatio:number;onClose:()=>void}){
   const{width,height}=useWindowDimensions(),insets=useSafeAreaInsets(),[ready,setReady]=useState(false);
   const player=useVideoPlayer(uri,(instance)=>{instance.loop=true;instance.muted=false;});
   useEffect(()=>{setReady(false);if(!visible)player.pause();},[player,uri,visible]);
@@ -17,12 +17,12 @@ export function VideoLightbox({visible,uri,aspectRatio,onClose}:{visible:boolean
     <View testID="full-screen-video" accessibilityViewIsModal style={styles.root}>
       <View style={[styles.stage,{paddingTop:topSpace,paddingBottom:controlsSpace}]}>
         <View style={[styles.frame,{width:frame.width,height:frame.height}]}>
-          {Platform.OS==='web'?<WebVideoSurface uri={uri} accessibilityLabel="Full-screen companion video" active={visible} autoPlay muted loop onReady={()=>setReady(true)}/>:<VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls playsInline fullscreenOptions={{enable:true,orientation:'default'}} onFirstFrameRender={()=>setReady(true)}/>}
+          {Platform.OS==='web'?<WebVideoSurface uri={uri} posterUri={posterUri} accessibilityLabel="Full-screen companion video" active={visible} autoPlay muted loop onReady={()=>setReady(true)}/>:<VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls playsInline fullscreenOptions={{enable:true,orientation:'default'}} onFirstFrameRender={()=>setReady(true)}/>}
           {!ready?<View pointerEvents="none" style={styles.loading}><ActivityIndicator color={colors.rose}/><Text style={styles.loadingText}>Loading full video…</Text></View>:null}
         </View>
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel="Close full-screen video" onPress={onClose} style={({pressed})=>[styles.close,{top:topSpace},pressed&&styles.pressed]}><Minimize2 size={21} color="#fff"/></Pressable>
-      <View pointerEvents="none" style={[styles.hint,{bottom:controlsSpace+8}]}><Volume2 size={13} color={colors.textSecondary}/><Text style={styles.hintText}>Use the player controls for sound and playback</Text></View>
+      <View pointerEvents="none" style={[styles.hint,{bottom:controlsSpace+8}]}><Volume2 size={13} color={colors.textSecondary}/><Text style={styles.hintText}>Playback and sound controls stay below the video</Text></View>
     </View>
   </Modal>;
 }
