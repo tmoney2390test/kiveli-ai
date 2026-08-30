@@ -24,8 +24,8 @@ export function WebVideoSurface({uri,posterUri,accessibilityLabel,active=true,au
       failed?createElement('div',{role:'alert',style:statusOverlayStyle},createElement('strong',{style:statusTitleStyle},'Video needs another try'),createElement('span',{style:statusCopyStyle},'Refresh the secure link and reload playback.'),createElement('button',{type:'button','aria-label':'Try loading video again',disabled:retrying,onClick:()=>void retry(),style:retryButtonStyle},retrying?'Refreshing…':'Try again')):(!ready||buffering)?createElement('div',{'aria-live':'polite',style:statusOverlayStyle},createElement('span',{style:loaderDotStyle}),createElement('span',{style:statusCopyStyle},uri?'Loading video…':'Preparing secure video…')):null),
     createElement('div',{style:controlBarStyle},
       createElement('button',{type:'button','aria-label':playLabel,disabled:!uri||failed,onClick:()=>void togglePlayback(),style:controlButtonStyle},playing?'Pause':'Play'),
-      createElement('div',{style:timelineStyle},createElement('input',{type:'range','aria-label':'Video progress',min:0,max:duration||1,step:.1,value:Math.min(currentTime,duration||1),disabled:!ready||!duration,onChange:seek,style:rangeStyle}),createElement('span',{style:timeStyle},`${formatVideoTime(currentTime)} / ${formatVideoTime(duration)}`)),
-      createElement('button',{type:'button','aria-label':soundLabel,disabled:!uri||audioBehavior==='silent',onClick:toggleMuted,style:controlButtonStyle},audioBehavior==='silent'?'Silent':mutedState?'Sound on':'Mute')));
+      createElement('button',{type:'button','aria-label':soundLabel,disabled:!uri||audioBehavior==='silent',onClick:toggleMuted,style:controlButtonStyle},audioBehavior==='silent'?'Silent':mutedState?'Sound on':'Mute'),
+      createElement('div',{style:timelineStyle},createElement('input',{type:'range','aria-label':'Video progress',min:0,max:duration||1,step:.1,value:Math.min(currentTime,duration||1),disabled:!ready||!duration,onChange:seek,style:rangeStyle}),createElement('span',{style:timeStyle},`${formatVideoTime(currentTime)} / ${formatVideoTime(duration)}`))));
 }
 
 const rootStyle={position:'absolute' as const,inset:0,width:'100%',height:'100%',display:'flex',flexDirection:'column' as const,overflow:'hidden',backgroundColor:'#000'};
@@ -36,8 +36,8 @@ const statusTitleStyle={fontSize:18,fontFamily:'Georgia,serif'};
 const statusCopyStyle={maxWidth:360,color:'#BDB4C1',fontSize:12,lineHeight:1.45};
 const loaderDotStyle={width:18,height:18,borderRadius:999,border:'2px solid rgba(255,255,255,.22)',borderTopColor:'#E75A91'};
 const retryButtonStyle={minWidth:118,minHeight:44,padding:'8px 16px',border:'1px solid rgba(255,255,255,.25)',borderRadius:999,background:'#D63D78',color:'#fff',fontSize:13,fontWeight:800,cursor:'pointer'};
-const controlBarStyle={position:'relative' as const,zIndex:6,minHeight:64,flexShrink:0,display:'flex',flexDirection:'row' as const,alignItems:'center',justifyContent:'center',gap:10,padding:'9px 12px',background:'rgba(10,7,15,.98)',borderTop:'1px solid rgba(255,255,255,.22)'};
-const controlButtonStyle={minWidth:92,minHeight:44,padding:'8px 14px',border:'1px solid rgba(255,255,255,.22)',borderRadius:999,background:'rgba(255,255,255,.11)',color:'#fff',fontSize:13,fontWeight:800,cursor:'pointer',touchAction:'manipulation',WebkitTapHighlightColor:'transparent'};
-const timelineStyle={minWidth:0,flex:'1 1 280px',maxWidth:520,display:'flex',alignItems:'center',gap:7};
+const controlBarStyle={position:'relative' as const,zIndex:6,minHeight:64,flexShrink:0,display:'flex',flexDirection:'row' as const,flexWrap:'wrap' as const,alignItems:'center',justifyContent:'center',gap:10,padding:'9px 12px',background:'rgba(10,7,15,.98)',borderTop:'1px solid rgba(255,255,255,.22)'};
+const controlButtonStyle={minWidth:64,minHeight:44,padding:'8px 10px',border:'1px solid rgba(255,255,255,.22)',borderRadius:999,background:'rgba(255,255,255,.11)',color:'#fff',fontSize:13,fontWeight:800,cursor:'pointer',touchAction:'manipulation',WebkitTapHighlightColor:'transparent'};
+const timelineStyle={minWidth:0,flex:'1 1 220px',maxWidth:520,display:'flex',alignItems:'center',gap:7};
 const rangeStyle={width:'100%',minHeight:24,accentColor:'#E75A91',cursor:'pointer'};
 const timeStyle={color:'#BDB4C1',fontSize:10,fontVariantNumeric:'tabular-nums'};
