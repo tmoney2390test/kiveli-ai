@@ -1,6 +1,6 @@
 import{describe,expect,it}from'vitest';
 import type{GeneratedMedia,VideoGenerationOptions}from'../types';
-import{containedMediaFrame,mediaAspectRatio,resolveAssociatedVideoAction,shouldPollVideoAvailability}from'./mediaViewer';
+import{containedMediaFrame,mediaAspectRatio,resolveAssociatedVideoAction,shouldPollVideoAvailability,shouldRefreshReadyVideo}from'./mediaViewer';
 
 const media=(value:Partial<GeneratedMedia>):GeneratedMedia=>({id:'video-1',user_id:'user-1',continuity_id:'continuity-1',character_instance_id:'character-1',media_type:'video',status:'queued',created_at:new Date(0).toISOString(),updated_at:new Date(0).toISOString(),metadata:{},...value}as GeneratedMedia);
 const options=(value:Partial<VideoGenerationOptions>):VideoGenerationOptions=>({available:true,routes:[],motionPresets:[],creditBalance:1000,...value}as VideoGenerationOptions);
@@ -32,5 +32,13 @@ describe('associated video discovery',()=>{
     expect(shouldPollVideoAvailability(options({}))).toBe(true);
     expect(shouldPollVideoAvailability(options({activeVideoId:'active-1',activeVideoStatus:'generating'}))).toBe(true);
     expect(shouldPollVideoAvailability(options({latestVideoId:'latest-1',latestVideoStatus:'ready'}))).toBe(false);
+  });
+});
+
+describe('private video playback',()=>{
+  it('refreshes every ready video before playback even when the snapshot already has a URL',()=>{
+    expect(shouldRefreshReadyVideo(media({status:'ready',signed_url:'https://example.test/expired.mp4'}))).toBe(true);
+    expect(shouldRefreshReadyVideo(media({status:'generating',signed_url:null}))).toBe(false);
+    expect(shouldRefreshReadyVideo(media({media_type:'image',status:'ready',signed_url:'https://example.test/photo.webp'}))).toBe(false);
   });
 });

@@ -30,3 +30,7 @@ export function shouldPollVideoAvailability(options:VideoGenerationOptions|null)
   if(options.activeVideoId)return !['ready','failed'].includes(String(options.activeVideoStatus));
   return !options.latestVideoId;
 }
+
+export function shouldRefreshReadyVideo(media:Pick<GeneratedMedia,'media_type'|'status'>|null|undefined):boolean{
+  return media?.media_type==='video'&&media.status==='ready';
+}
