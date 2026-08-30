@@ -12,6 +12,8 @@ Deno.test('OpenAI vision moderates before analysis and returns only bounded safe
   const result=await provider.analyze({bytes:new Uint8Array([0xff,0xd8,0xff,0xd9]),contentType:'image/jpeg',userCaption:'First hike!',safetyIdentifier:'opaque-user'});
   assert(calls.length===2&&calls[0]?.url.endsWith('/moderations')&&calls[1]?.url.endsWith('/responses'));
   assert(calls.every((call)=>call.authorization==='Bearer server-secret'));
+  const moderationImage=calls[0]?.body.input?.find((item:Record<string,unknown>)=>item.type==='image_url');
+  assert(typeof moderationImage?.image_url==='object'&&String((moderationImage.image_url as Record<string,unknown>).url).startsWith('data:image/jpeg;base64,'));
   assert(calls[1]?.body.store===false&&calls[1]?.body.safety_identifier==='opaque-user');
   assert(JSON.stringify(calls[1]?.body).includes('First hike!')&&JSON.stringify(calls[1]?.body).includes('input_image'));
   assert(result.shortDescription==='A dog beside a red backpack.'&&result.notableDetails.length===2&&result.providerRequestId==='vision-1');

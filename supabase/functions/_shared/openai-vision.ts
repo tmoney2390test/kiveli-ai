@@ -45,7 +45,10 @@ export class OpenAiVisionProvider implements VisionProvider {
   }
 
   private async moderate(imageUrl: string, caption?: string): Promise<void> {
-    const input: Array<Record<string, string>> = [{ type: "image_url", image_url: imageUrl }];
+    const input: Array<Record<string, unknown>> = [{
+      type: "image_url",
+      image_url: { url: imageUrl },
+    }];
     if (caption?.trim()) input.unshift({ type: "text", text: caption.trim().slice(0, 4_000) });
     const response = await this.request("/moderations", { model: "omni-moderation-latest", input });
     const payload = await response.json().catch(() => null) as { results?: ModerationResult[] } | null;
