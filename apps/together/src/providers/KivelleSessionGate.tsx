@@ -4,7 +4,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { LoadingSkeleton } from '../components/RouteState';
 import { useAuth } from '../hooks/useAuth';
 import { isPublicAppPath, signInPathFor } from '../lib/sessionRouting';
-import { consumeWebEntryHref, entryPathname, initialWebEntryHref } from '../lib/webEntryRoute';
+import { consumeWebEntryHref, entryPathname, initialWebEntryHref, shouldRecoverWebEntry } from '../lib/webEntryRoute';
 import { clearSessionSnapshot } from '../lib/sessionSnapshotCache';
 
 const AuthenticatedSessionGate = lazy(() => import('./AuthenticatedSessionGate').then((module) => ({ default: module.AuthenticatedSessionGate })));
@@ -31,10 +31,15 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
       consumeWebEntryHref();
       return;
     }
-    // AuthenticatedSessionGate consumes the entry only after the account
-    // snapshot is ready. Slow restores must not lose /explore (or another deep
-    // link) to Expo's transient authenticated index route.
-  }, [authLoading, entryHref, entryPath, pathname]);
+    if(session&&shouldRecoverWebEntry({entryHref,browserPathname:pathname})){
+      // The root route can unmount before its own recovery effect observes
+      // Expo's transient /home redirect. This layout-level gate survives that
+      // transition and restores the captured destination.
+      router.replace(entryHref as never);
+    }
+    // AuthenticatedSessionGate consumes the entry only after the browser and
+    // router have both settled on it with an authenticated snapshot.
+  }, [authLoading, entryHref, entryPath, pathname,session]);
 
   useEffect(() => {
     if (demoMode) return;
