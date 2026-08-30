@@ -14,6 +14,7 @@ import '../_shared/kivelle-subscription.ts';
 import '../_shared/together-media-auxiliary.ts';
 import '../_shared/together-media-base.ts';
 import '../_shared/together-media-finalizer.ts';
+import '../_shared/together-direct-video-frame.ts';
 import '../_shared/together-media-quality.ts';
 import '../_shared/together-media-providers.ts';
 // Keep the Venice adapter in Supabase's remote bundle.

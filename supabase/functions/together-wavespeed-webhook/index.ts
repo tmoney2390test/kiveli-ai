@@ -15,6 +15,7 @@ import '../../../packages/together-domain/src/media-quality.ts';
 import '../_shared/kivelle-subscription.ts';
 import '../_shared/together-media-base.ts';
 import '../_shared/together-media-quality.ts';
+import '../_shared/together-direct-video-frame.ts';
 import '../_shared/together-media-providers.ts';
 import '../_shared/together-place.ts';
 import '../_shared/together.ts';

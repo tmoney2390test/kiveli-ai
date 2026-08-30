@@ -12,7 +12,7 @@ export const VIDEO_ROUTE_IDS = [
 export type VideoRouteId = typeof VIDEO_ROUTE_IDS[number];
 export const VIDEO_DURATIONS = [10, 15, 20] as const;
 export type VideoDurationSeconds = typeof VIDEO_DURATIONS[number];
-export type VideoSourceMode = 'existing_photo' | 'canonical_references';
+export type VideoSourceMode = 'existing_photo' | 'canonical_references' | 'generated_first_frame';
 export const MOTION_PRESETS = ['subtle', 'playful', 'cinematic'] as const;
 export type VideoMotionPreset = typeof MOTION_PRESETS[number];
 export type VideoAspectRatio = '9:16' | '16:9';
@@ -81,9 +81,9 @@ export function configuredVideoRouteCatalog(): VideoRouteDefinition[] {
   const common = { provider: 'wavespeed' as const, durationSeconds: 10 as const, supportedAspectRatios: ['9:16', '16:9'] as const, creditCost: 250, creditCostPerSecond: 25, testingOnly: true as const };
   return [
     {
-      ...common, id: 'wavespeed-p-video-i2v', model: 'pruna-ai/p-video/image-to-video', displayName: 'P-Video', badge: 'Recommended',
-      description: 'Fast, inexpensive animation with flexible 10–20 second clips', mediaMode: 'image_to_video', sourceModes: ['existing_photo'], allowedDurations: [10, 15, 20], resolution: '720p',
-      referenceImageRequirements: { source: 1, canonicalCharacterMin: 0, canonicalCharacterMax: 0 }, audioBehavior: 'silent', audioLabel: 'Silent video',
+      ...common, id: 'wavespeed-p-video-i2v', model: 'pruna-ai/p-video/image-to-video', displayName: 'P-Video', badge: 'Default · lowest cost',
+      description: 'Lowest-cost video with flexible 10–20 second clips', mediaMode: 'image_to_video', sourceModes: ['existing_photo', 'generated_first_frame'], allowedDurations: [10, 15, 20], resolution: '720p',
+      referenceImageRequirements: { source: 1, canonicalCharacterMin: 0, canonicalCharacterMax: 0 }, audioBehavior: 'silent', audioLabel: 'Silent · lowest cost',
       estimatedProviderCostUsd: .04, estimatedWaitSeconds: { min: 20, max: 120, median: 45 }, enabled: available && enabled('wavespeed-p-video-i2v'),
       payloadBuilderId: 'wavespeed-p-video-i2v', providerCostCeilingUsd: ceiling('wavespeed-p-video-i2v'), concurrencyLimit: concurrency('wavespeed-p-video-i2v'),
     },

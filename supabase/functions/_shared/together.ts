@@ -275,7 +275,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
   const stageByInstance = new Map(visibleInstances.map((instance) => [instance.id, instance.relationship_stage]));
   const relationshipCues = Object.fromEntries((relationships.data ?? []).map((relationship) => [relationship.character_instance_id, describeRelationshipCue({ ...relationship, relationship_stage: stageByInstance.get(relationship.character_instance_id) })]));
   const conversationMetadata = (conversations.data ?? []).map((conversation) => ({ ...conversation, message_count: Number(conversation.together_messages?.[0]?.count ?? 0), unread: Boolean(conversation.last_assistant_message_at && (!conversation.last_read_at || new Date(conversation.last_assistant_message_at) > new Date(conversation.last_read_at))) }));
-  const mediaRows=(generatedMedia.data??[]).filter((item)=>item.media_type==='voice_note'
+  const mediaRows=(generatedMedia.data??[]).filter((item)=>item.metadata?.hiddenIntermediate!==true).filter((item)=>item.media_type==='voice_note'
     ? !hasSexualDialogueLanguage(String(item.canonical_text??''))
     : item.content_level==='standard'||item.content_level==='romance');
   const readyPaths=mediaRows.filter((item)=>item.status==='ready'&&item.storage_path).map((item)=>String(item.storage_path));

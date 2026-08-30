@@ -8,6 +8,7 @@ import{completeMediaUsageAttempt,markMediaOfferOutcome}from'./together-media-usa
 import{imageDimensions,isSafeExternalHttpsUrl,matchesDeclaredMediaSignature}from'../../../packages/together-domain/src/index.ts';
 import{consumeDailyPhotoAllowance,dailyPhotoReservationKey,releaseDailyPhotoAllowance}from'./kivelle-subscription.ts';
 import{detectActualVideoAudioBehavior,normalizeMp4FastStart}from'./together-video-inspection.ts';
+import{cleanupDirectVideoSourceFrame,isHiddenDirectVideoFrame}from'./together-direct-video-frame.ts';
 
 const MAX_IMAGE_BYTES=20*1024*1024;
 const MAX_VIDEO_BYTES=80*1024*1024;
@@ -92,6 +93,7 @@ async function finalizeProviderMediaClaimed(db:SupabaseClient,input:{jobId:strin
   const completionEvent=String(media.media_type)==='video'?'video_generation_completed':'media_generation_completed';
   const videoLatencies=String(media.media_type)==='video'?mediaDeliveryLatencies(job,now):{};
   await track(db,String(media.user_id),completionEvent,{mediaId:media.id,provider:job.provider,model:input.result.model,routeId:job.route_id,source:metadata.source,contentLevel:media.content_level,generationLatencyMs:input.result.generationMs??null,...videoLatencies,creditCost:metadata.creditCost??0,quotedProviderCostUsd:job.quoted_provider_cost_usd??null,actualProviderCostUsd:Number.isFinite(actualProviderCost)?actualProviderCost:null,actualAudioBehavior});
+  if(String(media.media_type)==='video')await cleanupDirectVideoSourceFrame(db,updated as Record<string,unknown>);
   return updated as Record<string,unknown>;
 }
 
@@ -118,6 +120,7 @@ export async function failProviderMedia(db:SupabaseClient,input:{jobId:string;fa
     await track(db,String(media.user_id),'video_generation_failed',{mediaId:media.id,provider:job.provider,model:job.model,routeId:job.route_id,failureCode:input.failureCode,creditRefunded:nextMetadata.creditRefunded===true,quotedProviderCostUsd:job.quoted_provider_cost_usd??null,actualProviderCostUsd:job.actual_provider_cost_usd??null,...mediaDeliveryLatencies(job,now)});
     if(nextMetadata.creditRefunded===true)await track(db,String(media.user_id),'video_generation_refunded',{mediaId:media.id,provider:job.provider,routeId:job.route_id,failureCode:input.failureCode});
   }
+  if(isHiddenDirectVideoFrame(media))await failDependentDirectVideo(db,media,input.failureCode);
 }
 
 /**
@@ -141,6 +144,12 @@ export async function failMediaBeforeProvider(db:SupabaseClient,input:{media:Rec
     await track(db,String(media.user_id),'video_generation_failed',{mediaId,provider:null,routeId:media.video_route_id??null,failureCode:input.failureCode,creditRefunded:nextMetadata.creditRefunded===true,providerRequestCreated:false,totalLatencyMs:elapsedMs(media.created_at,now)});
     if(nextMetadata.creditRefunded===true)await track(db,String(media.user_id),'video_generation_refunded',{mediaId,provider:null,routeId:media.video_route_id??null,failureCode:input.failureCode});
   }
+  if(isHiddenDirectVideoFrame(media))await failDependentDirectVideo(db,media,input.failureCode);
+}
+
+async function failDependentDirectVideo(db:SupabaseClient,source:Record<string,unknown>,failureCode:string):Promise<void>{
+  const{data:videos}=await db.from('together_generated_media').select('*').eq('parent_media_id',String(source.id)).eq('user_id',String(source.user_id)).eq('media_type','video').in('status',['queued','generating']);
+  for(const video of videos??[])await failMediaBeforeProvider(db,{media:video,failureCode:`source_frame_${failureCode}`.slice(0,100),failureReasonSafe:'The private opening frame could not be created. Your video credits were returned.'});
 }
 
 function elapsedMs(from:unknown,to:unknown):number|null{

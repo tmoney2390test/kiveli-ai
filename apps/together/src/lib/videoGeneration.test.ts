@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { VideoRouteOption } from '../types';
 import { canSubmitVideoSelection, preferredVideoRouteId, validVideoFeedback, videoDurationRangeLabel, videoOutputLabel, videoWaitLabel } from './videoGeneration';
 
-const route:VideoRouteOption={id:'wavespeed-p-video-i2v',provider:'wavespeed',displayName:'P-Video',description:'Fast preview',badge:'Recommended',mediaMode:'image_to_video',sourceModes:['existing_photo'],durationSeconds:10,allowedDurations:[10,15,20],resolution:'720p',supportedAspectRatios:['9:16','16:9'],referenceImageRequirements:{source:1,canonicalCharacterMin:0,canonicalCharacterMax:0},audioBehavior:'silent',audioLabel:'Silent video',estimatedProviderCostUsd:.04,estimatedWaitSeconds:{min:30,max:150,median:62},creditCost:250,creditCostPerSecond:25,testingOnly:true};
+const route:VideoRouteOption={id:'wavespeed-p-video-i2v',provider:'wavespeed',displayName:'P-Video',description:'Lowest-cost video',badge:'Default · lowest cost',mediaMode:'image_to_video',sourceModes:['existing_photo','generated_first_frame'],durationSeconds:10,allowedDurations:[10,15,20],resolution:'720p',supportedAspectRatios:['9:16','16:9'],referenceImageRequirements:{source:1,canonicalCharacterMin:0,canonicalCharacterMax:0},audioBehavior:'silent',audioLabel:'Silent · lowest cost',estimatedProviderCostUsd:.04,estimatedWaitSeconds:{min:30,max:150,median:62},creditCost:250,creditCostPerSecond:25,testingOnly:true};
 
 describe('video generation confirmation helpers',()=>{
   it('shows the exact selected source orientation and output settings',()=>{

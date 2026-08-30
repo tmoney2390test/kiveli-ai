@@ -16,6 +16,8 @@ import '../_shared/venice.ts';
 // Keep newly introduced video modules in Supabase's remote upload graph. The
 // API bundler can omit transitive sibling imports in this large function tree.
 import '../_shared/kivelle-video-routes.ts';
+// Keep the private P-Video opening-frame cleanup in the remote upload graph.
+import '../_shared/together-direct-video-frame.ts';
 import { resolveMediaContentPolicy } from '../../../packages/together-domain/src/media-routing.ts';
 import {acceptMediaOffer} from '../_shared/together-media-offer-acceptance.ts';
 import {declineMediaOffer,listPendingMediaOffers} from '../_shared/together-media-offers.ts';
@@ -27,6 +29,9 @@ import{claimDailyPhotoAllowance,dailyPhotoReservationKey}from'../_shared/kivelle
 import{assertVideoQuoteWithinCeiling,buildVideoProviderPayload,canSelectVideoRoute,configuredVideoRouteCatalog,defaultVideoRouteId,MOTION_PRESETS,resolveVideoRoute,safeVideoRouteOption,sourceVideoAspectRatio,videoCreditCost,VIDEO_DURATIONS,VIDEO_ROUTE_IDS,videoSelectorMode,type VideoDurationSeconds,type VideoMotionPreset}from'../_shared/kivelle-video-routes.ts';
 import{canonicalRequestForMedia,snapshotReferenceAssets}from'../_shared/together-media-base.ts';
 import{configuredWaveSpeedClient}from'../_shared/wavespeed.ts';
+import{placeContextSnapshot,resolveCharacterHomeContext,resolveCharacterPlaceContext,resolvePlaceContext,resolveWorldAccess,type PlaceContext}from'../_shared/together-place.ts';
+import{cleanupDirectVideoSourceFrame}from'../_shared/together-direct-video-frame.ts';
+import{resolveCompanionPresence}from'../_shared/together-schedule.ts';
 
 const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('request'),characterInstanceId:z.string().uuid(),source:z.literal('user_request').default('user_request'),conversationId:z.string().uuid().optional(),messageId:z.string().uuid().optional(),requestText:z.string().trim().max(400).optional(),idempotencyKey:z.string().trim().min(8).max(120).optional()}),
@@ -46,7 +51,7 @@ const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('video_direct_options'),characterInstanceId:z.string().uuid()}),
   z.object({action:z.literal('video_event'),sourceMediaId:z.string().uuid(),event:z.enum(['option_sheet_opened','model_selected','motion_selected']),videoRouteId:z.enum(VIDEO_ROUTE_IDS).optional(),motionPreset:z.enum(MOTION_PRESETS).optional()}).strict(),
   z.object({action:z.literal('animate'),sourceMediaId:z.string().uuid(),videoRouteId:z.string().trim().min(8).max(100),motionPreset:z.enum(MOTION_PRESETS),durationSeconds:z.number().int().refine((value)=>VIDEO_DURATIONS.includes(value as VideoDurationSeconds)),requestId:z.string().trim().min(8).max(120)}).strict(),
-  z.object({action:z.literal('video_direct_generate'),characterInstanceId:z.string().uuid(),conversationId:z.string().uuid().optional(),videoRouteId:z.string().trim().min(8).max(100),motionPreset:z.enum(MOTION_PRESETS),durationSeconds:z.number().int().refine((value)=>VIDEO_DURATIONS.includes(value as VideoDurationSeconds)),aspectRatio:z.enum(['9:16','16:9']).default('9:16'),requestText:z.string().trim().min(2).max(400),requestId:z.string().trim().min(8).max(120)}).strict(),
+  z.object({action:z.literal('video_direct_generate'),characterInstanceId:z.string().uuid(),conversationId:z.string().uuid().optional(),videoRouteId:z.string().trim().min(8).max(100),motionPreset:z.enum(MOTION_PRESETS),durationSeconds:z.number().int().refine((value)=>VIDEO_DURATIONS.includes(value as VideoDurationSeconds)),aspectRatio:z.enum(['9:16','16:9']).default('9:16'),locationSource:z.enum(['current','home','place']).default('current'),locationId:z.string().uuid().optional(),requestText:z.string().trim().min(2).max(400),requestId:z.string().trim().min(8).max(120)}).strict(),
   z.object({action:z.literal('video_feedback'),mediaId:z.string().uuid(),verdict:z.enum(['looks_good','needs_work']),reasonCodes:z.array(z.enum(['face_changed','body_or_hands_distorted','motion_unnatural','outfit_changed','background_changed','extra_person','framing_changed','took_too_long','audio_problem','other'])).max(10).default([]),otherText:z.string().trim().max(500).optional()}),
   z.object({action:z.literal('video_playback'),mediaId:z.string().uuid()}),
   z.object({action:z.literal('video_diagnostics'),mediaId:z.string().uuid()}),
@@ -96,28 +101,31 @@ serve(async(request,correlationId)=>{
   }
   if(input.action==='video_direct_options'){
     const continuity=await activeContinuity(db,user.id);await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId);
-    if(!canSelectVideoRoute(user.id,user.email))return json({data:{available:false,selectorMode:videoSelectorMode(),sourceMode:'canonical_references',sourceAspectRatio:'9:16',routes:[],motionPresets:[],creditBalance:null},correlationId},200,correlationId);
+    if(!canSelectVideoRoute(user.id,user.email))return json({data:{available:false,selectorMode:videoSelectorMode(),sourceMode:'generated_first_frame',sourceAspectRatio:'9:16',routes:[],motionPresets:[],creditBalance:null},correlationId},200,correlationId);
     const draft=await directVideoDraft(db,{userId:user.id,continuityId:String(continuity.id),characterInstanceId:input.characterInstanceId,requestText:'A natural moment grounded in the companion’s current location.'});
     await validateDirectVideoContext(db,user.id,String(continuity.id),draft.instance);
     const canonical=await canonicalRequestForMedia(db,draft.media),identityReferenceCount=canonical.referenceImages.filter((item)=>item.role==='character_identity'&&item.signedUrl).length;
-    const routes=configuredVideoRouteCatalog().filter((route)=>route.enabled&&route.sourceModes.includes('canonical_references')&&route.referenceImageRequirements.canonicalCharacterMin<=identityReferenceCount).map(safeVideoRouteOption);
+    const routes=configuredVideoRouteCatalog().filter((route)=>route.enabled&&(route.sourceModes.includes('canonical_references')||route.sourceModes.includes('generated_first_frame'))&&route.referenceImageRequirements.canonicalCharacterMin<=identityReferenceCount&&(!route.sourceModes.includes('generated_first_frame')||identityReferenceCount>0)).map(safeVideoRouteOption);
+    const preferredDefault=defaultVideoRouteId(),defaultRouteId=routes.some((route)=>route.id===preferredDefault)?preferredDefault:routes[0]?.id??null;
     const[subscription,activeQuery]=await Promise.all([resolveSubscriptionState(db,user.id),db.from('together_generated_media').select('id,status').eq('user_id',user.id).eq('media_type','video').in('status',['queued','generating']).order('created_at',{ascending:false}).limit(1).maybeSingle()]);
-    return json({data:{available:routes.length>0,selectorMode:videoSelectorMode(),testingPriceLabel:'Price',sourceMode:'canonical_references',sourceAspectRatio:'9:16',defaultRouteId:routes[0]?.id??null,routes,motionPresets:motionPresetOptions(),creditBalance:subscription.creditBalance.total,activeVideo:Boolean(activeQuery.data),activeVideoId:activeQuery.data?.id??null,activeVideoStatus:activeQuery.data?.status??null,referenceSummary:{identity:identityReferenceCount,location:canonical.referenceImages.some((item)=>item.role==='location_environment'),locationName:canonical.context.place?.location.name??canonical.context.location?.name??null}},correlationId},200,correlationId);
+    return json({data:{available:routes.length>0,selectorMode:videoSelectorMode(),testingPriceLabel:'Price',sourceMode:'generated_first_frame',sourceAspectRatio:'9:16',defaultRouteId,routes,motionPresets:motionPresetOptions(),creditBalance:subscription.creditBalance.total,activeVideo:Boolean(activeQuery.data),activeVideoId:activeQuery.data?.id??null,activeVideoStatus:activeQuery.data?.status??null,referenceSummary:{identity:identityReferenceCount,location:Boolean(draft.place),locationName:draft.place.location.name},locationOptions:draft.locationOptions},correlationId},200,correlationId);
   }
   if(input.action==='video_direct_generate'){
     const continuity=await activeContinuity(db,user.id);await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId);
     const requestKey=`direct-video:${input.characterInstanceId}:${input.requestId}`,{data:existing}=await db.from('together_generated_media').select('*').eq('user_id',user.id).eq('request_key',requestKey).maybeSingle();if(existing)return json({data:{media:existing,creditCost:Number((existing.metadata as Record<string,unknown>|null)?.creditCost??0),creditBalance:null,route:null},correlationId},existing.status==='ready'?200:202,correlationId);
     await enforceRateLimit(db,user.id,'together_video_submit',3,86400);
-    const route=resolveVideoRoute(input.videoRouteId,user.id,user.email);if(!route.sourceModes.includes('canonical_references'))throw new AppError('VALIDATION_ERROR','Choose a direct-video model.',422);
-    const creditCost=videoCreditCost(route,input.durationSeconds),draft=await directVideoDraft(db,{userId:user.id,continuityId:String(continuity.id),characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,requestText:input.requestText,aspectRatio:input.aspectRatio});
+    const route=resolveVideoRoute(input.videoRouteId,user.id,user.email),usesGeneratedFirstFrame=route.sourceModes.includes('generated_first_frame');if(!usesGeneratedFirstFrame&&!route.sourceModes.includes('canonical_references'))throw new AppError('VALIDATION_ERROR','Choose a direct-video model.',422);
+    const creditCost=videoCreditCost(route,input.durationSeconds),draft=await directVideoDraft(db,{userId:user.id,continuityId:String(continuity.id),characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,requestText:input.requestText,aspectRatio:input.aspectRatio,locationSource:input.locationSource,locationId:input.locationId});
     await validateDirectVideoContext(db,user.id,String(continuity.id),draft.instance);
     const canonical=await canonicalRequestForMedia(db,draft.media),approvedPrompt=canonical.generationIntent?.requestText;if(!approvedPrompt)throw new AppError('FORBIDDEN','That video prompt cannot be used. Try a fictional, non-explicit scene.',403);
     const canonicalReferences=canonical.referenceImages.filter((item)=>item.signedUrl&&['character_identity','location_environment','world_environment','outfit_continuity'].includes(item.role)).map((item)=>({url:String(item.signedUrl),role:item.role as 'character_identity'|'location_environment'|'world_environment'|'outfit_continuity'}));
-    const payload=buildVideoProviderPayload(route,{canonicalReferences,sourceAspectRatio:input.aspectRatio,motionPreset:input.motionPreset,durationSeconds:input.durationSeconds,userPrompt:approvedPrompt,context:{companionName:canonical.companion.name,locationName:canonical.context.place?.location.name??canonical.context.location?.name,activity:canonical.context.activity}});
+    const sourceImageUrl=usesGeneratedFirstFrame?canonicalReferences.find((item)=>item.role==='character_identity')?.url:undefined;if(usesGeneratedFirstFrame&&!sourceImageUrl)throw new AppError('CHARACTER_REFERENCE_REQUIRED','P-Video needs an approved companion reference to create its opening frame.',409,true);
+    const payload=buildVideoProviderPayload(route,{sourceImageUrl,canonicalReferences,sourceAspectRatio:input.aspectRatio,motionPreset:input.motionPreset,durationSeconds:input.durationSeconds,userPrompt:approvedPrompt,context:{companionName:canonical.companion.name,locationName:draft.place.location.name,activity:canonical.context.activity}});
     const client=configuredWaveSpeedClient();if(!client)throw new AppError('PROVIDER_NOT_CONFIGURED','Video generation is not connected yet.',503);const quote=await client.quote(route.model,payload);assertVideoQuoteWithinCeiling(route,quote.amountUsd);
-    const{data:reserved,error:reserveError}=await db.rpc('kivelle_reserve_direct_video_generation',{p_user_id:user.id,p_continuity_id:String(continuity.id),p_character_instance_id:input.characterInstanceId,p_conversation_id:input.conversationId??null,p_request_key:requestKey,p_route_id:route.id,p_motion_preset:input.motionPreset,p_provider:route.provider,p_model:route.model,p_credit_cost:creditCost,p_quote_usd:quote.amountUsd,p_duration_seconds:input.durationSeconds,p_resolution:route.resolution,p_audio_behavior:route.audioBehavior,p_aspect_ratio:input.aspectRatio,p_user_prompt:approvedPrompt,p_reference_assets:draft.referenceAssets,p_route_concurrency_limit:route.concurrencyLimit});if(reserveError)throw videoReservationError(reserveError);
+    const sourceFrameRequest=openingFrameRequest(approvedPrompt,draft.place.location.name),sourceFrameMetadata={...draft.media.metadata,source:'direct_video_frame',hiddenIntermediate:true,generationIntent:{requestText:sourceFrameRequest,requestedContentLevel:'standard'},videoTargetRequestKey:requestKey};
+    const{data:reserved,error:reserveError}=await db.rpc('kivelle_reserve_direct_video_generation_v2',{p_user_id:user.id,p_continuity_id:String(continuity.id),p_character_instance_id:input.characterInstanceId,p_conversation_id:input.conversationId??null,p_request_key:requestKey,p_source_frame_request_key:`${requestKey}:frame`,p_route_id:route.id,p_motion_preset:input.motionPreset,p_provider:route.provider,p_model:route.model,p_credit_cost:creditCost,p_quote_usd:quote.amountUsd,p_duration_seconds:input.durationSeconds,p_resolution:route.resolution,p_audio_behavior:route.audioBehavior,p_aspect_ratio:input.aspectRatio,p_user_prompt:approvedPrompt,p_reference_assets:draft.referenceAssets,p_route_concurrency_limit:route.concurrencyLimit,p_location_id:draft.locationId,p_world_id:draft.worldId,p_place_context:placeContextSnapshot(draft.place),p_source_frame_metadata:sourceFrameMetadata});if(reserveError)throw videoReservationError(reserveError);
     const mediaId=String((reserved as Record<string,unknown>)?.mediaId??''),{data:video}=await db.from('together_generated_media').select('*').eq('id',mediaId).eq('user_id',user.id).single();if(!video)throw new AppError('INTERNAL_ERROR','The direct video reservation could not be loaded.',500,true);
-    waitUntil(kickMediaDispatcher());await track(db,user.id,'direct_video_generation_submitted',{mediaId:video.id,characterInstanceId:input.characterInstanceId,routeId:route.id,durationSeconds:input.durationSeconds,aspectRatio:input.aspectRatio,creditCost,quotedProviderCostUsd:quote.amountUsd,idempotent:Boolean((reserved as Record<string,unknown>)?.idempotent)});
+    waitUntil(kickMediaDispatcher());await track(db,user.id,'direct_video_generation_submitted',{mediaId:video.id,characterInstanceId:input.characterInstanceId,routeId:route.id,durationSeconds:input.durationSeconds,aspectRatio:input.aspectRatio,locationSource:input.locationSource,locationId:draft.locationId,worldId:draft.worldId,audioBehavior:route.audioBehavior,creditCost,quotedProviderCostUsd:quote.amountUsd,idempotent:Boolean((reserved as Record<string,unknown>)?.idempotent)});
     return json({data:{media:video,creditCost,creditBalance:Number((reserved as Record<string,unknown>)?.total??0),route:safeVideoRouteOption(route)},correlationId},202,correlationId);
   }
   if(input.action==='list_recent'){
@@ -125,9 +133,9 @@ serve(async(request,correlationId)=>{
     await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId);
     const{data:conversation}=await db.from('together_conversations').select('id').eq('id',input.conversationId).eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_instance_id',input.characterInstanceId).maybeSingle();
     if(!conversation)throw new AppError('NOT_FOUND','That conversation is unavailable in this Kivelle Life.',404);
-    const{data:rows,error}=await db.from('together_generated_media').select('*').eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_instance_id',input.characterInstanceId).eq('conversation_id',input.conversationId).in('content_level',['standard','romance']).gte('created_at',input.createdAfter).order('created_at',{ascending:false}).limit(input.limit);
+    const{data:rows,error}=await db.from('together_generated_media').select('*').eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_instance_id',input.characterInstanceId).eq('conversation_id',input.conversationId).in('content_level',['standard','romance']).gte('created_at',input.createdAfter).order('created_at',{ascending:false}).limit(Math.min(25,input.limit+5));
     if(error)throw new AppError('INTERNAL_ERROR','Recent photos could not be loaded.',500,true);
-    const media=await signMediaRows(db,rows??[]);
+    const media=await signMediaRows(db,(rows??[]).filter((row)=>row.metadata?.hiddenIntermediate!==true).slice(0,input.limit));
     return json({data:{media},correlationId},200,correlationId);
   }
   if(input.action==='batch_status'){
@@ -239,6 +247,7 @@ serve(async(request,correlationId)=>{
   }
   const storagePath=media.storage_path as string|null;
   if(media.status==='queued'||media.status==='generating')throw new AppError('CONFLICT','A queued or generating video cannot be removed.',409);
+  if(media.media_type==='video')await cleanupDirectVideoSourceFrame(db,media);
   const {error:deleteError}=await db.from('together_generated_media').delete().eq('id',media.id).eq('user_id',user.id);
   if(deleteError)throw new AppError('INTERNAL_ERROR','The photo could not be removed.',500,true);
   if(storagePath){const {error:storageError}=await db.storage.from('together-user-media').remove([storagePath]);if(storageError)await db.from('together_storage_cleanup_jobs').insert({user_id:user.id,bucket_id:'together-user-media',storage_path:storagePath,status:'pending',attempt_count:1,last_error:storageError.message});}
@@ -247,6 +256,7 @@ serve(async(request,correlationId)=>{
 });
 
 async function signMediaRows(db:any,rows:Array<Record<string,any>>){
+  rows=rows.filter((row)=>row.metadata?.hiddenIntermediate!==true);
   const paths=[...new Set(rows.filter((row)=>row.status==='ready'&&typeof row.storage_path==='string'&&row.storage_path).map((row)=>String(row.storage_path)))];
   const signed=paths.length?await db.storage.from('together-user-media').createSignedUrls(paths,3600):{data:[]};
   const byPath=new Map((signed.data??[]).map((item:any)=>[String(item.path),item.signedUrl]));
@@ -264,12 +274,47 @@ async function validateVideoSource(db:any,userId:string,continuityId:string,medi
   return{profile,instance,policy};
 }
 
-async function directVideoDraft(db:any,input:{userId:string;continuityId:string;characterInstanceId:string;conversationId?:string;requestText:string;aspectRatio?:'9:16'|'16:9'}){
+type DirectVideoLocationSource='current'|'home'|'place';
+type DirectVideoLocationOption={source:DirectVideoLocationSource;locationId:string|null;name:string;detail:string|null;worldId:string;worldName:string};
+
+async function directVideoDraft(db:any,input:{userId:string;continuityId:string;characterInstanceId:string;conversationId?:string;requestText:string;aspectRatio?:'9:16'|'16:9';locationSource?:DirectVideoLocationSource;locationId?:string}){
   const{data:instance}=await db.from('together_character_instances').select('*,together_character_templates(age,discovery_metadata,name),together_character_versions(id,content_boundaries,visual_identity,character_bible)').eq('id',input.characterInstanceId).eq('user_id',input.userId).eq('continuity_id',input.continuityId).maybeSingle();if(!instance)throw new AppError('NOT_FOUND','That companion is unavailable.',404);
-  const locationId=String(instance.current_location_id??'')||null,{data:location}=locationId?await db.from('together_locations').select('id,world_id,name').eq('id',locationId).maybeSingle():{data:null};
-  const versionId=String(instance.character_version_id),[characterAssets,environmentAssets]=await Promise.all([snapshotReferenceAssets(db,{characterVersionId:versionId}),snapshotReferenceAssets(db,{characterVersionIds:[versionId],locationId:locationId??undefined,worldId:location?.world_id?String(location.world_id):undefined})]);
+  const locations=await directVideoLocations(db,input.userId,instance),source=input.locationSource??'current';
+  let place:PlaceContext;
+  if(source==='current')place=locations.currentPlace;
+  else if(source==='home'){
+    if(!locations.homePlace)throw new AppError('NOT_FOUND','This companion does not have an available home setting.',404);
+    place=locations.homePlace;
+  }else{
+    if(!input.locationId)throw new AppError('VALIDATION_ERROR','Choose a place for this video.',422);
+    const{data:selected}=await db.from('together_locations').select('id,world_id,location_type').eq('id',input.locationId).maybeSingle();
+    if(!selected||String(selected.world_id)!==locations.worldId||['district','residence'].includes(String(selected.location_type)))throw new AppError('FORBIDDEN','Choose a public place in this companion’s current world.',403);
+    const access=await resolveWorldAccess({db,userId:input.userId,worldId:locations.worldId});if(access==='locked'||access==='available')throw new AppError('FORBIDDEN','That world is not available for video generation.',403);
+    place=await resolvePlaceContext({db,locationId:String(selected.id),userId:input.userId,characterInstanceId:input.characterInstanceId});
+  }
+  const locationId=place.location.virtualType==='character_home'?null:place.location.id,worldId=place.world.id,versionId=String(instance.character_version_id),[characterAssets,environmentAssets]=await Promise.all([snapshotReferenceAssets(db,{characterVersionId:versionId}),snapshotReferenceAssets(db,{characterVersionIds:[versionId],locationId:locationId??undefined,worldId})]);
   const identityRoles=new Set(['character_identity','character_training','outfit_continuity']),referenceCandidates:Array<Record<string,unknown>>=[...characterAssets.filter((asset)=>identityRoles.has(String(asset.role))).map((asset)=>({...asset,subjectCharacterInstanceId:input.characterInstanceId})),...environmentAssets.filter((asset)=>!identityRoles.has(String(asset.role)))],referenceAssets=referenceCandidates.filter((asset,index,all)=>all.findIndex((candidate)=>String(candidate.assetId)===String(asset.assetId))===index).slice(0,9);
-  return{instance,referenceAssets,media:{id:crypto.randomUUID(),user_id:input.userId,continuity_id:input.continuityId,character_instance_id:input.characterInstanceId,subject_character_instance_ids:[input.characterInstanceId],conversation_id:input.conversationId??null,location_id:locationId,world_id:location?.world_id??null,media_type:'video',content_level:'standard',metadata:{source:'user_request',videoSourceMode:'canonical_references',locationId,activity:instance.current_activity,mood:instance.current_mood,aspectRatio:input.aspectRatio??'9:16',referenceAssets,generationIntent:{requestText:input.requestText,requestedContentLevel:'standard'}}}};
+  return{instance,place,locationId,worldId,referenceAssets,locationOptions:locations.options,media:{id:crypto.randomUUID(),user_id:input.userId,continuity_id:input.continuityId,character_instance_id:input.characterInstanceId,subject_character_instance_ids:[input.characterInstanceId],conversation_id:input.conversationId??null,location_id:locationId,world_id:worldId,media_type:'video',content_level:'standard',metadata:{source:'user_request',videoSourceMode:'generated_first_frame',locationSource:source,locationId,activity:source==='current'?locations.currentActivity:`At ${place.location.name}`,mood:instance.current_mood,aspectRatio:input.aspectRatio??'9:16',placeContext:placeContextSnapshot(place),referenceAssets,generationIntent:{requestText:input.requestText,requestedContentLevel:'standard'}}}};
+}
+
+async function directVideoLocations(db:any,userId:string,instance:Record<string,any>){
+  const characterVersionId=String(instance.character_version_id),currentLocationId=String(instance.current_location_id??'')||null;
+  const[presence,homePlace]=await Promise.all([
+    resolveCompanionPresence({db,userId,characterInstanceId:String(instance.id),ensure:false}),
+    resolveCharacterHomeContext({db,characterVersionId,userId}),
+  ]);
+  const currentPlace=presence?.placeContext??await resolveCharacterPlaceContext({db,characterVersionId,locationId:currentLocationId,activity:String(instance.current_activity??''),userId,characterInstanceId:String(instance.id)});
+  const resolvedCurrent=currentPlace??homePlace;if(!resolvedCurrent)throw new AppError('NOT_FOUND','This companion does not have an available video location.',404);
+  const worldId=resolvedCurrent.world.id,worldName=resolvedCurrent.world.name,access=await resolveWorldAccess({db,userId,worldId});if(access==='locked'||access==='available')throw new AppError('FORBIDDEN','This companion’s current world is not available.',403);
+  const{data:rows,error}=await db.from('together_locations').select('id,world_id,name,category,location_type,parent_location_id,sort_order').eq('world_id',worldId).not('location_type','in','(district,residence)').order('sort_order').order('name').limit(120);if(error)throw new AppError('INTERNAL_ERROR','Video places could not be loaded.',500,true);
+  const option=(source:DirectVideoLocationSource,place:PlaceContext):DirectVideoLocationOption=>({source,locationId:place.location.virtualType==='character_home'?null:place.location.id,name:place.location.name,detail:place.path,worldId:place.world.id,worldName:place.world.name});
+  const current=option('current',resolvedCurrent),home=homePlace?option('home',homePlace):null,places:DirectVideoLocationOption[]=(rows??[]).map((row:Record<string,unknown>)=>({source:'place',locationId:String(row.id),name:String(row.name),detail:String(row.category??'Place'),worldId,worldName}));
+  return{currentPlace:resolvedCurrent,currentActivity:presence?.activity??String(instance.current_activity??`At ${resolvedCurrent.location.name}`),homePlace,worldId,worldName,options:{defaultSource:'current' as const,worldId,worldName,current,home,places}};
+}
+
+function openingFrameRequest(prompt:string,locationName:string){
+  const prefix=`Opening frame for a short video at ${locationName}: `,suffix=' Show one natural, stable starting pose with the companion clearly visible. No text, captions, or extra people.';
+  return`${prefix}${prompt}${suffix}`.replace(/\s+/g,' ').trim().slice(0,400);
 }
 
 async function validateDirectVideoContext(db:any,userId:string,continuityId:string,instance:Record<string,any>){
@@ -293,6 +338,7 @@ function videoReservationError(error:{message?:string;details?:string}|null){
   if(message.includes('VIDEO_DAILY_LIMIT'))return new AppError('RATE_LIMITED','You have reached the three-video testing limit for today.',429);
   if(message.includes('VIDEO_SOURCE_NOT_READY'))return new AppError('CONFLICT','The source photo is no longer ready.',409);
   if(message.includes('VIDEO_CHARACTER_UNAVAILABLE')||message.includes('VIDEO_CONVERSATION_UNAVAILABLE'))return new AppError('NOT_FOUND','That companion conversation is unavailable.',404);
+  if(message.includes('VIDEO_LOCATION_UNAVAILABLE')||message.includes('VIDEO_WORLD_UNAVAILABLE'))return new AppError('FORBIDDEN','That video location is no longer available. Choose another place.',403);
   if(message.includes('VIDEO_CONTENT_LEVEL_BLOCKED')||message.includes('VIDEO_SINGLE_FICTIONAL_ADULT_REQUIRED'))return new AppError('FORBIDDEN','This photo is not eligible for video generation.',403);
   return new AppError('INTERNAL_ERROR','The video could not be reserved safely.',500,true);
 }

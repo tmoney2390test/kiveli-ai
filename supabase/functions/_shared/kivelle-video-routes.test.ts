@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects, assertThrows } from 'jsr:@std/assert@1';
-import { assertVideoQuoteWithinCeiling, buildVideoProviderPayload, canSelectVideoRoute, configuredVideoRouteCatalog, resolveVideoRoute, sourceVideoAspectRatio, videoCreditCost, VIDEO_ROUTE_IDS } from './kivelle-video-routes.ts';
+import { assertVideoQuoteWithinCeiling, buildVideoProviderPayload, canSelectVideoRoute, configuredVideoRouteCatalog, defaultVideoRouteId, resolveVideoRoute, sourceVideoAspectRatio, videoCreditCost, VIDEO_ROUTE_IDS } from './kivelle-video-routes.ts';
 import { findQuoteAmount } from './wavespeed.ts';
 
 function catalog() {
@@ -65,6 +65,20 @@ Deno.test('direct video preserves the user direction and canonical references wi
     assertEquals(String(payload.prompt).includes('User direction: Walk through the room'),true);
     assertEquals(String(payload.prompt).includes('Canonical location: Moonlight Cafe.'),true);
   } finally { state.restore(); }
+});
+
+Deno.test('P-Video is the silent lowest-cost default for prompt and existing-photo video',()=>{
+  const state=catalog(),previousDefault=Deno.env.get('KIVELLE_VIDEO_DEFAULT_ROUTE_ID');
+  try{
+    Deno.env.delete('KIVELLE_VIDEO_DEFAULT_ROUTE_ID');
+    const route=state.routes.find((item)=>item.id==='wavespeed-p-video-i2v')!;
+    assertEquals(defaultVideoRouteId(),'wavespeed-p-video-i2v');
+    assertEquals(route.sourceModes.includes('existing_photo'),true);
+    assertEquals(route.sourceModes.includes('generated_first_frame'),true);
+    assertEquals(route.allowedDurations,[10,15,20]);
+    assertEquals(route.audioBehavior,'silent');
+    assertEquals(route.audioLabel,'Silent · lowest cost');
+  }finally{previousDefault===undefined?Deno.env.delete('KIVELLE_VIDEO_DEFAULT_ROUTE_ID'):Deno.env.set('KIVELLE_VIDEO_DEFAULT_ROUTE_ID',previousDefault);state.restore();}
 });
 
 Deno.test('source orientation maps only to supported video aspect ratios', () => {
