@@ -5,7 +5,7 @@ import type { FeaturedCompanion } from '../lib/featuredCompanions';
 import { resolveCharacterPortraitSource } from './ui';
 import { DetailPreservingArtwork } from './DetailPreservingArtwork';
 
-export function CompanionPortraitCard({ companion, width, height = 390, favorite, favoriteBusy, subtitle, actionLabel = 'View profile', onFavorite, onPress }: {
+export function CompanionPortraitCard({ companion, width, height = 390, favorite, favoriteBusy, subtitle, actionLabel = 'View profile', loading = 'eager', onFavorite, onPress }: {
   companion: FeaturedCompanion;
   width: number;
   height?: number;
@@ -13,13 +13,14 @@ export function CompanionPortraitCard({ companion, width, height = 390, favorite
   favoriteBusy: boolean;
   subtitle?: string;
   actionLabel?: string;
+  loading?: 'eager' | 'lazy';
   onFavorite: () => void;
   onPress: () => void;
 }) {
   const source = resolveCharacterPortraitSource(companion, companion.together_character_versions, companion.slug);
   const label = companion.discovery_metadata?.trending === true ? 'TRENDING' : companion.discovery_metadata?.new === true ? 'NEW' : 'FEATURED';
   return <Pressable accessibilityRole="button" accessibilityLabel={`${actionLabel}: ${companion.name}, ${companion.age}, ${companion.occupation}`} onPress={onPress} style={({ pressed }) => [styles.card, { width, height }, pressed && styles.cardPressed]}>
-    {source ? <DetailPreservingArtwork accessibilityLabel={`${companion.name}, ${companion.occupation}`} source={source} contentPosition="top" foregroundFit="cover" dim={.1} /> : <View style={[StyleSheet.absoluteFill, styles.fallback]}><Text style={styles.fallbackInitial}>{companion.name[0]}</Text></View>}
+    {source ? <DetailPreservingArtwork accessibilityLabel={`${companion.name}, ${companion.occupation}`} source={source} contentPosition="top" foregroundFit="cover" dim={.1} loading={loading} /> : <View style={[StyleSheet.absoluteFill, styles.fallback]}><Text style={styles.fallbackInitial}>{companion.name[0]}</Text></View>}
     <View style={styles.cardShade} />
     <View style={styles.badge}><Sparkles size={11} color="#FFE1A8" /><Text style={styles.badgeText}>{label}</Text></View>
     <View style={styles.cardCopy}>

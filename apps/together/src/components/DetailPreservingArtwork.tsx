@@ -10,6 +10,7 @@ type Props = {
   blurRadius?: number;
   dim?: number;
   priority?: 'low' | 'normal' | 'high';
+  loading?: 'eager' | 'lazy';
   recyclingKey?: string;
   onError?: () => void;
 };
@@ -28,6 +29,7 @@ export function DetailPreservingArtwork({
   blurRadius = 0,
   dim = .16,
   priority = 'normal',
+  loading = 'eager',
   recyclingKey,
   onError,
 }: Props) {
@@ -40,6 +42,7 @@ export function DetailPreservingArtwork({
       blurRadius={Math.max(14, blurRadius)}
       cachePolicy="memory-disk"
       priority={priority}
+      loading={loading}
       recyclingKey={recyclingKey?`${recyclingKey}:backdrop`:undefined}
       onError={onError}
     />
@@ -55,6 +58,7 @@ export function DetailPreservingArtwork({
         transition={180}
         cachePolicy="memory-disk"
         priority={priority}
+        loading={loading}
         recyclingKey={recyclingKey}
         onError={onError}
       />

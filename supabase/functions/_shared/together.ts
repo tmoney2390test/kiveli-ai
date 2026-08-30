@@ -7,6 +7,7 @@ import { normalizeMultimodalPreferences, resolveServerExperienceCapabilities } f
 import { applyRelationshipProposal, capabilitiesForAccount, firstDateEligibility, hasSexualDialogueLanguage, isDurableUserMemory, isRelationshipDirectedPreferenceObject, lifeEventHasExplicitPresenceAuthority, mergeRollingConversationState, nextRelationshipMilestone as selectRelationshipMilestone, relationshipCue, type RelationshipState } from '../../../packages/together-domain/src/index.ts';
 import { compactLocationLoreForDirectory } from '../../../packages/together-domain/src/location-depth.ts';
 import { projectSnapshotMemories } from './kivelle-memory-access.ts';
+import { waitUntil } from './background.ts';
 
 export const TOGETHER_IDS = {
   world: '10000000-0000-4000-8000-000000000001',
@@ -185,19 +186,28 @@ export async function track(db: SupabaseClient, userId: string, eventName: strin
   if (error) console.warn('Together analytics failed', eventName, error.message);
 }
 
-export async function buildSnapshot(db: SupabaseClient, userId: string): Promise<Record<string, unknown>> {
+export async function buildSnapshot(db: SupabaseClient, userId: string, requestedTimezone?: string | null): Promise<Record<string, unknown>> {
   const profileCheck=await db.from('together_profiles').select('*').eq('user_id',userId).maybeSingle();
   if(profileCheck.error)throw new AppError('INTERNAL_ERROR','Kivelle could not load your account.',500,true);
   if(!profileCheck.data)return buildOnboardingSnapshot(db,userId,null);
   if(!profileCheck.data.onboarding_completed_at)return buildOnboardingSnapshot(db,userId,profileCheck.data);
-  const continuity=await activeContinuity(db,userId);
+  let profileForSnapshot=profileCheck;
+  if(requestedTimezone&&profileCheck.data.experience_timezone!==requestedTimezone){
+    const updatedAt=new Date().toISOString();
+    profileForSnapshot={...profileCheck,data:{...profileCheck.data,experience_timezone:requestedTimezone,updated_at:updatedAt}};
+    waitUntil(Promise.all([
+      db.from('together_profiles').update({experience_timezone:requestedTimezone,updated_at:updatedAt}).eq('user_id',userId),
+      db.from('together_notification_preferences').update({timezone:requestedTimezone,updated_at:updatedAt}).eq('user_id',userId),
+    ]).then(()=>undefined));
+  }
   const catalog=loadSnapshotCatalog(db);
+  const continuity=await activeContinuity(db,userId);
   const instanceRows=await db.from('together_character_instances').select('*, together_character_templates(*), together_character_versions(*)').eq('user_id', userId).eq('continuity_id',continuity.id);
   if(instanceRows.error)throw new AppError('INTERNAL_ERROR','Kivelle could not load your companions.',500,true);
   const activeVersionIds=[...new Set((instanceRows.data??[]).map((instance)=>String(instance.character_version_id??'')).filter(Boolean))];
   const scheduleTemplates=fetchScheduleTemplates(db,activeVersionIds);
   const [profile, personas, continuities, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, favorites, schedules, scheduleEvents, relationships, relationshipPlaces, milestones, dates, moments, memories, threads, conversations, sceneSessions, sceneParticipants, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions] = await Promise.all([
-    db.from('together_profiles').select('*').eq('user_id', userId).maybeSingle(),
+    Promise.resolve(profileForSnapshot),
     db.from('together_user_personas').select('*').eq('user_id',userId).order('is_default',{ascending:false}).order('created_at'),
     db.from('together_continuities').select('*,together_user_personas(*)').eq('user_id',userId).order('kind').order('created_at'),
     catalog.then((value)=>value.worlds),
@@ -269,24 +279,26 @@ export async function buildSnapshot(db: SupabaseClient, userId: string): Promise
     ? !hasSexualDialogueLanguage(String(item.canonical_text??''))
     : item.content_level==='standard'||item.content_level==='romance');
   const readyPaths=mediaRows.filter((item)=>item.status==='ready'&&item.storage_path).map((item)=>String(item.storage_path));
-  const signed=readyPaths.length?await db.storage.from('together-user-media').createSignedUrls(readyPaths,3600):{data:[]};
-  const urlByPath=new Map((signed.data??[]).map((item)=>[item.path,item.signedUrl]));
-  const mediaPayload=mediaRows.map((item)=>({...item,signed_url:item.storage_path?urlByPath.get(item.storage_path)??null:null}));
   const durableMemories=(memories.data??[]).filter((memory)=>isDurableUserMemory({memoryType:String(memory.memory_type??'semantic'),canonicalText:String(memory.canonical_text??'')}));
   const snapshotCapabilities=capabilitiesForAccount(String(entitlements.data?.tier??'free'),entitlements.data?.metadata);
   const {memories:clientMemories,memoryCounts}=projectSnapshotMemories(durableMemories,snapshotCapabilities.entitlements);
-  const discoverableCharacters=await hydrateDiscoverableCharacters(db,discoverable.data??[]);
   const activeInstance=visibleInstances.find((item)=>item.id===continuity.active_companion_instance_id)??visibleInstances[0];
   const versionIds=[...new Set(visibleInstances.map((item)=>String(item.character_version_id)).filter(Boolean))];
-  const characterPlaceProfilesResult=versionIds.length?await db.from('together_character_place_profiles').select('*').in('character_version_id',versionIds):{data:[],error:null};
+  const currentLocationId=String(activeInstance?.current_location_id??'');
+  const [signed,discoverableCharacters,characterPlaceProfilesResult,currentPlaceContext]=await Promise.all([
+    readyPaths.length?db.storage.from('together-user-media').createSignedUrls(readyPaths,3600):Promise.resolve({data:[]}),
+    hydrateDiscoverableCharacters(db,discoverable.data??[]),
+    versionIds.length?db.from('together_character_place_profiles').select('*').in('character_version_id',versionIds):Promise.resolve({data:[],error:null}),
+    activeInstance?resolveCharacterPlaceContext({db,characterVersionId:String(activeInstance.character_version_id),locationId:publishedLocationIds.has(currentLocationId)?currentLocationId:null,activity:String(activeInstance.current_activity??''),userId,characterInstanceId:String(activeInstance.id)}):Promise.resolve(null),
+  ]);
   if(characterPlaceProfilesResult.error)throw new AppError('INTERNAL_ERROR','Kivelle could not load companion place context.',500,true);
   const characterPlaceProfiles=characterPlaceProfilesResult.data??[];
-  const currentLocationId=String(activeInstance?.current_location_id??'');
-  const currentPlaceContext=activeInstance?await resolveCharacterPlaceContext({db,characterVersionId:String(activeInstance.character_version_id),locationId:publishedLocationIds.has(currentLocationId)?currentLocationId:null,activity:String(activeInstance.current_activity??''),userId,characterInstanceId:String(activeInstance.id)}):null;
+  const urlByPath=new Map((signed.data??[]).map((item)=>[item.path,item.signedUrl]));
+  const mediaPayload=mediaRows.map((item)=>({...item,signed_url:item.storage_path?urlByPath.get(item.storage_path)??null:null}));
   const snapshotLocations=publishedLocations.map(compactSnapshotLocation);
   const profilePayload=profile.data?{...profile.data,active_continuity_id:continuity.id,active_companion_instance_id:activeInstance?.id??null}:profile.data;
   const experienceCapabilities=resolveServerExperienceCapabilities(normalizeMultimodalPreferences(profile.data?.multimodal_preferences),(entitlements.data?.entitlement_keys??[]).map(String)).experience;
-  return { profile: profilePayload, activePersona:continuity.together_user_personas??null,activeContinuity:continuity,personas:personas.data??[],continuities:continuities.data??[],worlds:publishedWorlds,userWorlds:publishedWorldAccess,characterWorldPresence:publishedCharacterPresence,currentPlaceContext,locations:snapshotLocations,relationshipPlaces:relationshipPlaces.data??[],characterPlaceProfiles,characters:visibleInstances,discoverableCharacters,favoriteCharacterTemplateIds:(favorites.data??[]).map((item)=>String(item.character_template_id)),schedules:schedules.data??[],scheduleEvents:(scheduleEvents.data??[]).filter((event)=>!event.metadata?.suppressedByPlanId&&(!event.location_id||publishedLocationIds.has(String(event.location_id)))),relationships:relationships.data??[],relationshipMilestones:(milestones.data??[]).filter((milestone)=>milestone.status==='pending'),relationshipMilestoneHistory:(milestones.data??[]).filter((milestone)=>milestone.status!=='pending'),relationshipCues,dates:publishedDates,moments:moments.data??[],memories:clientMemories,memoryCounts,openThreads:threads.data??[],conversations:conversationMetadata,sceneSessions:activeScenes,sceneParticipants:sceneParticipants.data??[],sharedPlans:publishedSharedPlans,conversationEvents:conversationEvents.data??[],lifeEvents:publishedLifeEvents,proactiveMessages:proactive.data??[],storyArcs:storyArcs.data??[],trips:trips.data??[],photoOpportunities:photoOpportunities.data??[],generatedMedia:mediaPayload,conversationActions:conversationActions.data??[],entitlements:{...(entitlements.data??{}),tier:snapshotCapabilities.tier,entitlement_keys:[...snapshotCapabilities.entitlements]},experienceCapabilities,notificationPreferences:preferences.data };
+  return { profile: profilePayload, activePersona:continuity.together_user_personas??null,activeContinuity:continuity,personas:personas.data??[],continuities:continuities.data??[],worlds:publishedWorlds,userWorlds:publishedWorldAccess,characterWorldPresence:publishedCharacterPresence,currentPlaceContext,locations:snapshotLocations,relationshipPlaces:relationshipPlaces.data??[],characterPlaceProfiles,characters:visibleInstances,discoverableCharacters,favoriteCharacterTemplateIds:(favorites.data??[]).map((item)=>String(item.character_template_id)),schedules:schedules.data??[],scheduleEvents:(scheduleEvents.data??[]).filter((event)=>!event.metadata?.suppressedByPlanId&&(!event.location_id||publishedLocationIds.has(String(event.location_id)))),relationships:relationships.data??[],relationshipMilestones:(milestones.data??[]).filter((milestone)=>milestone.status==='pending'),relationshipMilestoneHistory:(milestones.data??[]).filter((milestone)=>milestone.status!=='pending'),relationshipCues,dates:publishedDates,moments:moments.data??[],memories:clientMemories,memoryCounts,openThreads:threads.data??[],conversations:conversationMetadata,sceneSessions:activeScenes,sceneParticipants:sceneParticipants.data??[],sharedPlans:publishedSharedPlans,conversationEvents:conversationEvents.data??[],lifeEvents:publishedLifeEvents,proactiveMessages:proactive.data??[],storyArcs:storyArcs.data??[],trips:trips.data??[],photoOpportunities:photoOpportunities.data??[],generatedMedia:mediaPayload,conversationActions:conversationActions.data??[],entitlements:{...(entitlements.data??{}),tier:snapshotCapabilities.tier,entitlement_keys:[...snapshotCapabilities.entitlements]},experienceCapabilities,notificationPreferences:preferences.data&&requestedTimezone?{...preferences.data,timezone:requestedTimezone}:preferences.data };
 }
 
 export async function buildCharacterPresenceSnapshot(
@@ -327,11 +339,10 @@ export async function buildCharacterPresenceSnapshot(
 }
 
 async function buildOnboardingSnapshot(db:SupabaseClient,userId:string,profile:Record<string,unknown>|null):Promise<Record<string,unknown>>{
-  const catalog=loadSnapshotCatalog(db);
   const[worlds,locations,characterWorldPresence,discoverable,entitlements,preferences]=await Promise.all([
-    catalog.then((value)=>value.worlds),
-    catalog.then((value)=>value.locations),
-    catalog.then((value)=>value.characterWorldPresence),
+    db.from('together_worlds').select('*').eq('published',true),
+    db.from('together_locations').select('*'),
+    db.from('together_character_world_presence').select('*'),
     db.from('together_character_templates').select('*,together_character_versions(*)').eq('published',true).eq('can_be_selected',true).neq('lifecycle_status','archived').order('name'),
     db.from('together_entitlements').select('*').eq('user_id',userId).maybeSingle(),
     db.from('together_notification_preferences').select('*').eq('user_id',userId).maybeSingle(),

@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useState } from 'react';
+import { InteractionManager, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { router as expoRouter } from 'expo-router';
 import { Sparkles } from 'lucide-react-native';
@@ -24,7 +24,7 @@ import { homeWorldDiscoveryOptions } from '../../src/lib/homeWorldDiscovery';
 import type { Snapshot } from '../../src/types';
 import { useSubscriptionStatus } from '../../src/hooks/useSubscriptionStatus';
 import { useAppShell } from '../../src/shell/AppShellContext';
-import { storyConceptAssets } from '../../src/stories/assets';
+import { storyLibraryHomeAsset } from '../../src/stories/homeAsset';
 import { useWorldPulse } from '../../src/hooks/useWorldPulse';
 
 const router = expoRouter as unknown as { push: (href: string) => void };
@@ -32,15 +32,16 @@ const router = expoRouter as unknown as { push: (href: string) => void };
 export default function Home() {
   const { snapshot, loading, error, refresh, browsedWorldId, setBrowsedWorldId, setCoreState } = useTogether();
   const { desktop } = useAppShell();
-  const { data: subscription = null } = useSubscriptionStatus(Boolean(snapshot));
+  const secondaryWorkReady=useDeferredHomeWork();
+  const { data: subscription = null } = useSubscriptionStatus(Boolean(snapshot)&&secondaryWorkReady);
   const { width } = useWindowDimensions();
   const homeCompanion=snapshot?mostRecentHomeCompanion(snapshot):undefined;
   const homeCompanionId=homeCompanion?.id;
   const pulseWorldId=snapshot?(browsedWorldId??buildHomeViewModel(snapshot)?.currentWorld?.id??snapshot.worlds.find(world=>world.published)?.id):null;
-  const {data:worldPulse}=useWorldPulse(pulseWorldId,Boolean(snapshot&&pulseWorldId));
+  const {data:worldPulse}=useWorldPulse(pulseWorldId,Boolean(snapshot&&pulseWorldId&&secondaryWorkReady));
 
   const simulationStale=!homeCompanion||Date.now()-new Date(homeCompanion.last_simulated_at).getTime()>2*60000||!(snapshot?.scheduleEvents??[]).some((item)=>item.character_instance_id===homeCompanionId&&new Date(item.ends_at)>new Date());
-  useEffect(()=>{if(!homeCompanionId||!simulationStale)return;let cancelled=false;void simulate(homeCompanionId).then(()=>cancelled?undefined:refresh({scope:'presence',characterInstanceId:homeCompanionId})).catch(()=>undefined);return()=>{cancelled=true;};},[homeCompanionId,refresh,simulationStale]);
+  useEffect(()=>{if(!secondaryWorkReady||!homeCompanionId||!simulationStale)return;let cancelled=false;void simulate(homeCompanionId).then(()=>cancelled?undefined:refresh({scope:'presence',characterInstanceId:homeCompanionId})).catch(()=>undefined);return()=>{cancelled=true;};},[homeCompanionId,refresh,secondaryWorkReady,simulationStale]);
 
   if (loading && !snapshot) return <CinematicHomeLoading />;
   if (error && !snapshot) return <HomeError message={error} onRetry={() => void refresh()} />;
@@ -125,17 +126,25 @@ export default function Home() {
       {discoveryWorlds.length?<View style={styles.heroPane}><HomeWorldDiscoveryHero worlds={discoveryWorlds} onExplore={(world)=>{setBrowsedWorldId(world.id);router.push(`/(tabs)/explore?world=${world.slug}`);}}/></View>:null}
     </View>
     <Pressable accessibilityRole="button" accessibilityLabel="Open Kivelli Stories" onPress={()=>router.push('/stories' as never)} style={({pressed})=>[styles.storiesBanner,pressed&&{opacity:.9}]}>
-      <Image source={storyConceptAssets.library} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center"/>
+      <Image source={storyLibraryHomeAsset} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" loading="lazy" priority="low"/>
       <View pointerEvents="none" style={[StyleSheet.absoluteFill,styles.storiesShade]}/>
       <View style={styles.storiesCopy}><Text style={styles.storiesKicker}>KIVELLI STORIES · NEW</Text><Text style={styles.storiesTitle}>A night you can change—if you learn enough.</Text><Text style={styles.storiesText}>Enter a replayable Vespormoor mystery with its own clues, timeline, and endings.</Text><Text style={styles.storiesAction}>Open the archive →</Text></View>
     </Pressable>
-    {selectedWorld&&worldPulse?.worldId===selectedWorld.id?<AroundTownSection worldName={selectedWorld.name} items={worldPulse.items} onOpen={(item)=>{if(item.locationSlug)return router.push(`/location/${item.locationSlug}?world=${selectedWorld.slug}`);router.push(`/(tabs)/explore?world=${selectedWorld.slug}`);}}/>:null}
-    {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions} world={selectedWorld} worlds={publishedWorlds} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onViewAll={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/singles?world=${selectedWorld.slug}`); }} onSelectWorld={setBrowsedWorldId} onToggleFavorite={toggleFavorite} /> : null}
-    <FromCompanionSection name={template.name} items={media} fallbackSource={portraitSource} onViewAll={() => router.push('/(tabs)/moments')} onOpen={(item) => router.push(item.locked ? '/subscription' : `/media/${item.id}`)} onAsk={() => router.push(`/(tabs)/chat-tab?character=${encodeURIComponent(handle)}&draft=${encodeURIComponent('Send me a photo from where you are.')}`)} />
-    <HomeWorldSection wide={wideCards} upcoming={{ eyebrow: model.upcoming.eyebrow, title: model.upcoming.title, meta: model.upcoming.meta }} relationship={{ eyebrow: `YOU + ${template.name.toUpperCase()}`, title: relationship.headline, meta: relationship.detail }} hook={getWorldHook(model)} memory={memory} upcomingSource={upcomingSource} relationshipSource={portraitSource} onUpcoming={() => void runAction(model.upcoming.action)} onRelationship={() => router.push(`/character/${handle}`)} />
-    <HomeTimeline title={timelineTitle} items={model.timeline} onViewWorld={() => router.push('/(tabs)/explore')} onOpen={openTimelineItem} />
-    {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Text onPress={() => router.push('/(tabs)/moments')} style={styles.sectionAction}>View all →</Text></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} preserveImageDetails onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}
+    {secondaryWorkReady?<>
+      {selectedWorld&&worldPulse?.worldId===selectedWorld.id?<AroundTownSection worldName={selectedWorld.name} items={worldPulse.items} onOpen={(item)=>{if(item.locationSlug)return router.push(`/location/${item.locationSlug}?world=${selectedWorld.slug}`);router.push(`/(tabs)/explore?world=${selectedWorld.slug}`);}}/>:null}
+      {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions} world={selectedWorld} worlds={publishedWorlds} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onViewAll={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/singles?world=${selectedWorld.slug}`); }} onSelectWorld={setBrowsedWorldId} onToggleFavorite={toggleFavorite} /> : null}
+      <FromCompanionSection name={template.name} items={media} fallbackSource={portraitSource} onViewAll={() => router.push('/(tabs)/moments')} onOpen={(item) => router.push(item.locked ? '/subscription' : `/media/${item.id}`)} onAsk={() => router.push(`/(tabs)/chat-tab?character=${encodeURIComponent(handle)}&draft=${encodeURIComponent('Send me a photo from where you are.')}`)} />
+      <HomeWorldSection wide={wideCards} upcoming={{ eyebrow: model.upcoming.eyebrow, title: model.upcoming.title, meta: model.upcoming.meta }} relationship={{ eyebrow: `YOU + ${template.name.toUpperCase()}`, title: relationship.headline, meta: relationship.detail }} hook={getWorldHook(model)} memory={memory} upcomingSource={upcomingSource} relationshipSource={portraitSource} onUpcoming={() => void runAction(model.upcoming.action)} onRelationship={() => router.push(`/character/${handle}`)} />
+      <HomeTimeline title={timelineTitle} items={model.timeline} onViewWorld={() => router.push('/(tabs)/explore')} onOpen={openTimelineItem} />
+      {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Text onPress={() => router.push('/(tabs)/moments')} style={styles.sectionAction}>View all →</Text></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} preserveImageDetails onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}
+    </>:<HomeSecondaryLoading/>}
   </Screen>;
+}
+
+function useDeferredHomeWork(){
+  const[ready,setReady]=useState(false);
+  useEffect(()=>{let timer:ReturnType<typeof setTimeout>|undefined;const task=InteractionManager.runAfterInteractions(()=>{timer=setTimeout(()=>setReady(true),450);});return()=>{task.cancel();if(timer)clearTimeout(timer);};},[]);
+  return ready;
 }
 
 function resolveUpcomingLocation(snapshot: Snapshot, action: HomeTargetAction) {
@@ -151,6 +160,8 @@ function CinematicHomeLoading() {
 function HomeError({ message, onRetry }: { message: string; onRetry: () => void }) {
   return <Screen contentStyle={styles.error}><View style={styles.errorIcon}><Sparkles size={22} color={colors.rose} /></View><Text style={styles.errorTitle}>Your world paused for a moment</Text><Text style={styles.errorCopy}>{message}</Text><GradientButton label="Try again" onPress={onRetry} /></Screen>;
 }
+
+function HomeSecondaryLoading(){return <View accessibilityLabel="Loading more from your world" style={styles.secondaryLoading}><View style={styles.loadingSectionTitle}/><View style={styles.loadingRail}>{[0,1,2].map((item)=><View key={item} style={styles.loadingMedia}/>)}</View></View>;}
 
 const styles = StyleSheet.create({
   content: { position: 'relative', maxWidth: 1180, gap: 30, paddingTop: 14, paddingBottom: 154 },
@@ -185,6 +196,7 @@ const styles = StyleSheet.create({
   loadingSectionTitle: { width: 170, height: 31, borderRadius: 9, backgroundColor: colors.surface },
   loadingRail: { flexDirection: 'row', gap: 13, overflow: 'hidden' },
   loadingMedia: { width: 248, height: 322, borderRadius: 23, backgroundColor: colors.surface },
+  secondaryLoading:{gap:13,minHeight:366,overflow:'hidden'},
   error: { minHeight: '100%', alignItems: 'center', justifyContent: 'center', gap: 13 },
   errorIcon: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(232,82,137,.10)' },
   errorTitle: { color: colors.text, fontFamily: typography.display, fontSize: 28, textAlign: 'center' },

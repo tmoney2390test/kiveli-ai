@@ -54,9 +54,10 @@ serve(async (request, correlationId) => {
       if(scheduleError)throw new AppError('INTERNAL_ERROR','That routine could not be loaded right now.',500,true);
       return json({data:{characterTemplateId:template.id,characterVersionId:version.id,schedules:schedules??[]},correlationId},200,correlationId);
     }
-    const requestedTimezone=request.headers.get('x-kivelle-timezone');
-    if(requestedTimezone){try{new Intl.DateTimeFormat('en-US',{timeZone:requestedTimezone}).format(new Date());const updatedAt=new Date().toISOString();await Promise.all([db.from('together_profiles').update({experience_timezone:requestedTimezone,updated_at:updatedAt}).eq('user_id',user.id),db.from('together_notification_preferences').update({timezone:requestedTimezone,updated_at:updatedAt}).eq('user_id',user.id)]);}catch{/* ignore malformed client timezone */}}
-    return json({ data: await buildSnapshot(db, user.id), correlationId }, 200, correlationId);
+    const timezoneHeader=request.headers.get('x-kivelle-timezone');
+    let requestedTimezone:string|null=null;
+    if(timezoneHeader){try{new Intl.DateTimeFormat('en-US',{timeZone:timezoneHeader}).format(new Date());requestedTimezone=timezoneHeader;}catch{/* ignore malformed client timezone */}}
+    return json({ data: await buildSnapshot(db, user.id, requestedTimezone), correlationId }, 200, correlationId);
   }
   const { user, db } = await authenticated(request);
   await enforceRateLimit(db, user.id, 'together_bootstrap', 20, 3600);

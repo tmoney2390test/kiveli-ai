@@ -5,7 +5,7 @@ import { PublicLandingPage } from '../src/components/landing/PublicLandingPage';
 import { useAuth } from '../src/hooks/useAuth';
 
 const AuthenticatedIndex = lazy(() => import('../src/components/AuthenticatedIndex'));
-const LANDING_HERO = '/landing/juniper-city.87558d22e240d5a06f101484d48933e8.jpg';
+const LANDING_HERO = '/landing/juniper-city.53ab020b54a527943e9b4b3bb308190d.webp';
 
 export default function Index() {
   const { session, loading: authLoading } = useAuth();

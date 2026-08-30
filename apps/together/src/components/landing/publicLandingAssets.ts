@@ -2,7 +2,7 @@ import type { ImageSource } from 'expo-image';
 import type { PublicWorld } from '../../lib/publicLanding';
 
 export const publicWorldAssets: Record<PublicWorld['slug'], ImageSource> = {
-  'juniper-city': { uri: '/landing/juniper-city.87558d22e240d5a06f101484d48933e8.jpg' },
+  'juniper-city': { uri: '/landing/juniper-city.53ab020b54a527943e9b4b3bb308190d.webp' },
   'neon-kyo': require('../../../assets/worlds/neon-kyo/neon-kyo-hero.jpg'),
   'port-vervelle': require('../../../assets/worlds/port-vervelle/port-vervelle-hero.jpg'),
   vespormoor: require('../../../assets/worlds/vespormoor/vespormoor-hero.jpg'),

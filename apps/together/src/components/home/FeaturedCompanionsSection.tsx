@@ -65,7 +65,7 @@ export function FeaturedCompanionsSection({ companions, world, worlds, favoriteI
     </View>
     {featured.length ? <View style={styles.railFrame}>
       <ScrollView ref={rail} horizontal decelerationRate="fast" snapToInterval={step} snapToAlignment="start" disableIntervalMomentum showsHorizontalScrollIndicator={false} onMomentumScrollEnd={syncIndex} contentContainerStyle={styles.rail}>
-        {featured.map((companion) => <CompanionPortraitCard key={companion.id} companion={companion} width={cardWidth} favorite={favoriteIds.includes(companion.id)} favoriteBusy={savingFavoriteId === companion.id} onFavorite={() => void toggleFavorite(companion)} onPress={() => onOpen(companion)} />)}
+        {featured.map((companion) => <CompanionPortraitCard key={companion.id} companion={companion} width={cardWidth} favorite={favoriteIds.includes(companion.id)} favoriteBusy={savingFavoriteId === companion.id} loading="lazy" onFavorite={() => void toggleFavorite(companion)} onPress={() => onOpen(companion)} />)}
       </ScrollView>
       {matching.length > 1 ? <>
         <Pressable accessibilityRole="button" accessibilityLabel="Previous featured companion" accessibilityHint="Shows the previous portrait" hitSlop={{ top: 2, bottom: 2, left: 4, right: 4 }} onPress={() => cycle(-1)} style={({ pressed }) => [styles.imageArrow, styles.imageArrowLeft, width < 700 && styles.imageArrowCompact, pressed && styles.imageArrowPressed]}>

@@ -1,5 +1,6 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  InteractionManager,
   Platform,
   Pressable,
   ScrollView,
@@ -59,14 +60,22 @@ export function PublicLandingPage() {
   const tablet = width >= 680;
   const scroll = useRef<ScrollView | null>(null);
   const sectionY = useRef<Partial<Record<LandingSection, number>>>({});
+  const [sectionsReady,setSectionsReady]=useState(false);
   const juniperPath = '/singles?world=juniper-city';
+
+  useEffect(()=>{let timer:ReturnType<typeof setTimeout>|undefined;const task=InteractionManager.runAfterInteractions(()=>{timer=setTimeout(()=>setSectionsReady(true),800);});return()=>{task.cancel();if(timer)clearTimeout(timer);};},[]);
 
   const recordSection = (section: LandingSection) => (event: LayoutChangeEvent) => {
     sectionY.current[section] = event.nativeEvent.layout.y;
   };
   const scrollToSection = (section: LandingSection) => {
     const y = sectionY.current[section];
-    if (typeof y === 'number') scroll.current?.scrollTo({ y: Math.max(0, y - 76), animated: true });
+    if (typeof y === 'number') {
+      scroll.current?.scrollTo({ y: Math.max(0, y - 76), animated: true });
+      return;
+    }
+    setSectionsReady(true);
+    setTimeout(()=>{const deferredY=sectionY.current[section];if(typeof deferredY==='number')scroll.current?.scrollTo({y:Math.max(0,deferredY-76),animated:true});},32);
   };
   const join = (next?: string) => router.push(joinPathFor(next) as never);
   const signIn = () => router.push('/auth?mode=signin');
@@ -102,7 +111,7 @@ export function PublicLandingPage() {
           </View>)}
         </View>
 
-        <View onLayout={recordSection('worlds')} style={styles.section}>
+        {sectionsReady?<><View onLayout={recordSection('worlds')} style={styles.section}>
           <SectionHeading compact={!tablet} title="Featured Worlds" action="Meet every world" onAction={() => join('/explore')} />
           <View style={styles.worldGrid}>
             {PUBLIC_WORLDS.map((world) => <WorldCard key={world.slug} world={world} desktop={desktop} tablet={tablet} onPress={() => join(`/singles?world=${world.slug}`)} />)}
@@ -147,11 +156,13 @@ export function PublicLandingPage() {
           <LandingButton label="Start Exploring" onPress={() => join(juniperPath)} />
         </View>
 
-        <LandingFooter onSignIn={signIn} onWorlds={() => scrollToSection('worlds')} onCompanions={() => scrollToSection('companions')} />
+        <LandingFooter onSignIn={signIn} onWorlds={() => scrollToSection('worlds')} onCompanions={() => scrollToSection('companions')} /></>:<LandingSectionsLoading/>}
       </View>
     </ScrollView>
   </View>;
 }
+
+function LandingSectionsLoading(){return <View accessibilityLabel="Loading more Kivelle worlds" style={styles.deferredSections}><View style={styles.deferredHeading}/><View style={styles.deferredGrid}>{[0,1,2].map((item)=><View key={item} style={styles.deferredCard}/>)}</View></View>;}
 
 function LandingHeader({ compact, onSignIn, onStart, onWorlds, onWhy, onCompanions }: {
   compact: boolean;
@@ -189,8 +200,9 @@ function HeaderLink({ label, onPress }: { label: string; onPress: () => void }) 
 
 function Hero({ desktop, compact, onEnter, onMeet }: { desktop: boolean; compact: boolean; onEnter: () => void; onMeet: () => void }) {
   const heroPortrait = publicCompanionAssets['becka-shaw'];
+  const [visualReady,setVisualReady]=useState(false);
   return <View style={[styles.hero, desktop ? styles.heroDesktop : styles.heroStacked, compact && styles.heroCompact]}>
-    <Image accessible accessibilityLabel="Juniper City skyline at dusk" source={publicWorldAssets['juniper-city']} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" loading="eager" priority="high" />
+    <Image accessible accessibilityLabel="Juniper City skyline at dusk" source={publicWorldAssets['juniper-city']} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" loading="eager" priority="high" onLoad={()=>setVisualReady(true)} />
     <View style={[styles.heroPortraitFrame, desktop ? styles.heroPortraitDesktop : styles.heroPortraitStacked, compact && styles.heroPortraitCompact]}>
       <Image accessible accessibilityLabel="Becka Shaw in Juniper City" source={heroPortrait} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" loading="eager" priority="high" />
     </View>
@@ -212,7 +224,7 @@ function Hero({ desktop, compact, onEnter, onMeet }: { desktop: boolean; compact
         <LandingButton label="Enter Juniper City" onPress={onEnter} compact={compact} />
         <LandingButton label="Meet Companions" onPress={onMeet} secondary compact={compact} />
       </View>
-      <SocialProof compact={compact} />
+      <SocialProof compact={compact} visualReady={visualReady} />
     </View>
     {desktop ? <>
       <View style={styles.chatCard}>
@@ -236,12 +248,12 @@ function Hero({ desktop, compact, onEnter, onMeet }: { desktop: boolean; compact
   </View>;
 }
 
-function SocialProof({ compact }: { compact: boolean }) {
+function SocialProof({ compact,visualReady }: { compact: boolean;visualReady:boolean }) {
   const portraits = PUBLIC_COMPANIONS.slice(0, compact ? 3 : 5);
   return <View style={[styles.socialProof, compact && styles.socialProofCompact]}>
     <View style={styles.avatarStack}>
       {portraits.map((companion, index) => <View key={companion.slug} style={[styles.proofAvatarFrame, index > 0 && styles.proofAvatarOverlap]}>
-        <Image source={publicCompanionAssets[companion.slug]} style={styles.proofAvatar} contentFit="cover" contentPosition="top" priority="low" />
+        {visualReady?<Image source={publicCompanionAssets[companion.slug]} style={styles.proofAvatar} contentFit="cover" contentPosition="top" loading="lazy" priority="low"/>:<View style={styles.proofAvatarPlaceholder}/>}
       </View>)}
     </View>
     <View>
@@ -386,6 +398,7 @@ const styles = StyleSheet.create({
   proofAvatarFrame: { width: 38, height: 38, padding: 2, borderRadius: 20, backgroundColor: '#EEE0EC' },
   proofAvatarOverlap: { marginLeft: -11 },
   proofAvatar: { width: 34, height: 34, borderRadius: 17 },
+  proofAvatarPlaceholder: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#D3C2D1' },
   proofStars: { color: '#FFBE2E', fontSize: 15, lineHeight: 18, letterSpacing: 1.5 },
   proofText: { color: '#C7BDCA', fontSize: 11, marginTop: 3 },
   chatCard: { position: 'absolute', zIndex: 6, top: 290, right: 31, width: 288, padding: 15, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(222,105,238,.48)', backgroundColor: 'rgba(20,15,29,.90)', shadowColor: '#000', shadowOpacity: .5, shadowRadius: 24, shadowOffset: { width: 0, height: 11 }, elevation: 10 },
@@ -414,6 +427,10 @@ const styles = StyleSheet.create({
   stripTitle: { color: '#FBF5FB', fontSize: 12, fontWeight: '900' },
   stripBody: { color: '#AA9FAE', fontSize: 10, lineHeight: 14, marginTop: 4 },
   section: { paddingTop: 64 },
+  deferredSections: { minHeight: 720, paddingTop: 64, gap: 18, overflow: 'hidden' },
+  deferredHeading: { width: 230, height: 36, borderRadius: 12, backgroundColor: 'rgba(255,255,255,.055)' },
+  deferredGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  deferredCard: { flexGrow: 1, minWidth: 240, height: 245, borderRadius: 20, backgroundColor: 'rgba(255,255,255,.035)', borderWidth: 1, borderColor: 'rgba(255,255,255,.055)' },
   sectionHeading: { minHeight: 46, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 18, marginBottom: 18 },
   sectionHeadingCompact: { alignItems: 'flex-start', flexDirection: 'column', gap: 7 },
   sectionHeadingCopy: { flex: 1 },

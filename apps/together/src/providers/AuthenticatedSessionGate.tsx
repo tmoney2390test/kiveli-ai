@@ -24,6 +24,10 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   const companionOnboardingPath = isCompanionOnboardingPath(pathname);
 
   useEffect(() => {
+    if (pathname === '/' || pathname === '/home') router.prefetch('/home' as never);
+  }, [pathname]);
+
+  useEffect(() => {
     if (!snapshot && !loading && !error) void refresh();
   }, [snapshot, loading, error, refresh]);
 
