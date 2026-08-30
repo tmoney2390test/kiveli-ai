@@ -22,6 +22,11 @@ export function normalizeSubscriptionIntent(intent?:unknown,source?:unknown):Sub
 
 export function subscriptionIntentPresentation(intent:SubscriptionIntent){return intentCopy[intent];}
 
+export function preferredPaidTier(currentTier:SubscriptionTier,requested?:unknown):Exclude<SubscriptionTier,'free'>{
+  if(requested==='kivelle_plus'||requested==='kivelle_max')return requested;
+  return currentTier==='kivelle_max'?'kivelle_max':'kivelle_plus';
+}
+
 export function safeSubscriptionReturnTo(value?:unknown):string|null{
   if(typeof value!=='string'||!value.startsWith('/')||value.startsWith('//')||value.length>1200)return null;
   return value;
