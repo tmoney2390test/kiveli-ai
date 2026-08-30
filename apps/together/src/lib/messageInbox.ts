@@ -183,10 +183,17 @@ export function buildInboxRows(
         .toLocaleLowerCase()
         .includes(normalizedQuery);
     })
-    .sort((left, right) =>
-      timestamp(right.conversation.last_message_at) -
-      timestamp(left.conversation.last_message_at)
-    );
+    .sort((left, right) => {
+      const pinned = Number(isConversationPinned(right.conversation)) -
+        Number(isConversationPinned(left.conversation));
+      if (pinned) return pinned;
+      return timestamp(right.conversation.last_message_at) -
+        timestamp(left.conversation.last_message_at);
+    });
+}
+
+export function isConversationPinned(conversation: Conversation): boolean {
+  return conversation.metadata?.pinned === true;
 }
 
 /**

@@ -27,6 +27,7 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('messages'), conversationId: z.string().uuid(), before: z.string().datetime().optional(), beforeSequence: z.number().int().positive().optional(), anchorMessageId: z.string().uuid().optional(), limit: z.number().int().min(1).max(60).default(50) }),
   z.object({ action: z.literal('search'), characterInstanceId: z.string().uuid(), query: z.string().trim().min(2).max(100), conversationId: z.string().uuid().optional() }),
   z.object({ action: z.literal('read'), conversationId: z.string().uuid() }),
+  z.object({ action: z.literal('pin'), conversationId: z.string().uuid(), pinned: z.boolean() }),
   z.object({ action: z.literal('message_favorite'), conversationId: z.string().uuid(), messageId: z.string().uuid(), favorite: z.boolean() }),
   z.object({ action: z.literal('reset'), characterInstanceId: z.string().uuid(), mode: z.enum(['memory','relationship','full']), requestId: z.string().uuid().optional() }),
   z.object({ action: z.literal('reset_preview'), characterInstanceId: z.string().uuid() }),
@@ -286,6 +287,18 @@ serve(async (request, correlationId) => {
     const now = new Date().toISOString();
     await db.from('together_conversations').update({ last_read_at: now }).eq('id', conversation.id).eq('user_id', user.id);
     return json({ data: { last_read_at: now }, correlationId }, 200, correlationId);
+  }
+  if (input.action === 'pin') {
+    const currentMetadata = conversation.metadata && typeof conversation.metadata === 'object' && !Array.isArray(conversation.metadata)
+      ? conversation.metadata as Record<string, unknown>
+      : {};
+    const { data, error } = await db.from('together_conversations').update({
+      metadata: { ...currentMetadata, pinned: input.pinned },
+      updated_at: new Date().toISOString(),
+    }).eq('id', conversation.id).eq('user_id', user.id).select('*').single();
+    if (error || !data) throw new AppError('INTERNAL_ERROR', 'That chat could not be pinned.', 500, true);
+    await track(db, user.id, 'conversation_pin_changed', { conversationId: conversation.id, pinned: input.pinned });
+    return json({ data, correlationId }, 200, correlationId);
   }
   if (input.action === 'rename') {
     const { data, error } = await db.from('together_conversations').update({ title: input.title, updated_at: new Date().toISOString() }).eq('id', conversation.id).eq('user_id', user.id).select('*').single();

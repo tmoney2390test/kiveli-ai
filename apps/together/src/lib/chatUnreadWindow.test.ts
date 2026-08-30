@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { wasUnreadWhenChatOpened } from "./chatUnreadWindow";
+import { firstUnreadMessageId, wasUnreadWhenChatOpened } from "./chatUnreadWindow";
 
 const window = {
   lastReadAt: "2026-08-24T14:00:00.000Z",
@@ -24,5 +24,19 @@ describe("wasUnreadWhenChatOpened", () => {
       lastReadAt: null,
       openedAt: window.openedAt,
     })).toBe(false);
+  });
+});
+
+describe("firstUnreadMessageId", () => {
+  it("returns the first assistant message waiting when the chat opened", () => {
+    const messages = [
+      { id: "newer", role: "assistant", created_at: "2026-08-30T10:04:00.000Z" },
+      { id: "user", role: "user", created_at: "2026-08-30T10:02:00.000Z" },
+      { id: "first", role: "assistant", created_at: "2026-08-30T10:01:00.000Z" },
+    ];
+    expect(firstUnreadMessageId(messages, {
+      lastReadAt: "2026-08-30T10:00:00.000Z",
+      openedAt: "2026-08-30T10:03:00.000Z",
+    })).toBe("first");
   });
 });

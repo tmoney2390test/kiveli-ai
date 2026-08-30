@@ -173,15 +173,15 @@ export function MobileChatMediaHeader({
       <Animated.View pointerEvents="none" style={[styles.purpleWash, { opacity: headerOpacity }]} />
 
       <Animated.View style={[styles.headerContents, { opacity: headerOpacity }]}>
-        <Pressable accessibilityLabel="Back to Messages" hitSlop={10} onPress={onBack} style={[styles.action, styles.back, { top: actionTop }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to Messages" hitSlop={10} onPress={onBack} style={[styles.action, styles.back, { top: actionTop }]}>
           <ArrowLeft size={22} color={colors.text} />
         </Pressable>
 
         <Animated.View style={[styles.compactIdentity, { top: actionTop, opacity: compactOpacity }]} pointerEvents={mode === 'compact' ? 'auto' : 'none'}>
-          <Pressable accessibilityLabel={`View ${name}'s profile`} onPress={onProfile} style={styles.compactPortraitButton}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`View ${name}'s profile`} onPress={onProfile} style={styles.compactPortraitButton}>
             <Image source={portraitSource} style={styles.compactPortrait} contentFit="cover" contentPosition="top" transition={160} />
           </Pressable>
-          <Pressable onPress={onProfile} style={styles.copy}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`View ${name}'s profile`} onPress={onProfile} style={styles.copy}>
             <Text numberOfLines={1} style={styles.name}>{name}</Text>
             <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text>
           </Pressable>
@@ -212,17 +212,17 @@ export function MobileChatMediaHeader({
         </Animated.View>
 
         <Animated.View style={[styles.action, animatedActionStyle(onCall ? 112 : 62, topInset + (onCall ? 132 : 78))]}>
-          <Pressable accessibilityLabel={`Ask ${name} for a photo`} onPress={onPhoto} style={styles.actionPressable}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Ask ${name} for a photo`} onPress={onPhoto} style={styles.actionPressable}>
             <Camera size={19} color={colors.text} />
           </Pressable>
         </Animated.View>
         {onCall?<Animated.View style={[styles.action, animatedActionStyle(62, topInset + 78)]}>
-          <Pressable accessibilityLabel={`Call ${name}`} onPress={onCall} style={styles.actionPressable}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Call ${name}`} onPress={onCall} style={styles.actionPressable}>
             <Phone size={18} color={colors.text} />
           </Pressable>
         </Animated.View>:null}
         <Animated.View style={[styles.action, animatedActionStyle(12, topInset + 24)]}>
-          <Pressable accessibilityLabel="Conversation menu" onPress={onMenu} style={styles.actionPressable}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Conversation menu" onPress={onMenu} style={styles.actionPressable}>
             <MoreHorizontal size={21} color={colors.text} />
           </Pressable>
         </Animated.View>

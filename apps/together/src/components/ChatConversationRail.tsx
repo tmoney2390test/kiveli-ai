@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
-import { MessageCircle, UsersRound } from "lucide-react-native";
+import { MessageCircle, Pin, UsersRound } from "lucide-react-native";
 import { manageGroup } from "../lib/api";
 import { cacheGroupDetailSummary } from "../lib/groupDetailCache";
 import {
   inboxPreview,
+  isConversationPinned,
   isActiveInboxConversation,
   returnToMessagesInbox,
 } from "../lib/messageInbox";
@@ -78,10 +79,12 @@ export function ChatConversationRail({
         group: groupByConversation.get(conversation.id),
       }))
       .filter((row) => row.conversation.kind === "group" || row.character)
-      .sort((left, right) =>
-        conversationTime(right.conversation) -
-        conversationTime(left.conversation)
-      ), [groupByConversation, snapshot.characters, snapshot.conversations]);
+      .sort((left, right) => {
+        const pinned = Number(isConversationPinned(right.conversation)) -
+          Number(isConversationPinned(left.conversation));
+        return pinned || conversationTime(right.conversation) -
+          conversationTime(left.conversation);
+      }), [groupByConversation, snapshot.characters, snapshot.conversations]);
 
   const openConversation = (row: RailRow) => {
     if (row.conversation.id === activeConversationId) return;
@@ -106,6 +109,7 @@ export function ChatConversationRail({
       <View style={styles.headingRow}>
         <Text style={styles.kicker}>CONVERSATIONS</Text>
         <Pressable
+          accessibilityRole="button"
           accessibilityLabel="View all conversations"
           onPress={() => returnToMessagesInbox({reset:(href)=>router.replace(href as never),navigate:(href)=>router.push(href as never)})}
         >
@@ -129,6 +133,7 @@ export function ChatConversationRail({
           return (
             <Pressable
               key={row.conversation.id}
+              accessibilityRole="button"
               accessibilityLabel={`Open ${name}${
                 row.conversation.unread ? ", unread" : ""
               }`}
@@ -140,6 +145,7 @@ export function ChatConversationRail({
                 pressed && !active && styles.rowPressed,
               ]}
             >
+              {active ? <View pointerEvents="none" style={styles.activeRail} /> : null}
               {group
                 ? <RailGroupAvatar group={row.group} />
                 : row.character
@@ -158,12 +164,10 @@ export function ChatConversationRail({
                   </View>
                 )}
               <View style={styles.copy}>
-                <Text
-                  numberOfLines={1}
-                  style={[styles.name, active && styles.nameActive]}
-                >
-                  {name}
-                </Text>
+                <View style={styles.nameRow}>
+                  <Text numberOfLines={1} style={[styles.name, active && styles.nameActive]}>{name}</Text>
+                  {isConversationPinned(row.conversation) ? <Pin accessibilityLabel="Pinned" size={11} color={colors.violet} fill={colors.violet} /> : null}
+                </View>
                 <Text numberOfLines={1} style={styles.preview}>{preview}</Text>
               </View>
               {row.conversation.unread && !active
@@ -258,6 +262,7 @@ const styles = StyleSheet.create({
   list: { flex: 1, minHeight: 0 },
   listContent: { paddingHorizontal: 9, paddingBottom: 22, gap: 3 },
   row: {
+    position: "relative",
     minHeight: 58,
     flexDirection: "row",
     alignItems: "center",
@@ -268,11 +273,13 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   rowActive: {
-    backgroundColor: "rgba(216,62,234,.10)",
-    borderColor: "rgba(216,62,234,.18)",
+    backgroundColor: "rgba(216,62,234,.14)",
+    borderColor: "rgba(216,62,234,.34)",
   },
+  activeRail: { position: "absolute", left: -1, top: 9, bottom: 9, width: 3, borderRadius: 2, backgroundColor: colors.rose },
   rowPressed: { backgroundColor: "rgba(255,255,255,.045)" },
   copy: { flex: 1, minWidth: 0 },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   name: { color: colors.textSecondary, fontSize: 13, fontWeight: "800" },
   nameActive: { color: colors.text },
   preview: { color: colors.muted, fontSize: 10, marginTop: 3 },

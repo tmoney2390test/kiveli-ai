@@ -3,6 +3,7 @@ import {
   Brain,
   CalendarDays,
   History,
+  Pin,
   RotateCcw,
   Settings,
   Star,
@@ -30,8 +31,11 @@ type Props = {
   hasActivePlan: boolean;
   favorite: boolean;
   favoriteBusy: boolean;
+  pinned: boolean;
+  pinBusy: boolean;
   onClose: () => void;
   onFavorite: () => void;
+  onPin: () => void;
   onDetails: () => void;
   onMemory?: () => void;
   memoryLocked?: boolean;
@@ -52,8 +56,11 @@ export function ConversationOverflowMenu({
   hasActivePlan,
   favorite,
   favoriteBusy,
+  pinned,
+  pinBusy,
   onClose,
   onFavorite,
+  onPin,
   onDetails,
   onMemory,
   memoryLocked,
@@ -87,6 +94,7 @@ export function ConversationOverflowMenu({
     }] : []),
   ];
   const conversation: MenuAction[] = [
+    { label: pinned ? 'Unpin chat' : 'Pin chat', icon: <Pin size={16} color={pinned ? colors.violet : colors.textSecondary} fill={pinned ? colors.violet : 'transparent'} />, onPress: onPin, selected: pinned, disabled: pinBusy },
     { label: 'Chat settings', icon: <Settings size={16} color={colors.textSecondary} />, onPress: onSettings },
     ...(onHistory ? [{ label: 'History & search', icon: <History size={16} color={colors.textSecondary} />, onPress: onHistory }] : []),
     { label: 'Start a fresh chat', icon: <RotateCcw size={16} color={colors.textSecondary} />, onPress: onFresh },
@@ -99,7 +107,7 @@ export function ConversationOverflowMenu({
   return <FrostedSurface intensity={90} style={styles.menu}>
     <View style={styles.header}>
       <Text numberOfLines={1} style={styles.title}>{title}</Text>
-      <Pressable accessibilityLabel="Close chat menu" onPress={onClose} style={styles.close}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Close chat menu" onPress={onClose} style={styles.close}>
         <X size={17} color={colors.muted} />
       </Pressable>
     </View>
@@ -151,10 +159,10 @@ const styles = StyleSheet.create({
   },
   header: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
   title: { flex: 1, color: colors.text, fontFamily: 'Georgia', fontSize: 18 },
-  close: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.04)' },
+  close: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.04)' },
   section: { paddingTop: 7 },
   sectionLabel: { color: colors.dimmed, fontSize: 8, fontWeight: '900', letterSpacing: 1.25, paddingHorizontal: 9, paddingVertical: 5 },
-  row: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 9, borderRadius: radius.sm },
+  row: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 9, borderRadius: radius.sm },
   icon: { width: 20, alignItems: 'center' },
   rowLabel: { flex: 1, color: colors.text, fontSize: 12, fontWeight: '700' },
   danger: { color: colors.danger },

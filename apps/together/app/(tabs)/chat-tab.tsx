@@ -20,6 +20,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   MessageCircle,
   MoreVertical,
+  Pin,
   Plus,
   Search,
   Settings,
@@ -33,7 +34,7 @@ import {
   FrostedSurface,
 } from "../../src/components";
 import { ChatSettingsModal } from "../../src/components/ChatSettingsModal";
-import { manageConversation, manageGroup } from "../../src/lib/api";
+import { manageConversation, manageGroup, setConversationPinned } from "../../src/lib/api";
 import { confirmAction } from "../../src/lib/dialogs";
 import {
   buildInboxRows,
@@ -42,6 +43,7 @@ import {
   formatInboxTimestamp,
   type InboxFilter,
   inboxPreview,
+  isConversationPinned,
   type InboxRow,
   isActiveInboxConversation,
   mergeInboxConversations,
@@ -229,6 +231,21 @@ export default function MessageInbox() {
       },
     });
   };
+  const togglePinned = async (row: InboxRow) => {
+    setMenuRow(null);
+    setBusyId(row.conversation.id);
+    const pinned = !isConversationPinned(row.conversation);
+    try {
+      const updated = await setConversationPinned(row.conversation.id, pinned);
+      setConversations((current) => current.map((item) => item.id === updated.id ? updated : item));
+      const latest = useTogether.getState().snapshot;
+      if (latest) useTogether.getState().upsertConversation(updated);
+    } catch (caught) {
+      Alert.alert("Could not update pin", caught instanceof Error ? caught.message : "Please try again.");
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   if (chatHref) return <Redirect href={chatHref as never} />;
   if (!snapshot) {
@@ -252,6 +269,7 @@ export default function MessageInbox() {
           <View style={styles.headerSpacer} />
           <Text style={styles.title}>Messages</Text>
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel="New conversation"
             onPress={() => setShowNewConversation(true)}
             style={styles.newButton}
@@ -273,6 +291,7 @@ export default function MessageInbox() {
           {query
             ? (
               <Pressable
+                accessibilityRole="button"
                 accessibilityLabel="Clear search"
                 onPress={() => setQuery("")}
                 style={styles.clearSearch}
@@ -356,6 +375,7 @@ export default function MessageInbox() {
         row={menuRow}
         onClose={() => setMenuRow(null)}
         onArchive={archive}
+        onTogglePinned={(row) => void togglePinned(row)}
         onSettings={openSettings}
       />
       <NewConversationModal
@@ -436,6 +456,7 @@ function ConversationRow(
   return (
     <View style={[styles.row, busy && styles.rowBusy]}>
       <Pressable
+        accessibilityRole="button"
         accessibilityLabel={`Open ${displayName}${conversation.unread ? ", unread messages" : ""}`}
         onPress={onOpen}
         disabled={busy}
@@ -459,6 +480,7 @@ function ConversationRow(
               >
                 {displayName}
               </Text>
+              {isConversationPinned(conversation) ? <Pin accessibilityLabel="Pinned" size={12} color={colors.violet} fill={colors.violet} /> : null}
               {conversation.unread ? <View accessibilityLabel="Unread messages" style={styles.unreadDot} /> : null}
             </View>
             <Text style={styles.time}>
@@ -477,6 +499,7 @@ function ConversationRow(
         </View>
       </Pressable>
       <Pressable
+        accessibilityRole="button"
         accessibilityLabel={`Options for ${displayName}`}
         onPress={onMenu}
         disabled={busy}
@@ -511,6 +534,7 @@ function NewConversationModal({
     >
       <View style={styles.modalRoot}>
         <Pressable
+          accessibilityRole="button"
           accessibilityLabel="Close new conversation"
           onPress={onClose}
           style={StyleSheet.absoluteFill}
@@ -522,6 +546,7 @@ function NewConversationModal({
               <Text style={styles.sheetName}>Who do you want to message?</Text>
             </View>
             <Pressable
+              accessibilityRole="button"
               accessibilityLabel="Close"
               onPress={onClose}
               style={styles.sheetClose}
@@ -529,7 +554,7 @@ function NewConversationModal({
               <X size={19} color={colors.muted} />
             </Pressable>
           </View>
-          <Pressable onPress={onGroup} style={styles.newConversationGroup}>
+          <Pressable accessibilityRole="button" onPress={onGroup} style={styles.newConversationGroup}>
             <View style={styles.newConversationIcon}>
               <Users size={21} color={colors.rose} />
             </View>
@@ -550,6 +575,8 @@ function NewConversationModal({
               return (
                 <Pressable
                   key={character.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Message ${template.name}`}
                   onPress={() => onDirect(character)}
                   style={styles.newConversationPerson}
                 >
@@ -614,11 +641,12 @@ function GroupAvatarStack({ group }: { group: GroupDetail }) {
 }
 
 function ConversationActions(
-  { row, onClose, onArchive, onSettings }: {
+  { row, onClose, onArchive, onSettings, onTogglePinned }: {
     row: InboxRow | null;
     onClose: () => void;
     onArchive: (row: InboxRow) => void;
     onSettings: (row: InboxRow) => void;
+    onTogglePinned: (row: InboxRow) => void;
   },
 ) {
   return (
@@ -630,6 +658,7 @@ function ConversationActions(
     >
       <View style={styles.modalRoot}>
         <Pressable
+          accessibilityRole="button"
           accessibilityLabel="Close chat options"
           onPress={onClose}
           style={StyleSheet.absoluteFill}
@@ -657,6 +686,7 @@ function ConversationActions(
                   </Text>
                 </View>
                 <Pressable
+                  accessibilityRole="button"
                   accessibilityLabel="Close"
                   onPress={onClose}
                   style={styles.sheetClose}
@@ -665,6 +695,18 @@ function ConversationActions(
                 </Pressable>
               </View>
               <Pressable
+                accessibilityRole="button"
+                onPress={() => onTogglePinned(row)}
+                style={({ pressed }) => [styles.sheetAction, pressed && styles.pressed]}
+              >
+                <Pin size={19} color={colors.violet} fill={isConversationPinned(row.conversation) ? colors.violet : "transparent"} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sheetActionTitle}>{isConversationPinned(row.conversation) ? "Unpin chat" : "Pin chat"}</Text>
+                  <Text style={styles.sheetActionCopy}>{isConversationPinned(row.conversation) ? "Return it to activity order" : "Keep it at the top of Messages"}</Text>
+                </View>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
                 onPress={() => onSettings(row)}
                 style={(
                   { pressed },
@@ -681,6 +723,7 @@ function ConversationActions(
                 </View>
               </Pressable>
               <Pressable
+                accessibilityRole="button"
                 onPress={() => onArchive(row)}
                 style={(
                   { pressed },
@@ -740,9 +783,9 @@ const styles = StyleSheet.create({
   newButton: {
     position: "absolute",
     right: 0,
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,.06)",
@@ -775,8 +818,8 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   clearSearch: {
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1013,9 +1056,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   sheetClose: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,.045)",

@@ -7,15 +7,16 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MESSAGE_CHARACTER_LIMIT, messageCharacterLimitError } from '@together/domain/src/message-limits';
 import { isPhotoOnlyConversationMessage } from '@together/domain/src/media';
 import { shouldGroupChatMessages } from '@together/domain/src/group-chat';
 import { preservedPrependOffset, shouldKeepChatPinned, shouldLoadOlderChatMessages } from '../src/lib/chatScroll';
-import { CharacterAvatar, CharacterMentionText, CharacterProfilePreviewModal, ChatConversationRail, ChatPhotoRequestCard, ConnectionBanner, ConversationOverflowMenu, DateTimeFields, EndPlanConfirmation, ErrorState, FailedMessageRecovery, FrostedBackdrop, FrostedSurface, LoadingSkeleton, MediaRequestModal, MediaTile, MemorySavedToast, MessageActionSheet, MessageCharacterCounter, MobileChatMediaHeader, PhotoSharingPaywallModal, PlanDetailsModal, PlanJoinBar, VoiceNotePurchaseModal, resolveCharacterPortraitSource, type MessageActionDefinition } from '../src/components';
+import { CharacterAvatar, CharacterMentionText, CharacterProfilePreviewModal, ChatConversationRail, ChatPhotoRequestCard, ConnectionBanner, ConversationOverflowMenu, DateTimeFields, EndPlanConfirmation, ErrorState, FailedMessageRecovery, FrostedBackdrop, FrostedSurface, JumpToLatestButton, LoadingSkeleton, MediaRequestModal, MediaTile, MemorySavedToast, MessageActionSheet, MessageCharacterCounter, MobileChatContextCard, MobileChatMediaHeader, PhotoSharingPaywallModal, PlanDetailsModal, PlanJoinBar, VoiceNotePurchaseModal, resolveCharacterPortraitSource, type MessageActionDefinition } from '../src/components';
 import { characterAssets, cityLifeAsset, locationHeroAsset, worldHeroAsset } from '../src/assets';
 import { colors, radius, spacing } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
-import { ApiError, confirmConversationAction, confirmUserImage, createSharedPlan, deleteConversationAttachment, dismissConversationAction, ensureConversation, manageConversation, manageInteraction, manageMedia, manageSharedScene, meetCompanion, mutateMemory, prepareUserImage, quoteVoiceNote, refreshVoiceNote, rememberMessage, removePendingAttachment, reportMessage, requestVoiceNote, resolveRelationshipMilestone, sendDialogue, sendSceneReaction, setCharacterFavorite, setMessageFavorite, simulate, suggestDialogue } from '../src/lib/api';
+import { ApiError, confirmConversationAction, confirmUserImage, createSharedPlan, deleteConversationAttachment, dismissConversationAction, ensureConversation, manageConversation, manageInteraction, manageMedia, manageSharedScene, meetCompanion, mutateMemory, prepareUserImage, quoteVoiceNote, refreshVoiceNote, rememberMessage, removePendingAttachment, reportMessage, requestVoiceNote, resolveRelationshipMilestone, sendDialogue, sendSceneReaction, setCharacterFavorite, setConversationPinned, setMessageFavorite, simulate, suggestDialogue } from '../src/lib/api';
 import { supabase } from '../src/lib/supabase';
 import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInstance, CharacterInteractionProposal, ConversationAction, ConversationAttachment, ConversationEvent, GeneratedMedia, InteractionCandidate, MediaOffer,Message, MessageReaction, PlanExperience, RelationshipMilestone, SceneAction, SceneParticipant, SceneSession, SharedPlan, Snapshot } from '../src/types';
 import { activeCompanion } from '../src/lib/companionLife';
@@ -38,7 +39,8 @@ import { reconcileMessages } from '../src/lib/messageReconciliation';
 import { endPlanExperience, getPlanExperience, joinCommitment, switchPlanExperience } from '../src/lib/commitments';
 import { activePlanForChat, attendedPlansForLifecycleReconciliation, collapsePlanTimelineEvents, isPlanLifecycleDividerEvent, joinablePlanForChat, planActionAvailability, planLifecycleDividerLabel, shouldShowPlanConversationAction, shouldShowPlanTimelineEvent } from '../src/lib/planActions';
 import { hideVoiceNoteConfirmation, isVoiceNoteConfirmationHidden } from '../src/lib/voiceNoteConfirmation';
-import { chatSessionRouteKey, conversationWithLastMessage, returnToMessagesInbox } from '../src/lib/messageInbox';
+import { chatSessionRouteKey, conversationWithLastMessage, isConversationPinned, returnToMessagesInbox } from '../src/lib/messageInbox';
+import { clearChatScrollPosition, readChatScrollPosition, restoredChatOffset, saveChatScrollPosition, shouldRestoreChatScrollPosition, type ChatScrollPosition } from '../src/lib/chatNavigationState';
 import { mergeDictationTranscript } from '../src/lib/dictation';
 import { useChatDictation, type ChatDictationPhase } from '../src/hooks/useChatDictation';
 import { cleanupNormalizedImage, normalizeUserImage, userImagePickerOptions } from '../src/lib/imageUploads';
@@ -133,6 +135,8 @@ function ChatSession() {
   const [showAutoDialogueOptions,setShowAutoDialogueOptions]=useState(false);
   const [resolvingMilestone, setResolvingMilestone] = useState(false);
   const [favoriteBusy,setFavoriteBusy]=useState(false);
+  const [pinBusy,setPinBusy]=useState(false);
+  const [showJumpToLatest,setShowJumpToLatest]=useState(false);
   const [planModal,setPlanModal]=useState<{planId:string;confirmCancel?:boolean}|null>(null);
   const [planActionBusyId,setPlanActionBusyId]=useState<string|null>(null);
   const [planEndTarget,setPlanEndTarget]=useState<SharedPlan|null>(null);
@@ -165,6 +169,8 @@ function ChatSession() {
   const initialBottomPinConversation = useRef<string|null>(null);
   const initialBottomPinReleaseTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
   const programmaticScrollUntil = useRef(0);
+  const viewportHeight = useRef(0);
+  const pendingScrollRestore = useRef<ChatScrollPosition|null>(null);
   const messageCache = useRef(new Map<string,{messages:Message[];hasMore:boolean}>());
   const autoDialogueRequest=useRef<AbortController|null>(null);
   const currentInput=useRef('');
@@ -268,6 +274,20 @@ function ChatSession() {
       keepPinnedToBottom.current=true;
     },180);
   },[scrollToLatest]);
+  const prepareConversationScroll=useCallback((conversationId:string)=>{
+    bottomAlignedConversation.current=null;
+    const saved=readChatScrollPosition(conversationId);
+    if(shouldRestoreChatScrollPosition(saved)){
+      cancelInitialBottomPin();
+      pendingScrollRestore.current=saved;
+      keepPinnedToBottom.current=false;
+      setShowJumpToLatest(true);
+      return;
+    }
+    pendingScrollRestore.current=null;
+    beginInitialBottomPin(conversationId);
+    setShowJumpToLatest(false);
+  },[beginInitialBottomPin,cancelInitialBottomPin]);
   useEffect(()=>()=>{if(bottomPinReleaseTimer.current)clearTimeout(bottomPinReleaseTimer.current);if(initialBottomPinReleaseTimer.current)clearTimeout(initialBottomPinReleaseTimer.current);for(const timer of bottomPinSettleTimers.current)clearTimeout(timer);bottomPinSettleTimers.current.clear();},[]);
   const loadOlder = async () => {
     const oldest=messages[0];
@@ -293,8 +313,7 @@ function ChatSession() {
     if(!conversation){setLoading(false);setLoadedConversationId(null);return;}
     const conversationId=conversation.id,cached=messageCache.current.get(conversationId);
     let cancelled=false;
-    bottomAlignedConversation.current=null;
-    beginInitialBottomPin(conversationId);
+    prepareConversationScroll(conversationId);
     setError('');setStream('');setSending(false);setFeedback(null);setMemorySavedNotice(null);setAwaitingPhotoOffer(false);setPendingImage(null);setMediaOffers([]);setLastInteraction(null);setCharacterProposal(null);setPendingActionId(null);setFocusDismissed(false);setFocusPlanId(params.planId??null);setShowPlans(params.plan==='1');setShowPhotoRequests(false);setShowInteractions(false);setShowConversationMenu(false);setShowChatSettings(false);setPlanModal(null);setPlanActionBusyId(null);setPlanEndTarget(null);setSwitchPlanId(params.switchPlanId??null);setInput('');
     if(cached){setMessages(cached.messages);setHasMore(cached.hasMore);setLoadedConversationId(conversationId);setLoading(false);}
     else{setMessages([]);setHasMore(true);setLoadedConversationId(null);setLoading(true);}
@@ -311,7 +330,7 @@ function ChatSession() {
       void markConversationRead(conversationId).catch(()=>undefined);
     })();
     return()=>{cancelled=true;};
-  },[beginInitialBottomPin,conversation?.id,markConversationRead]);
+  },[conversation?.id,markConversationRead,prepareConversationScroll]);
   useEffect(()=>{if(loadedConversationId)writeMessageCache(messageCache.current,loadedConversationId,messages,hasMore);},[hasMore,loadedConversationId,messages]);
   useEffect(()=>{
     if(!conversation||loadedConversationId!==conversation.id)return;
@@ -334,11 +353,11 @@ function ChatSession() {
       if(!active)return;
       const hasOlder=raw.length>PAGE_SIZE;
       writeMessageCache(messageCache.current,conversationId,page,hasOlder);
-      bottomAlignedConversation.current=null;beginInitialBottomPin(conversationId);setMessages(page);setHasMore(hasOlder);setLoadedConversationId(conversationId);setLoading(false);
+      prepareConversationScroll(conversationId);setMessages(page);setHasMore(hasOlder);setLoadedConversationId(conversationId);setLoading(false);
       await markConversationRead(conversationId).catch(()=>undefined);
     })();
     return()=>{active=false;};
-  },[beginInitialBottomPin,conversation?.id,markConversationRead]));
+  },[conversation?.id,markConversationRead,prepareConversationScroll]));
   useEffect(()=>{
     const currentRequest=pendingDialogue?.clientRequestId??null;
     const previousRequest=observedPendingRequest.current;
@@ -688,6 +707,7 @@ function ChatSession() {
     });
   };
   const toggleFavorite=async()=>{if(favoriteBusy)return;const previous=snapshot.favoriteCharacterTemplateIds??[],next=isFavorite?previous.filter((id)=>id!==character.character_template_id):[...new Set([...previous,character.character_template_id])];setFavoriteBusy(true);setCoreState({favoriteCharacterTemplateIds:next});try{const result=await setCharacterFavorite(character.character_template_id,!isFavorite,'chat_menu');setCoreState({favoriteCharacterTemplateIds:result.favoriteCharacterTemplateIds});}catch(caught){setCoreState({favoriteCharacterTemplateIds:previous});setError(caught instanceof Error?caught.message:'That favorite could not be saved.');}finally{setFavoriteBusy(false);}};
+  const togglePinned=async()=>{if(pinBusy)return;setPinBusy(true);try{upsertConversation(await setConversationPinned(conversation.id,!isConversationPinned(conversation)));}catch(caught){setError(caught instanceof Error?caught.message:'That chat could not be pinned.');}finally{setPinBusy(false);}};
   const desktopChat=width>=920,messageTypography=chatMessageTypography(conversation,{desktop:desktopChat});
   const photoSharingEntitled=snapshot.entitlements?.entitlement_keys?.includes('photo_sharing')===true;
   const choosePhoto=async(source:'camera'|'library')=>{if(!photoSharingEntitled){setShowPhotoRequests(false);setShowPhotoPaywall(true);return;}try{if(Platform.OS!=='web'){const permission=source==='camera'?await ImagePicker.requestCameraPermissionsAsync():await ImagePicker.requestMediaLibraryPermissionsAsync();if(!permission.granted){setError(source==='camera'?'Camera access is needed to take a photo.':'Photo access is needed to choose a photo.');return;}}const options=userImagePickerOptions(source),result=source==='camera'?await ImagePicker.launchCameraAsync(options):await ImagePicker.launchImageLibraryAsync(options);setShowPhotoRequests(false);if(result.canceled||!result.assets[0])return;const asset=result.assets[0],normalized=await normalizeUserImage({uri:asset.uri,width:asset.width,height:asset.height,fileSize:asset.fileSize,fileName:asset.fileName},.88);cleanupNormalizedImage(pendingImage?.uri);setPendingImage({...normalized,requestId:createClientRequestId()});setPhotoUploadPhase('idle');setError('');composerInput.current?.focus();}catch(caught){setShowPhotoRequests(false);setError(caught instanceof Error?caught.message:'That photo could not be opened.');}};
@@ -716,7 +736,7 @@ function ChatSession() {
     }
   };
 
-  return <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+  return <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}>
     <View style={[styles.shell,desktopChat&&styles.shellDesktop]}>
       {showLeft ? <ChatConversationRail snapshot={snapshot} activeConversationId={conversation.id} /> : null}
       <View style={styles.conversation}>
@@ -736,16 +756,19 @@ function ChatSession() {
           onMedia={latestHeaderMedia?()=>router.push(`/media/${latestHeaderMedia.id}` as never):undefined}
         />:<ChatHeader character={character} location={location} onBack={openMessagesInbox} onCall={()=>router.push(`/call?character=${character.id}&conversation=${conversation.id}` as never)} onMenu={()=>setShowConversationMenu((value)=>!value)} />}
         <ConnectionBanner sendFailed={messages.some((item)=>item.delivery_status==='failed')} sendScoped={showSendConnectionNotice}/>
-        {!showRight&&chatContext.nextCommitment?<Pressable onPress={()=>chatContext.nextCommitment?.kind==='plan'&&router.push(`/plan/${chatContext.nextCommitment.id}` as never)} style={styles.mobileCommitment}><CalendarDays size={14} color={colors.rose}/><Text style={styles.mobileCommitmentText} numberOfLines={1}>{new Date(chatContext.nextCommitment.startsAt).toLocaleDateString([],{weekday:'short'})} · {chatContext.nextCommitment.title}</Text><ChevronRight size={14} color={colors.muted}/></Pressable>:null}
+        {!showRight?<MobileChatContextCard identityKey={conversation.id} name={character.together_character_templates.name} location={chatContext.scene.location} activity={chatContext.scene.activity} next={chatContext.nextCommitment?{title:chatContext.nextCommitment.title,detail:new Date(chatContext.nextCommitment.startsAt).toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'}),onPress:chatContext.nextCommitment.kind==='plan'?()=>router.push(`/plan/${chatContext.nextCommitment!.id}` as never):undefined}:null} memoryCount={snapshot.memoryCounts?.[character.id]??snapshot.memories.filter((item)=>item.character_instance_id===character.id).length} memoryLocked={snapshot.entitlements?.entitlement_keys?.includes('memory_inspector')!==true} onMemory={()=>router.push(`/memories?character=${slug}` as never)} onPlan={activeSharedPlan?undefined:openPlanPicker}/>:null}
         {showConversationMenu ? <ConversationOverflowMenu
           title={character.together_character_templates.name}
           kind="direct"
           hasActivePlan={Boolean(activeSharedPlan)}
           favorite={isFavorite}
           favoriteBusy={favoriteBusy}
+          pinned={isConversationPinned(conversation)}
+          pinBusy={pinBusy}
           memoryLocked={snapshot.entitlements?.entitlement_keys?.includes('memory_inspector') !== true}
           onClose={()=>setShowConversationMenu(false)}
           onFavorite={toggleFavorite}
+          onPin={()=>void togglePinned()}
           onDetails={()=>{setShowConversationMenu(false);router.push(`/character/${slug}` as never);}}
           onMemory={()=>{setShowConversationMenu(false);router.push(`/memories?character=${slug}` as never);}}
           onHistory={()=>{setShowConversationMenu(false);router.push(`/conversations/${character.id}` as never);}}
@@ -777,16 +800,25 @@ function ChatSession() {
           onScroll={(event)=>{
             const native=event.nativeEvent,offsetY=native.contentOffset.y,now=Date.now(),forced=initialBottomPinConversation.current===conversation.id||activeBottomPinRequest.current!==null||forcePinnedUntil.current>now,previousOffset=scrollOffsetY.current;
             keepPinnedToBottom.current=shouldKeepChatPinned({contentHeight:native.contentSize.height,viewportHeight:native.layoutMeasurement.height,offsetY},forced?Number.POSITIVE_INFINITY:forcePinnedUntil.current,now);
+            viewportHeight.current=native.layoutMeasurement.height;
+            saveChatScrollPosition(conversation.id,{offsetY,contentHeight:native.contentSize.height,viewportHeight:native.layoutMeasurement.height});
+            setShowJumpToLatest(!forced&&!keepPinnedToBottom.current);
             scrollOffsetY.current=offsetY;
             const userReachedHistoryStart=shouldLoadOlderChatMessages({bottomAligned:bottomAlignedConversation.current===conversation.id,forcedBottomPin:forced,programmaticScrollUntil:programmaticScrollUntil.current,now,offsetY,previousOffsetY:previousOffset});
             if(userReachedHistoryStart)void loadOlder();
           }}
-          onLayout={()=>{if(keepPinnedToBottom.current&&bottomAlignedConversation.current===conversation.id)setTimeout(()=>scrollToLatest(false),0);}}
+          onLayout={(event)=>{viewportHeight.current=event.nativeEvent.layout.height;if(keepPinnedToBottom.current&&bottomAlignedConversation.current===conversation.id)setTimeout(()=>scrollToLatest(false),0);}}
           onContentSizeChange={(_,height)=>{
             contentHeight.current=height;
             if(prepending.current){
               const offset=preservedPrependOffset({previousOffsetY:previousOffsetY.current,previousContentHeight:previousHeight.current,nextContentHeight:height});
               prepending.current=false;scrollOffsetY.current=offset;programmaticScrollUntil.current=Date.now()+350;
+              setTimeout(()=>scroll.current?.scrollToOffset({offset,animated:false}),0);
+              return;
+            }
+            if(pendingScrollRestore.current){
+              const saved=pendingScrollRestore.current,offset=restoredChatOffset(saved,height,viewportHeight.current||saved.viewportHeight);
+              pendingScrollRestore.current=null;scrollOffsetY.current=offset;bottomAlignedConversation.current=conversation.id;programmaticScrollUntil.current=Date.now()+350;
               setTimeout(()=>scroll.current?.scrollToOffset({offset,animated:false}),0);
               return;
             }
@@ -816,6 +848,7 @@ function ChatSession() {
           {feedback ? <StoryFeedback feedback={feedback} onView={() => router.push(feedback.kind === 'memory' ? '/memories' : feedback.kind==='plan'? '/(tabs)/dates':'/moments')} onUndo={feedback.kind === 'memory' ? () => void undoMemory() : undefined} onDismiss={() => setFeedback(null)} /> : null}
           {error ? <Pressable onPress={() => { const failed = [...visibleMessages].reverse().find((item) => item.delivery_status === 'failed'); if (failed) void send(failed.content,failed.client_request_id??undefined,failed.id); }} style={styles.retry}><Text style={styles.retryText}>{error}{visibleMessages.some((item) => item.delivery_status === 'failed') ? ' Tap to retry.' : ''}</Text></Pressable> : null}
         </VirtualizedConversationList>}
+        <JumpToLatestButton visible={!showPlans&&showJumpToLatest} bottom={width<720?104:92} onPress={()=>{keepPinnedToBottom.current=true;setShowJumpToLatest(false);clearChatScrollPosition(conversation.id);scrollToLatest(true);}}/>
         {showInteractions?<InteractionTray name={character.together_character_templates.name} location={location} loading={interactionLoading} interactions={interactionCandidates} destinations={movementCandidates} onInteraction={(candidate)=>void executeInteraction(candidate)} onMove={(candidate)=>void moveScene(candidate)} onClose={()=>setShowInteractions(false)} />:isCoPresent&&interactionCandidates.length?<ContextualInteractionTray loading={interactionLoading} interactions={interactionCandidates.slice(0,3)} onOpen={()=>setShowInteractions(true)} onInteraction={(candidate)=>void executeInteraction(candidate)} />:null}
         {!activeSharedPlan&&joinableSharedPlan?<PlanJoinBar plan={joinableSharedPlan} locationName={snapshot.locations.find((item)=>item.id===joinableSharedPlan.location_id)?.name} busy={planActionBusyId===joinableSharedPlan.id||planning} onJoin={()=>void startTimelinePlan(joinableSharedPlan)} onDetails={()=>setPlanModal({planId:joinableSharedPlan.id})}/>:null}
         {focusPlanId&&focusPlanId!==activeSharedPlan?.id?<PlanFocusChip plan={(snapshot.sharedPlans??[]).find((item)=>item.id===focusPlanId)} onOpen={(id)=>router.push(`/plan/${id}` as never)} onClose={()=>{setFocusPlanId(null);setFocusDismissed(true);}}/>:null}
@@ -878,7 +911,7 @@ function ChatAmbientGlow({compact}:{compact:boolean}) {
   </View>;
 }
 
-function ChatHeader({character,location,onBack,onCall,onMenu}:{character:CharacterInstance;location:string;onBack:()=>void;onCall:()=>void;onMenu:()=>void}) { const slug=character.together_character_templates.slug,locationStatus=location.trim().toLowerCase()==='home'?'At home':`At ${location}`;return <View style={[styles.header, Platform.OS === 'web' && styles.webHeader]}><Pressable accessibilityLabel="Back to Messages" onPress={onBack} style={styles.icon}><ArrowLeft color={colors.text}/></Pressable><Pressable accessibilityLabel={`View ${character.together_character_templates.name}'s profile`} onPress={()=>router.push(`/character/${slug}` as never)}><CharacterAvatar slug={slug} name={character.together_character_templates.name} size={42}/></Pressable><Pressable onPress={()=>router.push(`/character/${slug}` as never)} style={styles.headerIdentity}><Text numberOfLines={1} style={[styles.name,styles.desktopHeaderName]}>{character.together_character_templates.name}</Text><Text numberOfLines={1} style={[styles.status,styles.desktopHeaderStatus]}>{locationStatus}</Text></Pressable><Pressable accessibilityLabel={`Call ${character.together_character_templates.name}`} onPress={onCall} style={styles.icon}><Phone size={18} color={colors.text}/></Pressable><Pressable accessibilityLabel="Conversation menu" onPress={onMenu} style={styles.icon}><MoreHorizontal color={colors.text}/></Pressable></View>; }
+function ChatHeader({character,location,onBack,onCall,onMenu}:{character:CharacterInstance;location:string;onBack:()=>void;onCall:()=>void;onMenu:()=>void}) { const slug=character.together_character_templates.slug,locationStatus=location.trim().toLowerCase()==='home'?'At home':`At ${location}`;return <View style={[styles.header, Platform.OS === 'web' && styles.webHeader]}><Pressable accessibilityRole="button" accessibilityLabel="Back to Messages" onPress={onBack} style={styles.icon}><ArrowLeft color={colors.text}/></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`View ${character.together_character_templates.name}'s profile`} onPress={()=>router.push(`/character/${slug}` as never)}><CharacterAvatar slug={slug} name={character.together_character_templates.name} size={42}/></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`View ${character.together_character_templates.name}'s profile`} onPress={()=>router.push(`/character/${slug}` as never)} style={styles.headerIdentity}><Text numberOfLines={1} style={[styles.name,styles.desktopHeaderName]}>{character.together_character_templates.name}</Text><Text numberOfLines={1} style={[styles.status,styles.desktopHeaderStatus]}>{locationStatus}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Call ${character.together_character_templates.name}`} onPress={onCall} style={styles.icon}><Phone size={18} color={colors.text}/></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Conversation menu" onPress={onMenu} style={styles.icon}><MoreHorizontal color={colors.text}/></Pressable></View>; }
 
 
 function ConversationHistoryLoading({name}:{name:string}){return <View style={styles.conversationLoading}><View style={styles.conversationLoadingAvatar}/><View style={{flex:1,gap:7}}><View style={styles.conversationLoadingLine}/><View style={[styles.conversationLoadingLine,styles.conversationLoadingLineShort]}/></View><Text style={styles.conversationLoadingText}>Opening {name}…</Text></View>;}
@@ -944,9 +977,9 @@ function MessageBubble({desktop,message,character,mentionCharacters,onCharacterM
   return <><Animated.View style={[styles.messageRow,desktop&&styles.messageRowDesktop,assistant?styles.assistantRow:styles.userRow,{opacity,transform:[{translateY:translate}]}]}>
     {assistant&&!grouped?<CharacterAvatar slug={speakerSlug} size={28}/>:assistant?<View style={{width:28}}/>:null}
     <View style={styles.messageStack}>
-      <Pressable accessibilityLabel={`${assistant?speakerName:'Your'} message. Tap for actions.`} onPress={()=>setActionsOpen(true)} onLongPress={()=>setActionsOpen(true)} style={[styles.bubble,desktop&&styles.bubbleDesktop,assistant?styles.assistantBubble:styles.userBubble,message.delivery_status==='failed'&&styles.failed]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${assistant?speakerName:'Your'} message. Tap for actions.`} onPress={()=>setActionsOpen(true)} onLongPress={()=>setActionsOpen(true)} style={[styles.bubble,desktop&&styles.bubbleDesktop,assistant?styles.assistantBubble:styles.userBubble,message.delivery_status==='failed'&&styles.failed]}>
         {!photoOnly&&message.content!=='[Photo]'?(assistant?<CharacterMentionText text={message.content} characters={mentionCharacters} excludeSlug={speakerSlug} onCharacterPress={onCharacterMention} style={[styles.messageText,textStyle]}/>:<Text style={[styles.messageText,textStyle]}>{message.content}</Text>):!assistant&&!attachments.length?<Text style={[styles.messageText,textStyle,{opacity:.66}]}>Photo deleted</Text>:null}
-        {attachments.map((attachment)=><Pressable key={attachment.id} accessibilityLabel="Open shared photo" onPress={()=>attachment.signed_url&&void Linking.openURL(attachment.signed_url)}><Image source={privateStoredImageSource(attachment.signed_url,attachment.storage_path)} style={styles.userAttachment} contentFit="cover" cachePolicy="memory-disk" priority="low" recyclingKey={attachment.id}/></Pressable>)}
+        {attachments.map((attachment)=><Pressable key={attachment.id} accessibilityRole="button" accessibilityLabel="Open shared photo" onPress={()=>attachment.signed_url&&void Linking.openURL(attachment.signed_url)}><Image source={privateStoredImageSource(attachment.signed_url,attachment.storage_path)} style={styles.userAttachment} contentFit="cover" cachePolicy="memory-disk" priority="low" recyclingKey={attachment.id}/></Pressable>)}
         {standaloneImages.map((item)=><MediaTile key={item.id} media={item} style={styles.messageMedia} onRetry={()=>void onMediaRetry(item.id)}/>)}
         {assistant&&!photoOnly&&voiceVisible&&(voice||voiceBusy)?<Animated.View style={[styles.listenControlSlot,{opacity:completionControlsOpacity}]}>{voice?<VoiceNoteInline media={voice} active={activeVoiceNoteId===voice.id} onActivate={()=>onVoiceActivate(activeVoiceNoteId===voice.id?null:voice.id)} onRetry={()=>void onVoice()} onRefresh={()=>void refreshVoice()}/>:<View style={styles.voiceNote}><ActivityIndicator size="small" color={colors.rose}/><Text style={styles.voiceNoteText}>Generating voice…</Text></View>}</Animated.View>:null}
         <View style={styles.messageMeta}><Text style={[styles.timestamp,desktop&&styles.timestampDesktop,{opacity:.58}]}>{new Date(message.created_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</Text></View>
@@ -1049,14 +1082,15 @@ function AutoDialogueOptionsModal({visible,name,hasSuggestion,onChoose,onClose}:
 
 void LegacyComposer;
 function Composer({compact,desktop,inputRef,conversationId,character,input,onChangeInput,onDictation,onDictationError,onDictationStart,pendingImage,photoUploadPhase,onAddPhoto,onRemovePhoto,sending,onSend,onPhoto,autoDialogue,autoDialogueBusy,canSuggest,onSuggest,onSuggestOptions,onClearSuggestion,onLayout}:{compact:boolean;desktop:boolean;inputRef:{current:TextInput|null};conversationId:string;character:CharacterInstance;input:string;onChangeInput:(value:string)=>void;onDictation:(text:string)=>void;onDictationError:(message:string)=>void;onDictationStart:()=>void;pendingImage:PendingImage|null;photoUploadPhase:PhotoUploadPhase;onAddPhoto:()=>void;onRemovePhoto:()=>void;sending:boolean;onSend:()=>void;onPhoto:()=>void;autoDialogue:AutoDialogueSuggestion|null;autoDialogueBusy:boolean;canSuggest:boolean;onSuggest:()=>void;onSuggestOptions:()=>void;onClearSuggestion:()=>void;onLayout?:()=>void}) {
+  const insets=useSafeAreaInsets();
   const [composerFocused,setComposerFocused]=useState(false);
   const dictation=useChatDictation({conversationId,characterInstanceId:character.id,disabled:sending||autoDialogueBusy,onBeforeStart:onDictationStart,onTranscript:onDictation,onError:onDictationError});
   const dictationBusy=dictation.phase!=='idle',overLimit=input.length>MESSAGE_CHARACTER_LIMIT,suggestMode=!input.trim()&&!pendingImage,actionDisabled=sending||autoDialogueBusy||dictationBusy||overLimit||(suggestMode&&!canSuggest),autoDialogueEdited=Boolean(autoDialogue&&input!==autoDialogue.text);
   const counter=<MessageCharacterCounter value={input}/>;
-  return <View onLayout={onLayout} style={[styles.composerWrap,compact&&styles.composerWrapCompact]}>
+  return <View onLayout={onLayout} style={[styles.composerWrap,compact&&styles.composerWrapCompact,{paddingBottom:Math.max(8,insets.bottom)}]}>
     {pendingImage?<PhotoAttachmentPreview image={pendingImage} phase={photoUploadPhase} sending={sending} onReplace={onAddPhoto} onRemove={onRemovePhoto}/>:null}
     {compact?counter:null}
-    <View style={[styles.composer,styles.composerAligned]}><View style={[styles.composerInputShell,styles.composerInputShellAligned,autoDialogue&&!autoDialogueEdited&&styles.composerInputSuggested,composerFocused&&styles.composerInputFocused]}><AiMediaButton name={character.together_character_templates.name} onPress={onPhoto} disabled={sending||autoDialogueBusy||dictationBusy}/><TextInput ref={inputRef} value={input} onChangeText={onChangeInput} onFocus={()=>setComposerFocused(true)} onBlur={()=>setComposerFocused(false)} onKeyPress={(event)=>{const nativeEvent=event.nativeEvent as typeof event.nativeEvent&{shiftKey?:boolean;isComposing?:boolean},intent={platform:Platform.OS,key:nativeEvent.key,shiftKey:nativeEvent.shiftKey,isComposing:nativeEvent.isComposing,hasContent:Boolean(input.trim()||pendingImage),disabled:actionDisabled};if(!shouldConsumeComposerEnter(intent))return;event.preventDefault();if(shouldSendComposerOnEnter(intent))onSend();}} editable={!autoDialogueBusy&&!dictationBusy} placeholder={dictation.phase==='recording'?'Listening…':dictation.phase==='transcribing'?'Turning voice into text…':autoDialogueBusy?'Thinking of what you might say…':`Message ${character.together_character_templates.name}…`} placeholderTextColor={colors.dimmed} multiline style={[styles.input,styles.inputFitted,styles.embeddedInput,styles.embeddedInputAligned,styles.composerTextInput,desktop&&styles.composerTextInputDesktop]} textAlignVertical="top"/>{autoDialogue&&!autoDialogueEdited?<View style={[styles.autoDialogueInline,styles.autoDialogueInlineAligned]}><Pressable accessibilityRole="button" accessibilityLabel={`Adjust suggested ${autoDialogueIntentLabel(autoDialogue.intent).toLowerCase()} reply`} onPress={onSuggestOptions} style={styles.autoDialogueInlineAction}><Sparkles size={14} color="#D4BEFF"/></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Clear suggested reply" onPress={onClearSuggestion} style={styles.autoDialogueInlineAction}><X size={14} color={colors.muted}/></Pressable></View>:null}<DictationButton phase={dictation.phase} elapsedMs={dictation.elapsedMs} disabled={sending||autoDialogueBusy} onPress={()=>void dictation.toggle()}/></View><Pressable accessibilityLabel={suggestMode?'Suggest a reply. Hold for reply options.':'Send message'} onPress={suggestMode?onSuggest:onSend} onLongPress={suggestMode&&canSuggest?onSuggestOptions:undefined} delayLongPress={350} disabled={actionDisabled} style={[styles.send,suggestMode&&styles.suggestButton,actionDisabled&&styles.sendDisabled]}>{autoDialogueBusy?<ActivityIndicator color="#fff" size="small"/>:suggestMode?<Sparkles color="#fff" size={19}/>:<Send color="#fff" size={19}/>}</Pressable></View>
+    <View style={[styles.composer,styles.composerAligned]}><View style={[styles.composerInputShell,styles.composerInputShellAligned,autoDialogue&&!autoDialogueEdited&&styles.composerInputSuggested,composerFocused&&styles.composerInputFocused]}><AiMediaButton name={character.together_character_templates.name} onPress={onPhoto} disabled={sending||autoDialogueBusy||dictationBusy}/><TextInput ref={inputRef} value={input} onChangeText={onChangeInput} onFocus={()=>setComposerFocused(true)} onBlur={()=>setComposerFocused(false)} onKeyPress={(event)=>{const nativeEvent=event.nativeEvent as typeof event.nativeEvent&{shiftKey?:boolean;isComposing?:boolean},intent={platform:Platform.OS,key:nativeEvent.key,shiftKey:nativeEvent.shiftKey,isComposing:nativeEvent.isComposing,hasContent:Boolean(input.trim()||pendingImage),disabled:actionDisabled};if(!shouldConsumeComposerEnter(intent))return;event.preventDefault();if(shouldSendComposerOnEnter(intent))onSend();}} editable={!autoDialogueBusy&&!dictationBusy} placeholder={dictation.phase==='recording'?'Listening…':dictation.phase==='transcribing'?'Turning voice into text…':autoDialogueBusy?'Thinking of what you might say…':`Message ${character.together_character_templates.name}…`} placeholderTextColor={colors.dimmed} multiline style={[styles.input,styles.inputFitted,styles.embeddedInput,styles.embeddedInputAligned,styles.composerTextInput,desktop&&styles.composerTextInputDesktop]} textAlignVertical="top"/>{autoDialogue&&!autoDialogueEdited?<View style={[styles.autoDialogueInline,styles.autoDialogueInlineAligned]}><Pressable accessibilityRole="button" accessibilityLabel={`Adjust suggested ${autoDialogueIntentLabel(autoDialogue.intent).toLowerCase()} reply`} onPress={onSuggestOptions} style={styles.autoDialogueInlineAction}><Sparkles size={14} color="#D4BEFF"/></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Clear suggested reply" onPress={onClearSuggestion} style={styles.autoDialogueInlineAction}><X size={14} color={colors.muted}/></Pressable></View>:null}<DictationButton phase={dictation.phase} elapsedMs={dictation.elapsedMs} disabled={sending||autoDialogueBusy} onPress={()=>void dictation.toggle()}/></View><Pressable accessibilityRole="button" accessibilityLabel={suggestMode?'Suggest a reply. Hold for reply options.':'Send message'} onPress={suggestMode?onSuggest:onSend} onLongPress={suggestMode&&canSuggest?onSuggestOptions:undefined} delayLongPress={350} disabled={actionDisabled} style={[styles.send,suggestMode&&styles.suggestButton,actionDisabled&&styles.sendDisabled]}>{autoDialogueBusy?<ActivityIndicator color="#fff" size="small"/>:suggestMode?<Sparkles color="#fff" size={19}/>:<Send color="#fff" size={19}/>}</Pressable></View>
     {!compact?counter:null}
   </View>;
 }

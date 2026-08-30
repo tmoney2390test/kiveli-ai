@@ -19,6 +19,7 @@ import {
 import { shouldKeepChatPinned } from "../src/lib/chatScroll";
 import { shouldConsumeComposerEnter, shouldSendComposerOnEnter } from "../src/lib/composerKeyboard";
 import { Image } from "expo-image";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
@@ -68,10 +69,12 @@ import {
   EmptyState,
   FailedMessageRecovery,
   FrostedSurface,
+  JumpToLatestButton,
   MediaTile,
   MessageCharacterCounter,
   MessageActionSheet,
   MemorySavedToast,
+  MobileChatContextCard,
   MobileChatMediaHeader,
   PhotoSharingPaywallModal,
   resolveCharacterPortraitSource,
@@ -101,6 +104,7 @@ import {
   reportMessage,
   requestVoiceNote,
   sendGroupDialogue,
+  setConversationPinned,
   setMessageFavorite,
   type VoiceNoteQuote,
 } from "../src/lib/api";
@@ -110,7 +114,9 @@ import { activePlanForGroup, collapsePlanTimelineEvents, isPlanLifecycleDividerE
 import type { PlanOption, PlanTimingSelection } from "../src/lib/plans";
 import { createClientRequestId } from "../src/lib/requestId";
 import { reconcileMessages } from "../src/lib/messageReconciliation";
-import { returnToMessagesInbox } from "../src/lib/messageInbox";
+import { isConversationPinned, returnToMessagesInbox } from "../src/lib/messageInbox";
+import { clearChatScrollPosition, readChatScrollPosition, restoredChatOffset, saveChatScrollPosition, shouldRestoreChatScrollPosition, type ChatScrollPosition } from "../src/lib/chatNavigationState";
+import { firstUnreadMessageId } from "../src/lib/chatUnreadWindow";
 import { chatMessageTypography } from "../src/lib/chatSettings";
 import { applyGroupDetailDelta, mergeGroupMedia, prependGroupTimelinePage } from "../src/lib/groupDetailReconciliation";
 import {
@@ -194,6 +200,7 @@ export default function GroupChatScreen() {
     refresh = useTogether((state) => state.refresh),
     setSnapshot = useTogether((state) => state.setSnapshot),
     upsertConversation = useTogether((state) => state.upsertConversation);
+  const screenInsets=useSafeAreaInsets();
   const{session}=useAuth(),{online,phase:connectionPhase}=useNetworkStatus();
   const groupCacheScope = snapshot?.activeContinuity?.id ?? "default";
   const initialGroupCache = useRef(
@@ -223,6 +230,8 @@ export default function GroupChatScreen() {
     [showChatSettings, setShowChatSettings] = useState(params.settings === "1"),
     [characterPreview,setCharacterPreview]=useState<FeaturedCompanion|null>(null),
     [favoriteBusy, setFavoriteBusy] = useState(false),
+    [pinBusy, setPinBusy] = useState(false),
+    [showJumpToLatest,setShowJumpToLatest]=useState(false),
     [contextParticipantId, setContextParticipantId] = useState<string | null>(
       null,
     ),
@@ -256,6 +265,8 @@ export default function GroupChatScreen() {
     detailRef=useRef<GroupDetail|null>(null),
     scrollRef = useRef<FlatList<GroupTimelineItem> | null>(null),
     contentHeightRef=useRef(0),
+    viewportHeightRef=useRef(0),
+    pendingScrollRestore=useRef<ChatScrollPosition|null>(null),
     prependHeightRef=useRef<number|null>(null),
     bottomAlignedConversation = useRef<string | null>(null),
     keepPinnedToBottom = useRef(true),
@@ -263,9 +274,14 @@ export default function GroupChatScreen() {
     initialBottomPinConversation = useRef<string | null>(null),
     initialBottomPinReleaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedGroupRef = useRef<string | null>(null);
+  const unreadWindow=useRef<{conversationId:string|null;lastReadAt:string|null;openedAt:string}>({conversationId:null,lastReadAt:null,openedAt:new Date().toISOString()});
   const planLaunchHandledRef = useRef<string | null>(null);
   useEffect(()=>{detailRef.current=detail;},[detail]);
   useEffect(()=>{pendingImageRef.current=pendingImage;},[pendingImage]);
+  if(params.id&&unreadWindow.current.conversationId!==params.id){
+    const source=snapshot?.conversations.find((conversation)=>conversation.id===params.id)??detail?.conversation;
+    unreadWindow.current={conversationId:params.id,lastReadAt:source?.last_read_at??null,openedAt:new Date().toISOString()};
+  }
   useEffect(()=>()=>cleanupNormalizedImage(pendingImageRef.current?.uri),[]);
   useEffect(() => {
     if (!params.id) {
@@ -314,6 +330,20 @@ export default function GroupChatScreen() {
       keepPinnedToBottom.current=true;
     },180);
   },[]);
+  const prepareConversationScroll=useCallback((conversationId:string)=>{
+    bottomAlignedConversation.current=null;
+    const saved=readChatScrollPosition(conversationId);
+    if(shouldRestoreChatScrollPosition(saved)){
+      cancelInitialBottomPin();
+      pendingScrollRestore.current=saved;
+      keepPinnedToBottom.current=false;
+      setShowJumpToLatest(true);
+      return;
+    }
+    pendingScrollRestore.current=null;
+    beginInitialBottomPin(conversationId);
+    setShowJumpToLatest(false);
+  },[beginInitialBottomPin,cancelInitialBottomPin]);
   const refreshGroupDelta=useCallback(async function refreshGroupDeltaTask(){
     const current=detailRef.current;if(!params.id||!current?.syncedAt)return;
     if(deltaRefreshRunning.current){deltaRefreshQueued.current=true;return;}
@@ -327,8 +357,7 @@ export default function GroupChatScreen() {
     const conversationId=params.id,initial=loadedGroupRef.current!==conversationId;
     let cancelled=false;
     if(initial)setLoading(true);
-    bottomAlignedConversation.current = null;
-    beginInitialBottomPin(conversationId);
+    prepareConversationScroll(conversationId);
     const request=initial
       ? manageGroup<GroupDetail>({action:"detail",conversationId}).then((next)=>{if(cancelled)return;loadedGroupRef.current=conversationId;setDetail(next);})
       : refreshGroupDelta();
@@ -339,7 +368,7 @@ export default function GroupChatScreen() {
       if (mediaRefreshTimer.current) clearTimeout(mediaRefreshTimer.current);
       if (initialBottomPinReleaseTimer.current) clearTimeout(initialBottomPinReleaseTimer.current);
     };
-  }, [beginInitialBottomPin,params.id,refreshGroupDelta]));
+  }, [params.id,prepareConversationScroll,refreshGroupDelta]));
   useEffect(() => {
     if (!params.id) return;
     const refreshDetail = () => {
@@ -624,6 +653,7 @@ export default function GroupChatScreen() {
       return left.kind === "event" ? 1 : -1;
     });
   }, [activeGroupPlan, detail]);
+  const unreadMessageId=detail?firstUnreadMessageId(detail.messages,unreadWindow.current):null;
   const appendMessage = (message: Message) =>
     setDetail((current) =>
       current
@@ -1280,6 +1310,19 @@ export default function GroupChatScreen() {
       setFavoriteBusy(false);
     }
   };
+  const toggleGroupPinned=async()=>{
+    if(!detail||pinBusy)return;
+    setPinBusy(true);
+    try{
+      const conversation=await setConversationPinned(detail.conversation.id,!isConversationPinned(detail.conversation));
+      setDetail((current)=>current?{...current,conversation}:current);
+      upsertConversation(conversation);
+    }catch(caught){
+      setError(caught instanceof Error?caught.message:"That chat could not be pinned.");
+    }finally{
+      setPinBusy(false);
+    }
+  };
   const startFreshGroupChat = () => {
     if (!detail) return;
     confirmAction({
@@ -1418,7 +1461,7 @@ export default function GroupChatScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.screen}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined}
     >
       <View style={styles.shell}>
         {showConversationRail
@@ -1445,12 +1488,25 @@ export default function GroupChatScreen() {
         onDetails={() => setShowGroupMenu((value) => !value)}
       />}
       <ConnectionBanner sendFailed={detail.messages.some((message)=>message.delivery_status==="failed")} sendScoped={showSendConnectionNotice}/>
+      {!showRightRail&&contextParticipant&&snapshot?<MobileChatContextCard
+        identityKey={`${detail.conversation.id}:${contextParticipant.character_instance_id}`}
+        name={contextParticipant.together_character_instances.together_character_templates.name}
+        location={snapshot.locations.find((location)=>location.id===contextParticipant.together_character_instances.current_location_id)?.name??"Home"}
+        activity={contextParticipant.together_character_instances.current_activity||"Taking some private time"}
+        next={(activeGroupPlan??waitingGroupPlan)?{title:(activeGroupPlan??waitingGroupPlan)!.title,detail:(activeGroupPlan??waitingGroupPlan)!.status==="active"?"Together now":new Date((activeGroupPlan??waitingGroupPlan)!.starts_at).toLocaleString([],{weekday:"short",hour:"numeric",minute:"2-digit"}),onPress:()=>router.push(`/plan/${(activeGroupPlan??waitingGroupPlan)!.id}` as never)}:null}
+        memoryCount={snapshot.memoryCounts?.[contextParticipant.character_instance_id]??snapshot.memories.filter((memory)=>memory.character_instance_id===contextParticipant.character_instance_id).length}
+        memoryLocked={snapshot.entitlements?.entitlement_keys?.includes("memory_inspector")!==true}
+        onMemory={()=>router.push(`/memories?character=${contextParticipant.together_character_instances.together_character_templates.slug}` as never)}
+        onPlan={activeGroupPlan?undefined:()=>openGroupPlanner(false)}
+      />:null}
       {showGroupMenu ? <ConversationOverflowMenu
         title={detail.conversation.title ?? "Group"}
         kind="group"
         hasActivePlan={Boolean(activeGroupPlan)}
         favorite={groupFavorite}
         favoriteBusy={favoriteBusy}
+        pinned={isConversationPinned(detail.conversation)}
+        pinBusy={pinBusy}
         memoryLocked={snapshot?.entitlements?.entitlement_keys?.includes("memory_inspector") !== true}
         onClose={() => setShowGroupMenu(false)}
         onDetails={() => { setShowGroupMenu(false); setShowDetails(true); }}
@@ -1462,6 +1518,7 @@ export default function GroupChatScreen() {
         onChangePlan={() => openGroupPlanner(true)}
         onEndPlan={() => activeGroupPlan && requestEndGroupPlan(activeGroupPlan)}
         onFavorite={() => void toggleGroupFavorite()}
+        onPin={() => void toggleGroupPinned()}
         onSettings={() => {
           setShowGroupMenu(false);
           setShowChatSettings(true);
@@ -1513,8 +1570,12 @@ export default function GroupChatScreen() {
             viewportHeight: native.layoutMeasurement.height,
             offsetY: native.contentOffset.y,
           }, initialBottomPinConversation.current===params.id?Number.POSITIVE_INFINITY:forcePinnedUntil.current);
+          viewportHeightRef.current=native.layoutMeasurement.height;
+          if(params.id)saveChatScrollPosition(params.id,{offsetY:native.contentOffset.y,contentHeight:native.contentSize.height,viewportHeight:native.layoutMeasurement.height});
+          setShowJumpToLatest(initialBottomPinConversation.current!==params.id&&!keepPinnedToBottom.current);
         }}
-        onLayout={() => {
+        onLayout={(event) => {
+          viewportHeightRef.current=event.nativeEvent.layout.height;
           if (params.id && keepPinnedToBottom.current &&
             bottomAlignedConversation.current === params.id) {
             setTimeout(() =>
@@ -1528,6 +1589,14 @@ export default function GroupChatScreen() {
           if (previousHeight !== null) {
             prependHeightRef.current = null;
             setTimeout(() => scrollRef.current?.scrollToOffset({ offset: Math.max(0, height - previousHeight), animated: false }), 0);
+            return;
+          }
+          if(pendingScrollRestore.current){
+            const saved=pendingScrollRestore.current;
+            const offset=restoredChatOffset(saved,height,viewportHeightRef.current||saved.viewportHeight);
+            pendingScrollRestore.current=null;
+            bottomAlignedConversation.current=params.id;
+            setTimeout(()=>scrollRef.current?.scrollToOffset({offset,animated:false}),0);
             return;
           }
           if(initialBottomPinConversation.current===params.id){
@@ -1616,6 +1685,7 @@ export default function GroupChatScreen() {
           return (
             <Fragment key={message.id}>
               {dayLabel ? <Text style={styles.day}>{dayLabel}</Text> : null}
+              {message.id===unreadMessageId?<Text accessibilityRole="text" style={[styles.day,{color:colors.rose}]}>NEW</Text>:null}
               <GroupBubble
                 message={message}
                 participant={participant}
@@ -1707,6 +1777,7 @@ export default function GroupChatScreen() {
         windowSize={9}
         removeClippedSubviews={Platform.OS !== "web"}
       />
+      <JumpToLatestButton visible={showJumpToLatest} bottom={width<720?104:92} onPress={()=>{keepPinnedToBottom.current=true;setShowJumpToLatest(false);if(params.id)clearChatScrollPosition(params.id);scrollRef.current?.scrollToEnd({animated:true});}}/>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {mentionOptions.length
         ? (
@@ -1714,6 +1785,8 @@ export default function GroupChatScreen() {
             {mentionOptions.map((participant) => (
               <Pressable
                 key={participant.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Mention ${participant.together_character_instances.together_character_templates.name}`}
                 onPress={() => selectMention(participant)}
                 style={styles.mentionRow}
               >
@@ -1743,6 +1816,9 @@ export default function GroupChatScreen() {
               return (
                 <Pressable
                   key={participant.id}
+                  accessibilityRole="radio"
+                  accessibilityState={{selected}}
+                  accessibilityLabel={`Choose ${participant.together_character_instances.together_character_templates.name} to reply`}
                   onPress={() =>
                     setManualSpeaker(participant.character_instance_id)}
                   style={[
@@ -1879,15 +1955,20 @@ export default function GroupChatScreen() {
         animationType="fade"
         transparent
         visible={showPhotoMenu}
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setShowPhotoMenu(false)}
       >
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close photo options"
           style={styles.modalRoot}
           onPress={() => setShowPhotoMenu(false)}
         >
           <Pressable
+            accessibilityRole="none"
             onPress={(event) => event.stopPropagation()}
-            style={styles.photoMenu}
+            style={[styles.photoMenu,{paddingBottom:Math.max(16,screenInsets.bottom)}]}
           >
             <View style={styles.photoMenuHeader}>
               <View>
@@ -1895,6 +1976,7 @@ export default function GroupChatScreen() {
                 <Text style={styles.photoMenuTitle}>Choose what to send</Text>
               </View>
               <Pressable
+                accessibilityRole="button"
                 accessibilityLabel="Close photo options"
                 onPress={() => setShowPhotoMenu(false)}
                 style={styles.close}
@@ -1940,6 +2022,7 @@ export default function GroupChatScreen() {
               })}
             </View>
             <Pressable
+              accessibilityRole="button"
               disabled={!photoSubjects.length || photoRequestBusy}
               onPress={() => void requestGroupPhoto()}
               style={[
@@ -2061,6 +2144,7 @@ function GroupComposer({
   onDictationError: (value: string) => void;
   onDictationStart: () => void;
 }) {
+  const insets=useSafeAreaInsets();
   const [composerFocused, setComposerFocused] = useState(false);
   const dictation = useChatDictation({
       conversationId,
@@ -2076,7 +2160,7 @@ function GroupComposer({
     disabled = sending || dictationBusy || overLimit ||
       (continueMode && !canContinue);
   return (
-    <View style={styles.composerWrap}>
+    <View style={[styles.composerWrap,{paddingBottom:Math.max(8,insets.bottom)}]}>
       <View style={styles.composer}>
         <View style={[
           styles.composerInputShell,
@@ -2129,6 +2213,7 @@ function GroupComposer({
           />
         </View>
         <Pressable
+          accessibilityRole="button"
           accessibilityLabel={continueMode
             ? "Let the group keep talking"
             : "Send message"}
@@ -2182,6 +2267,7 @@ function GroupMediaButton({
   }, [glow]);
   return (
     <Pressable
+      accessibilityRole="button"
       accessibilityLabel={`Open photo options for ${name}`}
       disabled={disabled}
       onPress={onPress}
@@ -2349,13 +2435,14 @@ function GroupHeader(
   return (
     <View style={styles.header}>
       <Pressable
+        accessibilityRole="button"
         accessibilityLabel="Back to Messages"
         onPress={onBack}
         style={styles.headerButton}
       >
         <ChevronLeft size={25} color={colors.text} />
       </Pressable>
-      <Pressable onPress={onDetails} style={styles.headerMain}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Open group details" onPress={onDetails} style={styles.headerMain}>
         <AvatarStack participants={detail.participants} />
         <View style={styles.headerCopy}>
           <Text numberOfLines={1} style={styles.headerTitle}>
@@ -2368,6 +2455,7 @@ function GroupHeader(
         </View>
       </Pressable>
       <Pressable
+        accessibilityRole="button"
         accessibilityLabel="Group details"
         onPress={onDetails}
         style={styles.headerButton}
@@ -2510,6 +2598,7 @@ function GroupContextRail({
     >
       <View style={styles.memberNavigator}>
         <Pressable
+          accessibilityRole="button"
           accessibilityLabel="Previous group member"
           onPress={() => onCycle(-1)}
           style={styles.memberCycleButton}
@@ -2520,6 +2609,7 @@ function GroupContextRail({
           {currentIndex + 1} OF {detail.participants.length}
         </Text>
         <Pressable
+          accessibilityRole="button"
           accessibilityLabel="Next group member"
           onPress={() => onCycle(1)}
           style={styles.memberCycleButton}
@@ -2537,6 +2627,7 @@ function GroupContextRail({
           return (
             <Pressable
               key={item.id}
+              accessibilityRole="button"
               accessibilityLabel={`Show ${item.together_character_instances.together_character_templates.name}`}
               accessibilityState={{ selected }}
               onPress={() => onSelect(item.character_instance_id)}
@@ -2860,6 +2951,7 @@ function GroupBubble({
             {!grouped && participant
               ? (
                 <Pressable
+                  accessibilityRole="button"
                   accessibilityLabel={`View ${speakerName}'s profile`}
                   onPress={() =>
                     router.push(
@@ -2886,6 +2978,8 @@ function GroupBubble({
         {!user && !grouped
           ? (
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`View ${speakerName}'s profile`}
               onPress={() =>
                 participant && router.push(
                   `/character/${participant.together_character_instances.together_character_templates.slug}` as never,
@@ -2899,6 +2993,7 @@ function GroupBubble({
             visibleImages.length
           ? (
             <Pressable
+              accessibilityRole="button"
               accessibilityLabel={`${user?'Your':speakerName} message. Tap for actions.`}
               onPress={()=>setActionsOpen(true)}
               onLongPress={()=>setActionsOpen(true)}
@@ -2916,6 +3011,7 @@ function GroupBubble({
               {attachments.map((attachment) => (
                 <Pressable
                   key={attachment.id}
+                  accessibilityRole="button"
                   accessibilityLabel="Open shared photo"
                   onPress={() =>
                     attachment.signed_url &&
@@ -3539,9 +3635,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(8,11,19,.98)",
   },
   headerButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.surface,
@@ -3589,9 +3685,9 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   memberCycleButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -3612,9 +3708,9 @@ const styles = StyleSheet.create({
     marginBottom: 9,
   },
   memberThumb: {
-    width: 33,
-    height: 33,
-    borderRadius: 17,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
@@ -3917,7 +4013,7 @@ const styles = StyleSheet.create({
   mentionName: { color: colors.text, fontWeight: "800" },
   speakerPicker: { gap: 7, paddingHorizontal: 14, paddingVertical: 7 },
   speakerChip: {
-    height: 38,
+    minHeight: 44,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,

@@ -15,6 +15,7 @@ import {
   MESSAGES_INBOX_HREF,
   MESSAGES_INBOX_ROUTE,
   mergeInboxConversations,
+  isConversationPinned,
   mostRecentChatHref,
   returnToMessagesInbox,
   shouldOpenMostRecentChat,
@@ -388,5 +389,18 @@ describe("message inbox presentation", () => {
     expect(
       chatSessionRouteKey("becka-chat", { character: "different-route-key" }),
     ).toBe(ordinary);
+  });
+
+  it("keeps pinned conversations above newer unpinned conversations", () => {
+    const maya = character("maya-instance", "maya-template", "Maya");
+    const chloe = character("chloe-instance", "chloe-template", "Chloe");
+    const pinned = {
+      ...conversation("maya-chat", maya.id, "2026-08-20T10:00:00.000Z", "Earlier"),
+      metadata: { pinned: true },
+    };
+    const newer = conversation("chloe-chat", chloe.id, "2026-08-30T10:00:00.000Z", "Newer");
+    const rows = buildInboxRows([newer, pinned], [maya, chloe], [], "", "all");
+    expect(rows.map((row) => row.conversation.id)).toEqual(["maya-chat", "chloe-chat"]);
+    expect(isConversationPinned(pinned)).toBe(true);
   });
 });

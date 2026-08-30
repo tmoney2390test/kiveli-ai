@@ -24,3 +24,16 @@ export function wasUnreadWhenChatOpened(
   if (messageTime === null || lastReadTime === null || openedTime === null) return false;
   return messageTime > lastReadTime && messageTime <= openedTime;
 }
+
+export function firstUnreadMessageId<T extends {
+  id: string;
+  role: string;
+  created_at: string;
+}>(messages: T[], window: ChatUnreadWindow): string | null {
+  return [...messages]
+    .sort((left, right) => timestamp(left.created_at)! - timestamp(right.created_at)!)
+    .find((message) =>
+      message.role === "assistant" &&
+      wasUnreadWhenChatOpened(message.created_at, window)
+    )?.id ?? null;
+}

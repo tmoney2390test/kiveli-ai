@@ -71,6 +71,7 @@ export const confirmConversationAction = <T>(candidateId:string,input?:{startsAt
 export const dismissConversationAction = <T>(candidateId:string) => invoke<T>('together-plan',{action:'dismiss_proposal',candidateId});
 export const resolveRelationshipMilestone = (milestoneId:string,action:'accept'|'defer'|'stay_friends'|'talk_it_out'|'give_space') => invoke<{snapshot:Snapshot}>('together-relationship',{milestoneId,action});
 export const manageConversation = <T>(input: Record<string, unknown>) => invoke<T>('together-conversation', input);
+export const setConversationPinned = (conversationId:string,pinned:boolean) => manageConversation<Conversation>({action:'pin',conversationId,pinned});
 export const setMessageFavorite = (conversationId:string,messageId:string,favorite:boolean) => manageConversation<Message>({action:'message_favorite',conversationId,messageId,favorite});
 export const ensureConversation = (characterInstanceId:string) => manageConversation<Conversation>({action:'ensure',characterInstanceId});
 export const previewCharacterReset = (characterInstanceId:string) => manageConversation<CharacterResetPreview>({action:'reset_preview',characterInstanceId});
