@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects, assertThrows } from 'jsr:@std/assert@1';
-import { assertVideoQuoteWithinCeiling, buildVideoProviderPayload, canSelectVideoRoute, configuredVideoRouteCatalog, resolveVideoRoute, sourceVideoAspectRatio, VIDEO_ROUTE_IDS } from './kivelle-video-routes.ts';
+import { assertVideoQuoteWithinCeiling, buildVideoProviderPayload, canSelectVideoRoute, configuredVideoRouteCatalog, resolveVideoRoute, sourceVideoAspectRatio, videoCreditCost, VIDEO_ROUTE_IDS } from './kivelle-video-routes.ts';
 import { findQuoteAmount } from './wavespeed.ts';
 
 function catalog() {
@@ -8,6 +8,7 @@ function catalog() {
     'wavespeed-minimax-h3-i2v': 'KIVELLE_VIDEO_ROUTE_MINIMAX_H3_I2V_ENABLED',
     'wavespeed-p-video-i2v': 'KIVELLE_VIDEO_ROUTE_P_VIDEO_I2V_ENABLED',
     'wavespeed-gemini-omni-flash-r2v': 'KIVELLE_VIDEO_ROUTE_GEMINI_OMNI_FLASH_R2V_ENABLED',
+    'wavespeed-minimax-h3-r2v': 'KIVELLE_VIDEO_ROUTE_MINIMAX_H3_R2V_ENABLED',
   }[id]))].map((name) => [String(name), Deno.env.get(String(name))]));
   Deno.env.set('KIVELLE_VIDEO_ENABLED', 'true'); Deno.env.set('KIVELLE_WAVESPEED_ENABLED', 'true'); Deno.env.set('WAVESPEED_API_KEY', 'test');
   for (const name of Object.keys(before).filter((name) => name.includes('_ROUTE_'))) Deno.env.set(name, 'true');
@@ -17,12 +18,13 @@ function catalog() {
 Deno.test('video route builders emit exact model-specific fields without cross-route leakage', () => {
   const state = catalog();
   try {
-    const base = { sourceImageUrl: 'https://example.test/source.jpg', canonicalReferenceUrls: ['https://example.test/ref.jpg'], sourceAspectRatio: '9:16' as const, motionPreset: 'subtle' as const };
+    const base = { sourceImageUrl: 'https://example.test/source.jpg', canonicalReferences: [{url:'https://example.test/ref.jpg',role:'character_identity' as const}], sourceAspectRatio: '9:16' as const, motionPreset: 'subtle' as const, durationSeconds:10 };
     const payloads = Object.fromEntries(state.routes.map((route) => [route.id, buildVideoProviderPayload(route, base)]));
     const geminiImage = payloads['wavespeed-gemini-omni-flash-i2v']!;
     const minimax = payloads['wavespeed-minimax-h3-i2v']!;
     const pVideo = payloads['wavespeed-p-video-i2v']!;
     const geminiReferences = payloads['wavespeed-gemini-omni-flash-r2v']!;
+    const minimaxReferences = payloads['wavespeed-minimax-h3-r2v']!;
     assertEquals(Object.keys(geminiImage).sort(), ['aspect_ratio', 'duration', 'image', 'prompt']);
     assertEquals(minimax.resolution, '768p');
     assertEquals(Object.keys(minimax).sort(), ['duration', 'image', 'prompt', 'resolution']);
@@ -30,6 +32,8 @@ Deno.test('video route builders emit exact model-specific fields without cross-r
     assertEquals(Object.keys(pVideo).sort(), ['duration', 'image', 'prompt', 'resolution', 'save_audio', 'seed']);
     assertEquals(geminiReferences.images, ['https://example.test/source.jpg', 'https://example.test/ref.jpg']);
     assertEquals(Object.keys(geminiReferences).sort(), ['aspect_ratio', 'duration', 'images', 'prompt']);
+    assertEquals(minimaxReferences.reference_images, ['https://example.test/source.jpg', 'https://example.test/ref.jpg']);
+    assertEquals(Object.keys(minimaxReferences).sort(), ['aspect_ratio', 'duration', 'prompt', 'reference_images', 'resolution', 'seed']);
   } finally { state.restore(); }
 });
 
@@ -37,7 +41,29 @@ Deno.test('reference route rejects a source without an approved canonical refere
   const state = catalog();
   try {
     const route = state.routes.find((item) => item.id.endsWith('r2v'))!;
-    await assertRejects(async () => buildVideoProviderPayload(route, { sourceImageUrl: 'https://example.test/source.jpg', sourceAspectRatio: '16:9', motionPreset: 'playful' }));
+    await assertRejects(async () => buildVideoProviderPayload(route, { sourceImageUrl: 'https://example.test/source.jpg', sourceAspectRatio: '16:9', motionPreset: 'playful', durationSeconds:10 }));
+  } finally { state.restore(); }
+});
+
+Deno.test('direct video preserves the user direction and canonical references without a source photo', () => {
+  const state = catalog();
+  try {
+    const route = state.routes.find((item) => item.id === 'wavespeed-minimax-h3-r2v')!;
+    const payload = buildVideoProviderPayload(route, {
+      canonicalReferences: [
+        {url:'https://example.test/identity.jpg',role:'character_identity'},
+        {url:'https://example.test/location.jpg',role:'location_environment'},
+      ],
+      sourceAspectRatio:'16:9',
+      motionPreset:'cinematic',
+      durationSeconds:15,
+      userPrompt:'Walk through the room and look toward the camera.',
+      context:{companionName:'Ari',locationName:'Moonlight Cafe',activity:'meeting the user'},
+    });
+    assertEquals(payload.reference_images,['https://example.test/identity.jpg','https://example.test/location.jpg']);
+    assertEquals(payload.duration,15);
+    assertEquals(String(payload.prompt).includes('User direction: Walk through the room'),true);
+    assertEquals(String(payload.prompt).includes('Canonical location: Moonlight Cafe.'),true);
   } finally { state.restore(); }
 });
 
@@ -66,7 +92,7 @@ Deno.test('spoofed and disabled canonical route IDs are rejected', async () => {
     await assertRejects(async()=>resolveVideoRoute('wavespeed/fake-model','user'));
     Deno.env.set('KIVELLE_VIDEO_ROUTE_P_VIDEO_I2V_ENABLED','false');
     await assertRejects(async()=>resolveVideoRoute('wavespeed-p-video-i2v','user'));
-    assertEquals(state.routes.every((route)=>route.creditCost===125),true);
+    assertEquals(state.routes.every((route)=>videoCreditCost(route,10)===250),true);
   }finally{previousMode===undefined?Deno.env.delete('KIVELLE_VIDEO_MODEL_SELECTOR_MODE'):Deno.env.set('KIVELLE_VIDEO_MODEL_SELECTOR_MODE',previousMode);state.restore();}
 });
 

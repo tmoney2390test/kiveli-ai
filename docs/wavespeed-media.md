@@ -21,18 +21,21 @@ Two-character group photos use the dedicated `wavespeed-ai/qwen-image-2.0-pro/ed
 
 ## Video model selector
 
-The video selector is fail-closed and server-owned. The client submits only a source-media ID, canonical route ID, motion preset, and idempotency ID. Duration, resolution, model, provider, audio policy, prompt, references, price, and provider ceiling are resolved again in `together-media`.
+The video selector is fail-closed and server-owned. Existing-photo animation submits a source-media ID, canonical route ID, allowlisted 10/15/20-second duration, motion preset, and idempotency ID. Direct video submits a companion, optional owned conversation, approved prompt, frame, reference-capable route, duration, motion preset, and idempotency ID. Model, provider, audio policy, canonical identity/location references, exact provider quote, credits, and provider ceiling are resolved again in `together-media`.
 
 Testing routes use the current official WaveSpeed contracts:
 
-| Kivelle route | WaveSpeed model | Exact five-second payload settings | Audio |
+| Kivelle route | WaveSpeed model | Exact duration payload settings | Audio |
 | --- | --- | --- | --- |
-| `wavespeed-gemini-omni-flash-i2v` | `google/gemini-omni-flash/image-to-video` | `image`, server prompt, `aspect_ratio`, `duration: 5` | Provider generates synchronized audio; Kivelle starts muted |
-| `wavespeed-minimax-h3-i2v` | `minimax/h3/image-to-video` | `image`, server prompt, `resolution: 768p`, `duration: 5` | Provider default; the current schema exposes no audio toggle |
-| `wavespeed-p-video-i2v` | `pruna-ai/p-video/image-to-video` | `image`, server prompt, `duration: 5`, `resolution: 720p`, `seed: -1`, `save_audio: false` | Silent |
-| `wavespeed-gemini-omni-flash-r2v` | `google/gemini-omni-flash/reference-to-video` | ordered source + up to two canonical identity images, server prompt, `aspect_ratio`, `duration: 5` | Provider generates synchronized audio; Kivelle starts muted |
+| `wavespeed-p-video-i2v` | `pruna-ai/p-video/image-to-video` | `image`, server prompt, `duration: 10/15/20`, `resolution: 720p`, `seed: -1`, `save_audio: false` | Silent; default existing-photo route |
+| `wavespeed-gemini-omni-flash-i2v` | `google/gemini-omni-flash/image-to-video` | `image`, server prompt, `aspect_ratio`, `duration: 10` | Provider generates synchronized audio; Kivelle starts muted |
+| `wavespeed-minimax-h3-i2v` | `minimax/h3/image-to-video` | `image`, server prompt, `resolution: 768p`, `duration: 10/15` | Provider default; the current schema exposes no audio toggle |
+| `wavespeed-gemini-omni-flash-r2v` | `google/gemini-omni-flash/reference-to-video` | source (when present) + canonical identity/location references, approved prompt, `aspect_ratio`, `duration: 10` | Existing-photo or direct reference video; generated audio starts muted |
+| `wavespeed-minimax-h3-r2v` | `minimax/h3/reference-to-video` | up to nine canonical identity/location references, approved prompt, `aspect_ratio`, `resolution: 768p`, `duration: 10/15` | Direct reference video; generated audio starts muted |
 
-The current P-Video catalog page advertises a lower starting run price than the original product estimate. Kivelle therefore calls `POST /api/v3/model/price` with the exact server-built payload before reserving 125 testing credits. A quote above the per-route ceiling is rejected before any debit. Provider schemas currently do not expose a supported safety-check input for these four payloads, so Kivelle does not invent one; completion metadata is enforced fail-closed and the output is signature/size/type checked before private storage delivery. Finalization also inspects delivered MP4 handler tracks and stores actual audio as `has_audio`, `silent`, or `unknown` separately from the requested provider behavior.
+Kivelle calls `POST /api/v3/model/price` with the exact server-built payload before reserving credits. Video costs 25 credits per requested second (250/375/500 credits for 10/15/20 seconds); a quote above the per-route ceiling is rejected before any debit. Provider schemas currently do not expose a supported safety-check input for these payloads, so Kivelle does not invent one; completion metadata is enforced fail-closed and the output is signature/size/type checked before private storage delivery. Finalization also inspects delivered MP4 handler tracks and stores actual audio as `has_audio`, `silent`, or `unknown` separately from the requested provider behavior.
+
+Direct video does not create an intermediate image. Its queued media row has no parent photo, snapshots only server-approved identity and setting assets, retains the normalized user prompt, and is dispatched through a reference-to-video route. Enable `KIVELLE_VIDEO_ROUTE_MINIMAX_H3_R2V_ENABLED` separately if the MiniMax direct route has passed the current benchmark and price-ceiling review.
 
 Use `KIVELLE_VIDEO_MODEL_SELECTOR_MODE=testers` with `KIVELLE_VIDEO_TESTER_USER_IDS` for the initial run. Every route also requires its individual enable flag and cost ceiling. The legacy LTX/Spicy route is disabled and is never a fallback.
 

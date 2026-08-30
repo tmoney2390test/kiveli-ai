@@ -44,7 +44,7 @@ export function configuredMediaRegistry():MediaRouteCapability[]{
     // video is selected only through the canonical route catalog below.
     entry('wavespeed-video','wavespeed',env('WAVESPEED_MODEL_VIDEO','wavespeed-ai/ltx-2.3-spicy/image-to-video'),'ltx',['video'],standard,{character:true,location:true,max:1,i2v:true,priority:1,enabled:false}),
     entry('wavespeed-video-lora','wavespeed',env('WAVESPEED_MODEL_VIDEO_LORA','wavespeed-ai/ltx-2.3-spicy/image-to-video-lora'),'ltx',['video'],standard,{character:true,location:true,max:1,lora:true,loraFamilies:['ltx'],i2v:true,priority:1,enabled:false}),
-    ...configuredVideoRouteCatalog().map((route)=>entry(route.id,route.provider,route.model,route.id.includes('minimax')?'minimax':route.id.includes('gemini')?'gemini-video':'p-video',['video'],standard,{character:route.mediaMode==='reference_to_video',max:route.mediaMode==='reference_to_video'?3:1,i2v:true,cost:route.estimatedProviderCostUsd,priority:160,enabled:route.enabled})),
+    ...configuredVideoRouteCatalog().map((route)=>entry(route.id,route.provider,route.model,route.id.includes('minimax')?'minimax':route.id.includes('gemini')?'gemini-video':'p-video',['video'],standard,{character:route.mediaMode==='reference_to_video',location:route.mediaMode==='reference_to_video',max:route.mediaMode==='reference_to_video'?route.referenceImageRequirements.canonicalCharacterMax+route.referenceImageRequirements.source:1,i2v:true,cost:route.estimatedProviderCostUsd,priority:160,enabled:route.enabled})),
   ];
   const sync=configuredImageProvider();if(sync)registry.push(entry(`${sync.id}-image`,sync.id,sync.id==='openai'?env('KIVELLE_IMAGE_MODEL','gpt-image-2'):env('KIVELLE_IMAGE_MODEL','gemini-3.1-flash-image'),sync.id==='openai'?'openai-image':'gemini-image',['image'],standard,{character:true,location:true,max:2,edit:true,priority:50,enabled:true,async:false}));
   return registry;
@@ -144,9 +144,9 @@ export function waveSpeedInput(request:CanonicalMediaRequest,route:MediaRouteCap
     const definition=configuredVideoRouteCatalog().find((item)=>item.id===route.id);
     if(!definition||!definition.enabled||request.videoRouteId!==definition.id)throw new AppError('PROVIDER_NOT_CONFIGURED','The selected video model is no longer available.',503);
     const sourceImageUrl=request.sourceImage?.signedUrl;
-    if(!sourceImageUrl)throw new AppError('VALIDATION_ERROR','A source image is required to create a video.',422);
-    const canonicalReferenceUrls=request.referenceImages.filter((item)=>item.role==='character_identity'&&Boolean(item.signedUrl)).map((item)=>String(item.signedUrl));
-    return buildVideoProviderPayload(definition,{sourceImageUrl,canonicalReferenceUrls,sourceAspectRatio:request.videoAspectRatio??'9:16',motionPreset:request.motionPreset??'subtle'});
+    if(!sourceImageUrl&&!definition.sourceModes.includes('canonical_references'))throw new AppError('VALIDATION_ERROR','A source image is required to create this video.',422);
+    const canonicalReferences=request.referenceImages.filter((item)=>Boolean(item.signedUrl)&&['character_identity','location_environment','world_environment','outfit_continuity'].includes(item.role)).map((item)=>({url:String(item.signedUrl),role:item.role as 'character_identity'|'location_environment'|'world_environment'|'outfit_continuity'}));
+    return buildVideoProviderPayload(definition,{sourceImageUrl,canonicalReferences,sourceAspectRatio:request.videoAspectRatio??'9:16',motionPreset:request.motionPreset??'subtle',durationSeconds:request.durationSeconds??definition.durationSeconds,userPrompt:request.generationIntent?.requestText,context:{companionName:request.companion.name,locationName:request.context.place?.location.name??request.context.location?.name,activity:request.context.activity}});
   }
   if(route.id===WAVESPEED_GROUP_QWEN_ROUTE_ID)return{prompt,images:refs.map((item)=>item.signedUrl),seed:-1,enable_safety_checker:!ADULT_CONTENT_LEVELS.includes(request.contentLevel)};
   if(['wavespeed-kontext-pro-multiref','wavespeed-kontext-max-multiref'].includes(route.id))return{prompt,images:refs.map((item)=>item.signedUrl),seed:-1,guidance_scale:3.5,aspect_ratio:request.composition.aspectRatio==='4:5'?'3:4':request.composition.aspectRatio};
