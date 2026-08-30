@@ -6,8 +6,8 @@ const route:VideoRouteOption={id:'wavespeed-p-video-i2v',provider:'wavespeed',di
 
 describe('video generation confirmation helpers',()=>{
   it('shows the exact selected source orientation and output settings',()=>{
-    expect(videoOutputLabel(route,'16:9')).toBe('10-second 16:9 MP4 · 720p · playback starts muted');
-    expect(videoOutputLabel(route,'9:16',20)).toBe('20-second 9:16 MP4 · 720p · playback starts muted');
+    expect(videoOutputLabel(route,'16:9')).toBe('10-second 16:9 MP4 · 720p · silent');
+    expect(videoOutputLabel(route,'9:16',20)).toBe('20-second 9:16 MP4 · 720p · silent');
     expect(videoWaitLabel(route)).toBe('About 30–150 sec');
   });
 
@@ -26,7 +26,7 @@ describe('video generation confirmation helpers',()=>{
   });
 
   it('defaults to P-Video and clearly presents its 10–20 second range',()=>{
-    const slower={...route,id:'cinematic-v2',displayName:'Cinematic',badge:'High fidelity'};
+    const slower={...route,id:'cinematic-v2',displayName:'Cinematic',badge:'Recommended'};
     expect(preferredVideoRouteId({routes:[slower,route],defaultRouteId:slower.id})).toBe(route.id);
     expect(preferredVideoRouteId({routes:[slower,route],defaultRouteId:slower.id},slower.id)).toBe(slower.id);
     expect(videoDurationRangeLabel(route)).toBe('10–20 seconds');

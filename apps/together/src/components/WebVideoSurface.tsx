@@ -1,84 +1,43 @@
-import{createElement,useEffect,useRef,useState}from'react';
+import{createElement,useEffect,useRef,useState,type ChangeEvent}from'react';
 
-type Props={
-  uri:string|null;
-  posterUri?:string|null;
-  accessibilityLabel:string;
-  active?:boolean;
-  autoPlay?:boolean;
-  muted?:boolean;
-  loop?:boolean;
-  onReady?:()=>void;
-  onError?:()=>void;
-  onPlay?:()=>void;
-};
+type AudioBehavior='has_audio'|'silent'|'unknown'|null;
+type Props={uri:string|null;posterUri?:string|null;accessibilityLabel:string;active?:boolean;autoPlay?:boolean;muted?:boolean;loop?:boolean;audioBehavior?:AudioBehavior;onReady?:()=>void;onError?:()=>void;onRetry?:()=>void|Promise<void>;onPlay?:()=>void;};
 
-export function webVideoElementAttributes({uri,posterUri,active=true,autoPlay=false,muted=true,loop=true}:Pick<Props,'uri'|'posterUri'|'active'|'autoPlay'|'muted'|'loop'>){
-  return{
-    src:uri??undefined,
-    poster:posterUri??undefined,
-    controls:false,
-    autoPlay:autoPlay&&active,
-    muted,
-    defaultMuted:muted,
-    loop,
-    playsInline:true,
-    preload:'metadata' as const,
-    'webkit-playsinline':'true',
-    style:videoStyle,
-  };
-}
+export function webVideoElementAttributes({uri,posterUri,active=true,autoPlay=false,muted=true,loop=true}:Pick<Props,'uri'|'posterUri'|'active'|'autoPlay'|'muted'|'loop'>){return{src:uri??undefined,poster:posterUri??undefined,controls:false,autoPlay:autoPlay&&active,muted,defaultMuted:muted,loop,playsInline:true,preload:'auto' as const,'webkit-playsinline':'true',style:videoStyle};}
+export function formatVideoTime(value:number):string{if(!Number.isFinite(value)||value<0)return'0:00';const seconds=Math.floor(value),minutes=Math.floor(seconds/60);return`${minutes}:${String(seconds%60).padStart(2,'0')}`;}
 
-export function WebVideoSurface({uri,posterUri,accessibilityLabel,active=true,autoPlay=false,muted=true,loop=true,onReady,onError,onPlay}:Props){
+export function WebVideoSurface({uri,posterUri,accessibilityLabel,active=true,autoPlay=false,muted=true,loop=true,audioBehavior='unknown',onReady,onError,onRetry,onPlay}:Props){
   const videoRef=useRef<HTMLVideoElement|null>(null);
-  const[playing,setPlaying]=useState(false),[mutedState,setMutedState]=useState(muted),[failed,setFailed]=useState(false);
-
-  useEffect(()=>{
-    const video=videoRef.current;
-    setPlaying(false);setMutedState(muted);setFailed(false);
-    if(!video)return;
-    video.muted=muted;
-    if(!active){video.pause();return;}
-    video.load();
-    if(autoPlay&&uri)void video.play().catch(()=>undefined);
-  },[active,autoPlay,muted,uri]);
-
-  const togglePlayback=async()=>{
-    const video=videoRef.current;
-    if(!video||!uri)return;
-    if(!video.paused){video.pause();return;}
-    try{setFailed(false);await video.play();}
-    catch{setFailed(true);onError?.();}
-  };
-  const toggleMuted=()=>{
-    const video=videoRef.current;
-    if(!video)return;
-    const next=!video.muted;video.muted=next;setMutedState(next);
-  };
-  const ready=()=>onReady?.();
-  const playLabel=playing?'Pause video':failed?'Try playing again':'Play video';
-
-  return createElement('div',{style:rootStyle,'data-kivelli-video-player':'4'},
+  const[playing,setPlaying]=useState(false),[mutedState,setMutedState]=useState(muted),[failed,setFailed]=useState(false),[ready,setReady]=useState(false),[buffering,setBuffering]=useState(false),[currentTime,setCurrentTime]=useState(0),[duration,setDuration]=useState(0),[retrying,setRetrying]=useState(false);
+  useEffect(()=>{const video=videoRef.current;setPlaying(false);setMutedState(muted);setFailed(false);setReady(false);setBuffering(Boolean(uri));setCurrentTime(0);setDuration(0);if(!video)return;video.muted=muted;if(!active){video.pause();return;}video.load();if(autoPlay&&uri)void video.play().catch(()=>undefined);},[active,autoPlay,muted,uri]);
+  useEffect(()=>{if(!active||!uri||ready||failed)return;const timer=setTimeout(()=>{setFailed(true);setBuffering(false);onError?.();},15_000);return()=>clearTimeout(timer);},[active,failed,onError,ready,uri]);
+  const markReady=()=>{const video=videoRef.current;if(video&&Number.isFinite(video.duration))setDuration(video.duration);setReady(true);setBuffering(false);setFailed(false);onReady?.();};
+  const markFailed=()=>{setReady(false);setBuffering(false);setFailed(true);onError?.();};
+  const togglePlayback=async()=>{const video=videoRef.current;if(!video||!uri)return;if(!video.paused){video.pause();return;}try{setFailed(false);setBuffering(true);await video.play();}catch{markFailed();}};
+  const retry=async()=>{if(retrying)return;setRetrying(true);setFailed(false);setReady(false);setBuffering(true);try{await onRetry?.();videoRef.current?.load();}catch{markFailed();}finally{setRetrying(false);}};
+  const toggleMuted=()=>{const video=videoRef.current;if(!video||audioBehavior==='silent')return;const next=!video.muted;video.muted=next;setMutedState(next);};
+  const seek=(event:ChangeEvent<HTMLInputElement>)=>{const video=videoRef.current,next=Number(event.currentTarget.value);if(!video||!duration||!Number.isFinite(next))return;video.currentTime=Math.max(0,Math.min(duration,next));setCurrentTime(video.currentTime);};
+  const playLabel=playing?'Pause video':failed?'Try playing again':'Play video',soundLabel=audioBehavior==='silent'?'Silent video':mutedState?'Turn video sound on':'Mute video';
+  return createElement('div',{style:rootStyle,'data-kivelli-video-player':'5'},
     createElement('div',{style:visualRegionStyle},
-      createElement('video',{
-        key:uri??'empty-video',ref:videoRef,
-        ...webVideoElementAttributes({uri,posterUri,active,autoPlay,muted:mutedState,loop}),
-        'aria-label':accessibilityLabel,
-        onLoadedMetadata:ready,onCanPlay:ready,onLoadedData:ready,
-        onError:()=>{setFailed(true);onError?.();},
-        onPlay:()=>{setPlaying(true);onPlay?.();},
-        onPlaying:()=>setPlaying(true),onPause:()=>setPlaying(false),onEnded:()=>setPlaying(false),
-      }),
-    ),
+      createElement('video',{key:uri??'empty-video',ref:videoRef,...webVideoElementAttributes({uri,posterUri,active,autoPlay,muted:mutedState,loop}),'aria-label':accessibilityLabel,onLoadStart:()=>{setReady(false);setBuffering(Boolean(uri));},onLoadedMetadata:markReady,onCanPlay:markReady,onLoadedData:markReady,onError:markFailed,onPlay:()=>{setPlaying(true);setBuffering(false);onPlay?.();},onPlaying:()=>{setPlaying(true);setBuffering(false);},onPause:()=>setPlaying(false),onEnded:()=>setPlaying(false),onWaiting:()=>setBuffering(true),onTimeUpdate:(event)=>setCurrentTime(event.currentTarget.currentTime),onDurationChange:(event)=>setDuration(Number.isFinite(event.currentTarget.duration)?event.currentTarget.duration:0)}),
+      failed?createElement('div',{role:'alert',style:statusOverlayStyle},createElement('strong',{style:statusTitleStyle},'Video needs another try'),createElement('span',{style:statusCopyStyle},'Refresh the secure link and reload playback.'),createElement('button',{type:'button','aria-label':'Try loading video again',disabled:retrying,onClick:()=>void retry(),style:retryButtonStyle},retrying?'Refreshing…':'Try again')):(!ready||buffering)?createElement('div',{'aria-live':'polite',style:statusOverlayStyle},createElement('span',{style:loaderDotStyle}),createElement('span',{style:statusCopyStyle},uri?'Loading video…':'Preparing secure video…')):null),
     createElement('div',{style:controlBarStyle},
-      createElement('button',{type:'button','aria-label':playLabel,disabled:!uri,onClick:()=>void togglePlayback(),style:controlButtonStyle},playing?'Pause':failed?'Try again':'Play video'),
-      createElement('button',{type:'button','aria-label':mutedState?'Turn video sound on':'Mute video',disabled:!uri,onClick:toggleMuted,style:controlButtonStyle},mutedState?'Sound on':'Mute'),
-    ),
-  );
+      createElement('button',{type:'button','aria-label':playLabel,disabled:!uri||failed,onClick:()=>void togglePlayback(),style:controlButtonStyle},playing?'Pause':'Play'),
+      createElement('div',{style:timelineStyle},createElement('input',{type:'range','aria-label':'Video progress',min:0,max:duration||1,step:.1,value:Math.min(currentTime,duration||1),disabled:!ready||!duration,onChange:seek,style:rangeStyle}),createElement('span',{style:timeStyle},`${formatVideoTime(currentTime)} / ${formatVideoTime(duration)}`)),
+      createElement('button',{type:'button','aria-label':soundLabel,disabled:!uri||audioBehavior==='silent',onClick:toggleMuted,style:controlButtonStyle},audioBehavior==='silent'?'Silent':mutedState?'Sound on':'Mute')));
 }
 
 const rootStyle={position:'absolute' as const,inset:0,width:'100%',height:'100%',display:'flex',flexDirection:'column' as const,overflow:'hidden',backgroundColor:'#000'};
 const visualRegionStyle={position:'relative' as const,flex:1,minHeight:0,overflow:'hidden',backgroundColor:'#000'};
 const videoStyle={position:'absolute' as const,inset:0,width:'100%',height:'100%',display:'block',objectFit:'contain' as const,backgroundColor:'#000'};
-const controlBarStyle={position:'relative' as const,zIndex:6,minHeight:62,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:10,padding:'9px 12px',background:'rgba(10,7,15,.98)',borderTop:'1px solid rgba(255,255,255,.22)'};
-const controlButtonStyle={minWidth:110,minHeight:44,padding:'8px 16px',border:'1px solid rgba(255,255,255,.22)',borderRadius:999,background:'rgba(255,255,255,.11)',color:'#fff',fontSize:14,fontWeight:800,cursor:'pointer',touchAction:'manipulation',WebkitTapHighlightColor:'transparent'};
+const statusOverlayStyle={position:'absolute' as const,inset:0,zIndex:4,display:'flex',flexDirection:'column' as const,alignItems:'center',justifyContent:'center',gap:9,padding:20,background:'rgba(5,5,10,.82)',color:'#fff',textAlign:'center' as const};
+const statusTitleStyle={fontSize:18,fontFamily:'Georgia,serif'};
+const statusCopyStyle={maxWidth:360,color:'#BDB4C1',fontSize:12,lineHeight:1.45};
+const loaderDotStyle={width:18,height:18,borderRadius:999,border:'2px solid rgba(255,255,255,.22)',borderTopColor:'#E75A91'};
+const retryButtonStyle={minWidth:118,minHeight:44,padding:'8px 16px',border:'1px solid rgba(255,255,255,.25)',borderRadius:999,background:'#D63D78',color:'#fff',fontSize:13,fontWeight:800,cursor:'pointer'};
+const controlBarStyle={position:'relative' as const,zIndex:6,minHeight:64,flexShrink:0,display:'flex',flexDirection:'row' as const,alignItems:'center',justifyContent:'center',gap:10,padding:'9px 12px',background:'rgba(10,7,15,.98)',borderTop:'1px solid rgba(255,255,255,.22)'};
+const controlButtonStyle={minWidth:92,minHeight:44,padding:'8px 14px',border:'1px solid rgba(255,255,255,.22)',borderRadius:999,background:'rgba(255,255,255,.11)',color:'#fff',fontSize:13,fontWeight:800,cursor:'pointer',touchAction:'manipulation',WebkitTapHighlightColor:'transparent'};
+const timelineStyle={minWidth:0,flex:'1 1 280px',maxWidth:520,display:'flex',alignItems:'center',gap:7};
+const rangeStyle={width:'100%',minHeight:24,accentColor:'#E75A91',cursor:'pointer'};
+const timeStyle={color:'#BDB4C1',fontSize:10,fontVariantNumeric:'tabular-nums'};

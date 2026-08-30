@@ -11,7 +11,8 @@ export function videoCreditCost(route:VideoRouteOption,durationSeconds:VideoDura
 
 export function videoOutputLabel(route:VideoRouteOption,aspectRatio:VideoGenerationOptions['sourceAspectRatio'],durationSeconds:VideoDurationSeconds=route.durationSeconds):string{
   const resolution=route.resolution==='provider_native'?'provider-native resolution':route.resolution;
-  return `${durationSeconds}-second ${aspectRatio??route.supportedAspectRatios[0]} MP4 · ${resolution} · playback starts muted`;
+  const audio=route.audioBehavior==='silent'?'silent':route.audioBehavior==='generated_audio'?'audio may be included · playback starts muted':'provider audio may vary · playback starts muted';
+  return `${durationSeconds}-second ${aspectRatio??route.supportedAspectRatios[0]} MP4 · ${resolution} · ${audio}`;
 }
 
 export function canSubmitVideoSelection(input:{route:VideoRouteOption|null;durationSeconds:VideoDurationSeconds;balance:number;loading:boolean;submitting:boolean;hasActiveVideo:boolean}):boolean{
@@ -24,8 +25,10 @@ export function validVideoFeedback(verdict:'looks_good'|'needs_work',reasonCodes
 
 export function preferredVideoRouteId(options:Pick<VideoGenerationOptions,'routes'|'defaultRouteId'>,current=''):string{
   if(options.routes.some((route)=>route.id===current))return current;
-  const recommended=options.routes.find((route)=>route.badge.toLowerCase()==='recommended'||route.id.toLowerCase().includes('p-video'));
-  return recommended?.id??(options.defaultRouteId&&options.routes.some((route)=>route.id===options.defaultRouteId)?options.defaultRouteId:options.routes[0]?.id)??'';
+  const pVideo=options.routes.find((route)=>route.id.toLowerCase().includes('p-video'));
+  const configuredDefault=options.defaultRouteId?options.routes.find((route)=>route.id===options.defaultRouteId):undefined;
+  const recommended=options.routes.find((route)=>route.badge.toLowerCase()==='recommended');
+  return pVideo?.id??configuredDefault?.id??recommended?.id??options.routes[0]?.id??'';
 }
 
 export function videoDurationRangeLabel(route:Pick<VideoRouteOption,'allowedDurations'>):string{

@@ -1,5 +1,6 @@
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Image, type ImageContentPosition, type ImageSource } from 'expo-image';
+import { KIVELLI_IMAGE_PLACEHOLDER } from '../lib/imageWarmup';
 
 type Props = {
   source: ImageSource | number;
@@ -13,6 +14,7 @@ type Props = {
   loading?: 'eager' | 'lazy';
   recyclingKey?: string;
   onError?: () => void;
+  onLoad?: () => void;
 };
 
 /**
@@ -32,6 +34,7 @@ export function DetailPreservingArtwork({
   loading = 'eager',
   recyclingKey,
   onError,
+  onLoad,
 }: Props) {
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
     <Image
@@ -43,6 +46,8 @@ export function DetailPreservingArtwork({
       cachePolicy="memory-disk"
       priority={priority}
       loading={loading}
+      placeholder={KIVELLI_IMAGE_PLACEHOLDER}
+      placeholderContentFit="cover"
       recyclingKey={recyclingKey?`${recyclingKey}:backdrop`:undefined}
       onError={onError}
     />
@@ -59,8 +64,11 @@ export function DetailPreservingArtwork({
         cachePolicy="memory-disk"
         priority={priority}
         loading={loading}
+        placeholder={KIVELLI_IMAGE_PLACEHOLDER}
+        placeholderContentFit="cover"
         recyclingKey={recyclingKey}
         onError={onError}
+        onLoad={onLoad}
       />
     </View>
   </View>;

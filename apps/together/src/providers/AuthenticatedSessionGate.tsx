@@ -1,12 +1,15 @@
 import { useEffect, useRef, type PropsWithChildren } from 'react';
 import { router, usePathname } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
-import { ErrorState, LoadingSkeleton } from '../components/RouteState';
+import { ErrorState } from '../components/RouteState';
+import { RouteLoadingState } from '../components/RouteLoadingState';
 import { resolveKivelleAccountStage } from '../lib/authRouting';
 import { desktopShellAllowed } from '../lib/desktopNavigation';
 import { isAgeConfirmationPath, isCompanionOnboardingPath, isPublicAppPath } from '../lib/sessionRouting';
 import { ResponsiveAppShell } from '../shell/ResponsiveAppShell';
 import { useTogether } from '../store/useTogether';
+import { useAuth } from '../hooks/useAuth';
+import { readSessionSnapshot, writeSessionSnapshot } from '../lib/sessionSnapshotCache';
 
 export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   const routerPathname = usePathname();
@@ -17,8 +20,10 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   const pathname = Platform.OS === 'web' && typeof window !== 'undefined'
     ? window.location.pathname
     : routerPathname;
-  const { snapshot, loading, error, refresh } = useTogether();
+  const { session }=useAuth();
+  const { snapshot, loading, error, refresh, setSnapshot } = useTogether();
   const redirectTarget = useRef<string | null>(null);
+  const hydrationUserId=useRef<string|null>(null);
   const publicPath = isPublicAppPath(pathname);
   const agePath = isAgeConfirmationPath(pathname);
   const companionOnboardingPath = isCompanionOnboardingPath(pathname);
@@ -28,8 +33,20 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   }, [pathname]);
 
   useEffect(() => {
-    if (!snapshot && !loading && !error) void refresh();
-  }, [snapshot, loading, error, refresh]);
+    const userId=session?.user.id;
+    if(!userId||snapshot||loading||error||hydrationUserId.current===userId)return;
+    hydrationUserId.current=userId;
+    const cached=Platform.OS==='web'?readSessionSnapshot(userId):null;
+    if(cached)setSnapshot(cached);
+    void refresh({force:Boolean(cached)});
+  }, [error,loading,refresh,session?.user.id,setSnapshot,snapshot]);
+
+  useEffect(()=>{
+    const userId=session?.user.id;
+    if(Platform.OS!=='web'||!userId||!snapshot)return;
+    const timer=setTimeout(()=>writeSessionSnapshot(userId,snapshot),500);
+    return()=>clearTimeout(timer);
+  },[session?.user.id,snapshot]);
 
   useEffect(() => {
     if (!snapshot || publicPath) return;
@@ -53,11 +70,11 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   if (!snapshot && !publicPath) {
     blocker = error
       ? <ErrorState message={error} onRetry={() => void refresh()} />
-      : <LoadingSkeleton label="Opening your world…" />;
+      : <RouteLoadingState pathname={pathname} label="Opening your world…" />;
   } else if (snapshot && !publicPath) {
     const stage = resolveKivelleAccountStage(snapshot.profile);
     if ((stage === 'age_confirmation' && !agePath) || (stage === 'onboarding' && !companionOnboardingPath) || (stage === 'ready' && (agePath || companionOnboardingPath))) {
-      blocker = <LoadingSkeleton label={stage === 'age_confirmation' ? 'Opening age confirmation…' : stage === 'onboarding' ? 'Preparing your first meeting…' : 'Opening your world…'} />;
+      blocker = <RouteLoadingState pathname={pathname} label={stage === 'age_confirmation' ? 'Opening age confirmation…' : stage === 'onboarding' ? 'Preparing your first meeting…' : 'Opening your world…'} />;
     }
   }
 

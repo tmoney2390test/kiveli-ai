@@ -16,6 +16,8 @@ import { responsivePlaceGrid } from '../../src/lib/responsivePlaceGrid';
 import { useAppShell } from '../../src/shell/AppShellContext';
 import type { FeaturedCompanion } from '../../src/lib/featuredCompanions';
 import type { Location, World } from '../../src/types';
+import { KIVELLI_IMAGE_PLACEHOLDER } from '../../src/lib/imageWarmup';
+import { useSurfaceReadyTiming } from '../../src/components/ClientPerformanceBridge';
 
 const nav=router as unknown as {push:(href:string)=>void;setParams:(params:Record<string,string>)=>void};
 const EMPTY_FAVORITE_IDS:string[]=[];
@@ -25,6 +27,7 @@ export default function Explore(){
   const{desktop,sidebarWidth}=useAppShell();
   const params=useLocalSearchParams<{world?:string}>();
   const{snapshot,browsedWorldId,setBrowsedWorldId,refresh}=useTogether();
+  const heroReady=useSurfaceReadyTiming('explore','hero_image_ready',Boolean(snapshot&&snapshot.profile?.privacy_settings?.analytics!==false));
   const[worldPickerOpen,setWorldPickerOpen]=useState(false);
   const[category,setCategory]=useState<ExploreCategoryId|null>(null);
   const worlds=snapshot?.worlds.filter((item)=>item.published).sort((a,b)=>a.sort_order-b.sort_order)??[];
@@ -64,13 +67,13 @@ export default function Explore(){
   return <Screen contentStyle={styles.content}>
     <View style={styles.heading}>
       <View><Text style={styles.brand}>Kivelle</Text><Text style={styles.pageTitle}>Explore</Text></View>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Browse worlds. ${selectedWorld.name} selected`} onPress={()=>setWorldPickerOpen((value)=>!value)} style={styles.worldSelect}><Image source={worldHeroAsset(selectedWorld.slug)} style={styles.worldSelectImage} contentFit="cover"/><Text numberOfLines={1} style={styles.worldSelectText}>{selectedWorld.name}</Text><ChevronDown size={16} color={colors.muted}/></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Browse worlds. ${selectedWorld.name} selected`} onPress={()=>setWorldPickerOpen((value)=>!value)} style={styles.worldSelect}><Image source={worldHeroAsset(selectedWorld.slug)} style={styles.worldSelectImage} contentFit="cover" loading="eager" priority="high" placeholder={KIVELLI_IMAGE_PLACEHOLDER}/><Text numberOfLines={1} style={styles.worldSelectText}>{selectedWorld.name}</Text><ChevronDown size={16} color={colors.muted}/></Pressable>
     </View>
 
     {worldPickerOpen?<FrostedSurface style={styles.worldPicker}><Text style={styles.pickerKicker}>BROWSE A WORLD</Text><HorizontalRail label="Browse all Kivelle worlds" compact contentStyle={styles.worldPickerRow}>{worlds.map((world)=><Pressable key={world.id} onPress={()=>chooseWorld(world)} style={[styles.worldPickerCard,world.id===selectedWorld.id&&styles.worldPickerCardActive]}><Image source={worldHeroAsset(world.slug)} style={styles.worldPickerImage} contentFit="cover"/><View style={styles.worldPickerShade}/><Text style={styles.worldPickerName}>{world.name}</Text><Text style={styles.worldPickerMeta}>{worldRole(world)}</Text></Pressable>)}</HorizontalRail></FrostedSurface>:null}
 
     <View accessibilityLabel={`${selectedWorld.name} world`} style={styles.hero}>
-      <Image source={worldHeroAsset(selectedWorld.slug)} style={StyleSheet.absoluteFill} contentFit="cover"/>
+      <Image source={worldHeroAsset(selectedWorld.slug)} style={StyleSheet.absoluteFill} contentFit="cover" loading="eager" priority="high" placeholder={KIVELLI_IMAGE_PLACEHOLDER} placeholderContentFit="cover" transition={180} onLoad={heroReady}/>
       <View style={styles.heroContent}><Text style={styles.heroTitle}>{selectedWorld.name}</Text><Text numberOfLines={2} style={styles.heroCopy}>{worldFantasy(selectedWorld)}</Text><Pressable onPress={primaryWorldAction} style={styles.heroAction}><Text style={styles.heroActionText}>{isCurrentWorld?'Plan something here':'Meet someone in this world'}</Text><ChevronRight size={18} color="#24160B"/></Pressable></View>
     </View>
 

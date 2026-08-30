@@ -27,6 +27,8 @@ import { useAppShell } from '../../src/shell/AppShellContext';
 import { storyLibraryHomeAsset } from '../../src/stories/homeAsset';
 import { useWorldPulse } from '../../src/hooks/useWorldPulse';
 import { scheduleDeferredHomeWork } from '../../src/lib/homeDeferredWork';
+import { uniqueHttpsImageUris } from '../../src/lib/imageWarmup';
+import { useSurfaceReadyTiming } from '../../src/components/ClientPerformanceBridge';
 
 const router = expoRouter as unknown as { push: (href: string) => void };
 
@@ -36,6 +38,15 @@ export default function Home() {
   const secondaryWorkReady=useDeferredHomeWork();
   const { data: subscription = null } = useSubscriptionStatus(Boolean(snapshot)&&secondaryWorkReady);
   const { width } = useWindowDimensions();
+  const analyticsEnabled=snapshot?.profile?.privacy_settings?.analytics!==false;
+  const heroReady=useSurfaceReadyTiming('home','hero_image_ready',Boolean(snapshot&&analyticsEnabled));
+  useEffect(()=>{
+    if(!snapshot)return;
+    const urls=uniqueHttpsImageUris((snapshot.generatedMedia??[]).filter((item)=>item.status==='ready'&&item.media_type==='image').sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime()).map((item)=>item.signed_url),8);
+    if(!urls.length)return;
+    const timer=setTimeout(()=>void Image.prefetch(urls,'memory-disk').catch(()=>undefined),320);
+    return()=>clearTimeout(timer);
+  },[snapshot]);
   const homeCompanion=snapshot?mostRecentHomeCompanion(snapshot):undefined;
   const homeCompanionId=homeCompanion?.id;
   const pulseWorldId=snapshot?(browsedWorldId??buildHomeViewModel(snapshot)?.currentWorld?.id??snapshot.worlds.find(world=>world.published)?.id):null;
@@ -123,7 +134,7 @@ export default function Home() {
     <View pointerEvents="none" style={styles.ambientGlow} />
     {!desktop ? <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push('/subscription')} onProfile={() => router.push('/settings')} /> : null}
     <View style={[styles.heroPair,width<860&&styles.heroPairStack]}>
-      <View style={styles.heroPane}><CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} location={model.currentLocation?.name} world={model.currentWorld?.name} onContinue={() => void openCompanion()} onProfile={() => router.push(`/character/${handle}`)} /></View>
+      <View style={styles.heroPane}><CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} location={model.currentLocation?.name} world={model.currentWorld?.name} onContinue={() => void openCompanion()} onProfile={() => router.push(`/character/${handle}`)} onVisualReady={heroReady}/></View>
       {discoveryWorlds.length?<View style={styles.heroPane}><HomeWorldDiscoveryHero worlds={discoveryWorlds} onExplore={(world)=>{setBrowsedWorldId(world.id);router.push(`/(tabs)/explore?world=${world.slug}`);}}/></View>:null}
     </View>
     <Pressable accessibilityRole="button" accessibilityLabel="Open Kivelli Stories" onPress={()=>router.push('/stories' as never)} style={({pressed})=>[styles.storiesBanner,pressed&&{opacity:.9}]}>

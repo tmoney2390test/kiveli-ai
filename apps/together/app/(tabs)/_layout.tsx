@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { router, Tabs, usePathname } from 'expo-router';
 import { BlurView } from 'expo-blur';
@@ -6,6 +7,7 @@ import { useAppShell } from '../../src/shell/AppShellContext';
 import { MESSAGES_INBOX_HREF, mostRecentChatHref, shouldOpenMostRecentChat } from '../../src/lib/messageInbox';
 import { useTogether } from '../../src/store/useTogether';
 import { colors } from '../../src/theme';
+import { markRouteIntent, scheduleCoreRouteWarmup, warmRoute } from '../../src/lib/routeWarmup';
 
 const web = Platform.OS === 'web';
 
@@ -17,6 +19,8 @@ export default function TabsLayout() {
   const webBarWidth = Math.max(300, Math.min(720, width - 24));
   const openLatestFromCurrentPage=shouldOpenMostRecentChat(pathname);
   const latestChatHref=snapshot?mostRecentChatHref(snapshot.conversations,snapshot.characters):null;
+  useEffect(()=>snapshot?scheduleCoreRouteWarmup((href)=>router.prefetch(href as never)):undefined,[Boolean(snapshot)]);
+  const prepare=(href:string)=>{markRouteIntent(href);warmRoute(href,(value)=>router.prefetch(value as never));};
   return <Tabs screenOptions={{
     headerShown: false,
     sceneStyle: { backgroundColor: colors.background },
@@ -50,15 +54,15 @@ export default function TabsLayout() {
     tabBarItemStyle: { borderRadius: 18, marginHorizontal: 3, marginVertical: 1, overflow: 'hidden' },
     tabBarLabelStyle: { fontSize: 9.5, fontWeight: '800', letterSpacing: .15 },
   }}>
-    <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: ({ color, size, focused }) => <Home color={color} size={focused ? size + 1 : size} fill={focused ? 'rgba(239,82,137,.13)' : 'transparent'} /> }} />
-    <Tabs.Screen name="explore" options={{ title: 'Explore', tabBarIcon: ({ color, size, focused }) => <Compass color={color} size={focused ? size + 2 : size} /> }} />
+    <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: ({ color, size, focused }) => <Home color={color} size={focused ? size + 1 : size} fill={focused ? 'rgba(239,82,137,.13)' : 'transparent'} /> }} listeners={{tabPress:()=>prepare('/home')}} />
+    <Tabs.Screen name="explore" options={{ title: 'Explore', tabBarIcon: ({ color, size, focused }) => <Compass color={color} size={focused ? size + 2 : size} /> }} listeners={{tabPress:()=>prepare('/explore')}} />
     <Tabs.Screen
       name="chat-tab"
       options={{ title: 'Chat', tabBarIcon: ({ color, size, focused }) => <MessageCircle color={color} size={focused ? size + 2 : size} fill={focused ? 'rgba(239,82,137,.13)' : 'transparent'} /> }}
-      listeners={{tabPress:(event)=>{if(!openLatestFromCurrentPage)return;event.preventDefault();router.push((latestChatHref??MESSAGES_INBOX_HREF) as never);}}}
+      listeners={{tabPress:(event)=>{const href=latestChatHref??MESSAGES_INBOX_HREF;prepare(href);if(!openLatestFromCurrentPage)return;event.preventDefault();router.push(href as never);}}}
     />
-    <Tabs.Screen name="moments" options={{ title: 'Moments', tabBarIcon: ({ color, size, focused }) => <Images color={color} size={focused ? size + 1 : size} /> }} />
-    <Tabs.Screen name="stories" options={{ title: 'Stories', tabBarIcon: ({ color, size, focused }) => <BookOpenCheck color={color} size={focused ? size + 2 : size} /> }} />
+    <Tabs.Screen name="moments" options={{ title: 'Moments', tabBarIcon: ({ color, size, focused }) => <Images color={color} size={focused ? size + 1 : size} /> }} listeners={{tabPress:()=>prepare('/moments')}} />
+    <Tabs.Screen name="stories" options={{ title: 'Stories', tabBarIcon: ({ color, size, focused }) => <BookOpenCheck color={color} size={focused ? size + 2 : size} /> }} listeners={{tabPress:()=>prepare('/stories')}} />
     <Tabs.Screen name="profile" options={{ href: null }} />
     <Tabs.Screen name="upgrade" options={{ href: null }} />
     <Tabs.Screen name="dates" options={{ href: null }} />

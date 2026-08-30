@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ChevronDown, Search, Sparkles } from 'lucide-react-native';
 import { CharacterAvatar, EmptyState, FrostedSurface, GlassCard, MomentCard, PageTitle, Screen } from '../../src/components';
@@ -12,6 +13,8 @@ import { mostRecentlyMessagedConversation } from '../../src/lib/conversation';
 import { locationHeroAsset } from '../../src/assets';
 import { explicitMomentsCompanionSelection, loadMomentsCompanionSelection, restoredMomentsCompanionSelection, saveMomentsCompanionSelection } from '../../src/lib/momentsCompanionPreference';
 import type { Moment, Snapshot } from '../../src/types';
+import { uniqueHttpsImageUris } from '../../src/lib/imageWarmup';
+import { useSurfaceReadyTiming } from '../../src/components/ClientPerformanceBridge';
 
 const filters: MomentsFeedFilter[] = ['All', 'Experiences', 'Milestones', 'Memories', 'Photos', 'Videos'];
 
@@ -21,6 +24,7 @@ export default function MomentsTab() {
 
 function MomentsFeed() {
   const snapshot = useTogether((state) => state.snapshot);
+  const firstMediaReady=useSurfaceReadyTiming('moments','first_media_ready',Boolean(snapshot&&snapshot.profile?.privacy_settings?.analytics!==false));
   const params=useLocalSearchParams<{character?:string;filter?:MomentsFeedFilter}>();
   const active = snapshot ? selectActiveCompanion(snapshot) : undefined;
   const companions = useMemo(()=>snapshot?.characters.filter((item) => item.contact_added_at || item.introduced_at) ?? [],[snapshot?.characters]);
@@ -60,6 +64,13 @@ function MomentsFeed() {
   },[]);
   const selected = companions.find((item) => item.id === companionId);
   const entries = useMemo(() => snapshot ? buildMomentsFeed(snapshot, companionId, filter, query) : [], [companionId, filter, query, snapshot]);
+  useEffect(()=>{
+    if(!snapshot)return;
+    const urls=uniqueHttpsImageUris(entries.map((entry)=>entryMediaUrl(snapshot,entry)),12);
+    if(!urls.length)return;
+    const timer=setTimeout(()=>void Image.prefetch(urls,'memory-disk').catch(()=>undefined),120);
+    return()=>clearTimeout(timer);
+  },[entries,snapshot]);
   useEffect(()=>setVisibleCount(48),[companionId,filter,query]);
   const groups = groupEntries(entries.slice(0,visibleCount));
   const name = selected?.together_character_templates.name;
@@ -69,12 +80,12 @@ function MomentsFeed() {
     {companions.length>1?<View style={styles.selectorWrap}><Pressable onPress={()=>setShowCompanions((value)=>!value)} style={styles.selector}>{selected?<CharacterAvatar slug={selected.together_character_templates.slug} name={selected.together_character_templates.name} template={selected.together_character_templates} version={snapshot?selectPortraitVersion(snapshot,selected):selected.together_character_versions} size={30}/>:<View style={styles.allAvatar}><Sparkles size={14} color={colors.rose}/></View>}<View style={{flex:1}}><Text style={styles.selectorLabel}>SHARED HISTORY</Text><Text style={styles.selectorName}>{name??'All companions'}</Text></View><ChevronDown size={17} color={colors.muted}/></Pressable>{showCompanions?<FrostedSurface style={styles.picker}><Pressable onPress={()=>chooseCompanion('all')} style={styles.pickerRow}><View style={styles.allAvatar}><Sparkles size={14} color={colors.rose}/></View><Text style={styles.pickerName}>All companions</Text></Pressable>{companions.map((companion)=><Pressable key={companion.id} onPress={()=>chooseCompanion(companion.id)} style={styles.pickerRow}><CharacterAvatar slug={companion.together_character_templates.slug} name={companion.together_character_templates.name} template={companion.together_character_templates} version={snapshot?selectPortraitVersion(snapshot,companion):companion.together_character_versions} size={32}/><Text style={styles.pickerName}>{companion.together_character_templates.name}</Text></Pressable>)}</FrostedSurface>:null}</View>:null}
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>{filters.map((item)=><Pressable key={item} onPress={()=>setFilter(item)} style={[styles.tab,filter===item&&styles.active]}><Text style={[styles.tabText,filter===item&&styles.activeText]}>{item}</Text></Pressable>)}</ScrollView>
     {entries.length >= 6 ? <View style={styles.search}><Search size={16} color={colors.muted}/><TextInput value={query} onChangeText={setQuery} placeholder="Search people, places, or memories" placeholderTextColor={colors.muted} style={styles.searchInput}/></View> : null}
-    {entries.length ? <>{groups.map((group)=><View key={group.label} style={styles.group}><Text style={styles.groupTitle}>{group.label}</Text><View style={styles.grid}>{group.items.map((entry)=><FeedCard key={`${entry.kind}:${entry.id}`} entry={entry} companionId={companionId}/>)}</View></View>)}{visibleCount<entries.length?<Pressable accessibilityRole="button" onPress={()=>setVisibleCount((value)=>Math.min(entries.length,value+48))} style={styles.loadMore}><Text style={styles.loadMoreText}>Show more moments</Text></Pressable>:null}</> : <View style={styles.emptyWrap}><View style={styles.emptyIcon}><Sparkles size={24} color={colors.rose}/></View><EmptyState title={emptyTitle(filter,name)} body={emptyBody(filter,name)}/></View>}
+    {entries.length ? <>{groups.map((group,groupIndex)=><View key={group.label} style={styles.group}><Text style={styles.groupTitle}>{group.label}</Text><View style={styles.grid}>{group.items.map((entry,itemIndex)=><FeedCard key={`${entry.kind}:${entry.id}`} entry={entry} companionId={companionId} onMediaLoad={groupIndex===0&&itemIndex===0?firstMediaReady:undefined}/>)}</View></View>)}{visibleCount<entries.length?<Pressable accessibilityRole="button" onPress={()=>setVisibleCount((value)=>Math.min(entries.length,value+48))} style={styles.loadMore}><Text style={styles.loadMoreText}>Show more moments</Text></Pressable>:null}</> : <View style={styles.emptyWrap}><View style={styles.emptyIcon}><Sparkles size={24} color={colors.rose}/></View><EmptyState title={emptyTitle(filter,name)} body={emptyBody(filter,name)}/></View>}
     <GlassCard style={styles.note}><Sparkles size={17} color={colors.warm}/><Text style={styles.noteText}>Completed plans appear immediately. Especially meaningful experiences can still be promoted into featured Moments.</Text></GlassCard>
   </Screen>;
 }
 
-function FeedCard({entry,companionId}:{entry:MomentsFeedEntry;companionId:string}) {
+function FeedCard({entry,companionId,onMediaLoad}:{entry:MomentsFeedEntry;companionId:string;onMediaLoad?:()=>void}) {
   const snapshot=useTogether((state)=>state.snapshot);
   if(!snapshot)return null;
   const moment=entryAsMoment(entry);
@@ -91,7 +102,7 @@ function FeedCard({entry,companionId}:{entry:MomentsFeedEntry;companionId:string
     else if(entry.kind==='date')router.push(`/date/${entry.id}` as never);
     else if(character){const handle=character.together_character_templates.public_handle??character.together_character_templates.slug;router.push(entry.kind==='memory'?`/memories?character=${handle}` as never:`/chat?character=${handle}` as never);}
   };
-  return <View style={styles.momentWrap}><MomentCard moment={moment} character={character} portraitVersion={character?selectPortraitVersion(snapshot,character):undefined} mediaUrl={mediaUrl} fallbackSource={locationFallback} onPress={open}/>{meta?<Text style={styles.momentMeta} numberOfLines={1}>{meta}</Text>:null}</View>;
+  return <View style={styles.momentWrap}><MomentCard moment={moment} character={character} portraitVersion={character?selectPortraitVersion(snapshot,character):undefined} mediaUrl={mediaUrl} fallbackSource={locationFallback} onPress={open} onMediaLoad={onMediaLoad}/>{meta?<Text style={styles.momentMeta} numberOfLines={1}>{meta}</Text>:null}</View>;
 }
 
 function entryAsMoment(entry:MomentsFeedEntry):Moment {

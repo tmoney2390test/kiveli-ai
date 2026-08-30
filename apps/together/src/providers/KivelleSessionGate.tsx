@@ -5,6 +5,7 @@ import { LoadingSkeleton } from '../components/RouteState';
 import { useAuth } from '../hooks/useAuth';
 import { isPublicAppPath, signInPathFor } from '../lib/sessionRouting';
 import { consumeWebEntryHref, entryPathname, initialWebEntryHref } from '../lib/webEntryRoute';
+import { clearSessionSnapshot } from '../lib/sessionSnapshotCache';
 
 const AuthenticatedSessionGate = lazy(() => import('./AuthenticatedSessionGate').then((module) => ({ default: module.AuthenticatedSessionGate })));
 
@@ -18,6 +19,7 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
   const href = useUnstableGlobalHref();
   const { session, loading: authLoading } = useAuth();
   const redirectTarget = useRef<string | null>(null);
+  const previousUserId=useRef<string|null>(null);
   const publicPath = isPublicAppPath(pathname);
   const entryHref = Platform.OS === 'web' ? initialWebEntryHref() : null;
   const entryPath = entryHref ? entryPathname(entryHref) : null;
@@ -41,6 +43,8 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
     if (demoMode) return;
     if (authLoading) return;
     if (!session) {
+      if(Platform.OS==='web'&&previousUserId.current)clearSessionSnapshot(previousUserId.current);
+      previousUserId.current=null;
       // Avoid loading the authenticated world store into signed-out public pages.
       void import('../store/useTogether').then(({ useTogether }) => {
         if (useTogether.getState().snapshot) useTogether.getState().clear();
@@ -54,6 +58,7 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
       }
       return;
     }
+    previousUserId.current=session.user.id;
     redirectTarget.current = null;
   }, [authLoading, session?.user.id, publicPath, href]);
 

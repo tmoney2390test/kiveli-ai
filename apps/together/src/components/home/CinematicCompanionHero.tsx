@@ -4,8 +4,9 @@ import { Image, type ImageContentPosition, type ImageSource } from 'expo-image';
 import { ArrowRight, MapPin } from 'lucide-react-native';
 import { colors, typography } from '../../theme';
 import type { CharacterInstance, CharacterVersion } from '../../types';
+import { KIVELLI_IMAGE_PLACEHOLDER } from '../../lib/imageWarmup';
 
-export function CinematicCompanionHero({ companion, portraitVersion, source, location, world, onContinue, onProfile }: {
+export function CinematicCompanionHero({ companion, portraitVersion, source, location, world, onContinue, onProfile, onVisualReady }: {
   companion: CharacterInstance;
   portraitVersion: CharacterVersion;
   source?: ImageSource | number;
@@ -13,6 +14,7 @@ export function CinematicCompanionHero({ companion, portraitVersion, source, loc
   world?: string;
   onContinue: () => void;
   onProfile: () => void;
+  onVisualReady?:()=>void;
 }) {
   const { width, height } = useWindowDimensions();
   const desktop = width >= 900;
@@ -41,7 +43,7 @@ export function CinematicCompanionHero({ companion, portraitVersion, source, loc
 
   return <View style={[styles.hero, { height: heroHeight }, desktop && styles.heroDesktop]}>
     {source
-      ? <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ scale }] }]}><Image accessibilityLabel={`${firstName} portrait`} source={source} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={focal} cachePolicy="memory-disk" priority="high" transition={180} /></Animated.View>
+      ? <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ scale }] }]}><Image accessibilityLabel={`${firstName} portrait`} source={source} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={focal} cachePolicy="memory-disk" loading="eager" priority="high" placeholder={KIVELLI_IMAGE_PLACEHOLDER} placeholderContentFit="cover" transition={180} onLoad={onVisualReady}/></Animated.View>
       : <View style={[StyleSheet.absoluteFill, styles.fallback]}><Text style={styles.fallbackInitial}>{firstName[0]}</Text></View>}
     <View pointerEvents="none" style={styles.tint} />
     <View pointerEvents="none" style={[styles.scrim, Platform.OS === 'web' ? styles.webScrim : styles.nativeScrim]} />

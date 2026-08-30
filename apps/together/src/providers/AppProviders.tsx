@@ -17,6 +17,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { reportClientHeartbeat } from "../lib/operations";
 import { PushNotificationBridge } from "./PushNotificationBridge";
 import { colors } from "../theme";
+import { ClientPerformanceBridge } from "../components/ClientPerformanceBridge";
 
 function OperationsHeartbeat() {
   const { session } = useAuth();
@@ -55,6 +56,7 @@ export function AppProviders({ children }: PropsWithChildren) {
             <AuthProvider>
               <PushNotificationBridge />
               <OperationsHeartbeat />
+              <ClientPerformanceBridge />
               <GlobalErrorReporter />
               <AppErrorBoundary>
                 <KivelleSessionGate>{children}</KivelleSessionGate>

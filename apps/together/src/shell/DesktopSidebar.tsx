@@ -23,6 +23,7 @@ import { desktopNavigationKey, type DesktopNavigationKey } from '../lib/desktopN
 import { isActiveInboxConversation, MESSAGES_INBOX_ROUTE, mostRecentChatHref, returnToMessagesInbox, shouldOpenMostRecentChat } from '../lib/messageInbox';
 import { useTogether } from '../store/useTogether';
 import { colors, typography } from '../theme';
+import { markRouteIntent, warmRoute } from '../lib/routeWarmup';
 
 type Props = { expanded: boolean; onHoverChange: (hovered: boolean) => void };
 type NavItem = { key: DesktopNavigationKey; label: string; href: string; icon: (color: string) => ReactNode; count?: number; onPress?: () => void };
@@ -63,10 +64,14 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
     // Keep the rail expanded while its action swaps the active route. A genuine
     // pointer leave still collapses it through ResponsiveAppShell.
     onHoverChange(true);
+    markRouteIntent(href);
+    warmRoute(href,(value)=>router.prefetch(value as never));
     router.push(href as never);
   };
   const openMessagesInbox = () => {
     onHoverChange(true);
+    markRouteIntent(MESSAGES_INBOX_ROUTE);
+    warmRoute(MESSAGES_INBOX_ROUTE,(value)=>router.prefetch(value as never));
     returnToMessagesInbox({reset:(href)=>router.replace(href as never),navigate:(href)=>router.push(href as never)});
   };
   const mainItems: NavItem[] = [
@@ -99,7 +104,7 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.navGroup}>
-          {mainItems.map((item) => <SidebarAction key={item.key} expanded={expanded} label={item.label} icon={item.icon(activeKey === item.key ? '#E3A4F2' : colors.muted)} active={activeKey === item.key} count={item.count} onPress={item.onPress ?? (() => navigate(item.href))} />)}
+          {mainItems.map((item) => <SidebarAction key={item.key} expanded={expanded} label={item.label} icon={item.icon(activeKey === item.key ? '#E3A4F2' : colors.muted)} active={activeKey === item.key} count={item.count} onWarm={()=>warmRoute(item.href,(value)=>router.prefetch(value as never))} onPress={item.onPress ?? (() => navigate(item.href))} />)}
         </View>
 
       {expanded && currentWorld ? <View style={styles.section}>
@@ -150,10 +155,10 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
   </View>;
 }
 
-function SidebarAction({ expanded, label, icon, onPress, active = false, count = 0 }: { expanded: boolean; label: string; icon: ReactNode; onPress: () => void; active?: boolean; count?: number }) {
+function SidebarAction({ expanded, label, icon, onPress, onWarm, active = false, count = 0 }: { expanded: boolean; label: string; icon: ReactNode; onPress: () => void; onWarm?:()=>void; active?: boolean; count?: number }) {
   const [hovered, setHovered] = useState(false);
   return <View style={styles.actionWrap}>
-    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: active }} onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)} onPress={onPress} style={({ pressed }) => [styles.action, !expanded && styles.actionCollapsed, active && styles.actionActive, pressed && styles.rowPressed]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: active }} onHoverIn={() => {setHovered(true);onWarm?.();}} onHoverOut={() => setHovered(false)} onPressIn={onWarm} onPress={onPress} style={({ pressed }) => [styles.action, !expanded && styles.actionCollapsed, active && styles.actionActive, pressed && styles.rowPressed]}>
       {active ? <View style={styles.activeLine} /> : null}
       <View style={styles.actionIcon}>{icon}</View>
       {expanded ? <Text style={[styles.actionLabel, active && styles.actionLabelActive]} numberOfLines={1}>{label}</Text> : null}
