@@ -3,7 +3,18 @@ select plan(13);
 
 select has_column('public','together_generated_media','video_source_mode','video source mode is durable');
 select has_column('public','together_generated_media','user_prompt','direct video retains the approved user prompt');
-select col_has_check('public','together_generated_media','video_source_mode','video source mode is constrained');
+select ok(
+  exists(
+    select 1
+    from pg_constraint
+    where conrelid='public.together_generated_media'::regclass
+      and conname='together_generated_media_video_source_mode_check'
+      and pg_get_constraintdef(oid) like '%source_photo%'
+      and pg_get_constraintdef(oid) like '%canonical_references%'
+      and pg_get_constraintdef(oid) like '%video_continuation%'
+  ),
+  'video source mode is constrained'
+);
 select col_has_check('public','together_generated_media','user_prompt','direct video prompt length is constrained');
 
 select has_function(
@@ -26,7 +37,7 @@ select ok(position('VIDEO_SINGLE_FICTIONAL_ADULT_REQUIRED' in pg_get_functiondef
 select ok(position('ACTIVE_VIDEO_EXISTS' in pg_get_functiondef('public.kivelle_reserve_direct_video_generation(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,numeric,integer,text,text,text,text,jsonb,integer)'::regprocedure))>0,'direct reservation enforces one active video');
 select ok(position('VIDEO_DAILY_LIMIT' in pg_get_functiondef('public.kivelle_reserve_direct_video_generation(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,numeric,integer,text,text,text,text,jsonb,integer)'::regprocedure))>0,'direct reservation enforces the daily limit');
 select ok(position('p_credit_cost<>p_duration_seconds*25' in replace(pg_get_functiondef('public.kivelle_reserve_direct_video_generation(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,numeric,integer,text,text,text,text,jsonb,integer)'::regprocedure),' ',''))>0,'direct reservation derives credits from duration');
-select ok(position('p_duration_seconds in(10,15,20)' in replace(pg_get_functiondef('public.kivelle_reserve_video_generation(uuid,uuid,uuid,text,text,text,text,text,integer,numeric,integer,text,text,text,boolean,integer)'::regprocedure),' ',''))>0,'P-Video accepts the 10 through 20 second choices');
+select ok(position('p_duration_secondsin(10,15,20)' in replace(pg_get_functiondef('public.kivelle_reserve_video_generation(uuid,uuid,uuid,text,text,text,text,text,integer,numeric,integer,text,text,text,boolean,integer)'::regprocedure),' ',''))>0,'P-Video accepts the 10 through 20 second choices');
 
 select * from finish();
 rollback;
