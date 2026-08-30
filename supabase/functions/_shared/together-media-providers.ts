@@ -8,7 +8,7 @@ import{resolveVenicePipeline,VENICE_ADULT_EDIT_MODEL,VENICE_ADULT_FALLBACK_EDIT_
 import{configuredVeniceClient,type VeniceEditResult,type VeniceImageClient}from'./venice.ts';
 import{buildMediaEditConstraint,classifyMediaEditSemantics}from'../../../packages/together-domain/src/media-edit.ts';
 import{buildMediaWorldContainmentInstruction}from'./together-media-world.ts';
-import{buildVideoProviderPayload,configuredVideoRouteCatalog,type VideoAspectRatio,type VideoMotionPreset,type VideoRouteId}from'./kivelle-video-routes.ts';
+import { buildVideoProviderPayload, configuredVideoRouteCatalog, type VideoAspectRatio, type VideoMotionPreset, type VideoRouteId } from './kivelle-video-routes.ts';
 
 export type CanonicalMediaRequest=CanonicalImageGenerationRequest&{mediaType:'image'|'video';videoRouteId?:VideoRouteId;motionPreset?:VideoMotionPreset;videoAspectRatio?:VideoAspectRatio;durationSeconds?:number};
 export type ProviderAttempt={attemptNumber:number;stage:string;provider:string;model:string;routeId:string;estimatedCost?:number;generationMs?:number;success:boolean;failureCode?:string;providerRequestId?:string};
