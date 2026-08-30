@@ -29,7 +29,7 @@ import { KivelleLogo } from '../KivelleLogo';
 import { radius, typography } from '../../theme';
 import { joinPathFor } from '../../lib/sessionRouting';
 import { PUBLIC_COMPANIONS, PUBLIC_LANDING_COPY, PUBLIC_WORLDS, type PublicCompanion, type PublicWorld } from '../../lib/publicLanding';
-import { publicCompanionAssets, publicWorldAssets } from './publicLandingAssets';
+import { publicCompanionAssets, publicLandingMobileHeroAsset, publicWorldAssets } from './publicLandingAssets';
 
 type LandingSection = 'worlds' | 'why' | 'companions';
 
@@ -202,7 +202,7 @@ function Hero({ desktop, compact, onEnter, onMeet }: { desktop: boolean; compact
   const heroPortrait = publicCompanionAssets['becka-shaw'];
   const [visualReady,setVisualReady]=useState(false);
   return <View style={[styles.hero, desktop ? styles.heroDesktop : styles.heroStacked, compact && styles.heroCompact]}>
-    <Image accessible accessibilityLabel="Juniper City skyline at dusk" source={publicWorldAssets['juniper-city']} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" loading="eager" priority="high" onLoad={()=>setVisualReady(true)} />
+    <Image accessible accessibilityLabel="Juniper City skyline at dusk" source={compact ? publicLandingMobileHeroAsset : publicWorldAssets['juniper-city']} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" loading="eager" priority="high" onLoad={()=>setVisualReady(true)} />
     <View style={[styles.heroPortraitFrame, desktop ? styles.heroPortraitDesktop : styles.heroPortraitStacked, compact && styles.heroPortraitCompact]}>
       <Image accessible accessibilityLabel="Becka Shaw in Juniper City" source={heroPortrait} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" loading="eager" priority="high" />
     </View>

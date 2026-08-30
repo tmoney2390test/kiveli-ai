@@ -6,12 +6,16 @@ import { useAuth } from '../src/hooks/useAuth';
 
 const AuthenticatedIndex = lazy(() => import('../src/components/AuthenticatedIndex'));
 const LANDING_HERO = '/landing/juniper-city.53ab020b54a527943e9b4b3bb308190d.webp';
+const LANDING_HERO_MOBILE = '/landing/juniper-city-mobile.1c4108fcc02f6799630e5fe041c335d4.webp';
 
 export default function Index() {
   const { session, loading: authLoading } = useAuth();
 
   return <>
-    <Head><link rel="preload" href={LANDING_HERO} as="image" fetchPriority="high" /></Head>
+    <Head>
+      <link rel="preload" href={LANDING_HERO_MOBILE} as="image" media="(max-width: 679px)" fetchPriority="high" />
+      <link rel="preload" href={LANDING_HERO} as="image" media="(min-width: 680px)" fetchPriority="high" />
+    </Head>
     {authLoading
       ? <LoadingSkeleton label="Opening Kivelle…" />
       : !session
