@@ -16,6 +16,11 @@ export function containedMediaFrame(viewport:MediaViewport,ratio:number,padding=
   return{width,height:width/ratio};
 }
 
+export function fixedMediaFrameStyle(frame:MediaFrame){
+  if(!frame.width||!frame.height)return undefined;
+  return{width:frame.width,height:frame.height,flexGrow:0,flexShrink:0,flexBasis:'auto' as const};
+}
+
 export type VideoAction={mediaId:string;label:'View video'|'View video progress'|'View video result';status:string};
 
 export function resolveAssociatedVideoAction(associated:GeneratedMedia|undefined,options:VideoGenerationOptions|null):VideoAction|null{

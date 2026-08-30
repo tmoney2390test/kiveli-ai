@@ -13,7 +13,7 @@ import { confirmAction } from '../../src/lib/dialogs';
 import type { GeneratedMedia, VideoDiagnostics, VideoGenerationOptions, VideoMotionPreset } from '../../src/types';
 import { generatedMediaImageSource } from '../../src/lib/mediaImageSource';
 import { resolveMediaCarousel, type MediaCarouselMode } from '../../src/lib/mediaCarousel';
-import { containedMediaFrame, mediaAspectRatio, resolveAssociatedVideoAction, shouldPollVideoAvailability, shouldRefreshReadyVideo } from '../../src/lib/mediaViewer';
+import { containedMediaFrame, fixedMediaFrameStyle, mediaAspectRatio, resolveAssociatedVideoAction, shouldPollVideoAvailability, shouldRefreshReadyVideo } from '../../src/lib/mediaViewer';
 import { privateMediaPlaybackUrl } from '../../src/lib/privateMediaUrl';
 import { supabaseUrl } from '../../src/lib/supabase';
 
@@ -133,7 +133,7 @@ export default function MediaViewer(){
   const viewParent=()=>{if(media.parent_media_id)router.push(`/media/${media.parent_media_id}` as never);};
   const openVideoFullscreen=async()=>{if(videoRefreshing)return;const freshUrl=await refreshVideoPlayback();if(freshUrl)setVideoFullscreenOpen(true);};
   const videoRatio=media.media_type==='video'?mediaAspectRatio(media):1,videoFrame=containedMediaFrame(stageSize,videoRatio,spacing.md,1100);
-  const videoFrameStyle=media.media_type==='video'&&media.status==='ready'&&videoFrame.width&&videoFrame.height?{width:videoFrame.width,height:videoFrame.height,flexGrow:0,flexShrink:0}:undefined;
+  const videoFrameStyle=media.media_type==='video'&&media.status==='ready'?fixedMediaFrameStyle(videoFrame):undefined;
   const videoAction=media.media_type==='image'?resolveAssociatedVideoAction(associatedVideo,videoOptions):null;
 
   return <View style={styles.screen}>

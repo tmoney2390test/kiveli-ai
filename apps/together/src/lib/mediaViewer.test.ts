@@ -1,6 +1,6 @@
 import{describe,expect,it}from'vitest';
 import type{GeneratedMedia,VideoGenerationOptions}from'../types';
-import{containedMediaFrame,mediaAspectRatio,resolveAssociatedVideoAction,shouldPollVideoAvailability,shouldRefreshReadyVideo}from'./mediaViewer';
+import{containedMediaFrame,fixedMediaFrameStyle,mediaAspectRatio,resolveAssociatedVideoAction,shouldPollVideoAvailability,shouldRefreshReadyVideo}from'./mediaViewer';
 
 const media=(value:Partial<GeneratedMedia>):GeneratedMedia=>({id:'video-1',user_id:'user-1',continuity_id:'continuity-1',character_instance_id:'character-1',media_type:'video',status:'queued',created_at:new Date(0).toISOString(),updated_at:new Date(0).toISOString(),metadata:{},...value}as GeneratedMedia);
 const options=(value:Partial<VideoGenerationOptions>):VideoGenerationOptions=>({available:true,routes:[],motionPresets:[],creditBalance:1000,...value}as VideoGenerationOptions);
@@ -16,6 +16,10 @@ describe('responsive media viewer',()=>{
   it('uses delivered dimensions before the requested aspect ratio',()=>{
     expect(mediaAspectRatio(media({width:1920,height:1080,source_aspect_ratio:'9:16'}))).toBeCloseTo(16/9);
     expect(mediaAspectRatio(media({width:null,height:null,source_aspect_ratio:'9:16'}))).toBeCloseTo(9/16);
+  });
+  it('resets the inherited zero flex basis so fixed video height cannot collapse',()=>{
+    expect(fixedMediaFrameStyle({width:346.5,height:616})).toEqual({width:346.5,height:616,flexGrow:0,flexShrink:0,flexBasis:'auto'});
+    expect(fixedMediaFrameStyle({width:0,height:0})).toBeUndefined();
   });
 });
 
