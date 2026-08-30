@@ -9,9 +9,9 @@ select col_is_null('public','together_conversation_attachments','storage_path','
 select has_index('public','together_conversation_attachments','together_conversation_attachments_expiry_idx','original expiry cleanup is indexed');
 select has_index('public','together_conversation_attachments','together_conversation_attachments_request_idx','upload preparation retries are idempotent');
 select has_trigger('public','together_conversation_attachments','together_attachment_queue_storage_cleanup','row deletion queues private object cleanup');
-select like(pg_get_functiondef('public.kivelle_claim_chat_user_message(uuid,uuid,uuid,uuid,text,text,jsonb,uuid[],uuid,uuid[])'::regprocedure),'%PHOTO_SHARING_SUBSCRIPTION_REQUIRED%','a forged client send is rejected by the canonical server writer');
-select like(pg_get_functiondef('public.kivelle_claim_chat_user_message(uuid,uuid,uuid,uuid,text,text,jsonb,uuid[],uuid,uuid[])'::regprocedure),'%analysis_status=''ready''%','only safely processed photos can be attached to a message');
-select unlike(pg_get_functiondef('public.kivelle_claim_chat_user_message(uuid,uuid,uuid,uuid,text,text,jsonb,uuid[],uuid,uuid[])'::regprocedure),'%credit%','ordinary photo sharing never reads or changes Kivelle Credits');
+select alike(pg_get_functiondef('public.kivelle_claim_chat_user_message(uuid,uuid,uuid,uuid,text,text,jsonb,uuid[],uuid,uuid[])'::regprocedure),'%PHOTO_SHARING_SUBSCRIPTION_REQUIRED%','a forged client send is rejected by the canonical server writer');
+select ok(position('analysis_status=''ready''' in replace(pg_get_functiondef('public.kivelle_claim_chat_user_message(uuid,uuid,uuid,uuid,text,text,jsonb,uuid[],uuid,uuid[])'::regprocedure),' ',''))>0,'only safely processed photos can be attached to a message');
+select unalike(pg_get_functiondef('public.kivelle_claim_chat_user_message(uuid,uuid,uuid,uuid,text,text,jsonb,uuid[],uuid,uuid[])'::regprocedure),'%credit%','ordinary photo sharing never reads or changes Kivelle Credits');
 
 select * from finish();
 rollback;
