@@ -28,6 +28,7 @@ import { storyLibraryHomeAsset } from '../../src/stories/homeAsset';
 import { useWorldPulse } from '../../src/hooks/useWorldPulse';
 import { scheduleDeferredHomeWork } from '../../src/lib/homeDeferredWork';
 import { uniqueHttpsImageUris } from '../../src/lib/imageWarmup';
+import { subscriptionHref } from '../../src/lib/subscriptionPresentation';
 import { useSurfaceReadyTiming } from '../../src/components/ClientPerformanceBridge';
 
 const router = expoRouter as unknown as { push: (href: string) => void };
@@ -78,7 +79,7 @@ export default function Home() {
     const featuredCompanions=fallbackWorld?featuredCompanionsForWorld(snapshot,fallbackWorld.id):[];
     return <Screen contentStyle={desktop?styles.contentDesktop:styles.content}>
       <View pointerEvents="none" style={styles.ambientGlow}/>
-      {!desktop?<HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name??snapshot.profile?.display_name??'You'} onCredits={()=>router.push('/subscription')} onProfile={()=>router.push('/settings')}/>:null}
+      {!desktop?<HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name??snapshot.profile?.display_name??'You'} onCredits={()=>router.push(subscriptionHref({intent:'credits'}) as never)} onProfile={()=>router.push('/settings')}/>:null}
       <View style={styles.emptyLife}><Text accessibilityRole="header" style={styles.emptyLifeTitle}>Start a conversation</Text><GradientButton label="Explore" onPress={()=>router.push('/(tabs)/explore')}/></View>
       {fallbackWorld?<FeaturedCompanionsSection companions={featuredCompanions} world={fallbackWorld} worlds={publishedWorlds} favoriteIds={snapshot.favoriteCharacterTemplateIds??[]} onOpen={(item)=>router.push(`/character/${item.public_handle??item.slug}`)} onViewAll={()=>{setBrowsedWorldId(fallbackWorld.id);router.push(`/(tabs)/singles?world=${fallbackWorld.slug}`);}} onSelectWorld={setBrowsedWorldId} onToggleFavorite={toggleFavorite}/>:null}
     </Screen>;
@@ -132,7 +133,7 @@ export default function Home() {
   };
   return <Screen contentStyle={desktop ? styles.contentDesktop : styles.content}>
     <View pointerEvents="none" style={styles.ambientGlow} />
-    {!desktop ? <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push('/subscription')} onProfile={() => router.push('/settings')} /> : null}
+    {!desktop ? <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push(subscriptionHref({intent:'credits'}) as never)} onProfile={() => router.push('/settings')} /> : null}
     <View style={[styles.heroPair,width<860&&styles.heroPairStack]}>
       <View style={styles.heroPane}><CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} location={model.currentLocation?.name} world={model.currentWorld?.name} onContinue={() => void openCompanion()} onProfile={() => router.push(`/character/${handle}`)} onVisualReady={heroReady}/></View>
       {discoveryWorlds.length?<View style={styles.heroPane}><HomeWorldDiscoveryHero worlds={discoveryWorlds} onExplore={(world)=>{setBrowsedWorldId(world.id);router.push(`/(tabs)/explore?world=${world.slug}`);}}/></View>:null}
@@ -145,7 +146,7 @@ export default function Home() {
     {secondaryWorkReady?<>
       {selectedWorld&&worldPulse?.worldId===selectedWorld.id?<AroundTownSection worldName={selectedWorld.name} items={worldPulse.items} onOpen={(item)=>{if(item.locationSlug)return router.push(`/location/${item.locationSlug}?world=${selectedWorld.slug}`);router.push(`/(tabs)/explore?world=${selectedWorld.slug}`);}}/>:null}
       {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions} world={selectedWorld} worlds={publishedWorlds} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onViewAll={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/singles?world=${selectedWorld.slug}`); }} onSelectWorld={setBrowsedWorldId} onToggleFavorite={toggleFavorite} /> : null}
-      <FromCompanionSection name={template.name} items={media} fallbackSource={portraitSource} onViewAll={() => router.push('/(tabs)/moments')} onOpen={(item) => router.push(item.locked ? '/subscription' : `/media/${item.id}`)} onAsk={() => router.push(`/(tabs)/chat-tab?character=${encodeURIComponent(handle)}&draft=${encodeURIComponent('Send me a photo from where you are.')}`)} />
+      <FromCompanionSection name={template.name} items={media} fallbackSource={portraitSource} onViewAll={() => router.push('/(tabs)/moments')} onOpen={(item) => router.push(item.locked ? subscriptionHref({intent:'generated_media'}) as never : `/media/${item.id}`)} onAsk={() => router.push(`/(tabs)/chat-tab?character=${encodeURIComponent(handle)}&draft=${encodeURIComponent('Send me a photo from where you are.')}`)} />
       <HomeWorldSection wide={wideCards} upcoming={{ eyebrow: model.upcoming.eyebrow, title: model.upcoming.title, meta: model.upcoming.meta }} relationship={{ eyebrow: `YOU + ${template.name.toUpperCase()}`, title: relationship.headline, meta: relationship.detail }} hook={getWorldHook(model)} memory={memory} upcomingSource={upcomingSource} relationshipSource={portraitSource} onUpcoming={() => void runAction(model.upcoming.action)} onRelationship={() => router.push(`/character/${handle}`)} />
       <HomeTimeline title={timelineTitle} items={model.timeline} onViewWorld={() => router.push('/(tabs)/explore')} onOpen={openTimelineItem} />
       {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Text onPress={() => router.push('/(tabs)/moments')} style={styles.sectionAction}>View all →</Text></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} preserveImageDetails onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}

@@ -10,12 +10,12 @@ import type { RealtimeVoiceConfiguration } from './realtimeVoice';
 import type { StoryAction, StoryActionResponse, StoryCampaign, StoryLibrary } from '../stories/types';
 import { withIdempotentRetry } from './requestRetry';
 
-export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false) { super(message); } }
+export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false,readonly correlationId?:string) { super(message); } }
 type Envelope<T> = { data: T; correlationId: string };
 function deviceTimezone():string{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';}catch{return'UTC';}}
 
 type ClientPerformanceEvent={surface:string;operation:string;durationMs:number;success:boolean;statusCode?:number;platform:string;appVersion:string;buildId:string;metadata:Record<string,string|number|boolean|null>};
-const performanceSurfaces=new Set(['together-bootstrap','together-group','together-conversation','together-media','together-dialogue','together-group-dialogue','together-plan','together-interaction','together-memory','together-stories','together-story-dialogue','together-world-pulse']);
+const performanceSurfaces=new Set(['together-bootstrap','together-group','together-conversation','together-media','together-dialogue','together-group-dialogue','together-plan','together-interaction','together-memory','together-stories','together-story-dialogue','together-subscription','together-world-pulse']);
 const performanceQueue:ClientPerformanceEvent[]=[];let performanceFlushTimer:ReturnType<typeof setTimeout>|null=null,performanceFlushRunning=false;
 export function queueClientPerformance(input:Omit<ClientPerformanceEvent,'platform'|'appVersion'|'buildId'>){
   if(process.env.EXPO_PUBLIC_KIVELLE_PERFORMANCE_REPORTING_ENABLED==='false')return;
@@ -37,8 +37,8 @@ export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POS
   const started=Date.now(),surface=name.split('?')[0]!,operation=typeof body==='object'&&body&&'action'in body?String((body as Record<string,unknown>).action):method.toLowerCase();let response:Response|undefined;
   try{
     response = await fetch(`${supabaseUrl}/functions/v1/${name}`, { method, headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json','x-kivelle-timezone':deviceTimezone() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-    const payload = await response.json().catch(() => ({})) as Envelope<T> & { error?: {message?:string;code?:string;retryable?:boolean} };
-    if (!response.ok) throw new ApiError(payload.error?.message ?? 'Something went wrong.', payload.error?.code, payload.error?.retryable ?? (response.status === 408 || response.status === 429 || response.status >= 500));
+    const payload = await response.json().catch(() => ({})) as Envelope<T> & { error?: {message?:string;code?:string;retryable?:boolean;correlationId?:string} };
+    if (!response.ok) throw new ApiError(payload.error?.message ?? 'Something went wrong.', payload.error?.code, payload.error?.retryable ?? (response.status === 408 || response.status === 429 || response.status >= 500),payload.error?.correlationId??payload.correlationId);
     return payload.data;
   }finally{
     if(performanceSurfaces.has(surface))queueClientPerformance({surface,operation,durationMs:Date.now()-started,success:Boolean(response?.ok),...(response?{statusCode:response.status}:{}),metadata:{method}});

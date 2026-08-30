@@ -148,6 +148,7 @@ import { latestConversationHeaderImage } from "../src/lib/chatHeaderMedia";
 import { newGroupPrefillHref } from "../src/lib/groupInvite";
 import { canContinueMessage, isMessageFavorite, isVisibleChatMessage } from "../src/lib/messageActions";
 import { handlePhotoSharingTap } from "../src/lib/photoSharing";
+import { subscriptionHref } from "../src/lib/subscriptionPresentation";
 import { supabase } from "../src/lib/supabase";
 import {
   hideVoiceNoteConfirmation,
@@ -194,6 +195,7 @@ export default function GroupChatScreen() {
       location?: string;
       activity?: string;
       switchPlanId?: string;
+      sharePhoto?: string;
     }>(),
     { width } = useWindowDimensions(),
     snapshot = useTogether((state) => state.snapshot),
@@ -251,6 +253,9 @@ export default function GroupChatScreen() {
     ? detailState
     : cachedRouteDetail?.detail ?? null;
   const photoSharingEntitled=snapshot?.entitlements?.entitlement_keys?.includes("photo_sharing")===true;
+  const subscriptionReturnTo=params.id?`/group-chat?id=${encodeURIComponent(params.id)}`:"/messages";
+  const creditsSubscriptionHref=subscriptionHref({intent:"credits",returnTo:subscriptionReturnTo});
+  const photoSharingSubscriptionHref=subscriptionHref({intent:"photo_sharing",returnTo:`${subscriptionReturnTo}${subscriptionReturnTo.includes("?")?"&":"?"}sharePhoto=1`});
   const clearStoredDraft=usePersistentMessageDraft({userId:session?.user.id,conversationId:params.id,kind:"group",value:input,setValue:setInput});
   const abortRef = useRef<AbortController | null>(null),
     lastSendRef = useRef<{ text: string; startedAt: number } | null>(null),
@@ -274,10 +279,20 @@ export default function GroupChatScreen() {
     initialBottomPinConversation = useRef<string | null>(null),
     initialBottomPinReleaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedGroupRef = useRef<string | null>(null);
+  const resumedSharePhoto=useRef<string|null>(null);
   const unreadWindow=useRef<{conversationId:string|null;lastReadAt:string|null;openedAt:string}>({conversationId:null,lastReadAt:null,openedAt:new Date().toISOString()});
   const planLaunchHandledRef = useRef<string | null>(null);
   useEffect(()=>{detailRef.current=detail;},[detail]);
   useEffect(()=>{pendingImageRef.current=pendingImage;},[pendingImage]);
+  useEffect(()=>{
+    if(params.sharePhoto!=="1"||!params.id||resumedSharePhoto.current===params.id)return;
+    resumedSharePhoto.current=params.id;
+    void refresh().then(()=>{
+      const entitled=useTogether.getState().snapshot?.entitlements?.entitlement_keys?.includes("photo_sharing")===true;
+      if(entitled)setShowPhotoMenu(true);else setShowPhotoPaywall(true);
+      router.setParams({sharePhoto:undefined});
+    });
+  },[params.id,params.sharePhoto,refresh]);
   if(params.id&&unreadWindow.current.conversationId!==params.id){
     const source=snapshot?.conversations.find((conversation)=>conversation.id===params.id)??detail?.conversation;
     unreadWindow.current={conversationId:params.id,lastReadAt:source?.last_read_at??null,openedAt:new Date().toISOString()};
@@ -1766,7 +1781,7 @@ export default function GroupChatScreen() {
             busy={mediaOfferBusy === offer.id}
             onAccept={(paymentMethod) => void acceptMediaOffer(offer,paymentMethod)}
             onDecline={() => void declineMediaOffer(offer)}
-            onBuyCredits={() => router.push("/subscription")}
+            onBuyCredits={() => router.push(creditsSubscriptionHref as never)}
             readyContentFit="contain"
           />
         ))}
@@ -2061,7 +2076,7 @@ export default function GroupChatScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-      <PhotoSharingPaywallModal visible={showPhotoPaywall} onClose={()=>setShowPhotoPaywall(false)} onUpgrade={()=>{setShowPhotoPaywall(false);router.push("/subscription?source=share-photo" as never);}}/>
+      <PhotoSharingPaywallModal visible={showPhotoPaywall} onClose={()=>setShowPhotoPaywall(false)} onUpgrade={()=>{setShowPhotoPaywall(false);router.push(photoSharingSubscriptionHref as never);}}/>
       <GroupDetailsModal
         visible={showDetails}
         detail={detail}
@@ -3073,7 +3088,7 @@ function GroupBubble({
               busy={offerBusy}
                 onAccept={(paymentMethod) => onOfferAccept(offer,paymentMethod)}
               onDecline={() => onOfferDecline(offer)}
-              onBuyCredits={() => router.push("/subscription")}
+              onBuyCredits={() => router.push(subscriptionHref({intent:"credits"}) as never)}
               readyContentFit="contain"
               onRetry={media.find((item) =>
                   item.id === offer.generated_media_id
@@ -3166,7 +3181,7 @@ function GroupVoiceNote({
   };
   const listen = async () => {
     if (!enabled) {
-      router.push("/subscription");
+      router.push(subscriptionHref({intent:"voice"}) as never);
       return;
     }
     if (source && media) {
@@ -3242,7 +3257,7 @@ function GroupVoiceNote({
         onConfirm={(hide) => void generate(hide)}
         onBuyCredits={() => {
           setQuote(null);
-          router.push("/subscription");
+          router.push(subscriptionHref({intent:"credits"}) as never);
         }}
       />
     </>

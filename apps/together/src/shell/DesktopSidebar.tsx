@@ -24,6 +24,7 @@ import { isActiveInboxConversation, MESSAGES_INBOX_ROUTE, mostRecentChatHref, re
 import { useTogether } from '../store/useTogether';
 import { colors, typography } from '../theme';
 import { markRouteIntent, warmRoute } from '../lib/routeWarmup';
+import { subscriptionHref } from '../lib/subscriptionPresentation';
 
 type Props = { expanded: boolean; onHoverChange: (hovered: boolean) => void };
 type NavItem = { key: DesktopNavigationKey; label: string; href: string; icon: (color: string) => ReactNode; count?: number; onPress?: () => void };
@@ -134,7 +135,7 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
       </ScrollView>
 
       <View style={styles.footer}>
-        <SidebarAction expanded={expanded} label={subscription ? `${subscription.creditBalance.total.toLocaleString()} Credits` : 'Kivelle Credits'} icon={<KivelleCreditIcon size={24} />} onPress={() => navigate('/subscription')} />
+        <SidebarAction expanded={expanded} label={subscription ? `${subscription.creditBalance.total.toLocaleString()} Credits` : 'Kivelle Credits'} icon={<KivelleCreditIcon size={24} />} onPress={() => navigate(subscriptionHref({intent:'credits'}))} />
         <SidebarAction expanded={expanded} label="Notifications" icon={<Bell size={23} color={colors.muted} />} onPress={() => navigate('/notifications')} />
         <Pressable accessibilityLabel="Open Settings" onPress={() => navigate('/settings')} style={({ pressed }) => [styles.account, !expanded && styles.accountCollapsed, activeKey === 'settings' && styles.accountActive, pressed && styles.rowPressed]}>
           <View style={styles.initial}>{showProfileAvatar ? <Image source={{ uri: profileAvatarUrl!, cacheKey: `kivelle-persona-avatar:${personaAvatarPath}` }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" onError={() => setProfileAvatarFailed(true)} /> : <Text style={styles.initialText}>{personaName.trim()[0]?.toUpperCase() || 'Y'}</Text>}</View>

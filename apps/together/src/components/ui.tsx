@@ -43,7 +43,7 @@ export function BottomNavigation({children}:PropsWithChildren){return <View styl
 export function EmptyState({title,body,action,onAction}:{title:string;body:string;action?:string;onAction?:()=>void}){return <View style={styles.state}><Text style={styles.sectionTitle}>{title}</Text><Text style={[styles.body,{textAlign:'center'}]}>{body}</Text>{action?<GradientButton label={action} onPress={onAction}/>:null}</View>;}
 export function LoadingSkeleton({label='Loading your world…'}:{label?:string}){return <View style={styles.state}><ActivityIndicator color={colors.rose} size="large"/><Text style={styles.rowMeta}>{label}</Text></View>;}
 export function ErrorState({message,onRetry}:{message:string;onRetry?:()=>void}){return <View style={styles.state}><Text style={styles.sectionTitle}>Something shifted</Text><Text style={[styles.body,{textAlign:'center'}]}>{message}</Text>{onRetry?<GradientButton label="Try again" onPress={onRetry}/>:null}</View>;}
-export const PageTitle=({children}:{children:ReactNode})=><Text style={styles.pageTitle}>{children}</Text>;
+export const PageTitle=({children}:{children:ReactNode})=><Text accessibilityRole="header" style={styles.pageTitle}>{children}</Text>;
 export const Body=({children,muted=false}:{children:ReactNode;muted?:boolean})=><Text style={[styles.body,muted&&{color:colors.muted}]}>{children}</Text>;
 
 function title(value:string){return value ? value[0]!.toUpperCase()+value.slice(1) : value;}

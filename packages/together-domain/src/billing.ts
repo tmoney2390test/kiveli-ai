@@ -6,6 +6,19 @@ export const billingIntervals=['monthly','annual'] as const;
 export type BillingInterval=typeof billingIntervals[number];
 export const subscriptionStatuses=['trialing','active','past_due','unpaid','paused','canceled','incomplete','incomplete_expired'] as const;
 export type NormalizedSubscriptionStatus=typeof subscriptionStatuses[number];
+export const billingManagementModes=['none','stripe','app_store','configured','kivelle'] as const;
+export type BillingManagementMode=typeof billingManagementModes[number];
+export type BillingManageAction='none'|'portal'|'app_store';
+export type BillingManagementCapabilities={
+  mode:BillingManagementMode;
+  label:string;
+  canManageSubscription:boolean;
+  manageAction:BillingManageAction;
+  canPurchaseCredits:boolean;
+  managementReason:string;
+  creditPurchaseReason:string|null;
+};
+export type CheckoutConfirmationOutcome={outcome:'pending'|'succeeded'|'failed';retryable?:boolean;failureReason?:string;purchase?:{kind:'subscription'}|{kind:'credits';creditsAdded:number}};
 
 export type BillingSubscriptionCandidate={
   provider:BillingProvider;
@@ -38,6 +51,53 @@ export function normalizeSubscriptionStatus(value:unknown):NormalizedSubscriptio
 export function billingTierRank(value:unknown):number{
   const tier=normalizeSubscriptionTier(value);
   return tier==='kivelle_max'?2:tier==='kivelle_plus'?1:0;
+}
+
+/**
+ * Converts provider state and server configuration into account-specific UI
+ * capabilities. Clients should never infer management actions from a paid tier
+ * or from globally configured Stripe keys alone.
+ */
+export function billingManagementCapabilities(input:{
+  tier:unknown;
+  provider?:unknown;
+  status?:unknown;
+  subscriptionId?:unknown;
+  managedByKivelle?:boolean;
+  stripePortalConfigured?:boolean;
+  configuredPortalConfigured?:boolean;
+  creditCheckoutConfigured?:boolean;
+}):BillingManagementCapabilities{
+  const tier=normalizeSubscriptionTier(input.tier),paid=tier!=='free',provider=typeof input.provider==='string'?input.provider:null,status=normalizeSubscriptionStatus(input.status);
+  if(!paid)return{mode:'none',label:'Kivelle Free',canManageSubscription:false,manageAction:'none',canPurchaseCredits:false,managementReason:'There is no paid subscription to manage.',creditPurchaseReason:'Credit packs are available with an active Kivelle+ or Kivelle Max plan.'};
+  const mode:BillingManagementMode=input.managedByKivelle?'kivelle':provider==='stripe'?'stripe':provider==='revenuecat'?'app_store':provider==='configured'?'configured':'kivelle';
+  const hasSubscription=typeof input.subscriptionId==='string'&&input.subscriptionId.length>0;
+  const canManageSubscription=mode==='app_store'||mode==='stripe'&&hasSubscription&&input.stripePortalConfigured===true||mode==='configured'&&input.configuredPortalConfigured===true;
+  const manageAction:BillingManageAction=mode==='app_store'?'app_store':canManageSubscription?'portal':'none';
+  const active=status==='active';
+  const canPurchaseCredits=active&&mode!=='app_store'&&input.creditCheckoutConfigured===true;
+  const managementReason=mode==='kivelle'
+    ?'Your access is provided directly by Kivelle and does not require billing management.'
+    :mode==='app_store'
+      ?'This subscription is managed by the app store where it was purchased.'
+      :canManageSubscription
+        ?`This subscription is managed through ${mode==='stripe'?'Stripe':'your billing provider'}.`
+        :'Subscription management is temporarily unavailable. Contact Kivelle Support if you need help.';
+  const creditPurchaseReason=canPurchaseCredits?null:mode==='app_store'
+    ?'Additional purchases for this subscription are managed through its app store.'
+    :!active
+      ?'Credit packs become available when the subscription is active.'
+      :'Credit packs are not available for this account right now.';
+  return{mode,label:mode==='stripe'?'Stripe':mode==='app_store'?'App Store':mode==='configured'?'Billing provider':'Kivelle',canManageSubscription,manageAction,canPurchaseCredits,managementReason,creditPurchaseReason};
+}
+
+export function checkoutConfirmationOutcome(events:readonly{status:unknown;eventType:unknown}[],creditsAdded?:unknown):CheckoutConfirmationOutcome{
+  if(events.some((event)=>event.status==='processed')){
+    const credits=Number(creditsAdded);
+    return Number.isFinite(credits)&&credits>0?{outcome:'succeeded',purchase:{kind:'credits',creditsAdded:credits}}:{outcome:'succeeded',purchase:{kind:'subscription'}};
+  }
+  if(events.some((event)=>event.eventType==='checkout.session.async_payment_failed'))return{outcome:'failed',failureReason:'The payment was not completed. No Kivelle access or credits were applied.'};
+  return{outcome:'pending',retryable:true};
 }
 
 /** One internal entitlement even if Stripe web and RevenueCat native overlap. */

@@ -9,6 +9,7 @@ import { colors, radius, spacing } from '../theme';
 import type { VideoDurationSeconds, VideoGenerationOptions, VideoMotionPreset, VideoRouteOption } from '../types';
 import { FrostedBackdrop, FrostedSurface } from './FrostedGlass';
 import { KivelleCreditIcon } from './KivelleCreditIcon';
+import { subscriptionHref } from '../lib/subscriptionPresentation';
 
 type Props={
   visible:boolean;
@@ -51,7 +52,7 @@ export function VideoGenerationSheet({visible,sourceMediaId,sourceUrl,requestId,
             {route?<><Text style={styles.sectionTitle}>Duration</Text><Text style={styles.durationHint}>{videoDurationRangeLabel(route)} available · longer clips use proportionally more credits</Text><View accessibilityRole="radiogroup" style={styles.durationList}>{route.allowedDurations.map((duration)=><Pressable key={duration} accessibilityRole="radio" accessibilityState={{selected:durationSeconds===duration}} accessibilityLabel={`${duration} seconds, ${videoCreditCost(route,duration)} credits`} onPress={()=>setDurationSeconds(duration)} style={[styles.duration,durationSeconds===duration&&styles.durationSelected]}><Text style={[styles.durationText,durationSeconds===duration&&styles.durationTextSelected]}>{duration} sec · {videoCreditCost(route,duration)}</Text></Pressable>)}</View><OutputDetails route={route} aspectRatio={options.sourceAspectRatio} durationSeconds={durationSeconds}/></>:null}
             <View style={styles.balanceRow}><View><Text style={styles.priceLabel}>{options.testingPriceLabel??'Price'}</Text><View style={styles.price}><KivelleCreditIcon size={22}/><Text style={styles.priceValue}>{creditCost} credits</Text></View></View><View style={styles.balanceCopy}><Text style={styles.priceLabel}>Current balance</Text><Text style={[styles.balance,insufficient&&styles.danger]}>{balance.toLocaleString()}</Text></View></View>
             {blocked?<ErrorCopy message="Finish your active video before starting another."/>:null}
-            {insufficient?<View style={styles.insufficient}><Text style={styles.dangerText}>You need {Math.max(0,creditCost-balance)} more credits.</Text><Pressable accessibilityRole="link" onPress={()=>{onCancel();router.push('/subscription');}}><Text style={styles.buy}>Get credits</Text></Pressable></View>:null}
+            {insufficient?<View style={styles.insufficient}><Text style={styles.dangerText}>You need {Math.max(0,creditCost-balance)} more credits.</Text><Pressable accessibilityRole="link" onPress={()=>{onCancel();router.push(subscriptionHref({intent:'credits'}) as never);}}><Text style={styles.buy}>Get credits</Text></Pressable></View>:null}
             {error?<ErrorCopy message={error}/>:null}
           </>:null}
         </ScrollView>

@@ -1,5 +1,5 @@
 import{describe,expect,it}from'vitest';
-import{creditReversalTarget,normalizeSubscriptionStatus,selectEffectiveBillingSubscription,subscriptionGrantPeriodKey,subscriptionHasApplicationAccess}from'../src/billing';
+import{billingManagementCapabilities,checkoutConfirmationOutcome,creditReversalTarget,normalizeSubscriptionStatus,selectEffectiveBillingSubscription,subscriptionGrantPeriodKey,subscriptionHasApplicationAccess}from'../src/billing';
 
 describe('Kivelle billing rules',()=>{
   const now=new Date('2026-08-28T12:00:00Z');
@@ -25,4 +25,18 @@ describe('Kivelle billing rules',()=>{
     expect(creditReversalTarget({grantedCredits:300,amountPaid:1199,amountReversed:1,disputed:true})).toBe(300);
   });
   it('normalizes unknown provider statuses safely',()=>expect(normalizeSubscriptionStatus('mystery')).toBe('incomplete'));
+  it('only offers Stripe management for a real Stripe subscription',()=>{
+    expect(billingManagementCapabilities({tier:'kivelle_plus',provider:'stripe',status:'active',subscriptionId:'sub_123',stripePortalConfigured:true,creditCheckoutConfigured:true})).toMatchObject({mode:'stripe',manageAction:'portal',canManageSubscription:true,canPurchaseCredits:true});
+    expect(billingManagementCapabilities({tier:'kivelle_max',provider:'configured',status:'active',managedByKivelle:true,stripePortalConfigured:true})).toMatchObject({mode:'kivelle',manageAction:'none',canManageSubscription:false});
+  });
+  it('routes store subscriptions back to their store and explains unavailable credit packs',()=>{
+    expect(billingManagementCapabilities({tier:'kivelle_plus',provider:'revenuecat',status:'active',creditCheckoutConfigured:true})).toMatchObject({mode:'app_store',manageAction:'app_store',canManageSubscription:true,canPurchaseCredits:false});
+    expect(billingManagementCapabilities({tier:'free',provider:null,status:null})).toMatchObject({mode:'none',canManageSubscription:false,canPurchaseCredits:false});
+  });
+  it('normalizes webhook-backed checkout confirmation without trusting return parameters',()=>{
+    expect(checkoutConfirmationOutcome([])).toEqual({outcome:'pending',retryable:true});
+    expect(checkoutConfirmationOutcome([{status:'ignored',eventType:'checkout.session.async_payment_failed'}]).outcome).toBe('failed');
+    expect(checkoutConfirmationOutcome([{status:'processed',eventType:'checkout.session.completed'}],300)).toEqual({outcome:'succeeded',purchase:{kind:'credits',creditsAdded:300}});
+    expect(checkoutConfirmationOutcome([{status:'processed',eventType:'checkout.session.completed'}])).toEqual({outcome:'succeeded',purchase:{kind:'subscription'}});
+  });
 });

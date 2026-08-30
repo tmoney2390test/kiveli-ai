@@ -17,6 +17,7 @@ import { parseGroupPrefillParticipants } from "../src/lib/groupInvite";
 import { useTogether } from "../src/store/useTogether";
 import { colors, radius, spacing, typography } from "../src/theme";
 import type { GroupDetail } from "../src/types";
+import { subscriptionHref } from "../src/lib/subscriptionPresentation";
 
 export default function NewGroupScreen() {
   const params = useLocalSearchParams<{ participants?: string | string[]; world?: string | string[] }>(),
@@ -136,7 +137,7 @@ export default function NewGroupScreen() {
                 Kivelle+ or Max.
               </Text>
               <Pressable
-                onPress={() => router.push("/subscription")}
+                onPress={() => router.push(subscriptionHref({intent:"group_chat",returnTo:"/new-group"}) as never)}
                 style={styles.primary}
               >
                 <Text style={styles.primaryText}>See subscriptions</Text>

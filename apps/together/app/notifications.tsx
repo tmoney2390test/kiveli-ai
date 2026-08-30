@@ -8,6 +8,7 @@ import { colors, radius } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
 import { invoke } from '../src/lib/api';
 import { deactivatePushNotifications, registerPushNotifications } from '../src/lib/pushNotifications';
+import { subscriptionHref } from '../src/lib/subscriptionPresentation';
 
 const times=[{value:'21:00',label:'9 PM'},{value:'22:00',label:'10 PM'},{value:'23:00',label:'11 PM'},{value:'00:00',label:'Midnight'},{value:'07:00',label:'7 AM'},{value:'08:00',label:'8 AM'},{value:'09:00',label:'9 AM'}];
 const initiativeCopy:Record<InitiativeLevel,string>={off:'Only messages you start.',occasional:'A light check-in now and then.',natural:'Believable updates around their life.',frequent:'More openings and follow-ups.'};
@@ -33,7 +34,7 @@ export default function Notifications(){
     <Toggle icon={<Bell color={colors.rose}/>} title="Device notifications" body="Show Kivelle messages outside the app." value={push} set={setPush}/>
 
     <Section title="Companion initiative" icon={<Sparkles size={17} color={colors.violet}/> }>
-      {!initiativeEntitled?<Pressable onPress={()=>router.push('/subscription' as never)} style={styles.locked}><LockKeyhole size={18} color={colors.violet}/><View style={{flex:1}}><Text style={styles.lockedTitle}>Kivelle+ feature</Text><Text style={styles.body}>Companions remember their lives on every plan. Upgrade to let them naturally start conversations.</Text></View></Pressable>:null}
+      {!initiativeEntitled?<Pressable onPress={()=>router.push(subscriptionHref({intent:'initiative',returnTo:'/notifications'}) as never)} style={styles.locked}><LockKeyhole size={18} color={colors.violet}/><View style={{flex:1}}><Text style={styles.lockedTitle}>Kivelle+ feature</Text><Text style={styles.body}>Companions remember their lives on every plan. Upgrade to let them naturally start conversations.</Text></View></Pressable>:null}
       <LevelChoices value={initiative} disabled={!initiativeEntitled} includeDefault={false} onChange={(value)=>value!=='default'&&setInitiative(value)}/>
       <Text style={styles.hint}>{initiativeCopy[initiative]} Plan reminders are controlled separately.</Text>
     </Section>

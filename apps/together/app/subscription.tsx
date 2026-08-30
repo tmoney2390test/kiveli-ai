@@ -1,385 +1,216 @@
-import { useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { AccessibilityInfo, AppState, Linking, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import * as Crypto from 'expo-crypto';
+import * as WebBrowser from 'expo-web-browser';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Check, ChevronDown, ChevronRight, CreditCard } from 'lucide-react-native';
+import { useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Check, ChevronDown, ChevronRight, CircleAlert, CreditCard, ExternalLink, Gift, History, RefreshCw, ShieldCheck } from 'lucide-react-native';
 import { GradientButton, KivelleCreditIcon, LoadingSkeleton, PageTitle, Screen } from '../src/components';
-import { manageSubscription } from '../src/lib/api';
-import { intelligenceLabel, type BillingInterval,type CreditPack,type SubscriptionPlan, type SubscriptionStatus, type SubscriptionTier } from '../src/lib/subscription';
+import { subscriptionStatusQueryKey, useSubscriptionStatus } from '../src/hooks/useSubscriptionStatus';
+import { ApiError, manageSubscription } from '../src/lib/api';
+import { intelligenceLabel, type BillingInterval, type CheckoutConfirmation, type CreditActivityEvent, type CreditPack, type SubscriptionPlan, type SubscriptionStatus, type SubscriptionTier } from '../src/lib/subscription';
+import { annualSavingsPercentage, billingStatusPresentation, checkoutBackoffDelay, creditActivityPresentation, managementActionLabel, normalizeSubscriptionIntent, safeSubscriptionReturnTo, subscriptionIntentPresentation } from '../src/lib/subscriptionPresentation';
 import { colors, radius, spacing } from '../src/theme';
 
-const tierRank: Record<SubscriptionTier, number> = { free: 0, kivelle_plus: 1, kivelle_max: 2 };
+const tierRank:Record<SubscriptionTier,number>={free:0,kivelle_plus:1,kivelle_max:2};
+type Notice={tone:'neutral'|'success'|'warning'|'danger';title:string;body:string;retry?:boolean};
 
-export default function Subscription() {
-  const params=useLocalSearchParams<{checkout?:string;purchase?:string;session_id?:string}>();
-  const [state, setState] = useState<SubscriptionStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState('');
-  const [error, setError] = useState('');
-  const [compareOpen, setCompareOpen] = useState(false);
-  const [billingInterval,setBillingInterval]=useState<BillingInterval>('annual');
-  const [selectedTier,setSelectedTier]=useState<Exclude<SubscriptionTier,'free'>>('kivelle_plus');
-  const [selectedCreditPack,setSelectedCreditPack]=useState<CreditPack['key']|''>('');
-  const [confirming,setConfirming]=useState(false);
-  const [confirmationDelayed,setConfirmationDelayed]=useState(false);
+export default function Subscription(){
+  const params=useLocalSearchParams<{checkout?:string;purchase?:string;session_id?:string;billing?:string;intent?:string;source?:string;returnTo?:string;tier?:string}>();
+  const queryClient=useQueryClient(),query=useSubscriptionStatus(),state=query.data??null;
+  const{width}=useWindowDimensions(),compact=width<700;
+  const intent=normalizeSubscriptionIntent(params.intent,params.source),intro=subscriptionIntentPresentation(intent),returnTo=safeSubscriptionReturnTo(params.returnTo);
+  const[selectedTier,setSelectedTier]=useState<Exclude<SubscriptionTier,'free'>>('kivelle_plus');
+  const[billingInterval,setBillingInterval]=useState<BillingInterval>('annual');
+  const[selectedCreditPack,setSelectedCreditPack]=useState<CreditPack['key']|''>('');
+  const[compareOpen,setCompareOpen]=useState(false),[busy,setBusy]=useState(''),[notice,setNotice]=useState<Notice|null>(null),[confirmationRetry,setConfirmationRetry]=useState(0);
 
-  const load = async () => {
-    setLoading(true);
-    setError('');
-    try { setState(await manageSubscription<SubscriptionStatus>()); }
-    catch (caught) { setError(caught instanceof Error ? caught.message : 'Subscription details could not be loaded.'); }
-    finally { setLoading(false); }
-  };
+  const refresh=useCallback(async()=>{const result=await query.refetch();if(result.error)setNotice({tone:'danger',title:'Could not refresh billing',body:result.error instanceof Error?result.error.message:'Try again in a moment.',retry:true});},[query.refetch]);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(()=>{
+    if(params.tier==='kivelle_max'||params.tier==='kivelle_plus'){setSelectedTier(params.tier);return;}
+    if(intent==='photo_sharing'||state?.tier==='free')setSelectedTier('kivelle_plus');
+    else if(state?.tier==='kivelle_max')setSelectedTier('kivelle_max');
+    else if(state?.tier==='kivelle_plus')setSelectedTier('kivelle_plus');
+  },[intent,params.tier,state?.tier]);
+
+  useEffect(()=>{
+    const packs=(state?.creditPacks??[]).filter((pack)=>pack.active&&pack.checkoutConfigured),preferred=packs.find((pack)=>pack.popular)??packs[0];
+    if(preferred&&!packs.some((pack)=>pack.key===selectedCreditPack))setSelectedCreditPack(preferred.key);
+  },[selectedCreditPack,state?.creditPacks]);
+
+  useEffect(()=>{
+    if(params.checkout==='cancelled'){
+      setNotice({tone:'neutral',title:'Checkout cancelled',body:'Nothing was charged. Your current plan and Credits are unchanged.'});
+      router.setParams({checkout:undefined,purchase:undefined,session_id:undefined});
+      return;
+    }
+    if(params.billing==='returned'){
+      setNotice({tone:'neutral',title:'Syncing billing changes',body:'Refreshing your plan and renewal details…'});
+      void query.refetch().then(()=>setNotice({tone:'success',title:'Billing details refreshed',body:'Your current plan information is up to date.'})).catch(()=>setNotice({tone:'warning',title:'Changes are still syncing',body:'Your billing provider may need another moment. Tap to refresh.',retry:true}));
+      router.setParams({billing:undefined});
+    }
+  },[params.billing,params.checkout,query.refetch]);
+
   useEffect(()=>{
     if(params.checkout!=='success')return;
-    let cancelled=false,attempt=0;
-    setConfirming(true);
-    setConfirmationDelayed(false);
-    const poll=async()=>{
-      if(cancelled)return;
-      attempt+=1;
+    const sessionId=params.session_id;
+    if(!sessionId){setNotice({tone:'warning',title:'Purchase is still syncing',body:'We could not verify the checkout automatically. Refresh your billing status before trying again.',retry:true});return;}
+    let disposed=false,timer:ReturnType<typeof setTimeout>|undefined,attempt=0;
+    setNotice({tone:'neutral',title:'Confirming your purchase',body:'Your plan or Credits will appear after Kivelle receives the signed billing confirmation.'});
+    const verify=async()=>{
+      if(disposed)return;
       try{
-        const confirmation=params.session_id?await manageSubscription<{confirmed:boolean}>({action:'checkout_confirmation',sessionId:params.session_id}):{confirmed:false};
-        const next=await manageSubscription<SubscriptionStatus>();if(!cancelled)setState(next);
-        if(confirmation.confirmed){setConfirming(false);router.setParams({checkout:undefined,purchase:undefined,session_id:undefined});return;}
-      }catch{/* Keep the existing summary visible while Stripe/webhooks settle. */}
-      if(cancelled)return;
-      if(attempt<14)setTimeout(()=>void poll(),1500);else{setConfirming(false);setConfirmationDelayed(true);router.setParams({checkout:undefined,purchase:undefined,session_id:undefined});}
+        const confirmation=await manageSubscription<CheckoutConfirmation>({action:'checkout_confirmation',sessionId});
+        if(disposed)return;
+        queryClient.setQueryData(subscriptionStatusQueryKey,confirmation.state);
+        if(confirmation.outcome==='succeeded'){
+          const title=confirmation.purchase?.kind==='credits'?`${confirmation.purchase.creditsAdded.toLocaleString()} Credits added`:`${confirmation.state.capabilities.displayName} is active`;
+          setNotice({tone:'success',title,body:returnTo?'Everything is ready. Continue where you left off.':'Your purchase is confirmed and ready to use.'});
+          AccessibilityInfo.announceForAccessibility(`${title}. Your purchase is confirmed.`);
+          router.setParams({checkout:undefined,purchase:undefined,session_id:undefined});
+          return;
+        }
+        if(confirmation.outcome==='failed'){
+          setNotice({tone:'danger',title:'Payment was not completed',body:confirmation.failureReason??'No plan access or Credits were applied.'});
+          router.setParams({checkout:undefined,purchase:undefined,session_id:undefined});
+          return;
+        }
+      }catch{/* Keep the current account summary visible while the webhook catches up. */}
+      attempt+=1;
+      if(attempt<8)timer=setTimeout(()=>void verify(),checkoutBackoffDelay(attempt));
+      else setNotice({tone:'warning',title:'Confirmation is taking longer',body:'Your payment may still be processing. Refresh safely—retries cannot create another purchase.',retry:true});
     };
-    void poll();
-    return()=>{cancelled=true;};
-  },[params.checkout,params.purchase,params.session_id]);
-  useEffect(()=>{if(state?.tier==='kivelle_max')setSelectedTier('kivelle_max');},[state?.tier]);
-  useEffect(()=>{const packs=(state?.creditPacks??[]).filter((pack)=>pack.active);const defaultPack=packs.find((pack)=>pack.popular)??packs[0];if(!defaultPack)return;if(!packs.some((pack)=>pack.key===selectedCreditPack))setSelectedCreditPack(defaultPack.key);},[selectedCreditPack,state?.creditPacks]);
+    timer=setTimeout(()=>void verify(),checkoutBackoffDelay(0));
+    return()=>{disposed=true;if(timer)clearTimeout(timer);};
+  },[confirmationRetry,params.checkout,params.purchase,params.session_id,queryClient,returnTo]);
 
-  if (loading && !state) return <LoadingSkeleton label="Loading Kivelle plans…" />;
-  if (!state) return <Screen><View style={styles.header}><Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/settings')} style={styles.back}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Plan & Credits</PageTitle></View><View style={styles.errorCard}><Text style={styles.error}>{error || 'Subscription details are unavailable.'}</Text><GradientButton label="Try again" onPress={() => void load()} /></View></Screen>;
+  useEffect(()=>{
+    const subscription=AppState.addEventListener('change',(next)=>{if(next!=='active')return;void query.refetch();if(params.checkout==='success')setConfirmationRetry((value)=>value+1);});
+    return()=>subscription.remove();
+  },[params.checkout,query.refetch]);
 
-  const paidPlans = (['kivelle_plus', 'kivelle_max'] as const)
-    .map((tier) => state.catalog.find((plan) => plan.tier === tier))
-    .filter((plan): plan is SubscriptionPlan => Boolean(plan));
+  const openUrl=async(url:string)=>{
+    if(Platform.OS==='web'){const supported=await Linking.canOpenURL(url);if(!supported)throw new Error('Your browser could not open the billing page.');await Linking.openURL(url);return;}
+    await WebBrowser.openBrowserAsync(url,{presentationStyle:WebBrowser.WebBrowserPresentationStyle.FORM_SHEET});
+    await query.refetch();
+  };
+
+  const checkout=async(tier:Exclude<SubscriptionTier,'free'>)=>{
+    if(!state)return;
+    setBusy(tier);setNotice(null);
+    try{const result=await manageSubscription<{url:string}>({action:'checkout',tier,billingInterval,requestId:Crypto.randomUUID()});await openUrl(result.url);}
+    catch(caught){setNotice({tone:'danger',title:'Could not open checkout',body:billingErrorMessage(caught)});}
+    finally{setBusy('');}
+  };
+
+  const openManagement=async()=>{
+    if(!state)return;
+    if(state.management.manageAction==='app_store'){
+      if(Platform.OS==='ios')await openUrl('https://apps.apple.com/account/subscriptions');
+      else if(Platform.OS==='android')await openUrl('https://play.google.com/store/account/subscriptions');
+      else setNotice({tone:'neutral',title:'Managed in your app store',body:'Open the subscription settings on the Apple or Android device where you purchased Kivelle.'});
+      return;
+    }
+    setBusy('portal');setNotice(null);
+    try{const result=await manageSubscription<{url:string}>({action:'portal',requestId:Crypto.randomUUID()});await openUrl(result.url);}
+    catch(caught){setNotice({tone:'danger',title:'Could not open subscription management',body:billingErrorMessage(caught)});}
+    finally{setBusy('');}
+  };
+
+  const buyCredits=async(pack:CreditPack)=>{
+    setBusy(pack.key);setNotice(null);
+    try{const result=await manageSubscription<{url:string}>({action:'credits_checkout',productKey:pack.key,requestId:Crypto.randomUUID()});await openUrl(result.url);}
+    catch(caught){setNotice({tone:'danger',title:'Could not open credit checkout',body:billingErrorMessage(caught)});}
+    finally{setBusy('');}
+  };
+
+  if(query.isPending&&!state)return <LoadingSkeleton label="Loading your plan and Credits…"/>;
+  if(!state)return <Screen><PageHeader returnTo={returnTo} refreshing={query.isFetching} onRefresh={()=>void refresh()}/><View style={styles.errorCard}><Text style={styles.error}>{query.error instanceof Error?query.error.message:'Subscription details are unavailable.'}</Text><GradientButton label="Try again" onPress={()=>void refresh()}/></View></Screen>;
+
+  const paidPlans=(['kivelle_plus','kivelle_max']as const).map((tier)=>state.catalog.find((plan)=>plan.tier===tier)).filter((plan):plan is SubscriptionPlan=>Boolean(plan));
   const selectedPlan=paidPlans.find((plan)=>plan.tier===selectedTier)??paidPlans[0];
-  const activeCreditPacks=(state.creditPacks??[]).filter((pack)=>pack.active);
-  const selectedPack=activeCreditPacks.find((pack)=>pack.key===selectedCreditPack)??activeCreditPacks.find((pack)=>pack.popular)??activeCreditPacks[0];
-
-  const checkout = async (tier: Exclude<SubscriptionTier, 'free'>) => {
-    const checkoutConfigured=billingInterval==='annual'?Boolean(state.billingConfiguredAnnual?.[tier]):state.billingConfigured[tier];
-    if (!checkoutConfigured) {
-      Alert.alert('Checkout not configured', 'The plan is ready in Kivelle, but a live checkout URL has not been configured for this build yet.');
-      return;
-    }
-    setBusy(tier);
-    try { const result = await manageSubscription<{ url: string }>({ action: 'checkout', tier,billingInterval,requestId:Crypto.randomUUID() }); await Linking.openURL(result.url); }
-    catch (caught) { Alert.alert('Could not open checkout', caught instanceof Error ? caught.message : 'Please try again.'); }
-    finally { setBusy(''); }
-  };
-
-  const openAction = async (action: 'credits_checkout' | 'portal',pack?:CreditPack) => {
-    const configured = action === 'credits_checkout' ? state.billingConfigured.credits : state.billingConfigured.portal;
-    if (!configured) {
-      Alert.alert(action === 'portal' ? 'Billing portal not configured' : 'Credit checkout not configured', 'Connect your billing provider URL to enable this action.');
-      return;
-    }
-    if(action==='credits_checkout'&&!pack)return;
-    setBusy(pack?.key??action);
-    try { const result = await manageSubscription<{ url: string }>({ action,...(pack?{productKey:pack.key}:{}),requestId:Crypto.randomUUID() }); await Linking.openURL(result.url); }
-    catch (caught) { Alert.alert('Could not open billing', caught instanceof Error ? caught.message : 'Please try again.'); }
-    finally { setBusy(''); }
-  };
-
-  if(!selectedPlan)return <Screen><View style={styles.errorCard}><Text style={styles.error}>Paid plans are temporarily unavailable.</Text></View></Screen>;
-  const selectedPaidTier=selectedPlan.tier as Exclude<SubscriptionTier,'free'>;
-  const selectedCurrent=selectedPlan.tier===state.tier;
-  const selectedDowngrade=tierRank[selectedPlan.tier]<tierRank[state.tier];
-  const selectedConfigured=selectedCurrent||selectedDowngrade
-    ?state.billingConfigured.portal
-    :billingInterval==='annual'
-      ?Boolean(state.billingConfiguredAnnual?.[selectedPaidTier])
-      :state.billingConfigured[selectedPaidTier];
-  const selectedBusy=busy===selectedPlan.tier||busy==='portal';
+  if(!selectedPlan)return <Screen><PageHeader returnTo={returnTo} refreshing={query.isFetching} onRefresh={()=>void refresh()}/><View style={styles.errorCard}><Text style={styles.error}>Paid plans are temporarily unavailable.</Text></View></Screen>;
+  const selectedCurrent=selectedPlan.tier===state.tier,selectedDowngrade=tierRank[selectedPlan.tier]<tierRank[state.tier],paidAccount=state.tier!=='free';
+  const checkoutConfigured=billingInterval==='annual'?Boolean(state.billingConfiguredAnnual?.[selectedPlan.tier as Exclude<SubscriptionTier,'free'>]):state.billingConfigured[selectedPlan.tier as Exclude<SubscriptionTier,'free'>];
+  const planAction=selectedCurrent?null:paidAccount?{label:managementActionLabel(state.management)||'Change plan',enabled:state.management.canManageSubscription,reason:state.management.managementReason,onPress:()=>void openManagement()}:{label:`Choose ${selectedPlan.displayName}`,enabled:checkoutConfigured,reason:'Checkout is temporarily unavailable for this billing interval.',onPress:()=>void checkout(selectedPlan.tier as Exclude<SubscriptionTier,'free'>)};
 
   return <Screen contentStyle={styles.content}>
-    <View style={styles.header}>
-      <Pressable accessibilityLabel="Back to Settings" onPress={() => router.canGoBack() ? router.back() : router.replace('/settings')} style={styles.back}><ArrowLeft color={colors.text} /></Pressable>
-      <View style={{ flex: 1 }}><PageTitle>Plan & Credits</PageTitle></View>
-    </View>
+    <PageHeader returnTo={returnTo} refreshing={query.isFetching} onRefresh={()=>void refresh()}/>
+    <View style={styles.intro}><Text style={styles.eyebrow}>{intro.eyebrow}</Text><Text accessibilityRole="header" style={styles.introTitle}>{intro.title}</Text><Text style={styles.introCopy}>{intro.body}</Text></View>
 
-    <View style={styles.upgradeIntro}>
-      <Text style={styles.upgradeTitle}>Unlock more of Kivelle</Text>
-      <Text style={styles.upgradeCopy}>Deeper continuity, more ways to connect, and premium media. Cancel anytime.</Text>
-    </View>
+    {notice?<NoticeCard notice={notice} onRetry={()=>{setNotice(null);if(params.checkout==='success')setConfirmationRetry((value)=>value+1);else void refresh();}} onContinue={notice.tone==='success'&&returnTo?()=>router.replace(returnTo as never):undefined}/>:null}
+    {query.error&&!notice?<NoticeCard notice={{tone:'warning',title:'Showing your last known billing details',body:'Kivelle could not refresh this page. Your cached plan remains visible while you reconnect.',retry:true}} onRetry={()=>void refresh()}/>:null}
+    {state.billing.paymentIssue?<NoticeCard notice={{tone:'warning',title:'Payment needs attention',body:'Update your payment method to keep paid benefits active through the grace period.'}} onContinue={state.management.canManageSubscription?()=>void openManagement():undefined} continueLabel={managementActionLabel(state.management)}/>:null}
 
-    {confirming?<View style={styles.billingNotice}><Text style={styles.billingNoticeTitle}>Confirming your purchase…</Text><Text style={styles.billingNoticeCopy}>Stripe is verifying payment. Access and credits appear only after the signed billing update arrives.</Text></View>:null}
-    {confirmationDelayed?<Pressable onPress={()=>{setConfirmationDelayed(false);void load();}} style={styles.billingNotice}><Text style={styles.billingNoticeTitle}>Still waiting for Stripe?</Text><Text style={styles.billingNoticeCopy}>Confirmation can occasionally take a little longer. Tap to refresh your billing status.</Text></Pressable>:null}
-    {state.billing.paymentIssue?<View style={[styles.billingNotice,styles.billingProblem]}><Text style={styles.billingNoticeTitle}>Payment needs attention</Text><Text style={styles.billingNoticeCopy}>Update your payment method in Manage subscription to keep access active.</Text></View>:null}
-    {state.billing.cancelAtPeriodEnd?<View style={styles.billingNotice}><Text style={styles.billingNoticeTitle}>Cancellation scheduled</Text><Text style={styles.billingNoticeCopy}>Your plan remains available through {formatBillingDate(state.billing.expiresAt??state.billing.periodEnd)}.</Text></View>:null}
+    <CurrentPlanCard state={state} busy={busy==='portal'} onManage={state.management.canManageSubscription?()=>void openManagement():undefined}/>
 
+    <View style={styles.sectionHeading}><View><Text style={styles.sectionKicker}>PLANS</Text><Text accessibilityRole="header" style={styles.sectionTitle}>Compare your options</Text></View><Text style={styles.updated}>{query.isFetching?'Refreshing…':query.dataUpdatedAt?`Updated ${new Date(query.dataUpdatedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}`:'Prices shown in USD'}</Text></View>
     <TierToggle plans={paidPlans} value={selectedTier} currentTier={state.tier} onChange={setSelectedTier}/>
-    <PlanCard
-      plan={selectedPlan}
-      billingInterval={selectedCurrent?(state.billing.billingInterval??billingInterval):billingInterval}
-      current={selectedCurrent}
-      downgrade={selectedDowngrade}
-      actionConfigured={selectedConfigured}
-      busy={selectedBusy}
-      onBillingChange={setBillingInterval}
-      onAction={()=>{
-        if(selectedCurrent||selectedDowngrade){void openAction('portal');return;}
-        void checkout(selectedPaidTier);
-      }}
-    />
+    <PlanCard plan={selectedPlan} billingInterval={selectedCurrent?(state.billing.billingInterval??billingInterval):billingInterval} current={selectedCurrent} downgrade={selectedDowngrade} busy={busy===selectedPlan.tier||busy==='portal'} compact={compact} pricesExcludeTax={state.pricing?.pricesExcludeTax!==false} onBillingChange={setBillingInterval} action={planAction}/>
 
-    {state.billing.mayPurchaseCredits?<View style={styles.creditsPanel}>
-      <View style={styles.creditsHeading}>
-        <View style={styles.creditsIdentity}><KivelleCreditIcon size={28}/><View style={{flex:1}}><Text style={styles.creditsTitle}>Kivelle Credits</Text><Text style={styles.creditsCopy}>For photos, voice, premium media, and more.</Text></View></View>
-        <View style={styles.balanceCompact}>
-          <Text style={styles.balanceLabel}>YOUR BALANCE</Text>
-          <View style={styles.balanceValue}><Text style={styles.balanceNumber}>{state.creditBalance.total.toLocaleString()}</Text><KivelleCreditIcon size={16}/></View>
-        </View>
-      </View>
-      <View style={styles.packGrid}>{activeCreditPacks.map((pack)=>{const selected=selectedPack?.key===pack.key;return <Pressable accessibilityRole="radio" accessibilityState={{checked:selected,disabled:!pack.checkoutConfigured}} accessibilityLabel={`${pack.credits} Kivelle Credits for ${pack.displayPrice}`} disabled={!pack.checkoutConfigured||Boolean(busy)} key={pack.key} onPress={()=>setSelectedCreditPack(pack.key)} style={[styles.packCard,selected&&styles.packSelected,!pack.checkoutConfigured&&styles.packDisabled]}>
-        {pack.popular?<View style={styles.packBadge}><Text style={styles.packBadgeText}>BEST VALUE</Text></View>:null}
-        <View style={styles.packCreditRow}><KivelleCreditIcon size={16} style={!selected?styles.creditIconMuted:undefined}/><Text style={styles.packCredits}>{pack.credits.toLocaleString()}</Text></View><Text style={styles.packUnit}>credits</Text><Text style={styles.packPrice}>{pack.displayPrice}</Text>
-      </Pressable>;})}</View>
-      <Pressable accessibilityRole="button" accessibilityLabel={selectedPack?`Buy ${selectedPack.credits} Kivelle Credits`:'Buy Kivelle Credits'} disabled={!selectedPack||!selectedPack.checkoutConfigured||Boolean(busy)} onPress={()=>selectedPack&&void openAction('credits_checkout',selectedPack)} style={({pressed})=>[styles.buyCredits,(!selectedPack||!selectedPack.checkoutConfigured)&&styles.planActionDisabled,pressed&&styles.planActionPressed]}><CreditCard size={19} color="#fff"/><Text style={styles.buyCreditsText}>{selectedPack&&busy===selectedPack.key?'Opening checkout…':'Buy credits'}</Text></Pressable>
-      <Text style={styles.refundNote}>Credits are used only inside Kivelle, have no cash value, cannot be transferred, and cannot be redeemed outside Kivelle. Failed paid generations refund automatically.</Text>
-    </View>:null}
+    <CreditsPanel state={state} selectedKey={selectedCreditPack} busy={busy} compact={compact} onSelect={setSelectedCreditPack} onBuy={(pack)=>void buyCredits(pack)}/>
 
-    <Pressable onPress={() => setCompareOpen((value) => !value)} style={styles.compareToggle}>
-      <View><Text style={styles.compareTitle}>Compare plans</Text><Text style={styles.compareCopy}>See the differences across the full Kivelle experience.</Text></View>
-      <View style={{ transform: [{ rotate: compareOpen ? '180deg' : '0deg' }] }}><ChevronDown size={19} color={colors.muted} /></View>
-    </Pressable>
-    {compareOpen ? <Comparison plans={state.catalog} /> : null}
+    <Pressable accessibilityRole="button" accessibilityState={{expanded:compareOpen}} accessibilityLabel={`${compareOpen?'Hide':'Show'} plan comparison`} onPress={()=>setCompareOpen((value)=>!value)} style={({pressed})=>[styles.compareToggle,pressed&&styles.pressed]}><View style={{flex:1}}><Text style={styles.compareTitle}>Compare all plans</Text><Text style={styles.compareCopy}>See Kivelle Free, Kivelle+, and Max side by side.</Text></View><View style={{transform:[{rotate:compareOpen?'180deg':'0deg'}]}}><ChevronDown size={20} color={colors.muted}/></View></Pressable>
+    {compareOpen?<Comparison plans={state.catalog} currentTier={state.tier} compact={compact}/>:null}
 
-    <View style={styles.policyLinks}><Pressable onPress={()=>router.push('/terms' as never)}><Text style={styles.policyLink}>Terms</Text></Pressable><Text style={styles.policyDot}>•</Text><Pressable onPress={()=>router.push('/privacy-policy' as never)}><Text style={styles.policyLink}>Privacy</Text></Pressable><Text style={styles.policyDot}>•</Text><Pressable onPress={()=>router.push('/refund-policy' as never)}><Text style={styles.policyLink}>Refunds & cancellation</Text></Pressable><Text style={styles.policyDot}>•</Text><Pressable onPress={()=>router.push('/support' as never)}><Text style={styles.policyLink}>Support</Text></Pressable></View>
-
-    {error ? <Text style={styles.error}>{error}</Text> : null}
+    <View style={styles.policyLinks}><PolicyLink label="Terms" route="/terms"/><Text style={styles.policyDot}>•</Text><PolicyLink label="Privacy" route="/privacy-policy"/><Text style={styles.policyDot}>•</Text><PolicyLink label="Refunds & cancellation" route="/refund-policy"/><Text style={styles.policyDot}>•</Text><PolicyLink label="Support" route="/support"/></View>
   </Screen>;
 }
 
-function TierToggle({plans,value,currentTier,onChange}:{plans:SubscriptionPlan[];value:Exclude<SubscriptionTier,'free'>;currentTier:SubscriptionTier;onChange:(value:Exclude<SubscriptionTier,'free'>)=>void}){
-  return <View style={styles.tierToggle}>{plans.map((plan)=>{
-    const tier=plan.tier as Exclude<SubscriptionTier,'free'>,active=value===tier,max=tier==='kivelle_max';
-    return <Pressable key={tier} accessibilityRole="button" accessibilityState={{selected:active}} onPress={()=>onChange(tier)} style={[styles.tierChoice,active&&(max?styles.tierChoiceMax:styles.tierChoicePlus)]}>
-      <Text style={[styles.tierChoiceName,active&&(max?styles.tierChoiceNameMax:styles.tierChoiceNamePlus)]}>{plan.displayName}</Text>
-      {currentTier===tier?<Text style={[styles.tierCurrent,max&&styles.tierCurrentMax]}>CURRENT</Text>:null}
-    </Pressable>;
-  })}</View>;
+function PageHeader({returnTo,refreshing,onRefresh}:{returnTo:string|null;refreshing:boolean;onRefresh:()=>void}){return <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Go back" hitSlop={8} onPress={()=>returnTo?router.replace(returnTo as never):router.canGoBack()?router.back():router.replace('/settings')} style={({pressed})=>[styles.back,pressed&&styles.pressed]}><ArrowLeft color={colors.text}/></Pressable><View style={{flex:1}}><PageTitle>Plan & Credits</PageTitle></View><Pressable accessibilityRole="button" accessibilityLabel={refreshing?'Refreshing billing status':'Refresh billing status'} accessibilityState={{disabled:refreshing}} disabled={refreshing} hitSlop={8} onPress={onRefresh} style={({pressed})=>[styles.back,refreshing&&styles.disabled,pressed&&styles.pressed]}><RefreshCw size={20} color={colors.text}/></Pressable></View>;}
+
+function NoticeCard({notice,onRetry,onContinue,continueLabel='Continue'}:{notice:Notice;onRetry?:()=>void;onContinue?:()=>void;continueLabel?:string}){
+  return <View accessibilityLiveRegion="polite" style={[styles.notice,notice.tone==='success'&&styles.noticeSuccess,notice.tone==='warning'&&styles.noticeWarning,notice.tone==='danger'&&styles.noticeDanger]}><View style={styles.noticeTop}>{notice.tone==='danger'||notice.tone==='warning'?<CircleAlert size={18} color={notice.tone==='danger'?colors.danger:colors.warm}/>:notice.tone==='success'?<Check size={18} color={colors.success}/>:<RefreshCw size={17} color={colors.violet}/>}<View style={{flex:1}}><Text style={styles.noticeTitle}>{notice.title}</Text><Text style={styles.noticeCopy}>{notice.body}</Text></View></View>{notice.retry&&onRetry?<Pressable accessibilityRole="button" onPress={onRetry} style={styles.noticeAction}><Text style={styles.noticeActionText}>Refresh status</Text></Pressable>:null}{onContinue&&continueLabel?<Pressable accessibilityRole="button" onPress={onContinue} style={styles.noticeAction}><Text style={styles.noticeActionText}>{continueLabel}</Text><ChevronRight size={16} color="#E5C7F1"/></Pressable>:null}</View>;
 }
 
-function formatBillingDate(value?:string|null):string{
-  if(!value)return 'the end of your paid period';
-  const date=new Date(value);return Number.isNaN(date.getTime())?'the end of your paid period':date.toLocaleDateString(undefined,{month:'long',day:'numeric',year:'numeric'});
+function CurrentPlanCard({state,busy,onManage}:{state:SubscriptionStatus;busy:boolean;onManage?:()=>void}){
+  const plan=state.catalog.find((item)=>item.tier===state.tier)??state.capabilities,status=billingStatusPresentation(state),actionLabel=managementActionLabel(state.management);
+  return <View style={styles.currentCard}><View style={styles.currentTop}><View style={{flex:1}}><Text style={styles.currentEyebrow}>YOUR PLAN</Text><Text accessibilityRole="header" style={styles.currentName}>{plan.displayName}</Text></View><View style={[styles.statusPill,status.tone==='success'&&styles.statusSuccess,status.tone==='warning'&&styles.statusWarning,status.tone==='danger'&&styles.statusDanger]}><Text style={styles.statusText}>{status.label}</Text></View></View><Text style={styles.currentDetail}>{status.detail}</Text><View style={styles.currentFacts}><Fact label="Billing" value={state.tier==='free'?'No subscription':state.billing.billingInterval==='annual'?'Yearly':'Monthly'}/><Fact label={status.dateLabel??'Managed by'} value={status.date?formatDate(status.date):state.management.label}/><Fact label="Monthly Credits" value={plan.monthlyCreditGrant?plan.monthlyCreditGrant.toLocaleString():'—'}/></View>{onManage&&actionLabel?<Pressable accessibilityRole="button" disabled={busy} onPress={onManage} style={({pressed})=>[styles.manageButton,pressed&&styles.pressed]}><CreditCard size={17} color={colors.text}/><Text style={styles.manageButtonText}>{busy?'Opening billing…':actionLabel}</Text><ExternalLink size={16} color={colors.muted}/></Pressable>:<View style={styles.managedNote}><ShieldCheck size={17} color={colors.success}/><Text style={styles.managedNoteText}>{state.tier==='free'?'Choose a plan below whenever you want more from Kivelle.':state.management.managementReason}</Text></View>}</View>;
 }
 
-function BillingIntervalToggle({value,tier,onChange}:{value:BillingInterval;tier:SubscriptionTier;onChange:(value:BillingInterval)=>void}) {
-  const max=tier==='kivelle_max';
-  return <View style={styles.billingWrap}>
-    <Pressable accessibilityRole="button" accessibilityState={{selected:value==='monthly'}} onPress={()=>onChange('monthly')} style={[styles.billingChoice,value==='monthly'&&(max?styles.billingChoiceMax:styles.billingChoicePlus)]}><Text style={[styles.billingText,value==='monthly'&&styles.billingTextActive]}>Monthly</Text></Pressable>
-    <Pressable accessibilityRole="button" accessibilityState={{selected:value==='annual'}} onPress={()=>onChange('annual')} style={[styles.billingChoice,value==='annual'&&(max?styles.billingChoiceMax:styles.billingChoicePlus)]}><Text style={[styles.billingText,value==='annual'&&styles.billingTextActive]}>Yearly</Text><View style={[styles.savePill,max&&styles.savePillMax]}><Text style={[styles.saveText,max&&styles.saveTextMax]}>SAVE 17%</Text></View></Pressable>
-  </View>;
+function Fact({label,value}:{label:string;value:string}){return <View style={styles.fact}><Text style={styles.factLabel}>{label}</Text><Text style={styles.factValue}>{value}</Text></View>;}
+
+function TierToggle({plans,value,currentTier,onChange}:{plans:SubscriptionPlan[];value:Exclude<SubscriptionTier,'free'>;currentTier:SubscriptionTier;onChange:(tier:Exclude<SubscriptionTier,'free'>)=>void}){
+  return <View accessibilityRole="radiogroup" accessibilityLabel="Paid plans" style={styles.tierToggle}>{plans.map((plan)=>{const tier=plan.tier as Exclude<SubscriptionTier,'free'>,selected=value===tier,max=tier==='kivelle_max';return <Pressable key={tier} accessibilityRole="radio" accessibilityState={{checked:selected}} onPress={()=>onChange(tier)} style={[styles.tierChoice,selected&&(max?styles.tierChoiceMax:styles.tierChoicePlus)]}><Text style={[styles.tierChoiceName,selected&&(max?styles.tierChoiceNameMax:styles.tierChoiceNamePlus)]}>{plan.displayName}</Text>{currentTier===tier?<Text style={[styles.tierCurrent,max&&styles.tierCurrentMax]}>CURRENT</Text>:null}</Pressable>;})}</View>;
 }
 
-function PlanCard({ plan,billingInterval, current,downgrade, actionConfigured, busy,onBillingChange, onAction }: { plan: SubscriptionPlan;billingInterval:BillingInterval; current: boolean;downgrade:boolean; actionConfigured: boolean; busy: boolean;onBillingChange:(value:BillingInterval)=>void; onAction: () => void }) {
-  const featured = plan.tier === 'kivelle_plus';
-  const max = plan.tier === 'kivelle_max';
-  const features = max ? [
-    'Everything in Kivelle+',
-    'Director intelligence and deepest continuity',
-    `${plan.includedCompanionPhotoDailyLimit} included photos every day`,
-    `${plan.monthlyCreditGrant.toLocaleString()} Kivelle Credits each month`,
-    `${plan.maxLives} Lives · ${plan.maxCustomCompanions} custom companions`,
-    'Highest media priority and early world access',
-  ]:[
-    'Unlimited conversations and group chats',
-    'Deep continuity and full Memory Center',
-    `${plan.includedCompanionPhotoDailyLimit} included photo every day`,
-    `${plan.monthlyCreditGrant.toLocaleString()} Kivelle Credits each month`,
-    `${plan.maxLives} Lives · ${plan.maxCustomCompanions} custom companions`,
-    'Priority media generation',
-  ];
-
-  const annual=plan.annualPriceUsd,monthlyEquivalent=annual===null?null:annual/12;
-  const shownPrice=billingInterval==='annual'&&monthlyEquivalent!==null?monthlyEquivalent:plan.monthlyPriceUsd;
-  return <View style={[styles.plan, featured && styles.planFeatured, max && styles.planMax]}>
-    <View style={styles.planTop}>
-      <View style={{ flex: 1 }}><Text style={[styles.planName,max&&styles.planNameMax]}>{plan.displayName}</Text><Text style={[styles.planPrice,max&&styles.planPriceMax]}>${shownPrice.toFixed(2)}<Text style={styles.planPeriod}> / month</Text></Text>{billingInterval==='annual'&&annual!==null?<Text style={styles.billedAnnually}>${annual.toFixed(2)} billed yearly</Text>:<Text style={styles.billedAnnually}>Billed monthly</Text>}</View>
-      <View style={styles.planBadges}><View style={[styles.valueBadge,max&&styles.valueBadgeMax]}><Text style={[styles.valueBadgeText,max&&styles.valueBadgeTextMax]}>{max?'MOST IMMERSIVE':'MOST POPULAR'}</Text></View>{current?<Text style={styles.activePlanText}>• ACTIVE</Text>:null}</View>
-    </View>
-    <View style={styles.featureList}>{features.map((feature) => <View key={feature} style={styles.feature}><Check size={18} strokeWidth={2.5} color={max?'#AFA2FF':'#F47CB5'} /><Text style={styles.featureText}>{feature}</Text></View>)}</View>
-    {!current?<BillingIntervalToggle value={billingInterval} tier={plan.tier} onChange={onBillingChange}/>:null}
-    <Pressable accessibilityRole="button" disabled={busy||!actionConfigured} onPress={onAction} style={({pressed})=>[styles.planAction,current?styles.managePlanAction:max?styles.planActionMax:styles.planActionPlus,!actionConfigured&&styles.planActionDisabled,pressed&&styles.planActionPressed]}>
-      {current?<CreditCard size={17} color={colors.text}/>:null}<Text style={[styles.planActionText,current&&styles.managePlanText]}>{busy?'Opening billing…':current?'Manage subscription':!actionConfigured?'Checkout not configured':downgrade?'Manage plan':`Choose ${plan.displayName}`}</Text>{actionConfigured?<ChevronRight size={19} color={current?colors.muted:'#fff'}/>:null}
-    </Pressable>
-  </View>;
+function BillingIntervalToggle({value,plan,onChange}:{value:BillingInterval;plan:SubscriptionPlan;onChange:(interval:BillingInterval)=>void}){
+  const savings=annualSavingsPercentage(plan.monthlyPriceUsd,plan.annualPriceUsd),max=plan.tier==='kivelle_max';
+  return <View accessibilityRole="radiogroup" accessibilityLabel="Billing interval" style={styles.billingToggle}><Pressable accessibilityRole="radio" accessibilityState={{checked:value==='monthly'}} onPress={()=>onChange('monthly')} style={[styles.billingChoice,value==='monthly'&&(max?styles.billingChoiceMax:styles.billingChoicePlus)]}><Text style={[styles.billingText,value==='monthly'&&styles.billingTextActive]}>Monthly</Text></Pressable><Pressable accessibilityRole="radio" accessibilityState={{checked:value==='annual'}} onPress={()=>onChange('annual')} style={[styles.billingChoice,value==='annual'&&(max?styles.billingChoiceMax:styles.billingChoicePlus)]}><Text style={[styles.billingText,value==='annual'&&styles.billingTextActive]}>Yearly</Text>{savings?<View style={[styles.savePill,max&&styles.savePillMax]}><Text style={[styles.saveText,max&&styles.saveTextMax]}>SAVE {savings}%</Text></View>:null}</Pressable></View>;
 }
 
-function Comparison({ plans }: { plans: SubscriptionPlan[] }) {
-  const plus = plans.find((plan) => plan.tier === 'kivelle_plus');
-  const max = plans.find((plan) => plan.tier === 'kivelle_max');
-  if (!plus || !max) return null;
-  const rows: Array<[string, string, string]> = [
-    ['Chat', 'Unlimited', 'Unlimited'],
-    ['Intelligence', intelligenceLabel(plus.intelligenceProfile), intelligenceLabel(max.intelligenceProfile)],
-    ['Lives', String(plus.maxLives), String(max.maxLives)],
-    ['Custom companions', String(plus.maxCustomCompanions), String(max.maxCustomCompanions)],
-    ['Monthly credits', plus.monthlyCreditGrant.toLocaleString(), max.monthlyCreditGrant.toLocaleString()],
-    ['Included daily photos', `${plus.includedCompanionPhotoDailyLimit} / day`, `${max.includedCompanionPhotoDailyLimit} / day`],
-    ['Included Date photos', `${plus.includedDatePhotoMonthlyLimit} / month`, `${max.includedDatePhotoMonthlyLimit} / month`],
-    ['Media priority', 'Priority', 'Highest'],
-  ];
-  return <View style={styles.compareCard}>
-    <View style={styles.compareHeader}><Text style={styles.compareHeaderLabel}>FEATURE</Text><Text style={[styles.compareHeaderPlan,styles.comparePlus]}>KIVELLE+</Text><Text style={[styles.compareHeaderPlan,styles.compareMax]}>MAX</Text></View>
-    {rows.map(([label, plusValue, maxValue]) => <View key={label} style={styles.compareRow}><Text style={styles.compareLabel}>{label}</Text><Text style={[styles.compareValue, styles.comparePlus]}>{plusValue}</Text><Text style={[styles.compareValue, styles.compareMax]}>{maxValue}</Text></View>)}
-  </View>;
+function PlanCard({plan,billingInterval,current,downgrade,busy,compact,pricesExcludeTax,onBillingChange,action}:{plan:SubscriptionPlan;billingInterval:BillingInterval;current:boolean;downgrade:boolean;busy:boolean;compact:boolean;pricesExcludeTax:boolean;onBillingChange:(value:BillingInterval)=>void;action:{label:string;enabled:boolean;reason:string;onPress:()=>void}|null}){
+  const max=plan.tier==='kivelle_max',annual=plan.annualPriceUsd,shown=billingInterval==='annual'&&annual!==null?annual/12:plan.monthlyPriceUsd,currency=formatCurrency(shown),features=max?['Everything in Kivelle+','Director intelligence and deepest continuity',`${plan.includedCompanionPhotoDailyLimit} included generated photos each day`,`${plan.monthlyCreditGrant.toLocaleString()} Kivelle Credits each month`,`${plan.maxLives} Lives · ${plan.maxCustomCompanions} custom companions`,'Highest media priority and early world access']:['Unlimited conversations and group chats','Share your own photos without using Credits','Deep continuity and full Memory Center',`${plan.includedCompanionPhotoDailyLimit} included generated photo each day`,`${plan.monthlyCreditGrant.toLocaleString()} Kivelle Credits each month`,`${plan.maxLives} Lives · ${plan.maxCustomCompanions} custom companions`];
+  return <View style={[styles.plan,max?styles.planMax:styles.planPlus]}><View style={[styles.planTop,compact&&styles.planTopCompact]}><View style={{flex:1}}><Text style={[styles.planName,max&&styles.planNameMax]}>{plan.displayName}</Text><Text style={[styles.planPrice,max&&styles.planPriceMax]}>{currency}<Text style={styles.planPeriod}> / month</Text></Text><Text style={styles.billedAnnually}>{billingInterval==='annual'&&annual!==null?`${formatCurrency(annual)} billed yearly`:'Billed monthly'}{pricesExcludeTax?' · before applicable tax':''}</Text></View><View style={[styles.valueBadge,max&&styles.valueBadgeMax]}><Text style={[styles.valueBadgeText,max&&styles.valueBadgeTextMax]}>{current?'CURRENT PLAN':max?'MOST IMMERSIVE':'MOST POPULAR'}</Text></View></View><View style={styles.featureList}>{features.map((feature)=><View key={feature} style={styles.feature}><Check size={18} strokeWidth={2.5} color={max?'#AFA2FF':'#F47CB5'}/><Text style={styles.featureText}>{feature}</Text></View>)}</View>{!current?<BillingIntervalToggle value={billingInterval} plan={plan} onChange={onBillingChange}/>:null}{current?<View style={styles.currentPlanStrip}><Check size={17} color={colors.success}/><Text style={styles.currentPlanStripText}>This is your current plan.</Text></View>:action?.enabled?<Pressable accessibilityRole="button" disabled={busy} onPress={action.onPress} style={({pressed})=>[styles.planAction,max?styles.planActionMax:styles.planActionPlus,pressed&&styles.pressed]}><Text style={styles.planActionText}>{busy?'Opening billing…':downgrade?'Change to this plan':action.label}</Text><ChevronRight size={19} color="#fff"/></Pressable>:<View style={styles.unavailableAction}><CircleAlert size={17} color={colors.muted}/><Text style={styles.unavailableText}>{action?.reason??'This plan is temporarily unavailable.'}</Text></View>}</View>;
 }
 
+function CreditsPanel({state,selectedKey,busy,compact,onSelect,onBuy}:{state:SubscriptionStatus;selectedKey:CreditPack['key']|'';busy:string;compact:boolean;onSelect:(key:CreditPack['key'])=>void;onBuy:(pack:CreditPack)=>void}){
+  const packs=state.creditPacks.filter((pack)=>pack.active&&pack.checkoutConfigured),selected=packs.find((pack)=>pack.key===selectedKey)??packs.find((pack)=>pack.popular)??packs[0],activity=state.creditActivity.slice(0,6);
+  return <View style={styles.creditsPanel}><View style={[styles.creditsHeading,compact&&styles.creditsHeadingCompact]}><View style={styles.creditsIdentity}><KivelleCreditIcon size={28}/><View style={{flex:1}}><Text accessibilityRole="header" style={styles.creditsTitle}>Kivelle Credits</Text><Text style={styles.creditsCopy}>For generated photos, edits, video, and priced voice actions. Sharing your own photos is included with Kivelle+ and never spends Credits.</Text></View></View><View style={[styles.balanceCompact,compact&&styles.balanceCompactMobile]}><Text style={styles.balanceLabel}>TOTAL BALANCE</Text><View style={styles.balanceValue}><Text style={styles.balanceNumber}>{state.creditBalance.total.toLocaleString()}</Text><KivelleCreditIcon size={16}/></View></View></View><View style={styles.balanceBreakdown}><MiniStat label="Permanent" value={state.creditBalance.permanentBalance.toLocaleString()} detail="Purchased and welcome Credits"/><MiniStat label="Plan Credits" value={state.creditBalance.subscriptionBalance.toLocaleString()} detail={state.creditBalance.subscriptionExpiresAt?`Available through ${formatDate(state.creditBalance.subscriptionExpiresAt)}`:`Rollover cap ${state.capabilities.subscriptionCreditRolloverCap.toLocaleString()}`}/><MiniStat label="Monthly grant" value={state.capabilities.monthlyCreditGrant?state.capabilities.monthlyCreditGrant.toLocaleString():'—'} detail={state.nextCreditGrantAt?`Next expected ${formatDate(state.nextCreditGrantAt)}`:'Included with paid plans'}/></View>{state.management.canPurchaseCredits&&packs.length?<><View style={styles.creditDivider}/><View><Text style={styles.panelSubheading}>Add permanent Credits</Text><Text style={styles.panelSubcopy}>One-time purchase. Permanent Credits do not expire.</Text></View><View accessibilityRole="radiogroup" accessibilityLabel="Credit packs" style={styles.packGrid}>{packs.map((pack)=>{const checked=pack.key===selected?.key;return <Pressable key={pack.key} accessibilityRole="radio" accessibilityState={{checked,disabled:Boolean(busy)}} accessibilityLabel={`${pack.credits} Kivelle Credits for ${pack.displayPrice}`} disabled={Boolean(busy)} onPress={()=>onSelect(pack.key)} style={[styles.packCard,checked&&styles.packSelected]}>{pack.popular?<Text style={styles.packBadge}>BEST VALUE</Text>:null}<View style={styles.packCreditRow}><KivelleCreditIcon size={16}/><Text style={styles.packCredits}>{pack.credits.toLocaleString()}</Text></View><Text style={styles.packUnit}>credits</Text><Text style={styles.packPrice}>{formatCurrency(pack.priceUsd)}</Text></Pressable>;})}</View><Pressable accessibilityRole="button" accessibilityLabel={selected?`Buy ${selected.credits} Kivelle Credits`:'Buy Kivelle Credits'} disabled={!selected||Boolean(busy)} onPress={()=>selected&&onBuy(selected)} style={({pressed})=>[styles.buyCredits,(!selected||Boolean(busy))&&styles.disabled,pressed&&styles.pressed]}><CreditCard size={19} color="#fff"/><Text style={styles.buyCreditsText}>{selected&&busy===selected.key?'Opening checkout…':'Buy Credits'}</Text></Pressable></>:<View style={styles.creditUnavailable}><CircleAlert size={17} color={colors.muted}/><Text style={styles.creditUnavailableText}>{state.management.creditPurchaseReason??'Credit packs are unavailable right now.'}</Text></View>}<View style={styles.creditDivider}/><View style={styles.activityHeading}><View><Text style={styles.panelSubheading}>Recent activity</Text><Text style={styles.panelSubcopy}>Purchases, plan grants, usage, and automatic refunds.</Text></View><History size={18} color={colors.muted}/></View>{activity.length?<View style={styles.activityList}>{activity.map((event)=><ActivityRow key={event.id} event={event}/>)}</View>:<Text style={styles.emptyActivity}>No recent Credit activity.</Text>}<Text style={styles.refundNote}>Credits have no cash value and cannot be transferred. Failed paid generations are returned automatically after the server verifies the failure.</Text></View>;
+}
 
-const styles = StyleSheet.create({
-  content: { gap: spacing.lg, maxWidth: 780, paddingBottom: spacing.xxxl },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  back: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  upgradeIntro:{alignItems:'center',paddingHorizontal:18,paddingTop:4,paddingBottom:2},
-  upgradeTitle:{color:colors.text,fontFamily:'Georgia',fontSize:34,lineHeight:40,textAlign:'center'},
-  upgradeCopy:{maxWidth:520,color:colors.muted,fontSize:13,lineHeight:20,textAlign:'center',marginTop:7},
-  billingNotice:{gap:4,paddingHorizontal:15,paddingVertical:13,borderRadius:radius.lg,backgroundColor:'rgba(154,99,215,.09)',borderWidth:1,borderColor:'rgba(175,162,255,.22)'},
-  billingProblem:{backgroundColor:'rgba(211,92,94,.09)',borderColor:'rgba(211,92,94,.25)'},
-  billingNoticeTitle:{color:colors.text,fontSize:12,fontWeight:'900'},
-  billingNoticeCopy:{color:colors.muted,fontSize:10,lineHeight:16},
-  tierToggle:{alignSelf:'center',width:'100%',maxWidth:540,minHeight:54,flexDirection:'row',gap:5,padding:5,borderRadius:radius.lg,backgroundColor:'rgba(17,15,25,.82)',borderWidth:1,borderColor:'rgba(255,255,255,.08)'},
-  tierChoice:{flex:1,minWidth:0,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,paddingHorizontal:10,borderRadius:radius.md,borderWidth:1,borderColor:'transparent'},
-  tierChoicePlus:{backgroundColor:'rgba(213,67,139,.15)',borderColor:'rgba(244,124,181,.42)'},
-  tierChoiceMax:{backgroundColor:'rgba(115,91,224,.17)',borderColor:'rgba(175,162,255,.42)'},
-  tierChoiceName:{color:colors.muted,fontSize:14,fontWeight:'900'},
-  tierChoiceNamePlus:{color:'#F7B1D0'},
-  tierChoiceNameMax:{color:'#C9C0FF'},
-  tierCurrent:{color:'#F47CB5',fontSize:7,fontWeight:'900',letterSpacing:.65},
-  tierCurrentMax:{color:'#AFA2FF'},
-  subtitle: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 4 },
-  hero: { position: 'relative', overflow: 'hidden', gap: 24, padding: 22, borderRadius: radius.xl, backgroundColor: '#1A1124', borderWidth: 1, borderColor: 'rgba(216,62,234,.38)', shadowColor: '#A85CFF', shadowOpacity: .22, shadowRadius: 28, shadowOffset: { width: 0, height: 14 } },
-  glowOne: { position: 'absolute', width: 230, height: 230, borderRadius: 115, right: -86, top: -96, backgroundColor: 'rgba(154,99,215,.28)' },
-  glowTwo: { position: 'absolute', width: 210, height: 210, borderRadius: 105, left: -105, bottom: -130, backgroundColor: 'rgba(216,62,234,.20)' },
-  heroTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
-  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  heroEyebrow: { color: '#F3B7D0', fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
-  heroTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 31, lineHeight: 37, marginTop: 10, maxWidth: 520 },
-  heroCopy: { color: '#CDBFCC', fontSize: 12, lineHeight: 19, marginTop: 9, maxWidth: 560 },
-  currentPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: 'rgba(216,62,234,.78)' },
-  currentPillText: { color: '#fff', fontSize: 8, fontWeight: '900', letterSpacing: .7 },
-  heroBottom: { flexDirection: 'row', alignItems: 'center', gap: 18, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,.10)' },
-  heroDivider: { width: 1, alignSelf: 'stretch', backgroundColor: 'rgba(255,255,255,.11)' },
-  metaLabel: { color: '#9E8EA2', fontSize: 8, fontWeight: '900', letterSpacing: 1 },
-  metaValue: { color: colors.text, fontSize: 15, fontWeight: '800', marginTop: 4 },
-  creditBig: { color: '#FFD3A9', fontFamily: 'Georgia', fontSize: 25, marginTop: 1 },
-  billingWrap: { width:'100%',alignSelf: 'center', flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.lg, backgroundColor: 'rgba(6,7,12,.36)', borderWidth: 1, borderColor: 'rgba(255,255,255,.08)' },
-  billingChoice: { flex:1,minHeight: 43, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 12, borderRadius: radius.md,borderWidth:1,borderColor:'transparent' },
-  billingChoiceActive: { backgroundColor: colors.elevated, borderWidth: 1, borderColor: 'rgba(216,62,234,.35)' },
-  billingChoicePlus:{backgroundColor:'rgba(213,67,139,.18)',borderColor:'rgba(244,124,181,.32)'},
-  billingChoiceMax:{backgroundColor:'rgba(115,91,224,.20)',borderColor:'rgba(175,162,255,.32)'},
-  billingText: { color: colors.muted, fontSize: 11, fontWeight: '800' },
-  billingTextActive: { color: colors.text },
-  savePill: { paddingHorizontal: 5, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: 'rgba(216,62,234,.20)' },
-  saveText: { color: '#FFB9D2', fontSize: 7, fontWeight: '900', letterSpacing: .5 },
-  savePillMax:{backgroundColor:'rgba(115,91,224,.22)'},
-  saveTextMax:{color:'#C9C0FF'},
-  billedAnnually:{color:colors.dimmed,fontSize:9,fontWeight:'700',marginTop:3},
-  sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 },
-  sectionKicker: { color: colors.rose, fontSize: 9, fontWeight: '900', letterSpacing: 1.15 },
-  sectionTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 24, marginTop: 4 },
-  sectionHint: { color: colors.dimmed, fontSize: 10, fontWeight: '700' },
-  plans: { gap: 12 },
-  plan: { position: 'relative', overflow: 'hidden', gap: 18, padding: 22, borderRadius: radius.xl, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  planFeatured: { backgroundColor: 'rgba(31,17,29,.94)', borderColor: 'rgba(244,124,181,.42)', shadowColor: '#D5438B', shadowOpacity: .15, shadowRadius: 24, shadowOffset: { width: 0, height: 10 } },
-  planMax: { backgroundColor: 'rgba(20,18,35,.95)', borderColor: 'rgba(175,162,255,.40)',shadowColor:'#735BE0',shadowOpacity:.17,shadowRadius:24,shadowOffset:{width:0,height:10} },
-  planCurrent: { borderColor: 'rgba(127,209,170,.48)' },
-  popular: { position: 'absolute', top: 0, right: 18, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderBottomLeftRadius: 10, borderBottomRightRadius: 10, backgroundColor: colors.rose },
-  popularText: { color: '#fff', fontSize: 7, fontWeight: '900', letterSpacing: .7 },
-  planTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
-  planName: { color: colors.text, fontFamily: 'Georgia', fontSize: 27 },
-  planNameMax:{color:'#E2DDFF'},
-  planPrice: { color: '#F4C4D5', fontFamily: 'Georgia', fontSize: 24, marginTop: 4 },
-  planPriceMax:{color:'#CEC5FF'},
-  planPeriod: { color: colors.muted, fontSize: 10, fontWeight: '700' },
-  activeBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: 'rgba(127,209,170,.11)', borderWidth: 1, borderColor: 'rgba(127,209,170,.24)' },
-  activeBadgeText: { color: colors.success, fontSize: 8, fontWeight: '900', letterSpacing: .7 },
-  maxBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: 'rgba(154,99,215,.12)' },
-  maxBadgeText: { color: '#D8C1FF', fontSize: 8, fontWeight: '900', letterSpacing: .7 },
-  valueBadge:{paddingHorizontal:10,paddingVertical:7,borderRadius:radius.pill,backgroundColor:'rgba(213,67,139,.16)',borderWidth:1,borderColor:'rgba(244,124,181,.25)'},
-  valueBadgeMax:{backgroundColor:'rgba(115,91,224,.18)',borderColor:'rgba(175,162,255,.26)'},
-  valueBadgeText:{color:'#F7B1D0',fontSize:8,fontWeight:'900',letterSpacing:.7},
-  valueBadgeTextMax:{color:'#C9C0FF'},
-  planBadges:{alignItems:'flex-end',gap:8},
-  activePlanText:{color:colors.success,fontSize:9,fontWeight:'900',letterSpacing:.5},
-  planCopy: { color: colors.muted, fontSize: 11, lineHeight: 17, maxWidth: 610 },
-  featureList: { gap: 9 },
-  feature: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  featureCheck: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.045)' },
-  featureText: { flex: 1, color: colors.text, fontSize: 13, lineHeight:19, fontWeight: '700' },
-  planAction:{minHeight:54,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,borderRadius:radius.md,shadowOpacity:.24,shadowRadius:14,shadowOffset:{width:0,height:7}},
-  planActionPlus:{backgroundColor:'#D5438B',shadowColor:'#D5438B'},
-  planActionMax:{backgroundColor:'#735BE0',shadowColor:'#735BE0'},
-  planActionDisabled:{opacity:.55,shadowOpacity:0},
-  planActionPressed:{transform:[{scale:.992}],opacity:.9},
-  planActionText:{color:'#fff',fontSize:15,fontWeight:'900'},
-  managePlanAction:{backgroundColor:'rgba(255,255,255,.025)',borderWidth:1,borderColor:'rgba(255,255,255,.16)',shadowOpacity:0},
-  managePlanText:{color:colors.text,flex:1,textAlign:'center'},
-  currentButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: radius.md, borderWidth: 1, borderColor: 'rgba(127,209,170,.22)', backgroundColor: 'rgba(127,209,170,.06)' },
-  currentButtonText: { color: colors.success, fontWeight: '900' },
-  creditsPanel: { position: 'relative', overflow: 'hidden', gap: 15, padding: 19, borderRadius: radius.xl, backgroundColor: '#17131D', borderWidth: 1, borderColor: 'rgba(233,160,127,.30)' },
-  creditsHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent:'space-between', gap: 18, flexWrap:'wrap' },
-  creditsIdentity:{minWidth:220,flex:1,flexDirection:'row',alignItems:'center',gap:12},
-  creditsTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 21, marginTop: 3 },
-  balanceCompact:{alignItems:'flex-end'},
-  balanceValue:{flexDirection:'row',alignItems:'center',gap:7},
-  balanceRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 18, flexWrap: 'wrap' },
-  balanceNumber: { color: colors.text, fontFamily: 'Georgia', fontSize: 31, lineHeight: 36 },
-  balanceLabel: { color: colors.dimmed, fontSize: 8, fontWeight: '900', letterSpacing: 1.1, marginTop: 2 },
-  balanceBreakdown: { flex: 1, minWidth: 240, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  miniStat: { width: '48%', minWidth: 112, padding: 10, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.035)' },
-  miniLabel: { color: colors.dimmed, fontSize: 8, fontWeight: '800' },
-  miniValue: { color: colors.text, fontSize: 12, fontWeight: '800', marginTop: 4 },
-  creditsCopy: { color: colors.muted, fontSize: 11, lineHeight: 17 },
-  creditActions: { gap: 10 },
-  packGrid:{flexDirection:'row',flexWrap:'wrap',gap:10},
-  packCard:{position:'relative',overflow:'hidden',flexGrow:1,flexBasis:150,minWidth:140,alignItems:'center',gap:3,paddingHorizontal:12,paddingVertical:17,borderRadius:radius.lg,backgroundColor:'rgba(255,255,255,.035)',borderWidth:1,borderColor:'rgba(255,255,255,.10)'},
-  packSelected:{borderColor:'rgba(244,124,181,.78)',backgroundColor:'rgba(213,67,139,.10)'},
-  packDisabled:{opacity:.48},
-  packBadge:{position:'absolute',top:0,alignSelf:'center',paddingHorizontal:10,paddingVertical:4,backgroundColor:'rgba(213,67,139,.72)',borderBottomLeftRadius:8,borderBottomRightRadius:8},
-  packBadgeText:{color:'#fff',fontSize:7,fontWeight:'900',letterSpacing:.7},
-  packCreditRow:{flexDirection:'row',alignItems:'center',gap:7,marginTop:4},
-  creditIconMuted:{opacity:.62},
-  packCredits:{color:colors.text,fontFamily:'Georgia',fontSize:24,fontWeight:'900'},
-  packUnit:{color:colors.muted,fontSize:10},
-  packPrice:{color:'#F47CB5',fontSize:13,fontWeight:'900',marginTop:5},
-  packEquivalent:{color:colors.muted,fontSize:9,lineHeight:14},
-  packAction:{color:'#F2B4CA',fontSize:9,fontWeight:'900',marginTop:5},
-  buyCredits:{minHeight:54,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:9,borderRadius:radius.md,backgroundColor:'#C73579',shadowColor:'#D5438B',shadowOpacity:.2,shadowRadius:14,shadowOffset:{width:0,height:7}},
-  buyCreditsText:{color:'#fff',fontSize:15,fontWeight:'900'},
-  costStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  cost: { flex: 1, minWidth: 145, padding: 10, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.035)' },
-  costLabel: { color: colors.muted, fontSize: 9 },
-  costValueRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  costValue: { color: '#FFD3A9', fontSize: 11, fontWeight: '900' },
-  refundNote: { color: colors.dimmed, fontSize: 9, lineHeight: 14 },
-  compareToggle: { minHeight: 62, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 15, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  compareTitle: { color: colors.text, fontSize: 13, fontWeight: '900' },
-  compareCopy: { color: colors.muted, fontSize: 10, marginTop: 3 },
-  compareCard: { overflow: 'hidden', borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  compareHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 11, paddingVertical: 10, backgroundColor: colors.elevated },
-  compareHeaderLabel: { flex: 1.35, color: colors.dimmed, fontSize: 8, fontWeight: '900', letterSpacing: .8 },
-  compareHeaderPlan: { flex: 1, textAlign: 'center', color: colors.text, fontSize: 8, fontWeight: '900' },
-  compareRow: { flexDirection: 'row', alignItems: 'center', minHeight: 50, paddingHorizontal: 11, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border },
-  compareLabel: { flex: 1.35, color: colors.muted, fontSize: 9, fontWeight: '800' },
-  compareValue: { flex: 1, textAlign: 'center', color: colors.text, fontSize: 9, lineHeight: 13 },
-  comparePlus: { color: '#F2B4CA', fontWeight: '800' },
-  compareMax: { color: '#D8C1FF', fontWeight: '800' },
-  portal: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
-  portalText: { color: colors.muted, fontWeight: '800' },
-  errorCard: { gap: 14, padding: 18, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  error: { color: colors.danger, fontSize: 11, textAlign: 'center' },
-  policyLinks:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',justifyContent:'center',gap:8,paddingVertical:6},
-  policyLink:{color:colors.muted,fontSize:10,fontWeight:'800',textDecorationLine:'underline'},
-  policyDot:{color:colors.dimmed,fontSize:9},
+function MiniStat({label,value,detail}:{label:string;value:string;detail:string}){return <View style={styles.miniStat}><Text style={styles.miniLabel}>{label}</Text><Text style={styles.miniValue}>{value}</Text><Text style={styles.miniDetail}>{detail}</Text></View>;}
+function ActivityRow({event}:{event:CreditActivityEvent}){const item=creditActivityPresentation(event),positive=item.amount>0;return <View style={styles.activityRow}><View style={styles.activityIcon}>{event.eventType==='subscription_grant'||event.eventType==='welcome_grant'?<Gift size={16} color={colors.violet}/>:event.eventType==='refund'?<RefreshCw size={16} color={colors.success}/>:<KivelleCreditIcon size={16}/>}</View><View style={{flex:1}}><Text style={styles.activityLabel}>{item.label}</Text><Text style={styles.activityDetail}>{item.detail} · {formatDate(event.createdAt)}</Text></View><Text style={[styles.activityAmount,positive&&styles.activityPositive]}>{positive?'+':''}{item.amount.toLocaleString()}</Text></View>;}
+
+function Comparison({plans,currentTier,compact}:{plans:SubscriptionPlan[];currentTier:SubscriptionTier;compact:boolean}){
+  const ordered=(['free','kivelle_plus','kivelle_max']as const).map((tier)=>plans.find((plan)=>plan.tier===tier)).filter((plan):plan is SubscriptionPlan=>Boolean(plan));
+  return <View style={[styles.compareGrid,!compact&&styles.compareGridWide]}>{ordered.map((plan)=><View key={plan.tier} style={[styles.compareCard,compact&&styles.compareCardCompact]}><View style={styles.compareCardTop}><Text style={styles.comparePlan}>{plan.displayName}</Text>{plan.tier===currentTier?<Text style={styles.compareCurrent}>CURRENT</Text>:null}</View><ComparisonRow label="Chat" value={plan.chatDailyLimit===null?'Unlimited':`${plan.chatDailyLimit} daily`}/><ComparisonRow label="Intelligence" value={intelligenceLabel(plan.intelligenceProfile)}/><ComparisonRow label="Lives" value={String(plan.maxLives)}/><ComparisonRow label="Custom companions" value={String(plan.maxCustomCompanions)}/><ComparisonRow label="Monthly Credits" value={plan.monthlyCreditGrant.toLocaleString()}/><ComparisonRow label="Share your photos" value={plan.tier==='free'?'—':'Included'}/><ComparisonRow label="Generated photos" value={plan.includedCompanionPhotoDailyLimit?`${plan.includedCompanionPhotoDailyLimit} daily`:'Credit-based'}/><ComparisonRow label="Worlds" value={plan.worldAccess==='all_standard'?'All standard':'Free worlds'}/></View>)}</View>;
+}
+function ComparisonRow({label,value}:{label:string;value:string}){return <View style={styles.compareRow}><Text style={styles.compareLabel}>{label}</Text><Text style={styles.compareValue}>{value}</Text></View>;}
+function PolicyLink({label,route}:{label:string;route:string}){return <Pressable accessibilityRole="link" onPress={()=>router.push(route as never)}><Text style={styles.policyLink}>{label}</Text></Pressable>;}
+function formatDate(value?:string|null):string{if(!value)return'Not scheduled';const date=new Date(value);return Number.isNaN(date.getTime())?'Not scheduled':date.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});}
+function formatCurrency(value:number):string{try{return new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',minimumFractionDigits:2}).format(value);}catch{return`$${value.toFixed(2)}`;}}
+function billingErrorMessage(caught:unknown):string{if(caught instanceof ApiError)return`${caught.message}${caught.correlationId?` Support reference: ${caught.correlationId}.`:''}`;return caught instanceof Error?caught.message:'Please try again.';}
+
+const styles=StyleSheet.create({
+  content:{gap:spacing.lg,maxWidth:820,paddingBottom:spacing.xxxl},header:{minHeight:48,flexDirection:'row',alignItems:'center',gap:12},back:{width:48,height:48,borderRadius:24,alignItems:'center',justifyContent:'center',backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border},pressed:{opacity:.84,transform:[{scale:.992}]},disabled:{opacity:.5},
+  intro:{alignItems:'center',paddingHorizontal:18,paddingTop:2,paddingBottom:2},eyebrow:{color:colors.rose,fontSize:9,fontWeight:'900',letterSpacing:1.4},introTitle:{maxWidth:620,color:colors.text,fontFamily:'Georgia',fontSize:34,lineHeight:41,textAlign:'center',marginTop:7},introCopy:{maxWidth:590,color:colors.muted,fontSize:13,lineHeight:20,textAlign:'center',marginTop:8},
+  notice:{gap:10,padding:15,borderRadius:radius.lg,backgroundColor:'rgba(154,99,215,.09)',borderWidth:1,borderColor:'rgba(175,162,255,.24)'},noticeSuccess:{backgroundColor:'rgba(77,162,116,.09)',borderColor:'rgba(127,209,170,.26)'},noticeWarning:{backgroundColor:'rgba(222,166,75,.08)',borderColor:'rgba(233,176,86,.26)'},noticeDanger:{backgroundColor:'rgba(211,92,94,.09)',borderColor:'rgba(211,92,94,.28)'},noticeTop:{flexDirection:'row',alignItems:'flex-start',gap:10},noticeTitle:{color:colors.text,fontSize:13,fontWeight:'900'},noticeCopy:{color:colors.muted,fontSize:11,lineHeight:17,marginTop:3},noticeAction:{alignSelf:'flex-start',minHeight:44,flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:12,borderRadius:radius.md,backgroundColor:'rgba(255,255,255,.06)'},noticeActionText:{color:'#E5C7F1',fontSize:12,fontWeight:'900'},
+  currentCard:{gap:15,padding:20,borderRadius:radius.xl,backgroundColor:'#17131D',borderWidth:1,borderColor:'rgba(127,209,170,.25)'},currentTop:{flexDirection:'row',alignItems:'flex-start',gap:12},currentEyebrow:{color:colors.dimmed,fontSize:8,fontWeight:'900',letterSpacing:1.1},currentName:{color:colors.text,fontFamily:'Georgia',fontSize:28,marginTop:4},statusPill:{paddingHorizontal:10,paddingVertical:7,borderRadius:radius.pill,backgroundColor:'rgba(255,255,255,.06)',borderWidth:1,borderColor:colors.border},statusSuccess:{backgroundColor:'rgba(77,162,116,.12)',borderColor:'rgba(127,209,170,.28)'},statusWarning:{backgroundColor:'rgba(222,166,75,.10)',borderColor:'rgba(233,176,86,.28)'},statusDanger:{backgroundColor:'rgba(211,92,94,.10)',borderColor:'rgba(211,92,94,.28)'},statusText:{color:colors.text,fontSize:9,fontWeight:'900'},currentDetail:{color:colors.muted,fontSize:12,lineHeight:18},currentFacts:{flexDirection:'row',flexWrap:'wrap',gap:8},fact:{flexGrow:1,flexBasis:150,minWidth:130,padding:11,borderRadius:radius.md,backgroundColor:'rgba(255,255,255,.035)'},factLabel:{color:colors.dimmed,fontSize:8,fontWeight:'900',letterSpacing:.6},factValue:{color:colors.text,fontSize:12,fontWeight:'800',marginTop:5},manageButton:{minHeight:50,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,borderRadius:radius.md,borderWidth:1,borderColor:colors.border,backgroundColor:'rgba(255,255,255,.025)'},manageButtonText:{flex:1,textAlign:'center',color:colors.text,fontSize:13,fontWeight:'900'},managedNote:{minHeight:48,flexDirection:'row',alignItems:'center',gap:10,padding:12,borderRadius:radius.md,backgroundColor:'rgba(127,209,170,.055)'},managedNoteText:{flex:1,color:colors.muted,fontSize:11,lineHeight:17},
+  sectionHeading:{flexDirection:'row',alignItems:'flex-end',justifyContent:'space-between',gap:12},sectionKicker:{color:colors.rose,fontSize:9,fontWeight:'900',letterSpacing:1.15},sectionTitle:{color:colors.text,fontFamily:'Georgia',fontSize:24,marginTop:4},updated:{color:colors.dimmed,fontSize:9,fontWeight:'700'},tierToggle:{alignSelf:'center',width:'100%',maxWidth:560,minHeight:58,flexDirection:'row',gap:5,padding:5,borderRadius:radius.lg,backgroundColor:'rgba(17,15,25,.82)',borderWidth:1,borderColor:'rgba(255,255,255,.08)'},tierChoice:{flex:1,minWidth:0,minHeight:48,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,paddingHorizontal:10,borderRadius:radius.md,borderWidth:1,borderColor:'transparent'},tierChoicePlus:{backgroundColor:'rgba(213,67,139,.15)',borderColor:'rgba(244,124,181,.42)'},tierChoiceMax:{backgroundColor:'rgba(115,91,224,.17)',borderColor:'rgba(175,162,255,.42)'},tierChoiceName:{color:colors.muted,fontSize:14,fontWeight:'900'},tierChoiceNamePlus:{color:'#F7B1D0'},tierChoiceNameMax:{color:'#C9C0FF'},tierCurrent:{color:'#F47CB5',fontSize:7,fontWeight:'900',letterSpacing:.65},tierCurrentMax:{color:'#AFA2FF'},
+  plan:{gap:18,padding:22,borderRadius:radius.xl,borderWidth:1},planPlus:{backgroundColor:'rgba(31,17,29,.94)',borderColor:'rgba(244,124,181,.42)'},planMax:{backgroundColor:'rgba(20,18,35,.95)',borderColor:'rgba(175,162,255,.40)'},planTop:{flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start',gap:12},planTopCompact:{flexDirection:'column-reverse'},planName:{color:colors.text,fontFamily:'Georgia',fontSize:27},planNameMax:{color:'#E2DDFF'},planPrice:{color:'#F4C4D5',fontFamily:'Georgia',fontSize:24,marginTop:4},planPriceMax:{color:'#CEC5FF'},planPeriod:{color:colors.muted,fontSize:10,fontWeight:'700'},billedAnnually:{color:colors.dimmed,fontSize:9,lineHeight:14,fontWeight:'700',marginTop:3},valueBadge:{alignSelf:'flex-start',paddingHorizontal:10,paddingVertical:7,borderRadius:radius.pill,backgroundColor:'rgba(213,67,139,.16)',borderWidth:1,borderColor:'rgba(244,124,181,.25)'},valueBadgeMax:{backgroundColor:'rgba(115,91,224,.18)',borderColor:'rgba(175,162,255,.26)'},valueBadgeText:{color:'#F7B1D0',fontSize:8,fontWeight:'900',letterSpacing:.7},valueBadgeTextMax:{color:'#C9C0FF'},featureList:{gap:9},feature:{flexDirection:'row',alignItems:'center',gap:11},featureText:{flex:1,color:colors.text,fontSize:13,lineHeight:19,fontWeight:'700'},billingToggle:{width:'100%',flexDirection:'row',gap:4,padding:4,borderRadius:radius.lg,backgroundColor:'rgba(6,7,12,.36)',borderWidth:1,borderColor:'rgba(255,255,255,.08)'},billingChoice:{flex:1,minHeight:48,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,paddingHorizontal:8,borderRadius:radius.md,borderWidth:1,borderColor:'transparent'},billingChoicePlus:{backgroundColor:'rgba(213,67,139,.18)',borderColor:'rgba(244,124,181,.32)'},billingChoiceMax:{backgroundColor:'rgba(115,91,224,.20)',borderColor:'rgba(175,162,255,.32)'},billingText:{color:colors.muted,fontSize:11,fontWeight:'800'},billingTextActive:{color:colors.text},savePill:{paddingHorizontal:5,paddingVertical:3,borderRadius:radius.pill,backgroundColor:'rgba(216,62,234,.20)'},savePillMax:{backgroundColor:'rgba(115,91,224,.22)'},saveText:{color:'#FFB9D2',fontSize:7,fontWeight:'900',letterSpacing:.5},saveTextMax:{color:'#C9C0FF'},planAction:{minHeight:54,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,borderRadius:radius.md},planActionPlus:{backgroundColor:'#D5438B'},planActionMax:{backgroundColor:'#735BE0'},planActionText:{color:'#fff',fontSize:15,fontWeight:'900'},currentPlanStrip:{minHeight:50,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,borderRadius:radius.md,backgroundColor:'rgba(127,209,170,.07)',borderWidth:1,borderColor:'rgba(127,209,170,.18)'},currentPlanStripText:{color:colors.success,fontSize:13,fontWeight:'900'},unavailableAction:{minHeight:50,flexDirection:'row',alignItems:'center',gap:9,padding:12,borderRadius:radius.md,backgroundColor:'rgba(255,255,255,.035)'},unavailableText:{flex:1,color:colors.muted,fontSize:11,lineHeight:17},
+  creditsPanel:{gap:16,padding:20,borderRadius:radius.xl,backgroundColor:'#17131D',borderWidth:1,borderColor:'rgba(233,160,127,.30)'},creditsHeading:{flexDirection:'row',alignItems:'flex-start',justifyContent:'space-between',gap:18},creditsHeadingCompact:{flexDirection:'column'},creditsIdentity:{flex:1,minWidth:220,flexDirection:'row',alignItems:'center',gap:12},creditsTitle:{color:colors.text,fontFamily:'Georgia',fontSize:22},creditsCopy:{color:colors.muted,fontSize:11,lineHeight:17,marginTop:4},balanceCompact:{alignItems:'flex-end'},balanceCompactMobile:{alignItems:'flex-start'},balanceLabel:{color:colors.dimmed,fontSize:8,fontWeight:'900',letterSpacing:1.1},balanceValue:{flexDirection:'row',alignItems:'center',gap:7},balanceNumber:{color:colors.text,fontFamily:'Georgia',fontSize:31,lineHeight:36},balanceBreakdown:{flexDirection:'row',flexWrap:'wrap',gap:8},miniStat:{flexGrow:1,flexBasis:170,minWidth:150,padding:11,borderRadius:radius.md,backgroundColor:'rgba(255,255,255,.035)'},miniLabel:{color:colors.dimmed,fontSize:8,fontWeight:'900'},miniValue:{color:colors.text,fontSize:17,fontWeight:'900',marginTop:4},miniDetail:{color:colors.muted,fontSize:9,lineHeight:14,marginTop:3},creditDivider:{height:1,backgroundColor:colors.border},panelSubheading:{color:colors.text,fontSize:14,fontWeight:'900'},panelSubcopy:{color:colors.muted,fontSize:10,lineHeight:15,marginTop:3},packGrid:{flexDirection:'row',flexWrap:'wrap',gap:10},packCard:{position:'relative',overflow:'hidden',flexGrow:1,flexBasis:135,minWidth:125,alignItems:'center',gap:3,paddingHorizontal:10,paddingVertical:17,borderRadius:radius.lg,backgroundColor:'rgba(255,255,255,.035)',borderWidth:1,borderColor:'rgba(255,255,255,.10)'},packSelected:{borderColor:'rgba(244,124,181,.78)',backgroundColor:'rgba(213,67,139,.10)'},packBadge:{position:'absolute',top:0,color:'#fff',fontSize:7,fontWeight:'900',letterSpacing:.7,backgroundColor:'rgba(213,67,139,.72)',paddingHorizontal:10,paddingVertical:4,borderBottomLeftRadius:8,borderBottomRightRadius:8},packCreditRow:{flexDirection:'row',alignItems:'center',gap:7,marginTop:4},packCredits:{color:colors.text,fontFamily:'Georgia',fontSize:24,fontWeight:'900'},packUnit:{color:colors.muted,fontSize:10},packPrice:{color:'#F47CB5',fontSize:13,fontWeight:'900',marginTop:5},buyCredits:{minHeight:54,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:9,borderRadius:radius.md,backgroundColor:'#C73579'},buyCreditsText:{color:'#fff',fontSize:15,fontWeight:'900'},creditUnavailable:{minHeight:50,flexDirection:'row',alignItems:'center',gap:9,padding:12,borderRadius:radius.md,backgroundColor:'rgba(255,255,255,.035)'},creditUnavailableText:{flex:1,color:colors.muted,fontSize:11,lineHeight:17},activityHeading:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12},activityList:{gap:3},activityRow:{minHeight:54,flexDirection:'row',alignItems:'center',gap:10,paddingVertical:7,borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:colors.border},activityIcon:{width:32,height:32,borderRadius:16,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(255,255,255,.04)'},activityLabel:{color:colors.text,fontSize:11,fontWeight:'900'},activityDetail:{color:colors.dimmed,fontSize:9,marginTop:3},activityAmount:{color:colors.muted,fontSize:12,fontWeight:'900'},activityPositive:{color:colors.success},emptyActivity:{color:colors.dimmed,fontSize:10},refundNote:{color:colors.dimmed,fontSize:9,lineHeight:14},
+  compareToggle:{minHeight:64,flexDirection:'row',alignItems:'center',gap:12,paddingHorizontal:16,borderRadius:radius.lg,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border},compareTitle:{color:colors.text,fontSize:13,fontWeight:'900'},compareCopy:{color:colors.muted,fontSize:10,marginTop:3},compareGrid:{gap:10},compareGridWide:{flexDirection:'row',alignItems:'stretch'},compareCard:{flex:1,minWidth:0,overflow:'hidden',borderRadius:radius.lg,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border},compareCardCompact:{width:'100%'},compareCardTop:{minHeight:52,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8,padding:12,backgroundColor:colors.elevated},comparePlan:{color:colors.text,fontFamily:'Georgia',fontSize:17},compareCurrent:{color:colors.success,fontSize:7,fontWeight:'900',letterSpacing:.6},compareRow:{minHeight:44,justifyContent:'center',paddingHorizontal:12,paddingVertical:8,borderTopWidth:StyleSheet.hairlineWidth,borderTopColor:colors.border},compareLabel:{color:colors.dimmed,fontSize:8,fontWeight:'900',letterSpacing:.4},compareValue:{color:colors.text,fontSize:10,fontWeight:'800',marginTop:3},
+  policyLinks:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',justifyContent:'center',gap:8,paddingVertical:6},policyLink:{minHeight:44,textAlignVertical:'center',color:colors.muted,fontSize:10,fontWeight:'800',textDecorationLine:'underline'},policyDot:{color:colors.dimmed,fontSize:9},errorCard:{gap:14,padding:18,borderRadius:radius.lg,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border},error:{color:colors.danger,fontSize:11,textAlign:'center'},
 });
