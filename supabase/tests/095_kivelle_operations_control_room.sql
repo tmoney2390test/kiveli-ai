@@ -37,7 +37,7 @@ select ok(not has_table_privilege('authenticated','public.together_client_sessio
 select ok(not has_function_privilege('authenticated','public.kivelle_ops_find_user(text)','EXECUTE'),'clients cannot query auth accounts');
 select ok(not has_function_privilege('authenticated','public.kivelle_ops_upsert_incident(text,text,text,text,text,text,jsonb)','EXECUTE'),'clients cannot create incidents directly');
 select ok(not has_function_privilege('authenticated','public.kivelle_ops_terminate_media_job(uuid,text,text)','EXECUTE'),'clients cannot terminate provider jobs');
-select results_eq('select count(*)::bigint from public.together_ops_alert_rules',array[10::bigint],'the initial production alert pack is seeded exactly once');
+select results_eq('select count(*)::bigint from public.together_ops_alert_rules',array[11::bigint],'the production alert pack includes the media-cleanup rule exactly once');
 
 select * from finish();
 rollback;
