@@ -1,4 +1,4 @@
-import type { BillingManagement, CreditActivityEvent, SubscriptionStatus, SubscriptionTier } from './subscription';
+import type { BillingInterval, BillingManagement, CreditActivityEvent, SubscriptionPlan, SubscriptionStatus, SubscriptionTier } from './subscription';
 
 export const subscriptionIntents=['plans','photo_sharing','credits','generated_media','voice','memory','initiative','worlds','group_chat'] as const;
 export type SubscriptionIntent=typeof subscriptionIntents[number];
@@ -43,6 +43,43 @@ export function subscriptionHref(input:{intent?:SubscriptionIntent;returnTo?:str
 export function annualSavingsPercentage(monthly:number,annual:number|null):number{
   if(!annual||monthly<=0)return 0;
   return Math.max(0,Math.round((1-annual/(monthly*12))*100));
+}
+
+export type MembershipMetric={key:'lives'|'companions'|'photos';value:number;label:string;detail:string};
+
+export function membershipPageMode(tier:SubscriptionTier):'discovery'|'member'{return tier==='free'?'discovery':'member';}
+
+export function membershipMetrics(plan:SubscriptionPlan):MembershipMetric[]{
+  return[
+    {key:'lives',value:plan.maxLives,label:'Lives',detail:'available'},
+    {key:'companions',value:plan.maxCustomCompanions,label:'companions',detail:'custom slots'},
+    {key:'photos',value:plan.includedCompanionPhotoDailyLimit,label:'photos daily',detail:'included generation'},
+  ];
+}
+
+export function membershipBenefits(plan:SubscriptionPlan):string[]{
+  if(plan.tier==='free')return['A full relationship in any published world','Core continuity','One Life and one custom companion'];
+  const benefits=[
+    plan.tier==='kivelle_max'?'Everything in Kivelle+':'Unlimited conversations and group chats',
+    plan.tier==='kivelle_max'?'Deepest memory and continuity':'Share your own photos without using Credits',
+    `${plan.includedCompanionPhotoDailyLimit} generated ${plan.includedCompanionPhotoDailyLimit===1?'photo':'photos'} every day`,
+    `${plan.monthlyCreditGrant.toLocaleString()} monthly Kivelle Credits`,
+    `${plan.maxLives} Lives and ${plan.maxCustomCompanions} custom companions`,
+  ];
+  if(plan.tier==='kivelle_max')benefits.push('Highest media priority and early world access');
+  else benefits.push('Deeper continuity and access to every standard world');
+  return benefits;
+}
+
+export function membershipPricePresentation(plan:SubscriptionPlan,interval:BillingInterval):{primary:string;period:string;detail:string}{
+  if(interval==='annual'&&plan.annualPriceUsd){
+    return{primary:formatUsd(plan.annualPriceUsd/12),period:'/ month',detail:`${formatUsd(plan.annualPriceUsd)} billed yearly`};
+  }
+  return{primary:formatUsd(plan.monthlyPriceUsd),period:'/ month',detail:'Billed monthly'};
+}
+
+function formatUsd(value:number):string{
+  try{return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2}).format(value);}catch{return`$${value.toFixed(2)}`;}
 }
 
 export function checkoutBackoffDelay(attempt:number):number{return[0,800,1500,2500,4000,6000,8000,10000][Math.max(0,Math.min(7,attempt))]??10000;}
