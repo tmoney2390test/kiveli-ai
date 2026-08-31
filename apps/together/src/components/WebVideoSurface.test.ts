@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatVideoTime, webVideoElementAttributes } from './WebVideoSurface';
+import { formatVideoTime, webVideoControlButtonStyle, webVideoElementAttributes } from './WebVideoSurface';
 
 describe('mobile web video surface',()=>{
   it('renders an inline HTML5 video with custom touch controls and explicit tap-to-play',()=>{
@@ -25,5 +25,9 @@ describe('mobile web video surface',()=>{
   it('formats a stable mobile playback time label',()=>{
     expect(formatVideoTime(0)).toBe('0:00');
     expect(formatVideoTime(65.8)).toBe('1:05');
+  });
+
+  it('uses icon-only controls without pill backgrounds while preserving touch targets',()=>{
+    expect(webVideoControlButtonStyle).toMatchObject({width:44,height:44,minWidth:44,minHeight:44,padding:0,border:'none',background:'transparent'});
   });
 });

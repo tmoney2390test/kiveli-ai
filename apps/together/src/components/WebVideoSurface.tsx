@@ -5,6 +5,15 @@ type Props={uri:string|null;posterUri?:string|null;accessibilityLabel:string;act
 
 export function webVideoElementAttributes({uri,posterUri,active=true,autoPlay=false,muted=true,loop=true}:Pick<Props,'uri'|'posterUri'|'active'|'autoPlay'|'muted'|'loop'>){return{src:uri??undefined,poster:posterUri??undefined,controls:false,autoPlay:autoPlay&&active,muted,defaultMuted:muted,loop,playsInline:true,preload:'auto' as const,'webkit-playsinline':'true',style:videoStyle};}
 export function formatVideoTime(value:number):string{if(!Number.isFinite(value)||value<0)return'0:00';const seconds=Math.floor(value),minutes=Math.floor(seconds/60);return`${minutes}:${String(seconds%60).padStart(2,'0')}`;}
+function videoControlIcon(name:'play'|'pause'|'volume'|'muted'){
+  const common={fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'};
+  const children=name==='play'
+    ?[createElement('path',{key:'play',d:'m9 6 9 6-9 6Z',...common})]
+    :name==='pause'
+      ?[createElement('path',{key:'left',d:'M9 5v14',...common}),createElement('path',{key:'right',d:'M15 5v14',...common})]
+      :[createElement('path',{key:'speaker',d:'M11 5 6 9H3v6h3l5 4Z',...common}),createElement('path',{key:'wave',d:'M15.5 8.5a5 5 0 0 1 0 7',...common}),...(name==='muted'?[createElement('path',{key:'mute',d:'m18 9 4 4m0-4-4 4',...common})]:[createElement('path',{key:'outer-wave',d:'M18.5 5.5a9 9 0 0 1 0 13',...common})])];
+  return createElement('svg',{width:24,height:24,viewBox:'0 0 24 24','aria-hidden':true,focusable:false},...children);
+}
 
 export function WebVideoSurface({uri,posterUri,accessibilityLabel,active=true,autoPlay=false,muted=true,loop=true,audioBehavior='unknown',onReady,onError,onRetry,onPlay}:Props){
   const videoRef=useRef<HTMLVideoElement|null>(null);
@@ -23,8 +32,8 @@ export function WebVideoSurface({uri,posterUri,accessibilityLabel,active=true,au
       createElement('video',{key:uri??'empty-video',ref:videoRef,...webVideoElementAttributes({uri,posterUri,active,autoPlay,muted:mutedState,loop}),'aria-label':accessibilityLabel,onLoadStart:()=>{setReady(false);setBuffering(Boolean(uri));},onLoadedMetadata:markReady,onCanPlay:markReady,onLoadedData:markReady,onError:markFailed,onPlay:()=>{setPlaying(true);setBuffering(false);onPlay?.();},onPlaying:()=>{setPlaying(true);setBuffering(false);},onPause:()=>setPlaying(false),onEnded:()=>setPlaying(false),onWaiting:()=>setBuffering(true),onTimeUpdate:(event)=>setCurrentTime(event.currentTarget.currentTime),onDurationChange:(event)=>setDuration(Number.isFinite(event.currentTarget.duration)?event.currentTarget.duration:0)}),
       failed?createElement('div',{role:'alert',style:statusOverlayStyle},createElement('strong',{style:statusTitleStyle},'Video needs another try'),createElement('span',{style:statusCopyStyle},'Refresh the secure link and reload playback.'),createElement('button',{type:'button','aria-label':'Try loading video again',disabled:retrying,onClick:()=>void retry(),style:retryButtonStyle},retrying?'Refreshing…':'Try again')):(!ready||buffering)?createElement('div',{'aria-live':'polite',style:statusOverlayStyle},createElement('span',{style:loaderDotStyle}),createElement('span',{style:statusCopyStyle},uri?'Loading video…':'Preparing secure video…')):null),
     createElement('div',{style:controlBarStyle},
-      createElement('button',{type:'button','aria-label':playLabel,disabled:!uri||failed,onClick:()=>void togglePlayback(),style:controlButtonStyle},playing?'Pause':'Play'),
-      createElement('button',{type:'button','aria-label':soundLabel,disabled:!uri||audioBehavior==='silent',onClick:toggleMuted,style:controlButtonStyle},audioBehavior==='silent'?'Silent':mutedState?'Sound on':'Mute'),
+      createElement('button',{type:'button','aria-label':playLabel,title:playLabel,disabled:!uri||failed,onClick:()=>void togglePlayback(),style:{...webVideoControlButtonStyle,opacity:(!uri||failed)?0.35:1}},videoControlIcon(playing?'pause':'play')),
+      createElement('button',{type:'button','aria-label':soundLabel,title:soundLabel,disabled:!uri||audioBehavior==='silent',onClick:toggleMuted,style:{...webVideoControlButtonStyle,opacity:(!uri||audioBehavior==='silent')?0.35:1}},videoControlIcon(mutedState||audioBehavior==='silent'?'muted':'volume')),
       createElement('div',{style:timelineStyle},createElement('input',{type:'range','aria-label':'Video progress',min:0,max:duration||1,step:.1,value:Math.min(currentTime,duration||1),disabled:!ready||!duration,onChange:seek,style:rangeStyle}),createElement('span',{style:timeStyle},`${formatVideoTime(currentTime)} / ${formatVideoTime(duration)}`))));
 }
 
@@ -37,7 +46,7 @@ const statusCopyStyle={maxWidth:360,color:'#BDB4C1',fontSize:12,lineHeight:1.45}
 const loaderDotStyle={width:18,height:18,borderRadius:999,border:'2px solid rgba(255,255,255,.22)',borderTopColor:'#E75A91'};
 const retryButtonStyle={minWidth:118,minHeight:44,padding:'8px 16px',border:'1px solid rgba(255,255,255,.25)',borderRadius:999,background:'#D63D78',color:'#fff',fontSize:13,fontWeight:800,cursor:'pointer'};
 const controlBarStyle={position:'relative' as const,zIndex:6,minHeight:64,flexShrink:0,display:'flex',flexDirection:'row' as const,flexWrap:'wrap' as const,alignItems:'center',justifyContent:'center',gap:10,padding:'9px 12px',background:'rgba(10,7,15,.98)',borderTop:'1px solid rgba(255,255,255,.22)'};
-const controlButtonStyle={minWidth:64,minHeight:44,padding:'8px 10px',border:'1px solid rgba(255,255,255,.22)',borderRadius:999,background:'rgba(255,255,255,.11)',color:'#fff',fontSize:13,fontWeight:800,cursor:'pointer',touchAction:'manipulation',WebkitTapHighlightColor:'transparent'};
+export const webVideoControlButtonStyle={width:44,height:44,minWidth:44,minHeight:44,padding:0,border:'none',borderRadius:0,background:'transparent',color:'#fff',display:'inline-flex',alignItems:'center',justifyContent:'center',cursor:'pointer',touchAction:'manipulation',WebkitTapHighlightColor:'transparent',appearance:'none' as const};
 const timelineStyle={minWidth:0,flex:'1 1 220px',maxWidth:520,display:'flex',alignItems:'center',gap:7};
 const rangeStyle={width:'100%',minHeight:24,accentColor:'#E75A91',cursor:'pointer'};
 const timeStyle={color:'#BDB4C1',fontSize:10,fontVariantNumeric:'tabular-nums'};
