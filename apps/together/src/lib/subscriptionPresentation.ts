@@ -50,7 +50,7 @@ export type MembershipMetric={key:'lives'|'companions'|'photos';value:number;lab
 export function membershipPageMode(tier:SubscriptionTier):'discovery'|'member'{return tier==='free'?'discovery':'member';}
 
 export function shouldShowSubscriptionIntentCallout(mode:'discovery'|'member',intent:SubscriptionIntent):boolean{
-  return intent!=='plans'&&!(mode==='discovery'&&intent==='credits');
+  return intent!=='plans'&&intent!=='credits';
 }
 
 export function membershipMetrics(plan:SubscriptionPlan):MembershipMetric[]{
