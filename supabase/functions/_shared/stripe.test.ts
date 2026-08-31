@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects } from 'jsr:@std/assert@1';
-import { stripeCreditPackForPrice, stripePriceForCreditPack, stripePriceForTier, stripeTierForPrice, verifyStripeWebhook } from './stripe.ts';
+import { stripeBillingConfiguration, stripeCreditPackForPrice, stripePriceForCreditPack, stripePriceForTier, stripeTierForPrice, verifyStripeWebhook } from './stripe.ts';
 
 Deno.test({name:'Stripe catalog maps only configured server-side prices',permissions:{env:true},fn:()=>{
   const names=['STRIPE_PRICE_KIVELLE_PLUS_MONTHLY','STRIPE_PRICE_CREDITS_100'] as const,previous=names.map((name)=>Deno.env.get(name));
@@ -12,6 +12,15 @@ Deno.test({name:'Stripe catalog maps only configured server-side prices',permiss
     assertEquals(stripeCreditPackForPrice('price_credits_test'),'credits_100');
     assertEquals(stripeCreditPackForPrice('price_client_supplied'),null);
   }finally{names.forEach((name,index)=>previous[index]===undefined?Deno.env.delete(name):Deno.env.set(name,previous[index]!));}
+}});
+
+Deno.test({name:'Stripe Managed Payments requires an explicit server opt-in',permissions:{env:true},fn:()=>{
+  const name='STRIPE_MANAGED_PAYMENTS_ENABLED',previous=Deno.env.get(name);
+  try{
+    Deno.env.delete(name);assertEquals(stripeBillingConfiguration().managedPayments,false);
+    Deno.env.set(name,'true');assertEquals(stripeBillingConfiguration().managedPayments,true);
+    Deno.env.set(name,'false');assertEquals(stripeBillingConfiguration().managedPayments,false);
+  }finally{previous===undefined?Deno.env.delete(name):Deno.env.set(name,previous);}
 }});
 
 Deno.test({name:'Stripe webhook verifies exact raw body and rejects tampering',permissions:{env:true},fn:async()=>{

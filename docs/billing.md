@@ -22,6 +22,7 @@ STRIPE_PRICE_CREDITS_300=price_...
 STRIPE_PRICE_CREDITS_800=price_...
 STRIPE_PRICE_CREDITS_2000=price_...
 STRIPE_AUTOMATIC_TAX_ENABLED=false
+STRIPE_MANAGED_PAYMENTS_ENABLED=false
 KIVELLE_PUBLIC_APP_URL=https://kivelli.app
 KIVELLE_BILLING_GRANT_SECRET=<random server secret>
 ```
@@ -54,6 +55,7 @@ The server pins Stripe API version `2026-02-25.clover`. Revalidate webhook fixtu
    - `charge.dispute.closed`
 6. Copy the endpoint signing secret to `STRIPE_WEBHOOK_SECRET`.
 7. If using Stripe Tax, configure registrations/product tax codes first, then enable `STRIPE_AUTOMATIC_TAX_ENABLED`. Stripe calculation does not by itself satisfy every tax registration, filing, or remittance obligation.
+8. Kivelle explicitly uses standard Checkout by default. Enable `STRIPE_MANAGED_PAYMENTS_ENABLED` only after the Stripe account and every sellable product meet Managed Payments eligibility requirements, including eligible product tax codes.
 
 ## Monthly grants and rollover
 
