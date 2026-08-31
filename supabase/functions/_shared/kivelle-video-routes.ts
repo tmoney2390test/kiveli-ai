@@ -48,12 +48,11 @@ export type VideoRouteDefinition = {
   enabled: boolean;
   testingOnly: true;
   payloadBuilderId: VideoRouteId;
-  providerCostCeilingUsd: number;
   concurrencyLimit: number;
   sceneReinterpretationWarning?: string;
 };
 
-export type SafeVideoRouteOption = Omit<VideoRouteDefinition, 'model' | 'providerCostCeilingUsd' | 'concurrencyLimit' | 'payloadBuilderId' | 'enabled'>;
+export type SafeVideoRouteOption = Omit<VideoRouteDefinition, 'model' | 'concurrencyLimit' | 'payloadBuilderId' | 'enabled'>;
 export type VideoPayloadInput = {
   sourceImageUrl?: string;
   canonicalReferences?: Array<{ url: string; role: 'character_identity' | 'location_environment' | 'world_environment' | 'outfit_continuity' }>;
@@ -64,19 +63,16 @@ export type VideoPayloadInput = {
   context?: { companionName?: string; locationName?: string; activity?: string };
 };
 
-const ROUTE_ENV: Record<VideoRouteId, { enabled: string; maxUsd: string; defaultMaxUsd: number; concurrency: string; defaultConcurrency: number }> = {
-  'wavespeed-gemini-omni-flash-i2v': { enabled: 'KIVELLE_VIDEO_ROUTE_GEMINI_OMNI_FLASH_I2V_ENABLED', maxUsd: 'KIVELLE_VIDEO_ROUTE_GEMINI_OMNI_FLASH_I2V_MAX_USD', defaultMaxUsd: .90, concurrency: 'KIVELLE_VIDEO_ROUTE_GEMINI_OMNI_FLASH_I2V_CONCURRENCY', defaultConcurrency: 3 },
-  'wavespeed-minimax-h3-i2v': { enabled: 'KIVELLE_VIDEO_ROUTE_MINIMAX_H3_I2V_ENABLED', maxUsd: 'KIVELLE_VIDEO_ROUTE_MINIMAX_H3_I2V_MAX_USD', defaultMaxUsd: .70, concurrency: 'KIVELLE_VIDEO_ROUTE_MINIMAX_H3_I2V_CONCURRENCY', defaultConcurrency: 1 },
-  'wavespeed-p-video-i2v': { enabled: 'KIVELLE_VIDEO_ROUTE_P_VIDEO_I2V_ENABLED', maxUsd: 'KIVELLE_VIDEO_ROUTE_P_VIDEO_I2V_MAX_USD', defaultMaxUsd: .20, concurrency: 'KIVELLE_VIDEO_ROUTE_P_VIDEO_I2V_CONCURRENCY', defaultConcurrency: 3 },
-  'wavespeed-gemini-omni-flash-r2v': { enabled: 'KIVELLE_VIDEO_ROUTE_GEMINI_OMNI_FLASH_R2V_ENABLED', maxUsd: 'KIVELLE_VIDEO_ROUTE_GEMINI_OMNI_FLASH_R2V_MAX_USD', defaultMaxUsd: 1, concurrency: 'KIVELLE_VIDEO_ROUTE_GEMINI_OMNI_FLASH_R2V_CONCURRENCY', defaultConcurrency: 2 },
-  'wavespeed-minimax-h3-r2v': { enabled: 'KIVELLE_VIDEO_ROUTE_MINIMAX_H3_R2V_ENABLED', maxUsd: 'KIVELLE_VIDEO_ROUTE_MINIMAX_H3_R2V_MAX_USD', defaultMaxUsd: 2, concurrency: 'KIVELLE_VIDEO_ROUTE_MINIMAX_H3_R2V_CONCURRENCY', defaultConcurrency: 1 },
+const ROUTE_ENV: Record<VideoRouteId, { enabled: string; concurrency: string; defaultConcurrency: number }> = {
+  'wavespeed-gemini-omni-flash-i2v': { enabled: 'KIVELLE_VIDEO_ROUTE_GEMINI_OMNI_FLASH_I2V_ENABLED', concurrency: 'KIVELLE_VIDEO_ROUTE_GEMINI_OMNI_FLASH_I2V_CONCURRENCY', defaultConcurrency: 3 },
+  'wavespeed-minimax-h3-i2v': { enabled: 'KIVELLE_VIDEO_ROUTE_MINIMAX_H3_I2V_ENABLED', concurrency: 'KIVELLE_VIDEO_ROUTE_MINIMAX_H3_I2V_CONCURRENCY', defaultConcurrency: 1 },
+  'wavespeed-p-video-i2v': { enabled: 'KIVELLE_VIDEO_ROUTE_P_VIDEO_I2V_ENABLED', concurrency: 'KIVELLE_VIDEO_ROUTE_P_VIDEO_I2V_CONCURRENCY', defaultConcurrency: 3 },
+  'wavespeed-gemini-omni-flash-r2v': { enabled: 'KIVELLE_VIDEO_ROUTE_GEMINI_OMNI_FLASH_R2V_ENABLED', concurrency: 'KIVELLE_VIDEO_ROUTE_GEMINI_OMNI_FLASH_R2V_CONCURRENCY', defaultConcurrency: 2 },
+  'wavespeed-minimax-h3-r2v': { enabled: 'KIVELLE_VIDEO_ROUTE_MINIMAX_H3_R2V_ENABLED', concurrency: 'KIVELLE_VIDEO_ROUTE_MINIMAX_H3_R2V_CONCURRENCY', defaultConcurrency: 1 },
 };
 
 function enabled(id: VideoRouteId): boolean {
   return envBoolean(ROUTE_ENV[id].enabled, false);
-}
-function ceiling(id: VideoRouteId): number {
-  return Math.max(0, envNumber(ROUTE_ENV[id].maxUsd, ROUTE_ENV[id].defaultMaxUsd));
 }
 function concurrency(id: VideoRouteId): number {
   return Math.max(1, Math.min(4, Math.floor(envNumber(ROUTE_ENV[id].concurrency, ROUTE_ENV[id].defaultConcurrency))));
@@ -91,28 +87,28 @@ export function configuredVideoRouteCatalog(): VideoRouteDefinition[] {
       description: 'Lowest-cost video with flexible 10–20 second clips', mediaMode: 'image_to_video', sourceModes: ['existing_photo', 'generated_first_frame'], allowedDurations: [10, 15, 20], resolution: '720p',
       referenceImageRequirements: { source: 1, canonicalCharacterMin: 0, canonicalCharacterMax: 0 }, audioBehavior: 'silent', audioLabel: 'Silent · lowest cost',
       estimatedProviderCostUsd: .04, estimatedWaitSeconds: { min: 20, max: 120, median: 45 }, enabled: available && enabled('wavespeed-p-video-i2v'),
-      payloadBuilderId: 'wavespeed-p-video-i2v', providerCostCeilingUsd: ceiling('wavespeed-p-video-i2v'), concurrencyLimit: concurrency('wavespeed-p-video-i2v'),
+      payloadBuilderId: 'wavespeed-p-video-i2v', concurrencyLimit: concurrency('wavespeed-p-video-i2v'),
     },
     {
       ...common, id: 'wavespeed-gemini-omni-flash-i2v', model: 'google/gemini-omni-flash/image-to-video', displayName: 'Gemini Omni Flash', badge: 'Recommended',
       description: 'Best balance of motion quality, consistency, and speed', mediaMode: 'image_to_video', sourceModes: ['existing_photo'], allowedDurations: [10], resolution: 'provider_native',
       referenceImageRequirements: { source: 1, canonicalCharacterMin: 0, canonicalCharacterMax: 0 }, audioBehavior: 'generated_audio', audioLabel: 'May include generated audio · playback starts muted',
-      estimatedProviderCostUsd: .70, estimatedWaitSeconds: { min: 30, max: 90, median: 42 }, enabled: available && enabled('wavespeed-gemini-omni-flash-i2v'),
-      payloadBuilderId: 'wavespeed-gemini-omni-flash-i2v', providerCostCeilingUsd: ceiling('wavespeed-gemini-omni-flash-i2v'), concurrencyLimit: concurrency('wavespeed-gemini-omni-flash-i2v'),
+      estimatedProviderCostUsd: 1.40, estimatedWaitSeconds: { min: 30, max: 90, median: 42 }, enabled: available && enabled('wavespeed-gemini-omni-flash-i2v'),
+      payloadBuilderId: 'wavespeed-gemini-omni-flash-i2v', concurrencyLimit: concurrency('wavespeed-gemini-omni-flash-i2v'),
     },
     {
       ...common, id: 'wavespeed-minimax-h3-i2v', model: 'minimax/h3/image-to-video', displayName: 'MiniMax H3', badge: 'Highest quality',
       description: 'Best visual fidelity, but substantially slower', mediaMode: 'image_to_video', sourceModes: ['existing_photo'], allowedDurations: [10, 15], resolution: '768p',
       referenceImageRequirements: { source: 1, canonicalCharacterMin: 0, canonicalCharacterMax: 0 }, audioBehavior: 'provider_default', audioLabel: 'Provider audio behavior may vary · playback starts muted',
       estimatedProviderCostUsd: .50, estimatedWaitSeconds: { min: 180, max: 600, median: 353 }, enabled: available && enabled('wavespeed-minimax-h3-i2v'),
-      payloadBuilderId: 'wavespeed-minimax-h3-i2v', providerCostCeilingUsd: ceiling('wavespeed-minimax-h3-i2v'), concurrencyLimit: concurrency('wavespeed-minimax-h3-i2v'),
+      payloadBuilderId: 'wavespeed-minimax-h3-i2v', concurrencyLimit: concurrency('wavespeed-minimax-h3-i2v'),
     },
     {
       ...common, id: 'wavespeed-gemini-omni-flash-r2v', model: 'google/gemini-omni-flash/reference-to-video', displayName: 'Gemini Omni Flash References', badge: 'Identity test',
       description: 'Uses character and location references to reduce identity drift', mediaMode: 'reference_to_video', sourceModes: ['existing_photo', 'canonical_references'], allowedDurations: [10], resolution: 'provider_native',
       referenceImageRequirements: { source: 0, canonicalCharacterMin: 1, canonicalCharacterMax: 2 }, audioBehavior: 'generated_audio', audioLabel: 'May include generated audio · playback starts muted',
-      estimatedProviderCostUsd: .80, estimatedWaitSeconds: { min: 35, max: 100, median: 48 }, enabled: available && enabled('wavespeed-gemini-omni-flash-r2v'),
-      payloadBuilderId: 'wavespeed-gemini-omni-flash-r2v', providerCostCeilingUsd: ceiling('wavespeed-gemini-omni-flash-r2v'), concurrencyLimit: concurrency('wavespeed-gemini-omni-flash-r2v'),
+      estimatedProviderCostUsd: 1.60, estimatedWaitSeconds: { min: 35, max: 100, median: 48 }, enabled: available && enabled('wavespeed-gemini-omni-flash-r2v'),
+      payloadBuilderId: 'wavespeed-gemini-omni-flash-r2v', concurrencyLimit: concurrency('wavespeed-gemini-omni-flash-r2v'),
       sceneReinterpretationWarning: 'May reinterpret the scene instead of preserving the exact first frame.',
     },
     {
@@ -120,7 +116,7 @@ export function configuredVideoRouteCatalog(): VideoRouteDefinition[] {
       description: 'Creates a new scene directly from the approved identity, location, and your prompt', mediaMode: 'reference_to_video', sourceModes: ['canonical_references'], allowedDurations: [10, 15], resolution: '768p',
       referenceImageRequirements: { source: 0, canonicalCharacterMin: 1, canonicalCharacterMax: 8 }, audioBehavior: 'generated_audio', audioLabel: 'May include generated audio · playback starts muted',
       estimatedProviderCostUsd: 1, estimatedWaitSeconds: { min: 90, max: 600, median: 240 }, enabled: available && enabled('wavespeed-minimax-h3-r2v'),
-      payloadBuilderId: 'wavespeed-minimax-h3-r2v', providerCostCeilingUsd: ceiling('wavespeed-minimax-h3-r2v'), concurrencyLimit: concurrency('wavespeed-minimax-h3-r2v'),
+      payloadBuilderId: 'wavespeed-minimax-h3-r2v', concurrencyLimit: concurrency('wavespeed-minimax-h3-r2v'),
     },
   ];
 }
@@ -146,7 +142,7 @@ export function resolveVideoRoute(routeId: string, userId: string, email?: strin
   return route;
 }
 export function safeVideoRouteOption(route: VideoRouteDefinition): SafeVideoRouteOption {
-  const { model: _model, providerCostCeilingUsd: _ceiling, concurrencyLimit: _concurrency, payloadBuilderId: _builder, enabled: _enabled, ...safe } = route;
+  const { model: _model, concurrencyLimit: _concurrency, payloadBuilderId: _builder, enabled: _enabled, ...safe } = route;
   return safe;
 }
 export function videoCreditCost(route: VideoRouteDefinition, durationSeconds: number): number {
@@ -210,9 +206,4 @@ export function defaultVideoRouteId(): VideoRouteId {
   const fallback: VideoRouteId = 'wavespeed-p-video-i2v';
   const configured = String(Deno.env.get('KIVELLE_VIDEO_DEFAULT_ROUTE_ID') ?? fallback);
   return (VIDEO_ROUTE_IDS as readonly string[]).includes(configured) ? configured as VideoRouteId : fallback;
-}
-
-export function assertVideoQuoteWithinCeiling(route:VideoRouteDefinition,amountUsd:number):void{
-  if(!Number.isFinite(amountUsd)||amountUsd<0)throw new AppError('PROVIDER_UNAVAILABLE','The video provider returned an invalid price quote.',503,true);
-  if(amountUsd>route.providerCostCeilingUsd)throw new AppError('PROVIDER_QUOTA','That model is currently priced above Kivelle’s testing limit. Choose another model.',503,false);
 }

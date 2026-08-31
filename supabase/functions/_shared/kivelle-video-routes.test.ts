@@ -1,5 +1,5 @@
-import { assert, assertEquals, assertNotEquals, assertRejects, assertThrows } from 'jsr:@std/assert@1';
-import { assertVideoQuoteWithinCeiling, buildVideoProviderPayload, canSelectVideoRoute, configuredVideoRouteCatalog, defaultVideoRouteId, resolveVideoRoute, sourceVideoAspectRatio, videoCreditCost, VIDEO_ROUTE_IDS, VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT } from './kivelle-video-routes.ts';
+import { assert, assertEquals, assertNotEquals, assertRejects } from 'jsr:@std/assert@1';
+import { buildVideoProviderPayload, canSelectVideoRoute, configuredVideoRouteCatalog, defaultVideoRouteId, resolveVideoRoute, sourceVideoAspectRatio, videoCreditCost, VIDEO_ROUTE_IDS, VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT } from './kivelle-video-routes.ts';
 import { findQuoteAmount } from './wavespeed.ts';
 
 function catalog() {
@@ -123,11 +123,10 @@ Deno.test('WaveSpeed price responses require a finite authoritative quote', () =
   assertEquals(Number.isNaN(findQuoteAmount({ data: { message: 'unknown' } })), true);
 });
 
-Deno.test('provider quote ceiling is enforced before reservation',()=>{
+Deno.test('Gemini route estimates reflect current 10-second provider pricing',()=>{
   const state=catalog();
   try{
-    const route=state.routes[0]!;
-    assertVideoQuoteWithinCeiling(route,route.providerCostCeilingUsd);
-    assertThrows(()=>assertVideoQuoteWithinCeiling(route,route.providerCostCeilingUsd+.0001),Error,'currently priced above');
+    assertEquals(state.routes.find((route)=>route.id==='wavespeed-gemini-omni-flash-i2v')?.estimatedProviderCostUsd,1.40);
+    assertEquals(state.routes.find((route)=>route.id==='wavespeed-gemini-omni-flash-r2v')?.estimatedProviderCostUsd,1.60);
   }finally{state.restore();}
 });
