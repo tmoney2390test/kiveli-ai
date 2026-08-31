@@ -49,6 +49,10 @@ export type MembershipMetric={key:'lives'|'companions'|'photos';value:number;lab
 
 export function membershipPageMode(tier:SubscriptionTier):'discovery'|'member'{return tier==='free'?'discovery':'member';}
 
+export function shouldShowSubscriptionIntentCallout(mode:'discovery'|'member',intent:SubscriptionIntent):boolean{
+  return intent!=='plans'&&!(mode==='discovery'&&intent==='credits');
+}
+
 export function membershipMetrics(plan:SubscriptionPlan):MembershipMetric[]{
   return[
     {key:'lives',value:plan.maxLives,label:'Lives',detail:'available'},
