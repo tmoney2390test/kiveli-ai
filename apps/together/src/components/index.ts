@@ -19,6 +19,7 @@ export * from './ImageLightbox';
 export * from './VideoLightbox';
 export * from './WebVideoSurface';
 export * from './VideoMomentThumbnail';
+export * from './PlanHistoryPanel';
 export * from './CharacterMentionText';
 export * from './CharacterProfilePreviewModal';
 export * from './MessageActionSheet';

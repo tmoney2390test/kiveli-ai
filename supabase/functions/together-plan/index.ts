@@ -10,6 +10,7 @@ import { beginPlanExperience, finalizeExpiredPlanExperience, loadPlanExperience,
 import { cancelSharedPlan, createSharedPlan, focusConversationOnPlan, rescheduleSharedPlan, updateSharedPlan, writeConversationEvent } from '../_shared/together-plans.ts';
 import { track } from '../_shared/together.ts';
 import { recordGroupPlanCommitment } from '../_shared/together-group-plans.ts';
+import { loadPlanHistory } from '../_shared/together-plan-history.ts';
 
 const source=z.enum(['chat','manual_planner','location','discover','date','story']);
 const precision=z.enum(['exact','approximate','daypart','window','day']);
@@ -47,7 +48,11 @@ serve(async(request,correlationId)=>{
     const{data,error}=await query;if(error)throw new AppError('INTERNAL_ERROR','Plans could not be loaded.',500,true);
     return json({data:data??[],correlationId},200,correlationId);
   }
-  if(input.action==='get')return json({data:await loadCommitmentState(db,user.id,input.planId),correlationId},200,correlationId);
+  if(input.action==='get'){
+    const plan=await loadCommitmentState(db,user.id,input.planId) as Record<string,any>;
+    const history=String(plan.status)==='completed'?await loadPlanHistory({db,userId:user.id,continuityId:continuity.id,plan}):undefined;
+    return json({data:{...plan,...(history?{history}:{})},correlationId},200,correlationId);
+  }
   if(input.action==='join')return json({data:await joinCommitment(db,{userId:user.id,continuityId:continuity.id,characterInstanceId:input.characterInstanceId,planId:input.planId,requestId:input.requestId}),correlationId},200,correlationId);
   if(input.action==='leave')return json({data:await leaveCommitment(db,{userId:user.id,continuityId:continuity.id,planId:input.planId,requestId:input.requestId}),correlationId},200,correlationId);
   if(input.action==='experience'){
