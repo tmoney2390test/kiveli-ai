@@ -3,7 +3,7 @@ export type BillingInterval='monthly'|'annual';
 export type SubscriptionPlan={tier:SubscriptionTier;displayName:string;monthlyPriceUsd:number;annualPriceUsd:number|null;chatDailyLimit:number|null;introductoryChatDailyLimit:number|null;introductoryChatDays:number;includedCompanionPhotoDailyLimit:number;includedDatePhotoMonthlyLimit:number;intelligenceProfile:'core'|'deep'|'director';memoryRetrievalBudget:number;historyRetrievalBudget:number;maxLives:number;maxCustomCompanions:number;worldAccess:'free'|'all_standard';earlyWorldAccess:boolean;monthlyCreditGrant:number;subscriptionCreditRolloverCap:number;mediaQueue:'standard'|'priority'|'highest'};
 export type CreditBalance={permanentBalance:number;subscriptionBalance:number;total:number;subscriptionExpiresAt?:string|null};
 export type CreditPack={key:'credits_100'|'credits_300'|'credits_800'|'credits_2000';credits:number;priceUsd:number;displayPrice:string;companionPhotoEquivalent:number;popular?:boolean;active:boolean;checkoutConfigured:boolean};
-export type CreditActivityEvent={id:string;eventType:string;permanentDelta:number;subscriptionDelta:number;createdAt:string};
+export type CreditActivityEvent={id:string;eventType:string;permanentDelta:number;subscriptionDelta:number;createdAt:string;adjustmentReason?:'tier_cap_reduced'|'tier_cap_restored'|'post_subscription_grace_expired'|'refund'|'dispute'|'chargeback'|null};
 export type BillingManagement={mode:'none'|'stripe'|'app_store'|'configured'|'kivelle';label:string;canManageSubscription:boolean;manageAction:'none'|'portal'|'app_store';canPurchaseCredits:boolean;managementReason:string;creditPurchaseReason:string|null};
 export type SubscriptionStatus={
   tier:SubscriptionTier;

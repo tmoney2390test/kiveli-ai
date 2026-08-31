@@ -129,7 +129,7 @@ function managementFor(state:KivelleSubscriptionState,configuration:BillingConfi
 
 async function publicSubscriptionStatus(db:Db,userId:string,state:KivelleSubscriptionState,configuration:BillingConfiguration){
   const[{data:activity,error:activityError},{data:latestGrant,error:grantError}]=await Promise.all([
-    db.from('together_credit_ledger').select('id,event_type,permanent_delta,subscription_delta,created_at').eq('user_id',userId).order('created_at',{ascending:false}).limit(12),
+    db.from('together_credit_ledger').select('id,event_type,permanent_delta,subscription_delta,metadata,created_at').eq('user_id',userId).order('created_at',{ascending:false}).limit(12),
     db.from('together_credit_ledger').select('created_at').eq('user_id',userId).eq('event_type','subscription_grant').order('created_at',{ascending:false}).limit(1).maybeSingle(),
   ]);
   if(activityError||grantError)throw new AppError('INTERNAL_ERROR','Credit activity could not be loaded.',500,true);
@@ -141,13 +141,19 @@ async function publicSubscriptionStatus(db:Db,userId:string,state:KivelleSubscri
     catalog:(Object.keys(subscriptionCatalog)as SubscriptionTier[]).map((tier)=>publicPlan(tier)),
     creditCosts,
     creditPacks:publicCreditPacks,
-    creditActivity:(activity??[]).map((row)=>({id:String(row.id),eventType:String(row.event_type),permanentDelta:Number(row.permanent_delta??0),subscriptionDelta:Number(row.subscription_delta??0),createdAt:String(row.created_at)})),
+    creditActivity:(activity??[]).map((row)=>({id:String(row.id),eventType:String(row.event_type),permanentDelta:Number(row.permanent_delta??0),subscriptionDelta:Number(row.subscription_delta??0),createdAt:String(row.created_at),adjustmentReason:safeAdjustmentReason(row.metadata)})),
     nextCreditGrantAt:nextCreditGrantAt(state,latestGrant?.created_at),
     pricing:{currency:'USD',pricesExcludeTax:true},
     billingConfigured:configuration.configured,
     billingConfiguredAnnual:configuration.configuredAnnual,
     billingProvider:configuration.stripe.secretKey?'stripe':Object.values(configuration.legacy).some(Boolean)?'configured':null,
   };
+}
+
+function safeAdjustmentReason(metadata:unknown):'tier_cap_reduced'|'tier_cap_restored'|'post_subscription_grace_expired'|'refund'|'dispute'|'chargeback'|null{
+  if(!metadata||typeof metadata!=='object'||Array.isArray(metadata))return null;
+  const reason=(metadata as Record<string,unknown>).reason;
+  return['tier_cap_reduced','tier_cap_restored','post_subscription_grace_expired','refund','dispute','chargeback'].includes(String(reason))?reason as 'tier_cap_reduced'|'tier_cap_restored'|'post_subscription_grace_expired'|'refund'|'dispute'|'chargeback':null;
 }
 
 async function checkoutConfirmation(db:Db,userId:string,sessionId:string){
