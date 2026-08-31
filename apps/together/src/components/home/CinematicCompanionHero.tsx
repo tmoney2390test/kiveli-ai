@@ -43,11 +43,15 @@ export function CinematicCompanionHero({ companion, portraitVersion, source, loc
   const template = companion.together_character_templates;
   const firstName = template.name.trim().split(/\s+/)[0] || template.name;
   const focal = (portraitVersion.appearance_config?.hero_focal_position ?? template.discovery_metadata?.hero_focal_position ?? 'top') as ImageContentPosition;
+  // A portrait-oriented focal point is useful on narrow cards, but the wide desktop
+  // hero otherwise crops the companion below the fold. Center the source at that
+  // aspect ratio while retaining the authored focal point on phone/tablet layouts.
+  const heroFocal = desktop ? 'center' : focal;
   const placeLine = [location, world].filter(Boolean).join(' · ');
 
   return <View style={[styles.hero, { height: heroHeight }, desktop && styles.heroDesktop]}>
     {source
-      ? <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ scale }] }]}><Image accessibilityLabel={`${firstName} portrait`} source={source} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={focal} cachePolicy="memory-disk" loading="eager" priority="high" placeholder={KIVELLI_IMAGE_PLACEHOLDER} placeholderContentFit="cover" transition={180} onLoad={onVisualReady}/></Animated.View>
+      ? <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ scale }] }]}><Image accessibilityLabel={`${firstName} portrait`} source={source} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={heroFocal} cachePolicy="memory-disk" loading="eager" priority="high" placeholder={KIVELLI_IMAGE_PLACEHOLDER} placeholderContentFit="cover" transition={180} onLoad={onVisualReady}/></Animated.View>
       : <View style={[StyleSheet.absoluteFill, styles.fallback]}><Text style={styles.fallbackInitial}>{firstName[0]}</Text></View>}
     <View pointerEvents="none" style={styles.tint} />
     <View pointerEvents="none" style={[styles.scrim, Platform.OS === 'web' ? styles.webScrim : styles.nativeScrim]} />
