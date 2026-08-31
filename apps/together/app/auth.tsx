@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Eye, EyeOff, Sparkles } from 'lucide-react-native';
+import { CircleCheck, Eye, EyeOff, Sparkles } from 'lucide-react-native';
 import { GradientButton, KivelleLogo, Screen } from '../src/components';
 import { GoogleMark } from '../src/components/GoogleMark';
 import { cityLifeAsset } from '../src/assets';
@@ -24,10 +24,28 @@ export default function Auth() {
   const [busy, setBusy] = useState(false);
   const [socialBusy,setSocialBusy]=useState<SocialAuthProvider|null>(null);
   const [error, setError] = useState('');
+  const [signedIn, setSignedIn] = useState(false);
+  const [openingError, setOpeningError] = useState('');
   const [notice, setNotice] = useState('');
   const [confirmationEmail, setConfirmationEmail] = useState('');
   const { signIn, signInWithSocial, signUp, resendSignUpConfirmation, requestPasswordReset, signingOut, socialAuth } = useAuth();
   const refresh = useTogether((state) => state.refresh);
+
+  const openSignedInWorld = async () => {
+    setBusy(true);
+    setOpeningError('');
+    try {
+      await refresh({ force: true });
+      const state = useTogether.getState();
+      if (!state.snapshot) throw new Error(state.error ?? 'Kivelle could not open your world.');
+      router.replace(resolvePostAuthDestination({authenticated:true,snapshot:state.snapshot,requestedNext:params.next}) as never);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : 'Kivelle could not open your world.';
+      setOpeningError(message === 'Failed to fetch' ? 'Kivelle could not reach the server. Check your connection and try again.' : message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const switchMode = (nextCreating: boolean) => {
     setCreating(nextCreating);
@@ -58,10 +76,8 @@ export default function Auth() {
         }
       } else {
         await signIn(normalizedEmail, password);
-        await refresh();
-        const state = useTogether.getState();
-        if (!state.snapshot) throw new Error(state.error ?? 'Kivelle could not open your world.');
-        router.replace(resolvePostAuthDestination({authenticated:true,snapshot:state.snapshot,requestedNext:params.next}) as never);
+        setSignedIn(true);
+        await openSignedInWorld();
       }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : creating ? 'Account creation failed.' : 'Sign in failed.';
@@ -124,7 +140,22 @@ export default function Auth() {
           </View>
         </View>
 
-        <View style={[styles.form, wide && styles.formWide]}>
+        <View style={[styles.form, wide && styles.formWide, signedIn && styles.formSuccess]}>
+          {signedIn ? <View accessibilityRole={openingError ? 'alert' : undefined} accessibilityLiveRegion="assertive" accessibilityLabel={openingError ? `Signed in successfully. ${openingError}` : 'Signed in successfully. Opening your world.'} style={styles.successState}>
+            <View style={styles.successIcon}><CircleCheck size={34} strokeWidth={1.8} color={colors.success} /></View>
+            <View style={styles.successCopy}>
+              <Text style={styles.successEyebrow}>SIGN IN SUCCESSFUL</Text>
+              <Text style={styles.successTitle}>You’re signed in.</Text>
+              <Text style={styles.successBody}>{openingError ? 'Your session is ready, but your world took too long to open.' : 'Your conversations and shared history are ready. Opening your world now…'}</Text>
+            </View>
+            {openingError ? <>
+              <View style={styles.errorBox}><Text style={styles.error}>{openingError}</Text></View>
+              <GradientButton label={busy ? 'Opening your world…' : 'Try opening again'} disabled={busy} onPress={() => void openSignedInWorld()} />
+            </> : <View style={styles.successProgress}>
+              <ActivityIndicator color={colors.rose} />
+              <Text style={styles.successProgressText}>Opening your world…</Text>
+            </View>}
+          </View> : <>
           <View style={styles.intro}>
             <Text style={styles.title}>{signingOut ? 'Signing you out…' : creating ? 'Find your person.' : 'Welcome back.'}</Text>
             <Text style={styles.subtitle}>{signingOut ? 'Securing this session. You can sign in again in a moment.' : creating ? 'Create your account, choose a world, and meet someone who lives there.' : 'Your conversations and shared history are waiting.'}</Text>
@@ -149,7 +180,7 @@ export default function Auth() {
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
           {confirmationEmail ? <Pressable disabled={authBusy} onPress={() => void resendSignUpConfirmation(confirmationEmail).then(() => setNotice('A fresh secure sign-in link was sent.')).catch((caught) => setError(caught instanceof Error ? caught.message : 'Could not resend the link.'))}><Text style={styles.secondary}>Resend secure sign-in link</Text></Pressable> : null}
 
-          <GradientButton label={signingOut ? 'Finishing sign out…' : busy ? 'Connecting…' : creating ? 'Choose your world' : 'Sign in'} disabled={authBusy} onPress={() => void submit()} />
+          <GradientButton label={signingOut ? 'Finishing sign out…' : busy ? creating ? 'Creating your account…' : 'Signing in…' : creating ? 'Choose your world' : 'Sign in'} disabled={authBusy} onPress={() => void submit()} />
 
           {socialAuth.google||socialAuth.apple?<><View style={styles.divider}><View style={styles.dividerLine}/><Text style={styles.dividerText}>OR CONTINUE WITH</Text><View style={styles.dividerLine}/></View><View style={styles.socialRow}>
             {socialAuth.google?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Google" disabled={authBusy||Boolean(socialBusy)} onPress={()=>void socialSignIn('google')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><GoogleMark/><Text style={styles.socialText}>{socialBusy==='google'?'Connecting…':'Google'}</Text></Pressable>:null}
@@ -167,6 +198,7 @@ export default function Auth() {
             <Text style={styles.legalDot}>·</Text>
             <Pressable accessibilityRole="link" onPress={() => router.push('/help' as never)}><Text style={styles.legalLink}>Help</Text></Pressable>
           </View>
+          </>}
         </View>
       </View>
     </Screen>
@@ -193,6 +225,15 @@ const styles = StyleSheet.create({
   heroBody: { color: '#F5E9EE', fontSize: 13, marginTop: 3, textShadowColor: '#000', textShadowRadius: 8 },
   form: { gap: 11, padding: 18 },
   formWide: { flex: 0.92, justifyContent: 'center', padding: 34 },
+  formSuccess: { minHeight: 340 },
+  successState: { width: '100%', alignItems: 'center', justifyContent: 'center', gap: 16 },
+  successIcon: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(82,211,155,.1)', borderWidth: 1, borderColor: 'rgba(82,211,155,.32)', shadowColor: colors.success, shadowOpacity: .2, shadowRadius: 18, shadowOffset: { width: 0, height: 8 } },
+  successCopy: { alignItems: 'center', gap: 5 },
+  successEyebrow: { color: colors.success, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 },
+  successTitle: { color: colors.text, fontFamily: typography.display, fontSize: 31, fontWeight: '600', textAlign: 'center' },
+  successBody: { maxWidth: 340, color: colors.muted, fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  successProgress: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 18, borderRadius: radius.pill, backgroundColor: 'rgba(216,62,234,.08)', borderWidth: 1, borderColor: 'rgba(216,62,234,.22)' },
+  successProgressText: { color: colors.text, fontSize: 13, fontWeight: '800' },
   intro: { gap: 3, marginBottom: 2 },
   title: { fontFamily: typography.display, fontSize: 31, fontWeight: '600', color: colors.text },
   subtitle: { color: colors.muted, fontSize: 13, lineHeight: 18 },
