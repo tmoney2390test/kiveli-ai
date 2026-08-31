@@ -21,6 +21,7 @@ type AuthValue = {
   requestPasswordReset(email: string): Promise<void>;
   signOut(): Promise<void>;
   signOutOthers(): Promise<void>;
+  reauthenticate(password: string): Promise<void>;
   updateEmail(email: string): Promise<void>;
   updatePassword(password: string): Promise<void>;
   resendPendingEmailChange(): Promise<void>;
@@ -153,6 +154,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
     signOutOthers: async () => {
       const { error } = await supabase.auth.signOut({ scope: 'others' });
       if (error) throw readableAuthError(error);
+    },
+    reauthenticate: async (password) => {
+      const email = session?.user.email;
+      if (!email) throw new Error('This account does not have an email address to verify.');
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw readableAuthError(error);
+      if (!data.session) throw new Error('Your password could not be verified.');
     },
     updateEmail: async (email) => {
       const { error } = await supabase.auth.updateUser({ email }, { emailRedirectTo: authRedirectUrl() });

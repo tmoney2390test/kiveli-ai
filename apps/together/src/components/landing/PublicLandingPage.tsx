@@ -182,7 +182,7 @@ function LandingHeader({ compact, onSignIn, onStart, onWorlds, onWhy, onCompanio
       </View> : null}
       <View style={styles.headerActions}>
         <Pressable accessibilityRole="button" onPress={onSignIn} style={({ pressed }) => [styles.loginButton, compact && styles.loginButtonCompact, pressed && styles.pressed]}>
-          <Text style={styles.loginText}>Log in</Text>
+          <Text style={styles.loginText}>Sign in</Text>
         </Pressable>
         <Pressable accessibilityRole="button" onPress={onStart} style={({ pressed }) => [styles.startButton, compact && styles.startButtonCompact, pressed && styles.pressed]}>
           <Text style={styles.startText}>{compact ? 'Explore' : 'Start Exploring'}</Text>

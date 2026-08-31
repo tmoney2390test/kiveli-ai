@@ -2,6 +2,7 @@ import { cloneElement, useEffect, useMemo, useRef, useState, type ReactElement, 
 import {
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -51,6 +52,7 @@ import { shouldRenderSettingsRoute, shouldUseDesktopSettingsLayout } from '../sr
 import {
   normalizeProfileDraft,
   profileDraftChanged,
+  settingsCloseTarget,
   settingsSearchMatches,
   settingsSectionFromParam,
   type ProfileDraft,
@@ -163,7 +165,7 @@ export default function Settings() {
       onConfirm: action,
     });
   };
-  const close = () => afterDiscardCheck(() => router.replace('/home' as never));
+  const close = () => afterDiscardCheck(() => settingsCloseTarget(router.canGoBack()) === 'back' ? router.back() : router.replace('/home' as never));
   const selectSection = (next: SettingsSection) => {
     if (next === activeSection) return;
     afterDiscardCheck(() => {
@@ -217,6 +219,7 @@ export default function Settings() {
     setBusy(true);
     setSaveNotice(null);
     let normalized: NormalizedUserImage | null = null;
+    let uploadedPath: string | null = null;
     try {
       const asset = result.assets[0];
       normalized = await normalizeUserImage({ uri: asset.uri, width: asset.width, height: asset.height, fileSize: asset.fileSize, fileName: asset.fileName }, .9);
@@ -224,6 +227,7 @@ export default function Settings() {
       const blob = await (await fetch(normalized.uri)).blob();
       const { error } = await supabase.storage.from('together-user-media').upload(path, blob, { contentType: normalized.mimeType, upsert: false, cacheControl: '31536000' });
       if (error) throw error;
+      uploadedPath = path;
       // Avatar changes save immediately, but never smuggle unsaved form edits
       // into the account update.
       await manageAccount({
@@ -240,8 +244,21 @@ export default function Settings() {
       setSaveNotice({ kind: 'success', message: dirty ? 'Avatar updated. Your other profile edits are still unsaved.' : 'Avatar updated.' });
       await refresh();
     } catch (error) {
+      if (uploadedPath) await supabase.storage.from('together-user-media').remove([uploadedPath]);
       setSaveNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Your avatar could not be uploaded. Please try again.' });
     } finally { cleanupNormalizedImage(normalized?.uri); setBusy(false); }
+  };
+
+  const removeAvatar = async () => {
+    if (!profile?.avatar_path || busy) return;
+    setBusy(true); setSaveNotice(null);
+    try {
+      await manageAccount({ action: 'profile', displayName: profile.display_name || 'You', aboutMe: profile.about_me?.trim() ?? '', interests: profile.interests ?? [], goals: profile.experience_goals ?? [], avatarPath: null, syncMainPersona });
+      setAvatar(null);
+      setSaveNotice({ kind: 'success', message: dirty ? 'Avatar removed. Your other profile edits are still unsaved.' : 'Avatar removed.' });
+      await refresh();
+    } catch (error) { setSaveNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Your avatar could not be removed. Please try again.' }); }
+    finally { setBusy(false); }
   };
 
   const performLogout = async () => {
@@ -252,13 +269,13 @@ export default function Settings() {
       clear();
       router.replace('/auth');
     } catch (error) {
-      Alert.alert('Could not log out', error instanceof Error ? error.message : 'Please try again.');
+      Alert.alert('Could not sign out', error instanceof Error ? error.message : 'Please try again.');
     } finally { setSigningOut(false); }
   };
   const logout = () => afterDiscardCheck(() => confirmAction({
-    title: 'Logout?',
+    title: 'Sign out?',
     message: 'Your relationships and memories will still be here when you return.',
-    confirmLabel: 'Logout',
+    confirmLabel: 'Sign out',
     destructive: true,
     onConfirm: performLogout,
   }));
@@ -267,11 +284,11 @@ export default function Settings() {
   const browserPath = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.pathname : null;
   if (!shouldRenderSettingsRoute({ platform: Platform.OS, routerPathname: pathname, browserPathname: browserPath })) return null;
 
-  return <View style={[styles.backdrop, desktop && styles.backdropDesktop]}>
+  return <Modal visible transparent animationType="fade" onRequestClose={close}><View style={[styles.backdrop, desktop && styles.backdropDesktop]} accessibilityViewIsModal>
     <FrostedBackdrop intensity={desktop ? 72 : 22} />
     <View pointerEvents="none" style={styles.ambientOne} />
     <View pointerEvents="none" style={styles.ambientTwo} />
-    <Pressable accessibilityRole="button" accessibilityLabel="Close settings" onPress={close} style={StyleSheet.absoluteFill} />
+    <Pressable accessible={false} onPress={close} style={StyleSheet.absoluteFill} />
     <FrostedSurface intensity={68} style={[styles.modal, desktop ? styles.modalDesktop : styles.modalMobile, { height: modalHeight }]}>
       <View style={[styles.header, !desktop && { paddingTop: Math.max(insets.top, 8), minHeight: 72 + Math.max(insets.top, 8) }]}>
         <View style={styles.brandMark}><Text style={styles.brandInitial}>{(name || 'Y')[0]?.toUpperCase()}</Text></View>
@@ -303,7 +320,7 @@ export default function Settings() {
             keyboardShouldPersistTaps="handled"
           >
             {!snapshot ? <LoadingSkeleton label="Loading your settings…" /> : activeSection ? <>
-              {activeSection === 'profile' ? <ProfilePanel avatar={avatar} name={name} setName={(value) => { setSaveNotice(null); setName(value); }} about={about} setAbout={(value) => { setSaveNotice(null); setAbout(value); }} interests={interests} setInterests={(value) => { setSaveNotice(null); setInterests(value); }} goals={goals} setGoals={(value) => { setSaveNotice(null); setGoals(value); }} syncMainPersona={syncMainPersona} setSyncMainPersona={setSyncMainPersona} busy={busy} dirty={dirty} notice={saveNotice} email={session?.user.email} onAvatar={() => void pickAvatar()} onSave={() => void saveProfile()} showInlineSave={desktop} /> : null}
+              {activeSection === 'profile' ? <ProfilePanel avatar={avatar} name={name} setName={(value) => { setSaveNotice(null); setName(value); }} about={about} setAbout={(value) => { setSaveNotice(null); setAbout(value); }} interests={interests} setInterests={(value) => { setSaveNotice(null); setInterests(value); }} goals={goals} setGoals={(value) => { setSaveNotice(null); setGoals(value); }} syncMainPersona={syncMainPersona} setSyncMainPersona={setSyncMainPersona} busy={busy} dirty={dirty} notice={saveNotice} email={session?.user.email} onAvatar={() => void pickAvatar()} onRemoveAvatar={() => void removeAvatar()} onSave={() => void saveProfile()} showInlineSave={desktop} /> : null}
               {activeSection === 'account' ? <AccountPanel email={session?.user.email} providerLabel={providerState.label} verified={providerState.verifiedEmail} pendingEmail={providerState.pendingEmail} tier={subscriptionLabel(snapshot.entitlements?.tier)} onRoute={openRoute} onResend={() => void resendPendingEmailChange().then(() => Alert.alert('Confirmation sent', 'Check the new email address.')).catch((error) => Alert.alert('Could not send email', error.message))} onSignOutOthers={() => Alert.alert('Sign out everywhere else?', 'This device will remain signed in.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out others', style: 'destructive', onPress: () => void signOutOthers().then(() => Alert.alert('Other sessions signed out.')).catch((error) => Alert.alert('Could not update sessions', error.message)) }])} /> : null}
               {activeSection === 'identity' ? <IdentityPanel snapshot={snapshot} onRoute={openRoute} /> : null}
               {activeSection === 'experience' ? <ExperiencePanel snapshot={snapshot} onRoute={openRoute} /> : null}
@@ -320,7 +337,7 @@ export default function Settings() {
         </View>
       </KeyboardAvoidingView>
     </FrostedSurface>
-  </View>;
+  </View></Modal>;
 }
 
 function SectionTab({ item, active, onPress }: { item: SectionDefinition; active: boolean; onPress: () => void }) {
@@ -351,7 +368,7 @@ function ProfilePanel(props: {
   avatar: string | null; name: string; setName: (value: string) => void; about: string; setAbout: (value: string) => void;
   interests: string; setInterests: (value: string) => void; goals: string; setGoals: (value: string) => void;
   syncMainPersona: boolean; setSyncMainPersona: (value: boolean) => void; busy: boolean; dirty: boolean; notice: SaveNotice;
-  email?: string; onAvatar: () => void; onSave: () => void; showInlineSave: boolean;
+  email?: string; onAvatar: () => void; onRemoveAvatar: () => void; onSave: () => void; showInlineSave: boolean;
 }) {
   return <View style={styles.panel}>
     <PanelHeading title="Your profile" body="This is you—not your active companion. Relationship memories and alternate-Life identities remain separate." />
@@ -360,7 +377,7 @@ function ProfilePanel(props: {
         {props.avatar ? <Image source={{ uri: props.avatar }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Text style={styles.avatarInitial}>{(props.name || 'Y')[0]?.toUpperCase()}</Text>}
         <View style={styles.camera}><Camera size={14} color="#fff" /></View>
       </Pressable>
-      <View style={styles.profileHeroCopy}><Text style={styles.profileName}>{props.name || 'You'}</Text><Text style={styles.profileEmail}>{props.email ?? 'Signed-in Kivelle account'}</Text><Text style={styles.avatarHelper}>Tap your photo to change it · saves immediately</Text></View>
+      <View style={styles.profileHeroCopy}><Text style={styles.profileName}>{props.name || 'You'}</Text><Text style={styles.profileEmail}>{props.email ?? 'Signed-in Kivelle account'}</Text><Text style={styles.avatarHelper}>Your account avatar saves immediately.</Text><View style={styles.avatarActions}><Pressable accessibilityRole="button" accessibilityLabel="Change account avatar" disabled={props.busy} onPress={props.onAvatar} style={styles.avatarAction}><Text style={styles.avatarActionText}>{props.avatar ? 'Replace photo' : 'Add photo'}</Text></Pressable>{props.avatar ? <Pressable accessibilityRole="button" accessibilityLabel="Remove account avatar" disabled={props.busy} onPress={props.onRemoveAvatar} style={styles.avatarAction}><Text style={styles.avatarRemoveText}>Remove</Text></Pressable> : null}</View></View>
     </View>
     {props.notice ? <View accessibilityRole="alert" style={[styles.saveNotice, props.notice.kind === 'error' && styles.saveNoticeError]}><Text style={[styles.saveNoticeText, props.notice.kind === 'error' && styles.saveNoticeErrorText]}>{props.notice.message}</Text></View> : null}
     <View style={styles.formCard}>
@@ -380,10 +397,10 @@ function AccountPanel({ email, providerLabel, verified, pendingEmail, tier, onRo
   return <View style={styles.panel}><PanelHeading title="Account & billing" body="Manage sign-in, subscription, credits, and account security." />
     <View style={styles.summaryCard}><View style={styles.summaryIcon}><KeyRound color={colors.violet} /></View><View style={{ flex: 1 }}><Text style={styles.summaryKicker}>{providerLabel.toUpperCase()}</Text><Text style={styles.summaryTitle}>{email ?? 'Your Kivelle account'}</Text><View style={styles.verified}><Check size={12} color={verified ? colors.success : colors.warm} /><Text style={[styles.verifiedText, { color: verified ? colors.success : colors.warm }]}>{verified ? 'Verified email' : 'Email verification pending'}</Text></View>{pendingEmail ? <Text style={styles.verifiedText}>Pending change: {pendingEmail}</Text> : null}</View></View>
     <SettingsGroup>
-      <SettingsRow icon={<UserRound />} title="Account details & password" body="Change your email or password." onPress={() => onRoute('/account')} />
+      <SettingsRow icon={<UserRound />} title="Sign-in & security" body="Change your email, password, or active sessions." onPress={() => onRoute('/account')} />
       {pendingEmail ? <SettingsRow icon={<Check />} title="Resend email confirmation" body="Send another confirmation link to your new address." value="Pending" onPress={onResend} /> : null}
       <SettingsRow icon={<CreditCard />} title="Subscription & credits" body="Manage your plan, allowances, and credit balance." value={tier} onPress={() => onRoute('/subscription')} />
-      <SettingsRow icon={<Shield />} title="Active devices" body="Sign out other browser and mobile sessions." value="Manage" onPress={onSignOutOthers} />
+      <SettingsRow icon={<Shield />} title="Other sessions" body="Sign out other browser and mobile sessions." value="Sign out" onPress={onSignOutOthers} />
     </SettingsGroup>
   </View>;
 }
@@ -432,7 +449,7 @@ function SupportPanel({ onRoute }: { onRoute: (route: string) => void }) {
 }
 
 function LogoutButton({ signingOut, onPress, mobile = false }: { signingOut: boolean; onPress: () => void; mobile?: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel="Logout" accessibilityState={{ disabled: signingOut }} disabled={signingOut} onPress={onPress} style={({ pressed }) => [styles.logoutButton, mobile && styles.logoutButtonMobile, signingOut && styles.logoutButtonDisabled, pressed && styles.pressed]}><LogOut size={18} color={colors.danger} /><Text style={styles.logoutButtonText}>{signingOut ? 'Logging out…' : 'Logout'}</Text></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel="Sign out" accessibilityState={{ disabled: signingOut }} disabled={signingOut} onPress={onPress} style={({ pressed }) => [styles.logoutButton, mobile && styles.logoutButtonMobile, signingOut && styles.logoutButtonDisabled, pressed && styles.pressed]}><LogOut size={18} color={colors.danger} /><Text style={styles.logoutButtonText}>{signingOut ? 'Signing out…' : 'Sign out'}</Text></Pressable>;
 }
 
 function PanelHeading({ title, body }: { title: string; body: string }) { return <View style={styles.panelHeading}><Text accessibilityRole="header" style={styles.panelTitle}>{title}</Text><Text style={styles.panelBody}>{body}</Text></View>; }
@@ -478,7 +495,7 @@ const styles = StyleSheet.create({
   profileHero: { minHeight: 130, flexDirection: 'row', alignItems: 'center', gap: 18, padding: 20, borderRadius: radius.lg, backgroundColor: 'rgba(104,82,116,.09)', borderWidth: 1, borderColor: 'rgba(217,192,228,.12)' },
   avatar: { width: 90, height: 90, borderRadius: 45, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15,14,18,.74)', borderWidth: 1, borderColor: 'rgba(218,188,230,.26)' },
   avatarInitial: { color: '#C7A8D5', fontFamily: typography.display, fontSize: 38 }, camera: { position: 'absolute', right: 2, bottom: 2, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(125,92,145,.88)' },
-  profileHeroCopy: { flex: 1, alignItems: 'flex-start' }, profileName: { color: colors.text, fontFamily: typography.display, fontSize: 27 }, profileEmail: { color: colors.textSecondary, fontSize: 13, marginTop: 3 }, avatarHelper: { color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 10 },
+  profileHeroCopy: { flex: 1, alignItems: 'flex-start' }, profileName: { color: colors.text, fontFamily: typography.display, fontSize: 27 }, profileEmail: { color: colors.textSecondary, fontSize: 13, marginTop: 3 }, avatarHelper: { color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 8 }, avatarActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }, avatarAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 11, backgroundColor: 'rgba(151,116,171,.1)', borderWidth: 1, borderColor: 'rgba(204,176,221,.18)' }, avatarActionText: { color: colors.violet, fontSize: 12, fontWeight: '900' }, avatarRemoveText: { color: colors.danger, fontSize: 12, fontWeight: '900' },
   saveNotice: { paddingHorizontal: 15, paddingVertical: 12, borderRadius: radius.md, backgroundColor: 'rgba(85,194,150,.09)', borderWidth: 1, borderColor: 'rgba(85,194,150,.24)' }, saveNoticeError: { backgroundColor: 'rgba(255,113,129,.07)', borderColor: 'rgba(255,113,129,.24)' }, saveNoticeText: { color: colors.success, fontSize: 12, fontWeight: '800' }, saveNoticeErrorText: { color: colors.danger },
   formCard: { gap: 16, padding: 20, borderRadius: radius.lg, backgroundColor: 'rgba(255,255,255,.018)', borderWidth: 1, borderColor: 'rgba(255,255,255,.085)' },
   field: { gap: 8 }, labelRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }, label: { color: colors.text, fontSize: 14, fontWeight: '800' }, helper: { color: colors.textSecondary, fontSize: 11 },

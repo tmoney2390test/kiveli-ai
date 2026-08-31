@@ -35,6 +35,10 @@ export function profileDraftChanged(saved: ProfileDraft | null, current: Profile
   return JSON.stringify(normalizeProfileDraft(saved)) !== JSON.stringify(normalizeProfileDraft(current));
 }
 
+export function settingsCloseTarget(canGoBack: boolean): 'back' | 'home' {
+  return canGoBack ? 'back' : 'home';
+}
+
 function normalizeList(value: string, limit: number) {
   return value.split(',').map((item) => item.trim()).filter(Boolean).slice(0, limit).join(', ');
 }

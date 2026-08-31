@@ -1,170 +1,113 @@
-import { useEffect, useRef, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
-import { Image } from 'expo-image';
-import { ArrowLeft, Camera, Check, Mail, ShieldCheck } from 'lucide-react-native';
+import { ArrowLeft, Check, Eye, EyeOff, KeyRound, Mail, ShieldCheck } from 'lucide-react-native';
 import { GradientButton, PageTitle } from '../src/components';
-import { colors, radius, spacing } from '../src/theme';
-import { useTogether } from '../src/store/useTogether';
+import { colors, radius, spacing, typography } from '../src/theme';
 import { useAuth } from '../src/hooks/useAuth';
-import { manageAccount } from '../src/lib/api';
 import { authProviderState } from '../src/lib/authProviders';
-import { supabase } from '../src/lib/supabase';
-import { cleanupNormalizedImage, normalizeUserImage, type NormalizedUserImage } from '../src/lib/imageUploads';
+import { passwordCheck, validAccountEmail } from '../src/lib/accountSecurity';
+
+type Notice = { kind: 'success' | 'error'; message: string } | null;
 
 export default function Account() {
-  const { snapshot, refresh } = useTogether();
-  const { session, updateEmail, updatePassword, resendPendingEmailChange, signOutOthers } = useAuth();
-  const profile = snapshot?.profile;
+  const { session, reauthenticate, updateEmail, updatePassword, resendPendingEmailChange, signOutOthers } = useAuth();
   const provider = authProviderState(session?.user);
-  const [name, setName] = useState(profile?.display_name ?? '');
-  const [about, setAbout] = useState(profile?.about_me ?? '');
-  const [interests, setInterests] = useState((profile?.interests ?? []).join(', '));
-  const [goals, setGoals] = useState((profile?.experience_goals ?? []).join(', '));
-  const [avatar, setAvatar] = useState<string | null>(null);
   const [newEmail, setNewEmail] = useState('');
+  const [emailPassword, setEmailPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [syncMainPersona, setSyncMainPersona] = useState(true);
-  const hydrated = useRef(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showEmailPassword, setShowEmailPassword] = useState(false);
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [busy, setBusy] = useState<'email' | 'password' | 'sessions' | 'resend' | null>(null);
+  const [emailNotice, setEmailNotice] = useState<Notice>(null);
+  const [passwordNotice, setPasswordNotice] = useState<Notice>(null);
+  const strength = useMemo(() => passwordCheck(newPassword), [newPassword]);
+  const emailReady = validAccountEmail(newEmail) && (!provider.hasPassword || emailPassword.length > 0);
+  const passwordReady = strength.valid && newPassword === confirmPassword && (!provider.hasPassword || currentPassword.length > 0);
 
-  useEffect(() => {
-    if (!profile || hydrated.current) return;
-    hydrated.current = true;
-    setName(profile.display_name ?? '');
-    setAbout(profile.about_me ?? '');
-    setInterests((profile.interests ?? []).join(', '));
-    setGoals((profile.experience_goals ?? []).join(', '));
-  }, [profile]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!profile?.avatar_path) {
-      setAvatar(null);
-      return () => { cancelled = true; };
-    }
-    void supabase.storage.from('together-user-media').createSignedUrl(profile.avatar_path, 3600).then(({ data }) => {
-      if (!cancelled) setAvatar(data?.signedUrl ?? null);
-    });
-    return () => { cancelled = true; };
-  }, [profile?.avatar_path]);
-
-  const save = async () => {
-    setBusy(true);
+  const changeEmail = async () => {
+    if (!emailReady || busy) return;
+    setBusy('email'); setEmailNotice(null);
     try {
-      await manageAccount({
-        action: 'profile',
-        displayName: name.trim(),
-        aboutMe: about.trim(),
-        interests: splitList(interests, 10),
-        goals: splitList(goals, 4),
-        avatarPath: profile?.avatar_path ?? null,
-        syncMainPersona,
-      });
-      await refresh();
-      Alert.alert('Profile saved', 'Your Kivelle preferences are up to date.');
-    } catch (caught) {
-      Alert.alert('Could not save', caught instanceof Error ? caught.message : 'Please try again.');
-    } finally {
-      setBusy(false);
-    }
+      if (provider.hasPassword) await reauthenticate(emailPassword);
+      await updateEmail(newEmail.trim().toLowerCase());
+      setNewEmail(''); setEmailPassword('');
+      setEmailNotice({ kind: 'success', message: 'Confirmation links were sent. Follow the email instructions to finish the change.' });
+    } catch (error) {
+      setEmailNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Your email could not be updated.' });
+    } finally { setBusy(null); }
   };
 
-  const pick = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Photo permission needed', 'Allow photo access to choose an account photo.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 1 });
-    if (result.canceled || !result.assets[0] || !session) return;
-    const asset = result.assets[0];
-    setBusy(true);
-    let normalized: NormalizedUserImage | null = null;
+  const changePassword = async () => {
+    if (!passwordReady || busy) return;
+    setBusy('password'); setPasswordNotice(null);
     try {
-      normalized = await normalizeUserImage({ uri: asset.uri, width: asset.width, height: asset.height, fileSize: asset.fileSize, fileName: asset.fileName }, .9);
-      const path = `${session.user.id}/avatar-${Date.now()}.jpg`;
-      const blob = await (await fetch(normalized.uri)).blob();
-      const { error } = await supabase.storage.from('together-user-media').upload(path, blob, { contentType: normalized.mimeType, upsert: false, cacheControl: '31536000' });
-      if (error) throw error;
-      await manageAccount({
-        action: 'profile', displayName: name.trim() || profile?.display_name || 'You', aboutMe: about.trim(),
-        interests: splitList(interests, 10), goals: splitList(goals, 4), avatarPath: path, syncMainPersona,
-      });
-      const { data: signed } = await supabase.storage.from('together-user-media').createSignedUrl(path, 3600);
-      setAvatar(signed?.signedUrl ?? avatar);
-      await refresh();
-    } catch (caught) {
-      Alert.alert('Photo upload failed', caught instanceof Error ? caught.message : 'Please try again.');
-    } finally {
-      cleanupNormalizedImage(normalized?.uri);
-      setBusy(false);
-    }
+      if (provider.hasPassword) await reauthenticate(currentPassword);
+      await updatePassword(newPassword);
+      setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+      setPasswordNotice({ kind: 'success', message: provider.hasPassword ? 'Password updated. Other sessions remain signed in unless you sign them out below.' : 'Password added. You can now sign in with email and password.' });
+    } catch (error) {
+      setPasswordNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Your password could not be updated.' });
+    } finally { setBusy(null); }
   };
 
-  const changeEmail = () => {
-    const email = newEmail.trim().toLowerCase();
-    if (!email.includes('@')) return;
-    void updateEmail(email).then(() => {
-      setNewEmail('');
-      Alert.alert('Check both inboxes', 'Confirm the email change to finish updating your account.');
-    }).catch((caught) => Alert.alert('Could not update email', caught instanceof Error ? caught.message : 'Please try again.'));
+  const resend = async () => {
+    if (busy) return;
+    setBusy('resend'); setEmailNotice(null);
+    try { await resendPendingEmailChange(); setEmailNotice({ kind: 'success', message: 'A new confirmation link was sent to your pending email address.' }); }
+    catch (error) { setEmailNotice({ kind: 'error', message: error instanceof Error ? error.message : 'The confirmation email could not be sent.' }); }
+    finally { setBusy(null); }
   };
 
-  const setPassword = () => {
-    if (newPassword.length < 8) return;
-    void updatePassword(newPassword).then(() => {
-      setNewPassword('');
-      Alert.alert(provider.hasPassword ? 'Password updated' : 'Password added');
-    }).catch((caught) => Alert.alert('Could not update password', caught instanceof Error ? caught.message : 'Please try again.'));
-  };
+  const otherSessions = () => Alert.alert('Sign out other sessions?', 'This device will stay signed in. Every other browser and mobile session will need to sign in again.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Sign out other sessions', style: 'destructive', onPress: () => { setBusy('sessions'); void signOutOthers().then(() => Alert.alert('Other sessions signed out', 'This device is still signed in.')).catch((error) => Alert.alert('Could not sign out other sessions', error instanceof Error ? error.message : 'Please try again.')).finally(() => setBusy(null)); } },
+  ]);
 
-  return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.canGoBack() ? router.back() : router.replace('/settings')}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Profile</PageTitle></View>
-    <View style={styles.hero}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Change profile photo" onPress={() => void pick()} style={styles.avatar}>
-        {avatar ? <Image source={{ uri: avatar }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Text style={styles.initial}>{(name || 'Y')[0]?.toUpperCase()}</Text>}
-        <View style={styles.camera}><Camera size={14} color="#fff" /></View>
-      </Pressable>
-      <Text style={styles.email}>{session?.user.email}</Text>
-      <Text style={styles.provider}>{provider.label}</Text>
-      <View style={styles.verified}><Check size={13} color={provider.verifiedEmail ? colors.success : colors.warm} /><Text style={{ color: provider.verifiedEmail ? colors.success : colors.warm }}>{provider.verifiedEmail ? 'Verified email' : 'Email verification pending'}</Text></View>
-      {provider.pendingEmail ? <Text style={styles.pending}>Pending change: {provider.pendingEmail}</Text> : null}
+  return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back to settings" hitSlop={10} onPress={() => router.canGoBack() ? router.back() : router.replace('/settings?section=account')} style={styles.back}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Sign-in & security</PageTitle></View>
+    <Text style={styles.lead}>Change how you sign in and secure access to your Kivelle account. Your profile is managed separately in Settings.</Text>
+
+    <View style={styles.summary}>
+      <View style={styles.summaryIcon}><KeyRound color={colors.violet} /></View><View style={{ flex: 1 }}><Text style={styles.kicker}>{provider.label.toUpperCase()}</Text><Text style={styles.email}>{session?.user.email ?? 'Kivelle account'}</Text><View style={styles.verified}><Check size={13} color={provider.verifiedEmail ? colors.success : colors.warm} /><Text style={{ color: provider.verifiedEmail ? colors.success : colors.warm, fontSize: 12, fontWeight: '800' }}>{provider.verifiedEmail ? 'Verified email' : 'Email verification pending'}</Text></View>{provider.pendingEmail ? <Text style={styles.pending}>Pending change: {provider.pendingEmail}</Text> : null}</View>
     </View>
 
-    <Label text="Display name" />
-    <TextInput accessibilityLabel="Display name" value={name} onChangeText={setName} style={styles.input} placeholder="Your name" placeholderTextColor={colors.muted} />
-    <Label text="About you" />
-    <TextInput accessibilityLabel="About you" value={about} onChangeText={setAbout} style={[styles.input, styles.about]} multiline maxLength={280} placeholder="A little context your companions can know about you." placeholderTextColor={colors.muted} />
-    <Label text="Interests" />
-    <TextInput accessibilityLabel="Interests" value={interests} onChangeText={setInterests} style={styles.input} placeholder="Movies, travel, music" placeholderTextColor={colors.muted} />
-    <Label text="What you are here for" />
-    <TextInput accessibilityLabel="What you are here for" value={goals} onChangeText={setGoals} style={styles.input} placeholder="Dating, Friendship, Stories" placeholderTextColor={colors.muted} />
-    <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: syncMainPersona }} onPress={() => setSyncMainPersona((value) => !value)} style={styles.syncRow}><View style={[styles.checkBox, syncMainPersona && styles.checkBoxActive]}>{syncMainPersona ? <Check size={14} color="#fff" /> : null}</View><View style={{ flex: 1 }}><Text style={styles.syncTitle}>Also update my Main Persona</Text><Text style={styles.syncCopy}>Keeps your Main Life name, bio, interests, and photo in sync.</Text></View></Pressable>
-    <GradientButton label={busy ? 'Saving…' : 'Save profile'} disabled={busy || !name.trim()} onPress={() => void save()} />
+    <Section title="Email address" body="For password accounts, confirm your current password before changing the sign-in email." />
+    <View style={styles.card}>
+      <Field label="New email address"><TextInput accessibilityLabel="New email address" value={newEmail} onChangeText={(value) => { setNewEmail(value); setEmailNotice(null); }} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" textContentType="emailAddress" style={styles.input} placeholder="name@example.com" placeholderTextColor={colors.muted} /></Field>
+      {provider.hasPassword ? <Field label="Current password"><View style={styles.passwordField}><TextInput accessibilityLabel="Current password for email change" value={emailPassword} onChangeText={setEmailPassword} secureTextEntry={!showEmailPassword} autoCapitalize="none" textContentType="password" style={styles.passwordInput} placeholder="Confirm your password" placeholderTextColor={colors.muted} /><Pressable accessibilityRole="button" accessibilityLabel={showEmailPassword ? 'Hide current password' : 'Show current password'} hitSlop={8} onPress={() => setShowEmailPassword((value) => !value)}>{showEmailPassword ? <EyeOff size={19} color={colors.muted} /> : <Eye size={19} color={colors.muted} />}</Pressable></View></Field> : null}
+      {emailNotice ? <NoticeView notice={emailNotice} /> : null}
+      <GradientButton label={busy === 'email' ? 'Updating…' : 'Change email'} disabled={!emailReady || busy !== null} onPress={() => void changeEmail()} />
+      {provider.pendingEmail ? <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy !== null }} disabled={busy !== null} onPress={() => void resend()} style={styles.textButton}><Mail size={17} color={colors.rose} /><Text style={styles.textButtonText}>{busy === 'resend' ? 'Sending…' : 'Resend email-change confirmation'}</Text></Pressable> : null}
+    </View>
 
-    <Section title="Sign-in & security" />
-    <TextInput accessibilityLabel="New email address" value={newEmail} onChangeText={setNewEmail} autoCapitalize="none" keyboardType="email-address" style={styles.input} placeholder="New email address" placeholderTextColor={colors.muted} />
-    <Pressable accessibilityRole="button" disabled={!newEmail.trim()} onPress={changeEmail} style={styles.row}><Mail color={colors.rose} /><Text style={styles.rowText}>Change email</Text></Pressable>
-    <TextInput accessibilityLabel={provider.hasPassword ? 'New password' : 'Add a password'} value={newPassword} onChangeText={setNewPassword} secureTextEntry style={styles.input} placeholder={provider.hasPassword ? 'New password (8+ characters)' : 'Add a password (8+ characters)'} placeholderTextColor={colors.muted} />
-    <Pressable accessibilityRole="button" disabled={newPassword.length < 8} onPress={setPassword} style={styles.row}><ShieldCheck color={colors.violet} /><Text style={styles.rowText}>{provider.hasPassword ? 'Update password' : 'Add a password'}</Text></Pressable>
-    {provider.pendingEmail ? <Pressable accessibilityRole="button" onPress={() => void resendPendingEmailChange().then(() => Alert.alert('Confirmation sent', 'Check your new email address.')).catch((caught) => Alert.alert('Could not send email', caught instanceof Error ? caught.message : 'Please try again.'))} style={styles.link}><Text style={styles.linkText}>Resend email-change confirmation</Text></Pressable> : null}
-    <Pressable accessibilityRole="button" onPress={() => Alert.alert('Sign out everywhere else?', 'This keeps this device signed in.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out others', style: 'destructive', onPress: () => void signOutOthers().then(() => Alert.alert('Other sessions signed out.')).catch((caught) => Alert.alert('Could not update sessions', caught instanceof Error ? caught.message : 'Please try again.')) }])} style={styles.link}><Text style={styles.linkText}>Sign out other sessions</Text></Pressable>
+    <Section title={provider.hasPassword ? 'Password' : 'Add a password'} body={provider.hasPassword ? 'Use a unique password you do not reuse on another service.' : 'Add password sign-in while keeping your connected provider available.'} />
+    <View style={styles.card}>
+      {provider.hasPassword ? <Field label="Current password"><PasswordInput label="Current password" value={currentPassword} onChange={setCurrentPassword} show={showPasswords} placeholder="Current password" /></Field> : null}
+      <Field label="New password"><PasswordInput label="New password" value={newPassword} onChange={(value) => { setNewPassword(value); setPasswordNotice(null); }} show={showPasswords} placeholder="10+ characters" /></Field>
+      <Field label="Confirm new password"><PasswordInput label="Confirm new password" value={confirmPassword} onChange={(value) => { setConfirmPassword(value); setPasswordNotice(null); }} show={showPasswords} placeholder="Enter it again" /></Field>
+      <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: showPasswords }} onPress={() => setShowPasswords((value) => !value)} style={styles.showRow}>{showPasswords ? <EyeOff size={18} color={colors.violet} /> : <Eye size={18} color={colors.violet} />}<Text style={styles.showText}>{showPasswords ? 'Hide passwords' : 'Show passwords'}</Text></Pressable>
+      {newPassword ? <View accessibilityLabel={`Password strength: ${strength.label}`} style={styles.strength}><View style={styles.strengthHeader}><Text style={styles.strengthTitle}>Password strength</Text><Text style={[styles.strengthLabel, strength.valid && { color: colors.success }]}>{strength.label}</Text></View><View style={styles.strengthTrack}>{[0,1,2,3].map((index) => <View key={index} style={[styles.strengthBar, index < strength.score && { backgroundColor: strength.valid ? colors.success : colors.warm }]} />)}</View>{strength.requirements.length ? <Text style={styles.requirements}>Still needed: {strength.requirements.join(', ')}.</Text> : null}{confirmPassword && newPassword !== confirmPassword ? <Text accessibilityRole="alert" style={styles.inlineError}>The new passwords do not match.</Text> : null}</View> : null}
+      {passwordNotice ? <NoticeView notice={passwordNotice} /> : null}
+      <GradientButton label={busy === 'password' ? 'Updating…' : provider.hasPassword ? 'Update password' : 'Add password'} disabled={!passwordReady || busy !== null} onPress={() => void changePassword()} />
+    </View>
+
+    <Section title="Sessions" body="Use this if you signed in on a device you no longer control." />
+    <Pressable accessibilityRole="button" accessibilityLabel="Sign out other sessions" accessibilityState={{ disabled: busy !== null }} disabled={busy !== null} onPress={otherSessions} style={styles.sessionRow}><ShieldCheck color={colors.violet} /><View style={{ flex: 1 }}><Text style={styles.sessionTitle}>{busy === 'sessions' ? 'Signing out…' : 'Sign out other sessions'}</Text><Text style={styles.sessionBody}>Keep this device signed in and revoke every other active session.</Text></View></Pressable>
   </ScrollView>;
 }
 
-const splitList = (value: string, limit: number) => value.split(',').map((item) => item.trim()).filter(Boolean).slice(0, limit);
-const Label = ({ text }: { text: string }) => <Text style={styles.label}>{text}</Text>;
-const Section = ({ title }: { title: string }) => <Text style={styles.section}>{title}</Text>;
+function Section({ title, body }: { title: string; body: string }) { return <View style={styles.section}><Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text><Text style={styles.sectionBody}>{body}</Text></View>; }
+function Field({ label, children }: { label: string; children: ReactNode }) { return <View style={styles.field}><Text style={styles.label}>{label}</Text>{children}</View>; }
+function PasswordInput({ label, value, onChange, show, placeholder }: { label: string; value: string; onChange: (value: string) => void; show: boolean; placeholder: string }) { return <TextInput accessibilityLabel={label} value={value} onChangeText={onChange} secureTextEntry={!show} autoCapitalize="none" autoCorrect={false} textContentType="password" style={styles.input} placeholder={placeholder} placeholderTextColor={colors.muted} />; }
+function NoticeView({ notice }: { notice: Exclude<Notice, null> }) { return <View accessibilityRole="alert" style={[styles.notice, notice.kind === 'error' && styles.noticeError]}><Text style={[styles.noticeText, notice.kind === 'error' && styles.noticeErrorText]}>{notice.message}</Text></View>; }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background }, content: { padding: spacing.lg, paddingBottom: 80, gap: 10 }, header: { flexDirection: 'row', gap: 14, alignItems: 'center', marginBottom: 8 },
-  hero: { alignItems: 'center', gap: 6, marginBottom: 12 }, avatar: { width: 96, height: 96, borderRadius: 48, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.elevated, borderWidth: 2, borderColor: colors.rose },
-  initial: { fontFamily: 'Georgia', fontSize: 42, color: colors.text }, camera: { position: 'absolute', right: 0, bottom: 1, width: 29, height: 29, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.rose },
-  email: { color: colors.text, fontWeight: '700' }, provider: { color: colors.muted, fontSize: 11, fontWeight: '800' }, verified: { flexDirection: 'row', alignItems: 'center', gap: 4, fontSize: 12 }, pending: { color: colors.warm, fontSize: 11 },
-  label: { color: colors.muted, fontSize: 12, fontWeight: '700', marginTop: 5 }, input: { minHeight: 52, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, color: colors.text, paddingHorizontal: 14, paddingVertical: 12 },
-  about: { height: 92, textAlignVertical: 'top' }, section: { fontFamily: 'Georgia', fontSize: 22, color: colors.text, marginTop: 16 }, row: { minHeight: 52, flexDirection: 'row', gap: 11, alignItems: 'center', paddingHorizontal: 14, borderRadius: radius.md, backgroundColor: colors.surface },
-  rowText: { color: colors.text, fontWeight: '700' }, link: { paddingVertical: 8 }, linkText: { color: colors.rose, fontWeight: '700', fontSize: 13 },
-  syncRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 12, borderRadius: radius.md, backgroundColor: colors.surface }, checkBox: { width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border }, checkBoxActive: { backgroundColor: colors.violet, borderColor: colors.violet }, syncTitle: { color: colors.text, fontWeight: '800' }, syncCopy: { color: colors.muted, fontSize: 11, marginTop: 2 },
+  screen: { flex: 1, backgroundColor: colors.background }, content: { width: '100%', maxWidth: 820, alignSelf: 'center', padding: spacing.lg, paddingBottom: 90, gap: 16 }, header: { flexDirection: 'row', gap: 12, alignItems: 'center' }, back: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, lead: { color: colors.muted, lineHeight: 21, marginBottom: 2 },
+  summary: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, summaryIcon: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(154,104,255,.1)' }, kicker: { color: colors.violet, fontSize: 10, fontWeight: '900', letterSpacing: 1.1 }, email: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 3 }, verified: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 }, pending: { color: colors.warm, fontSize: 11, marginTop: 5 },
+  section: { gap: 5, marginTop: 8 }, sectionTitle: { color: colors.text, fontFamily: typography.display, fontSize: 25 }, sectionBody: { color: colors.muted, fontSize: 12, lineHeight: 18 }, card: { gap: 15, padding: 18, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, field: { gap: 7 }, label: { color: colors.text, fontSize: 13, fontWeight: '800' }, input: { minHeight: 52, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.elevated, color: colors.text, paddingHorizontal: 14, paddingVertical: 12 }, passwordField: { minHeight: 52, flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.elevated, paddingRight: 14 }, passwordInput: { flex: 1, minHeight: 50, color: colors.text, paddingHorizontal: 14, paddingVertical: 12 },
+  textButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, textButtonText: { color: colors.rose, fontWeight: '800', fontSize: 13 }, showRow: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 12 }, showText: { color: colors.violet, fontSize: 13, fontWeight: '800' }, strength: { gap: 8, padding: 12, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.025)' }, strengthHeader: { flexDirection: 'row', justifyContent: 'space-between' }, strengthTitle: { color: colors.muted, fontSize: 12, fontWeight: '800' }, strengthLabel: { color: colors.warm, fontSize: 12, fontWeight: '900' }, strengthTrack: { flexDirection: 'row', gap: 5 }, strengthBar: { flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.border }, requirements: { color: colors.muted, fontSize: 11, lineHeight: 17 }, inlineError: { color: colors.danger, fontSize: 12, fontWeight: '800' },
+  notice: { padding: 12, borderRadius: radius.md, backgroundColor: 'rgba(85,194,150,.09)', borderWidth: 1, borderColor: 'rgba(85,194,150,.24)' }, noticeError: { backgroundColor: 'rgba(255,107,121,.07)', borderColor: 'rgba(255,107,121,.28)' }, noticeText: { color: colors.success, fontSize: 12, lineHeight: 18, fontWeight: '700' }, noticeErrorText: { color: colors.danger }, sessionRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, sessionTitle: { color: colors.text, fontWeight: '900' }, sessionBody: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 3 },
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeProfileDraft, profileDraftChanged, settingsSearchMatches, settingsSectionFromParam } from './settingsExperience';
+import { normalizeProfileDraft, profileDraftChanged, settingsCloseTarget, settingsSearchMatches, settingsSectionFromParam } from './settingsExperience';
 
 describe('settings experience', () => {
   it('accepts only known settings section links', () => {
@@ -19,5 +19,10 @@ describe('settings experience', () => {
     expect(profileDraftChanged(saved, { ...saved, name: ' Tim ' })).toBe(false);
     expect(profileDraftChanged(saved, { ...saved, about: 'Something new' })).toBe(true);
     expect(normalizeProfileDraft({ ...saved, interests: ' Music,  Travel, ' }).interests).toBe('Music, Travel');
+  });
+
+  it('returns to the page that opened settings with a safe home fallback', () => {
+    expect(settingsCloseTarget(true)).toBe('back');
+    expect(settingsCloseTarget(false)).toBe('home');
   });
 });
