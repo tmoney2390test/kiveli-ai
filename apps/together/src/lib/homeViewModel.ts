@@ -336,19 +336,6 @@ function buildTimeline({ snapshot, companion, recentEvents, currentLocation, cur
       sortMinute: minuteInZone(plan.starts_at, clock.timezone),
     });
   }
-  for (const plan of snapshot.sharedPlans) {
-    if (plan.character_instance_id !== companion.id || plan.status !== 'scheduled' || new Date(plan.starts_at).getTime() <= now.getTime()) continue;
-    if (localDateKey(plan.starts_at, clock.timezone) !== clock.dateKey) continue;
-    future.push({
-      id: `plan:${plan.id}`,
-      kind: 'plan',
-      title: plan.title,
-      detail: snapshot.locations.find((location) => location.id === plan.location_id)?.name ?? 'Together',
-      time: formatTime(plan.starts_at, clock.timezone),
-      locationId: plan.location_id,
-      sortMinute: minuteInZone(plan.starts_at, clock.timezone),
-    });
-  }
   for (const date of snapshot.dates) {
     if (date.character_instance_id !== companion.id || date.status !== 'upcoming' || !date.scheduled_for || new Date(date.scheduled_for).getTime() <= now.getTime()) continue;
     if (localDateKey(date.scheduled_for, clock.timezone) !== clock.dateKey) continue;
@@ -364,8 +351,15 @@ function buildTimeline({ snapshot, companion, recentEvents, currentLocation, cur
   }
 
   future.sort((left, right) => left.sortMinute - right.sortMinute);
+  const seenFuture=new Set([timelineIdentity(nowRow)]);
+  const distinctFuture=future.filter((item)=>{
+    const identity=timelineIdentity(item);
+    if(seenFuture.has(identity))return false;
+    seenFuture.add(identity);
+    return true;
+  });
   const remaining = Math.max(0, 3 - pastEvents.length);
-  const nextItems = future.slice(0, remaining).map<HomeTimelineItem>((candidate) => ({
+  const nextItems = distinctFuture.slice(0, remaining).map<HomeTimelineItem>((candidate) => ({
     id: candidate.id,
     kind: candidate.kind,
     title: candidate.title,
@@ -375,6 +369,10 @@ function buildTimeline({ snapshot, companion, recentEvents, currentLocation, cur
     current: candidate.current,
   }));
   return [...pastEvents, nowRow, ...nextItems].slice(0, 4);
+}
+
+function timelineIdentity(item:Pick<HomeTimelineItem,'title'|'detail'|'locationId'>){
+  return `${item.title.trim().toLowerCase()}|${item.detail?.trim().toLowerCase()??''}|${item.locationId??''}`;
 }
 
 export function labelStage(stage: string) {

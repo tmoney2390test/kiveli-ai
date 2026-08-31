@@ -31,7 +31,7 @@ export function CompanionPortraitCard({ companion, width, height = 390, favorite
     <View style={[styles.cardCopy,compact&&styles.cardCopyCompact]}>
       <View style={styles.nameRow}>
         <Text numberOfLines={compact?2:1} style={[styles.name,compact&&styles.nameCompact]}>{companion.name} <Text style={styles.age}>{companion.age}</Text></Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${favorite ? 'Remove' : 'Add'} ${companion.name} ${favorite ? 'from' : 'to'} favorites`} accessibilityState={{ selected: favorite, disabled: favoriteBusy }} disabled={favoriteBusy} hitSlop={8} onPress={(event) => { event.stopPropagation(); onFavorite(); }} style={({ pressed }) => [styles.favoriteButton, favorite && styles.favoriteButtonActive, (pressed || favoriteBusy) && styles.favoriteButtonPressed]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${favorite ? 'Remove' : 'Add'} ${companion.name} ${favorite ? 'from' : 'to'} favorites`} accessibilityState={{ selected: favorite, disabled: favoriteBusy }} disabled={favoriteBusy} hitSlop={4} onPress={(event) => { event.stopPropagation(); onFavorite(); }} style={({ pressed }) => [styles.favoriteButton, favorite && styles.favoriteButtonActive, (pressed || favoriteBusy) && styles.favoriteButtonPressed]}>
           <Star size={19} strokeWidth={2.1} color={favorite ? '#FFD27A' : '#fff'} fill={favorite ? '#FFD27A' : 'transparent'} />
         </Pressable>
       </View>
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
   name: { flex: 1, color: '#fff', fontFamily: typography.display, fontSize: 29, lineHeight: 34, fontWeight: '600', textShadowColor: '#000', textShadowRadius: 10 },
   nameCompact:{fontSize:24,lineHeight:27},
   age: { color: 'rgba(255,255,255,.72)' },
-  favoriteButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10,8,14,.64)', borderWidth: 1, borderColor: 'rgba(255,255,255,.28)' },
+  favoriteButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10,8,14,.64)', borderWidth: 1, borderColor: 'rgba(255,255,255,.28)' },
   favoriteButtonActive: { backgroundColor: 'rgba(103,62,22,.74)', borderColor: 'rgba(255,210,122,.68)' },
   favoriteButtonPressed: { opacity: .68, transform: [{ scale: .93 }] },
   occupation: { color: '#F6D6DF', fontSize: 12, fontWeight: '800' },

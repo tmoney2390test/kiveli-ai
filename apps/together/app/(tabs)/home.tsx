@@ -43,9 +43,9 @@ export default function Home() {
   const heroReady=useSurfaceReadyTiming('home','hero_image_ready',Boolean(snapshot&&analyticsEnabled));
   useEffect(()=>{
     if(!snapshot)return;
-    const urls=uniqueHttpsImageUris((snapshot.generatedMedia??[]).filter((item)=>item.status==='ready'&&item.media_type==='image').sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime()).map((item)=>item.signed_url),8);
+    const urls=uniqueHttpsImageUris((snapshot.generatedMedia??[]).filter((item)=>item.status==='ready'&&item.media_type==='image').sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime()).map((item)=>item.signed_url),3);
     if(!urls.length)return;
-    const timer=setTimeout(()=>void Image.prefetch(urls,'memory-disk').catch(()=>undefined),320);
+    const timer=setTimeout(()=>void Image.prefetch(urls,'memory-disk').catch(()=>undefined),1_600);
     return()=>clearTimeout(timer);
   },[snapshot]);
   const homeCompanion=snapshot?mostRecentHomeCompanion(snapshot):undefined;
@@ -81,7 +81,7 @@ export default function Home() {
       <View pointerEvents="none" style={styles.ambientGlow}/>
       {!desktop?<HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name??snapshot.profile?.display_name??'You'} onCredits={()=>router.push(subscriptionHref({intent:'credits'}) as never)} onProfile={()=>router.push('/settings')}/>:null}
       <View style={styles.emptyLife}><Text accessibilityRole="header" style={styles.emptyLifeTitle}>Start a conversation</Text><GradientButton label="Explore" onPress={()=>router.push('/(tabs)/explore')}/></View>
-      {fallbackWorld?<FeaturedCompanionsSection companions={featuredCompanions} world={fallbackWorld} worlds={publishedWorlds} favoriteIds={snapshot.favoriteCharacterTemplateIds??[]} onOpen={(item)=>router.push(`/character/${item.public_handle??item.slug}`)} onViewAll={()=>{setBrowsedWorldId(fallbackWorld.id);router.push(`/(tabs)/singles?world=${fallbackWorld.slug}`);}} onSelectWorld={setBrowsedWorldId} onToggleFavorite={toggleFavorite}/>:null}
+      {fallbackWorld?<FeaturedCompanionsSection companions={featuredCompanions} world={fallbackWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds??[]} onOpen={(item)=>router.push(`/character/${item.public_handle??item.slug}`)} onViewAll={()=>{setBrowsedWorldId(fallbackWorld.id);router.push(`/(tabs)/singles?world=${fallbackWorld.slug}`);}} onToggleFavorite={toggleFavorite}/>:null}
     </Screen>;
   }
 
@@ -106,7 +106,7 @@ export default function Home() {
     const record = snapshot.generatedMedia?.find((entry) => entry.id === item.id);
     return record?.location_id === upcomingLocation?.id;
   });
-  const upcomingSource = nearbyMedia ? { uri: nearbyMedia.thumbnailUrl ?? nearbyMedia.url } : locationHeroAsset(upcomingWorld?.slug, upcomingLocation?.slug);
+  const upcomingSource = nearbyMedia?.thumbnailUrl ? { uri: nearbyMedia.thumbnailUrl } : locationHeroAsset(upcomingWorld?.slug, upcomingLocation?.slug);
   const companionFirstName = template.name.trim().split(/\s+/)[0] || template.name;
   const timelineTitle = `${companionFirstName}'s Day`;
   const wideCards = width >= 760;
@@ -134,22 +134,22 @@ export default function Home() {
   return <Screen contentStyle={desktop ? styles.contentDesktop : styles.content}>
     <View pointerEvents="none" style={styles.ambientGlow} />
     {!desktop ? <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push(subscriptionHref({intent:'credits'}) as never)} onProfile={() => router.push('/settings')} /> : null}
-    <View style={[styles.heroPair,width<860&&styles.heroPairStack]}>
-      <View style={styles.heroPane}><CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} location={model.currentLocation?.name} world={model.currentWorld?.name} onContinue={() => void openCompanion()} onProfile={() => router.push(`/character/${handle}`)} onVisualReady={heroReady}/></View>
-      {discoveryWorlds.length?<View style={styles.heroPane}><HomeWorldDiscoveryHero worlds={discoveryWorlds} onExplore={(world)=>{setBrowsedWorldId(world.id);router.push(`/(tabs)/explore?world=${world.slug}`);}}/></View>:null}
-    </View>
-    <Pressable accessibilityRole="button" accessibilityLabel="Open Kivelli Stories" onPress={()=>router.push('/stories' as never)} style={({pressed})=>[styles.storiesBanner,pressed&&{opacity:.9}]}>
-      <Image source={storyLibraryHomeAsset} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" loading="lazy" priority="low"/>
-      <View pointerEvents="none" style={[StyleSheet.absoluteFill,styles.storiesShade]}/>
-      <View style={styles.storiesCopy}><Text style={styles.storiesKicker}>KIVELLI STORIES · NEW</Text><Text style={styles.storiesTitle}>A night you can change—if you learn enough.</Text><Text style={styles.storiesText}>Enter a replayable Vespormoor mystery with its own clues, timeline, and endings.</Text><Text style={styles.storiesAction}>Open the archive →</Text></View>
-    </Pressable>
+    <CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} location={model.currentLocation?.name} world={model.currentWorld?.name} actionLabel={model.hero.action.label} notice={model.hero.notice} prompt={model.message?.content ? `“${model.message.content}”` : model.hero.prompt} onContinue={() => void runAction(model.hero.action)} onProfile={() => router.push(`/character/${handle}`)} onVisualReady={heroReady}/>
     {secondaryWorkReady?<>
-      {selectedWorld&&worldPulse?.worldId===selectedWorld.id?<AroundTownSection worldName={selectedWorld.name} items={worldPulse.items} onOpen={(item)=>{if(item.locationSlug)return router.push(`/location/${item.locationSlug}?world=${selectedWorld.slug}`);router.push(`/(tabs)/explore?world=${selectedWorld.slug}`);}}/>:null}
-      {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions} world={selectedWorld} worlds={publishedWorlds} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onViewAll={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/singles?world=${selectedWorld.slug}`); }} onSelectWorld={setBrowsedWorldId} onToggleFavorite={toggleFavorite} /> : null}
       <FromCompanionSection name={template.name} items={media} fallbackSource={portraitSource} onViewAll={() => router.push('/(tabs)/moments')} onOpen={(item) => router.push(item.locked ? subscriptionHref({intent:'generated_media'}) as never : `/media/${item.id}`)} onAsk={() => router.push(`/(tabs)/chat-tab?character=${encodeURIComponent(handle)}&draft=${encodeURIComponent('Send me a photo from where you are.')}`)} />
       <HomeWorldSection wide={wideCards} upcoming={{ eyebrow: model.upcoming.eyebrow, title: model.upcoming.title, meta: model.upcoming.meta }} relationship={{ eyebrow: `YOU + ${template.name.toUpperCase()}`, title: relationship.headline, meta: relationship.detail }} hook={getWorldHook(model)} memory={memory} upcomingSource={upcomingSource} relationshipSource={portraitSource} onUpcoming={() => void runAction(model.upcoming.action)} onRelationship={() => router.push(`/character/${handle}`)} />
       <HomeTimeline title={timelineTitle} items={model.timeline} onViewWorld={() => router.push('/(tabs)/explore')} onOpen={openTimelineItem} />
-      {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Text onPress={() => router.push('/(tabs)/moments')} style={styles.sectionAction}>View all →</Text></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} preserveImageDetails onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}
+      {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Pressable accessibilityRole="button" accessibilityLabel="View all recently shared moments" hitSlop={6} onPress={() => router.push('/(tabs)/moments')} style={({pressed})=>[styles.sectionActionButton,pressed&&styles.sectionActionPressed]}><Text style={styles.sectionAction}>View all →</Text></Pressable></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} preserveImageDetails onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}
+      <View style={[styles.discoveryPair,width<760&&styles.discoveryPairStack]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Open Kivelli Stories" onPress={()=>router.push('/stories' as never)} style={({pressed})=>[styles.storiesBanner,pressed&&styles.discoveryPressed]}>
+          <Image source={storyLibraryHomeAsset} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" loading="lazy" priority="low"/>
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill,styles.storiesShade]}/>
+          <View style={styles.storiesCopy}><Text style={styles.storiesKicker}>KIVELLI STORIES · NEW</Text><Text style={styles.storiesTitle}>A night you can change—if you learn enough.</Text><Text style={styles.storiesText}>Enter a replayable Vespormoor mystery with its own clues, timeline, and endings.</Text><Text style={styles.storiesAction}>Open the archive →</Text></View>
+        </Pressable>
+        {discoveryWorlds.length?<View style={styles.discoveryPane}><HomeWorldDiscoveryHero worlds={discoveryWorlds} onExplore={(world)=>{setBrowsedWorldId(world.id);router.push(`/(tabs)/explore?world=${world.slug}`);}}/></View>:null}
+      </View>
+      {selectedWorld&&worldPulse?.worldId===selectedWorld.id?<AroundTownSection worldName={selectedWorld.name} items={worldPulse.items.slice(0,5)} onOpen={(item)=>{if(item.locationSlug)return router.push(`/location/${item.locationSlug}?world=${selectedWorld.slug}`);router.push(`/(tabs)/explore?world=${selectedWorld.slug}`);}}/>:null}
+      {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions} world={selectedWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onViewAll={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/singles?world=${selectedWorld.slug}`); }} onToggleFavorite={toggleFavorite} /> : null}
     </>:<HomeSecondaryLoading/>}
   </Screen>;
 }
@@ -177,13 +177,14 @@ function HomeError({ message, onRetry }: { message: string; onRetry: () => void 
 function HomeSecondaryLoading(){return <View accessibilityLabel="Loading more from your world" style={styles.secondaryLoading}><View style={styles.loadingSectionTitle}/><View style={styles.loadingRail}>{[0,1,2].map((item)=><View key={item} style={styles.loadingMedia}/>)}</View></View>;}
 
 const styles = StyleSheet.create({
-  content: { position: 'relative', maxWidth: 1180, gap: 30, paddingTop: 14, paddingBottom: 154 },
+  content: { position: 'relative', maxWidth: 1180, gap: 30, paddingTop: 14, paddingBottom: 176 },
   contentDesktop: { position: 'relative', maxWidth: 1180, gap: 30, paddingTop: 24, paddingBottom: 48 },
   ambientGlow: { position: 'absolute', top: 80, left: '22%', width: '70%', height: 700, borderRadius: 500, backgroundColor: 'rgba(122,34,86,.045)', ...(Platform.OS === 'web' ? ({ backgroundImage: 'radial-gradient(circle, rgba(191,55,119,.09), transparent 68%)' } as never) : {}) },
-  heroPair:{flexDirection:'row',alignItems:'stretch',gap:14},
-  heroPairStack:{flexDirection:'column'},
-  heroPane:{flex:1,minWidth:0},
-  storiesBanner:{minHeight:190,borderRadius:25,overflow:'hidden',borderWidth:1,borderColor:'rgba(103,215,193,.22)',justifyContent:'center'},
+  discoveryPair:{flexDirection:'row',alignItems:'stretch',gap:14},
+  discoveryPairStack:{flexDirection:'column'},
+  discoveryPane:{flex:1,minWidth:0},
+  discoveryPressed:{opacity:.9,transform:[{scale:.995}]},
+  storiesBanner:{flex:1,minWidth:0,minHeight:218,borderRadius:25,overflow:'hidden',borderWidth:1,borderColor:'rgba(103,215,193,.22)',justifyContent:'center'},
   storiesShade:{backgroundColor:'rgba(7,8,14,.74)'},
   storiesCopy:{padding:22,maxWidth:650,gap:5},
   storiesKicker:{color:'#78DCC8',fontSize:10,fontWeight:'900',letterSpacing:1.4},
@@ -196,9 +197,11 @@ const styles = StyleSheet.create({
   momentsTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { color: colors.text, fontFamily: typography.display, fontSize: 30, fontWeight: '600', letterSpacing: -.5 },
   sectionAction: { color: '#E8A2BA', fontSize: 12, fontWeight: '800' },
+  sectionActionButton:{minWidth:70,minHeight:44,alignItems:'flex-end',justifyContent:'center',paddingLeft:10},
+  sectionActionPressed:{opacity:.68},
   loadingHeader: { height: 54, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   loadingBrand: { width: 132, height: 26, borderRadius: 8, backgroundColor: colors.surface },
-  loadingChip: { width: 92, height: 38, borderRadius: 20, backgroundColor: colors.surface },
+  loadingChip: { width: 94, height: 44, borderRadius: 22, backgroundColor: colors.surface },
   loadingHero: { height: 320, borderRadius: 30, overflow: 'hidden', justifyContent: 'flex-end', padding: 19, backgroundColor: '#21131F' },
   loadingGlow: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(153,48,99,.08)' },
   loadingCopy: { gap: 12, maxWidth: 570 },

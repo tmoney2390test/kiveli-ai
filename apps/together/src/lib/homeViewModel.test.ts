@@ -119,6 +119,14 @@ describe('buildHomeViewModel', () => {
     expect(model?.hero.action).toEqual({ kind: 'chat', label: 'Keep Chloe company' });
   });
 
+  it('adds a scheduled plan to the timeline only once', () => {
+    const model = buildHomeViewModel({
+      ...snapshot,
+      sharedPlans: [{ id: 'rooftop-plan', character_instance_id: 'chloe-instance', status: 'scheduled', title: 'Rooftop breakfast', location_id: 'rooftop', starts_at: '2026-08-16T14:00:00.000Z', ends_at: '2026-08-16T15:00:00.000Z' }],
+    } as unknown as Snapshot, now);
+    expect(model?.timeline.filter((item) => item.id === 'plan:rooftop-plan')).toHaveLength(1);
+  });
+
   it('does not show a proactive message when the active chat is empty', () => {
     const model = buildHomeViewModel({ ...snapshot, conversations: [], proactiveMessages: snapshot.proactiveMessages }, now);
     expect(model?.message).toBeUndefined();

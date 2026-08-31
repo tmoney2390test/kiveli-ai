@@ -88,27 +88,31 @@ export function selectFeaturedMemory(snapshot: Snapshot, companionId: string) {
 }
 
 export function getCompanionMedia(snapshot: Snapshot, companionId: string): CompanionMediaItem[] {
+  const companion = snapshot.characters.find((entry) => entry.id === companionId);
+  const firstName = companion?.together_character_templates.name.trim().split(/\s+/)[0] || 'THEM';
   return (snapshot.generatedMedia ?? [])
-    .filter((item): item is GeneratedMedia & { signed_url: string } => item.character_instance_id === companionId && item.status === 'ready' && Boolean(item.signed_url))
+    .filter((item): item is GeneratedMedia & { signed_url: string; media_type: 'image' | 'video' } => item.character_instance_id === companionId && item.status === 'ready' && Boolean(item.signed_url) && (item.media_type === 'image' || item.media_type === 'video'))
     .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
     .map((item) => {
       const moment = item.moment_id ? snapshot.moments.find((entry) => entry.id === item.moment_id) : undefined;
       const event = item.life_event_id ? snapshot.lifeEvents.find((entry) => entry.id === item.life_event_id) : undefined;
       const date = item.date_session_id ? snapshot.dates.find((entry) => entry.id === item.date_session_id) : undefined;
       const location = item.location_id ? snapshot.locations.find((entry) => entry.id === item.location_id) : undefined;
+      const parent = item.parent_media_id ? snapshot.generatedMedia?.find((entry) => entry.id === item.parent_media_id && entry.media_type === 'image' && entry.status === 'ready' && Boolean(entry.signed_url)) : undefined;
       const metadata = item.metadata ?? {};
       const locked = metadata.locked === true || metadata.visibility === 'private_locked';
+      const thumbnailUrl = item.media_type === 'image' ? item.signed_url : parent?.signed_url ?? undefined;
       return {
         id: item.id,
-        type: 'image' as const,
+        type: item.media_type,
         url: item.signed_url,
-        thumbnailUrl: item.signed_url,
-        cacheKey: generatedMediaCacheKey(item),
-        title: String(metadata.title ?? moment?.title ?? event?.title ?? date?.together_date_templates.name ?? 'A moment from today'),
+        thumbnailUrl,
+        cacheKey: generatedMediaCacheKey(parent ?? item),
+        title: String(metadata.title ?? moment?.title ?? event?.title ?? date?.together_date_templates.name ?? (location ? `At ${location.name}` : 'A moment from today')),
         subtitle: location?.name ?? String(metadata.context ?? 'From your shared world'),
         timestamp: item.created_at,
         locked,
-        context: moment ? 'MEMORY' : date ? 'DATE' : event ? 'TODAY' : 'FROM HER',
+        context: moment ? 'MEMORY' : date ? 'DATE' : event ? 'TODAY' : `FROM ${firstName.toUpperCase()}`,
       };
     });
 }

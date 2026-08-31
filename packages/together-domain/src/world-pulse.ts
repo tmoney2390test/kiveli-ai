@@ -87,15 +87,22 @@ export function selectWorldPulseForContext(events:readonly WorldPulseEvent[],inp
 
 export function buildAroundTownFeed(events:readonly WorldPulseEvent[],input:{now?:Date;limit?:number}={}):AroundTownItem[]{
   const now=input.now??new Date(),limit=Math.max(1,Math.min(12,input.limit??6));
-  return events.filter((event)=>event.status!=='cancelled'&&new Date(event.endsAt)>now&&new Date(event.startsAt).getTime()<now.getTime()+7*86400000&&(event.knowledgeScope==='public'||event.knowledgeScope==='local'))
+  const candidates=events.filter((event)=>event.status!=='cancelled'&&new Date(event.endsAt)>now&&new Date(event.startsAt).getTime()<now.getTime()+7*86400000&&(event.knowledgeScope==='public'||event.knowledgeScope==='local'))
     .sort((left,right)=>{
       const leftActive=new Date(left.startsAt)<=now&&new Date(left.endsAt)>now,rightActive=new Date(right.startsAt)<=now&&new Date(right.endsAt)>now;
       return Number(rightActive)-Number(leftActive)||new Date(left.startsAt).getTime()-new Date(right.startsAt).getTime()||right.significance-left.significance;
-    }).slice(0,limit).map((event)=>{
+    });
+  const seen=new Set<string>(),items:AroundTownItem[]=[];
+  for(const event of candidates){
+    const identity=`${event.title.trim().toLowerCase()}|${event.locationId??event.districtLocationId??event.worldId}`;
+    if(seen.has(identity))continue;
+    seen.add(identity);
       const active=new Date(event.startsAt)<=now&&new Date(event.endsAt)>now;
       const today=localDate(event.startsAt)===localDate(now.toISOString());
-      return{id:event.id,kind:active?'happening_now':today?'later_today':'upcoming',title:event.title,summary:event.summary,startsAt:event.startsAt,endsAt:event.endsAt,locationId:event.locationId,...(event.locationName!==undefined?{locationName:event.locationName}:{}),...(event.locationSlug!==undefined?{locationSlug:event.locationSlug}:{}),participantCharacterInstanceIds:event.participantCharacterInstanceIds,participantNames:event.participantNames??[],action:event.locationId?'open_place':'open_world',eventType:event.eventType,significance:event.significance};
-    });
+    items.push({id:event.id,kind:active?'happening_now':today?'later_today':'upcoming',title:event.title,summary:event.summary,startsAt:event.startsAt,endsAt:event.endsAt,locationId:event.locationId,...(event.locationName!==undefined?{locationName:event.locationName}:{}),...(event.locationSlug!==undefined?{locationSlug:event.locationSlug}:{}),participantCharacterInstanceIds:event.participantCharacterInstanceIds,participantNames:event.participantNames??[],action:event.locationId?'open_place':'open_world',eventType:event.eventType,significance:event.significance});
+    if(items.length>=limit)break;
+  }
+  return items;
 }
 
 export function worldPulsePlanBoost(locationId:string,events:readonly Pick<WorldPulseEvent,'locationId'|'startsAt'|'endsAt'|'status'|'significance'|'planAffordances'>[],now=new Date()):{score:number;reason?:string}{

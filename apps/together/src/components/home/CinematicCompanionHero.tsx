@@ -6,12 +6,15 @@ import { colors, typography } from '../../theme';
 import type { CharacterInstance, CharacterVersion } from '../../types';
 import { KIVELLI_IMAGE_PLACEHOLDER } from '../../lib/imageWarmup';
 
-export function CinematicCompanionHero({ companion, portraitVersion, source, location, world, onContinue, onProfile, onVisualReady }: {
+export function CinematicCompanionHero({ companion, portraitVersion, source, location, world, actionLabel, notice, prompt, onContinue, onProfile, onVisualReady }: {
   companion: CharacterInstance;
   portraitVersion: CharacterVersion;
   source?: ImageSource | number;
   location?: string;
   world?: string;
+  actionLabel: string;
+  notice?: string | null;
+  prompt?: string | null;
   onContinue: () => void;
   onProfile: () => void;
   onVisualReady?:()=>void;
@@ -23,6 +26,7 @@ export function CinematicCompanionHero({ companion, portraitVersion, source, loc
   const scale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    if (Platform.OS === 'web') return;
     let alive = true;
     let scaleLoop: Animated.CompositeAnimation | undefined;
     void AccessibilityInfo.isReduceMotionEnabled().then((reduced) => {
@@ -50,12 +54,14 @@ export function CinematicCompanionHero({ companion, portraitVersion, source, loc
     <View pointerEvents="none" style={[styles.vignette, Platform.OS === 'web' ? styles.webVignette : undefined]} />
     <View style={[styles.content, compact && styles.contentCompact]}>
       <View style={[styles.bottom, desktop && styles.bottomDesktop]}>
+        {notice ? <View style={styles.notice}><Text numberOfLines={1} style={styles.noticeText}>{notice}</Text></View> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={`View ${firstName}'s profile`} onPress={onProfile}>
           <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.heading, compact && styles.headingCompact]}>{firstName}</Text>
         </Pressable>
         {placeLine ? <View style={styles.placeLine}><MapPin size={13} strokeWidth={2.1} color="#F6C5D7" /><Text numberOfLines={1} style={styles.placeText}>{placeLine}</Text></View> : null}
-        <Pressable accessibilityRole="button" accessibilityLabel={`Continue with ${firstName}`} onPress={onContinue} style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
-          <Text style={styles.ctaText}>Continue with {firstName}</Text><ArrowRight size={15} color="#F5DDE6" />
+        {prompt ? <Text numberOfLines={2} style={styles.prompt}>{prompt}</Text> : null}
+        <Pressable accessibilityRole="button" accessibilityLabel={actionLabel} onPress={onContinue} style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
+          <Text numberOfLines={1} style={styles.ctaText}>{actionLabel}</Text><ArrowRight size={15} color="#F5DDE6" />
         </Pressable>
       </View>
     </View>
@@ -75,13 +81,16 @@ const styles = StyleSheet.create({
   webVignette: { backgroundImage: 'radial-gradient(circle at 66% 32%, transparent 28%, rgba(5,3,8,.12) 115%)' } as never,
   content: { flex: 1, justifyContent: 'flex-end', padding: 18 },
   contentCompact: { padding: 15 },
-  bottom: { maxWidth: 690, gap: 12 },
+  bottom: { maxWidth: 690, gap: 9 },
   bottomDesktop: { paddingBottom: 4 },
+  notice: { alignSelf: 'flex-start', maxWidth: '100%', minHeight: 28, justifyContent: 'center', paddingHorizontal: 10, borderRadius: 999, backgroundColor: 'rgba(107,35,88,.72)', borderWidth: 1, borderColor: 'rgba(255,181,213,.28)' },
+  noticeText: { color: '#FFD4E3', fontSize: 9, fontWeight: '900', letterSpacing: .85, textTransform: 'uppercase' },
   heading: { color: colors.text, fontFamily: typography.display, fontSize: 44, lineHeight: 47, fontWeight: '600', letterSpacing: -1.1, textShadowColor: 'rgba(0,0,0,.9)', textShadowRadius: 18 },
   headingCompact: { fontSize: 34, lineHeight: 37, letterSpacing: -.7 },
   placeLine: { maxWidth: '100%', alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6 },
   placeText: { flexShrink: 1, color: '#F5E8ED', fontSize: 12, fontWeight: '700', textShadowColor: 'rgba(0,0,0,.9)', textShadowRadius: 9 },
-  cta: { alignSelf: 'flex-start', minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 13, marginTop: 1, borderRadius: 12, backgroundColor: 'rgba(14,9,18,.72)', borderWidth: 1, borderColor: 'rgba(231,149,183,.34)' },
+  prompt: { maxWidth: 520, color: 'rgba(255,248,244,.82)', fontSize: 12, lineHeight: 17, fontWeight: '600', textShadowColor: '#000', textShadowRadius: 9 },
+  cta: { alignSelf: 'flex-start', minHeight: 44, maxWidth: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 15, marginTop: 2, borderRadius: 13, backgroundColor: 'rgba(14,9,18,.78)', borderWidth: 1, borderColor: 'rgba(231,149,183,.38)' },
   ctaPressed: { opacity: .82, transform: [{ translateY: 1 }, { scale: .988 }] },
-  ctaText: { color: '#F8EAF0', fontSize: 12, fontWeight: '800' },
+  ctaText: { flexShrink: 1, color: '#F8EAF0', fontSize: 12, fontWeight: '800' },
 });

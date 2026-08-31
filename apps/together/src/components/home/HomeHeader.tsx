@@ -18,9 +18,9 @@ export function HomeHeader({ status, personaName, onCredits, onProfile }: { stat
 const styles = StyleSheet.create({
   header: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  credits: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 8, paddingRight: 12, borderRadius: radius.pill, backgroundColor: 'rgba(20,16,24,.82)', borderWidth: 1, borderColor: 'rgba(241,160,120,.16)' },
+  credits: { minWidth: 94, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 8, paddingRight: 12, borderRadius: radius.pill, backgroundColor: 'rgba(20,16,24,.82)', borderWidth: 1, borderColor: 'rgba(241,160,120,.16)' },
   creditText: { color: colors.text, fontSize: 11, fontWeight: '800' },
-  profile: { width: 39, height: 39, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.elevated, borderWidth: 1, borderColor: 'rgba(255,255,255,.12)' },
+  profile: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.elevated, borderWidth: 1, borderColor: 'rgba(255,255,255,.12)' },
   initial: { color: colors.text, fontSize: 13, fontWeight: '900' },
   pressed: { opacity: .78, transform: [{ scale: .97 }] },
 });
