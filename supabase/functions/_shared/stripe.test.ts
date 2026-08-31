@@ -24,13 +24,15 @@ Deno.test({name:'Stripe Managed Payments requires an explicit server opt-in',per
 }});
 
 Deno.test({name:'Stripe webhook verifies exact raw body and rejects tampering',permissions:{env:true},fn:async()=>{
-  const previous=Deno.env.get('STRIPE_WEBHOOK_SECRET'),secret='whsec_local_test',timestamp=1_800_000_000,raw='{"id":"evt_test","type":"invoice.paid","data":{"object":{}}}';
+  const previous=Deno.env.get('STRIPE_WEBHOOK_SECRET'),secret='whsec_local_test',timestamp=1_800_000_000,raw=`{"id":"evt_test","type":"invoice.paid","created":${timestamp},"data":{"object":{}}}`;
   Deno.env.set('STRIPE_WEBHOOK_SECRET',secret);
   try{
     const signature=await hmac(secret,`${timestamp}.${raw}`),header=`t=${timestamp},v1=${signature}`;
     assertEquals((await verifyStripeWebhook(raw,header,new Date(timestamp*1000))).id,'evt_test');
     await assertRejects(()=>verifyStripeWebhook(`${raw} `,header,new Date(timestamp*1000)),Error,'signature verification failed');
     await assertRejects(()=>verifyStripeWebhook(raw,'t=1,v1=invalid',new Date(timestamp*1000)),Error,'invalid or expired');
+    const incomplete='{"id":"evt_incomplete","type":"invoice.paid","data":{"object":{}}}',incompleteHeader=`t=${timestamp},v1=${await hmac(secret,`${timestamp}.${incomplete}`)}`;
+    await assertRejects(()=>verifyStripeWebhook(incomplete,incompleteHeader,new Date(timestamp*1000)),Error,'event is incomplete');
   }finally{previous===undefined?Deno.env.delete('STRIPE_WEBHOOK_SECRET'):Deno.env.set('STRIPE_WEBHOOK_SECRET',previous);}
 }});
 
