@@ -11,15 +11,13 @@ export function advanceHomeWorldIndex(current:number,count:number,delta=1){
   return((current+delta)%count+count)%count;
 }
 
-export function shouldAutoRotateHomeWorlds({count,enabled,reducedMotion,interacting,appActive,documentVisible}:{
+export function shouldAutoRotateHomeWorlds({count,reducedMotion,appActive,documentVisible}:{
   count:number;
-  enabled:boolean;
   reducedMotion:boolean;
-  interacting:boolean;
   appActive:boolean;
   documentVisible:boolean;
 }){
-  return count>1&&enabled&&!reducedMotion&&!interacting&&appActive&&documentVisible;
+  return count>1&&!reducedMotion&&appActive&&documentVisible;
 }
 
 function releaseOrder(world:World){

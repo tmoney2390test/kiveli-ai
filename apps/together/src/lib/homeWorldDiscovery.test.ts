@@ -22,11 +22,10 @@ describe('home world discovery',()=>{
     expect(advanceHomeWorldIndex(4,0)).toBe(0);
   });
 
-  it('pauses for reduced motion, direct interaction, hidden pages, and backgrounded apps',()=>{
-    const ready={count:3,enabled:true,reducedMotion:false,interacting:false,appActive:true,documentVisible:true};
+  it('pauses for reduced motion, hidden pages, and backgrounded apps',()=>{
+    const ready={count:3,reducedMotion:false,appActive:true,documentVisible:true};
     expect(shouldAutoRotateHomeWorlds(ready)).toBe(true);
     expect(shouldAutoRotateHomeWorlds({...ready,reducedMotion:true})).toBe(false);
-    expect(shouldAutoRotateHomeWorlds({...ready,interacting:true})).toBe(false);
     expect(shouldAutoRotateHomeWorlds({...ready,documentVisible:false})).toBe(false);
     expect(shouldAutoRotateHomeWorlds({...ready,appActive:false})).toBe(false);
     expect(shouldAutoRotateHomeWorlds({...ready,count:1})).toBe(false);
