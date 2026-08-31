@@ -16,7 +16,7 @@ import { colors, spacing, typography } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { markProactiveOpened, setCharacterFavorite, simulate } from '../../src/lib/api';
 import { buildHomeViewModel, mostRecentHomeCompanion, type HomeTargetAction, type HomeTimelineItem } from '../../src/lib/homeViewModel';
-import { getCompanionMedia, getMemoryPresentation, getRelationshipPresentation, getWorldHook, selectFeaturedMemory } from '../../src/lib/homePresentation';
+import { getCompanionMedia, getHomeWorldScopes, getMemoryPresentation, getRelationshipPresentation, getWorldHook, selectFeaturedMemory } from '../../src/lib/homePresentation';
 import { locationHeroAsset } from '../../src/assets';
 import { selectPortraitVersion } from '../../src/lib/selectors';
 import { featuredCompanionsForWorld, type FeaturedCompanion } from '../../src/lib/featuredCompanions';
@@ -49,7 +49,8 @@ export default function Home() {
   },[snapshot]);
   const homeCompanion=snapshot?mostRecentHomeCompanion(snapshot):undefined;
   const homeCompanionId=homeCompanion?.id;
-  const pulseWorldId=snapshot?(browsedWorldId??buildHomeViewModel(snapshot)?.currentWorld?.id??snapshot.worlds.find(world=>world.published)?.id):null;
+  const homeModel=snapshot?buildHomeViewModel(snapshot):undefined;
+  const pulseWorldId=homeModel?.currentWorld?.id??null;
   const {data:worldPulse}=useWorldPulse(pulseWorldId,Boolean(snapshot&&pulseWorldId&&secondaryWorkReady));
 
   const simulationStale=!homeCompanion||Date.now()-new Date(homeCompanion.last_simulated_at).getTime()>2*60000||!(snapshot?.scheduleEvents??[]).some((item)=>item.character_instance_id===homeCompanionId&&new Date(item.ends_at)>new Date());
@@ -73,7 +74,7 @@ export default function Home() {
       throw favoriteError;
     }
   };
-  const model = buildHomeViewModel(snapshot);
+  const model = homeModel;
   if (!model) {
     const featuredCompanions=fallbackWorld?featuredCompanionsForWorld(snapshot,fallbackWorld.id):[];
     return <Screen contentStyle={desktop?styles.contentDesktop:styles.content}>
@@ -89,7 +90,7 @@ export default function Home() {
   const handle = template.public_handle ?? template.slug;
   const portraitVersion = selectPortraitVersion(snapshot, companion);
   const portraitSource = resolveCharacterPortraitSource(template, portraitVersion, template.slug);
-  const selectedWorld = publishedWorlds.find((world) => world.id === browsedWorldId) ?? model.currentWorld ?? publishedWorlds[0];
+  const { pulseWorld, selectedWorld } = getHomeWorldScopes(model, publishedWorlds, browsedWorldId);
   const featuredCompanions = selectedWorld ? featuredCompanionsForWorld(snapshot, selectedWorld.id, template.id) : [];
   const discoveryWorlds=homeWorldDiscoveryOptions(snapshot.worlds,model.currentWorld?.id);
   const relationship = getRelationshipPresentation(snapshot, companion, model.relationshipDay);
@@ -153,7 +154,7 @@ export default function Home() {
         </View>
       </View>
       {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Pressable accessibilityRole="button" accessibilityLabel="View all recently shared moments" hitSlop={6} onPress={() => router.push('/(tabs)/moments')} style={({pressed})=>[styles.sectionActionButton,pressed&&styles.sectionActionPressed]}><Text style={styles.sectionAction}>View all →</Text></Pressable></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} preserveImageDetails onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}
-      {selectedWorld&&worldPulse?.worldId===selectedWorld.id?<AroundTownSection worldName={selectedWorld.name} items={worldPulse.items.slice(0,5)} onOpen={(item)=>{if(item.locationSlug)return router.push(`/location/${item.locationSlug}?world=${selectedWorld.slug}`);router.push(`/(tabs)/explore?world=${selectedWorld.slug}`);}}/>:null}
+      {pulseWorld&&worldPulse?.worldId===pulseWorld.id?<AroundTownSection worldName={pulseWorld.name} items={worldPulse.items.slice(0,5)} onOpen={(item)=>{if(item.locationSlug)return router.push(`/location/${item.locationSlug}?world=${pulseWorld.slug}`);router.push(`/(tabs)/explore?world=${pulseWorld.slug}`);}}/>:null}
       {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions} world={selectedWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onViewAll={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/singles?world=${selectedWorld.slug}`); }} onToggleFavorite={toggleFavorite} /> : null}
     </>:<HomeSecondaryLoading/>}
   </Screen>;

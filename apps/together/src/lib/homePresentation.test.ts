@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Snapshot } from '../types';
-import { getCompanionMedia, getMemoryPresentation } from './homePresentation';
+import { getCompanionMedia, getHomeWorldScopes, getMemoryPresentation } from './homePresentation';
 
 describe('home presentation', () => {
   it('never exposes raw system subjects in memory copy', () => {
@@ -34,5 +34,14 @@ describe('home presentation', () => {
     expect(media).toHaveLength(2);
     expect(media[0]).toMatchObject({ type: 'video', url: 'https://example.com/video.mp4', thumbnailUrl: 'https://example.com/photo.jpg', title: 'At Nightglass Observatory', context: 'FROM MAYA' });
     expect(media[1]?.type).toBe('image');
+  });
+
+  it("keeps World Pulse scoped to the Home companion's world when another world was browsed", () => {
+    const eon = { id: 'eon', slug: 'eon', name: 'Eon', published: true } as Snapshot['worlds'][number];
+    const juniper = { id: 'juniper', slug: 'juniper-city', name: 'Juniper City', published: true } as Snapshot['worlds'][number];
+    const scopes = getHomeWorldScopes({ currentWorld: eon }, [eon, juniper], juniper.id);
+
+    expect(scopes.pulseWorld?.id).toBe(eon.id);
+    expect(scopes.selectedWorld?.id).toBe(juniper.id);
   });
 });

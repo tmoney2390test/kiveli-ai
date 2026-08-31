@@ -25,6 +25,14 @@ export type CurrentScenePresentation = {
   quote: string;
 };
 
+export function getHomeWorldScopes(model: Pick<HomeViewModel, 'currentWorld'>, worlds: Snapshot['worlds'], browsedWorldId?: string | null) {
+  const publishedWorlds = worlds.filter((world) => world.published);
+  return {
+    pulseWorld: model.currentWorld,
+    selectedWorld: publishedWorlds.find((world) => world.id === browsedWorldId) ?? model.currentWorld ?? publishedWorlds[0],
+  };
+}
+
 export function getCurrentScenePresentation(model: HomeViewModel): CurrentScenePresentation {
   const name = model.companion.together_character_templates.name;
   const togetherNow = /^together now/i.test(model.hero.notice ?? '');
