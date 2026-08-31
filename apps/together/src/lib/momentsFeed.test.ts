@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GeneratedMedia, Moment, Snapshot } from '../types';
-import { buildMomentsFeed } from './momentsFeed';
+import { buildMomentsFeed, videoMomentFrameUrl } from './momentsFeed';
 
 const moment: Moment = {
   id: 'moment-1', character_instance_id: 'maya', title: 'A real Moment', summary: 'A shared memory.',
@@ -62,5 +62,8 @@ describe('Moments feed', () => {
     const feed=buildMomentsFeed({...snapshot,generatedMedia:[unlinkedPhoto,video]},'maya','Videos');
     expect(feed).toHaveLength(1);
     expect(feed[0]).toMatchObject({kind:'video',id:'video-1',poster:{id:'photo-1'}});
+    expect(videoMomentFrameUrl(feed[0]!)).toBeUndefined();
+    const readyFeed=buildMomentsFeed({...snapshot,generatedMedia:[unlinkedPhoto,{...video,status:'ready',signed_url:'https://example.test/video.mp4'}]},'maya','Videos');
+    expect(videoMomentFrameUrl(readyFeed[0]!)).toBe('https://example.test/video.mp4');
   });
 });

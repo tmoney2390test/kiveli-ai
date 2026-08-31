@@ -79,6 +79,10 @@ export function generatedVideoTitle(snapshot: Snapshot, media: GeneratedMedia): 
   return character ? `Creating a video with ${character.together_character_templates.name}` : 'Creating your video';
 }
 
+export function videoMomentFrameUrl(entry:MomentsFeedEntry):string|undefined{
+  return entry.kind==='video'&&entry.media.status==='ready'?entry.media.signed_url??undefined:undefined;
+}
+
 export function generatedPhotoTitle(snapshot: Snapshot, media: GeneratedMedia): string {
   const metadata = media.metadata ?? {};
   const authoredTitle = typeof metadata.title === 'string' ? metadata.title.trim() : '';

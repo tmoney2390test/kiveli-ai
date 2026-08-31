@@ -8,7 +8,7 @@ import { colors, radius } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { selectActiveCompanion, selectPortraitVersion } from '../../src/lib/selectors';
 import { worldForLocation } from '../../src/lib/place';
-import { buildMomentsFeed, planSummary, type MomentsFeedEntry, type MomentsFeedFilter } from '../../src/lib/momentsFeed';
+import { buildMomentsFeed, planSummary, videoMomentFrameUrl, type MomentsFeedEntry, type MomentsFeedFilter } from '../../src/lib/momentsFeed';
 import { mostRecentlyMessagedConversation } from '../../src/lib/conversation';
 import { locationHeroAsset } from '../../src/assets';
 import { explicitMomentsCompanionSelection, loadMomentsCompanionSelection, restoredMomentsCompanionSelection, saveMomentsCompanionSelection } from '../../src/lib/momentsCompanionPreference';
@@ -94,6 +94,7 @@ function FeedCard({entry,companionId,onMediaLoad}:{entry:MomentsFeedEntry;compan
   const world=place?worldForLocation(snapshot,place.id):undefined;
   const meta=[entryLabel(entry),companionId==='all'?character?.together_character_templates.name:null,place?.name,world?.name].filter(Boolean).join(' · ');
   const mediaUrl=entryMediaUrl(snapshot,entry);
+  const videoUrl=videoMomentFrameUrl(entry);
   const locationFallback=entry.kind==='memory'&&place?locationHeroAsset(world?.slug,place.slug):undefined;
   const open=()=>{
     if(entry.kind==='moment')router.push(`/moment/${entry.id}` as never);
@@ -102,7 +103,7 @@ function FeedCard({entry,companionId,onMediaLoad}:{entry:MomentsFeedEntry;compan
     else if(entry.kind==='date')router.push(`/date/${entry.id}` as never);
     else if(character){const handle=character.together_character_templates.public_handle??character.together_character_templates.slug;router.push(entry.kind==='memory'?`/memories?character=${handle}` as never:`/chat?character=${handle}` as never);}
   };
-  return <View style={styles.momentWrap}><MomentCard moment={moment} character={character} portraitVersion={character?selectPortraitVersion(snapshot,character):undefined} mediaUrl={mediaUrl} fallbackSource={locationFallback} onPress={open} onMediaLoad={onMediaLoad}/>{meta?<Text style={styles.momentMeta} numberOfLines={1}>{meta}</Text>:null}</View>;
+  return <View style={styles.momentWrap}><MomentCard moment={moment} character={character} portraitVersion={character?selectPortraitVersion(snapshot,character):undefined} mediaUrl={mediaUrl} videoUrl={videoUrl} fallbackSource={locationFallback} onPress={open} onMediaLoad={onMediaLoad}/>{meta?<Text style={styles.momentMeta} numberOfLines={1}>{meta}</Text>:null}</View>;
 }
 
 function entryAsMoment(entry:MomentsFeedEntry):Moment {
