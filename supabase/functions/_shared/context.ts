@@ -42,11 +42,11 @@ export async function requireAdmin(userId: string, db: SupabaseClient): Promise<
   if (data?.role !== 'admin') throw new AppError('FORBIDDEN', 'Administrator access is required.', 403);
 }
 
-export async function enforceRateLimit(db: SupabaseClient, subject: string, action: string, limit: number, windowSeconds: number): Promise<void> {
+export async function enforceRateLimit(db: SupabaseClient, subject: string, action: string, limit: number, windowSeconds: number, message = 'Too many requests. Try again later.'): Promise<void> {
   if(action==='together_dialogue')await enforceDialoguePlanLimit(db,subject);
   const { data, error } = await db.rpc('consume_rate_limit', { p_subject: subject, p_action: action, p_limit: limit, p_window_seconds: windowSeconds });
   if (error) throw new AppError('INTERNAL_ERROR', 'Rate limit validation failed.', 500);
-  if (!data) throw new AppError('RATE_LIMITED', 'Too many requests. Try again later.', 429, true);
+  if (!data) throw new AppError('RATE_LIMITED', message, 429, true);
 }
 
 async function enforceDialoguePlanLimit(db:SupabaseClient,userId:string):Promise<void>{

@@ -18,6 +18,12 @@ export type VideoMotionPreset = typeof MOTION_PRESETS[number];
 export type VideoAspectRatio = '9:16' | '16:9';
 export type VideoAudioBehavior = 'generated_audio' | 'silent' | 'provider_default';
 export type VideoSelectorMode = 'off' | 'testers' | 'all';
+export const VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT = {
+  action: 'together_video_submit_attempt',
+  limit: 12,
+  windowSeconds: 15 * 60,
+  message: 'Several video requests were submitted very quickly. Wait a few minutes and try again.',
+} as const;
 
 export type VideoRouteDefinition = {
   id: VideoRouteId;

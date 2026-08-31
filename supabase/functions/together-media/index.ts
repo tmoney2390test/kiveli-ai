@@ -26,7 +26,7 @@ import{synchronizedGeneratedPhotoPreferences}from'../_shared/together-photo-pref
 import{isFictionalCompanion}from'../_shared/together-media-character.ts';
 import{loadValidatedMediaSubjects,normalizeMediaSubjectIds}from'../_shared/together-media-subjects.ts';
 import{claimDailyPhotoAllowance,dailyPhotoReservationKey}from'../_shared/kivelle-subscription.ts';
-import{assertVideoQuoteWithinCeiling,buildVideoProviderPayload,canSelectVideoRoute,configuredVideoRouteCatalog,defaultVideoRouteId,MOTION_PRESETS,resolveVideoRoute,safeVideoRouteOption,sourceVideoAspectRatio,videoCreditCost,VIDEO_DURATIONS,VIDEO_ROUTE_IDS,videoSelectorMode,type VideoDurationSeconds,type VideoMotionPreset}from'../_shared/kivelle-video-routes.ts';
+import{assertVideoQuoteWithinCeiling,buildVideoProviderPayload,canSelectVideoRoute,configuredVideoRouteCatalog,defaultVideoRouteId,MOTION_PRESETS,resolveVideoRoute,safeVideoRouteOption,sourceVideoAspectRatio,videoCreditCost,VIDEO_DURATIONS,VIDEO_ROUTE_IDS,VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT,videoSelectorMode,type VideoDurationSeconds,type VideoMotionPreset}from'../_shared/kivelle-video-routes.ts';
 import{canonicalRequestForMedia,snapshotReferenceAssets}from'../_shared/together-media-base.ts';
 import{configuredWaveSpeedClient}from'../_shared/wavespeed.ts';
 import{placeContextSnapshot,resolveCharacterHomeContext,resolveCharacterPlaceContext,resolvePlaceContext,resolveWorldAccess,type PlaceContext}from'../_shared/together-place.ts';
@@ -113,7 +113,7 @@ serve(async(request,correlationId)=>{
   if(input.action==='video_direct_generate'){
     const continuity=await activeContinuity(db,user.id);await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId);
     const requestKey=`direct-video:${input.characterInstanceId}:${input.requestId}`,{data:existing}=await db.from('together_generated_media').select('*').eq('user_id',user.id).eq('request_key',requestKey).maybeSingle();if(existing)return json({data:{media:existing,creditCost:Number((existing.metadata as Record<string,unknown>|null)?.creditCost??0),creditBalance:null,route:null},correlationId},existing.status==='ready'?200:202,correlationId);
-    await enforceRateLimit(db,user.id,'together_video_submit',3,86400);
+    await enforceVideoSubmissionAbuseLimit(db,user.id);
     const route=resolveVideoRoute(input.videoRouteId,user.id,user.email),usesGeneratedFirstFrame=route.sourceModes.includes('generated_first_frame');if(!usesGeneratedFirstFrame&&!route.sourceModes.includes('canonical_references'))throw new AppError('VALIDATION_ERROR','Choose a direct-video model.',422);
     const creditCost=videoCreditCost(route,input.durationSeconds),draft=await directVideoDraft(db,{userId:user.id,continuityId:String(continuity.id),characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,requestText:input.requestText,aspectRatio:input.aspectRatio,locationSource:input.locationSource,locationId:input.locationId});
     await validateDirectVideoContext(db,user.id,String(continuity.id),draft.instance);
@@ -173,7 +173,7 @@ serve(async(request,correlationId)=>{
   if(input.action==='animate'){
     await validateVideoSource(db,user.id,String(continuity.id),media);
     const requestKey=`animate:${media.id}:${input.requestId}`,{data:existing}=await db.from('together_generated_media').select('*').eq('user_id',user.id).eq('request_key',requestKey).maybeSingle();if(existing)return json({data:{media:existing,creditCost:Number((existing.metadata as Record<string,unknown>|null)?.creditCost??125),creditBalance:null,route:null},correlationId},existing.status==='ready'?200:202,correlationId);
-    await enforceRateLimit(db,user.id,'together_video_submit',3,86400);
+    await enforceVideoSubmissionAbuseLimit(db,user.id);
     const route=resolveVideoRoute(input.videoRouteId,user.id,user.email);if(!route.sourceModes.includes('existing_photo'))throw new AppError('VALIDATION_ERROR','Choose a model that animates an existing photo.',422);const creditCost=videoCreditCost(route,input.durationSeconds),canonical=await canonicalRequestForMedia(db,media),sourceAspectRatio=sourceVideoAspectRatio(media.width,media.height);
     const{data:sourceSigned}=await db.storage.from('together-user-media').createSignedUrl(String(media.storage_path),900);if(!sourceSigned?.signedUrl)throw new AppError('INTERNAL_ERROR','The source photo could not be prepared.',500,true);
     const canonicalReferences=canonical.referenceImages.filter((item)=>item.signedUrl&&['character_identity','location_environment','world_environment','outfit_continuity'].includes(item.role)).map((item)=>({url:String(item.signedUrl),role:item.role as 'character_identity'|'location_environment'|'world_environment'|'outfit_continuity'}));
@@ -330,6 +330,8 @@ function motionPresetOptions(){return[
   {id:'playful',displayName:'Playful',description:'Brief smile or side glance with small natural movement.'},
   {id:'cinematic',displayName:'Cinematic',description:'Gentle push-in or parallax with restrained environmental motion.'},
 ] satisfies Array<{id:VideoMotionPreset;displayName:string;description:string}>;}
+
+function enforceVideoSubmissionAbuseLimit(db:any,userId:string){const policy=VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT;return enforceRateLimit(db,userId,policy.action,policy.limit,policy.windowSeconds,policy.message);}
 
 function videoReservationError(error:{message?:string;details?:string}|null){
   const message=`${error?.message??''} ${error?.details??''}`;

@@ -1,5 +1,5 @@
-import { assertEquals, assertRejects, assertThrows } from 'jsr:@std/assert@1';
-import { assertVideoQuoteWithinCeiling, buildVideoProviderPayload, canSelectVideoRoute, configuredVideoRouteCatalog, defaultVideoRouteId, resolveVideoRoute, sourceVideoAspectRatio, videoCreditCost, VIDEO_ROUTE_IDS } from './kivelle-video-routes.ts';
+import { assert, assertEquals, assertNotEquals, assertRejects, assertThrows } from 'jsr:@std/assert@1';
+import { assertVideoQuoteWithinCeiling, buildVideoProviderPayload, canSelectVideoRoute, configuredVideoRouteCatalog, defaultVideoRouteId, resolveVideoRoute, sourceVideoAspectRatio, videoCreditCost, VIDEO_ROUTE_IDS, VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT } from './kivelle-video-routes.ts';
 import { findQuoteAmount } from './wavespeed.ts';
 
 function catalog() {
@@ -14,6 +14,13 @@ function catalog() {
   for (const name of Object.keys(before).filter((name) => name.includes('_ROUTE_'))) Deno.env.set(name, 'true');
   return { routes: configuredVideoRouteCatalog(), restore: () => { for (const [name, value] of Object.entries(before)) value === undefined ? Deno.env.delete(name) : Deno.env.set(name, value); } };
 }
+
+Deno.test('video attempt limiter stays separate from the successful-video allowance', () => {
+  assertNotEquals(VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT.action, 'together_video_submit');
+  assert(VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT.limit > 3);
+  assertEquals(VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT.windowSeconds, 15 * 60);
+  assert(VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT.message.includes('Wait a few minutes'));
+});
 
 Deno.test('video route builders emit exact model-specific fields without cross-route leakage', () => {
   const state = catalog();
