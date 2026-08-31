@@ -44,9 +44,9 @@ export function CinematicCompanionHero({ companion, portraitVersion, source, loc
   const firstName = template.name.trim().split(/\s+/)[0] || template.name;
   const focal = (portraitVersion.appearance_config?.hero_focal_position ?? template.discovery_metadata?.hero_focal_position ?? 'top') as ImageContentPosition;
   // A portrait-oriented focal point is useful on narrow cards, but the wide desktop
-  // hero otherwise crops the companion below the fold. Center the source at that
-  // aspect ratio while retaining the authored focal point on phone/tablet layouts.
-  const heroFocal = desktop ? 'center' : focal;
+  // hero otherwise crops the companion below the fold. Bias the wide crop toward
+  // the face while retaining the authored focal point on phone/tablet layouts.
+  const heroFocal: ImageContentPosition = desktop ? { top: '22%', left: '50%' } : focal;
   const placeLine = [location, world].filter(Boolean).join(' · ');
 
   return <View style={[styles.hero, { height: heroHeight }, desktop && styles.heroDesktop]}>
