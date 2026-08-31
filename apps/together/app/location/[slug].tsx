@@ -57,7 +57,6 @@ export default function LocationDetail() {
   const events = snapshot.lifeEvents.filter((item) => item.location_id === location.id).slice(0, 3);
   const moments = snapshot.moments.filter((item) => item.location_id === location.id).slice(0, 3);
   const photos = (snapshot.generatedMedia ?? []).filter((item) => item.location_id === location.id);
-  const hero = photos.find((item) => item.status === 'ready' && item.signed_url);
   const upcoming = (snapshot.sharedPlans ?? []).filter((plan) => plan.location_id === location.id && (!active||plan.character_instance_id===active.id) && plan.status === 'scheduled' && new Date(plan.starts_at) > now).sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())[0];
   const lore = (placeDetail?.location.id===location.id?placeDetail.location.lore:location.canonical_lore) ?? {};
   const loreDetails = [...(lore.atmosphere ?? []), ...(lore.sensoryDetails ?? []), ...(lore.signatureDetails ?? [])].slice(0, 6);
@@ -105,7 +104,7 @@ export default function LocationDetail() {
   };
   return <Screen>
     <View style={styles.header}><Pressable accessibilityLabel="Back to Explore" onPress={() => router.canGoBack() ? router.back() : router.replace(`/(tabs)/explore?world=${locationWorld?.slug ?? ''}`)} style={styles.back}><ArrowLeft size={19} color={colors.text} /></Pressable><Text style={styles.kicker}>{breadcrumb.toUpperCase()}</Text></View>
-    <Image source={hero?.signed_url ? { uri: hero.signed_url } : locationHeroAsset(locationWorld?.slug, location.slug, ancestry.map((item)=>item.slug))} style={styles.hero} contentFit="cover" />
+    <Image source={locationHeroAsset(locationWorld?.slug, location.slug, ancestry.map((item)=>item.slug))} style={styles.hero} contentFit="cover" />
     <Text style={styles.title}>{location.name}</Text><Body muted>{location.description}</Body>
     <View accessibilityLabel={`${availability.statusLabel}. ${availability.scheduleLabel}. Times use your local timezone.`} style={[styles.hoursCard,availability.state==='open'&&styles.hoursCardOpen]}><View style={[styles.hoursIcon,availability.state==='open'&&styles.hoursIconOpen]}><Clock3 size={18} color={availability.state==='open'?'#BFEBCB':colors.muted}/></View><View style={styles.flex}><Text style={[styles.hoursStatus,availability.state==='open'&&styles.hoursStatusOpen]}>{availability.statusLabel}</Text><Text style={styles.hoursSchedule}>{availability.scheduleLabel} · your local time</Text></View></View>
     {planningMismatch?<View accessibilityRole="alert" style={styles.worldMismatch}><Text style={styles.worldMismatchTitle}>Choose someone from {locationWorld?.name??'this world'}</Text><Text style={styles.worldMismatchCopy}>{requestedCharacter?`${requestedCharacter.together_character_templates.name} belongs to another world.`:'That companion is no longer available in this Life.'}</Text></View>:null}

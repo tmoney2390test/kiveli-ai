@@ -1,7 +1,7 @@
 const CANONICAL_ORIGIN = "https://kivelli.app";
 const SUPABASE_ORIGIN = "https://mfysnlghlhxxcwnwpxog.supabase.co";
 const SUPABASE_PROXY_PREFIX = "/supabase";
-const APP_RELEASE = "2026-08-31-world-selector-cleanup-1";
+const APP_RELEASE = "2026-08-31-place-hero-art-1";
 const FINGERPRINTED_ASSET = /(?:\.|-)[a-f0-9]{16,}\.(?:avif|css|gif|ico|jpe?g|js|mjs|png|svg|ttf|otf|webp|woff2?)$/i;
 
 export default {
