@@ -8,6 +8,7 @@ import type { AroundTownItem, WorldPulseEvent } from '@together/domain/src/world
 import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, ExploreCatalogSnapshot, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, MemoryCenterCategory, MemoryCenterItem, MemoryCenterResponse, MemoryCenterSort, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, ScheduleItem, Snapshot, SnapshotDelta, VideoDiagnostics, VideoGenerationOptions, VideoMotionPreset, VideoRouteOption, VoiceCallSession } from '../types';
 import type { RealtimeVoiceConfiguration } from './realtimeVoice';
 import { withIdempotentRetry } from './requestRetry';
+import { clearSessionForApiFailure } from './authSession';
 
 export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false,readonly correlationId?:string) { super(message); } }
 type Envelope<T> = { data: T; correlationId: string };
@@ -37,7 +38,10 @@ export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POS
   try{
     response = await fetch(`${supabaseUrl}/functions/v1/${name}`, { method, headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json','x-kivelle-timezone':deviceTimezone() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     const payload = await response.json().catch(() => ({})) as Envelope<T> & { error?: {message?:string;code?:string;retryable?:boolean;correlationId?:string} };
-    if (!response.ok) throw new ApiError(payload.error?.message ?? 'Something went wrong.', payload.error?.code, payload.error?.retryable ?? (response.status === 408 || response.status === 429 || response.status >= 500),payload.error?.correlationId??payload.correlationId);
+    if (!response.ok) {
+      await clearSessionForApiFailure(supabase.auth,response.status,payload.error?.code);
+      throw new ApiError(payload.error?.message ?? 'Something went wrong.', payload.error?.code, payload.error?.retryable ?? (response.status === 408 || response.status === 429 || response.status >= 500),payload.error?.correlationId??payload.correlationId);
+    }
     return payload.data;
   }finally{
     if(performanceSurfaces.has(surface))queueClientPerformance({surface,operation,durationMs:Date.now()-started,success:Boolean(response?.ok),...(response?{statusCode:response.status}:{}),metadata:{method}});
@@ -118,7 +122,7 @@ export async function transcribeChatAudio(input:{conversationId:string;character
   form.append('durationMs',String(Math.max(0,Math.min(60_000,Math.round(input.durationMs)))));
   const response=await fetch(`${supabaseUrl}/functions/v1/together-multimodal?action=transcribe_audio`,{method:'POST',headers:{Authorization:`Bearer ${await token()}`,apikey:supabasePublishableKey,'x-kivelle-timezone':deviceTimezone()},body:form});
   const payload=await response.json().catch(()=>({})) as Envelope<{text:string;provider:string;model:string}>&{error?:{message?:string;code?:string;retryable?:boolean}};
-  if(!response.ok)throw new ApiError(payload.error?.message??'That recording could not be transcribed.',payload.error?.code,payload.error?.retryable);
+  if(!response.ok){await clearSessionForApiFailure(supabase.auth,response.status,payload.error?.code);throw new ApiError(payload.error?.message??'That recording could not be transcribed.',payload.error?.code,payload.error?.retryable);}
   return payload.data;
 }
 export type VoiceCallBilling={route:'standard'|'express';creditsPerMinute:number;creditBalance:number;chargedMinutes:number;remainingMinutes:number;includedMinutes:number;includedMinutesUsed:number;includedMinutesRemaining:number};
@@ -143,7 +147,7 @@ export async function sendGroupDialogue(input:{conversationId:string;message:str
   try{
   const response=await fetch(`${supabaseUrl}/functions/v1/together-group-dialogue`,{method:'POST',headers:{Authorization:`Bearer ${await token()}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify(input),signal});
   statusCode=response.status;
-  if(!response.ok){const payload=await response.json().catch(()=>({})) as{error?:{message?:string;code?:string;retryable?:boolean}};throw new ApiError(payload.error?.message??'The group could not reply.',payload.error?.code,payload.error?.retryable);}
+  if(!response.ok){const payload=await response.json().catch(()=>({})) as{error?:{message?:string;code?:string;retryable?:boolean}};await clearSessionForApiFailure(supabase.auth,response.status,payload.error?.code);throw new ApiError(payload.error?.message??'The group could not reply.',payload.error?.code,payload.error?.retryable);}
   if(!response.body)throw new ApiError('The group response ended early.','STREAM_INTERRUPTED',true);
   const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';
   const process=(eventText:string)=>{const line=eventText.split('\n').find((item)=>item.startsWith('data: '));if(!line)return;const event=JSON.parse(line.slice(6)) as GroupDialogueEvent|{type:'error';error?:{message?:string;code?:string;retryable?:boolean}};if(event.type==='error')throw new ApiError(event.error?.message??'The group could not finish replying.',event.error?.code??'STREAM_INTERRUPTED',Boolean(event.error?.retryable));if(!firstActivityRecorded&&(event.type==='speaker_typing'||event.type==='message_started'||event.type==='message_completed')){firstActivityRecorded=true;queueClientPerformance({surface:'together-group-dialogue',operation:'first_activity',durationMs:Date.now()-started,success:true,metadata:{event:event.type}});}onEvent(event);};
@@ -177,7 +181,7 @@ export async function sendDialogue(input: {conversationId:string;characterInstan
   try{
   const response = await fetch(`${supabaseUrl}/functions/v1/together-dialogue`, { method: 'POST', headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
   statusCode=response.status;
-  if (!response.ok) { const error = await response.json().catch(() => ({})); throw new ApiError(error.error?.message ?? 'Your companion could not reply.', error.error?.code, error.error?.retryable); }
+  if (!response.ok) { const error = await response.json().catch(() => ({})); await clearSessionForApiFailure(supabase.auth,response.status,error.error?.code); throw new ApiError(error.error?.message ?? 'Your companion could not reply.', error.error?.code, error.error?.retryable); }
   if (!response.body) throw new ApiError('The response stream ended early.', 'STREAM_INTERRUPTED', true);
   const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''; let final: Message | null = null; let additionalMessages:Message[]|undefined;let generatedMedia:GeneratedMedia|undefined;let mediaOffer:MediaOffer|undefined;let photoRequestError:{code:string;message:string;retryable:boolean}|undefined;let delta:SnapshotDelta|undefined;
   const processEvents=(events:string[])=>{for(const event of events){const line=event.split('\n').find((item)=>item.startsWith('data: '));if(!line)continue;const data=JSON.parse(line.slice(6));if(data.type==='token'){if(!firstTokenRecorded){firstTokenRecorded=true;queueClientPerformance({surface:'together-dialogue',operation:'first_token',durationMs:Date.now()-started,success:true,metadata:{stream:true}});}onToken(data.token);}if(data.type==='done'){final=data.message;additionalMessages=data.additionalMessages;generatedMedia=data.generatedMedia;mediaOffer=data.mediaOffer;photoRequestError=data.photoRequestError;delta=data.delta;}if(data.type==='error')throw new ApiError(data.error?.message??'Your companion could not finish the reply.',data.error?.code??'STREAM_INTERRUPTED',Boolean(data.error?.retryable));}};
@@ -193,14 +197,14 @@ export async function sendDialogue(input: {conversationId:string;characterInstan
 export async function suggestDialogue(input:{conversationId:string;characterInstanceId:string;anchorMessageId:string;clientRequestId:string;preference?:AutoDialoguePreference},signal?:AbortSignal):Promise<AutoDialogueSuggestion>{
   const response=await fetch(`${supabaseUrl}/functions/v1/together-dialogue-suggestion`,{method:'POST',headers:{Authorization:`Bearer ${await token()}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify(input),signal});
   const payload=await response.json().catch(()=>({})) as Envelope<AutoDialogueSuggestion>&{error?:{message?:string;code?:string;retryable?:boolean}};
-  if(!response.ok)throw new ApiError(payload.error?.message??'A reply suggestion could not be generated.',payload.error?.code,payload.error?.retryable);
+  if(!response.ok){await clearSessionForApiFailure(supabase.auth,response.status,payload.error?.code);throw new ApiError(payload.error?.message??'A reply suggestion could not be generated.',payload.error?.code,payload.error?.retryable);}
   return payload.data;
 }
 
 export async function sendSceneReaction(input:{conversationId:string;characterInstanceId:string;sceneActionId:string;clientRequestId:string},onToken:(token:string)=>void,onRetry?:()=>void):Promise<{message:Message}>{
   return withIdempotentRetry(async()=>{
     const response=await fetch(`${supabaseUrl}/functions/v1/together-scene-reaction`,{method:'POST',headers:{Authorization:`Bearer ${await token()}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify(input)});
-    if(!response.ok){const error=await response.json().catch(()=>({})) as{error?:{message?:string;code?:string;retryable?:boolean}};throw new ApiError(error.error?.message??'Your companion could not react to that right now.',error.error?.code,error.error?.retryable??(response.status===408||response.status===429||response.status>=500));}
+    if(!response.ok){const error=await response.json().catch(()=>({})) as{error?:{message?:string;code?:string;retryable?:boolean}};await clearSessionForApiFailure(supabase.auth,response.status,error.error?.code);throw new ApiError(error.error?.message??'Your companion could not react to that right now.',error.error?.code,error.error?.retryable??(response.status===408||response.status===429||response.status>=500));}
     if(!response.body)throw new ApiError('The reaction stream ended early.','STREAM_INTERRUPTED',true);
     const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',final:Message|null=null;
     while(true){const{value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const events=buffer.split('\n\n');buffer=events.pop()??'';for(const event of events){const line=event.split('\n').find((item)=>item.startsWith('data: '));if(!line)continue;const data=JSON.parse(line.slice(6));if(data.type==='token')onToken(data.token);if(data.type==='done')final=data.message;if(data.type==='error')throw new ApiError(data.error?.message??'Your companion could not finish that reaction.',data.error?.code??'STREAM_INTERRUPTED',Boolean(data.error?.retryable));}}

@@ -7,6 +7,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '../lib/supabase';
 import { authErrorMessage } from '../lib/authErrors';
 import { createTogetherAccount } from '../lib/api';
+import { getValidatedPersistedSession } from '../lib/authSession';
 import { parseOAuthCallbackUrl, resolveSocialAuthCapabilities, socialAuthErrorMessage, type SocialAuthCapabilities, type SocialAuthProvider } from '../lib/socialAuth';
 
 type SignUpResult = { needsEmailConfirmation: boolean };
@@ -54,16 +55,24 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     let mounted = true;
-    void supabase.auth.getSession()
-      .then(({ data }) => { if (mounted) setSession(data.session); })
-      .catch(() => { if (mounted) setSession(null); })
-      .finally(() => { if (mounted) setLoading(false); });
+    let bootstrapped = false;
     const { data } = supabase.auth.onAuthStateChange((_event, next) => {
-      if (mounted) {
+      if (mounted && bootstrapped) {
         setSession(next);
         setLoading(false);
       }
     });
+    void getValidatedPersistedSession(supabase.auth)
+      .then((next) => {
+        if (mounted) {
+          setSession(next);
+        }
+      })
+      .catch(() => { if (mounted) setSession(null); })
+      .finally(() => {
+        bootstrapped = true;
+        if (mounted) setLoading(false);
+      });
     return () => {
       mounted = false;
       data.subscription.unsubscribe();
