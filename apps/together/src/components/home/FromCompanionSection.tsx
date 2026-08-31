@@ -4,6 +4,7 @@ import { ArrowRight, Camera, LockKeyhole, Play } from 'lucide-react-native';
 import { colors, radius, typography } from '../../theme';
 import type { CompanionMediaItem } from '../../lib/homePresentation';
 import { DetailPreservingArtwork } from '../DetailPreservingArtwork';
+import { VideoMomentThumbnail } from '../VideoMomentThumbnail';
 
 export function FromCompanionSection({ name, items, fallbackSource, onViewAll, onOpen, onAsk, compact=false }: { name: string; items: CompanionMediaItem[]; fallbackSource?: ImageSource | number; onViewAll: () => void; onOpen: (item: CompanionMediaItem) => void; onAsk: () => void; compact?:boolean }) {
   return <View style={styles.section}>
@@ -15,10 +16,11 @@ export function FromCompanionSection({ name, items, fallbackSource, onViewAll, o
 function MediaCard({ item, onPress, compact }: { item: CompanionMediaItem; onPress: () => void; compact:boolean }) {
   const date = new Date(item.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
   return <Pressable accessibilityRole="button" accessibilityLabel={`${item.locked ? 'Locked media' : item.title}, ${item.subtitle}`} onPress={onPress} style={({ pressed }) => [styles.card,compact&&styles.cardCompact, pressed && styles.cardPressed]}>
-    {item.thumbnailUrl || item.type !== 'video' ? <DetailPreservingArtwork source={{ uri: item.thumbnailUrl ?? item.url, cacheKey: item.cacheKey }} accessibilityLabel={item.title} blurRadius={item.locked ? 15 : 0} dim={.08} priority="low" loading="lazy" recyclingKey={item.id} /> : <View style={styles.videoFallback}><Play size={28} color="rgba(255,255,255,.72)" fill="rgba(255,255,255,.72)" /></View>}
+    {item.thumbnailUrl || item.type !== 'video' ? <DetailPreservingArtwork source={{ uri: item.thumbnailUrl ?? item.url, cacheKey: item.cacheKey }} accessibilityLabel={item.title} blurRadius={item.locked ? 15 : 0} dim={.08} priority="low" loading="lazy" recyclingKey={item.id} /> : <View style={styles.videoFallback} />}
+    {item.type === 'video' && !item.locked ? <VideoMomentThumbnail uri={item.url} posterUri={item.thumbnailUrl} /> : null}
     <View style={styles.cardShade} />
     {item.locked ? <View style={styles.lock}><LockKeyhole size={13} color="#FFF4F7" /><Text style={styles.lockText}>PRIVATE</Text></View> : item.type === 'video' ? <View style={styles.play}><Play size={15} color="#fff" fill="#fff" /></View> : null}
-    <View style={styles.cardCopy}><Text style={styles.kicker}>{item.context ?? 'FROM HER'} · {date.toUpperCase()}</Text><Text numberOfLines={2} style={styles.title}>{item.title}</Text><Text numberOfLines={1} style={styles.subtitle}>{item.locked ? 'Something for you' : item.subtitle}</Text></View>
+    <View style={styles.cardCopy}><Text style={styles.kicker}>{item.context ?? 'FROM HER'} · {date.toUpperCase()}</Text><Text numberOfLines={2} style={styles.title}>{item.title}</Text></View>
   </Pressable>;
 }
 
@@ -43,7 +45,6 @@ const styles = StyleSheet.create({
   cardCopy: { padding: 17, gap: 4 },
   kicker: { color: '#FFB9CE', fontSize: 9, fontWeight: '900', letterSpacing: 1.3 },
   title: { color: colors.text, fontFamily: typography.display, fontSize: 22, lineHeight: 25, fontWeight: '600' },
-  subtitle: { color: 'rgba(255,248,244,.72)', fontSize: 11, fontWeight: '700' },
   lock: { position: 'absolute', top: 13, right: 13, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: 'rgba(9,6,11,.65)', borderWidth: 1, borderColor: 'rgba(255,255,255,.13)' },
   lockText: { color: '#FFF4F7', fontSize: 8, fontWeight: '900', letterSpacing: .9 },
   play: { position: 'absolute', top: 14, right: 14, width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(7,5,10,.62)' },
