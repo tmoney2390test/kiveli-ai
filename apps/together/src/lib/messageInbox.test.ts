@@ -283,7 +283,7 @@ describe("message inbox presentation", () => {
       inboxPreview(
         conversation("hydrating", "maya", "2026-08-18T12:00:00.000Z", ""),
       ),
-    ).toBe("Loading latest message…");
+    ).toBe("Continue the conversation.");
     expect(inboxPreview({
       ...conversation("outgoing", "maya", "2026-08-18T12:00:00.000Z", "See you soon"),
       last_message_role: "user",
@@ -293,6 +293,10 @@ describe("message inbox presentation", () => {
       last_message_role: "user",
       last_message_attachment_kind: "image",
     })).toBe("You: Photo · What do you think?");
+    expect(inboxPreview({
+      ...conversation("generated-photo", "maya", "2026-08-18T12:00:00.000Z", "[Photo]"),
+      last_message_role: "assistant",
+    })).toBe("Photo");
     expect(inboxPreview({
       ...conversation("pending", "maya", "2026-08-18T12:00:00.000Z", "Hello"),
       reply_pending: true,

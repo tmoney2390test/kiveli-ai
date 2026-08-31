@@ -272,12 +272,12 @@ export function inboxPreview(
   const cleanedPreview = preview === "[Photo]" ? "" : preview ?? "";
   const content = attachment && cleanedPreview
     ? `${attachment} · ${cleanedPreview}`
-    : attachment || cleanedPreview;
+    : attachment || (preview === "[Photo]" ? "Photo" : cleanedPreview);
   if (content) {
     return conversation.last_message_role === "user" ? `You: ${content}` : content;
   }
   return conversation.last_message_at
-    ? "Loading latest message…"
+    ? "Continue the conversation."
     : "Start the conversation.";
 }
 
