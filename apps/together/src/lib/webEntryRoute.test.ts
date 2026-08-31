@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { entryPathname, shouldConsumeWebEntry, shouldRecoverWebEntry } from './webEntryRoute';
+import { authenticatedRoutePathname, entryPathname, shouldConsumeWebEntry, shouldRecoverWebEntry } from './webEntryRoute';
 
 describe('captured web entry routes', () => {
   it('preserves query parameters while comparing the pathname', () => {
@@ -22,5 +22,29 @@ describe('captured web entry routes', () => {
     expect(shouldConsumeWebEntry({entryHref:'/explore?world=eos-meridian',browserPathname:'/explore',routerPathname:'/',snapshotReady:true})).toBe(false);
     expect(shouldConsumeWebEntry({entryHref:'/explore?world=eos-meridian',browserPathname:'/home',routerPathname:'/home',snapshotReady:true})).toBe(false);
     expect(shouldConsumeWebEntry({entryHref:'/explore?world=eos-meridian',browserPathname:'/explore',routerPathname:'/explore',snapshotReady:true})).toBe(true);
+  });
+
+  it('uses the live router after entry hydration so the desktop shell appears on first login', () => {
+    expect(authenticatedRoutePathname({
+      platform: 'web',
+      routerPathname: '/home',
+      browserPathname: '/auth',
+      capturedEntryHref: null,
+    })).toBe('/home');
+  });
+
+  it('keeps the browser deep link authoritative while the captured entry is hydrating', () => {
+    expect(authenticatedRoutePathname({
+      platform: 'web',
+      routerPathname: '/home',
+      browserPathname: '/moments',
+      capturedEntryHref: '/moments',
+    })).toBe('/moments');
+    expect(authenticatedRoutePathname({
+      platform: 'ios',
+      routerPathname: '/home',
+      browserPathname: '/moments',
+      capturedEntryHref: '/moments',
+    })).toBe('/home');
   });
 });

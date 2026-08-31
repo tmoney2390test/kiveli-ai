@@ -22,6 +22,19 @@ export function entryPathname(href: string) {
   return href.split(/[?#]/, 1)[0]?.replace(/\/+$/, '') || '/';
 }
 
+export function authenticatedRoutePathname(input: {
+  platform: string;
+  routerPathname: string;
+  browserPathname?: string | null;
+  capturedEntryHref?: string | null;
+}) {
+  if (input.platform !== 'web' || !input.browserPathname) return input.routerPathname;
+  // The address bar protects the original deep link only while that captured
+  // entry is still being reconciled. Afterward Expo Router is the live source
+  // of truth; window.location can lag one render during sign-in and sign-out.
+  return input.capturedEntryHref ? input.browserPathname : input.routerPathname;
+}
+
 export function shouldRecoverWebEntry(input: {
   entryHref?: string | null;
   browserPathname?: string | null;

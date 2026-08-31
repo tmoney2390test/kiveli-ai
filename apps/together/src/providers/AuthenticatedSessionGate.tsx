@@ -10,19 +10,19 @@ import { ResponsiveAppShell } from '../shell/ResponsiveAppShell';
 import { useTogether } from '../store/useTogether';
 import { useAuth } from '../hooks/useAuth';
 import { readSessionSnapshot, writeSessionSnapshot } from '../lib/sessionSnapshotCache';
-import { consumeWebEntryHref, initialWebEntryHref, shouldConsumeWebEntry } from '../lib/webEntryRoute';
+import { authenticatedRoutePathname, consumeWebEntryHref, initialWebEntryHref, shouldConsumeWebEntry } from '../lib/webEntryRoute';
 
 const demoMode = __DEV__ && process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === 'true';
 
 export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   const routerPathname = usePathname();
-  // During static web hydration Expo can briefly report the root or an older
-  // stack screen while the address bar already points at a deep link. The
-  // browser path is authoritative and prevents a refreshed /moments page from
-  // being mistaken for onboarding or the app root and replaced with /home.
-  const pathname = Platform.OS === 'web' && typeof window !== 'undefined'
-    ? window.location.pathname
-    : routerPathname;
+  const capturedEntryHref = Platform.OS === 'web' ? initialWebEntryHref() : null;
+  const pathname = authenticatedRoutePathname({
+    platform: Platform.OS,
+    routerPathname,
+    browserPathname: Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.pathname : null,
+    capturedEntryHref,
+  });
   const { session }=useAuth();
   const { snapshot, loading, error, refresh, setSnapshot } = useTogether();
   const redirectTarget = useRef<string | null>(null);
@@ -53,9 +53,8 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
 
   useEffect(()=>{
     if(Platform.OS!=='web'||!snapshot)return;
-    const entryHref=initialWebEntryHref();
-    if(shouldConsumeWebEntry({entryHref,browserPathname:pathname,routerPathname,snapshotReady:Boolean(snapshot)}))consumeWebEntryHref();
-  },[pathname,routerPathname,snapshot]);
+    if(shouldConsumeWebEntry({entryHref:capturedEntryHref,browserPathname:pathname,routerPathname,snapshotReady:Boolean(snapshot)}))consumeWebEntryHref();
+  },[capturedEntryHref,pathname,routerPathname,snapshot]);
 
   useEffect(() => {
     if (!snapshot || publicPath) return;
