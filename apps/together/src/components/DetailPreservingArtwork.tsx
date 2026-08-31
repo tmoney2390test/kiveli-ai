@@ -38,6 +38,10 @@ export function DetailPreservingArtwork({
 }: Props) {
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
     <Image
+      accessible={false}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      alt=""
       source={source}
       style={[StyleSheet.absoluteFill, styles.backdrop]}
       contentFit="cover"
@@ -64,7 +68,7 @@ export function DetailPreservingArtwork({
         cachePolicy="memory-disk"
         priority={priority}
         loading={loading}
-        placeholder={KIVELLI_IMAGE_PLACEHOLDER}
+        placeholder={accessibilityLabel ? undefined : KIVELLI_IMAGE_PLACEHOLDER}
         placeholderContentFit="cover"
         recyclingKey={recyclingKey}
         onError={onError}

@@ -79,11 +79,11 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   if (!snapshot && !publicPath) {
     blocker = error
       ? <ErrorState message={error} onRetry={() => void refresh()} />
-      : <RouteLoadingState pathname={pathname} label="Opening your world…" />;
+      : <RouteLoadingState pathname={pathname} />;
   } else if (snapshot && !publicPath) {
     const stage = resolveKivelleAccountStage(snapshot.profile);
     if ((stage === 'age_confirmation' && !agePath) || (stage === 'onboarding' && !companionOnboardingPath) || (stage === 'ready' && (agePath || companionOnboardingPath))) {
-      blocker = <RouteLoadingState pathname={pathname} label={stage === 'age_confirmation' ? 'Opening age confirmation…' : stage === 'onboarding' ? 'Preparing your first meeting…' : 'Opening your world…'} />;
+      blocker = <RouteLoadingState pathname={pathname} label={stage === 'age_confirmation' ? 'Opening age confirmation…' : stage === 'onboarding' ? 'Preparing your first meeting…' : undefined} />;
     }
   }
 

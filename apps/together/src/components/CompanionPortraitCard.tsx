@@ -1,10 +1,12 @@
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import { ChevronRight, Sparkles, Star } from 'lucide-react-native';
 import { colors, typography } from '../theme';
 import type { FeaturedCompanion } from '../lib/featuredCompanions';
 import { resolveCharacterPortraitSource } from './ui';
 import { DetailPreservingArtwork } from './DetailPreservingArtwork';
+import { warmRoute } from '../lib/routeWarmup';
 
 export function CompanionPortraitCard({ companion, width, height = 390, favorite, favoriteBusy, subtitle, actionLabel = 'View profile', loading = 'eager', badgeLabel, compact=false, preserveArtwork=true, onFavorite, onPress }: {
   companion: FeaturedCompanion;
@@ -24,7 +26,10 @@ export function CompanionPortraitCard({ companion, width, height = 390, favorite
   const source = resolveCharacterPortraitSource(companion, companion.together_character_versions, companion.slug);
   const derivedLabel = companion.discovery_metadata?.trending === true ? 'TRENDING' : companion.discovery_metadata?.new === true ? 'NEW' : 'FEATURED';
   const label=badgeLabel===undefined?derivedLabel:badgeLabel;
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${actionLabel}: ${companion.name}, ${companion.age}, ${companion.occupation}`} onPress={onPress} style={({ pressed }) => [styles.card, { width, height }, pressed && styles.cardPressed]}>
+  const handle=companion.public_handle??companion.slug;
+  const profileHref=`/character/${handle}`;
+  const warmProfile=()=>warmRoute(profileHref,(href)=>router.prefetch(href as never));
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${actionLabel}: ${companion.name}, ${companion.age}, ${companion.occupation}`} onHoverIn={warmProfile} onPressIn={warmProfile} onPress={onPress} style={({ pressed }) => [styles.card, { width, height }, pressed && styles.cardPressed]}>
     {source ? preserveArtwork?<DetailPreservingArtwork accessibilityLabel={`${companion.name}, ${companion.occupation}`} source={source} contentPosition="top" foregroundFit="cover" dim={.1} loading={loading} />:<Image accessibilityLabel={`${companion.name}, ${companion.occupation}`} source={source} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" cachePolicy="memory-disk" loading={loading} priority={loading==='eager'?'normal':'low'}/>:<View style={[StyleSheet.absoluteFill, styles.fallback]}><Text style={styles.fallbackInitial}>{companion.name[0]}</Text></View>}
     <View style={styles.cardShade} />
     {label?<View style={styles.badge}><Sparkles size={11} color="#FFE1A8" /><Text style={styles.badgeText}>{label}</Text></View>:null}

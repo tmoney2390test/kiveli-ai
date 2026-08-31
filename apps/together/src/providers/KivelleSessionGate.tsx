@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, type PropsWithChildren } from 'react
 import { router, usePathname, useUnstableGlobalHref } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 import { LoadingSkeleton } from '../components/RouteState';
+import { RouteLoadingState } from '../components/RouteLoadingState';
 import { useAuth } from '../hooks/useAuth';
 import { isPublicAppPath, signInPathFor } from '../lib/sessionRouting';
 import { consumeWebEntryHref, entryPathname, initialWebEntryHref, shouldRecoverWebEntry } from '../lib/webEntryRoute';
@@ -65,13 +66,13 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
   }, [authLoading, session?.user.id, publicPath, href]);
 
   if (demoMode || session) {
-    return <Suspense fallback={<LoadingSkeleton label="Opening your world…" />}>
+    return <Suspense fallback={<RouteLoadingState pathname={pathname} />}>
       <AuthenticatedSessionGate>{children}</AuthenticatedSessionGate>
     </Suspense>;
   }
 
   let blocker = null;
-  if (authLoading && !publicPath) blocker = <LoadingSkeleton label="Restoring your session…" />;
+  if (authLoading && !publicPath) blocker = <RouteLoadingState pathname={pathname} label="Restoring your session…" />;
   else if (!session && !publicPath) blocker = <LoadingSkeleton label="Opening sign in…" />;
 
   return <>
