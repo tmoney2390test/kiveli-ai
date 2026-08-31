@@ -11,7 +11,7 @@ function videoControlIcon(name:'play'|'pause'|'volume'|'muted'){
     ?[createElement('path',{key:'play',d:'m9 6 9 6-9 6Z',...common})]
     :name==='pause'
       ?[createElement('path',{key:'left',d:'M9 5v14',...common}),createElement('path',{key:'right',d:'M15 5v14',...common})]
-      :[createElement('path',{key:'speaker',d:'M11 5 6 9H3v6h3l5 4Z',...common}),createElement('path',{key:'wave',d:'M15.5 8.5a5 5 0 0 1 0 7',...common}),...(name==='muted'?[createElement('path',{key:'mute',d:'m18 9 4 4m0-4-4 4',...common})]:[createElement('path',{key:'outer-wave',d:'M18.5 5.5a9 9 0 0 1 0 13',...common})])];
+    :[createElement('path',{key:'speaker',d:'M11 5 6 9H3v6h3l5 4Z',...common}),...(name==='muted'?[createElement('path',{key:'mute',d:'m17 9 5 5m0-5-5 5',...common})]:[createElement('path',{key:'wave',d:'M15.5 8.5a5 5 0 0 1 0 7',...common}),createElement('path',{key:'outer-wave',d:'M18.5 5.5a9 9 0 0 1 0 13',...common})])];
   return createElement('svg',{width:24,height:24,viewBox:'0 0 24 24','aria-hidden':true,focusable:false},...children);
 }
 
