@@ -26,7 +26,7 @@ export default function Auth() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [confirmationEmail, setConfirmationEmail] = useState('');
-  const { signIn, signInWithSocial, signUp, resendSignUpConfirmation, requestPasswordReset,socialAuth } = useAuth();
+  const { signIn, signInWithSocial, signUp, resendSignUpConfirmation, requestPasswordReset, signingOut, socialAuth } = useAuth();
   const refresh = useTogether((state) => state.refresh);
 
   const switchMode = (nextCreating: boolean) => {
@@ -104,6 +104,8 @@ export default function Auth() {
     }catch(caught){setError(caught instanceof Error?caught.message:`${provider==='google'?'Google':'Apple'} sign-in failed.`);}finally{setSocialBusy(null);}
   };
 
+  const authBusy = busy || signingOut;
+
   return <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <Screen contentStyle={styles.screen}>
       <View style={[styles.shell, wide ? styles.shellWide : styles.shellCompact]}>
@@ -124,37 +126,37 @@ export default function Auth() {
 
         <View style={[styles.form, wide && styles.formWide]}>
           <View style={styles.intro}>
-            <Text style={styles.title}>{creating ? 'Find your person.' : 'Welcome back.'}</Text>
-            <Text style={styles.subtitle}>{creating ? 'Create your account, choose a world, and meet someone who lives there.' : 'Your conversations and shared history are waiting.'}</Text>
+            <Text style={styles.title}>{signingOut ? 'Signing you out…' : creating ? 'Find your person.' : 'Welcome back.'}</Text>
+            <Text style={styles.subtitle}>{signingOut ? 'Securing this session. You can sign in again in a moment.' : creating ? 'Create your account, choose a world, and meet someone who lives there.' : 'Your conversations and shared history are waiting.'}</Text>
           </View>
 
           <View style={styles.tabs}>
-            <Pressable accessibilityRole="tab" accessibilityState={{ selected: !creating }} onPress={() => switchMode(false)} style={[styles.tab, !creating && styles.tabActive]}>
+            <Pressable accessibilityRole="tab" accessibilityState={{ selected: !creating, disabled: signingOut }} disabled={signingOut} onPress={() => switchMode(false)} style={[styles.tab, !creating && styles.tabActive]}>
               <Text style={[styles.tabText, !creating && styles.tabTextActive]}>Sign in</Text>
             </Pressable>
-            <Pressable accessibilityRole="tab" accessibilityState={{ selected: creating }} onPress={() => switchMode(true)} style={[styles.tab, creating && styles.tabActive]}>
+            <Pressable accessibilityRole="tab" accessibilityState={{ selected: creating, disabled: signingOut }} disabled={signingOut} onPress={() => switchMode(true)} style={[styles.tab, creating && styles.tabActive]}>
               <Text style={[styles.tabText, creating && styles.tabTextActive]}>Join free</Text>
             </Pressable>
           </View>
 
-          <TextInput accessibilityLabel="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} autoComplete="email" keyboardType="email-address" placeholder="Email address" placeholderTextColor={colors.dimmed} style={styles.input} />
+          <TextInput accessibilityLabel="Email" editable={!authBusy} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} autoComplete="email" keyboardType="email-address" placeholder="Email address" placeholderTextColor={colors.dimmed} style={styles.input} />
           <View style={styles.password}>
-            <TextInput accessibilityLabel={creating ? 'Create a password' : 'Password'} value={password} onChangeText={setPassword} autoCapitalize="none" autoCorrect={false} autoComplete={creating ? 'new-password' : 'current-password'} secureTextEntry={!visible} placeholder={creating ? 'Create a password' : 'Password'} placeholderTextColor={colors.dimmed} style={styles.passwordInput} />
-            <Pressable accessibilityLabel={visible ? 'Hide password' : 'Show password'} onPress={() => setVisible(!visible)} style={styles.eye}>{visible ? <EyeOff size={20} color={colors.text} /> : <Eye size={20} color={colors.text} />}</Pressable>
+            <TextInput accessibilityLabel={creating ? 'Create a password' : 'Password'} editable={!authBusy} value={password} onChangeText={setPassword} autoCapitalize="none" autoCorrect={false} autoComplete={creating ? 'new-password' : 'current-password'} secureTextEntry={!visible} placeholder={creating ? 'Create a password' : 'Password'} placeholderTextColor={colors.dimmed} style={styles.passwordInput} />
+            <Pressable accessibilityLabel={visible ? 'Hide password' : 'Show password'} disabled={authBusy} onPress={() => setVisible(!visible)} style={styles.eye}>{visible ? <EyeOff size={20} color={colors.text} /> : <Eye size={20} color={colors.text} />}</Pressable>
           </View>
 
           {error ? <View style={styles.errorBox}><Text style={styles.error}>{error}</Text></View> : null}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
-          {confirmationEmail ? <Pressable disabled={busy} onPress={() => void resendSignUpConfirmation(confirmationEmail).then(() => setNotice('A fresh secure sign-in link was sent.')).catch((caught) => setError(caught instanceof Error ? caught.message : 'Could not resend the link.'))}><Text style={styles.secondary}>Resend secure sign-in link</Text></Pressable> : null}
+          {confirmationEmail ? <Pressable disabled={authBusy} onPress={() => void resendSignUpConfirmation(confirmationEmail).then(() => setNotice('A fresh secure sign-in link was sent.')).catch((caught) => setError(caught instanceof Error ? caught.message : 'Could not resend the link.'))}><Text style={styles.secondary}>Resend secure sign-in link</Text></Pressable> : null}
 
-          <GradientButton label={busy ? 'Connecting…' : creating ? 'Choose your world' : 'Sign in'} disabled={busy} onPress={() => void submit()} />
+          <GradientButton label={signingOut ? 'Finishing sign out…' : busy ? 'Connecting…' : creating ? 'Choose your world' : 'Sign in'} disabled={authBusy} onPress={() => void submit()} />
 
           {socialAuth.google||socialAuth.apple?<><View style={styles.divider}><View style={styles.dividerLine}/><Text style={styles.dividerText}>OR CONTINUE WITH</Text><View style={styles.dividerLine}/></View><View style={styles.socialRow}>
-            {socialAuth.google?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Google" disabled={busy||Boolean(socialBusy)} onPress={()=>void socialSignIn('google')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><GoogleMark/><Text style={styles.socialText}>{socialBusy==='google'?'Connecting…':'Google'}</Text></Pressable>:null}
-            {socialAuth.apple?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Apple" disabled={busy||Boolean(socialBusy)} onPress={()=>void socialSignIn('apple')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><Text style={styles.providerMark}></Text><Text style={styles.socialText}>{socialBusy==='apple'?'Connecting…':'Apple'}</Text></Pressable>:null}
+            {socialAuth.google?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Google" disabled={authBusy||Boolean(socialBusy)} onPress={()=>void socialSignIn('google')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><GoogleMark/><Text style={styles.socialText}>{socialBusy==='google'?'Connecting…':'Google'}</Text></Pressable>:null}
+            {socialAuth.apple?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Apple" disabled={authBusy||Boolean(socialBusy)} onPress={()=>void socialSignIn('apple')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><Text style={styles.providerMark}></Text><Text style={styles.socialText}>{socialBusy==='apple'?'Connecting…':'Apple'}</Text></Pressable>:null}
           </View></>:null}
 
-          {!creating ? <Pressable disabled={busy} onPress={() => void reset()}><Text style={styles.secondary}>Forgot password?</Text></Pressable> : <View style={styles.instant}><Sparkles size={14} color={colors.violet} /><Text style={styles.instantText}>No setup tour. Personalize later.</Text></View>}
+          {!creating ? <Pressable disabled={authBusy} onPress={() => void reset()}><Text style={styles.secondary}>Forgot password?</Text></Pressable> : <View style={styles.instant}><Sparkles size={14} color={colors.violet} /><Text style={styles.instantText}>No setup tour. Personalize later.</Text></View>}
 
           <View style={styles.legalLinks}>
             <Pressable accessibilityRole="link" onPress={() => router.push('/terms' as never)}><Text style={styles.legalLink}>Terms</Text></Pressable>

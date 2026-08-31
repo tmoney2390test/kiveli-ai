@@ -13,6 +13,7 @@ type SignUpResult = { needsEmailConfirmation: boolean };
 type AuthValue = {
   session: Session | null;
   loading: boolean;
+  signingOut: boolean;
   socialAuth: SocialAuthCapabilities;
   signIn(email: string, password: string): Promise<void>;
   signInWithSocial(provider: SocialAuthProvider, next?: string | null): Promise<void>;
@@ -49,6 +50,7 @@ function readableAuthError(error: AuthError) {
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -71,6 +73,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const value = useMemo<AuthValue>(() => ({
     session,
     loading,
+    signingOut,
     socialAuth,
     signIn: async (email, password) => {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -148,8 +151,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (error) throw readableAuthError(error);
     },
     signOut: async () => {
-      const { error } = await supabase.auth.signOut({ scope: 'local' });
-      if (error) throw readableAuthError(error);
+      setSigningOut(true);
+      try {
+        const { error } = await supabase.auth.signOut({ scope: 'local' });
+        if (error) throw readableAuthError(error);
+      } finally {
+        setSigningOut(false);
+      }
     },
     signOutOthers: async () => {
       const { error } = await supabase.auth.signOut({ scope: 'others' });
@@ -176,7 +184,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       const { error } = await supabase.auth.resend({ type: 'email_change', email: pendingEmail, options: { emailRedirectTo: authRedirectUrl() } });
       if (error) throw readableAuthError(error);
     },
-  }), [loading, session]);
+  }), [loading, session, signingOut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

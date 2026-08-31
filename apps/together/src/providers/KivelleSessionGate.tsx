@@ -18,7 +18,7 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
     ? window.location.pathname
     : routerPathname;
   const href = useUnstableGlobalHref();
-  const { session, loading: authLoading } = useAuth();
+  const { session, loading: authLoading, signingOut } = useAuth();
   const redirectTarget = useRef<string | null>(null);
   const previousUserId=useRef<string|null>(null);
   const publicPath = isPublicAppPath(pathname);
@@ -73,7 +73,7 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
 
   let blocker = null;
   if (authLoading && !publicPath) blocker = <RouteLoadingState pathname={pathname} label="Restoring your session…" />;
-  else if (!session && !publicPath) blocker = <LoadingSkeleton label="Opening sign in…" />;
+  else if (!session && !publicPath) blocker = <LoadingSkeleton label={signingOut ? 'Signing you out…' : 'Taking you to sign in…'} />;
 
   return <>
     {children}

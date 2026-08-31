@@ -49,6 +49,7 @@ import { manageAccount } from '../src/lib/api';
 import { supabase } from '../src/lib/supabase';
 import { confirmAction } from '../src/lib/dialogs';
 import { shouldRenderSettingsRoute, shouldUseDesktopSettingsLayout } from '../src/lib/settingsRoute';
+import { startSignOutTransition } from '../src/lib/signOutTransition';
 import {
   normalizeProfileDraft,
   profileDraftChanged,
@@ -265,9 +266,11 @@ export default function Settings() {
     if (signingOut) return;
     setSigningOut(true);
     try {
-      await signOut();
-      clear();
-      router.replace('/auth');
+      await startSignOutTransition({
+        signOut,
+        clearPrivateState: clear,
+        openSignIn: () => router.replace('/auth?mode=signin'),
+      });
     } catch (error) {
       Alert.alert('Could not sign out', error instanceof Error ? error.message : 'Please try again.');
     } finally { setSigningOut(false); }
