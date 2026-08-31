@@ -1,26 +1,58 @@
 import{useEffect,useState}from'react';
-import{Platform,Pressable,StyleSheet,Text,View,useWindowDimensions}from'react-native';
+import{AccessibilityInfo,AppState,Platform,Pressable,StyleSheet,Text,View,useWindowDimensions}from'react-native';
 import{Image}from'expo-image';
-import{ArrowRight,ChevronRight,Globe2}from'lucide-react-native';
+import{ArrowRight,ChevronRight,Globe2,Pause,Play}from'lucide-react-native';
 import{worldHeroAsset}from'../../assets';
+import{advanceHomeWorldIndex,shouldAutoRotateHomeWorlds}from'../../lib/homeWorldDiscovery';
 import{colors,radius,typography}from'../../theme';
 import type{World}from'../../types';
 
-export function HomeWorldDiscoveryHero({worlds,onExplore}:{worlds:World[];onExplore:(world:World)=>void}){
+export function HomeWorldDiscoveryHero({worlds,onExplore,fill=false}:{worlds:World[];onExplore:(world:World)=>void;fill?:boolean}){
   const{width}=useWindowDimensions();
   const[index,setIndex]=useState(0);
+  const[autoRotate,setAutoRotate]=useState(true);
+  const[interacting,setInteracting]=useState(false);
+  const[reducedMotion,setReducedMotion]=useState(false);
+  const[appActive,setAppActive]=useState(AppState.currentState==='active');
+  const[documentVisible,setDocumentVisible]=useState(()=>Platform.OS!=='web'||typeof document==='undefined'||document.visibilityState==='visible');
   const signature=worlds.map((world)=>world.id).join(':');
   useEffect(()=>{setIndex(0);},[signature]);
+  useEffect(()=>{
+    let mounted=true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled)=>{if(mounted)setReducedMotion(enabled);});
+    const subscription=AccessibilityInfo.addEventListener('reduceMotionChanged',setReducedMotion);
+    return()=>{mounted=false;subscription.remove();};
+  },[]);
+  useEffect(()=>{
+    const subscription=AppState.addEventListener('change',(state)=>setAppActive(state==='active'));
+    return()=>subscription.remove();
+  },[]);
+  useEffect(()=>{
+    if(Platform.OS!=='web'||typeof document==='undefined')return;
+    const sync=()=>setDocumentVisible(document.visibilityState==='visible');
+    document.addEventListener('visibilitychange',sync);
+    return()=>document.removeEventListener('visibilitychange',sync);
+  },[]);
+  useEffect(()=>{
+    if(!shouldAutoRotateHomeWorlds({count:worlds.length,enabled:autoRotate,reducedMotion,interacting,appActive,documentVisible}))return;
+    const timer=setTimeout(()=>setIndex((current)=>advanceHomeWorldIndex(current,worlds.length)),8_000);
+    return()=>clearTimeout(timer);
+  },[appActive,autoRotate,documentVisible,index,interacting,reducedMotion,signature,worlds.length]);
+  useEffect(()=>{
+    if(worlds.length<2)return;
+    const upcoming=worlds[advanceHomeWorldIndex(index,worlds.length)];
+    if(upcoming)void Image.prefetch(worldHeroAsset(upcoming.slug) as never,'memory-disk').catch(()=>undefined);
+  },[index,signature,worlds]);
   if(!worlds.length)return null;
   const world=worlds[index%worlds.length]??worlds[0];
   if(!world)return null;
   const desktop=width>=900;
   const relationshipFantasy=world.metadata?.relationshipFantasy;
   const copy=typeof relationshipFantasy==='string'&&relationshipFantasy.trim()?relationshipFantasy:world.description;
-  const next=()=>setIndex((current)=>(current+1)%worlds.length);
-  const previous=()=>setIndex((current)=>(current-1+worlds.length)%worlds.length);
+  const next=()=>setIndex((current)=>advanceHomeWorldIndex(current,worlds.length));
+  const previous=()=>setIndex((current)=>advanceHomeWorldIndex(current,worlds.length,-1));
 
-  return <View accessibilityLabel={`Discover ${world.name}`} style={[styles.hero,desktop&&styles.heroDesktop]}>
+  return <View accessibilityLabel={`Discover ${world.name}`} onPointerEnter={()=>setInteracting(true)} onPointerLeave={()=>setInteracting(false)} style={[styles.hero,desktop&&styles.heroDesktop,fill&&styles.fill]}>
     <Image accessibilityLabel={`${world.name} world`} source={worldHeroAsset(world.slug)} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" cachePolicy="memory-disk" loading="lazy" priority="low" transition={180}/>
     <View pointerEvents="none" style={[styles.scrim,Platform.OS==='web'?styles.webScrim:styles.nativeScrim]}/>
     <View style={styles.content}>
@@ -36,6 +68,7 @@ export function HomeWorldDiscoveryHero({worlds,onExplore}:{worlds:World[];onExpl
     {worlds.length>1?<View style={styles.worldControls}>
       <Pressable accessibilityRole="button" accessibilityLabel="Show previous world" hitSlop={6} onPress={previous} style={({pressed})=>[styles.worldControl,pressed&&styles.nextArrowPressed]}><ChevronRight size={24} strokeWidth={1.5} color="rgba(255,248,251,.92)" style={styles.previousIcon}/></Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Show another world" hitSlop={6} onPress={next} style={({pressed})=>[styles.worldControl,pressed&&styles.nextArrowPressed]}><ChevronRight size={24} strokeWidth={1.5} color="rgba(255,248,251,.92)"/></Pressable>
+      {!reducedMotion?<Pressable accessibilityRole="button" accessibilityLabel={autoRotate?'Pause automatic world rotation':'Resume automatic world rotation'} accessibilityState={{selected:autoRotate}} hitSlop={6} onPress={()=>setAutoRotate((current)=>!current)} style={({pressed})=>[styles.worldControl,pressed&&styles.controlPressed]}>{autoRotate?<Pause size={16} color="rgba(255,248,251,.92)"/>:<Play size={16} color="rgba(255,248,251,.92)" fill="rgba(255,248,251,.92)"/>}</Pressable>:null}
     </View>:null}
   </View>;
 }
@@ -43,6 +76,7 @@ export function HomeWorldDiscoveryHero({worlds,onExplore}:{worlds:World[];onExpl
 const styles=StyleSheet.create({
   hero:{width:'100%',minHeight:218,overflow:'hidden',borderRadius:25,backgroundColor:colors.elevated,borderWidth:1,borderColor:'rgba(240,198,125,.23)',shadowColor:'#C58C45',shadowOpacity:.15,shadowRadius:28,shadowOffset:{width:0,height:16},elevation:8},
   heroDesktop:{borderRadius:34},
+  fill:{height:'100%'},
   scrim:{...StyleSheet.absoluteFill},
   nativeScrim:{backgroundColor:'rgba(7,5,10,.48)'},
   webScrim:{backgroundImage:'linear-gradient(0deg, rgba(6,4,8,.94) 0%, rgba(7,5,10,.18) 76%), linear-gradient(90deg, rgba(7,5,10,.35), transparent 72%)'}as never,
@@ -61,5 +95,6 @@ const styles=StyleSheet.create({
   worldControl:{width:44,height:44,borderRadius:22,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(8,6,12,.58)',borderWidth:1,borderColor:'rgba(255,255,255,.14)'},
   previousIcon:{transform:[{rotate:'180deg'}]},
   nextArrowPressed:{opacity:.56,transform:[{translateX:2}]},
+  controlPressed:{opacity:.56},
   pressed:{opacity:.86,transform:[{scale:.985}]},
 });

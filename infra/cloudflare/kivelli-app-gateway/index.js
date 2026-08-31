@@ -1,7 +1,7 @@
 const CANONICAL_ORIGIN = "https://kivelli.app";
 const SUPABASE_ORIGIN = "https://mfysnlghlhxxcwnwpxog.supabase.co";
 const SUPABASE_PROXY_PREFIX = "/supabase";
-const APP_RELEASE = "2026-08-31-character-profile-polish-1";
+const APP_RELEASE = "2026-08-31-home-companion-hub-1";
 const FINGERPRINTED_ASSET = /(?:\.|-)[a-f0-9]{16,}\.(?:avif|css|gif|ico|jpe?g|js|mjs|png|svg|ttf|otf|webp|woff2?)$/i;
 
 export default {
@@ -23,9 +23,28 @@ export default {
       return proxySupabaseRequest(request, incomingUrl);
     }
 
+    if (
+      (request.method === "GET" || request.method === "HEAD") &&
+      isRetiredStoryPath(incomingUrl.pathname)
+    ) {
+      const homeUrl = new URL("/home", CANONICAL_ORIGIN);
+      return Response.redirect(homeUrl.toString(), 308);
+    }
+
     return serveAppAsset(request, env);
   },
 };
+
+function isRetiredStoryPath(pathname) {
+  return pathname === "/stories" ||
+    pathname.startsWith("/stories/") ||
+    pathname === "/story-library" ||
+    pathname.startsWith("/story-library/") ||
+    pathname === "/story-case" ||
+    pathname.startsWith("/story-case/") ||
+    pathname === "/story-play" ||
+    pathname.startsWith("/story-play/");
+}
 
 async function serveAppAsset(request, env) {
   try {

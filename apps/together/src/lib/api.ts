@@ -7,7 +7,6 @@ import type { ChatLanguagePreference } from '@together/domain/src/chat-language'
 import type { AroundTownItem, WorldPulseEvent } from '@together/domain/src/world-pulse';
 import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, ExploreCatalogSnapshot, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, MemoryCenterCategory, MemoryCenterItem, MemoryCenterResponse, MemoryCenterSort, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, ScheduleItem, Snapshot, SnapshotDelta, VideoDiagnostics, VideoGenerationOptions, VideoMotionPreset, VideoRouteOption, VoiceCallSession } from '../types';
 import type { RealtimeVoiceConfiguration } from './realtimeVoice';
-import type { StoryAction, StoryActionResponse, StoryCampaign, StoryLibrary } from '../stories/types';
 import { withIdempotentRetry } from './requestRetry';
 
 export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false,readonly correlationId?:string) { super(message); } }
@@ -15,7 +14,7 @@ type Envelope<T> = { data: T; correlationId: string };
 function deviceTimezone():string{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';}catch{return'UTC';}}
 
 type ClientPerformanceEvent={surface:string;operation:string;durationMs:number;success:boolean;statusCode?:number;platform:string;appVersion:string;buildId:string;metadata:Record<string,string|number|boolean|null>};
-const performanceSurfaces=new Set(['together-bootstrap','together-group','together-conversation','together-media','together-dialogue','together-group-dialogue','together-plan','together-interaction','together-memory','together-stories','together-story-dialogue','together-subscription','together-world-pulse']);
+const performanceSurfaces=new Set(['together-bootstrap','together-group','together-conversation','together-media','together-dialogue','together-group-dialogue','together-plan','together-interaction','together-memory','together-subscription','together-world-pulse']);
 const performanceQueue:ClientPerformanceEvent[]=[];let performanceFlushTimer:ReturnType<typeof setTimeout>|null=null,performanceFlushRunning=false;
 export function queueClientPerformance(input:Omit<ClientPerformanceEvent,'platform'|'appVersion'|'buildId'>){
   if(process.env.EXPO_PUBLIC_KIVELLE_PERFORMANCE_REPORTING_ENABLED==='false')return;
@@ -166,28 +165,6 @@ export const selectCreatorFirstMeeting = (draftId:string,meetingId:string) => ma
 export const finalizeCreatorDraft = (draftId:string,requestId:string) => manageCreator<{draft:CreatorDraft;result:{draftId:string;characterTemplateId:string;characterVersionId:string;publicHandle:string;idempotent:boolean}}>({action:'finalize_draft',draftId,requestId});
 export const archiveCreatorDraft = (draftId:string) => manageCreator<{archived:boolean;draftId:string}>({action:'archive_draft',draftId});
 export const manageSubscription = <T>(input?:Record<string,unknown>) => input?invoke<T>('together-subscription',input):invoke<T>('together-subscription',undefined,'GET');
-export const loadStoryLibrary=()=>invoke<StoryLibrary>('together-stories',{action:'library'});
-export const loadStoryCampaign=(campaignId:string)=>invoke<{campaign:StoryCampaign}>('together-stories',{action:'campaign',campaignId});
-export const startStoryCampaign=(storySlug:string,requestId:string)=>invoke<{campaign:StoryCampaign}>('together-stories',{action:'start',storySlug,requestId});
-export const restartStoryCampaign=(campaignId:string,requestId:string)=>invoke<{campaign:StoryCampaign}>('together-stories',{action:'restart',campaignId,requestId,confirmed:true});
-export const abandonStoryCampaign=(campaignId:string,expectedVersion:number,clientActionId:string)=>invoke<{campaign:StoryCampaign}>('together-stories',{action:'abandon',campaignId,expectedVersion,clientActionId});
-export const applyStoryCampaignAction=(campaignId:string,expectedVersion:number,storyAction:StoryAction,clientActionId:string)=>invoke<StoryActionResponse>('together-stories',{action:'apply',campaignId,expectedVersion,storyAction,clientActionId});
-export const pinStoryItem=(campaignId:string,expectedVersion:number,target:'evidence'|'character'|'event',id:string|null,clientActionId:string)=>invoke<{campaign:StoryCampaign}>('together-stories',{action:'pin',campaignId,expectedVersion,target,id,clientActionId});
-export const updateStorySettings=(campaignId:string,expectedVersion:number,settings:StoryCampaign['settings'],clientActionId:string)=>invoke<{campaign:StoryCampaign}>('together-stories',{action:'settings',campaignId,expectedVersion,settings:{textSize:settings.textSize??'medium',sound:settings.sound??true,motion:settings.motion??true,content:settings.content??'standard',guidance:settings.guidance??'balanced'},clientActionId});
-
-export async function sendStoryDialogue(input:{campaignId:string;expectedVersion:number;characterId:string;message:string;approachId?:string;evidenceId?:string;clientMessageId:string},onToken:(token:string)=>void):Promise<{campaign:StoryCampaign;replayed:boolean;evidenceDiscovered:string[];deductionsCompleted:string[]}>{
-  const started=Date.now();let response:Response|undefined,firstToken=false;
-  try{
-    response=await fetch(`${supabaseUrl}/functions/v1/together-story-dialogue`,{method:'POST',headers:{Authorization:`Bearer ${await token()}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify(input)});
-    if(!response.ok){const error=await response.json().catch(()=>({})) as{error?:{message?:string;code?:string;retryable?:boolean}};throw new ApiError(error.error?.message??'The story reply could not be generated.',error.error?.code,error.error?.retryable);}
-    if(!response.body)throw new ApiError('The story reply ended early.','STREAM_INTERRUPTED',true);
-    const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',final:{campaign:StoryCampaign;replayed:boolean;evidenceDiscovered:string[];deductionsCompleted:string[]}|null=null;
-    const consume=(events:string[])=>{for(const event of events){const line=event.split('\n').find((item)=>item.startsWith('data: '));if(!line)continue;const data=JSON.parse(line.slice(6));if(data.type==='token'){firstToken=true;onToken(String(data.token??''));}if(data.type==='done')final={campaign:data.campaign,replayed:Boolean(data.replayed),evidenceDiscovered:data.evidenceDiscovered??[],deductionsCompleted:data.deductionsCompleted??[]};if(data.type==='error')throw new ApiError(data.error?.message??'The story reply was interrupted.',data.error?.code??'STREAM_INTERRUPTED',Boolean(data.error?.retryable));}};
-    while(true){const{value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const events=buffer.split('\n\n');buffer=events.pop()??'';consume(events);}buffer+=decoder.decode();if(buffer.trim())consume([buffer]);
-    if(!final)throw new ApiError('The story reply was interrupted.','STREAM_INTERRUPTED',true);return final;
-  }finally{queueClientPerformance({surface:'together-story-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:Boolean(response?.ok),...(response?{statusCode:response.status}:{}),metadata:{firstToken}});}
-}
-
 export async function createTogetherAccount(email: string, password: string): Promise<void> {
   const response = await fetch(`${supabaseUrl}/functions/v1/together-signup`, { method: 'POST', headers: { apikey: supabasePublishableKey, Authorization: `Bearer ${supabasePublishableKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
   const payload = await response.json().catch(() => ({})) as { error?: { message?: string; code?: string; retryable?: boolean } };

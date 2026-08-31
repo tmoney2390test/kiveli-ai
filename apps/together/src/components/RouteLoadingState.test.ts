@@ -7,7 +7,7 @@ describe('route loading states', () => {
     expect(routeLoadingKind('/explore?world=vesper')).toBe('explore');
     expect(routeLoadingKind('/media/123')).toBe('moments');
     expect(routeLoadingKind('/chat')).toBe('messages');
-    expect(routeLoadingKind('/stories/play')).toBe('stories');
+    expect(routeLoadingKind('/subscription')).toBe('default');
     expect(routeLoadingKind('/character/bianca-de-luca')).toBe('character');
   });
 });

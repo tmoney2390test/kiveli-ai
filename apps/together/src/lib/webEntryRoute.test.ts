@@ -14,7 +14,7 @@ describe('captured web entry routes', () => {
   it('does not interfere once the intended route is active', () => {
     expect(shouldRecoverWebEntry({ entryHref: '/settings', browserPathname: '/settings' })).toBe(false);
     expect(shouldRecoverWebEntry({ entryHref: '/', browserPathname: '/' })).toBe(false);
-    expect(shouldRecoverWebEntry({ entryHref: '/settings', browserPathname: '/stories' })).toBe(false);
+    expect(shouldRecoverWebEntry({ entryHref: '/settings', browserPathname: '/moments' })).toBe(false);
   });
 
   it('keeps a deep link until its route and authenticated snapshot are both ready',()=>{

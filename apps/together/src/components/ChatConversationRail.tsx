@@ -17,7 +17,6 @@ import type {
   GroupDetail,
   Snapshot,
 } from "../types";
-import { KivelleLogo } from "./KivelleLogo";
 import { CharacterAvatar } from "./ui";
 
 const groupRailCache = new Map<string, GroupDetail[]>();
@@ -105,7 +104,6 @@ export function ChatConversationRail({
 
   return (
     <View style={styles.rail}>
-      <KivelleLogo height={39} style={styles.logo} />
       <View style={styles.headingRow}>
         <Text style={styles.kicker}>CONVERSATIONS</Text>
         <Pressable
@@ -244,7 +242,6 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: colors.border,
   },
-  logo: { marginHorizontal: 18, marginBottom: 20 },
   headingRow: {
     flexDirection: "row",
     alignItems: "center",

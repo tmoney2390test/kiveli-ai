@@ -8,8 +8,8 @@ describe('settings route visibility', () => {
     expect(isSettingsPath('/(tabs)/settings')).toBe(true);
     expect(isSettingsPath('/')).toBe(false);
     expect(isSettingsPath('/home')).toBe(false);
-    expect(isSettingsPath('/stories')).toBe(false);
-    expect(isSettingsPath('/stories/the-last-night-in-vespormoor')).toBe(false);
+    expect(isSettingsPath('/moments')).toBe(false);
+    expect(isSettingsPath('/moment/123')).toBe(false);
   });
 
   it('uses the browser URL as the canonical web route during stack transitions', () => {
@@ -21,7 +21,7 @@ describe('settings route visibility', () => {
     expect(shouldRenderSettingsRoute({
       platform: 'web',
       routerPathname: '/settings',
-      browserPathname: '/stories',
+      browserPathname: '/moments',
     })).toBe(false);
   });
 
@@ -29,7 +29,7 @@ describe('settings route visibility', () => {
     expect(shouldRenderSettingsRoute({
       platform: 'ios',
       routerPathname: '/settings',
-      browserPathname: '/stories',
+      browserPathname: '/moments',
     })).toBe(true);
   });
 

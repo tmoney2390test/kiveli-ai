@@ -6,7 +6,6 @@ import { router, usePathname } from 'expo-router';
 import {
   Bell,
   CalendarDays,
-  BookOpenCheck,
   Compass,
   Home,
   Images,
@@ -80,7 +79,6 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
     { key: 'explore', label: 'Explore', href: '/explore', icon: (color) => <Compass size={24} color={color} /> },
     { key: 'messages', label: 'Messages', href: messagesHref, icon: (color) => <MessageCircle size={24} color={color} />, count: unreadCount, onPress: messagesHref === MESSAGES_INBOX_ROUTE ? openMessagesInbox : () => navigate(messagesHref) },
     { key: 'moments', label: 'Moments', href: '/moments', icon: (color) => <Images size={24} color={color} /> },
-    { key: 'stories', label: 'Stories', href: '/stories', icon: (color) => <BookOpenCheck size={24} color={color} /> },
     { key: 'plans', label: 'Plans & Dates', href: '/dates', icon: (color) => <CalendarDays size={24} color={color} /> },
     { key: 'companions', label: 'Companions', href: '/companions', icon: (color) => <UsersRound size={24} color={color} /> },
   ];

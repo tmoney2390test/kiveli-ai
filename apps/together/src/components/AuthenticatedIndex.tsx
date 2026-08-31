@@ -33,7 +33,7 @@ export default function AuthenticatedIndex() {
     if (!isActiveRoot || loading || error || !stage) return;
     // A navigation may have started after this effect was scheduled. Re-check
     // the live address immediately before replacing the route so an old index
-    // render can never pull /stories (or another sibling screen) back home.
+    // render can never pull /moments (or another sibling screen) back home.
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname !== '/') return;
     const target = stage === 'age_confirmation'
       ? '/age-confirmation'
@@ -44,7 +44,7 @@ export default function AuthenticatedIndex() {
   }, [entryHref, error, isActiveRoot, loading, recoverDeepLink, stage]);
 
   // Expo Router can retain the root screen beneath a deep-linked stack route.
-  // Its Redirect must never replace an active route such as /stories or
+  // Its Redirect must never replace an active route such as /moments or
   // /settings just because the inactive index screen remains mounted.
   if (recoverDeepLink) return <LoadingSkeleton label="Opening your page…" />;
   if (!isActiveRoot) return null;

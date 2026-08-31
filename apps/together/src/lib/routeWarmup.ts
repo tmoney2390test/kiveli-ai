@@ -1,4 +1,4 @@
-export const CORE_APP_ROUTES = ['/home', '/explore', '/chat-tab?messages=1', '/moments', '/stories', '/dates', '/companions'] as const;
+export const CORE_APP_ROUTES = ['/home', '/explore', '/chat-tab?messages=1', '/moments', '/subscription', '/dates', '/companions'] as const;
 
 type PrefetchRoute = (href: string) => void;
 type TimerHandle = ReturnType<typeof setTimeout>;

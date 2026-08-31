@@ -5,16 +5,16 @@ import { colors, radius, typography } from '../../theme';
 import type { CompanionMediaItem } from '../../lib/homePresentation';
 import { DetailPreservingArtwork } from '../DetailPreservingArtwork';
 
-export function FromCompanionSection({ name, items, fallbackSource, onViewAll, onOpen, onAsk }: { name: string; items: CompanionMediaItem[]; fallbackSource?: ImageSource | number; onViewAll: () => void; onOpen: (item: CompanionMediaItem) => void; onAsk: () => void }) {
+export function FromCompanionSection({ name, items, fallbackSource, onViewAll, onOpen, onAsk, compact=false }: { name: string; items: CompanionMediaItem[]; fallbackSource?: ImageSource | number; onViewAll: () => void; onOpen: (item: CompanionMediaItem) => void; onAsk: () => void; compact?:boolean }) {
   return <View style={styles.section}>
-    <SectionTitle title={`From ${name}`} action={items.length ? 'View all' : undefined} onAction={onViewAll} />
-    {items.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>{items.slice(0, 8).map((item) => <MediaCard key={item.id} item={item} onPress={() => onOpen(item)} />)}</ScrollView> : <Pressable accessibilityRole="button" accessibilityLabel={`Ask ${name} for a photo`} onPress={onAsk} style={({ pressed }) => [styles.empty, pressed && styles.cardPressed]}>{fallbackSource ? <Image source={fallbackSource} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" blurRadius={10} loading="lazy" priority="low" /> : null}<View style={styles.emptyShade} /><View style={styles.emptyContent}><View style={styles.camera}><Camera size={20} color={colors.rose} /></View><View style={{ flex: 1 }}><Text style={styles.emptyTitle}>Nothing new here yet</Text><Text style={styles.emptyCopy}>Ask {name} for a photo and it’ll appear here when it’s ready.</Text></View><ArrowRight size={19} color={colors.text} /></View></Pressable>}
+    <SectionTitle title={`From ${name}`} action={items.length ? 'View all' : undefined} onAction={onViewAll} compact={compact} />
+    {items.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>{items.slice(0, 8).map((item) => <MediaCard key={item.id} item={item} compact={compact} onPress={() => onOpen(item)} />)}</ScrollView> : <Pressable accessibilityRole="button" accessibilityLabel={`Ask ${name} for a photo`} onPress={onAsk} style={({ pressed }) => [styles.empty,compact&&styles.emptyCompact, pressed && styles.cardPressed]}>{fallbackSource ? <Image source={fallbackSource} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" blurRadius={10} loading="lazy" priority="low" /> : null}<View style={styles.emptyShade} /><View style={styles.emptyContent}><View style={styles.camera}><Camera size={20} color={colors.rose} /></View><View style={{ flex: 1 }}><Text style={styles.emptyTitle}>Nothing new here yet</Text><Text style={styles.emptyCopy}>Ask {name} for a photo and it’ll appear here when it’s ready.</Text></View><ArrowRight size={19} color={colors.text} /></View></Pressable>}
   </View>;
 }
 
-function MediaCard({ item, onPress }: { item: CompanionMediaItem; onPress: () => void }) {
+function MediaCard({ item, onPress, compact }: { item: CompanionMediaItem; onPress: () => void; compact:boolean }) {
   const date = new Date(item.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${item.locked ? 'Locked media' : item.title}, ${item.subtitle}`} onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${item.locked ? 'Locked media' : item.title}, ${item.subtitle}`} onPress={onPress} style={({ pressed }) => [styles.card,compact&&styles.cardCompact, pressed && styles.cardPressed]}>
     {item.thumbnailUrl || item.type !== 'video' ? <DetailPreservingArtwork source={{ uri: item.thumbnailUrl ?? item.url, cacheKey: item.cacheKey }} accessibilityLabel={item.title} blurRadius={item.locked ? 15 : 0} dim={.08} priority="low" loading="lazy" recyclingKey={item.id} /> : <View style={styles.videoFallback}><Play size={28} color="rgba(255,255,255,.72)" fill="rgba(255,255,255,.72)" /></View>}
     <View style={styles.cardShade} />
     {item.locked ? <View style={styles.lock}><LockKeyhole size={13} color="#FFF4F7" /><Text style={styles.lockText}>PRIVATE</Text></View> : item.type === 'video' ? <View style={styles.play}><Play size={15} color="#fff" fill="#fff" /></View> : null}
@@ -22,19 +22,21 @@ function MediaCard({ item, onPress }: { item: CompanionMediaItem; onPress: () =>
   </Pressable>;
 }
 
-export function SectionTitle({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
-  return <View style={styles.sectionTitleRow}><Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text>{action && onAction ? <Pressable accessibilityRole="button" accessibilityLabel={action} hitSlop={6} onPress={onAction} style={({ pressed }) => [styles.actionButton, pressed && styles.actionPressed]}><Text style={styles.action}>{action} →</Text></Pressable> : null}</View>;
+export function SectionTitle({ title, action, onAction, compact=false }: { title: string; action?: string; onAction?: () => void; compact?:boolean }) {
+  return <View style={styles.sectionTitleRow}><Text accessibilityRole="header" style={[styles.sectionTitle,compact&&styles.sectionTitleCompact]}>{title}</Text>{action && onAction ? <Pressable accessibilityRole="button" accessibilityLabel={action} hitSlop={6} onPress={onAction} style={({ pressed }) => [styles.actionButton, pressed && styles.actionPressed]}><Text style={styles.action}>{action} →</Text></Pressable> : null}</View>;
 }
 
 const styles = StyleSheet.create({
   section: { gap: 13 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   sectionTitle: { color: colors.text, fontFamily: typography.display, fontSize: 30, fontWeight: '600', letterSpacing: -.5 },
+  sectionTitleCompact:{fontSize:20,letterSpacing:-.2},
   action: { color: '#E8A2BA', fontSize: 12, fontWeight: '800' },
   actionButton: { minWidth: 64, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center', paddingLeft: 10 },
   actionPressed: { opacity: .7 },
   rail: { gap: 13, paddingRight: 18 },
   card: { width: 248, height: 322, borderRadius: 23, overflow: 'hidden', justifyContent: 'flex-end', backgroundColor: colors.surface, borderWidth: 1, borderColor: 'rgba(255,255,255,.10)', shadowColor: '#000', shadowOpacity: .3, shadowRadius: 16, shadowOffset: { width: 0, height: 9 }, ...(Platform.OS === 'web' ? { transitionDuration: '180ms', transitionProperty: 'transform, border-color' } : {}) },
+  cardCompact:{width:210,height:260},
   cardPressed: { transform: [{ scale: .985 }], opacity: .94 },
   videoFallback: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: '#211421' },
   cardShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(8,5,11,.20)', ...(Platform.OS === 'web' ? ({ backgroundImage: 'linear-gradient(0deg, rgba(7,4,10,.92) 0%, transparent 64%)' } as never) : {}) },
@@ -46,6 +48,7 @@ const styles = StyleSheet.create({
   lockText: { color: '#FFF4F7', fontSize: 8, fontWeight: '900', letterSpacing: .9 },
   play: { position: 'absolute', top: 14, right: 14, width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(7,5,10,.62)' },
   empty: { minHeight: 158, overflow: 'hidden', borderRadius: 23, borderWidth: 1, borderColor: 'rgba(255,255,255,.09)', backgroundColor: colors.surface, justifyContent: 'center' },
+  emptyCompact:{minHeight:140},
   emptyShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(8,6,12,.78)' },
   emptyContent: { padding: 20, flexDirection: 'row', alignItems: 'center', gap: 13 },
   camera: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(232,82,137,.12)', borderWidth: 1, borderColor: 'rgba(232,82,137,.18)' },

@@ -18,7 +18,7 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   const routerPathname = usePathname();
   // During static web hydration Expo can briefly report the root or an older
   // stack screen while the address bar already points at a deep link. The
-  // browser path is authoritative and prevents a refreshed /stories page from
+  // browser path is authoritative and prevents a refreshed /moments page from
   // being mistaken for onboarding or the app root and replaced with /home.
   const pathname = Platform.OS === 'web' && typeof window !== 'undefined'
     ? window.location.pathname

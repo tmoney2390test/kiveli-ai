@@ -7,18 +7,18 @@ describe('root route', () => {
     expect(isRootAppPath('')).toBe(true);
     expect(isRootAppPath('/home')).toBe(false);
     expect(isRootAppPath('/settings')).toBe(false);
-    expect(isRootAppPath('/stories')).toBe(false);
+    expect(isRootAppPath('/moments')).toBe(false);
   });
 
   it('uses the browser URL to suppress a stale web index redirect', () => {
     expect(shouldRunAuthenticatedIndexRedirect({
       platform: 'web',
       routerPathname: '/',
-      browserPathname: '/stories',
+      browserPathname: '/moments',
     })).toBe(false);
     expect(shouldRunAuthenticatedIndexRedirect({
       platform: 'web',
-      routerPathname: '/stories',
+      routerPathname: '/moments',
       browserPathname: '/',
     })).toBe(true);
   });
@@ -27,7 +27,7 @@ describe('root route', () => {
     expect(shouldRunAuthenticatedIndexRedirect({
       platform: 'ios',
       routerPathname: '/',
-      browserPathname: '/stories',
+      browserPathname: '/moments',
     })).toBe(true);
   });
 });

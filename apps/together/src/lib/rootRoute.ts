@@ -10,7 +10,7 @@ export function shouldRunAuthenticatedIndexRedirect(input: {
   // An inactive Expo index screen can keep reporting its own `/` pathname
   // while the browser is already navigating to a sibling route. On web the
   // address bar is the authoritative route and prevents that stale index from
-  // redirecting deep links such as /stories back to /home.
+  // redirecting deep links such as /moments back to /home.
   const pathname = input.platform === 'web' && input.browserPathname
     ? input.browserPathname
     : input.routerPathname;

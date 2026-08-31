@@ -24,7 +24,6 @@ import { homeWorldDiscoveryOptions } from '../../src/lib/homeWorldDiscovery';
 import type { Snapshot } from '../../src/types';
 import { useSubscriptionStatus } from '../../src/hooks/useSubscriptionStatus';
 import { useAppShell } from '../../src/shell/AppShellContext';
-import { storyLibraryHomeAsset } from '../../src/stories/homeAsset';
 import { useWorldPulse } from '../../src/hooks/useWorldPulse';
 import { scheduleDeferredHomeWork } from '../../src/lib/homeDeferredWork';
 import { uniqueHttpsImageUris } from '../../src/lib/imageWarmup';
@@ -110,6 +109,9 @@ export default function Home() {
   const companionFirstName = template.name.trim().split(/\s+/)[0] || template.name;
   const timelineTitle = `${companionFirstName}'s Day`;
   const wideCards = width >= 760;
+  const topStageWide=width>=900;
+  const hubWide=width>=1020;
+  const hubHeaderStacked=width<520;
 
   const openCompanion = async (proactiveMessageId?: string) => {
     if (proactiveMessageId) await markProactiveOpened(proactiveMessageId).catch(() => undefined);
@@ -134,20 +136,23 @@ export default function Home() {
   return <Screen contentStyle={desktop ? styles.contentDesktop : styles.content}>
     <View pointerEvents="none" style={styles.ambientGlow} />
     {!desktop ? <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push(subscriptionHref({intent:'credits'}) as never)} onProfile={() => router.push('/settings')} /> : null}
-    <CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} location={model.currentLocation?.name} world={model.currentWorld?.name} actionLabel={model.hero.action.label} notice={model.hero.notice} prompt={model.message?.content ? `“${model.message.content}”` : model.hero.prompt} onContinue={() => void runAction(model.hero.action)} onProfile={() => router.push(`/character/${handle}`)} onVisualReady={heroReady}/>
+    <View style={[styles.topStage,!topStageWide&&styles.topStageStack]}>
+      <View style={styles.companionHeroPane}><CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} location={model.currentLocation?.name} world={model.currentWorld?.name} actionLabel={model.hero.action.label} notice={model.hero.notice} prompt={model.message?.content ? `“${model.message.content}”` : model.hero.prompt} onContinue={() => void runAction(model.hero.action)} onProfile={() => router.push(`/character/${handle}`)} onVisualReady={heroReady}/></View>
+      {discoveryWorlds.length?<View style={[styles.worldDiscoveryPane,!topStageWide&&styles.worldDiscoveryPaneStack]}><HomeWorldDiscoveryHero fill={topStageWide} worlds={discoveryWorlds} onExplore={(world)=>{setBrowsedWorldId(world.id);router.push(`/(tabs)/explore?world=${world.slug}`);}}/></View>:null}
+    </View>
     {secondaryWorkReady?<>
-      <FromCompanionSection name={template.name} items={media} fallbackSource={portraitSource} onViewAll={() => router.push('/(tabs)/moments')} onOpen={(item) => router.push(item.locked ? subscriptionHref({intent:'generated_media'}) as never : `/media/${item.id}`)} onAsk={() => router.push(`/(tabs)/chat-tab?character=${encodeURIComponent(handle)}&draft=${encodeURIComponent('Send me a photo from where you are.')}`)} />
-      <HomeWorldSection wide={wideCards} upcoming={{ eyebrow: model.upcoming.eyebrow, title: model.upcoming.title, meta: model.upcoming.meta }} relationship={{ eyebrow: `YOU + ${template.name.toUpperCase()}`, title: relationship.headline, meta: relationship.detail }} hook={getWorldHook(model)} memory={memory} upcomingSource={upcomingSource} relationshipSource={portraitSource} onUpcoming={() => void runAction(model.upcoming.action)} onRelationship={() => router.push(`/character/${handle}`)} />
-      <HomeTimeline title={timelineTitle} items={model.timeline} onViewWorld={() => router.push('/(tabs)/explore')} onOpen={openTimelineItem} />
-      {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Pressable accessibilityRole="button" accessibilityLabel="View all recently shared moments" hitSlop={6} onPress={() => router.push('/(tabs)/moments')} style={({pressed})=>[styles.sectionActionButton,pressed&&styles.sectionActionPressed]}><Text style={styles.sectionAction}>View all →</Text></Pressable></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} preserveImageDetails onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}
-      <View style={[styles.discoveryPair,width<760&&styles.discoveryPairStack]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Open Kivelli Stories" onPress={()=>router.push('/stories' as never)} style={({pressed})=>[styles.storiesBanner,pressed&&styles.discoveryPressed]}>
-          <Image source={storyLibraryHomeAsset} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" loading="lazy" priority="low"/>
-          <View pointerEvents="none" style={[StyleSheet.absoluteFill,styles.storiesShade]}/>
-          <View style={styles.storiesCopy}><Text style={styles.storiesKicker}>KIVELLI STORIES · NEW</Text><Text style={styles.storiesTitle}>A night you can change—if you learn enough.</Text><Text style={styles.storiesText}>Enter a replayable Vespormoor mystery with its own clues, timeline, and endings.</Text><Text style={styles.storiesAction}>Open the archive →</Text></View>
-        </Pressable>
-        {discoveryWorlds.length?<View style={styles.discoveryPane}><HomeWorldDiscoveryHero worlds={discoveryWorlds} onExplore={(world)=>{setBrowsedWorldId(world.id);router.push(`/(tabs)/explore?world=${world.slug}`);}}/></View>:null}
+      <View style={styles.companionHub}>
+        <View style={[styles.companionHubHeader,hubHeaderStacked&&styles.companionHubHeaderStack]}>
+          <View style={styles.companionHubHeading}><Text style={styles.companionHubKicker}>YOUR CONNECTION</Text><Text accessibilityRole="header" style={styles.companionHubTitle}>You + {template.name}</Text></View>
+          <Pressable accessibilityRole="button" accessibilityLabel={`View ${template.name}'s profile`} onPress={()=>router.push(`/character/${handle}`)} style={({pressed})=>[styles.companionHubAction,hubHeaderStacked&&styles.companionHubActionStack,pressed&&styles.sectionActionPressed]}><Text style={styles.companionHubActionText}>View profile →</Text></Pressable>
+        </View>
+        <FromCompanionSection compact name={template.name} items={media} fallbackSource={portraitSource} onViewAll={() => router.push('/(tabs)/moments')} onOpen={(item) => router.push(item.locked ? subscriptionHref({intent:'generated_media'}) as never : `/media/${item.id}`)} onAsk={() => router.push(`/(tabs)/chat-tab?character=${encodeURIComponent(handle)}&draft=${encodeURIComponent('Send me a photo from where you are.')}`)} />
+        <View style={[styles.companionHubLower,!hubWide&&styles.companionHubLowerStack]}>
+          <View style={styles.companionHubWorld}><HomeWorldSection embedded compact wide={wideCards} upcoming={{ eyebrow: model.upcoming.eyebrow, title: model.upcoming.title, meta: model.upcoming.meta }} relationship={{ eyebrow: `YOU + ${template.name.toUpperCase()}`, title: relationship.headline, meta: relationship.detail }} hook={getWorldHook(model)} memory={memory} upcomingSource={upcomingSource} relationshipSource={portraitSource} onUpcoming={() => void runAction(model.upcoming.action)} onRelationship={() => router.push(`/character/${handle}`)} /></View>
+          <View style={styles.companionHubTimeline}><HomeTimeline compact title={timelineTitle} items={model.timeline} onViewWorld={() => router.push('/(tabs)/explore')} onOpen={openTimelineItem} /></View>
+        </View>
       </View>
+      {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Pressable accessibilityRole="button" accessibilityLabel="View all recently shared moments" hitSlop={6} onPress={() => router.push('/(tabs)/moments')} style={({pressed})=>[styles.sectionActionButton,pressed&&styles.sectionActionPressed]}><Text style={styles.sectionAction}>View all →</Text></Pressable></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} preserveImageDetails onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}
       {selectedWorld&&worldPulse?.worldId===selectedWorld.id?<AroundTownSection worldName={selectedWorld.name} items={worldPulse.items.slice(0,5)} onOpen={(item)=>{if(item.locationSlug)return router.push(`/location/${item.locationSlug}?world=${selectedWorld.slug}`);router.push(`/(tabs)/explore?world=${selectedWorld.slug}`);}}/>:null}
       {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions} world={selectedWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onViewAll={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/singles?world=${selectedWorld.slug}`); }} onToggleFavorite={toggleFavorite} /> : null}
     </>:<HomeSecondaryLoading/>}
@@ -180,17 +185,24 @@ const styles = StyleSheet.create({
   content: { position: 'relative', maxWidth: 1180, gap: 30, paddingTop: 14, paddingBottom: 176 },
   contentDesktop: { position: 'relative', maxWidth: 1180, gap: 30, paddingTop: 24, paddingBottom: 48 },
   ambientGlow: { position: 'absolute', top: 80, left: '22%', width: '70%', height: 700, borderRadius: 500, backgroundColor: 'rgba(122,34,86,.045)', ...(Platform.OS === 'web' ? ({ backgroundImage: 'radial-gradient(circle, rgba(191,55,119,.09), transparent 68%)' } as never) : {}) },
-  discoveryPair:{flexDirection:'row',alignItems:'stretch',gap:14},
-  discoveryPairStack:{flexDirection:'column'},
-  discoveryPane:{flex:1,minWidth:0},
-  discoveryPressed:{opacity:.9,transform:[{scale:.995}]},
-  storiesBanner:{flex:1,minWidth:0,minHeight:218,borderRadius:25,overflow:'hidden',borderWidth:1,borderColor:'rgba(103,215,193,.22)',justifyContent:'center'},
-  storiesShade:{backgroundColor:'rgba(7,8,14,.74)'},
-  storiesCopy:{padding:22,maxWidth:650,gap:5},
-  storiesKicker:{color:'#78DCC8',fontSize:10,fontWeight:'900',letterSpacing:1.4},
-  storiesTitle:{color:colors.text,fontFamily:typography.display,fontSize:27,lineHeight:32},
-  storiesText:{color:'#B7B0BA',fontSize:13,lineHeight:19},
-  storiesAction:{color:'#8EE6D5',fontSize:12,fontWeight:'900',marginTop:5},
+  topStage:{flexDirection:'row',alignItems:'stretch',gap:14},
+  topStageStack:{flexDirection:'column'},
+  companionHeroPane:{flex:1.7,minWidth:0},
+  worldDiscoveryPane:{flex:1,minWidth:300},
+  worldDiscoveryPaneStack:{minWidth:0},
+  companionHub:{gap:20,padding:22,borderRadius:28,borderWidth:1,borderColor:'rgba(255,255,255,.10)',backgroundColor:'rgba(22,15,27,.72)',shadowColor:'#000',shadowOpacity:.2,shadowRadius:24,shadowOffset:{width:0,height:12}},
+  companionHubHeader:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:16,paddingBottom:2},
+  companionHubHeaderStack:{flexDirection:'column',alignItems:'flex-start',gap:2},
+  companionHubHeading:{flex:1,minWidth:0,gap:3},
+  companionHubKicker:{color:'#E8A2BA',fontSize:9,fontWeight:'900',letterSpacing:1.4},
+  companionHubTitle:{color:colors.text,fontFamily:typography.display,fontSize:30,lineHeight:35,fontWeight:'600',letterSpacing:-.45},
+  companionHubAction:{minHeight:44,justifyContent:'center',paddingLeft:12},
+  companionHubActionStack:{paddingLeft:0},
+  companionHubActionText:{color:'#E8A2BA',fontSize:12,fontWeight:'800'},
+  companionHubLower:{flexDirection:'row',alignItems:'flex-start',gap:22,paddingTop:2},
+  companionHubLowerStack:{flexDirection:'column'},
+  companionHubWorld:{flex:1.55,minWidth:0,width:'100%'},
+  companionHubTimeline:{flex:1,minWidth:290,width:'100%'},
   emptyLife: { gap: spacing.md, paddingVertical: spacing.lg },
   emptyLifeTitle: { color: colors.text, fontFamily: typography.display, fontSize: 36, lineHeight: 42, fontWeight: '600' },
   moments: { gap: 13 },

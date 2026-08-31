@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { router, Tabs, usePathname } from 'expo-router';
 import { BlurView } from 'expo-blur';
-import { BookOpenCheck, Compass, Home, Images, MessageCircle } from 'lucide-react-native';
+import { Compass, Crown, Home, Images, MessageCircle } from 'lucide-react-native';
 import { useAppShell } from '../../src/shell/AppShellContext';
 import { MESSAGES_INBOX_HREF, mostRecentChatHref, shouldOpenMostRecentChat } from '../../src/lib/messageInbox';
 import { useTogether } from '../../src/store/useTogether';
@@ -64,9 +64,8 @@ export default function TabsLayout() {
       listeners={{tabPress:(event)=>{const href=latestChatHref??MESSAGES_INBOX_HREF;prepare(href);if(!openLatestFromCurrentPage)return;event.preventDefault();router.push(href as never);}}}
     />
     <Tabs.Screen name="moments" options={{ title: 'Moments', tabBarIcon: ({ color, size, focused }) => <Images color={color} size={focused ? size + 1 : size} /> }} listeners={{tabPress:()=>prepare('/moments')}} />
-    <Tabs.Screen name="stories" options={{ title: 'Stories', tabBarIcon: ({ color, size, focused }) => <BookOpenCheck color={color} size={focused ? size + 2 : size} /> }} listeners={{tabPress:()=>prepare('/stories')}} />
+    <Tabs.Screen name="upgrade" options={{ title: 'Upgrade', tabBarIcon: ({ color, size, focused }) => <Crown color={focused?'#E8B3FF':color} size={focused ? size + 2 : size} fill={focused?'rgba(221,162,255,.16)':'transparent'} /> }} listeners={{tabPress:(event)=>{event.preventDefault();prepare('/subscription');router.push('/subscription' as never);}}} />
     <Tabs.Screen name="profile" options={{ href: null }} />
-    <Tabs.Screen name="upgrade" options={{ href: null }} />
     <Tabs.Screen name="dates" options={{ href: null }} />
     <Tabs.Screen name="singles" options={{ href: null }} />
     <Tabs.Screen name="market" options={{ href: null }} />

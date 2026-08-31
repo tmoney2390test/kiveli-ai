@@ -6,6 +6,22 @@ export function homeWorldDiscoveryOptions(worlds:World[],currentWorldId?:string|
     .sort((left,right)=>releaseOrder(right)-releaseOrder(left)||Number(right.featured)-Number(left.featured)||right.sort_order-left.sort_order||left.name.localeCompare(right.name));
 }
 
+export function advanceHomeWorldIndex(current:number,count:number,delta=1){
+  if(count<=0)return 0;
+  return((current+delta)%count+count)%count;
+}
+
+export function shouldAutoRotateHomeWorlds({count,enabled,reducedMotion,interacting,appActive,documentVisible}:{
+  count:number;
+  enabled:boolean;
+  reducedMotion:boolean;
+  interacting:boolean;
+  appActive:boolean;
+  documentVisible:boolean;
+}){
+  return count>1&&enabled&&!reducedMotion&&!interacting&&appActive&&documentVisible;
+}
+
 function releaseOrder(world:World){
   const wave=Number(world.metadata?.releaseWave);
   return Number.isFinite(wave)?wave:world.sort_order;
