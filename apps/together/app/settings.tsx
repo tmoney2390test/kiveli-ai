@@ -297,7 +297,7 @@ export default function Settings() {
   const browserPath = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.pathname : null;
   if (!shouldRenderSettingsRoute({ platform: Platform.OS, routerPathname: pathname, browserPathname: browserPath })) return null;
 
-  return <Modal visible transparent animationType="fade" onRequestClose={close}><View style={[styles.backdrop, desktop && styles.backdropDesktop]} accessibilityViewIsModal={!desktop}>
+  const settingsSurface = <View style={[styles.backdrop, desktop && styles.backdropDesktop]} accessibilityViewIsModal={!desktop}>
     <FrostedBackdrop intensity={desktop ? 72 : 22} />
     <View pointerEvents="none" style={styles.ambientOne} />
     <View pointerEvents="none" style={styles.ambientTwo} />
@@ -350,7 +350,10 @@ export default function Settings() {
         </View>
       </KeyboardAvoidingView>
     </FrostedSurface>
-  </View></Modal>;
+  </View>;
+  return desktop
+    ? settingsSurface
+    : <Modal visible transparent animationType="fade" onRequestClose={close}>{settingsSurface}</Modal>;
 }
 
 function SectionTab({ item, active, onPress }: { item: SectionDefinition; active: boolean; onPress: () => void }) {
