@@ -4,6 +4,14 @@ const SUPABASE_PROXY_PREFIX = "/supabase";
 const APP_RELEASE_FALLBACK = "kivelli-web";
 const FINGERPRINTED_ASSET = /(?:\.|-)[a-f0-9]{16,}\.(?:avif|css|gif|ico|jpe?g|js|mjs|png|svg|ttf|otf|webp|woff2?)$/i;
 const EXPO_ENTRY_ASSET = /\bentry-([a-f0-9]{16,})\.js\b/i;
+const DYNAMIC_ROUTE_SHELLS = [
+  [/^\/character\/[^/]+\/?$/, "/character/[slug].html"],
+  [/^\/location\/[^/]+\/?$/, "/location/[slug].html"],
+  [/^\/(?:date|media|moment|plan|story)\/[^/]+\/?$/, (pathname) => `/${pathname.split("/")[1]}/[id].html`],
+  [/^\/conversation\/[^/]+\/?$/, "/conversation/[id].html"],
+  [/^\/conversations\/[^/]+\/?$/, "/conversations/[characterInstanceId].html"],
+  [/^\/create\/companion\/[^/]+\/?$/, "/create/companion/[draftId].html"],
+];
 
 export default {
   async fetch(request, env) {
@@ -50,7 +58,11 @@ function isRetiredStoryPath(pathname) {
 async function serveAppAsset(request, env) {
   try {
     const pathname = new URL(request.url).pathname;
-    const assetResponse = await env.ASSETS.fetch(request);
+    const dynamicShell = (request.method === "GET" || request.method === "HEAD")
+      ? dynamicRouteAssetPath(pathname)
+      : null;
+    const assetRequest = dynamicShell ? requestForRouteShell(request, dynamicShell) : request;
+    const assetResponse = await env.ASSETS.fetch(assetRequest);
     const responseHeaders = new Headers(assetResponse.headers);
     const contentType = responseHeaders.get("content-type") || "";
     if (isApplicationAssetPath(pathname) && contentType.includes("text/html")) {
@@ -72,6 +84,7 @@ async function serveAppAsset(request, env) {
         );
       }
       responseHeaders.set("x-kivelli-host", "cloudflare-assets");
+      if (dynamicShell) responseHeaders.set("x-kivelli-route-shell", dynamicShell);
       return new Response(html, {
         status: assetResponse.status,
         statusText: assetResponse.statusText,
@@ -93,6 +106,21 @@ async function serveAppAsset(request, env) {
       },
     });
   }
+}
+
+export function dynamicRouteAssetPath(pathname) {
+  if (pathname.endsWith(".html")) return null;
+  for (const [pattern, target] of DYNAMIC_ROUTE_SHELLS) {
+    if (!pattern.test(pathname)) continue;
+    return typeof target === "function" ? target(pathname) : target;
+  }
+  return null;
+}
+
+function requestForRouteShell(request, shellPath) {
+  const assetUrl = new URL(request.url);
+  assetUrl.pathname = shellPath;
+  return new Request(assetUrl.toString(), request);
 }
 
 export function releaseFromHtml(html) {

@@ -34,7 +34,7 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
       consumeWebEntryHref();
       return;
     }
-    if(session&&shouldRecoverWebEntry({entryHref,browserPathname:pathname,routerPathname})){
+    if(session&&shouldRecoverWebEntry({entryHref,browserPathname:pathname})){
       // The root route can unmount before its own recovery effect observes
       // Expo's transient /home redirect. This layout-level gate survives that
       // transition and restores the captured destination.
@@ -42,7 +42,7 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
     }
     // AuthenticatedSessionGate consumes the entry only after the browser and
     // router have both settled on it with an authenticated snapshot.
-  }, [authLoading, entryHref, entryPath, pathname,routerPathname,session]);
+  }, [authLoading, entryHref, entryPath, pathname,session]);
 
   useEffect(() => {
     if (demoMode) return;

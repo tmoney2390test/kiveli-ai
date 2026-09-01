@@ -14,7 +14,7 @@ export default function AuthenticatedIndex() {
     ? window.location.pathname
     : null;
   const entryHref = Platform.OS === 'web' ? initialWebEntryHref() : null;
-  const recoverDeepLink = shouldRecoverWebEntry({ entryHref, browserPathname: browserPath, routerPathname: pathname });
+  const recoverDeepLink = shouldRecoverWebEntry({ entryHref, browserPathname: browserPath });
   const isActiveRoot = shouldRunAuthenticatedIndexRedirect({
     platform: Platform.OS,
     routerPathname: pathname,
