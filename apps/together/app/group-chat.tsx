@@ -155,6 +155,7 @@ import { newGroupPrefillHref } from "../src/lib/groupInvite";
 import { canContinueMessage, isMessageFavorite, isVisibleChatMessage } from "../src/lib/messageActions";
 import { handlePhotoSharingTap } from "../src/lib/photoSharing";
 import { subscriptionHref } from "../src/lib/subscriptionPresentation";
+import { groupConversationWebHref, navigateLocalRouteOnWeb } from "../src/lib/conversationNavigation";
 import { supabase } from "../src/lib/supabase";
 import {
   hideVoiceNoteConfirmation,
@@ -191,6 +192,11 @@ type GroupTimelineItem =
   | { kind: "action"; value: ConversationAction }
   | { kind: "event"; value: ConversationEvent };
 type PendingGroupImage=NormalizedUserImage&{requestId:string};
+
+function navigateGroupSurface(href:string,mode:"push"|"replace"="push"){
+  if(Platform.OS==="web"&&navigateLocalRouteOnWeb(href,mode))return;
+  if(mode==="replace")router.replace(href as never);else router.push(href as never);
+}
 
 export default function GroupChatScreen() {
   const params = useLocalSearchParams<{
@@ -1449,7 +1455,12 @@ export default function GroupChatScreen() {
           setDetail(next);
           upsertConversation(next.conversation);
           await refresh();
-          router.replace(`/group-chat?id=${next.conversation.id}` as never);
+          navigateGroupSurface(
+            Platform.OS === "web"
+              ? groupConversationWebHref(next.conversation.id)
+              : `/group-chat?id=${next.conversation.id}`,
+            "replace",
+          );
         } catch (caught) {
           setError(
             caught instanceof Error
@@ -1487,7 +1498,8 @@ export default function GroupChatScreen() {
           });
           setShowGroupMenu(false);
           await refresh();
-          returnToMessagesInbox({reset:(href)=>router.replace(href as never),navigate:(href)=>router.push(href as never)});
+          if(Platform.OS==="web")navigateGroupSurface("/chat-tab?messages=1","replace");
+          else returnToMessagesInbox({reset:(href)=>router.replace(href as never),navigate:(href)=>router.push(href as never)});
         } catch (caught) {
           setError(
             caught instanceof Error
@@ -1507,6 +1519,7 @@ export default function GroupChatScreen() {
     setInput((value) => value.replace(/@[^\s@]*$/, `@${first} `));
   };
   const openMessagesInbox=()=>{
+    if(Platform.OS==="web"){navigateGroupSurface("/chat-tab?messages=1","replace");return;}
     returnToMessagesInbox({
       reset:(href)=>router.replace(href as never),
       navigate:(href)=>router.push(href as never),
@@ -1582,7 +1595,7 @@ export default function GroupChatScreen() {
       const worldId=detail.conversation.group_world_id??characterResidentWorld(currentSnapshot,invited)?.id;
       if(!worldId||characterResidentWorld(currentSnapshot,invited)?.id!==worldId)throw new Error('Group companions must belong to the same world.');
       setCharacterPreview(null);
-      router.push(newGroupPrefillHref({currentParticipantIds:detail.participants.map((item)=>item.character_instance_id),invitedCharacterId:invited.id,worldId}) as never);
+      navigateGroupSurface(newGroupPrefillHref({currentParticipantIds:detail.participants.map((item)=>item.character_instance_id),invitedCharacterId:invited.id,worldId}));
     }catch(caught){
       setCharacterPreview(null);
       setError(caught instanceof Error?caught.message:`${person.name} could not be invited right now.`);
@@ -1612,7 +1625,7 @@ export default function GroupChatScreen() {
         onProfile={()=>setShowDetails(true)}
         onPhoto={openPhotoMenu}
         onMenu={()=>setShowGroupMenu((value)=>!value)}
-        onMedia={latestHeaderMedia?()=>router.push(`/media/${latestHeaderMedia.id}` as never):undefined}
+        onMedia={latestHeaderMedia?()=>navigateGroupSurface(`/media/${latestHeaderMedia.id}`):undefined}
       />:<GroupHeader
         detail={detail}
         worldName={groupWorldName}
@@ -1626,10 +1639,10 @@ export default function GroupChatScreen() {
         accessibilityName={detail.conversation.title??"this group"}
         location={snapshot.locations.find((location)=>location.id===contextParticipant.together_character_instances.current_location_id)?.name??"Home"}
         activity={naturalizeCharacterActivity(contextParticipant.together_character_instances.current_activity||"Taking some private time")}
-        next={(activeGroupPlan??waitingGroupPlan)?{title:(activeGroupPlan??waitingGroupPlan)!.title,detail:(activeGroupPlan??waitingGroupPlan)!.status==="active"?"Together now":new Date((activeGroupPlan??waitingGroupPlan)!.starts_at).toLocaleString([],{weekday:"short",hour:"numeric",minute:"2-digit"}),onPress:()=>router.push(`/plan/${(activeGroupPlan??waitingGroupPlan)!.id}` as never)}:null}
+        next={(activeGroupPlan??waitingGroupPlan)?{title:(activeGroupPlan??waitingGroupPlan)!.title,detail:(activeGroupPlan??waitingGroupPlan)!.status==="active"?"Together now":new Date((activeGroupPlan??waitingGroupPlan)!.starts_at).toLocaleString([],{weekday:"short",hour:"numeric",minute:"2-digit"}),onPress:()=>navigateGroupSurface(`/plan/${(activeGroupPlan??waitingGroupPlan)!.id}`)}:null}
         memoryCount={snapshot.memoryCounts?.[contextParticipant.character_instance_id]??snapshot.memories.filter((memory)=>memory.character_instance_id===contextParticipant.character_instance_id).length}
         memoryLocked={snapshot.entitlements?.entitlement_keys?.includes("memory_inspector")!==true}
-        onMemory={()=>router.push(`/memories?character=${contextParticipant.together_character_instances.together_character_templates.slug}` as never)}
+        onMemory={()=>navigateGroupSurface(`/memories?character=${contextParticipant.together_character_instances.together_character_templates.slug}`)}
         onPlan={activeGroupPlan?undefined:()=>openGroupPlanner(false)}
       />:null}
       {showGroupMenu ? <ConversationOverflowMenu
@@ -1645,7 +1658,7 @@ export default function GroupChatScreen() {
         onDetails={() => { setShowGroupMenu(false); setShowDetails(true); }}
         onMemory={contextParticipant ? () => {
           setShowGroupMenu(false);
-          router.push(`/memories?character=${contextParticipant.together_character_instances.together_character_templates.slug}` as never);
+          navigateGroupSurface(`/memories?character=${contextParticipant.together_character_instances.together_character_templates.slug}`);
         } : undefined}
         onCreatePlan={() => openGroupPlanner(false)}
         onChangePlan={() => openGroupPlanner(true)}
@@ -1783,7 +1796,7 @@ export default function GroupChatScreen() {
                 participants={detail.participants}
                 groupLabel={groupPlanLabel}
                 busy={planActionBusyId === plan?.id}
-                onOpen={(value) => router.push(`/plan/${value.id}` as never)}
+                onOpen={(value) => navigateGroupSurface(`/plan/${value.id}`)}
                 onStart={(value) => void startGroupPlan(value)}
                 onEnd={requestEndGroupPlan}
                 onCancel={cancelGroupPlan}
@@ -1905,7 +1918,7 @@ export default function GroupChatScreen() {
             busy={mediaOfferBusy === offer.id}
             onAccept={(paymentMethod) => void acceptMediaOffer(offer,paymentMethod)}
             onDecline={() => void declineMediaOffer(offer)}
-            onBuyCredits={() => router.push(creditsSubscriptionHref as never)}
+            onBuyCredits={() => navigateGroupSurface(creditsSubscriptionHref)}
             readyContentFit="contain"
           />
         ))}
@@ -2027,13 +2040,13 @@ export default function GroupChatScreen() {
       {waitingGroupPlan ? <GroupPlanWaitingBar
         plan={waitingGroupPlan}
         locationName={waitingGroupPlan.together_locations?.name ?? snapshot?.locations.find((location) => location.id === waitingGroupPlan.location_id)?.name}
-        onDetails={() => router.push(`/plan/${waitingGroupPlan.id}` as never)}
+        onDetails={() => navigateGroupSurface(`/plan/${waitingGroupPlan.id}`)}
       /> : joinableGroupPlan ? <GroupPlanJoinBar
         plan={joinableGroupPlan}
         locationName={joinableGroupPlan.together_locations?.name ?? snapshot?.locations.find((location) => location.id === joinableGroupPlan.location_id)?.name}
         busy={planActionBusyId === joinableGroupPlan.id}
         onJoin={() => void startGroupPlan(joinableGroupPlan)}
-        onDetails={() => router.push(`/plan/${joinableGroupPlan.id}` as never)}
+        onDetails={() => navigateGroupSurface(`/plan/${joinableGroupPlan.id}`)}
       /> : null}
       {memorySavedNotice ? <MemorySavedToast key={memorySavedNotice.id} name={memorySavedNotice.name} onDismiss={() => setMemorySavedNotice(null)} /> : null}
       <GroupTurnControl
@@ -2168,7 +2181,7 @@ export default function GroupChatScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-      <PhotoSharingPaywallModal visible={showPhotoPaywall} onClose={()=>setShowPhotoPaywall(false)} onUpgrade={()=>{setShowPhotoPaywall(false);router.push(photoSharingSubscriptionHref as never);}}/>
+      <PhotoSharingPaywallModal visible={showPhotoPaywall} onClose={()=>setShowPhotoPaywall(false)} onUpgrade={()=>{setShowPhotoPaywall(false);navigateGroupSurface(photoSharingSubscriptionHref);}}/>
       <GroupManagementModal
         visible={showDetails}
         detail={detail}
@@ -2184,7 +2197,8 @@ export default function GroupChatScreen() {
         }}
         onArchived={async () => {
           await refresh();
-          returnToMessagesInbox({reset:(href)=>router.replace(href as never),navigate:(href)=>router.push(href as never)});
+          if(Platform.OS==="web")navigateGroupSurface("/chat-tab?messages=1","replace");
+          else returnToMessagesInbox({reset:(href)=>router.replace(href as never),navigate:(href)=>router.push(href as never)});
         }}
       />
       <GroupChatSettingsModal
@@ -2206,7 +2220,7 @@ export default function GroupChatScreen() {
           }
         }}
       />
-      <CharacterProfilePreviewModal companion={characterPreview} onClose={()=>setCharacterPreview(null)} onViewProfile={(person)=>{setCharacterPreview(null);router.push(`/character/${person.slug}` as never);}} onInviteToGroup={invitePreviewToGroup} />
+      <CharacterProfilePreviewModal companion={characterPreview} onClose={()=>setCharacterPreview(null)} onViewProfile={(person)=>{setCharacterPreview(null);navigateGroupSurface(`/character/${person.slug}`);}} onInviteToGroup={invitePreviewToGroup} />
         </View>
         {showRightRail && contextParticipant && snapshot
           ? <GroupContextRail
@@ -2773,7 +2787,7 @@ function GroupContextRail({
         ? (
           <GroupContextSection title={nextPlan.status === "active" ? "TOGETHER NOW" : "NEXT TOGETHER"}>
             <Pressable
-              onPress={() => router.push(`/plan/${nextPlan.id}` as never)}
+              onPress={() => navigateGroupSurface(`/plan/${nextPlan.id}`)}
             >
               <GroupContextLine
                 icon={<CalendarDays size={15} color={colors.rose} />}
@@ -2820,7 +2834,7 @@ function GroupContextRail({
           ? memories.map((memory) => (
             <Pressable
               key={memory.id}
-              onPress={() => router.push(`/memories?character=${template.slug}` as never)}
+              onPress={() => navigateGroupSurface(`/memories?character=${template.slug}`)}
               style={styles.contextMemoryLine}
             >
               <Brain size={14} color={memory.pinned ? colors.rose : colors.violet} />
@@ -2833,7 +2847,7 @@ function GroupContextRail({
           ? <Text style={styles.contextMuted}>Meaningful details will collect here.</Text>
           : (
             <Pressable
-              onPress={() => router.push(`/memories?character=${template.slug}` as never)}
+              onPress={() => navigateGroupSurface(`/memories?character=${template.slug}`)}
               style={styles.contextMemoryLine}
             >
               <LockKeyhole size={14} color={colors.violet} />
@@ -2853,14 +2867,14 @@ function GroupContextRail({
         )
         : null}
       <Pressable
-        onPress={() => router.push(`/character/${template.slug}` as never)}
+        onPress={() => navigateGroupSurface(`/character/${template.slug}`)}
         style={styles.contextSecondaryButton}
       >
         <Text style={styles.contextSecondaryButtonText}>View profile</Text>
         <ChevronRight size={16} color={colors.rose} />
       </Pressable>
       <Pressable
-        onPress={() => router.push(`/memories?character=${template.slug}` as never)}
+        onPress={() => navigateGroupSurface(`/memories?character=${template.slug}`)}
         style={styles.contextSecondaryButton}
       >
         {memoryInspector
@@ -3071,8 +3085,8 @@ function GroupBubble({
                   accessibilityRole="button"
                   accessibilityLabel={`View ${speakerName}'s profile`}
                   onPress={() =>
-                    router.push(
-                      `/character/${participant.together_character_instances.together_character_templates.slug}` as never,
+                    navigateGroupSurface(
+                      `/character/${participant.together_character_instances.together_character_templates.slug}`,
                     )}
                 >
                   <CharacterAvatarForParticipant
@@ -3098,8 +3112,8 @@ function GroupBubble({
               accessibilityRole="button"
               accessibilityLabel={`View ${speakerName}'s profile`}
               onPress={() =>
-                participant && router.push(
-                  `/character/${participant.together_character_instances.together_character_templates.slug}` as never,
+                participant && navigateGroupSurface(
+                  `/character/${participant.together_character_instances.together_character_templates.slug}`,
                 )}
             >
               <Text style={styles.speakerName}>{speakerName}</Text>
@@ -3191,7 +3205,7 @@ function GroupBubble({
               busy={offerBusy}
                 onAccept={(paymentMethod) => onOfferAccept(offer,paymentMethod)}
               onDecline={() => onOfferDecline(offer)}
-              onBuyCredits={() => router.push(subscriptionHref({intent:"credits"}) as never)}
+              onBuyCredits={() => navigateGroupSurface(subscriptionHref({intent:"credits"}))}
               readyContentFit="contain"
               onRetry={media.find((item) =>
                   item.id === offer.generated_media_id
@@ -3297,7 +3311,7 @@ function GroupVoiceNote({
   };
   const listen = async () => {
     if (!enabled) {
-      router.push(subscriptionHref({intent:"voice"}) as never);
+      navigateGroupSurface(subscriptionHref({intent:"voice"}));
       return;
     }
     if (source && media) {
@@ -3373,7 +3387,7 @@ function GroupVoiceNote({
         onConfirm={(hide) => void generate(hide)}
         onBuyCredits={() => {
           setQuote(null);
-          router.push(subscriptionHref({intent:"credits"}) as never);
+          navigateGroupSurface(subscriptionHref({intent:"credits"}));
         }}
       />
     </>

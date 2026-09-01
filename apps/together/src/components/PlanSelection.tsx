@@ -12,6 +12,7 @@ import { characterResidentWorld, locationsForWorld, worldForLocation } from '../
 import { placeHoursStatus } from '../lib/placeHours';
 import { userExperienceTimezone } from '../lib/experienceTimezone';
 import { useWorldPulse } from '../hooks/useWorldPulse';
+import { navigateLocalRouteOnWeb } from '../lib/conversationNavigation';
 
 type Props = {
   snapshot: Snapshot;
@@ -203,7 +204,8 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
       ? `&group=${encodeURIComponent(plannerConversationId)}`
       : "";
     const switchQuery=mode==='switch'&&currentPlan?.id?`&switchPlanId=${encodeURIComponent(currentPlan.id)}&openNow=1`:'';
-    router.push(`/world/places?world=${selectedWorld.slug}&character=${encodeURIComponent(character.id)}&planning=1${groupQuery}${switchQuery}` as never);
+    const href = `/world/places?world=${selectedWorld.slug}&character=${encodeURIComponent(character.id)}&planning=1${groupQuery}${switchQuery}`;
+    if (Platform.OS !== 'web' || !navigateLocalRouteOnWeb(href)) router.push(href as never);
   };
   const confirm = () => { if(!choice||!timingChoice)return;if(timingChoice==='custom'){if(selectedDateTime)onPlan(choice,{choice:'custom',startsAt:selectedDateTime});return;}onPlan(choice,{choice:timingChoice}); };
   const companionName = companionLabel?.trim() || character.together_character_templates.name;

@@ -59,4 +59,18 @@ describe("conversation navigation", () => {
     expect(localRouteHref("//example.com/chat")).toBeNull();
     expect(localRouteHref("https://example.com/chat")).toBeNull();
   });
+
+  it.each([
+    "/character/iris-vale",
+    "/memories?character=iris-vale",
+    "/conversations/instance-1",
+    "/conversation-controls?character=instance-1",
+    "/subscription?intent=voice",
+    "/media/media-1",
+    "/plan/plan-1",
+    "/world/places?world=eos-meridian&planning=1",
+    "/chat-tab?messages=1",
+  ])("keeps chat menu destination %s on the local app origin", (href) => {
+    expect(localRouteHref(href)).toBe(href);
+  });
 });

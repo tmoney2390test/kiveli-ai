@@ -24,6 +24,7 @@ import { router } from "expo-router";
 import type { GeneratedMedia, MediaOffer } from "../types";
 import { colors, radius } from "../theme";
 import { rateGeneratedMedia } from "../lib/api";
+import { navigateLocalRouteOnWeb } from "../lib/conversationNavigation";
 import { generatedMediaImageSource } from "../lib/mediaImageSource";
 import { KivelleCreditIcon } from "./KivelleCreditIcon";
 
@@ -33,10 +34,7 @@ const PHOTO_GENERATION_LOADER = require(
 
 function openGeneratedMedia(mediaId: string) {
   const href = `/media/${encodeURIComponent(mediaId)}`;
-  if (Platform.OS === "web" && typeof window !== "undefined") {
-    window.location.assign(href);
-    return;
-  }
+  if (Platform.OS === "web" && navigateLocalRouteOnWeb(href)) return;
   router.push(href as never);
 }
 

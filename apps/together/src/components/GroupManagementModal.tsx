@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,6 +27,7 @@ import { currentGroupPlan, groupPlanBlockingParticipantRemoval } from "@together
 import { manageGroup } from "../lib/api";
 import { groupAddCandidates } from "../lib/groupWorld";
 import { characterResidentWorld } from "../lib/place";
+import { navigateLocalRouteOnWeb } from "../lib/conversationNavigation";
 import { privateStoredImageSource } from "../lib/mediaImageSource";
 import { colors, radius, typography } from "../theme";
 import type { GeneratedMedia, GroupDetail, Snapshot } from "../types";
@@ -156,7 +158,8 @@ export function GroupManagementModal({ visible, detail, snapshot, busy, onClose,
 
 function GeneratedMediaCard({ media }: { media: GeneratedMedia }) {
   if (media.media_type !== "voice_note") return <MediaTile media={media} style={styles.mediaCard} contentFit="cover" />;
-  return <Pressable accessibilityRole="button" accessibilityLabel="Open voice note" onPress={() => router.push(`/media/${media.id}` as never)} style={styles.mediaCard}><View style={styles.mediaFallback}><Volume2 size={26} color={colors.rose} /><Text style={styles.voiceLabel}>Voice note</Text></View></Pressable>;
+  const href = `/media/${encodeURIComponent(media.id)}`;
+  return <Pressable accessibilityRole="button" accessibilityLabel="Open voice note" onPress={() => { if (Platform.OS !== "web" || !navigateLocalRouteOnWeb(href)) router.push(href as never); }} style={styles.mediaCard}><View style={styles.mediaFallback}><Volume2 size={26} color={colors.rose} /><Text style={styles.voiceLabel}>Voice note</Text></View></Pressable>;
 }
 
 function TabButton({ label, icon, selected, onPress }: { label: string; icon: ReactNode; selected: boolean; onPress: () => void }) {

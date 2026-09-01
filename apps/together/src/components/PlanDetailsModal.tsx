@@ -12,6 +12,7 @@ import { commitmentStatusLabel, commitmentTimeLabel, endPlanExperience, getCommi
 import { userExperienceTimezone } from '../lib/experienceTimezone';
 import { parseCustomPlanTime, recommendPlanOptions } from '../lib/plans';
 import { planActionAvailability } from '../lib/planActions';
+import { navigateLocalRouteOnWeb } from '../lib/conversationNavigation';
 import { DateTimeFields } from './DateTimeFields';
 import { FrostedBackdrop, FrostedSurface } from './FrostedGlass';
 
@@ -58,11 +59,14 @@ export function PlanDetailsModal({ visible, planId, confirmCancel = false, onClo
   const locationOptions = useMemo(() => snapshot && character && plan ? recommendPlanOptions({ activity: character.current_activity, mood: character.current_mood, locationId: character.current_location_id, interests: [...(snapshot.activePersona?.interests ?? []), ...character.together_character_versions.interests], relationshipStage: character.relationship_stage, locations: snapshot.locations.filter((item) => !plan.world_id || item.world_id === plan.world_id), chooseElsewhere: true, previousPlans: snapshot.sharedPlans }).filter((item) => item.activityKey === plan.activity_key || item.tags.some((tag) => plan.activity_key.includes(tag))).slice(0, 6) : [], [character, plan, snapshot]);
 
   const reload = async (force=false) => { if (!planId) return; const value = await getCommitment(planId); setDetail(value); setNote(value.note ?? ''); await refresh(force?{force:true}:undefined); };
+  const navigateFromPlan = (href: string) => {
+    if (Platform.OS !== 'web' || !navigateLocalRouteOnWeb(href)) router.push(href as never);
+  };
   const start = async () => {
     if (!plan || !character || !actions) return;
     if (!actions.primaryEnabled) { setError(`This plan can be started within 30 minutes of ${commitmentTimeLabel(plan, viewerTimezone)}.`); return; }
     setBusy(true); setError('');
-    try { await joinCommitment(plan.id, character.id); await refresh(); if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); onClose(); router.push(`/plan-live?planId=${plan.id}` as never); }
+    try { await joinCommitment(plan.id, character.id); await refresh(); if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); onClose(); navigateFromPlan(`/plan-live?planId=${encodeURIComponent(plan.id)}`); }
     catch (caught) { setError(caught instanceof Error ? caught.message : 'The plan could not be started.'); }
     finally { setBusy(false); }
   };
@@ -132,8 +136,8 @@ export function PlanDetailsModal({ visible, planId, confirmCancel = false, onClo
             {actions?.primary === 'start' && !actions.primaryEnabled ? <Text style={styles.availability}>Start becomes available 30 minutes before the planned time.</Text> : null}
             {actions?.canEnd && !endOpen ? <Pressable disabled={busy} onPress={() => setEndOpen(true)} style={styles.secondary}><Clock3 size={16} color={colors.muted}/><Text style={styles.secondaryText}>End plan</Text></Pressable> : null}
             {actions?.canEdit && !cancelOpen ? <View style={styles.manage}><Text style={styles.kicker}>MANAGE PLAN</Text><View style={styles.manageRow}><Pressable onPress={openTime} style={styles.manageButton}><Clock3 size={14} color={colors.rose}/><Text style={styles.manageText}>Change time</Text></Pressable><Pressable onPress={() => { setEditingPlace((value) => !value); setEditingTime(false); setEditingNote(false); }} style={styles.manageButton}><MapPin size={14} color={colors.violet}/><Text style={styles.manageText}>Change place</Text></Pressable><Pressable onPress={() => { setEditingNote((value) => !value); setEditingPlace(false); setEditingTime(false); }} style={styles.manageButton}><Text style={styles.manageText}>Edit note</Text></Pressable></View><Pressable onPress={() => setCancelOpen(true)} style={styles.cancelLink}><Trash2 size={14} color={colors.danger}/><Text style={styles.cancelText}>Cancel plan</Text></Pressable></View> : null}
-            {plan.status === 'completed' ? <Pressable onPress={() => { onClose(); router.push(`/chat?character=${character.together_character_templates.public_handle ?? character.together_character_templates.slug}&plan=1&repeatPlanId=${plan.id}` as never); }} style={styles.secondary}><RotateCcw size={15} color={colors.rose}/><Text style={styles.secondaryText}>Go again</Text></Pressable> : null}
-            {plan.status === 'missed' ? <Pressable onPress={() => { onClose(); router.push(`/plan/${plan.id}` as never); }} style={styles.secondary}><Text style={styles.secondaryText}>Explain what happened</Text></Pressable> : null}
+            {plan.status === 'completed' ? <Pressable onPress={() => { onClose(); navigateFromPlan(`/chat?character=${encodeURIComponent(character.together_character_templates.public_handle ?? character.together_character_templates.slug)}&plan=1&repeatPlanId=${encodeURIComponent(plan.id)}`); }} style={styles.secondary}><RotateCcw size={15} color={colors.rose}/><Text style={styles.secondaryText}>Go again</Text></Pressable> : null}
+            {plan.status === 'missed' ? <Pressable onPress={() => { onClose(); navigateFromPlan(`/plan/${encodeURIComponent(plan.id)}`); }} style={styles.secondary}><Text style={styles.secondaryText}>Explain what happened</Text></Pressable> : null}
           </ScrollView>}
         </FrostedSurface>
       </Pressable>

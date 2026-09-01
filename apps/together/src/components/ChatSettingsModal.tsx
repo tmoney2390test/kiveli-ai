@@ -15,6 +15,7 @@ import { createClientRequestId } from '../lib/requestId';
 import { cachedVoicePreview, rememberVoicePreview, type VoicePreview } from '../lib/voicePreviewCache';
 import { chatLanguageOptions, type ChatLanguagePreference } from '@together/domain/src/chat-language';
 import { subscriptionHref } from '../lib/subscriptionPresentation';
+import { navigateLocalRouteOnWeb } from '../lib/conversationNavigation';
 
 type Props = {
   visible: boolean;
@@ -219,7 +220,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
                 </Pressable>
               </View>
               {voicePreview && !voicePlayerStatus.isLoaded && voicePlayerStatus.error ? <Text accessibilityLiveRegion="polite" style={styles.voiceLoadingText}>The sample could not load. Try it again.</Text> : null}
-            </> : <Pressable accessibilityRole="button" onPress={() => { onClose(); router.push(subscriptionHref({intent:'voice'}) as never); }} style={styles.voiceLocked}><Volume2 size={18} color={colors.muted} /><View style={{ flex: 1 }}><Text style={styles.voiceLockedTitle}>Custom voices are available with Kivelle+</Text><Text style={styles.voiceLockedCopy}>Your companion’s authored voice is still used by default.</Text></View><ChevronRight size={16} color={colors.dimmed} /></Pressable>}
+            </> : <Pressable accessibilityRole="button" onPress={() => { onClose(); const href=subscriptionHref({intent:'voice'}); if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never); }} style={styles.voiceLocked}><Volume2 size={18} color={colors.muted} /><View style={{ flex: 1 }}><Text style={styles.voiceLockedTitle}>Custom voices are available with Kivelle+</Text><Text style={styles.voiceLockedCopy}>Your companion’s authored voice is still used by default.</Text></View><ChevronRight size={16} color={colors.dimmed} /></Pressable>}
           </SettingSection>
 
         </ScrollView>
