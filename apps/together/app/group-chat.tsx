@@ -2010,9 +2010,7 @@ export default function GroupChatScreen() {
       {memorySavedNotice ? <MemorySavedToast key={memorySavedNotice.id} name={memorySavedNotice.name} onDismiss={() => setMemorySavedNotice(null)} /> : null}
       <GroupTurnControl
         status={groupTurnStatusLabel(typing, sending)}
-        canContinue={detail.messages.some((message) => message.role === "assistant")}
         stopping={stoppingTurn}
-        onContinue={() => void send("Keep talking among yourselves for a moment.", true)}
         onStop={() => void stopGroupTurn()}
       />
       <GroupComposer
@@ -3432,15 +3430,11 @@ function GroupRecipientPicker({
 
 function GroupTurnControl({
   status,
-  canContinue,
   stopping,
-  onContinue,
   onStop,
 }: {
   status: string | null;
-  canContinue: boolean;
   stopping: boolean;
-  onContinue: () => void;
   onStop: () => void;
 }) {
   if (status || stopping) {
@@ -3453,13 +3447,7 @@ function GroupTurnControl({
       </Pressable>
     </View>;
   }
-  if (!canContinue) return null;
-  return <Pressable accessibilityRole="button" accessibilityLabel="Let the group keep talking" onPress={onContinue} style={({pressed})=>[styles.groupContinueBar,pressed&&styles.pressed]}>
-    <Sparkles size={15} color={colors.violet}/>
-    <Text style={styles.groupContinueText}>Let them talk</Text>
-    <Text numberOfLines={1} style={styles.groupContinueHint}>The group continues without another prompt</Text>
-    <ChevronRight size={14} color={colors.muted}/>
-  </Pressable>;
+  return null;
 }
 
 function mentionedParticipants(
@@ -4085,9 +4073,6 @@ const styles = StyleSheet.create({
   groupTurnText:{flex:1,color:colors.textSecondary,fontSize:11,fontWeight:"800"},
   groupStopButton:{minWidth:72,height:42,paddingHorizontal:11,borderRadius:21,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:6,backgroundColor:"rgba(255,255,255,.07)"},
   groupStopText:{color:colors.text,fontSize:10,fontWeight:"900"},
-  groupContinueBar:{minHeight:44,marginHorizontal:10,marginTop:5,paddingHorizontal:13,borderRadius:radius.md,flexDirection:"row",alignItems:"center",gap:8,backgroundColor:"rgba(112,55,139,.09)",borderWidth:1,borderColor:"rgba(170,103,224,.16)"},
-  groupContinueText:{color:colors.text,fontSize:11,fontWeight:"900"},
-  groupContinueHint:{flex:1,color:colors.dimmed,fontSize:9},
   composerWrap: {
     borderTopWidth: 1,
     borderTopColor: colors.border,
