@@ -58,10 +58,10 @@ function isRetiredStoryPath(pathname) {
 async function serveAppAsset(request, env) {
   try {
     const pathname = new URL(request.url).pathname;
-    const dynamicShell = (request.method === "GET" || request.method === "HEAD")
-      ? dynamicRouteAssetPath(pathname)
+    const routeShell = (request.method === "GET" || request.method === "HEAD")
+      ? routeAssetPath(pathname)
       : null;
-    const assetRequest = dynamicShell ? requestForRouteShell(request, dynamicShell) : request;
+    const assetRequest = routeShell ? requestForRouteShell(request, routeShell) : request;
     const assetResponse = await env.ASSETS.fetch(assetRequest);
     const responseHeaders = new Headers(assetResponse.headers);
     const contentType = responseHeaders.get("content-type") || "";
@@ -84,7 +84,7 @@ async function serveAppAsset(request, env) {
         );
       }
       responseHeaders.set("x-kivelli-host", "cloudflare-assets");
-      if (dynamicShell) responseHeaders.set("x-kivelli-route-shell", dynamicShell);
+      if (routeShell) responseHeaders.set("x-kivelli-route-shell", routeShell);
       return new Response(html, {
         status: assetResponse.status,
         statusText: assetResponse.statusText,
@@ -106,6 +106,15 @@ async function serveAppAsset(request, env) {
       },
     });
   }
+}
+
+export function routeAssetPath(pathname) {
+  const dynamicShell = dynamicRouteAssetPath(pathname);
+  if (dynamicShell) return dynamicShell;
+  if (pathname === "/") return "/index.html";
+  if (/\.[^/]+$/.test(pathname)) return null;
+  const routePath = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+  return routePath ? `${routePath}.html` : "/index.html";
 }
 
 export function dynamicRouteAssetPath(pathname) {

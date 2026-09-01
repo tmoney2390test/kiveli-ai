@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import worker, { dynamicRouteAssetPath, releaseFromHtml } from './index.js';
+import worker, { dynamicRouteAssetPath, releaseFromHtml, routeAssetPath } from './index.js';
 
 const currentEntry = '0123456789abcdef0123456789abcdef';
 const currentHtml = `<!doctype html><script src="/_expo/static/js/web/entry-${currentEntry}.js"></script>`;
@@ -19,6 +19,15 @@ test('maps dynamic app URLs to their exported Expo route shells', () => {
   assert.equal(dynamicRouteAssetPath('/create/companion/draft-1'), '/create/companion/[draftId].html');
   assert.equal(dynamicRouteAssetPath('/explore'), null);
   assert.equal(dynamicRouteAssetPath('/location/[slug].html'), null);
+});
+
+test('maps static app URLs to exact HTML assets without Cloudflare redirects', () => {
+  assert.equal(routeAssetPath('/'), '/index.html');
+  assert.equal(routeAssetPath('/explore'), '/explore.html');
+  assert.equal(routeAssetPath('/world/places'), '/world/places.html');
+  assert.equal(routeAssetPath('/settings/'), '/settings.html');
+  assert.equal(routeAssetPath('/favicon.ico'), null);
+  assert.equal(routeAssetPath('/_expo/static/js/web/entry-0123456789abcdef.js'), null);
 });
 
 test('serves a dynamic route shell without redirecting through the root document', async () => {
