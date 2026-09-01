@@ -1,5 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert@1';
-import { accountDeletionBillingPlan, hasRecentAccountAuthentication, isOwnedAvatarPath } from './kivelle-account-lifecycle.ts';
+import { accountDeletionBillingPlan, hasRecentAccountAuthentication, isOwnedAvatarPath, isOwnedPersonaAvatarPath } from './kivelle-account-lifecycle.ts';
 
 Deno.test('account deletion cancels Stripe before removing a billable account', () => {
   assertEquals(accountDeletionBillingPlan({ provider: 'stripe', subscriptionId: 'sub_123', status: 'active' }).action, 'cancel_stripe');
@@ -22,5 +22,14 @@ Deno.test('avatar paths remain private and account scoped', () => {
   assertEquals(isOwnedAvatarPath('user-1/avatar-123.jpg', 'user-1'), true);
   assertEquals(isOwnedAvatarPath('user-2/avatar-123.jpg', 'user-1'), false);
   assertEquals(isOwnedAvatarPath('user-1/../avatar-123.jpg', 'user-1'), false);
+  assertEquals(isOwnedAvatarPath('user-1/avatar-123/other.jpg', 'user-1'), false);
   assertEquals(isOwnedAvatarPath(null, 'user-1'), true);
+});
+
+Deno.test('Persona avatar paths are account scoped and structurally bounded', () => {
+  assertEquals(isOwnedPersonaAvatarPath('user-1/persona-avatars/draft-123/avatar-upload-456.jpg', 'user-1'), true);
+  assertEquals(isOwnedPersonaAvatarPath('user-1/avatar-123.jpg', 'user-1'), true);
+  assertEquals(isOwnedPersonaAvatarPath('user-2/persona-avatars/draft-123/avatar-upload-456.jpg', 'user-1'), false);
+  assertEquals(isOwnedPersonaAvatarPath('user-1/persona-avatars/../avatar-upload-456.jpg', 'user-1'), false);
+  assertEquals(isOwnedPersonaAvatarPath('user-1/persona-avatars/draft-123/avatar-upload-456.png', 'user-1'), false);
 });

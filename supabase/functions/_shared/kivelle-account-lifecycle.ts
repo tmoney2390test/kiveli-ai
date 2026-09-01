@@ -33,7 +33,13 @@ export function hasRecentAccountAuthentication(lastSignInAt: string | null | und
 }
 
 export function isOwnedAvatarPath(path: string | null, userId: string): boolean {
-  return path === null || (path.startsWith(`${userId}/avatar-`) && path.endsWith('.jpg') && !path.includes('..'));
+  return path === null || new RegExp(`^${escapeRegExp(userId)}/avatar-[a-zA-Z0-9_-]+\\.jpg$`).test(path);
+}
+
+export function isOwnedPersonaAvatarPath(path: string | null | undefined, userId: string): boolean {
+  if (path == null) return true;
+  if (isOwnedAvatarPath(path, userId)) return true;
+  return new RegExp(`^${escapeRegExp(userId)}/persona-avatars/[a-zA-Z0-9_-]{1,80}/avatar-[a-zA-Z0-9_-]{1,100}\\.jpg$`).test(path);
 }
 
 function providerLabel(provider: string): string | null {
@@ -42,4 +48,8 @@ function providerLabel(provider: string): string | null {
   if (provider === 'apple') return 'the App Store';
   if (provider === 'google_play' || provider === 'google') return 'Google Play';
   return provider ? 'your billing provider' : null;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

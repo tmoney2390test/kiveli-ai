@@ -12,6 +12,7 @@ import { ensureMainContinuity } from '../_shared/together-continuity.ts';
 import { resolveSubscriptionAccess } from '../_shared/kivelle-subscription.ts';
 import { cancelStripeSubscriptionNow } from '../_shared/stripe.ts';
 import { accountDeletionBillingPlan, hasRecentAccountAuthentication, isOwnedAvatarPath } from '../_shared/kivelle-account-lifecycle.ts';
+import { validatePrivateAvatarJpeg } from '../_shared/kivelle-avatar.ts';
 
 const goals = z.enum(['Dating', 'Friendship', 'Stories', 'Social worlds']);
 const schema = z.discriminatedUnion('action', [
@@ -38,6 +39,7 @@ serve(async (request, correlationId) => {
     if (!isOwnedAvatarPath(input.avatarPath, user.id)) throw new AppError('VALIDATION_FAILED', 'That account photo does not belong to this account.', 400);
     const { data: before, error: beforeError } = await db.from('together_profiles').select('avatar_path').eq('user_id', user.id).single();
     if (beforeError || !before) throw new AppError('INTERNAL_ERROR', 'Could not load your profile.', 500, true);
+    if (input.avatarPath && input.avatarPath !== before.avatar_path) await validatePrivateAvatarJpeg(db, input.avatarPath);
     const now = new Date().toISOString();
     const { data, error } = await db.from('together_profiles').update({ display_name: input.displayName, about_me: input.aboutMe, interests: input.interests, experience_goals: input.goals, avatar_path: input.avatarPath, updated_at: now }).eq('user_id', user.id).select('*').single();
     if (error || !data) throw new AppError('INTERNAL_ERROR', 'Could not save your profile.', 500, true);

@@ -5,23 +5,27 @@ const SIGNED_URL_LIFETIME_SECONDS = 60 * 60;
 const REFRESH_INTERVAL_MS = 50 * 60 * 1000;
 
 export function useProfileAvatarUrl(path?: string | null) {
-  const [url, setUrl] = useState<string | null>(null);
+  const [signed, setSigned] = useState<{ path: string; url: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
     if (!path) {
-      setUrl(null);
+      setSigned(null);
       return undefined;
     }
+
+    // Never keep another Persona's previous signed image visible while a new
+    // private path is being resolved.
+    setSigned(null);
 
     const load = async () => {
       const { data, error } = await supabase.storage
         .from('together-user-media')
         .createSignedUrl(path, SIGNED_URL_LIFETIME_SECONDS);
       if (cancelled) return;
-      setUrl(error ? null : data?.signedUrl ?? null);
+      setSigned(error || !data?.signedUrl ? null : { path, url: data.signedUrl });
       refreshTimer = setTimeout(() => void load(), REFRESH_INTERVAL_MS);
     };
 
@@ -32,5 +36,7 @@ export function useProfileAvatarUrl(path?: string | null) {
     };
   }, [path]);
 
-  return url;
+  // This synchronous path check prevents even a one-frame flash of the
+  // previously selected Persona before the effect above runs.
+  return signed && signed.path === path ? signed.url : null;
 }
