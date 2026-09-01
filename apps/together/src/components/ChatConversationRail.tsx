@@ -10,7 +10,7 @@ import {
   isActiveInboxConversation,
   returnToMessagesInbox,
 } from "../lib/messageInbox";
-import { conversationRouteTarget } from "../lib/conversationNavigation";
+import { conversationRouteTarget, navigateLocalRouteOnWeb } from "../lib/conversationNavigation";
 import { warmRoute } from "../lib/routeWarmup";
 import { colors, radius } from "../theme";
 import type {
@@ -109,7 +109,7 @@ export function ChatConversationRail({
 
   const openMessages = () => {
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      router.replace({ pathname: "/(tabs)/chat-tab", params: { messages: "1" } } as never);
+      navigateLocalRouteOnWeb("/chat-tab?messages=1", "replace");
       return;
     }
     returnToMessagesInbox({
@@ -206,6 +206,7 @@ export function ChatConversationRail({
 }
 
 function openRailHref(href: string) {
+  if (Platform.OS === "web" && navigateLocalRouteOnWeb(href, "replace")) return;
   const target = conversationRouteTarget(href);
   if (target) router.replace(target as never);
 }

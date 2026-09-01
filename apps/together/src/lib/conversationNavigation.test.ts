@@ -4,6 +4,7 @@ import {
   directConversationTarget,
   groupConversationTarget,
   isConversationPath,
+  localRouteHref,
   shouldShowRouteTransition,
 } from "./conversationNavigation";
 
@@ -37,5 +38,13 @@ describe("conversation navigation", () => {
     expect(isConversationPath("/group-chat/")).toBe(true);
     expect(shouldShowRouteTransition("/group-chat", "/chat")).toBe(false);
     expect(shouldShowRouteTransition("/chat", "/home")).toBe(true);
+  });
+
+  it("accepts only same-origin route hrefs for browser history navigation", () => {
+    expect(localRouteHref("/group-chat?id=group%201#composer")).toBe(
+      "/group-chat?id=group%201#composer",
+    );
+    expect(localRouteHref("//example.com/chat")).toBeNull();
+    expect(localRouteHref("https://example.com/chat")).toBeNull();
   });
 });

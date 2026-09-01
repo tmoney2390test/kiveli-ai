@@ -33,6 +33,29 @@ export function conversationRouteTarget(href: string): ConversationRouteTarget |
   return null;
 }
 
+export function localRouteHref(href: string): string | null {
+  if (!href.startsWith("/") || href.startsWith("//")) return null;
+  const parsed = new URL(href, "https://kivelli.app");
+  return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+}
+
+export function navigateLocalRouteOnWeb(
+  href: string,
+  mode: "push" | "replace" = "push",
+): boolean {
+  if (typeof window === "undefined") return false;
+  const destination = localRouteHref(href);
+  if (!destination) return false;
+  const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  if (current === destination) return true;
+  window.history[mode === "replace" ? "replaceState" : "pushState"]({}, "", destination);
+  const event = typeof window.PopStateEvent === "function"
+    ? new window.PopStateEvent("popstate", { state: window.history.state })
+    : new Event("popstate");
+  window.dispatchEvent(event);
+  return true;
+}
+
 export function isConversationPath(pathname: string): boolean {
   const path = (pathname.split(/[?#]/, 1)[0] ?? "").replace(/\/$/, "") || "/";
   return path === "/chat" || path === "/group-chat";

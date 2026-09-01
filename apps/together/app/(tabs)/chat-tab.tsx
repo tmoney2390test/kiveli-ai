@@ -14,7 +14,6 @@ import {
   View,
 } from "react-native";
 import {
-  Link,
   Redirect,
   router,
   useFocusEffect,
@@ -74,7 +73,7 @@ import type {
 import { useAppShell } from "../../src/shell/AppShellContext";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useNetworkStatus } from "../../src/providers/NetworkStatusProvider";
-import { conversationRouteTarget } from "../../src/lib/conversationNavigation";
+import { conversationRouteTarget, navigateLocalRouteOnWeb } from "../../src/lib/conversationNavigation";
 
 const demoMode = __DEV__ &&
   process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === "true";
@@ -568,7 +567,7 @@ function ConversationRow(
     <Pressable
       accessibilityRole="link"
       accessibilityLabel={`Open ${displayName}${conversation.unread ? ", unread messages" : ""}`}
-      onPress={conversation.kind === "group" ? () => openGroupHref(href) : undefined}
+      onPress={() => openChatHref(href)}
       disabled={busy}
       style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
     >
@@ -613,7 +612,7 @@ function ConversationRow(
   );
   return (
     <View style={[styles.row, busy && styles.rowBusy]}>
-      {conversation.kind === "group" ? rowControl : <Link href={href as never} asChild>{rowControl}</Link>}
+      {rowControl}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Options for ${displayName}`}
@@ -864,7 +863,7 @@ function ConversationActions(
                       accessibilityLabel="Edit group settings"
                       onPress={() => {
                         onClose();
-                        openGroupHref(
+                        openChatHref(
                           `/group-chat?id=${encodeURIComponent(row.conversation.id)}&settings=1`,
                         );
                       }}
@@ -923,7 +922,8 @@ function ConversationActions(
   );
 }
 
-function openGroupHref(href: string) {
+function openChatHref(href: string) {
+  if (Platform.OS === "web" && navigateLocalRouteOnWeb(href)) return;
   const target = conversationRouteTarget(href);
   if (target) router.push(target as never);
 }
