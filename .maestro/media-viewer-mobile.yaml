@@ -1,11 +1,11 @@
-appId: com.together.world
+appId: app.kivelli
 name: Generated video remains contained in portrait and landscape
 env:
   MEDIA_ID: ${MEDIA_ID}
 ---
 - launchApp:
     clearState: false
-- openLink: together://media/${MEDIA_ID}
+- openLink: kivelli://media/${MEDIA_ID}
 - extendedWaitUntil:
     visible: Open full-screen video
     timeout: 20000

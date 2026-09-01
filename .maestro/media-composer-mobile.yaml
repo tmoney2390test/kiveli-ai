@@ -1,9 +1,9 @@
-appId: com.together.world
+appId: app.kivelli
 name: Media composer works on a signed-in mobile device
 ---
 - launchApp:
     clearState: false
-- openLink: together://chat
+- openLink: kivelli://chat
 - extendedWaitUntil:
     visible:
       id: chat-media-menu-button
