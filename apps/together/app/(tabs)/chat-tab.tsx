@@ -860,7 +860,7 @@ function ConversationActions(
                 ? (
                   <Pressable
                       accessibilityRole="link"
-                      accessibilityLabel="Manage group"
+                      accessibilityLabel="Edit group settings"
                       onPress={() => {
                         onClose();
                         openGroupHref(
@@ -871,9 +871,9 @@ function ConversationActions(
                     >
                       <Settings size={19} color={colors.text} />
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.sheetActionTitle}>Manage group</Text>
+                        <Text style={styles.sheetActionTitle}>Edit group settings</Text>
                         <Text style={styles.sheetActionCopy}>
-                          People, shared media, notifications, and chat behavior
+                          Name, language, notifications, replies, and group energy
                         </Text>
                       </View>
                     </Pressable>

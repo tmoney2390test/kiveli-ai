@@ -74,12 +74,12 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
       <FrostedSurface intensity={94} style={styles.card}>
         <View style={styles.header}>
           <View style={styles.headerIcon}><Settings size={23} color={colors.violet} /></View>
-          <View style={styles.headerCopy}><Text style={styles.title}>Chat settings</Text><Text style={styles.subtitle}>Conversation style and group behavior.</Text></View>
+          <View style={styles.headerCopy}><Text style={styles.title}>Edit Group Chat Settings</Text><Text style={styles.subtitle}>Customize this conversation’s style and group behavior.</Text></View>
           <Pressable accessibilityLabel="Close" disabled={saving} onPress={onClose} style={styles.close}><X size={20} color={colors.muted} /></Pressable>
         </View>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Section icon={<UsersRound size={16} color={colors.violet} />} label="Group name">
-            <TextInput value={title} onChangeText={setTitle} editable={!saving} maxLength={80} placeholder="Name this group" placeholderTextColor={colors.dimmed} style={styles.input} />
+            <TextInput accessibilityLabel="Group name" value={title} onChangeText={setTitle} editable={!saving} maxLength={80} placeholder="Name this group" placeholderTextColor={colors.dimmed} style={styles.input} />
           </Section>
           <Section icon={<Languages size={16} color={colors.violet} />} label="Chat language">
             <Pressable accessibilityRole="button" accessibilityLabel={`Chat language: ${selectedLanguage.label}`} accessibilityState={{ expanded: languageOpen, disabled: saving }} disabled={saving} onPress={() => setLanguageOpen(true)} style={styles.languageSelect}>

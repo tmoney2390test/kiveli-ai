@@ -81,7 +81,8 @@ import {
   type MessageActionDefinition,
 } from "../src/components";
 import { PlanSelection } from "../src/components/PlanSelection";
-import { GroupManagementModal, type GroupManagementTab } from "../src/components/GroupManagementModal";
+import { GroupManagementModal } from "../src/components/GroupManagementModal";
+import { GroupChatSettingsModal } from "../src/components/GroupChatSettingsModal";
 import {
   ApiError,
   confirmUserImage,
@@ -233,8 +234,8 @@ export default function GroupChatScreen() {
     [photoUploadPhase,setPhotoUploadPhase]=useState<PhotoUploadPhase>("idle"),
     [photoSubjects, setPhotoSubjects] = useState<string[]>([]),
     [photoRequestBusy, setPhotoRequestBusy] = useState(false),
-    [showDetails, setShowDetails] = useState(params.details === "1" || params.settings === "1"),
-    [managementTab,setManagementTab]=useState<GroupManagementTab>(params.settings === "1" ? "settings" : "people"),
+    [showDetails, setShowDetails] = useState(params.details === "1" && params.settings !== "1"),
+    [showChatSettings,setShowChatSettings]=useState(params.settings === "1"),
     [showGroupMenu, setShowGroupMenu] = useState(false),
     [characterPreview,setCharacterPreview]=useState<FeaturedCompanion|null>(null),
     [favoriteBusy, setFavoriteBusy] = useState(false),
@@ -1580,7 +1581,7 @@ export default function GroupChatScreen() {
         mediaSource={latestHeaderMedia?.signed_url?{uri:latestHeaderMedia.signed_url}:groupPortraitSource}
         hasMedia={Boolean(latestHeaderMedia)}
         onBack={openMessagesInbox}
-        onProfile={()=>{setManagementTab("people");setShowDetails(true);}}
+        onProfile={()=>setShowDetails(true)}
         onPhoto={openPhotoMenu}
         onMenu={()=>setShowGroupMenu((value)=>!value)}
         onMedia={latestHeaderMedia?()=>router.push(`/media/${latestHeaderMedia.id}` as never):undefined}
@@ -1613,7 +1614,7 @@ export default function GroupChatScreen() {
         pinBusy={pinBusy}
         memoryLocked={snapshot?.entitlements?.entitlement_keys?.includes("memory_inspector") !== true}
         onClose={() => setShowGroupMenu(false)}
-        onDetails={() => { setShowGroupMenu(false); setManagementTab("people"); setShowDetails(true); }}
+        onDetails={() => { setShowGroupMenu(false); setShowDetails(true); }}
         onMemory={contextParticipant ? () => {
           setShowGroupMenu(false);
           router.push(`/memories?character=${contextParticipant.together_character_instances.together_character_templates.slug}` as never);
@@ -1625,8 +1626,7 @@ export default function GroupChatScreen() {
         onPin={() => void toggleGroupPinned()}
         onSettings={() => {
           setShowGroupMenu(false);
-          setManagementTab("settings");
-          setShowDetails(true);
+          setShowChatSettings(true);
         }}
         onFresh={startFreshGroupChat}
         onDelete={deleteGroupConversation}
@@ -2143,7 +2143,6 @@ export default function GroupChatScreen() {
       <PhotoSharingPaywallModal visible={showPhotoPaywall} onClose={()=>setShowPhotoPaywall(false)} onUpgrade={()=>{setShowPhotoPaywall(false);router.push(photoSharingSubscriptionHref as never);}}/>
       <GroupManagementModal
         visible={showDetails}
-        initialTab={managementTab}
         detail={detail}
         snapshot={snapshot}
         busy={busy}
@@ -2158,6 +2157,25 @@ export default function GroupChatScreen() {
         onArchived={async () => {
           await refresh();
           returnToMessagesInbox({reset:(href)=>router.replace(href as never),navigate:(href)=>router.push(href as never)});
+        }}
+      />
+      <GroupChatSettingsModal
+        visible={showChatSettings}
+        conversation={detail.conversation}
+        settings={detail.settings}
+        onClose={() => setShowChatSettings(false)}
+        onSaved={(conversation, settings) => {
+          setDetail((current) => current
+            ? { ...current, conversation, settings }
+            : current);
+          if (
+            settings.responseMode === "choose_speaker" &&
+            recipientSelection === "automatic"
+          ) {
+            setRecipientSelection(
+              detail.participants[0]?.character_instance_id ?? "automatic",
+            );
+          }
         }}
       />
       <CharacterProfilePreviewModal companion={characterPreview} onClose={()=>setCharacterPreview(null)} onViewProfile={(person)=>{setCharacterPreview(null);router.push(`/character/${person.slug}` as never);}} onInviteToGroup={invitePreviewToGroup} />

@@ -7,49 +7,36 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import {
-  AlignLeft,
   Archive,
-  Bell,
-  BellOff,
-  BellRing,
   ChevronRight,
   Images,
-  Languages,
   Play,
   Plus,
-  Settings,
-  Sparkles,
-  Type,
   UserMinus,
   UsersRound,
   Volume2,
   X,
 } from "lucide-react-native";
 import { currentGroupPlan, groupPlanBlockingParticipantRemoval } from "@together/domain/src/group-chat";
-import { chatLanguageOptions, type ChatLanguagePreference } from "@together/domain/src/chat-language";
 import { manageGroup } from "../lib/api";
-import { chatTextSizeOptions, resolveChatLanguage, resolveChatResponseStyle, resolveChatTextSize } from "../lib/chatSettings";
-import { conversationStyleOptions } from "../lib/conversationStyle";
 import { groupAddCandidates } from "../lib/groupWorld";
 import { characterResidentWorld } from "../lib/place";
 import { privateStoredImageSource } from "../lib/mediaImageSource";
 import { colors, radius, typography } from "../theme";
-import type { ChatTextSize, ConversationStyle, GeneratedMedia, GroupDetail, GroupSettings, Snapshot } from "../types";
+import type { GeneratedMedia, GroupDetail, Snapshot } from "../types";
 import { CharacterAvatar } from "./ui";
 import { FrostedSurface } from "./FrostedGlass";
 import { MediaTile } from "./media";
 
-export type GroupManagementTab = "people" | "media" | "settings";
+type GroupManagementTab = "people" | "media";
 
 type Props = {
   visible: boolean;
-  initialTab: GroupManagementTab;
   detail: GroupDetail;
   snapshot: Snapshot | null;
   busy: boolean;
@@ -59,32 +46,18 @@ type Props = {
   onArchived: () => void | Promise<void>;
 };
 
-export function GroupManagementModal({ visible, initialTab, detail, snapshot, busy, onClose, onBusy, onChanged, onArchived }: Props) {
-  const [tab, setTab] = useState<GroupManagementTab>(initialTab);
+export function GroupManagementModal({ visible, detail, snapshot, busy, onClose, onBusy, onChanged, onArchived }: Props) {
+  const [tab, setTab] = useState<GroupManagementTab>("people");
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
   const [mediaFilter, setMediaFilter] = useState<"all" | "image" | "video" | "audio">("all");
-  const [title, setTitle] = useState(detail.conversation.title ?? "");
-  const [responseStyle, setResponseStyle] = useState<ConversationStyle>(resolveChatResponseStyle(detail.conversation, snapshot?.profile ?? null));
-  const [textSize, setTextSize] = useState<ChatTextSize>(resolveChatTextSize(detail.conversation));
-  const [chatLanguage, setChatLanguage] = useState<ChatLanguagePreference>(resolveChatLanguage(detail.conversation));
-  const [responseMode, setResponseMode] = useState<GroupSettings["responseMode"]>(detail.settings.responseMode);
-  const [energy, setEnergy] = useState<GroupSettings["energy"]>(detail.settings.energy);
-  const [notificationMode, setNotificationMode] = useState<GroupSettings["notificationMode"]>(detail.settings.notificationMode);
 
   useEffect(() => {
     if (!visible) return;
-    setTab(initialTab);
+    setTab("people");
     setAdding(false);
     setError("");
-    setTitle(detail.conversation.title ?? "");
-    setResponseStyle(resolveChatResponseStyle(detail.conversation, snapshot?.profile ?? null));
-    setTextSize(resolveChatTextSize(detail.conversation));
-    setChatLanguage(resolveChatLanguage(detail.conversation));
-    setResponseMode(detail.settings.responseMode);
-    setEnergy(detail.settings.energy);
-    setNotificationMode(detail.settings.notificationMode);
-  }, [detail.conversation.id, initialTab, visible]);
+  }, [detail.conversation.id, visible]);
 
   const active = useMemo(() => new Set(detail.participants.map((participant) => participant.character_instance_id)), [detail.participants]);
   const anchor = detail.participants[0]?.together_character_instances;
@@ -112,17 +85,6 @@ export function GroupManagementModal({ visible, initialTab, detail, snapshot, bu
     }
   };
 
-  const saveSettings = () => mutate({
-    action: "settings",
-    title: title.trim() || null,
-    responseStyle,
-    textSize,
-    chatLanguage,
-    responseMode,
-    energy,
-    notificationMode,
-  });
-
   const archive = async () => {
     if (blockingArchivePlan) return;
     onBusy(true);
@@ -149,7 +111,6 @@ export function GroupManagementModal({ visible, initialTab, detail, snapshot, bu
         <View accessibilityRole="tablist" style={styles.tabs}>
           <TabButton label="People" icon={<UsersRound size={15} color={tab === "people" ? colors.text : colors.muted} />} selected={tab === "people"} onPress={() => setTab("people")} />
           <TabButton label={`Media${mediaCount ? ` ${mediaCount}` : ""}`} icon={<Images size={15} color={tab === "media" ? colors.text : colors.muted} />} selected={tab === "media"} onPress={() => setTab("media")} />
-          <TabButton label="Settings" icon={<Settings size={15} color={tab === "settings" ? colors.text : colors.muted} />} selected={tab === "settings"} onPress={() => setTab("settings")} />
         </View>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {tab === "people" ? <>
@@ -185,18 +146,6 @@ export function GroupManagementModal({ visible, initialTab, detail, snapshot, bu
             {!filteredAttachments.length && !filteredGenerated.length ? <View style={styles.empty}><Images size={28} color={colors.dimmed} /><Text style={styles.emptyTitle}>{mediaCount ? "Nothing in this filter" : "No shared media yet"}</Text><Text style={styles.emptyCopy}>{mediaCount ? "Try another media type." : "Photos, videos, and voice notes from this group will collect here."}</Text></View> : null}
           </> : null}
 
-          {tab === "settings" ? <>
-            <SettingsSection icon={<UsersRound size={16} color={colors.violet} />} title="Group name"><TextInput accessibilityLabel="Group name" value={title} onChangeText={setTitle} editable={!busy} maxLength={80} placeholder="Name this group" placeholderTextColor={colors.dimmed} style={styles.input} /></SettingsSection>
-            <SettingsSection icon={<Bell size={16} color={colors.violet} />} title="Notifications" hint="Messages always remain in the group. This controls push interruptions.">
-              <View style={styles.choiceList}><Choice label="All activity" detail="Notify for every new group message." selected={notificationMode === "all"} icon={<BellRing size={18} color={notificationMode === "all" ? colors.rose : colors.muted} />} onPress={() => setNotificationMode("all")} /><Choice label="Mentions only" detail="Notify only when the group specifically needs you." selected={notificationMode === "mentions"} icon={<Bell size={18} color={notificationMode === "mentions" ? colors.rose : colors.muted} />} onPress={() => setNotificationMode("mentions")} /><Choice label="Muted" detail="Keep activity in Messages without push alerts." selected={notificationMode === "muted"} icon={<BellOff size={18} color={notificationMode === "muted" ? colors.rose : colors.muted} />} onPress={() => setNotificationMode("muted")} /></View>
-            </SettingsSection>
-            <SettingsSection icon={<Languages size={16} color={colors.violet} />} title="Chat language"><View style={styles.languageChips}>{chatLanguageOptions.map((option) => <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: chatLanguage === option.value }} onPress={() => setChatLanguage(option.value)} style={[styles.languageChip, chatLanguage === option.value && styles.filterActive]}><Text style={[styles.filterText, chatLanguage === option.value && styles.selectedText]}>{option.nativeLabel}</Text></Pressable>)}</View></SettingsSection>
-            <SettingsSection icon={<AlignLeft size={16} color={colors.violet} />} title="Response style"><View style={styles.columns}>{conversationStyleOptions.map((option) => <Choice key={option.value} label={option.value === "texting" ? "SMS" : "Paragraph"} selected={responseStyle === option.value} onPress={() => setResponseStyle(option.value)} />)}</View></SettingsSection>
-            <SettingsSection icon={<Type size={16} color={colors.violet} />} title="Text size"><View style={styles.columns}>{chatTextSizeOptions.map((option) => <Choice key={option.value} label={option.label} selected={textSize === option.value} onPress={() => setTextSize(option.value)} />)}</View></SettingsSection>
-            <SettingsSection icon={<UsersRound size={16} color={colors.violet} />} title="Who responds" hint="Automatic chooses natural speakers. You can still direct individual messages from the composer."><View style={styles.columns}><Choice label="Automatic" selected={responseMode === "automatic"} onPress={() => setResponseMode("automatic")} /><Choice label="Choose speaker" selected={responseMode === "choose_speaker"} onPress={() => setResponseMode("choose_speaker")} /></View></SettingsSection>
-            <SettingsSection icon={<Sparkles size={16} color={colors.violet} />} title="Group energy" hint="Quiet stays focused; lively allows more handoffs and overlap."><View style={styles.columns}>{(["quiet", "balanced", "lively"] as const).map((value) => <Choice key={value} label={value[0]!.toUpperCase() + value.slice(1)} selected={energy === value} onPress={() => setEnergy(value)} />)}</View></SettingsSection>
-            <Pressable accessibilityRole="button" accessibilityLabel="Save group settings" disabled={busy} onPress={() => void saveSettings()} style={[styles.save, busy && styles.disabled]}>{busy ? <ActivityIndicator color="#fff" /> : <><Settings size={17} color="#fff" /><Text style={styles.saveText}>Save settings</Text></>}</Pressable>
-          </> : null}
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         </ScrollView>
         {busy ? <View pointerEvents="none" style={styles.busy}><ActivityIndicator color={colors.rose} /></View> : null}
@@ -214,8 +163,6 @@ function TabButton({ label, icon, selected, onPress }: { label: string; icon: Re
   return <Pressable accessibilityRole="tab" accessibilityState={{ selected }} onPress={onPress} style={[styles.tab, selected && styles.tabActive]}>{icon}<Text style={[styles.tabText, selected && styles.selectedText]}>{label}</Text></Pressable>;
 }
 function SectionLabel({ children }: { children: ReactNode }) { return <Text style={styles.sectionLabel}>{children}</Text>; }
-function SettingsSection({ icon, title, hint, children }: { icon: ReactNode; title: string; hint?: string; children: ReactNode }) { return <View style={styles.settingsSection}><View style={styles.settingsTitle}>{icon}<Text style={styles.settingsLabel}>{title}</Text></View>{hint ? <Text style={styles.settingsHint}>{hint}</Text> : null}{children}</View>; }
-function Choice({ label, detail, selected, icon, onPress }: { label: string; detail?: string; selected: boolean; icon?: ReactNode; onPress: () => void }) { return <Pressable accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={onPress} style={[styles.choice, selected && styles.choiceActive]}>{icon}<View style={{ flex: 1, minWidth: 0 }}><Text style={[styles.choiceLabel, selected && styles.selectedText]}>{label}</Text>{detail ? <Text style={styles.choiceDetail}>{detail}</Text> : null}</View>{selected ? <Text style={styles.check}>✓</Text> : null}</Pressable>; }
 
 const styles = StyleSheet.create({
   root: { flex: 1, alignItems: "center", justifyContent: "center", padding: 18, backgroundColor: "rgba(5,4,10,.72)" },
@@ -258,22 +205,6 @@ const styles = StyleSheet.create({
   empty: { minHeight: 210, alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 24 },
   emptyTitle: { color: colors.text, fontSize: 15, fontWeight: "900" },
   emptyCopy: { color: colors.muted, fontSize: 11, lineHeight: 17, textAlign: "center", paddingVertical: 12 },
-  settingsSection: { gap: 9, marginBottom: 23 },
-  settingsTitle: { flexDirection: "row", alignItems: "center", gap: 8 },
-  settingsLabel: { color: colors.text, fontSize: 13, fontWeight: "900" },
-  settingsHint: { color: colors.muted, fontSize: 10, lineHeight: 15 },
-  input: { minHeight: 50, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderBright, backgroundColor: "rgba(255,255,255,.04)", paddingHorizontal: 14, color: colors.text, fontSize: 14 },
-  choiceList: { gap: 7 },
-  columns: { flexDirection: "row", gap: 8 },
-  choice: { minHeight: 52, flex: 1, flexDirection: "row", alignItems: "center", gap: 9, paddingHorizontal: 12, borderRadius: radius.md, backgroundColor: "rgba(255,255,255,.035)", borderWidth: 1, borderColor: colors.border },
-  choiceActive: { backgroundColor: "rgba(112,55,139,.24)", borderColor: "#A845F2" },
-  choiceLabel: { color: colors.muted, fontSize: 11, fontWeight: "800" },
-  choiceDetail: { color: colors.muted, fontSize: 9, lineHeight: 13, marginTop: 2 },
-  check: { color: colors.rose, fontSize: 15, fontWeight: "900" },
-  languageChips: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
-  languageChip: { minHeight: 38, justifyContent: "center", paddingHorizontal: 12, borderRadius: 19, backgroundColor: "rgba(255,255,255,.035)", borderWidth: 1, borderColor: colors.border },
-  save: { minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: radius.md, backgroundColor: "#9141D5" },
-  saveText: { color: "#fff", fontSize: 13, fontWeight: "900" },
   error: { color: colors.danger, fontSize: 12, lineHeight: 18, marginTop: 12, textAlign: "center" },
   busy: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,8,14,.52)" },
 });
