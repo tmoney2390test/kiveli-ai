@@ -9,4 +9,6 @@ import { installWebNavigationCompatibility } from '../src/lib/appNavigation';
 const navigationTheme=createKivelliNavigationTheme(DarkTheme);
 installWebNavigationCompatibility(router);
 
+export const unstable_settings = { initialRouteName: '(tabs)' };
+
 export default function RootLayout(){return <ThemeProvider value={navigationTheme}><AppProviders><StatusBar style="light"/><Stack screenOptions={{headerShown:false,contentStyle:{backgroundColor:colors.background},animation:'fade'}}/><RouteTransitionVeil/></AppProviders></ThemeProvider>;}
