@@ -5,7 +5,6 @@ import {
   Animated,
   FlatList,
   KeyboardAvoidingView,
-  Linking,
   Modal,
   Platform,
   Pressable,
@@ -69,6 +68,7 @@ import {
   FailedMessageRecovery,
   FrostedSurface,
   JumpToLatestButton,
+  ImageLightbox,
   MediaTile,
   MessageCharacterCounter,
   MessageActionSheet,
@@ -2943,7 +2943,7 @@ function GroupBubble({
 }) {
   const opacity = useRef(new Animated.Value(0)).current,
     translate = useRef(new Animated.Value(8)).current;
-  const [actionsOpen,setActionsOpen]=useState(false),[voiceRequestToken,setVoiceRequestToken]=useState(0);
+  const [actionsOpen,setActionsOpen]=useState(false),[voiceRequestToken,setVoiceRequestToken]=useState(0),[sharedPhoto,setSharedPhoto]=useState<ConversationAttachment|null>(null);
   useEffect(() => {
     Animated.parallel([
       Animated.timing(opacity, {
@@ -3086,9 +3086,10 @@ function GroupBubble({
                   key={attachment.id}
                   accessibilityRole="button"
                   accessibilityLabel="Open shared photo"
-                  onPress={() =>
-                    attachment.signed_url &&
-                    void Linking.openURL(attachment.signed_url)}
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    if (attachment.signed_url) setSharedPhoto(attachment);
+                  }}
                 >
                   <Image
                     source={privateStoredImageSource(
@@ -3176,6 +3177,19 @@ function GroupBubble({
         </View>
       </View>
       <MessageActionSheet visible={actionsOpen} message={message.content} senderName={speakerName} sentAt={message.created_at} userMessage={user} actions={actionItems} onClose={()=>setActionsOpen(false)}/>
+      {sharedPhoto?.signed_url
+        ? (
+          <ImageLightbox
+            visible
+            source={privateStoredImageSource(
+              sharedPhoto.signed_url,
+              sharedPhoto.storage_path,
+            )!}
+            accessibilityLabel="Shared photo"
+            onClose={() => setSharedPhoto(null)}
+          />
+        )
+        : null}
     </Animated.View>
   );
 }

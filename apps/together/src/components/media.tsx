@@ -4,6 +4,7 @@ import {
   Animated,
   Easing,
   type GestureResponderEvent,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -29,6 +30,15 @@ import { KivelleCreditIcon } from "./KivelleCreditIcon";
 const PHOTO_GENERATION_LOADER = require(
   "../../assets/loaders/sparkles-loop-loader.svg",
 );
+
+function openGeneratedMedia(mediaId: string) {
+  const href = `/media/${encodeURIComponent(mediaId)}`;
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    window.location.assign(href);
+    return;
+  }
+  router.push(href as never);
+}
 
 export function MediaTile(
   { media, style, onRetry, contentFit = "cover" }: {
@@ -69,7 +79,7 @@ export function MediaTile(
       <Pressable
         accessibilityRole="imagebutton"
         accessibilityLabel={`Open ${noun.toLowerCase()}`}
-        onPress={() => router.push(`/media/${media.id}` as never)}
+        onPress={() => openGeneratedMedia(media.id)}
         style={[
           styles.mediaPressable,
           media.media_type === "image" && styles.mediaPressableWithFeedback,
@@ -235,7 +245,7 @@ export function ChatPhotoRequestCard({
         <Pressable
           accessibilityRole="imagebutton"
           accessibilityLabel="Open generated photo"
-          onPress={() => router.push(`/media/${media.id}` as never)}
+          onPress={() => openGeneratedMedia(media.id)}
           style={StyleSheet.absoluteFill}
         >
           <Image
