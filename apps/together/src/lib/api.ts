@@ -15,7 +15,7 @@ type Envelope<T> = { data: T; correlationId: string };
 function deviceTimezone():string{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';}catch{return'UTC';}}
 
 type ClientPerformanceEvent={surface:string;operation:string;durationMs:number;success:boolean;statusCode?:number;platform:string;appVersion:string;buildId:string;metadata:Record<string,string|number|boolean|null>};
-const performanceSurfaces=new Set(['together-bootstrap','together-group','together-conversation','together-media','together-dialogue','together-group-dialogue','together-plan','together-interaction','together-memory','together-subscription','together-world-pulse']);
+const performanceSurfaces=new Set(['together-bootstrap','together-companion','together-group','together-conversation','together-media','together-dialogue','together-group-dialogue','together-plan','together-interaction','together-memory','together-subscription','together-world-pulse']);
 const performanceQueue:ClientPerformanceEvent[]=[];let performanceFlushTimer:ReturnType<typeof setTimeout>|null=null,performanceFlushRunning=false;
 export function queueClientPerformance(input:Omit<ClientPerformanceEvent,'platform'|'appVersion'|'buildId'>){
   if(process.env.EXPO_PUBLIC_KIVELLE_PERFORMANCE_REPORTING_ENABLED==='false')return;
@@ -56,7 +56,7 @@ export const loadPlaceDetail = (locationId:string) => invoke<{place:PlaceContext
 export const loadWorldPulse = (worldId?:string) => invoke<{worldId:string|null;events:WorldPulseEvent[];items:AroundTownItem[];generatedAt:string}>(`together-world-pulse${worldId?`?worldId=${encodeURIComponent(worldId)}`:''}`,undefined,'GET');
 export const bootstrap = (input: {ageConfirmed:true;onboardingChoice?:'companion'|'skip';displayName?:string;characterTemplateId?:string;worldId?:string;interests:string[];goals:Array<'Dating'|'Friendship'|'Stories'|'Social worlds'>}) => invoke<Snapshot>('together-bootstrap', {action:'complete_onboarding',...input,experienceTimezone:deviceTimezone()});
 export const setActiveCompanion = (characterInstanceId:string, source:'home_switcher'|'discover_profile'|'companion_manager'='home_switcher') => invoke<Snapshot>('together-companion',{action:'set_active',characterInstanceId,source});
-export const meetCompanion = (characterTemplateId:string, source:'onboarding'|'discover_profile'|'group_invite'='discover_profile') => invoke<Snapshot>('together-companion',{action:'meet',characterTemplateId,source});
+export const meetCompanion = (characterTemplateId:string, source:'onboarding'|'discover_profile'|'group_invite'='discover_profile') => withIdempotentRetry(()=>invoke<Snapshot>('together-companion',{action:'meet',characterTemplateId,source}),{attempts:2,delayMs:220});
 export const setCharacterFavorite = (characterTemplateId:string,favorite:boolean,source:'home_featured'|'discover'|'chat_menu'='home_featured') => invoke<{characterTemplateId:string;favorite:boolean;favoriteCharacterTemplateIds:string[]}>('together-companion',{action:'set_favorite',characterTemplateId,favorite,source});
 export const mutateMemory = (input: Record<string,unknown>) => invoke('together-memory', input);
 export const getMemoryCenter = (characterInstanceId:string,options:{privacyMode?:boolean;query?:string;category?:MemoryCenterCategory;sort?:MemoryCenterSort;cursor?:string;limit?:number;includeSummary?:boolean}={}) => invoke<MemoryCenterResponse>('together-memory',{action:'overview',characterInstanceId,...options});
@@ -77,7 +77,7 @@ export const resolveRelationshipMilestone = (milestoneId:string,action:'accept'|
 export const manageConversation = <T>(input: Record<string, unknown>) => invoke<T>('together-conversation', input);
 export const setConversationPinned = (conversationId:string,pinned:boolean) => manageConversation<Conversation>({action:'pin',conversationId,pinned});
 export const setMessageFavorite = (conversationId:string,messageId:string,favorite:boolean) => manageConversation<Message>({action:'message_favorite',conversationId,messageId,favorite});
-export const ensureConversation = (characterInstanceId:string) => manageConversation<Conversation>({action:'ensure',characterInstanceId});
+export const ensureConversation = (characterInstanceId:string) => withIdempotentRetry(()=>manageConversation<Conversation>({action:'ensure',characterInstanceId}),{attempts:2,delayMs:180});
 export const previewCharacterReset = (characterInstanceId:string) => manageConversation<CharacterResetPreview>({action:'reset_preview',characterInstanceId});
 export const startOverCharacter = (characterInstanceId:string,requestId:string) => manageConversation<CharacterResetResult>({action:'start_over',characterInstanceId,requestId});
 export const manageInteraction = <T = {scene:SceneSession;action?:SceneAction;interactions:InteractionCandidate[];destinations:InteractionCandidate[];characterProposal?:CharacterInteractionProposal}>(input: Record<string, unknown>) => typeof input.requestId === 'string'

@@ -4,13 +4,14 @@ import { router, usePathname } from 'expo-router';
 import { AlertTriangle, RotateCcw } from 'lucide-react-native';
 import { colors, radius } from '../theme';
 import { reportClientError } from '../lib/operations';
+import { recoverStaleWebAssetEvent, recoverStaleWebRelease, reloadCurrentWebRoute } from '../lib/webReleaseRecovery';
 
 type State={error:Error|null};
 class Boundary extends React.Component<React.PropsWithChildren<{route:string}>,State>{
   override state:State={error:null};
   static getDerivedStateFromError(error:Error):State{return{error};}
-  override componentDidCatch(error:Error,info:React.ErrorInfo){void reportClientError(error,{route:this.props.route,surface:'react_boundary',metadata:{componentStack:Boolean(info.componentStack)}}).catch(()=>undefined);}
-  override render(){if(!this.state.error)return this.props.children;return <View style={styles.screen}><View style={styles.glow}/><View style={styles.card}><View style={styles.icon}><AlertTriangle color={colors.warm} size={28}/></View><Text accessibilityRole="header" style={styles.title}>Kivelle hit an unexpected snag</Text><Text style={styles.body}>Your account and conversations are safe. We recorded a private diagnostic without including your messages.</Text><Pressable accessibilityRole="button" onPress={()=>this.setState({error:null})} style={styles.primary}><RotateCcw size={17} color="#fff"/><Text style={styles.primaryText}>Try again</Text></Pressable><Pressable onPress={()=>{this.setState({error:null});router.replace('/home');}} style={styles.secondary}><Text style={styles.secondaryText}>Return home</Text></Pressable></View></View>;}
+  override componentDidCatch(error:Error,info:React.ErrorInfo){void reportClientError(error,{route:this.props.route,surface:'react_boundary',metadata:{componentStack:Boolean(info.componentStack)}}).catch(()=>undefined);recoverStaleWebRelease(error);}
+  override render(){if(!this.state.error)return this.props.children;return <View style={styles.screen}><View style={styles.glow}/><View style={styles.card}><View style={styles.icon}><AlertTriangle color={colors.warm} size={28}/></View><Text accessibilityRole="header" style={styles.title}>Kivelle hit an unexpected snag</Text><Text style={styles.body}>Your account and conversations are safe. Refresh this page to reconnect without losing your place.</Text><Pressable accessibilityRole="button" onPress={()=>{if(!reloadCurrentWebRoute())this.setState({error:null});}} style={styles.primary}><RotateCcw size={17} color="#fff"/><Text style={styles.primaryText}>Refresh Kivelle</Text></Pressable><Pressable onPress={()=>{this.setState({error:null});router.replace('/home');}} style={styles.secondary}><Text style={styles.secondaryText}>Return home</Text></Pressable></View></View>;}
 }
 export function AppErrorBoundary({children}:React.PropsWithChildren){const route=usePathname();return <Boundary key={route} route={route}>{children}</Boundary>;}
 type NativeErrorHandler=(error:Error,isFatal?:boolean)=>void;
@@ -19,8 +20,8 @@ export function GlobalErrorReporter(){const route=usePathname(),routeRef=useRef(
   let reporting=false;
   const report=(value:unknown,surface:string)=>{if(reporting)return;reporting=true;void reportClientError(value,{route:routeRef.current,surface}).catch(()=>undefined).finally(()=>{reporting=false;});};
   if(typeof window!=='undefined'){
-    const onError=(event:ErrorEvent)=>report(event.error??event.message,'unhandled_error');
-    const onRejection=(event:PromiseRejectionEvent)=>report(event.reason,'unhandled_rejection');
+    const onError=(event:ErrorEvent)=>{if(recoverStaleWebAssetEvent(event)||recoverStaleWebRelease(event.error??event.message)){event.preventDefault();return;}report(event.error??event.message,'unhandled_error');};
+    const onRejection=(event:PromiseRejectionEvent)=>{if(recoverStaleWebRelease(event.reason)){event.preventDefault();return;}report(event.reason,'unhandled_rejection');};
     window.addEventListener('error',onError);window.addEventListener('unhandledrejection',onRejection);
     return()=>{window.removeEventListener('error',onError);window.removeEventListener('unhandledrejection',onRejection);};
   }

@@ -182,6 +182,8 @@ importers:
         specifier: ^4.0.18
         version: 4.1.10(@types/node@24.13.3)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.1)(terser@5.50.0)(yaml@2.9.0))
 
+  infra/cloudflare/kivelli-app-gateway: {}
+
   infra/cloudflare/kivelli-voice-relay:
     devDependencies:
       '@cloudflare/vitest-pool-workers':

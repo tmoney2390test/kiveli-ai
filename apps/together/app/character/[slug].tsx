@@ -14,10 +14,12 @@ import {
 } from '../../src/components';
 import { DetailPreservingArtwork } from '../../src/components/DetailPreservingArtwork';
 import { characterProfilePhotos } from '../../src/character-profile-assets';
-import { loadCharacterSchedule, meetCompanion } from '../../src/lib/api';
+import { ensureConversation, loadCharacterSchedule, meetCompanion } from '../../src/lib/api';
 import { buildCharacterDaySchedule, type CharacterDayScheduleEntry } from '../../src/lib/characterDaySchedule';
 import { characterRelationshipPresentation, compactCharacterSchedule } from '../../src/lib/characterProfilePresentation';
 import { relationshipDaysKnown } from '../../src/lib/companionLife';
+import { activeConversationFor } from '../../src/lib/conversation';
+import { characterConversationHref } from '../../src/lib/chatRoute';
 import { presentMemoryText } from '../../src/lib/memoryPresentation';
 import { worldForLocation } from '../../src/lib/place';
 import { cycleProfilePhotoIndex } from '../../src/lib/profilePhotoCarousel';
@@ -34,8 +36,9 @@ export default function CharacterProfile() {
   const { slug, intro } = useLocalSearchParams<{ slug: string; intro?: string }>();
   const { width } = useWindowDimensions();
   const desktop = width >= 820;
-  const { snapshot, setSnapshot } = useTogether();
+  const { snapshot, setSnapshot, upsertConversation } = useTogether();
   const [busy, setBusy] = useState(false);
+  const [openingStage, setOpeningStage] = useState<'idle'|'meeting'|'conversation'>('idle');
   const [error, setError] = useState('');
 
   if (!snapshot) return null;
@@ -122,19 +125,31 @@ export default function CharacterProfile() {
 
   const goBack = () => router.canGoBack() ? router.back() : router.replace('/(tabs)/home');
   const act = async () => {
+    if (busy) return;
     setBusy(true);
     setError('');
     try {
+      let targetSnapshot = snapshot;
+      let targetInstance = instance;
       if (!instance) {
-        setSnapshot(await meetCompanion(template.id));
-        router.replace(`/chat?character=${encodeURIComponent(handle)}` as never);
-        return;
+        setOpeningStage('meeting');
+        targetSnapshot = await meetCompanion(template.id);
+        setSnapshot(targetSnapshot);
+        targetInstance = targetSnapshot.characters.find((item) => item.character_template_id === template.id);
       }
-      router.push(`/chat?character=${encodeURIComponent(handle)}` as never);
+      if (!targetInstance) throw new Error(`Kivelle could not finish introducing ${template.name}. Please try again.`);
+      setOpeningStage('conversation');
+      let targetConversation = activeConversationFor(targetSnapshot.conversations, targetInstance.id);
+      if (!targetConversation) {
+        targetConversation = await ensureConversation(targetInstance.id);
+        upsertConversation(targetConversation);
+      }
+      router.push(characterConversationHref(handle, targetConversation.id) as never);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not continue right now.');
     } finally {
       setBusy(false);
+      setOpeningStage('idle');
     }
   };
 
@@ -198,10 +213,11 @@ export default function CharacterProfile() {
 
         <CharacterScheduleCard snapshot={snapshot} instance={instance} characterTemplateId={template.id} characterVersionId={version.id} characterName={template.name}/>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text accessibilityLiveRegion="assertive" style={styles.error}>{error}</Text> : null}
+        {busy ? <Text accessibilityLiveRegion="polite" style={styles.openingStatus}>{openingStage==='meeting'?`Introducing you to ${template.name}…`:`Preparing your conversation with ${template.name}…`}</Text> : null}
         {canTalk ? <GradientButton
           disabled={busy}
-          label={busy ? 'Opening your story…' : instance ? `Talk to ${template.name}` : `Meet ${template.name}`}
+          label={busy ? openingStage==='meeting'?`Meeting ${template.name}…`:'Opening conversation…' : instance ? `Talk to ${template.name}` : `Meet ${template.name}`}
           onPress={() => void act()}
         /> : <View style={styles.notMet}>
           <MapPin size={18} color={colors.muted} />
@@ -443,5 +459,6 @@ const styles = StyleSheet.create({
   previewBody: { color: colors.muted, fontSize: 10, lineHeight: 15 },
   previewMeta: { color: colors.rose, fontSize: 9, fontWeight: '800', marginTop: 2 },
   pressed: { opacity: .78 },
-  error: { color: colors.danger },
+  error: { color: colors.danger, fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  openingStatus: { color: colors.muted, fontSize: 11, fontWeight: '700', textAlign: 'center', marginBottom: -8 },
 });

@@ -378,6 +378,10 @@ describe("message inbox presentation", () => {
     })).toBe(
       "/chat?character=maya-instance&plan=1&draft=Want%20to%20go%3F&location=juniper-cafe&world=juniper-city&activity=late_night_coffee&switchPlanId=active-plan",
     );
+    expect(chatHrefFromInboxParams({
+      character: "elena",
+      conversationId: "conversation-1",
+    })).toBe("/chat?character=elena&conversationId=conversation-1");
   });
 
   it('opens the latest direct or group chat from discovery tabs',()=>{

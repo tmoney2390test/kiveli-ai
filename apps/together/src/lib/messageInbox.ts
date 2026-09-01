@@ -29,6 +29,7 @@ export type ChatLaunchParams = {
   inbox?: string;
   compose?: string;
   character?: string;
+  conversationId?: string;
   plan?: string;
   draft?: string;
   location?: string;
@@ -89,6 +90,7 @@ export function mostRecentChatHref(conversations:Conversation[],characters:Chara
 
 const chatLaunchKeys = [
   "character",
+  "conversationId",
   "plan",
   "draft",
   "location",

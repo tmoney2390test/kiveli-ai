@@ -19,8 +19,8 @@ import { useTogether } from '../src/store/useTogether';
 import { ApiError, confirmConversationAction, confirmUserImage, createSharedPlan, deleteConversationAttachment, dismissConversationAction, ensureConversation, manageConversation, manageInteraction, manageMedia, manageSharedScene, meetCompanion, mutateMemory, prepareUserImage, quoteVoiceNote, refreshVoiceNote, rememberMessage, removePendingAttachment, reportMessage, requestVoiceNote, resolveRelationshipMilestone, sendDialogue, sendSceneReaction, setCharacterFavorite, setConversationPinned, setMessageFavorite, simulate, suggestDialogue } from '../src/lib/api';
 import { supabase } from '../src/lib/supabase';
 import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInstance, CharacterInteractionProposal, ConversationAction, ConversationAttachment, ConversationEvent, GeneratedMedia, InteractionCandidate, MediaOffer,Message, MessageReaction, PlanExperience, RelationshipMilestone, SceneAction, SceneParticipant, SceneSession, SharedPlan, Snapshot } from '../src/types';
-import { activeCompanion } from '../src/lib/companionLife';
-import { activeConversationFor, mergeOlderMessages, mostRecentlyUsedConversation, scopedConversationMessages } from '../src/lib/conversation';
+import { mergeOlderMessages, scopedConversationMessages } from '../src/lib/conversation';
+import { resolveChatRoute, type ChatRouteParams } from '../src/lib/chatRoute';
 import { confirmAction } from '../src/lib/dialogs';
 import { defaultPlanTimeFields, parseCustomPlanTime, type PlanOption, type PlanTimingSelection } from '../src/lib/plans';
 import { PlanSelection } from '../src/components/PlanSelection';
@@ -64,7 +64,7 @@ type PlanMutationResult={kind:'shared_plan'|'date';commitment:{id:string};experi
 type ConversationActionMutation={applied:boolean;candidateId:string;result?:PlanMutationResult};
 type SharedSceneCharacter={id:string;current_location_id?:string|null;together_character_templates:{name:string;slug:string;public_handle?:string|null};together_character_versions?:{portrait_asset_url?:string|null;visual_identity?:Record<string,unknown>}|null};
 type SharedSceneRoster={scene:SceneSession|null;participants:Array<SceneParticipant&{together_character_instances?:SharedSceneCharacter|null}>;availableCharacters:Array<SharedSceneCharacter&{presence?:Record<string,unknown>}>};
-type ChatParams={character?:string;plan?:string;draft?:string;location?:string;world?:string;activity?:string;planId?:string;repeatPlanId?:string;switchPlanId?:string;sharePhoto?:string};
+type ChatParams=ChatRouteParams;
 type VoiceNoteRequestResult={status?:string;providerStatus?:string;message?:string;media?:GeneratedMedia};
 type VoiceNotePrompt={messageId:string;name:string;creditCost:number;creditBalance:number;shortened:boolean};
 type MemorySavedNotice={id:number;name:string};
@@ -77,7 +77,7 @@ export default function Chat() {
   const params=useLocalSearchParams<ChatParams>();
   const snapshot=useTogether((state)=>state.snapshot);
   const route=resolveChatRoute(snapshot,params);
-  const pendingKey=[params.character,params.planId,params.world,params.location].filter(Boolean).join(':')||'recent';
+  const pendingKey=[params.conversationId,params.character,params.planId,params.world,params.location].filter(Boolean).join(':')||'recent';
   return <ChatSession key={chatSessionRouteKey(route.conversation?.id,params,pendingKey)}/>;
 }
 
@@ -905,17 +905,6 @@ function writeMessageCache(cache:Map<string,{messages:Message[];hasMore:boolean}
     if(!oldestKey)break;
     cache.delete(oldestKey);
   }
-}
-
-function resolveChatRoute(snapshot:Snapshot|null,params:ChatParams){
-  const focusedPlan=params.planId&&snapshot?snapshot.sharedPlans?.find((item)=>item.id===params.planId):undefined;
-  const requestedCharacter=params.character&&snapshot?snapshot.characters.find((item)=>item.id===params.character||item.together_character_templates.slug===params.character||item.together_character_templates.public_handle===params.character||item.character_template_id===params.character):undefined;
-  const resumeMostRecent=!params.character&&!params.plan&&!params.draft&&!params.location&&!params.activity&&!params.planId&&!params.repeatPlanId;
-  const recentConversation=snapshot&&resumeMostRecent?mostRecentlyUsedConversation(snapshot.conversations):undefined;
-  const recentCharacter=snapshot&&recentConversation?snapshot.characters.find((item)=>item.id===recentConversation.character_instance_id):undefined;
-  const character=snapshot?(focusedPlan?snapshot.characters.find((item)=>item.id===focusedPlan.character_instance_id)??requestedCharacter:requestedCharacter??recentCharacter??activeCompanion(snapshot)):undefined;
-  const conversation=snapshot&&character?activeConversationFor(snapshot.conversations,character.id):undefined;
-  return{focusedPlan,character,conversation};
 }
 
 function ChatAmbientGlow({compact}:{compact:boolean}) {

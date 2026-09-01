@@ -1,8 +1,9 @@
 const CANONICAL_ORIGIN = "https://kivelli.app";
 const SUPABASE_ORIGIN = "https://mfysnlghlhxxcwnwpxog.supabase.co";
 const SUPABASE_PROXY_PREFIX = "/supabase";
-const APP_RELEASE = "2026-08-31-place-narrative-2";
+const APP_RELEASE_FALLBACK = "kivelli-web";
 const FINGERPRINTED_ASSET = /(?:\.|-)[a-f0-9]{16,}\.(?:avif|css|gif|ico|jpe?g|js|mjs|png|svg|ttf|otf|webp|woff2?)$/i;
+const EXPO_ENTRY_ASSET = /\bentry-([a-f0-9]{16,})\.js\b/i;
 
 export default {
   async fetch(request, env) {
@@ -48,22 +49,34 @@ function isRetiredStoryPath(pathname) {
 
 async function serveAppAsset(request, env) {
   try {
+    const pathname = new URL(request.url).pathname;
     const assetResponse = await env.ASSETS.fetch(request);
     const responseHeaders = new Headers(assetResponse.headers);
     const contentType = responseHeaders.get("content-type") || "";
+    if (isApplicationAssetPath(pathname) && contentType.includes("text/html")) {
+      return missingApplicationAssetResponse(pathname);
+    }
     responseHeaders.set(
       "cache-control",
-      browserCacheControl(new URL(request.url).pathname, contentType),
+      browserCacheControl(pathname, contentType),
     );
     if (contentType.includes("text/html")) {
-      responseHeaders.set("x-kivelli-release", APP_RELEASE);
-      if (!hasCookieValue(request.headers.get("cookie"), "kivelli_release", APP_RELEASE)) {
+      const html = request.method === "HEAD" ? null : await assetResponse.text();
+      const release = releaseFromHtml(html) ?? APP_RELEASE_FALLBACK;
+      responseHeaders.set("x-kivelli-release", release);
+      if (html !== null && !hasCookieValue(request.headers.get("cookie"), "kivelli_release", release)) {
         responseHeaders.set("clear-site-data", '"cache"');
         responseHeaders.append(
           "set-cookie",
-          `kivelli_release=${APP_RELEASE}; Path=/; Max-Age=604800; Secure; SameSite=Lax`,
+          `kivelli_release=${release}; Path=/; Max-Age=604800; Secure; SameSite=Lax`,
         );
       }
+      responseHeaders.set("x-kivelli-host", "cloudflare-assets");
+      return new Response(html, {
+        status: assetResponse.status,
+        statusText: assetResponse.statusText,
+        headers: responseHeaders,
+      });
     }
     responseHeaders.set("x-kivelli-host", "cloudflare-assets");
     return new Response(assetResponse.body, {
@@ -82,7 +95,44 @@ async function serveAppAsset(request, env) {
   }
 }
 
-function browserCacheControl(pathname, contentType) {
+export function releaseFromHtml(html) {
+  if (!html) return null;
+  return html.match(EXPO_ENTRY_ASSET)?.[1] ?? null;
+}
+
+export function isApplicationAssetPath(pathname) {
+  return pathname.startsWith("/_expo/static/") || FINGERPRINTED_ASSET.test(pathname);
+}
+
+function missingApplicationAssetResponse(pathname) {
+  if (/\.(?:js|mjs)$/i.test(pathname)) {
+    return new Response(
+      "(()=>{if(window.__kivelliStaleAssetReloading)return;window.__kivelliStaleAssetReloading=true;try{const k='kivelle:gateway-stale-asset-recovery',n=Date.now(),p=Number(sessionStorage.getItem(k)||0);if(n-p<60000){window.__kivelliStaleAssetReloading=false;return}sessionStorage.setItem(k,String(n))}catch{}window.location.reload()})();",
+      {
+        status: 200,
+        headers: {
+          "content-type": "text/javascript; charset=utf-8",
+          "cache-control": "no-store",
+          "x-content-type-options": "nosniff",
+          "x-kivelli-asset-status": "stale-release-recovery",
+          "x-kivelli-host": "cloudflare-assets",
+        },
+      },
+    );
+  }
+  return new Response("This Kivelle asset belongs to an older release. Refresh to continue.", {
+    status: 404,
+    headers: {
+      "content-type": "text/plain; charset=utf-8",
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+      "x-kivelli-asset-status": "stale-release",
+      "x-kivelli-host": "cloudflare-assets",
+    },
+  });
+}
+
+export function browserCacheControl(pathname, contentType) {
   if (contentType.includes("text/html")) return "no-store";
   if (FINGERPRINTED_ASSET.test(pathname)) {
     return "public, max-age=31536000, immutable";
