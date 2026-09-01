@@ -156,6 +156,36 @@ describe("app navigation", () => {
     }
   });
 
+  it("reconciles Expo against the protected destination after a root alias", async () => {
+    vi.useFakeTimers();
+    try {
+      const { browser, history, routeEvents } = browserAt("https://kivelli.app/explore");
+      const nativePush = vi.fn((_href?: unknown) => {
+        void _href;
+        return history.pushState({}, "", "/");
+      });
+      const router = {
+        push: nativePush,
+        navigate: nativePush,
+        replace: vi.fn(),
+        dismissTo: vi.fn(),
+        setParams: vi.fn(),
+      };
+      installWebNavigationCompatibility(router);
+
+      router.push("/location/the-rivet?world=eos-meridian" as never);
+      expect(browser.location.href).toBe("https://kivelli.app/location/the-rivet?world=eos-meridian");
+      expect(routeEvents).toEqual([]);
+
+      await vi.advanceTimersByTimeAsync(100);
+      expect(routeEvents).toEqual(["popstate"]);
+      expect(completePendingWebRouteTransition('/location/the-rivet')).toBe(true);
+      expect(browser.location.assign).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("falls back to one direct browser transition when Expo cannot resolve a route", async () => {
     vi.useFakeTimers();
     try {

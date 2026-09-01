@@ -122,6 +122,7 @@ function installPendingWebHistoryGuard(destination: string): void {
   const browserHistory = window.history;
   const originalPushState = browserHistory.pushState;
   const originalReplaceState = browserHistory.replaceState;
+  let aliasRecoveryScheduled = false;
   const preserveDestination = (
     original: History["pushState"],
     data: unknown,
@@ -133,6 +134,14 @@ function installPendingWebHistoryGuard(destination: string): void {
       try {
         if (isTransientRootAlias(new URL(String(url), window.location.href), target)) {
           nextUrl = `${target.pathname}${target.search}${target.hash}`;
+          if (!aliasRecoveryScheduled) {
+            aliasRecoveryScheduled = true;
+            window.setTimeout(() => {
+              if (window.__KIVELLE_RELEASE_ROUTE_HISTORY_GUARD__ === release) {
+                dispatchRouteChange();
+              }
+            }, 100);
+          }
         }
       } catch {
         // Let the native history method validate malformed URLs normally.
