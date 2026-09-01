@@ -130,7 +130,7 @@ describe("app navigation", () => {
       });
       const router = {
         push: nativePush,
-        navigate: vi.fn(),
+        navigate: nativePush,
         replace: vi.fn(),
         dismissTo: vi.fn(),
         setParams: vi.fn(),
@@ -162,6 +162,7 @@ describe("app navigation", () => {
         return history.pushState({}, "", "/");
       });
       const router = { push: nativePush, navigate: vi.fn(), replace: vi.fn(), dismissTo: vi.fn(), setParams: vi.fn() };
+      router.navigate = nativePush;
       installWebNavigationCompatibility(router);
 
       router.push("/(tabs)/singles?world=eos-meridian" as never);
