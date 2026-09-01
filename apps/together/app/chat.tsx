@@ -141,6 +141,8 @@ function ChatSession() {
   const [interactionCandidates, setInteractionCandidates] = useState<InteractionCandidate[]>([]);
   const [movementCandidates, setMovementCandidates] = useState<InteractionCandidate[]>([]);
   const [interactionScene, setInteractionScene] = useState<SceneSession|null>(null);
+  const hydratedInteractionSceneKey=useRef<string|null>(null);
+  const markInteractionSceneHydrated=(scene?:SceneSession|null)=>{if(scene?.id)hydratedInteractionSceneKey.current=`${scene.id}:${scene.location_id}`;};
   const [sharedSceneRoster,setSharedSceneRoster]=useState<SharedSceneRoster|null>(null);
   const [interactionLoading, setInteractionLoading] = useState(false);
   const [lastInteraction, setLastInteraction] = useState<InteractionFeedbackPresentation|null>(null);
@@ -252,11 +254,14 @@ function ChatSession() {
   const metadataCoPresent=activeSceneMetadata?.interactionMode==='co_present'&&activeSceneMetadata?.entryReason!=='shared_plan';
   const isCoPresent=Boolean(metadataCoPresent||hasActiveCommitment);
   useEffect(()=>{
-    if(!character?.id||!conversation?.id||!isCoPresent){setInteractionCandidates([]);setMovementCandidates([]);setInteractionScene(null);setCharacterProposal(null);return;}
+    if(!character?.id||!conversation?.id||!isCoPresent){hydratedInteractionSceneKey.current=null;setInteractionCandidates([]);setMovementCandidates([]);setInteractionScene(null);setCharacterProposal(null);return;}
+    const currentSceneId=interactionScene?.id??(typeof activeSceneMetadata?.sceneSessionId==='string'?activeSceneMetadata.sceneSessionId:null);
+    const currentLocationId=interactionScene?.location_id??(typeof activeSceneMetadata?.locationId==='string'?activeSceneMetadata.locationId:'');
+    if(currentSceneId&&hydratedInteractionSceneKey.current===`${currentSceneId}:${currentLocationId}`){setInteractionLoading(false);return;}
     let cancelled=false;setInteractionLoading(true);
-    void manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[];characterProposal?:CharacterInteractionProposal}>({action:'resolve',characterInstanceId:character.id,conversationId:conversation.id}).then((result)=>{if(cancelled)return;setInteractionScene(result.scene?.id?result.scene:null);setInteractionCandidates(result.interactions??[]);setMovementCandidates(result.destinations??[]);setCharacterProposal(result.characterProposal??null);}).catch((caught)=>{if(!cancelled&&caught instanceof ApiError&&caught.code!=='SCENE_REQUIRED')setError(caught.message);}).finally(()=>{if(!cancelled)setInteractionLoading(false);});
+    void manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[];characterProposal?:CharacterInteractionProposal}>({action:'resolve',characterInstanceId:character.id,conversationId:conversation.id}).then((result)=>{if(cancelled)return;markInteractionSceneHydrated(result.scene);setInteractionScene(result.scene?.id?result.scene:null);setInteractionCandidates(result.interactions??[]);setMovementCandidates(result.destinations??[]);setCharacterProposal(result.characterProposal??null);}).catch((caught)=>{if(!cancelled&&caught instanceof ApiError&&caught.code!=='SCENE_REQUIRED')setError(caught.message);}).finally(()=>{if(!cancelled)setInteractionLoading(false);});
     return()=>{cancelled=true;};
-  },[character?.id,conversation?.id,isCoPresent,activeSceneMetadata?.sceneSessionId,activeSceneMetadata?.locationId]);
+  },[character?.id,conversation?.id,isCoPresent,interactionScene?.id,interactionScene?.location_id,activeSceneMetadata?.sceneSessionId,activeSceneMetadata?.locationId]);
   useFocusEffect(useCallback(()=>{
     if(!conversation?.id||!isCoPresent){setSharedSceneRoster(null);return;}
     let cancelled=false;
@@ -512,11 +517,17 @@ function ChatSession() {
   currentInput.current=input;
   latestTimelineMessageId.current=latestPersistedMessage?.id??null;
   const pendingActions=conversationReady?(snapshot.conversationActions??[]).filter((item)=>item.status==='pending'&&item.character_instance_id===character.id&&item.conversation_id===conversation.id&&shouldShowPlanConversationAction(item,chatContext.scene.locationId,Boolean(activeSharedPlan))):[];
+  const applyStartedPlan=(experience:PlanExperience,planId=experience.plan.id)=>{
+    markInteractionSceneHydrated(experience.scene);
+    upsertPlan(experience.plan);
+    if(experience.scene){upsertSceneSession(experience.scene);setInteractionScene(experience.scene);setInteractionCandidates(experience.interactions??[]);setMovementCandidates(experience.destinations??[]);}
+    setFocusPlanId(planId);setFocusDismissed(false);
+  };
   const startTimelinePlan=async(plan:SharedPlan)=>{
     const availability=planActionAvailability(plan);
     if(!availability.primaryEnabled){setPlanModal({planId:plan.id});return;}
     setPlanActionBusyId(plan.id);setError('');
-    try{const experience=await joinCommitment(plan.id,plan.character_instance_id);upsertPlan(experience.plan);if(experience.scene){upsertSceneSession(experience.scene);setInteractionScene(experience.scene);setInteractionCandidates(experience.interactions??[]);setMovementCandidates(experience.destinations??[]);}setFocusPlanId(plan.id);setFocusDismissed(false);await refresh({force:true});if(Platform.OS!=='web')void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);}
+    try{const experience=await joinCommitment(plan.id,plan.character_instance_id);applyStartedPlan(experience,plan.id);void refresh({force:true});if(Platform.OS!=='web')void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);}
     catch(caught){setError(caught instanceof Error?caught.message:'The plan could not be started.');setPlanModal({planId:plan.id});}
     finally{setPlanActionBusyId(null);}
   };
@@ -598,7 +609,7 @@ function ChatSession() {
       if(isCoPresent&&!messageAction){
         try{
           const sceneResult=await manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[];intentMatch?:InteractionCandidate;characterProposal?:CharacterInteractionProposal}>({action:'resolve',characterInstanceId:character.id,conversationId:conversation.id,intentText:text});
-          setInteractionScene(sceneResult.scene?.id?sceneResult.scene:null);
+          markInteractionSceneHydrated(sceneResult.scene);setInteractionScene(sceneResult.scene?.id?sceneResult.scene:null);
           setInteractionCandidates(sceneResult.interactions??[]);
           setMovementCandidates(sceneResult.destinations??[]);
           setCharacterProposal(sceneResult.characterProposal??null);
@@ -642,17 +653,16 @@ function ChatSession() {
   const openCreatedPlan=async(result:PlanMutationResult|undefined,timing:PlanTimingSelection)=>{
     if(timing.choice!=='now'||!result?.commitment.id)return;
     if(result.kind==='date'){navigateChatSurface(`/date/${result.commitment.id}`);return;}
-    if(result.experience){navigateChatSurface(`/plan-live?planId=${result.commitment.id}`);return;}
-    try{await joinCommitment(result.commitment.id,character.id);await refresh();navigateChatSurface(`/plan-live?planId=${result.commitment.id}`);}
-    catch(caught){setError(`The plan was saved, but Together Now could not open: ${caught instanceof Error?caught.message:'try joining it from the plan details.'}`);navigateChatSurface(`/plan/${result.commitment.id}`);}
+    try{const experience=result.experience??await joinCommitment(result.commitment.id,character.id);applyStartedPlan(experience,result.commitment.id);}
+    catch(caught){setError(`The plan was saved, but it could not start yet: ${caught instanceof Error?caught.message:'try again from its plan card.'}`);}
   };
   const plan = async (option:PlanOption,timing:PlanTimingSelection) => {
     setPlanning(true); setError('');
     try {
       const timingInput=timing.choice==='custom'?{timingChoice:'custom' as const,startsAt:timing.startsAt}:{timingChoice:timing.choice};
-      if(switchPlanId){if(timing.choice!=='now')throw new Error('Choose Switch Now to replace the active plan.');await switchPlanExperience<PlanMutationResult>({currentPlanId:switchPlanId,characterInstanceId:character.id,activityKey:option.activityKey,locationId:option.locationId,sourceConversationId:conversation.id,sceneId:interactionScene?.id,requestId:planRequestIdRef.current});planRequestIdRef.current=createClientRequestId();setSwitchPlanId(null);setFocusPlanId(null);setFocusDismissed(true);setInteractionScene(null);setInteractionCandidates([]);setMovementCandidates([]);router.setParams({plan:undefined,location:undefined,world:undefined,activity:undefined,switchPlanId:undefined});await refresh();setShowPlans(false);}
-      else if(pendingActionId){const result=await confirmConversationAction<ConversationActionMutation>(pendingActionId,{activityKey:option.activityKey,locationId:option.locationId,...timingInput});removeConversationAction(pendingActionId);await refresh();setPendingActionId(null);setInitialPlanTimingChoice(null);setShowPlans(false);await openCreatedPlan(result.result,timing);}
-      else{const result=await createSharedPlan<PlanMutationResult>({activityKey:option.activityKey,locationId:option.locationId,characterInstanceId:character.id,...timingInput,requestId:planRequestIdRef.current,source:params.location?'location':'manual_planner',sourceConversationId:conversation.id});planRequestIdRef.current=createClientRequestId();await refresh();setInitialPlanTimingChoice(null);setShowPlans(false);await openCreatedPlan(result,timing);}
+      if(switchPlanId){if(timing.choice!=='now')throw new Error('Choose Switch Now to replace the active plan.');const result=await switchPlanExperience<PlanMutationResult>({currentPlanId:switchPlanId,characterInstanceId:character.id,activityKey:option.activityKey,locationId:option.locationId,sourceConversationId:conversation.id,sceneId:interactionScene?.id,requestId:planRequestIdRef.current});planRequestIdRef.current=createClientRequestId();setSwitchPlanId(null);setFocusPlanId(null);setFocusDismissed(true);setInteractionScene(null);setInteractionCandidates([]);setMovementCandidates([]);router.setParams({plan:undefined,location:undefined,world:undefined,activity:undefined,switchPlanId:undefined});setShowPlans(false);if(result.experience)applyStartedPlan(result.experience,result.commitment.id);void refresh();}
+      else if(pendingActionId){const result=await confirmConversationAction<ConversationActionMutation>(pendingActionId,{activityKey:option.activityKey,locationId:option.locationId,...timingInput});removeConversationAction(pendingActionId);setPendingActionId(null);setInitialPlanTimingChoice(null);setShowPlans(false);await openCreatedPlan(result.result,timing);void refresh();}
+      else{const result=await createSharedPlan<PlanMutationResult>({activityKey:option.activityKey,locationId:option.locationId,characterInstanceId:character.id,...timingInput,requestId:planRequestIdRef.current,source:params.location?'location':'manual_planner',sourceConversationId:conversation.id});planRequestIdRef.current=createClientRequestId();setInitialPlanTimingChoice(null);setShowPlans(false);await openCreatedPlan(result,timing);void refresh();}
       if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     catch (caught) { setError(caught instanceof Error ? caught.message : 'The plan could not be saved.'); }
@@ -673,7 +683,7 @@ function ChatSession() {
     if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try{
       const result=await manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[];action?:SceneAction;characterProposal?:CharacterInteractionProposal}>({action:'execute',characterInstanceId:character.id,conversationId:conversation.id,sceneId:interactionScene?.id,interactionKey:candidate.interactionKey,requestId:createClientRequestId()});
-      setInteractionScene(result.scene?.id?result.scene:null);applySceneDelta(result.scene);setInteractionCandidates(result.interactions??[]);setMovementCandidates(result.destinations??[]);setCharacterProposal(result.characterProposal??null);setLastInteraction(interactionFeedback(result.action,candidate.label));
+      markInteractionSceneHydrated(result.scene);setInteractionScene(result.scene?.id?result.scene:null);applySceneDelta(result.scene);setInteractionCandidates(result.interactions??[]);setMovementCandidates(result.destinations??[]);setCharacterProposal(result.characterProposal??null);setLastInteraction(interactionFeedback(result.action,candidate.label));
       if(reactionMode==='generate'&&result.action?.id)await generateSceneReaction(result.action.id);
       return result.action;
     }catch(caught){
@@ -716,7 +726,7 @@ function ChatSession() {
   const moveScene = async (candidate:InteractionCandidate) => {
     const destinationId=typeof candidate.effects.destinationLocationId==='string'?candidate.effects.destinationLocationId:null;if(!destinationId)return;
     if(interactionLoading)return;setInteractionLoading(true);setError('');
-    try{const result=await manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[]}>({action:'move',characterInstanceId:character.id,conversationId:conversation.id,sceneId:interactionScene?.id,destinationLocationId:destinationId,requestId:createClientRequestId()});setInteractionScene(result.scene?.id?result.scene:null);applySceneDelta(result.scene);setInteractionCandidates(result.interactions??[]);setMovementCandidates(result.destinations??[]);setCharacterProposal(null);setLastInteraction({label:candidate.label,status:'accepted'});setShowInteractions(false);if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);}catch(caught){setError(caught instanceof Error?caught.message:'That place is no longer available right now.');}finally{setInteractionLoading(false);}
+    try{const result=await manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[]}>({action:'move',characterInstanceId:character.id,conversationId:conversation.id,sceneId:interactionScene?.id,destinationLocationId:destinationId,requestId:createClientRequestId()});markInteractionSceneHydrated(result.scene);setInteractionScene(result.scene?.id?result.scene:null);applySceneDelta(result.scene);setInteractionCandidates(result.interactions??[]);setMovementCandidates(result.destinations??[]);setCharacterProposal(null);setLastInteraction({label:candidate.label,status:'accepted'});setShowInteractions(false);if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);}catch(caught){setError(caught instanceof Error?caught.message:'That place is no longer available right now.');}finally{setInteractionLoading(false);}
   };
   const addSceneParticipant=async(person:SharedSceneCharacter)=>{
     const sceneId=sharedSceneRoster?.scene?.id;if(!sceneId)return;
@@ -822,7 +832,7 @@ function ChatSession() {
         <MediaRequestModal visible={showPhotoRequests} character={character} conversationId={conversation.id} onPhotoRequest={(request)=>{setShowPhotoRequests(false);void send(request);}} photoSharingEntitled={photoSharingEntitled} onShareLibrary={()=>void requestSharePhoto('library')} onTakePhoto={Platform.OS==='web'?undefined:()=>void requestSharePhoto('camera')} onPhotoSharingUpgrade={()=>{setShowPhotoRequests(false);setShowPhotoPaywall(true);}} onVideoCreated={(media)=>{upsertMedia(media);setReconcilingMediaId(media.id);setShowPhotoRequests(false);navigateChatSurface(mediaViewerHref(media.id,subscriptionReturnTo));}} onBuyCredits={()=>{setShowPhotoRequests(false);navigateChatSurface(creditsSubscriptionHref);}} onClose={()=>setShowPhotoRequests(false)}/>
         <PhotoSharingPaywallModal visible={showPhotoPaywall} onClose={()=>setShowPhotoPaywall(false)} onUpgrade={()=>{setShowPhotoPaywall(false);navigateChatSurface(photoSharingSubscriptionHref);}}/>
         <AutoDialogueOptionsModal visible={showAutoDialogueOptions} name={character.together_character_templates.name} hasSuggestion={Boolean(autoDialogue)} onChoose={(preference)=>void requestAutoDialogue(preference)} onClose={()=>setShowAutoDialogueOptions(false)}/>
-        <PlanDetailsModal visible={Boolean(planModal)} planId={planModal?.planId??null} confirmCancel={planModal?.confirmCancel} onClose={()=>setPlanModal(null)}/>
+        <PlanDetailsModal visible={Boolean(planModal)} planId={planModal?.planId??null} confirmCancel={planModal?.confirmCancel} onStarted={applyStartedPlan} onClose={()=>setPlanModal(null)}/>
         <EndPlanConfirmation visible={Boolean(planEndTarget)} plan={planEndTarget} busy={Boolean(planEndTarget&&planActionBusyId===planEndTarget.id)} onClose={()=>{if(!planActionBusyId)setPlanEndTarget(null);}} onConfirm={()=>void confirmEndPlan()}/>
         {showPlans ? <ScrollView style={styles.planScroll} contentContainerStyle={styles.planScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <PlanSelection snapshot={snapshot} character={character} scopedLocationId={resolveScopedLocation(snapshot,params.location,params.world,pendingActions.find((item)=>item.id===pendingActionId),params.repeatPlanId)} currentLocationId={chatContext.scene.locationId} initialActivityKey={params.activity} repeatPlanId={params.repeatPlanId} proposal={pendingActions.find((item)=>item.id===pendingActionId)} initialTimingChoice={switchPlanId?'now':initialPlanTimingChoice??undefined} mode={switchPlanId?'switch':'create'} currentPlan={switchPlanId?(snapshot.sharedPlans??[]).find((item)=>item.id===switchPlanId)??null:null} interests={[...(snapshot.profile?.interests??[]),...snapshot.memories.filter((item)=>item.character_instance_id===character.id&&item.memory_type==='preference').map((item)=>item.canonical_text)]} busy={planning} error={error} onPlan={(option,timing) => void plan(option,timing)} onClose={() => {setShowPlans(false);setPendingActionId(null);setSwitchPlanId(null);setInitialPlanTimingChoice(null);router.setParams({plan:undefined,location:undefined,world:undefined,activity:undefined,switchPlanId:undefined});}} />
@@ -961,7 +971,7 @@ function LocationMentionPlanCard({action,busy,onDismiss}:{action:ConversationAct
   const[customOpen,setCustomOpen]=useState(false),[dateValue,setDateValue]=useState(defaults.date),[timeValue,setTimeValue]=useState(defaults.time),[saving,setSaving]=useState(false),[localError,setLocalError]=useState('');
   const{refresh,removeConversationAction}=useTogether();
   const location=String(action.payload.location??'that place'),locationSlug=typeof action.payload.locationSlug==='string'?action.payload.locationSlug:undefined,worldSlug=typeof action.payload.worldSlug==='string'?action.payload.worldSlug:undefined,disabled=busy||saving;
-  const save=async(timingChoice:'now'|'in_one_hour'|'custom',startsAt?:string)=>{setSaving(true);setLocalError('');try{const result=await confirmConversationAction<ConversationActionMutation>(action.id,{timingChoice,...(startsAt?{startsAt}:{})});removeConversationAction(action.id);await refresh();if(timingChoice==='now'&&result.result?.commitment.id)navigateChatSurface(result.result.kind==='shared_plan'&&result.result.experience?`/plan-live?planId=${result.result.commitment.id}`:result.result.kind==='shared_plan'?`/plan/${result.result.commitment.id}`:`/date/${result.result.commitment.id}`);if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);}catch(caught){setLocalError(caught instanceof Error?caught.message:'That plan could not be saved.');}finally{setSaving(false);}};
+  const save=async(timingChoice:'now'|'in_one_hour'|'custom',startsAt?:string)=>{setSaving(true);setLocalError('');try{const result=await confirmConversationAction<ConversationActionMutation>(action.id,{timingChoice,...(startsAt?{startsAt}:{})});removeConversationAction(action.id);if(timingChoice==='now'&&result.result?.kind==='date'&&result.result.commitment.id)navigateChatSurface(`/date/${result.result.commitment.id}`);void refresh();if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);}catch(caught){setLocalError(caught instanceof Error?caught.message:'That plan could not be saved.');}finally{setSaving(false);}};
   const saveCustom=()=>{const value=parseCustomPlanTime(dateValue,timeValue);if(!value||value.getTime()<Date.now()+10*60000){setLocalError('Choose a time at least 10 minutes from now.');return;}void save('custom',value.toISOString());};
   return <View style={styles.locationPlanCard}>
     <View style={styles.locationPlanHero}><Image source={locationHeroAsset(worldSlug,locationSlug)} style={StyleSheet.absoluteFill} contentFit="cover"/><View style={styles.locationPlanShade}/><View style={styles.locationPlanHeroContent}><View style={styles.locationPlanKickerRow}><Text style={styles.locationPlanKicker}>PLAN A DATE</Text><Pressable accessibilityLabel="Dismiss date suggestion" disabled={disabled} onPress={onDismiss} style={styles.locationPlanClose}><X size={16} color="#fff"/></Pressable></View><Text style={styles.locationPlanTitle}>Go to {location} together?</Text><Text style={styles.locationPlanCopy}>Choose when you want to make it happen.</Text></View></View>

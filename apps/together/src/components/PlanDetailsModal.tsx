@@ -9,6 +9,7 @@ import { colors, radius, spacing } from '../theme';
 import { useTogether } from '../store/useTogether';
 import { managePlan } from '../lib/api';
 import { commitmentStatusLabel, commitmentTimeLabel, endPlanExperience, getCommitment, joinCommitment, planCompletionLabel, rescheduleCommitment, type Commitment } from '../lib/commitments';
+import type { PlanExperience } from '../types';
 import { userExperienceTimezone } from '../lib/experienceTimezone';
 import { parseCustomPlanTime, recommendPlanOptions } from '../lib/plans';
 import { planActionAvailability } from '../lib/planActions';
@@ -20,11 +21,12 @@ type Props = {
   visible: boolean;
   planId: string | null;
   confirmCancel?: boolean;
+  onStarted?: (experience: PlanExperience) => void;
   onClose: () => void;
 };
 
-export function PlanDetailsModal({ visible, planId, confirmCancel = false, onClose }: Props) {
-  const { snapshot, refresh } = useTogether();
+export function PlanDetailsModal({ visible, planId, confirmCancel = false, onStarted, onClose }: Props) {
+  const { snapshot, refresh, upsertPlan, upsertSceneSession } = useTogether();
   const snapshotPlan = snapshot?.sharedPlans.find((item) => item.id === planId);
   const [detail, setDetail] = useState<Commitment | null>(null);
   const [loading, setLoading] = useState(false);
@@ -66,7 +68,7 @@ export function PlanDetailsModal({ visible, planId, confirmCancel = false, onClo
     if (!plan || !character || !actions) return;
     if (!actions.primaryEnabled) { setError(`This plan can be started within 30 minutes of ${commitmentTimeLabel(plan, viewerTimezone)}.`); return; }
     setBusy(true); setError('');
-    try { await joinCommitment(plan.id, character.id); await refresh(); if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); onClose(); navigateFromPlan(`/plan-live?planId=${encodeURIComponent(plan.id)}`); }
+    try { const experience = await joinCommitment(plan.id, character.id); if (onStarted) onStarted(experience); else { upsertPlan(experience.plan); if (experience.scene) upsertSceneSession(experience.scene); } if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); onClose(); void refresh({ force: true }); }
     catch (caught) { setError(caught instanceof Error ? caught.message : 'The plan could not be started.'); }
     finally { setBusy(false); }
   };
@@ -123,7 +125,7 @@ export function PlanDetailsModal({ visible, planId, confirmCancel = false, onClo
             {plan.note ? <View style={styles.noteCard}><Text style={styles.kicker}>PLAN NOTE</Text><Text style={styles.noteText}>{plan.note}</Text></View> : null}
             {plan.companion_state === 'late' ? <Notice icon={<Clock3 color={colors.warm}/>} title={`${character.together_character_templates.name} is running late.`} body={`${plan.companion_reason ?? 'Their arrival changed.'}${plan.companion_eta_at ? ` New ETA: ${formatTime(new Date(plan.companion_eta_at), viewerTimezone)}.` : ''}`}/> : null}
             {plan.companion_state === 'absent' ? <Notice icon={<AlertTriangle color={colors.danger}/>} title={`${character.together_character_templates.name} couldn't make it.`} body={`${plan.companion_reason ?? 'The plan changed on their side.'} This does not count against you.`}/> : null}
-            {actions?.userPresent && plan.status === 'active' ? <View style={styles.present}><UserCheck size={17} color={colors.success}/><Text style={styles.presentText}>You’re both here. Continue in Together Now.</Text></View> : null}
+            {actions?.userPresent && plan.status === 'active' ? <View style={styles.present}><UserCheck size={17} color={colors.success}/><Text style={styles.presentText}>You’re both here. Continue naturally in this conversation.</Text></View> : null}
             {plan.status === 'completed' ? <View style={styles.history}><Text style={styles.kicker}>SHARED HISTORY</Text><Text style={styles.historyTitle}>{experienceSummary ?? `${plan.title} became part of your shared history.`}</Text><Text style={styles.historyCopy}>{planCompletionLabel(plan)}{plan.completed_at ? ` · ${formatTime(new Date(plan.completed_at), viewerTimezone)}` : ''}</Text></View> : null}
             {plan.status === 'missed' ? <Notice icon={<AlertTriangle color={colors.danger}/>} title={plan.miss_reason === 'user_absent' ? `${character.together_character_templates.name} waited for you.` : 'This plan did not happen.'} body={plan.miss_reason === 'user_absent' ? 'You can talk about what happened from the full plan view.' : 'A companion or technical miss does not count against your relationship.'}/> : null}
             {cancelOpen ? <View style={styles.confirm}><Text style={styles.confirmTitle}>Cancel this plan?</Text><Text style={styles.confirmCopy}>{character.together_character_templates.name} will know that {plan.title} changed.</Text><View style={styles.buttonRow}><Pressable disabled={busy} onPress={() => setCancelOpen(false)} style={styles.secondary}><Text style={styles.secondaryText}>Keep plan</Text></Pressable><Pressable disabled={busy} onPress={() => void cancel()} style={styles.dangerButton}><Trash2 size={15} color="#fff"/><Text style={styles.primaryText}>{busy ? 'Cancelling…' : 'Cancel plan'}</Text></Pressable></View></View> : null}

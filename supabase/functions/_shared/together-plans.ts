@@ -61,9 +61,9 @@ export async function createSharedPlan(db:any, input:CreatePlanInput) {
     }
   }
 
-  // Starting from the lightweight plan picker always opens Together Now.
-  // Do not silently turn an immediate plan into a separate authored Date that
-  // still requires another join action before the companion changes place.
+  // Starting from the lightweight picker immediately begins the shared scene
+  // inside the existing chat. Do not silently turn it into a separate authored
+  // Date that still requires another join before the companion changes place.
   const date=input.immediate||roster.participantInstanceIds.length>1?null:await matchingDateSession(db,input.userId,input.characterInstanceId,resolved.location.id,resolved.activityKey);
   if(date){
     const {data,error}=await db.from('together_date_sessions').update({status:'upcoming',scheduled_for:start.toISOString(),updated_at:new Date().toISOString(),state:{...(date.state??{}),scheduledVia:input.source,requestId:input.requestId}}).eq('id',date.id).eq('user_id',input.userId).select('*,together_date_templates(*)').single();
