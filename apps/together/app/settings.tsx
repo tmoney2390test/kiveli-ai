@@ -50,6 +50,7 @@ import { manageAccount } from '../src/lib/api';
 import { supabase } from '../src/lib/supabase';
 import { confirmAction } from '../src/lib/dialogs';
 import { shouldRenderSettingsRoute, shouldUseDesktopSettingsLayout } from '../src/lib/settingsRoute';
+import { DESKTOP_SIDEBAR_COLLAPSED_WIDTH } from '../src/lib/desktopNavigation';
 import { startSignOutTransition } from '../src/lib/signOutTransition';
 import { createClientRequestId } from '../src/lib/requestId';
 import {
@@ -296,7 +297,7 @@ export default function Settings() {
   const browserPath = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.pathname : null;
   if (!shouldRenderSettingsRoute({ platform: Platform.OS, routerPathname: pathname, browserPathname: browserPath })) return null;
 
-  return <Modal visible transparent animationType="fade" onRequestClose={close}><View style={[styles.backdrop, desktop && styles.backdropDesktop]} accessibilityViewIsModal>
+  return <Modal visible transparent animationType="fade" onRequestClose={close}><View style={[styles.backdrop, desktop && styles.backdropDesktop]} accessibilityViewIsModal={!desktop}>
     <FrostedBackdrop intensity={desktop ? 72 : 22} />
     <View pointerEvents="none" style={styles.ambientOne} />
     <View pointerEvents="none" style={styles.ambientTwo} />
@@ -476,7 +477,7 @@ function subscriptionLabel(tier?: string | null) { if (tier === 'kivelle_max' ||
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: 'rgba(5,4,8,.18)' },
-  backdropDesktop: { ...(Platform.OS === 'web' ? ({ position: 'fixed', inset: 0, zIndex: 1200, padding: 18, backgroundColor: 'rgba(4,3,7,.12)' } as never) : {}) },
+  backdropDesktop: { ...(Platform.OS === 'web' ? ({ position: 'fixed', top: 0, right: 0, bottom: 0, left: DESKTOP_SIDEBAR_COLLAPSED_WIDTH, zIndex: 1200, padding: 18, backgroundColor: 'rgba(4,3,7,.12)' } as never) : {}) },
   ambientOne: { position: 'absolute', width: 600, height: 600, borderRadius: 300, backgroundColor: 'rgba(126,83,151,.055)', top: -250, right: -120, ...(Platform.OS === 'web' ? ({ filter: 'blur(100px)' } as never) : {}) },
   ambientTwo: { position: 'absolute', width: 520, height: 520, borderRadius: 260, backgroundColor: 'rgba(167,85,121,.038)', bottom: -240, left: -140, ...(Platform.OS === 'web' ? ({ filter: 'blur(105px)' } as never) : {}) },
   modal: { width: '100%', backgroundColor: 'rgba(20,17,25,.54)', overflow: 'hidden', borderColor: 'rgba(255,255,255,.115)' },
