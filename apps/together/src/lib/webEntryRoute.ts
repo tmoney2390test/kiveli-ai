@@ -1,8 +1,6 @@
 declare global {
   interface Window {
     __KIVELLE_ENTRY_HREF__?: string;
-    __KIVELLE_ENTRY_ROUTER_FALLBACK__?: boolean;
-    __KIVELLE_RELEASE_ENTRY_HISTORY_GUARD__?: () => void;
   }
 }
 
@@ -17,12 +15,7 @@ export function initialWebEntryHref() {
 
 export function consumeWebEntryHref() {
   consumed = true;
-  if (typeof window !== 'undefined') {
-    window.__KIVELLE_RELEASE_ENTRY_HISTORY_GUARD__?.();
-    delete window.__KIVELLE_RELEASE_ENTRY_HISTORY_GUARD__;
-    delete window.__KIVELLE_ENTRY_ROUTER_FALLBACK__;
-    delete window.__KIVELLE_ENTRY_HREF__;
-  }
+  if (typeof window !== 'undefined') delete window.__KIVELLE_ENTRY_HREF__;
 }
 
 export function webEntryHrefConsumed() {
@@ -53,19 +46,11 @@ export function authenticatedRoutePathname(input: {
 export function shouldRecoverWebEntry(input: {
   entryHref?: string | null;
   browserPathname?: string | null;
-  routerPathname?: string | null;
-  preservedRouterFallback?: boolean;
 }) {
   if (!input.entryHref) return false;
   const entryPath = entryPathname(input.entryHref);
-  if (entryPath === '/') return false;
-  const browserFellBack = entryPath !== input.browserPathname &&
+  return entryPath !== '/' && entryPath !== input.browserPathname &&
     (input.browserPathname === '/' || input.browserPathname === '/home');
-  const routerFellBack = input.preservedRouterFallback === true &&
-    entryPath === input.browserPathname &&
-    entryPath !== input.routerPathname &&
-    (input.routerPathname === '/' || input.routerPathname === '/home');
-  return browserFellBack || routerFellBack;
 }
 
 export function shouldConsumeWebEntry(input:{entryHref?:string|null;browserPathname?:string|null;routerPathname?:string|null;snapshotReady:boolean}){
