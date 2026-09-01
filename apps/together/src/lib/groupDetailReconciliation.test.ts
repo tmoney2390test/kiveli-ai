@@ -20,7 +20,7 @@ const base = {
   sharedPlans: [],
   conversationActions: [],
   conversationEvents: [],
-  settings: { responseMode: "automatic", energy: "balanced" },
+  settings: { responseMode: "automatic", energy: "balanced", notificationMode: "all" },
   hasMoreMessages: true,
   syncedAt: "2026-01-02",
 } as unknown as GroupDetail;

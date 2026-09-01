@@ -261,7 +261,13 @@ export function inboxPreview(
   if (conversation.last_message_delivery_status === "failed") {
     return "Message failed · Open to retry";
   }
-  if (conversation.reply_pending) return "Generating a response…";
+  if (conversation.reply_pending) {
+    return conversation.reply_pending_speaker_name
+      ? `${firstName(conversation.reply_pending_speaker_name)} is replying…`
+      : conversation.kind === "group"
+      ? "The group is replying…"
+      : "Generating a response…";
+  }
   const preview = conversation.last_message_preview?.replace(/\s+/g, " ")
     .trim();
   const attachment = conversation.last_message_attachment_kind === "image"
@@ -276,7 +282,10 @@ export function inboxPreview(
     ? `${attachment} · ${cleanedPreview}`
     : attachment || (preview === "[Photo]" ? "Photo" : cleanedPreview);
   if (content) {
-    return conversation.last_message_role === "user" ? `You: ${content}` : content;
+    if (conversation.last_message_role === "user") return `You: ${content}`;
+    return conversation.kind === "group" && conversation.last_speaker_name
+      ? `${firstName(conversation.last_speaker_name)}: ${content}`
+      : content;
   }
   return conversation.last_message_at
     ? "Continue the conversation."
@@ -310,10 +319,24 @@ export function mergeInboxConversations(
       last_message_delivery_status: cached.last_message_delivery_status,
       last_message_attachment_kind: cached.last_message_attachment_kind,
       reply_pending: conversation.reply_pending ?? cached.reply_pending,
+      reply_pending_speaker_name: conversation.reply_pending_speaker_name ?? cached.reply_pending_speaker_name,
+      last_speaker_character_instance_id: conversation.last_speaker_character_instance_id ?? cached.last_speaker_character_instance_id,
+      last_speaker_name: conversation.last_speaker_name ?? cached.last_speaker_name,
       message_count: cached.message_count ?? conversation.message_count,
       unread: conversation.unread ?? cached.unread,
+      unread_count: conversation.unread_count ?? cached.unread_count,
     };
   });
+}
+
+export function groupParticipantLine(group?: InboxGroupDetail): string {
+  return group?.participants.map((participant) =>
+    firstName(participant.together_character_instances.together_character_templates.name)
+  ).filter(Boolean).join(" · ") ?? "";
+}
+
+function firstName(name: string): string {
+  return name.trim().split(/\s+/)[0] ?? name;
 }
 
 export function conversationWithLastMessage(

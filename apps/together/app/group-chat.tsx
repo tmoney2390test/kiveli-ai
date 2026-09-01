@@ -25,7 +25,6 @@ import * as Clipboard from "expo-clipboard";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import {
-  Archive,
   Brain,
   CalendarDays,
   Camera,
@@ -43,18 +42,16 @@ import {
   MoreHorizontal,
   Pause,
   Play,
-  Plus,
   RefreshCw,
   Send,
   Sparkles,
   Square,
   Upload,
-  UserMinus,
   UsersRound,
   Volume2,
   X,
 } from "lucide-react-native";
-import { currentGroupPlan, groupPlanBlockingParticipantRemoval, shouldGroupChatMessages } from "@together/domain/src/group-chat";
+import { shouldGroupChatMessages } from "@together/domain/src/group-chat";
 import { naturalizeCharacterActivity } from "@together/domain/src/character-language";
 import {
   MESSAGE_CHARACTER_LIMIT,
@@ -83,8 +80,8 @@ import {
   VoiceNotePurchaseModal,
   type MessageActionDefinition,
 } from "../src/components";
-import { GroupChatSettingsModal } from "../src/components/GroupChatSettingsModal";
 import { PlanSelection } from "../src/components/PlanSelection";
+import { GroupManagementModal, type GroupManagementTab } from "../src/components/GroupManagementModal";
 import {
   ApiError,
   confirmUserImage,
@@ -134,10 +131,11 @@ import {
   userImagePickerOptions,
 } from "../src/lib/imageUploads";
 import { photoUploadPresentation, type PhotoUploadPhase } from "../src/lib/photoUploadPresentation";
-import { groupAddCandidates } from "../src/lib/groupWorld";
 import {
   groupMediaNeedsRefresh,
+  groupHandoffLabel,
   groupRecipientRequest,
+  groupReplyAuthorLabel,
   groupTimelineDayLabel,
   groupTurnStatusLabel,
   groupWelcomePrompts,
@@ -233,9 +231,9 @@ export default function GroupChatScreen() {
     [photoUploadPhase,setPhotoUploadPhase]=useState<PhotoUploadPhase>("idle"),
     [photoSubjects, setPhotoSubjects] = useState<string[]>([]),
     [photoRequestBusy, setPhotoRequestBusy] = useState(false),
-    [showDetails, setShowDetails] = useState(params.details === "1"),
+    [showDetails, setShowDetails] = useState(params.details === "1" || params.settings === "1"),
+    [managementTab,setManagementTab]=useState<GroupManagementTab>(params.settings === "1" ? "settings" : "people"),
     [showGroupMenu, setShowGroupMenu] = useState(false),
-    [showChatSettings, setShowChatSettings] = useState(params.settings === "1"),
     [characterPreview,setCharacterPreview]=useState<FeaturedCompanion|null>(null),
     [favoriteBusy, setFavoriteBusy] = useState(false),
     [pinBusy, setPinBusy] = useState(false),
@@ -499,6 +497,7 @@ export default function GroupChatScreen() {
       ),
     [detail?.participants],
   );
+  const messageById=useMemo(()=>new Map((detail?.messages??[]).map((message)=>[message.id,message])),[detail?.messages]);
   const participantIds = useMemo(
     () => (detail?.participants ?? []).map((participant) =>
       participant.character_instance_id
@@ -1546,7 +1545,7 @@ export default function GroupChatScreen() {
         mediaSource={latestHeaderMedia?.signed_url?{uri:latestHeaderMedia.signed_url}:groupPortraitSource}
         hasMedia={Boolean(latestHeaderMedia)}
         onBack={openMessagesInbox}
-        onProfile={()=>setShowDetails(true)}
+        onProfile={()=>{setManagementTab("people");setShowDetails(true);}}
         onPhoto={openPhotoMenu}
         onMenu={()=>setShowGroupMenu((value)=>!value)}
         onMedia={latestHeaderMedia?()=>router.push(`/media/${latestHeaderMedia.id}` as never):undefined}
@@ -1579,7 +1578,7 @@ export default function GroupChatScreen() {
         pinBusy={pinBusy}
         memoryLocked={snapshot?.entitlements?.entitlement_keys?.includes("memory_inspector") !== true}
         onClose={() => setShowGroupMenu(false)}
-        onDetails={() => { setShowGroupMenu(false); setShowDetails(true); }}
+        onDetails={() => { setShowGroupMenu(false); setManagementTab("people"); setShowDetails(true); }}
         onMemory={contextParticipant ? () => {
           setShowGroupMenu(false);
           router.push(`/memories?character=${contextParticipant.together_character_instances.together_character_templates.slug}` as never);
@@ -1591,7 +1590,8 @@ export default function GroupChatScreen() {
         onPin={() => void toggleGroupPinned()}
         onSettings={() => {
           setShowGroupMenu(false);
-          setShowChatSettings(true);
+          setManagementTab("settings");
+          setShowDetails(true);
         }}
         onFresh={startFreshGroupChat}
         onDelete={deleteGroupConversation}
@@ -1764,6 +1764,7 @@ export default function GroupChatScreen() {
               {message.id===unreadMessageId?<Text accessibilityRole="text" style={[styles.day,{color:colors.rose}]}>NEW</Text>:null}
               <GroupBubble
                 message={message}
+                replyMessage={message.reply_to_message_id?messageById.get(message.reply_to_message_id):undefined}
                 participant={participant}
                 mentionCharacters={mentionCharacters}
                 onCharacterMention={setCharacterPreview}
@@ -2107,33 +2108,23 @@ export default function GroupChatScreen() {
         </Pressable>
       </Modal>
       <PhotoSharingPaywallModal visible={showPhotoPaywall} onClose={()=>setShowPhotoPaywall(false)} onUpgrade={()=>{setShowPhotoPaywall(false);router.push(photoSharingSubscriptionHref as never);}}/>
-      <GroupDetailsModal
+      <GroupManagementModal
         visible={showDetails}
+        initialTab={managementTab}
         detail={detail}
         snapshot={snapshot}
         busy={busy}
         onClose={() => setShowDetails(false)}
         onBusy={setBusy}
-        onChanged={(next) => setDetail(next)}
+        onChanged={(next) => {
+          setDetail(next);
+          if (next.settings.responseMode === "choose_speaker" && recipientSelection === "automatic") {
+            setRecipientSelection(next.participants[0]?.character_instance_id ?? "automatic");
+          }
+        }}
         onArchived={async () => {
           await refresh();
           returnToMessagesInbox({reset:(href)=>router.replace(href as never),navigate:(href)=>router.push(href as never)});
-        }}
-      />
-      <GroupChatSettingsModal
-        visible={showChatSettings}
-        conversation={detail.conversation}
-        settings={detail.settings}
-        onClose={() => setShowChatSettings(false)}
-        onSaved={(conversation, settings) => {
-          setDetail((current) => current
-            ? { ...current, conversation, settings }
-            : current);
-          setRecipientSelection(
-            settings.responseMode === "choose_speaker"
-              ? detail.participants[0]?.character_instance_id ?? "automatic"
-              : "automatic",
-          );
         }}
       />
       <CharacterProfilePreviewModal companion={characterPreview} onClose={()=>setCharacterPreview(null)} onViewProfile={(person)=>{setCharacterPreview(null);router.push(`/character/${person.slug}` as never);}} onInviteToGroup={invitePreviewToGroup} />
@@ -2852,6 +2843,7 @@ function groupRelationshipLabel(stage: string) {
 }
 function GroupBubble({
   message,
+  replyMessage,
   participant,
   mentionCharacters,
   onCharacterMention,
@@ -2884,6 +2876,7 @@ function GroupBubble({
   textStyle,
 }: {
   message: Message;
+  replyMessage?: Message;
   participant?: GroupParticipant;
   mentionCharacters: FeaturedCompanion[];
   onCharacterMention: (character: FeaturedCompanion) => void;
@@ -2949,6 +2942,9 @@ function GroupBubble({
         String(message.provider_metadata?.speakerName ?? "Companion"),
     speakerSlug = participant?.together_character_instances.together_character_templates.slug ??
       String(message.provider_metadata?.speakerSlug ?? ""),
+    participantNames=new Map([...participants].map(([id,item])=>[id,item.together_character_instances.together_character_templates.name])),
+    handoffLabel=groupHandoffLabel(message.provider_metadata,participantNames),
+    replyAuthor=replyMessage?groupReplyAuthorLabel(replyMessage,participantNames):null,
     offerPreviewSources =
       (offer?.subject_character_instance_ids?.length
         ? offer.subject_character_instance_ids
@@ -3028,6 +3024,7 @@ function GroupBubble({
                 )}
             >
               <Text style={styles.speakerName}>{speakerName}</Text>
+              {handoffLabel?<Text style={styles.handoffLabel}>{handoffLabel}</Text>:null}
             </Pressable>
           )
           : null}
@@ -3045,6 +3042,7 @@ function GroupBubble({
                 message.delivery_status==="failed"&&{borderColor:colors.danger,borderWidth:1},
               ]}
             >
+              {replyMessage?<View style={styles.quotedReply}><Text style={styles.quotedReplyLabel}>Replying to {replyAuthor}</Text><Text numberOfLines={2} style={styles.quotedReplyText}>{replyMessage.content==="[Photo]"?"Photo":replyMessage.content}</Text></View>:null}
               {message.content !== "[Photo]"
                 ? user
                   ? <Text style={[styles.bubbleText, textStyle]}>{message.content}</Text>
@@ -3429,210 +3427,6 @@ function GroupTurnControl({
   </Pressable>;
 }
 
-function GroupDetailsModal({
-  visible,
-  detail,
-  snapshot,
-  busy,
-  onClose,
-  onBusy,
-  onChanged,
-  onArchived,
-}: {
-  visible: boolean;
-  detail: GroupDetail;
-  snapshot: Snapshot | null;
-  busy: boolean;
-  onClose: () => void;
-  onBusy: (value: boolean) => void;
-  onChanged: (detail: GroupDetail) => void;
-  onArchived: () => void;
-}) {
-  const [adding, setAdding] = useState(false),
-    [mutationError,setMutationError]=useState("");
-  useEffect(() => {
-    if (visible) setMutationError("");
-  }, [visible]);
-  const active = new Set(
-      detail.participants.map((participant) =>
-        participant.character_instance_id
-      ),
-    ),
-    anchor = detail.participants[0]?.together_character_instances,
-    groupWorldId = detail.conversation.group_world_id ??
-      (snapshot && anchor
-        ? characterResidentWorld(snapshot, anchor)?.id
-        : undefined),
-    groupWorld = snapshot?.worlds.find((world) => world.id === groupWorldId),
-    eligible = snapshot
-      ? groupAddCandidates(snapshot, groupWorldId, active)
-      : [],
-    blockingArchivePlan=currentGroupPlan(detail.sharedPlans??[]);
-  const mutate = async (input: Record<string, unknown>) => {
-    onBusy(true);
-    setMutationError("");
-    try {
-      onChanged(
-        await manageGroup<GroupDetail>({
-          ...input,
-          conversationId: detail.conversation.id,
-        }),
-      );
-      setAdding(false);
-    }catch(error){
-      setMutationError(error instanceof Error?error.message:"That group change could not be saved.");
-    } finally {
-      onBusy(false);
-    }
-  };
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalRoot}>
-        <Pressable accessibilityLabel="Close group details" onPress={onClose} style={StyleSheet.absoluteFill} />
-        <FrostedSurface intensity={94} style={styles.details}>
-          <View style={styles.detailsHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.detailsKicker}>GROUP DETAILS</Text>
-              <Text style={styles.detailsTitle}>
-                {detail.conversation.title}
-              </Text>
-            </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Close group details" onPress={onClose} style={styles.close}>
-              <X size={20} color={colors.muted} />
-            </Pressable>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.detailsLabel}>PARTICIPANTS</Text>
-            {detail.participants.map((participant) => {
-              const blockingPlan=groupPlanBlockingParticipantRemoval(detail.sharedPlans??[],participant.character_instance_id);
-              return <View key={participant.id} style={styles.detailPerson}>
-                <CharacterAvatarForParticipant
-                  participant={participant}
-                  size={44}
-                />
-                <Text style={styles.detailPersonName}>
-                  {participant.together_character_instances
-                    .together_character_templates.name}
-                </Text>
-                {blockingPlan?<Text numberOfLines={1} style={styles.detailPersonStatus}>In {blockingPlan.title}</Text>:detail.participants.length > 2
-                  ? (
-                    <Pressable
-                      accessibilityLabel={`Remove ${participant.together_character_instances.together_character_templates.name}`}
-                      disabled={busy}
-                      onPress={() =>
-                        void mutate({
-                          action: "remove_participant",
-                          characterInstanceId:
-                            participant.character_instance_id,
-                        })}
-                      style={styles.iconButton}
-                    >
-                      <UserMinus size={18} color={colors.danger} />
-                    </Pressable>
-                  )
-                  : null}
-              </View>
-            })}
-            {detail.participants.length < 5
-              ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Add a companion"
-                  onPress={() => setAdding((value) => !value)}
-                  style={styles.addButton}
-                >
-                  <Plus size={18} color={colors.rose} />
-                  <Text style={styles.addText}>Add companion</Text>
-                  <ChevronRight size={17} color={colors.dimmed} />
-                </Pressable>
-              )
-              : null}
-            {adding
-              ? (
-                <View style={styles.addList}>
-                  {eligible.map((character) => {
-                    const fake = {
-                      id: character.id,
-                      character_instance_id: character.id,
-                      together_character_instances: character,
-                    } as GroupParticipant;
-                    return (
-                      <Pressable
-                        key={character.id}
-                        disabled={busy}
-                        onPress={() =>
-                          void mutate({
-                            action: "add_participant",
-                            characterInstanceId: character.id,
-                          })}
-                        style={styles.detailPerson}
-                      >
-                        <CharacterAvatarForParticipant
-                          participant={fake}
-                          size={38}
-                        />
-                        <Text style={styles.detailPersonName}>
-                          {character.together_character_templates.name}
-                        </Text>
-                        <Plus size={18} color={colors.rose} />
-                      </Pressable>
-                    );
-                  })}
-                  {!eligible.length
-                    ? (
-                      <Text style={styles.addEmpty}>
-                        No other companions from{" "}
-                        {groupWorld?.name ?? "this world"} are available.
-                      </Text>
-                    )
-                    : null}
-                </View>
-              )
-              : null}
-            {mutationError?<Text accessibilityRole="alert" style={styles.detailError}>{mutationError}</Text>:null}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={blockingArchivePlan?`Resolve ${blockingArchivePlan.title} before archiving this group`:"Archive group"}
-              disabled={busy||Boolean(blockingArchivePlan)}
-              onPress={async () => {
-                onBusy(true);
-                setMutationError("");
-                try {
-                  await manageGroup({
-                    action: "archive",
-                    conversationId: detail.conversation.id,
-                  });
-                  onClose();
-                  onArchived();
-                }catch(error){
-                  setMutationError(error instanceof Error?error.message:"This group could not be archived.");
-                } finally {
-                  onBusy(false);
-                }
-              }}
-              style={[styles.archive,blockingArchivePlan&&styles.archiveDisabled]}
-            >
-              <Archive size={18} color={colors.danger} />
-              <Text style={styles.archiveText}>{blockingArchivePlan?`Resolve ${blockingArchivePlan.title} first`:"Archive group"}</Text>
-            </Pressable>
-          </ScrollView>
-          {busy
-            ? (
-              <View style={styles.busyOverlay}>
-                <ActivityIndicator color={colors.rose} />
-              </View>
-            )
-            : null}
-        </FrostedSurface>
-      </View>
-    </Modal>
-  );
-}
 function mentionedParticipants(
   text: string,
   participants: GroupParticipant[],
@@ -4061,6 +3855,10 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     marginBottom: 5,
   },
+  handoffLabel:{color:colors.dimmed,fontSize:9,fontWeight:"700",marginLeft:10,marginTop:-3,marginBottom:5},
+  quotedReply:{maxWidth:"100%",marginBottom:8,paddingLeft:9,paddingVertical:3,borderLeftWidth:2,borderLeftColor:colors.violet},
+  quotedReplyLabel:{color:colors.violet,fontSize:9,fontWeight:"900",marginBottom:2},
+  quotedReplyText:{color:colors.muted,fontSize:10,lineHeight:14},
   bubble: {
     minWidth: 0,
     maxWidth: "100%",

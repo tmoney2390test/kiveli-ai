@@ -12,6 +12,7 @@ import {
   chatSessionRouteKey,
   conversationWithLastMessage,
   formatInboxTimestamp,
+  groupParticipantLine,
   inboxPreview,
   MESSAGES_INBOX_HREF,
   MESSAGES_INBOX_ROUTE,
@@ -173,7 +174,7 @@ describe("message inbox presentation", () => {
       reactions: [],
       generatedMedia: [],
       mediaOffers: [],
-      settings: { responseMode: "automatic", energy: "balanced" },
+      settings: { responseMode: "automatic", energy: "balanced", notificationMode: "all" },
     } as unknown as GroupDetail;
     expect(
       buildInboxRows([...conversations, group], characters, [], "", "groups", [
@@ -209,7 +210,7 @@ describe("message inbox presentation", () => {
         reactions: [],
         generatedMedia: [],
         mediaOffers: [],
-        settings: { responseMode: "automatic", energy: "balanced" },
+        settings: { responseMode: "automatic", energy: "balanced", notificationMode: "all" },
       } as unknown as GroupDetail;
     const favorited = {
         ...baseGroup,
@@ -301,10 +302,43 @@ describe("message inbox presentation", () => {
       ...conversation("pending", "maya", "2026-08-18T12:00:00.000Z", "Hello"),
       reply_pending: true,
     })).toBe("Generating a response…");
+    expect(inboxPreview({
+      ...conversation("group-pending", "maya", "2026-08-18T12:00:00.000Z", "Hello"),
+      kind: "group",
+      reply_pending: true,
+      reply_pending_speaker_name: "Maya Chen",
+    })).toBe("Maya is replying…");
+    expect(inboxPreview({
+      ...conversation("group-reply", "maya", "2026-08-18T12:00:00.000Z", "I agree"),
+      kind: "group",
+      last_message_role: "assistant",
+      last_speaker_name: "Chloe Martin",
+    })).toBe("Chloe: I agree");
     expect(inboxPreview(
       conversation("draft", "maya", "2026-08-18T12:00:00.000Z", "Hello"),
       { draft: "  Finish\nthis  " },
     )).toBe("Draft: Finish this");
+  });
+
+  it("summarizes the group roster for compact inbox rows", () => {
+    const maya = character("maya", "maya-template", "Maya Chen");
+    const chloe = character("chloe", "chloe-template", "Chloe Martin");
+    expect(groupParticipantLine({
+      conversation: { ...conversation("group", maya.id, null, ""), kind: "group" },
+      participants: [maya, chloe].map((item, index) => ({
+        id: `participant-${index}`,
+        user_id: "user",
+        continuity_id: "continuity",
+        conversation_id: "group",
+        character_instance_id: item.id,
+        role: "member" as const,
+        joined_at: "2026-08-01T00:00:00.000Z",
+        added_by: "user" as const,
+        witnessed_from_sequence: 1,
+        metadata: {},
+        together_character_instances: item,
+      })),
+    })).toBe("Maya · Chloe");
   });
 
   it("preserves a hydrated preview across a broader snapshot refresh", () => {

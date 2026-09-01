@@ -39,7 +39,7 @@ export function groupMediaNeedsRefresh(
   });
 }
 
-export type GroupRecipientSelection = "automatic" | "everyone" | string;
+export type GroupRecipientSelection = string;
 
 export function groupRecipientRequest(
   selection: GroupRecipientSelection,
@@ -77,4 +77,29 @@ export function groupWelcomePrompts(names: readonly string[]): string[] {
       : `${first}, tell me what is on your mind.`,
     "Let us make a plan together.",
   ];
+}
+
+export function groupReplyAuthorLabel(
+  reply: { role: string; speaker_character_instance_id?: string | null; character_instance_id?: string | null },
+  participantNames: ReadonlyMap<string, string>,
+): string {
+  if (reply.role === "user") return "you";
+  const id = String(reply.speaker_character_instance_id ?? reply.character_instance_id ?? "");
+  return firstName(participantNames.get(id) ?? "a companion");
+}
+
+export function groupHandoffLabel(
+  metadata: unknown,
+  participantNames: ReadonlyMap<string, string>,
+): string | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+  const ids = (metadata as Record<string, unknown>).addresseeInstanceIds;
+  if (!Array.isArray(ids)) return null;
+  const names = ids.map((id) => participantNames.get(String(id))).filter((name): name is string => Boolean(name)).map(firstName);
+  if (!names.length) return null;
+  return `to ${names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`}`;
+}
+
+function firstName(value: string): string {
+  return value.trim().split(/\s+/)[0] ?? value;
 }

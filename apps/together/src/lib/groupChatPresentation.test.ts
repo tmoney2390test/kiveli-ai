@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   groupMediaNeedsRefresh,
+  groupHandoffLabel,
   groupRecipientRequest,
+  groupReplyAuthorLabel,
   groupTimelineDayLabel,
   groupTurnStatusLabel,
   groupWelcomePrompts,
@@ -72,5 +74,14 @@ describe("group chat timeline presentation", () => {
       "Iris, ask Maya something you have always wondered.",
       "Let us make a plan together.",
     ]);
+  });
+
+  it("labels explicit replies and speaker handoffs without exposing ids", () => {
+    const names = new Map([["iris-id", "Iris Vale"], ["maya-id", "Maya Chen"]]);
+    expect(groupReplyAuthorLabel({ role: "user" }, names)).toBe("you");
+    expect(groupReplyAuthorLabel({ role: "assistant", speaker_character_instance_id: "iris-id" }, names)).toBe("Iris");
+    expect(groupHandoffLabel({ addresseeInstanceIds: ["maya-id"] }, names)).toBe("to Maya");
+    expect(groupHandoffLabel({ addresseeInstanceIds: ["iris-id", "maya-id"] }, names)).toBe("to Iris & Maya");
+    expect(groupHandoffLabel({}, names)).toBeNull();
   });
 });

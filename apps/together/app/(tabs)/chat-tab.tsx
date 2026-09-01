@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import {
+  Link,
   Redirect,
   router,
   useFocusEffect,
@@ -49,6 +50,7 @@ import {
   chatHrefFromInboxParams,
   type ChatLaunchParams,
   formatInboxTimestamp,
+  groupParticipantLine,
   type InboxFilter,
   type InboxGroupDetail,
   type InboxPage,
@@ -248,26 +250,8 @@ export default function MessageInbox() {
     if (userId && continuityId) void saveInboxFilter(userId, continuityId, next);
   };
 
-  const openChat = (row: InboxRow) =>
-    row.conversation.kind === "group"
-      ? router.push(
-        `/group-chat?id=${encodeURIComponent(row.conversation.id)}` as never,
-      )
-      : router.push(
-        `/chat?character=${
-          encodeURIComponent(row.character.together_character_templates.slug)
-        }` as never,
-      );
   const openSettings = (row: InboxRow) => {
     setMenuRow(null);
-    if (row.conversation.kind === "group") {
-      router.push(
-        `/group-chat?id=${
-          encodeURIComponent(row.conversation.id)
-        }&settings=1` as never,
-      );
-      return;
-    }
     setSettingsRow(row);
   };
   const archive = (row: InboxRow) => {
@@ -389,7 +373,6 @@ export default function MessageInbox() {
             row={item}
             draft={drafts[item.conversation.id]}
             busy={busyId === item.conversation.id}
-            onOpen={() => openChat(item)}
             onMenu={() => setMenuRow(item)}
             onTogglePinned={() => void togglePinned(item)}
           />
@@ -551,11 +534,10 @@ function FilterButton(
 }
 
 function ConversationRow(
-  { row, draft, busy, onOpen, onMenu }: {
+  { row, draft, busy, onMenu }: {
     row: InboxRow;
     draft?: string;
     busy: boolean;
-    onOpen: () => void;
     onMenu: () => void;
   },
 ) {
@@ -569,51 +551,60 @@ function ConversationRow(
           .name.split(" ")[0]
       ).join(", ") || "Group chat"
     : template.name;
+  const participantLine = groupParticipantLine(group);
+  const unreadCount = conversation.kind === "group" ? conversation.unread_count ?? 0 : 0;
+  const href = conversation.kind === "group"
+    ? `/group-chat?id=${encodeURIComponent(conversation.id)}`
+    : `/chat?character=${encodeURIComponent(template.slug)}`;
   return (
     <View style={[styles.row, busy && styles.rowBusy]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Open ${displayName}${conversation.unread ? ", unread messages" : ""}`}
-        onPress={onOpen}
-        disabled={busy}
-        style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
-      >
-        {conversation.kind === "group" ? <GroupAvatarStack group={group} /> : (
-          <CharacterAvatar
-            slug={template.slug}
-            name={template.name}
-            template={template}
-            version={character.together_character_versions}
-            size={58}
-          />
-        )}
-        <View style={styles.rowCopy}>
-          <View style={styles.rowTitleLine}>
-            <View style={styles.nameLine}>
-              <Text
-                style={[styles.name, conversation.unread && styles.unreadName]}
-                numberOfLines={1}
-              >
-                {displayName}
+      <Link href={href as never} asChild>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={`Open ${displayName}${conversation.unread ? ", unread messages" : ""}`}
+          onPress={(event) => preferDocumentNavigationOnWeb(event, href)}
+          disabled={busy}
+          style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
+        >
+          {conversation.kind === "group" ? <GroupAvatarStack group={group} /> : (
+            <CharacterAvatar
+              slug={template.slug}
+              name={template.name}
+              template={template}
+              version={character.together_character_versions}
+              size={58}
+            />
+          )}
+          <View style={styles.rowCopy}>
+            <View style={styles.rowTitleLine}>
+              <View style={styles.nameLine}>
+                <Text
+                  style={[styles.name, conversation.unread && styles.unreadName]}
+                  numberOfLines={1}
+                >
+                  {displayName}
+                </Text>
+                {isConversationPinned(conversation) ? <Pin accessibilityLabel="Pinned" size={12} color={colors.violet} fill={colors.violet} /> : null}
+                {conversation.unread && !unreadCount ? <View accessibilityLabel="Unread messages" style={styles.unreadDot} /> : null}
+              </View>
+              <Text style={styles.time}>
+                {formatInboxTimestamp(conversation.last_message_at)}
               </Text>
-              {isConversationPinned(conversation) ? <Pin accessibilityLabel="Pinned" size={12} color={colors.violet} fill={colors.violet} /> : null}
-              {conversation.unread ? <View accessibilityLabel="Unread messages" style={styles.unreadDot} /> : null}
             </View>
-            <Text style={styles.time}>
-              {formatInboxTimestamp(conversation.last_message_at)}
+            {participantLine ? <Text numberOfLines={1} style={styles.groupParticipants}>{participantLine}</Text> : null}
+            <Text
+              style={[
+                styles.preview,
+                conversation.unread && styles.unreadPreview,
+              ]}
+              numberOfLines={2}
+            >
+              {inboxPreview(conversation, { draft })}
             </Text>
           </View>
-          <Text
-            style={[
-              styles.preview,
-              conversation.unread && styles.unreadPreview,
-            ]}
-            numberOfLines={2}
-          >
-            {inboxPreview(conversation, { draft })}
-          </Text>
-        </View>
-      </Pressable>
+          {unreadCount ? <View accessibilityLabel={`${unreadCount} unread messages`} style={styles.unreadBadge}><Text style={styles.unreadBadgeText}>{unreadCount >= 99 ? "99+" : unreadCount}</Text></View> : null}
+        </Pressable>
+      </Link>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Options for ${displayName}`}
@@ -629,11 +620,10 @@ function ConversationRow(
 }
 
 function SwipeableConversationRow(
-  { row, draft, busy, onOpen, onMenu, onTogglePinned }: {
+  { row, draft, busy, onMenu, onTogglePinned }: {
     row: InboxRow;
     draft?: string;
     busy: boolean;
-    onOpen: () => void;
     onMenu: () => void;
     onTogglePinned: () => void;
   },
@@ -660,7 +650,7 @@ function SwipeableConversationRow(
         </Pressable>
       )}
     >
-      <ConversationRow row={row} draft={draft} busy={busy} onOpen={onOpen} onMenu={onMenu} />
+      <ConversationRow row={row} draft={draft} busy={busy} onMenu={onMenu} />
     </Swipeable>
   );
 }
@@ -858,24 +848,50 @@ function ConversationActions(
                   <Text style={styles.sheetActionCopy}>{isConversationPinned(row.conversation) ? "Return it to activity order" : "Keep it at the top of Messages"}</Text>
                 </View>
               </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Edit chat settings"
-                onPress={() => onSettings(row)}
-                style={(
-                  { pressed },
-                ) => [styles.sheetAction, pressed && styles.pressed]}
-              >
-                <Settings size={19} color={colors.text} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.sheetActionTitle}>
-                    Edit chat settings
-                  </Text>
-                  <Text style={styles.sheetActionCopy}>
-                    Name, response style, text size, language, and voice
-                  </Text>
-                </View>
-              </Pressable>
+              {row.conversation.kind === "group"
+                ? (
+                  <Link
+                    href={`/group-chat?id=${encodeURIComponent(row.conversation.id)}&settings=1` as never}
+                    asChild
+                  >
+                    <Pressable
+                      accessibilityRole="link"
+                      accessibilityLabel="Manage group"
+                      onPress={(event) => {
+                        onClose();
+                        preferDocumentNavigationOnWeb(
+                          event,
+                          `/group-chat?id=${encodeURIComponent(row.conversation.id)}&settings=1`,
+                        );
+                      }}
+                      style={({ pressed }) => [styles.sheetAction, pressed && styles.pressed]}
+                    >
+                      <Settings size={19} color={colors.text} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.sheetActionTitle}>Manage group</Text>
+                        <Text style={styles.sheetActionCopy}>
+                          People, shared media, notifications, and chat behavior
+                        </Text>
+                      </View>
+                    </Pressable>
+                  </Link>
+                )
+                : (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Edit chat settings"
+                    onPress={() => onSettings(row)}
+                    style={({ pressed }) => [styles.sheetAction, pressed && styles.pressed]}
+                  >
+                    <Settings size={19} color={colors.text} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.sheetActionTitle}>Edit chat settings</Text>
+                      <Text style={styles.sheetActionCopy}>
+                        Name, response style, text size, language, and voice
+                      </Text>
+                    </View>
+                  </Pressable>
+                )}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Archive chat"
@@ -902,6 +918,15 @@ function ConversationActions(
       </View>
     </Modal>
   );
+}
+
+function preferDocumentNavigationOnWeb(
+  event: { preventDefault: () => void },
+  href: string,
+) {
+  if (Platform.OS !== "web" || typeof window === "undefined") return;
+  event.preventDefault();
+  window.location.assign(href);
 }
 
 const styles = StyleSheet.create({
@@ -1113,7 +1138,10 @@ const styles = StyleSheet.create({
   },
   time: { color: colors.dimmed, fontSize: 12, fontVariant: ["tabular-nums"] },
   preview: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 7 },
+  groupParticipants: { color: colors.dimmed, fontSize: 11, lineHeight: 15, marginTop: 2 },
   unreadPreview: { color: colors.textSecondary },
+  unreadBadge: { minWidth: 24, height: 24, paddingHorizontal: 6, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.wine },
+  unreadBadgeText: { color: "#fff", fontSize: 10, fontWeight: "900", fontVariant: ["tabular-nums"] },
   more: {
     width: 44,
     height: 50,

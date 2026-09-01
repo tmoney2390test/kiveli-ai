@@ -62,20 +62,62 @@ serve(async (request, correlationId) => {
     const page = (data ?? []).slice(0, input.limit);
     const conversationIds = page.map((conversation) => String(conversation.id));
     const groupIds = page.filter((conversation) => conversation.kind === 'group').map((conversation) => String(conversation.id));
-    const [participantResult, pendingResult] = await Promise.all([
+    const [participantResult, pendingResult, groupMessageResult] = await Promise.all([
       groupIds.length
         ? db.from('together_conversation_participants').select('*,together_character_instances(*,together_character_templates(*),together_character_versions(portrait_asset_key,visual_identity,personality_config,communication_style,boundaries))').eq('user_id', user.id).eq('continuity_id', continuity.id).in('conversation_id', groupIds).is('left_at', null).order('joined_at')
         : Promise.resolve({ data: [], error: null }),
       conversationIds.length
-        ? db.from('together_dialogue_turns').select('conversation_id').eq('user_id', user.id).in('conversation_id', conversationIds).in('state', ['planning','generating'])
+        ? db.from('together_dialogue_turns').select('conversation_id,planned_actions,state').eq('user_id', user.id).in('conversation_id', conversationIds).in('state', ['planning','generating'])
+        : Promise.resolve({ data: [], error: null }),
+      groupIds.length
+        ? db.from('together_messages').select('conversation_id,speaker_character_instance_id,character_instance_id,created_at,conversation_sequence').eq('user_id', user.id).in('conversation_id', groupIds).eq('role', 'assistant').order('created_at', { ascending: false }).limit(2000)
         : Promise.resolve({ data: [], error: null }),
     ]);
     if (participantResult.error) throw new AppError('INTERNAL_ERROR', 'Group rosters could not be loaded.', 500, true);
     if (pendingResult.error) throw new AppError('INTERNAL_ERROR', 'Message status could not be loaded.', 500, true);
+    if (groupMessageResult.error) throw new AppError('INTERNAL_ERROR', 'Group message status could not be loaded.', 500, true);
     const pendingIds = new Set((pendingResult.data ?? []).map((turn) => String(turn.conversation_id)));
+    const participantNames = new Map<string, string>();
+    for (const participant of participantResult.data ?? []) {
+      const name = String(participant.together_character_instances?.together_character_templates?.name ?? '').trim();
+      if (name) participantNames.set(String(participant.character_instance_id), name);
+    }
+    const latestGroupSpeaker = new Map<string, { id: string; name: string | null }>();
+    const unreadCounts = new Map<string, number>();
+    const lastReadByConversation = new Map(page.map((conversation) => [String(conversation.id), conversation.last_read_at ? new Date(conversation.last_read_at).getTime() : 0]));
+    for (const message of groupMessageResult.data ?? []) {
+      const conversationId = String(message.conversation_id);
+      const speakerId = String(message.speaker_character_instance_id ?? message.character_instance_id ?? '');
+      if (!latestGroupSpeaker.has(conversationId) && speakerId) {
+        latestGroupSpeaker.set(conversationId, { id: speakerId, name: participantNames.get(speakerId) ?? null });
+      }
+      const createdAt = new Date(String(message.created_at)).getTime();
+      if (createdAt > (lastReadByConversation.get(conversationId) ?? 0)) {
+        unreadCounts.set(conversationId, Math.min(99, (unreadCounts.get(conversationId) ?? 0) + 1));
+      }
+    }
+    const pendingSpeakerByConversation = new Map<string, string>();
+    for (const turn of pendingResult.data ?? []) {
+      const actions = Array.isArray(turn.planned_actions) ? turn.planned_actions : [];
+      const speakerId = String(actions.find((action: any) => action && typeof action === 'object' && action.type === 'message')?.characterInstanceId ?? '');
+      const name = participantNames.get(speakerId);
+      if (name) pendingSpeakerByConversation.set(String(turn.conversation_id), name);
+    }
     const enriched = page.map((conversation) => {
-      const unread = Boolean(conversation.last_assistant_message_at && (!conversation.last_read_at || new Date(conversation.last_assistant_message_at) > new Date(conversation.last_read_at)));
-      return { ...conversation, unread, reply_pending: pendingIds.has(String(conversation.id)) };
+      const conversationId = String(conversation.id);
+      const groupUnreadCount = conversation.kind === 'group' ? unreadCounts.get(conversationId) ?? 0 : undefined;
+      const unread = conversation.kind === 'group'
+        ? Boolean(groupUnreadCount)
+        : Boolean(conversation.last_assistant_message_at && (!conversation.last_read_at || new Date(conversation.last_assistant_message_at) > new Date(conversation.last_read_at)));
+      const lastSpeaker = latestGroupSpeaker.get(conversationId);
+      return {
+        ...conversation,
+        unread,
+        ...(groupUnreadCount !== undefined ? { unread_count: groupUnreadCount } : {}),
+        ...(lastSpeaker ? { last_speaker_character_instance_id: lastSpeaker.id, last_speaker_name: lastSpeaker.name } : {}),
+        reply_pending: pendingIds.has(conversationId),
+        reply_pending_speaker_name: pendingSpeakerByConversation.get(conversationId) ?? null,
+      };
     });
     const conversationById = new Map(enriched.map((conversation) => [String(conversation.id), conversation]));
     const participantsByConversation = new Map<string, any[]>();

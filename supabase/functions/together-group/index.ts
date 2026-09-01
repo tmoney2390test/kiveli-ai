@@ -71,6 +71,7 @@ const schema = z.discriminatedUnion("action", [
     chatLanguage: z.enum(chatLanguagePreferences).optional(),
     responseMode: z.enum(["automatic", "choose_speaker"]),
     energy: z.enum(["quiet", "balanced", "lively"]),
+    notificationMode: z.enum(["all", "mentions", "muted"]).optional(),
   }),
   z.object({
     action: z.literal("cancel_turn"),
@@ -196,7 +197,7 @@ serve(async (request, correlationId) => {
       group_world_id: groupWorldId,
       title,
       metadata: {
-        groupSettings: { responseMode: "automatic", energy: "balanced" },
+        groupSettings: { responseMode: "automatic", energy: "balanced", notificationMode: "all" },
         groupWorldId,
         groupCreateRequestId: input.requestId,
         ...(sceneId ? { createdFromSceneId: sceneId } : {}),
@@ -577,7 +578,11 @@ serve(async (request, correlationId) => {
     const metadata = {
       ...currentMetadata,
       chatPreferences,
-      groupSettings: { responseMode: input.responseMode, energy: input.energy },
+      groupSettings: {
+        responseMode: input.responseMode,
+        energy: input.energy,
+        notificationMode: input.notificationMode ?? normalizeGroupSettings(currentMetadata).notificationMode,
+      },
     };
     const { data, error } = await db.from("together_conversations").update({
       title: input.title === undefined ? conversation.title : input.title,
@@ -599,6 +604,7 @@ serve(async (request, correlationId) => {
       chatLanguage,
       responseMode: input.responseMode,
       energy: input.energy,
+      notificationMode: input.notificationMode ?? normalizeGroupSettings(currentMetadata).notificationMode,
     });
     return json(
       {
@@ -627,7 +633,7 @@ serve(async (request, correlationId) => {
       .eq("user_id", user.id)
       .eq("conversation_id", conversation.id)
       .in("state", ["planning", "generating"])
-      .select("id");
+      .select("id,created_at");
     if (error) {
       throw new AppError(
         "INTERNAL_ERROR",
@@ -639,6 +645,10 @@ serve(async (request, correlationId) => {
     await track(db, user.id, "group_turn_cancelled_by_user", {
       conversationId: conversation.id,
       turnCount: cancelled?.length ?? 0,
+      oldestTurnAgeMs: (cancelled ?? []).reduce((maximum, turn) => {
+        const started = new Date(String(turn.created_at ?? now)).getTime();
+        return Math.max(maximum, Math.max(0, Date.now() - started));
+      }, 0),
     });
     return json({
       data: { cancelled: (cancelled?.length ?? 0) > 0 },

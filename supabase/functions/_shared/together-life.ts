@@ -17,6 +17,7 @@ import { filterMemoriesForPreferences } from './kivelle-memory-access.ts';
 import { cancelQueuedAmbientProactiveMessages, isPlanReminderProactive } from './kivelle-initiative.ts';
 import { renderCharacterInitiative } from './kivelle-proactive-voice.ts';
 import { materializeWorldPulse } from './kivelle-world-pulse.ts';
+import { groupNotificationAllowsPush } from './kivelle-group-chat.ts';
 
 type LifeRunInput = { db: SupabaseClient; userId: string; characterInstanceId?: string; now?: Date; evaluateProactive?: boolean; persistCharacterState?:boolean; trigger: 'conversation_continued' | 'home_opened' | 'scheduled_dispatch' };
 type EventRow = Record<string, any>;
@@ -299,7 +300,11 @@ async function deliverMessage(db: SupabaseClient, userId: string, instance: Even
       } catch (error) { console.warn('Together contextual life photo offer unavailable', error instanceof Error ? error.message : 'unknown_error'); }
     }
   }
-  if (delivered && prefs.push_enabled) await sendCompanionPush(db,{userId,characterName:String((instance.together_character_templates as EventRow | undefined)?.name ?? 'Kivelle'),proactive:delivered});
+  const pushAllowed = conversation?.kind !== 'group' || groupNotificationAllowsPush(
+    conversation?.metadata,
+    proactive.context?.mentionsUser === true,
+  );
+  if (delivered && prefs.push_enabled && pushAllowed) await sendCompanionPush(db,{userId,characterName:String((instance.together_character_templates as EventRow | undefined)?.name ?? 'Kivelle'),proactive:delivered});
   return delivered ?? proactive;
 }
 

@@ -68,6 +68,7 @@ export function normalizeGroupSettings(
 ): {
   responseMode: "automatic" | "choose_speaker";
   energy: "quiet" | "balanced" | "lively";
+  notificationMode: "all" | "mentions" | "muted";
 } {
   const record =
     metadata && typeof metadata === "object" && !Array.isArray(metadata)
@@ -84,5 +85,17 @@ export function normalizeGroupSettings(
     energy: settings.energy === "quiet" || settings.energy === "lively"
       ? settings.energy
       : "balanced",
+    notificationMode: settings.notificationMode === "mentions" ||
+        settings.notificationMode === "muted"
+      ? settings.notificationMode
+      : "all",
   };
+}
+
+export function groupNotificationAllowsPush(
+  metadata: unknown,
+  mentionsUser = false,
+): boolean {
+  const mode = normalizeGroupSettings(metadata).notificationMode;
+  return mode === "all" || (mode === "mentions" && mentionsUser);
 }

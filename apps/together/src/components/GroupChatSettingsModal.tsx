@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { AlignLeft, Check, ChevronDown, Languages, MessageCircle, Settings, Sparkles, Type, UsersRound, X } from 'lucide-react-native';
+import { AlignLeft, Bell, Check, ChevronDown, Languages, MessageCircle, Settings, Sparkles, Type, UsersRound, X } from 'lucide-react-native';
 import { manageGroup } from '../lib/api';
 import { chatTextSizeOptions, resolveChatLanguage, resolveChatResponseStyle, resolveChatTextSize, withLocalChatSettings } from '../lib/chatSettings';
 import { conversationStyleOptions } from '../lib/conversationStyle';
@@ -29,6 +29,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
   const [languageOpen, setLanguageOpen] = useState(false);
   const [responseMode, setResponseMode] = useState<GroupSettings['responseMode']>('automatic');
   const [energy, setEnergy] = useState<GroupSettings['energy']>('balanced');
+  const [notificationMode, setNotificationMode] = useState<GroupSettings['notificationMode']>('all');
   const [saving, setSaving] = useState(false);
   const selectedLanguage = chatLanguageOptions.find((option) => option.value === chatLanguage) ?? chatLanguageOptions[1]!;
 
@@ -41,7 +42,8 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
     setLanguageOpen(false);
     setResponseMode(settings.responseMode);
     setEnergy(settings.energy);
-  }, [conversation, settings.energy, settings.responseMode, snapshot?.profile, visible]);
+    setNotificationMode(settings.notificationMode);
+  }, [conversation, settings.energy, settings.notificationMode, settings.responseMode, snapshot?.profile, visible]);
 
   const save = async () => {
     if (!conversation || saving) return;
@@ -51,9 +53,9 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
       if (demoMode) {
         const updated = withLocalChatSettings(conversation, input);
         upsertConversation(updated);
-        onSaved?.(updated, { responseMode, energy });
+        onSaved?.(updated, { responseMode, energy, notificationMode });
       } else {
-        const group = await manageGroup<GroupDetail>({ action: 'settings', conversationId: conversation.id, ...input, responseMode, energy });
+        const group = await manageGroup<GroupDetail>({ action: 'settings', conversationId: conversation.id, ...input, responseMode, energy, notificationMode });
         const canonical = group.conversation;
         upsertConversation(canonical);
         onSaved?.(canonical, group.settings);
@@ -111,6 +113,12 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
             <Text style={styles.sectionHint}>Quiet favors one focused reply. Balanced allows natural handoffs. Lively invites more overlap and follow-up.</Text>
             <View accessibilityRole="radiogroup" style={styles.columns}>
               {(['quiet', 'balanced', 'lively'] as const).map((value) => <Choice key={value} label={value[0]!.toUpperCase() + value.slice(1)} selected={energy === value} disabled={saving} onPress={() => setEnergy(value)} />)}
+            </View>
+          </Section>
+          <Section icon={<Bell size={16} color={colors.violet} />} label="Notifications">
+            <Text style={styles.sectionHint}>Choose which group activity can send a push notification. Messages still appear here when notifications are quiet.</Text>
+            <View accessibilityRole="radiogroup" style={styles.columns}>
+              {(['all', 'mentions', 'muted'] as const).map((value) => <Choice key={value} label={value === 'all' ? 'All' : value === 'mentions' ? 'Mentions only' : 'Muted'} selected={notificationMode === value} disabled={saving} onPress={() => setNotificationMode(value)} />)}
             </View>
           </Section>
         </ScrollView>

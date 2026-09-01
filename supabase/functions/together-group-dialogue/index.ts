@@ -457,6 +457,26 @@ function groupStream(input: any): Response {
         }
       };
       const heartbeat = setInterval(() => emit({ type: "heartbeat" }), 4000);
+      const turnStartedAt = Date.now();
+      let firstActivityAt: number | null = null;
+      let replyCount = 0;
+      let reactionCount = 0;
+      const speakerCounts = new Map<string, number>();
+      const markActivity = (speakerId?: string) => {
+        firstActivityAt ??= Date.now();
+        if (speakerId) speakerCounts.set(speakerId, (speakerCounts.get(speakerId) ?? 0) + 1);
+      };
+      const cancelTurn = async (reason: string) => {
+        await track(input.db, input.userId, "group_turn_cancelled", {
+          conversationId: input.conversation.id,
+          reason,
+          latencyMs: Date.now() - turnStartedAt,
+          firstActivityMs: firstActivityAt ? firstActivityAt - turnStartedAt : null,
+          replyCount,
+          reactionCount,
+        });
+        emit({ type: "turn_cancelled", turnId: input.turn.id });
+      };
       try {
         emit({
           type: "turn_started",
@@ -466,8 +486,6 @@ function groupStream(input: any): Response {
         });
         let lastMessage = input.userMessage,
           latestSpeakerId = "",
-          replyCount = 0,
-          reactionCount = 0,
           continuationIndex = 0;
         const actualActions: GroupTurnAction[] = [];
         const usedInitialActionIds = new Set<string>();
@@ -475,7 +493,7 @@ function groupStream(input: any): Response {
           (input.plan.actions as GroupTurnAction[])[0] ?? null;
         while (action) {
           if (!await touchConversationTurn(input.db, input.turnLease, 240)) {
-            emit({ type: "turn_cancelled", turnId: input.turn.id });
+            await cancelTurn("lease_lost");
             return;
           }
           const { data: liveTurn } = await input.db.from(
@@ -485,7 +503,7 @@ function groupStream(input: any): Response {
             liveTurn?.state !== "generating" ||
             Number(liveTurn.version) !== Number(input.turn.version)
           ) {
-            emit({ type: "turn_cancelled", turnId: input.turn.id });
+            await cancelTurn("state_changed");
             return;
           }
           const liveRoster = await activeGroupParticipants(input.db, {
@@ -497,7 +515,7 @@ function groupStream(input: any): Response {
             String(row.character_instance_id) === action!.characterInstanceId
           );
           if (!participant) {
-            emit({ type: "turn_cancelled", turnId: input.turn.id });
+            await cancelTurn("speaker_unavailable");
             return;
           }
           const instance = participant.together_character_instances ?? {},
@@ -518,13 +536,14 @@ function groupStream(input: any): Response {
               },
             );
             if (!reactionId) {
-              emit({ type: "turn_cancelled", turnId: input.turn.id });
+              await cancelTurn("reaction_commit_rejected");
               return;
             }
             const { data: reaction } = await input.db.from(
               "together_message_reactions",
             ).select("*").eq("id", reactionId).single();
             reactionCount += 1;
+            markActivity(action.characterInstanceId);
             emit({ type: "reaction_added", reaction });
             await track(input.db, input.userId, "group_character_reacted", {
               conversationId: input.conversation.id,
@@ -534,6 +553,7 @@ function groupStream(input: any): Response {
             break;
           }
           if (action.intent !== "media_offer") {
+            firstActivityAt ??= Date.now();
             emit({
               type: "speaker_typing",
               characterInstanceId: action.characterInstanceId,
@@ -652,11 +672,12 @@ function groupStream(input: any): Response {
             });
             const saved=committed?.message;
             if (!saved) {
-              emit({ type: "turn_cancelled", turnId: input.turn.id });
+              await cancelTurn("boundary_commit_rejected");
               return;
             }
             lastMessage = saved;
             replyCount += 1;
+            markActivity(action.characterInstanceId);
             emit({ type: "message_completed", message: saved });
             break;
           }
@@ -673,7 +694,7 @@ function groupStream(input: any): Response {
             });
             const saved=committed?.message;
             if (!saved) {
-              emit({ type: "turn_cancelled", turnId: input.turn.id });
+              await cancelTurn("media_commit_rejected");
               return;
             }
             const photoSubjectIds = input.photoSubjectCharacterInstanceIds
@@ -714,6 +735,7 @@ function groupStream(input: any): Response {
             lastMessage = saved;
             latestSpeakerId = action.characterInstanceId;
             replyCount += 1;
+            markActivity(action.characterInstanceId);
             emit({ type: "message_completed", message: saved });
             emit({ type: "media_offer_created", offer });
             if(committed.created)await track(input.db, input.userId, "group_character_spoke", {
@@ -798,12 +820,13 @@ function groupStream(input: any): Response {
           });
           const saved=committed?.message;
           if (!saved) {
-            emit({ type: "turn_cancelled", turnId: input.turn.id });
+            await cancelTurn("message_commit_rejected");
             return;
           }
           lastMessage = saved;
           latestSpeakerId = action.characterInstanceId;
           replyCount += 1;
+          markActivity(action.characterInstanceId);
           emit({ type: "message_completed", message: saved });
           if(!committed.created)break;
           await maybeCreateGroupLocationPlanCandidate(input.db, {
@@ -896,7 +919,7 @@ function groupStream(input: any): Response {
             input.turn.version,
           ).select("id").maybeSingle();
           if (!stillLive) {
-            emit({ type: "turn_cancelled", turnId: input.turn.id });
+            await cancelTurn("continuation_lease_lost");
             return;
           }
           action = next;
@@ -907,7 +930,7 @@ function groupStream(input: any): Response {
           "completed",
         );
         if (!finished) {
-          emit({ type: "turn_cancelled", turnId: input.turn.id });
+          await cancelTurn("completion_rejected");
           return;
         }
         await persistWitnessedGroupMemories(input.db, {
@@ -926,11 +949,27 @@ function groupStream(input: any): Response {
           db:input.db,userId:input.userId,conversationId:input.conversation.id,
           embed:(text)=>episodeEmbeddings.embed(text,{db:input.db,userId:input.userId,continuityId:input.continuityId,conversationId:input.conversation.id,purpose:"group_conversation_episode"}),
         }).catch((error)=>console.warn(JSON.stringify({level:"warn",operation:"group_episode_consolidation",conversationId:input.conversation.id,message:error instanceof Error?error.message:"unknown_error"}))));
+        const latencyMs = Date.now() - turnStartedAt;
+        const counts = [...speakerCounts.values()];
+        const activityCount = replyCount + reactionCount;
+        const maxSpeakerShare = activityCount ? Math.max(0, ...counts) / activityCount : 0;
         await track(input.db, input.userId, "group_turn_yielded", {
           conversationId: input.conversation.id,
           replyCount,
           reactionCount,
+          latencyMs,
+          firstActivityMs: firstActivityAt ? firstActivityAt - turnStartedAt : null,
+          silent: replyCount === 0 && reactionCount === 0,
+          uniqueSpeakerCount: speakerCounts.size,
+          maxSpeakerShare,
         });
+        if (replyCount === 0 && reactionCount === 0) {
+          await track(input.db, input.userId, "group_turn_silent", {
+            conversationId: input.conversation.id,
+            latencyMs,
+            plannedActionCount: input.plan.actions.length,
+          });
+        }
         if (input.input.letThemTalk) {
           await track(input.db, input.userId, "group_let_them_talk_completed", {
             conversationId: input.conversation.id,
@@ -945,6 +984,14 @@ function groupStream(input: any): Response {
           reactionCount,
         });
       } catch (error) {
+        await track(input.db, input.userId, "group_turn_failed", {
+          conversationId: input.conversation.id,
+          latencyMs: Date.now() - turnStartedAt,
+          firstActivityMs: firstActivityAt ? firstActivityAt - turnStartedAt : null,
+          replyCount,
+          reactionCount,
+          errorCode: error instanceof AppError ? error.code : "PROVIDER_UNAVAILABLE",
+        });
         await finishConversationTurn(input.db, input.turnLease, "failed", {
           errorCode: error instanceof AppError
             ? error.code
@@ -1116,7 +1163,11 @@ async function commitMessage(
     p_version: input.turn.version,
     p_speaker_character_instance_id: action.characterInstanceId,
     p_content: content,
-    p_provider_metadata: { ...metadata, groupActionId: action.id },
+    p_provider_metadata: {
+      ...metadata,
+      groupActionId: action.id,
+      addresseeInstanceIds: action.addresseeInstanceIds,
+    },
   });
   const committed=Array.isArray(data)?data[0]:data;
   if (!committed?.message_id) return null;
