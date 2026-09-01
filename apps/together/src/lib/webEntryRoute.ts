@@ -18,6 +18,14 @@ export function consumeWebEntryHref() {
   if (typeof window !== 'undefined') delete window.__KIVELLE_ENTRY_HREF__;
 }
 
+export function webEntryHrefConsumed() {
+  return consumed;
+}
+
+export function effectiveWebEntryHref(capturedHref: string | null, entryConsumed = webEntryHrefConsumed()) {
+  return entryConsumed ? null : capturedHref;
+}
+
 export function entryPathname(href: string) {
   return href.split(/[?#]/, 1)[0]?.replace(/\/+$/, '') || '/';
 }

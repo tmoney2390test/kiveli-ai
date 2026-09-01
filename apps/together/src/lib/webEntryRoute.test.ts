@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { authenticatedRoutePathname, entryPathname, shouldConsumeWebEntry, shouldRecoverWebEntry } from './webEntryRoute';
+import { authenticatedRoutePathname, effectiveWebEntryHref, entryPathname, shouldConsumeWebEntry, shouldRecoverWebEntry } from './webEntryRoute';
 
 describe('captured web entry routes', () => {
   it('preserves query parameters while comparing the pathname', () => {
@@ -15,6 +15,11 @@ describe('captured web entry routes', () => {
     expect(shouldRecoverWebEntry({ entryHref: '/settings', browserPathname: '/settings' })).toBe(false);
     expect(shouldRecoverWebEntry({ entryHref: '/', browserPathname: '/' })).toBe(false);
     expect(shouldRecoverWebEntry({ entryHref: '/settings', browserPathname: '/moments' })).toBe(false);
+  });
+
+  it('drops a captured alias after an intentional redirect consumes it', () => {
+    expect(effectiveWebEntryHref('/quick-start', false)).toBe('/quick-start');
+    expect(effectiveWebEntryHref('/quick-start', true)).toBeNull();
   });
 
   it('keeps a deep link until its route and authenticated snapshot are both ready',()=>{

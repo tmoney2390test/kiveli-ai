@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isLifeSetupPath, isPublicAppPath, joinPathFor, safeAppReturnPath, signInPathFor } from './sessionRouting';
+import { isLifeSetupPath, isPublicAppPath, joinPathFor, safeAppReturnPath, shouldHoldPrivateWebRouteForHydration, signInPathFor } from './sessionRouting';
 
 describe('session routing', () => {
   it('recognizes only routes that can safely render without a session', () => {
@@ -10,8 +10,16 @@ describe('session routing', () => {
     expect(isPublicAppPath('/privacy-policy')).toBe(true);
     expect(isPublicAppPath('/community-guidelines')).toBe(true);
     expect(isPublicAppPath('/help')).toBe(true);
+    expect(isPublicAppPath('/onboarding')).toBe(true);
     expect(isPublicAppPath('/home')).toBe(false);
     expect(isPublicAppPath('/character/maya')).toBe(false);
+  });
+
+  it('holds private static web routes until browser hydration is complete', () => {
+    expect(shouldHoldPrivateWebRouteForHydration({ platform: 'web', hydrated: false, pathname: '/settings' })).toBe(true);
+    expect(shouldHoldPrivateWebRouteForHydration({ platform: 'web', hydrated: true, pathname: '/settings' })).toBe(false);
+    expect(shouldHoldPrivateWebRouteForHydration({ platform: 'web', hydrated: false, pathname: '/auth' })).toBe(false);
+    expect(shouldHoldPrivateWebRouteForHydration({ platform: 'ios', hydrated: false, pathname: '/settings' })).toBe(false);
   });
 
   it('keeps valid in-app deep links and rejects external or auth loops', () => {
@@ -47,6 +55,7 @@ describe('session routing', () => {
 
   it('allows first-life setup routes to finish after bootstrap', () => {
     expect(isLifeSetupPath('/choose-companion')).toBe(true);
+    expect(isLifeSetupPath('/quick-start')).toBe(true);
     expect(isLifeSetupPath('/age-confirmation')).toBe(true);
     expect(isLifeSetupPath('/create/companion')).toBe(true);
     expect(isLifeSetupPath('/home')).toBe(false);

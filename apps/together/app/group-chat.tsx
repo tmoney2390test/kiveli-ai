@@ -1479,8 +1479,8 @@ export default function GroupChatScreen() {
       behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined}
     >
       <View style={styles.shell}>
-        {showConversationRail
-          ? <ChatConversationRail snapshot={snapshot!} activeConversationId={detail.conversation.id} />
+        {showConversationRail && snapshot
+          ? <ChatConversationRail snapshot={snapshot} activeConversationId={detail.conversation.id} />
           : null}
         <View style={styles.conversation}>
       <GroupAmbientGlow compact={width < 720} />

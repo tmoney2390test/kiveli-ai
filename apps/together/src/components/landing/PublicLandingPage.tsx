@@ -30,6 +30,7 @@ import { radius, typography } from '../../theme';
 import { joinPathFor } from '../../lib/sessionRouting';
 import { PUBLIC_COMPANIONS, PUBLIC_LANDING_COPY, PUBLIC_WORLDS, type PublicCompanion, type PublicWorld } from '../../lib/publicLanding';
 import { publicCompanionAssets, publicLandingHeroPortraitAsset, publicLandingHeroUrls, publicLandingMobileHeroAsset, publicWorldAssets } from './publicLandingAssets';
+import { useWebHydrated } from '../../hooks/useWebHydrated';
 
 type LandingSection = 'worlds' | 'why' | 'companions';
 
@@ -56,8 +57,9 @@ const factualHighlights = [
 
 export function PublicLandingPage() {
   const { width } = useWindowDimensions();
-  const desktop = width >= 980;
-  const tablet = width >= 680;
+  const webHydrated = useWebHydrated();
+  const desktop = webHydrated && width >= 980;
+  const tablet = webHydrated && width >= 680;
   const scroll = useRef<ScrollView | null>(null);
   const sectionY = useRef<Partial<Record<LandingSection, number>>>({});
   const [sectionsReady,setSectionsReady]=useState(false);

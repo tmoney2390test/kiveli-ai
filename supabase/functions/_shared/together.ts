@@ -29,6 +29,10 @@ export const TOGETHER_IDS = {
 export const relationshipMetrics = ['trust','comfort','attraction','affinity','familiarity','respect','conflict','romantic_interest','commitment'] as const;
 const phaseOrder = ['arrival','ordering','early_conversation','personal_conversation','unexpected_moment','dessert','after_date','resolution'] as const;
 const SNAPSHOT_CATALOG_TTL_MS=60_000;
+const SNAPSHOT_CHARACTER_VERSION_FIELDS='id,character_template_id,version,personality_config,interests,communication_style,appearance_config,portrait_asset_key,visual_identity,pronouns,relationship_config,life_config,appearance_candidates';
+const SNAPSHOT_CHARACTER_TEMPLATE_FIELDS='id,name,slug,age,occupation,biography,creator_id,current_published_version,published,character_role,can_be_selected,can_be_romanced,discovery_metadata,first_meeting,public_handle,lifecycle_status,visibility,relationship_goal,connection_config,spice_level';
+const SNAPSHOT_DISCOVERABLE_CHARACTER_SELECT=`${SNAPSHOT_CHARACTER_TEMPLATE_FIELDS},together_character_versions(${SNAPSHOT_CHARACTER_VERSION_FIELDS})`;
+const SNAPSHOT_CHARACTER_INSTANCE_SELECT=`*,together_character_templates(${SNAPSHOT_CHARACTER_TEMPLATE_FIELDS}),together_character_versions(${SNAPSHOT_CHARACTER_VERSION_FIELDS})`;
 type SnapshotCatalogQuery={data:Array<Record<string,any>>|null;error:unknown};
 type SnapshotCatalog={worlds:SnapshotCatalogQuery;locations:SnapshotCatalogQuery;characterWorldPresence:SnapshotCatalogQuery;trips:SnapshotCatalogQuery;photoOpportunities:SnapshotCatalogQuery};
 let snapshotCatalogCache:{expiresAt:number;value:Promise<SnapshotCatalog>}|null=null;
@@ -193,7 +197,7 @@ export async function buildExploreCatalogSnapshot(db:SupabaseClient,userId:strin
     catalog.then((value)=>value.worlds),
     catalog.then((value)=>value.locations),
     catalog.then((value)=>value.characterWorldPresence),
-    db.from('together_character_templates').select('*,together_character_versions(*)').or(`and(published.eq.true,can_be_selected.eq.true),creator_id.eq.${userId}`).neq('lifecycle_status','archived').order('name'),
+    db.from('together_character_templates').select(SNAPSHOT_DISCOVERABLE_CHARACTER_SELECT).or(`and(published.eq.true,can_be_selected.eq.true),creator_id.eq.${userId}`).neq('lifecycle_status','archived').order('name'),
     db.from('together_character_favorites').select('character_template_id').eq('user_id',userId).order('created_at',{ascending:false}),
     db.from('together_life_events').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).lte('starts_at',new Date(Date.now()+7*86400000).toISOString()).or(`ends_at.is.null,ends_at.gte.${new Date(Date.now()-6*60*60*1000).toISOString()}`).order('starts_at').limit(40),
   ]);
@@ -229,7 +233,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
   }
   const catalog=loadSnapshotCatalog(db);
   const continuity=await activeContinuity(db,userId);
-  const instanceRows=await db.from('together_character_instances').select('*, together_character_templates(*), together_character_versions(*)').eq('user_id', userId).eq('continuity_id',continuity.id);
+  const instanceRows=await db.from('together_character_instances').select(SNAPSHOT_CHARACTER_INSTANCE_SELECT).eq('user_id', userId).eq('continuity_id',continuity.id);
   if(instanceRows.error)throw new AppError('INTERNAL_ERROR','Kivelle could not load your companions.',500,true);
   const activeVersionIds=[...new Set((instanceRows.data??[]).map((instance)=>String(instance.character_version_id??'')).filter(Boolean))];
   const scheduleTemplates=fetchScheduleTemplates(db,activeVersionIds);
@@ -242,7 +246,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
     db.from('together_user_worlds').select('*').eq('user_id',userId),
     catalog.then((value)=>value.characterWorldPresence),
     Promise.resolve(instanceRows),
-    db.from('together_character_templates').select('*,together_character_versions(*)').or(`and(published.eq.true,can_be_selected.eq.true),creator_id.eq.${userId}`).neq('lifecycle_status','archived').order('name'),
+    db.from('together_character_templates').select(SNAPSHOT_DISCOVERABLE_CHARACTER_SELECT).or(`and(published.eq.true,can_be_selected.eq.true),creator_id.eq.${userId}`).neq('lifecycle_status','archived').order('name'),
     db.from('together_character_favorites').select('character_template_id').eq('user_id',userId).order('created_at',{ascending:false}),
     scheduleTemplates,
     db.from('together_character_schedule_events').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).gte('ends_at',new Date(Date.now()-86400000).toISOString()).lte('starts_at',new Date(Date.now()+8*86400000).toISOString()).order('starts_at').limit(800),
@@ -335,7 +339,7 @@ export async function buildCharacterPresenceSnapshot(
 ): Promise<Record<string, unknown>> {
   const continuity=await activeContinuity(db,userId);
   const catalog=loadSnapshotCatalog(db);
-  const instanceResult=await db.from('together_character_instances').select('*, together_character_templates(*), together_character_versions(*)').eq('id',characterInstanceId).eq('user_id',userId).eq('continuity_id',continuity.id).maybeSingle();
+  const instanceResult=await db.from('together_character_instances').select(SNAPSHOT_CHARACTER_INSTANCE_SELECT).eq('id',characterInstanceId).eq('user_id',userId).eq('continuity_id',continuity.id).maybeSingle();
   if(instanceResult.error||!instanceResult.data)throw new AppError('NOT_FOUND','That companion is unavailable.',404);
   const instance=instanceResult.data as Record<string,any>,nowDate=new Date(),now=nowDate.getTime(),versionId=String(instance.character_version_id);
   const [schedules, scheduleEvents, worlds, locations, presence, scenes, dates, plans, lifeEvents]=await Promise.all([
@@ -370,7 +374,7 @@ async function buildOnboardingSnapshot(db:SupabaseClient,userId:string,profile:R
     db.from('together_worlds').select('*').eq('published',true),
     db.from('together_locations').select('*'),
     db.from('together_character_world_presence').select('*'),
-    db.from('together_character_templates').select('*,together_character_versions(*)').eq('published',true).eq('can_be_selected',true).neq('lifecycle_status','archived').order('name'),
+    db.from('together_character_templates').select(SNAPSHOT_DISCOVERABLE_CHARACTER_SELECT).eq('published',true).eq('can_be_selected',true).neq('lifecycle_status','archived').order('name'),
     db.from('together_entitlements').select('*').eq('user_id',userId).maybeSingle(),
     db.from('together_notification_preferences').select('*').eq('user_id',userId).maybeSingle(),
   ]);

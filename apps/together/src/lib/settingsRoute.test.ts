@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { isSettingsPath, shouldRenderSettingsRoute, shouldUseDesktopSettingsLayout } from './settingsRoute';
 
 describe('settings route visibility', () => {
-  it('renders the settings overlay only on the settings route', () => {
+  it('renders the settings overlay on its canonical and legacy profile routes', () => {
     expect(isSettingsPath('/settings')).toBe(true);
     expect(isSettingsPath('/settings/')).toBe(true);
     expect(isSettingsPath('/(tabs)/settings')).toBe(true);
+    expect(isSettingsPath('/profile')).toBe(true);
+    expect(isSettingsPath('/(tabs)/profile')).toBe(true);
     expect(isSettingsPath('/')).toBe(false);
     expect(isSettingsPath('/home')).toBe(false);
     expect(isSettingsPath('/moments')).toBe(false);

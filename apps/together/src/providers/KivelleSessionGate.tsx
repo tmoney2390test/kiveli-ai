@@ -4,8 +4,9 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { LoadingSkeleton } from '../components/RouteState';
 import { RouteLoadingState } from '../components/RouteLoadingState';
 import { useAuth } from '../hooks/useAuth';
-import { isPublicAppPath, signInPathFor } from '../lib/sessionRouting';
-import { consumeWebEntryHref, entryPathname, initialWebEntryHref, shouldRecoverWebEntry } from '../lib/webEntryRoute';
+import { useWebHydrated } from '../hooks/useWebHydrated';
+import { isPublicAppPath, shouldHoldPrivateWebRouteForHydration, signInPathFor } from '../lib/sessionRouting';
+import { consumeWebEntryHref, effectiveWebEntryHref, entryPathname, initialWebEntryHref, shouldRecoverWebEntry } from '../lib/webEntryRoute';
 import { clearSessionSnapshot } from '../lib/sessionSnapshotCache';
 
 const AuthenticatedSessionGate = lazy(() => import('./AuthenticatedSessionGate').then((module) => ({ default: module.AuthenticatedSessionGate })));
@@ -19,11 +20,12 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
     : routerPathname;
   const href = useUnstableGlobalHref();
   const { session, loading: authLoading, signingOut } = useAuth();
+  const webHydrated = useWebHydrated();
   const redirectTarget = useRef<string | null>(null);
   const previousUserId=useRef<string|null>(null);
   const publicPath = isPublicAppPath(pathname);
   const entryHrefRef=useRef<string|null>(Platform.OS==='web'?initialWebEntryHref():null);
-  const entryHref = entryHrefRef.current;
+  const entryHref = effectiveWebEntryHref(entryHrefRef.current);
   const entryPath = entryHref ? entryPathname(entryHref) : null;
 
   useEffect(() => {
@@ -65,6 +67,10 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
     redirectTarget.current = null;
   }, [authLoading, session?.user.id, publicPath, href]);
 
+  if (shouldHoldPrivateWebRouteForHydration({ platform: Platform.OS, hydrated: webHydrated, pathname })) {
+    return <View style={styles.hydration}><LoadingSkeleton label="Opening Kivelle…" /></View>;
+  }
+
   if (demoMode || session) {
     return <Suspense fallback={<RouteLoadingState pathname={pathname} />}>
       <AuthenticatedSessionGate>{children}</AuthenticatedSessionGate>
@@ -83,4 +89,5 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
 
 const styles = StyleSheet.create({
   blocker: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 1000, backgroundColor: '#080B13' },
+  hydration: { flex: 1, minHeight: 420, backgroundColor: '#080B13' },
 });

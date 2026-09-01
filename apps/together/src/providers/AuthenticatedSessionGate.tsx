@@ -70,6 +70,7 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
     }
     if (redirectTarget.current !== target) {
       redirectTarget.current = target;
+      if (Platform.OS === 'web') consumeWebEntryHref();
       router.replace(target as never);
     }
   }, [agePath, companionOnboardingPath, publicPath, snapshot]);

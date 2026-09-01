@@ -1,8 +1,16 @@
-const PUBLIC_PATHS = new Set(['/', '/auth', '/auth/callback', '/reset-password', '/terms', '/privacy-policy', '/community-guidelines', '/help']);
-const ONBOARDING_PATHS = new Set(['/age-confirmation', '/choose-companion']);
+const PUBLIC_PATHS = new Set(['/', '/auth', '/auth/callback', '/onboarding', '/reset-password', '/terms', '/privacy-policy', '/community-guidelines', '/help']);
+const ONBOARDING_PATHS = new Set(['/age-confirmation', '/choose-companion', '/quick-start']);
 
 export function isPublicAppPath(pathname: string) {
   return PUBLIC_PATHS.has(normalizePathname(pathname));
+}
+
+export function shouldHoldPrivateWebRouteForHydration(input: {
+  platform: string;
+  hydrated: boolean;
+  pathname: string;
+}) {
+  return input.platform === 'web' && !input.hydrated && !isPublicAppPath(input.pathname);
 }
 
 export function isLifeSetupPath(pathname: string) {
@@ -15,7 +23,7 @@ export function isAgeConfirmationPath(pathname: string) {
 }
 
 export function isCompanionOnboardingPath(pathname: string) {
-  return normalizePathname(pathname) === '/choose-companion';
+  return ['/choose-companion', '/quick-start'].includes(normalizePathname(pathname));
 }
 
 export function safeAppReturnPath(value?: string | string[] | null) {

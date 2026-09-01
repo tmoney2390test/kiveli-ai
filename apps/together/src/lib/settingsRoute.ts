@@ -1,5 +1,6 @@
 export function isSettingsPath(pathname: string) {
-  return (pathname.replace(/^\/(?:\(tabs\)\/)?/, '/').replace(/\/+$/, '') || '/') === '/settings';
+  const normalized = pathname.replace(/^\/(?:\(tabs\)\/)?/, '/').replace(/\/+$/, '') || '/';
+  return normalized === '/settings' || normalized === '/profile';
 }
 
 export function shouldRenderSettingsRoute(input: {

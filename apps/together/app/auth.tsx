@@ -12,11 +12,13 @@ import { useTogether } from '../src/store/useTogether';
 import { safeAppReturnPath } from '../src/lib/sessionRouting';
 import { resolvePostAuthDestination } from '../src/lib/authRouting';
 import type { SocialAuthProvider } from '../src/lib/socialAuth';
+import { useWebHydrated } from '../src/hooks/useWebHydrated';
 
 export default function Auth() {
   const params = useLocalSearchParams<{ mode?: string; next?: string }>();
   const { width } = useWindowDimensions();
-  const wide = width >= 760;
+  const webHydrated = useWebHydrated();
+  const wide = webHydrated && width >= 760;
   const [creating, setCreating] = useState(params.mode !== 'signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
