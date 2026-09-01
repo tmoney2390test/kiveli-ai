@@ -19,23 +19,39 @@ afterEach(() => {
 });
 
 function browserAt(initialHref: string) {
-  let current = new URL(initialHref);
+  const entries = [{ href: new URL(initialHref), state: null as unknown }];
+  let entryIndex = 0;
+  const current = () => entries[entryIndex]!;
   const routeEvents: string[] = [];
   const classes = new Set<string>();
   const storage = new Map<string, string>();
   const history = {
-    state: null,
-    pushState: vi.fn((_state: unknown, _title: string, href: string) => { current = new URL(href, current); }),
-    replaceState: vi.fn((_state: unknown, _title: string, href: string) => { current = new URL(href, current); }),
+    get state() { return current().state; },
+    get length() { return entries.length; },
+    pushState: vi.fn((state: unknown, _title: string, href: string) => {
+      entries.splice(entryIndex + 1);
+      entries.push({ href: new URL(href, current().href), state });
+      entryIndex = entries.length - 1;
+    }),
+    replaceState: vi.fn((state: unknown, _title: string, href: string) => {
+      entries[entryIndex] = { href: new URL(href, current().href), state };
+    }),
+    back: vi.fn(() => { if (entryIndex > 0) entryIndex -= 1; }),
   };
   const location = {
-    get href() { return current.href; },
-    get pathname() { return current.pathname; },
-    get search() { return current.search; },
-    get hash() { return current.hash; },
-    get origin() { return current.origin; },
-    assign: vi.fn((href: string) => { current = new URL(href, current); }),
-    replace: vi.fn((href: string) => { current = new URL(href, current); }),
+    get href() { return current().href.href; },
+    get pathname() { return current().href.pathname; },
+    get search() { return current().href.search; },
+    get hash() { return current().href.hash; },
+    get origin() { return current().href.origin; },
+    assign: vi.fn((href: string) => {
+      entries.splice(entryIndex + 1);
+      entries.push({ href: new URL(href, current().href), state: null });
+      entryIndex = entries.length - 1;
+    }),
+    replace: vi.fn((href: string) => {
+      entries[entryIndex] = { href: new URL(href, current().href), state: null };
+    }),
   };
   class TestPopStateEvent extends Event {}
   const browser = {
@@ -60,7 +76,7 @@ function browserAt(initialHref: string) {
       contains: vi.fn((name: string) => classes.has(name)),
     } },
   } });
-  return { browser, classes, history, routeEvents, storage };
+  return { browser, classes, entries, history, routeEvents, storage };
 }
 
 describe("app navigation", () => {
@@ -128,8 +144,69 @@ describe("app navigation", () => {
       await vi.advanceTimersByTimeAsync(300);
 
       expect(nativePush).toHaveBeenCalledWith("/(tabs)/singles?world=eos-meridian", undefined);
-      expect(browser.location.assign).toHaveBeenCalledWith("/singles?world=eos-meridian");
+      expect(browser.location.replace).toHaveBeenCalledWith("/singles?world=eos-meridian");
+      expect(browser.location.assign).not.toHaveBeenCalled();
       expect(browser.location.href).toBe("https://kivelli.app/singles?world=eos-meridian");
+      history.back();
+      expect(browser.location.href).toBe("https://kivelli.app/explore");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("repairs a push that Expo serialized as a replacement", async () => {
+    vi.useFakeTimers();
+    try {
+      const { browser, entries, history } = browserAt("https://kivelli.app/explore?world=neon-kyo");
+      history.replaceState({ screen: "explore" }, "", "/explore?world=neon-kyo");
+      const nativePush = vi.fn((href: string) => {
+        void href;
+        return history.replaceState({ screen: "location" }, "", "/location/kissaten-88?world=neon-kyo");
+      });
+      const router = {
+        push: nativePush,
+        navigate: vi.fn(),
+        replace: vi.fn(),
+        dismissTo: vi.fn(),
+        setParams: vi.fn(),
+      };
+      installWebNavigationCompatibility(router);
+
+      router.push("/location/kissaten-88?world=neon-kyo" as never);
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(entries.map((entry) => entry.href.pathname + entry.href.search)).toEqual([
+        "/explore?world=neon-kyo",
+        "/location/kissaten-88?world=neon-kyo",
+      ]);
+      history.back();
+      expect(browser.location.href).toBe("https://kivelli.app/explore?world=neon-kyo");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not duplicate an Expo push that already created browser history", async () => {
+    vi.useFakeTimers();
+    try {
+      const { entries, history } = browserAt("https://kivelli.app/explore");
+      const nativePush = vi.fn((href: string) => {
+        void href;
+        return history.pushState({ screen: "location" }, "", "/location/kissaten-88");
+      });
+      const router = {
+        push: nativePush,
+        navigate: vi.fn(),
+        replace: vi.fn(),
+        dismissTo: vi.fn(),
+        setParams: vi.fn(),
+      };
+      installWebNavigationCompatibility(router);
+
+      router.push("/location/kissaten-88" as never);
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(entries.map((entry) => entry.href.pathname)).toEqual(["/explore", "/location/kissaten-88"]);
     } finally {
       vi.useRealTimers();
     }

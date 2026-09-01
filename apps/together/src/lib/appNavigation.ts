@@ -183,6 +183,69 @@ function hardNavigate(destination: string, mode: "push" | "replace"): void {
   window.location[mode === "replace" ? "replace" : "assign"](destination);
 }
 
+type HistoryWriteObserver = {
+  pushed: () => boolean;
+  replaced: () => boolean;
+  restore: () => void;
+  pushState: History["pushState"];
+  replaceState: History["replaceState"];
+};
+
+/**
+ * Expo occasionally fulfills `router.push` with replaceState on static web.
+ * Observe that short reconciliation window so a successful render cannot erase
+ * the browser entry the Back button needs. The native methods are retained for
+ * a precise repair after the observer is removed.
+ */
+function observeHistoryWrites(): HistoryWriteObserver {
+  const browserHistory = window.history;
+  const originalPushState = browserHistory.pushState;
+  const originalReplaceState = browserHistory.replaceState;
+  let pushCount = 0;
+  let replaceCount = 0;
+  let restored = false;
+  const pushState = ((data: unknown, unused: string, url?: string | URL | null) => (
+    Reflect.apply(originalPushState, browserHistory, [data, unused, url])
+  )) as History["pushState"];
+  const replaceState = ((data: unknown, unused: string, url?: string | URL | null) => (
+    Reflect.apply(originalReplaceState, browserHistory, [data, unused, url])
+  )) as History["replaceState"];
+
+  browserHistory.pushState = ((data: unknown, unused: string, url?: string | URL | null) => {
+    pushCount += 1;
+    return pushState(data, unused, url);
+  }) as History["pushState"];
+  browserHistory.replaceState = ((data: unknown, unused: string, url?: string | URL | null) => {
+    replaceCount += 1;
+    return replaceState(data, unused, url);
+  }) as History["replaceState"];
+
+  return {
+    pushed: () => pushCount > 0,
+    replaced: () => replaceCount > 0,
+    pushState,
+    replaceState,
+    restore: () => {
+      if (restored) return;
+      restored = true;
+      if (browserHistory.pushState === pushState || browserHistory.replaceState === replaceState) return;
+      browserHistory.pushState = originalPushState;
+      browserHistory.replaceState = originalReplaceState;
+    },
+  };
+}
+
+function restoreReplacedPushEntry(
+  observer: HistoryWriteObserver,
+  startingLocation: string,
+  startingState: unknown,
+  destination: string,
+): void {
+  const destinationState = window.history.state;
+  observer.replaceState(startingState, "", startingLocation);
+  observer.pushState(destinationState, "", destination);
+}
+
 export function navigateLocalRouteOnWeb(
   href: AppRouteHref,
   mode: "push" | "replace" = "push",
@@ -271,21 +334,43 @@ export function installWebNavigationCompatibility(router: object): void {
       navigateLocalRouteOnWeb(destination, mode);
       return undefined;
     }
+    const startingState = window.history.state;
+    const historyObserver = observeHistoryWrites();
     beginPendingWebRouteTransition(destination);
     let result: unknown;
     try {
       result = original(routerHref as never, options);
     } catch (error) {
+      historyObserver.restore();
       completePendingWebRouteTransition();
       throw error;
     }
     window.setTimeout(() => {
       const active = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const pushed = historyObserver.pushed();
+      const replaced = historyObserver.replaced();
+      historyObserver.restore();
       if (active === destination) {
+        if (mode === "push" && !pushed && replaced) {
+          restoreReplacedPushEntry(historyObserver, startingLocation, startingState, destination);
+        }
         completePendingWebRouteTransition(active);
         return;
       }
       const fellHome = routePath(active) === "/" && routePath(destination) !== "/";
+      if (fellHome && mode === "push" && pushed) {
+        // Expo already created a new entry, but serialized it as `/`. Replace
+        // that transient entry so Back returns to the real source screen.
+        hardNavigate(destination, "replace");
+        return;
+      }
+      if (fellHome && mode === "push" && replaced) {
+        // Expo overwrote the source entry with `/`. Restore the source before
+        // creating the destination entry with a full-browser safety load.
+        historyObserver.replaceState(startingState, "", startingLocation);
+        hardNavigate(destination, "push");
+        return;
+      }
       if (active === startingLocation || fellHome) {
         hardNavigate(destination, mode);
         return;
