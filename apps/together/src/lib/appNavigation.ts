@@ -19,7 +19,6 @@ declare global {
 }
 
 const patchedRouters = new WeakSet<object>();
-let activeWebRouter: { browserWindow: Window; router: ImperativeRouter } | null = null;
 const CLICK_GUARD_KEY = "__kivelliWebNavigationClickGuard";
 export const WEB_ROUTE_TRANSITION_KEY = "kivelli:web-route-transition:v1";
 export const WEB_ROUTE_TRANSITION_CLASS = "kivelli-route-transition-pending";
@@ -163,54 +162,12 @@ function isConversationRoute(href: string): boolean {
 }
 
 function isCapturedEntryRecovery(destination: string): boolean {
-  if (typeof window === "undefined") return false;
+  if (typeof window === "undefined" || window.location.pathname !== "/") return false;
   const captured = window.__KIVELLE_ENTRY_HREF__;
   return Boolean(captured && appRouteHref(captured) === destination);
 }
 
-const DYNAMIC_ROUTE_PATTERNS: Array<{
-  match: RegExp;
-  pathname: string | ((prefix: string) => string);
-  param: string;
-}> = [
-  { match: /^\/character\/([^/]+)$/, pathname: '/character/[slug]', param: 'slug' },
-  { match: /^\/location\/([^/]+)$/, pathname: '/location/[slug]', param: 'slug' },
-  { match: /^\/(date|media|moment|plan|story)\/([^/]+)$/, pathname: (prefix) => `/${prefix}/[id]`, param: 'id' },
-  { match: /^\/conversation\/([^/]+)$/, pathname: '/conversation/[id]', param: 'id' },
-  { match: /^\/conversations\/([^/]+)$/, pathname: '/conversations/[characterInstanceId]', param: 'characterInstanceId' },
-  { match: /^\/create\/companion\/([^/]+)$/, pathname: '/create/companion/[draftId]', param: 'draftId' },
-];
-
-function routeParams(searchParams: URLSearchParams): AppRouteParams {
-  const params: AppRouteParams = {};
-  for (const name of new Set(searchParams.keys())) {
-    const all = searchParams.getAll(name);
-    params[name] = all.length > 1 ? all : all[0];
-  }
-  return params;
-}
-
-/** Gives Expo the route pattern and named params it requires for dynamic web routes. */
-export function expoDynamicRouteHref(destination: string): AppRouteHref | null {
-  const parsed = new URL(destination, 'https://kivelli.app');
-  for (const route of DYNAMIC_ROUTE_PATTERNS) {
-    const match = parsed.pathname.match(route.match);
-    if (!match) continue;
-    const value = match[match.length - 1];
-    if (value === undefined) continue;
-    const prefix = match.length > 2 ? (match[1] ?? '') : '';
-    const pathname = typeof route.pathname === 'function' ? route.pathname(prefix) : route.pathname;
-    return {
-      pathname,
-      params: { ...routeParams(parsed.searchParams), [route.param]: decodeURIComponent(value) },
-    };
-  }
-  return null;
-}
-
 function expoRouterHref(href: AppRouteHref, destination: string): AppRouteHref {
-  const dynamicHref = expoDynamicRouteHref(destination);
-  if (dynamicHref) return dynamicHref;
   const pathname = routePath(destination);
   if (!TAB_ROUTE_PATHS.has(pathname)) return href;
   if (typeof href === "string") {
@@ -239,9 +196,7 @@ export function navigateLocalRouteOnWeb(
     window.history[mode === "replace" ? "replaceState" : "pushState"]({}, "", destination);
     dispatchRouteChange();
   } else {
-    const activeRouter = activeWebRouter?.browserWindow === window ? activeWebRouter.router : null;
-    if (activeRouter) activeRouter[mode === 'replace' ? 'replace' : 'push'](destination as never);
-    else hardNavigate(destination, mode);
+    hardNavigate(destination, mode);
   }
   return true;
 }
@@ -294,6 +249,7 @@ export function installWebNavigationCompatibility(router: object): void {
 
   const imperativeRouter = router as ImperativeRouter;
 
+  const push = imperativeRouter.push.bind(imperativeRouter);
   const navigate = imperativeRouter.navigate.bind(imperativeRouter);
   const replace = imperativeRouter.replace.bind(imperativeRouter);
   const dismissTo = imperativeRouter.dismissTo?.bind(imperativeRouter);
@@ -329,7 +285,7 @@ export function installWebNavigationCompatibility(router: object): void {
         completePendingWebRouteTransition(active);
         return;
       }
-      const fellHome = routePath(active) === '/' && routePath(destination) !== '/';
+      const fellHome = routePath(active) === "/" && routePath(destination) !== "/";
       if (active === startingLocation || fellHome) {
         hardNavigate(destination, mode);
         return;
@@ -340,14 +296,11 @@ export function installWebNavigationCompatibility(router: object): void {
     return result;
   };
 
-  // Expo's web router resolves dynamic route objects through `navigate`; its
-  // `push` queue can collapse those same objects to the root alias.
-  imperativeRouter.push = ((href: AppRouteHref, options?: unknown) => transition(navigate, href, "push", options)) as ImperativeRouter["push"];
+  imperativeRouter.push = ((href: AppRouteHref, options?: unknown) => transition(push, href, "push", options)) as ImperativeRouter["push"];
   imperativeRouter.navigate = ((href: AppRouteHref, options?: unknown) => transition(navigate, href, "push", options)) as ImperativeRouter["navigate"];
   imperativeRouter.replace = ((href: AppRouteHref, options?: unknown) => transition(replace, href, "replace", options)) as ImperativeRouter["replace"];
   if (dismissTo) {
     imperativeRouter.dismissTo = ((href: AppRouteHref, options?: unknown) => transition(dismissTo, href, "replace", options)) as NonNullable<ImperativeRouter["dismissTo"]>;
   }
   imperativeRouter.setParams = ((params: AppRouteParams) => updateLocalRouteParamsOnWeb(params) || setParams(params as never)) as ImperativeRouter["setParams"];
-  activeWebRouter = { browserWindow: window, router: imperativeRouter };
 }

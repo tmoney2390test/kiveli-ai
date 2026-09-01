@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   appRouteHref,
   completePendingWebRouteTransition,
-  expoDynamicRouteHref,
   installWebNavigationCompatibility,
   navigateLocalRouteOnWeb,
   updateLocalRouteParamsOnWeb,
@@ -86,18 +85,6 @@ describe("app navigation", () => {
     expect(appRouteHref("https://example.com/explore")).toBeNull();
   });
 
-  it("converts concrete dynamic URLs into Expo route objects", () => {
-    expect(expoDynamicRouteHref('/location/the-rivet?world=eos-meridian')).toEqual({
-      pathname: '/location/[slug]',
-      params: { slug: 'the-rivet', world: 'eos-meridian' },
-    });
-    expect(expoDynamicRouteHref('/media/media%2Fone?character=iris&character=bianca')).toEqual({
-      pathname: '/media/[id]',
-      params: { id: 'media/one', character: ['iris', 'bianca'] },
-    });
-    expect(expoDynamicRouteHref('/explore?world=eos-meridian')).toBeNull();
-  });
-
   it("keeps conversation switching inside browser history", () => {
     const { browser, history, routeEvents } = browserAt("https://kivelli.app/chat?character=iris");
     const nativePush = vi.fn();
@@ -119,50 +106,22 @@ describe("app navigation", () => {
     expect(nativePush).not.toHaveBeenCalled();
   });
 
-  it("navigates dynamic routes through Expo with named parameters", async () => {
-    vi.useFakeTimers();
-    try {
-      const { browser, classes, history } = browserAt("https://kivelli.app/explore");
-      const nativePush = vi.fn((href: unknown, options?: unknown) => {
-        void href;
-        void options;
-        return history.pushState({}, "", "/location/the-rivet?world=eos-meridian");
-      });
-      const router = {
-        push: nativePush,
-        navigate: nativePush,
-        replace: vi.fn(),
-        dismissTo: vi.fn(),
-        setParams: vi.fn(),
-      };
-      installWebNavigationCompatibility(router);
-
-      router.push("/location/the-rivet?world=eos-meridian" as never);
-      await vi.advanceTimersByTimeAsync(300);
-
-      expect(nativePush).toHaveBeenCalledWith({
-        pathname: '/location/[slug]',
-        params: { slug: 'the-rivet', world: 'eos-meridian' },
-      }, undefined);
-      expect(browser.location.assign).not.toHaveBeenCalled();
-      expect(browser.location.href).toBe("https://kivelli.app/location/the-rivet?world=eos-meridian");
-      expect(classes.has(WEB_ROUTE_TRANSITION_CLASS)).toBe(false);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("falls back to one direct browser transition when Expo cannot resolve a route", async () => {
+  it("repairs a failed imperative route that falls back to Home", async () => {
     vi.useFakeTimers();
     try {
       const { browser, history } = browserAt("https://kivelli.app/explore");
-      const nativePush = vi.fn((href?: unknown, options?: unknown) => {
+      const nativePush = vi.fn((href: string, options?: unknown) => {
         void href;
         void options;
         return history.pushState({}, "", "/");
       });
-      const router = { push: nativePush, navigate: vi.fn(), replace: vi.fn(), dismissTo: vi.fn(), setParams: vi.fn() };
-      router.navigate = nativePush;
+      const router = {
+        push: nativePush,
+        navigate: vi.fn(),
+        replace: vi.fn(),
+        dismissTo: vi.fn(),
+        setParams: vi.fn(),
+      };
       installWebNavigationCompatibility(router);
 
       router.push("/(tabs)/singles?world=eos-meridian" as never);
@@ -170,13 +129,14 @@ describe("app navigation", () => {
 
       expect(nativePush).toHaveBeenCalledWith("/(tabs)/singles?world=eos-meridian", undefined);
       expect(browser.location.assign).toHaveBeenCalledWith("/singles?world=eos-meridian");
+      expect(browser.location.href).toBe("https://kivelli.app/singles?world=eos-meridian");
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("preserves Expo's tab route identity while its captured URL remains protected", () => {
-    const { browser } = browserAt("https://kivelli.app/explore?world=eos-meridian");
+  it("preserves Expo's tab route identity while recovering a captured deep link", () => {
+    const { browser } = browserAt("https://kivelli.app/");
     Object.assign(browser, { __KIVELLE_ENTRY_HREF__: "/explore?world=eos-meridian" });
     const nativeReplace = vi.fn();
     const router = {
@@ -191,7 +151,7 @@ describe("app navigation", () => {
     router.replace("/explore?world=eos-meridian" as never);
 
     expect(nativeReplace).toHaveBeenCalledWith("/(tabs)/explore?world=eos-meridian", undefined);
-    expect(browser.location.href).toBe("https://kivelli.app/explore?world=eos-meridian");
+    expect(browser.location.href).toBe("https://kivelli.app/");
   });
 
   it("uses a full browser transition for explicit cross-screen safety calls", () => {
