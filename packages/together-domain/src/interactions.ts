@@ -635,10 +635,11 @@ export function resolveMovementDestinations(input: InteractionResolveInput): Int
 export function applyInteractionSceneState(state: InteractionSceneState | null | undefined, candidate: Pick<InteractionCandidate, 'interactionKey' | 'effects' | 'label'>): InteractionSceneState {
   const previous = state ?? {};
   const recent = [...(previous.recentActionKeys ?? []), candidate.interactionKey].slice(-10);
-  const activity = typeof candidate.effects['sceneActivityKey'] === 'string' ? candidate.effects['sceneActivityKey'] : previous.currentActivityKey ?? null;
+  const changesOngoingActivity=typeof candidate.effects['sceneActivityKey'] === 'string';
+  const activity = changesOngoingActivity ? String(candidate.effects['sceneActivityKey']) : previous.currentActivityKey ?? null;
   const focus = candidate.interactionKey.split('.')[0] ?? previous.focus ?? null;
   const nextActivity = applyActivityState(previous.activity ?? {}, candidate);
-  return { ...previous, focus, currentActivityKey: activity, activityLabel: candidate.label, recentActionKeys: recent, selectedBy: candidate.interactionKey.includes('let_them_pick') ? 'character' : 'user', activity: nextActivity };
+  return { ...previous, focus, currentActivityKey: activity, activityLabel: changesOngoingActivity ? candidate.label : previous.activityLabel ?? null, recentActionKeys: recent, selectedBy: candidate.interactionKey.includes('let_them_pick') ? 'character' : 'user', activity: nextActivity };
 }
 
 function applyActivityState(previous: Record<string, unknown>, candidate: Pick<InteractionCandidate, 'interactionKey' | 'effects' | 'label'>) {

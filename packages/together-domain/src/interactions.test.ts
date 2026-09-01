@@ -97,6 +97,16 @@ describe('Interaction domain', () => {
     expect(after.some((item) => item.interactionKey === 'karaoke.sing_together')).toBe(true);
   });
 
+  it('records one-time events without turning them into the persistent scene activity', () => {
+    const location = { id: 'restaurant', name: 'Any restaurant', category: 'restaurant', locationType: 'venue', possibleActivities: ['food'] };
+    const shareFood = resolveInteractions({ character: creativeCharacter, relationship, location, life: { availability: 'open' }, seed: 'share-food', limit: 10 }).find((item) => item.interactionKey === 'restaurant.share_food')!;
+    const state = applyInteractionSceneState({ currentActivityKey: 'dinner', activityLabel: 'Having dinner' }, shareFood);
+    expect(state.currentActivityKey).toBe('dinner');
+    expect(state.activityLabel).toBe('Having dinner');
+    expect(state.recentActionKeys).toContain('restaurant.share_food');
+    expect(state.activity).toMatchObject({ sharedDish: true });
+  });
+
   it('resolves arena-specific actions from canonical sports content', () => {
     const location = { id: 'arena', name: 'Any arena', category: 'arena', locationType: 'venue', possibleActivities: ['basketball game', 'hockey game'], metadata: { interactionPacks: ['sports'] } };
     expect(inferInteractionPacks(location)).toContain('sports');
