@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { MessageCircle, Pin, UsersRound } from "lucide-react-native";
 import { manageGroup } from "../lib/api";
@@ -8,6 +8,7 @@ import {
   inboxPreview,
   isConversationPinned,
   isActiveInboxConversation,
+  MESSAGES_INBOX_HREF,
   returnToMessagesInbox,
 } from "../lib/messageInbox";
 import { colors, radius } from "../theme";
@@ -89,18 +90,27 @@ export function ChatConversationRail({
   const openConversation = (row: RailRow) => {
     if (row.conversation.id === activeConversationId) return;
     if (row.conversation.kind === "group") {
-      router.replace(
-        `/group-chat?id=${encodeURIComponent(row.conversation.id)}` as never,
-      );
+      openRailHref(`/group-chat?id=${encodeURIComponent(row.conversation.id)}`);
       return;
     }
     const template = row.character?.together_character_templates;
     if (!template) return;
-    router.replace(
+    openRailHref(
       `/chat?character=${
         encodeURIComponent(template.public_handle ?? template.slug)
-      }` as never,
+      }`,
     );
+  };
+
+  const openMessages = () => {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.location.assign(MESSAGES_INBOX_HREF);
+      return;
+    }
+    returnToMessagesInbox({
+      reset: (href) => router.replace(href as never),
+      navigate: (href) => router.push(href as never),
+    });
   };
 
   return (
@@ -110,7 +120,7 @@ export function ChatConversationRail({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="View all conversations"
-          onPress={() => returnToMessagesInbox({reset:(href)=>router.replace(href as never),navigate:(href)=>router.push(href as never)})}
+          onPress={openMessages}
         >
           <Text style={styles.viewAll}>View all</Text>
         </Pressable>
@@ -182,6 +192,14 @@ export function ChatConversationRail({
       </ScrollView>
     </View>
   );
+}
+
+function openRailHref(href: string) {
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    window.location.assign(href);
+    return;
+  }
+  router.replace(href as never);
 }
 
 function RailGroupAvatar({ group }: { group?: GroupDetail }) {
