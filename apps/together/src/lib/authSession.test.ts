@@ -3,6 +3,7 @@ import {
   clearInvalidLocalSession,
   clearSessionForApiFailure,
   getValidatedPersistedSession,
+  PERSISTED_SESSION_VALIDATION_TIMEOUT_MS,
   shouldClearSessionForApiFailure,
   type SessionAuthClient,
 } from './authSession';
@@ -45,6 +46,22 @@ describe('persisted auth session recovery', () => {
     const auth = authClient({ user: null, userError: { message: 'Failed to fetch' } });
     await expect(getValidatedPersistedSession(auth)).resolves.toMatchObject({ access_token: 'valid-token' });
     expect(auth.signOut).not.toHaveBeenCalled();
+  });
+
+  it('does not strand startup when persisted-session validation hangs', async () => {
+    vi.useFakeTimers();
+    try {
+      const auth = authClient();
+      auth.getUser.mockImplementation(() => new Promise(() => undefined));
+      const result = getValidatedPersistedSession(auth);
+
+      await vi.advanceTimersByTimeAsync(PERSISTED_SESSION_VALIDATION_TIMEOUT_MS);
+
+      await expect(result).resolves.toMatchObject({ access_token: 'valid-token' });
+      expect(auth.signOut).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('coalesces concurrent recovery and never requests a global sign-out', async () => {

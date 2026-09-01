@@ -10,8 +10,25 @@ type ImperativeRouter = {
   setParams: (params: never) => unknown;
 };
 
+declare global {
+  interface Window {
+    __KIVELLE_ENTRY_HREF__?: string;
+  }
+}
+
 const patchedRouters = new WeakSet<object>();
 const CLICK_GUARD_KEY = "__kivelliWebNavigationClickGuard";
+const TAB_ROUTE_PATHS = new Set([
+  "/chat-tab",
+  "/dates",
+  "/explore",
+  "/home",
+  "/market",
+  "/moments",
+  "/profile",
+  "/singles",
+  "/upgrade",
+]);
 
 function stripRouteGroups(pathname: string): string {
   return pathname.replace(/\/\([^)]+\)(?=\/|$)/g, "") || "/";
@@ -75,6 +92,36 @@ function dispatchRouteChange(): void {
   window.dispatchEvent(event);
 }
 
+function routePath(href: string): string {
+  return new URL(href, "https://kivelli.app").pathname.replace(/\/$/, "") || "/";
+}
+
+function isConversationRoute(href: string): boolean {
+  const pathname = routePath(href);
+  return pathname === "/chat" || pathname === "/group-chat";
+}
+
+function isCapturedEntryRecovery(destination: string): boolean {
+  if (typeof window === "undefined" || window.location.pathname !== "/") return false;
+  const captured = window.__KIVELLE_ENTRY_HREF__;
+  return Boolean(captured && appRouteHref(captured) === destination);
+}
+
+function expoRouterHref(href: AppRouteHref, destination: string): AppRouteHref {
+  const pathname = routePath(destination);
+  if (!TAB_ROUTE_PATHS.has(pathname)) return href;
+  if (typeof href === "string") {
+    if (href.includes("/(tabs)")) return href;
+    return `/(tabs)${destination}`;
+  }
+  if (href.pathname.includes("/(tabs)")) return href;
+  return { ...href, pathname: `/(tabs)${href.pathname}` };
+}
+
+function hardNavigate(destination: string, mode: "push" | "replace"): void {
+  window.location[mode === "replace" ? "replace" : "assign"](destination);
+}
+
 export function navigateLocalRouteOnWeb(
   href: AppRouteHref,
   mode: "push" | "replace" = "push",
@@ -84,8 +131,12 @@ export function navigateLocalRouteOnWeb(
   if (!destination) return false;
   const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
   if (current === destination) return true;
-  window.history[mode === "replace" ? "replaceState" : "pushState"]({}, "", destination);
-  dispatchRouteChange();
+  if (routePath(current) === routePath(destination) || (isConversationRoute(current) && isConversationRoute(destination))) {
+    window.history[mode === "replace" ? "replaceState" : "pushState"]({}, "", destination);
+    dispatchRouteChange();
+  } else {
+    hardNavigate(destination, mode);
+  }
   return true;
 }
 
@@ -143,11 +194,37 @@ export function installWebNavigationCompatibility(router: object): void {
   const dismissTo = imperativeRouter.dismissTo?.bind(imperativeRouter);
   const setParams = imperativeRouter.setParams.bind(imperativeRouter);
 
-  imperativeRouter.push = ((href: AppRouteHref, options?: unknown) => navigateLocalRouteOnWeb(href) || push(href as never, options)) as ImperativeRouter["push"];
-  imperativeRouter.navigate = ((href: AppRouteHref, options?: unknown) => navigateLocalRouteOnWeb(href) || navigate(href as never, options)) as ImperativeRouter["navigate"];
-  imperativeRouter.replace = ((href: AppRouteHref, options?: unknown) => navigateLocalRouteOnWeb(href, "replace") || replace(href as never, options)) as ImperativeRouter["replace"];
+  const transition = (
+    original: (href: never, options?: unknown) => unknown,
+    href: AppRouteHref,
+    mode: "push" | "replace",
+    options?: unknown,
+  ) => {
+    const destination = appRouteHref(href);
+    if (!destination) return original(href as never, options);
+    const routerHref = expoRouterHref(href, destination);
+    if (isCapturedEntryRecovery(destination)) return original(routerHref as never, options);
+    const startingLocation = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (startingLocation === destination) return undefined;
+    if (isConversationRoute(startingLocation) && isConversationRoute(destination)) {
+      navigateLocalRouteOnWeb(destination, mode);
+      return undefined;
+    }
+    const result = original(routerHref as never, options);
+    window.setTimeout(() => {
+      const active = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      if (active === destination) return;
+      const fellHome = routePath(active) === "/" && routePath(destination) !== "/";
+      if (active === startingLocation || fellHome) hardNavigate(destination, mode);
+    }, 300);
+    return result;
+  };
+
+  imperativeRouter.push = ((href: AppRouteHref, options?: unknown) => transition(push, href, "push", options)) as ImperativeRouter["push"];
+  imperativeRouter.navigate = ((href: AppRouteHref, options?: unknown) => transition(navigate, href, "push", options)) as ImperativeRouter["navigate"];
+  imperativeRouter.replace = ((href: AppRouteHref, options?: unknown) => transition(replace, href, "replace", options)) as ImperativeRouter["replace"];
   if (dismissTo) {
-    imperativeRouter.dismissTo = ((href: AppRouteHref, options?: unknown) => navigateLocalRouteOnWeb(href, "replace") || dismissTo(href as never, options)) as NonNullable<ImperativeRouter["dismissTo"]>;
+    imperativeRouter.dismissTo = ((href: AppRouteHref, options?: unknown) => transition(dismissTo, href, "replace", options)) as NonNullable<ImperativeRouter["dismissTo"]>;
   }
   imperativeRouter.setParams = ((params: AppRouteParams) => updateLocalRouteParamsOnWeb(params) || setParams(params as never)) as ImperativeRouter["setParams"];
 }

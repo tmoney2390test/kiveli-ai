@@ -21,10 +21,10 @@ import type{Location,Snapshot,World}from'../../src/types';
 import{KIVELLI_IMAGE_PLACEHOLDER}from'../../src/lib/imageWarmup';
 import{useSurfaceReadyTiming}from'../../src/components/ClientPerformanceBridge';
 import{naturalizeCharacterEventSummary,naturalizeCharacterEventTitle}from'@together/domain/src/character-language';
-import{navigateLocalRouteOnWeb,updateLocalRouteParamsOnWeb}from'../../src/lib/appNavigation';
+import{updateLocalRouteParamsOnWeb}from'../../src/lib/appNavigation';
 
 const nav={
-  push:(href:string)=>{if(!navigateLocalRouteOnWeb(href))router.push(href as never);},
+  push:(href:string)=>router.push(href as never),
   setParams:(params:Record<string,string>)=>{if(!updateLocalRouteParamsOnWeb(params))router.setParams(params);},
 };
 const EMPTY_FAVORITE_IDS:string[]=[];

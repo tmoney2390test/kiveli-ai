@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   appRouteHref,
   installWebNavigationCompatibility,
+  navigateLocalRouteOnWeb,
   updateLocalRouteParamsOnWeb,
 } from "./appNavigation";
 
@@ -22,11 +23,21 @@ function browserAt(initialHref: string) {
     pushState: vi.fn((_state: unknown, _title: string, href: string) => { current = new URL(href, current); }),
     replaceState: vi.fn((_state: unknown, _title: string, href: string) => { current = new URL(href, current); }),
   };
+  const location = {
+    get href() { return current.href; },
+    get pathname() { return current.pathname; },
+    get search() { return current.search; },
+    get hash() { return current.hash; },
+    get origin() { return current.origin; },
+    assign: vi.fn((href: string) => { current = new URL(href, current); }),
+    replace: vi.fn((href: string) => { current = new URL(href, current); }),
+  };
   class TestPopStateEvent extends Event {}
   const browser = {
-    get location() { return current; },
+    location,
     history,
     PopStateEvent: TestPopStateEvent,
+    setTimeout: globalThis.setTimeout,
     dispatchEvent: vi.fn((event: Event) => { routeEvents.push(event.type); return true; }),
   };
   Object.defineProperty(globalThis, "window", { configurable: true, value: browser });
@@ -56,8 +67,8 @@ describe("app navigation", () => {
     expect(appRouteHref("https://example.com/explore")).toBeNull();
   });
 
-  it("intercepts imperative browser routes and notifies the mounted app", () => {
-    const { browser, history, routeEvents } = browserAt("https://kivelli.app/home");
+  it("keeps conversation switching inside browser history", () => {
+    const { browser, history, routeEvents } = browserAt("https://kivelli.app/chat?character=iris");
     const nativePush = vi.fn();
     const router = {
       push: nativePush,
@@ -68,13 +79,70 @@ describe("app navigation", () => {
     };
     installWebNavigationCompatibility(router);
 
-    router.push("/(tabs)/explore?world=eos-meridian" as never);
+    router.push("/group-chat?id=group-1" as never);
 
-    expect(browser.location.pathname).toBe("/explore");
-    expect(browser.location.search).toBe("?world=eos-meridian");
+    expect(browser.location.pathname).toBe("/group-chat");
+    expect(browser.location.search).toBe("?id=group-1");
     expect(history.pushState).toHaveBeenCalledOnce();
     expect(routeEvents).toEqual(["popstate"]);
     expect(nativePush).not.toHaveBeenCalled();
+  });
+
+  it("repairs a failed imperative route that falls back to Home", async () => {
+    vi.useFakeTimers();
+    try {
+      const { browser, history } = browserAt("https://kivelli.app/explore");
+      const nativePush = vi.fn((href: string, options?: unknown) => {
+        void href;
+        void options;
+        return history.pushState({}, "", "/");
+      });
+      const router = {
+        push: nativePush,
+        navigate: vi.fn(),
+        replace: vi.fn(),
+        dismissTo: vi.fn(),
+        setParams: vi.fn(),
+      };
+      installWebNavigationCompatibility(router);
+
+      router.push("/(tabs)/singles?world=eos-meridian" as never);
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(nativePush).toHaveBeenCalledWith("/(tabs)/singles?world=eos-meridian", undefined);
+      expect(browser.location.assign).toHaveBeenCalledWith("/singles?world=eos-meridian");
+      expect(browser.location.href).toBe("https://kivelli.app/singles?world=eos-meridian");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("preserves Expo's tab route identity while recovering a captured deep link", () => {
+    const { browser } = browserAt("https://kivelli.app/");
+    Object.assign(browser, { __KIVELLE_ENTRY_HREF__: "/explore?world=eos-meridian" });
+    const nativeReplace = vi.fn();
+    const router = {
+      push: vi.fn(),
+      navigate: vi.fn(),
+      replace: nativeReplace,
+      dismissTo: vi.fn(),
+      setParams: vi.fn(),
+    };
+    installWebNavigationCompatibility(router);
+
+    router.replace("/explore?world=eos-meridian" as never);
+
+    expect(nativeReplace).toHaveBeenCalledWith("/(tabs)/explore?world=eos-meridian", undefined);
+    expect(browser.location.href).toBe("https://kivelli.app/");
+  });
+
+  it("uses a full browser transition for explicit cross-screen safety calls", () => {
+    const { browser, history } = browserAt("https://kivelli.app/chat?character=iris");
+
+    expect(navigateLocalRouteOnWeb("/subscription?intent=voice")).toBe(true);
+
+    expect(browser.location.assign).toHaveBeenCalledWith("/subscription?intent=voice");
+    expect(history.pushState).not.toHaveBeenCalled();
   });
 
   it("merges and removes route selector parameters in place", () => {

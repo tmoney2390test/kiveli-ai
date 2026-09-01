@@ -32,6 +32,7 @@ const invalidSessionCodes = new Set([
 ]);
 
 const localSignOuts = new WeakMap<object, Promise<void>>();
+export const PERSISTED_SESSION_VALIDATION_TIMEOUT_MS = 4_000;
 
 export function isInvalidAuthSessionError(error: AuthFailure | null | undefined) {
   if (!error) return false;
@@ -79,7 +80,19 @@ export async function getValidatedPersistedSession<TSession extends PersistedSes
     return null;
   }
 
-  const validation = await auth.getUser(stored.data.session.access_token);
+  let validation: Awaited<ReturnType<typeof auth.getUser>> | null = null;
+  try {
+    validation = await Promise.race([
+      auth.getUser(stored.data.session.access_token),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), PERSISTED_SESSION_VALIDATION_TIMEOUT_MS)),
+    ]);
+  } catch {
+    return stored.data.session;
+  }
+  // A persisted token is still bounded by its JWT expiry and every protected
+  // API validates it server-side. Do not strand the entire app if the optional
+  // startup verification request hangs; a later 401 clears it locally.
+  if (!validation) return stored.data.session;
   if (!validation.error && validation.data.user) return stored.data.session;
   if (!isInvalidAuthSessionError(validation.error)) return stored.data.session;
 
