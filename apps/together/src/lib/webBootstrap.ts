@@ -1,37 +1,9 @@
-/** Protects the requested entry URL and restores the transition cover before paint. */
+/** Restores the transition cover before the destination document paints. */
 export const webBootstrap = `(function(){
   var transitionKey="kivelli:web-route-transition:v1";
   var transitionClass="kivelli-route-transition-pending";
   var entryHref=location.pathname+location.search+location.hash;
   globalThis.__KIVELLE_ENTRY_HREF__=entryHref;
-
-  try{
-    var entryUrl=new URL(entryHref,location.origin);
-    if(entryUrl.pathname!=="/"&&entryUrl.pathname!=="/home"){
-      var originalPushState=history.pushState;
-      var originalReplaceState=history.replaceState;
-      var releaseHistoryGuard;
-      var preserveEntry=function(method,args){
-        if(args.length>2&&args[2]!=null){
-          try{
-            var nextUrl=new URL(String(args[2]),location.href);
-            if(nextUrl.pathname==="/"||nextUrl.pathname==="/home")args[2]=entryHref;
-          }catch(error){}
-        }
-        return method.apply(history,args);
-      };
-      history.pushState=function(){return preserveEntry(originalPushState,arguments)};
-      history.replaceState=function(){return preserveEntry(originalReplaceState,arguments)};
-      releaseHistoryGuard=function(){
-        if(globalThis.__KIVELLE_RELEASE_ROUTE_HISTORY_GUARD__!==releaseHistoryGuard)return;
-        history.pushState=originalPushState;
-        history.replaceState=originalReplaceState;
-        delete globalThis.__KIVELLE_RELEASE_ROUTE_HISTORY_GUARD__;
-      };
-      globalThis.__KIVELLE_RELEASE_ROUTE_HISTORY_GUARD__=releaseHistoryGuard;
-      setTimeout(function(){releaseHistoryGuard()},15000);
-    }
-  }catch(error){}
 
   try{
     var rawTransition=sessionStorage.getItem(transitionKey);

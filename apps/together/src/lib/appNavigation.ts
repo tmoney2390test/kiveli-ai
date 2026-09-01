@@ -351,6 +351,7 @@ export function installWebNavigationCompatibility(router: object): void {
 
   const imperativeRouter = router as ImperativeRouter;
 
+  const push = imperativeRouter.push.bind(imperativeRouter);
   const navigate = imperativeRouter.navigate.bind(imperativeRouter);
   const replace = imperativeRouter.replace.bind(imperativeRouter);
   const dismissTo = imperativeRouter.dismissTo?.bind(imperativeRouter);
@@ -391,9 +392,7 @@ export function installWebNavigationCompatibility(router: object): void {
     return result;
   };
 
-  // Expo's web router resolves dynamic route objects through `navigate`; its
-  // `push` queue can collapse those same objects to the root alias.
-  imperativeRouter.push = ((href: AppRouteHref, options?: unknown) => transition(navigate, href, "push", options)) as ImperativeRouter["push"];
+  imperativeRouter.push = ((href: AppRouteHref, options?: unknown) => transition(push, href, "push", options)) as ImperativeRouter["push"];
   imperativeRouter.navigate = ((href: AppRouteHref, options?: unknown) => transition(navigate, href, "push", options)) as ImperativeRouter["navigate"];
   imperativeRouter.replace = ((href: AppRouteHref, options?: unknown) => transition(replace, href, "replace", options)) as ImperativeRouter["replace"];
   if (dismissTo) {
