@@ -45,6 +45,7 @@ export type ChatLaunchParams = {
  * from reopening the conversation that the user just left.
  */
 export const MESSAGES_INBOX_HREF = "/chat-tab?inbox=1";
+export const WEB_MESSAGES_INBOX_HREF = "/chat-tab?messages=1";
 export const MESSAGES_INBOX_ROUTE = "/(tabs)/chat-tab?inbox=1";
 
 /**

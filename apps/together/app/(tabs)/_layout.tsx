@@ -4,7 +4,7 @@ import { router, Tabs, usePathname } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { Compass, Crown, Home, Images, MessageCircle } from 'lucide-react-native';
 import { useAppShell } from '../../src/shell/AppShellContext';
-import { MESSAGES_INBOX_HREF, mostRecentChatHref, shouldOpenMostRecentChat } from '../../src/lib/messageInbox';
+import { MESSAGES_INBOX_HREF, mostRecentChatHref, shouldOpenMostRecentChat, WEB_MESSAGES_INBOX_HREF } from '../../src/lib/messageInbox';
 import { useTogether } from '../../src/store/useTogether';
 import { colors } from '../../src/theme';
 import { markRouteIntent, scheduleCoreRouteWarmup, warmRoute } from '../../src/lib/routeWarmup';
@@ -21,6 +21,7 @@ export default function TabsLayout() {
   const webBarWidth = Math.max(300, Math.min(720, width - 24));
   const openLatestFromCurrentPage=shouldOpenMostRecentChat(pathname);
   const latestChatHref=snapshot?mostRecentChatHref(snapshot.conversations,snapshot.characters):null;
+  const messagesInboxHref=web?WEB_MESSAGES_INBOX_HREF:MESSAGES_INBOX_HREF;
   useEffect(()=>snapshot?scheduleCoreRouteWarmup((href)=>router.prefetch(href as never)):undefined,[Boolean(snapshot)]);
   const prepare=(href:string)=>{markRouteIntent(href);warmRoute(href,(value)=>router.prefetch(value as never));};
   return <Tabs screenOptions={{
@@ -61,7 +62,7 @@ export default function TabsLayout() {
     <Tabs.Screen
       name="chat-tab"
       options={{ title: 'Chat', tabBarIcon: ({ color, size, focused }) => <MessageCircle color={color} size={focused ? size + 2 : size} fill={focused ? 'rgba(239,82,137,.13)' : 'transparent'} /> }}
-      listeners={{tabPress:(event)=>{const href=latestChatHref??MESSAGES_INBOX_HREF;prepare(href);if(!openLatestFromCurrentPage)return;event.preventDefault();router.push(href as never);}}}
+      listeners={{tabPress:(event)=>{const href=latestChatHref??messagesInboxHref;prepare(href);if(!openLatestFromCurrentPage)return;event.preventDefault();router.push(href as never);}}}
     />
     <Tabs.Screen name="moments" options={{ title: 'Moments', tabBarIcon: ({ color, size, focused }) => <Images color={color} size={focused ? size + 1 : size} /> }} listeners={{tabPress:()=>prepare('/moments')}} />
     <Tabs.Screen name="upgrade" options={{ title: 'Upgrade', tabBarIcon: ({ color, size, focused }) => <Crown color={focused?'#E8B3FF':color} size={focused ? size + 2 : size} fill={focused?'rgba(221,162,255,.16)':'transparent'} /> }} listeners={{tabPress:(event)=>{event.preventDefault();prepare('/subscription');router.push('/subscription' as never);}}} />

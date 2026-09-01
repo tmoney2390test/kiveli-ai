@@ -19,7 +19,7 @@ import { KivelleCreditIcon } from '../components/KivelleCreditIcon';
 import { useSubscriptionStatus } from '../hooks/useSubscriptionStatus';
 import { useProfileAvatarUrl } from '../hooks/useProfileAvatarUrl';
 import { desktopNavigationKey, type DesktopNavigationKey } from '../lib/desktopNavigation';
-import { isActiveInboxConversation, MESSAGES_INBOX_HREF, mostRecentChatHref, shouldOpenMostRecentChat } from '../lib/messageInbox';
+import { isActiveInboxConversation, MESSAGES_INBOX_HREF, mostRecentChatHref, shouldOpenMostRecentChat, WEB_MESSAGES_INBOX_HREF } from '../lib/messageInbox';
 import { useTogether } from '../store/useTogether';
 import { colors, typography } from '../theme';
 import { markRouteIntent, warmRoute } from '../lib/routeWarmup';
@@ -46,7 +46,8 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
     .sort((left, right) => timestamp(right.last_message_at) - timestamp(left.last_message_at)), [snapshot?.conversations]);
   const unreadCount = conversations.filter((conversation) => conversation.unread).length;
   const latestChatHref=snapshot?mostRecentChatHref(snapshot.conversations,snapshot.characters):null;
-  const messagesHref=shouldOpenMostRecentChat(pathname)?latestChatHref??MESSAGES_INBOX_HREF:MESSAGES_INBOX_HREF;
+  const inboxHref=Platform.OS==='web'?WEB_MESSAGES_INBOX_HREF:MESSAGES_INBOX_HREF;
+  const messagesHref=shouldOpenMostRecentChat(pathname)?latestChatHref??inboxHref:inboxHref;
   const currentWorld = snapshot?.worlds.find((world) => world.id === browsedWorldId)
     ?? (snapshot?.currentPlaceContext ? snapshot.worlds.find((world) => world.id === snapshot.currentPlaceContext?.world.id) : undefined)
     ?? snapshot?.worlds.find((world) => world.published);
@@ -66,7 +67,7 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
     }
     router.push(href as never);
   };
-  const openMessagesInbox = () => navigate(MESSAGES_INBOX_HREF);
+  const openMessagesInbox = () => navigate(inboxHref);
   const mainItems: NavItem[] = [
     { key: 'home', label: 'Home', href: '/home', icon: (color) => <Home size={24} color={color} /> },
     { key: 'explore', label: 'Explore', href: '/explore', icon: (color) => <Compass size={24} color={color} /> },

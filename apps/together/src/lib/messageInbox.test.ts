@@ -16,6 +16,7 @@ import {
   inboxPreview,
   MESSAGES_INBOX_HREF,
   MESSAGES_INBOX_ROUTE,
+  WEB_MESSAGES_INBOX_HREF,
   mergeInboxConversations,
   mergeInboxGroups,
   mergeInboxPages,
@@ -115,6 +116,7 @@ describe("message inbox presentation", () => {
   it("targets the native tab navigator when leaving a conversation", () => {
     expect(MESSAGES_INBOX_HREF).toBe("/chat-tab?inbox=1");
     expect(MESSAGES_INBOX_ROUTE).toBe("/(tabs)/chat-tab?inbox=1");
+    expect(WEB_MESSAGES_INBOX_HREF).toBe("/chat-tab?messages=1");
   });
 
   it("explicitly targets the nested Messages tab from root-stack conversations", () => {

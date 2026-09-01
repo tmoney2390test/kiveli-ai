@@ -8,8 +8,8 @@ import {
   inboxPreview,
   isConversationPinned,
   isActiveInboxConversation,
-  MESSAGES_INBOX_HREF,
   returnToMessagesInbox,
+  WEB_MESSAGES_INBOX_HREF,
 } from "../lib/messageInbox";
 import { colors, radius } from "../theme";
 import type {
@@ -104,7 +104,7 @@ export function ChatConversationRail({
 
   const openMessages = () => {
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      window.location.assign(MESSAGES_INBOX_HREF);
+      window.location.assign(WEB_MESSAGES_INBOX_HREF);
       return;
     }
     returnToMessagesInbox({
