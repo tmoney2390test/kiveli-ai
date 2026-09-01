@@ -119,14 +119,16 @@ describe("app navigation", () => {
     expect(nativePush).not.toHaveBeenCalled();
   });
 
-  it("navigates dynamic routes through Expo with named parameters", async () => {
+  it("keeps Expo's transient root aliases out of history while a dynamic route mounts", () => {
     vi.useFakeTimers();
     try {
       const { browser, classes, history } = browserAt("https://kivelli.app/explore");
       const nativePush = vi.fn((href: unknown, options?: unknown) => {
         void href;
         void options;
-        return history.pushState({}, "", "/location/the-rivet?world=eos-meridian");
+        history.pushState({}, "", "/");
+        history.replaceState({}, "", "/?slug=the-rivet");
+        return history.replaceState({}, "", "/location/the-rivet?world=eos-meridian");
       });
       const router = {
         push: nativePush,
@@ -138,15 +140,17 @@ describe("app navigation", () => {
       installWebNavigationCompatibility(router);
 
       router.push("/location/the-rivet?world=eos-meridian" as never);
-      await vi.advanceTimersByTimeAsync(300);
-
       expect(nativePush).toHaveBeenCalledWith({
         pathname: '/location/[slug]',
         params: { slug: 'the-rivet', world: 'eos-meridian' },
       }, undefined);
       expect(browser.location.assign).not.toHaveBeenCalled();
       expect(browser.location.href).toBe("https://kivelli.app/location/the-rivet?world=eos-meridian");
+      expect(classes.has(WEB_ROUTE_TRANSITION_CLASS)).toBe(true);
+      expect(completePendingWebRouteTransition('/location/the-rivet')).toBe(true);
       expect(classes.has(WEB_ROUTE_TRANSITION_CLASS)).toBe(false);
+      history.replaceState({}, '', '/');
+      expect(browser.location.pathname).toBe('/');
     } finally {
       vi.useRealTimers();
     }
@@ -155,18 +159,17 @@ describe("app navigation", () => {
   it("falls back to one direct browser transition when Expo cannot resolve a route", async () => {
     vi.useFakeTimers();
     try {
-      const { browser, history } = browserAt("https://kivelli.app/explore");
+      const { browser } = browserAt("https://kivelli.app/explore");
       const nativePush = vi.fn((href?: unknown, options?: unknown) => {
         void href;
         void options;
-        return history.pushState({}, "", "/");
       });
       const router = { push: nativePush, navigate: vi.fn(), replace: vi.fn(), dismissTo: vi.fn(), setParams: vi.fn() };
       router.navigate = nativePush;
       installWebNavigationCompatibility(router);
 
       router.push("/(tabs)/singles?world=eos-meridian" as never);
-      await vi.advanceTimersByTimeAsync(300);
+      await vi.advanceTimersByTimeAsync(1_500);
 
       expect(nativePush).toHaveBeenCalledWith("/(tabs)/singles?world=eos-meridian", undefined);
       expect(browser.location.assign).toHaveBeenCalledWith("/singles?world=eos-meridian");
@@ -198,11 +201,12 @@ describe("app navigation", () => {
     vi.useFakeTimers();
     try {
       const { browser, classes, history, storage } = browserAt("https://kivelli.app/chat?character=iris");
+      const originalPushState = history.pushState;
 
       expect(navigateLocalRouteOnWeb("/subscription?intent=voice")).toBe(true);
 
       expect(browser.location.assign).toHaveBeenCalledWith("/subscription?intent=voice");
-      expect(history.pushState).not.toHaveBeenCalled();
+      expect(originalPushState).not.toHaveBeenCalled();
       expect(classes.has(WEB_ROUTE_TRANSITION_CLASS)).toBe(true);
       expect(JSON.parse(storage.get(WEB_ROUTE_TRANSITION_KEY) ?? "{}").destination).toBe("/subscription");
       expect(completePendingWebRouteTransition("/chat")).toBe(false);

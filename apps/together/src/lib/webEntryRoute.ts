@@ -1,6 +1,7 @@
 declare global {
   interface Window {
     __KIVELLE_ENTRY_HREF__?: string;
+    __KIVELLE_RELEASE_ROUTE_HISTORY_GUARD__?: () => void;
   }
 }
 
@@ -15,7 +16,11 @@ export function initialWebEntryHref() {
 
 export function consumeWebEntryHref() {
   consumed = true;
-  if (typeof window !== 'undefined') delete window.__KIVELLE_ENTRY_HREF__;
+  if (typeof window !== 'undefined') {
+    window.__KIVELLE_RELEASE_ROUTE_HISTORY_GUARD__?.();
+    delete window.__KIVELLE_RELEASE_ROUTE_HISTORY_GUARD__;
+    delete window.__KIVELLE_ENTRY_HREF__;
+  }
 }
 
 export function webEntryHrefConsumed() {
