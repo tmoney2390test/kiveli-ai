@@ -22,6 +22,7 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
   const { session, loading: authLoading, signingOut } = useAuth();
   const webHydrated = useWebHydrated();
   const redirectTarget = useRef<string | null>(null);
+  const recoveredEntryHref = useRef<string | null>(null);
   const previousUserId=useRef<string|null>(null);
   const publicPath = isPublicAppPath(pathname);
   const entryHrefRef=useRef<string|null>(Platform.OS==='web'?initialWebEntryHref():null);
@@ -34,15 +35,17 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
       consumeWebEntryHref();
       return;
     }
-    if(session&&shouldRecoverWebEntry({entryHref,browserPathname:pathname})){
+    const preservedRouterFallback = window.__KIVELLE_ENTRY_ROUTER_FALLBACK__ === true;
+    if(session&&recoveredEntryHref.current!==entryHref&&shouldRecoverWebEntry({entryHref,browserPathname:pathname,routerPathname,preservedRouterFallback})){
       // The root route can unmount before its own recovery effect observes
       // Expo's transient /home redirect. This layout-level gate survives that
       // transition and restores the captured destination.
+      recoveredEntryHref.current=entryHref;
       router.replace(entryHref as never);
     }
     // AuthenticatedSessionGate consumes the entry only after the browser and
     // router have both settled on it with an authenticated snapshot.
-  }, [authLoading, entryHref, entryPath, pathname,session]);
+  }, [authLoading, entryHref, entryPath, pathname,routerPathname,session?.user.id]);
 
   useEffect(() => {
     if (demoMode) return;

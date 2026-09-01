@@ -9,10 +9,12 @@ describe('captured web entry routes', () => {
   it('recovers an authenticated deep link if static hydration falls back home', () => {
     expect(shouldRecoverWebEntry({ entryHref: '/settings?section=account', browserPathname: '/' })).toBe(true);
     expect(shouldRecoverWebEntry({ entryHref: '/settings', browserPathname: '/home' })).toBe(true);
+    expect(shouldRecoverWebEntry({ entryHref: '/location/the-rivet', browserPathname: '/location/the-rivet', routerPathname: '/', preservedRouterFallback: true })).toBe(true);
   });
 
   it('does not interfere once the intended route is active', () => {
     expect(shouldRecoverWebEntry({ entryHref: '/settings', browserPathname: '/settings' })).toBe(false);
+    expect(shouldRecoverWebEntry({ entryHref: '/settings', browserPathname: '/settings', routerPathname: '/', preservedRouterFallback: false })).toBe(false);
     expect(shouldRecoverWebEntry({ entryHref: '/', browserPathname: '/' })).toBe(false);
     expect(shouldRecoverWebEntry({ entryHref: '/settings', browserPathname: '/moments' })).toBe(false);
   });
