@@ -1,4 +1,4 @@
-import { Children, isValidElement, useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
+import { Children, isValidElement, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
 import { ActivityIndicator, Alert, Animated, FlatList, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type FlatListProps } from 'react-native';
 import { Image, type ImageSource } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -57,7 +57,6 @@ import { newGroupPrefillHref } from '../src/lib/groupInvite';
 import { canContinueMessage, isMessageFavorite } from '../src/lib/messageActions';
 import { handlePhotoSharingTap } from '../src/lib/photoSharing';
 import { subscriptionHref } from '../src/lib/subscriptionPresentation';
-import GroupChatScreen from './group-chat';
 
 type Feedback = { kind: 'memory'|'moment'|'plan'; title: string; body: string; id?: string };
 type PendingImage={uri:string;mimeType:'image/jpeg';byteSize:number;width:number;height:number;fileName:string;temporary:true;requestId:string};
@@ -70,6 +69,7 @@ type VoiceNoteRequestResult={status?:string;providerStatus?:string;message?:stri
 type VoiceNotePrompt={messageId:string;name:string;creditCost:number;creditBalance:number;shortened:boolean};
 type MemorySavedNotice={id:number;name:string};
 type DirectMessageAction={messageAction:'continue';anchorMessageId:string};
+const GroupChatScreen=lazy(()=>import('./group-chat'));
 const PAGE_SIZE = 50;
 const MESSAGE_CACHE_CONVERSATIONS = 5;
 const MESSAGE_CACHE_ROWS = 150;
@@ -88,7 +88,7 @@ function directMessageCacheFor(userId?: string): DirectMessageCache {
 export default function Chat() {
   const params=useLocalSearchParams<ChatParams>();
   const snapshot=useTogether((state)=>state.snapshot);
-  if(params.group==='1'&&params.id)return <GroupChatScreen/>;
+  if(params.group==='1'&&params.id)return <Suspense fallback={<View style={{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:colors.background}}><ActivityIndicator color={colors.violet}/></View>}><GroupChatScreen/></Suspense>;
   const route=resolveChatRoute(snapshot,params);
   const pendingKey=[params.conversationId,params.character,params.planId,params.world,params.location].filter(Boolean).join(':')||'recent';
   return <ChatSession key={chatSessionRouteKey(route.conversation?.id,params,pendingKey)}/>;
