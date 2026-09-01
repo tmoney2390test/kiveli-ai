@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import worker, { appDocumentAssetPath, releaseFromHtml } from './index.js';
+import worker, { dynamicRouteAssetPath, releaseFromHtml, routeAssetPath } from './index.js';
 
 const currentEntry = '0123456789abcdef0123456789abcdef';
 const currentHtml = `<!doctype html><script src="/_expo/static/js/web/entry-${currentEntry}.js"></script>`;
@@ -13,18 +13,24 @@ test('derives the release from the generated Expo entry asset', () => {
   assert.equal(releaseFromHtml(currentHtml), currentEntry);
 });
 
-test('maps every client route to the single app document', () => {
-  assert.equal(appDocumentAssetPath('/'), '/index.html');
-  assert.equal(appDocumentAssetPath('/explore'), '/index.html');
-  assert.equal(appDocumentAssetPath('/world/places'), '/index.html');
-  assert.equal(appDocumentAssetPath('/settings/'), '/index.html');
-  assert.equal(appDocumentAssetPath('/location/juniper-civic-arena'), '/index.html');
-  assert.equal(appDocumentAssetPath('/media/2346aee9-3dd3-4e9c-99b7-7feacfc859cc'), '/index.html');
-  assert.equal(appDocumentAssetPath('/favicon.ico'), null);
-  assert.equal(appDocumentAssetPath('/_expo/static/js/web/entry-0123456789abcdef.js'), null);
+test('maps dynamic app URLs to their exported Expo route shells', () => {
+  assert.equal(dynamicRouteAssetPath('/location/juniper-civic-arena'), '/location/[slug].html');
+  assert.equal(dynamicRouteAssetPath('/media/2346aee9-3dd3-4e9c-99b7-7feacfc859cc'), '/media/[id].html');
+  assert.equal(dynamicRouteAssetPath('/create/companion/draft-1'), '/create/companion/[draftId].html');
+  assert.equal(dynamicRouteAssetPath('/explore'), null);
+  assert.equal(dynamicRouteAssetPath('/location/[slug].html'), null);
 });
 
-test('serves the single app document internally while retaining the public route', async () => {
+test('maps static app URLs to exact HTML assets without Cloudflare redirects', () => {
+  assert.equal(routeAssetPath('/'), '/index.html');
+  assert.equal(routeAssetPath('/explore'), '/explore.html');
+  assert.equal(routeAssetPath('/world/places'), '/world/places.html');
+  assert.equal(routeAssetPath('/settings/'), '/settings.html');
+  assert.equal(routeAssetPath('/favicon.ico'), null);
+  assert.equal(routeAssetPath('/_expo/static/js/web/entry-0123456789abcdef.js'), null);
+});
+
+test('serves a dynamic route shell without redirecting through the root document', async () => {
   let assetRequestUrl = null;
   const response = await worker.fetch(
     new Request('https://kivelli.app/location/juniper-civic-arena?world=juniper-city'),
@@ -33,9 +39,9 @@ test('serves the single app document internally while retaining the public route
       return new Response(currentHtml, { headers: { 'content-type': 'text/html; charset=utf-8' } });
     } } },
   );
-  assert.equal(new URL(assetRequestUrl).pathname, '/index.html');
+  assert.equal(new URL(assetRequestUrl).pathname, '/location/%5Bslug%5D.html');
   assert.equal(new URL(assetRequestUrl).search, '?world=juniper-city');
-  assert.equal(response.headers.get('x-kivelli-app-document'), '/index.html');
+  assert.equal(response.headers.get('x-kivelli-route-shell'), '/location/[slug].html');
   assert.equal(response.status, 200);
 });
 

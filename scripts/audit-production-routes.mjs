@@ -4,7 +4,6 @@ import { pathToFileURL } from 'node:url';
 
 const defaultOrigin = 'https://kivelli.app';
 const defaultDist = resolve('apps/together/dist');
-const defaultAppDirectory = resolve('apps/together/app');
 
 export function routeFromHtmlPath(distDirectory, filePath) {
   let route = relative(distDirectory, filePath).split(sep).join('/').replace(/\.html$/, '');
@@ -12,17 +11,6 @@ export function routeFromHtmlPath(distDirectory, filePath) {
   if (route.startsWith('+') || route.startsWith('_') || route.includes('[')) return null;
   route = route.replace(/^\(tabs\)\//, '');
   return `/${route}`.replace(/\/{2,}/g, '/');
-}
-
-export function routeFromAppPath(appDirectory, filePath) {
-  const relativePath = relative(appDirectory, filePath)
-    .split(sep)
-    .join('/')
-    .replace(/\.(?:[jt]sx?)$/, '');
-  const segments = relativePath.split('/').filter((segment) => !/^\(.+\)$/.test(segment));
-  if (segments.some((segment) => segment.startsWith('+') || segment.startsWith('_') || segment.includes('['))) return null;
-  if (segments.at(-1) === 'index') segments.pop();
-  return `/${segments.join('/')}`.replace(/\/{2,}/g, '/') || '/';
 }
 
 export function criticalAssetPaths(html) {
@@ -40,16 +28,6 @@ async function collectHtmlFiles(directory) {
     const path = resolve(directory, entry.name);
     if (entry.isDirectory()) files.push(...await collectHtmlFiles(path));
     else if (entry.isFile() && extname(entry.name) === '.html') files.push(path);
-  }
-  return files;
-}
-
-async function collectAppRouteFiles(directory) {
-  const files = [];
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
-    const path = resolve(directory, entry.name);
-    if (entry.isDirectory()) files.push(...await collectAppRouteFiles(path));
-    else if (entry.isFile() && /\.(?:[jt]sx?)$/.test(entry.name)) files.push(path);
   }
   return files;
 }
@@ -82,11 +60,7 @@ async function main() {
   const origin = new URL(originArgument?.slice('--origin='.length) || defaultOrigin).origin;
   const distDirectory = resolve(distArgument?.slice('--dist='.length) || defaultDist);
   const htmlFiles = await collectHtmlFiles(distDirectory);
-  const appRouteFiles = await collectAppRouteFiles(defaultAppDirectory);
-  const routes = [...new Set([
-    ...htmlFiles.map((file) => routeFromHtmlPath(distDirectory, file)),
-    ...appRouteFiles.map((file) => routeFromAppPath(defaultAppDirectory, file)),
-  ].filter(Boolean))].sort();
+  const routes = [...new Set(htmlFiles.map((file) => routeFromHtmlPath(distDirectory, file)).filter(Boolean))].sort();
   const localHtml = await Promise.all(htmlFiles.map((file) => readFile(file, 'utf8')));
   const assets = [...new Set(localHtml.flatMap(criticalAssetPaths))].sort();
   const failures = [];

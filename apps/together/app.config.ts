@@ -7,7 +7,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: './assets/icon.png',
   ios: { supportsTablet: true, bundleIdentifier: 'com.together.world', usesAppleSignIn:true, infoPlist: { NSPhotoLibraryUsageDescription: 'Choose a photo to share privately in Kivelle Chat.',NSMicrophoneUsageDescription:'Use your microphone for private voice-to-text and live calls with your Kivelle companion.',UIBackgroundModes:['audio'] } },
   android: { package: 'com.together.world', adaptiveIcon: { foregroundImage: './assets/icon.png', backgroundColor: '#080B13' }, permissions: ['POST_NOTIFICATIONS','RECORD_AUDIO','MODIFY_AUDIO_SETTINGS'] },
-  web: { bundler: 'metro', output: 'single', favicon: './assets/kivelle-icon-transparent.png' },
+  web: { bundler: 'metro', output: 'static', favicon: './assets/kivelle-icon-transparent.png' },
   plugins: [[
     'expo-router',
     {
