@@ -14,6 +14,7 @@ const WEEKDAY = '(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)';
 export function naturalizeCharacterActivity(value: unknown, options: CharacterActivityLanguageOptions = {}): string {
   let text = cleanHumanText(value);
   if (!text) return 'Enjoying some free time';
+  text = text.replace(/\s*without rushing what comes next\b/gi, '').replace(/\s+/g, ' ').trim();
 
   const occupation = cleanHumanText(options.occupation);
   if (occupation && comparable(text) === comparable(occupation)) return 'At work';
@@ -34,7 +35,6 @@ export function naturalizeCharacterActivity(value: unknown, options: CharacterAc
   if (personalInterest?.[1]) return `Making time for ${personalInterest[1]}`;
   if (/^Making an ordinary meal at home$/i.test(text)) return 'Making something to eat at home';
   if (/^Picking up a few practical things$/i.test(text)) return 'Running a few errands';
-  if (/^Picking up a few practical things without rushing what comes next$/i.test(text)) return 'Running a few errands at an easy pace';
   if (/^Picking up a few practical things while leaving room for the day to change naturally$/i.test(text)) return 'Running a few errands with time to spare';
   if (/^Cooking or recovering at home$/i.test(text)) return 'Taking it easy at home';
   if (/^Starting the day at home$/i.test(text)) return 'Getting ready for the day at home';
@@ -51,9 +51,8 @@ export function naturalizeCharacterActivity(value: unknown, options: CharacterAc
   if (/^Taking a slow private start at home$/i.test(text)) return 'Having a slow start at home';
   if (/^Keeping a private nocturnal rhythm after the rest of town has gone quiet$/i.test(text)) return 'Keeping late hours at home';
 
-  const creativeFriday = text.match(/^Catching Friday's live set with the overlapping music, media, and design crowd(?:( without rushing what comes next)|( while leaving room for the day to change naturally))?$/i);
-  if (creativeFriday?.[1]) return "Taking it easy at Friday's live set with friends from the local creative scene";
-  if (creativeFriday?.[2]) return "Dropping into Friday's live set with friends from the local creative scene";
+  const creativeFriday = text.match(/^Catching Friday's live set with the overlapping music, media, and design crowd(?: (while leaving room for the day to change naturally))?$/i);
+  if (creativeFriday?.[1]) return "Dropping into Friday's live set with friends from the local creative scene";
   if (creativeFriday) return "Catching Friday's live set with friends from the local creative scene";
 
   const errand = text.match(/^Handling an errand around (.+)$/i);
