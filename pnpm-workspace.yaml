@@ -11,6 +11,3 @@ overrides:
   '@cloudflare/workers-types': 5.20260820.1
   '@react-native/metro-config': 0.86.3
   uuid@<11.1.1: 11.1.1
-
-patchedDependencies:
-  expo-router@57.0.17: patches/expo-router@57.0.17.patch
