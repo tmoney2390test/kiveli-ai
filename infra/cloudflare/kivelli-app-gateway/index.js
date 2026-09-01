@@ -4,14 +4,6 @@ const SUPABASE_PROXY_PREFIX = "/supabase";
 const APP_RELEASE_FALLBACK = "kivelli-web";
 const FINGERPRINTED_ASSET = /(?:\.|-)[a-f0-9]{16,}\.(?:avif|css|gif|ico|jpe?g|js|mjs|png|svg|ttf|otf|webp|woff2?)$/i;
 const EXPO_ENTRY_ASSET = /\bentry-([a-f0-9]{16,})\.js\b/i;
-const DYNAMIC_ROUTE_SHELLS = [
-  [/^\/character\/[^/]+\/?$/, "/character/[slug].html"],
-  [/^\/location\/[^/]+\/?$/, "/location/[slug].html"],
-  [/^\/(?:date|media|moment|plan|story)\/[^/]+\/?$/, (pathname) => `/${pathname.split("/")[1]}/[id].html`],
-  [/^\/conversation\/[^/]+\/?$/, "/conversation/[id].html"],
-  [/^\/conversations\/[^/]+\/?$/, "/conversations/[characterInstanceId].html"],
-  [/^\/create\/companion\/[^/]+\/?$/, "/create/companion/[draftId].html"],
-];
 
 export default {
   async fetch(request, env) {
@@ -58,10 +50,10 @@ function isRetiredStoryPath(pathname) {
 async function serveAppAsset(request, env) {
   try {
     const pathname = new URL(request.url).pathname;
-    const routeShell = (request.method === "GET" || request.method === "HEAD")
-      ? routeAssetPath(pathname)
+    const appDocument = (request.method === "GET" || request.method === "HEAD")
+      ? appDocumentAssetPath(pathname)
       : null;
-    const assetRequest = routeShell ? requestForRouteShell(request, routeShell) : request;
+    const assetRequest = appDocument ? requestForAppDocument(request) : request;
     const assetResponse = await env.ASSETS.fetch(assetRequest);
     const responseHeaders = new Headers(assetResponse.headers);
     const contentType = responseHeaders.get("content-type") || "";
@@ -84,7 +76,7 @@ async function serveAppAsset(request, env) {
         );
       }
       responseHeaders.set("x-kivelli-host", "cloudflare-assets");
-      if (routeShell) responseHeaders.set("x-kivelli-route-shell", routeShell);
+      if (appDocument) responseHeaders.set("x-kivelli-app-document", appDocument);
       return new Response(html, {
         status: assetResponse.status,
         statusText: assetResponse.statusText,
@@ -108,30 +100,15 @@ async function serveAppAsset(request, env) {
   }
 }
 
-export function routeAssetPath(pathname) {
-  const dynamicShell = dynamicRouteAssetPath(pathname);
-  if (dynamicShell) return dynamicShell;
+export function appDocumentAssetPath(pathname) {
   if (pathname === "/") return "/index.html";
   if (/\.[^/]+$/.test(pathname)) return null;
-  const routePath = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
-  return routePath ? `${routePath}.html` : "/index.html";
+  return "/index.html";
 }
 
-export function dynamicRouteAssetPath(pathname) {
-  if (pathname.endsWith(".html")) return null;
-  for (const [pattern, target] of DYNAMIC_ROUTE_SHELLS) {
-    if (!pattern.test(pathname)) continue;
-    return typeof target === "function" ? target(pathname) : target;
-  }
-  return null;
-}
-
-function requestForRouteShell(request, shellPath) {
+function requestForAppDocument(request) {
   const assetUrl = new URL(request.url);
-  // Cloudflare treats literal route-parameter brackets as a non-canonical URL
-  // and emits a 307. Request the encoded asset key so the rewrite remains
-  // entirely internal and the browser keeps the concrete route URL.
-  assetUrl.pathname = shellPath.replaceAll("[", "%5B").replaceAll("]", "%5D");
+  assetUrl.pathname = "/index.html";
   return new Request(assetUrl.toString(), request);
 }
 
