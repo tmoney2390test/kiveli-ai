@@ -13,6 +13,8 @@ export function canContinueMessage(message: Message, messages: Message[]): boole
   const latest = [...messages].reverse().find((candidate) =>
     candidate.role === 'assistant' &&
     candidate.delivery_status === 'complete' &&
+    candidate.content !== '[Photo]' &&
+    candidate.provider_metadata?.mediaOnly !== true &&
     isVisibleChatMessage(candidate) &&
     !candidate.id.startsWith('local-')
   );
