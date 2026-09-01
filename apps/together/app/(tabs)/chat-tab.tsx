@@ -563,55 +563,56 @@ function ConversationRow(
   const href = conversation.kind === "group"
     ? `/group-chat?id=${encodeURIComponent(conversation.id)}`
     : `/chat?character=${encodeURIComponent(template.slug)}`;
+  const rowControl = (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={`Open ${displayName}${conversation.unread ? ", unread messages" : ""}`}
+      onPress={conversation.kind === "group" ? () => openGroupHref(href) : undefined}
+      disabled={busy}
+      style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
+    >
+      {conversation.kind === "group" ? <GroupAvatarStack group={group} /> : (
+        <CharacterAvatar
+          slug={template.slug}
+          name={template.name}
+          template={template}
+          version={character.together_character_versions}
+          size={58}
+        />
+      )}
+      <View style={styles.rowCopy}>
+        <View style={styles.rowTitleLine}>
+          <View style={styles.nameLine}>
+            <Text
+              style={[styles.name, conversation.unread && styles.unreadName]}
+              numberOfLines={1}
+            >
+              {displayName}
+            </Text>
+            {isConversationPinned(conversation) ? <Pin accessibilityLabel="Pinned" size={12} color={colors.violet} fill={colors.violet} /> : null}
+            {conversation.unread && !unreadCount ? <View accessibilityLabel="Unread messages" style={styles.unreadDot} /> : null}
+          </View>
+          <Text style={styles.time}>
+            {formatInboxTimestamp(conversation.last_message_at)}
+          </Text>
+        </View>
+        {participantLine ? <Text numberOfLines={1} style={styles.groupParticipants}>{participantLine}</Text> : null}
+        <Text
+          style={[
+            styles.preview,
+            conversation.unread && styles.unreadPreview,
+          ]}
+          numberOfLines={2}
+        >
+          {inboxPreview(conversation, { draft })}
+        </Text>
+      </View>
+      {unreadCount ? <View accessibilityLabel={`${unreadCount} unread messages`} style={styles.unreadBadge}><Text style={styles.unreadBadgeText}>{unreadCount >= 99 ? "99+" : unreadCount}</Text></View> : null}
+    </Pressable>
+  );
   return (
     <View style={[styles.row, busy && styles.rowBusy]}>
-      <Link href={href as never} asChild>
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel={`Open ${displayName}${conversation.unread ? ", unread messages" : ""}`}
-          onPress={(event) => preferDocumentNavigationOnWeb(event, href)}
-          disabled={busy}
-          style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
-        >
-          {conversation.kind === "group" ? <GroupAvatarStack group={group} /> : (
-            <CharacterAvatar
-              slug={template.slug}
-              name={template.name}
-              template={template}
-              version={character.together_character_versions}
-              size={58}
-            />
-          )}
-          <View style={styles.rowCopy}>
-            <View style={styles.rowTitleLine}>
-              <View style={styles.nameLine}>
-                <Text
-                  style={[styles.name, conversation.unread && styles.unreadName]}
-                  numberOfLines={1}
-                >
-                  {displayName}
-                </Text>
-                {isConversationPinned(conversation) ? <Pin accessibilityLabel="Pinned" size={12} color={colors.violet} fill={colors.violet} /> : null}
-                {conversation.unread && !unreadCount ? <View accessibilityLabel="Unread messages" style={styles.unreadDot} /> : null}
-              </View>
-              <Text style={styles.time}>
-                {formatInboxTimestamp(conversation.last_message_at)}
-              </Text>
-            </View>
-            {participantLine ? <Text numberOfLines={1} style={styles.groupParticipants}>{participantLine}</Text> : null}
-            <Text
-              style={[
-                styles.preview,
-                conversation.unread && styles.unreadPreview,
-              ]}
-              numberOfLines={2}
-            >
-              {inboxPreview(conversation, { draft })}
-            </Text>
-          </View>
-          {unreadCount ? <View accessibilityLabel={`${unreadCount} unread messages`} style={styles.unreadBadge}><Text style={styles.unreadBadgeText}>{unreadCount >= 99 ? "99+" : unreadCount}</Text></View> : null}
-        </Pressable>
-      </Link>
+      {conversation.kind === "group" ? rowControl : <Link href={href as never} asChild>{rowControl}</Link>}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Options for ${displayName}`}
@@ -857,17 +858,12 @@ function ConversationActions(
               </Pressable>
               {row.conversation.kind === "group"
                 ? (
-                  <Link
-                    href={`/group-chat?id=${encodeURIComponent(row.conversation.id)}&settings=1` as never}
-                    asChild
-                  >
-                    <Pressable
+                  <Pressable
                       accessibilityRole="link"
                       accessibilityLabel="Manage group"
-                      onPress={(event) => {
+                      onPress={() => {
                         onClose();
-                        preferDocumentNavigationOnWeb(
-                          event,
+                        openGroupHref(
                           `/group-chat?id=${encodeURIComponent(row.conversation.id)}&settings=1`,
                         );
                       }}
@@ -881,7 +877,6 @@ function ConversationActions(
                         </Text>
                       </View>
                     </Pressable>
-                  </Link>
                 )
                 : (
                   <Pressable
@@ -927,13 +922,12 @@ function ConversationActions(
   );
 }
 
-function preferDocumentNavigationOnWeb(
-  event: { preventDefault: () => void },
-  href: string,
-) {
-  if (Platform.OS !== "web" || typeof window === "undefined") return;
-  event.preventDefault();
-  window.location.assign(href);
+function openGroupHref(href: string) {
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    window.location.assign(href);
+    return;
+  }
+  router.push(href as never);
 }
 
 const styles = StyleSheet.create({

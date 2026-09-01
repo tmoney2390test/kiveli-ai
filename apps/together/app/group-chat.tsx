@@ -208,7 +208,7 @@ export default function GroupChatScreen() {
     setSnapshot = useTogether((state) => state.setSnapshot),
     upsertConversation = useTogether((state) => state.upsertConversation);
   const screenInsets=useSafeAreaInsets();
-  const{session}=useAuth(),{online,phase:connectionPhase}=useNetworkStatus();
+  const{session,loading:authLoading}=useAuth(),{online,phase:connectionPhase}=useNetworkStatus();
   const groupCacheScope = snapshot?.activeContinuity?.id ?? "default";
   const initialGroupCache = useRef(
     params.id ? readCachedGroupDetail(groupCacheScope, params.id) : undefined,
@@ -376,32 +376,47 @@ export default function GroupChatScreen() {
     catch{/* The next realtime event, poll, or focus load safely retries. */}
     finally{deltaRefreshRunning.current=false;if(deltaRefreshQueued.current){deltaRefreshQueued.current=false;void refreshGroupDeltaTask();}}
   },[params.id]);
-  useFocusEffect(useCallback(() => {
-    if (!params.id) return;
-    const conversationId=params.id,initial=loadedGroupRef.current!==conversationId;
+  useEffect(() => {
+    const conversationId=params.id;
+    if (!conversationId||authLoading||!session) return;
     let cancelled=false;
-    let loadController:AbortController|null=null;
-    if(initial){
-      setLoading(true);
-      setError("");
-      groupLoadAbortRef.current?.abort();
-      loadController=new AbortController();
-      groupLoadAbortRef.current=loadController;
-    }
+    const loadController=new AbortController();
+    groupLoadAbortRef.current?.abort();
+    groupLoadAbortRef.current=loadController;
+    setLoading(true);
+    setError("");
     prepareConversationScroll(conversationId);
-    const request=initial
-      ? loadGroupDetail(conversationId,{messageLimit:30,signal:loadController!.signal}).then((next)=>{if(cancelled)return;loadedGroupRef.current=conversationId;setDetail(next);})
-      : refreshGroupDelta();
-    void request.then(()=>{if(!cancelled)setError("");}).catch((caught)=>{if(!cancelled)setError(caught instanceof Error?caught.message:"This group could not be loaded.");}).finally(()=>{if(groupLoadAbortRef.current===loadController)groupLoadAbortRef.current=null;if(!cancelled&&initial)setLoading(false);});
-    return () => {
+    void loadGroupDetail(conversationId,{messageLimit:30,signal:loadController.signal})
+      .then((next)=>{
+        if(cancelled)return;
+        loadedGroupRef.current=conversationId;
+        setDetail(next);
+        setError("");
+      })
+      .catch((caught)=>{
+        if(cancelled||loadController.signal.aborted)return;
+        setError(caught instanceof Error?caught.message:"This group could not be loaded.");
+      })
+      .finally(()=>{
+        if(groupLoadAbortRef.current===loadController)groupLoadAbortRef.current=null;
+        if(!cancelled)setLoading(false);
+      });
+    return()=>{
       cancelled=true;
-      loadController?.abort();
+      loadController.abort();
       if(groupLoadAbortRef.current===loadController)groupLoadAbortRef.current=null;
+    };
+  },[authLoading,groupLoadAttempt,params.id,prepareConversationScroll,session?.user.id]);
+  useFocusEffect(useCallback(() => {
+    if (!params.id || loadedGroupRef.current!==params.id) return;
+    prepareConversationScroll(params.id);
+    void refreshGroupDelta();
+    return () => {
       abortRef.current?.abort();
       if (mediaRefreshTimer.current) clearTimeout(mediaRefreshTimer.current);
       if (initialBottomPinReleaseTimer.current) clearTimeout(initialBottomPinReleaseTimer.current);
     };
-  }, [groupLoadAttempt,params.id,prepareConversationScroll,refreshGroupDelta]));
+  }, [params.id,prepareConversationScroll,refreshGroupDelta]));
   useEffect(() => {
     if (!params.id) return;
     const refreshDetail = () => {
