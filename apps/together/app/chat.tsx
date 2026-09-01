@@ -1,5 +1,5 @@
 import { Children, isValidElement, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
-import { ActivityIndicator, Alert, Animated, FlatList, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type FlatListProps } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Easing, FlatList, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type FlatListProps } from 'react-native';
 import { Image, type ImageSource } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Brain, CalendarDays, Camera, Check, ChevronRight, Copy, FastForward, Flag, Heart, ImagePlus, LockKeyhole, MapPin, MessageCircle, Mic, MoreHorizontal, Pause, Phone, Play, Send, Sparkles, Square, Trash2, Undo2, Volume2, Wand2, X } from 'lucide-react-native';
@@ -1058,14 +1058,19 @@ function StreamingBubble({desktop,character,content,textStyle,reserveVoiceContro
 function TypingState({name}:{name:string}){
   const dots=useRef([new Animated.Value(0),new Animated.Value(0),new Animated.Value(0)]).current;
   useEffect(()=>{
-    const loops=dots.map((value,index)=>Animated.loop(Animated.sequence([
-      Animated.delay(index*150),
-      Animated.timing(value,{toValue:1,duration:220,useNativeDriver:true}),
-      Animated.timing(value,{toValue:0,duration:280,useNativeDriver:true}),
-      Animated.delay((2-index)*150),
-    ])));
-    loops.forEach((loop)=>loop.start());
-    return()=>{loops.forEach((loop)=>loop.stop());dots.forEach((value)=>value.setValue(0));};
+    dots.forEach((value)=>value.setValue(0));
+    const wave=Animated.loop(Animated.sequence([
+      Animated.stagger(120,dots.map((value)=>Animated.sequence([
+        Animated.timing(value,{toValue:1,duration:180,easing:Easing.out(Easing.quad),useNativeDriver:true}),
+        Animated.timing(value,{toValue:0,duration:180,easing:Easing.in(Easing.quad),useNativeDriver:true}),
+      ]))),
+      Animated.delay(180),
+    ]),{resetBeforeIteration:true});
+    wave.start();
+    return()=>{
+      wave.stop();
+      dots.forEach((value)=>{value.stopAnimation();value.setValue(0);});
+    };
   },[dots]);
   return <View accessibilityLabel={`${name} is typing`} accessibilityLiveRegion="polite" style={styles.typing}>
     <View accessibilityElementsHidden style={styles.typingDots}>{dots.map((value,index)=><Animated.View key={index} style={[styles.dot,{opacity:value.interpolate({inputRange:[0,1],outputRange:[.34,1]}),transform:[{translateY:value.interpolate({inputRange:[0,1],outputRange:[0,-3]})},{scale:value.interpolate({inputRange:[0,1],outputRange:[.82,1.08]})}]}]}/>)}</View>
