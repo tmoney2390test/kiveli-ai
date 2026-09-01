@@ -8,6 +8,7 @@ import { colors, radius, spacing } from '../theme';
 import { setActiveCompanion } from '../lib/api';
 import { useTogether } from '../store/useTogether';
 import type { CharacterInstance } from '../types';
+import { naturalizeCharacterActivity } from '@together/domain/src/character-language';
 
 type Variant = 'default' | 'overlay';
 
@@ -61,7 +62,7 @@ export function CompanionSwitcher({ active, variant = 'default' }: { active: Cha
           </View>
           {companions.map((item) => <Pressable key={item.id} disabled={Boolean(busy)} onPress={() => void choose(item)} style={styles.row}>
             <View style={styles.avatar}><CharacterAvatar slug={item.together_character_templates.slug} name={item.together_character_templates.name} size={50} /></View>
-            <View style={{ flex: 1 }}><Text style={styles.rowName}>{item.together_character_templates.name}</Text><Text style={styles.meta}>{busy === item.id ? 'Switching…' : item.current_activity}</Text></View>
+            <View style={{ flex: 1 }}><Text style={styles.rowName}>{item.together_character_templates.name}</Text><Text style={styles.meta}>{busy === item.id ? 'Switching…' : naturalizeCharacterActivity(item.current_activity,{occupation:item.together_character_templates.occupation})}</Text></View>
             {item.id === active.id ? <Check color={colors.rose} /> : null}
           </Pressable>)}
           <Pressable onPress={() => { setOpen(false); router.push('/(tabs)/singles'); }} style={styles.discover}><Plus size={18} color={colors.rose} /><Text style={styles.discoverText}>Discover someone new</Text></Pressable>

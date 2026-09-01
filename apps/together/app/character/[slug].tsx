@@ -20,6 +20,7 @@ import { characterRelationshipPresentation, compactCharacterSchedule } from '../
 import { relationshipDaysKnown } from '../../src/lib/companionLife';
 import { activeConversationFor } from '../../src/lib/conversation';
 import { characterConversationHref } from '../../src/lib/chatRoute';
+import { naturalizeCharacterActivity, naturalizeCharacterBiography } from '@together/domain/src/character-language';
 import { presentMemoryText } from '../../src/lib/memoryPresentation';
 import { worldForLocation } from '../../src/lib/place';
 import { cycleProfilePhotoIndex } from '../../src/lib/profilePhotoCarousel';
@@ -109,9 +110,9 @@ export default function CharacterProfile() {
   const authoredScheduleOwnsPresence = Boolean(instance
     && daySchedule.source === 'authored'
     && !['scene', 'active_date', 'active_plan', 'active_event', 'plan', 'life_event'].includes(String(instance.current_presence_source)));
-  const currentActivity = authoredScheduleOwnsPresence
+  const currentActivity = naturalizeCharacterActivity(authoredScheduleOwnsPresence
     ? daySchedule.currentStatus?.activity ?? 'Having some unstructured time at home'
-    : instance?.current_activity;
+    : instance?.current_activity,{occupation:template.occupation});
   const currentLocation = authoredScheduleOwnsPresence
     ? daySchedule.currentStatus?.location ?? 'Home'
     : location;
@@ -187,7 +188,7 @@ export default function CharacterProfile() {
         </View> : null}
         <View style={styles.about}>
           <Text style={styles.aboutLabel}>ABOUT {template.name.toUpperCase()}</Text>
-          <Body muted>{template.biography}</Body>
+          <Body muted>{naturalizeCharacterBiography(template.biography)}</Body>
         </View>
 
         {relationshipPresentation.stats.length ? <View accessibilityLabel="Relationship highlights" style={styles.history}>
@@ -196,7 +197,7 @@ export default function CharacterProfile() {
 
         <View style={styles.facts}>
           {instance ? <>
-            <Info label="Right now" value={currentActivity ?? instance.current_activity} />
+            <Info label="Right now" value={currentActivity} />
             <Info label="Location" value={currentLocation} onPress={locationHref ? () => router.push(locationHref as never) : undefined} />
           </> : null}
           {world ? <Info label={instance ? 'World' : 'Lives in'} value={world.name} onPress={() => router.push(`/(tabs)/explore?world=${encodeURIComponent(world.slug)}` as never)} /> : null}

@@ -3,6 +3,7 @@ import type { HomeViewModel } from './homeViewModel';
 import { getInterruptibilityPresentation } from './lifePresentation';
 import { presentMemoryText } from './memoryPresentation';
 import { generatedMediaCacheKey } from './mediaImageSource';
+import { naturalizeCharacterActivity, naturalizeCharacterEventTitle } from '@together/domain/src/character-language';
 
 export type CompanionMediaItem = {
   id: string;
@@ -36,7 +37,7 @@ export function getHomeWorldScopes(model: Pick<HomeViewModel, 'currentWorld'>, w
 export function getCurrentScenePresentation(model: HomeViewModel): CurrentScenePresentation {
   const name = model.companion.together_character_templates.name;
   const togetherNow = /^together now/i.test(model.hero.notice ?? '');
-  const activity = model.hero.statusLine.split('·').at(-1)?.trim() || humanize(model.companion.current_activity);
+  const activity = model.hero.statusLine.split('·').at(-1)?.trim() || naturalizeCharacterActivity(model.companion.current_activity,{occupation:model.companion.together_character_templates.occupation});
   const location = model.currentLocation?.name ?? model.currentWorld?.name ?? 'Their world';
   const atHome = model.currentLocation?.location_type === 'residence';
   const heading = togetherNow
@@ -116,7 +117,7 @@ export function getCompanionMedia(snapshot: Snapshot, companionId: string): Comp
         url: item.signed_url,
         thumbnailUrl,
         cacheKey: generatedMediaCacheKey(parent ?? item),
-        title: String(metadata.title ?? moment?.title ?? event?.title ?? date?.together_date_templates.name ?? (location ? `At ${location.name}` : 'A moment from today')),
+        title: String(metadata.title ?? moment?.title ?? (event?naturalizeCharacterEventTitle(event.title,event.event_type):undefined) ?? date?.together_date_templates.name ?? (location ? `At ${location.name}` : 'A moment from today')),
         subtitle: location?.name ?? String(metadata.context ?? 'From your shared world'),
         timestamp: item.created_at,
         locked,
@@ -132,8 +133,4 @@ function sceneQuote(name: string, activity: string) {
   if (value.includes('work') || value.includes('design') || value.includes('project')) return '“I’m in the middle of something. Come distract me for a minute.”';
   if (value.includes('rest') || value.includes('sleep') || value.includes('offline')) return '“I finally have a quiet minute.”';
   return `“Come keep me company for a minute.” — ${name}`;
-}
-
-function humanize(value: string) {
-  return value.trim().replace(/[_-]+/g, ' ').replace(/^[a-z]/, (letter) => letter.toUpperCase()) || 'Living the day';
 }

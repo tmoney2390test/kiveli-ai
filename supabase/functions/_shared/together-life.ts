@@ -9,6 +9,7 @@ import { resolveCharacterBaseLocation, resolvePlaceContext } from './together-pl
 import { waitUntil } from './background.ts';
 import { activeContinuity } from './together-continuity.ts';
 import { ensureCharacterSchedule, resolveCharacterPresence, resolveCompanionPresence } from './together-schedule.ts';
+import { naturalizeCharacterActivity, naturalizeCharacterEventSummary, naturalizeCharacterEventTitle } from '../../../packages/together-domain/src/character-language.ts';
 import { finalizeExpiredPlanExperience } from './together-plan-experience.ts';
 import { capabilitiesForAccount, effectiveInitiativeLevel, initiativePolicy, isDurableUserMemory, lifeEventEstablishesPresentReality, normalizeChatLanguage, normalizeSubscriptionTier, selectGroupPlanReminder, shouldSendPlanWaitingCheckIn, type GroupPlanReminderCandidate, type InitiativeLevel } from '../../../packages/together-domain/src/index.ts';
 import { sendCompanionPush } from './kivelle-push.ts';
@@ -86,8 +87,8 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
       event_template_id: template.id,
       simulation_key: candidate.simulationKey,
       event_type: template.event_type,
-      title: template.metadata?.display_title ?? template.name,
-      narrative_summary: template.narrative_summary,
+      title: naturalizeCharacterEventTitle(template.metadata?.display_title ?? template.name,template.event_type),
+      narrative_summary: naturalizeCharacterEventSummary(template.narrative_summary),
       participant_instance_ids: participantIds.length ? participantIds : [instance.id],
       location_id: template.default_location_id,
       significance: template.significance,
@@ -125,7 +126,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const presenceInfluence=activePlan??eventPresenceInfluence;
   const life=applyEventInfluence(scheduleState,presenceInfluence);
   const presenceSource=activePlan?'plan':eventPresenceInfluence?'life_event':passivePresence?.source==='schedule'?'schedule':passivePresence?.source==='plan'?'plan':passivePresence?.source==='life_event'?'life_event':'fallback';
-  if(persistCharacterState)await db.from('together_character_instances').update({ ...(life.locationId?{current_location_id:life.locationId}:{}), current_activity: life.activity, current_mood: life.mood, current_energy: life.energy, current_schedule_event_id:presenceSource==='schedule'?passivePresence?.scheduleEventId??null:null,current_interruptibility:passivePresence?.interruptibility??'open',current_presence_source:presenceSource,life_engine_version:'life_engine_v3_user_timezone', last_simulated_at: now.toISOString(), ...(simulateEvents ? { last_event_simulated_at: now.toISOString() } : {}), updated_at: now.toISOString() }).eq('id', instance.id).eq('user_id', userId);
+  if(persistCharacterState)await db.from('together_character_instances').update({ ...(life.locationId?{current_location_id:life.locationId}:{}), current_activity:naturalizeCharacterActivity(life.activity,{activityKey:life.activityKey,occupation:instance.together_character_templates?.occupation}), current_mood: life.mood, current_energy: life.energy, current_schedule_event_id:presenceSource==='schedule'?passivePresence?.scheduleEventId??null:null,current_interruptibility:passivePresence?.interruptibility??'open',current_presence_source:presenceSource,life_engine_version:'life_engine_v4_natural_language', last_simulated_at: now.toISOString(), ...(simulateEvents ? { last_event_simulated_at: now.toISOString() } : {}), updated_at: now.toISOString() }).eq('id', instance.id).eq('user_id', userId);
 
   const memoryPreferences=(profile.data?.memory_categories??{}) as Record<string,unknown>;
   const { data: dueThreads } = memoryPreferences.open_thread===false
@@ -175,7 +176,7 @@ async function materializeScheduleOutcomes(input:{db:SupabaseClient;userId:strin
     const significance=Math.max(.35,Math.min(.78,Number(schedule.metadata?.outcomeSignificance??.56)));
     const{data}=await input.db.from('together_life_events').upsert({
       user_id:input.userId,continuity_id:input.instance.continuity_id,character_instance_id:input.instance.id,
-      event_type:'schedule_outcome',title:String(schedule.metadata?.outcomeTitle??schedule.metadata?.activityLabel??schedule.title),narrative_summary:narrative,
+      event_type:'schedule_outcome',title:naturalizeCharacterEventTitle(schedule.metadata?.outcomeTitle??schedule.metadata?.activityLabel??schedule.title,'schedule_outcome'),narrative_summary:naturalizeCharacterEventSummary(narrative),
       participant_instance_ids:[input.instance.id],location_id:schedule.location_id,significance,
       starts_at:schedule.ends_at,ends_at:schedule.ends_at,resulting_state_changes:{},
       user_should_know:true,proactive_message_appropriate:schedule.metadata?.outcomeProactive===true,

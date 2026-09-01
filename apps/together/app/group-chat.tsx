@@ -54,6 +54,7 @@ import {
   X,
 } from "lucide-react-native";
 import { currentGroupPlan, groupPlanBlockingParticipantRemoval, shouldGroupChatMessages } from "@together/domain/src/group-chat";
+import { naturalizeCharacterActivity } from "@together/domain/src/character-language";
 import {
   MESSAGE_CHARACTER_LIMIT,
   messageCharacterLimitError,
@@ -1508,7 +1509,7 @@ export default function GroupChatScreen() {
         name={contextParticipant.together_character_instances.together_character_templates.name}
         accessibilityName={detail.conversation.title??"this group"}
         location={snapshot.locations.find((location)=>location.id===contextParticipant.together_character_instances.current_location_id)?.name??"Home"}
-        activity={contextParticipant.together_character_instances.current_activity||"Taking some private time"}
+        activity={naturalizeCharacterActivity(contextParticipant.together_character_instances.current_activity||"Taking some private time")}
         next={(activeGroupPlan??waitingGroupPlan)?{title:(activeGroupPlan??waitingGroupPlan)!.title,detail:(activeGroupPlan??waitingGroupPlan)!.status==="active"?"Together now":new Date((activeGroupPlan??waitingGroupPlan)!.starts_at).toLocaleString([],{weekday:"short",hour:"numeric",minute:"2-digit"}),onPress:()=>router.push(`/plan/${(activeGroupPlan??waitingGroupPlan)!.id}` as never)}:null}
         memoryCount={snapshot.memoryCounts?.[contextParticipant.character_instance_id]??snapshot.memories.filter((memory)=>memory.character_instance_id===contextParticipant.character_instance_id).length}
         memoryLocked={snapshot.entitlements?.entitlement_keys?.includes("memory_inspector")!==true}
@@ -2702,7 +2703,7 @@ function GroupContextRail({
         <GroupContextLine
           icon={<MapPin size={15} color={colors.warm} />}
           title={location === "Home" ? "Home" : `At ${location}`}
-          body={character.current_activity || "Taking some private time"}
+          body={naturalizeCharacterActivity(character.current_activity || "Taking some private time",{occupation:character.together_character_templates.occupation})}
         />
       </GroupContextSection>
 

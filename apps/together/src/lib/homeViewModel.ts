@@ -3,6 +3,7 @@ import { buildCompanionLife } from './companionLife';
 import { mostRecentlyUsedConversation } from './conversation';
 import { worldForLocation } from './place';
 import { currentScheduleEvent, getScheduleEventPresentation, getScheduleHint, nextVisibleScheduleEvents } from './lifePresentation';
+import { naturalizeCharacterActivity, naturalizeCharacterEventSummary, naturalizeCharacterEventTitle } from '@together/domain/src/character-language';
 
 export type HomeTargetAction =
   | { kind: 'chat'; label: string; proactiveMessageId?: string }
@@ -285,8 +286,8 @@ function buildTimeline({ snapshot, companion, recentEvents, currentLocation, cur
     .map<HomeTimelineItem>((event) => ({
       id: `event:${event.id}`,
       kind: 'event',
-      title: event.title,
-      detail: event.narrative_summary,
+      title: naturalizeCharacterEventTitle(event.title,event.event_type),
+      detail: naturalizeCharacterEventSummary(event.narrative_summary),
       time: formatTime(event.starts_at, clock.timezone),
       locationId: event.location_id,
     }));
@@ -389,17 +390,7 @@ export function labelStage(stage: string) {
 }
 
 export function humanizeActivity(value: string) {
-  const normalized = value.trim().toLowerCase();
-  if (!normalized) return 'Living the day';
-  if (normalized.includes('offline for the night')) return 'Winding down';
-  if (normalized.includes('sleep')) return 'Sleeping';
-  if (normalized.includes('rest')) return 'Resting';
-  if (normalized.includes('design')) return 'Designing';
-  if (normalized.includes('photo walk')) return 'On a photo walk';
-  if (normalized.includes('meeting friends')) return 'Out with friends';
-  if (normalized.includes('coffee')) return 'Grabbing coffee';
-  if (normalized.includes('working') || normalized.includes('producing') || normalized.includes('project')) return 'Working';
-  return value[0] ? value[0].toUpperCase() + value.slice(1) : value;
+  return naturalizeCharacterActivity(value);
 }
 
 function isRestfulActivity(value: string) {

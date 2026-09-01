@@ -202,9 +202,9 @@ on conflict(character_template_id) do update set voice_key=excluded.voice_key,ch
   provider_mappings=excluded.provider_mappings,metadata=excluded.metadata,active=true,updated_at=now();
 
 with activities(activity_key,title,category,start_minute,end_minute,frequency,maximum) as(values
-  ('home_cooking','Making an ordinary meal at home','home',960,1260,1,3),
-  ('quiet_home','Taking private time at home','home',1080,1410,2,5),
-  ('northvale_errand','Handling an errand around Lantern Square','errand',540,1080,1,2)
+  ('home_cooking','Making something to eat at home','home',960,1260,1,3),
+  ('quiet_home','Having some quiet time at home','home',1080,1410,2,5),
+  ('northvale_errand','Running an errand near Lantern Square','errand',540,1080,1,2)
 )
 insert into public.together_character_activity_templates(
   character_version_id,activity_key,title,category,valid_time_windows,duration_minutes,location_categories,

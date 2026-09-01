@@ -10,7 +10,7 @@ function event(overrides:Partial<CharacterScheduleEvent>={}):CharacterScheduleEv
 };}
 
 describe('Life Engine presentation',()=>{
-  it('prefers authored current activity presentation',()=>{expect(getScheduleEventPresentation(event()).activity).toBe('reviewing a difficult case file');});
+  it('prefers authored current activity presentation',()=>{expect(getScheduleEventPresentation(event()).activity).toBe('Reviewing a difficult case file');});
   it('prefers authored upcoming hints',()=>{expect(getScheduleHint(event())).toBe('Has a precinct briefing later');});
   it('never leaks a hidden event even when metadata contains presentation',()=>{expect(getScheduleHint(event({visibility:'hidden'}))).toBeNull();});
 });

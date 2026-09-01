@@ -18,6 +18,7 @@ import type {
   Snapshot,
 } from "../types";
 import { CharacterAvatar } from "./ui";
+import { naturalizeCharacterActivity } from "@together/domain/src/character-language";
 
 const groupRailCache = new Map<string, GroupDetail[]>();
 
@@ -126,8 +127,9 @@ export function ChatConversationRail({
             ? row.conversation.title || groupName(row.group) || "Group chat"
             : row.character?.together_character_templates.name ??
               row.conversation.title ?? "Conversation";
-          const preview = inboxPreview(row.conversation) ||
-            row.character?.current_activity || "Continue the conversation";
+          const preview = inboxPreview(row.conversation) || (row.character
+            ? naturalizeCharacterActivity(row.character.current_activity,{occupation:row.character.together_character_templates.occupation})
+            : "Continue the conversation");
           return (
             <Pressable
               key={row.conversation.id}

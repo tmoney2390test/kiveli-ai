@@ -1,4 +1,5 @@
 import type { DateSession, GeneratedMedia, Memory, Moment, RelationshipMilestone, SharedPlan, Snapshot } from '../types';
+import { naturalizeCharacterEventTitle } from '@together/domain/src/character-language';
 
 export type MomentsFeedFilter = 'All' | 'Experiences' | 'Milestones' | 'Memories' | 'Photos' | 'Videos';
 
@@ -88,7 +89,7 @@ export function generatedPhotoTitle(snapshot: Snapshot, media: GeneratedMedia): 
   const authoredTitle = typeof metadata.title === 'string' ? metadata.title.trim() : '';
   if (authoredTitle) return authoredTitle;
   const event = media.life_event_id ? snapshot.lifeEvents.find((item) => item.id === media.life_event_id) : undefined;
-  if (event?.title) return event.title;
+  if (event?.title) return naturalizeCharacterEventTitle(event.title,event.event_type);
   const date = media.date_session_id ? snapshot.dates.find((item) => item.id === media.date_session_id) : undefined;
   if (date?.together_date_templates.name) return date.together_date_templates.name;
   const location = media.location_id ? snapshot.locations.find((item) => item.id === media.location_id) : undefined;

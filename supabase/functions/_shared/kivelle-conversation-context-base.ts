@@ -15,6 +15,7 @@ import { filterMemoriesForPreferences } from './kivelle-memory-access.ts';
 import { resolveRelevantConversationEpisodes, type RelevantConversationEpisode } from './kivelle-conversation-episodes.ts';
 import { temporalContinuitySummary, type WorldPulseContextEvent } from '../../../packages/together-domain/src/world-pulse.ts';
 import { resolveRelevantWorldPulse } from './kivelle-world-pulse.ts';
+import { naturalizeCharacterActivity, naturalizeCharacterEventSummary, naturalizeCharacterEventTitle } from '../../../packages/together-domain/src/character-language.ts';
 
 type Row = Record<string, any>;
 
@@ -147,7 +148,7 @@ export async function buildKivelleConversationContext(input: {
   const referencedPlaces=(await Promise.all(referencedLocationRows.map((item:Row)=>resolvePlaceContext({db,locationId:String(item.id),now,userId,characterInstanceId:String(instance.id)}).catch(()=>null)))).filter((item):item is PlaceContext=>Boolean(item));
   const placePerspectives=await loadPlacePerspectives({db,userId,characterInstanceId:String(instance.id),characterVersionId:String(instance.character_version_id),places:[place,...referencedPlaces].filter((item):item is PlaceContext=>Boolean(item))});
   const worldPulse=place?.world.id?await resolveRelevantWorldPulse({db,userId,continuityId:String(instance.continuity_id),worldId:String(place.world.id),userMessage,currentLocationId:locationId,districtLocationId:place.district?.id??null,characterInstanceId:String(instance.id),characterIsLocal:true,now,maximumResults:historyIntent||planningIntent?3:2}).catch(()=>[]):[];
-  const visibleLifeEvents=(events.data??[]).filter((item:Row)=>item.user_should_know!==false).map((item:Row)=>({id:String(item.id),title:String(item.title),summary:String(item.narrative_summary),startsAt:String(item.starts_at),significance:Number(item.significance??.5)}));
+  const visibleLifeEvents=(events.data??[]).filter((item:Row)=>item.user_should_know!==false).map((item:Row)=>({id:String(item.id),title:naturalizeCharacterEventTitle(item.title,item.event_type),summary:naturalizeCharacterEventSummary(item.narrative_summary),startsAt:String(item.starts_at),significance:Number(item.significance??.5)}));
   const temporalContinuity=temporalContinuitySummary({lastMessageAt:conversation.last_message_at??conversation.updated_at,now,events:[...visibleLifeEvents,...worldPulse.map(item=>({title:item.title,summary:item.summary,startsAt:item.startsAt,significance:item.significance}))]});
   const requestedWorld=(worlds.data??[]).find((world:Row)=>userMessage.toLowerCase().includes(String(world.name).toLowerCase())||userMessage.toLowerCase().includes(String(world.slug).replace(/-/g,' ')));
   const planningWorldId=String(requestedWorld?.id??place?.world.id??'');
@@ -159,15 +160,15 @@ export async function buildKivelleConversationContext(input: {
   const departurePressure=Boolean(departureAt&&new Date(String(departureAt)).getTime()-now.getTime()<20*60000);
   const currentScene: CurrentSceneContext = {
     locationId, location: String(place?.location.name ?? currentLocation?.name ?? returnedState.location ?? 'Current place'),
-    activity: presentReality.activity,...(presentReality.activityKey?{activityKey:String(presentReality.activityKey)}:{}),
+    activity:naturalizeCharacterActivity(presentReality.activity,{activityKey:presentReality.activityKey,occupation:instance.together_character_templates?.occupation}),...(presentReality.activityKey?{activityKey:String(presentReality.activityKey)}:{}),
     mood: presentReality.mood, energy: presentReality.energy,
     availability: presentReality.availability, interruptibility:presentReality.interruptibility,
     ...(presentReality.scheduleEventId?{scheduleEventId:String(presentReality.scheduleEventId)}:{}),...(conversationScene.sceneSessionId?{sceneSessionId:String(conversationScene.sceneSessionId)}:{}),...(conversationScene.lastInteractionKey?{lastInteractionKey:String(conversationScene.lastInteractionKey)}:{}),...(presentReality.activityStartedAt?{startedAt:String(presentReality.activityStartedAt)}:{}),...(presentReality.expectedEndAt?{expectedEndAt:String(presentReality.expectedEndAt)}:{}),
-    ...(presence.nextEvent?{nextObligation:{title:String(presence.nextEvent.title),startsAt:String(presence.nextEvent.startsAt),location:locationById.get(String(presence.nextEvent.locationId))?.name??null}}:{}),
+    ...(presence.nextEvent?{nextObligation:{title:naturalizeCharacterActivity(presence.nextEvent.title,{activityKey:presence.nextEvent.activityKey}),startsAt:String(presence.nextEvent.startsAt),location:locationById.get(String(presence.nextEvent.locationId))?.name??null}}:{}),
     entryReason,interactionMode,sceneBehavior:{acknowledgeArrival:interactionMode==='co_present'&&entryReason==='user_drop_in'&&!conversationScene.arrivalAcknowledgedAt,activityAwareness:interactionMode==='co_present'||presentReality.source==='active_event',departurePressure}, source: presentReality.source,
     ...(activeDateRow?{activeDate:{id:String(activeDateRow.id),title:String(activeDateRow.together_date_templates?.name??'Shared experience')}}:{}),
     ...(activePlanRow?{activePlan:{id:String(activePlanRow.id),title:String(activePlanRow.title),activityKey:String(activePlanRow.activity_key),status:String(activePlanRow.status),originalLocationId:activePlanRow.location_id??null,endsAt:activePlanRow.ends_at??null,sourceConversationId:activePlanRow.source_conversation_id?String(activePlanRow.source_conversation_id):null,participantInstanceIds:Array.isArray(activePlanRow.participant_instance_ids)?activePlanRow.participant_instance_ids.map(String):[String(activePlanRow.character_instance_id)],companionAtPlan:true,planAwaitingUser:!activePlanAttendance.data,...(conversationScene.sceneSessionId?{sceneSessionId:String(conversationScene.sceneSessionId),activityState:(conversationScene as Row).activityState??undefined}:{}),...(activePlanAttendance.data?.joined_at?{participation:{joinedAt:String(activePlanAttendance.data.joined_at)}}:{})}}:{}),
-    ...(activeEvent ? { activeEvent:{ id:String(activeEvent.id), title:String(activeEvent.title), summary:String(activeEvent.narrative_summary), endsAt:activeEvent.ends_at ?? null } } : {}),
+    ...(activeEvent ? { activeEvent:{ id:String(activeEvent.id), title:naturalizeCharacterEventTitle(activeEvent.title,activeEvent.event_type), summary:naturalizeCharacterEventSummary(activeEvent.narrative_summary), endsAt:activeEvent.ends_at ?? null } } : {}),
   };
   const personalizationEnabled=(profile.data?.privacy_settings as Row|undefined)?.personalization!==false;
   const memoryPreferences=(profile.data?.memory_categories??{}) as Record<string,unknown>;
@@ -194,7 +195,7 @@ export async function buildKivelleConversationContext(input: {
     ...upcomingDates.map((item:Row) => ({ id:String(item.id), type:'date' as const, title:String(item.together_date_templates?.name ?? 'Date'), startsAt:String(item.scheduled_for), location:String(item.placeContext?.path??locationById.get(String(item.together_date_templates?.location_id))?.name??'Current place') })),
   ]).slice(0, 5);
   const worldSchedules=(schedules.data??[]).filter((row:Row)=>!place||String(row.together_locations?.world_id??'')===place.world.id);
-  const schedule = worldSchedules.filter((row:Row)=>new Date(row.starts_at)>now&&row.visibility!=='hidden').slice(0,4).map((row:Row)=>({startsAt:String(row.starts_at),label:String(row.metadata?.activityLabel??row.title),location:String(row.together_locations?.name??locationById.get(String(row.location_id))?.name??'Current place'),availability:String(row.interruptibility??'open')}));
+  const schedule = worldSchedules.filter((row:Row)=>new Date(row.starts_at)>now&&row.visibility!=='hidden').slice(0,4).map((row:Row)=>({startsAt:String(row.starts_at),label:naturalizeCharacterActivity(row.metadata?.activityLabel??row.title,{activityKey:row.activity_key}),location:String(row.together_locations?.name??locationById.get(String(row.location_id))?.name??'Current place'),availability:String(row.interruptibility??'open')}));
   const instanceByTemplate = new Map((instances.data ?? []).map((item:Row) => [String(item.character_template_id), item]));
   const social = (edges.data ?? []).map((edge:Row) => {
     const otherId = String(edge.source_template_id) === String(instance.character_template_id) ? String(edge.target_template_id) : String(edge.source_template_id);

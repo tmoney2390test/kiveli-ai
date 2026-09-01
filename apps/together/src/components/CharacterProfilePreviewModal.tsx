@@ -6,6 +6,7 @@ import type { FeaturedCompanion } from '../lib/featuredCompanions';
 import { colors, radius, spacing, typography } from '../theme';
 import { FrostedBackdrop, FrostedSurface } from './FrostedGlass';
 import { resolveCharacterPortraitSource } from './ui';
+import { naturalizeCharacterBiography } from '@together/domain/src/character-language';
 
 export function CharacterProfilePreviewModal({
   companion,
@@ -53,7 +54,7 @@ export function CharacterProfilePreviewModal({
           </View>
         </View>
         <ScrollView bounces={false} showsVerticalScrollIndicator={false} style={styles.bodyScroll} contentContainerStyle={styles.body}>
-          <Text style={styles.biography}>{companion.biography}</Text>
+          <Text style={styles.biography}>{naturalizeCharacterBiography(companion.biography)}</Text>
           {interests.length ? <View style={styles.interests}>{interests.map((interest) => <View key={interest} style={styles.interest}><Text style={styles.interestText}>{interest}</Text></View>)}</View> : null}
           {onInviteToGroup ? <Pressable accessibilityRole="button" accessibilityLabel={`Invite ${companion.name} to a group chat`} accessibilityState={{disabled:inviteBusy,busy:inviteBusy}} disabled={inviteBusy} onPress={async()=>{if(inviteBusy)return;setInviteBusy(true);try{await onInviteToGroup(companion);}finally{setInviteBusy(false);}}} style={[styles.profileButton,inviteBusy&&styles.profileButtonBusy]}>
             <Users size={16} color="#fff" />

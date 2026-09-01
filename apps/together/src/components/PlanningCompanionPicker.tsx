@@ -6,6 +6,7 @@ import { planningCompanionsForWorld } from '../lib/planningCompanions';
 import { colors, radius, spacing, typography } from '../theme';
 import { FrostedBackdrop, FrostedSurface } from './FrostedGlass';
 import { CharacterAvatar } from './ui';
+import { naturalizeCharacterActivity } from '@together/domain/src/character-language';
 
 export function PlanningCompanionPicker({snapshot,worldId,worldName,active,onSelect}:{snapshot:Snapshot;worldId:string;worldName:string;active?:CharacterInstance;onSelect:(character:CharacterInstance)=>void}) {
   const [open,setOpen]=useState(false);
@@ -29,7 +30,7 @@ export function PlanningCompanionPicker({snapshot,worldId,worldName,active,onSel
             <ScrollView style={styles.list} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
               {companions.map((character)=><Pressable key={character.id} accessibilityRole="button" accessibilityState={{selected:character.id===active?.id}} onPress={()=>choose(character)} style={({pressed})=>[styles.row,character.id===active?.id&&styles.rowActive,pressed&&styles.pressed]}>
                 <CharacterAvatar slug={character.together_character_templates.slug} name={character.together_character_templates.name} template={character.together_character_templates} version={character.together_character_versions} size={44}/>
-                <View style={styles.rowCopy}><Text style={styles.rowName}>{character.together_character_templates.name}</Text><Text numberOfLines={1} style={styles.rowMeta}>{character.current_activity}</Text></View>
+                <View style={styles.rowCopy}><Text style={styles.rowName}>{character.together_character_templates.name}</Text><Text numberOfLines={1} style={styles.rowMeta}>{naturalizeCharacterActivity(character.current_activity,{occupation:character.together_character_templates.occupation})}</Text></View>
                 {character.id===active?.id?<Check size={19} color={colors.rose}/>:null}
               </Pressable>)}
             </ScrollView>

@@ -1,4 +1,5 @@
 import type { CharacterInstance, CharacterScheduleEvent } from '../types';
+import { naturalizeCharacterActivity } from '@together/domain/src/character-language';
 
 export function getInterruptibilityPresentation(value:CharacterInstance['current_interruptibility']|CharacterScheduleEvent['interruptibility']){
   if(value==='unavailable')return{label:'Unavailable right now',tone:'quiet' as const};
@@ -6,9 +7,9 @@ export function getInterruptibilityPresentation(value:CharacterInstance['current
   if(value==='limited')return{label:'A little busy',tone:'limited' as const};
   return{label:'Free',tone:'open' as const};
 }
-export function getScheduleEventPresentation(event:CharacterScheduleEvent){return{activity:metadataText(event,'activityLabel')??humanizeActivity(event.activity_key,event.title),availability:getInterruptibilityPresentation(event.interruptibility).label};}
+export function getScheduleEventPresentation(event:CharacterScheduleEvent){return{activity:naturalizeCharacterActivity(metadataText(event,'activityLabel')??humanizeActivity(event.activity_key,event.title),{activityKey:event.activity_key}),availability:getInterruptibilityPresentation(event.interruptibility).label};}
 export function getTravelPresentation(){return{activity:'On the move',availability:'May reply between stops'};}
-export function getScheduleHint(event:CharacterScheduleEvent){if(event.visibility==='hidden')return null;const authored=metadataText(event,'upcomingHint');if(authored)return authored;if(event.visibility==='shared')return metadataText(event,'activityLabel')??event.title;if(event.visibility==='known')return metadataText(event,'activityLabel')??humanizeActivity(event.activity_key,event.title);return hint(event.activity_key);}
+export function getScheduleHint(event:CharacterScheduleEvent){if(event.visibility==='hidden')return null;const authored=metadataText(event,'upcomingHint');if(authored)return naturalizeCharacterActivity(authored);if(event.visibility==='shared')return naturalizeCharacterActivity(metadataText(event,'activityLabel')??event.title,{activityKey:event.activity_key});if(event.visibility==='known')return naturalizeCharacterActivity(metadataText(event,'activityLabel')??humanizeActivity(event.activity_key,event.title),{activityKey:event.activity_key});return hint(event.activity_key);}
 export function currentScheduleEvent(events:CharacterScheduleEvent[]|undefined,characterId:string,now=new Date(),currentEventId?:string|null){if(currentEventId===null)return undefined;const active=(events??[]).filter(event=>event.character_instance_id===characterId&&new Date(event.starts_at)<=now&&new Date(event.ends_at)>now);if(currentEventId)return active.find(event=>event.id===currentEventId);return active.sort((a,b)=>priority(b.priority)-priority(a.priority))[0];}
 export function nextVisibleScheduleEvents(events:CharacterScheduleEvent[]|undefined,characterId:string,now=new Date()){return(events??[]).filter(event=>event.character_instance_id===characterId&&event.visibility!=='hidden'&&new Date(event.starts_at)>now).sort((a,b)=>new Date(a.starts_at).getTime()-new Date(b.starts_at).getTime());}
 function humanizeActivity(key:string,title:string){if(key==='travel')return'On the move';if(key==='sleep')return'Sleeping';if(key==='work')return title||'Working';if(key.includes('photo'))return'Taking photos';if(key.includes('coffee'))return'Having coffee';if(key.includes('home'))return'Winding down at home';if(key.includes('gym'))return'Getting a workout in';return title||key.replace(/[_-]+/g,' ').replace(/^[a-z]/,letter=>letter.toUpperCase());}

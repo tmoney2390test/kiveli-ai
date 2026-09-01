@@ -11,6 +11,7 @@ import { selectPortraitVersion } from '../src/lib/selectors';
 import { useAppShell } from '../src/shell/AppShellContext';
 import { colors, radius } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
+import { naturalizeCharacterActivity } from '@together/domain/src/character-language';
 
 export default function Companions() {
   const { snapshot, setSnapshot } = useTogether();
@@ -39,7 +40,7 @@ export default function Companions() {
           <View style={styles.portraitShade} />
           <View style={styles.identity}>
             <Text numberOfLines={1} style={styles.name}>{template.name}</Text>
-            <Text numberOfLines={2} style={styles.meta}>{item.relationship_stage.replaceAll('_', ' ')} · {item.current_activity}</Text>
+            <Text numberOfLines={2} style={styles.meta}>{item.relationship_stage.replaceAll('_', ' ')} · {naturalizeCharacterActivity(item.current_activity,{occupation:template.occupation})}</Text>
           </View>
           {active ? <View style={styles.activePill}><Check size={12} color="#fff" /><Text style={styles.activePillText}>ACTIVE</Text></View> : null}
         </Pressable>

@@ -14,6 +14,7 @@ import { resolveKivelleAccountStage } from '../src/lib/authRouting';
 import { useTogether } from '../src/store/useTogether';
 import type { Snapshot, World } from '../src/types';
 import { colors, radius, spacing, typography } from '../src/theme';
+import { naturalizeCharacterBiography } from '@together/domain/src/character-language';
 
 const nav = router as unknown as { replace: (href: string) => void; setParams: (params: Record<string, string>) => void };
 
@@ -202,7 +203,7 @@ function CompanionPreview({ companion, snapshot, desktop, busy, error, onClose, 
           </View>
         </View>
         <ScrollView bounces={false} showsVerticalScrollIndicator={false} style={styles.previewBodyScroll} contentContainerStyle={styles.previewBody}>
-          <Text numberOfLines={3} style={styles.previewBio}>{companion.biography}</Text>
+          <Text numberOfLines={3} style={styles.previewBio}>{naturalizeCharacterBiography(companion.biography)}</Text>
           {interests.length ? <View style={styles.interests}>{interests.map((interest, index) => <View key={`${interest}-${index}`} style={styles.interest}><Text style={styles.interestText}>{interest}</Text></View>)}</View> : null}
           {meeting ? <View style={styles.meeting}>
             <View style={styles.meetingTop}><MapPin size={16} color={colors.warm} /><View style={{ flex: 1 }}><Text style={styles.meetingKicker}>YOUR FIRST MEETING · {world?.name?.toUpperCase()}</Text><Text style={styles.meetingTitle}>{location?.name ?? meeting.title}</Text></View></View>

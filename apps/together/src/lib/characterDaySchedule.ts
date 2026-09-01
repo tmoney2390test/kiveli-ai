@@ -1,5 +1,6 @@
 import type { CharacterInstance, CharacterScheduleEvent, ScheduleItem, Snapshot } from '../types';
 import { getScheduleEventPresentation, getScheduleHint } from './lifePresentation';
+import { naturalizeCharacterActivity } from '@together/domain/src/character-language';
 
 export type CharacterDayScheduleEntry = {
   id: string;
@@ -120,8 +121,8 @@ function activityForDate(item: ScheduleItem, dateKey: string) {
   const variants = Array.isArray(item.metadata?.activityVariants)
     ? item.metadata.activityVariants.filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
     : [];
-  if (!variants.length) return humanize(item.activity);
-  return variants[stableIndex(`${item.id}:${dateKey}`, variants.length)] ?? humanize(item.activity);
+  if (!variants.length) return naturalizeCharacterActivity(item.activity, { activityKey: metadataActivityKey(item) });
+  return naturalizeCharacterActivity(variants[stableIndex(`${item.id}:${dateKey}`, variants.length)] ?? item.activity, { activityKey: metadataActivityKey(item) });
 }
 
 function displayLocation(metadata?: Record<string, unknown>) {
@@ -173,9 +174,7 @@ function formatMinute(value: number) {
   return `${hour24 % 12 || 12}:${String(minute).padStart(2, '0')} ${suffix}`;
 }
 
-function humanize(value: string) {
-  return value.trim().replace(/[_-]+/g, ' ').replace(/^./, (letter) => letter.toUpperCase()) || 'Free time';
-}
+function metadataActivityKey(item:ScheduleItem){const value=item.metadata?.activityKey;return typeof value==='string'?value:item.activity;}
 
 function safeTimezone(value: string) {
   try { new Intl.DateTimeFormat('en-US', { timeZone: value }).format(); return value; }
