@@ -3,6 +3,7 @@ import type { GroupDetail } from "../types";
 import {
   cacheCompleteGroupDetail,
   cacheGroupDetailSummary,
+  cacheInboxGroupSummary,
   clearGroupDetailCache,
   readCachedGroupDetail,
 } from "./groupDetailCache";
@@ -58,6 +59,26 @@ describe("group detail cache", () => {
     cacheGroupDetailSummary("life-a", detail("group-a", "Life A"));
 
     expect(readCachedGroupDetail("life-b", "group-a")).toBeUndefined();
+  });
+
+  it("turns an inbox group into a renderable chat shell", () => {
+    const inbox = detail("group-a", "Friends");
+    inbox.conversation.metadata = {
+      groupSettings: { responseMode: "choose_speaker", energy: "lively", notificationMode: "muted" },
+    };
+    cacheInboxGroupSummary("life-a", {
+      conversation: inbox.conversation,
+      participants: inbox.participants,
+    });
+
+    expect(readCachedGroupDetail("life-a", "group-a")).toMatchObject({
+      complete: false,
+      detail: {
+        conversation: { title: "Friends" },
+        settings: { responseMode: "choose_speaker", energy: "lively", notificationMode: "muted" },
+        messages: [],
+      },
+    });
   });
 
   it("restores a lightweight group shell across a web document navigation", () => {

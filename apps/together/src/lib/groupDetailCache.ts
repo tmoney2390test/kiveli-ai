@@ -56,6 +56,37 @@ export function cacheGroupDetailSummary(scope: string, detail: GroupDetail) {
   trimCache();
 }
 
+export function cacheInboxGroupSummary(
+  scope: string,
+  summary: Pick<GroupDetail, "conversation" | "participants">,
+) {
+  const configured = summary.conversation.metadata?.groupSettings as
+    | Partial<GroupDetail["settings"]>
+    | undefined;
+  cacheGroupDetailSummary(scope, {
+    ...summary,
+    messages: [],
+    reactions: [],
+    generatedMedia: [],
+    mediaOffers: [],
+    sharedPlans: [],
+    conversationActions: [],
+    conversationEvents: [],
+    settings: {
+      responseMode: configured?.responseMode === "choose_speaker"
+        ? "choose_speaker"
+        : "automatic",
+      energy: ["quiet", "balanced", "lively"].includes(configured?.energy ?? "")
+        ? configured!.energy!
+        : "balanced",
+      notificationMode: ["all", "mentions", "muted"].includes(configured?.notificationMode ?? "")
+        ? configured!.notificationMode!
+        : "all",
+    },
+    hasMoreMessages: false,
+  });
+}
+
 export function cacheCompleteGroupDetail(scope: string, detail: GroupDetail) {
   entries.set(cacheKey(scope, detail.conversation.id), {
     detail,

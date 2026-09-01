@@ -64,6 +64,7 @@ import {
 } from "../../src/lib/messageInbox";
 import { loadInboxFilter, saveInboxFilter } from "../../src/lib/messageInboxPreference";
 import { loadMessageDrafts } from "../../src/lib/messageDrafts";
+import { cacheInboxGroupSummary } from "../../src/lib/groupDetailCache";
 import { useTogether } from "../../src/store/useTogether";
 import { colors, radius, spacing, typography } from "../../src/theme";
 import type {
@@ -222,6 +223,12 @@ export default function MessageInbox() {
     void loadMessageDrafts(userId, conversations).then((loaded) => { if (!cancelled) setDrafts(loaded); });
     return () => { cancelled = true; };
   }, [conversations, session?.user.id]);
+
+  useEffect(() => {
+    const scope = snapshot?.activeContinuity?.id;
+    if (!scope) return;
+    groups.forEach((group) => cacheInboxGroupSummary(scope, group));
+  }, [groups, snapshot?.activeContinuity?.id]);
 
   useEffect(() => {
     if (!archiveUndo || archiveUndo.restoring) return;
