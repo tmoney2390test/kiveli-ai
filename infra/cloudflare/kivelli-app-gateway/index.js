@@ -128,7 +128,10 @@ export function dynamicRouteAssetPath(pathname) {
 
 function requestForRouteShell(request, shellPath) {
   const assetUrl = new URL(request.url);
-  assetUrl.pathname = shellPath;
+  // Cloudflare treats literal route-parameter brackets as a non-canonical URL
+  // and emits a 307. Request the encoded asset key so the rewrite remains
+  // entirely internal and the browser keeps the concrete route URL.
+  assetUrl.pathname = shellPath.replaceAll("[", "%5B").replaceAll("]", "%5D");
   return new Request(assetUrl.toString(), request);
 }
 

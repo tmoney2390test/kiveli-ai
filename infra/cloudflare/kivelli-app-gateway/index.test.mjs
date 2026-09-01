@@ -39,7 +39,7 @@ test('serves a dynamic route shell without redirecting through the root document
       return new Response(currentHtml, { headers: { 'content-type': 'text/html; charset=utf-8' } });
     } } },
   );
-  assert.equal(new URL(assetRequestUrl).pathname, '/location/[slug].html');
+  assert.equal(new URL(assetRequestUrl).pathname, '/location/%5Bslug%5D.html');
   assert.equal(new URL(assetRequestUrl).search, '?world=juniper-city');
   assert.equal(response.headers.get('x-kivelli-route-shell'), '/location/[slug].html');
   assert.equal(response.status, 200);
