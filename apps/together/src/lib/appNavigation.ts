@@ -15,7 +15,6 @@ declare global {
     __KIVELLE_ENTRY_HREF__?: string;
     __KIVELLE_PENDING_ROUTE_HREF__?: string;
     __KIVELLE_PENDING_ROUTE_TIMEOUT__?: number;
-    __KIVELLE_RELEASE_ROUTE_HISTORY_GUARD__?: () => void;
   }
 }
 
@@ -103,60 +102,6 @@ function routePath(href: string): string {
   return new URL(href, "https://kivelli.app").pathname.replace(/\/$/, "") || "/";
 }
 
-function isTransientRootAlias(next: URL, destination: URL): boolean {
-  if (destination.pathname === "/" || destination.pathname === "/home") return false;
-  return next.pathname === "/" || next.pathname === "/home";
-}
-
-/**
- * Expo can briefly serialize a nested route as `/` (and dynamic params as a
- * root query) while its navigation state is converging. Keep those internal
- * aliases out of browser history without interrupting that state transition.
- */
-function installPendingWebHistoryGuard(destination: string): void {
-  if (typeof window === "undefined") return;
-  window.__KIVELLE_RELEASE_ROUTE_HISTORY_GUARD__?.();
-  const target = new URL(destination, window.location.href);
-  if (target.pathname === "/" || target.pathname === "/home") return;
-
-  const browserHistory = window.history;
-  const originalPushState = browserHistory.pushState;
-  const originalReplaceState = browserHistory.replaceState;
-  const preserveDestination = (
-    original: History["pushState"],
-    data: unknown,
-    unused: string,
-    url?: string | URL | null,
-  ) => {
-    let nextUrl = url;
-    if (url !== undefined && url !== null) {
-      try {
-        if (isTransientRootAlias(new URL(String(url), window.location.href), target)) {
-          nextUrl = `${target.pathname}${target.search}${target.hash}`;
-        }
-      } catch {
-        // Let the native history method validate malformed URLs normally.
-      }
-    }
-    return Reflect.apply(original, browserHistory, [data, unused, nextUrl]);
-  };
-
-  browserHistory.pushState = ((data: unknown, unused: string, url?: string | URL | null) => (
-    preserveDestination(originalPushState, data, unused, url)
-  )) as History["pushState"];
-  browserHistory.replaceState = ((data: unknown, unused: string, url?: string | URL | null) => (
-    preserveDestination(originalReplaceState, data, unused, url)
-  )) as History["replaceState"];
-
-  const release = () => {
-    if (window.__KIVELLE_RELEASE_ROUTE_HISTORY_GUARD__ !== release) return;
-    browserHistory.pushState = originalPushState;
-    browserHistory.replaceState = originalReplaceState;
-    delete window.__KIVELLE_RELEASE_ROUTE_HISTORY_GUARD__;
-  };
-  window.__KIVELLE_RELEASE_ROUTE_HISTORY_GUARD__ = release;
-}
-
 function clearTransitionTimeout(): void {
   if (typeof window === "undefined" || window.__KIVELLE_PENDING_ROUTE_TIMEOUT__ === undefined) return;
   window.clearTimeout(window.__KIVELLE_PENDING_ROUTE_TIMEOUT__);
@@ -169,7 +114,6 @@ function clearTransitionTimeout(): void {
  */
 export function beginPendingWebRouteTransition(destination: string): void {
   if (typeof window === "undefined" || typeof document === "undefined") return;
-  installPendingWebHistoryGuard(destination);
   // Only the pathname is needed after the reload. Avoid persisting route
   // parameters such as conversation or checkout identifiers.
   const destinationPath = routePath(destination);
@@ -203,7 +147,6 @@ export function completePendingWebRouteTransition(activeHref?: string): boolean 
   if (!destination) return false;
   if (activeHref && routePath(activeHref) !== routePath(destination)) return false;
   clearTransitionTimeout();
-  window.__KIVELLE_RELEASE_ROUTE_HISTORY_GUARD__?.();
   try {
     window.sessionStorage?.removeItem(WEB_ROUTE_TRANSITION_KEY);
   } catch {
@@ -351,7 +294,6 @@ export function installWebNavigationCompatibility(router: object): void {
 
   const imperativeRouter = router as ImperativeRouter;
 
-  const push = imperativeRouter.push.bind(imperativeRouter);
   const navigate = imperativeRouter.navigate.bind(imperativeRouter);
   const replace = imperativeRouter.replace.bind(imperativeRouter);
   const dismissTo = imperativeRouter.dismissTo?.bind(imperativeRouter);
@@ -382,28 +324,25 @@ export function installWebNavigationCompatibility(router: object): void {
       throw error;
     }
     window.setTimeout(() => {
-      if (window.__KIVELLE_PENDING_ROUTE_HREF__ !== routePath(destination)) return;
-      try {
-        // The first action can leave Expo at its root stack while crossing
-        // navigator boundaries. Replace that transient entry once, using
-        // Expo's own queue, so the prior screen remains the browser back target.
-        replace(routerHref as never, options);
-      } catch {
-        // The hard-navigation timer below remains the final safety net.
+      const active = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      if (active === destination) {
+        completePendingWebRouteTransition(active);
+        return;
       }
-    }, 180);
-    window.setTimeout(() => {
-      // RouteTransitionVeil clears this marker when Expo's route state—not just
-      // the protected address bar—has mounted the destination. If it has not,
-      // retain the existing hard-navigation recovery path.
-      if (window.__KIVELLE_PENDING_ROUTE_HREF__ === routePath(destination)) {
+      const fellHome = routePath(active) === '/' && routePath(destination) !== '/';
+      if (active === startingLocation || fellHome) {
         hardNavigate(destination, mode);
+        return;
       }
-    }, 1_500);
+      // Authentication and onboarding can intentionally redirect elsewhere.
+      completePendingWebRouteTransition();
+    }, 300);
     return result;
   };
 
-  imperativeRouter.push = ((href: AppRouteHref, options?: unknown) => transition(push, href, "push", options)) as ImperativeRouter["push"];
+  // Expo's web router resolves dynamic route objects through `navigate`; its
+  // `push` queue can collapse those same objects to the root alias.
+  imperativeRouter.push = ((href: AppRouteHref, options?: unknown) => transition(navigate, href, "push", options)) as ImperativeRouter["push"];
   imperativeRouter.navigate = ((href: AppRouteHref, options?: unknown) => transition(navigate, href, "push", options)) as ImperativeRouter["navigate"];
   imperativeRouter.replace = ((href: AppRouteHref, options?: unknown) => transition(replace, href, "replace", options)) as ImperativeRouter["replace"];
   if (dismissTo) {

@@ -13,7 +13,7 @@
     "audit:navigation": "node scripts/audit-navigation-controls.mjs",
     "audit:production-routes": "node scripts/audit-production-routes.mjs",
     "typecheck": "pnpm --filter @together/app typecheck && pnpm --filter @together/domain typecheck",
-    "test": "pnpm --filter @together/app test && pnpm --filter @together/domain test && pnpm gateway:test && pnpm audit:production-routes:test",
+    "test": "pnpm --filter @together/app test && pnpm --filter @together/domain test && pnpm gateway:test && pnpm audit:production-routes:test && node --test scripts/expo-router-history-patch.test.mjs",
     "gateway:test": "node --test infra/cloudflare/kivelli-app-gateway/index.test.mjs",
     "audit:production-routes:test": "node --test scripts/audit-production-routes.test.mjs",
     "lint": "eslint .",

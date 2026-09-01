@@ -1,0 +1,22 @@
+diff --git a/build/fork/useLinking.js b/build/fork/useLinking.js
+index 6911c31922fd72621bfaa46c47b83274216a4744..a63521b23f1221c92045a950b53459ea0b5824e3 100644
+--- a/build/fork/useLinking.js
++++ b/build/fork/useLinking.js
+@@ -272,7 +272,7 @@ function useLinking(ref, { enabled = true, config, getStateFromPath = native_1.g
+             // Instead of using the rootState (which might be stale) we should use the focused state
+             // const state = ref.current.getRootState();
+             const rootState = ref.current.getRootState();
+-            const state = store.state;
++            const state = rootState;
+             // END FORK
+             if (state) {
+                 const route = (0, native_1.findFocusedRoute)(state);
+@@ -296,7 +296,7 @@ function useLinking(ref, { enabled = true, config, getStateFromPath = native_1.g
+             // Instead of using the rootState (which might be stale) we should use the focused state
+             // const state = navigation.getRootState();
+             const rootState = navigation.getRootState();
+-            const state = store.state;
++            const state = rootState;
+             // END FORK
+             // root state may not available, for example when root navigators switch inside the container
+             if (!state) {
