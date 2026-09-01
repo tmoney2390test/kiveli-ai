@@ -1,6 +1,11 @@
 import { assertEquals } from 'jsr:@std/assert@1';
 import { AppError } from './types.ts';
-import { finalizeMediaWithRetry, isRetryableMediaFinalizationError, mediaFinalizationFailure } from './together-media-dispatcher.ts';
+import {
+  finalizeMediaWithRetry,
+  isRetryableMediaFinalizationError,
+  mediaFinalizationFailure,
+  mediaSubmissionRetryDelayMs,
+} from './together-media-dispatcher.ts';
 
 Deno.test('media finalization retries one transient failure and then succeeds', async () => {
   let attempts = 0;
@@ -58,4 +63,22 @@ Deno.test('invalid provider output fails immediately without a blind retry', asy
   assertEquals(attempts, 1);
   assertEquals(isRetryableMediaFinalizationError(error), false);
   assertEquals(mediaFinalizationFailure(error), { code: 'PROVIDER_REQUEST_INVALID', reason: 'Unsupported image format.' });
+});
+
+Deno.test('provider throttling is deferred with bounded backoff before terminal failure', () => {
+  const throttled = new AppError('RATE_LIMITED', 'Provider is busy.', 429, true);
+  assertEquals(mediaSubmissionRetryDelayMs(throttled, 1), 15_000);
+  assertEquals(mediaSubmissionRetryDelayMs(throttled, 2), 45_000);
+  assertEquals(mediaSubmissionRetryDelayMs(throttled, 3), null);
+});
+
+Deno.test('unknown submissions and invalid requests are never submitted twice', () => {
+  assertEquals(
+    mediaSubmissionRetryDelayMs(new AppError('PROVIDER_SUBMISSION_UNKNOWN', 'Submission outcome is unknown.', 503, false), 1),
+    null,
+  );
+  assertEquals(
+    mediaSubmissionRetryDelayMs(new AppError('PROVIDER_REQUEST_INVALID', 'Invalid request.', 422, false), 1),
+    null,
+  );
 });

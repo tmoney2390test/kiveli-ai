@@ -13,7 +13,8 @@ import { finalizeAuxiliaryProviderJob } from '../_shared/together-media-auxiliar
 import '../../../packages/together-domain/src/provider-webhook.ts';
 import '../../../packages/together-domain/src/media-quality.ts';
 import '../_shared/kivelle-subscription.ts';
-import '../_shared/together-media-base.ts';
+import { kickMediaDispatcher } from '../_shared/together-media-base.ts';
+import { waitUntil } from '../_shared/background.ts';
 import '../_shared/together-media-quality.ts';
 import '../_shared/together-direct-video-frame.ts';
 import '../_shared/together-media-providers.ts';
@@ -43,5 +44,6 @@ serve(async(request,correlationId)=>{
   else if(['failed','cancelled','timeout','deleted'].includes(prediction.status))await failProviderMedia(db,{jobId:String(job.id),failureCode:`provider_${prediction.status}`,failureReasonSafe:'The media could not be created this time.',providerMetadata:{status:prediction.status,hasNsfwContents:prediction.hasNsfwContents}});
   else await db.from('together_media_provider_jobs').update({status:'processing',last_polled_at:new Date().toISOString(),next_poll_at:new Date(Date.now()+60_000).toISOString(),provider_metadata:{...((job.provider_metadata??{}) as Record<string,unknown>),status:prediction.status},updated_at:new Date().toISOString()}).eq('id',job.id).in('status',['submitting','processing']);
   await db.from('together_media_provider_webhook_receipts').update({processed_at:new Date().toISOString()}).eq('provider','wavespeed').eq('webhook_id',webhookId);
+  if(['completed','failed','cancelled','timeout','deleted'].includes(prediction.status))waitUntil(kickMediaDispatcher());
   return json({data:{accepted:true,matched:true,duplicate,status:prediction.status},correlationId},200,correlationId);
 });

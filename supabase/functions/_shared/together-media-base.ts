@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { adminClient } from "./context.ts";
 import { AppError } from "./types.ts";
 import { track } from "./together.ts";
 import {
@@ -2627,6 +2628,14 @@ export async function kickMediaDispatcher(): Promise<void> {
     );
     return;
   }
+  const db = adminClient();
+  const { data: dispatchToken, error: signalError } = await db.rpc(
+    "kivelle_claim_media_dispatch_signal",
+    { p_cooldown_ms: 1500 },
+  );
+  if (signalError) {
+    console.warn(JSON.stringify({ level: "warn", operation: "media_dispatch_signal_failed" }));
+  } else if (!dispatchToken) return;
   const controller = new AbortController(),
     timeout = setTimeout(() => controller.abort(), 5_000);
   try {
@@ -2638,11 +2647,12 @@ export async function kickMediaDispatcher(): Promise<void> {
           "x-together-dispatch-secret": secret,
           "Content-Type": "application/json",
         },
-        body: '{"limit":3}',
+        body: '{"limit":10}',
         signal: controller.signal,
       },
     );
     if (!response.ok) {
+      if (dispatchToken) await db.rpc("kivelle_release_media_dispatch_signal", { p_token: dispatchToken });
       console.warn(
         JSON.stringify({
           level: "warn",
@@ -2652,6 +2662,7 @@ export async function kickMediaDispatcher(): Promise<void> {
       );
     }
   } catch (error) {
+    if (dispatchToken) await db.rpc("kivelle_release_media_dispatch_signal", { p_token: dispatchToken });
     console.warn(
       JSON.stringify({
         level: "warn",

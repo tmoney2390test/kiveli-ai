@@ -10,6 +10,8 @@ Set secrets only in Supabase. Never place `WAVESPEED_API_KEY` or `WAVESPEED_WEBH
 pnpm exec supabase secrets set --project-ref YOUR_PROJECT_REF \
   WAVESPEED_API_KEY=... WAVESPEED_WEBHOOK_SECRET=... \
   TOGETHER_MEDIA_DISPATCH_SECRET=... KIVELLE_MEDIA_MAX_INFLIGHT=48 \
+  KIVELLE_VIDEO_MAX_INFLIGHT=4 KIVELLE_VIDEO_FRAME_MAX_INFLIGHT=4 \
+  KIVELLE_VIDEO_QUOTE_MAX_INFLIGHT=4 \
   KIVELLE_WAVESPEED_ENABLED=true KIVELLE_WAVESPEED_CANARY_PERCENT=5
 ```
 
@@ -33,9 +35,9 @@ Testing routes use the current official WaveSpeed contracts:
 | `wavespeed-gemini-omni-flash-r2v` | `google/gemini-omni-flash/reference-to-video` | source (when present) + canonical identity/location references, approved prompt, `aspect_ratio`, `duration: 10` | Existing-photo or direct reference video; generated audio starts muted |
 | `wavespeed-minimax-h3-r2v` | `minimax/h3/reference-to-video` | up to nine canonical identity/location references, approved prompt, `aspect_ratio`, `resolution: 768p`, `duration: 10/15` | Direct reference video; generated audio starts muted |
 
-Kivelle calls `POST /api/v3/model/price` with the exact server-built payload before reserving credits. Video costs 25 credits per requested second (250/375/500 credits for 10/15/20 seconds); a quote above the per-route ceiling is rejected before any debit. Provider schemas currently do not expose a supported safety-check input for these payloads, so Kivelle does not invent one; completion metadata is enforced fail-closed and the output is signature/size/type checked before private storage delivery. Finalization also inspects delivered MP4 handler tracks and stores actual audio as `has_audio`, `silent`, or `unknown` separately from the requested provider behavior.
+Kivelle calls `POST /api/v3/model/price` with the exact server-built payload before reserving credits. Identical video request shapes share a short-lived server-side quote and quote misses pass through a four-call global admission gate, so a traffic burst cannot fan out into one provider price call per request. Video costs 25 credits per requested second (250/375/500 credits for 10/15/20 seconds); a quote above the per-route ceiling is rejected before any debit. Provider schemas currently do not expose a supported safety-check input for these payloads, so Kivelle does not invent one; completion metadata is enforced fail-closed and the output is signature/size/type checked before private storage delivery. Finalization also inspects delivered MP4 handler tracks and stores actual audio as `has_audio`, `silent`, or `unknown` separately from the requested provider behavior.
 
-Direct video does not create an intermediate image. Its queued media row has no parent photo, snapshots only server-approved identity and setting assets, retains the normalized user prompt, and is dispatched through a reference-to-video route. Enable `KIVELLE_VIDEO_ROUTE_MINIMAX_H3_R2V_ENABLED` separately if the MiniMax direct route has passed the current benchmark and price-ceiling review.
+Direct reference-video routes do not create an intermediate image: their queued media rows snapshot only server-approved identity and setting assets and retain the normalized user prompt. P-Video is image-to-video, so prompt-first P-Video privately prepares a hidden opening frame before dispatch; that frame is never presented as a generated photo and has its own queue capacity. Enable `KIVELLE_VIDEO_ROUTE_MINIMAX_H3_R2V_ENABLED` separately if the MiniMax direct route has passed the current benchmark and price-ceiling review.
 
 Use `KIVELLE_VIDEO_MODEL_SELECTOR_MODE=testers` with `KIVELLE_VIDEO_TESTER_USER_IDS` for the initial run. Every route also requires its individual enable flag and cost ceiling. The legacy LTX/Spicy route is disabled and is never a fallback.
 
@@ -45,7 +47,7 @@ The API key supplied to Kivelle is a server secret. If it has ever been pasted i
 
 1. Kivelle records a canonical media row and spends credits idempotently.
 2. The dispatcher records a durable provider job before submission.
-3. It submits exactly once. A submission timeout becomes `submission_unknown`; Kivelle does not blindly repeat the POST.
+3. It submits exactly once. Explicit pre-acceptance provider throttling/unavailability is deferred twice with bounded backoff. A submission timeout becomes `submission_unknown`; Kivelle does not blindly repeat an uncertain POST.
 4. A signed webhook or atomically leased recovery poll matches `(provider, provider_request_id)`.
 5. Kivelle downloads the temporary output, validates MIME/size, and copies it to the private `together-user-media` bucket.
 6. Webhooks and pollers compete for the same expiring finalization lease, so only one worker downloads and stores the result. Terminal failure refunds the original transaction once.
@@ -106,7 +108,9 @@ This records the route/scenario matrix and review rubric. It deliberately does n
 
 The dispatcher reconciles confirmed WaveSpeed requests by provider ID before claiming new work. Webhooks are the primary completion path; polling is the recovery path. Poll claims use `FOR UPDATE SKIP LOCKED`, and finalization has a separate owner token. Confirmed async submissions are excluded from the generic stale-job requeue function.
 
-Images and videos have separate claim capacity. Images use `KIVELLE_IMAGE_MAX_INFLIGHT` (falling back to the legacy `KIVELLE_MEDIA_MAX_INFLIGHT`), while videos default to four global slots through `KIVELLE_VIDEO_MAX_INFLIGHT`. Video claims also honor the persisted route-level limit, user fairness, and queue aging, so a slow MiniMax job cannot occupy every faster route slot.
+Images, generated opening frames, and videos have separate claim capacity. Images use `KIVELLE_IMAGE_MAX_INFLIGHT` (falling back to the legacy `KIVELLE_MEDIA_MAX_INFLIGHT`), generated P-Video opening frames default to four slots through `KIVELLE_VIDEO_FRAME_MAX_INFLIGHT`, and videos default to four global slots through `KIVELLE_VIDEO_MAX_INFLIGHT`. Video claims also honor the persisted route-level limit, authoritative subscription priority (Max, then Plus, then free), per-user fairness, and queue aging. This prevents starvation while ensuring a slow MiniMax job or opening-frame burst cannot occupy every faster route or ordinary image slot. Simultaneous request-time dispatcher kicks are coalesced; terminal webhooks immediately refill freed capacity, and the durable minute sweep remains the recovery path.
+
+Queued clients receive a safe queue position and approximate wait range without exposing other users. Failed/refunded videos do not consume one of the user's three successful daily slots; queued, generating, and ready videos still do.
 
 To inspect without exposing prompts or secrets:
 
@@ -121,7 +125,7 @@ where media_type in ('image','video') and status in ('queued','generating')
 group by status;
 ```
 
-Jobs older than 45 minutes fail safely and refund. `submission_unknown` is intentionally terminal and requires a new user action rather than a hidden duplicate submission.
+Image jobs older than 45 minutes and video jobs older than 60 minutes fail safely and refund. `submission_unknown` is intentionally terminal and requires a new user action rather than a hidden duplicate submission.
 
 ## Deployment
 

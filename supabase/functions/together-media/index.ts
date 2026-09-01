@@ -16,6 +16,8 @@ import '../_shared/venice.ts';
 // Keep newly introduced video modules in Supabase's remote upload graph. The
 // API bundler can omit transitive sibling imports in this large function tree.
 import '../_shared/kivelle-video-routes.ts';
+import '../_shared/kivelle-video-admission.ts';
+import '../_shared/kivelle-video-queue.ts';
 // Keep the private P-Video opening-frame cleanup in the remote upload graph.
 import '../_shared/together-direct-video-frame.ts';
 import { resolveMediaContentPolicy } from '../../../packages/together-domain/src/media-routing.ts';
@@ -29,6 +31,8 @@ import{claimDailyPhotoAllowance,dailyPhotoReservationKey}from'../_shared/kivelle
 import{buildVideoProviderPayload,canSelectVideoRoute,configuredVideoRouteCatalog,defaultVideoRouteId,MOTION_PRESETS,resolveVideoRoute,safeVideoRouteOption,sourceVideoAspectRatio,videoCreditCost,VIDEO_DURATIONS,VIDEO_ROUTE_IDS,VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT,videoSelectorMode,type VideoDurationSeconds,type VideoMotionPreset}from'../_shared/kivelle-video-routes.ts';
 import{canonicalRequestForMedia,snapshotReferenceAssets}from'../_shared/together-media-base.ts';
 import{configuredWaveSpeedClient}from'../_shared/wavespeed.ts';
+import{quoteVideoWithAdmission}from'../_shared/kivelle-video-admission.ts';
+import{estimatedVideoQueueWaitSeconds,orderedVideoQueue,videoQueueProgressLabel}from'../_shared/kivelle-video-queue.ts';
 import{placeContextSnapshot,resolveCharacterHomeContext,resolveCharacterPlaceContext,resolvePlaceContext,resolveWorldAccess,type PlaceContext}from'../_shared/together-place.ts';
 import{cleanupDirectVideoSourceFrame}from'../_shared/together-direct-video-frame.ts';
 import{resolveCompanionPresence}from'../_shared/together-schedule.ts';
@@ -121,11 +125,11 @@ serve(async(request,correlationId)=>{
     const canonicalReferences=canonical.referenceImages.filter((item)=>item.signedUrl&&['character_identity','location_environment','world_environment','outfit_continuity'].includes(item.role)).map((item)=>({url:String(item.signedUrl),role:item.role as 'character_identity'|'location_environment'|'world_environment'|'outfit_continuity'}));
     const sourceImageUrl=usesGeneratedFirstFrame?canonicalReferences.find((item)=>item.role==='character_identity')?.url:undefined;if(usesGeneratedFirstFrame&&!sourceImageUrl)throw new AppError('CHARACTER_REFERENCE_REQUIRED','P-Video needs an approved companion reference to create its opening frame.',409,true);
     const payload=buildVideoProviderPayload(route,{sourceImageUrl,canonicalReferences,sourceAspectRatio:input.aspectRatio,motionPreset:input.motionPreset,durationSeconds:input.durationSeconds,userPrompt:approvedPrompt,context:{companionName:canonical.companion.name,locationName:draft.place.location.name,activity:canonical.context.activity}});
-    const client=configuredWaveSpeedClient();if(!client)throw new AppError('PROVIDER_NOT_CONFIGURED','Video generation is not connected yet.',503);const quote=await client.quote(route.model,payload);
+    const client=configuredWaveSpeedClient();if(!client)throw new AppError('PROVIDER_NOT_CONFIGURED','Video generation is not connected yet.',503);const quote=await quoteVideoWithAdmission(db,client,{route,payload,sourceMode:usesGeneratedFirstFrame?'generated_first_frame':'canonical_references',durationSeconds:input.durationSeconds,aspectRatio:input.aspectRatio,referenceCount:canonicalReferences.length});
     const sourceFrameRequest=openingFrameRequest(approvedPrompt,draft.place.location.name),sourceFrameMetadata={...draft.media.metadata,source:'direct_video_frame',hiddenIntermediate:true,generationIntent:{requestText:sourceFrameRequest,requestedContentLevel:'standard'},videoTargetRequestKey:requestKey};
-    const{data:reserved,error:reserveError}=await db.rpc('kivelle_reserve_direct_video_generation_v2',{p_user_id:user.id,p_continuity_id:String(continuity.id),p_character_instance_id:input.characterInstanceId,p_conversation_id:input.conversationId??null,p_request_key:requestKey,p_source_frame_request_key:`${requestKey}:frame`,p_route_id:route.id,p_motion_preset:input.motionPreset,p_provider:route.provider,p_model:route.model,p_credit_cost:creditCost,p_quote_usd:quote.amountUsd,p_duration_seconds:input.durationSeconds,p_resolution:route.resolution,p_audio_behavior:route.audioBehavior,p_aspect_ratio:input.aspectRatio,p_user_prompt:approvedPrompt,p_reference_assets:draft.referenceAssets,p_route_concurrency_limit:route.concurrencyLimit,p_location_id:draft.locationId,p_world_id:draft.worldId,p_place_context:placeContextSnapshot(draft.place),p_source_frame_metadata:sourceFrameMetadata});if(reserveError)throw videoReservationError(reserveError);
+    const{data:reserved,error:reserveError}=await db.rpc('kivelle_reserve_direct_video_generation_v3',{p_user_id:user.id,p_continuity_id:String(continuity.id),p_character_instance_id:input.characterInstanceId,p_conversation_id:input.conversationId??null,p_request_key:requestKey,p_source_frame_request_key:`${requestKey}:frame`,p_route_id:route.id,p_motion_preset:input.motionPreset,p_provider:route.provider,p_model:route.model,p_credit_cost:creditCost,p_quote_usd:quote.amountUsd,p_duration_seconds:input.durationSeconds,p_resolution:route.resolution,p_audio_behavior:route.audioBehavior,p_aspect_ratio:input.aspectRatio,p_user_prompt:approvedPrompt,p_reference_assets:draft.referenceAssets,p_route_concurrency_limit:route.concurrencyLimit,p_location_id:draft.locationId,p_world_id:draft.worldId,p_place_context:placeContextSnapshot(draft.place),p_source_frame_metadata:sourceFrameMetadata});if(reserveError)throw videoReservationError(reserveError);
     const mediaId=String((reserved as Record<string,unknown>)?.mediaId??''),{data:video}=await db.from('together_generated_media').select('*').eq('id',mediaId).eq('user_id',user.id).single();if(!video)throw new AppError('INTERNAL_ERROR','The direct video reservation could not be loaded.',500,true);
-    waitUntil(kickMediaDispatcher());await track(db,user.id,'direct_video_generation_submitted',{mediaId:video.id,characterInstanceId:input.characterInstanceId,routeId:route.id,durationSeconds:input.durationSeconds,aspectRatio:input.aspectRatio,locationSource:input.locationSource,locationId:draft.locationId,worldId:draft.worldId,audioBehavior:route.audioBehavior,creditCost,quotedProviderCostUsd:quote.amountUsd,idempotent:Boolean((reserved as Record<string,unknown>)?.idempotent)});
+    waitUntil(kickMediaDispatcher());await track(db,user.id,'direct_video_generation_submitted',{mediaId:video.id,characterInstanceId:input.characterInstanceId,routeId:route.id,durationSeconds:input.durationSeconds,aspectRatio:input.aspectRatio,locationSource:input.locationSource,locationId:draft.locationId,worldId:draft.worldId,audioBehavior:route.audioBehavior,creditCost,quotedProviderCostUsd:quote.amountUsd,quoteCacheHit:quote.cacheHit,idempotent:Boolean((reserved as Record<string,unknown>)?.idempotent)});
     return json({data:{media:video,creditCost,creditBalance:Number((reserved as Record<string,unknown>)?.total??0),route:safeVideoRouteOption(route)},correlationId},202,correlationId);
   }
   if(input.action==='list_recent'){
@@ -179,13 +183,13 @@ serve(async(request,correlationId)=>{
     const canonicalReferences=canonical.referenceImages.filter((item)=>item.signedUrl&&['character_identity','location_environment','world_environment','outfit_continuity'].includes(item.role)).map((item)=>({url:String(item.signedUrl),role:item.role as 'character_identity'|'location_environment'|'world_environment'|'outfit_continuity'}));
     const payload=buildVideoProviderPayload(route,{sourceImageUrl:sourceSigned.signedUrl,canonicalReferences,sourceAspectRatio,motionPreset:input.motionPreset,durationSeconds:input.durationSeconds,context:{companionName:canonical.companion.name,locationName:canonical.context.place?.location.name??canonical.context.location?.name,activity:canonical.context.activity}});
     const client=configuredWaveSpeedClient();if(!client)throw new AppError('PROVIDER_NOT_CONFIGURED','Video generation is not connected yet.',503);
-    const quote=await client.quote(route.model,payload);
+    const quote=await quoteVideoWithAdmission(db,client,{route,payload,sourceMode:'existing_photo',durationSeconds:input.durationSeconds,aspectRatio:sourceAspectRatio,referenceCount:canonicalReferences.length+1});
     await track(db,user.id,'video_generation_confirmed',{sourceMediaId:media.id,routeId:route.id,provider:route.provider,model:route.model,motionPreset:input.motionPreset,durationSeconds:input.durationSeconds,creditCost,quotedProviderCostUsd:quote.amountUsd});
-    const{data:reserved,error:reserveError}=await db.rpc('kivelle_reserve_video_generation',{p_user_id:user.id,p_continuity_id:String(continuity.id),p_source_media_id:media.id,p_request_key:requestKey,p_route_id:route.id,p_motion_preset:input.motionPreset,p_provider:route.provider,p_model:route.model,p_credit_cost:creditCost,p_quote_usd:quote.amountUsd,p_duration_seconds:input.durationSeconds,p_resolution:route.resolution,p_audio_behavior:route.audioBehavior,p_aspect_ratio:sourceAspectRatio,p_testing_selection:true,p_route_concurrency_limit:route.concurrencyLimit});
+    const{data:reserved,error:reserveError}=await db.rpc('kivelle_reserve_video_generation_v2',{p_user_id:user.id,p_continuity_id:String(continuity.id),p_source_media_id:media.id,p_request_key:requestKey,p_route_id:route.id,p_motion_preset:input.motionPreset,p_provider:route.provider,p_model:route.model,p_credit_cost:creditCost,p_quote_usd:quote.amountUsd,p_duration_seconds:input.durationSeconds,p_resolution:route.resolution,p_audio_behavior:route.audioBehavior,p_aspect_ratio:sourceAspectRatio,p_testing_selection:true,p_route_concurrency_limit:route.concurrencyLimit});
     if(reserveError)throw videoReservationError(reserveError);
     const mediaId=String((reserved as Record<string,unknown>)?.mediaId??''),{data:video}=await db.from('together_generated_media').select('*').eq('id',mediaId).eq('user_id',user.id).single();if(!video)throw new AppError('INTERNAL_ERROR','The video reservation could not be loaded.',500,true);
     waitUntil(kickMediaDispatcher());
-    await track(db,user.id,'video_generation_submitted',{mediaId:video.id,sourceMediaId:media.id,routeId:route.id,provider:route.provider,model:route.model,motionPreset:input.motionPreset,durationSeconds:input.durationSeconds,creditCost,quotedProviderCostUsd:quote.amountUsd,idempotent:Boolean((reserved as Record<string,unknown>)?.idempotent)});
+    await track(db,user.id,'video_generation_submitted',{mediaId:video.id,sourceMediaId:media.id,routeId:route.id,provider:route.provider,model:route.model,motionPreset:input.motionPreset,durationSeconds:input.durationSeconds,creditCost,quotedProviderCostUsd:quote.amountUsd,quoteCacheHit:quote.cacheHit,idempotent:Boolean((reserved as Record<string,unknown>)?.idempotent)});
     return json({data:{media:video,creditCost,creditBalance:Number((reserved as Record<string,unknown>)?.total??0),route:safeVideoRouteOption(route)},correlationId},202,correlationId);
   }
   if(input.action==='status'){
@@ -345,11 +349,20 @@ function videoReservationError(error:{message?:string;details?:string}|null){
   return new AppError('INTERNAL_ERROR','The video could not be reserved safely.',500,true);
 }
 
-async function videoProgressState(db:any,media:Record<string,any>):Promise<'Queued'|'Creating video'|'Finalizing'|'Ready'|'Failed'>{
-  if(media.status==='ready')return'Ready';if(media.status==='failed')return'Failed';if(media.status==='queued')return'Queued';
+async function videoProgressState(db:any,media:Record<string,any>):Promise<string>{
+  if(media.status==='ready')return'Ready';if(media.status==='failed')return'Failed';
+  if(media.status==='queued'){
+    const retryAt=media.next_attempt_at?new Date(String(media.next_attempt_at)).getTime():NaN;
+    if(Number.isFinite(retryAt)&&retryAt>Date.now())return`Provider busy · retrying in ${Math.max(1,Math.ceil((retryAt-Date.now())/1_000))}s`;
+    if(media.parent_media_id){const{data:parent}=await db.from('together_generated_media').select('status').eq('id',media.parent_media_id).eq('user_id',media.user_id).maybeSingle();if(parent&&!['ready','failed'].includes(String(parent.status)))return'Preparing the opening frame';}
+    const{data:queued}=await db.from('together_generated_media').select('id,created_at,queue_priority,next_attempt_at').eq('media_type','video').eq('status','queued').or(`next_attempt_at.is.null,next_attempt_at.lte.${new Date().toISOString()}`).limit(1000),ordered=orderedVideoQueue((queued??[]) as Array<{id:string;created_at:string;queue_priority?:number|null;next_attempt_at?:string|null}>),position=Math.max(1,ordered.findIndex((item)=>item.id===media.id)+1),route=configuredVideoRouteCatalog().find((item)=>item.id===media.video_route_id),wait=estimatedVideoQueueWaitSeconds(position,route?.estimatedWaitSeconds.median??60,videoGlobalInflight());
+    return videoQueueProgressLabel({position,estimatedWaitSeconds:wait});
+  }
   const{data:job}=await db.from('together_media_provider_jobs').select('provider_completed_at,finalized_at,status').eq('generated_media_id',media.id).order('created_at',{ascending:false}).limit(1).maybeSingle();
   return job?.provider_completed_at&&!job?.finalized_at?'Finalizing':'Creating video';
 }
+
+function videoGlobalInflight(){const value=Number(Deno.env.get('KIVELLE_VIDEO_MAX_INFLIGHT')??4);return Number.isFinite(value)?Math.max(1,Math.min(20,Math.floor(value))):4;}
 
 function safeVideoDiagnostics(media:Record<string,any>,job:Record<string,any>|null,feedback:Record<string,any>|null){
   const at=(value:unknown)=>value?new Date(String(value)).getTime():NaN,start=at(job?.created_at),submitted=at(job?.submitted_at),completed=at(job?.provider_completed_at),finalized=at(job?.finalized_at);
