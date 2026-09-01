@@ -141,7 +141,7 @@ export type GroupDialogueEvent=
   |{type:'turn_yielded';turnId:string;replyCount?:number;reactionCount?:number;replayed?:boolean}
   |{type:'turn_cancelled';turnId:string}
   |{type:'heartbeat'};
-export async function sendGroupDialogue(input:{conversationId:string;message:string;attachmentIds?:string[];clientRequestId:string;mentionedCharacterInstanceIds?:string[];photoSubjectCharacterInstanceIds?:string[];replyToMessageId?:string;manualSpeakerInstanceId?:string;letThemTalk?:boolean},onEvent:(event:GroupDialogueEvent)=>void,signal?:AbortSignal):Promise<void>{
+export async function sendGroupDialogue(input:{conversationId:string;message:string;attachmentIds?:string[];clientRequestId:string;mentionedCharacterInstanceIds?:string[];photoSubjectCharacterInstanceIds?:string[];replyToMessageId?:string;manualSpeakerInstanceId?:string;broadGroupRequest?:boolean;letThemTalk?:boolean},onEvent:(event:GroupDialogueEvent)=>void,signal?:AbortSignal):Promise<void>{
   if(input.message.length>MESSAGE_CHARACTER_LIMIT)throw new ApiError(messageCharacterLimitError(),'VALIDATION_FAILED');
   const started=Date.now();let firstActivityRecorded=false,statusCode:number|undefined;
   try{

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AlignLeft, Check, ChevronDown, Languages, MessageCircle, Settings, Sparkles, Type, UsersRound, X } from 'lucide-react-native';
-import { manageConversation, manageGroup } from '../lib/api';
+import { manageGroup } from '../lib/api';
 import { chatTextSizeOptions, resolveChatLanguage, resolveChatResponseStyle, resolveChatTextSize, withLocalChatSettings } from '../lib/chatSettings';
 import { conversationStyleOptions } from '../lib/conversationStyle';
 import { useTogether } from '../store/useTogether';
@@ -53,12 +53,8 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
         upsertConversation(updated);
         onSaved?.(updated, { responseMode, energy });
       } else {
-        // Both endpoints preserve and rewrite the conversation metadata object.
-        // Save sequentially so a stale parallel update cannot discard either
-        // chatPreferences or groupSettings.
-        const updated = await manageConversation<Conversation>({ action: 'settings', conversationId: conversation.id, ...input });
-        const group = await manageGroup<GroupDetail>({ action: 'settings', conversationId: conversation.id, responseMode, energy });
-        const canonical = group.conversation ?? updated;
+        const group = await manageGroup<GroupDetail>({ action: 'settings', conversationId: conversation.id, ...input, responseMode, energy });
+        const canonical = group.conversation;
         upsertConversation(canonical);
         onSaved?.(canonical, group.settings);
       }
@@ -105,12 +101,14 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
           </Section>
           <View style={styles.divider} />
           <Section icon={<UsersRound size={16} color={colors.violet} />} label="Who responds">
+            <Text style={styles.sectionHint}>Automatic lets the conversation choose naturally. Choose speaker makes one companion your default; you can still override it beside the composer.</Text>
             <View accessibilityRole="radiogroup" style={styles.columns}>
               <Choice label="Automatic" selected={responseMode === 'automatic'} disabled={saving} icon={<Sparkles size={18} color={responseMode === 'automatic' ? colors.violet : colors.muted} />} onPress={() => setResponseMode('automatic')} />
               <Choice label="Choose speaker" selected={responseMode === 'choose_speaker'} disabled={saving} icon={<UsersRound size={18} color={responseMode === 'choose_speaker' ? colors.violet : colors.muted} />} onPress={() => setResponseMode('choose_speaker')} />
             </View>
           </Section>
           <Section icon={<Sparkles size={16} color={colors.violet} />} label="Group energy">
+            <Text style={styles.sectionHint}>Quiet favors one focused reply. Balanced allows natural handoffs. Lively invites more overlap and follow-up.</Text>
             <View accessibilityRole="radiogroup" style={styles.columns}>
               {(['quiet', 'balanced', 'lively'] as const).map((value) => <Choice key={value} label={value[0]!.toUpperCase() + value.slice(1)} selected={energy === value} disabled={saving} onPress={() => setEnergy(value)} />)}
             </View>
@@ -153,6 +151,7 @@ const styles = StyleSheet.create({
   section: { gap: 10 },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionLabel: { color: colors.text, fontSize: 13, fontWeight: '900' },
+  sectionHint: { color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: -3 },
   input: { minHeight: 50, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderBright, backgroundColor: 'rgba(255,255,255,.04)', paddingHorizontal: 14, color: colors.text, fontSize: 14 },
   columns: { flexDirection: 'row', gap: 9 },
   choice: { minHeight: 66, flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.035)', borderWidth: 1, borderColor: colors.border },

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   groupMediaNeedsRefresh,
+  groupRecipientRequest,
   groupTimelineDayLabel,
+  groupTurnStatusLabel,
+  groupWelcomePrompts,
 } from "./groupChatPresentation";
 
 describe("group chat timeline presentation", () => {
@@ -40,5 +43,34 @@ describe("group chat timeline presentation", () => {
       status: "accepted",
       generated_media_id: "photo",
     }])).toBe(false);
+  });
+
+  it("turns recipient choices into safe per-message routing overrides", () => {
+    expect(groupRecipientRequest("automatic", ["a", "b"])).toEqual({});
+    expect(groupRecipientRequest("everyone", ["a", "b"])).toEqual({
+      broadGroupRequest: true,
+    });
+    expect(groupRecipientRequest("b", ["a", "b"])).toEqual({
+      manualSpeakerInstanceId: "b",
+    });
+    expect(groupRecipientRequest("removed", ["a", "b"])).toEqual({});
+  });
+
+  it("describes routing and active replies clearly", () => {
+    expect(groupTurnStatusLabel([], true)).toBe("Choosing who responds…");
+    expect(groupTurnStatusLabel([{ name: "Iris" }], true)).toBe(
+      "Iris is replying…",
+    );
+    expect(groupTurnStatusLabel([{ name: "Iris" }, { name: "Maya" }], true))
+      .toBe("Iris and Maya are replying…");
+    expect(groupTurnStatusLabel([], false)).toBeNull();
+  });
+
+  it("builds useful empty-group prompts from the current roster", () => {
+    expect(groupWelcomePrompts(["Iris", "Maya"])).toEqual([
+      "What is everyone up to right now?",
+      "Iris, ask Maya something you have always wondered.",
+      "Let us make a plan together.",
+    ]);
   });
 });

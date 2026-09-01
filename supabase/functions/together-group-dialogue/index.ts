@@ -75,6 +75,7 @@ const schema = z.object({
   photoSubjectCharacterInstanceIds: z.array(z.string().uuid()).max(2).refine((ids) => new Set(ids).size === ids.length, "A photo subject can only be selected once.").default([]),
   replyToMessageId: z.string().uuid().optional(),
   manualSpeakerInstanceId: z.string().uuid().optional(),
+  broadGroupRequest: z.boolean().default(false),
   letThemTalk: z.boolean().default(false),
 }).refine(
   (value) => value.message.length > 0 || value.attachmentIds.length > 0,
@@ -155,6 +156,7 @@ Deno.serve(async (request) => {
       photoSubjectCharacterInstanceIds: [...input.photoSubjectCharacterInstanceIds].sort(),
       replyToMessageId: input.replyToMessageId ?? null,
       manualSpeakerInstanceId: input.manualSpeakerInstanceId ?? null,
+      broadGroupRequest: input.broadGroupRequest,
       letThemTalk: input.letThemTalk,
     });
     const existingUserMessage = await findExistingChatRequest(db, {
@@ -302,6 +304,7 @@ Deno.serve(async (request) => {
         mentionedCharacterInstanceIds: input.mentionedCharacterInstanceIds,
         replyToCharacterInstanceId: replyTargetId,
         manualSpeakerInstanceId: requestedPhotoSpeaker,
+        broadGroupRequest: input.broadGroupRequest,
         energy: settings.energy,
         letThemTalk: input.letThemTalk,
       });
@@ -371,6 +374,7 @@ Deno.serve(async (request) => {
       metadata: {
         energy: settings.energy,
         responseMode: settings.responseMode,
+        broadGroupRequest: input.broadGroupRequest,
         letThemTalk: input.letThemTalk,
         reasonCodes: plan.reasonCodes,
       },

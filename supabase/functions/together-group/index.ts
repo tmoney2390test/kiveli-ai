@@ -5,6 +5,7 @@ import {
   defaultGroupTitle,
   groupPlanBlockingParticipantRemoval,
 } from "../../../packages/together-domain/src/index.ts";
+import { chatLanguagePreferences } from "../../../packages/together-domain/src/chat-language.ts";
 import { parseBody } from "../_shared/body.ts";
 import { authenticated, enforceRateLimit } from "../_shared/context.ts";
 import { json, serve } from "../_shared/http.ts";
@@ -64,8 +65,16 @@ const schema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("settings"),
     conversationId: z.string().uuid(),
+    title: z.string().trim().max(80).nullable().optional(),
+    responseStyle: z.enum(["texting", "paragraph"]).optional(),
+    textSize: z.enum(["small", "medium", "large"]).optional(),
+    chatLanguage: z.enum(chatLanguagePreferences).optional(),
     responseMode: z.enum(["automatic", "choose_speaker"]),
     energy: z.enum(["quiet", "balanced", "lively"]),
+  }),
+  z.object({
+    action: z.literal("cancel_turn"),
+    conversationId: z.string().uuid(),
   }),
   z.object({
     action: z.literal("add_participant"),
@@ -536,14 +545,61 @@ serve(async (request, correlationId) => {
     );
   }
   if (input.action === "settings") {
+    const currentMetadata = conversation.metadata &&
+        typeof conversation.metadata === "object" &&
+        !Array.isArray(conversation.metadata)
+      ? conversation.metadata as Record<string, unknown>
+      : {};
+    const storedPreferences = currentMetadata.chatPreferences;
+    const currentPreferences = storedPreferences &&
+        typeof storedPreferences === "object" &&
+        !Array.isArray(storedPreferences)
+      ? storedPreferences as Record<string, unknown>
+      : {};
+    const responseStyle = input.responseStyle ??
+      (currentPreferences.responseStyle === "paragraph" ? "paragraph" : "texting");
+    const textSize = input.textSize ??
+      (["small", "medium", "large"].includes(String(currentPreferences.textSize))
+        ? String(currentPreferences.textSize) as "small" | "medium" | "large"
+        : "medium");
+    const chatLanguage = input.chatLanguage ??
+      (chatLanguagePreferences.includes(currentPreferences.chatLanguage as never)
+        ? currentPreferences.chatLanguage as typeof chatLanguagePreferences[number]
+        : "en");
+    const chatPreferences: Record<string, unknown> = {
+      ...currentPreferences,
+      responseStyle,
+      textSize,
+      contentMode: "mature",
+      chatLanguage,
+    };
+    delete chatPreferences.spiceLevel;
     const metadata = {
-      ...(conversation.metadata ?? {}),
+      ...currentMetadata,
+      chatPreferences,
       groupSettings: { responseMode: input.responseMode, energy: input.energy },
     };
-    const { data } = await db.from("together_conversations").update({
+    const { data, error } = await db.from("together_conversations").update({
+      title: input.title === undefined ? conversation.title : input.title,
       metadata,
       updated_at: new Date().toISOString(),
     }).eq("id", conversation.id).eq("user_id", user.id).select("*").single();
+    if (error || !data) {
+      throw new AppError(
+        "INTERNAL_ERROR",
+        "Group chat settings could not be saved.",
+        500,
+        true,
+      );
+    }
+    await track(db, user.id, "group_chat_settings_updated", {
+      conversationId: conversation.id,
+      responseStyle,
+      textSize,
+      chatLanguage,
+      responseMode: input.responseMode,
+      energy: input.energy,
+    });
     return json(
       {
         data: await groupDetail(
@@ -557,6 +613,37 @@ serve(async (request, correlationId) => {
       200,
       correlationId,
     );
+  }
+  if (input.action === "cancel_turn") {
+    await enforceRateLimit(db, user.id, "together_group_cancel_turn", 120, 3600);
+    const now = new Date().toISOString();
+    const { data: cancelled, error } = await db.from("together_dialogue_turns")
+      .update({
+        state: "cancelled",
+        cancelled_at: now,
+        version: 1000000,
+        updated_at: now,
+      })
+      .eq("user_id", user.id)
+      .eq("conversation_id", conversation.id)
+      .in("state", ["planning", "generating"])
+      .select("id");
+    if (error) {
+      throw new AppError(
+        "INTERNAL_ERROR",
+        "The group reply could not be stopped.",
+        500,
+        true,
+      );
+    }
+    await track(db, user.id, "group_turn_cancelled_by_user", {
+      conversationId: conversation.id,
+      turnCount: cancelled?.length ?? 0,
+    });
+    return json({
+      data: { cancelled: (cancelled?.length ?? 0) > 0 },
+      correlationId,
+    }, 200, correlationId);
   }
   if (input.action === "add_participant") {
     const roster = await activeGroupParticipants(db, {

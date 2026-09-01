@@ -107,6 +107,16 @@ describe("group director", () => {
       }).actions,
     ).toHaveLength(0);
   });
+  it("honors an explicit everyone control without rewriting the user's message", () => {
+    expect(
+      planGroupTurn({
+        message: "What do you think?",
+        candidates,
+        energy: "balanced",
+        broadGroupRequest: true,
+      }).actions,
+    ).toHaveLength(2);
+  });
   it("penalizes a dominant recent speaker without round robin forcing", () => {
     expect(groupFloorDebt(candidates[0]!)).toBeGreaterThan(
       groupFloorDebt(candidates[1]!),

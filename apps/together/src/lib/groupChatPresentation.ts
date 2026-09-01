@@ -38,3 +38,43 @@ export function groupMediaNeedsRefresh(
     return !generated || ["queued", "generating"].includes(generated.status);
   });
 }
+
+export type GroupRecipientSelection = "automatic" | "everyone" | string;
+
+export function groupRecipientRequest(
+  selection: GroupRecipientSelection,
+  participantIds: readonly string[],
+): {
+  manualSpeakerInstanceId?: string;
+  broadGroupRequest?: boolean;
+} {
+  if (selection === "everyone") return { broadGroupRequest: true };
+  if (selection === "automatic") return {};
+  return participantIds.includes(selection)
+    ? { manualSpeakerInstanceId: selection }
+    : {};
+}
+
+export function groupTurnStatusLabel(
+  people: readonly { name: string }[],
+  sending: boolean,
+): string | null {
+  if (people.length === 1) return `${people[0]!.name} is replying…`;
+  if (people.length === 2) {
+    return `${people[0]!.name} and ${people[1]!.name} are replying…`;
+  }
+  if (people.length > 2) return `${people.length} companions are replying…`;
+  return sending ? "Choosing who responds…" : null;
+}
+
+export function groupWelcomePrompts(names: readonly string[]): string[] {
+  const first = names[0] ?? "everyone";
+  const second = names[1];
+  return [
+    "What is everyone up to right now?",
+    second
+      ? `${first}, ask ${second} something you have always wondered.`
+      : `${first}, tell me what is on your mind.`,
+    "Let us make a plan together.",
+  ];
+}

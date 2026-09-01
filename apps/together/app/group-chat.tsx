@@ -50,6 +50,7 @@ import {
   Square,
   Upload,
   UserMinus,
+  UsersRound,
   Volume2,
   X,
 } from "lucide-react-native";
@@ -136,7 +137,11 @@ import { photoUploadPresentation, type PhotoUploadPhase } from "../src/lib/photo
 import { groupAddCandidates } from "../src/lib/groupWorld";
 import {
   groupMediaNeedsRefresh,
+  groupRecipientRequest,
   groupTimelineDayLabel,
+  groupTurnStatusLabel,
+  groupWelcomePrompts,
+  type GroupRecipientSelection,
 } from "../src/lib/groupChatPresentation";
 import { mergeDictationTranscript } from "../src/lib/dictation";
 import { privateStoredImageSource } from "../src/lib/mediaImageSource";
@@ -222,7 +227,7 @@ export default function GroupChatScreen() {
     [mediaOfferBusy, setMediaOfferBusy] = useState<string | null>(null),
     [typing, setTyping] = useState<Array<{ id: string; name: string }>>([]),
     [replyTo, setReplyTo] = useState<Message | null>(null),
-    [manualSpeaker, setManualSpeaker] = useState<string | null>(null),
+    [recipientSelection, setRecipientSelection] = useState<GroupRecipientSelection>("automatic"),
     [showPhotoMenu, setShowPhotoMenu] = useState(false),
     [showPhotoPaywall,setShowPhotoPaywall]=useState(false),
     [photoUploadPhase,setPhotoUploadPhase]=useState<PhotoUploadPhase>("idle"),
@@ -245,6 +250,7 @@ export default function GroupChatScreen() {
     [showSendConnectionNotice,setShowSendConnectionNotice]=useState(false),
     [memorySavedNotice,setMemorySavedNotice]=useState<{id:number;name:string}|null>(null),
     [sending, setSending] = useState(false),
+    [stoppingTurn, setStoppingTurn] = useState(false),
     [olderLoading,setOlderLoading]=useState(false),
     [busy, setBusy] = useState(false);
   const cachedRouteDetail = params.id
@@ -259,6 +265,7 @@ export default function GroupChatScreen() {
   const photoSharingSubscriptionHref=subscriptionHref({intent:"photo_sharing",returnTo:`${subscriptionReturnTo}${subscriptionReturnTo.includes("?")?"&":"?"}sharePhoto=1`});
   const clearStoredDraft=usePersistentMessageDraft({userId:session?.user.id,conversationId:params.id,kind:"group",value:input,setValue:setInput});
   const abortRef = useRef<AbortController | null>(null),
+    recipientConversationRef = useRef<string | null>(null),
     lastSendRef = useRef<{ text: string; startedAt: number } | null>(null),
     pendingPhotoMessageRequestRef=useRef<string|null>(null),
     pendingPhotoOptimisticMessageIdRef=useRef<string|null>(null),
@@ -492,6 +499,31 @@ export default function GroupChatScreen() {
       ),
     [detail?.participants],
   );
+  const participantIds = useMemo(
+    () => (detail?.participants ?? []).map((participant) =>
+      participant.character_instance_id
+    ),
+    [detail?.participants],
+  );
+  const manualSpeaker = recipientSelection !== "automatic" &&
+      recipientSelection !== "everyone"
+    ? recipientSelection
+    : null;
+  useEffect(() => {
+    if (!detail) return;
+    const conversationChanged = recipientConversationRef.current !==
+      detail.conversation.id;
+    const selectedParticipantMissing = recipientSelection !== "automatic" &&
+      recipientSelection !== "everyone" &&
+      !participantIds.includes(recipientSelection);
+    if (!conversationChanged && !selectedParticipantMissing) return;
+    recipientConversationRef.current = detail.conversation.id;
+    setRecipientSelection(
+      detail.settings.responseMode === "choose_speaker"
+        ? participantIds[0] ?? "automatic"
+        : "automatic",
+    );
+  }, [detail, participantIds, recipientSelection]);
   const mentionCharacters=useMemo<FeaturedCompanion[]>(()=>{
     const worldId=detail?.conversation.group_world_id;
     return snapshot&&worldId
@@ -760,6 +792,9 @@ export default function GroupChatScreen() {
         "iu",
       ).test(message)
     ).map((participant) => participant.character_instance_id);
+    const recipientRequest = letThemTalk
+      ? { broadGroupRequest: true }
+      : groupRecipientRequest(recipientSelection, participantIds);
     const reply = replyTo;
     const clientRequestId=retryRequestId??createClientRequestId();
     const optimistic:Message={id:retryMessageId??`local-${Date.now()}`,conversation_id:detail.conversation.id,role:"user",content:message,client_request_id:clientRequestId,delivery_status:"pending",created_at:new Date().toISOString(),provider_metadata:letThemTalk?{uiHidden:true,messageAction:'let_them_talk'}:undefined,attachments:[]};
@@ -773,10 +808,7 @@ export default function GroupChatScreen() {
           clientRequestId,
           mentionedCharacterInstanceIds: mentions,
           replyToMessageId: reply?.id,
-          manualSpeakerInstanceId:
-            detail.settings.responseMode === "choose_speaker"
-              ? manualSpeaker ?? undefined
-              : undefined,
+          ...recipientRequest,
           letThemTalk,
         },
         handleEvent,
@@ -824,6 +856,10 @@ export default function GroupChatScreen() {
     setError("");
     const mentions = mentionedParticipants(message, detail.participants),
       reply = replyTo;
+    const recipientRequest = groupRecipientRequest(
+      recipientSelection,
+      participantIds,
+    );
     const clientRequestId=selectedImage?(pendingPhotoMessageRequestRef.current??createClientRequestId()):createClientRequestId();
     const optimisticId=selectedImage?(pendingPhotoOptimisticMessageIdRef.current??`local-${Date.now()}`):`local-${Date.now()}`;
     if(selectedImage){pendingPhotoMessageRequestRef.current=clientRequestId;pendingPhotoOptimisticMessageIdRef.current=optimisticId;}
@@ -870,10 +906,7 @@ export default function GroupChatScreen() {
           clientRequestId,
           mentionedCharacterInstanceIds: mentions,
           replyToMessageId: reply?.id,
-          manualSpeakerInstanceId:
-            detail.settings.responseMode === "choose_speaker"
-              ? manualSpeaker ?? undefined
-              : undefined,
+          ...recipientRequest,
         },
         handleEvent,
         controller.signal,
@@ -905,6 +938,28 @@ export default function GroupChatScreen() {
         setTyping([]);
         setSending(false);
       }
+    }
+  };
+  const stopGroupTurn = async () => {
+    if (!detail || stoppingTurn) return;
+    setStoppingTurn(true);
+    abortRef.current?.abort();
+    setTyping([]);
+    try {
+      await manageGroup<{ cancelled: boolean }>({
+        action: "cancel_turn",
+        conversationId: detail.conversation.id,
+      });
+      await refreshGroupDelta();
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The group reply could not be stopped.",
+      );
+    } finally {
+      setSending(false);
+      setStoppingTurn(false);
     }
   };
   const choosePhoto = async (source:"camera"|"library"="library") => {
@@ -1432,11 +1487,7 @@ export default function GroupChatScreen() {
     );
   }
   if (loading && !detail) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.rose} />
-      </View>
-    );
+    return <GroupChatLoadingSkeleton />;
   }
   if (!detail) {
     return (
@@ -1490,6 +1541,8 @@ export default function GroupChatScreen() {
         name={detail.conversation.title??"Group"}
         subtitle={`${groupWorldName?`${groupWorldName} · `:""}${detail.participants.length} companions`}
         portraitSource={groupPortraitSource}
+        compactIdentity={<AvatarStack participants={detail.participants} compact />}
+        profileAccessibilityLabel="Open group details"
         mediaSource={latestHeaderMedia?.signed_url?{uri:latestHeaderMedia.signed_url}:groupPortraitSource}
         hasMedia={Boolean(latestHeaderMedia)}
         onBack={openMessagesInbox}
@@ -1647,7 +1700,13 @@ export default function GroupChatScreen() {
             <ActivityIndicator color={colors.rose} />
             <Text style={styles.timelineLoadingText}>Opening conversation…</Text>
           </View>
-          : null}
+          : <GroupWelcome
+            participants={detail.participants}
+            onPrompt={(prompt) => {
+              setInput(prompt);
+              setError("");
+            }}
+          />}
         renderItem={({ item, index }) => {
           const previous = groupTimeline[index - 1],
             dayLabel = groupTimelineDayLabel(item.value.created_at, previous?.value.created_at);
@@ -1786,7 +1845,6 @@ export default function GroupChatScreen() {
             readyContentFit="contain"
           />
         ))}
-        {typing.length ? <TypingIndicator people={typing} /> : null}
         </>}
         initialNumToRender={18}
         maxToRenderPerBatch={12}
@@ -1795,7 +1853,12 @@ export default function GroupChatScreen() {
         removeClippedSubviews={Platform.OS !== "web"}
       />
       <JumpToLatestButton visible={showJumpToLatest} bottom={width<720?104:92} onPress={()=>{keepPinnedToBottom.current=true;setShowJumpToLatest(false);if(params.id)clearChatScrollPosition(params.id);scrollRef.current?.scrollToEnd({animated:true});}}/>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <View accessibilityLiveRegion="polite" style={styles.errorBanner}>
+        <Text style={styles.error}>{error}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Dismiss group chat error" onPress={()=>setError("")} style={styles.errorDismiss}>
+          <X size={16} color={colors.text}/>
+        </Pressable>
+      </View> : null}
       {mentionOptions.length
         ? (
           <FrostedSurface intensity={92} style={styles.mentions}>
@@ -1820,48 +1883,12 @@ export default function GroupChatScreen() {
           </FrostedSurface>
         )
         : null}
-      {detail.settings.responseMode === "choose_speaker"
-        ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.speakerPicker}
-          >
-            {detail.participants.map((participant) => {
-              const selected =
-                manualSpeaker === participant.character_instance_id;
-              return (
-                <Pressable
-                  key={participant.id}
-                  accessibilityRole="radio"
-                  accessibilityState={{selected}}
-                  accessibilityLabel={`Choose ${participant.together_character_instances.together_character_templates.name} to reply`}
-                  onPress={() =>
-                    setManualSpeaker(participant.character_instance_id)}
-                  style={[
-                    styles.speakerChip,
-                    selected && styles.speakerChipActive,
-                  ]}
-                >
-                  <CharacterAvatarForParticipant
-                    participant={participant}
-                    size={26}
-                  />
-                  <Text
-                    style={[
-                      styles.speakerChipText,
-                      selected && { color: colors.text },
-                    ]}
-                  >
-                    {participant.together_character_instances
-                      .together_character_templates.name.split(" ")[0]}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        )
-        : null}
+      <GroupRecipientPicker
+        participants={detail.participants}
+        selection={recipientSelection}
+        disabled={sending}
+        onSelect={setRecipientSelection}
+      />
       {replyTo
         ? (
           <View style={styles.replyPreview}>
@@ -1945,6 +1972,13 @@ export default function GroupChatScreen() {
         onDetails={() => router.push(`/plan/${joinableGroupPlan.id}` as never)}
       /> : null}
       {memorySavedNotice ? <MemorySavedToast key={memorySavedNotice.id} name={memorySavedNotice.name} onDismiss={() => setMemorySavedNotice(null)} /> : null}
+      <GroupTurnControl
+        status={groupTurnStatusLabel(typing, sending)}
+        canContinue={detail.messages.some((message) => message.role === "assistant")}
+        stopping={stoppingTurn}
+        onContinue={() => void send("Keep talking among yourselves for a moment.", true)}
+        onStop={() => void stopGroupTurn()}
+      />
       <GroupComposer
         conversationId={detail.conversation.id}
         characterInstanceId={String(
@@ -1955,14 +1989,9 @@ export default function GroupChatScreen() {
         input={input}
         hasPendingImage={Boolean(pendingImage)}
         sending={sending}
-        canContinue={detail.messages.some((message) =>
-          message.role === "assistant"
-        )}
         onChange={setInput}
         onPhoto={openPhotoMenu}
         onSend={() => void sendPrepared()}
-        onContinue={() =>
-          void send("Keep talking among yourselves for a moment.", true)}
         onDictation={(text) =>
           setInput((current) => mergeDictationTranscript(current, text))}
         onDictationError={setError}
@@ -2100,6 +2129,11 @@ export default function GroupChatScreen() {
           setDetail((current) => current
             ? { ...current, conversation, settings }
             : current);
+          setRecipientSelection(
+            settings.responseMode === "choose_speaker"
+              ? detail.participants[0]?.character_instance_id ?? "automatic"
+              : "automatic",
+          );
         }}
       />
       <CharacterProfilePreviewModal companion={characterPreview} onClose={()=>setCharacterPreview(null)} onViewProfile={(person)=>{setCharacterPreview(null);router.push(`/character/${person.slug}` as never);}} onInviteToGroup={invitePreviewToGroup} />
@@ -2137,11 +2171,9 @@ function GroupComposer({
   input,
   hasPendingImage,
   sending,
-  canContinue,
   onChange,
   onPhoto,
   onSend,
-  onContinue,
   onDictation,
   onDictationError,
   onDictationStart,
@@ -2152,11 +2184,9 @@ function GroupComposer({
   input: string;
   hasPendingImage: boolean;
   sending: boolean;
-  canContinue: boolean;
   onChange: (value: string) => void;
   onPhoto: () => void;
   onSend: () => void;
-  onContinue: () => void;
   onDictation: (value: string) => void;
   onDictationError: (value: string) => void;
   onDictationStart: () => void;
@@ -2173,9 +2203,8 @@ function GroupComposer({
     }),
     dictationBusy = dictation.phase !== "idle",
     overLimit = input.length > MESSAGE_CHARACTER_LIMIT,
-    continueMode = !input.trim() && !hasPendingImage,
     disabled = sending || dictationBusy || overLimit ||
-      (continueMode && !canContinue);
+      (!input.trim() && !hasPendingImage);
   return (
     <View style={[styles.composerWrap,{paddingBottom:Math.max(8,insets.bottom)}]}>
       <View style={styles.composer}>
@@ -2231,21 +2260,16 @@ function GroupComposer({
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={continueMode
-            ? "Let the group keep talking"
-            : "Send message"}
+          accessibilityLabel="Send message"
           disabled={disabled}
-          onPress={continueMode ? onContinue : onSend}
+          onPress={onSend}
           style={[
             styles.send,
-            continueMode && styles.continueButton,
             disabled && styles.sendDisabled,
           ]}
         >
           {sending
             ? <ActivityIndicator color="#fff" size="small" />
-            : continueMode
-            ? <Sparkles size={19} color="#fff" />
             : <Send size={19} color="#fff" />}
         </Pressable>
       </View>
@@ -2523,18 +2547,18 @@ function GroupPlanWaitingBar({plan,locationName,onDetails}:{plan:SharedPlan;loca
 function GroupPlanJoinBar({plan,locationName,busy,onJoin,onDetails}:{plan:SharedPlan;locationName?:string;busy:boolean;onJoin:()=>void;onDetails:()=>void}) {
   return <View style={styles.groupPlanBar}><View style={styles.groupPlanBarIcon}><CalendarDays size={17} color={colors.rose}/></View><Pressable accessibilityRole="button" accessibilityLabel={`Open group plan, ${plan.title}`} onPress={onDetails} style={{flex:1,minWidth:0}}><Text style={styles.groupPlanBarKicker}>GROUP PLAN</Text><Text numberOfLines={1} style={styles.groupPlanBarTitle}>{plan.title}</Text><Text numberOfLines={1} style={styles.groupPlanBarMeta}>{locationName??'Shared place'} · ready to start</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Join group plan, ${plan.title}`} disabled={busy} onPress={onJoin} style={[styles.groupPlanJoin,busy&&styles.groupPlanDisabled]}>{busy?<ActivityIndicator size="small" color="#fff"/>:<Play size={13} color="#fff" fill="#fff"/>}<Text style={styles.groupPlanPrimaryText}>{busy?'Joining…':'Join'}</Text></Pressable></View>;
 }
-function AvatarStack({ participants }: { participants: GroupParticipant[] }) {
+function AvatarStack({ participants, compact = false }: { participants: GroupParticipant[]; compact?: boolean }) {
   return (
-    <View style={styles.avatarStack}>
+    <View style={[styles.avatarStack, compact && { width: 54, height: 34 }]}>
       {participants.slice(0, 3).map((participant, index) => (
         <View
           key={participant.id}
           style={[styles.avatarStackItem, {
-            left: index * 14,
+            left: index * (compact ? 11 : 14),
             zIndex: 3 - index,
           }]}
         >
-          <CharacterAvatarForParticipant participant={participant} size={34} />
+          <CharacterAvatarForParticipant participant={participant} size={compact ? 30 : 34} />
         </View>
       ))}
     </View>
@@ -3264,39 +3288,145 @@ function GroupVoiceNote({
     </>
   );
 }
-function TypingIndicator(
-  { people }: { people: Array<{ id: string; name: string }> },
-) {
-  const pulse = useRef(new Animated.Value(.25)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 520,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: .25,
-          duration: 520,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
-  return (
-    <View style={styles.typing}>
-      <Animated.View style={[styles.typingDot, { opacity: pulse }]} />
-      <Animated.View style={[styles.typingDot, { opacity: pulse }]} />
-      <Animated.View style={[styles.typingDot, { opacity: pulse }]} />
-      <Text style={styles.typingText}>
-        {people.map((person) => person.name.split(" ")[0]).join(" and ")}{" "}
-        {people.length > 1 ? "are" : "is"} typing…
-      </Text>
+function GroupChatLoadingSkeleton() {
+  return <View accessibilityLabel="Loading group conversation" style={styles.loadingScreen}>
+    <View style={styles.loadingHeader}>
+      <View style={styles.loadingCircle}/>
+      <View style={styles.loadingHeaderCopy}>
+        <View style={[styles.loadingLine,{width:150}]}/>
+        <View style={[styles.loadingLineSmall,{width:105}]}/>
+      </View>
     </View>
+    <View style={styles.loadingTimeline}>
+      <View style={[styles.loadingBubble,{width:"62%"}]}/>
+      <View style={[styles.loadingBubble,styles.loadingBubbleUser,{width:"48%"}]}/>
+      <View style={[styles.loadingBubble,{width:"70%",height:74}]}/>
+    </View>
+    <View style={styles.loadingComposer}/>
+  </View>;
+}
+
+function GroupWelcome({
+  participants,
+  onPrompt,
+}: {
+  participants: GroupParticipant[];
+  onPrompt: (prompt: string) => void;
+}) {
+  const names = participants.map((participant) =>
+    participant.together_character_instances.together_character_templates.name
+      .split(" ")[0]!
   );
+  return <View style={styles.groupWelcome}>
+    <AvatarStack participants={participants}/>
+    <Text style={styles.groupWelcomeTitle}>Everyone is here</Text>
+    <Text style={styles.groupWelcomeBody}>Start naturally, call on one companion, or invite the whole group into the moment.</Text>
+    <View style={styles.groupWelcomePrompts}>
+      {groupWelcomePrompts(names).map((prompt)=><Pressable
+        key={prompt}
+        accessibilityRole="button"
+        accessibilityLabel={`Use prompt: ${prompt}`}
+        onPress={()=>onPrompt(prompt)}
+        style={({pressed})=>[styles.groupWelcomePrompt,pressed&&styles.pressed]}
+      >
+        <Text style={styles.groupWelcomePromptText}>{prompt}</Text>
+        <ChevronRight size={15} color={colors.rose}/>
+      </Pressable>)}
+    </View>
+  </View>;
+}
+
+function GroupRecipientPicker({
+  participants,
+  selection,
+  disabled,
+  onSelect,
+}: {
+  participants: GroupParticipant[];
+  selection: GroupRecipientSelection;
+  disabled: boolean;
+  onSelect: (selection: GroupRecipientSelection) => void;
+}) {
+  return <View style={styles.recipientWrap}>
+    <Text style={styles.recipientLabel}>REPLIES FROM</Text>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.speakerPicker}
+    >
+      <Pressable
+        accessibilityRole="radio"
+        accessibilityState={{selected:selection==="automatic",disabled}}
+        accessibilityLabel="Let the group choose who replies"
+        disabled={disabled}
+        onPress={()=>onSelect("automatic")}
+        style={[styles.speakerChip,selection==="automatic"&&styles.speakerChipActive]}
+      >
+        <Sparkles size={16} color={selection==="automatic"?colors.rose:colors.muted}/>
+        <Text style={[styles.speakerChipText,selection==="automatic"&&styles.speakerChipTextActive]}>Automatic</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="radio"
+        accessibilityState={{selected:selection==="everyone",disabled}}
+        accessibilityLabel="Invite everyone to reply"
+        disabled={disabled}
+        onPress={()=>onSelect("everyone")}
+        style={[styles.speakerChip,selection==="everyone"&&styles.speakerChipActive]}
+      >
+        <UsersRound size={16} color={selection==="everyone"?colors.rose:colors.muted}/>
+        <Text style={[styles.speakerChipText,selection==="everyone"&&styles.speakerChipTextActive]}>Everyone</Text>
+      </Pressable>
+      {participants.map((participant)=>{
+        const id=participant.character_instance_id;
+        const name=participant.together_character_instances.together_character_templates.name;
+        const selected=selection===id;
+        return <Pressable
+          key={participant.id}
+          accessibilityRole="radio"
+          accessibilityState={{selected,disabled}}
+          accessibilityLabel={`Ask ${name} to reply`}
+          disabled={disabled}
+          onPress={()=>onSelect(id)}
+          style={[styles.speakerChip,selected&&styles.speakerChipActive]}
+        >
+          <CharacterAvatarForParticipant participant={participant} size={26}/>
+          <Text style={[styles.speakerChipText,selected&&styles.speakerChipTextActive]}>{name.split(" ")[0]}</Text>
+        </Pressable>;
+      })}
+    </ScrollView>
+  </View>;
+}
+
+function GroupTurnControl({
+  status,
+  canContinue,
+  stopping,
+  onContinue,
+  onStop,
+}: {
+  status: string | null;
+  canContinue: boolean;
+  stopping: boolean;
+  onContinue: () => void;
+  onStop: () => void;
+}) {
+  if (status || stopping) {
+    return <View accessibilityLiveRegion="polite" style={styles.groupTurnBar}>
+      <ActivityIndicator size="small" color={colors.violet}/>
+      <Text numberOfLines={1} style={styles.groupTurnText}>{stopping?"Stopping the group…":status}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Stop group reply" disabled={stopping} onPress={onStop} style={styles.groupStopButton}>
+        <Square size={13} color={colors.text} fill={colors.text}/>
+        <Text style={styles.groupStopText}>Stop</Text>
+      </Pressable>
+    </View>;
+  }
+  if (!canContinue) return null;
+  return <Pressable accessibilityRole="button" accessibilityLabel="Let the group keep talking" onPress={onContinue} style={({pressed})=>[styles.groupContinueBar,pressed&&styles.pressed]}>
+    <Sparkles size={15} color={colors.violet}/>
+    <Text style={styles.groupContinueText}>Let them talk</Text>
+    <Text numberOfLines={1} style={styles.groupContinueHint}>The group continues without another prompt</Text>
+    <ChevronRight size={14} color={colors.muted}/>
+  </Pressable>;
 }
 
 function GroupDetailsModal({
@@ -3568,6 +3698,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.background,
   },
+  loadingScreen:{flex:1,backgroundColor:colors.background},
+  loadingHeader:{minHeight:82,paddingTop:18,paddingHorizontal:16,flexDirection:"row",alignItems:"center",gap:12,borderBottomWidth:1,borderBottomColor:colors.border},
+  loadingCircle:{width:48,height:48,borderRadius:24,backgroundColor:"rgba(181,111,223,.14)"},
+  loadingHeaderCopy:{gap:8},
+  loadingLine:{height:12,borderRadius:6,backgroundColor:"rgba(255,255,255,.09)"},
+  loadingLineSmall:{height:8,borderRadius:4,backgroundColor:"rgba(255,255,255,.055)"},
+  loadingTimeline:{flex:1,paddingHorizontal:18,paddingTop:36,gap:18},
+  loadingBubble:{height:58,borderRadius:18,backgroundColor:"rgba(255,255,255,.055)"},
+  loadingBubbleUser:{alignSelf:"flex-end",backgroundColor:"rgba(216,62,234,.09)"},
+  loadingComposer:{height:58,marginHorizontal:12,marginBottom:14,borderRadius:29,backgroundColor:"rgba(255,255,255,.06)",borderWidth:1,borderColor:colors.border},
   glowLayer: {
     position: "absolute",
     top: 0,
@@ -3837,6 +3977,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   timelineLoadingText: { color: colors.muted, fontSize: 11 },
+  groupWelcome:{alignSelf:"center",width:"100%",maxWidth:520,minHeight:360,alignItems:"center",justifyContent:"center",paddingHorizontal:18,paddingVertical:34},
+  groupWelcomeTitle:{color:colors.text,fontFamily:"Georgia",fontSize:25,fontWeight:"800",marginTop:13},
+  groupWelcomeBody:{maxWidth:390,color:colors.muted,fontSize:12,lineHeight:18,textAlign:"center",marginTop:7},
+  groupWelcomePrompts:{width:"100%",gap:8,marginTop:21},
+  groupWelcomePrompt:{minHeight:48,paddingHorizontal:14,borderRadius:radius.md,flexDirection:"row",alignItems:"center",gap:10,backgroundColor:"rgba(255,255,255,.035)",borderWidth:1,borderColor:colors.border},
+  groupWelcomePromptText:{flex:1,color:colors.textSecondary,fontSize:11,fontWeight:"700"},
   earlierButton: {
     alignSelf: "center",
     minHeight: 36,
@@ -4003,13 +4149,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.violet,
   },
   typingText: { color: colors.muted, fontSize: 11, marginLeft: 5 },
+  errorBanner:{marginHorizontal:12,marginVertical:5,minHeight:44,paddingLeft:12,flexDirection:"row",alignItems:"center",gap:8,borderRadius:radius.md,backgroundColor:"rgba(220,72,100,.10)",borderWidth:1,borderColor:"rgba(220,72,100,.25)"},
   error: {
+    flex:1,
     color: colors.danger,
     fontSize: 11,
-    textAlign: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 4,
+    lineHeight:16,
   },
+  errorDismiss:{width:44,height:44,alignItems:"center",justifyContent:"center"},
   mentions: {
     position: "absolute",
     left: 14,
@@ -4029,6 +4176,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   mentionName: { color: colors.text, fontWeight: "800" },
+  recipientWrap:{borderTopWidth:1,borderTopColor:"rgba(255,255,255,.045)",paddingTop:5},
+  recipientLabel:{color:colors.dimmed,fontSize:8,fontWeight:"900",letterSpacing:1.05,paddingHorizontal:14,paddingTop:2},
   speakerPicker: { gap: 7, paddingHorizontal: 14, paddingVertical: 7 },
   speakerChip: {
     minHeight: 44,
@@ -4047,6 +4196,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(104,42,111,.55)",
   },
   speakerChipText: { color: colors.muted, fontSize: 11, fontWeight: "800" },
+  speakerChipTextActive:{color:colors.text},
   replyPreview: {
     flexDirection: "row",
     alignItems: "center",
@@ -4098,6 +4248,13 @@ const styles = StyleSheet.create({
   groupPlanProgressTrack:{height:2,borderRadius:1,overflow:"hidden",backgroundColor:"rgba(255,255,255,.10)",marginTop:6},
   groupPlanProgressFill:{height:2,borderRadius:1,backgroundColor:colors.rose},
   groupPlanJoin:{minHeight:38,paddingHorizontal:13,borderRadius:19,backgroundColor:colors.rose,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:6},
+  groupTurnBar:{minHeight:48,marginHorizontal:10,marginTop:6,paddingLeft:12,paddingRight:5,borderRadius:radius.md,flexDirection:"row",alignItems:"center",gap:9,backgroundColor:"rgba(112,55,139,.15)",borderWidth:1,borderColor:"rgba(170,103,224,.24)"},
+  groupTurnText:{flex:1,color:colors.textSecondary,fontSize:11,fontWeight:"800"},
+  groupStopButton:{minWidth:72,height:42,paddingHorizontal:11,borderRadius:21,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:6,backgroundColor:"rgba(255,255,255,.07)"},
+  groupStopText:{color:colors.text,fontSize:10,fontWeight:"900"},
+  groupContinueBar:{minHeight:44,marginHorizontal:10,marginTop:5,paddingHorizontal:13,borderRadius:radius.md,flexDirection:"row",alignItems:"center",gap:8,backgroundColor:"rgba(112,55,139,.09)",borderWidth:1,borderColor:"rgba(170,103,224,.16)"},
+  groupContinueText:{color:colors.text,fontSize:11,fontWeight:"900"},
+  groupContinueHint:{flex:1,color:colors.dimmed,fontSize:9},
   composerWrap: {
     borderTopWidth: 1,
     borderTopColor: colors.border,

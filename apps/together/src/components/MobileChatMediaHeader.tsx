@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
   PanResponder,
@@ -21,6 +21,8 @@ type MobileChatMediaHeaderProps = {
   name: string;
   subtitle: string;
   portraitSource: ImageSource | number;
+  compactIdentity?: ReactNode;
+  profileAccessibilityLabel?: string;
   mediaSource?: ImageSource | number;
   hasMedia?: boolean;
   onBack: () => void;
@@ -37,6 +39,8 @@ export function MobileChatMediaHeader({
   name,
   subtitle,
   portraitSource,
+  compactIdentity,
+  profileAccessibilityLabel,
   mediaSource,
   hasMedia = false,
   onBack,
@@ -154,6 +158,7 @@ export function MobileChatMediaHeader({
     right: actionProgress.interpolate({ inputRange: [0, 1], outputRange: [compactRight, 12] }),
   });
   const image = mediaSource ?? portraitSource;
+  const profileLabel = profileAccessibilityLabel ?? `View ${name}'s profile`;
 
   if (mode === 'hidden') {
     return <View pointerEvents="box-none" style={styles.hiddenShell}>
@@ -178,10 +183,10 @@ export function MobileChatMediaHeader({
         </Pressable>
 
         <Animated.View style={[styles.compactIdentity, { top: actionTop, opacity: compactOpacity }]} pointerEvents={mode === 'compact' ? 'auto' : 'none'}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`View ${name}'s profile`} onPress={onProfile} style={styles.compactPortraitButton}>
-            <Image source={portraitSource} style={styles.compactPortrait} contentFit="cover" contentPosition="top" transition={160} />
+          <Pressable accessibilityRole="button" accessibilityLabel={profileLabel} onPress={onProfile} style={[styles.compactPortraitButton, compactIdentity ? styles.compactGroupIdentity : undefined]}>
+            {compactIdentity ?? <Image source={portraitSource} style={styles.compactPortrait} contentFit="cover" contentPosition="top" transition={160} />}
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={`View ${name}'s profile`} onPress={onProfile} style={styles.copy}>
+          <Pressable accessibilityRole="button" accessibilityLabel={profileLabel} onPress={onProfile} style={styles.copy}>
             <Text numberOfLines={1} style={styles.name}>{name}</Text>
             <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text>
           </Pressable>
@@ -293,6 +298,12 @@ const styles = StyleSheet.create({
   compactPortrait: {
     width: '100%',
     height: '100%',
+  },
+  compactGroupIdentity: {
+    width: 54,
+    overflow: 'visible',
+    borderWidth: 0,
+    borderRadius: 0,
   },
   copy: {
     minWidth: 0,
