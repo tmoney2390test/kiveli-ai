@@ -68,7 +68,7 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
         navigateLocalRouteOnWeb(webConversationHref(href) ?? href, 'replace');
         return;
       }
-      window.location.assign(href);
+      navigateLocalRouteOnWeb(href);
       return;
     }
     router.push(href as never);

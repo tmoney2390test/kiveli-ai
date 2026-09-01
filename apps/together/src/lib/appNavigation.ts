@@ -162,7 +162,7 @@ function isConversationRoute(href: string): boolean {
 }
 
 function isCapturedEntryRecovery(destination: string): boolean {
-  if (typeof window === "undefined" || window.location.pathname !== "/") return false;
+  if (typeof window === "undefined") return false;
   const captured = window.__KIVELLE_ENTRY_HREF__;
   return Boolean(captured && appRouteHref(captured) === destination);
 }
@@ -271,29 +271,11 @@ export function installWebNavigationCompatibility(router: object): void {
       navigateLocalRouteOnWeb(destination, mode);
       return undefined;
     }
-    beginPendingWebRouteTransition(destination);
-    let result: unknown;
-    try {
-      result = original(routerHref as never, options);
-    } catch (error) {
-      completePendingWebRouteTransition();
-      throw error;
-    }
-    window.setTimeout(() => {
-      const active = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-      if (active === destination) {
-        completePendingWebRouteTransition(active);
-        return;
-      }
-      const fellHome = routePath(active) === "/" && routePath(destination) !== "/";
-      if (active === startingLocation || fellHome) {
-        hardNavigate(destination, mode);
-        return;
-      }
-      // Authentication and onboarding can intentionally redirect elsewhere.
-      completePendingWebRouteTransition();
-    }, 300);
-    return result;
+    // Expo Router's static-web imperative queue briefly rewrites nested routes
+    // to `/` before it resolves them. Cross-screen web navigation must use one
+    // direct browser transition so the address bar never exposes that alias.
+    hardNavigate(destination, mode);
+    return undefined;
   };
 
   imperativeRouter.push = ((href: AppRouteHref, options?: unknown) => transition(push, href, "push", options)) as ImperativeRouter["push"];

@@ -106,10 +106,10 @@ describe("app navigation", () => {
     expect(nativePush).not.toHaveBeenCalled();
   });
 
-  it("repairs a failed imperative route that falls back to Home", async () => {
+  it("opens a cross-screen route directly without exposing Expo's Home alias", () => {
     vi.useFakeTimers();
     try {
-      const { browser, history } = browserAt("https://kivelli.app/explore");
+      const { browser, classes, history } = browserAt("https://kivelli.app/explore");
       const nativePush = vi.fn((href: string, options?: unknown) => {
         void href;
         void options;
@@ -125,18 +125,20 @@ describe("app navigation", () => {
       installWebNavigationCompatibility(router);
 
       router.push("/(tabs)/singles?world=eos-meridian" as never);
-      await vi.advanceTimersByTimeAsync(300);
 
-      expect(nativePush).toHaveBeenCalledWith("/(tabs)/singles?world=eos-meridian", undefined);
+      expect(nativePush).not.toHaveBeenCalled();
+      expect(history.pushState).not.toHaveBeenCalled();
       expect(browser.location.assign).toHaveBeenCalledWith("/singles?world=eos-meridian");
       expect(browser.location.href).toBe("https://kivelli.app/singles?world=eos-meridian");
+      expect(classes.has(WEB_ROUTE_TRANSITION_CLASS)).toBe(true);
+      completePendingWebRouteTransition("/singles");
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("preserves Expo's tab route identity while recovering a captured deep link", () => {
-    const { browser } = browserAt("https://kivelli.app/");
+  it("preserves Expo's tab route identity while its captured URL remains protected", () => {
+    const { browser } = browserAt("https://kivelli.app/explore?world=eos-meridian");
     Object.assign(browser, { __KIVELLE_ENTRY_HREF__: "/explore?world=eos-meridian" });
     const nativeReplace = vi.fn();
     const router = {
@@ -151,7 +153,7 @@ describe("app navigation", () => {
     router.replace("/explore?world=eos-meridian" as never);
 
     expect(nativeReplace).toHaveBeenCalledWith("/(tabs)/explore?world=eos-meridian", undefined);
-    expect(browser.location.href).toBe("https://kivelli.app/");
+    expect(browser.location.href).toBe("https://kivelli.app/explore?world=eos-meridian");
   });
 
   it("uses a full browser transition for explicit cross-screen safety calls", () => {
