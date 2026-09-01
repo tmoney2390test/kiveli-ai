@@ -13,11 +13,16 @@ type ImperativeRouter = {
 declare global {
   interface Window {
     __KIVELLE_ENTRY_HREF__?: string;
+    __KIVELLE_PENDING_ROUTE_HREF__?: string;
+    __KIVELLE_PENDING_ROUTE_TIMEOUT__?: number;
   }
 }
 
 const patchedRouters = new WeakSet<object>();
 const CLICK_GUARD_KEY = "__kivelliWebNavigationClickGuard";
+export const WEB_ROUTE_TRANSITION_KEY = "kivelli:web-route-transition:v1";
+export const WEB_ROUTE_TRANSITION_CLASS = "kivelli-route-transition-pending";
+const WEB_ROUTE_TRANSITION_MAX_AGE_MS = 15_000;
 const TAB_ROUTE_PATHS = new Set([
   "/chat-tab",
   "/dates",
@@ -96,6 +101,61 @@ function routePath(href: string): string {
   return new URL(href, "https://kivelli.app").pathname.replace(/\/$/, "") || "/";
 }
 
+function clearTransitionTimeout(): void {
+  if (typeof window === "undefined" || window.__KIVELLE_PENDING_ROUTE_TIMEOUT__ === undefined) return;
+  window.clearTimeout(window.__KIVELLE_PENDING_ROUTE_TIMEOUT__);
+  delete window.__KIVELLE_PENDING_ROUTE_TIMEOUT__;
+}
+
+/**
+ * Keeps the current screen covered while Expo Router settles a cross-screen
+ * transition. The storage record lets the same cover survive a safety reload.
+ */
+export function beginPendingWebRouteTransition(destination: string): void {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  // Only the pathname is needed after the reload. Avoid persisting route
+  // parameters such as conversation or checkout identifiers.
+  const destinationPath = routePath(destination);
+  window.__KIVELLE_PENDING_ROUTE_HREF__ = destinationPath;
+  try {
+    window.sessionStorage?.setItem(WEB_ROUTE_TRANSITION_KEY, JSON.stringify({ destination: destinationPath, startedAt: Date.now() }));
+  } catch {
+    // Private browsing can deny session storage; the in-document cover still works.
+  }
+  const root = document.documentElement;
+  if (!root?.classList) return;
+  root.classList.add(WEB_ROUTE_TRANSITION_CLASS);
+  clearTransitionTimeout();
+  window.__KIVELLE_PENDING_ROUTE_TIMEOUT__ = window.setTimeout(() => {
+    completePendingWebRouteTransition();
+  }, WEB_ROUTE_TRANSITION_MAX_AGE_MS);
+}
+
+/** Removes the persistent cover once the intended route has actually mounted. */
+export function completePendingWebRouteTransition(activeHref?: string): boolean {
+  if (typeof window === "undefined") return false;
+  let destination = window.__KIVELLE_PENDING_ROUTE_HREF__;
+  if (!destination) {
+    try {
+      const raw = window.sessionStorage?.getItem(WEB_ROUTE_TRANSITION_KEY);
+      if (raw) destination = (JSON.parse(raw) as { destination?: string }).destination;
+    } catch {
+      // A malformed or inaccessible record is safe to discard below.
+    }
+  }
+  if (!destination) return false;
+  if (activeHref && routePath(activeHref) !== routePath(destination)) return false;
+  clearTransitionTimeout();
+  try {
+    window.sessionStorage?.removeItem(WEB_ROUTE_TRANSITION_KEY);
+  } catch {
+    // The DOM cover can still be removed when storage is unavailable.
+  }
+  if (typeof document !== "undefined") document.documentElement?.classList?.remove(WEB_ROUTE_TRANSITION_CLASS);
+  delete window.__KIVELLE_PENDING_ROUTE_HREF__;
+  return true;
+}
+
 function isConversationRoute(href: string): boolean {
   const pathname = routePath(href);
   return pathname === "/chat" || pathname === "/group-chat";
@@ -119,6 +179,7 @@ function expoRouterHref(href: AppRouteHref, destination: string): AppRouteHref {
 }
 
 function hardNavigate(destination: string, mode: "push" | "replace"): void {
+  beginPendingWebRouteTransition(destination);
   window.location[mode === "replace" ? "replace" : "assign"](destination);
 }
 
@@ -210,12 +271,27 @@ export function installWebNavigationCompatibility(router: object): void {
       navigateLocalRouteOnWeb(destination, mode);
       return undefined;
     }
-    const result = original(routerHref as never, options);
+    beginPendingWebRouteTransition(destination);
+    let result: unknown;
+    try {
+      result = original(routerHref as never, options);
+    } catch (error) {
+      completePendingWebRouteTransition();
+      throw error;
+    }
     window.setTimeout(() => {
       const active = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-      if (active === destination) return;
+      if (active === destination) {
+        completePendingWebRouteTransition(active);
+        return;
+      }
       const fellHome = routePath(active) === "/" && routePath(destination) !== "/";
-      if (active === startingLocation || fellHome) hardNavigate(destination, mode);
+      if (active === startingLocation || fellHome) {
+        hardNavigate(destination, mode);
+        return;
+      }
+      // Authentication and onboarding can intentionally redirect elsewhere.
+      completePendingWebRouteTransition();
     }, 300);
     return result;
   };

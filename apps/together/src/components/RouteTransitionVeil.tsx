@@ -3,12 +3,16 @@ import { Animated, Platform, StyleSheet } from 'react-native';
 import { usePathname } from 'expo-router';
 import { colors } from '../theme';
 import { shouldShowRouteTransition } from '../lib/conversationNavigation';
+import { completePendingWebRouteTransition } from '../lib/appNavigation';
 
 export function RouteTransitionVeil() {
   const pathname = usePathname();
   const previous = useRef(pathname);
   const opacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    // A hard-navigation safety fallback stores its destination before leaving
+    // the previous document. Clear that cover only when this route has mounted.
+    completePendingWebRouteTransition(pathname);
     if (!shouldShowRouteTransition(previous.current, pathname)) {
       previous.current = pathname;
       return;

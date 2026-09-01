@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   appRouteHref,
+  completePendingWebRouteTransition,
   installWebNavigationCompatibility,
   navigateLocalRouteOnWeb,
   updateLocalRouteParamsOnWeb,
+  WEB_ROUTE_TRANSITION_CLASS,
+  WEB_ROUTE_TRANSITION_KEY,
 } from "./appNavigation";
 
 const originalWindow = globalThis.window;
@@ -18,6 +21,8 @@ afterEach(() => {
 function browserAt(initialHref: string) {
   let current = new URL(initialHref);
   const routeEvents: string[] = [];
+  const classes = new Set<string>();
+  const storage = new Map<string, string>();
   const history = {
     state: null,
     pushState: vi.fn((_state: unknown, _title: string, href: string) => { current = new URL(href, current); }),
@@ -38,11 +43,24 @@ function browserAt(initialHref: string) {
     history,
     PopStateEvent: TestPopStateEvent,
     setTimeout: globalThis.setTimeout,
+    clearTimeout: globalThis.clearTimeout,
+    sessionStorage: {
+      getItem: vi.fn((key: string) => storage.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => { storage.set(key, value); }),
+      removeItem: vi.fn((key: string) => { storage.delete(key); }),
+    },
     dispatchEvent: vi.fn((event: Event) => { routeEvents.push(event.type); return true; }),
   };
   Object.defineProperty(globalThis, "window", { configurable: true, value: browser });
-  Object.defineProperty(globalThis, "document", { configurable: true, value: { addEventListener: vi.fn() } });
-  return { browser, history, routeEvents };
+  Object.defineProperty(globalThis, "document", { configurable: true, value: {
+    addEventListener: vi.fn(),
+    documentElement: { classList: {
+      add: vi.fn((name: string) => { classes.add(name); }),
+      remove: vi.fn((name: string) => { classes.delete(name); }),
+      contains: vi.fn((name: string) => classes.has(name)),
+    } },
+  } });
+  return { browser, classes, history, routeEvents, storage };
 }
 
 describe("app navigation", () => {
@@ -137,12 +155,23 @@ describe("app navigation", () => {
   });
 
   it("uses a full browser transition for explicit cross-screen safety calls", () => {
-    const { browser, history } = browserAt("https://kivelli.app/chat?character=iris");
+    vi.useFakeTimers();
+    try {
+      const { browser, classes, history, storage } = browserAt("https://kivelli.app/chat?character=iris");
 
-    expect(navigateLocalRouteOnWeb("/subscription?intent=voice")).toBe(true);
+      expect(navigateLocalRouteOnWeb("/subscription?intent=voice")).toBe(true);
 
-    expect(browser.location.assign).toHaveBeenCalledWith("/subscription?intent=voice");
-    expect(history.pushState).not.toHaveBeenCalled();
+      expect(browser.location.assign).toHaveBeenCalledWith("/subscription?intent=voice");
+      expect(history.pushState).not.toHaveBeenCalled();
+      expect(classes.has(WEB_ROUTE_TRANSITION_CLASS)).toBe(true);
+      expect(JSON.parse(storage.get(WEB_ROUTE_TRANSITION_KEY) ?? "{}").destination).toBe("/subscription");
+      expect(completePendingWebRouteTransition("/chat")).toBe(false);
+      expect(completePendingWebRouteTransition("/subscription")).toBe(true);
+      expect(classes.has(WEB_ROUTE_TRANSITION_CLASS)).toBe(false);
+      expect(storage.has(WEB_ROUTE_TRANSITION_KEY)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("merges and removes route selector parameters in place", () => {

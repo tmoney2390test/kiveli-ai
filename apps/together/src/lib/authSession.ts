@@ -32,7 +32,7 @@ const invalidSessionCodes = new Set([
 ]);
 
 const localSignOuts = new WeakMap<object, Promise<void>>();
-export const PERSISTED_SESSION_VALIDATION_TIMEOUT_MS = 4_000;
+export const PERSISTED_SESSION_VALIDATION_TIMEOUT_MS = 1_000;
 
 export function isInvalidAuthSessionError(error: AuthFailure | null | undefined) {
   if (!error) return false;
