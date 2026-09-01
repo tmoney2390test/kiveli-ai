@@ -10,11 +10,63 @@ describe('Interaction domain', () => {
     expect(normalizeActivityTag('photo walk')).toBe('photography');
     expect(normalizeActivityTag('arcade games')).toBe('arcade');
     expect(normalizeActivityTag('garden walk')).toBe('walking');
+    expect(normalizeActivityTag('spa treatment')).toBe('spa');
+    expect(normalizeActivityTag('wine tasting')).toBe('vineyard');
   });
 
   it('infers composable packs from generic location data', () => {
     const packs = inferInteractionPacks({ id: 'venue', name: 'Any venue', category: 'nightlife', locationType: 'venue', possibleActivities: ['karaoke', 'cocktails', 'live music'] });
-    expect(packs).toEqual(expect.arrayContaining(['karaoke', 'bar', 'live_music']));
+    expect(packs).toEqual(expect.arrayContaining(['karaoke', 'bar', 'live_music', 'dance']));
+  });
+
+  it('keeps world-wide themes out of an individual venue', () => {
+    const location = { id: 'spa', name: 'Aurora Spa', category: 'spa', locationType: 'venue', possibleActivities: ['massage', 'warm pool', 'quiet conversation'] };
+    const world = { activityFamilies: ['summer trails', 'skiing and snowboarding', 'lake and sauna'] };
+    expect(inferInteractionPacks(location, world)).toEqual(expect.arrayContaining(['spa']));
+    expect(inferInteractionPacks(location, world)).not.toContain('hiking');
+    const candidates = resolveInteractions({ character: creativeCharacter, relationship, world, location, life: { availability: 'open' }, seed: 'spa-not-trail', limit: 10 });
+    expect(candidates.some((item) => item.interactionKey.startsWith('spa.'))).toBe(true);
+    expect(candidates.some((item) => item.interactionKey.startsWith('hiking.'))).toBe(false);
+    expect(candidates.some((item) => /trail/i.test(item.label))).toBe(false);
+  });
+
+  it('does not treat district directories as if every activity is happening at once', () => {
+    const packs = inferInteractionPacks({ id: 'district', name: 'Lakeward', category: 'district', locationType: 'district', possibleActivities: ['spa visits', 'wooded trails', 'fine dining'] });
+    expect(packs).toEqual(['district']);
+  });
+
+  it('matches pack terms as phrases instead of leaking through partial words', () => {
+    const packs = inferInteractionPacks({ id: 'apartment', name: 'An apartment', category: 'apartment', locationType: 'residence', possibleActivities: ['quiet conversation'] });
+    expect(packs).toContain('home');
+    expect(packs).not.toContain('art_gallery');
+  });
+
+  it('covers the audited venue families with location-specific packs', () => {
+    const fixtures = [
+      ['spa', ['massage', 'sauna'], 'spa'],
+      ['hotel', ['stay', 'room service'], 'lodging'],
+      ['clinic', ['medical appointment'], 'medical'],
+      ['chapel', ['quiet reflection'], 'sacred'],
+      ['marina', ['sailing'], 'boating'],
+      ['vineyard', ['wine tasting'], 'vineyard'],
+      ['laundromat', ['laundry'], 'laundry'],
+      ['research', ['sample analysis'], 'research'],
+      ['stables', ['horseback riding'], 'equestrian'],
+      ['workshop', ['vehicle repair'], 'workshop'],
+      ['nightclub', ['dancing'], 'dance'],
+      ['climbing gym', ['bouldering'], 'climbing'],
+    ] as const;
+    for (const [category, possibleActivities, expectedPack] of fixtures) {
+      expect(inferInteractionPacks({ id: category, name: category, category, locationType: 'venue', possibleActivities: [...possibleActivities] })).toContain(expectedPack);
+    }
+  });
+
+  it('keeps private spa choices gated to an established romantic relationship', () => {
+    const location = { id: 'spa', name: 'Moonwake Baths', category: 'spa', locationType: 'venue', possibleActivities: ['bathing', 'massage'] };
+    const friendly = resolveInteractions({ character: creativeCharacter, relationship, location, life: { availability: 'open' }, seed: 'friendly-spa', limit: 12 });
+    const dating = resolveInteractions({ character: creativeCharacter, relationship: { ...relationship, stage: 'dating' as const }, location, life: { availability: 'open' }, seed: 'dating-spa', limit: 12 });
+    expect(friendly.some((item) => item.interactionKey === 'spa.share_a_private_soak')).toBe(false);
+    expect(dating.some((item) => item.interactionKey === 'spa.share_a_private_soak')).toBe(true);
   });
 
   it('makes a creative companion prefer compatible interactions without name checks', () => {
@@ -96,7 +148,7 @@ describe('Interaction domain', () => {
   });
 
   it('permits refusal and counteroffers without mutating canonical scene state first',()=>{
-    const candidates=resolveInteractions({character:creativeCharacter,relationship,location:{id:'trail',name:'Trail',category:'outdoor',locationType:'outdoor',possibleActivities:['hiking']},life:{availability:'open',energy:'low'},seed:'tired-hike'});
+    const candidates=resolveInteractions({character:creativeCharacter,relationship,location:{id:'trail',name:'Trail',category:'outdoor',locationType:'outdoor',possibleActivities:['hiking']},life:{availability:'open',energy:'low'},seed:'tired-hike',limit:10});
     const requested=candidates.find((candidate)=>candidate.interactionKey==='hiking.keep_walking')??candidates[0]!;
     const decision=resolveCharacterInteractionDecision({candidate:requested,candidates,profile:deriveCharacterInteractionProfile(creativeCharacter),relationship,life:{availability:'open',energy:'exhausted'},scene:{recentActionKeys:[]},seed:'tired-decision'});
     expect(['countered','declined']).toContain(decision.decision);

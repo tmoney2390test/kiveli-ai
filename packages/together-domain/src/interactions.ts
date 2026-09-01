@@ -200,6 +200,13 @@ const activityAliases: Record<string, string> = {
   'trivia': 'trivia', 'comedy': 'comedy', 'movies': 'cinema', 'movie': 'cinema',
   'sporting event': 'sports', 'sports game': 'sports', 'basketball game': 'sports', 'basketball': 'sports',
   'hockey game': 'sports', 'hockey': 'sports', 'indoor soccer': 'sports', 'soccer': 'sports', 'boxing night': 'sports', 'boxing': 'sports',
+  'dancing': 'dance', 'dance': 'dance', 'nightclub': 'dance', 'climbing': 'climbing', 'bouldering': 'climbing',
+  'boating': 'boating', 'sailing': 'boating', 'rowboating': 'boating', 'boat tour': 'boating',
+  'spa treatment': 'spa', 'spa': 'spa', 'massage': 'spa', 'sauna': 'spa', 'bathing': 'spa', 'hot springs': 'spa',
+  'hotel stay': 'lodging', 'overnight stay': 'lodging', 'lodging': 'lodging', 'laundry': 'laundry',
+  'horseback riding': 'equestrian', 'trail ride': 'equestrian', 'wine tasting': 'vineyard', 'vineyard tour': 'vineyard',
+  'medical appointment': 'medical', 'museum visit': 'history', 'archive research': 'history', 'sample analysis': 'research',
+  'vehicle repair': 'workshop', 'equipment repair': 'workshop', 'quiet reflection': 'sacred',
 };
 
 export function normalizeActivityTag(value: string): string {
@@ -211,28 +218,82 @@ export function normalizeActivityTag(value: string): string {
 }
 
 const packTerms: Record<string, string[]> = {
-  cafe: ['cafe', 'coffee', 'pastry'], restaurant: ['restaurant', 'dinner', 'food', 'sushi', 'bistro'], bar: ['bar', 'cocktail', 'drinks', 'pub', 'lounge'],
-  karaoke: ['karaoke'], live_music: ['live music', 'concert', 'music venue'], arcade: ['arcade', 'gaming', 'games'], cinema: ['cinema', 'movie', 'film'],
-  books: ['book', 'reading'], art_gallery: ['gallery', 'museum', 'art'], fitness: ['fitness', 'gym', 'workout', 'running'], market: ['market', 'bazaar'], shopping: ['shopping', 'boutique', 'store'],
-  park: ['park', 'garden', 'botanical'], scenic: ['riverwalk', 'waterfront', 'overlook', 'scenic', 'view'], hiking: ['hiking', 'trail', 'lookout'], beach: ['beach', 'coast', 'shore'],
-  water_activity: ['boat', 'sailing', 'snorkel', 'lake', 'water'], home: ['home', 'apartment', 'residence'], workplace: ['work', 'studio', 'office', 'workspace'], transit: ['transit', 'station', 'train'],
-  district: ['district', 'neighborhood'], theater: ['theater', 'theatre'], cooking: ['cooking', 'kitchen'], campfire: ['campfire', 'cabin'], stargazing: ['stargazing', 'observatory'], ski_snow: ['ski', 'snow'],
-  night_market: ['night market'], photography: ['photography', 'photo'], trivia: ['trivia'], comedy: ['comedy'], sports: ['sports', 'sporting event', 'arena', 'basketball', 'hockey', 'soccer', 'boxing'],
+  cafe: ['cafe', 'coffee', 'pastry', 'pastries', 'bakery', 'tea house'],
+  restaurant: ['restaurant', 'dinner', 'dining', 'lunch', 'brunch', 'bistro', 'diner', 'pizza', 'meal', 'meals', 'sushi'],
+  bar: ['bar', 'barcade', 'cocktail', 'cocktails', 'drinks', 'pub', 'tavern', 'lounge', 'roadhouse'],
+  karaoke: ['karaoke'],
+  live_music: ['live music', 'concert', 'music venue', 'music_venue', 'open mic', 'records', 'listening'],
+  dance: ['dance', 'dancing', 'nightclub', 'nightlife', 'dance club', 'cabaret'],
+  arcade: ['arcade', 'barcade', 'gaming', 'games', 'esports', 'virtual reality', 'neural games'],
+  cinema: ['cinema', 'movie', 'movies', 'film', 'screening', 'screenings'],
+  books: ['book', 'books', 'bookstore', 'library', 'rare book', 'rare books'],
+  art_gallery: ['gallery', 'museum', 'art', 'exhibition', 'exhibitions', 'ceramics', 'painting'],
+  fitness: ['fitness', 'gym', 'workout', 'running', 'training', 'yoga', 'pilates'],
+  climbing: ['climbing', 'bouldering', 'climbing gym'],
+  market: ['market', 'bazaar', 'food stalls', 'market stalls'],
+  shopping: ['shopping', 'boutique', 'groceries', 'gifts', 'fashion', 'styling'],
+  park: ['park', 'garden', 'botanical', 'picnic', 'outdoor', 'outdoors', 'plaza'],
+  scenic: ['riverwalk', 'waterfront', 'overlook', 'scenic', 'views', 'viewing', 'sunset', 'pier', 'dock', 'waterfall'],
+  hiking: ['hiking', 'hike', 'trails', 'trailhead', 'snowshoeing', 'mountain biking', 'backcountry access'],
+  beach: ['beach', 'coast', 'shore', 'sunbathing', 'cove'],
+  water_activity: ['water activity', 'swimming', 'swim', 'snorkel', 'snorkeling', 'kayak', 'kayaking', 'paddleboard', 'paddling'],
+  boating: ['boating', 'boat', 'boats', 'sailing', 'marina', 'boathouse', 'rowboating', 'boat charter', 'lake excursion'],
+  spa: ['spa', 'sauna', 'massage', 'bathing', 'bathhouse', 'baths', 'hot springs', 'hot spring', 'warm pool', 'spa treatment'],
+  lodging: ['lodging', 'hotel', 'inn', 'lodge', 'cabins', 'cabin stay', 'cabin stays', 'overnight stay', 'overnight stays', 'retreat', 'ryokan'],
+  home: ['home', 'apartment', 'residence', 'dormitory'],
+  workplace: ['workplace', 'work', 'studio', 'office', 'workspace', 'shift work'],
+  workshop: ['workshop', 'garage', 'fabrication', 'repair', 'repairs', 'maintenance', 'mechanical work', 'tuning workshop'],
+  research: ['research', 'laboratory', 'lab', 'academic', 'science', 'analysis', 'forecasting', 'specimen', 'observation'],
+  education: ['education', 'school', 'college', 'university', 'lecture', 'classes', 'study', 'campus'],
+  medical: ['medical', 'medicine', 'healthcare', 'clinic', 'hospital', 'pharmacy', 'medical care', 'medical appointment'],
+  civic: ['civic', 'city hall', 'town hall', 'public service', 'public_service', 'community hall', 'union hall', 'public meeting', 'public debate'],
+  sacred: ['sacred', 'chapel', 'shrine', 'ritual site', 'cloister', 'candle lighting', 'quiet reflection'],
+  history: ['history', 'historic', 'heritage', 'museum', 'ruin', 'ruins', 'archive', 'archives', 'artifact', 'artifacts', 'old architecture'],
+  exploration: ['exploration', 'investigation', 'urban exploration', 'crypt visit', 'subsurface surveys', 'flooded tunnels', 'underground'],
+  equestrian: ['equestrian', 'stables', 'horseback riding', 'trail rides', 'riding club'],
+  laundry: ['laundry', 'laundromat'],
+  vineyard: ['vineyard', 'wine tasting', 'winery'],
+  transit: ['transit', 'station', 'train', 'gondola', 'spaceport', 'commute', 'arrivals', 'departures'],
+  district: ['district', 'neighborhood'],
+  theater: ['theater', 'theatre', 'show', 'shows', 'formal dances'],
+  cooking: ['cooking', 'kitchen', 'recipe'],
+  campfire: ['campfire', 'cabin', 'fireside'],
+  stargazing: ['stargazing', 'observatory', 'astronomy', 'constellations', 'aurora watching'],
+  ski_snow: ['ski', 'skiing', 'snow', 'snowboarding', 'powder runs', 'glade skiing', 'nordic center', 'cross country skiing'],
+  night_market: ['night market'],
+  photography: ['photography', 'photo', 'photos', 'portrait session'],
+  trivia: ['trivia'],
+  comedy: ['comedy'],
+  sports: ['sports', 'sporting event', 'arena', 'basketball', 'hockey', 'soccer', 'boxing', 'spectating'],
 };
 
 export type InteractionPack = keyof typeof packTerms;
 
+function packSource(values: unknown[]) {
+  return ` ${values.map(word).join(' ').replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()} `;
+}
+
+function sourceHasPackTerm(source: string, term: string) {
+  const normalized = term.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return Boolean(normalized) && source.includes(` ${normalized} `);
+}
+
 export function inferInteractionPacks(location: InteractionLocation, world?: InteractionWorld | null): InteractionPack[] {
+  // World activity families describe the directory as a whole, not what can
+  // physically happen inside this individual location.
+  void world;
   const metadata = location.metadata ?? {};
   const explicit = [...words(metadata['interactionPacks']), ...words(metadata['interaction_packs'])].map((item) => normalizeActivityTag(item));
-  const source = [location.category, location.locationType, ...(location.possibleActivities ?? []), ...words(metadata['tags']), ...(world?.activityFamilies ?? [])].map(word).join(' ').replace(/[_-]+/g, ' ');
+  const broadArea = location.locationType === 'district' || location.locationType === 'neighborhood';
+  const source = packSource([location.category, location.locationType, ...(broadArea ? [] : [...words(metadata['tags']), ...(location.possibleActivities ?? [])])]);
   const packs = new Set<InteractionPack>();
   for (const item of explicit) if (item in packTerms) packs.add(item);
-  for (const [pack, terms] of Object.entries(packTerms)) if (terms.some((term) => source.includes(term))) packs.add(pack);
-  if (location.locationType === 'residence') packs.add('home');
+  for (const [pack, terms] of Object.entries(packTerms)) if (terms.some((term) => sourceHasPackTerm(source, term))) packs.add(pack);
+  if (location.locationType === 'residence' && !packs.has('lodging')) packs.add('home');
   if (location.locationType === 'transit') packs.add('transit');
   if (location.locationType === 'district' || location.locationType === 'neighborhood') packs.add('district');
-  if (location.locationType === 'outdoor' || word(location.category).includes('outdoor')) packs.add('park');
+  if (location.locationType === 'landmark' && !packs.size) packs.add('scenic');
+  if (location.locationType === 'outdoor' && !packs.size) packs.add('park');
   if (!packs.size) packs.add('district');
   return [...packs];
 }
@@ -247,11 +308,13 @@ export const interactionPacks: Record<InteractionPack, InteractionDefinition[]> 
   bar: pack('bar', [['activity','Grab a drink',['bar','drinks'],12,{sceneActivityKey:'drinks'}],['activity','Let them choose for you',['bar','drinks'],8],['activity','Find a booth',['bar','social'],10],['social','Use the jukebox',['bar','live_music'],6],['social','Toast together',['bar','drinks'],5,{relationshipEvidenceType:'shared_experience'}],['move','Go somewhere quieter',['bar'],12,{mayMoveCharacter:true}]]),
   karaoke: pack('karaoke', [['activity','Pick a song',['karaoke'],6,{sceneActivityKey:'karaoke',mayExtendScene:true}],['activity','Sing together',['karaoke'],8,{sceneActivityKey:'karaoke',relationshipEvidenceType:'shared_experience',photoCandidate:true,momentCandidate:true},{minRelationshipStage:'friend'}],['activity','Let them pick your song',['karaoke'],5,{sceneActivityKey:'karaoke'}],['social','Cheer them on',['karaoke'],7,{sceneActivityKey:'karaoke'}],['activity','Do another song',['karaoke'],8,{sceneActivityKey:'karaoke',mayExtendScene:true}]]),
   live_music: pack('live_music', [['activity','Find a spot together',['live_music'],8],['social','Talk about the set',['live_music','music'],6],['activity','Stay for another song',['live_music'],7,{mayExtendScene:true}],['media','Take a photo together',['live_music','photography'],4,{photoCandidate:true,momentCandidate:true}],['move','Step outside for a minute',['live_music'],8,{mayMoveCharacter:true}]]),
+  dance: pack('dance', [['activity','Dance together',['dance'],18,{sceneActivityKey:'dancing',relationshipEvidenceType:'shared_experience'}],['activity','Let them lead',['dance'],12,{sceneActivityKey:'dancing'}],['social','Find a quieter corner',['dance'],8],['activity','Take a breather together',['dance'],8],['relationship','Share a slow dance',['dance'],14,{relationshipEvidenceType:'romantic_tension',momentCandidate:true},{minRelationshipStage:'friend',contentLevel:'romance'}],['relationship','Turn up the flirting',['dance'],10,{relationshipEvidenceType:'romantic_tension'},{minRelationshipStage:'flirting',contentLevel:'romance'}]]),
   arcade: pack('arcade', [['activity','Challenge them',['arcade'],8,{sceneActivityKey:'arcade_game'}],['activity','Pick a co-op game',['arcade'],10,{sceneActivityKey:'arcade_game'}],['social','Ask for a rematch',['arcade'],8,{sceneActivityKey:'arcade_game'}],['social','Raise the stakes playfully',['arcade'],5,{relationshipEvidenceType:'shared_experience'},{minRelationshipStage:'friend'}],['activity','Visit the prize counter',['arcade'],6]]),
   cinema: pack('cinema', [['activity','Pick a movie',['cinema'],8,{sceneActivityKey:'cinema',activityStateEffects:{set:{phase:'choosing_movie',moviePickedBy:'user',stayedForCredits:false}}}],['activity','Share snacks',['cinema','food'],6],['talk','Talk before it starts',['cinema'],8],['activity','Stay for the credits',['cinema'],10,{mayExtendScene:true,sceneActivityKey:'cinema',activityStateEffects:{set:{phase:'credits',stayedForCredits:true}}}],['relationship','Talk about the ending',['cinema'],12,{relationshipEvidenceType:'shared_experience'}]]),
   books: pack('books', [['activity','Browse together',['books'],18],['share','Recommend something',['books'],8],['share','Pick a book for them',['books'],8],['activity','Read a passage',['books'],6],['activity','Sit with coffee',['books','cafe'],20]]),
   art_gallery: pack('art_gallery', [['activity','Pick a favorite',['art_gallery'],8],['talk','Ask what they see in it',['art_gallery'],8],['social','Disagree about a piece',['art_gallery'],9],['move','Move to another room',['art_gallery'],7,{mayMoveCharacter:true}],['media','Take a photo together',['art_gallery','photography'],4,{photoCandidate:true}]]),
   fitness: pack('fitness', [['activity','Work out together',['fitness'],30,{sceneActivityKey:'fitness'}],['activity','Set a small challenge',['fitness'],10,{sceneActivityKey:'fitness'}],['social','Cool down together',['fitness'],12],['talk','Ask about their routine',['fitness'],6]]),
+  climbing: pack('climbing', [['activity','Choose a route',['climbing'],8,{sceneActivityKey:'climbing'}],['activity','Climb side by side',['climbing'],24,{sceneActivityKey:'climbing',relationshipEvidenceType:'shared_experience'}],['activity','Try a bouldering problem',['climbing'],15,{sceneActivityKey:'climbing'}],['social','Set a playful challenge',['climbing'],10],['activity','Take a chalk break',['climbing'],8],['relationship','Trust them on belay',['climbing'],18,{relationshipEvidenceType:'support'},{minRelationshipStage:'friend'}]]),
   market: pack('market', [['activity','Browse the stalls',['market'],20],['activity','Try something new',['market','food'],10],['share','Pick out something together',['market','shopping'],12],['media','Take a photo together',['market','photography'],4,{photoCandidate:true}]]),
   shopping: pack('shopping', [['activity','Browse together',['shopping'],20],['share','Ask their opinion',['shopping'],6],['activity','Pick something for each other',['shopping'],10],['activity','Find somewhere to sit',['shopping'],12]]),
   park: pack('park', [['activity','Walk together',['park','walking'],24,{sceneActivityKey:'walking'}],['activity','Choose a path',['park','walking'],10],['activity','Sit down',['park'],15],['social','People-watch',['park'],15],['media','Take photos',['park','photography'],8,{photoCandidate:true,momentCandidate:true}],['activity','Have a picnic',['park','food'],35,{relationshipEvidenceType:'shared_experience'}]]),
@@ -259,8 +322,22 @@ export const interactionPacks: Record<InteractionPack, InteractionDefinition[]> 
   hiking: pack('hiking', [['activity','Choose the next trail',['hiking'],12],['activity','Keep walking',['hiking'],35,{sceneActivityKey:'hiking',mayExtendScene:true}],['activity','Take a break',['hiking'],15],['media','Take a photo together',['hiking','photography'],5,{photoCandidate:true,momentCandidate:true}],['move','Head back before dark',['hiking'],18,{mayMoveCharacter:true}]]),
   beach: pack('beach', [['activity','Walk along the water',['beach','walking'],25,{sceneActivityKey:'beach_walk'}],['activity','Find a spot',['beach'],10],['activity','Watch the sunset',['beach','scenic'],30,{momentCandidate:true}],['media','Take a photo together',['beach','photography'],5,{photoCandidate:true,momentCandidate:true}]]),
   water_activity: pack('water_activity', [['activity','Try the water',['water_activity'],30,{sceneActivityKey:'water_activity'}],['activity','Rent something together',['water_activity'],20],['activity','Sit by the water',['water_activity','scenic'],18],['media','Take a photo together',['water_activity','photography'],5,{photoCandidate:true}]]),
+  boating: pack('boating', [['activity','Walk the docks',['boating'],12],['activity','Choose a boat',['boating'],8],['activity','Take a short sail',['boating'],35,{sceneActivityKey:'boating',relationshipEvidenceType:'shared_experience'}],['activity','Help with the lines',['boating'],10],['social','Trade stories on the water',['boating'],16],['relationship','Stay out for sunset',['boating','scenic'],28,{momentCandidate:true,relationshipEvidenceType:'romantic_tension'},{minRelationshipStage:'friend',contentLevel:'romance'}]]),
+  spa: pack('spa', [['activity','Choose a treatment',['spa'],8,{sceneActivityKey:'spa'}],['activity','Try the sauna circuit',['spa'],20,{sceneActivityKey:'spa'}],['activity','Unwind in the warm pool',['spa'],24,{sceneActivityKey:'spa'}],['activity','Rest in the quiet lounge',['spa'],18],['talk','Talk somewhere peaceful',['spa'],14],['relationship','Book a couples treatment',['spa'],35,{relationshipEvidenceType:'affection'},{minRelationshipStage:'dating',contentLevel:'romance'}],['relationship','Share a private soak',['spa'],30,{relationshipEvidenceType:'romantic_tension',momentCandidate:true},{minRelationshipStage:'dating',contentLevel:'romance'}]]),
+  lodging: pack('lodging', [['activity','Check in together',['lodging'],10,{sceneActivityKey:'hotel_stay'}],['activity','Explore the grounds',['lodging'],18],['activity','Order room service',['lodging','restaurant'],25],['social','Have a lobby drink',['lodging','bar'],14],['activity','Plan a slow morning',['lodging'],12],['relationship','Make it a private night in',['lodging'],35,{relationshipEvidenceType:'affection',momentCandidate:true},{minRelationshipStage:'dating',contentLevel:'romance'}]]),
   home: pack('home', [['activity','Put something on',['home','cinema'],20,{sceneActivityKey:'at_home'}],['activity','Cook together',['home','cooking'],45,{relationshipEvidenceType:'shared_experience'},{minRelationshipStage:'friend'}],['social','Choose music',['home','live_music'],8],['share','Look through photos',['home','photography'],14],['activity','Relax together',['home'],25]],),
   workplace: pack('workplace', [['talk','Ask what they are working on',['workplace'],6],['activity','Look at the project',['workplace','creative'],10],['share','Give an opinion',['workplace'],7],['activity','Bring coffee',['workplace','cafe'],8],['activity','Wait until they are done',['workplace'],15]]),
+  workshop: pack('workshop', [['activity','Look over the project',['workshop'],8],['activity','Lend a hand',['workshop'],14,{sceneActivityKey:'workshop'}],['talk','Ask how it works',['workshop'],7],['activity','Test the repair',['workshop'],12],['social','Compare approaches',['workshop'],10],['activity','Take a break from the bench',['workshop'],10]]),
+  research: pack('research', [['activity','Compare observations',['research'],10,{sceneActivityKey:'research'}],['activity','Inspect a curious detail',['research'],12,{sceneActivityKey:'research'}],['talk','Ask what does not add up',['research'],8],['activity','Follow a promising lead',['research'],18,{sceneActivityKey:'research'}],['share','Record the finding together',['research'],10],['relationship','Stay for the late shift',['research'],24,{relationshipEvidenceType:'shared_experience'},{minRelationshipStage:'friend'}]]),
+  education: pack('education', [['activity','Study together',['education'],20,{sceneActivityKey:'studying'}],['activity','Sit in on a class',['education'],30],['share','Trade notes',['education'],8],['talk','Ask what they are learning',['education'],7],['activity','Find a quiet study spot',['education'],12],['social','Explore the campus',['education'],18]]),
+  medical: pack('medical', [['activity','Check in together',['medical'],8],['activity','Wait with them',['medical'],16,{relationshipEvidenceType:'support'}],['share','Bring something comforting',['medical'],8,{relationshipEvidenceType:'support'},{minRelationshipStage:'friend'}],['talk','Talk quietly while you wait',['medical'],10],['activity','Take a restorative break',['medical'],12]]),
+  civic: pack('civic', [['activity','See what is happening',['civic'],10],['activity','Browse the public exhibits',['civic','history'],12],['talk','Ask what the issue means locally',['civic'],10],['social','Sit in on the discussion',['civic'],18],['activity','Handle an errand together',['civic'],12],['move','Step outside to talk',['civic'],8,{mayMoveCharacter:true}]]),
+  sacred: pack('sacred', [['activity','Sit in quiet reflection',['sacred'],14],['activity','Light a candle',['sacred'],6],['activity','Study the old architecture',['sacred','history'],12],['talk','Ask what this place means to them',['sacred'],10],['activity','Walk the grounds quietly',['sacred'],16]]),
+  history: pack('history', [['activity','Take a closer look',['history'],10],['activity','Follow the local story',['history'],14],['talk','Ask what they remember about it',['history'],9],['activity','Browse the exhibits',['history'],18],['share','Choose one detail to remember',['history'],7],['media','Take a respectful photo',['history','photography'],5,{photoCandidate:true}]]),
+  exploration: pack('exploration', [['activity','Inspect the surroundings',['exploration'],10,{sceneActivityKey:'exploring'}],['activity','Follow a clue',['exploration'],15,{sceneActivityKey:'exploring'}],['activity','Map the route together',['exploration'],12],['talk','Compare theories',['exploration'],10],['activity','Choose how far to go',['exploration'],8],['move','Turn back together',['exploration'],10,{mayMoveCharacter:true}]]),
+  equestrian: pack('equestrian', [['activity','Visit the stables',['equestrian'],10],['activity','Take a riding lesson',['equestrian'],28,{sceneActivityKey:'horseback_riding'}],['activity','Help groom a horse',['equestrian'],14],['activity','Ride out together',['equestrian'],35,{sceneActivityKey:'horseback_riding',relationshipEvidenceType:'shared_experience'}],['social','Choose a gentle trail',['equestrian'],10]]),
+  laundry: pack('laundry', [['activity','Start a load',['laundry'],6,{sceneActivityKey:'laundry'}],['activity','Fold clothes together',['laundry'],14,{sceneActivityKey:'laundry'}],['activity','Get coffee while you wait',['laundry','cafe'],12],['social','People-watch through a cycle',['laundry'],12],['talk','Talk while the machines run',['laundry'],16]]),
+  vineyard: pack('vineyard', [['activity','Taste the current pour',['vineyard'],12,{sceneActivityKey:'wine_tasting'}],['activity','Walk through the vines',['vineyard','scenic'],20],['activity','Take the cellar tour',['vineyard'],18],['share','Choose a bottle together',['vineyard'],10],['activity','Stay for a long lunch',['vineyard','restaurant'],30],['relationship','Wander the vines at sunset',['vineyard','scenic'],25,{momentCandidate:true,relationshipEvidenceType:'romantic_tension'},{minRelationshipStage:'friend',contentLevel:'romance'}]]),
   transit: pack('transit', [['activity','Ride together',['transit'],18,{sceneActivityKey:'transit'}],['activity','Choose a stop',['transit'],6,{mayMoveCharacter:true}],['activity','Wait together',['transit'],10],['social','People-watch',['transit'],10],['relationship','Make a last-train decision',['transit'],7,{relationshipEvidenceType:'shared_experience'}]]),
   district: pack('district', [['activity','Explore together',['district','walking'],20,{sceneActivityKey:'exploring'}],['talk','Ask where they want to go',['district'],5],['move','Find somewhere nearby',['district'],8,{mayMoveCharacter:true}],['social','Take a slower walk',['district','walking'],18]]),
   theater: pack('theater', [['activity','Choose a show',['theater'],8],['activity','Find your seats',['theater'],7],['talk','Talk at intermission',['theater'],10],['relationship','Stay after to talk about it',['theater'],15,{relationshipEvidenceType:'shared_experience'}]]),
