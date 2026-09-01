@@ -10,7 +10,7 @@ import {
   isActiveInboxConversation,
   returnToMessagesInbox,
 } from "../lib/messageInbox";
-import { conversationRouteTarget, navigateLocalRouteOnWeb } from "../lib/conversationNavigation";
+import { conversationRouteTarget, groupConversationWebHref, navigateLocalRouteOnWeb } from "../lib/conversationNavigation";
 import { warmRoute } from "../lib/routeWarmup";
 import { colors, radius } from "../theme";
 import type {
@@ -95,7 +95,9 @@ export function ChatConversationRail({
     if (row.conversation.id === activeConversationId) return;
     setOpeningConversationId(row.conversation.id);
     if (row.conversation.kind === "group") {
-      openRailHref(`/group-chat?id=${encodeURIComponent(row.conversation.id)}`);
+      openRailHref(Platform.OS === "web"
+        ? groupConversationWebHref(row.conversation.id)
+        : `/group-chat?id=${encodeURIComponent(row.conversation.id)}`);
       return;
     }
     const template = row.character?.together_character_templates;
@@ -213,7 +215,9 @@ function openRailHref(href: string) {
 
 function warmConversation(row: RailRow) {
   const href = row.conversation.kind === "group"
-    ? `/group-chat?id=${encodeURIComponent(row.conversation.id)}`
+    ? Platform.OS === "web"
+      ? groupConversationWebHref(row.conversation.id)
+      : `/group-chat?id=${encodeURIComponent(row.conversation.id)}`
     : row.character
     ? `/chat?character=${encodeURIComponent(
       row.character.together_character_templates.public_handle ??

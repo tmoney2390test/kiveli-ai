@@ -24,7 +24,7 @@ import { useTogether } from '../store/useTogether';
 import { colors, typography } from '../theme';
 import { markRouteIntent, warmRoute } from '../lib/routeWarmup';
 import { subscriptionHref } from '../lib/subscriptionPresentation';
-import { conversationRouteTarget, navigateLocalRouteOnWeb } from '../lib/conversationNavigation';
+import { conversationRouteTarget, navigateLocalRouteOnWeb, webConversationHref } from '../lib/conversationNavigation';
 
 type Props = { expanded: boolean; onHoverChange: (hovered: boolean) => void };
 type NavItem = { key: DesktopNavigationKey; label: string; href: string; icon: (color: string) => ReactNode; count?: number };
@@ -65,7 +65,7 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
       if (current === href) return;
       const conversationTarget = conversationRouteTarget(href);
       if (conversationTarget) {
-        navigateLocalRouteOnWeb(href, 'replace');
+        navigateLocalRouteOnWeb(webConversationHref(href) ?? href, 'replace');
         return;
       }
       window.location.assign(href);

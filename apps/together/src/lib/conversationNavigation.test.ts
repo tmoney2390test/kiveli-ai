@@ -3,9 +3,11 @@ import {
   conversationRouteTarget,
   directConversationTarget,
   groupConversationTarget,
+  groupConversationWebHref,
   isConversationPath,
   localRouteHref,
   shouldShowRouteTransition,
+  webConversationHref,
 } from "./conversationNavigation";
 
 describe("conversation navigation", () => {
@@ -18,6 +20,9 @@ describe("conversation navigation", () => {
       pathname: "/group-chat",
       params: { id: "group-1", settings: "1" },
     });
+    expect(groupConversationWebHref("group 1", { settings: true })).toBe(
+      "/chat?group=1&id=group+1&settings=1",
+    );
   });
 
   it("recognizes conversation hrefs and decodes their parameters", () => {
@@ -29,6 +34,13 @@ describe("conversation navigation", () => {
       pathname: "/group-chat",
       params: { id: "group-1", settings: "1" },
     });
+    expect(conversationRouteTarget("/chat?group=1&id=group-1")).toEqual({
+      pathname: "/group-chat",
+      params: { id: "group-1" },
+    });
+    expect(webConversationHref("/group-chat?id=group-1&settings=1")).toBe(
+      "/chat?group=1&id=group-1&settings=1",
+    );
     expect(conversationRouteTarget("/home")).toBeNull();
     expect(conversationRouteTarget("https://example.com/chat?character=iris")).toBeNull();
   });

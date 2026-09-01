@@ -73,7 +73,7 @@ import type {
 import { useAppShell } from "../../src/shell/AppShellContext";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useNetworkStatus } from "../../src/providers/NetworkStatusProvider";
-import { conversationRouteTarget, navigateLocalRouteOnWeb } from "../../src/lib/conversationNavigation";
+import { conversationRouteTarget, navigateLocalRouteOnWeb, webConversationHref } from "../../src/lib/conversationNavigation";
 
 const demoMode = __DEV__ &&
   process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === "true";
@@ -923,7 +923,7 @@ function ConversationActions(
 }
 
 function openChatHref(href: string) {
-  if (Platform.OS === "web" && navigateLocalRouteOnWeb(href)) return;
+  if (Platform.OS === "web" && navigateLocalRouteOnWeb(webConversationHref(href) ?? href)) return;
   const target = conversationRouteTarget(href);
   if (target) router.push(target as never);
 }

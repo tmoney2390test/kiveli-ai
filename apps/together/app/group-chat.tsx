@@ -210,6 +210,13 @@ export default function GroupChatScreen() {
     upsertConversation = useTogether((state) => state.upsertConversation);
   const screenInsets=useSafeAreaInsets();
   const{session,loading:authLoading}=useAuth(),{online,phase:connectionPhase}=useNetworkStatus();
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined" || !params.id || window.location.pathname !== "/group-chat") return;
+    const destination = new URL(window.location.href);
+    destination.pathname = "/chat";
+    destination.searchParams.set("group", "1");
+    window.history.replaceState({}, "", `${destination.pathname}${destination.search}${destination.hash}`);
+  }, [params.id]);
   const groupCacheScope = snapshot?.activeContinuity?.id ?? "default";
   const initialGroupCache = useRef(
     params.id ? readCachedGroupDetail(groupCacheScope, params.id) : undefined,

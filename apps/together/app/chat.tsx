@@ -57,6 +57,7 @@ import { newGroupPrefillHref } from '../src/lib/groupInvite';
 import { canContinueMessage, isMessageFavorite } from '../src/lib/messageActions';
 import { handlePhotoSharingTap } from '../src/lib/photoSharing';
 import { subscriptionHref } from '../src/lib/subscriptionPresentation';
+import GroupChatScreen from './group-chat';
 
 type Feedback = { kind: 'memory'|'moment'|'plan'; title: string; body: string; id?: string };
 type PendingImage={uri:string;mimeType:'image/jpeg';byteSize:number;width:number;height:number;fileName:string;temporary:true;requestId:string};
@@ -64,7 +65,7 @@ type PlanMutationResult={kind:'shared_plan'|'date';commitment:{id:string};experi
 type ConversationActionMutation={applied:boolean;candidateId:string;result?:PlanMutationResult};
 type SharedSceneCharacter={id:string;current_location_id?:string|null;together_character_templates:{name:string;slug:string;public_handle?:string|null};together_character_versions?:{portrait_asset_url?:string|null;visual_identity?:Record<string,unknown>}|null};
 type SharedSceneRoster={scene:SceneSession|null;participants:Array<SceneParticipant&{together_character_instances?:SharedSceneCharacter|null}>;availableCharacters:Array<SharedSceneCharacter&{presence?:Record<string,unknown>}>};
-type ChatParams=ChatRouteParams;
+type ChatParams=ChatRouteParams&{group?:string;id?:string};
 type VoiceNoteRequestResult={status?:string;providerStatus?:string;message?:string;media?:GeneratedMedia};
 type VoiceNotePrompt={messageId:string;name:string;creditCost:number;creditBalance:number;shortened:boolean};
 type MemorySavedNotice={id:number;name:string};
@@ -87,6 +88,7 @@ function directMessageCacheFor(userId?: string): DirectMessageCache {
 export default function Chat() {
   const params=useLocalSearchParams<ChatParams>();
   const snapshot=useTogether((state)=>state.snapshot);
+  if(params.group==='1'&&params.id)return <GroupChatScreen/>;
   const route=resolveChatRoute(snapshot,params);
   const pendingKey=[params.conversationId,params.character,params.planId,params.world,params.location].filter(Boolean).join(':')||'recent';
   return <ChatSession key={chatSessionRouteKey(route.conversation?.id,params,pendingKey)}/>;

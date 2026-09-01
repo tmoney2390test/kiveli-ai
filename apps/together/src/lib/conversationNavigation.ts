@@ -16,10 +16,27 @@ export function groupConversationTarget(
   };
 }
 
+export function groupConversationWebHref(
+  id: string,
+  options: { settings?: boolean } = {},
+): string {
+  const params = new URLSearchParams({ group: "1", id });
+  if (options.settings) params.set("settings", "1");
+  return `/chat?${params.toString()}`;
+}
+
 export function conversationRouteTarget(href: string): ConversationRouteTarget | null {
   if (!href.startsWith("/") || href.startsWith("//")) return null;
   const parsed = new URL(href, "https://kivelli.app");
   if (parsed.pathname === "/chat") {
+    const groupId = parsed.searchParams.get("group") === "1"
+      ? parsed.searchParams.get("id")?.trim()
+      : undefined;
+    if (groupId) {
+      return groupConversationTarget(groupId, {
+        settings: parsed.searchParams.get("settings") === "1",
+      });
+    }
     const character = parsed.searchParams.get("character")?.trim();
     return character ? directConversationTarget(character) : null;
   }
@@ -31,6 +48,17 @@ export function conversationRouteTarget(href: string): ConversationRouteTarget |
     });
   }
   return null;
+}
+
+export function webConversationHref(href: string): string | null {
+  const target = conversationRouteTarget(href);
+  if (!target) return null;
+  if (target.pathname === "/group-chat") {
+    return groupConversationWebHref(target.params.id ?? "", {
+      settings: target.params.settings === "1",
+    });
+  }
+  return localRouteHref(href);
 }
 
 export function localRouteHref(href: string): string | null {
