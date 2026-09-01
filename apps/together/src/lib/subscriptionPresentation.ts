@@ -62,9 +62,9 @@ export function membershipMetrics(plan:SubscriptionPlan):MembershipMetric[]{
 }
 
 export function membershipBenefits(plan:SubscriptionPlan):string[]{
-  if(plan.tier==='free')return['A full relationship in any published world','Core continuity','One Life and one custom companion'];
+  if(plan.tier==='free')return[`${plan.chatDailyLimit} conversations per day`,'A full relationship in any published world','Core continuity','One Life and one custom companion'];
   const benefits=[
-    plan.tier==='kivelle_max'?'Everything in Kivelle+':'Unlimited conversations and group chats',
+    `${plan.chatDailyLimit} conversations per day and group chats`,
     plan.tier==='kivelle_max'?'Deepest memory and continuity':'Share your own photos without using Credits',
     `${plan.includedCompanionPhotoDailyLimit} generated ${plan.includedCompanionPhotoDailyLimit===1?'photo':'photos'} every day`,
     `${plan.monthlyCreditGrant.toLocaleString()} monthly Kivelle Credits`,
