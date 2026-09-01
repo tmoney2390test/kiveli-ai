@@ -9,6 +9,7 @@ const auditRoots = [
   path.join(repositoryRoot, "apps", "together", "src", "components"),
   path.join(repositoryRoot, "apps", "together", "src", "shell"),
 ];
+const rootLayout = path.join(appRoot, "_layout.tsx");
 
 function sourceFiles(root) {
   return fs.readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
@@ -101,6 +102,11 @@ const references = [];
 let pressableCount = 0;
 let customButtonCount = 0;
 let interactiveElementCount = 0;
+
+const rootLayoutSource = fs.readFileSync(rootLayout, "utf8");
+if (!/installWebNavigationCompatibility\s*\(\s*router\s*\)/.test(rootLayoutSource)) {
+  failures.push("apps/together/app/_layout.tsx must install the production-web navigation compatibility boundary.");
+}
 
 for (const file of auditRoots.flatMap(sourceFiles)) {
   const source = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);

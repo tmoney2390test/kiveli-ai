@@ -60,6 +60,9 @@ describe("conversation navigation", () => {
     );
     expect(localRouteHref("//example.com/chat")).toBeNull();
     expect(localRouteHref("https://example.com/chat")).toBeNull();
+    expect(localRouteHref("/(tabs)/chat-tab?character=iris")).toBe(
+      "/chat-tab?character=iris",
+    );
   });
 
   it.each([

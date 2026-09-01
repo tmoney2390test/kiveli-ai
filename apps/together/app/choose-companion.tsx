@@ -15,8 +15,12 @@ import { useTogether } from '../src/store/useTogether';
 import type { Snapshot, World } from '../src/types';
 import { colors, radius, spacing, typography } from '../src/theme';
 import { naturalizeCharacterBiography } from '@together/domain/src/character-language';
+import { navigateLocalRouteOnWeb, updateLocalRouteParamsOnWeb } from '../src/lib/appNavigation';
 
-const nav = router as unknown as { replace: (href: string) => void; setParams: (params: Record<string, string>) => void };
+const nav = {
+  replace: (href: string) => { if (!navigateLocalRouteOnWeb(href, 'replace')) router.replace(href as never); },
+  setParams: (params: Record<string, string>) => { if (!updateLocalRouteParamsOnWeb(params)) router.setParams(params); },
+};
 
 export default function ChooseCompanion() {
   const params = useLocalSearchParams<{ world?: string }>();

@@ -21,8 +21,12 @@ import type{Location,Snapshot,World}from'../../src/types';
 import{KIVELLI_IMAGE_PLACEHOLDER}from'../../src/lib/imageWarmup';
 import{useSurfaceReadyTiming}from'../../src/components/ClientPerformanceBridge';
 import{naturalizeCharacterEventSummary,naturalizeCharacterEventTitle}from'@together/domain/src/character-language';
+import{navigateLocalRouteOnWeb,updateLocalRouteParamsOnWeb}from'../../src/lib/appNavigation';
 
-const nav=router as unknown as{push:(href:string)=>void;setParams:(params:Record<string,string>)=>void};
+const nav={
+  push:(href:string)=>{if(!navigateLocalRouteOnWeb(href))router.push(href as never);},
+  setParams:(params:Record<string,string>)=>{if(!updateLocalRouteParamsOnWeb(params))router.setParams(params);},
+};
 const EMPTY_FAVORITE_IDS:string[]=[];
 const EXPLORE_REFRESH_TTL=10*60*1000;
 const DEFAULT_PREFERENCE:ExplorePreference={worldSlug:null,intent:'for_you',scrollY:0};
