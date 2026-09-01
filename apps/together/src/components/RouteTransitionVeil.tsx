@@ -2,13 +2,17 @@ import { useEffect, useRef } from 'react';
 import { Animated, Platform, StyleSheet } from 'react-native';
 import { usePathname } from 'expo-router';
 import { colors } from '../theme';
+import { shouldShowRouteTransition } from '../lib/conversationNavigation';
 
 export function RouteTransitionVeil() {
   const pathname = usePathname();
   const previous = useRef(pathname);
   const opacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    if (previous.current === pathname) return;
+    if (!shouldShowRouteTransition(previous.current, pathname)) {
+      previous.current = pathname;
+      return;
+    }
     previous.current = pathname;
     opacity.stopAnimation();
     opacity.setValue(.14);

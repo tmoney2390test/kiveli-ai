@@ -1520,17 +1520,38 @@ export default function GroupChatScreen() {
     );
   }
   if (loading && !detail) {
-    return <GroupChatLoadingSkeleton />;
+    return (
+      <KeyboardAvoidingView
+        style={styles.screen}
+        behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined}
+      >
+        <View style={styles.shell}>
+          {showConversationRail && snapshot
+            ? <ChatConversationRail snapshot={snapshot} activeConversationId={params.id} />
+            : null}
+          <View style={styles.conversation}>
+            <GroupChatLoadingSkeleton />
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    );
   }
   if (!detail) {
     return (
-      <View style={styles.center}>
-        <EmptyState
-          title="Group unavailable"
-          body={error || "This conversation is no longer available."}
-          action="Try again"
-          onAction={retryOpeningGroup}
-        />
+      <View style={styles.shell}>
+        {showConversationRail && snapshot
+          ? <ChatConversationRail snapshot={snapshot} activeConversationId={params.id} />
+          : null}
+        <View style={styles.conversation}>
+          <View style={styles.center}>
+            <EmptyState
+              title="Group unavailable"
+              body={error || "This conversation is no longer available."}
+              action="Try again"
+              onAction={retryOpeningGroup}
+            />
+          </View>
+        </View>
       </View>
     );
   }

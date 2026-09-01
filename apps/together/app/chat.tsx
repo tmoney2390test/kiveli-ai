@@ -72,6 +72,17 @@ type DirectMessageAction={messageAction:'continue';anchorMessageId:string};
 const PAGE_SIZE = 50;
 const MESSAGE_CACHE_CONVERSATIONS = 5;
 const MESSAGE_CACHE_ROWS = 150;
+type DirectMessageCache = Map<string,{messages:Message[];hasMore:boolean}>;
+const directMessageCaches = new Map<string,DirectMessageCache>();
+
+function directMessageCacheFor(userId?: string): DirectMessageCache {
+  if (!userId) return new Map();
+  const existing = directMessageCaches.get(userId);
+  if (existing) return existing;
+  const created: DirectMessageCache = new Map();
+  directMessageCaches.set(userId, created);
+  return created;
+}
 
 export default function Chat() {
   const params=useLocalSearchParams<ChatParams>();
@@ -176,7 +187,7 @@ function ChatSession() {
   const programmaticScrollUntil = useRef(0);
   const viewportHeight = useRef(0);
   const pendingScrollRestore = useRef<ChatScrollPosition|null>(null);
-  const messageCache = useRef(new Map<string,{messages:Message[];hasMore:boolean}>());
+  const messageCache = useRef(directMessageCacheFor(session?.user.id));
   const autoDialogueRequest=useRef<AbortController|null>(null);
   const currentInput=useRef('');
   const latestTimelineMessageId=useRef<string|null>(null);

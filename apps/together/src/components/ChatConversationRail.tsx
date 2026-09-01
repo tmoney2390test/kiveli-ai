@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { MessageCircle, Pin, UsersRound } from "lucide-react-native";
 import { manageGroup } from "../lib/api";
@@ -9,8 +9,9 @@ import {
   isConversationPinned,
   isActiveInboxConversation,
   returnToMessagesInbox,
-  WEB_MESSAGES_INBOX_HREF,
 } from "../lib/messageInbox";
+import { conversationRouteTarget } from "../lib/conversationNavigation";
+import { warmRoute } from "../lib/routeWarmup";
 import { colors, radius } from "../theme";
 import type {
   CharacterInstance,
@@ -40,6 +41,7 @@ export function ChatConversationRail({
   const [groups, setGroups] = useState<GroupDetail[]>(() =>
     groupRailCache.get(scope) ?? []
   );
+  const [openingConversationId, setOpeningConversationId] = useState<string | null>(null);
   const hasGroups = snapshot.conversations.some((conversation) =>
     isActiveInboxConversation(conversation) && conversation.kind === "group"
   );
@@ -65,6 +67,8 @@ export function ChatConversationRail({
     groups.forEach((group) => cacheGroupDetailSummary(scope, group));
   }, [groups, scope]);
 
+  useEffect(() => setOpeningConversationId(null), [activeConversationId]);
+
   const groupByConversation = useMemo(
     () => new Map(groups.map((group) => [group.conversation.id, group])),
     [groups],
@@ -89,6 +93,7 @@ export function ChatConversationRail({
 
   const openConversation = (row: RailRow) => {
     if (row.conversation.id === activeConversationId) return;
+    setOpeningConversationId(row.conversation.id);
     if (row.conversation.kind === "group") {
       openRailHref(`/group-chat?id=${encodeURIComponent(row.conversation.id)}`);
       return;
@@ -104,7 +109,7 @@ export function ChatConversationRail({
 
   const openMessages = () => {
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      window.location.assign(WEB_MESSAGES_INBOX_HREF);
+      router.replace({ pathname: "/(tabs)/chat-tab", params: { messages: "1" } } as never);
       return;
     }
     returnToMessagesInbox({
@@ -132,6 +137,7 @@ export function ChatConversationRail({
       >
         {rows.map((row) => {
           const active = row.conversation.id === activeConversationId;
+          const opening = row.conversation.id === openingConversationId;
           const group = row.conversation.kind === "group";
           const name = group
             ? row.conversation.title || groupName(row.group) || "Group chat"
@@ -147,11 +153,14 @@ export function ChatConversationRail({
               accessibilityLabel={`Open ${name}${
                 row.conversation.unread ? ", unread" : ""
               }`}
-              accessibilityState={{ selected: active }}
+              accessibilityState={{ selected: active, busy: opening }}
+              onHoverIn={() => warmConversation(row)}
+              onPressIn={() => warmConversation(row)}
               onPress={() => openConversation(row)}
               style={({ pressed }) => [
                 styles.row,
                 active && styles.rowActive,
+                opening && styles.rowOpening,
                 pressed && !active && styles.rowPressed,
               ]}
             >
@@ -180,7 +189,9 @@ export function ChatConversationRail({
                 </View>
                 <Text numberOfLines={1} style={styles.preview}>{preview}</Text>
               </View>
-              {row.conversation.unread && !active
+              {opening
+                ? <ActivityIndicator accessibilityLabel={`Opening ${name}`} size="small" color={colors.violet} />
+                : row.conversation.unread && !active
                 ? <View accessibilityLabel="Unread" style={styles.unread} />
                 : null}
             </Pressable>
@@ -195,11 +206,20 @@ export function ChatConversationRail({
 }
 
 function openRailHref(href: string) {
-  if (Platform.OS === "web" && typeof window !== "undefined") {
-    window.location.assign(href);
-    return;
-  }
-  router.replace(href as never);
+  const target = conversationRouteTarget(href);
+  if (target) router.replace(target as never);
+}
+
+function warmConversation(row: RailRow) {
+  const href = row.conversation.kind === "group"
+    ? `/group-chat?id=${encodeURIComponent(row.conversation.id)}`
+    : row.character
+    ? `/chat?character=${encodeURIComponent(
+      row.character.together_character_templates.public_handle ??
+        row.character.together_character_templates.slug,
+    )}`
+    : "";
+  if (href) warmRoute(href, (value) => router.prefetch(value as never));
 }
 
 function RailGroupAvatar({ group }: { group?: GroupDetail }) {
@@ -293,6 +313,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(216,62,234,.14)",
     borderColor: "rgba(216,62,234,.34)",
   },
+  rowOpening: { backgroundColor: "rgba(171, 94, 231, .09)" },
   activeRail: { position: "absolute", left: -1, top: 9, bottom: 9, width: 3, borderRadius: 2, backgroundColor: colors.rose },
   rowPressed: { backgroundColor: "rgba(255,255,255,.045)" },
   copy: { flex: 1, minWidth: 0 },

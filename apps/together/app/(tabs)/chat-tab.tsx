@@ -74,6 +74,7 @@ import type {
 import { useAppShell } from "../../src/shell/AppShellContext";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useNetworkStatus } from "../../src/providers/NetworkStatusProvider";
+import { conversationRouteTarget } from "../../src/lib/conversationNavigation";
 
 const demoMode = __DEV__ &&
   process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === "true";
@@ -923,11 +924,8 @@ function ConversationActions(
 }
 
 function openGroupHref(href: string) {
-  if (Platform.OS === "web" && typeof window !== "undefined") {
-    window.location.assign(href);
-    return;
-  }
-  router.push(href as never);
+  const target = conversationRouteTarget(href);
+  if (target) router.push(target as never);
 }
 
 const styles = StyleSheet.create({

@@ -24,6 +24,7 @@ import { useTogether } from '../store/useTogether';
 import { colors, typography } from '../theme';
 import { markRouteIntent, warmRoute } from '../lib/routeWarmup';
 import { subscriptionHref } from '../lib/subscriptionPresentation';
+import { conversationRouteTarget } from '../lib/conversationNavigation';
 
 type Props = { expanded: boolean; onHoverChange: (hovered: boolean) => void };
 type NavItem = { key: DesktopNavigationKey; label: string; href: string; icon: (color: string) => ReactNode; count?: number };
@@ -62,6 +63,11 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       const current = `${window.location.pathname}${window.location.search}`;
       if (current === href) return;
+      const conversationTarget = conversationRouteTarget(href);
+      if (conversationTarget) {
+        router.replace(conversationTarget as never);
+        return;
+      }
       window.location.assign(href);
       return;
     }
