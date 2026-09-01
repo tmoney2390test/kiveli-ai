@@ -155,7 +155,8 @@ import { newGroupPrefillHref } from "../src/lib/groupInvite";
 import { canContinueMessage, isMessageFavorite, isVisibleChatMessage } from "../src/lib/messageActions";
 import { handlePhotoSharingTap } from "../src/lib/photoSharing";
 import { subscriptionHref } from "../src/lib/subscriptionPresentation";
-import { groupConversationWebHref, navigateLocalRouteOnWeb } from "../src/lib/conversationNavigation";
+import { groupConversationWebHref, mediaViewerHref, navigateLocalRouteOnWeb } from "../src/lib/conversationNavigation";
+import { DESKTOP_CHAT_SHELL_MAX_WIDTH } from "../src/lib/chatLayout";
 import { supabase } from "../src/lib/supabase";
 import {
   hideVoiceNoteConfirmation,
@@ -1625,7 +1626,7 @@ export default function GroupChatScreen() {
         onProfile={()=>setShowDetails(true)}
         onPhoto={openPhotoMenu}
         onMenu={()=>setShowGroupMenu((value)=>!value)}
-        onMedia={latestHeaderMedia?()=>navigateGroupSurface(`/media/${latestHeaderMedia.id}`):undefined}
+        onMedia={latestHeaderMedia?()=>navigateGroupSurface(mediaViewerHref(latestHeaderMedia.id,Platform.OS==="web"?groupConversationWebHref(detail.conversation.id):subscriptionReturnTo)):undefined}
       />:<GroupHeader
         detail={detail}
         worldName={groupWorldName}
@@ -3570,7 +3571,7 @@ const styles = StyleSheet.create({
   shell: {
     flex: 1,
     width: "100%",
-    maxWidth: 1480,
+    maxWidth: DESKTOP_CHAT_SHELL_MAX_WIDTH,
     alignSelf: "center",
     flexDirection: "row",
     backgroundColor: colors.background,

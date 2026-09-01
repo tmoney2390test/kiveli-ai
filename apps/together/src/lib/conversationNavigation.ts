@@ -67,6 +67,20 @@ export function localRouteHref(href: string): string | null {
   return `${parsed.pathname}${parsed.search}${parsed.hash}`;
 }
 
+export function conversationReturnHref(href?: string | null): string | null {
+  if (!href) return null;
+  const local = localRouteHref(href);
+  if (!local || !isConversationPath(local)) return null;
+  return local;
+}
+
+export function mediaViewerHref(mediaId: string, returnTo?: string | null): string {
+  const path = `/media/${encodeURIComponent(mediaId)}`;
+  const conversation = conversationReturnHref(returnTo);
+  if (!conversation) return path;
+  return `${path}?${new URLSearchParams({ returnTo: conversation }).toString()}`;
+}
+
 export function navigateLocalRouteOnWeb(
   href: string,
   mode: "push" | "replace" = "push",

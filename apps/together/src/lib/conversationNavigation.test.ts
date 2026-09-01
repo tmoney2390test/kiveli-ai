@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   conversationRouteTarget,
+  conversationReturnHref,
   directConversationTarget,
   groupConversationTarget,
   groupConversationWebHref,
   isConversationPath,
   localRouteHref,
+  mediaViewerHref,
   shouldShowRouteTransition,
   webConversationHref,
 } from "./conversationNavigation";
@@ -72,5 +74,18 @@ describe("conversation navigation", () => {
     "/chat-tab?messages=1",
   ])("keeps chat menu destination %s on the local app origin", (href) => {
     expect(localRouteHref(href)).toBe(href);
+  });
+
+  it("carries a validated conversation return route into media links", () => {
+    expect(mediaViewerHref("media 1", "/chat?character=iris-vale")).toBe(
+      "/media/media%201?returnTo=%2Fchat%3Fcharacter%3Diris-vale",
+    );
+    expect(mediaViewerHref("media-2", "/group-chat?id=group-1")).toBe(
+      "/media/media-2?returnTo=%2Fgroup-chat%3Fid%3Dgroup-1",
+    );
+    expect(conversationReturnHref("/moments")).toBeNull();
+    expect(mediaViewerHref("media-3", "https://example.com/chat")).toBe(
+      "/media/media-3",
+    );
   });
 });

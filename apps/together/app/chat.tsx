@@ -57,7 +57,8 @@ import { newGroupPrefillHref } from '../src/lib/groupInvite';
 import { canContinueMessage, isMessageFavorite } from '../src/lib/messageActions';
 import { handlePhotoSharingTap } from '../src/lib/photoSharing';
 import { subscriptionHref } from '../src/lib/subscriptionPresentation';
-import { navigateLocalRouteOnWeb } from '../src/lib/conversationNavigation';
+import { mediaViewerHref, navigateLocalRouteOnWeb } from '../src/lib/conversationNavigation';
+import { DESKTOP_CHAT_SHELL_MAX_WIDTH } from '../src/lib/chatLayout';
 
 type Feedback = { kind: 'memory'|'moment'|'plan'; title: string; body: string; id?: string };
 type PendingImage={uri:string;mimeType:'image/jpeg';byteSize:number;width:number;height:number;fileName:string;temporary:true;requestId:string};
@@ -788,7 +789,7 @@ function ChatSession() {
           onPhoto={()=>setShowPhotoRequests(true)}
           onCall={()=>navigateChatSurface(`/call?character=${character.id}&conversation=${conversation.id}`)}
           onMenu={()=>setShowConversationMenu((value)=>!value)}
-          onMedia={latestHeaderMedia?()=>navigateChatSurface(`/media/${latestHeaderMedia.id}`):undefined}
+          onMedia={latestHeaderMedia?()=>navigateChatSurface(mediaViewerHref(latestHeaderMedia.id,subscriptionReturnTo)):undefined}
         />:<ChatHeader character={character} location={location} onBack={openMessagesInbox} onCall={()=>navigateChatSurface(`/call?character=${character.id}&conversation=${conversation.id}`)} onMenu={()=>setShowConversationMenu((value)=>!value)} />}
         <ConnectionBanner sendFailed={messages.some((item)=>item.delivery_status==='failed')} sendScoped={showSendConnectionNotice}/>
         {!showRight?<MobileChatContextCard identityKey={conversation.id} name={character.together_character_templates.name} location={chatContext.scene.location} activity={chatContext.scene.activity} next={chatContext.nextCommitment?{title:chatContext.nextCommitment.title,detail:new Date(chatContext.nextCommitment.startsAt).toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'}),onPress:chatContext.nextCommitment.kind==='plan'?()=>navigateChatSurface(`/plan/${chatContext.nextCommitment!.id}`):undefined}:null} memoryCount={snapshot.memoryCounts?.[character.id]??snapshot.memories.filter((item)=>item.character_instance_id===character.id).length} memoryLocked={snapshot.entitlements?.entitlement_keys?.includes('memory_inspector')!==true} onMemory={()=>navigateChatSurface(`/memories?character=${slug}`)} onPlan={activeSharedPlan?undefined:openPlanPicker}/>:null}
@@ -818,7 +819,7 @@ function ChatSession() {
         <ChatSettingsModal visible={showChatSettings} conversation={conversation} character={character} onClose={()=>setShowChatSettings(false)} />
         <CharacterProfilePreviewModal companion={characterPreview} onClose={()=>setCharacterPreview(null)} onViewProfile={(person)=>{setCharacterPreview(null);navigateChatSurface(`/character/${person.slug}`);}} onInviteToGroup={invitePreviewToGroup} />
         <VoiceNotePurchaseModal visible={Boolean(voiceNotePrompt)} name={voiceNotePrompt?.name??character.together_character_templates.name} creditCost={voiceNotePrompt?.creditCost??0} creditBalance={voiceNotePrompt?.creditBalance??0} shortened={voiceNotePrompt?.shortened} busy={voiceNotePromptBusy} onClose={()=>finishVoiceNotePrompt(null)} onConfirm={(hideFuture)=>finishVoiceNotePrompt({hideFuture})} onBuyCredits={()=>{finishVoiceNotePrompt(null);navigateChatSurface(creditsSubscriptionHref);}}/>
-        <MediaRequestModal visible={showPhotoRequests} character={character} conversationId={conversation.id} onPhotoRequest={(request)=>{setShowPhotoRequests(false);void send(request);}} photoSharingEntitled={photoSharingEntitled} onShareLibrary={()=>void requestSharePhoto('library')} onTakePhoto={Platform.OS==='web'?undefined:()=>void requestSharePhoto('camera')} onPhotoSharingUpgrade={()=>{setShowPhotoRequests(false);setShowPhotoPaywall(true);}} onVideoCreated={(media)=>{upsertMedia(media);setReconcilingMediaId(media.id);setShowPhotoRequests(false);navigateChatSurface(`/media/${media.id}`);}} onBuyCredits={()=>{setShowPhotoRequests(false);navigateChatSurface(creditsSubscriptionHref);}} onClose={()=>setShowPhotoRequests(false)}/>
+        <MediaRequestModal visible={showPhotoRequests} character={character} conversationId={conversation.id} onPhotoRequest={(request)=>{setShowPhotoRequests(false);void send(request);}} photoSharingEntitled={photoSharingEntitled} onShareLibrary={()=>void requestSharePhoto('library')} onTakePhoto={Platform.OS==='web'?undefined:()=>void requestSharePhoto('camera')} onPhotoSharingUpgrade={()=>{setShowPhotoRequests(false);setShowPhotoPaywall(true);}} onVideoCreated={(media)=>{upsertMedia(media);setReconcilingMediaId(media.id);setShowPhotoRequests(false);navigateChatSurface(mediaViewerHref(media.id,subscriptionReturnTo));}} onBuyCredits={()=>{setShowPhotoRequests(false);navigateChatSurface(creditsSubscriptionHref);}} onClose={()=>setShowPhotoRequests(false)}/>
         <PhotoSharingPaywallModal visible={showPhotoPaywall} onClose={()=>setShowPhotoPaywall(false)} onUpgrade={()=>{setShowPhotoPaywall(false);navigateChatSurface(photoSharingSubscriptionHref);}}/>
         <AutoDialogueOptionsModal visible={showAutoDialogueOptions} name={character.together_character_templates.name} hasSuggestion={Boolean(autoDialogue)} onChoose={(preference)=>void requestAutoDialogue(preference)} onClose={()=>setShowAutoDialogueOptions(false)}/>
         <PlanDetailsModal visible={Boolean(planModal)} planId={planModal?.planId??null} confirmCancel={planModal?.confirmCancel} onClose={()=>setPlanModal(null)}/>
@@ -1437,7 +1438,7 @@ const styles=StyleSheet.create({
   ,messageReaction:{flexDirection:'row',alignItems:'center',gap:4,paddingHorizontal:7,paddingVertical:3,borderRadius:radius.pill,backgroundColor:'rgba(255,255,255,.055)',borderWidth:1,borderColor:colors.border}
   ,messageReactionEmoji:{fontSize:12}
   ,messageReactionName:{color:colors.muted,fontSize:9,fontWeight:'700'}
-  ,shellDesktop:{maxWidth:1680}
+  ,shellDesktop:{maxWidth:DESKTOP_CHAT_SHELL_MAX_WIDTH}
   ,messagesDesktop:{paddingHorizontal:20}
   ,messageRowDesktop:{width:'88%',maxWidth:820}
   ,bubbleDesktop:{paddingHorizontal:16,paddingVertical:12}
