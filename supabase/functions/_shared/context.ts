@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
-import { capabilitiesForAccount, effectiveChatDailyLimit, normalizeSubscriptionTier } from '../../../packages/together-domain/src/index.ts';
 import { AppError } from './types.ts';
+import { resolveSubscriptionAccess } from './kivelle-subscription.ts';
 
 function env(name: string): string {
   const value = Deno.env.get(name);
@@ -43,17 +43,16 @@ export async function requireAdmin(userId: string, db: SupabaseClient): Promise<
 }
 
 export async function enforceRateLimit(db: SupabaseClient, subject: string, action: string, limit: number, windowSeconds: number, message = 'Too many requests. Try again later.'): Promise<void> {
-  if(action==='together_dialogue')await enforceDialoguePlanLimit(db,subject);
+  if(action==='together_dialogue')await enforceDailyMessageLimit(db,subject);
   const { data, error } = await db.rpc('consume_rate_limit', { p_subject: subject, p_action: action, p_limit: limit, p_window_seconds: windowSeconds });
   if (error) throw new AppError('INTERNAL_ERROR', 'Rate limit validation failed.', 500);
   if (!data) throw new AppError('RATE_LIMITED', message, 429, true);
 }
 
-async function enforceDialoguePlanLimit(db:SupabaseClient,userId:string):Promise<void>{
-  const[{data:entitlement,error},{data:profile}]=await Promise.all([db.from('together_entitlements').select('tier,metadata').eq('user_id',userId).maybeSingle(),db.from('together_profiles').select('created_at').eq('user_id',userId).maybeSingle()]);if(error)throw new AppError('INTERNAL_ERROR','Subscription status could not be checked.',500,true);
-  const capabilities=capabilitiesForAccount(normalizeSubscriptionTier(entitlement?.tier),entitlement?.metadata),limit=effectiveChatDailyLimit(capabilities,profile?.created_at);if(limit===null)return;
+async function enforceDailyMessageLimit(db:SupabaseClient,userId:string):Promise<void>{
+  const access=await resolveSubscriptionAccess(db,userId),limit=access.capabilities.dailyMessageLimit;if(limit===null)return;
   const start=new Date();start.setUTCHours(0,0,0,0);const{count,error:countError}=await db.from('together_messages').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('role','user').gte('created_at',start.toISOString());if(countError)throw new AppError('INTERNAL_ERROR','Daily chat allowance could not be checked.',500,true);
-  if(Number(count??0)>=limit)throw new AppError('PLAN_LIMIT_REACHED',`${capabilities.displayName} includes ${limit} conversations per day. Your daily allowance resets at midnight UTC.`,429);
+  if(Number(count??0)>=limit)throw new AppError('PLAN_LIMIT_REACHED',`${access.capabilities.displayName} includes ${limit} messages per day. Your daily message allowance resets at midnight UTC.`,429);
 }
 
 function jwtIssuedAt(token:string):number|null{try{const encoded=token.split('.')[1];if(!encoded)return null;const normalized=encoded.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(encoded.length/4)*4,'='),payload=JSON.parse(atob(normalized)) as Record<string,unknown>,issued=Number(payload.iat);return Number.isFinite(issued)?issued:null;}catch{return null;}}

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
-import { capabilitiesForAccount, creditCost, effectiveChatDailyLimit, entitlementsForTier, normalizeSubscriptionTier, selectEffectiveBillingSubscription, subscriptionGrantPeriodKey, type BillingProvider, type CreditAction, type KivelleCapabilities, type NormalizedSubscriptionStatus, type SubscriptionTier } from '../../../packages/together-domain/src/index.ts';
+import { capabilitiesForAccount, creditCost, entitlementsForTier, normalizeSubscriptionTier, selectEffectiveBillingSubscription, subscriptionGrantPeriodKey, type BillingProvider, type CreditAction, type KivelleCapabilities, type NormalizedSubscriptionStatus, type SubscriptionTier } from '../../../packages/together-domain/src/index.ts';
 
 type CreditBalance={permanentBalance:number;subscriptionBalance:number;total:number;subscriptionExpiresAt?:string|null};
 export type KivelleSubscriptionAccess={tier:SubscriptionTier;capabilities:KivelleCapabilities;entitlementKeys:string[];billing:KivelleSubscriptionState['billing']};
@@ -36,6 +36,21 @@ export async function enforcePhotoSharingEntitlement(db:SupabaseClient,userId:st
   return access;
 }
 
+export function activeConversationLimitError(capabilities:KivelleCapabilities):AppError{
+  return new AppError('PLAN_LIMIT_REACHED',`${capabilities.displayName} supports up to ${capabilities.maxActiveConversations} active conversations. Delete a conversation to start another, or upgrade your plan for more.`,403,false);
+}
+
+export function isActiveConversationLimitDatabaseError(error:unknown):boolean{
+  return Boolean(error&&typeof error==='object'&&'message'in error&&String((error as{message?:unknown}).message??'').includes('ACTIVE_CONVERSATION_LIMIT_REACHED'));
+}
+
+export async function enforceActiveConversationLimit(db:SupabaseClient,userId:string,capabilities?:KivelleCapabilities):Promise<void>{
+  const resolved=capabilities??(await resolveSubscriptionAccess(db,userId)).capabilities;
+  const{count,error}=await db.from('together_conversations').select('id',{count:'exact',head:true}).eq('user_id',userId).is('archived_at',null).is('user_archived_at',null).in('kind',['direct','first_meeting','group']);
+  if(error)throw new AppError('INTERNAL_ERROR','Your conversations could not be counted.',500,true);
+  if(Number(count??0)>=resolved.maxActiveConversations)throw activeConversationLimitError(resolved);
+}
+
 async function ensureWelcomeCredits(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities):Promise<void>{
   const welcomeKey='welcome-v1';
   const{data:welcome}=await db.from('together_credit_ledger').select('id').eq('user_id',userId).eq('idempotency_key',welcomeKey).maybeSingle();
@@ -66,8 +81,6 @@ export async function spendCredits(db:SupabaseClient,input:{userId:string;action
 export async function refundCredits(db:SupabaseClient,input:{userId:string;transactionId:string;idempotencyKey:string;metadata?:Record<string,unknown>}):Promise<boolean>{const{error}=await db.rpc('kivelle_refund_credit_transaction',{p_user_id:input.userId,p_transaction_id:input.transactionId,p_idempotency_key:input.idempotencyKey,p_metadata:input.metadata??{}});if(error){console.error('Kivelle credit refund failed',error.message);return false;}return true;}
 
 export async function enforceCreditBalance(db:SupabaseClient,userId:string,action:CreditAction):Promise<CreditBalance>{const state=await resolveSubscriptionState(db,userId);const cost=creditCost(action);if(state.creditBalance.total<cost)throw new AppError('INSUFFICIENT_CREDITS',`This action uses ${cost} Kivelle Credits. You have ${state.creditBalance.total}.`,402);return state.creditBalance;}
-export async function enforceChatAllowance(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities,accountCreatedAt?:unknown,now=new Date()):Promise<void>{const limit=effectiveChatDailyLimit(capabilities,accountCreatedAt,now);if(limit===null)return;const start=new Date(now);start.setUTCHours(0,0,0,0);const{count,error}=await db.from('together_messages').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('role','user').gte('created_at',start.toISOString());if(error)throw new AppError('INTERNAL_ERROR','Daily chat allowance could not be checked.',500,true);if(Number(count??0)>=limit)throw new AppError('PLAN_LIMIT_REACHED',`${capabilities.displayName} includes ${limit} conversations per day. Your daily allowance resets at midnight UTC.`,429);}
-
 export async function enforceExplicitDialogueAllowance(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities,now=new Date()):Promise<void>{
   // Kept as a compatibility seam for existing dialogue callers. Adult dialogue
   // is never metered separately; only the account's global chat allowance applies.

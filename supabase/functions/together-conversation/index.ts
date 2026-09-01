@@ -8,7 +8,7 @@ import {activeContinuity,requireInstanceInActiveContinuity}from'../_shared/toget
 import { getActiveConversation, mergeConversationSceneMetadata, type ActiveConversationScene } from '../_shared/together-conversation.ts';
 import { resolveCompanionPresence } from '../_shared/together-schedule.ts';
 import { resolvePlaceContext, resolveWorldAccess } from '../_shared/together-place.ts';
-import { resolveSubscriptionState } from '../_shared/kivelle-subscription.ts';
+import { activeConversationLimitError, isActiveConversationLimitDatabaseError, resolveSubscriptionAccess, resolveSubscriptionState } from '../_shared/kivelle-subscription.ts';
 import { conversationArchiveExpired, conversationArchiveFields } from '../_shared/together-conversation-archive.ts';
 import { validateCompanionVoicePreset } from '../_shared/companion-voice-selection.ts';
 import { chatLanguagePreferences } from '../../../packages/together-domain/src/chat-language.ts';
@@ -267,8 +267,12 @@ serve(async (request, correlationId) => {
   }
 
   if (input.action === 'new') {
+    const access=await resolveSubscriptionAccess(db,user.id);
     const { data, error } = await db.rpc('kivelle_start_conversation', { p_user_id: user.id, p_character_instance_id: input.characterInstanceId });
-    if (error || !data) throw new AppError('INTERNAL_ERROR', 'A new conversation could not be started.', 500, true);
+    if (error || !data) {
+      if(isActiveConversationLimitDatabaseError(error))throw activeConversationLimitError(access.capabilities);
+      throw new AppError('INTERNAL_ERROR', 'A new conversation could not be started.', 500, true);
+    }
     await track(db, user.id, 'conversation_started', { characterInstanceId: input.characterInstanceId });
     return json({ data, correlationId }, 200, correlationId);
   }
@@ -420,9 +424,11 @@ serve(async (request, correlationId) => {
   if (input.action === 'restore') {
     if (!conversation.user_archived_at || !conversation.restore_until) throw new AppError('CONFLICT', 'This chat is not in Archived Chats.', 409);
     if (conversationArchiveExpired(conversation.restore_until, new Date())) throw new AppError('ACTION_NOT_AVAILABLE', 'The 30-day restore window for this chat has ended.', 410);
+    const access=await resolveSubscriptionAccess(db,user.id);
     const { data, error } = await db.rpc('kivelle_restore_conversation', { p_user_id: user.id, p_conversation_id: conversation.id });
     if (error || !data) {
       if (error?.message?.includes('ARCHIVE_EXPIRED')) throw new AppError('ACTION_NOT_AVAILABLE', 'The 30-day restore window for this chat has ended.', 410);
+      if(isActiveConversationLimitDatabaseError(error))throw activeConversationLimitError(access.capabilities);
       throw new AppError('INTERNAL_ERROR', 'The chat could not be restored.', 500, true);
     }
     await track(db, user.id, 'conversation_restored', { conversationId: conversation.id, characterInstanceId: conversation.character_instance_id });

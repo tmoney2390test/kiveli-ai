@@ -6,6 +6,7 @@ import {AppError} from '../_shared/types.ts';
 import {buildSnapshot,track} from '../_shared/together.ts';
 import {getActiveConversation} from '../_shared/together-conversation.ts';
 import {activeContinuity} from '../_shared/together-continuity.ts';
+import {enforceActiveConversationLimit} from '../_shared/kivelle-subscription.ts';
 
 const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('set_active'),characterInstanceId:z.string().uuid(),source:z.enum(['home_switcher','discover_profile','companion_manager']).default('home_switcher')}),
@@ -47,6 +48,8 @@ serve(async(request,correlationId)=>{
     // templates remain blocked from activation.
     const selectable=Boolean(targetTemplate?.can_be_selected||catalogRetired);
     if(!target||!selectable||(!target.contact_added_at&&!target.introduced_at))throw new AppError('CONFLICT','Meet this companion before making them active.',409);
+    const currentConversation=await getActiveConversation(db,user.id,target.id,false);
+    if(!currentConversation)await enforceActiveConversationLimit(db,user.id);
     const previous=continuity.active_companion_instance_id;
     const{error}=await db.from('together_continuities').update({active_companion_instance_id:target.id,updated_at:now}).eq('id',continuity.id).eq('user_id',user.id);
     if(error)throw new AppError('INTERNAL_ERROR','Your active companion could not be changed.',500,true);
@@ -63,6 +66,10 @@ serve(async(request,correlationId)=>{
   const version=(template.together_character_versions??[]).find((item:Record<string,unknown>)=>Number(item.version)===Number(template.current_published_version))??template.together_character_versions?.[0];
   if(!version)throw new AppError('INTERNAL_ERROR','This companion is missing a published identity.',500,true);
   let{data:instance}=await db.from('together_character_instances').select('*').eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_template_id',template.id).maybeSingle();
+  if(input.source!=='group_invite'){
+    const currentConversation=instance?await getActiveConversation(db,user.id,instance.id,false):null;
+    if(!currentConversation)await enforceActiveConversationLimit(db,user.id);
+  }
   if(!instance){
     const meeting=(template.first_meeting??{}) as Record<string,unknown>;
     let locationId=typeof meeting.location_id==='string'?meeting.location_id:null;

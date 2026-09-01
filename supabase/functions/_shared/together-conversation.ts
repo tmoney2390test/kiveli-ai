@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveCompanionPresence, type CompanionPresence } from './together-schedule.ts';
 import { finalizeSceneSession } from './kivelle-scene-consolidation.ts';
 import { waitUntil } from './background.ts';
+import { activeConversationLimitError, enforceActiveConversationLimit, isActiveConversationLimitDatabaseError, resolveSubscriptionAccess } from './kivelle-subscription.ts';
 
 export type InteractionMode = 'remote'|'co_present';
 export type SceneEntryReason = 'direct_chat'|'user_drop_in'|'shared_plan'|'active_date'|'continued_scene';
@@ -28,10 +29,13 @@ export async function getActiveConversation(db: SupabaseClient, userId: string, 
   const { data, error } = await db.from('together_conversations').select('*').eq('user_id', userId).eq('character_instance_id', characterInstanceId).is('archived_at', null).is('user_archived_at',null).in('kind', ['direct', 'first_meeting']).order('created_at', { ascending: false }).limit(1).maybeSingle();
   if (error) throw error;
   if (data || !createIfMissing) return data;
+  const access=await resolveSubscriptionAccess(db,userId);
+  await enforceActiveConversationLimit(db,userId,access.capabilities);
   const { data: created, error: createError } = await db.rpc('kivelle_start_conversation', { p_user_id: userId, p_character_instance_id: characterInstanceId });
   if (createError) {
     const retry = await db.from('together_conversations').select('*').eq('user_id', userId).eq('character_instance_id', characterInstanceId).is('archived_at', null).is('user_archived_at',null).in('kind', ['direct', 'first_meeting']).limit(1).maybeSingle();
     if (retry.error) throw retry.error;
+    if(!retry.data&&isActiveConversationLimitDatabaseError(createError))throw activeConversationLimitError(access.capabilities);
     return retry.data;
   }
   return created;

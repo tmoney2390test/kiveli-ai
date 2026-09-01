@@ -20,6 +20,7 @@ import { eligibleGroupInstances } from "../_shared/kivelle-group-eligibility.ts"
 import { track } from "../_shared/together.ts";
 import { AppError } from "../_shared/types.ts";
 import { conversationArchiveFields } from "../_shared/together-conversation-archive.ts";
+import { activeConversationLimitError, enforceActiveConversationLimit, isActiveConversationLimitDatabaseError } from "../_shared/kivelle-subscription.ts";
 
 const schema = z.discriminatedUnion("action", [
   z.object({
@@ -94,7 +95,7 @@ serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
   const input = await parseBody(request, schema);
   const continuity = await activeContinuity(db, user.id);
-  await requireGroupChatAccess(db, user.id);
+  const subscription = await requireGroupChatAccess(db, user.id);
   if (input.action === "create" || input.action === "create_from_scene") {
     await enforceRateLimit(db, user.id, "together_group_create", 12, 3600);
     const existing = await db.from("together_conversations").select("*").eq(
@@ -114,6 +115,7 @@ serve(async (request, correlationId) => {
         correlationId,
       );
     }
+    await enforceActiveConversationLimit(db,user.id,subscription.capabilities);
     let ids: string[],
       addedBy: "user" | "shared_scene" = "user",
       sceneId: string | undefined;
@@ -204,6 +206,7 @@ serve(async (request, correlationId) => {
       },
     }).select("*").single();
     if (error || !conversation) {
+      if(isActiveConversationLimitDatabaseError(error))throw activeConversationLimitError(subscription.capabilities);
       throw new AppError(
         "INTERNAL_ERROR",
         "The group could not be created.",
@@ -367,50 +370,34 @@ serve(async (request, correlationId) => {
   }
   if (input.action === "fresh") {
     await enforceRateLimit(db, user.id, "together_group_fresh", 12, 3600);
-    const { data: existingFresh } = await db.from("together_conversations")
-      .select("*").eq("user_id", user.id).eq("continuity_id", continuity.id)
-      .eq("kind", "group").contains("metadata", {
-        groupCreateRequestId: input.requestId,
-        freshFromConversationId: conversation.id,
-      }).maybeSingle();
-    if (existingFresh) {
-      return json({
-        data: await groupDetail(db, user.id, continuity.id, existingFresh),
-        correlationId,
-      }, 200, correlationId);
-    }
-    const roster = await activeGroupParticipants(db, {
-      userId: user.id,
-      continuityId: continuity.id,
-      conversationId: conversation.id,
-    });
-    if (roster.length < 2) {
-      throw new AppError(
-        "CONFLICT",
-        "This group no longer has enough active companions to start fresh.",
-        409,
-        true,
-      );
-    }
-    const now = new Date(), nowIso = now.toISOString(),
-      restoreUntil = new Date(now.getTime() + 30 * 86_400_000).toISOString(),
-      metadata = {
-        ...(conversation.metadata ?? {}),
-        groupCreateRequestId: input.requestId,
-        freshFromConversationId: conversation.id,
-      };
-    const { data: fresh, error: freshError } = await db.from(
-      "together_conversations",
-    ).insert({
-      user_id: user.id,
-      continuity_id: continuity.id,
-      character_instance_id: roster[0]!.character_instance_id,
-      kind: "group",
-      group_world_id: conversation.group_world_id,
-      title: conversation.title,
-      metadata,
-    }).select("*").single();
-    if (freshError || !fresh) {
+    const { data: fresh, error } = await db.rpc(
+      "kivelle_start_fresh_group_conversation",
+      {
+        p_user_id: user.id,
+        p_conversation_id: conversation.id,
+        p_request_id: input.requestId,
+      },
+    );
+    if (error || !fresh) {
+      if (isActiveConversationLimitDatabaseError(error)) {
+        throw activeConversationLimitError(subscription.capabilities);
+      }
+      if (String(error?.message ?? "").includes("GROUP_FRESH_ROSTER_TOO_SMALL")) {
+        throw new AppError(
+          "CONFLICT",
+          "This group no longer has enough active companions to start fresh.",
+          409,
+          true,
+        );
+      }
+      if (String(error?.message ?? "").includes("GROUP_FRESH_SOURCE_CHANGED")) {
+        throw new AppError(
+          "CONFLICT",
+          "This group changed while the fresh chat was being created.",
+          409,
+          true,
+        );
+      }
       throw new AppError(
         "INTERNAL_ERROR",
         "A fresh group chat could not be created.",
@@ -418,85 +405,9 @@ serve(async (request, correlationId) => {
         true,
       );
     }
-    const { error: participantError } = await db.from(
-      "together_conversation_participants",
-    ).insert(roster.map((participant: any, index: number) => ({
-      user_id: user.id,
-      continuity_id: continuity.id,
-      conversation_id: fresh.id,
-      character_instance_id: participant.character_instance_id,
-      role: index === 0 ? "owner_companion" : "member",
-      added_by: "user",
-      witnessed_from_sequence: 1,
-      metadata: { freshFromConversationId: conversation.id },
-    })));
-    if (participantError) {
-      await db.from("together_conversations").delete().eq("id", fresh.id)
-        .eq("user_id", user.id);
-      throw new AppError(
-        "INTERNAL_ERROR",
-        "The fresh group roster could not be created.",
-        500,
-        true,
-      );
-    }
-    const planMove = await db.from("together_shared_plans").update({
-      source_conversation_id: fresh.id,
-      updated_at: nowIso,
-    }).eq("source_conversation_id", conversation.id).eq("user_id", user.id)
-      .eq("continuity_id", continuity.id).in("status", [
-        "proposed",
-        "scheduled",
-        "active",
-      ]);
-    if (planMove.error) {
-      await db.from("together_conversations").delete().eq("id", fresh.id)
-        .eq("user_id", user.id);
-      throw new AppError(
-        "INTERNAL_ERROR",
-        "The current group plan could not be carried into the fresh chat.",
-        500,
-        true,
-      );
-    }
-    const archiveOld = await db.from("together_conversations").update({
-      archived_at: nowIso,
-      user_archived_at: nowIso,
-      restore_until: restoreUntil,
-      updated_at: nowIso,
-    }).eq("id", conversation.id).eq("user_id", user.id).is(
-      "archived_at",
-      null,
-    ).select("id").maybeSingle();
-    if (archiveOld.error || !archiveOld.data) {
-      await db.from("together_shared_plans").update({
-        source_conversation_id: conversation.id,
-        updated_at: nowIso,
-      }).eq("source_conversation_id", fresh.id).eq("user_id", user.id).in(
-        "status",
-        ["proposed", "scheduled", "active"],
-      );
-      await db.from("together_conversations").delete().eq("id", fresh.id)
-        .eq("user_id", user.id);
-      throw new AppError(
-        "CONFLICT",
-        "This group changed while the fresh chat was being created.",
-        409,
-        true,
-      );
-    }
-    await db.from("together_dialogue_turns").update({
-      state: "cancelled",
-      cancelled_at: nowIso,
-      updated_at: nowIso,
-    }).eq("conversation_id", conversation.id).in("state", [
-      "planning",
-      "generating",
-    ]);
     await track(db, user.id, "group_fresh_chat_started", {
       conversationId: fresh.id,
       previousConversationId: conversation.id,
-      participantCount: roster.length,
     });
     return json({
       data: await groupDetail(db, user.id, continuity.id, fresh),
