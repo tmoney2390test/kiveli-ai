@@ -41,7 +41,7 @@ EXPO_PUBLIC_KIVELLE_APPLE_AUTH_ENABLED=true
 
 Web/Android OAuth uses Supabase PKCE. iOS uses native Sign in with Apple with a hashed nonce and sends the resulting identity token to Supabase. Because this shared Supabase project keeps global auto-confirm for another app, Kivelle password signup creates an unconfirmed user server-side and sends a PKCE email magic link with user creation disabled; Kivelle never administratively marks a typed email as verified. After any provider authenticates, server-owned account state routes new users through explicit 18+ confirmation and then companion onboarding. Authentication itself never implies adulthood.
 
-The production redirect allowlist is `https://kivelli.app/auth/callback`, `https://kivelli.app/reset-password`, `together://auth/callback`, and `together://reset-password`, plus the documented localhost and temporary Expo preview equivalents. Native auth sessions use chunked SecureStore persistence with one-time AsyncStorage migration; web keeps browser storage. Apple only supplies a person's name on first consent, so Kivelle saves it immediately as account metadata while Persona identity remains separate.
+The production redirect allowlist is `https://kivelli.app/auth/callback`, `https://kivelli.app/reset-password`, `kivelli://auth/callback`, and `kivelli://reset-password`, plus the documented localhost, legacy `together://`, and temporary Expo preview equivalents. Native auth sessions use chunked SecureStore persistence with one-time AsyncStorage migration; web keeps browser storage. Apple only supplies a person's name on first consent, so Kivelle saves it immediately as account metadata while Persona identity remains separate.
 
 ## Billing provider boundary
 

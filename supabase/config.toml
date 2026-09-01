@@ -17,7 +17,7 @@ enabled = true
 [auth]
 enabled = true
 site_url = "https://kivelli.app"
-additional_redirect_urls = ["jukestr://auth/callback", "jukestr://auth/reset-password", "exp://127.0.0.1:8081/--/auth/callback", "exp://localhost:8081/--/auth/callback", "exp://*.exp.direct/--/auth/callback", "http://localhost:8081/auth/callback", "http://localhost:8082/auth/callback", "http://localhost:8082/reset-password", "http://127.0.0.1:8082/auth/callback", "http://127.0.0.1:8082/reset-password", "together://auth/callback", "together://reset-password", "https://kivelli.app/auth/callback", "https://kivelli.app/reset-password"]
+additional_redirect_urls = ["jukestr://auth/callback", "jukestr://auth/reset-password", "exp://127.0.0.1:8081/--/auth/callback", "exp://localhost:8081/--/auth/callback", "exp://*.exp.direct/--/auth/callback", "http://localhost:8081/auth/callback", "http://localhost:8082/auth/callback", "http://localhost:8082/reset-password", "http://127.0.0.1:8082/auth/callback", "http://127.0.0.1:8082/reset-password", "kivelli://auth/callback", "kivelli://reset-password", "together://auth/callback", "together://reset-password", "https://kivelli.app/auth/callback", "https://kivelli.app/reset-password"]
 enable_signup = true
 
 [auth.email]

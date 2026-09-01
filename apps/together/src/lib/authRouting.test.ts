@@ -10,9 +10,11 @@ describe('Kivelle account routing', () => {
     expect(resolveKivelleAccountStage({ age_verified_at: '2026-08-24', onboarding_completed_at: '2026-08-24' })).toBe('ready');
   });
 
-  it('routes both new Google and password users through the same explicit age gate', () => {
+  it('routes new Apple, Google, and password users through the same explicit age gate', () => {
+    const newAppleUser = { profile: null };
     const newGoogleUser = { profile: null };
     const newPasswordUser = { profile: null };
+    expect(resolvePostAuthDestination({ authenticated: true, snapshot: newAppleUser, requestedNext: '/chat' })).toBe('/age-confirmation');
     expect(resolvePostAuthDestination({ authenticated: true, snapshot: newGoogleUser, requestedNext: '/chat' })).toBe('/age-confirmation');
     expect(resolvePostAuthDestination({ authenticated: true, snapshot: newPasswordUser, requestedNext: '/chat' })).toBe('/age-confirmation');
   });

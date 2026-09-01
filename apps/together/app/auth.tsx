@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CircleCheck, Eye, EyeOff, Sparkles } from 'lucide-react-native';
@@ -30,8 +31,16 @@ export default function Auth() {
   const [openingError, setOpeningError] = useState('');
   const [notice, setNotice] = useState('');
   const [confirmationEmail, setConfirmationEmail] = useState('');
+  const [nativeAppleAvailable,setNativeAppleAvailable]=useState(Platform.OS!=='ios');
   const { signIn, signInWithSocial, signUp, resendSignUpConfirmation, requestPasswordReset, signingOut, socialAuth } = useAuth();
   const refresh = useTogether((state) => state.refresh);
+
+  useEffect(()=>{
+    if(Platform.OS!=='ios'||!socialAuth.apple)return;
+    let active=true;
+    void AppleAuthentication.isAvailableAsync().then((available)=>{if(active)setNativeAppleAvailable(available);}).catch(()=>{if(active)setNativeAppleAvailable(false);});
+    return()=>{active=false;};
+  },[socialAuth.apple]);
 
   const openSignedInWorld = async () => {
     setBusy(true);
@@ -123,6 +132,8 @@ export default function Auth() {
   };
 
   const authBusy = busy || signingOut;
+  const socialDisabled=authBusy||Boolean(socialBusy);
+  const showApple=socialAuth.apple&&nativeAppleAvailable;
 
   return <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <Screen contentStyle={styles.screen}>
@@ -184,9 +195,9 @@ export default function Auth() {
 
           <GradientButton label={signingOut ? 'Finishing sign out…' : busy ? creating ? 'Creating your account…' : 'Signing in…' : creating ? 'Choose your world' : 'Sign in'} disabled={authBusy} onPress={() => void submit()} />
 
-          {socialAuth.google||socialAuth.apple?<><View style={styles.divider}><View style={styles.dividerLine}/><Text style={styles.dividerText}>OR CONTINUE WITH</Text><View style={styles.dividerLine}/></View><View style={styles.socialRow}>
-            {socialAuth.google?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Google" disabled={authBusy||Boolean(socialBusy)} onPress={()=>void socialSignIn('google')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><GoogleMark/><Text style={styles.socialText}>{socialBusy==='google'?'Connecting…':'Google'}</Text></Pressable>:null}
-            {socialAuth.apple?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Apple" disabled={authBusy||Boolean(socialBusy)} onPress={()=>void socialSignIn('apple')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><Text style={styles.providerMark}></Text><Text style={styles.socialText}>{socialBusy==='apple'?'Connecting…':'Apple'}</Text></Pressable>:null}
+          {socialAuth.google||showApple?<><View style={styles.divider}><View style={styles.dividerLine}/><Text style={styles.dividerText}>OR CONTINUE WITH</Text><View style={styles.dividerLine}/></View><View style={styles.socialRow}>
+            {socialAuth.google?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Google" disabled={socialDisabled} onPress={()=>void socialSignIn('google')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><GoogleMark/><Text style={styles.socialText}>{socialBusy==='google'?'Connecting…':'Google'}</Text></Pressable>:null}
+            {showApple&&Platform.OS==='ios'?<View accessibilityState={{disabled:socialDisabled}} pointerEvents={socialDisabled?'none':'auto'} style={[styles.nativeAppleSlot,socialDisabled&&styles.socialDisabled]}><AppleAuthentication.AppleAuthenticationButton buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE} buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE} cornerRadius={12} style={styles.nativeAppleButton} onPress={()=>void socialSignIn('apple')}/></View>:showApple?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Apple" disabled={socialDisabled} onPress={()=>void socialSignIn('apple')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><Text style={styles.providerMark}></Text><Text style={styles.socialText}>{socialBusy==='apple'?'Connecting…':'Apple'}</Text></Pressable>:null}
           </View></>:null}
 
           {!creating ? <Pressable disabled={authBusy} onPress={() => void reset()}><Text style={styles.secondary}>Forgot password?</Text></Pressable> : <View style={styles.instant}><Sparkles size={14} color={colors.violet} /><Text style={styles.instantText}>No setup tour. Personalize later.</Text></View>}
@@ -263,6 +274,9 @@ const styles = StyleSheet.create({
   dividerText:{color:colors.dimmed,fontSize:8,fontWeight:'900',letterSpacing:1},
   socialRow:{flexDirection:'row',gap:9},
   socialButton:{minHeight:46,flex:1,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:9,borderRadius:radius.md,borderWidth:1,borderColor:colors.borderBright,backgroundColor:'rgba(255,255,255,.035)'},
+  nativeAppleSlot:{height:46,flex:1},
+  nativeAppleButton:{width:'100%',height:46},
+  socialDisabled:{opacity:.52},
   socialPressed:{opacity:.78,transform:[{scale:.99}]},
   providerMark:{color:colors.text,fontSize:18,fontWeight:'900'},
   socialText:{color:colors.text,fontSize:12,fontWeight:'800'},

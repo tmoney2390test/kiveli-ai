@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabase';
 import { authErrorMessage } from '../lib/authErrors';
 import { createTogetherAccount } from '../lib/api';
 import { getValidatedPersistedSession } from '../lib/authSession';
-import { parseOAuthCallbackUrl, resolveSocialAuthCapabilities, socialAuthErrorMessage, type SocialAuthCapabilities, type SocialAuthProvider } from '../lib/socialAuth';
+import { appleUserMetadata, parseOAuthCallbackUrl, resolveSocialAuthCapabilities, socialAuthErrorMessage, type SocialAuthCapabilities, type SocialAuthProvider } from '../lib/socialAuth';
 
 type SignUpResult = { needsEmailConfirmation: boolean };
 type AuthValue = {
@@ -41,7 +41,7 @@ void WebBrowser.maybeCompleteAuthSession();
 
 export function authRedirectUrl(path = '/auth/callback') {
   if (Platform.OS === 'web' && typeof window !== 'undefined') return new URL(path, window.location.origin).toString();
-  return `together://${path.replace(/^\//, '')}`;
+  return `kivelli://${path.replace(/^\//, '')}`;
 }
 
 function readableAuthError(error: AuthError) {
@@ -105,16 +105,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
           const { data, error } = await supabase.auth.signInWithIdToken({ provider: 'apple', token: credential.identityToken, nonce: rawNonce });
           if (error) throw error;
           if (!data.session) throw new Error('Apple sign-in did not create a Kivelle session.');
-          const displayName = [credential.fullName?.givenName, credential.fullName?.middleName, credential.fullName?.familyName].filter(Boolean).join(' ');
-          if (displayName) {
-            await supabase.auth.updateUser({
-              data: {
-                display_name: displayName,
-                given_name: credential.fullName?.givenName,
-                family_name: credential.fullName?.familyName,
-                signup_app: 'together',
-              },
-            });
+          let formattedName='';
+          if(credential.fullName){
+            try{formattedName=AppleAuthentication.formatFullName(credential.fullName);}
+            catch{/* Fall back to the individual name components below. */}
+          }
+          const metadata=appleUserMetadata(credential.fullName,formattedName);
+          if (metadata) {
+            // Apple returns the name only on the first authorization. Persist it
+            // immediately, but never invalidate an otherwise valid session if a
+            // transient metadata write fails; onboarding still lets the user set
+            // the name they want Kivelle to use.
+            await supabase.auth.updateUser({data:metadata});
           }
           return;
         }

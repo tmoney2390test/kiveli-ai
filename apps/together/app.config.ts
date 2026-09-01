@@ -2,11 +2,12 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  // Keep identifiers stable so existing installations and service configuration continue to work.
-  name: 'Kivelle.AI', slug: 'together', scheme: 'together', version: '1.0.0', orientation: 'default', userInterfaceStyle: 'dark',
+  // Keep the legacy scheme during the pre-release identifier transition so
+  // existing development builds can still finish an in-flight auth callback.
+  name: 'Kivelle.AI', slug: 'together', scheme: ['kivelli','together'], version: '1.0.0', orientation: 'default', userInterfaceStyle: 'dark',
   icon: './assets/icon.png',
-  ios: { supportsTablet: true, bundleIdentifier: 'com.together.world', usesAppleSignIn:true, infoPlist: { NSPhotoLibraryUsageDescription: 'Choose a photo to share privately in Kivelle Chat.',NSMicrophoneUsageDescription:'Use your microphone for private voice-to-text and live calls with your Kivelle companion.',UIBackgroundModes:['audio'] } },
-  android: { package: 'com.together.world', adaptiveIcon: { foregroundImage: './assets/icon.png', backgroundColor: '#080B13' }, permissions: ['POST_NOTIFICATIONS','RECORD_AUDIO','MODIFY_AUDIO_SETTINGS'] },
+  ios: { supportsTablet: true, bundleIdentifier: 'app.kivelli', usesAppleSignIn:true, infoPlist: { CFBundleAllowMixedLocalizations:true,NSPhotoLibraryUsageDescription: 'Choose a photo to share privately in Kivelle Chat.',NSMicrophoneUsageDescription:'Use your microphone for private voice-to-text and live calls with your Kivelle companion.',UIBackgroundModes:['audio'] } },
+  android: { package: 'app.kivelli', adaptiveIcon: { foregroundImage: './assets/icon.png', backgroundColor: '#080B13' }, permissions: ['POST_NOTIFICATIONS','RECORD_AUDIO','MODIFY_AUDIO_SETTINGS'] },
   web: { bundler: 'metro', output: 'static', favicon: './assets/kivelle-icon-transparent.png' },
   plugins: [[
     'expo-router',
