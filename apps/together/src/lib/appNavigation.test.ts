@@ -156,18 +156,22 @@ describe("app navigation", () => {
     }
   });
 
-  it("reconciles Expo against the protected destination after a root alias", async () => {
+  it("retries a cross-navigator root alias once through Expo replace", async () => {
     vi.useFakeTimers();
     try {
-      const { browser, history, routeEvents } = browserAt("https://kivelli.app/explore");
+      const { browser, history } = browserAt("https://kivelli.app/explore");
       const nativePush = vi.fn((_href?: unknown) => {
         void _href;
         return history.pushState({}, "", "/");
       });
+      const nativeReplace = vi.fn((_href?: unknown) => {
+        void _href;
+        return history.replaceState({}, "", "/location/the-rivet?world=eos-meridian");
+      });
       const router = {
         push: nativePush,
         navigate: nativePush,
-        replace: vi.fn(),
+        replace: nativeReplace,
         dismissTo: vi.fn(),
         setParams: vi.fn(),
       };
@@ -175,10 +179,13 @@ describe("app navigation", () => {
 
       router.push("/location/the-rivet?world=eos-meridian" as never);
       expect(browser.location.href).toBe("https://kivelli.app/location/the-rivet?world=eos-meridian");
-      expect(routeEvents).toEqual([]);
+      expect(nativeReplace).not.toHaveBeenCalled();
 
-      await vi.advanceTimersByTimeAsync(100);
-      expect(routeEvents).toEqual(["popstate"]);
+      await vi.advanceTimersByTimeAsync(180);
+      expect(nativeReplace).toHaveBeenCalledWith({
+        pathname: '/location/[slug]',
+        params: { slug: 'the-rivet', world: 'eos-meridian' },
+      }, undefined);
       expect(completePendingWebRouteTransition('/location/the-rivet')).toBe(true);
       expect(browser.location.assign).not.toHaveBeenCalled();
     } finally {

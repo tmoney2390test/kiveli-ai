@@ -122,7 +122,6 @@ function installPendingWebHistoryGuard(destination: string): void {
   const browserHistory = window.history;
   const originalPushState = browserHistory.pushState;
   const originalReplaceState = browserHistory.replaceState;
-  let aliasRecoveryScheduled = false;
   const preserveDestination = (
     original: History["pushState"],
     data: unknown,
@@ -134,14 +133,6 @@ function installPendingWebHistoryGuard(destination: string): void {
       try {
         if (isTransientRootAlias(new URL(String(url), window.location.href), target)) {
           nextUrl = `${target.pathname}${target.search}${target.hash}`;
-          if (!aliasRecoveryScheduled) {
-            aliasRecoveryScheduled = true;
-            window.setTimeout(() => {
-              if (window.__KIVELLE_RELEASE_ROUTE_HISTORY_GUARD__ === release) {
-                dispatchRouteChange();
-              }
-            }, 100);
-          }
         }
       } catch {
         // Let the native history method validate malformed URLs normally.
@@ -390,6 +381,17 @@ export function installWebNavigationCompatibility(router: object): void {
       completePendingWebRouteTransition();
       throw error;
     }
+    window.setTimeout(() => {
+      if (window.__KIVELLE_PENDING_ROUTE_HREF__ !== routePath(destination)) return;
+      try {
+        // The first action can leave Expo at its root stack while crossing
+        // navigator boundaries. Replace that transient entry once, using
+        // Expo's own queue, so the prior screen remains the browser back target.
+        replace(routerHref as never, options);
+      } catch {
+        // The hard-navigation timer below remains the final safety net.
+      }
+    }, 180);
     window.setTimeout(() => {
       // RouteTransitionVeil clears this marker when Expo's route state—not just
       // the protected address bar—has mounted the destination. If it has not,
