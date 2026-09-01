@@ -90,6 +90,7 @@ import {
   deleteConversationAttachment,
   dismissConversationAction,
   type GroupDialogueEvent,
+  loadGroupDetail,
   manageConversation,
   manageGroup,
   manageMedia,
@@ -216,6 +217,7 @@ export default function GroupChatScreen() {
       initialGroupCache?.detail ?? null,
     ),
     [loading, setLoading] = useState(!initialGroupCache?.complete),
+    [groupLoadAttempt,setGroupLoadAttempt]=useState(0),
     [error, setError] = useState(""),
     [input, setInput] = useState(""),
     [pendingImage, setPendingImage] = useState<PendingGroupImage | null>(
@@ -285,6 +287,7 @@ export default function GroupChatScreen() {
     initialBottomPinConversation = useRef<string | null>(null),
     initialBottomPinReleaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedGroupRef = useRef<string | null>(null);
+  const groupLoadAbortRef=useRef<AbortController|null>(null);
   const resumedSharePhoto=useRef<string|null>(null);
   const unreadWindow=useRef<{conversationId:string|null;lastReadAt:string|null;openedAt:string}>({conversationId:null,lastReadAt:null,openedAt:new Date().toISOString()});
   const planLaunchHandledRef = useRef<string | null>(null);
@@ -377,19 +380,28 @@ export default function GroupChatScreen() {
     if (!params.id) return;
     const conversationId=params.id,initial=loadedGroupRef.current!==conversationId;
     let cancelled=false;
-    if(initial)setLoading(true);
+    let loadController:AbortController|null=null;
+    if(initial){
+      setLoading(true);
+      setError("");
+      groupLoadAbortRef.current?.abort();
+      loadController=new AbortController();
+      groupLoadAbortRef.current=loadController;
+    }
     prepareConversationScroll(conversationId);
     const request=initial
-      ? manageGroup<GroupDetail>({action:"detail",conversationId}).then((next)=>{if(cancelled)return;loadedGroupRef.current=conversationId;setDetail(next);})
+      ? loadGroupDetail(conversationId,{messageLimit:30,signal:loadController!.signal}).then((next)=>{if(cancelled)return;loadedGroupRef.current=conversationId;setDetail(next);})
       : refreshGroupDelta();
-    void request.then(()=>{if(!cancelled)setError("");}).catch((caught)=>{if(!cancelled)setError(caught instanceof Error?caught.message:"This group could not be loaded.");}).finally(()=>{if(!cancelled&&initial)setLoading(false);});
+    void request.then(()=>{if(!cancelled)setError("");}).catch((caught)=>{if(!cancelled)setError(caught instanceof Error?caught.message:"This group could not be loaded.");}).finally(()=>{if(groupLoadAbortRef.current===loadController)groupLoadAbortRef.current=null;if(!cancelled&&initial)setLoading(false);});
     return () => {
       cancelled=true;
+      loadController?.abort();
+      if(groupLoadAbortRef.current===loadController)groupLoadAbortRef.current=null;
       abortRef.current?.abort();
       if (mediaRefreshTimer.current) clearTimeout(mediaRefreshTimer.current);
       if (initialBottomPinReleaseTimer.current) clearTimeout(initialBottomPinReleaseTimer.current);
     };
-  }, [params.id,prepareConversationScroll,refreshGroupDelta]));
+  }, [groupLoadAttempt,params.id,prepareConversationScroll,refreshGroupDelta]));
   useEffect(() => {
     if (!params.id) return;
     const refreshDetail = () => {
@@ -1477,6 +1489,12 @@ export default function GroupChatScreen() {
       navigate:(href)=>router.push(href as never),
     });
   };
+  const retryOpeningGroup=()=>{
+    loadedGroupRef.current=null;
+    setError("");
+    setLoading(true);
+    setGroupLoadAttempt((value)=>value+1);
+  };
   if (!params.id) {
     return (
       <EmptyState
@@ -1494,6 +1512,8 @@ export default function GroupChatScreen() {
         <EmptyState
           title="Group unavailable"
           body={error || "This conversation is no longer available."}
+          action="Try again"
+          onAction={retryOpeningGroup}
         />
       </View>
     );

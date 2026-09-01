@@ -562,7 +562,9 @@ function ConversationRow(
         <Pressable
           accessibilityRole="link"
           accessibilityLabel={`Open ${displayName}${conversation.unread ? ", unread messages" : ""}`}
-          onPress={(event) => preferDocumentNavigationOnWeb(event, href)}
+          onPress={conversation.kind === "group"
+            ? undefined
+            : (event) => preferDocumentNavigationOnWeb(event, href)}
           disabled={busy}
           style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
         >
@@ -857,13 +859,7 @@ function ConversationActions(
                     <Pressable
                       accessibilityRole="link"
                       accessibilityLabel="Manage group"
-                      onPress={(event) => {
-                        onClose();
-                        preferDocumentNavigationOnWeb(
-                          event,
-                          `/group-chat?id=${encodeURIComponent(row.conversation.id)}&settings=1`,
-                        );
-                      }}
+                      onPress={onClose}
                       style={({ pressed }) => [styles.sheetAction, pressed && styles.pressed]}
                     >
                       <Settings size={19} color={colors.text} />

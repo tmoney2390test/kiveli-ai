@@ -332,21 +332,24 @@ serve(async (request, correlationId) => {
   });
   if (input.action === "detail") {
     const readAt = new Date().toISOString();
-    const { data: readConversation } = await db.from("together_conversations")
-      .update({ last_read_at: readAt }).eq("id", conversation.id).eq(
-        "user_id",
+    const [detail, { data: readConversation }] = await Promise.all([
+      groupDetail(
+        db,
         user.id,
-      ).select("*").single();
+        continuity.id,
+        conversation,
+        true,
+        input.messageLimit,
+      ),
+      db.from("together_conversations")
+        .update({ last_read_at: readAt }).eq("id", conversation.id).eq(
+          "user_id",
+          user.id,
+        ).select("*").single(),
+    ]);
     return json(
       {
-        data: await groupDetail(
-          db,
-          user.id,
-          continuity.id,
-          readConversation ?? conversation,
-          true,
-          input.messageLimit,
-        ),
+        data: { ...detail, conversation: readConversation ?? conversation },
         correlationId,
       },
       200,
@@ -895,11 +898,39 @@ async function groupDetail(
   participantRows?: any[],
 ) {
   const syncedAt = new Date().toISOString();
-  const participants = participantRows ?? await activeGroupParticipants(db, {
-    userId,
-    continuityId,
-    conversationId: String(conversation.id),
-  });
+  const participantsPromise = participantRows
+    ? Promise.resolve(participantRows)
+    : activeGroupParticipants(db, {
+      userId,
+      continuityId,
+      conversationId: String(conversation.id),
+    });
+  const timelinePromise = includeTimeline
+    ? Promise.all([
+      groupMessagePage(db, userId, conversation.id, messageLimit),
+      db.from("together_generated_media").select("*").eq("conversation_id", conversation.id).in("status", ["queued", "generating"]).in("content_level", ["standard", "romance"]).order("created_at", { ascending: false }).limit(20),
+      db.from("together_media_offers").select("*").eq("conversation_id", conversation.id).in("status", ["pending", "accepted", "failed"]).in("content_level", ["standard", "romance"]).order("created_at", { ascending: false }).limit(20),
+      db.from("together_shared_plans").select(
+        "*,together_locations(id,name,slug),together_plan_attendance(*),together_plan_participant_responses(*)",
+      ).eq("source_conversation_id", conversation.id).eq("user_id", userId)
+        .eq("continuity_id", continuityId).order("starts_at", {
+          ascending: false,
+          nullsFirst: false,
+        }).limit(100),
+      db.from("together_conversation_actions").select("*").eq(
+        "conversation_id",
+        conversation.id,
+      ).eq("user_id", userId).eq("continuity_id", continuityId).eq(
+        "status",
+        "pending",
+      ).order("created_at").limit(40),
+      db.from("together_conversation_events").select("*").eq(
+        "conversation_id",
+        conversation.id,
+      ).eq("user_id", userId).order("created_at", { ascending: false }).limit(120),
+    ])
+    : null;
+  const participants = await participantsPromise;
   let messages: any[] = [],
     reactions: any[] = [],
     generatedMedia: any[] = [],
@@ -909,30 +940,12 @@ async function groupDetail(
     conversationEvents: any[] = [],
     hasMoreMessages = false;
   if (includeTimeline) {
-    const [page, activeMediaResult, activeOfferResult, planResult, actionResult, eventResult] = await Promise
-      .all([
-        groupMessagePage(db, userId, conversation.id, messageLimit),
-        db.from("together_generated_media").select("*").eq("conversation_id", conversation.id).in("status", ["queued", "generating"]).in("content_level", ["standard", "romance"]).order("created_at", { ascending: false }).limit(20),
-        db.from("together_media_offers").select("*").eq("conversation_id", conversation.id).in("status", ["pending", "accepted", "failed"]).in("content_level", ["standard", "romance"]).order("created_at", { ascending: false }).limit(20),
-        db.from("together_shared_plans").select(
-          "*,together_locations(id,name,slug),together_plan_attendance(*),together_plan_participant_responses(*)",
-        ).eq("source_conversation_id", conversation.id).eq("user_id", userId)
-          .eq("continuity_id", continuityId).order("starts_at", {
-            ascending: false,
-            nullsFirst: false,
-          }).limit(100),
-        db.from("together_conversation_actions").select("*").eq(
-          "conversation_id",
-          conversation.id,
-        ).eq("user_id", userId).eq("continuity_id", continuityId).eq(
-          "status",
-          "pending",
-        ).order("created_at").limit(40),
-        db.from("together_conversation_events").select("*").eq(
-          "conversation_id",
-          conversation.id,
-        ).eq("user_id", userId).order("created_at", { ascending: false }).limit(120),
-      ]);
+    const [page, activeMediaResult, activeOfferResult, planResult, actionResult, eventResult] = await timelinePromise!;
+    const failed = [activeMediaResult, activeOfferResult, planResult, actionResult, eventResult]
+      .find((result: any) => result.error);
+    if (failed?.error) {
+      throw new AppError("INTERNAL_ERROR", "Group details could not be loaded.", 500, true);
+    }
     messages = page.messages;
     reactions = page.reactions;
     generatedMedia = mergeRows(page.generatedMedia, activeMediaResult.data ?? []);

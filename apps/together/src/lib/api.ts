@@ -33,10 +33,10 @@ async function flushClientPerformance(){
 }
 
 async function token(): Promise<string> { const { data } = await supabase.auth.getSession(); if (!data.session) throw new ApiError('Sign in to continue.', 'AUTH_REQUIRED'); return data.session.access_token; }
-export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POST' = 'POST'): Promise<T> {
+export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POST' = 'POST',options:{signal?:AbortSignal}={}): Promise<T> {
   const started=Date.now(),surface=name.split('?')[0]!,operation=typeof body==='object'&&body&&'action'in body?String((body as Record<string,unknown>).action):method.toLowerCase();let response:Response|undefined;
   try{
-    response = await fetch(`${supabaseUrl}/functions/v1/${name}`, { method, headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json','x-kivelle-timezone':deviceTimezone() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    response = await fetch(`${supabaseUrl}/functions/v1/${name}`, { method, headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json','x-kivelle-timezone':deviceTimezone() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),...(options.signal?{signal:options.signal}:{}) });
     const payload = await response.json().catch(() => ({})) as Envelope<T> & { error?: {message?:string;code?:string;retryable?:boolean;correlationId?:string} };
     if (!response.ok) {
       await clearSessionForApiFailure(supabase.auth,response.status,payload.error?.code);
@@ -131,6 +131,21 @@ export type ManageCallResult={call?:VoiceCallSession;status?:string;providerStat
 export const manageCall = <T=ManageCallResult>(input:Record<string,unknown>) => invoke<T>('together-call',input);
 export const manageSharedScene = <T>(input:Record<string,unknown>) => invoke<T>('together-shared-scene',input);
 export const manageGroup = <T=GroupDetail>(input:Record<string,unknown>) => invoke<T>('together-group',input);
+export async function loadGroupDetail(conversationId:string,options:{messageLimit?:number;signal?:AbortSignal;timeoutMs?:number}={}):Promise<GroupDetail>{
+  const controller=new AbortController(),timeoutMs=options.timeoutMs??12_000;
+  let timedOut=false;
+  const abort=()=>controller.abort();
+  if(options.signal?.aborted)controller.abort();else options.signal?.addEventListener('abort',abort,{once:true});
+  const timer=setTimeout(()=>{timedOut=true;controller.abort();},timeoutMs);
+  try{return await invoke<GroupDetail>('together-group',{action:'detail',conversationId,messageLimit:options.messageLimit??30},'POST',{signal:controller.signal});}
+  catch(caught){
+    if(timedOut)throw new ApiError('This group is taking longer than expected. Try opening it again.','REQUEST_TIMEOUT',true);
+    throw caught;
+  }finally{
+    clearTimeout(timer);
+    options.signal?.removeEventListener('abort',abort);
+  }
+}
 export type GroupDialogueEvent=
   |{type:'turn_started';turnId:string;sourceMessage?:Message;actions?:number;replayed?:boolean}
   |{type:'speaker_typing';characterInstanceId:string;speakerName:string}
