@@ -8,8 +8,8 @@ describe('message actions', () => {
   it('hides canonical control messages from the timeline', () => expect(isVisibleChatMessage(message({ provider_metadata: { uiHidden: true } }))).toBe(false));
   it('reads the server-owned saved state', () => expect(isMessageFavorite(message({ user_metadata: { favorite: true } }))).toBe(true));
   it('only continues from the latest visible companion reply', () => {
-    const first = message({ id: 'a' }), control = message({ id: 'b', role: 'user', provider_metadata: { uiHidden: true } }), latest = message({ id: 'c' });
+    const first = message({ id: 'a' }), control = message({ id: 'b', role: 'user', provider_metadata: { uiHidden: true } }), latest = message({ id: 'c' }), newerUserMessage = message({ id: 'd', role: 'user' });
     expect(canContinueMessage(first, [first, control, latest])).toBe(false);
-    expect(canContinueMessage(latest, [first, control, latest])).toBe(true);
+    expect(canContinueMessage(latest, [first, control, latest, newerUserMessage])).toBe(true);
   });
 });

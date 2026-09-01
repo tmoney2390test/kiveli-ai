@@ -10,6 +10,11 @@ export function isMessageFavorite(message: Message): boolean {
 
 export function canContinueMessage(message: Message, messages: Message[]): boolean {
   if (message.role !== 'assistant' || message.delivery_status !== 'complete' || message.id.startsWith('local-')) return false;
-  const latest = [...messages].reverse().find((candidate) => isVisibleChatMessage(candidate) && !candidate.id.startsWith('local-'));
+  const latest = [...messages].reverse().find((candidate) =>
+    candidate.role === 'assistant' &&
+    candidate.delivery_status === 'complete' &&
+    isVisibleChatMessage(candidate) &&
+    !candidate.id.startsWith('local-')
+  );
   return latest?.id === message.id;
 }
