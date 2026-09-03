@@ -450,20 +450,20 @@ function MediaProgress(
         toValue: 1,
         duration: 1300,
         easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS!=='web',
       }),
       Animated.timing(pulse, {
         toValue: 0,
         duration: 1300,
         easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS!=='web',
       }),
     ]));
     const scanLoop = Animated.loop(Animated.timing(scan, {
       toValue: 1,
       duration: 2400,
       easing: Easing.inOut(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS!=='web',
     }));
     pulseLoop.start();
     scanLoop.start();

@@ -1,0 +1,8 @@
+# Kivelle.AI
+
+Kivelle is an AI companion experience built around persistent conversations, shared worlds, plans, and media.
+
+- [Home](https://kivelli.app/)
+- [Privacy](https://kivelli.app/privacy-policy)
+- [Terms](https://kivelli.app/terms)
+- [Community guidelines](https://kivelli.app/community-guidelines)

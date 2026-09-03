@@ -13,7 +13,7 @@ export function HomeTimeline({ title, items, onViewWorld, onOpen, compact=false 
 
 function TimelineEvent({ item, onPress, compact }: { item: HomeTimelineItem; onPress: () => void; compact:boolean }) {
   const icon = item.kind === 'plan' ? <CalendarDays size={15} color={colors.warm} /> : item.kind === 'date' ? <Heart size={15} color={colors.rose} /> : item.kind === 'event' ? <Sparkles size={15} color={colors.violet} /> : item.current ? <MapPin size={15} color="#fff" /> : <Clock3 size={15} color={colors.muted} />;
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${item.time}, ${item.title}${item.detail ? `, ${item.detail}` : ''}`} onPress={onPress} style={({ pressed }) => [styles.row,compact&&styles.rowCompact, item.current && styles.rowCurrent, pressed && styles.pressed]}>
+  return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.row,compact&&styles.rowCompact, item.current && styles.rowCurrent, pressed && styles.pressed]}>
     <View style={[styles.node,compact&&styles.nodeCompact, item.current && styles.nodeCurrent]}>{icon}</View>
     <View style={styles.body}><Text style={[styles.time, item.current && styles.timeCurrent]}>{item.current ? 'NOW' : item.time.toUpperCase()}</Text><Text numberOfLines={2} style={[styles.title,compact&&styles.titleCompact, item.current && styles.titleCurrent,compact&&item.current&&styles.titleCurrentCompact]}>{item.title}</Text>{item.detail ? <Text numberOfLines={2} style={styles.detail}>{item.detail}</Text> : null}</View>
   </Pressable>;

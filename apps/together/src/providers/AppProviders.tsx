@@ -22,6 +22,8 @@ import { ClientPerformanceBridge } from "../components/ClientPerformanceBridge";
 import { RevenueCatSessionBridge } from "./RevenueCatSessionBridge";
 import { WebAdultSessionBridge } from "./WebAdultSessionBridge";
 import { useTogether } from "../store/useTogether";
+import { PendingMediaRecovery } from "./PendingMediaRecovery";
+import { WebDocumentAccessibilityBridge } from "./WebDocumentAccessibilityBridge";
 
 function OperationsHeartbeat() {
   const { session } = useAuth();
@@ -70,6 +72,8 @@ export function AppProviders({ children }: PropsWithChildren) {
               <PushNotificationBridge />
               <RevenueCatSessionBridge />
               <WebAdultSessionBridge />
+              <PendingMediaRecovery />
+              <WebDocumentAccessibilityBridge />
               <OperationsHeartbeat />
               <ClientPerformanceBridge />
               <GlobalErrorReporter />

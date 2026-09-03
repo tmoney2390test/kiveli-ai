@@ -87,14 +87,14 @@ export function selectWorldPulseForContext(events:readonly WorldPulseEvent[],inp
 
 export function buildAroundTownFeed(events:readonly WorldPulseEvent[],input:{now?:Date;limit?:number}={}):AroundTownItem[]{
   const now=input.now??new Date(),limit=Math.max(1,Math.min(12,input.limit??6));
-  const candidates=events.filter((event)=>event.status!=='cancelled'&&new Date(event.endsAt)>now&&new Date(event.startsAt).getTime()<now.getTime()+7*86400000&&(event.knowledgeScope==='public'||event.knowledgeScope==='local'))
+  const candidates=events.filter((event)=>isPublicWorldHappening(event)&&event.status!=='cancelled'&&new Date(event.endsAt)>now&&new Date(event.startsAt).getTime()<now.getTime()+7*86400000&&(event.knowledgeScope==='public'||event.knowledgeScope==='local'))
     .sort((left,right)=>{
       const leftActive=new Date(left.startsAt)<=now&&new Date(left.endsAt)>now,rightActive=new Date(right.startsAt)<=now&&new Date(right.endsAt)>now;
       return Number(rightActive)-Number(leftActive)||new Date(left.startsAt).getTime()-new Date(right.startsAt).getTime()||right.significance-left.significance;
     });
   const seen=new Set<string>(),items:AroundTownItem[]=[];
   for(const event of candidates){
-    const identity=`${event.title.trim().toLowerCase()}|${event.locationId??event.districtLocationId??event.worldId}`;
+    const identity=`${normalizeEventTitle(event.title)}|${event.locationId??event.districtLocationId??event.worldId}`;
     if(seen.has(identity))continue;
     seen.add(identity);
       const active=new Date(event.startsAt)<=now&&new Date(event.endsAt)>now;
@@ -124,3 +124,10 @@ export function stableWorldPulseHash(value:string):number{let hash=2166136261;fo
 function tokenize(value:string){return new Set(value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').split(' ').filter((term)=>term.length>2));}
 function worldQuery(value:string){return /\b(?:what(?:'s| is) happening|around town|going on|tonight|this weekend|events?|weather|crowded|busy|open|where should|anything happening)\b/i.test(value);}
 function localDate(value:string){return value.slice(0,10);}
+function isPublicWorldHappening(event:WorldPulseEvent){
+  const type=event.eventType.trim().toLowerCase(),metadata=event.metadata??{};
+  if(type.startsWith('commitment_')||type.startsWith('schedule_')||type.startsWith('shared_plan_')||type.startsWith('plan_'))return false;
+  if(metadata['canonicalPlanId']||metadata['commitmentBeat']||metadata['source']==='character_schedule')return false;
+  return true;
+}
+function normalizeEventTitle(value:string){return value.trim().toLowerCase().replace(/^(?:getting ready for|heading to|waiting for you at)\s+/,'').replace(/[^\p{L}\p{N}]+/gu,' ').trim();}

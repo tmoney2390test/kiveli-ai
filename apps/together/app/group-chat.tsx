@@ -2388,12 +2388,12 @@ function GroupMediaButton({
         Animated.timing(glow, {
           toValue: 1,
           duration: 1500,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS!=='web',
         }),
         Animated.timing(glow, {
           toValue: 0,
           duration: 1500,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS!=='web',
         }),
       ]),
     );
@@ -2458,12 +2458,12 @@ function GroupDictationButton({
         Animated.timing(pulse, {
           toValue: 1,
           duration: 650,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS!=='web',
         }),
         Animated.timing(pulse, {
           toValue: 0,
           duration: 650,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS!=='web',
         }),
       ]),
     );
@@ -3019,12 +3019,12 @@ function GroupBubble({
       Animated.timing(opacity, {
         toValue: 1,
         duration: 220,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS!=='web',
       }),
       Animated.timing(translate, {
         toValue: 0,
         duration: 220,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS!=='web',
       }),
     ]).start();
   }, [opacity, translate]);

@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { ensureWebAdultSession } from '../lib/webAdultSession';
-import { useTogether } from '../store/useTogether';
 
 /**
  * Establishes the private, server-issued website session used to protect
@@ -10,20 +9,13 @@ import { useTogether } from '../store/useTogether';
  */
 export function WebAdultSessionBridge() {
   const { session } = useAuth();
-  const snapshotReady = useTogether((state) => Boolean(state.snapshot));
 
   useEffect(() => {
-    if (!session?.access_token || !snapshotReady) return;
-    const prepare = () => {
-      void ensureWebAdultSession(session.access_token).catch(() => undefined);
-    };
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      const idleId = window.requestIdleCallback(prepare, { timeout: 750 });
-      return () => window.cancelIdleCallback(idleId);
-    }
-    const timer = setTimeout(prepare, 150);
-    return () => clearTimeout(timer);
-  }, [session?.access_token, snapshotReady]);
+    if (!session?.access_token) return;
+    // Prepare the verified website cookie in parallel with bootstrap. Chat used
+    // to wait for the entire world snapshot before this request even started.
+    void ensureWebAdultSession(session.access_token).catch(() => undefined);
+  }, [session?.access_token]);
 
   return null;
 }

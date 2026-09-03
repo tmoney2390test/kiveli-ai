@@ -10,6 +10,10 @@ export function mediaReconciliationComplete(media: GeneratedMedia): boolean {
   return media.status === 'ready' && Boolean(media.signed_url);
 }
 
+export function pendingMediaIds(media:GeneratedMedia[]|undefined,limit=20):string[]{
+  return(media??[]).filter((item)=>item.status==='queued'||item.status==='generating').slice(0,limit).map((item)=>item.id);
+}
+
 /**
  * A successful batch response is authoritative for the requested IDs. Missing
  * rows were deleted or are no longer visible to this session (for example,

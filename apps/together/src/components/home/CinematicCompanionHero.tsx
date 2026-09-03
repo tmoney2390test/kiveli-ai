@@ -33,8 +33,8 @@ export function CinematicCompanionHero({ companion, portraitVersion, source, loc
     void AccessibilityInfo.isReduceMotionEnabled().then((reduced) => {
       if (!alive || reduced) return;
       scaleLoop = Animated.loop(Animated.sequence([
-        Animated.timing(scale, { toValue: 1.015, duration: 9000, useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 1, duration: 9000, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1.015, duration: 9000, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(scale, { toValue: 1, duration: 9000, useNativeDriver: Platform.OS !== 'web' }),
       ]));
       scaleLoop.start();
     });
@@ -52,7 +52,7 @@ export function CinematicCompanionHero({ companion, portraitVersion, source, loc
 
   return <View style={[styles.hero, { height: heroHeight }, desktop && styles.heroDesktop]}>
     {source
-      ? <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ scale }] }]}><Image accessibilityLabel={`${firstName} portrait`} source={source} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={heroFocal} cachePolicy="memory-disk" loading="eager" priority="high" placeholder={KIVELLI_IMAGE_PLACEHOLDER} placeholderContentFit="cover" transition={180} onLoad={onVisualReady}/></Animated.View>
+      ? <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ scale }] }]}><Image accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" alt="" source={source} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={heroFocal} cachePolicy="memory-disk" loading="eager" priority="high" placeholder={KIVELLI_IMAGE_PLACEHOLDER} placeholderContentFit="cover" transition={180} onLoad={onVisualReady}/></Animated.View>
       : <View style={[StyleSheet.absoluteFill, styles.fallback]}><Text style={styles.fallbackInitial}>{firstName[0]}</Text></View>}
     <View pointerEvents="none" style={styles.tint} />
     <View pointerEvents="none" style={[styles.scrim, Platform.OS === 'web' ? styles.webScrim : styles.nativeScrim]} />
@@ -61,7 +61,7 @@ export function CinematicCompanionHero({ companion, portraitVersion, source, loc
     <View style={[styles.content, compact && styles.contentCompact]}>
       <View style={[styles.bottom, desktop && styles.bottomDesktop]}>
         {notice ? <View style={styles.notice}><Text numberOfLines={1} style={styles.noticeText}>{notice}</Text></View> : null}
-        <Pressable accessibilityRole="button" accessibilityLabel={`View ${firstName}'s profile`} onPress={onProfile}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`View profile: ${firstName}`} onPress={onProfile}>
           <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.heading, compact && styles.headingCompact]}>{firstName}</Text>
         </Pressable>
         {placeLine ? <View style={styles.placeLine}><MapPin size={13} strokeWidth={2.1} color="#F6C5D7" /><Text numberOfLines={1} style={styles.placeText}>{placeLine}</Text></View> : null}

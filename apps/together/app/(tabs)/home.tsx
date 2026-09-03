@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
+import { Asset } from 'expo-asset';
 import { router as expoRouter } from 'expo-router';
 import { Sparkles } from 'lucide-react-native';
 import { EmptyState, GradientButton, MomentCarousel, Screen, resolveCharacterPortraitSource } from '../../src/components';
@@ -14,7 +15,7 @@ import { HomeWorldDiscoveryHero } from '../../src/components/home/HomeWorldDisco
 import { AroundTownSection } from '../../src/components/home/AroundTownSection';
 import { colors, spacing, typography } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
-import { markProactiveOpened, setCharacterFavorite, simulate } from '../../src/lib/api';
+import { loadExploreCatalog, markProactiveOpened, setCharacterFavorite, simulate } from '../../src/lib/api';
 import { buildHomeViewModel, mostRecentHomeCompanion, type HomeTargetAction, type HomeTimelineItem } from '../../src/lib/homeViewModel';
 import { getCompanionMedia, getHomeWorldScopes, getMemoryPresentation, getRelationshipPresentation, getWorldHook, selectFeaturedMemory } from '../../src/lib/homePresentation';
 import { locationHeroAsset } from '../../src/assets';
@@ -29,10 +30,13 @@ import { scheduleDeferredHomeWork } from '../../src/lib/homeDeferredWork';
 import { uniqueHttpsImageUris } from '../../src/lib/imageWarmup';
 import { subscriptionHref } from '../../src/lib/subscriptionPresentation';
 import { useSurfaceReadyTiming } from '../../src/components/ClientPerformanceBridge';
+import { useAuth } from '../../src/hooks/useAuth';
+import { writeSessionHeroUri } from '../../src/lib/sessionSnapshotCache';
 
 const router = expoRouter as unknown as { push: (href: string) => void };
 
 export default function Home() {
+  const {session}=useAuth();
   const { snapshot, loading, error, refresh, browsedWorldId, setBrowsedWorldId, setCoreState } = useTogether();
   const { desktop } = useAppShell();
   const secondaryWorkReady=useDeferredHomeWork();
@@ -47,7 +51,27 @@ export default function Home() {
     const timer=setTimeout(()=>void Image.prefetch(urls,'memory-disk').catch(()=>undefined),1_600);
     return()=>clearTimeout(timer);
   },[snapshot]);
+  useEffect(()=>{
+    if(!snapshot||snapshot.discoverableCharacters.length>=100)return;
+    let cancelled=false;
+    const timer=setTimeout(()=>{void loadExploreCatalog().then((catalog)=>{
+      if(cancelled)return;
+      setCoreState({worlds:catalog.worlds,locations:catalog.locations,characterWorldPresence:catalog.characterWorldPresence,discoverableCharacters:catalog.discoverableCharacters,favoriteCharacterTemplateIds:catalog.favoriteCharacterTemplateIds,lifeEvents:catalog.lifeEvents});
+    }).catch(()=>undefined);},1_600);
+    return()=>{cancelled=true;clearTimeout(timer);};
+  },[setCoreState,snapshot]);
   const homeCompanion=snapshot?mostRecentHomeCompanion(snapshot):undefined;
+  const startupPortraitVersion=snapshot&&homeCompanion?selectPortraitVersion(snapshot,homeCompanion):undefined;
+  const startupPortraitSource=homeCompanion&&startupPortraitVersion?resolveCharacterPortraitSource(homeCompanion.together_character_templates,startupPortraitVersion,homeCompanion.together_character_templates.slug):undefined;
+  useEffect(()=>{
+    if(Platform.OS!=='web'||!session?.user.id||!startupPortraitSource)return;
+    const uri=typeof startupPortraitSource==='number'
+      ? Asset.fromModule(startupPortraitSource).uri
+      : Array.isArray(startupPortraitSource)
+        ? startupPortraitSource.find((item)=>typeof item?.uri==='string')?.uri
+        : startupPortraitSource.uri;
+    if(uri)writeSessionHeroUri(session.user.id,uri);
+  },[session?.user.id,startupPortraitSource]);
   const homeCompanionId=homeCompanion?.id;
   const homeModel=snapshot?buildHomeViewModel(snapshot):undefined;
   const pulseWorldId=homeModel?.currentWorld?.id??null;
@@ -88,8 +112,8 @@ export default function Home() {
   const { companion } = model;
   const template = companion.together_character_templates;
   const handle = template.public_handle ?? template.slug;
-  const portraitVersion = selectPortraitVersion(snapshot, companion);
-  const portraitSource = resolveCharacterPortraitSource(template, portraitVersion, template.slug);
+  const portraitVersion = startupPortraitVersion??selectPortraitVersion(snapshot, companion);
+  const portraitSource = startupPortraitSource??resolveCharacterPortraitSource(template, portraitVersion, template.slug);
   const { pulseWorld, selectedWorld } = getHomeWorldScopes(model, publishedWorlds, browsedWorldId);
   const featuredCompanions = selectedWorld ? featuredCompanionsForWorld(snapshot, selectedWorld.id, template.id) : [];
   const discoveryWorlds=homeWorldDiscoveryOptions(snapshot.worlds,model.currentWorld?.id);
@@ -145,7 +169,7 @@ export default function Home() {
       <View style={styles.companionHub}>
         <View style={[styles.companionHubHeader,hubHeaderStacked&&styles.companionHubHeaderStack]}>
           <View style={styles.companionHubHeading}><Text style={styles.companionHubKicker}>YOUR CONNECTION</Text><Text accessibilityRole="header" style={styles.companionHubTitle}>You + {template.name}</Text></View>
-          <Pressable accessibilityRole="button" accessibilityLabel={`View ${template.name}'s profile`} onPress={()=>router.push(`/character/${handle}`)} style={({pressed})=>[styles.companionHubAction,hubHeaderStacked&&styles.companionHubActionStack,pressed&&styles.sectionActionPressed]}><Text style={styles.companionHubActionText}>View profile →</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={`View profile: ${template.name}`} onPress={()=>router.push(`/character/${handle}`)} style={({pressed})=>[styles.companionHubAction,hubHeaderStacked&&styles.companionHubActionStack,pressed&&styles.sectionActionPressed]}><Text style={styles.companionHubActionText}>View profile →</Text></Pressable>
         </View>
         <FromCompanionSection compact name={template.name} items={media} fallbackSource={portraitSource} onViewAll={() => router.push('/(tabs)/moments')} onOpen={(item) => router.push(item.locked ? subscriptionHref({intent:'generated_media'}) as never : `/media/${item.id}`)} onAsk={() => router.push(`/(tabs)/chat-tab?character=${encodeURIComponent(handle)}&draft=${encodeURIComponent('Send me a photo from where you are.')}`)} />
         <View style={[styles.companionHubLower,!hubWide&&styles.companionHubLowerStack]}>

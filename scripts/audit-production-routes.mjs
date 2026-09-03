@@ -22,6 +22,15 @@ export function criticalAssetPaths(html) {
   return [...paths];
 }
 
+export function routeResponseIssue(response,requestedRoute){
+  if(!response.ok)return`HTTP ${response.status}`;
+  const requested=normalizeAuditPath(requestedRoute),received=normalizeAuditPath(new URL(response.url).pathname);
+  if(response.redirected||received!==requested)return`unexpected navigation to ${received}`;
+  const contentType=response.headers.get('content-type')??'';
+  if(!contentType.includes('text/html'))return`expected HTML, received ${contentType||'unknown content type'}`;
+  return null;
+}
+
 async function collectHtmlFiles(directory) {
   const files = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -68,10 +77,9 @@ async function main() {
   await pooled(routes, 12, async (route) => {
     try {
       const response = await fetchWithTimeout(`${origin}${route}`);
-      const contentType = response.headers.get('content-type') ?? '';
+      const issue=routeResponseIssue(response,route);
       const body = await response.text();
-      if (!response.ok) failures.push(`${route}: HTTP ${response.status}`);
-      else if (!contentType.includes('text/html')) failures.push(`${route}: expected HTML, received ${contentType || 'unknown content type'}`);
+      if(issue)failures.push(`${route}: ${issue}`);
       else if (!body.includes('id="root"') || !body.includes('/_expo/static/js/web/')) failures.push(`${route}: incomplete application shell`);
     } catch (error) {
       failures.push(`${route}: ${error instanceof Error ? error.message : String(error)}`);
@@ -99,3 +107,5 @@ async function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) await main();
+
+function normalizeAuditPath(value){const path=value.split(/[?#]/,1)[0]||'/';return path.length>1?path.replace(/\/+$/,''):path;}

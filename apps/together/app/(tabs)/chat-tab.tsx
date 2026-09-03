@@ -417,6 +417,7 @@ export default function MessageInbox() {
         <View style={styles.search}>
           <Search size={20} color={colors.dimmed} />
           <TextInput
+            nativeID="conversation-search"
             accessibilityLabel="Search messages"
             value={query}
             onChangeText={setQuery}

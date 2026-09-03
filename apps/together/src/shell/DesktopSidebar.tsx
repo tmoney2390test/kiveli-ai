@@ -91,7 +91,7 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
     >
       <BlurView tint="systemMaterialDark" intensity={84} style={StyleSheet.absoluteFill} />
       <View style={[styles.brandRow, !expanded && styles.brandRowCollapsed]}>
-        {expanded ? <KivelleLogo height={33} /> : <Image accessible={false} source={require('../../assets/kivelle-icon-transparent.png')} style={styles.brandIcon} contentFit="contain" transition={0} />}
+        {expanded ? <KivelleLogo height={33} /> : <Image accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" alt="" source={require('../../assets/kivelle-icon-transparent.png')} style={styles.brandIcon} contentFit="contain" transition={0} />}
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -135,8 +135,8 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
       <View style={styles.footer}>
         <SidebarAction expanded={expanded} label={subscription ? `${subscription.creditBalance.total.toLocaleString()} Credits` : 'Kivelle Credits'} icon={<KivelleCreditIcon size={24} />} onPress={() => navigate(subscriptionHref({intent:'credits'}))} />
         <SidebarAction expanded={expanded} label="Notifications" icon={<Bell size={23} color={colors.muted} />} onPress={() => navigate('/notifications')} />
-        <Pressable accessibilityLabel="Open Settings" onPress={() => navigate('/settings')} style={({ pressed }) => [styles.account, !expanded && styles.accountCollapsed, activeKey === 'settings' && styles.accountActive, pressed && styles.rowPressed]}>
-          <View style={styles.initial}>{showProfileAvatar ? <Image source={{ uri: profileAvatarUrl!, cacheKey: `kivelle-persona-avatar:${personaAvatarPath}` }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" onError={() => setProfileAvatarFailed(true)} /> : <Text style={styles.initialText}>{personaName.trim()[0]?.toUpperCase() || 'Y'}</Text>}</View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Open Settings" onPress={() => navigate('/settings')} style={({ pressed }) => [styles.account, !expanded && styles.accountCollapsed, activeKey === 'settings' && styles.accountActive, pressed && styles.rowPressed]}>
+          <View style={styles.initial}>{showProfileAvatar ? <Image accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" alt="" source={{ uri: profileAvatarUrl!, cacheKey: `kivelle-persona-avatar:${personaAvatarPath}` }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" onError={() => setProfileAvatarFailed(true)} /> : <Text style={styles.initialText}>{personaName.trim()[0]?.toUpperCase() || 'Y'}</Text>}</View>
           {expanded ? <View style={styles.accountCopy}><Text style={styles.accountName} numberOfLines={1}>{personaName}</Text><Text style={styles.accountTier}>{subscriptionLabel(subscription?.tier ?? snapshot?.entitlements?.tier)}</Text></View> : null}
           {expanded ? <Settings size={22} color={activeKey === 'settings' ? colors.text : colors.muted} /> : null}
         </Pressable>

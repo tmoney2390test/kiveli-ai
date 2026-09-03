@@ -6,6 +6,7 @@ let preparation:Promise<WebAdultSessionStatus>|null=null;
 let preparationVersion=0;
 
 const SESSION_PREPARATION_TIMEOUT_MS=8_000;
+const SESSION_PREPARATION_FRESH_MS=15*60_000;
 
 export type WebAdultSessionStatus={prepared:boolean;authorized:boolean;adultEligible?:boolean;premiumAccess?:boolean;available?:boolean};
 
@@ -13,7 +14,7 @@ export function ensureWebAdultSession(accessToken:string,options:{force?:boolean
   if(!accessToken)return Promise.resolve({prepared:false,authorized:false});
   const sameToken=preparedToken===accessToken;
   if(sameToken&&preparation&&preparedAt===0&&!options.force)return preparation;
-  if(sameToken&&preparation&&!options.force&&Date.now()-preparedAt<120_000)return preparation;
+  if(sameToken&&preparation&&!options.force&&Date.now()-preparedAt<SESSION_PREPARATION_FRESH_MS)return preparation;
   const version=++preparationVersion;
   const controller=new AbortController();
   const timeout=setTimeout(()=>controller.abort(),SESSION_PREPARATION_TIMEOUT_MS);

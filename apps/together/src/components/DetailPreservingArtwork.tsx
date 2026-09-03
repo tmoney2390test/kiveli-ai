@@ -58,7 +58,10 @@ export function DetailPreservingArtwork({
     <View style={[StyleSheet.absoluteFill, { backgroundColor: `rgba(7,5,10,${dim})` }]} />
     <View style={[StyleSheet.absoluteFill, frameStyle]}>
       <Image
-        accessibilityLabel={accessibilityLabel}
+        accessible={false}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        alt={accessibilityLabel ?? ''}
         source={source}
         style={StyleSheet.absoluteFill}
         contentFit={foregroundFit}

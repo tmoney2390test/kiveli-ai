@@ -9,6 +9,9 @@ export function KivelleCreditIcon({ size = 18, style }: { size?: number; style?:
   >
     <Image
       accessible={false}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      alt=""
       source={require('../../assets/brand/kivelle-credit.jpg')}
       contentFit="cover"
       transition={0}

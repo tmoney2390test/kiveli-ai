@@ -1,6 +1,7 @@
 import { useEffect, useRef, type PropsWithChildren } from 'react';
 import { router, usePathname } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 import { ErrorState } from '../components/RouteState';
 import { RouteLoadingState } from '../components/RouteLoadingState';
 import { resolveKivelleAccountStage } from '../lib/authRouting';
@@ -9,7 +10,7 @@ import { isAgeConfirmationPath, isCompanionOnboardingPath, isPublicAppPath } fro
 import { ResponsiveAppShell } from '../shell/ResponsiveAppShell';
 import { useTogether } from '../store/useTogether';
 import { useAuth } from '../hooks/useAuth';
-import { readSessionSnapshot, writeSessionSnapshot } from '../lib/sessionSnapshotCache';
+import { readSessionHeroUri, readSessionSnapshot, writeSessionSnapshot } from '../lib/sessionSnapshotCache';
 import { authenticatedRoutePathname, consumeWebEntryHref, initialWebEntryHref, shouldConsumeWebEntry } from '../lib/webEntryRoute';
 import { mostRecentlyUsedConversation } from '../lib/conversation';
 import { prefetchConversationMessagePage } from '../lib/conversationMessageWarmup';
@@ -38,11 +39,17 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
     if (pathname === '/' || pathname === '/home') router.prefetch('/home' as never);
   }, [pathname]);
 
+  useEffect(()=>{
+    if(Platform.OS!=='web'||!session?.user.id)return;
+    const heroUri=readSessionHeroUri(session.user.id);
+    if(heroUri)void Image.prefetch(heroUri,'memory-disk').catch(()=>undefined);
+  },[session?.user.id]);
+
   useEffect(() => {
     if (Platform.OS !== 'web' || !session?.user.id || !snapshot) return;
     const recent = mostRecentlyUsedConversation(snapshot.conversations.filter((conversation) => conversation.kind !== 'group'));
     if (!recent) return;
-    const timer = setTimeout(() => prefetchConversationMessagePage(session.user.id, recent.id, () => manageConversation({ action: 'messages', conversationId: recent.id, limit: 50 })), 900);
+    const timer = setTimeout(() => prefetchConversationMessagePage(session.user.id, recent.id, () => manageConversation({ action: 'messages', conversationId: recent.id, limit: 50 })), 150);
     return () => clearTimeout(timer);
   }, [session?.user.id, snapshot]);
 
@@ -50,15 +57,20 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
     const userId=demoMode?'demo':session?.user.id;
     if(!userId||snapshot||loading||error||hydrationUserId.current===userId)return;
     hydrationUserId.current=userId;
-    const cached=!demoMode&&Platform.OS==='web'?readSessionSnapshot(userId):null;
-    if(cached)setSnapshot(cached);
-    void refresh({force:Boolean(cached)});
+    let cancelled=false;
+    void (async()=>{
+      const cached=!demoMode&&Platform.OS==='web'?await readSessionSnapshot(userId):null;
+      if(cancelled)return;
+      if(cached)setSnapshot(cached);
+      await refresh({force:Boolean(cached)});
+    })();
+    return()=>{cancelled=true;};
   }, [error,loading,refresh,session?.user.id,setSnapshot,snapshot]);
 
   useEffect(()=>{
     const userId=session?.user.id;
     if(demoMode||Platform.OS!=='web'||!userId||!snapshot)return;
-    const timer=setTimeout(()=>writeSessionSnapshot(userId,snapshot),500);
+    const timer=setTimeout(()=>{void writeSessionSnapshot(userId,snapshot);},500);
     return()=>clearTimeout(timer);
   },[session?.user.id,snapshot]);
 

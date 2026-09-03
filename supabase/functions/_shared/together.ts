@@ -280,10 +280,13 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
     db.from('together_user_worlds').select('*').eq('user_id',userId),
     catalog.then((value)=>value.characterWorldPresence),
     Promise.resolve(instanceRows),
-    db.from('together_character_templates').select(SNAPSHOT_DISCOVERABLE_CHARACTER_SELECT).or(`and(published.eq.true,can_be_selected.eq.true),creator_id.eq.${userId}`).neq('lifecycle_status','archived').order('name'),
+    // Startup carries a small discovery preview. Explore refreshes the complete
+    // catalog independently, so signing hundreds of portrait candidates never
+    // blocks the first home viewport.
+    db.from('together_character_templates').select(SNAPSHOT_DISCOVERABLE_CHARACTER_SELECT).or(`and(published.eq.true,can_be_selected.eq.true),creator_id.eq.${userId}`).neq('lifecycle_status','archived').order('name').limit(48),
     db.from('together_character_favorites').select('character_template_id').eq('user_id',userId).order('created_at',{ascending:false}),
     scheduleTemplates,
-    db.from('together_character_schedule_events').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).gte('ends_at',new Date(Date.now()-86400000).toISOString()).lte('starts_at',new Date(Date.now()+8*86400000).toISOString()).order('starts_at').limit(800),
+    db.from('together_character_schedule_events').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).gte('ends_at',new Date(Date.now()-86400000).toISOString()).lte('starts_at',new Date(Date.now()+2*86400000).toISOString()).order('starts_at').limit(300),
     db.from('together_relationship_states').select('*').eq('user_id', userId).eq('continuity_id',continuity.id),
     db.from('together_relationship_places').select('*').eq('user_id',userId).eq('continuity_id',continuity.id),
     db.from('together_relationship_milestones').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).order('created_at', { ascending: false }).limit(100),
@@ -359,11 +362,11 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
   if(characterPlaceProfilesResult.error)throw new AppError('INTERNAL_ERROR','Kivelle could not load companion place context.',500,true);
   const characterPlaceProfiles=characterPlaceProfilesResult.data??[];
   const urlByPath=new Map((signed.data??[]).map((item)=>[item.path,item.signedUrl]));
-  const mediaPayload=mediaRows.map((item)=>{const safe={...item,signed_url:item.storage_path?urlByPath.get(item.storage_path)??null:null};delete safe.storage_path;return safe;});
+  const mediaPayload=mediaRows.map((item)=>{const safe={...item,metadata:compactSnapshotMediaMetadata(item.metadata),signed_url:item.storage_path?urlByPath.get(item.storage_path)??null:null};delete safe.storage_path;return safe;});
   const snapshotLocations=publishedLocations.map(compactSnapshotLocation);
   const profilePayload=profile.data?projectClientProfile({...profile.data,active_continuity_id:continuity.id,active_companion_instance_id:activeInstance?.id??null}):profile.data;
   const experienceCapabilities=resolveServerExperienceCapabilities(normalizeMultimodalPreferences(profile.data?.multimodal_preferences),(entitlements.data?.entitlement_keys??[]).map(String)).experience;
-  return { profile: profilePayload, activePersona:continuity.together_user_personas??null,activeContinuity:continuity,personas:personas.data??[],continuities:continuities.data??[],worlds:publishedWorlds,userWorlds:publishedWorldAccess,characterWorldPresence:publishedCharacterPresence,currentPlaceContext,locations:snapshotLocations,relationshipPlaces:relationshipPlaces.data??[],characterPlaceProfiles,characters:visibleInstances,discoverableCharacters,favoriteCharacterTemplateIds:(favorites.data??[]).map((item)=>String(item.character_template_id)),schedules:schedules.data??[],scheduleEvents:(scheduleEvents.data??[]).filter((event)=>!event.metadata?.suppressedByPlanId&&(!event.location_id||publishedLocationIds.has(String(event.location_id)))),relationships:relationships.data??[],relationshipMilestones:(milestones.data??[]).filter((milestone)=>milestone.status==='pending'),relationshipMilestoneHistory:(milestones.data??[]).filter((milestone)=>milestone.status!=='pending'),relationshipCues,dates:publishedDates,moments:moments.data??[],memories:clientMemories,memoryCounts,openThreads:threads.data??[],conversations:conversationMetadata,sceneSessions:activeScenes,sceneParticipants:sceneParticipants.data??[],sharedPlans:publishedSharedPlans,conversationEvents:conversationEvents.data??[],lifeEvents:publishedLifeEvents,proactiveMessages:proactive.data??[],storyArcs:storyArcs.data??[],trips:trips.data??[],photoOpportunities:photoOpportunities.data??[],generatedMedia:mediaPayload,conversationActions:conversationActions.data??[],entitlements:{...(entitlements.data??{}),tier:snapshotCapabilities.tier,entitlement_keys:[...snapshotCapabilities.entitlements]},experienceCapabilities,notificationPreferences:preferences.data&&requestedTimezone?{...preferences.data,timezone:requestedTimezone}:preferences.data };
+  return { profile: profilePayload, activePersona:continuity.together_user_personas??null,activeContinuity:continuity,personas:personas.data??[],continuities:continuities.data??[],worlds:publishedWorlds,userWorlds:publishedWorldAccess,characterWorldPresence:publishedCharacterPresence,currentPlaceContext,locations:snapshotLocations,relationshipPlaces:relationshipPlaces.data??[],characterPlaceProfiles,characters:visibleInstances,discoverableCharacters,favoriteCharacterTemplateIds:(favorites.data??[]).map((item)=>String(item.character_template_id)),schedules:(schedules.data??[]).map(compactSnapshotSchedule),scheduleEvents:(scheduleEvents.data??[]).filter((event)=>!event.metadata?.suppressedByPlanId&&(!event.location_id||publishedLocationIds.has(String(event.location_id)))).map(compactSnapshotScheduleEvent),relationships:relationships.data??[],relationshipMilestones:(milestones.data??[]).filter((milestone)=>milestone.status==='pending'),relationshipMilestoneHistory:(milestones.data??[]).filter((milestone)=>milestone.status!=='pending'),relationshipCues,dates:publishedDates,moments:moments.data??[],memories:clientMemories,memoryCounts,openThreads:threads.data??[],conversations:conversationMetadata,sceneSessions:activeScenes,sceneParticipants:sceneParticipants.data??[],sharedPlans:publishedSharedPlans,conversationEvents:conversationEvents.data??[],lifeEvents:publishedLifeEvents,proactiveMessages:proactive.data??[],storyArcs:storyArcs.data??[],trips:trips.data??[],photoOpportunities:photoOpportunities.data??[],generatedMedia:mediaPayload,conversationActions:conversationActions.data??[],entitlements:{...(entitlements.data??{}),tier:snapshotCapabilities.tier,entitlement_keys:[...snapshotCapabilities.entitlements]},experienceCapabilities,notificationPreferences:preferences.data&&requestedTimezone?{...preferences.data,timezone:requestedTimezone}:preferences.data };
 }
 
 export async function buildCharacterPresenceSnapshot(
@@ -446,6 +449,29 @@ async function hydrateDiscoverableCharacters(db:SupabaseClient,templates:Array<R
 function compactSnapshotLocation(location:Record<string,any>){
   const visual=location.canonical_visual_context??{};
   return{...location,canonical_lore:compactLocationLoreForDirectory(location.canonical_lore),canonical_visual_context:{indoorOutdoor:visual.indoorOutdoor,visualAnchors:Array.isArray(visual.visualAnchors)?visual.visualAnchors.slice(0,3):[]}};
+}
+
+const SNAPSHOT_SCHEDULE_METADATA_KEYS=['scheduleMode','profileVisibility','activityVariants','displayLocation','activityKey'] as const;
+const SNAPSHOT_SCHEDULE_EVENT_METADATA_KEYS=['activityLabel','upcomingHint','displayLocation','activityKey'] as const;
+const SNAPSHOT_MEDIA_METADATA_KEYS=['source','title','context','activity','locked','visibility','editDepth','rootMediaId','providerJobId','providerRequestId','requestedModel','resolvedModel','videoModelDisplayName','soundRequested','audioStreamDetected','audioStripped','finalSoundPresent','quotedCredits','creditCost','resolution','duration','durationSeconds'] as const;
+
+function snapshotMetadata(metadata:unknown,keys:readonly string[]){
+  if(!metadata||typeof metadata!=='object'||Array.isArray(metadata))return{};
+  const source=metadata as Record<string,unknown>,result:Record<string,unknown>={};
+  for(const key of keys)if(source[key]!==undefined)result[key]=source[key];
+  return result;
+}
+
+function compactSnapshotSchedule(row:Record<string,any>){return{...row,metadata:snapshotMetadata(row.metadata,SNAPSHOT_SCHEDULE_METADATA_KEYS)};}
+function compactSnapshotScheduleEvent(row:Record<string,any>){return{...row,metadata:snapshotMetadata(row.metadata,SNAPSHOT_SCHEDULE_EVENT_METADATA_KEYS)};}
+function compactSnapshotMediaMetadata(metadata:unknown){
+  const result=snapshotMetadata(metadata,SNAPSHOT_MEDIA_METADATA_KEYS),source=metadata&&typeof metadata==='object'&&!Array.isArray(metadata)?metadata as Record<string,unknown>:{};
+  const place=source.placeContext&&typeof source.placeContext==='object'&&!Array.isArray(source.placeContext)?source.placeContext as Record<string,unknown>:null;
+  if(place){
+    const location=place.location&&typeof place.location==='object'&&!Array.isArray(place.location)?place.location as Record<string,unknown>:null;
+    result.placeContext={...(typeof place.locationName==='string'?{locationName:place.locationName}:{}),...(location&&typeof location.name==='string'?{location:{name:location.name}}:{})};
+  }
+  return result;
 }
 
 async function fetchScheduleTemplates(db:SupabaseClient,characterVersionIds:string[]){

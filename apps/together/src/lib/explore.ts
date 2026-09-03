@@ -45,8 +45,8 @@ export function exploreEventStatus(event:Snapshot['lifeEvents'][number],now=new 
 function isDisplayableExploreEvent(event:Snapshot['lifeEvents'][number],nowMs:number,windowEndMs:number){
   const starts=new Date(event.starts_at).getTime(),ends=eventEndMs(event),type=String(event.event_type??'').toLowerCase(),metadata=event.metadata??{};
   if(!Number.isFinite(starts)||starts>windowEndMs||ends<=nowMs)return false;
-  if(type.startsWith('commitment_')||type==='shared_plan_completed'||type==='schedule_presence'||type==='schedule_outcome')return false;
-  if(metadata.canonicalPlanId||metadata.commitmentBeat||metadata.source==='character_schedule')return false;
+  if(type.startsWith('commitment_')||type.startsWith('shared_plan_')||type.startsWith('plan_')||type.startsWith('schedule_'))return false;
+  if(metadata.canonicalPlanId||metadata.canonical_plan_id||metadata.commitmentBeat||metadata.commitment_beat||metadata.source==='character_schedule')return false;
   return true;
 }
 
@@ -56,7 +56,8 @@ function eventEndMs(event:Snapshot['lifeEvents'][number]){
 }
 
 function exploreEventIdentity(event:Snapshot['lifeEvents'][number]){
-  const title=normalize(event.title),summary=normalize(event.narrative_summary),location=event.location_id??'',starts=new Date(event.starts_at).getTime(),timeBucket=Number.isFinite(starts)?Math.floor(starts/(30*60*1000)):0;
+  const title=normalize(event.title).replace(/^(?:getting ready for|heading to|waiting for you at)\s+/,'');
+  const summary=normalize(event.narrative_summary),location=event.location_id??'',starts=new Date(event.starts_at).getTime(),timeBucket=Number.isFinite(starts)?Math.floor(starts/(30*60*1000)):0;
   return`${location}|${title}|${summary}|${timeBucket}`;
 }
 

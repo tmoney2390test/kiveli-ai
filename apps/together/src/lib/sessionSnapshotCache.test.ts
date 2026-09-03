@@ -18,6 +18,6 @@ describe('session snapshot cache', () => {
   });
 
   it('uses a versioned user-scoped key', () => {
-    expect(sessionSnapshotCacheKey('abc')).toBe('kivelle:session-snapshot:v1:abc');
+    expect(sessionSnapshotCacheKey('abc')).toBe('kivelle:session-snapshot:v2:abc');
   });
 });

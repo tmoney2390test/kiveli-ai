@@ -31,6 +31,8 @@ describe('desktop navigation', () => {
   it('uses the authenticated desktop shell while account data is restoring',()=>{
     expect(authenticatedShellEnabled('/home',null)).toBe(true);
     expect(authenticatedShellEnabled('/home','ready')).toBe(true);
+    expect(authenticatedShellEnabled('/','ready')).toBe(true);
+    expect(authenticatedShellEnabled('/',null)).toBe(false);
     expect(authenticatedShellEnabled('/home','onboarding')).toBe(false);
     expect(authenticatedShellEnabled('/choose-companion',null)).toBe(false);
   });
