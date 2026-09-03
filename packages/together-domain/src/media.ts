@@ -340,6 +340,12 @@ export function visibleAdultAnatomyTargetLabels(text?:string):string[]{
   return[...new Set(labels)];
 }
 
+/** Full nudes and requested genitalia cannot keep a clothed standing identity portrait. */
+export function adultPoseMustRebuild(text?:string):boolean{
+  const scope=resolveAdultNudityScope(text);
+  return scope==='full_nude'||requestImpliesRearAdultAnatomy(text)||requestImpliesFrontalGenitalVisibility(text)||visibleAdultAnatomyTargetLabels(text).some((label)=>/genital|vulva|penis|buttock/i.test(label));
+}
+
 /** Nude, sexual-pose, and hidden-face requests need identity+location editing, not SFW face-swap. */
 export function requestRequiresIdentityPreservingAdultRoute(text?:string):boolean{
   if(photoRequestAllowsHiddenFace(text))return true;

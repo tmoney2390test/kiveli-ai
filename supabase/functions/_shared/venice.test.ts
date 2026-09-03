@@ -1,7 +1,7 @@
 import { VeniceImageClient } from './venice.ts';
 import { AppError } from './types.ts';
 import { buildVeniceImagePrompt, configuredMediaRegistry, routeCanonicalMedia, VeniceMediaProvider, type CanonicalMediaRequest } from './together-media-providers.ts';
-import { VENICE_STANDARD_EDIT_MODEL } from '../../../packages/together-domain/src/venice-media.ts';
+import { VENICE_ADULT_FINAL_EDIT_MODEL, VENICE_STANDARD_EDIT_MODEL } from '../../../packages/together-domain/src/venice-media.ts';
 import type { MediaRouteCapability } from '../../../packages/together-domain/src/media-routing.ts';
 
 Deno.test('VeniceImageClient sends a canonical single edit and returns PNG bytes', async () => {
@@ -77,7 +77,7 @@ Deno.test('Venice adult media establishes canonical reality before an explicitly
     const provider = new VeniceMediaProvider(client), submission = await provider.submit(adultRequest(), adultRoute());
     assert(submission.status === 'completed' && submission.result?.providerAttempts?.length === 2);
     assert(calls[0]?.url.endsWith('/image/multi-edit')&&calls[0]?.body.modelId === 'grok-imagine-edit' && calls[0]?.body.safe_mode === false&&calls[0]?.body.output_format==='webp'&&calls[0]?.body.resolution==='1K');
-    assert(calls[1]?.url.endsWith('/image/multi-edit')&&calls[1]?.body.modelId === 'qwen-edit'&&calls[1]?.body.safe_mode === false&&calls[1]?.body.output_format==='webp'&&calls[1]?.body.resolution==='1K');
+    assert(calls[1]?.url.endsWith('/image/multi-edit')&&calls[1]?.body.modelId === VENICE_ADULT_FINAL_EDIT_MODEL&&calls[1]?.body.safe_mode === false&&calls[1]?.body.output_format==='webp'&&calls[1]?.body.resolution==='1K');
     assert(Array.isArray(calls[1]?.body.images)&&String(calls[1]?.body.images?.[0]).startsWith('data:image/png;base64,')&&!String(calls[1]?.body.images?.[0]).includes('signed.test'));
     assert(String(calls[1]?.body.prompt).includes('five fingers')&&String(calls[1]?.body.prompt).includes('Preserve the same adult identity'));
     assert(String(calls[1]?.body.prompt).length<=1_200);
@@ -145,6 +145,55 @@ Deno.test('Venice preserves the complete natural-language pose matrix across bot
   }finally{restoreEnv('KIVELLE_ADULT_MEDIA_ENABLED',previousAdult);restoreEnv('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED',previousValidated);}
 });
 
+Deno.test('Venice pose-rebuild nudes put the requested nude pose into the grok-imagine base', async () => {
+  const previousAdult = Deno.env.get('KIVELLE_ADULT_MEDIA_ENABLED'), previousValidated = Deno.env.get('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED');
+  Deno.env.set('KIVELLE_ADULT_MEDIA_ENABLED', 'true'); Deno.env.set('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED', 'true');
+  const bodies: Array<Record<string, unknown>> = [], png = Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,1]);
+  try {
+    const client = new VeniceImageClient('secret', 'https://venice.test/api/v1', 1_000, async (_url, init) => { bodies.push(JSON.parse(String(init?.body))); return new Response(png, { status: 200, headers: { 'content-type': 'image/png' } }); });
+    await new VeniceMediaProvider(client).submit({
+      ...adultRequest(),
+      composition: { shotType: 'full_body', aspectRatio: '4:5' },
+      generationIntent: { requestText: 'Send me a photo showing exactly this: naked photo bent over with your ass and pussy on display front and center', requestedContentLevel: 'explicit' },
+    }, adultRoute());
+    assert(bodies.length === 2);
+    assert(bodies[0]?.modelId === 'grok-imagine-edit' && bodies[1]?.modelId === VENICE_ADULT_FINAL_EDIT_MODEL);
+    const basePrompt = String(bodies[0]?.prompt), finalPrompt = String(bodies[1]?.prompt);
+    assert(basePrompt.includes('body bent forward') && basePrompt.includes('buttocks and genitals are the primary centered subject'));
+    assert(basePrompt.includes('no clothing') && basePrompt.includes('fully nude'));
+    assert(basePrompt.includes('Approved request') && basePrompt.includes('naked photo bent over'));
+    assert(basePrompt.includes('Do not copy the identity-reference standing pose'));
+    assert(!/natural contemporary clothing/i.test(basePrompt));
+    assert(finalPrompt.includes('Approved scope: full adult nudity') && finalPrompt.includes('Do not preserve the identity-reference standing pose'));
+  } finally {
+    restoreEnv('KIVELLE_ADULT_MEDIA_ENABLED', previousAdult); restoreEnv('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED', previousValidated);
+  }
+});
+
+Deno.test('Venice delivers the grok-imagine nude base when the uncensored final edit is unavailable', async () => {
+  const previousAdult = Deno.env.get('KIVELLE_ADULT_MEDIA_ENABLED'), previousValidated = Deno.env.get('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED'), previousFallback = Deno.env.get('KIVELLE_VENICE_ADULT_FALLBACK_MODEL');
+  Deno.env.set('KIVELLE_ADULT_MEDIA_ENABLED', 'true'); Deno.env.set('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED', 'true'); Deno.env.set('KIVELLE_VENICE_ADULT_FALLBACK_MODEL', 'firered-image-edit');
+  const calls: Array<Record<string, unknown>> = [];
+  const png = Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,7]);
+  try {
+    const client = new VeniceImageClient('secret', 'https://venice.test/api/v1', 1_000, async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      calls.push(body);
+      if (calls.length === 1) return new Response(png, { status: 200, headers: { 'content-type': 'image/png' } });
+      return new Response('{}', { status: 400 });
+    });
+    const submission = await new VeniceMediaProvider(client).submit({
+      ...adultRequest(),
+      generationIntent: { requestText: 'Send me a photo showing exactly this: naked photo bent over with your ass and pussy on display front and center', requestedContentLevel: 'explicit' },
+    }, adultRoute());
+    assert(calls.length === 3 && calls[0]?.modelId === 'grok-imagine-edit' && calls[1]?.modelId === VENICE_ADULT_FINAL_EDIT_MODEL && calls[2]?.modelId === 'firered-image-edit');
+    assert(submission.model === 'grok-imagine-edit' && submission.result?.providerMetadata?.pipeline === 'canonical_base_after_adult_final_unavailable');
+    assert(submission.result?.bytes?.length === png.length && submission.result?.providerMetadata?.fallbackUsed === true);
+  } finally {
+    restoreEnv('KIVELLE_ADULT_MEDIA_ENABLED', previousAdult); restoreEnv('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED', previousValidated); restoreEnv('KIVELLE_VENICE_ADULT_FALLBACK_MODEL', previousFallback);
+  }
+});
+
 Deno.test('Venice adult prompt renders full nudity completely without escalating topless scope', async () => {
   const previousAdult = Deno.env.get('KIVELLE_ADULT_MEDIA_ENABLED'), previousValidated = Deno.env.get('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED');
   Deno.env.set('KIVELLE_ADULT_MEDIA_ENABLED', 'true'); Deno.env.set('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED', 'true');
@@ -197,7 +246,7 @@ Deno.test('Venice adult final edit stays on Venice and falls back to FireRed aft
   try{
     const client=new VeniceImageClient('secret','https://venice.test/api/v1',1_000,async(_url,init)=>{const body=JSON.parse(String(init?.body)) as Record<string,unknown>;calls.push(body);return calls.length===2?new Response('{}',{status:500}):new Response(png,{status:200,headers:{'content-type':'image/png'}});});
     const submission=await new VeniceMediaProvider(client).submit(adultRequest(),adultRoute());
-    assert(calls.length===3&&calls[0]?.modelId==='grok-imagine-edit'&&calls[1]?.modelId==='qwen-edit'&&calls[2]?.modelId==='firered-image-edit');
+    assert(calls.length===3&&calls[0]?.modelId==='grok-imagine-edit'&&calls[1]?.modelId===VENICE_ADULT_FINAL_EDIT_MODEL&&calls[2]?.modelId==='firered-image-edit');
     assert(submission.model==='firered-image-edit'&&submission.result?.providerMetadata?.fallbackUsed===true);
     assert(submission.result?.providerAttempts?.[1]?.stage==='final_adult_edit'&&submission.result?.providerAttempts?.[1]?.failureCode==='PROVIDER_MODEL');
     assert(submission.result?.providerAttempts?.[2]?.stage==='final_adult_fallback'&&submission.result?.providerAttempts?.[2]?.success===true);
@@ -211,7 +260,7 @@ Deno.test('Venice adult final edit falls back after a Qwen request rejection at 
   try{
     const client=new VeniceImageClient('secret','https://venice.test/api/v1',1_000,async(_url,init)=>{const body=JSON.parse(String(init?.body)) as Record<string,unknown>;calls.push(body);return calls.length===2?new Response('{}',{status:400}):new Response(png,{status:200,headers:{'content-type':'image/png'}});});
     const submission=await new VeniceMediaProvider(client).submit(adultRequest(),adultRoute());
-    assert(calls.length===3&&calls[0]?.modelId==='grok-imagine-edit'&&calls[1]?.modelId==='qwen-edit'&&calls[2]?.modelId==='firered-image-edit');
+    assert(calls.length===3&&calls[0]?.modelId==='grok-imagine-edit'&&calls[1]?.modelId===VENICE_ADULT_FINAL_EDIT_MODEL&&calls[2]?.modelId==='firered-image-edit');
     assert(submission.model==='firered-image-edit'&&submission.result?.providerMetadata?.fallbackUsed===true);
     assert(submission.result?.providerAttempts?.[1]?.failureCode==='PROVIDER_REQUEST_INVALID'&&submission.result?.providerAttempts?.[2]?.success===true);
   }finally{restoreEnv('KIVELLE_ADULT_MEDIA_ENABLED',previousAdult);restoreEnv('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED',previousValidated);restoreEnv('KIVELLE_VENICE_ADULT_FALLBACK_MODEL',previousFallback);}
@@ -296,7 +345,7 @@ Deno.test('Venice adult photo edits preserve the chosen source without regenerat
   try{
     const client=new VeniceImageClient('secret','https://venice.test/api/v1',1_000,async(_url,init)=>{bodies.push(JSON.parse(String(init?.body)));return new Response(png,{status:200,headers:{'content-type':'image/png'}});});
     const submission=await new VeniceMediaProvider(client).submit(photoEditRequest('Change the pose to sitting with legs spread open','explicit'),adultRoute());
-    assert(bodies.length===1&&Array.isArray(bodies[0]?.images)&&bodies[0]?.images?.[0]==='https://signed.test/source-photo.jpg'&&bodies[0]?.modelId==='qwen-edit'&&bodies[0]?.safe_mode===false);
+    assert(bodies.length===1&&Array.isArray(bodies[0]?.images)&&bodies[0]?.images?.[0]==='https://signed.test/source-photo.jpg'&&bodies[0]?.modelId===VENICE_ADULT_FINAL_EDIT_MODEL&&bodies[0]?.safe_mode===false);
     assert(String(bodies[0]?.prompt).includes('preserve every visual element the request does not explicitly change'));
     assert(submission.result?.providerMetadata?.pipeline==='scoped_adult_source_edit');
   }finally{restoreEnv('KIVELLE_ADULT_MEDIA_ENABLED',previousAdult);restoreEnv('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED',previousValidated);}

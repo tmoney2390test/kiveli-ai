@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHARACTER_PHOTO_REALISM_GUIDANCE, PHOTO_ONLY_MESSAGE_CONTENT, PRODUCTION_SAFE_ROMANTIC_PHOTO_DIRECTION, PRODUCTION_SAFE_SWIM_PHOTO_DIRECTION, classifyPhotoIntent, classifyUserAuthoredMediaSafety, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, isPhotoOnlyConversationMessage, photoRequestAllowsHiddenFace, photoRequestWantsVisibleCaptureDevice, requestImpliesRearAdultAnatomy, requestImpliesSexualPose, requestRequiresIdentityPreservingAdultRoute, resolveAdultNudityScope, resolveCanonicalMediaPresence, resolvePhotoComposition, resolvePhotoDirection, resolveProductionSafePhotoRequest, resolveSpecificAnatomyExposure, sanitizePhotoDeliveryAcknowledgement, visibleAdultAnatomyTargetLabels } from './media';
+import { CHARACTER_PHOTO_REALISM_GUIDANCE, PHOTO_ONLY_MESSAGE_CONTENT, PRODUCTION_SAFE_ROMANTIC_PHOTO_DIRECTION, PRODUCTION_SAFE_SWIM_PHOTO_DIRECTION, adultPoseMustRebuild, classifyPhotoIntent, classifyUserAuthoredMediaSafety, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, isPhotoOnlyConversationMessage, photoRequestAllowsHiddenFace, photoRequestWantsVisibleCaptureDevice, requestImpliesRearAdultAnatomy, requestImpliesSexualPose, requestRequiresIdentityPreservingAdultRoute, resolveAdultNudityScope, resolveCanonicalMediaPresence, resolvePhotoComposition, resolvePhotoDirection, resolveProductionSafePhotoRequest, resolveSpecificAnatomyExposure, sanitizePhotoDeliveryAcknowledgement, visibleAdultAnatomyTargetLabels } from './media';
 
 describe('production photo ceiling',()=>{
   it('turns a nude request into a clothed romantic photo instead of rejecting generation',()=>{
@@ -315,6 +315,7 @@ describe('character photo identity grounding',()=>{
     expect(classifyPhotoIntent(request)).toMatchObject({requested:true,requestedContentLevel:'explicit',shotPreference:'full_body'});
     expect(resolveAdultNudityScope(request)).toBe('full_nude');
     expect(requestImpliesRearAdultAnatomy(request)).toBe(true);
+    expect(adultPoseMustRebuild(request)).toBe(true);
     expect(requestRequiresIdentityPreservingAdultRoute(request)).toBe(true);
     const direction=resolvePhotoDirection({requestText:request,shotType:'full_body',seed:'kira-3'});
     expect(direction.poseDirection).toContain('body bent forward');
@@ -327,6 +328,7 @@ describe('character photo identity grounding',()=>{
     expect(classifyPhotoIntent(request)).toMatchObject({requested:true,requestedContentLevel:'explicit',shotPreference:'full_body'});
     expect(resolveAdultNudityScope(request)).toBe('full_nude');
     expect(requestImpliesRearAdultAnatomy(request)).toBe(true);
+    expect(adultPoseMustRebuild(request)).toBe(true);
     expect(requestRequiresIdentityPreservingAdultRoute(request)).toBe(true);
     expect(visibleAdultAnatomyTargetLabels(request).join(' ')).toMatch(/genitalia/);
     expect(visibleAdultAnatomyTargetLabels(request).join(' ')).toMatch(/buttocks/);
@@ -358,6 +360,8 @@ describe('character photo identity grounding',()=>{
   it('does not invent genital targets for a clothed non-nude photo',()=>{
     expect(visibleAdultAnatomyTargetLabels('Send a fully clothed portrait')).toEqual([]);
     expect(requestRequiresIdentityPreservingAdultRoute('Send a flirty clothed portrait')).toBe(false);
+    expect(adultPoseMustRebuild('remove only the blouse while preserving the shorts and scene')).toBe(false);
+    expect(adultPoseMustRebuild('Send a flirty clothed portrait')).toBe(false);
   });
 
   it('treats face-down-in-pillows as a requested prone pose rather than a camera-facing portrait',()=>{

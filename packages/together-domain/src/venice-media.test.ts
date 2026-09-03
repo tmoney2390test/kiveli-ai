@@ -57,6 +57,8 @@ describe('Venice media contracts', () => {
 
   it('keeps provider prices centralized and explicit estimates', () => {
     expect(veniceModelCostUsd('qwen-edit')).toBe(.04);
+    expect(veniceModelCostUsd('qwen-edit-uncensored')).toBe(.04);
+    expect(veniceModelCostUsd(VENICE_ADULT_FINAL_EDIT_MODEL)).toBe(.04);
     expect(veniceModelCostUsd(VENICE_STANDARD_EDIT_MODEL)).toBe(.05);
     expect(veniceModelCostUsd(VENICE_STANDARD_FALLBACK_EDIT_MODEL)).toBe(.04);
     expect(veniceModelCostUsd('firered-image-edit')).toBe(.04);

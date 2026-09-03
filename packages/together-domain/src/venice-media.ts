@@ -6,15 +6,17 @@ export const VENICE_IMAGE_API_BASE = 'https://api.venice.ai/api/v1';
 // 500 inference failures for otherwise valid full-body composition changes.
 export const VENICE_STANDARD_EDIT_MODEL = 'qwen-image-2-edit';
 export const VENICE_STANDARD_FALLBACK_EDIT_MODEL = 'firered-image-edit';
-// Keep the identity-establishing stage neutral and reference-safe. Adult scope
-// is applied only after this canonical base exists.
+// Keep the identity-establishing stage on grok-imagine-edit with safe_mode
+// disabled. Simple clothing edits stay non-explicit here; pose-rebuild nudes
+// include the approved pose and coverage in this same uncensored stage.
 export const VENICE_ADULT_EDIT_MODEL = 'grok-imagine-edit';
-// Venice's public API accepts the stable `qwen-edit` model ID and currently
-// routes it to Qwen Edit Uncensored. `qwen-edit-uncensored` is a product/model
-// name, not an accepted multi-edit API model ID, and returns HTTP 400. This
-// stage receives only requests that already passed Kivelle's adult,
-// fictional-character, consent, and content gates; safe_mode remains disabled.
-export const VENICE_ADULT_FINAL_EDIT_MODEL = 'qwen-edit';
+// `qwen-edit` blocks explicit sexual imagery regardless of safe_mode.
+// Venice's current multi-edit catalog accepts `qwen-edit-uncensored` as the
+// uncensored Qwen edit ID. Override with KIVELLE_VENICE_ADULT_FINAL_MODEL only
+// if Venice publishes a replacement ID. This stage receives only requests that
+// already passed Kivelle's adult, fictional-character, consent, and content
+// gates; safe_mode remains disabled.
+export const VENICE_ADULT_FINAL_EDIT_MODEL = 'qwen-edit-uncensored';
 // FireRed remains a technical fallback for model availability and request-shape
 // failures. A provider content-policy block is never bypassed by fallback.
 export const VENICE_ADULT_FALLBACK_EDIT_MODEL = 'firered-image-edit';
@@ -117,10 +119,10 @@ export function parseVeniceSafetyHeaders(headers: { get(name: string): string | 
 export function veniceModelCostUsd(model: string): number {
   const normalized = model.toLowerCase();
   if (normalized === VENICE_QUALITY_EDIT_MODEL) return 0.10;
-  if (normalized === VENICE_ADULT_FINAL_EDIT_MODEL) return 0.04;
+  if (normalized === VENICE_ADULT_FINAL_EDIT_MODEL || normalized === 'qwen-edit' || normalized === 'qwen-edit-uncensored') return 0.04;
   if (normalized === 'qwen-image-2-edit') return 0.05;
   if (normalized === 'qwen-image-2-pro-edit') return 0.10;
-  // qwen-edit and the currently validated adult edit routes are billed per edit.
+  // Remaining validated adult edit routes are billed per edit.
   return 0.04;
 }
 
