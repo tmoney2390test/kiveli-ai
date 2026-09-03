@@ -23,7 +23,7 @@ import { track } from "../_shared/together.ts";
 import { AppError } from "../_shared/types.ts";
 import { conversationArchiveFields } from "../_shared/together-conversation-archive.ts";
 import { activeConversationLimitError, enforceActiveConversationLimit, isActiveConversationLimitDatabaseError } from "../_shared/kivelle-subscription.ts";
-import { normalizeChatDynamism,normalizeReasoningPreference,reasoningPreferenceAllowedForTier } from "../../../packages/together-domain/src/chat-generation.ts";
+import { normalizeChatDynamism,normalizeReasoningPreference,reasoningPreferenceAllowedForTier,reconcileReasoningPreferenceForTier } from "../../../packages/together-domain/src/chat-generation.ts";
 import { characterAdultStatusFromGroupParticipant, privateTextProjectionAuthorizedForConversation } from "../_shared/private-adult-text-policy.ts";
 
 const schema = z.discriminatedUnion("action", [
@@ -487,8 +487,7 @@ serve(async (request, correlationId) => {
       ? storedPreferences as Record<string, unknown>
       : {};
     const requestedReasoning=normalizeReasoningPreference(input.reasoningPreference);
-    const existingReasoning=normalizeReasoningPreference(currentPreferences.reasoningPreference);
-    if(input.reasoningPreference!==undefined&&requestedReasoning!==existingReasoning&&!reasoningPreferenceAllowedForTier(requestedReasoning,subscription.tier))throw new AppError('PLAN_LIMIT_REACHED',requestedReasoning==='high'?'Deep reasoning is available with Kivelle Max.':'Thoughtful reasoning is available with Kivelle+ or Max.',403,false);
+    if(input.reasoningPreference!==undefined&&!reasoningPreferenceAllowedForTier(requestedReasoning,subscription.tier))throw new AppError('PLAN_LIMIT_REACHED',requestedReasoning==='high'?'Deep reasoning is available with Kivelle Max.':'Thoughtful reasoning is available with Kivelle+ or Max.',403,false);
     const responseStyle = input.responseStyle ??
       (currentPreferences.responseStyle === "paragraph" ? "paragraph" : "texting");
     const textSize = input.textSize ??
@@ -515,7 +514,7 @@ serve(async (request, correlationId) => {
       contentMode,
       chatLanguage,
       chatDynamism:normalizeChatDynamism(input.chatDynamism??currentPreferences.chatDynamism),
-      reasoningPreference:normalizeReasoningPreference(input.reasoningPreference??currentPreferences.reasoningPreference),
+      reasoningPreference:reconcileReasoningPreferenceForTier(input.reasoningPreference??currentPreferences.reasoningPreference,subscription.tier),
     };
     const metadata = {
       ...currentMetadata,

@@ -4,6 +4,7 @@ import {
   resolveDialogueGenerationProfile,
   resolveDialogueModelCapabilities,
   type ChatGenerationControlsMode,
+  type DialogueGenerationProvider,
   type DialogueGenerationProfile,
   type DialogueReasoningSignals,
 } from '../../../packages/together-domain/src/chat-generation.ts';
@@ -11,6 +12,10 @@ import { resolveResponseDirection } from './kivelle-intelligence.ts';
 import type { KivelleConversationContext } from './kivelle-conversation-context.ts';
 
 export type DialogueGenerationContext={mode:'direct'|'group';speakerRole?:'primary'|'secondary';activeSpeakerCount?:number};
+
+export function sharedSceneGenerationContext(speakerRole:'primary'|'secondary',activeSpeakerCount:number):DialogueGenerationContext{
+  return{mode:'group',speakerRole,activeSpeakerCount:Math.max(2,Math.floor(activeSpeakerCount))};
+}
 
 export function chatGenerationControlsMode(value:unknown=Deno.env.get('KIVELLE_CHAT_GENERATION_CONTROLS_MODE')):ChatGenerationControlsMode{
   return normalizeChatGenerationControlsMode(value);
@@ -42,7 +47,7 @@ export function dialogueReasoningSignals(context:KivelleConversationContext,acti
 
 export function resolveDialogueRunGenerationProfile(input:{
   context:KivelleConversationContext;
-  provider:'openai'|'xai';
+  provider:DialogueGenerationProvider;
   model:string;
   generationContext?:DialogueGenerationContext;
 }):DialogueGenerationProfile{

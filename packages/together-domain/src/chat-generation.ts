@@ -1,4 +1,5 @@
 import { conversationResponseTokenBudget, type ConversationResponseLength, type ConversationStyle } from './conversation-style.ts';
+import { estimateContextTokens } from './context-budget.ts';
 
 export const CHAT_DYNAMISM_VALUES = [0, 25, 50, 75, 100] as const;
 export type ChatDynamism = (typeof CHAT_DYNAMISM_VALUES)[number];
@@ -10,6 +11,7 @@ export type EffectiveReasoningEffort = (typeof REASONING_ORDER)[number];
 
 export type ChatGenerationControlsMode = 'off' | 'shadow' | 'on';
 export type DialogueSubscriptionTier = 'free' | 'plus' | 'max';
+export type DialogueGenerationProvider = 'openai' | 'xai' | 'gemini';
 export type ReasoningReasonCode =
   | 'explicit_user_preference'
   | 'lightweight_turn'
@@ -62,7 +64,7 @@ export const MAX_REASONING_BY_PLAN: Record<DialogueSubscriptionTier, EffectiveRe
   max: 'high',
 };
 
-export const DIALOGUE_GENERATION_PROFILE_VERSION = 'chat-generation-v1';
+export const DIALOGUE_GENERATION_PROFILE_VERSION = 'chat-generation-v2';
 
 export interface DialogueReasoningSignals {
   isGreetingOrAcknowledgement: boolean;
@@ -87,7 +89,7 @@ export interface DialogueModelCapabilities {
 
 export interface ResolveDialogueGenerationProfileInput {
   preferences: Partial<ChatGenerationPreferences> | null | undefined;
-  provider: 'openai' | 'xai';
+  provider: DialogueGenerationProvider;
   model: string;
   subscriptionTier: DialogueSubscriptionTier;
   providerCapabilities: DialogueModelCapabilities;
@@ -163,6 +165,12 @@ export function reasoningPreferenceAllowedForTier(preference: unknown, tier: unk
   return reasoningRank(normalized) <= reasoningRank(reasoningEffortMaxForTier(tier));
 }
 
+export function reconcileReasoningPreferenceForTier(preference: unknown, tier: unknown): ReasoningPreference {
+  const normalized = normalizeReasoningPreference(preference);
+  if (normalized === 'auto' || reasoningPreferenceAllowedForTier(normalized, tier)) return normalized;
+  return reasoningEffortMaxForTier(tier);
+}
+
 export function lowerReasoningEffort(effort: EffectiveReasoningEffort, levels: number): EffectiveReasoningEffort {
   const index = REASONING_ORDER.indexOf(effort);
   return REASONING_ORDER[Math.max(0, index - Math.max(0, Math.floor(levels)))] ?? 'none';
@@ -198,12 +206,18 @@ export function resolveAutoReasoning(signals: DialogueReasoningSignals): { effor
   return { effort: 'high', reasonCodes };
 }
 
-export function resolveDialogueModelCapabilities(input: { provider: 'openai' | 'xai'; model: string }): DialogueModelCapabilities {
+export function resolveDialogueModelCapabilities(input: { provider: DialogueGenerationProvider; model: string }): DialogueModelCapabilities {
   const model = input.model.trim().toLowerCase();
   if (input.provider === 'xai') {
     if (model.includes('grok-4.20-multi-agent')) return { supportedReasoningEfforts: ['low', 'medium', 'high'], supportsTemperature: true, supportsTemperatureWithReasoning: true, maxOutputTokens: 16_384 };
     if (model.includes('grok-4.6') || model.includes('grok-4.5')) return { supportedReasoningEfforts: ['low', 'medium', 'high'], supportsTemperature: true, supportsTemperatureWithReasoning: true, maxOutputTokens: 16_384 };
     if (model.includes('grok-4.3')) return { supportedReasoningEfforts: REASONING_ORDER, supportsTemperature: true, supportsTemperatureWithReasoning: true, maxOutputTokens: 16_384 };
+    return { supportedReasoningEfforts: ['none'], supportsTemperature: true, supportsTemperatureWithReasoning: false, maxOutputTokens: 8_192 };
+  }
+  if (input.provider === 'gemini') {
+    if (model.includes('gemini-2.5-pro')) return { supportedReasoningEfforts: ['low', 'medium', 'high'], supportsTemperature: true, supportsTemperatureWithReasoning: true, maxOutputTokens: 65_536 };
+    if (model.includes('gemini-2.5-flash')) return { supportedReasoningEfforts: REASONING_ORDER, supportsTemperature: true, supportsTemperatureWithReasoning: true, maxOutputTokens: 65_536 };
+    if (/gemini-(?:3|[4-9])/.test(model)) return { supportedReasoningEfforts: REASONING_ORDER, supportsTemperature: true, supportsTemperatureWithReasoning: true, maxOutputTokens: 65_536 };
     return { supportedReasoningEfforts: ['none'], supportsTemperature: true, supportsTemperatureWithReasoning: false, maxOutputTokens: 8_192 };
   }
   if (model.includes('gpt-5-pro')) return { supportedReasoningEfforts: ['high'], supportsTemperature: false, supportsTemperatureWithReasoning: false, maxOutputTokens: 32_768 };
@@ -276,6 +290,49 @@ export function chatDynamismPrompt(value: unknown, mode: 'direct' | 'group' = 'd
     100: 'Allow bold, playful, and surprising expression. Take stylistic risks, but never invent facts, contradict memory, break character, or override scene reality.',
   };
   return `<CHAT_DYNAMISM>\nLevel: ${chatDynamismLabel(level)}\n\nThis controls expressive delivery, not truth, canon, memory, relationship state, safety, response length, provider routing, or group participation.\n\n${instruction[level]}\n\nInvent expression, never facts.${mode === 'group' ? '\nApply this expressive range within each character’s established voice. Do not make the participants sound alike.' : ''}\n</CHAT_DYNAMISM>`;
+}
+
+export function geminiThinkingConfig(model: string, effort: EffectiveReasoningEffort, mode: ChatGenerationControlsMode): Record<string, unknown> | undefined {
+  if (mode !== 'on') return undefined;
+  const normalizedModel = model.trim().toLowerCase();
+  if (/gemini-(?:3|[4-9])/.test(normalizedModel)) {
+    return { thinkingLevel: ({ none: 'MINIMAL', low: 'LOW', medium: 'MEDIUM', high: 'HIGH' } as const)[effort], includeThoughts: false };
+  }
+  if (normalizedModel.includes('gemini-2.5-pro')) {
+    return { thinkingBudget: ({ none: 128, low: 512, medium: 2_048, high: 4_096 } as const)[effort], includeThoughts: false };
+  }
+  if (normalizedModel.includes('gemini-2.5-flash')) {
+    return { thinkingBudget: ({ none: 0, low: 512, medium: 2_048, high: 4_096 } as const)[effort], includeThoughts: false };
+  }
+  return undefined;
+}
+
+/** Returns the largest Unicode-safe prefix within the visible-output budget. */
+export function visibleDialoguePrefix(value: string, tokenBudget: number): string {
+  const budget = Math.max(1, Math.floor(tokenBudget));
+  if (estimateContextTokens(value) <= budget) return value;
+  const characters = [...value];
+  let low = 0;
+  let high = characters.length;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (estimateContextTokens(characters.slice(0, middle).join('')) <= budget) low = middle;
+    else high = middle - 1;
+  }
+  return characters.slice(0, low).join('');
+}
+
+export function limitVisibleDialogue(value: string, tokenBudget: number): { text: string; truncated: boolean; estimatedTokens: number } {
+  const text = value.trim();
+  const estimatedTokens = estimateContextTokens(text);
+  if (estimatedTokens <= tokenBudget) return { text, truncated: false, estimatedTokens };
+  let prefix = visibleDialoguePrefix(text, Math.max(1, tokenBudget - 1)).trimEnd();
+  let limited = `${prefix}…`;
+  while (prefix && estimateContextTokens(limited) > tokenBudget) {
+    prefix = [...prefix].slice(0, -1).join('').trimEnd();
+    limited = `${prefix}…`;
+  }
+  return { text: limited, truncated: true, estimatedTokens: estimateContextTokens(limited) };
 }
 
 function reasoningRank(effort: EffectiveReasoningEffort): number {

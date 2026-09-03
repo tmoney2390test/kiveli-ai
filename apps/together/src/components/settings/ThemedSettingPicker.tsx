@@ -3,7 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, Vi
 import { Check, LockKeyhole, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, spacing, typography } from '../../theme';
-import type { ChatGenerationChoice } from '../../lib/chatGenerationOptions';
+import { chatGenerationChoiceInteraction, type ChatGenerationChoice } from '../../lib/chatGenerationOptions';
 import { FrostedSurface } from '../FrostedGlass';
 
 type Props<T extends string|number>={
@@ -29,7 +29,7 @@ export function ThemedSettingPicker<T extends string|number>({visible,title,desc
     wasVisible.current=visible;
   },[returnFocusRef,visible]);
   const compact=width<640;
-  return <Modal transparent visible={visible} animationType="none" statusBarTranslucent onRequestClose={onClose}>
+  return <Modal transparent visible={visible} animationType={compact?'slide':'fade'} statusBarTranslucent onRequestClose={onClose}>
     <View style={[styles.root,compact&&styles.rootCompact]}>
       <Pressable accessibilityLabel={`Close ${title} selector`} onPress={onClose} style={StyleSheet.absoluteFill}/>
       <FrostedSurface intensity={97} style={[styles.card,compact&&styles.cardCompact,{paddingBottom:Math.max(spacing.lg,insets.bottom+12)}]}>
@@ -37,19 +37,21 @@ export function ThemedSettingPicker<T extends string|number>({visible,title,desc
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
           <View accessibilityRole="radiogroup">
             {choices.map((choice)=>{
-              const active=choice.value===selected;
+              const interaction=chatGenerationChoiceInteraction(choice,selected);
+              const active=interaction.active;
               return <Pressable
                 key={String(choice.value)}
                 testID={`${testIDPrefix}-${choice.value}`}
-                accessibilityRole="radio"
-                accessibilityLabel={`${choice.label}. ${choice.description}${choice.locked?'. Locked':''}`}
-                accessibilityState={{checked:active,disabled:disabled}}
+                accessibilityRole={interaction.accessibilityRole}
+                accessibilityLabel={`${choice.label}. ${choice.description}${interaction.upgrade?'. Requires an upgraded membership':''}`}
+                accessibilityHint={interaction.upgrade?'Saves your current settings, then opens membership options.':undefined}
+                accessibilityState={interaction.accessibilityRole==='radio'?{checked:active,disabled}:{disabled}}
                 disabled={disabled}
-                onPress={()=>{if(choice.locked){onLockedSelect?.(choice);return;}onSelect(choice.value);onClose();}}
+                onPress={()=>{if(interaction.action==='close'){onClose();return;}if(interaction.action==='upgrade'){onLockedSelect?.(choice);return;}onSelect(choice.value);onClose();}}
                 style={({pressed})=>[styles.option,active&&styles.optionActive,pressed&&styles.pressed]}
               >
                 <View style={styles.optionCopy}><View style={styles.optionTitleRow}><Text style={[styles.optionTitle,active&&styles.optionTitleActive]}>{choice.label}</Text>{choice.badge?<Text style={styles.badge}>{choice.badge}</Text>:null}</View><Text style={styles.optionDescription}>{choice.description}</Text></View>
-                {choice.locked?<LockKeyhole size={18} color={colors.muted}/>:active?<View style={styles.check}><Check size={13} color="#fff" strokeWidth={3}/></View>:<View style={styles.radio}/>} 
+                {interaction.showCheck?<View style={styles.check}><Check size={13} color="#fff" strokeWidth={3}/></View>:interaction.showLock?<LockKeyhole size={18} color={colors.muted}/>:<View style={styles.radio}/>}
               </Pressable>;
             })}
           </View>

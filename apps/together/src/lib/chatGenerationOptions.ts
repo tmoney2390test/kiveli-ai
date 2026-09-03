@@ -17,12 +17,32 @@ export type ChatGenerationChoice<T extends string | number>={
   locked?:boolean;
 };
 
+export function chatGenerationChoiceInteraction<T extends string|number>(choice:ChatGenerationChoice<T>,selected:T):{
+  active:boolean;
+  upgrade:boolean;
+  action:'close'|'upgrade'|'select';
+  accessibilityRole:'button'|'radio';
+  showCheck:boolean;
+  showLock:boolean;
+}{
+  const active=choice.value===selected;
+  const upgrade=choice.locked===true&&!active;
+  return{
+    active,
+    upgrade,
+    action:active?'close':upgrade?'upgrade':'select',
+    accessibilityRole:upgrade?'button':'radio',
+    showCheck:active,
+    showLock:upgrade,
+  };
+}
+
 const dynamismDescriptions:Record<ChatDynamism,string>={
   0:'Consistent, direct, and predictable.',
   25:'Natural variation with strong conversational consistency.',
   50:'Balanced personality, creativity, and consistency.',
   75:'More colorful, spontaneous, and emotionally varied.',
-  100:'Bold, surprising, and highly unpredictable.',
+  100:'Bold and surprising while staying consistent.',
 };
 
 const reasoningDescriptions:Record<ReasoningPreference,string>={

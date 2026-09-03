@@ -3,7 +3,7 @@ import { resolveClientConversationStyle } from './conversationStyle';
 import { normalizeSpiceLevel } from './spice';
 import { normalizeCompanionVoicePreset, type CompanionVoicePreset } from '@together/domain/src/voice-presets';
 import { normalizeChatLanguage, type ChatLanguagePreference } from '@together/domain/src/chat-language';
-import { DEFAULT_CHAT_GENERATION_PREFERENCES, normalizeChatDynamism, normalizeReasoningPreference, type ChatDynamism, type ChatGenerationPreferences, type ReasoningPreference } from '@together/domain/src/chat-generation';
+import { DEFAULT_CHAT_GENERATION_PREFERENCES, normalizeChatDynamism, normalizeReasoningPreference, reconcileReasoningPreferenceForTier, type ChatDynamism, type ChatGenerationPreferences, type ReasoningPreference } from '@together/domain/src/chat-generation';
 
 export const chatTextSizeOptions: Array<{ value: ChatTextSize; label: string; fontSize: number; lineHeight: number }> = [
   { value: 'small', label: 'Small', fontSize: 13, lineHeight: 19 },
@@ -11,7 +11,7 @@ export const chatTextSizeOptions: Array<{ value: ChatTextSize; label: string; fo
   { value: 'large', label: 'Large', fontSize: 18, lineHeight: 26 },
 ];
 
-export function chatPreferencesFromConversation(conversation?: Pick<Conversation, 'metadata'> | null): ChatPreferences & ChatGenerationPreferences {
+export function chatPreferencesFromConversation(conversation?: Pick<Conversation, 'metadata'> | null, tier?:unknown): ChatPreferences & ChatGenerationPreferences {
   const value = conversation?.metadata?.chatPreferences;
   const candidate = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
   return {
@@ -22,7 +22,7 @@ export function chatPreferencesFromConversation(conversation?: Pick<Conversation
     ...(isDialogueContentMode(candidate.contentMode) ? { contentMode: candidate.contentMode } : {}),
     ...(candidate.chatLanguage !== undefined ? { chatLanguage: normalizeChatLanguage(candidate.chatLanguage) } : {}),
     chatDynamism: normalizeChatDynamism(candidate.chatDynamism),
-    reasoningPreference: normalizeReasoningPreference(candidate.reasoningPreference),
+    reasoningPreference: tier === undefined ? normalizeReasoningPreference(candidate.reasoningPreference) : reconcileReasoningPreferenceForTier(candidate.reasoningPreference, tier),
   };
 }
 
@@ -30,8 +30,8 @@ export function resolveChatDynamism(conversation?: Pick<Conversation, 'metadata'
   return chatPreferencesFromConversation(conversation).chatDynamism ?? DEFAULT_CHAT_GENERATION_PREFERENCES.chatDynamism;
 }
 
-export function resolveReasoningPreference(conversation?: Pick<Conversation, 'metadata'> | null): ReasoningPreference {
-  return chatPreferencesFromConversation(conversation).reasoningPreference ?? DEFAULT_CHAT_GENERATION_PREFERENCES.reasoningPreference;
+export function resolveReasoningPreference(conversation?: Pick<Conversation, 'metadata'> | null, tier?:unknown): ReasoningPreference {
+  return chatPreferencesFromConversation(conversation, tier).reasoningPreference ?? DEFAULT_CHAT_GENERATION_PREFERENCES.reasoningPreference;
 }
 
 export function resolveChatResponseStyle(conversation: Pick<Conversation, 'metadata'> | null | undefined, profile: Snapshot['profile']): ConversationStyle {

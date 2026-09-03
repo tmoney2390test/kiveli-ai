@@ -143,7 +143,7 @@ Selected expression style: ${style}.
 ${conversationStyleGuidance(style)}
 This preference controls density and cadence only. Character identity, communication style, intelligence, memory, emotion, relationship state, scene awareness, autonomy, safety, and canonical reality remain authoritative. Respect RESPONSE_BRIEF.handoff; do not add a generic follow-up merely to prolong the exchange. Never mention this preference or its internal label to the user.
 </CONVERSATION_STYLE>
-${context.chatGenerationControlsApplied?chatDynamismPrompt(context.generationPreferences?.chatDynamism,context.groupContext?'group':'direct'):''}
+${context.chatGenerationControlsApplied?chatDynamismPrompt(context.generationPreferences?.chatDynamism,context.chatGenerationMode==='group'||context.groupContext?'group':'direct'):''}
 <OUTPUT_LANGUAGE>
 ${chatLanguagePromptInstruction(normalizeChatLanguage(context.chatLanguage))}
 Generate directly in that language rather than discussing or announcing translation. This controls user-visible prose only: preserve canonical identifiers, structured values, facts, relationship state, and safety boundaries exactly. The selected language never changes what content or provider route is eligible.

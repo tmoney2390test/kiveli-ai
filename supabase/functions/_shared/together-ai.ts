@@ -36,15 +36,18 @@ import {
   type DialogueRoutingDecision,
   executeResponsesHttp,
   extractResponsesText,
+  geminiThinkingConfig,
   type IntimacyStance,
   isContradictoryAcceptedIntimacyRefusal,
   isDialogueHardBlocked,
   isUnsupportedTemperatureResponse,
+  limitVisibleDialogue,
   providerGenerationControls,
   type NormalizedAiUsage,
   type NormalizedModerationResult,
   normalizeResponsesUsage,
   parseResponsesStreamEvent,
+  visibleDialoguePrefix,
 } from "../../../packages/together-domain/src/index.ts";
 import { type AiUsageScope, recordAiUsage } from "./kivelle-ai-usage.ts";
 import {
@@ -89,6 +92,8 @@ export type DialogueRunMetadata = {
   conversationMode?:'direct'|'group';
   groupGenerationMode?:'per_speaker';
   speakerRole?:'primary'|'secondary';
+  visibleOutputTruncated?:boolean;
+  deliveredVisibleOutputTokensEstimate?:number;
 };
 export type DialogueGenerationResult = {
   text: string;
@@ -107,6 +112,8 @@ export type DialogueRunOptions = {
   generationProfile?:DialogueGenerationProfile;
   chatGenerationControlsMode?:ChatGenerationControlsMode;
   unsupportedTemperatureFallback?:boolean;
+  visibleOutputTruncated?:boolean;
+  deliveredVisibleOutputTokensEstimate?:number;
 };
 export interface DialogueProvider {
   generate(
@@ -294,38 +301,47 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
             ) === "gemini"
         ) {
           const started = Date.now();
-          const text = await generateGemini(context, geminiKey()!);
+          const fallbackOptions = fallbackRunOptions(options, 'gemini');
           const providerModel = model(
             "TOGETHER_GEMINI_MODEL",
             Deno.env.get("GEMINI_EXPLANATION_MODEL") ?? "gemini-2.5-flash",
           );
-          await recordAiUsage(
-            options.usageScope
-              ? { ...options.usageScope, routeReason: "provider_fallback" }
-              : undefined,
-            {
-              provider: "gemini",
-              model: providerModel,
-              operation: "dialogue_gemini",
-              latencyMs: Date.now() - started,
-              success: true,
-              metadata: { fallbackFrom: "openai" },
-            },
-          );
-          return {
-            text,
-            metadata: {
-              ...metadataFor(
-                options,
-                "gemini",
-                providerModel,
-                null,
-                Date.now() - started,
-                true,
-              ),
-              routeReason: "provider_fallback",
-            },
-          };
+          try {
+            const text = await generateGemini(context, geminiKey()!, fallbackOptions);
+            await recordAiUsage(
+              options.usageScope
+                ? { ...options.usageScope, routeReason: "provider_fallback" }
+                : undefined,
+              {
+                provider: "gemini",
+                model: providerModel,
+                operation: "dialogue_gemini",
+                latencyMs: Date.now() - started,
+                success: true,
+                metadata: { fallbackFrom: "openai", ...generationTelemetry(fallbackOptions) },
+              },
+            );
+            return {
+              text,
+              metadata: {
+                ...metadataFor(
+                  fallbackOptions,
+                  "gemini",
+                  providerModel,
+                  null,
+                  Date.now() - started,
+                  true,
+                ),
+                routeReason: "provider_fallback",
+              },
+            };
+          } catch {
+            await recordAiUsage(options.usageScope, {
+              provider: 'gemini', model: providerModel, operation: 'dialogue_gemini',
+              latencyMs: Date.now() - started, success: false, errorCode: 'PROVIDER_FALLBACK_FAILED',
+              metadata: { fallbackFrom: 'openai', ...generationTelemetry(fallbackOptions) },
+            });
+          }
         }
         const text = fallbackDialogue(context);
         return {
@@ -346,33 +362,30 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
     }
     if (options.route.provider === "gemini" && geminiKey()) {
       const started = Date.now();
-      const text = await generateGemini(context, geminiKey()!);
       const providerModel = model(
         "TOGETHER_GEMINI_MODEL",
         Deno.env.get("GEMINI_EXPLANATION_MODEL") ?? "gemini-2.5-flash",
       );
-      await recordAiUsage(options.usageScope, {
-        provider: "gemini",
-        model: providerModel,
-        operation: options.operation ?? "dialogue_gemini",
-        latencyMs: Date.now() - started,
-        success: true,
-      });
-      return {
-        text,
-        metadata: metadataFor(
-          options,
-          "gemini",
-          providerModel,
-          null,
-          Date.now() - started,
-        ),
-      };
+      try {
+        const text = await generateGemini(context, geminiKey()!, options);
+        await recordAiUsage(options.usageScope, {
+          provider: "gemini", model: providerModel, operation: options.operation ?? "dialogue_gemini",
+          latencyMs: Date.now() - started, success: true, metadata: generationTelemetry(options),
+        });
+        return { text, metadata: metadataFor(options, "gemini", providerModel, null, Date.now() - started) };
+      } catch {
+        await recordAiUsage(options.usageScope, {
+          provider: 'gemini', model: providerModel, operation: options.operation ?? 'dialogue_gemini',
+          latencyMs: Date.now() - started, success: false, errorCode: 'PROVIDER_FAILED',
+          metadata: generationTelemetry(options),
+        });
+      }
     }
+    const deterministicOptions = fallbackRunOptions(options, 'deterministic');
     return {
       text: fallbackDialogue(context),
       metadata: metadataFor(
-        options,
+        deterministicOptions,
         "deterministic",
         "kivelle-deterministic",
         null,
@@ -491,7 +504,11 @@ async function generateResponses(
         controller,
       ),
       usage = normalizeResponsesUsage(provider, data.usage),
-      text = extractResponsesText(data);
+      rawText = extractResponsesText(data),
+      visible = limitVisibleDialogue(rawText, options.generationProfile?.visibleTokenBudget ?? responseTokenBudget(context)),
+      text = visible.text;
+    options.visibleOutputTruncated = visible.truncated;
+    options.deliveredVisibleOutputTokensEstimate = visible.estimatedTokens;
     const latency = Date.now() - started;
     await recordAiUsage(options.usageScope, {
       provider,
@@ -507,6 +524,7 @@ async function generateResponses(
         firstByteLatencyMs,
         bodyLatencyMs: Math.max(0, latency - (firstByteLatencyMs ?? latency)),
         visibleOutputTokens:usage.outputTokens,
+        deliveredVisibleOutputTokensEstimate:visible.estimatedTokens,
         totalOutputTokens:usage.outputTokens+usage.reasoningTokens,
         ...generationTelemetry(options),
       },
@@ -590,6 +608,9 @@ async function* streamResponses(
       throw new Error(`${provider}_stream_failed`);
     }
     let usage: NormalizedAiUsage | null = null;
+    let deliveredText = "";
+    let visibleLimitReached = false;
+    const visibleBudget = options.generationProfile?.visibleTokenBudget ?? responseTokenBudget(context);
     for await (
       const data of sseData(response.body, {
         inactivityMs: dialogueProviderInactivityMs(),
@@ -597,13 +618,24 @@ async function* streamResponses(
       })
     ) {
       const parsed = parseResponsesStreamEvent(JSON.parse(data));
-      if (parsed.token) {
-        firstTokenLatencyMs ??= Date.now() - started;
-        yield { type: "token", token: parsed.token };
+      if (parsed.token && !visibleLimitReached) {
+        const candidate = `${deliveredText}${parsed.token}`;
+        const limited = visibleDialoguePrefix(candidate, visibleBudget);
+        const deliverable = limited.slice(deliveredText.length);
+        if (limited.length < candidate.length) {
+          options.visibleOutputTruncated = true;
+          visibleLimitReached = true;
+        }
+        deliveredText = limited;
+        if (deliverable) {
+          firstTokenLatencyMs ??= Date.now() - started;
+          yield { type: "token", token: deliverable };
+        }
       }
       if (parsed.usage) usage = normalizeResponsesUsage(provider, parsed.usage);
     }
     const latency = Date.now() - started;
+    options.deliveredVisibleOutputTokensEstimate = limitVisibleDialogue(deliveredText, visibleBudget).estimatedTokens;
     await recordAiUsage(options.usageScope, {
       provider,
       model: modelName,
@@ -619,6 +651,7 @@ async function* streamResponses(
         firstTokenLatencyMs,
         timeToFirstTokenMs:firstTokenLatencyMs??null,
         visibleOutputTokens:usage?.outputTokens??0,
+        deliveredVisibleOutputTokensEstimate:options.deliveredVisibleOutputTokensEstimate,
         totalOutputTokens:(usage?.outputTokens??0)+(usage?.reasoningTokens??0),
         ...generationTelemetry(options),
       },
@@ -672,7 +705,7 @@ async function responsesBody(
   const applied=providerGenerationControls(profile,controlsMode);
   return buildResponsesRequestBody({
     model: modelName,
-    prompt: buildCompanionPrompt({...context,chatGenerationControlsApplied:applied.promptDynamismApplied}),
+    prompt: buildCompanionPrompt({...context,chatGenerationControlsApplied:applied.promptDynamismApplied,chatGenerationMode:options.generationContext?.mode??'direct'}),
     maxOutputTokens: applied.maxOutputTokens,
     stream,
     reasoningEffort:applied.reasoningEffort,
@@ -725,10 +758,33 @@ function generationTelemetry(options:DialogueRunOptions):Record<string,unknown>{
     reasoningReasonCodes:profile.reasonCodes,
     generationProfileVersion:profile.profileVersion,
     unsupportedTemperatureFallback:options.unsupportedTemperatureFallback===true,
+    visibleOutputTruncated:options.visibleOutputTruncated===true,
+    deliveredVisibleOutputTokensEstimate:options.deliveredVisibleOutputTokensEstimate??null,
   };
 }
 function operationName(options: DialogueRunOptions, provider: string) {
   return options.operation ?? `dialogue_${provider}`;
+}
+
+function fallbackRunOptions(
+  options: DialogueRunOptions,
+  provider: 'openai'|'gemini'|'deterministic',
+  resolvedMode = options.route.resolvedMode,
+): DialogueRunOptions {
+  return {
+    ...options,
+    generationProfile: undefined,
+    unsupportedTemperatureFallback: false,
+    visibleOutputTruncated: false,
+    deliveredVisibleOutputTokensEstimate: undefined,
+    route: {
+      ...options.route,
+      provider,
+      resolvedMode,
+      reason: 'provider_fallback',
+      explicit: false,
+    },
+  };
 }
 function metadataFor(
   options: DialogueRunOptions,
@@ -773,6 +829,8 @@ function generationMetadata(options:DialogueRunOptions):Partial<DialogueRunMetad
     ...(typeof telemetry.generationProfileVersion==='string'?{generationProfileVersion:telemetry.generationProfileVersion}:{}),
     ...(typeof telemetry.chatGenerationProfileVersion==='string'?{chatGenerationProfileVersion:telemetry.chatGenerationProfileVersion}:{}),
     ...(telemetry.unsupportedTemperatureFallback===true?{unsupportedTemperatureFallback:true}:{}),
+    ...(telemetry.visibleOutputTruncated===true?{visibleOutputTruncated:true}:{}),
+    ...(typeof telemetry.deliveredVisibleOutputTokensEstimate==='number'?{deliveredVisibleOutputTokensEstimate:telemetry.deliveredVisibleOutputTokensEstimate}:{}),
   };
 }
 async function generateAdultProviderDowngrade(
@@ -798,18 +856,7 @@ async function generateAdultProviderDowngrade(
   };
   if (apiKey()) {
     try {
-      const fallbackOptions = {
-        ...options,
-        generationProfile:undefined,
-        unsupportedTemperatureFallback:false,
-        route: {
-          ...options.route,
-          provider: "openai" as const,
-          resolvedMode,
-          reason: "provider_fallback" as const,
-          explicit: false,
-        },
-      };
+      const fallbackOptions = fallbackRunOptions(options, 'openai', resolvedMode);
       const generated = await generateResponses(
         fallbackContext,
         fallbackOptions,
@@ -831,17 +878,8 @@ async function generateAdultProviderDowngrade(
           "TOGETHER_GEMINI_MODEL",
           Deno.env.get("GEMINI_EXPLANATION_MODEL") ?? "gemini-2.5-flash",
         ),
-        text = await generateGemini(fallbackContext, geminiKey()!);
-      const fallbackOptions = {
-          ...options,
-          route: {
-            ...options.route,
-            provider: "gemini" as const,
-            resolvedMode,
-            reason: "provider_fallback" as const,
-            explicit: false,
-          },
-        },
+        fallbackOptions = fallbackRunOptions(options, 'gemini', resolvedMode),
+        text = await generateGemini(fallbackContext, geminiKey()!, fallbackOptions),
         latencyMs = Date.now() - started;
       await recordAiUsage(
         options.usageScope
@@ -857,7 +895,7 @@ async function generateAdultProviderDowngrade(
           operation: operationName(fallbackOptions, "gemini"),
           latencyMs,
           success: true,
-          metadata: { fallbackFrom: "xai" },
+          metadata: { fallbackFrom: "xai", ...generationTelemetry(fallbackOptions) },
         },
       );
       return {
@@ -873,16 +911,7 @@ async function generateAdultProviderDowngrade(
       };
     } catch { /* use a character-aware local response */ }
   }
-  const fallbackOptions = {
-    ...options,
-    route: {
-      ...options.route,
-      provider: "deterministic" as const,
-      resolvedMode,
-      reason: "provider_fallback" as const,
-      explicit: false,
-    },
-  };
+  const fallbackOptions = fallbackRunOptions(options, 'deterministic', resolvedMode);
   return {
     text: explicitProviderFallback(fallbackContext),
     metadata: metadataFor(
@@ -2006,72 +2035,79 @@ function referencedEntities(input: ConversationAnalysisInput): string[] {
   );
 }
 
+export function geminiDialogueRequestBody(
+  context: DialogueContext,
+  options: DialogueRunOptions,
+  geminiModel: string,
+): Record<string, unknown> {
+  const profile = options.generationProfile ??= resolveDialogueRunGenerationProfile({
+    context,
+    provider: 'gemini',
+    model: geminiModel,
+    generationContext: options.generationContext,
+  });
+  const controlsMode = options.chatGenerationControlsMode ??= chatGenerationControlsMode();
+  const applied = providerGenerationControls(profile, controlsMode);
+  const thinkingConfig = geminiThinkingConfig(geminiModel, applied.reasoningEffort, controlsMode);
+  return {
+    contents: [{
+      role: 'user',
+      parts: [{ text: buildCompanionPrompt({
+        ...context,
+        chatGenerationControlsApplied: applied.promptDynamismApplied,
+        chatGenerationMode: options.generationContext?.mode ?? 'direct',
+      }) }],
+    }],
+    generationConfig: {
+      temperature: applied.temperature ?? 0.82,
+      maxOutputTokens: applied.maxOutputTokens,
+      topP: 0.9,
+      ...(thinkingConfig ? { thinkingConfig } : {}),
+    },
+    safetySettings: [
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+    ],
+  };
+}
+
 async function generateGemini(
   context: DialogueContext,
   key: string,
+  options: DialogueRunOptions,
 ): Promise<string> {
-  try {
-    const geminiModel = model(
-      "TOGETHER_GEMINI_MODEL",
-      Deno.env.get("GEMINI_EXPLANATION_MODEL") ?? "gemini-2.5-flash",
-    );
-    const response = await fetch(
+  const geminiModel = model(
+    "TOGETHER_GEMINI_MODEL",
+    Deno.env.get("GEMINI_EXPLANATION_MODEL") ?? "gemini-2.5-flash",
+  );
+  const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${
         encodeURIComponent(geminiModel)
       }:generateContent?key=${encodeURIComponent(key)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{
-            role: "user",
-            parts: [{ text: buildCompanionPrompt(context) }],
-          }],
-          generationConfig: {
-            temperature: 0.82,
-            maxOutputTokens: responseTokenBudget(context),
-            topP: 0.9,
-          },
-          safetySettings: [
-            {
-              category: "HARM_CATEGORY_HARASSMENT",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE",
-            },
-            {
-              category: "HARM_CATEGORY_HATE_SPEECH",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE",
-            },
-            {
-              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE",
-            },
-            {
-              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE",
-            },
-          ],
-        }),
+        body: JSON.stringify(geminiDialogueRequestBody(context, options, geminiModel)),
       },
     );
-    if (!response.ok) {
-      console.warn("Together Gemini dialogue request failed", response.status);
-      return fallbackDialogue(context);
-    }
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.map((
+  if (!response.ok) throw new Error(`gemini_dialogue_${response.status}`);
+  const data = await response.json();
+  const rawText = data.candidates?.[0]?.content?.parts?.map((
       part: Record<string, unknown>,
     ) => part.text).filter(Boolean).join("");
-    return typeof text === "string" && text.trim()
-      ? text.trim()
-      : fallbackDialogue(context);
-  } catch {
-    return fallbackDialogue(context);
-  }
+  if (typeof rawText !== 'string' || !rawText.trim()) throw new Error('empty_gemini_response');
+  const visible = limitVisibleDialogue(rawText, options.generationProfile?.visibleTokenBudget ?? responseTokenBudget(context));
+  options.visibleOutputTruncated = visible.truncated;
+  options.deliveredVisibleOutputTokensEstimate = visible.estimatedTokens;
+  return visible.text;
 }
 
 async function* streamGemini(
   context: DialogueContext,
   key: string,
+  options: DialogueRunOptions,
 ): AsyncIterable<string> {
   const geminiModel = model(
     "TOGETHER_GEMINI_MODEL",
@@ -2084,40 +2120,15 @@ async function* streamGemini(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{
-          role: "user",
-          parts: [{ text: buildCompanionPrompt(context) }],
-        }],
-        generationConfig: {
-          temperature: 0.82,
-          maxOutputTokens: responseTokenBudget(context),
-          topP: 0.9,
-        },
-        safetySettings: [
-          {
-            category: "HARM_CATEGORY_HARASSMENT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE",
-          },
-          {
-            category: "HARM_CATEGORY_HATE_SPEECH",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE",
-          },
-          {
-            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE",
-          },
-          {
-            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE",
-          },
-        ],
-      }),
+      body: JSON.stringify(geminiDialogueRequestBody(context, options, geminiModel)),
     },
   );
   if (!response.ok || !response.body) {
     throw new Error(`Gemini stream failed (${response.status})`);
   }
+  let deliveredText = '';
+  let visibleLimitReached = false;
+  const visibleBudget = options.generationProfile?.visibleTokenBudget ?? responseTokenBudget(context);
   for await (const data of sseData(response.body)) {
     const payload = JSON.parse(data) as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
@@ -2125,8 +2136,19 @@ async function* streamGemini(
     const token = payload.candidates?.[0]?.content?.parts?.map((part) =>
       part.text ?? ""
     ).join("") ?? "";
-    if (token) yield token;
+    if (token && !visibleLimitReached) {
+      const candidate = `${deliveredText}${token}`;
+      const limited = visibleDialoguePrefix(candidate, visibleBudget);
+      const deliverable = limited.slice(deliveredText.length);
+      if (limited.length < candidate.length) {
+        options.visibleOutputTruncated = true;
+        visibleLimitReached = true;
+      }
+      deliveredText = limited;
+      if (deliverable) yield deliverable;
+    }
   }
+  options.deliveredVisibleOutputTokensEstimate = limitVisibleDialogue(deliveredText, visibleBudget).estimatedTokens;
 }
 
 async function* sseData(

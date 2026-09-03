@@ -5,6 +5,8 @@ import {
   DEFAULT_CHAT_GENERATION_PREFERENCES,
   REASONING_TOKEN_RESERVES,
   chatDynamismPrompt,
+  geminiThinkingConfig,
+  limitVisibleDialogue,
   lowerReasoningEffort,
   normalizeChatDynamism,
   normalizeChatGenerationControlsMode,
@@ -13,10 +15,12 @@ import {
   normalizeReasoningPreference,
   reasoningEffortMaxForTier,
   reasoningPreferenceAllowedForTier,
+  reconcileReasoningPreferenceForTier,
   providerGenerationControls,
   resolveAutoReasoning,
   resolveDialogueGenerationProfile,
   resolveDialogueModelCapabilities,
+  visibleDialoguePrefix,
   type DialogueReasoningSignals,
   type ResolveDialogueGenerationProfileInput,
 } from '../src/chat-generation.ts';
@@ -82,6 +86,9 @@ describe('chat generation preference normalization', () => {
     expect(reasoningEffortMaxForTier('free')).toBe('low');
     expect(reasoningEffortMaxForTier('kivelle_plus')).toBe('medium');
     expect(reasoningEffortMaxForTier('kivelle_max')).toBe('high');
+    expect(reconcileReasoningPreferenceForTier('high','kivelle_plus')).toBe('medium');
+    expect(reconcileReasoningPreferenceForTier('medium','free')).toBe('low');
+    expect(reconcileReasoningPreferenceForTier('auto','free')).toBe('auto');
   });
 });
 
@@ -195,9 +202,33 @@ describe('generation profile resolution', () => {
 });
 
 describe('provider capabilities', () => {
-  it('centralizes the current OpenAI and xAI model behavior', () => {
+  it('centralizes the current OpenAI, xAI, and Gemini model behavior', () => {
     expect(resolveDialogueModelCapabilities({ provider: 'openai', model: 'gpt-5.6-luna' })).toMatchObject({ supportedReasoningEfforts: ['none', 'low', 'medium', 'high'], supportsTemperatureWithReasoning: false });
     expect(resolveDialogueModelCapabilities({ provider: 'xai', model: 'grok-4.3' })).toMatchObject({ supportedReasoningEfforts: ['none', 'low', 'medium', 'high'], supportsTemperatureWithReasoning: true });
+    expect(resolveDialogueModelCapabilities({ provider: 'gemini', model: 'gemini-2.5-flash' })).toMatchObject({ supportedReasoningEfforts: ['none', 'low', 'medium', 'high'], supportsTemperatureWithReasoning: true });
+  });
+
+  it('maps Gemini reasoning controls without exposing thought content',()=>{
+    expect(geminiThinkingConfig('gemini-2.5-flash','none','on')).toEqual({thinkingBudget:0,includeThoughts:false});
+    expect(geminiThinkingConfig('gemini-2.5-flash','high','on')).toEqual({thinkingBudget:4096,includeThoughts:false});
+    expect(geminiThinkingConfig('gemini-2.5-pro','none','on')).toEqual({thinkingBudget:128,includeThoughts:false});
+    expect(geminiThinkingConfig('gemini-3-flash','medium','on')).toEqual({thinkingLevel:'MEDIUM',includeThoughts:false});
+    expect(geminiThinkingConfig('gemini-2.5-flash','high','shadow')).toBeUndefined();
+  });
+});
+
+describe('visible output enforcement',()=>{
+  it('keeps provider reasoning headroom from becoming extra visible prose',()=>{
+    const source='A deliberately long response '.repeat(100);
+    const result=limitVisibleDialogue(source,80);
+    expect(result.truncated).toBe(true);
+    expect(result.estimatedTokens).toBeLessThanOrEqual(80);
+    expect(result.text.endsWith('…')).toBe(true);
+    expect(visibleDialoguePrefix(source,80)).not.toContain('�');
+  });
+
+  it('leaves naturally short dialogue untouched',()=>{
+    expect(limitVisibleDialogue('That sounds good.',80)).toEqual({text:'That sounds good.',truncated:false,estimatedTokens:5});
   });
 });
 

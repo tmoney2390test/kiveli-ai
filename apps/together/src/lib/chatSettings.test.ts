@@ -34,6 +34,14 @@ describe('chat settings', () => {
     expect(chatPreferencesFromConversation(group)).toMatchObject({chatDynamism:100,reasoningPreference:'high'});
   });
 
+  it('reconciles a stored reasoning choice to the current subscription tier',()=>{
+    const downgraded={metadata:{chatPreferences:{reasoningPreference:'high'}}} as never;
+    expect(resolveReasoningPreference(downgraded,'kivelle_plus')).toBe('medium');
+    expect(resolveReasoningPreference(downgraded,'free')).toBe('low');
+    expect(resolveReasoningPreference(downgraded,'kivelle_max')).toBe('high');
+    expect(resolveReasoningPreference({metadata:{chatPreferences:{reasoningPreference:'auto'}}} as never,'free')).toBe('auto');
+  });
+
   it('falls back to existing account and character defaults', () => {
     expect(resolveChatResponseStyle(null, { conversation_preferences: { responseStyle: 'paragraph' } } as never)).toBe('paragraph');
     expect(resolveChatTextSize(null)).toBe('medium');

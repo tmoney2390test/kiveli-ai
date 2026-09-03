@@ -79,6 +79,7 @@ import {
 import { recordChatPlaceOpinions } from "../_shared/kivelle-place-perspective.ts";
 import type { PlaceContext } from "../_shared/together-place.ts";
 import { resolveDialogueRouting } from "../_shared/kivelle-ai-routing.ts";
+import { sharedSceneGenerationContext,type DialogueGenerationContext } from "../_shared/kivelle-chat-generation.ts";
 import type {
   DialogueContentMode,
   DialogueRoutingDecision,
@@ -1123,7 +1124,7 @@ Deno.serve(async (request) => {
           subscriptionTier: dialogueContext.subscription?.tier,
           routeReason: route.reason,
           contentMode: route.resolvedMode,
-        });
+        }, undefined, sceneCandidates.length > 1, sceneCandidates.length > 1 ? sharedSceneGenerationContext('primary',sceneCandidates.length) : undefined);
         if (route.provider !== "deterministic") {
           return leased(streamDialogue({
             db,
@@ -1743,11 +1744,12 @@ function dialogueRunOptions(
   usageScope: DialogueRunOptions["usageScope"],
   operation?: string,
   sharedSceneParticipant = false,
+  generationContext?: DialogueGenerationContext,
 ): DialogueRunOptions {
   return {
     route,
     usageScope,
-    generationContext:{mode:'direct',speakerRole:'primary',activeSpeakerCount:1},
+    generationContext:generationContext??{mode:'direct',speakerRole:'primary',activeSpeakerCount:1},
     ...(operation ? { operation } : {}),
     ...(sharedSceneParticipant ? { sharedSceneParticipant: true } : {}),
   };
@@ -2511,6 +2513,7 @@ async function generateAdditionalSceneReplies(
         },
         "shared_scene_dialogue",
         true,
+        sharedSceneGenerationContext('secondary',input.sceneCandidates.length),
       );
       const generated = await dialogue.generate(selected.context, options);
       if (!generated.text.trim()) continue;

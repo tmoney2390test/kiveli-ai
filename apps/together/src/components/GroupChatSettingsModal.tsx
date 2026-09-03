@@ -48,7 +48,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
     setTitle(conversation.title ?? '');
     setResponseStyle(resolveChatResponseStyle(conversation, snapshot?.profile ?? null));
     setTextSize(resolveChatTextSize(conversation));
-    const generationPreferences=chatPreferencesFromConversation(conversation);
+    const generationPreferences=chatPreferencesFromConversation(conversation,snapshot?.entitlements?.tier);
     setChatDynamism(generationPreferences.chatDynamism);
     setReasoningPreference(generationPreferences.reasoningPreference);
     setContentMode(resolveChatContentMode(conversation,snapshot?.profile??null));
@@ -57,9 +57,14 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
     setResponseMode(settings.responseMode);
     setEnergy(settings.energy);
     setNotificationMode(settings.notificationMode);
-  }, [conversation, settings.energy, settings.notificationMode, settings.responseMode, snapshot?.profile, visible]);
+  }, [conversation, settings.energy, settings.notificationMode, settings.responseMode, snapshot?.profile, snapshot?.entitlements?.tier, visible]);
 
-  const save = async () => {
+  const openPlans = () => {
+    const href=subscriptionHref({intent:'plans',returnTo:groupConversationWebHref(conversation?.id??'')});
+    if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never);
+  };
+
+  const save = async (afterSave?:()=>void) => {
     if (!conversation || saving) return;
     setSaving(true);
     const input = { title: title.trim() || null, responseStyle, textSize,contentMode, chatLanguage,chatDynamism,reasoningPreference };
@@ -75,6 +80,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
         onSaved?.(canonical, group.settings);
       }
       onClose();
+      afterSave?.();
     } catch (caught) {
       Alert.alert('Could not save chat settings', caught instanceof Error ? caught.message : 'The group chat settings could not be saved.');
     } finally {
@@ -117,7 +123,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
               })}
             </View>
           </Section>
-          <ChatGenerationSettings mode="group" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>{onClose();const href=subscriptionHref({intent:'plans',returnTo:groupConversationWebHref(conversation?.id??'')});if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never);}}/>
+          <ChatGenerationSettings mode="group" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>void save(openPlans)}/>
           <Section icon={<Type size={16} color={colors.violet} />} label="Text size">
             <View accessibilityRole="radiogroup" style={styles.columns}>
               {chatTextSizeOptions.map((option) => <Choice key={option.value} label={option.label} selected={option.value === textSize} disabled={saving} icon={<Text style={[styles.aa, option.value === textSize && styles.selectedText]}>Aa</Text>} onPress={() => setTextSize(option.value)} />)}

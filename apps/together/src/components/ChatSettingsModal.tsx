@@ -72,7 +72,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     setTitle(conversation.title ?? '');
     setResponseStyle(resolveChatResponseStyle(conversation, snapshot?.profile ?? null));
     setTextSize(resolveChatTextSize(conversation));
-    const generationPreferences=chatPreferencesFromConversation(conversation);
+    const generationPreferences=chatPreferencesFromConversation(conversation,snapshot?.entitlements?.tier);
     setChatDynamism(generationPreferences.chatDynamism);
     setReasoningPreference(generationPreferences.reasoningPreference);
     setContentMode(resolveChatContentMode(conversation,snapshot?.profile??null));
@@ -86,7 +86,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     setVoiceMenuOpen(false);
     if (cachedPreview) voicePlayer.replace(cachedPreview.signedUrl);
     voicePlayer.pause();
-  }, [visible, conversation?.id, character?.id, snapshot?.profile]);
+  }, [visible, conversation?.id, character?.id, snapshot?.profile, snapshot?.entitlements?.tier]);
 
   useEffect(() => () => voicePlayer.pause(), [voicePlayer]);
   useEffect(() => { if (!visible) { voicePlayer.pause(); setVoicePreview(null); } }, [visible, voicePlayer]);
@@ -125,7 +125,12 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     }
   };
 
-  const save = async () => {
+  const openPlans = () => {
+    const href=subscriptionHref({intent:'plans',returnTo:`/chat?conversationId=${conversation?.id??''}`});
+    if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never);
+  };
+
+  const save = async (afterSave?:()=>void) => {
     if (!conversation || saving) return;
     const cleanTitle = title.trim() || null;
     setSaving(true);
@@ -137,6 +142,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
       upsertConversation(updated);
       onSaved?.(updated);
       onClose();
+      afterSave?.();
     } catch (error) {
       Alert.alert('Could not save chat settings', error instanceof Error ? error.message : 'Please try again.');
     } finally {
@@ -189,7 +195,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
             </View>
           </SettingSection>
 
-          <ChatGenerationSettings mode="direct" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>{onClose();const href=subscriptionHref({intent:'plans',returnTo:`/chat?conversationId=${conversation?.id??''}`});if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never);}}/>
+          <ChatGenerationSettings mode="direct" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>void save(openPlans)}/>
 
           <SettingSection icon={<Type size={16} color={colors.violet} />} label="Text size">
             <View accessibilityRole="radiogroup" style={styles.textSizeOptions}>

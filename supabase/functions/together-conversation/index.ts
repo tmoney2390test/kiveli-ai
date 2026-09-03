@@ -16,7 +16,7 @@ import { resolveAdultAccess } from '../_shared/web-adult-access.ts';
 import { projectConversationRows, safeSearchRows, signProjectedAttachments } from '../_shared/content-projection.ts';
 import { conversationActionRateLimit } from '../_shared/together-request-limits.ts';
 import { waitUntil } from '../_shared/background.ts';
-import { normalizeChatDynamism,normalizeReasoningPreference,reasoningPreferenceAllowedForTier } from '../../../packages/together-domain/src/chat-generation.ts';
+import { normalizeChatDynamism,normalizeReasoningPreference,reasoningPreferenceAllowedForTier,reconcileReasoningPreferenceForTier } from '../../../packages/together-domain/src/chat-generation.ts';
 import { characterAdultStatusFromInstance, privateTextProjectionAuthorizedForConversation } from '../_shared/private-adult-text-policy.ts';
 
 const schema = z.discriminatedUnion('action', [
@@ -402,8 +402,7 @@ serve(async (request, correlationId) => {
     const storedPreferences = currentMetadata.chatPreferences;
     const currentPreferences = storedPreferences && typeof storedPreferences === 'object' && !Array.isArray(storedPreferences) ? storedPreferences as Record<string, unknown> : {};
     const reasoningPreference=normalizeReasoningPreference(input.reasoningPreference);
-    const existingReasoning=normalizeReasoningPreference(currentPreferences.reasoningPreference);
-    if(input.reasoningPreference!==undefined&&reasoningPreference!==existingReasoning&&!reasoningPreferenceAllowedForTier(reasoningPreference,subscription.tier))throw new AppError('PLAN_LIMIT_REACHED',reasoningPreference==='high'?'Deep reasoning is available with Kivelle Max.':'Thoughtful reasoning is available with Kivelle+ or Max.',403,false);
+    if(input.reasoningPreference!==undefined&&!reasoningPreferenceAllowedForTier(reasoningPreference,subscription.tier))throw new AppError('PLAN_LIMIT_REACHED',reasoningPreference==='high'?'Deep reasoning is available with Kivelle Max.':'Thoughtful reasoning is available with Kivelle+ or Max.',403,false);
     if (input.voicePreset !== undefined) {
       if (input.voicePreset !== undefined && !subscription.entitlementKeys.includes('voice_notes')) throw new AppError('PLAN_LIMIT_REACHED', 'Custom companion voices are available with Kivelle+ or Max.', 403);
     }
@@ -419,7 +418,7 @@ serve(async (request, correlationId) => {
       contentMode='explicit';
     }
     const chatDynamism=normalizeChatDynamism(input.chatDynamism??currentPreferences.chatDynamism);
-    const storedReasoning=normalizeReasoningPreference(input.reasoningPreference??currentPreferences.reasoningPreference);
+    const storedReasoning=reconcileReasoningPreferenceForTier(input.reasoningPreference??currentPreferences.reasoningPreference,subscription.tier);
     const chatPreferences:Record<string,unknown> = { ...currentPreferences, responseStyle: input.responseStyle, textSize: input.textSize, contentMode, chatDynamism,reasoningPreference:storedReasoning, ...(voicePreset ? { voicePreset } : {}), ...(input.chatLanguage !== undefined ? { chatLanguage: input.chatLanguage } : {}) };
     if (input.voicePreset === null) delete chatPreferences.voicePreset;
     const { data, error } = await db.from('together_conversations').update({ title: input.title, metadata: { ...currentMetadata, chatPreferences }, updated_at: new Date().toISOString() }).eq('id', conversation.id).eq('user_id', user.id).select('*').single();

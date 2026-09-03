@@ -29,6 +29,7 @@ export type KivelleConversationContext = {
   conversationStyle:ConversationStyle;
   generationPreferences?:ChatGenerationPreferences;
   chatGenerationControlsApplied?:boolean;
+  chatGenerationMode?:'direct'|'group';
   chatLanguage?:ChatLanguagePreference;
   experienceCapabilities:ReturnType<typeof resolveServerExperienceCapabilities>;
   persona: Row;
