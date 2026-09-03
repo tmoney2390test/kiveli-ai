@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { isRootAppPath, shouldRunAuthenticatedIndexRedirect } from './rootRoute';
+import { isRootAppPath, rootEntryPresentation, shouldRunAuthenticatedIndexRedirect } from './rootRoute';
 
 describe('root route', () => {
+  it('never exposes the signed-out landing page before auth restoration settles', () => {
+    expect(rootEntryPresentation({ authLoading: true, hasSession: false })).toBe('loading');
+    expect(rootEntryPresentation({ authLoading: true, hasSession: true })).toBe('loading');
+    expect(rootEntryPresentation({ authLoading: false, hasSession: false })).toBe('public');
+    expect(rootEntryPresentation({ authLoading: false, hasSession: true })).toBe('authenticated');
+  });
+
   it('allows the authenticated index redirect only on the actual root URL', () => {
     expect(isRootAppPath('/')).toBe(true);
     expect(isRootAppPath('')).toBe(true);
