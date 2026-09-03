@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Check, ShieldCheck } from 'lucide-react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { ShieldCheck } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { GradientButton, KivelleLogo, Screen } from '../src/components';
 import { confirmAdultAge } from '../src/lib/api';
@@ -9,19 +9,19 @@ import { colors, radius, spacing, typography } from '../src/theme';
 
 export default function AgeConfirmation() {
   const setSnapshot = useTogether((state) => state.setSnapshot);
-  const [confirmed, setConfirmed] = useState(false);
+  const [dateOfBirth,setDateOfBirth]=useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   const continueToOnboarding = async () => {
-    if (!confirmed) {
-      setError('Confirm that you are 18 or older to continue.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) {
+      setError('Enter your birthdate as YYYY-MM-DD.');
       return;
     }
     setBusy(true);
     setError('');
     try {
-      const snapshot = await confirmAdultAge();
+      const snapshot = await confirmAdultAge(dateOfBirth);
       setSnapshot(snapshot);
       router.replace('/choose-companion');
     } catch (caught) {
@@ -37,21 +37,13 @@ export default function AgeConfirmation() {
       <View style={styles.icon}><ShieldCheck size={26} color={colors.warm} /></View>
       <View style={styles.copy}>
         <Text style={styles.eyebrow}>BEFORE YOUR STORY BEGINS</Text>
-        <Text style={styles.title}>Confirm you’re an adult.</Text>
-        <Text style={styles.body}>Kivelle includes fictional romance and adult themes. You must be 18 or older to continue.</Text>
+        <Text style={styles.title}>Enter your birthdate.</Text>
+        <Text style={styles.body}>Kivelle is for adults. Your birthdate is kept private and used to confirm eligibility.</Text>
       </View>
-      <Pressable
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: confirmed }}
-        onPress={() => { setConfirmed((value) => !value); setError(''); }}
-        style={[styles.confirmation, confirmed && styles.confirmationActive]}
-      >
-        <View style={[styles.check, confirmed && styles.checkActive]}>{confirmed ? <Check size={15} color="#fff" /> : null}</View>
-        <Text style={styles.confirmationText}>I confirm that I’m 18 or older</Text>
-      </Pressable>
+      <TextInput accessibilityLabel="Birthdate" value={dateOfBirth} onChangeText={(value)=>{setDateOfBirth(value);setError('');}} autoCapitalize="none" autoCorrect={false} keyboardType="numbers-and-punctuation" placeholder="YYYY-MM-DD" placeholderTextColor={colors.dimmed} maxLength={10} style={styles.input}/>
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-      <GradientButton label={busy ? 'Confirming…' : 'Continue'} disabled={busy || !confirmed} onPress={() => void continueToOnboarding()} />
-      <Text style={styles.note}>This confirmation is saved to your Kivelle account.</Text>
+      <GradientButton label={busy ? 'Checking…' : 'Continue'} disabled={busy || !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)} onPress={() => void continueToOnboarding()} />
+      <Text style={styles.note}>You must be 18 or older to create a Kivelle account.</Text>
     </View>
   </Screen>;
 }
@@ -64,11 +56,7 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.warm, fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
   title: { color: colors.text, fontFamily: typography.display, fontSize: 32, lineHeight: 38, fontWeight: '600' },
   body: { color: colors.muted, fontSize: 13, lineHeight: 20 },
-  confirmation: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
-  confirmationActive: { borderColor: 'rgba(216,62,234,.58)', backgroundColor: 'rgba(216,62,234,.09)' },
-  check: { width: 24, height: 24, borderRadius: 7, borderWidth: 1, borderColor: colors.borderBright, alignItems: 'center', justifyContent: 'center' },
-  checkActive: { backgroundColor: colors.rose, borderColor: colors.rose },
-  confirmationText: { flex: 1, color: colors.text, fontSize: 13, fontWeight: '900' },
+  input:{minHeight:56,paddingHorizontal:15,borderRadius:radius.md,borderWidth:1,borderColor:colors.borderBright,backgroundColor:colors.background,color:colors.text,fontSize:16},
   error: { color: '#FF9BA7', fontSize: 12, lineHeight: 17 },
   note: { color: colors.dimmed, fontSize: 10, textAlign: 'center' },
 });

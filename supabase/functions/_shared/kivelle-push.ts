@@ -3,13 +3,17 @@ import type{SupabaseClient}from'@supabase/supabase-js';
 type Row=Record<string,any>;
 const permanentCodes=new Set(['DeviceNotRegistered','InvalidCredentials']);
 
+export function neutralCompanionPushPayload(input:{to:string;characterName:string;route:string;proactiveMessageId:string}){
+  return{to:input.to,title:'Kivelle',body:`You have a new message from ${input.characterName}.`,sound:'default',data:{route:input.route,proactiveMessageId:input.proactiveMessageId}};
+}
+
 export async function sendCompanionPush(db:SupabaseClient,input:{userId:string;characterName:string;proactive:Row}){
   const{data:tokens}=await db.from('together_push_tokens').select('id,expo_push_token').eq('user_id',input.userId).eq('active',true).limit(5);
   if(!tokens?.length)return;
   try{
     const response=await fetch('https://exp.host/--/api/v2/push/send',{
       method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},
-      body:JSON.stringify(tokens.map((item)=>({to:item.expo_push_token,title:input.characterName,body:String(input.proactive.content??'').slice(0,220),sound:'default',data:{route:String(input.proactive.context?.route??'/chat'),proactiveMessageId:input.proactive.id}}))),
+      body:JSON.stringify(tokens.map((item)=>neutralCompanionPushPayload({to:item.expo_push_token,characterName:input.characterName,route:String(input.proactive.context?.route??'/chat'),proactiveMessageId:String(input.proactive.id)}))),
     });
     if(!response.ok){console.warn('Together push delivery failed',response.status);return;}
     const payload=await response.json().catch(()=>({})) as{data?:Array<{status?:string;id?:string;message?:string;details?:{error?:string}}>};

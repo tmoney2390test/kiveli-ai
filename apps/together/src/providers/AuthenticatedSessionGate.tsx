@@ -11,6 +11,9 @@ import { useTogether } from '../store/useTogether';
 import { useAuth } from '../hooks/useAuth';
 import { readSessionSnapshot, writeSessionSnapshot } from '../lib/sessionSnapshotCache';
 import { authenticatedRoutePathname, consumeWebEntryHref, initialWebEntryHref, shouldConsumeWebEntry } from '../lib/webEntryRoute';
+import { mostRecentlyUsedConversation } from '../lib/conversation';
+import { prefetchConversationMessagePage } from '../lib/conversationMessageWarmup';
+import { manageConversation } from '../lib/api';
 
 const demoMode = __DEV__ && process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === 'true';
 
@@ -34,6 +37,14 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   useEffect(() => {
     if (pathname === '/' || pathname === '/home') router.prefetch('/home' as never);
   }, [pathname]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !session?.user.id || !snapshot) return;
+    const recent = mostRecentlyUsedConversation(snapshot.conversations.filter((conversation) => conversation.kind !== 'group'));
+    if (!recent) return;
+    const timer = setTimeout(() => prefetchConversationMessagePage(session.user.id, recent.id, () => manageConversation({ action: 'messages', conversationId: recent.id, limit: 50 })), 900);
+    return () => clearTimeout(timer);
+  }, [session?.user.id, snapshot]);
 
   useEffect(() => {
     const userId=demoMode?'demo':session?.user.id;

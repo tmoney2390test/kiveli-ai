@@ -8,22 +8,29 @@ import {activeContinuity,requireInstanceInActiveContinuity}from'../_shared/toget
 import { getActiveConversation, mergeConversationSceneMetadata, type ActiveConversationScene } from '../_shared/together-conversation.ts';
 import { resolveCompanionPresence } from '../_shared/together-schedule.ts';
 import { resolvePlaceContext, resolveWorldAccess } from '../_shared/together-place.ts';
-import { activeConversationLimitError, isActiveConversationLimitDatabaseError, resolveSubscriptionAccess, resolveSubscriptionState } from '../_shared/kivelle-subscription.ts';
+import { activeConversationLimitError, isActiveConversationLimitDatabaseError, resolveSubscriptionAccess } from '../_shared/kivelle-subscription.ts';
 import { conversationArchiveExpired, conversationArchiveFields } from '../_shared/together-conversation-archive.ts';
 import { validateCompanionVoicePreset } from '../_shared/companion-voice-selection.ts';
 import { chatLanguagePreferences } from '../../../packages/together-domain/src/chat-language.ts';
+import { resolveAdultAccess } from '../_shared/web-adult-access.ts';
+import { projectConversationRows, safeSearchRows, signProjectedAttachments } from '../_shared/content-projection.ts';
+import { conversationActionRateLimit } from '../_shared/together-request-limits.ts';
+import { waitUntil } from '../_shared/background.ts';
+import { normalizeChatDynamism,normalizeReasoningPreference,reasoningPreferenceAllowedForTier } from '../../../packages/together-domain/src/chat-generation.ts';
+import { characterAdultStatusFromInstance, privateTextProjectionAuthorizedForConversation } from '../_shared/private-adult-text-policy.ts';
 
 const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('inbox') }),
   z.object({ action: z.literal('inbox_v2'), limit: z.number().int().min(10).max(100).default(40), offset: z.number().int().min(0).max(5000).default(0) }),
   z.object({ action: z.literal('archived') }),
+  z.object({ action: z.literal('open'), characterInstanceId: z.string().uuid(), limit: z.number().int().min(1).max(60).default(50) }),
   z.object({ action: z.literal('ensure'), characterInstanceId: z.string().uuid() }),
   z.object({ action: z.literal('new'), characterInstanceId: z.string().uuid() }),
   z.object({ action: z.literal('archive'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('delete'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('restore'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('rename'), conversationId: z.string().uuid(), title: z.string().trim().min(1).max(80) }),
-  z.object({ action: z.literal('settings'), conversationId: z.string().uuid(), title: z.string().trim().max(80).nullable(), responseStyle: z.enum(['texting','paragraph']), textSize: z.enum(['small','medium','large']), contentMode: z.enum(['standard','romance','mature','explicit']).optional(), spiceLevel: z.union([z.literal(1),z.literal(2),z.literal(3)]).optional(), voicePreset: z.enum(['warm','bright','clear','strong','balanced']).nullable().optional(), chatLanguage: z.enum(chatLanguagePreferences).optional() }),
+  z.object({ action: z.literal('settings'), conversationId: z.string().uuid(), title: z.string().trim().max(80).nullable(), responseStyle: z.enum(['texting','paragraph']), textSize: z.enum(['small','medium','large']), contentMode: z.enum(['standard','romance','mature','explicit']).optional(), spiceLevel: z.union([z.literal(1),z.literal(2),z.literal(3)]).optional(), voicePreset: z.enum(['warm','bright','clear','strong','balanced']).nullable().optional(), chatLanguage: z.enum(chatLanguagePreferences).optional(), chatDynamism:z.union([z.literal(0),z.literal(25),z.literal(50),z.literal(75),z.literal(100)]).optional(), reasoningPreference:z.enum(['auto','none','low','medium','high']).optional() }),
   z.object({ action: z.literal('history'), characterInstanceId: z.string().uuid() }),
   z.object({ action: z.literal('messages'), conversationId: z.string().uuid(), before: z.string().datetime().optional(), beforeSequence: z.number().int().positive().optional(), anchorMessageId: z.string().uuid().optional(), limit: z.number().int().min(1).max(60).default(50) }),
   z.object({ action: z.literal('search'), characterInstanceId: z.string().uuid(), query: z.string().trim().min(2).max(100), conversationId: z.string().uuid().optional() }),
@@ -37,20 +44,30 @@ const schema = z.discriminatedUnion('action', [
 ]);
 
 serve(async (request, correlationId) => {
+  const requestStarted=performance.now();
   const { user, db } = await authenticated(request);
+  const authenticatedAt=performance.now();
   const input = await parseBody(request, schema);
-  const continuity=await activeContinuity(db,user.id);
-  const owned = 'characterInstanceId' in input && input.action !== 'start_over'
-    ? await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId)
+  const requestLimit=conversationActionRateLimit(input.action);
+  const characterScopePromise='characterInstanceId' in input&&input.action!=='start_over'
+    ? requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId)
     : null;
-  await enforceRateLimit(db, user.id, `together_conversation_${input.action}`, input.action === 'inbox' || input.action === 'inbox_v2' ? 240 : input.action === 'message_favorite' ? 240 : input.action === 'search' ? 40 : 20, 3600);
+  const [adultAccess,continuity,owned]=await Promise.all([
+    resolveAdultAccess(request,user,db),
+    characterScopePromise?characterScopePromise.then((scope)=>scope.continuity):activeContinuity(db,user.id),
+    characterScopePromise??Promise.resolve(null),
+    enforceRateLimit(db,user.id,`together_conversation_${input.action}`,requestLimit.limit,requestLimit.windowSeconds),
+  ]);
+  const preparedAt=performance.now();
 
   if (input.action === 'inbox') {
     const { data, error } = await db.from('together_conversations').select('*').eq('user_id', user.id).eq('continuity_id', continuity.id).is('archived_at', null).in('kind', ['direct', 'first_meeting','group']).order('last_message_at', { ascending: false, nullsFirst: false }).limit(100);
     if (error) throw new AppError('INTERNAL_ERROR', 'Messages could not be loaded.', 500, true);
     const enriched = (data ?? []).map((conversation) => {
       const unread = Boolean(conversation.last_assistant_message_at && (!conversation.last_read_at || new Date(conversation.last_assistant_message_at) > new Date(conversation.last_read_at)));
-      return { ...conversation, unread };
+      // Inbox rows are always a privacy-safe projection. Full private context is
+      // resolved only after the owned conversation and current roster are loaded.
+      return { ...projectConversation(conversation,false), unread };
     });
     await track(db, user.id, 'conversation_inbox_viewed', { conversationCount: enriched.length, version: 1 });
     return json({ data: enriched, correlationId }, 200, correlationId);
@@ -70,7 +87,7 @@ serve(async (request, correlationId) => {
         ? db.from('together_dialogue_turns').select('conversation_id,planned_actions,state').eq('user_id', user.id).in('conversation_id', conversationIds).in('state', ['planning','generating'])
         : Promise.resolve({ data: [], error: null }),
       groupIds.length
-        ? db.from('together_messages').select('conversation_id,speaker_character_instance_id,character_instance_id,created_at,conversation_sequence').eq('user_id', user.id).in('conversation_id', groupIds).eq('role', 'assistant').order('created_at', { ascending: false }).limit(2000)
+        ? db.from('together_messages').select('conversation_id,speaker_character_instance_id,character_instance_id,created_at,conversation_sequence,content_rating,visibility_scope').eq('user_id', user.id).in('conversation_id', groupIds).eq('role', 'assistant').order('created_at', { ascending: false }).limit(2000)
         : Promise.resolve({ data: [], error: null }),
     ]);
     if (participantResult.error) throw new AppError('INTERNAL_ERROR', 'Group rosters could not be loaded.', 500, true);
@@ -86,6 +103,8 @@ serve(async (request, correlationId) => {
     const unreadCounts = new Map<string, number>();
     const lastReadByConversation = new Map(page.map((conversation) => [String(conversation.id), conversation.last_read_at ? new Date(conversation.last_read_at).getTime() : 0]));
     for (const message of groupMessageResult.data ?? []) {
+      // Only non-content metadata is selected here. Count restricted private-text
+      // activity without ever loading its dialogue into an inbox response.
       const conversationId = String(message.conversation_id);
       const speakerId = String(message.speaker_character_instance_id ?? message.character_instance_id ?? '');
       if (!latestGroupSpeaker.has(conversationId) && speakerId) {
@@ -103,15 +122,16 @@ serve(async (request, correlationId) => {
       const name = participantNames.get(speakerId);
       if (name) pendingSpeakerByConversation.set(String(turn.conversation_id), name);
     }
-    const enriched = page.map((conversation) => {
+    const enriched:Record<string,any>[] = page.map((conversation):Record<string,any> => {
       const conversationId = String(conversation.id);
-      const groupUnreadCount = conversation.kind === 'group' ? unreadCounts.get(conversationId) ?? 0 : undefined;
+      const restrictedOrSafeUnread=Boolean(conversation.last_assistant_message_at&&(!conversation.last_read_at||new Date(conversation.last_assistant_message_at)>new Date(conversation.last_read_at)));
+      const groupUnreadCount = conversation.kind === 'group' ? unreadCounts.get(conversationId) ?? (restrictedOrSafeUnread?1:0) : undefined;
       const unread = conversation.kind === 'group'
         ? Boolean(groupUnreadCount)
         : Boolean(conversation.last_assistant_message_at && (!conversation.last_read_at || new Date(conversation.last_assistant_message_at) > new Date(conversation.last_read_at)));
       const lastSpeaker = latestGroupSpeaker.get(conversationId);
       return {
-        ...conversation,
+        ...projectConversation(conversation,false),
         unread,
         ...(groupUnreadCount !== undefined ? { unread_count: groupUnreadCount } : {}),
         ...(lastSpeaker ? { last_speaker_character_instance_id: lastSpeaker.id, last_speaker_name: lastSpeaker.name } : {}),
@@ -166,16 +186,30 @@ serve(async (request, correlationId) => {
       .order('user_archived_at', { ascending: false })
       .limit(100);
     if (error) throw new AppError('INTERNAL_ERROR', 'Archived chats could not be loaded.', 500, true);
-    const enriched = (data ?? []).map((conversation) => ({ ...conversation, message_count: Number(conversation.together_messages?.[0]?.count ?? 0) }));
+    const enriched = (data ?? []).map((conversation) => ({ ...projectConversation(conversation,false), message_count: Number(conversation.together_messages?.[0]?.count ?? 0) }));
     await track(db, user.id, 'conversation_archive_viewed', { conversationCount: enriched.length, purgedCount });
     return json({ data: enriched, correlationId }, 200, correlationId);
+  }
+
+  if (input.action === 'open') {
+    const conversation=await getActiveConversation(db,user.id,input.characterInstanceId,true);
+    if(!conversation)throw new AppError('INTERNAL_ERROR','The conversation could not be opened.',500,true);
+    const adultTextAuthorized=await privateTextProjectionAuthorizedForConversation({db,userId:user.id,continuityId:continuity.id,conversation,access:adultAccess});
+    const fetchLimit=adultTextAuthorized?input.limit+1:Math.min(241,Math.max(input.limit+1,input.limit*4));
+    const{data,error}=await db.from('together_messages').select('*,together_conversation_attachments(*),together_message_reactions(*)').eq('user_id',user.id).eq('conversation_id',String(conversation.id)).order('conversation_sequence',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(fetchLimit);
+    if(error)throw new AppError('INTERNAL_ERROR','Messages could not be loaded.',500,true);
+    const readAt=performance.now(),raw=(data??[])as Record<string,unknown>[];
+    const projected=projectConversationRows(raw,{authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText:adultTextAuthorized});
+    const messages=await signProjectedAttachments(db,projected.slice(0,input.limit),adultAccess.authorized_web_adult,{request,access:adultAccess,userId:user.id});
+    waitUntil(track(db,user.id,'conversation_opened',{characterInstanceId:input.characterInstanceId,conversationId:conversation.id}));
+    return timedJson({data:{conversation:projectConversation(conversation,adultTextAuthorized),messages,hasMore:raw.length===fetchLimit||projected.length>input.limit},correlationId},correlationId,{requestStarted,authenticatedAt,preparedAt,readAt});
   }
 
   if (input.action === 'ensure') {
     const conversation = await getActiveConversation(db, user.id, input.characterInstanceId, true);
     if (!conversation) throw new AppError('INTERNAL_ERROR', 'The conversation could not be opened.', 500, true);
     await track(db, user.id, 'conversation_ensured', { characterInstanceId: input.characterInstanceId, conversationId: conversation.id });
-    return json({ data: conversation, correlationId }, 200, correlationId);
+    return json({ data: projectConversation(conversation,false), correlationId }, 200, correlationId);
   }
 
   if (input.action === 'reset_preview') {
@@ -263,7 +297,7 @@ serve(async (request, correlationId) => {
     if (error || !updated) throw new AppError('INTERNAL_ERROR', 'The scene could not be entered.', 500, true);
     await track(db, user.id, 'join_character_clicked', { characterInstanceId: input.characterInstanceId, locationId: input.locationId });
     await track(db, user.id, 'scene_entry_succeeded', { characterInstanceId: input.characterInstanceId, locationId: input.locationId, entryReason });
-    return json({ data: { conversation: updated, scene, sceneSession, presence, place }, correlationId }, 200, correlationId);
+    return json({ data: { conversation: projectConversation(updated,false), scene, sceneSession, presence, place }, correlationId }, 200, correlationId);
   }
 
   if (input.action === 'new') {
@@ -274,27 +308,31 @@ serve(async (request, correlationId) => {
       throw new AppError('INTERNAL_ERROR', 'A new conversation could not be started.', 500, true);
     }
     await track(db, user.id, 'conversation_started', { characterInstanceId: input.characterInstanceId });
-    return json({ data, correlationId }, 200, correlationId);
+    return json({ data: projectConversation(data,false), correlationId }, 200, correlationId);
   }
 
   if (input.action === 'history') {
     const { data, error } = await db.from('together_conversations').select('*,together_messages(count)').eq('user_id', user.id).eq('character_instance_id', input.characterInstanceId).is('user_archived_at', null).order('created_at', { ascending: false }).limit(100);
     if (error) throw new AppError('INTERNAL_ERROR', 'Conversation history could not be loaded.', 500, true);
-    const enriched = (data ?? []).map((conversation) => ({ ...conversation, message_count: Number(conversation.together_messages?.[0]?.count ?? 0) }));
+    const adultTextAuthorized=(data?.[0])?await privateTextProjectionAuthorizedForConversation({db,userId:user.id,continuityId:continuity.id,conversation:data[0],access:adultAccess}):false;
+    const enriched = (data ?? []).map((conversation) => ({ ...projectConversation(conversation,false), message_count: Number(conversation.together_messages?.[0]?.count ?? 0) }));
     await track(db, user.id, 'conversation_history_viewed', { characterInstanceId: input.characterInstanceId });
     return json({ data: enriched, correlationId }, 200, correlationId);
   }
 
   if (input.action === 'messages') {
-    const owned = await ownedConversation(db, user.id,continuity.id,input.conversationId);
-    if (owned.user_archived_at && conversationArchiveExpired(owned.restore_until, new Date())) throw new AppError('NOT_FOUND', 'That archived chat is no longer available.', 404);
+    const owned=await ownedConversation(db,user.id,continuity.id,input.conversationId);
+    const adultTextAuthorized=await privateTextProjectionAuthorizedForConversation({db,userId:user.id,continuityId:continuity.id,conversation:owned,access:adultAccess});
     if (input.anchorMessageId && !input.before && input.beforeSequence === undefined) {
-      const { data: anchor } = await db.from('together_messages').select('id,created_at,conversation_sequence').eq('id', input.anchorMessageId).eq('conversation_id', owned.id).eq('user_id', user.id).maybeSingle();
+      let anchorQuery=db.from('together_messages').select('id,created_at,conversation_sequence').eq('id', input.anchorMessageId).eq('conversation_id', input.conversationId).eq('user_id', user.id);
+      if(!adultTextAuthorized)anchorQuery=anchorQuery.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
+      const{data:anchor}=await anchorQuery.maybeSingle();
+      if (owned.user_archived_at && conversationArchiveExpired(owned.restore_until, new Date())) throw new AppError('NOT_FOUND', 'That archived chat is no longer available.', 404);
       if (!anchor) throw new AppError('NOT_FOUND', 'That search result is no longer available.', 404);
       const half = Math.max(1, Math.floor(input.limit / 2));
       const anchorSequence = Number(anchor.conversation_sequence ?? 0);
-      const olderQuery = db.from('together_messages').select('*,together_message_reactions(*)').eq('user_id', user.id).eq('conversation_id', owned.id);
-      const newerQuery = db.from('together_messages').select('*,together_message_reactions(*)').eq('user_id', user.id).eq('conversation_id', owned.id);
+      let olderQuery = db.from('together_messages').select('*,together_conversation_attachments(*),together_message_reactions(*)').eq('user_id', user.id).eq('conversation_id', owned.id);
+      let newerQuery = db.from('together_messages').select('*,together_conversation_attachments(*),together_message_reactions(*)').eq('user_id', user.id).eq('conversation_id', owned.id);
       const [olderPage, newerPage] = await Promise.all(anchorSequence > 0 ? [
         olderQuery.lte('conversation_sequence', anchorSequence).order('conversation_sequence', { ascending: false }).order('id', { ascending: false }).limit(half + 1),
         newerQuery.gt('conversation_sequence', anchorSequence).order('conversation_sequence', { ascending: true }).order('id', { ascending: true }).limit(half),
@@ -303,26 +341,35 @@ serve(async (request, correlationId) => {
         newerQuery.gt('created_at', anchor.created_at).order('created_at', { ascending: true }).order('id', { ascending: true }).limit(half),
       ]);
       if (olderPage.error || newerPage.error) throw new AppError('INTERNAL_ERROR', 'The surrounding conversation could not be loaded.', 500, true);
-      const messages = [...(newerPage.data ?? []).reverse(), ...(olderPage.data ?? [])];
-      return json({ data: { messages, hasMore: (olderPage.data?.length ?? 0) === half + 1, conversation: owned, anchorMessageId: anchor.id }, correlationId }, 200, correlationId);
+      const raw=[...(newerPage.data ?? []).reverse(), ...(olderPage.data ?? [])] as Record<string,unknown>[];
+      const projected=projectConversationRows(raw,{authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText:adultTextAuthorized});
+      const messages=await signProjectedAttachments(db,projected,adultAccess.authorized_web_adult,{request,access:adultAccess,userId:user.id});
+      return json({ data: { messages, hasMore: (olderPage.data?.length ?? 0) === half + 1, conversation: projectConversation(owned,adultTextAuthorized), anchorMessageId: anchor.id }, correlationId }, 200, correlationId);
     }
-    let query = db.from('together_messages').select('*,together_message_reactions(*)').eq('user_id', user.id).eq('conversation_id', owned.id).order('conversation_sequence', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(input.limit+1);
+    const fetchLimit=adultTextAuthorized?input.limit+1:Math.min(241,Math.max(input.limit+1,input.limit*4));
+    let query = db.from('together_messages').select('*,together_conversation_attachments(*),together_message_reactions(*)').eq('user_id', user.id).eq('conversation_id', input.conversationId).order('conversation_sequence', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(fetchLimit);
     if (input.beforeSequence !== undefined) query = query.lt('conversation_sequence', input.beforeSequence);
     else if (input.before) query = query.lt('created_at', input.before);
-    const { data, error } = await query;
+    const{data,error}=await query;
+    if (owned.user_archived_at && conversationArchiveExpired(owned.restore_until, new Date())) throw new AppError('NOT_FOUND', 'That archived chat is no longer available.', 404);
     if (error) throw new AppError('INTERNAL_ERROR', 'Messages could not be loaded.', 500, true);
-    const rows=data??[];
-    return json({ data: { messages: rows.slice(0,input.limit), hasMore: rows.length>input.limit, conversation: owned }, correlationId }, 200, correlationId);
+    const readAt=performance.now(),raw=(data??[]) as Record<string,unknown>[];
+    const projected=projectConversationRows(raw,{authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText:adultTextAuthorized});
+    const messages=await signProjectedAttachments(db,projected.slice(0,input.limit),adultAccess.authorized_web_adult,{request,access:adultAccess,userId:user.id});
+    return timedJson({ data: { messages, hasMore: raw.length===fetchLimit||projected.length>input.limit, conversation: projectConversation(owned,adultTextAuthorized) }, correlationId },correlationId,{requestStarted,authenticatedAt,preparedAt,readAt});
   }
 
   if (input.action === 'search') {
     const safeQuery = input.query.replace(/[%_]/g, '').trim();
-    let query = db.from('together_messages').select('id,conversation_id,role,content,created_at,together_conversations!inner(title,archived_at,user_archived_at,character_instance_id)').eq('user_id', user.id).eq('together_conversations.character_instance_id', input.characterInstanceId).is('together_conversations.user_archived_at', null).ilike('content', `%${safeQuery}%`).order('created_at', { ascending: false }).limit(50);
+    const searchConversation=input.conversationId?await ownedConversation(db,user.id,continuity.id,input.conversationId):{id:'search',kind:'direct',character_instance_id:input.characterInstanceId};
+    const adultTextAuthorized=await privateTextProjectionAuthorizedForConversation({db,userId:user.id,continuityId:continuity.id,conversation:searchConversation,access:adultAccess});
+    let query = db.from('together_messages').select('id,conversation_id,role,content,created_at,content_rating,visibility_scope,moderation_version,provider_metadata,together_conversations!inner(title,archived_at,user_archived_at,character_instance_id)').eq('user_id', user.id).eq('together_conversations.character_instance_id', input.characterInstanceId).is('together_conversations.user_archived_at', null).ilike('content', `%${safeQuery}%`).order('created_at', { ascending: false }).limit(50);
+    if(!adultAccess.authorized_web_adult)query=query.eq('visibility_scope','all').in('content_rating',adultTextAuthorized?['safe','suggestive','explicit']:['safe','suggestive']);
     if (input.conversationId) query = query.eq('conversation_id', input.conversationId);
     const { data, error } = await query;
     if (error) throw new AppError('INTERNAL_ERROR', 'Conversation search is unavailable.', 500, true);
     await track(db, user.id, 'conversation_search_used', { resultCount: data?.length ?? 0 });
-    return json({ data: data ?? [], correlationId }, 200, correlationId);
+    return json({ data: safeSearchRows(data??[],{authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText:adultTextAuthorized}), correlationId }, 200, correlationId);
   }
 
   if (input.action === 'reset') {
@@ -344,27 +391,45 @@ serve(async (request, correlationId) => {
     const paths = Array.isArray(data?.storagePaths) ? data.storagePaths.filter((item: unknown): item is string => typeof item === 'string' && item.length > 0) : [];
     await removeStoragePaths(db, user.id, paths);
     await track(db, user.id, input.mode === 'memory' ? 'companion_memories_reset' : input.mode === 'relationship' ? 'relationship_reset' : 'companion_full_reset', { characterInstanceId: input.characterInstanceId });
-    return json({ data, correlationId }, 200, correlationId);
+    const safeData={...(data??{})};delete safeData.storagePaths;
+    return json({ data:safeData, correlationId }, 200, correlationId);
   }
 
   const conversation = await ownedConversation(db, user.id,continuity.id,input.conversationId);
   if (input.action === 'settings') {
-    if (input.voicePreset !== undefined) {
-      const subscription = await resolveSubscriptionState(db, user.id);
-      if (input.voicePreset !== undefined && !subscription.entitlementKeys.includes('voice_notes')) throw new AppError('PLAN_LIMIT_REACHED', 'Custom companion voices are available with Kivelle+ or Max.', 403);
-    }
-    const voicePreset = input.voicePreset === undefined ? undefined : await validateCompanionVoicePreset(db, String(conversation.character_instance_id), input.voicePreset);
+    const subscription = await resolveSubscriptionAccess(db, user.id);
     const currentMetadata = (conversation.metadata ?? {}) as Record<string, unknown>;
     const storedPreferences = currentMetadata.chatPreferences;
     const currentPreferences = storedPreferences && typeof storedPreferences === 'object' && !Array.isArray(storedPreferences) ? storedPreferences as Record<string, unknown> : {};
-    const contentMode='mature';
-    const chatPreferences:Record<string,unknown> = { ...currentPreferences, responseStyle: input.responseStyle, textSize: input.textSize, contentMode, ...(voicePreset ? { voicePreset } : {}), ...(input.chatLanguage !== undefined ? { chatLanguage: input.chatLanguage } : {}) };
-    delete chatPreferences.spiceLevel;
+    const reasoningPreference=normalizeReasoningPreference(input.reasoningPreference);
+    const existingReasoning=normalizeReasoningPreference(currentPreferences.reasoningPreference);
+    if(input.reasoningPreference!==undefined&&reasoningPreference!==existingReasoning&&!reasoningPreferenceAllowedForTier(reasoningPreference,subscription.tier))throw new AppError('PLAN_LIMIT_REACHED',reasoningPreference==='high'?'Deep reasoning is available with Kivelle Max.':'Thoughtful reasoning is available with Kivelle+ or Max.',403,false);
+    if (input.voicePreset !== undefined) {
+      if (input.voicePreset !== undefined && !subscription.entitlementKeys.includes('voice_notes')) throw new AppError('PLAN_LIMIT_REACHED', 'Custom companion voices are available with Kivelle+ or Max.', 403);
+    }
+    const voicePreset = input.voicePreset === undefined ? undefined : await validateCompanionVoicePreset(db, String(conversation.character_instance_id), input.voicePreset);
+    const storedMode=typeof currentPreferences.contentMode==='string'?currentPreferences.contentMode:'mature';
+    const requestedMode=input.contentMode??storedMode;
+    let contentMode=requestedMode==='standard'||requestedMode==='romance'||requestedMode==='mature'?requestedMode:'mature';
+    if(requestedMode==='explicit'){
+      if(!adultAccess.adult_eligibility.allowed)throw new AppError('FORBIDDEN','Confirm your age before changing this private conversation boundary.',403,false);
+      const{data:participant,error:participantError}=await db.from('together_character_instances').select('id,together_character_templates(*),together_character_versions(personality_config,communication_style,boundaries)').eq('id',conversation.character_instance_id).eq('user_id',user.id).eq('continuity_id',continuity.id).maybeSingle();
+      if(participantError||!participant)throw new AppError('NOT_FOUND','That companion is unavailable.',404);
+      if(characterAdultStatusFromInstance(participant).ageStatus!=='confirmed_adult')throw new AppError('FORBIDDEN','This conversation is not eligible for adult content.',403,false);
+      contentMode='explicit';
+    }
+    const chatDynamism=normalizeChatDynamism(input.chatDynamism??currentPreferences.chatDynamism);
+    const storedReasoning=normalizeReasoningPreference(input.reasoningPreference??currentPreferences.reasoningPreference);
+    const chatPreferences:Record<string,unknown> = { ...currentPreferences, responseStyle: input.responseStyle, textSize: input.textSize, contentMode, chatDynamism,reasoningPreference:storedReasoning, ...(voicePreset ? { voicePreset } : {}), ...(input.chatLanguage !== undefined ? { chatLanguage: input.chatLanguage } : {}) };
     if (input.voicePreset === null) delete chatPreferences.voicePreset;
     const { data, error } = await db.from('together_conversations').update({ title: input.title, metadata: { ...currentMetadata, chatPreferences }, updated_at: new Date().toISOString() }).eq('id', conversation.id).eq('user_id', user.id).select('*').single();
     if (error || !data) throw new AppError('INTERNAL_ERROR', 'Chat settings could not be saved.', 500, true);
-    await track(db, user.id, 'chat_settings_updated', { conversationId: conversation.id, responseStyle: input.responseStyle, textSize: input.textSize, contentMode, chatLanguage: input.chatLanguage ?? currentPreferences.chatLanguage ?? 'en', customSpice: false, customVoice: Boolean(voicePreset) });
-    return json({ data, correlationId }, 200, correlationId);
+    await track(db, user.id, 'chat_settings_updated', { conversationId: conversation.id, responseStyle: input.responseStyle, textSize: input.textSize, contentMode, chatLanguage: input.chatLanguage ?? currentPreferences.chatLanguage ?? 'en', chatDynamism,reasoningPreference:storedReasoning,customSpice: false, customVoice: Boolean(voicePreset) });
+    const previousDynamism=normalizeChatDynamism(currentPreferences.chatDynamism),previousReasoning=normalizeReasoningPreference(currentPreferences.reasoningPreference);
+    if(previousDynamism!==chatDynamism)await track(db,user.id,'chat_dynamism_changed',{conversationId:conversation.id,conversationMode:'direct',previousValue:previousDynamism,nextValue:chatDynamism});
+    if(previousReasoning!==storedReasoning)await track(db,user.id,'reasoning_preference_changed',{conversationId:conversation.id,conversationMode:'direct',previousValue:previousReasoning,nextValue:storedReasoning});
+    const adultTextAuthorized=await privateTextProjectionAuthorizedForConversation({db,userId:user.id,continuityId:continuity.id,conversation:data,access:adultAccess});
+    return json({ data: projectConversation(data,adultTextAuthorized), correlationId }, 200, correlationId);
   }
   if (input.action === 'read') {
     const now = new Date().toISOString();
@@ -381,13 +446,13 @@ serve(async (request, correlationId) => {
     }).eq('id', conversation.id).eq('user_id', user.id).select('*').single();
     if (error || !data) throw new AppError('INTERNAL_ERROR', 'That chat could not be pinned.', 500, true);
     await track(db, user.id, 'conversation_pin_changed', { conversationId: conversation.id, pinned: input.pinned });
-    return json({ data, correlationId }, 200, correlationId);
+    return json({ data: projectConversation(data,false), correlationId }, 200, correlationId);
   }
   if (input.action === 'rename') {
     const { data, error } = await db.from('together_conversations').update({ title: input.title, updated_at: new Date().toISOString() }).eq('id', conversation.id).eq('user_id', user.id).select('*').single();
     if (error) throw new AppError('INTERNAL_ERROR', 'The conversation could not be renamed.', 500, true);
     await track(db, user.id, 'conversation_renamed', { conversationId: conversation.id });
-    return json({ data, correlationId }, 200, correlationId);
+    return json({ data: projectConversation(data,false), correlationId }, 200, correlationId);
   }
   if (input.action === 'archive' || input.action === 'delete') {
     const now = new Date();
@@ -406,12 +471,14 @@ serve(async (request, correlationId) => {
       await removeStoragePaths(db,user.id,paths);
     }
     await track(db, user.id, 'conversation_archived', { conversationId: conversation.id, requestedAction: input.action, restoreUntil: archive.restore_until });
-    return json({ data, correlationId }, 200, correlationId);
+    return json({ data: projectConversation(data,false), correlationId }, 200, correlationId);
   }
 
   if (input.action === 'message_favorite') {
     const owned = await ownedConversation(db, user.id,continuity.id,input.conversationId);
-    const {data:message,error:messageError}=await db.from('together_messages').select('id,user_metadata').eq('id',input.messageId).eq('conversation_id',owned.id).eq('user_id',user.id).maybeSingle();
+    let favoriteQuery=db.from('together_messages').select('id,user_metadata').eq('id',input.messageId).eq('conversation_id',owned.id).eq('user_id',user.id);
+    if(!adultAccess.authorized_web_adult)favoriteQuery=favoriteQuery.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
+    const {data:message,error:messageError}=await favoriteQuery.maybeSingle();
     if(messageError)throw new AppError('INTERNAL_ERROR','That message could not be updated.',500,true);
     if(!message)throw new AppError('NOT_FOUND','That message is no longer available.',404);
     const userMetadata={...(message.user_metadata&&typeof message.user_metadata==='object'?message.user_metadata:{}),favorite:input.favorite,favoritedAt:input.favorite?new Date().toISOString():null};
@@ -432,7 +499,7 @@ serve(async (request, correlationId) => {
       throw new AppError('INTERNAL_ERROR', 'The chat could not be restored.', 500, true);
     }
     await track(db, user.id, 'conversation_restored', { conversationId: conversation.id, characterInstanceId: conversation.character_instance_id });
-    return json({ data, correlationId }, 200, correlationId);
+    return json({ data: projectConversation(data,false), correlationId }, 200, correlationId);
   }
 
   throw new AppError('ACTION_NOT_AVAILABLE', 'That conversation action is unavailable.', 400);
@@ -451,5 +518,27 @@ async function removeStoragePaths(db: any, userId: string, paths: string[]): Pro
   const jobs = paths.map((storagePath) => ({ user_id: userId, bucket_id: 'together-user-media', storage_path: storagePath, status: 'pending', attempt_count: 1, last_error: error.message }));
   const { error: queueError } = await db.from('together_storage_cleanup_jobs').insert(jobs);
   if (queueError) console.warn('Kivelle media cleanup retry could not be recorded', queueError.message);
+}
+
+function projectConversation(conversation:Record<string,any>,authorizedWebAdult:boolean):Record<string,any>{
+  const safe={...conversation};
+  const canonicalContext=safe.canonical_context&&typeof safe.canonical_context==='object'&&!Array.isArray(safe.canonical_context)?safe.canonical_context:{};
+  const safeContext=safe.safe_context&&typeof safe.safe_context==='object'&&!Array.isArray(safe.safe_context)?safe.safe_context:{};
+  delete safe.canonical_context;
+  delete safe.safe_context;
+  safe.summary=authorizedWebAdult?String(canonicalContext.summary??safe.summary??'')||null:String(safeContext.summary??'')||null;
+  return safe;
+}
+
+function timedJson(data:unknown,correlationId:string,timing:{requestStarted:number;authenticatedAt:number;preparedAt:number;readAt:number}):Response{
+  const completedAt=performance.now(),response=json(data,200,correlationId),duration=(start:number,end:number)=>Math.max(0,end-start).toFixed(1);
+  response.headers.set('Server-Timing',[
+    `auth;dur=${duration(timing.requestStarted,timing.authenticatedAt)}`,
+    `prepare;dur=${duration(timing.authenticatedAt,timing.preparedAt)}`,
+    `read;dur=${duration(timing.preparedAt,timing.readAt)}`,
+    `project;dur=${duration(timing.readAt,completedAt)}`,
+    `total;dur=${duration(timing.requestStarted,completedAt)}`,
+  ].join(', '));
+  return response;
 }
 

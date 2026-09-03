@@ -9,6 +9,8 @@
   "scripts": {
     "web": "pnpm --filter @together/app web",
     "web:build": "pnpm --filter @together/app web:build",
+    "native:build:ios": "node scripts/run-eas-with-lean-context.mjs build --platform ios",
+    "native:build:android": "node scripts/run-eas-with-lean-context.mjs build --platform android",
     "web:budget": "node scripts/check-web-performance-budget.mjs",
     "audit:navigation": "node scripts/audit-navigation-controls.mjs",
     "audit:production-routes": "node scripts/audit-production-routes.mjs",

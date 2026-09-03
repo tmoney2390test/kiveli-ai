@@ -22,12 +22,14 @@ import {
   applyInteractionProposal,
   boundedGroupSocialDelta,
   chatLanguageSafetyBoundary,
+  classifyUserAuthoredMediaSafety,
   classifyConversationQuery,
   type ChemistrySignal,
   classifyGroupSocialEvent,
   compileIntimacyStance,
   detectFlirtSignal,
   hasSexualDialogueLanguage,
+  isDialogueHardBlocked,
   evolveCharacterUserView,
   type GroupSpeakerCandidate,
   type GroupTurnAction,
@@ -81,13 +83,21 @@ import type {
   DialogueContentMode,
   DialogueRoutingDecision,
 } from "../../../packages/together-domain/src/index.ts";
-import { enforceExplicitDialogueAllowance, enforcePhotoSharingEntitlement } from "../_shared/kivelle-subscription.ts";
+import { enforcePhotoSharingEntitlement } from "../_shared/kivelle-subscription.ts";
 import {
   assertSpeakerPrivateContext,
   bindPreparedSpeakerContext,
   buildIsolatedSpeakerContext,
 } from "../_shared/kivelle-speaker-context.ts";
-import { conversationDialogueContentMode } from "../_shared/conversation-content-mode.ts";
+import {
+  conversationAdultMediaAuthorized,
+  requestedConversationDialogueContentMode,
+} from "../_shared/conversation-content-mode.ts";
+import {
+  privateAdultTextTelemetry,
+  privateDialoguePolicyMetadata,
+  resolvePrivateDialoguePolicy,
+} from "../_shared/private-adult-text-policy.ts";
 import {
   derivePhotoOfferContext,
   type PhotoOfferContext,
@@ -114,6 +124,9 @@ import {
   moderationContextTail,
   takeModerationSegments,
 } from "../_shared/adult-dialogue-stream.ts";
+import { resolveAdultAccess } from "../_shared/web-adult-access.ts";
+import { isSafePolicy } from "../_shared/content-projection.ts";
+import { deriveSafeRelationalSummary } from "../_shared/safe-relational-context.ts";
 
 const schema = z.object({
   conversationId: z.string().uuid(),
@@ -183,6 +196,7 @@ Deno.serve(async (request) => {
   }
   try {
     const { user, db } = await authenticated(request);
+    const adultAccess=await resolveAdultAccess(request,user,db);
     const input = await parseBody(request, schema);
     return streamPreparedDialogue(correlationId, async () => {
       let turnLease: ConversationTurnLease | null = null;
@@ -203,12 +217,17 @@ Deno.serve(async (request) => {
             404,
           );
         }
+        const directParticipant=conversation.together_character_instances as Record<string,any>;
+        const projectionPolicy=resolvePrivateDialoguePolicy({access:adultAccess,requestedMode:'explicit',conversationMode:'direct',participants:[directParticipant],safetyAllowed:true});
+        const authorizedPrivateAdultText=projectionPolicy.rollout.generationAllowed;
         const chatLanguage=normalizeChatLanguage(conversation.metadata?.chatPreferences?.chatLanguage);
         const userText = normalizeChatMessage(input.message);
         const isContinuation=input.messageAction==='continue';
         let continuationAnchor:Record<string,any>|null=null;
         if(isContinuation){
-          const{data:latestRows,error:latestError}=await db.from('together_messages').select('id,role,content,delivery_status,provider_metadata,speaker_character_instance_id,character_instance_id,conversation_sequence,created_at').eq('user_id',user.id).eq('conversation_id',conversation.id).order('conversation_sequence',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false}).limit(20);
+          let latestQuery=db.from('together_messages').select('id,role,content,delivery_status,provider_metadata,speaker_character_instance_id,character_instance_id,conversation_sequence,created_at,content_rating,visibility_scope').eq('user_id',user.id).eq('conversation_id',conversation.id);
+          if(!authorizedPrivateAdultText)latestQuery=latestQuery.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
+          const{data:latestRows,error:latestError}=await latestQuery.order('conversation_sequence',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false}).limit(20);
           if(latestError)throw new AppError('INTERNAL_ERROR','That message could not be continued.',500,true);
           const latestVisible=(latestRows??[]).find((row)=>row.provider_metadata?.uiHidden!==true);
           if(!latestVisible||latestVisible.id!==input.anchorMessageId||latestVisible.role!=='assistant'||latestVisible.delivery_status!=='complete')throw new AppError('CONFLICT','That reply is no longer the latest message. Continue from the newest reply instead.',409);
@@ -263,15 +282,16 @@ Deno.serve(async (request) => {
             0,
           );
           if (replay) {
-            const mediaOffer = await replayMediaOffer(
+            const visibleReplay=projectReplyForAccess(replay,authorizedPrivateAdultText);
+            const mediaOffer =visibleReplay===replay?await replayMediaOffer(
               db,
               user.id,
               input.conversationId,
-              replay,
-            );
+              visibleReplay,
+            ):null;
             return streamText(
-              String(replay.content ?? ""),
-              replay,
+              String(visibleReplay.content ?? ""),
+              visibleReplay,
               correlationId,
               [],
               null,
@@ -326,15 +346,16 @@ Deno.serve(async (request) => {
               responseKey,
             );
             if (replay) {
-              const mediaOffer = await replayMediaOffer(
+              const visibleReplay=projectReplyForAccess(replay,authorizedPrivateAdultText);
+              const mediaOffer =visibleReplay===replay?await replayMediaOffer(
                 db,
                 user.id,
                 input.conversationId,
-                replay,
-              );
+                visibleReplay,
+              ):null;
               return streamText(
-                String(replay.content ?? ""),
-                replay,
+                String(visibleReplay.content ?? ""),
+                visibleReplay,
                 correlationId,
                 [],
                 null,
@@ -395,6 +416,8 @@ Deno.serve(async (request) => {
           characterInstanceId: input.characterInstanceId,
           correlationId,
         };
+        let recentRoutingQuery=db.from("together_messages").select("role,content").eq("conversation_id",input.conversationId);
+        if(!authorizedPrivateAdultText)recentRoutingQuery=recentRoutingQuery.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
         const [
           { data: profile },
           { data: recentRoutingRows },
@@ -404,10 +427,7 @@ Deno.serve(async (request) => {
           db.from("together_profiles").select(
             "age_verified_at,content_preferences",
           ).eq("user_id", user.id).maybeSingle(),
-          db.from("together_messages").select("role,content").eq(
-            "conversation_id",
-            input.conversationId,
-          ).order("created_at", { ascending: false }).limit(4),
+          recentRoutingQuery.order("created_at", { ascending: false }).limit(4),
           db.from("together_relationship_states").select(
             "romance_enabled,romance_path_status",
           ).eq("user_id", user.id).eq(
@@ -419,10 +439,19 @@ Deno.serve(async (request) => {
             metadata: { direction: "input" },
           }),
         ]);
-        const requestedMode = conversationDialogueContentMode(
-          profile,
-          conversation,
-        );
+        const storedRequestedMode=requestedConversationDialogueContentMode(profile,conversation);
+        let dialoguePolicy=resolvePrivateDialoguePolicy({
+          access:adultAccess,
+          requestedMode:storedRequestedMode,
+          conversationMode:'direct',
+          participants:[instanceAtRequest],
+          safetyAllowed:!isDialogueHardBlocked({message:contextText,moderation:inputSafety}),
+        });
+        let requestedMode=dialoguePolicy.effectiveMode;
+        const photoSafety=photoIntent.requested
+          ?classifyUserAuthoredMediaSafety({text:contextText,requestedContentLevel:photoIntent.requestedContentLevel,moderation:inputSafety})
+          :null;
+        if(storedRequestedMode==='explicit')await track(db,user.id,'private_adult_text_policy_decision',privateAdultTextTelemetry({policy:dialoguePolicy,access:adultAccess,conversationMode:'direct'}));
         const relationshipAllowsExplicit =
           routingRelationship?.romance_enabled !== false &&
           routingRelationship?.romance_path_status !== "friends_only";
@@ -430,13 +459,16 @@ Deno.serve(async (request) => {
           message: contextText,
           recentTurns: [...(recentRoutingRows ?? [])].reverse(),
           requestedMode,
-          ageVerified: Boolean(profile?.age_verified_at),
+          ageVerified: adultAccess.adult_eligible,
+          adultAuthorized:dialoguePolicy.rollout.generationAllowed,
           characterAge: Number(
             instanceAtRequest.together_character_templates?.age ??
               instanceAtRequest.together_character_versions?.age ?? 0,
           ) || null,
           relationshipAllowsExplicit,
           photoRequest: photoIntent.requested,
+          photoAdultRequest: ['suggestive','mature','explicit'].includes(String(photoIntent.requestedContentLevel??'')),
+          photoSafetyBlocked: photoSafety?.allowed===false,
           moderation: inputSafety,
         });
         const characterName = String(
@@ -463,6 +495,7 @@ Deno.serve(async (request) => {
                 requestFingerprint,
                 requestAttachmentIds: [...input.attachmentIds].sort(),
                 safety_redirected: true,
+                ...safeMessagePolicy('safe'),
                 ...(input.autoDialogueSuggestionId
                   ? {
                     autoDialogueSuggestionId: input.autoDialogueSuggestionId,
@@ -492,6 +525,7 @@ Deno.serve(async (request) => {
               provider: "scripted-boundary",
               safety_category: boundary.category,
               chatLanguage,
+              ...safeMessagePolicy('safe'),
             },
           });
           const boundaryMessage = boundaryCommit.message;
@@ -501,7 +535,7 @@ Deno.serve(async (request) => {
               character_instance_id: input.characterInstanceId,
               direction: "input",
               categories: [
-                ...new Set([...inputSafety.categories, boundary.category]),
+                ...new Set([...inputSafety.categories,...(photoSafety&&!photoSafety.allowed?[`media/${photoSafety.reasonCode}`]:[]), boundary.category]),
               ],
               action: "redirected",
             });
@@ -546,6 +580,8 @@ Deno.serve(async (request) => {
               chatLanguage,
               requestFingerprint,
               requestAttachmentIds: [...input.attachmentIds].sort(),
+              ...userMessagePolicy(route),
+              ...privateDialoguePolicyMetadata({policy:dialoguePolicy,access:adultAccess,conversationMode:'direct',providerRoute:route.provider}),
               ...(isContinuation?{messageAction:'continue',anchorMessageId:input.anchorMessageId,uiHidden:true}:{}),
               ...(input.autoDialogueSuggestionId
                 ? {
@@ -610,6 +646,11 @@ Deno.serve(async (request) => {
             correlationId,
             turnLease,
             responseKey,
+            adultPipelineAuthorized: conversationAdultMediaAuthorized(
+              storedRequestedMode,
+              adultAccess.authorized_web_adult,
+            ),
+            inputModerationApproved:photoSafety?.allowed===true,
           });
           deferPhotoRequestHousekeeping({
             db,
@@ -695,12 +736,14 @@ Deno.serve(async (request) => {
             : null;
           const recallThreshold=semanticIntent==='memory_overview' ? .48 : semanticIntent==='history' ? .54 : (semanticIntent==='location'||semanticIntent==='story') ? .58 : .60;
           const result = queryEmbedding
-            ? await db.rpc("together_match_memories_server", {
+            ? await db.rpc("kivelle_match_memories_for_projection", {
               p_user_id: user.id,
               p_character_instance_id: input.characterInstanceId,
               p_embedding: queryEmbedding,
               p_limit: 12,
               p_min_similarity: recallThreshold,
+              p_include_restricted: adultAccess.authorized_web_adult,
+              p_include_private_adult_text: authorizedPrivateAdultText,
             })
             : { data: [], error: null };
           return {
@@ -812,8 +855,11 @@ Deno.serve(async (request) => {
           attachments,
           now,
           correlationId,
+          authorizedWebAdult:adultAccess.authorized_web_adult,
+          authorizedPrivateAdultText,
           conversationSceneResolution: sceneResolution,
         });
+        (dialogueContext as Record<string,unknown>).contentAccess={authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText};
         if(isContinuation){
           dialogueContext.userMessage='';
           (dialogueContext as Record<string,unknown>).continuationRequest={anchorMessageId:input.anchorMessageId,anchorSpeakerCharacterInstanceId:String(continuationAnchor?.speaker_character_instance_id??continuationAnchor?.character_instance_id??input.characterInstanceId)};
@@ -878,7 +924,7 @@ Deno.serve(async (request) => {
               dialogueContext.currentScene.location,
           };
         }
-        if (dialogueContext.currentScene.sceneSessionId&&!isContinuation) {
+        if (dialogueContext.currentScene.sceneSessionId&&!isContinuation&&!route.explicit) {
           await recordSceneMessage(db, {
             userId: user.id,
             continuityId: continuity.id,
@@ -943,11 +989,14 @@ Deno.serve(async (request) => {
         // companion. Re-evaluate age, boundaries, and provider eligibility against
         // the character who will actually speak so routing can never inherit the
         // wrong participant's permissions.
+        dialoguePolicy=resolvePrivateDialoguePolicy({access:adultAccess,requestedMode:storedRequestedMode,conversationMode:'direct',participants:[selected.instance],safetyAllowed:!isDialogueHardBlocked({message:contextText,moderation:inputSafety})});
+        requestedMode=dialoguePolicy.effectiveMode;
         const selectedRouteInput = {
           message: contextText,
           recentTurns: [...(recentRoutingRows ?? [])].reverse(),
           requestedMode,
-          ageVerified: Boolean(profile?.age_verified_at),
+          ageVerified: adultAccess.adult_eligible,
+          adultAuthorized:dialoguePolicy.rollout.generationAllowed,
           characterAge: Number(dialogueContext.character?.age ?? 0) || null,
           relationshipAllowsExplicit:
             dialogueContext.relationship?.romance_enabled !== false &&
@@ -957,27 +1006,6 @@ Deno.serve(async (request) => {
           moderation: inputSafety,
         };
         route = resolveDialogueRouting(selectedRouteInput);
-        if (route.provider === "xai") {
-          try {
-            await enforceExplicitDialogueAllowance(
-              db,
-              user.id,
-              dialogueContext.subscription.capabilities,
-            );
-          } catch (error) {
-            console.warn(
-              JSON.stringify({
-                level: "warn",
-                correlationId,
-                operation: "explicit_dialogue_downgrade",
-                reason: error instanceof AppError
-                  ? error.code
-                  : "allowance_unavailable",
-              }),
-            );
-            route = downgradeExplicitRoute(selectedRouteInput);
-          }
-        }
         const selectedSpeakerName = String(
           dialogueContext.character?.name ?? "Companion",
         );
@@ -1008,6 +1036,7 @@ Deno.serve(async (request) => {
               speakerName: selectedSpeakerName,
               speakerSlug: dialogueContext.character?.slug,
               chatLanguage:normalizeChatLanguage(dialogueContext.chatLanguage),
+              ...safeMessagePolicy('safe'),
             },
           });
           const boundaryMessage = boundaryCommit.message;
@@ -1161,6 +1190,8 @@ Deno.serve(async (request) => {
             speakerSlug: characterTemplate.slug,
             directorUsed: dialogueContext.director?.used === true,
             ...(isContinuation?{continuationOfMessageId:input.anchorMessageId}:{}),
+            ...(outputSafety.allowed?assistantMessagePolicy(route):safeMessagePolicy('safe')),
+            ...privateDialoguePolicyMetadata({policy:dialoguePolicy,access:adultAccess,conversationMode:'direct',safetyDisposition:outputSafety.allowed?'allowed':'redirected',providerRoute:route.provider}),
           },
         });
         const assistantMessage = assistantCommit.message;
@@ -1169,7 +1200,7 @@ Deno.serve(async (request) => {
           reactions: Record<string, unknown>[];
         } = { messages: [], reactions: [] };
         if (assistantCommit.created) {
-          if (dialogueContext.currentScene.sceneSessionId) {
+          if (dialogueContext.currentScene.sceneSessionId&&!route.explicit) {
             await recordSceneMessage(db, {
               userId: user.id,
               continuityId: continuity.id,
@@ -1179,7 +1210,8 @@ Deno.serve(async (request) => {
               characterInstanceId: primarySpeakerId,
             });
           }
-          if(!isContinuation)scheduleConversationEffects(async () => {
+          if(!isContinuation&&route.explicit)scheduleConversationEffects(()=>recordAdultSafeContext(db,user.id,input.conversationId,String(assistantMessage.created_at),String(userMessage.content??''),String(assistantMessage.content??'')),correlationId);
+          if(!isContinuation&&!route.explicit)scheduleConversationEffects(async () => {
             await safelyApplyConversationEffects(
               db,
               user.id,
@@ -1223,7 +1255,7 @@ Deno.serve(async (request) => {
           await track(db, user.id, "character_response_received", {
             characterInstanceId: input.characterInstanceId,
           });
-          additional = await generateAdditionalSceneReplies(db, {
+          if(!route.explicit)additional = await generateAdditionalSceneReplies(db, {
             userId: user.id,
             continuityId: continuity.id,
             conversationId: input.conversationId,
@@ -1401,15 +1433,22 @@ function streamText(
   photoRequestError?: PhotoRequestError,
   mediaOffer?: Record<string, unknown> | null,
 ): Response {
+  const startFrame=`data: ${JSON.stringify({type:"start",messageId:message.id})}\n\n`;
+  const doneFrame=`data: ${JSON.stringify({type:"done",message,additionalMessages,generatedMedia,...(photoRequestError?{photoRequestError}:{}),...(mediaOffer?{mediaOffer}:{})})}\n\n`;
+  const headers={
+    ...corsHeaders,
+    "Content-Type":"text/event-stream",
+    "Cache-Control":"no-cache, no-transform",
+    "X-Accel-Buffering":"no",
+    "X-Correlation-ID":correlationId,
+  };
+  // Photo-only turns contain no tokens. Sending their start and terminal events
+  // together prevents edge proxies from flushing the first tiny chunk while
+  // dropping the equally small completion chunk.
+  if(!content||content===PHOTO_ONLY_MESSAGE_CONTENT)return new Response(startFrame+doneFrame,{status:200,headers});
   const stream = new ReadableStream({
     async start(controller) {
-      controller.enqueue(
-        encoder.encode(
-          `data: ${
-            JSON.stringify({ type: "start", messageId: message.id })
-          }\n\n`,
-        ),
-      );
+      controller.enqueue(encoder.encode(startFrame));
       const streamedContent = content === PHOTO_ONLY_MESSAGE_CONTENT
         ? ""
         : content;
@@ -1422,31 +1461,13 @@ function streamText(
         );
         await new Promise((resolve) => setTimeout(resolve, 12));
       }
-      controller.enqueue(
-        encoder.encode(
-          `data: ${
-            JSON.stringify({
-              type: "done",
-              message,
-              additionalMessages,
-              generatedMedia,
-              ...(photoRequestError ? { photoRequestError } : {}),
-              ...(mediaOffer ? { mediaOffer } : {}),
-            })
-          }\n\n`,
-        ),
-      );
+      controller.enqueue(encoder.encode(doneFrame));
       controller.close();
     },
   });
   return new Response(stream, {
     status: 200,
-    headers: {
-      ...corsHeaders,
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      "X-Correlation-ID": correlationId,
-    },
+    headers,
   });
 }
 
@@ -1726,29 +1747,37 @@ function dialogueRunOptions(
   return {
     route,
     usageScope,
+    generationContext:{mode:'direct',speakerRole:'primary',activeSpeakerCount:1},
     ...(operation ? { operation } : {}),
     ...(sharedSceneParticipant ? { sharedSceneParticipant: true } : {}),
   };
+}
+
+function safeMessagePolicy(rating:'safe'|'suggestive'='safe'):Record<string,unknown>{return{contentRating:rating,visibilityScope:'all',moderationVersion:'web-adult-v1'};}
+function projectReplyForAccess(message:Record<string,any>,authorized:boolean):Record<string,any>{if(authorized||isSafePolicy(message))return message;return{id:`bridge-${String(message.id)}`,conversation_id:message.conversation_id,role:'system',content:'Private exchange\n\nA portion of this conversation is unavailable in this app.',delivery_status:'complete',moderation_status:'approved',content_rating:'safe',visibility_scope:'all',moderation_version:'safe-bridge-v1',created_at:message.created_at,updated_at:message.updated_at,provider_metadata:{systemEvent:'restricted_bridge'}};}
+function userMessagePolicy(route:DialogueRoutingDecision):Record<string,unknown>{
+  const adult=route.explicit&&(route.classification==='adult_intimacy'||route.classification==='explicit_adult');
+  return adult?{contentRating:'explicit',visibilityScope:'all',moderationVersion:'private-adult-text-v1',adultAuthorized:true,safeBridge:'You and your companion shared a more intimate moment and grew closer.'}:safeMessagePolicy(route.resolvedMode==='standard'?'safe':'suggestive');
+}
+function assistantMessagePolicy(route:DialogueRoutingDecision):Record<string,unknown>{
+  return route.explicit?{contentRating:'explicit',visibilityScope:'all',moderationVersion:'private-adult-text-v1',adultAuthorized:true,safeBridge:'You and your companion shared a more intimate moment and grew closer.'}:safeMessagePolicy(route.resolvedMode==='standard'?'safe':'suggestive');
+}
+
+async function recordAdultSafeContext(db:any,userId:string,conversationId:string,at:string,userText:string,assistantText:string):Promise<void>{
+  const{data}=await db.from('together_conversations').select('canonical_context,safe_context').eq('id',conversationId).eq('user_id',userId).maybeSingle();
+  if(!data)return;
+  const priorCanonical=String(data.canonical_context?.summary??'').trim(),priorSafe=String(data.safe_context?.summary??'').trim(),bridge=await deriveSafeRelationalSummary({analysis,moderation,userText,assistantText,usageScope:{db,userId,conversationId,contentMode:'explicit',metadata:{pipeline:'safe_relational_summary'}}});
+  const exchange=`USER: ${userText.trim()}\nCOMPANION: ${assistantText.trim()}`.trim(),canonicalSummary=[priorCanonical,exchange].filter(Boolean).join('\n\n').slice(-4_000),safeSummary=(priorSafe.endsWith(bridge)?priorSafe:[priorSafe,bridge].filter(Boolean).join('\n\n')).slice(-2_000);
+  await db.from('together_conversations').update({
+    canonical_context:{...(data.canonical_context??{}),summary:canonicalSummary,lastAdultExchangeAt:at,projectionVersion:'private-adult-text-v1'},
+    safe_context:{...(data.safe_context??{}),summary:safeSummary,relationshipDevelopment:bridge,updatedAt:at,projectionVersion:'private-adult-text-v1'},
+    updated_at:at,
+  }).eq('id',conversationId).eq('user_id',userId);
 }
 function normalizeContentMode(value: unknown): DialogueContentMode {
   return value === "romance" || value === "mature" || value === "explicit"
     ? value
     : "standard";
-}
-function downgradeExplicitRoute(
-  input: Parameters<typeof resolveDialogueRouting>[0],
-): DialogueRoutingDecision {
-  const fallback = resolveDialogueRouting({
-    ...input,
-    requestedMode: input.requestedMode === "standard" ? "standard" : "mature",
-  });
-  return {
-    ...fallback,
-    requestedMode: input.requestedMode ?? "standard",
-    reason: fallback.provider === "deterministic"
-      ? "provider_unavailable"
-      : "adult_expression_downgrade",
-  };
 }
 function outputBoundaryResponse(characterName: string,language:unknown='en',sourceText?:unknown): string {
   return localizedSafetyBoundary(characterName,language,sourceText);
@@ -1768,6 +1797,8 @@ async function photoOnlyResponse(input: {
   correlationId: string;
   turnLease: ConversationTurnLease;
   responseKey: string;
+  adultPipelineAuthorized:boolean;
+  inputModerationApproved:boolean;
 }): Promise<Response> {
   const character = input.context.character ?? {};
   const deliveryCommit = await commitDirectAssistantMessage(input.db, {
@@ -1796,6 +1827,8 @@ async function photoOnlyResponse(input: {
         String(deliveryMessage.id),
         input.correlationId,
         input.context,
+        input.adultPipelineAuthorized,
+        input.inputModerationApproved,
       ),
       input.db.from("together_conversations").update({
         last_message_at: deliveryMessage.created_at,
@@ -1906,7 +1939,7 @@ function streamDialogue({
             needsRepair = false;
           const approveAndEmit = async (segment: string): Promise<boolean> => {
             const candidate = approved + segment;
-            if (hasSexualDialogueLanguage(candidate)) {
+            if (!runOptions.route.explicit&&hasSexualDialogueLanguage(candidate)) {
               blockedCategories = ["production_sexual_content_ceiling"];
               return false;
             }
@@ -2054,6 +2087,7 @@ function streamDialogue({
             speakerSlug: context.character?.slug,
             directorUsed: context.director?.used === true,
             ...(input.messageAction==='continue'?{continuationOfMessageId:input.anchorMessageId}:{}),
+            ...assistantMessagePolicy(runOptions.route),
           },
         });
         const assistantMessage = assistantCommit.message;
@@ -2062,7 +2096,7 @@ function streamDialogue({
           reactions: Record<string, unknown>[];
         } = { messages: [], reactions: [] };
         if (assistantCommit.created) {
-          if (context.currentScene?.sceneSessionId) {
+          if (context.currentScene?.sceneSessionId&&!runOptions.route.explicit) {
             await recordSceneMessage(db, {
               userId: user.id,
               continuityId: String(instance.continuity_id),
@@ -2072,7 +2106,8 @@ function streamDialogue({
               characterInstanceId: primarySpeakerId,
             });
           }
-          if(input.messageAction!=='continue')scheduleConversationEffects(async () => {
+          if(input.messageAction!=='continue'&&runOptions.route.explicit)scheduleConversationEffects(()=>recordAdultSafeContext(db,user.id,input.conversationId,String(assistantMessage.created_at),String(userMessage.content??''),String(assistantMessage.content??'')),correlationId);
+          if(input.messageAction!=='continue'&&!runOptions.route.explicit)scheduleConversationEffects(async () => {
             await safelyApplyConversationEffects(
               db,
               user.id,
@@ -2116,7 +2151,7 @@ function streamDialogue({
           await track(db, user.id, "character_response_received", {
             characterInstanceId: input.characterInstanceId,
           });
-          additional = await generateAdditionalSceneReplies(db, {
+          if(!runOptions.route.explicit)additional = await generateAdditionalSceneReplies(db, {
             userId: user.id,
             continuityId: String(instance.continuity_id),
             conversationId: input.conversationId,
@@ -2255,6 +2290,8 @@ async function dialogueSpeaker(
     sceneContext: sceneSessionId
       ? { ...baseContext.currentScene, sceneSessionId }
       : undefined,
+    authorizedWebAdult:baseContext.contentAccess?.authorizedWebAdult===true,
+    authorizedPrivateAdultText:baseContext.contentAccess?.authorizedPrivateAdultText===true,
   });
   const context: any = {
     ...selected.context,
@@ -2438,17 +2475,6 @@ async function generateAdditionalSceneReplies(
       };
       let route = resolveDialogueRouting(routeInput);
       if (route.hardBlocked) continue;
-      if (route.provider === "xai") {
-        try {
-          await enforceExplicitDialogueAllowance(
-            db,
-            input.userId,
-            selected.context.subscription.capabilities,
-          );
-        } catch {
-          route = downgradeExplicitRoute(routeInput);
-        }
-      }
       selected.context.contentMode = route.resolvedMode;
       selected.context.dialogueRouting = {
         provider: route.provider,
@@ -2944,13 +2970,15 @@ async function safelyCreateConversationPhotoOffer(
   messageId: string,
   correlationId: string,
   context: PhotoOfferContext,
+  adultPipelineAuthorized:boolean,
+  inputModerationApproved:boolean,
 ): Promise<
   { offer: Record<string, unknown> | null; error?: PhotoRequestError }
 > {
   try {
     const currentScene = context.currentScene;
     const intent = classifyPhotoRequest(input.message);
-    const productionRequest=resolveProductionSafePhotoRequest({requestText:input.message,requestedContentLevel:intent.requestedContentLevel});
+    const productionRequest=resolveProductionSafePhotoRequest({requestText:input.message,requestedContentLevel:intent.requestedContentLevel,adultPipelineAuthorized});
     const characterName = String(context.character.name ?? "Your companion")
       .trim();
     const firstName = characterName.split(/\s+/)[0] || characterName;
@@ -2980,12 +3008,15 @@ async function safelyCreateConversationPhotoOffer(
         ? { sharedPlanId: String(currentScene.sharedPlanId) }
         : {}),
       previewMetadata: {
+        clientRequestId: input.clientRequestId,
         requestText: String(productionRequest.requestText??'').slice(0, 400),
+        inputModerationApproved,
         productionMediaDowngraded:productionRequest.downgraded,
         productionMediaReason:productionRequest.reasonCode,
         ...(canonicalPresence ? { canonicalPresence } : {}),
         locationName: currentScene.location,
       },
+      adultPipelineAuthorized,
     });
     if (!offer) {
       return {
@@ -3050,13 +3081,13 @@ async function applyConversationEffects(
     db.from("together_open_threads").select("*").eq("user_id", userId).eq(
       "character_instance_id",
       instanceId,
-    ).is("resolved_at", null).limit(20),
+    ).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).is("resolved_at", null).limit(20),
     db.from("together_conversations").select("metadata").eq("user_id", userId)
       .eq("id", conversationId).maybeSingle(),
     db.from("together_messages").select("content").eq("user_id", userId).eq(
       "conversation_id",
       conversationId,
-    ).eq("role", "user").gte(
+    ).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).eq("role", "user").gte(
       "created_at",
       new Date(Date.now() - 30 * 60000).toISOString(),
     ).order("created_at", { ascending: false }).limit(12),
@@ -3065,6 +3096,7 @@ async function applyConversationEffects(
     ).eq("id", instanceId).eq("user_id", userId).maybeSingle(),
     db.from("together_relationship_reflections").select("user_view,metadata")
       .eq("character_instance_id", instanceId).eq("user_id", userId)
+      .eq('visibility_scope','all').in('content_rating',['safe','suggestive'])
       .maybeSingle(),
   ]);
   const proposal = await analysis.analyze({
@@ -3110,6 +3142,7 @@ async function applyConversationEffects(
     continuity_id: instanceRow?.continuity_id ?? null,
     user_view: characterUserView,
     updated_through_message_id: assistantMessageId,
+    content_rating:'safe',visibility_scope:'all',moderation_version:'safe-dialogue-v1',
     metadata: {
       ...(reflectionRow?.metadata ?? {}),
       userViewSource: "conversation_evidence",

@@ -3,6 +3,7 @@ import { resolveClientConversationStyle } from './conversationStyle';
 import { normalizeSpiceLevel } from './spice';
 import { normalizeCompanionVoicePreset, type CompanionVoicePreset } from '@together/domain/src/voice-presets';
 import { normalizeChatLanguage, type ChatLanguagePreference } from '@together/domain/src/chat-language';
+import { DEFAULT_CHAT_GENERATION_PREFERENCES, normalizeChatDynamism, normalizeReasoningPreference, type ChatDynamism, type ChatGenerationPreferences, type ReasoningPreference } from '@together/domain/src/chat-generation';
 
 export const chatTextSizeOptions: Array<{ value: ChatTextSize; label: string; fontSize: number; lineHeight: number }> = [
   { value: 'small', label: 'Small', fontSize: 13, lineHeight: 19 },
@@ -10,10 +11,9 @@ export const chatTextSizeOptions: Array<{ value: ChatTextSize; label: string; fo
   { value: 'large', label: 'Large', fontSize: 18, lineHeight: 26 },
 ];
 
-export function chatPreferencesFromConversation(conversation?: Pick<Conversation, 'metadata'> | null): ChatPreferences {
+export function chatPreferencesFromConversation(conversation?: Pick<Conversation, 'metadata'> | null): ChatPreferences & ChatGenerationPreferences {
   const value = conversation?.metadata?.chatPreferences;
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  const candidate = value as Record<string, unknown>;
+  const candidate = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
   return {
     ...(candidate.responseStyle === 'paragraph' || candidate.responseStyle === 'texting' ? { responseStyle: candidate.responseStyle } : {}),
     ...(candidate.textSize === 'small' || candidate.textSize === 'medium' || candidate.textSize === 'large' ? { textSize: candidate.textSize } : {}),
@@ -21,7 +21,17 @@ export function chatPreferencesFromConversation(conversation?: Pick<Conversation
     ...(normalizeCompanionVoicePreset(candidate.voicePreset) ? { voicePreset: normalizeCompanionVoicePreset(candidate.voicePreset)! } : {}),
     ...(isDialogueContentMode(candidate.contentMode) ? { contentMode: candidate.contentMode } : {}),
     ...(candidate.chatLanguage !== undefined ? { chatLanguage: normalizeChatLanguage(candidate.chatLanguage) } : {}),
+    chatDynamism: normalizeChatDynamism(candidate.chatDynamism),
+    reasoningPreference: normalizeReasoningPreference(candidate.reasoningPreference),
   };
+}
+
+export function resolveChatDynamism(conversation?: Pick<Conversation, 'metadata'> | null): ChatDynamism {
+  return chatPreferencesFromConversation(conversation).chatDynamism ?? DEFAULT_CHAT_GENERATION_PREFERENCES.chatDynamism;
+}
+
+export function resolveReasoningPreference(conversation?: Pick<Conversation, 'metadata'> | null): ReasoningPreference {
+  return chatPreferencesFromConversation(conversation).reasoningPreference ?? DEFAULT_CHAT_GENERATION_PREFERENCES.reasoningPreference;
 }
 
 export function resolveChatResponseStyle(conversation: Pick<Conversation, 'metadata'> | null | undefined, profile: Snapshot['profile']): ConversationStyle {
@@ -41,10 +51,11 @@ export function resolveChatVoicePreset(conversation?: Pick<Conversation, 'metada
 }
 
 export function resolveChatContentMode(conversation: Pick<Conversation, 'metadata'> | null | undefined, profile: Snapshot['profile']): DialogueContentMode {
-  // Explicit/standard values may still exist in local caches and historical
-  // metadata. The client mirrors the server's production ceiling and never
-  // exposes those legacy values as an active setting.
-  return profile?.age_verified_at ? 'mature' : 'romance';
+  const conversationMode=chatPreferencesFromConversation(conversation).contentMode;
+  if(conversationMode)return conversationMode;
+  const profileMode=profile?.content_preferences?.contentMode;
+  if(isDialogueContentMode(profileMode))return profileMode;
+  return profile?.age_verified_at?'explicit':'romance';
 }
 
 export function resolveChatLanguage(conversation?: Pick<Conversation, 'metadata'> | null): ChatLanguagePreference {
@@ -63,10 +74,11 @@ export function isSubscribedTier(tier?: string | null): boolean {
   return ['kivelle_plus', 'kivelle_max', 'together_plus', 'unlimited'].includes(String(tier ?? '').toLowerCase());
 }
 
-export function withLocalChatSettings(conversation: Conversation, input: { title: string | null; responseStyle: ConversationStyle; textSize: ChatTextSize; spiceLevel?: SpiceLevel; voicePreset?: CompanionVoicePreset | null; contentMode?: DialogueContentMode; chatLanguage?: ChatLanguagePreference }): Conversation {
+export function withLocalChatSettings(conversation: Conversation, input: { title: string | null; responseStyle: ConversationStyle; textSize: ChatTextSize; spiceLevel?: SpiceLevel; voicePreset?: CompanionVoicePreset | null; contentMode?: DialogueContentMode; chatLanguage?: ChatLanguagePreference; chatDynamism?:ChatDynamism; reasoningPreference?:ReasoningPreference }): Conversation {
   const current = chatPreferencesFromConversation(conversation);
-  const nextPreferences = { ...current, responseStyle: input.responseStyle, textSize: input.textSize, contentMode: 'mature' as const, ...(input.voicePreset ? { voicePreset: input.voicePreset } : {}), ...(input.chatLanguage ? { chatLanguage: input.chatLanguage } : {}) };
-  delete nextPreferences.spiceLevel;
+  const stored=conversation.metadata?.chatPreferences;
+  const rawCurrent=stored&&typeof stored==='object'&&!Array.isArray(stored)?stored as Record<string,unknown>:{};
+  const nextPreferences = { ...rawCurrent,...current, responseStyle: input.responseStyle, textSize: input.textSize, contentMode: input.contentMode??current.contentMode??'mature', chatDynamism:normalizeChatDynamism(input.chatDynamism??current.chatDynamism), reasoningPreference:normalizeReasoningPreference(input.reasoningPreference??current.reasoningPreference), ...(input.voicePreset ? { voicePreset: input.voicePreset } : {}), ...(input.chatLanguage ? { chatLanguage: input.chatLanguage } : {}) };
   if (input.voicePreset === null) delete nextPreferences.voicePreset;
   return {
     ...conversation,

@@ -10,11 +10,12 @@ import {
   MoodBadge,
   RelationshipBadge,
   Screen,
+  SpiceBadge,
   resolveCharacterPortraitSource,
 } from '../../src/components';
 import { DetailPreservingArtwork } from '../../src/components/DetailPreservingArtwork';
 import { characterProfilePhotos } from '../../src/character-profile-assets';
-import { ensureConversation, loadCharacterSchedule, meetCompanion } from '../../src/lib/api';
+import { loadCharacterSchedule, manageConversation, meetCompanion, openConversation } from '../../src/lib/api';
 import { buildCharacterDaySchedule, type CharacterDayScheduleEntry } from '../../src/lib/characterDaySchedule';
 import { characterRelationshipPresentation, compactCharacterSchedule } from '../../src/lib/characterProfilePresentation';
 import { relationshipDaysKnown } from '../../src/lib/companionLife';
@@ -28,6 +29,8 @@ import { selectPortraitVersion } from '../../src/lib/selectors';
 import { useTogether } from '../../src/store/useTogether';
 import { colors, radius, spacing, typography } from '../../src/theme';
 import { characterAssets } from '../../src/assets';
+import { useAuth } from '../../src/hooks/useAuth';
+import { prefetchConversationMessagePage, writeConversationMessagePage } from '../../src/lib/conversationMessageWarmup';
 
 export function generateStaticParams() {
   return Object.keys(characterAssets).map((slug) => ({ slug }));
@@ -38,6 +41,7 @@ export default function CharacterProfile() {
   const { width } = useWindowDimensions();
   const desktop = width >= 820;
   const { snapshot, setSnapshot, upsertConversation } = useTogether();
+  const { session } = useAuth();
   const [busy, setBusy] = useState(false);
   const [openingStage, setOpeningStage] = useState<'idle'|'meeting'|'conversation'>('idle');
   const [error, setError] = useState('');
@@ -142,8 +146,12 @@ export default function CharacterProfile() {
       setOpeningStage('conversation');
       let targetConversation = activeConversationFor(targetSnapshot.conversations, targetInstance.id);
       if (!targetConversation) {
-        targetConversation = await ensureConversation(targetInstance.id);
+        const opened=await openConversation(targetInstance.id);
+        targetConversation=opened.conversation;
+        if(session?.user.id)writeConversationMessagePage(session.user.id,targetConversation.id,{messages:[...opened.messages].reverse(),hasMore:opened.hasMore});
         upsertConversation(targetConversation);
+      } else {
+        prefetchConversationMessagePage(session?.user.id,targetConversation.id,()=>manageConversation({action:'messages',conversationId:targetConversation!.id,limit:50}));
       }
       router.push(characterConversationHref(handle, targetConversation.id) as never);
     } catch (caught) {
@@ -163,6 +171,7 @@ export default function CharacterProfile() {
         occupation={template.occupation}
         photos={profilePhotos}
         focal={focal}
+        spiceLevel={template.spice_level}
         desktop={desktop}
         viewportWidth={width}
         onBack={goBack}
@@ -252,7 +261,7 @@ export default function CharacterProfile() {
   </Screen>;
 }
 
-function CharacterPortraitGallery({slug,name,age,occupation,photos,focal,desktop,viewportWidth,onBack}:{slug:string;name:string;age:number;occupation:string;photos:ReturnType<typeof characterProfilePhotos>;focal:ImageContentPosition;desktop:boolean;viewportWidth:number;onBack:()=>void}) {
+function CharacterPortraitGallery({slug,name,age,occupation,photos,focal,spiceLevel,desktop,viewportWidth,onBack}:{slug:string;name:string;age:number;occupation:string;photos:ReturnType<typeof characterProfilePhotos>;focal:ImageContentPosition;spiceLevel?:number|null;desktop:boolean;viewportWidth:number;onBack:()=>void}) {
   const[photoIndex,setPhotoIndex]=useState(0);
   const[failedPhotoIndexes,setFailedPhotoIndexes]=useState<Record<number,true>>({});
   useEffect(()=>{setPhotoIndex(0);setFailedPhotoIndexes({});},[slug]);
@@ -283,6 +292,7 @@ function CharacterPortraitGallery({slug,name,age,occupation,photos,focal,desktop
     />:null}
     <View pointerEvents="none" style={styles.portraitShade}/>
     <Pressable accessibilityRole="button" accessibilityLabel="Go back" hitSlop={4} onPress={onBack} style={({pressed})=>[styles.back,pressed&&styles.pressed]}><ArrowLeft size={20} color="#fff"/></Pressable>
+    <SpiceBadge level={spiceLevel} overlay style={photos.length>1?styles.profileSpiceWithCounter:undefined}/>
     {photos.length>1?<>
       <Pressable accessibilityRole="button" accessibilityLabel={`Previous photo of ${name}`} hitSlop={6} onPress={()=>cyclePhoto(-1)} style={({pressed})=>[styles.photoButton,styles.previousPhoto,pressed&&styles.pressed]}><ChevronLeft size={24} color="#fff"/></Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`Next photo of ${name}`} hitSlop={6} onPress={()=>cyclePhoto(1)} style={({pressed})=>[styles.photoButton,styles.nextPhoto,pressed&&styles.pressed]}><ChevronRight size={24} color="#fff"/></Pressable>
@@ -379,6 +389,7 @@ const styles = StyleSheet.create({
   nextPhoto: { right: 12 },
   photoCounter: { position: 'absolute', top: 14, right: 14, zIndex: 3, minWidth: 50, paddingHorizontal: 10, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: 'rgba(8,11,19,.72)', borderWidth: 1, borderColor: 'rgba(255,255,255,.18)', alignItems: 'center' },
   photoCounterText: { color: '#fff', fontSize: 10, lineHeight: 12, fontWeight: '900', letterSpacing: .6 },
+  profileSpiceWithCounter: { top: 58 },
   photoDots: { position: 'absolute', right: 20, bottom: 105, left: 20, zIndex: 3, flexDirection: 'row', justifyContent: 'center', gap: 6 },
   photoDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,.42)' },
   photoDotActive: { width: 18, backgroundColor: '#fff' },

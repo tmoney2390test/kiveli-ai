@@ -10,6 +10,11 @@ import {activeContinuity,requireInstanceInActiveContinuity}from'../_shared/toget
 import { resolveSubscriptionState } from '../_shared/kivelle-subscription.ts';
 import { refundCredits, spendCredits } from '../_shared/kivelle-subscription.ts';
 import { configuredGroupImageRouteAvailable } from '../_shared/together-media-providers.ts';
+// Supabase's remote deploy graph can otherwise omit this late direct import
+// from the unusually large media bundle.
+import '../_shared/web-adult-access.ts';
+import '../_shared/web-billing-policy.ts';
+import '../_shared/together-ai.ts';
 // Keep the Venice adapter in Supabase's remote bundle. The deploy graph can
 // omit transitive sibling imports reached through the provider registry.
 import '../_shared/venice.ts';
@@ -18,6 +23,7 @@ import '../_shared/venice.ts';
 import '../_shared/kivelle-video-routes.ts';
 import '../_shared/kivelle-video-admission.ts';
 import '../_shared/kivelle-video-queue.ts';
+import '../_shared/together-video-content.ts';
 // Keep the private P-Video opening-frame cleanup in the remote upload graph.
 import '../_shared/together-direct-video-frame.ts';
 import { resolveMediaContentPolicy } from '../../../packages/together-domain/src/media-routing.ts';
@@ -28,15 +34,20 @@ import{synchronizedGeneratedPhotoPreferences}from'../_shared/together-photo-pref
 import{isFictionalCompanion}from'../_shared/together-media-character.ts';
 import{loadValidatedMediaSubjects,normalizeMediaSubjectIds}from'../_shared/together-media-subjects.ts';
 import{claimDailyPhotoAllowance,dailyPhotoReservationKey}from'../_shared/kivelle-subscription.ts';
-import{buildVideoProviderPayload,canSelectVideoRoute,configuredVideoRouteCatalog,defaultVideoRouteId,MOTION_PRESETS,resolveVideoRoute,safeVideoRouteOption,sourceVideoAspectRatio,videoCreditCost,VIDEO_DURATIONS,VIDEO_ROUTE_IDS,VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT,videoSelectorMode,type VideoDurationSeconds,type VideoMotionPreset}from'../_shared/kivelle-video-routes.ts';
-import{canonicalRequestForMedia,snapshotReferenceAssets}from'../_shared/together-media-base.ts';
+import{buildVideoProviderPayload,canSelectVideoRoute,configuredVideoRouteCatalog,defaultVideoPublicRouteId,MOTION_PRESETS,publicVideoRoutes,resolveVideoRoute,safeVideoRouteOption,sourceVideoAspectRatio,validateVideoSettings,videoCreditCost,videoModelPickerExposed,videoProviderBaselineCostUsd,VIDEO_RESOLUTIONS,VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT,videoSelectorMode,type VideoMotionPreset,type VideoResolution,type VideoSettings}from'../_shared/kivelle-video-routes.ts';
+import{canonicalRequestForMedia,mediaPolicyMessage,snapshotReferenceAssets}from'../_shared/together-media-base.ts';
 import{configuredWaveSpeedClient}from'../_shared/wavespeed.ts';
 import{quoteVideoWithAdmission}from'../_shared/kivelle-video-admission.ts';
 import{estimatedVideoQueueWaitSeconds,orderedVideoQueue,videoQueueProgressLabel}from'../_shared/kivelle-video-queue.ts';
 import{placeContextSnapshot,resolveCharacterHomeContext,resolveCharacterPlaceContext,resolvePlaceContext,resolveWorldAccess,type PlaceContext}from'../_shared/together-place.ts';
 import{cleanupDirectVideoSourceFrame}from'../_shared/together-direct-video-frame.ts';
 import{resolveCompanionPresence}from'../_shared/together-schedule.ts';
+import{issueAdultAssetUrl,resolveAdultAccess,type AdultAccessContext}from'../_shared/web-adult-access.ts';
+import{ConfiguredModerationProvider}from'../_shared/together-ai.ts';
+import{classifyPhotoIntent,classifyUserAuthoredMediaSafety}from'../../../packages/together-domain/src/media.ts';
+import{adultVideoFeatureEnabled,directVideoOpeningFrameRequest,resolveDirectVideoContentDecision,type DirectVideoContentDecision}from'../_shared/together-video-content.ts';
 
+const videoSettingsSchema=z.object({model:z.string().trim().min(3).max(100),sound:z.boolean(),resolution:z.enum(VIDEO_RESOLUTIONS),duration:z.number().int().min(1).max(20)}).strict();
 const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('request'),characterInstanceId:z.string().uuid(),source:z.literal('user_request').default('user_request'),conversationId:z.string().uuid().optional(),messageId:z.string().uuid().optional(),requestText:z.string().trim().max(400).optional(),idempotencyKey:z.string().trim().min(8).max(120).optional()}),
   z.object({action:z.literal('list_pending_offers'),characterInstanceId:z.string().uuid().optional()}),
@@ -53,26 +64,30 @@ const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('content_preferences'),suggestiveMediaEnabled:z.boolean(),matureMediaEnabled:z.boolean(),explicitMediaEnabled:z.boolean(),adultVideoEnabled:z.boolean()}),
   z.object({action:z.literal('video_options'),sourceMediaId:z.string().uuid()}),
   z.object({action:z.literal('video_direct_options'),characterInstanceId:z.string().uuid()}),
-  z.object({action:z.literal('video_event'),sourceMediaId:z.string().uuid(),event:z.enum(['option_sheet_opened','model_selected','motion_selected']),videoRouteId:z.enum(VIDEO_ROUTE_IDS).optional(),motionPreset:z.enum(MOTION_PRESETS).optional()}).strict(),
-  z.object({action:z.literal('animate'),sourceMediaId:z.string().uuid(),videoRouteId:z.string().trim().min(8).max(100),motionPreset:z.enum(MOTION_PRESETS),durationSeconds:z.number().int().refine((value)=>VIDEO_DURATIONS.includes(value as VideoDurationSeconds)),requestId:z.string().trim().min(8).max(120)}).strict(),
-  z.object({action:z.literal('video_direct_generate'),characterInstanceId:z.string().uuid(),conversationId:z.string().uuid().optional(),videoRouteId:z.string().trim().min(8).max(100),motionPreset:z.enum(MOTION_PRESETS),durationSeconds:z.number().int().refine((value)=>VIDEO_DURATIONS.includes(value as VideoDurationSeconds)),aspectRatio:z.enum(['9:16','16:9']).default('9:16'),locationSource:z.enum(['current','home','place']).default('current'),locationId:z.string().uuid().optional(),requestText:z.string().trim().min(2).max(400),requestId:z.string().trim().min(8).max(120)}).strict(),
+  z.object({action:z.literal('video_event'),sourceMediaId:z.string().uuid(),event:z.enum(['option_sheet_opened','model_selected','motion_selected']),videoRouteId:z.string().trim().min(3).max(100).optional(),motionPreset:z.enum(MOTION_PRESETS).optional()}).strict(),
+  z.object({action:z.literal('animate'),sourceMediaId:z.string().uuid(),settings:videoSettingsSchema,videoRouteId:z.string().trim().min(3).max(100).optional(),motionPreset:z.enum(MOTION_PRESETS),requestId:z.string().trim().min(8).max(120)}).strict(),
+  z.object({action:z.literal('video_direct_generate'),characterInstanceId:z.string().uuid(),conversationId:z.string().uuid().optional(),settings:videoSettingsSchema,videoRouteId:z.string().trim().min(3).max(100).optional(),motionPreset:z.enum(MOTION_PRESETS),aspectRatio:z.enum(['9:16','16:9']).default('9:16'),locationSource:z.enum(['current','home','place']).default('current'),locationId:z.string().uuid().optional(),requestText:z.string().trim().min(2).max(400),requestId:z.string().trim().min(8).max(120)}).strict(),
   z.object({action:z.literal('video_feedback'),mediaId:z.string().uuid(),verdict:z.enum(['looks_good','needs_work']),reasonCodes:z.array(z.enum(['face_changed','body_or_hands_distorted','motion_unnatural','outfit_changed','background_changed','extra_person','framing_changed','took_too_long','audio_problem','other'])).max(10).default([]),otherText:z.string().trim().max(500).optional()}),
   z.object({action:z.literal('video_playback'),mediaId:z.string().uuid()}),
   z.object({action:z.literal('video_diagnostics'),mediaId:z.string().uuid()}),
 ]);
+const adultInputModeration=new ConfiguredModerationProvider();
 
 serve(async(request,correlationId)=>{
   const {user,db}=await authenticated(request);
+  const adultAccess=await resolveAdultAccess(request,user,db);
   const input=await parseBody(request,schema);
   if(input.action==='request'){
     await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId);
     await enforceRateLimit(db,user.id,'together_media_request',15,86400);
+    await requireModeratedAdultMediaInput(input.requestText,adultAccess,{db,userId:user.id,characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,correlationId});
     const requestId=input.idempotencyKey??crypto.randomUUID();
-    const media=await queueMediaRequest(db,{userId:user.id,characterInstanceId:input.characterInstanceId,source:'user_request',conversationId:input.conversationId,messageId:input.messageId,requestText:input.requestText,idempotencyKey:requestId,force:true});
+    const media=await queueMediaRequest(db,{userId:user.id,characterInstanceId:input.characterInstanceId,source:'user_request',conversationId:input.conversationId,messageId:input.messageId,requestText:input.requestText,idempotencyKey:requestId,force:true,adultPipelineAuthorized:adultAccess.authorized_web_adult,adultWebSessionId:adultAccess.web_session_id});
     if(media&&media.status==='queued')waitUntil(kickMediaDispatcher());
     const subscription=await resolveSubscriptionState(db,user.id);
     const metadata=(media?.metadata??{}) as Record<string,unknown>;
-    return json({data:{media,creditCost:Number(metadata.creditCost??0),creditBalance:subscription?.creditBalance??null},correlationId},202,correlationId);
+    const visibleMedia=media?(await signMediaRows(request,db,user.id,adultAccess,[media]))[0]??null:null;
+    return json({data:{media:visibleMedia,creditCost:Number(metadata.creditCost??0),creditBalance:subscription?.creditBalance??null},correlationId},202,correlationId);
   }
   if(input.action==='preferences'){
     const{data:profile}=await db.from('together_profiles').select('photo_preferences,multimodal_preferences').eq('user_id',user.id).maybeSingle();
@@ -83,13 +98,16 @@ serve(async(request,correlationId)=>{
   }
   if(input.action==='list_pending_offers'){
     const continuity=await activeContinuity(db,user.id);if(input.characterInstanceId)await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId);
-    const offers=await listPendingMediaOffers(db,{userId:user.id,continuityId:String(continuity.id),characterInstanceId:input.characterInstanceId});
-    return json({data:{offers},correlationId},200,correlationId);
+    const offers=await listPendingMediaOffers(db,{userId:user.id,continuityId:String(continuity.id),characterInstanceId:input.characterInstanceId,adultPipelineAuthorized:adultAccess.authorized_web_adult});
+    return json({data:{offers:offers.filter((offer)=>adultAccess.authorized_web_adult||!['suggestive','mature','explicit'].includes(String(offer.content_level)))},correlationId},200,correlationId);
   }
   if(input.action==='accept_offer'){
-    const continuity=await activeContinuity(db,user.id),{data:offer}=await db.from('together_media_offers').select('continuity_id').eq('id',input.offerId).eq('user_id',user.id).maybeSingle();
+    const continuity=await activeContinuity(db,user.id),{data:offer}=await db.from('together_media_offers').select('continuity_id,conversation_id,preview_metadata').eq('id',input.offerId).eq('user_id',user.id).maybeSingle();
     if(!offer||String(offer.continuity_id)!==String(continuity.id))throw new AppError('NOT_FOUND','That photo offer is unavailable in this Kivelle Life.',404);
-    const result=await acceptMediaOffer(db,{userId:user.id,offerId:input.offerId,requestId:input.requestId,paymentMethod:input.paymentMethod});
+    const offerPreview=(offer.preview_metadata??{}) as Record<string,unknown>;
+    await requireModeratedAdultMediaInput(typeof offerPreview.requestText==='string'?offerPreview.requestText:undefined,adultAccess,{db,userId:user.id,conversationId:offer.conversation_id??undefined,correlationId},'photo',{trustedModerationApproval:offerPreview.inputModerationApproved===true});
+    const result=await acceptMediaOffer(db,{userId:user.id,offerId:input.offerId,requestId:input.requestId,paymentMethod:input.paymentMethod,adultPipelineAuthorized:adultAccess.authorized_web_adult,adultWebSessionId:adultAccess.web_session_id});
+    if(result.media)result.media=(await signMediaRows(request,db,user.id,adultAccess,[result.media as Record<string,any>]))[0];
     return json({data:result,correlationId},result.state==='accepted'?202:200,correlationId);
   }
   if(input.action==='decline_offer'){
@@ -99,7 +117,9 @@ serve(async(request,correlationId)=>{
   }
   if(input.action==='content_preferences'){
     const{data:profile}=await db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id',user.id).maybeSingle();
-    const next={...((profile?.content_preferences??{}) as Record<string,unknown>),suggestiveMediaEnabled:false,matureMediaEnabled:false,explicitMediaEnabled:false,adultVideoEnabled:false};
+    const requestedAdult=input.suggestiveMediaEnabled||input.matureMediaEnabled||input.explicitMediaEnabled||input.adultVideoEnabled;
+    if(requestedAdult&&!adultAccess.authorized_web_adult)throw new AppError('FORBIDDEN','Those media preferences are unavailable for this session.',403,false);
+    const next={...((profile?.content_preferences??{}) as Record<string,unknown>),suggestiveMediaEnabled:adultAccess.authorized_web_adult&&input.suggestiveMediaEnabled,matureMediaEnabled:adultAccess.authorized_web_adult&&input.matureMediaEnabled,explicitMediaEnabled:adultAccess.authorized_web_adult&&input.explicitMediaEnabled,adultVideoEnabled:adultAccess.authorized_web_adult&&adultVideoFeatureEnabled()&&input.adultVideoEnabled};
     const{error}=await db.from('together_profiles').update({content_preferences:next,updated_at:new Date().toISOString()}).eq('user_id',user.id);if(error)throw new AppError('INTERNAL_ERROR','Media preferences could not be saved.',500,true);
     return json({data:{saved:true,preferences:next},correlationId},200,correlationId);
   }
@@ -109,95 +129,110 @@ serve(async(request,correlationId)=>{
     const draft=await directVideoDraft(db,{userId:user.id,continuityId:String(continuity.id),characterInstanceId:input.characterInstanceId,requestText:'A natural moment grounded in the companion’s current location.'});
     await validateDirectVideoContext(db,user.id,String(continuity.id),draft.instance);
     const canonical=await canonicalRequestForMedia(db,draft.media),identityReferenceCount=canonical.referenceImages.filter((item)=>item.role==='character_identity'&&item.signedUrl).length;
-    const routes=configuredVideoRouteCatalog().filter((route)=>route.enabled&&(route.sourceModes.includes('canonical_references')||route.sourceModes.includes('generated_first_frame'))&&route.referenceImageRequirements.canonicalCharacterMin<=identityReferenceCount&&(!route.sourceModes.includes('generated_first_frame')||identityReferenceCount>0)).map(safeVideoRouteOption);
-    const preferredDefault=defaultVideoRouteId(),defaultRouteId=routes.some((route)=>route.id===preferredDefault)?preferredDefault:routes[0]?.id??null;
+    const routes=publicVideoRoutes(configuredVideoRouteCatalog().filter((route)=>route.enabled&&route.sourceModes.includes('generated_first_frame')&&identityReferenceCount>0),{includeAdultCapable:adultAccess.authorized_web_adult&&adultVideoFeatureEnabled()});
+    const defaultRouteId=defaultVideoPublicRouteId(routes);
     const[subscription,activeQuery]=await Promise.all([resolveSubscriptionState(db,user.id),db.from('together_generated_media').select('id,status').eq('user_id',user.id).eq('media_type','video').in('status',['queued','generating']).order('created_at',{ascending:false}).limit(1).maybeSingle()]);
-    return json({data:{available:routes.length>0,selectorMode:videoSelectorMode(),testingPriceLabel:'Price',sourceMode:'generated_first_frame',sourceAspectRatio:'9:16',defaultRouteId,routes,motionPresets:motionPresetOptions(),creditBalance:subscription.creditBalance.total,activeVideo:Boolean(activeQuery.data),activeVideoId:activeQuery.data?.id??null,activeVideoStatus:activeQuery.data?.status??null,referenceSummary:{identity:identityReferenceCount,location:Boolean(draft.place),locationName:draft.place.location.name},locationOptions:draft.locationOptions},correlationId},200,correlationId);
+    return json({data:{available:routes.length>0,selectorMode:videoSelectorMode(),rawModelNamesExposed:videoModelPickerExposed(),testingPriceLabel:'Price',sourceMode:'generated_first_frame',sourceAspectRatio:'9:16',defaultRouteId,routes,motionPresets:motionPresetOptions(),creditBalance:subscription.creditBalance.total,activeVideo:Boolean(activeQuery.data),activeVideoId:activeQuery.data?.id??null,activeVideoStatus:activeQuery.data?.status??null,referenceSummary:{identity:identityReferenceCount,location:Boolean(draft.place),locationName:draft.place.location.name},locationOptions:draft.locationOptions},correlationId},200,correlationId);
   }
   if(input.action==='video_direct_generate'){
     const continuity=await activeContinuity(db,user.id);await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId);
-    const requestKey=`direct-video:${input.characterInstanceId}:${input.requestId}`,{data:existing}=await db.from('together_generated_media').select('*').eq('user_id',user.id).eq('request_key',requestKey).maybeSingle();if(existing)return json({data:{media:existing,creditCost:Number((existing.metadata as Record<string,unknown>|null)?.creditCost??0),creditBalance:null,route:null},correlationId},existing.status==='ready'?200:202,correlationId);
+    const requestKey=`direct-video:${input.characterInstanceId}:${input.requestId}`,{data:existing}=await db.from('together_generated_media').select('*').eq('user_id',user.id).eq('request_key',requestKey).maybeSingle();if(existing){const visible=(await signMediaRows(request,db,user.id,adultAccess,[existing]))[0];return json({data:{media:visible,creditCost:Number((existing.metadata as Record<string,unknown>|null)?.creditCost??0),creditBalance:null,route:null},correlationId},existing.status==='ready'?200:202,correlationId);}
     await enforceVideoSubmissionAbuseLimit(db,user.id);
-    const route=resolveVideoRoute(input.videoRouteId,user.id,user.email),usesGeneratedFirstFrame=route.sourceModes.includes('generated_first_frame');if(!usesGeneratedFirstFrame&&!route.sourceModes.includes('canonical_references'))throw new AppError('VALIDATION_ERROR','Choose a direct-video model.',422);
-    const creditCost=videoCreditCost(route,input.durationSeconds),draft=await directVideoDraft(db,{userId:user.id,continuityId:String(continuity.id),characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,requestText:input.requestText,aspectRatio:input.aspectRatio,locationSource:input.locationSource,locationId:input.locationId});
-    await validateDirectVideoContext(db,user.id,String(continuity.id),draft.instance);
+    const contentDecision=resolveDirectVideoContentDecision({requestText:input.requestText,authorizedWebAdult:adultAccess.authorized_web_adult,adultVideoFeatureEnabled:adultVideoFeatureEnabled()});
+    if(!contentDecision.allowed)throw new AppError('FORBIDDEN',contentDecision.reasonCode==='adult_video_disabled'?'That kind of video is not available right now.':'That video request is unavailable for this session.',403,false);
+    if(contentDecision.adult)await requireModeratedAdultMediaInput(input.requestText,adultAccess,{db,userId:user.id,characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,correlationId},'video');
+    const route=resolveVideoRoute(input.settings.model,user.id,user.email),settings=validateVideoSettings(route,{resolution:input.settings.resolution,duration:input.settings.duration,sound:input.settings.sound});if(!route.sourceModes.includes('generated_first_frame'))throw new AppError('VALIDATION_ERROR','Choose a direct-video model.',422);
+    if(route.contentClass==='adult_capable'&&!adultAccess.authorized_web_adult)throw new AppError('FORBIDDEN','That video model is unavailable for this session.',403,false);
+    if(contentDecision.adult&&route.contentClass!=='adult_capable')throw new AppError('VALIDATION_ERROR','Choose an Adult-capable video model for that request.',422,false);
+    const creditCost=videoCreditCost(route,settings),baselineCostUsd=videoProviderBaselineCostUsd(route,settings),draft=await directVideoDraft(db,{userId:user.id,continuityId:String(continuity.id),characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,requestText:input.requestText,contentDecision,adultWebSessionId:adultAccess.web_session_id,aspectRatio:input.aspectRatio,locationSource:input.locationSource,locationId:input.locationId});
+    await validateDirectVideoContext(db,user.id,String(continuity.id),draft.instance,contentDecision,adultAccess,input.requestText);
     const canonical=await canonicalRequestForMedia(db,draft.media),approvedPrompt=canonical.generationIntent?.requestText;if(!approvedPrompt)throw new AppError('FORBIDDEN','That video prompt cannot be used. Try a fictional, non-explicit scene.',403);
     const canonicalReferences=canonical.referenceImages.filter((item)=>item.signedUrl&&['character_identity','location_environment','world_environment','outfit_continuity'].includes(item.role)).map((item)=>({url:String(item.signedUrl),role:item.role as 'character_identity'|'location_environment'|'world_environment'|'outfit_continuity'}));
-    const sourceImageUrl=usesGeneratedFirstFrame?canonicalReferences.find((item)=>item.role==='character_identity')?.url:undefined;if(usesGeneratedFirstFrame&&!sourceImageUrl)throw new AppError('CHARACTER_REFERENCE_REQUIRED','P-Video needs an approved companion reference to create its opening frame.',409,true);
-    const payload=buildVideoProviderPayload(route,{sourceImageUrl,canonicalReferences,sourceAspectRatio:input.aspectRatio,motionPreset:input.motionPreset,durationSeconds:input.durationSeconds,userPrompt:approvedPrompt,context:{companionName:canonical.companion.name,locationName:draft.place.location.name,activity:canonical.context.activity}});
-    const client=configuredWaveSpeedClient();if(!client)throw new AppError('PROVIDER_NOT_CONFIGURED','Video generation is not connected yet.',503);const quote=await quoteVideoWithAdmission(db,client,{route,payload,sourceMode:usesGeneratedFirstFrame?'generated_first_frame':'canonical_references',durationSeconds:input.durationSeconds,aspectRatio:input.aspectRatio,referenceCount:canonicalReferences.length});
-    const sourceFrameRequest=openingFrameRequest(approvedPrompt,draft.place.location.name),sourceFrameMetadata={...draft.media.metadata,source:'direct_video_frame',hiddenIntermediate:true,generationIntent:{requestText:sourceFrameRequest,requestedContentLevel:'standard'},videoTargetRequestKey:requestKey};
-    const{data:reserved,error:reserveError}=await db.rpc('kivelle_reserve_direct_video_generation_v3',{p_user_id:user.id,p_continuity_id:String(continuity.id),p_character_instance_id:input.characterInstanceId,p_conversation_id:input.conversationId??null,p_request_key:requestKey,p_source_frame_request_key:`${requestKey}:frame`,p_route_id:route.id,p_motion_preset:input.motionPreset,p_provider:route.provider,p_model:route.model,p_credit_cost:creditCost,p_quote_usd:quote.amountUsd,p_duration_seconds:input.durationSeconds,p_resolution:route.resolution,p_audio_behavior:route.audioBehavior,p_aspect_ratio:input.aspectRatio,p_user_prompt:approvedPrompt,p_reference_assets:draft.referenceAssets,p_route_concurrency_limit:route.concurrencyLimit,p_location_id:draft.locationId,p_world_id:draft.worldId,p_place_context:placeContextSnapshot(draft.place),p_source_frame_metadata:sourceFrameMetadata});if(reserveError)throw videoReservationError(reserveError);
+    const sourceImageUrl=canonicalReferences.find((item)=>item.role==='character_identity')?.url;if(!sourceImageUrl)throw new AppError('CHARACTER_REFERENCE_REQUIRED','An approved companion reference is needed to prepare the opening frame.',409,true);
+    const payload=buildVideoProviderPayload(route,{sourceImageUrl,canonicalReferences,sourceAspectRatio:input.aspectRatio,motionPreset:input.motionPreset,...settings,userPrompt:approvedPrompt,contentLevel:contentDecision.contentLevel,adultAuthorized:contentDecision.adult,anonymousAdultPartner:contentDecision.anonymousAdultPartner,context:{companionName:canonical.companion.name,locationName:draft.place.location.name,activity:canonical.context.activity}});
+    const client=configuredWaveSpeedClient();if(!client)throw new AppError('PROVIDER_NOT_CONFIGURED','Video generation is not connected yet.',503);const quote=await quoteVideoWithAdmission(db,client,{route,payload,sourceMode:'generated_first_frame',durationSeconds:settings.duration,resolution:settings.resolution,sound:settings.sound,aspectRatio:input.aspectRatio,referenceCount:canonicalReferences.length});
+    const sourceFrameRequest=directVideoOpeningFrameRequest({prompt:approvedPrompt,locationName:draft.place.location.name,contentLevel:contentDecision.contentLevel,anonymousAdultPartner:contentDecision.anonymousAdultPartner}),sourceFrameMetadata={...draft.media.metadata,source:'direct_video_frame',hiddenIntermediate:true,generationIntent:{requestText:sourceFrameRequest,requestedContentLevel:contentDecision.contentLevel},videoTargetRequestKey:requestKey};
+    const{data:reserved,error:reserveError}=await db.rpc('kivelle_reserve_direct_video_generation_v5',{p_user_id:user.id,p_continuity_id:String(continuity.id),p_character_instance_id:input.characterInstanceId,p_conversation_id:input.conversationId??null,p_request_key:requestKey,p_source_frame_request_key:`${requestKey}:frame`,p_route_id:route.id,p_motion_preset:input.motionPreset,p_provider:route.provider,p_model:route.model,p_requested_model:route.model,p_resolved_model:route.model,p_credit_cost:creditCost,p_quote_usd:quote.amountUsd,p_baseline_usd:baselineCostUsd,p_duration_seconds:settings.duration,p_resolution:settings.resolution,p_audio_behavior:settings.sound?'generated_audio':'silent',p_sound_requested:settings.sound,p_provider_audio_mode:route.audioMode,p_aspect_ratio:input.aspectRatio,p_user_prompt:approvedPrompt,p_content_level:contentDecision.contentLevel,p_adult_authorized:contentDecision.adult,p_adult_web_session_id:contentDecision.adult?adultAccess.web_session_id:null,p_anonymous_adult_partner:contentDecision.anonymousAdultPartner,p_reference_assets:draft.referenceAssets,p_route_concurrency_limit:route.concurrencyLimit,p_location_id:draft.locationId,p_world_id:draft.worldId,p_place_context:placeContextSnapshot(draft.place),p_source_frame_metadata:sourceFrameMetadata});if(reserveError)throw videoReservationError(reserveError);
     const mediaId=String((reserved as Record<string,unknown>)?.mediaId??''),{data:video}=await db.from('together_generated_media').select('*').eq('id',mediaId).eq('user_id',user.id).single();if(!video)throw new AppError('INTERNAL_ERROR','The direct video reservation could not be loaded.',500,true);
-    waitUntil(kickMediaDispatcher());await track(db,user.id,'direct_video_generation_submitted',{mediaId:video.id,characterInstanceId:input.characterInstanceId,routeId:route.id,durationSeconds:input.durationSeconds,aspectRatio:input.aspectRatio,locationSource:input.locationSource,locationId:draft.locationId,worldId:draft.worldId,audioBehavior:route.audioBehavior,creditCost,quotedProviderCostUsd:quote.amountUsd,quoteCacheHit:quote.cacheHit,idempotent:Boolean((reserved as Record<string,unknown>)?.idempotent)});
-    return json({data:{media:video,creditCost,creditBalance:Number((reserved as Record<string,unknown>)?.total??0),route:safeVideoRouteOption(route)},correlationId},202,correlationId);
+    waitUntil(kickMediaDispatcher());await track(db,user.id,'direct_video_generation_submitted',{mediaId:video.id,characterInstanceId:input.characterInstanceId,requestedModel:route.model,resolvedModel:route.model,routeId:route.id,durationSeconds:settings.duration,resolution:settings.resolution,soundRequested:settings.sound,aspectRatio:input.aspectRatio,locationSource:input.locationSource,locationId:draft.locationId,worldId:draft.worldId,providerAudioMode:route.audioMode,creditCost,estimatedProviderCostUsd:baselineCostUsd,quotedProviderCostUsd:quote.amountUsd,quoteCacheHit:quote.cacheHit,idempotent:Boolean((reserved as Record<string,unknown>)?.idempotent)});
+    const visibleVideo=(await signMediaRows(request,db,user.id,adultAccess,[video]))[0];
+    return json({data:{media:visibleVideo,creditCost,creditBalance:Number((reserved as Record<string,unknown>)?.total??0),route:safeVideoRouteOption(route)},correlationId},202,correlationId);
   }
   if(input.action==='list_recent'){
     const continuity=await activeContinuity(db,user.id);
     await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId);
     const{data:conversation}=await db.from('together_conversations').select('id').eq('id',input.conversationId).eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_instance_id',input.characterInstanceId).maybeSingle();
     if(!conversation)throw new AppError('NOT_FOUND','That conversation is unavailable in this Kivelle Life.',404);
-    const{data:rows,error}=await db.from('together_generated_media').select('*').eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_instance_id',input.characterInstanceId).eq('conversation_id',input.conversationId).in('content_level',['standard','romance']).gte('created_at',input.createdAfter).order('created_at',{ascending:false}).limit(Math.min(25,input.limit+5));
+    let mediaQuery=db.from('together_generated_media').select('*').eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_instance_id',input.characterInstanceId).eq('conversation_id',input.conversationId).gte('created_at',input.createdAfter);
+    if(!adultAccess.authorized_web_adult)mediaQuery=mediaQuery.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
+    const{data:rows,error}=await mediaQuery.order('created_at',{ascending:false}).limit(Math.min(25,input.limit+5));
     if(error)throw new AppError('INTERNAL_ERROR','Recent photos could not be loaded.',500,true);
-    const media=await signMediaRows(db,(rows??[]).filter((row)=>row.metadata?.hiddenIntermediate!==true).slice(0,input.limit));
+    const media=await signMediaRows(request,db,user.id,adultAccess,(rows??[]).filter((row)=>row.metadata?.hiddenIntermediate!==true).slice(0,input.limit));
     return json({data:{media},correlationId},200,correlationId);
   }
   if(input.action==='batch_status'){
     const continuity=await activeContinuity(db,user.id);
-    const{data:rows,error}=await db.from('together_generated_media').select('*').eq('user_id',user.id).eq('continuity_id',continuity.id).in('id',input.mediaIds).in('content_level',['standard','romance']);
+    let batchQuery=db.from('together_generated_media').select('*').eq('user_id',user.id).eq('continuity_id',continuity.id).in('id',input.mediaIds);
+    if(!adultAccess.authorized_web_adult)batchQuery=batchQuery.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
+    const{data:rows,error}=await batchQuery;
     if(error)throw new AppError('INTERNAL_ERROR','Photo status could not be refreshed.',500,true);
     if((rows??[]).some((row)=>row.status==='queued'||row.status==='generating'))waitUntil(kickMediaDispatcher());
-    return json({data:{media:await signMediaRows(db,rows??[])},correlationId},200,correlationId);
+    return json({data:{media:await signMediaRows(request,db,user.id,adultAccess,rows??[])},correlationId},200,correlationId);
   }
   const continuity=await activeContinuity(db,user.id),targetMediaId='sourceMediaId' in input?input.sourceMediaId:input.mediaId,{data:media}=await db.from('together_generated_media').select('*').eq('id',targetMediaId).eq('user_id',user.id).eq('continuity_id',continuity.id).maybeSingle();
   if(!media)throw new AppError('NOT_FOUND','That photo is unavailable.',404);
-  if(!['standard','romance'].includes(String(media.content_level??'standard'))&&input.action!=='remove')throw new AppError('NOT_FOUND','That photo is unavailable.',404);
+  const restricted=media.visibility_scope!=='all'||!['safe','suggestive'].includes(String(media.content_rating??''));
+  if(restricted&&!adultAccess.authorized_web_adult&&input.action!=='remove')throw new AppError('NOT_FOUND','That photo is unavailable.',404);
   if(input.action==='edit'){
+    await requireModeratedAdultMediaInput(input.instruction,adultAccess,{db,userId:user.id,characterInstanceId:String(media.character_instance_id),conversationId:media.conversation_id??undefined,correlationId});
     await enforceRateLimit(db,user.id,'together_media_edit',24,86400);
-    const result=await queueMediaEdit(db,{userId:user.id,continuityId:String(continuity.id),sourceMedia:media,requestId:input.requestId,instruction:input.instruction});
+    const result=await queueMediaEdit(db,{userId:user.id,continuityId:String(continuity.id),sourceMedia:media,requestId:input.requestId,instruction:input.instruction,adultPipelineAuthorized:adultAccess.authorized_web_adult,adultWebSessionId:adultAccess.web_session_id});
     if(result.media.status==='queued')waitUntil(kickMediaDispatcher());
+    result.media=(await signMediaRows(request,db,user.id,adultAccess,[result.media as Record<string,any>]))[0]??result.media;
     return json({data:result,correlationId},result.media.status==='ready'?200:202,correlationId);
   }
   if(input.action==='video_options'){
     if(!canSelectVideoRoute(user.id,user.email))return json({data:{available:false,selectorMode:videoSelectorMode(),routes:[],motionPresets:[],creditBalance:null},correlationId},200,correlationId);
     await validateVideoSource(db,user.id,String(continuity.id),media);
     const canonical=await canonicalRequestForMedia(db,media),identityReferenceCount=canonical.referenceImages.filter((item)=>item.role==='character_identity'&&item.signedUrl).length;
-    const routes=configuredVideoRouteCatalog().filter((route)=>route.enabled&&route.sourceModes.includes('existing_photo')&&route.referenceImageRequirements.canonicalCharacterMin<=identityReferenceCount).map(safeVideoRouteOption);
+    const routes=publicVideoRoutes(configuredVideoRouteCatalog().filter((route)=>route.enabled&&route.sourceModes.includes('existing_photo')&&route.referenceImageRequirements.canonicalCharacterMin<=identityReferenceCount));
     const[subscription,activeQuery,latestQuery]=await Promise.all([resolveSubscriptionState(db,user.id),db.from('together_generated_media').select('id,status').eq('user_id',user.id).eq('media_type','video').in('status',['queued','generating']).order('created_at',{ascending:false}).limit(1).maybeSingle(),db.from('together_generated_media').select('id,status').eq('user_id',user.id).eq('media_type','video').eq('parent_media_id',media.id).order('created_at',{ascending:false}).limit(1).maybeSingle()]),activeVideo=activeQuery.data,latestVideo=latestQuery.data;
-    return json({data:{available:routes.length>0,selectorMode:videoSelectorMode(),testingPriceLabel:'Testing price',sourceAspectRatio:sourceVideoAspectRatio(media.width,media.height),defaultRouteId:routes.some((route)=>route.id===defaultVideoRouteId())?defaultVideoRouteId():routes[0]?.id??null,routes,motionPresets:motionPresetOptions(),creditBalance:subscription.creditBalance.total,activeVideo:Boolean(activeVideo),activeVideoId:activeVideo?.id??null,activeVideoStatus:activeVideo?.status??null,latestVideoId:latestVideo?.id??null,latestVideoStatus:latestVideo?.status??null},correlationId},200,correlationId);
+    return json({data:{available:routes.length>0,selectorMode:videoSelectorMode(),rawModelNamesExposed:videoModelPickerExposed(),testingPriceLabel:'Testing price',sourceAspectRatio:sourceVideoAspectRatio(media.width,media.height),defaultRouteId:defaultVideoPublicRouteId(routes),routes,motionPresets:motionPresetOptions(),creditBalance:subscription.creditBalance.total,activeVideo:Boolean(activeVideo),activeVideoId:activeVideo?.id??null,activeVideoStatus:activeVideo?.status??null,latestVideoId:latestVideo?.id??null,latestVideoStatus:latestVideo?.status??null},correlationId},200,correlationId);
   }
   if(input.action==='video_event'){
     if(!canSelectVideoRoute(user.id,user.email))throw new AppError('FORBIDDEN','Video model testing is not available for this account.',403);
     await validateVideoSource(db,user.id,String(continuity.id),media);
-    if(input.event==='model_selected'){if(!input.videoRouteId)throw new AppError('VALIDATION_ERROR','A video route is required.',422);resolveVideoRoute(input.videoRouteId,user.id,user.email);}
+    if(input.event==='model_selected'){if(!input.videoRouteId)throw new AppError('VALIDATION_ERROR','A video route is required.',422);const selected=resolveVideoRoute(input.videoRouteId,user.id,user.email);if(selected.contentClass==='adult_capable'&&!adultAccess.authorized_web_adult)throw new AppError('FORBIDDEN','That video model is unavailable for this session.',403,false);}
     if(input.event==='motion_selected'&&!input.motionPreset)throw new AppError('VALIDATION_ERROR','A motion preset is required.',422);
     await track(db,user.id,`video_${input.event}`,{sourceMediaId:media.id,routeId:input.videoRouteId??null,motionPreset:input.motionPreset??null,selectorMode:videoSelectorMode()});
     return json({data:{recorded:true},correlationId},200,correlationId);
   }
   if(input.action==='animate'){
     await validateVideoSource(db,user.id,String(continuity.id),media);
-    const requestKey=`animate:${media.id}:${input.requestId}`,{data:existing}=await db.from('together_generated_media').select('*').eq('user_id',user.id).eq('request_key',requestKey).maybeSingle();if(existing)return json({data:{media:existing,creditCost:Number((existing.metadata as Record<string,unknown>|null)?.creditCost??125),creditBalance:null,route:null},correlationId},existing.status==='ready'?200:202,correlationId);
+    const requestKey=`animate:${media.id}:${input.requestId}`,{data:existing}=await db.from('together_generated_media').select('*').eq('user_id',user.id).eq('request_key',requestKey).maybeSingle();if(existing){const visible=(await signMediaRows(request,db,user.id,adultAccess,[existing]))[0];return json({data:{media:visible,creditCost:Number((existing.metadata as Record<string,unknown>|null)?.creditCost??125),creditBalance:null,route:null},correlationId},existing.status==='ready'?200:202,correlationId);}
     await enforceVideoSubmissionAbuseLimit(db,user.id);
-    const route=resolveVideoRoute(input.videoRouteId,user.id,user.email);if(!route.sourceModes.includes('existing_photo'))throw new AppError('VALIDATION_ERROR','Choose a model that animates an existing photo.',422);const creditCost=videoCreditCost(route,input.durationSeconds),canonical=await canonicalRequestForMedia(db,media),sourceAspectRatio=sourceVideoAspectRatio(media.width,media.height);
+    const route=resolveVideoRoute(input.settings.model,user.id,user.email),settings=validateVideoSettings(route,{resolution:input.settings.resolution,duration:input.settings.duration,sound:input.settings.sound});if(!route.sourceModes.includes('existing_photo')||route.contentClass!=='sfw')throw new AppError('VALIDATION_ERROR','Choose a Safe for work model to animate this photo.',422);const creditCost=videoCreditCost(route,settings),baselineCostUsd=videoProviderBaselineCostUsd(route,settings),canonical=await canonicalRequestForMedia(db,media),sourceAspectRatio=sourceVideoAspectRatio(media.width,media.height);
     const{data:sourceSigned}=await db.storage.from('together-user-media').createSignedUrl(String(media.storage_path),900);if(!sourceSigned?.signedUrl)throw new AppError('INTERNAL_ERROR','The source photo could not be prepared.',500,true);
     const canonicalReferences=canonical.referenceImages.filter((item)=>item.signedUrl&&['character_identity','location_environment','world_environment','outfit_continuity'].includes(item.role)).map((item)=>({url:String(item.signedUrl),role:item.role as 'character_identity'|'location_environment'|'world_environment'|'outfit_continuity'}));
-    const payload=buildVideoProviderPayload(route,{sourceImageUrl:sourceSigned.signedUrl,canonicalReferences,sourceAspectRatio,motionPreset:input.motionPreset,durationSeconds:input.durationSeconds,context:{companionName:canonical.companion.name,locationName:canonical.context.place?.location.name??canonical.context.location?.name,activity:canonical.context.activity}});
+    const payload=buildVideoProviderPayload(route,{sourceImageUrl:sourceSigned.signedUrl,canonicalReferences,sourceAspectRatio,motionPreset:input.motionPreset,...settings,context:{companionName:canonical.companion.name,locationName:canonical.context.place?.location.name??canonical.context.location?.name,activity:canonical.context.activity}});
     const client=configuredWaveSpeedClient();if(!client)throw new AppError('PROVIDER_NOT_CONFIGURED','Video generation is not connected yet.',503);
-    const quote=await quoteVideoWithAdmission(db,client,{route,payload,sourceMode:'existing_photo',durationSeconds:input.durationSeconds,aspectRatio:sourceAspectRatio,referenceCount:canonicalReferences.length+1});
-    await track(db,user.id,'video_generation_confirmed',{sourceMediaId:media.id,routeId:route.id,provider:route.provider,model:route.model,motionPreset:input.motionPreset,durationSeconds:input.durationSeconds,creditCost,quotedProviderCostUsd:quote.amountUsd});
-    const{data:reserved,error:reserveError}=await db.rpc('kivelle_reserve_video_generation_v2',{p_user_id:user.id,p_continuity_id:String(continuity.id),p_source_media_id:media.id,p_request_key:requestKey,p_route_id:route.id,p_motion_preset:input.motionPreset,p_provider:route.provider,p_model:route.model,p_credit_cost:creditCost,p_quote_usd:quote.amountUsd,p_duration_seconds:input.durationSeconds,p_resolution:route.resolution,p_audio_behavior:route.audioBehavior,p_aspect_ratio:sourceAspectRatio,p_testing_selection:true,p_route_concurrency_limit:route.concurrencyLimit});
+    const quote=await quoteVideoWithAdmission(db,client,{route,payload,sourceMode:'existing_photo',durationSeconds:settings.duration,resolution:settings.resolution,sound:settings.sound,aspectRatio:sourceAspectRatio,referenceCount:canonicalReferences.length+1});
+    await track(db,user.id,'video_generation_confirmed',{sourceMediaId:media.id,routeId:route.id,provider:route.provider,requestedModel:route.model,resolvedModel:route.model,motionPreset:input.motionPreset,durationSeconds:settings.duration,resolution:settings.resolution,soundRequested:settings.sound,creditCost,estimatedProviderCostUsd:baselineCostUsd,quotedProviderCostUsd:quote.amountUsd});
+    const{data:reserved,error:reserveError}=await db.rpc('kivelle_reserve_video_generation_v3',{p_user_id:user.id,p_continuity_id:String(continuity.id),p_source_media_id:media.id,p_request_key:requestKey,p_route_id:route.id,p_motion_preset:input.motionPreset,p_provider:route.provider,p_model:route.model,p_requested_model:route.model,p_resolved_model:route.model,p_credit_cost:creditCost,p_quote_usd:quote.amountUsd,p_baseline_usd:baselineCostUsd,p_duration_seconds:settings.duration,p_resolution:settings.resolution,p_audio_behavior:settings.sound?'generated_audio':'silent',p_sound_requested:settings.sound,p_provider_audio_mode:route.audioMode,p_aspect_ratio:sourceAspectRatio,p_testing_selection:true,p_route_concurrency_limit:route.concurrencyLimit});
     if(reserveError)throw videoReservationError(reserveError);
     const mediaId=String((reserved as Record<string,unknown>)?.mediaId??''),{data:video}=await db.from('together_generated_media').select('*').eq('id',mediaId).eq('user_id',user.id).single();if(!video)throw new AppError('INTERNAL_ERROR','The video reservation could not be loaded.',500,true);
     waitUntil(kickMediaDispatcher());
-    await track(db,user.id,'video_generation_submitted',{mediaId:video.id,sourceMediaId:media.id,routeId:route.id,provider:route.provider,model:route.model,motionPreset:input.motionPreset,durationSeconds:input.durationSeconds,creditCost,quotedProviderCostUsd:quote.amountUsd,quoteCacheHit:quote.cacheHit,idempotent:Boolean((reserved as Record<string,unknown>)?.idempotent)});
-    return json({data:{media:video,creditCost,creditBalance:Number((reserved as Record<string,unknown>)?.total??0),route:safeVideoRouteOption(route)},correlationId},202,correlationId);
+    await track(db,user.id,'video_generation_submitted',{mediaId:video.id,sourceMediaId:media.id,routeId:route.id,provider:route.provider,requestedModel:route.model,resolvedModel:route.model,motionPreset:input.motionPreset,durationSeconds:settings.duration,resolution:settings.resolution,soundRequested:settings.sound,creditCost,estimatedProviderCostUsd:baselineCostUsd,quotedProviderCostUsd:quote.amountUsd,quoteCacheHit:quote.cacheHit,idempotent:Boolean((reserved as Record<string,unknown>)?.idempotent)});
+    const visibleVideo=(await signMediaRows(request,db,user.id,adultAccess,[video]))[0];
+    return json({data:{media:visibleVideo,creditCost,creditBalance:Number((reserved as Record<string,unknown>)?.total??0),route:safeVideoRouteOption(route)},correlationId},202,correlationId);
   }
   if(input.action==='status'){
     if(media.status==='queued'||media.status==='generating')waitUntil(kickMediaDispatcher());
     let signedUrl:string|null=null;
-    if(media.status==='ready'&&media.storage_path){const {data,error}=await db.storage.from('together-user-media').createSignedUrl(media.storage_path,3600);if(error||!data?.signedUrl)throw new AppError('INTERNAL_ERROR','The photo is ready but could not be opened yet.',503,true);signedUrl=data.signedUrl;}
+    if(!restricted&&media.status==='ready'&&media.storage_path){const {data,error}=await db.storage.from('together-user-media').createSignedUrl(media.storage_path,3600);if(error||!data?.signedUrl)throw new AppError('INTERNAL_ERROR','The photo is ready but could not be opened yet.',503,true);signedUrl=data.signedUrl;}
     const progressState=media.media_type==='video'?await videoProgressState(db,media):undefined;
-    return json({data:{media:{...media,signed_url:signedUrl},progressState},correlationId},200,correlationId);
+    if(restricted&&media.status==='ready')signedUrl=await issueAdultAssetUrl({request,db,access:adultAccess,userId:user.id,generatedMediaId:String(media.id)});
+    return json({data:{media:sanitizeMediaRow(media,signedUrl,adultAccess.authorized_web_adult),progressState},correlationId},200,correlationId);
   }
   if(input.action==='video_playback'){
     if(media.media_type!=='video'||media.status!=='ready')throw new AppError('CONFLICT','Only a completed video can be played.',409);
@@ -214,7 +249,7 @@ serve(async(request,correlationId)=>{
   }
   if(input.action==='video_diagnostics'){
     if(media.media_type!=='video'||!canSelectVideoRoute(user.id,user.email))throw new AppError('NOT_FOUND','Video diagnostics are unavailable.',404);
-    const[{data:job},{data:feedback}]=await Promise.all([db.from('together_media_provider_jobs').select('provider,model,route_id,provider_request_id,status,submitted_at,provider_completed_at,finalized_at,failure_code,quoted_provider_cost_usd,actual_provider_cost_usd,requested_duration_seconds,requested_resolution,requested_audio_behavior,actual_audio_behavior,source_aspect_ratio,motion_preset,created_at,updated_at').eq('generated_media_id',media.id).order('created_at',{ascending:false}).limit(1).maybeSingle(),db.from('together_video_feedback').select('verdict,reason_codes,updated_at').eq('user_id',user.id).eq('video_media_id',media.id).maybeSingle()]);
+    const[{data:job},{data:feedback}]=await Promise.all([db.from('together_media_provider_jobs').select('provider,model,requested_model,resolved_model,route_id,provider_request_id,status,submitted_at,provider_completed_at,finalized_at,failure_code,quoted_provider_cost_usd,actual_provider_cost_usd,requested_duration_seconds,requested_resolution,requested_audio_behavior,sound_requested,provider_audio_mode,audio_stream_detected,audio_stripped,final_sound_present,actual_audio_behavior,retry_count,source_aspect_ratio,motion_preset,created_at,updated_at').eq('generated_media_id',media.id).order('created_at',{ascending:false}).limit(1).maybeSingle(),db.from('together_video_feedback').select('verdict,reason_codes,updated_at').eq('user_id',user.id).eq('video_media_id',media.id).maybeSingle()]);
     return json({data:{diagnostics:safeVideoDiagnostics(media,job,feedback)},correlationId},200,correlationId);
   }
   if(input.action==='feedback'){
@@ -231,7 +266,7 @@ serve(async(request,correlationId)=>{
     const retrySubjectIds=normalizeMediaSubjectIds(String(media.character_instance_id),media.subject_character_instance_ids);
     if(retrySubjectIds.length>1&&!configuredGroupImageRouteAvailable(String(media.content_level)))throw new AppError('PROVIDER_NOT_CONFIGURED',"Two-person photos are not connected for this content level yet.",503);
     await loadValidatedMediaSubjects(db,{userId:user.id,characterInstanceId:String(media.character_instance_id),subjectCharacterInstanceIds:retrySubjectIds,conversationId:media.conversation_id??undefined});
-    const metadata=(media.metadata??{}) as Record<string,unknown>;let nextMetadata=metadata,chargedForRetry:Awaited<ReturnType<typeof spendCredits>>|null=null;
+    const metadata=(media.metadata??{}) as Record<string,unknown>;let nextMetadata=restricted?{...metadata,adultAuthorized:true,adultWebSessionId:adultAccess.web_session_id,moderationVersion:'web-adult-v1'}:metadata,chargedForRetry:Awaited<ReturnType<typeof spendCredits>>|null=null;
     const dailyBenefit=metadata.includedBenefitType==='daily_companion_photo';
     let dailyReclaimed=false;
     if(dailyBenefit){
@@ -247,7 +282,8 @@ serve(async(request,correlationId)=>{
     const offerId=media.media_offer_id??metadata.mediaOfferId;
     if(offerId)await db.from('together_media_offers').update({status:'accepted',failure_code:null,failure_reason_safe:null,credit_refunded:false,credit_cost:Number(nextMetadata.creditCost??0),credit_transaction_id:chargedForRetry?.transactionId??null,included_subscription_benefit:nextMetadata.includedBenefit===true,included_benefit_type:typeof nextMetadata.includedBenefitType==='string'?nextMetadata.includedBenefitType:null,updated_at:new Date().toISOString()}).eq('id',String(offerId)).eq('user_id',user.id).eq('generated_media_id',media.id).eq('status','failed');
     waitUntil(kickMediaDispatcher());
-    return json({data:{media:updated},correlationId},202,correlationId);
+    const visible=(await signMediaRows(request,db,user.id,adultAccess,[updated]))[0]??updated;
+    return json({data:{media:visible},correlationId},202,correlationId);
   }
   const storagePath=media.storage_path as string|null;
   if(media.status==='queued'||media.status==='generating')throw new AppError('CONFLICT','A queued or generating video cannot be removed.',409);
@@ -259,16 +295,44 @@ serve(async(request,correlationId)=>{
   return json({data:{removed:true},correlationId},200,correlationId);
 });
 
-async function signMediaRows(db:any,rows:Array<Record<string,any>>){
+async function signMediaRows(request:Request,db:any,userId:string,access:AdultAccessContext,rows:Array<Record<string,any>>){
   rows=rows.filter((row)=>row.metadata?.hiddenIntermediate!==true);
-  const paths=[...new Set(rows.filter((row)=>row.status==='ready'&&typeof row.storage_path==='string'&&row.storage_path).map((row)=>String(row.storage_path)))];
+  const ordinary=rows.filter((row)=>row.visibility_scope==='all'&&['safe','suggestive'].includes(String(row.content_rating??''))),paths=[...new Set(ordinary.filter((row)=>row.status==='ready'&&typeof row.storage_path==='string'&&row.storage_path).map((row)=>String(row.storage_path)))];
   const signed=paths.length?await db.storage.from('together-user-media').createSignedUrls(paths,3600):{data:[]};
-  const byPath=new Map((signed.data??[]).map((item:any)=>[String(item.path),item.signedUrl]));
-  return rows.map((row)=>({...row,signed_url:row.storage_path?byPath.get(String(row.storage_path))??null:null}));
+  const byPath=new Map<string,string>((signed.data??[]).flatMap((item:any)=>typeof item.path==='string'&&typeof item.signedUrl==='string'?[[item.path,item.signedUrl] as [string,string]]:[]));
+  return Promise.all(rows.map(async(row)=>{const restricted=row.visibility_scope!=='all'||!['safe','suggestive'].includes(String(row.content_rating??''));const signedUrl=restricted&&row.status==='ready'&&access.authorized_web_adult?await issueAdultAssetUrl({request,db,access,userId,generatedMediaId:String(row.id)}):row.storage_path?byPath.get(String(row.storage_path))??null:null;return sanitizeMediaRow(row,signedUrl,access.authorized_web_adult);}));
+}
+
+function sanitizeMediaRow(row:Record<string,any>,signedUrl:string|null,authorizedWebAdult:boolean):Record<string,any>{const safe:Record<string,any>={...row,signed_url:signedUrl};delete safe.storage_path;const restricted=row.visibility_scope!=='all'||!['safe','suggestive'].includes(String(row.content_rating??''));if(restricted&&!authorizedWebAdult){delete safe.metadata;delete safe.canonical_text;}else if(!authorizedWebAdult&&safe.metadata&&typeof safe.metadata==='object'){const metadata={...safe.metadata};for(const key of['generationIntent','editInstruction','requestHint','referenceAssets','providerPrompt','prompt'])delete metadata[key];safe.metadata=metadata;}return safe;}
+
+async function requireModeratedAdultMediaInput(text:string|undefined,access:AdultAccessContext,scope:{db:any;userId:string;characterInstanceId?:string;conversationId?:string;correlationId:string},mediaKind:'photo'|'video'='photo',options:{trustedModerationApproval?:boolean}={}){
+  // Every user-authored image direction in an authorized adult website session is
+  // independently moderated. Do not rely on the request classifier to decide
+  // whether moderation is necessary: euphemistic or obfuscated prohibited
+  // requests may otherwise be misclassified as ordinary SFW generation.
+  if(!text||!access.authorized_web_adult)return;
+  const requestedLevel=classifyPhotoIntent(text).requestedContentLevel;
+  if(scope.conversationId&&['suggestive','mature','explicit'].includes(String(requestedLevel??''))){
+    const[{data:conversation},{data:profile}]=await Promise.all([
+      scope.db.from('together_conversations').select('metadata').eq('id',scope.conversationId).eq('user_id',scope.userId).maybeSingle(),
+      scope.db.from('together_profiles').select('content_preferences').eq('user_id',scope.userId).maybeSingle(),
+    ]);
+    const chatPreferences=conversation?.metadata?.chatPreferences&&typeof conversation.metadata.chatPreferences==='object'?conversation.metadata.chatPreferences as Record<string,unknown>:{};
+    const profilePreferences=(profile?.content_preferences??{}) as Record<string,unknown>;
+    if(String(chatPreferences.contentMode??profilePreferences.contentMode??'mature')!=='explicit')throw new AppError('FORBIDDEN',`Set this chat to Explicit before requesting an adult ${mediaKind}.`,403,false);
+  }
+  // Dialogue-created offers already passed this exact provider-backed input
+  // moderation before their server-only row was inserted. Rechecking the chat
+  // mode and session above is still required, but repeating the remote
+  // classifier when the user taps Accept only adds latency.
+  if(options.trustedModerationApproval)return;
+  const result=await adultInputModeration.check(text,{...scope,metadata:{direction:'input',pipeline:'adult_media'}});
+  const safety=classifyUserAuthoredMediaSafety({text,requestedContentLevel:requestedLevel,moderation:result});
+  if(!safety.allowed||result.categories.includes('moderation/unavailable'))throw new AppError('FORBIDDEN',`That ${mediaKind} request cannot be processed safely right now.`,403,false);
 }
 
 async function validateVideoSource(db:any,userId:string,continuityId:string,media:Record<string,any>){
-  if(media.media_type!=='image'||media.status!=='ready'||!media.storage_path)throw new AppError('CONFLICT','Only a ready Kivelle companion photo can be animated.',409);
+  if(media.media_type!=='image'||media.status!=='ready'||!media.storage_path||media.visibility_scope!=='all'||!['safe','suggestive'].includes(String(media.content_rating??'')))throw new AppError('CONFLICT','Only a ready, app-safe Kivelle companion photo can be animated.',409);
   const subjectIds=normalizeMediaSubjectIds(String(media.character_instance_id),media.subject_character_instance_ids);if(subjectIds.length!==1)throw new AppError('CONFLICT','Video testing currently supports exactly one companion.',409);
   const[{data:profile},{data:instance}]=await Promise.all([db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id',userId).maybeSingle(),db.from('together_character_instances').select('*,together_character_templates(age,discovery_metadata),together_character_versions(content_boundaries,visual_identity,character_bible)').eq('id',media.character_instance_id).eq('user_id',userId).eq('continuity_id',continuityId).maybeSingle()]);if(!instance)throw new AppError('NOT_FOUND','That companion is unavailable.',404);
   const preferences=(profile?.content_preferences??{}) as Record<string,unknown>,template=instance.together_character_templates as Record<string,unknown>,version=(instance.together_character_versions??{}) as Record<string,unknown>,level=String(media.content_level??'standard');
@@ -281,7 +345,7 @@ async function validateVideoSource(db:any,userId:string,continuityId:string,medi
 type DirectVideoLocationSource='current'|'home'|'place';
 type DirectVideoLocationOption={source:DirectVideoLocationSource;locationId:string|null;name:string;detail:string|null;worldId:string;worldName:string};
 
-async function directVideoDraft(db:any,input:{userId:string;continuityId:string;characterInstanceId:string;conversationId?:string;requestText:string;aspectRatio?:'9:16'|'16:9';locationSource?:DirectVideoLocationSource;locationId?:string}){
+async function directVideoDraft(db:any,input:{userId:string;continuityId:string;characterInstanceId:string;conversationId?:string;requestText:string;contentDecision?:DirectVideoContentDecision;adultWebSessionId?:string|null;aspectRatio?:'9:16'|'16:9';locationSource?:DirectVideoLocationSource;locationId?:string}){
   const{data:instance}=await db.from('together_character_instances').select('*,together_character_templates(age,discovery_metadata,name),together_character_versions(id,content_boundaries,visual_identity,character_bible)').eq('id',input.characterInstanceId).eq('user_id',input.userId).eq('continuity_id',input.continuityId).maybeSingle();if(!instance)throw new AppError('NOT_FOUND','That companion is unavailable.',404);
   const locations=await directVideoLocations(db,input.userId,instance),source=input.locationSource??'current';
   let place:PlaceContext;
@@ -298,7 +362,8 @@ async function directVideoDraft(db:any,input:{userId:string;continuityId:string;
   }
   const locationId=place.location.virtualType==='character_home'?null:place.location.id,worldId=place.world.id,versionId=String(instance.character_version_id),[characterAssets,environmentAssets]=await Promise.all([snapshotReferenceAssets(db,{characterVersionId:versionId}),snapshotReferenceAssets(db,{characterVersionIds:[versionId],locationId:locationId??undefined,worldId})]);
   const identityRoles=new Set(['character_identity','character_training','outfit_continuity']),referenceCandidates:Array<Record<string,unknown>>=[...characterAssets.filter((asset)=>identityRoles.has(String(asset.role))).map((asset)=>({...asset,subjectCharacterInstanceId:input.characterInstanceId})),...environmentAssets.filter((asset)=>!identityRoles.has(String(asset.role)))],referenceAssets=referenceCandidates.filter((asset,index,all)=>all.findIndex((candidate)=>String(candidate.assetId)===String(asset.assetId))===index).slice(0,9);
-  return{instance,place,locationId,worldId,referenceAssets,locationOptions:locations.options,media:{id:crypto.randomUUID(),user_id:input.userId,continuity_id:input.continuityId,character_instance_id:input.characterInstanceId,subject_character_instance_ids:[input.characterInstanceId],conversation_id:input.conversationId??null,location_id:locationId,world_id:worldId,media_type:'video',content_level:'standard',metadata:{source:'user_request',videoSourceMode:'generated_first_frame',locationSource:source,locationId,activity:source==='current'?locations.currentActivity:`At ${place.location.name}`,mood:instance.current_mood,aspectRatio:input.aspectRatio??'9:16',placeContext:placeContextSnapshot(place),referenceAssets,generationIntent:{requestText:input.requestText,requestedContentLevel:'standard'}}}};
+  const decision=input.contentDecision??{contentLevel:'standard',adult:false,anonymousAdultPartner:false,allowed:true,reasonCode:'allowed'} as DirectVideoContentDecision;
+  return{instance,place,locationId,worldId,referenceAssets,locationOptions:locations.options,media:{id:crypto.randomUUID(),user_id:input.userId,continuity_id:input.continuityId,character_instance_id:input.characterInstanceId,subject_character_instance_ids:[input.characterInstanceId],conversation_id:input.conversationId??null,location_id:locationId,world_id:worldId,media_type:'video',content_level:decision.contentLevel,content_rating:decision.adult?'explicit':decision.contentLevel==='romance'?'suggestive':'safe',visibility_scope:decision.adult?'web_adult':'all',metadata:{source:'user_request',videoSourceMode:'generated_first_frame',locationSource:source,locationId,activity:source==='current'?locations.currentActivity:`At ${place.location.name}`,mood:instance.current_mood,aspectRatio:input.aspectRatio??'9:16',placeContext:placeContextSnapshot(place),referenceAssets,generationIntent:{requestText:input.requestText,requestedContentLevel:decision.contentLevel},...(decision.adult?{adultAuthorized:true,adultWebSessionId:input.adultWebSessionId,moderationVersion:'web-adult-video-v1'}:{}),...(decision.anonymousAdultPartner?{anonymousAdultPartner:true,expectedAdultSubjectCount:2}:{})}}};
 }
 
 async function directVideoLocations(db:any,userId:string,instance:Record<string,any>){
@@ -316,16 +381,13 @@ async function directVideoLocations(db:any,userId:string,instance:Record<string,
   return{currentPlace:resolvedCurrent,currentActivity:presence?.activity??String(instance.current_activity??`At ${resolvedCurrent.location.name}`),homePlace,worldId,worldName,options:{defaultSource:'current' as const,worldId,worldName,current,home,places}};
 }
 
-function openingFrameRequest(prompt:string,locationName:string){
-  const prefix=`Opening frame for a short video at ${locationName}: `,suffix=' Show one natural, stable starting pose with the companion clearly visible. No text, captions, or extra people.';
-  return`${prefix}${prompt}${suffix}`.replace(/\s+/g,' ').trim().slice(0,400);
-}
-
-async function validateDirectVideoContext(db:any,userId:string,continuityId:string,instance:Record<string,any>){
-  const{data:profile}=await db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id',userId).maybeSingle(),template=instance.together_character_templates as Record<string,unknown>,version=instance.together_character_versions as Record<string,unknown>,preferences=(profile?.content_preferences??{}) as Record<string,unknown>,boundaries=(version.content_boundaries??{}) as Record<string,unknown>;
+async function validateDirectVideoContext(db:any,userId:string,continuityId:string,instance:Record<string,any>,decision:DirectVideoContentDecision={contentLevel:'standard',adult:false,anonymousAdultPartner:false,allowed:true,reasonCode:'allowed'},access?:AdultAccessContext,requestText=''){
+  const{data:profile}=await db.from('together_profiles').select('age_verified_at,adult_eligible_at,content_preferences').eq('user_id',userId).maybeSingle(),template=instance.together_character_templates as Record<string,unknown>,version=instance.together_character_versions as Record<string,unknown>,preferences=(profile?.content_preferences??{}) as Record<string,unknown>,boundaries=(version.content_boundaries??{}) as Record<string,unknown>;
   if(String(instance.user_id)!==userId||String(instance.continuity_id)!==continuityId)throw new AppError('NOT_FOUND','That companion is unavailable.',404);
-  const policy=resolveMediaContentPolicy({requestedLevel:'standard',source:'user_request',automatic:false,ageVerified:Boolean(profile?.age_verified_at),characterAge:Number(template.age),fictionalCharacter:isFictionalCompanion(template,version),realPersonRequest:false,nonConsensualRequest:false,minorRelatedRequest:false,characterAllowsRequestedLevel:boundaries.allows_standard!==false,romanceEnabled:preferences.romanceEnabled!==false,suggestiveMediaEnabled:false,matureMediaEnabled:false,explicitMediaEnabled:false,adultVideoEnabled:false,mediaType:'video',adultMediaFeatureEnabled:false});
-  if(!policy.allowed)throw new AppError('FORBIDDEN','Direct video generation is unavailable for this companion.',403);
+  const characterAllows=decision.contentLevel==='standard'?boundaries.allows_standard!==false:decision.contentLevel==='romance'?boundaries.allows_romance!==false:decision.contentLevel==='suggestive'?boundaries.allows_suggestive===true||boundaries.allows_mature===true:decision.contentLevel==='mature'?boundaries.allows_mature===true:boundaries.allows_explicit===true;
+  const prohibited=/\b(?:incest|mother|father|mom|dad|sister|brother|daughter|son|aunt|uncle|cousin|bestiality|zoophilia|animal sex|rape|sexual violence|forced sex|without consent|unconscious|drugged|traffick(?:ing|ed)?|sex slave|escort|prostitut(?:e|ion)|pay(?:ing)? for sex|sugar (?:baby|daddy)|barely legal|teen(?:ager)?|schoolgirl|schoolboy|young girl|young boy)\b/i.test(requestText);
+  const policy=resolveMediaContentPolicy({requestedLevel:decision.contentLevel,source:'user_request',automatic:false,ageVerified:decision.adult?Boolean(access?.authorized_web_adult&&profile?.adult_eligible_at):Boolean(profile?.age_verified_at),characterAge:Number(template.age),fictionalCharacter:isFictionalCompanion(template,version),realPersonRequest:/\b(?:celebrity|public figure|real person|looks? exactly like|deepfake)\b/i.test(requestText),nonConsensualRequest:prohibited,minorRelatedRequest:/\b(?:minor|underage|child|teen(?:ager)?|barely legal|schoolgirl|schoolboy|young girl|young boy|(?:[0-9]|1[0-7])[- ]?year[- ]?old)\b/i.test(requestText),characterAllowsRequestedLevel:characterAllows,romanceEnabled:preferences.romanceEnabled!==false,suggestiveMediaEnabled:access?.authorized_web_adult===true,matureMediaEnabled:access?.authorized_web_adult===true,explicitMediaEnabled:access?.authorized_web_adult===true,adultVideoEnabled:access?.authorized_web_adult===true&&adultVideoFeatureEnabled(),mediaType:'video',adultMediaFeatureEnabled:adultVideoFeatureEnabled(),adultPipelineAuthorized:access?.authorized_web_adult===true});
+  if(!policy.allowed)throw new AppError('FORBIDDEN',mediaPolicyMessage(policy.reasonCode),403,false);
   return{profile,instance,policy};
 }
 
@@ -368,5 +430,5 @@ function safeVideoDiagnostics(media:Record<string,any>,job:Record<string,any>|nu
   const at=(value:unknown)=>value?new Date(String(value)).getTime():NaN,start=at(job?.created_at),submitted=at(job?.submitted_at),completed=at(job?.provider_completed_at),finalized=at(job?.finalized_at);
   const duration=(from:number,to:number)=>Number.isFinite(from)&&Number.isFinite(to)?Math.max(0,to-from):null;
   const route=configuredVideoRouteCatalog().find((item)=>item.id===media.video_route_id);
-  return{routeId:media.video_route_id,routeDisplayName:route?.displayName??null,provider:job?.provider??media.provider??null,model:job?.model??null,status:job?.status??media.status,providerRequestStatus:job?.status??null,requested:{durationSeconds:job?.requested_duration_seconds??media.requested_duration_seconds,resolution:job?.requested_resolution??media.requested_resolution,audioBehavior:job?.requested_audio_behavior??media.requested_audio_behavior,aspectRatio:job?.source_aspect_ratio??media.source_aspect_ratio,motionPreset:job?.motion_preset??media.motion_preset},actualAudioBehavior:job?.actual_audio_behavior??media.actual_audio_behavior??null,latencyMs:{queue:duration(start,submitted),generation:duration(submitted,completed),finalization:duration(completed,finalized),total:duration(start,finalized)},quotedProviderCostUsd:job?.quoted_provider_cost_usd??media.provider_quote_usd??null,actualProviderCostUsd:job?.actual_provider_cost_usd??null,failureCode:job?.failure_code??media.failure_code??null,feedback:feedback??null};
+  return{routeId:media.video_route_id,routeDisplayName:route?.displayName??null,provider:job?.provider??media.provider??null,model:job?.resolved_model??job?.model??null,requestedModel:job?.requested_model??media.requested_model??null,resolvedModel:job?.resolved_model??media.resolved_model??null,status:job?.status??media.status,providerRequestStatus:job?.status??null,retryCount:job?.retry_count??0,requested:{durationSeconds:job?.requested_duration_seconds??media.requested_duration_seconds,resolution:job?.requested_resolution??media.requested_resolution,audioBehavior:job?.requested_audio_behavior??media.requested_audio_behavior,sound:job?.sound_requested??media.sound_requested??false,providerAudioMode:job?.provider_audio_mode??media.provider_audio_mode??null,aspectRatio:job?.source_aspect_ratio??media.source_aspect_ratio,motionPreset:job?.motion_preset??media.motion_preset},actualAudioBehavior:job?.actual_audio_behavior??media.actual_audio_behavior??null,audioStreamDetected:job?.audio_stream_detected??media.audio_stream_detected??null,audioStripped:job?.audio_stripped??media.audio_stripped??false,finalSoundPresent:job?.final_sound_present??media.final_sound_present??false,latencyMs:{queue:duration(start,submitted),generation:duration(submitted,completed),finalization:duration(completed,finalized),total:duration(start,finalized)},quotedProviderCostUsd:job?.quoted_provider_cost_usd??media.provider_quote_usd??null,actualProviderCostUsd:job?.actual_provider_cost_usd??null,failureCode:job?.failure_code??media.failure_code??null,feedback:feedback??null};
 }

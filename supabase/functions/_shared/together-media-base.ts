@@ -15,6 +15,7 @@ import {
 import {
   CHARACTER_PHOTO_REALISM_GUIDANCE,
   classifyPhotoIntent,
+  classifyUserAuthoredMediaSafety,
   extractPhotoWardrobeDescription,
   hasUsableCharacterIdentityReference,
   type MediaPresenceState,
@@ -128,6 +129,7 @@ export type CanonicalMediaSubject = {
 };
 export type CanonicalImageGenerationRequest = {
   mediaId: string;
+  adultPipelineAuthorized?: boolean;
   generationKind?: "companion_photo" | "creator_identity" | "photo_edit";
   sourceImage?: MediaReferenceImage;
   companion: {
@@ -214,7 +216,7 @@ export interface ImageGenerationProvider {
 }
 
 const REAL_PERSON_PATTERN =
-  /\b(celebrity|public figure|look exactly like|face of|identical to)\b/i;
+  /\b(celebrity|public figure|look exactly like|face of|identical to|deepfake|real person|my (?:wife|husband|girlfriend|boyfriend|partner)|uploaded (?:person|woman|man)|this (?:person|woman|man))\b/i;
 const SEXUAL_ACT_PATTERN =
   /\b(?:sex(?:ual|ually)?|fuck(?:ing|ed)?|masturbat(?:e|ing|ion)|orgasm|blowjob|handjob|penetrat(?:e|ion|ing)|oral sex|anal sex)\b/i;
 
@@ -472,10 +474,6 @@ export class GeminiImageProvider implements ImageGenerationProvider {
           httpStatus: response.status,
           providerStatus: payload.error?.status,
           providerCode: payload.error?.code,
-          message: payload.error?.message?.replace(/[\r\n]+/g, " ").slice(
-            0,
-            240,
-          ),
           hasCandidate: Boolean(payload.candidates?.length),
         };
         console.error("Gemini image generation failed", diagnostic);
@@ -1075,6 +1073,8 @@ export type QueueMediaInput = {
   economicAuthorization?: MediaEconomicAuthorization;
   qualityTierOverride?: "economy" | "standard" | "premium";
   shotTypeOverride?: ShotType;
+  adultPipelineAuthorized?: boolean;
+  adultWebSessionId?: string|null;
 };
 export async function queueMediaRequest(
   db: SupabaseClient,
@@ -1097,6 +1097,7 @@ export async function queueMediaRequest(
     requestText: input.requestText,
     requestedContentLevel: intent.requestedContentLevel,
     fallbackLevel: input.source === "date" ? "romance" : "standard",
+    adultPipelineAuthorized:input.adultPipelineAuthorized===true,
   });
   if (input.source === "user_request" && !intent.requested && !input.force) {
     return null;
@@ -1118,7 +1119,7 @@ export async function queueMediaRequest(
       conversationId: input.conversationId,
     }),
     db.from("together_profiles").select(
-      "age_verified_at,content_preferences,photo_preferences,multimodal_preferences",
+      "age_verified_at,adult_eligible_at,content_preferences,photo_preferences,multimodal_preferences",
     ).eq("user_id", input.userId).maybeSingle(),
     db.from("together_relationship_states").select("*").in(
       "character_instance_id",
@@ -1286,7 +1287,11 @@ export async function queueMediaRequest(
             level: "warn",
             operation: "accepted_photo_presence_refresh",
             characterInstanceId: String(subject.id),
-            message: error instanceof Error ? error.message : "unknown_error",
+            code: error instanceof AppError
+              ? error.code
+              : error instanceof Error
+              ? error.name
+              : "unknown_error",
           }),
         );
         return null;
@@ -1423,6 +1428,7 @@ export async function queueMediaRequest(
         subjectVersion.content_boundaries,
         subjectTemplate.content_boundaries,
       ),
+      mediaSafety=classifyUserAuthoredMediaSafety({text:requestText,requestedContentLevel:requestedForPolicy}),
       characterAllowsRequestedLevel = requestedForPolicy === "standard"
         ? true
         : requestedForPolicy === "romance"
@@ -1439,27 +1445,24 @@ export async function queueMediaRequest(
         requestedLevel: requestedForPolicy,
         source: input.source,
         automatic: input.source !== "user_request",
-        ageVerified: Boolean(profile?.age_verified_at),
+        ageVerified: ['suggestive','mature','explicit'].includes(requestedForPolicy)?Boolean(input.adultPipelineAuthorized&&profile?.adult_eligible_at):Boolean(profile?.age_verified_at),
         characterAge: Number(subjectTemplate.age),
         fictionalCharacter: isFictionalCompanion(
           subjectTemplate,
           subjectVersion,
         ),
-        realPersonRequest: REAL_PERSON_PATTERN.test(requestText),
-        nonConsensualRequest:
-          /\b(non.?consensual|without (?:her|his|their) consent|secretly nude)\b/i
-            .test(requestText),
-        minorRelatedRequest: /\b(minor|underage|schoolgirl|schoolboy|child)\b/i
-          .test(requestText),
+        realPersonRequest: REAL_PERSON_PATTERN.test(requestText)||mediaSafety.reasonCode==='real_person_likeness',
+        nonConsensualRequest: !mediaSafety.allowed&&!['minor_related','real_person_likeness'].includes(mediaSafety.reasonCode),
+        minorRelatedRequest: mediaSafety.reasonCode==='minor_related',
         characterAllowsRequestedLevel,
         romanceEnabled: Boolean(contentPreferences.romanceEnabled !== false),
-        suggestiveMediaEnabled:
-          contentPreferences.suggestiveMediaEnabled === true,
-        matureMediaEnabled: contentPreferences.matureMediaEnabled === true,
-        explicitMediaEnabled: contentPreferences.explicitMediaEnabled === true,
+        suggestiveMediaEnabled:input.adultPipelineAuthorized===true||contentPreferences.suggestiveMediaEnabled === true,
+        matureMediaEnabled: input.adultPipelineAuthorized===true||contentPreferences.matureMediaEnabled === true,
+        explicitMediaEnabled: input.adultPipelineAuthorized===true||contentPreferences.explicitMediaEnabled === true,
         adultVideoEnabled: contentPreferences.adultVideoEnabled === true,
         mediaType: "image",
-        adultMediaFeatureEnabled: envEnabled("KIVELLE_ADULT_MEDIA_ENABLED"),
+        adultMediaFeatureEnabled: envEnabled("KIVELLE_ADULT_MEDIA_ENABLED")&&envEnabled('WEB_ADULT_MODE_ENABLED'),
+        adultPipelineAuthorized:input.adultPipelineAuthorized===true,
       }),
     };
   });
@@ -1627,6 +1630,9 @@ export async function queueMediaRequest(
     requestedContentLevel: requestedLevel,
     resolvedContentLevel: contentLevel,
     mediaPolicyReason: policy.reasonCode,
+    adultAuthorized:input.adultPipelineAuthorized===true&&['suggestive','mature','explicit'].includes(contentLevel),
+    adultWebSessionId:input.adultPipelineAuthorized===true?input.adultWebSessionId??null:null,
+    moderationVersion:'web-adult-v1',
     productionMediaDowngraded: productionRequest.downgraded,
     productionMediaReason: productionRequest.reasonCode,
     mediaPolicyBySubject: policies.map((item) => ({
@@ -1725,6 +1731,9 @@ export async function queueMediaRequest(
     status: "queued",
     request_key: key,
     metadata,
+    content_rating:['suggestive','mature','explicit'].includes(contentLevel)?'explicit':contentLevel==='romance'?'suggestive':'safe',
+    visibility_scope:['suggestive','mature','explicit'].includes(contentLevel)?'web_adult':'all',
+    moderation_version:'web-adult-v1',
   };
   const { data, error } = await db.from("together_generated_media").insert(row)
     .select("*").single();
@@ -2129,14 +2138,16 @@ export async function canonicalRequestForMedia(
     meta.generationIntent && typeof meta.generationIntent === "object"
       ? meta.generationIntent as Record<string, unknown>
       : null;
+  const storedLevel=String(storedGenerationIntent?.requestedContentLevel??media.content_level??'standard') as MediaContentLevel;
+  const adultLevel=['suggestive','mature','explicit'].includes(storedLevel);
+  const adultPipelineAuthorized=adultLevel&&meta.adultAuthorized===true&&media.visibility_scope==='web_adult'&&envEnabled('WEB_ADULT_MODE_ENABLED')&&envEnabled('KIVELLE_ADULT_MEDIA_ENABLED');
+  if(adultLevel&&!adultPipelineAuthorized)throw new AppError('FORBIDDEN','Adult photo generation is currently unavailable.',403);
   const productionRequest = resolveProductionSafePhotoRequest({
     requestText: typeof storedGenerationIntent?.requestText === "string"
       ? storedGenerationIntent.requestText
       : undefined,
-    requestedContentLevel: String(
-      storedGenerationIntent?.requestedContentLevel ?? media.content_level ??
-        "standard",
-    ) as MediaContentLevel,
+    requestedContentLevel:storedLevel,
+    adultPipelineAuthorized,
   });
   const sceneBoundary = resolveMediaSceneBoundary({
     locationName: String(
@@ -2211,6 +2222,7 @@ export async function canonicalRequestForMedia(
   );
   return {
     mediaId: String(media.id),
+    adultPipelineAuthorized,
     ...(meta.generationKind === "photo_edit"
       ? { generationKind: "photo_edit" as const, sourceImage: editSource }
       : {}),
@@ -2572,7 +2584,7 @@ function envEnabled(name: string): boolean {
     (Deno.env.get(name) ?? "false").toLowerCase(),
   );
 }
-function mediaPolicyMessage(reason: string): string {
+export function mediaPolicyMessage(reason: string): string {
   if (reason === "production_content_ceiling") {
     return "Kivelle supports everyday and romantic photos, not nude, sexual, or explicit imagery.";
   }

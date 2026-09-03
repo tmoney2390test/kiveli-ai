@@ -21,7 +21,7 @@ export default {
       incomingUrl.pathname === SUPABASE_PROXY_PREFIX ||
       incomingUrl.pathname.startsWith(`${SUPABASE_PROXY_PREFIX}/`)
     ) {
-      return proxySupabaseRequest(request, incomingUrl);
+      return proxySupabaseRequest(request, incomingUrl, env);
     }
 
     if (
@@ -64,8 +64,9 @@ async function serveAppAsset(request, env) {
       const html = request.method === "HEAD" ? null : await assetResponse.text();
       const release = releaseFromHtml(html) ?? APP_RELEASE_FALLBACK;
       responseHeaders.set("x-kivelli-release", release);
+      const preloads = scriptPreloadHeader(html);
+      if (preloads) responseHeaders.set("link", preloads);
       if (html !== null && !hasCookieValue(request.headers.get("cookie"), "kivelli_release", release)) {
-        responseHeaders.set("clear-site-data", '"cache"');
         responseHeaders.append(
           "set-cookie",
           `kivelli_release=${release}; Path=/; Max-Age=604800; Secure; SameSite=Lax`,
@@ -148,14 +149,32 @@ function hasCookieValue(cookieHeader, name, value) {
     .some((cookie) => cookie.trim() === `${name}=${value}`);
 }
 
-async function proxySupabaseRequest(request, incomingUrl) {
+async function proxySupabaseRequest(request, incomingUrl, env) {
   const upstreamPath =
     incomingUrl.pathname.slice(SUPABASE_PROXY_PREFIX.length) || "/";
   const upstreamUrl = new URL(upstreamPath + incomingUrl.search, SUPABASE_ORIGIN);
   const upstreamRequest = new Request(upstreamUrl.toString(), request);
   upstreamRequest.headers.delete("host");
+  for (const name of [
+    "x-kivelli-surface",
+    "x-kivelli-surface-user",
+    "x-kivelli-surface-time",
+    "x-kivelli-surface-nonce",
+    "x-kivelli-surface-path",
+    "x-kivelli-surface-signature",
+  ]) upstreamRequest.headers.delete(name);
   upstreamRequest.headers.set("x-forwarded-host", incomingUrl.host);
   upstreamRequest.headers.set("x-forwarded-proto", "https");
+  const subject = jwtSubject(upstreamRequest.headers.get("authorization"));
+  if (env.KIVELLE_SURFACE_SIGNING_SECRET && subject) {
+    const assertion = await createWebSurfaceAssertion({
+      secret: env.KIVELLE_SURFACE_SIGNING_SECRET,
+      method: request.method,
+      path: upstreamUrl.pathname,
+      userId: subject,
+    });
+    for (const [name, value] of Object.entries(assertion)) upstreamRequest.headers.set(name, value);
+  }
 
   try {
     const upstreamResponse = await fetch(upstreamRequest, {
@@ -192,4 +211,53 @@ async function proxySupabaseRequest(request, incomingUrl) {
       },
     );
   }
+}
+
+export function scriptPreloadHeader(html) {
+  if (!html) return null;
+  const sources = [...html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)]
+    .map((match) => match[1])
+    .filter((source) => source.startsWith("/_expo/static/js/web/"))
+    .slice(0, 8);
+  return sources.length
+    ? sources.map((source) => `<${source}>; rel=preload; as=script`).join(", ")
+    : null;
+}
+
+export async function createWebSurfaceAssertion({ secret, method, path, userId, now = Date.now(), nonce = crypto.randomUUID() }) {
+  const timestamp = String(Math.floor(now / 1000));
+  const canonical = surfaceCanonical(method, path, userId, timestamp, nonce);
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const signature = bytesToBase64Url(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(canonical))));
+  return {
+    "x-kivelli-surface": "web",
+    "x-kivelli-surface-user": userId,
+    "x-kivelli-surface-time": timestamp,
+    "x-kivelli-surface-nonce": nonce,
+    "x-kivelli-surface-path": path,
+    "x-kivelli-surface-signature": signature,
+  };
+}
+
+export function surfaceCanonical(method, path, userId, timestamp, nonce) {
+  return [String(method).toUpperCase(), path, userId, timestamp, nonce, "web"].join("\n");
+}
+
+export function jwtSubject(authorization) {
+  try {
+    if (!authorization?.startsWith("Bearer ")) return null;
+    const payload = authorization.slice(7).split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "=");
+    const subject = JSON.parse(atob(normalized)).sub;
+    return typeof subject === "string" && /^[0-9a-f-]{36}$/i.test(subject) ? subject : null;
+  } catch {
+    return null;
+  }
+}
+
+function bytesToBase64Url(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }

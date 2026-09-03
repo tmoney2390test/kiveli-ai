@@ -9,7 +9,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Brain, Camera, Check, ChevronDown, ChevronRight, CircleAlert, CreditCard, ExternalLink, Gift, Globe2, Heart, History, LockKeyhole, RefreshCw, ShieldCheck, Sparkles, UserRound, Zap } from 'lucide-react-native';
 import { GradientButton, KivelleCreditIcon, LoadingSkeleton, Screen } from '../src/components';
 import { subscriptionStatusQueryKey, useSubscriptionStatus } from '../src/hooks/useSubscriptionStatus';
+import { useAuth } from '../src/hooks/useAuth';
 import { ApiError, manageSubscription } from '../src/lib/api';
+import { nativePurchasesConfigured, purchaseNativeSubscription, restoreNativePurchases } from '../src/lib/nativePurchases';
 import type { BillingInterval, CheckoutConfirmation, CreditActivityEvent, CreditPack, SubscriptionPlan, SubscriptionStatus, SubscriptionTier } from '../src/lib/subscription';
 import { intelligenceLabel } from '../src/lib/subscription';
 import { annualSavingsPercentage, billingStatusPresentation, checkoutBackoffDelay, creditActivityPresentation, managementActionLabel, membershipBenefits, membershipMetrics, membershipPageMode, membershipPricePresentation, normalizeSubscriptionIntent, safeSubscriptionReturnTo, shouldShowSubscriptionIntentCallout, subscriptionIntentPresentation } from '../src/lib/subscriptionPresentation';
@@ -24,6 +26,7 @@ const maxBenefitsBackground = require('../assets/membership/max-nebula.webp');
 export default function Subscription() {
   const params = useLocalSearchParams<{ checkout?: string; purchase?: string; session_id?: string; billing?: string; intent?: string; source?: string; returnTo?: string; tier?: string }>();
   const queryClient = useQueryClient();
+  const { session } = useAuth();
   const query = useSubscriptionStatus();
   const state = query.data ?? null;
   const { width } = useWindowDimensions();
@@ -129,9 +132,32 @@ export default function Subscription() {
   const checkout = async (tier: Exclude<SubscriptionTier, 'free'>) => {
     if (!state) return;
     setBusy(tier); setNotice(null);
-    try { const result = await manageSubscription<{ url: string }>({ action: 'checkout', tier, billingInterval, requestId: Crypto.randomUUID() }); await openUrl(result.url); }
+    try {
+      if (Platform.OS !== 'web' && nativePurchasesConfigured()) {
+        const userId=session?.user.id;if(!userId)throw new Error('Sign in before purchasing a membership.');
+        const purchase=await purchaseNativeSubscription(userId,tier,billingInterval);
+        if(purchase.cancelled){setNotice({tone:'neutral',title:'Purchase cancelled',body:'Nothing was charged and your current membership is unchanged.'});return;}
+        setNotice({tone:'neutral',title:'Confirming your membership',body:'The app store approved the purchase. Kivelle is securely syncing your benefits now.'});
+        const synced=await waitForNativeTier(query.refetch,tier);
+        setNotice(synced?{tone:'success',title:`${tier==='kivelle_max'?'Kivelle Max':'Kivelle+'} is active`,body:'Your app-store membership and benefits are ready.'}:{tone:'warning',title:'Purchase received',body:'The app store completed your purchase, but the signed confirmation is still syncing. Refresh in a moment—trying again will not charge you twice.',retry:true});
+        return;
+      }
+      const result = await manageSubscription<{ url: string }>({ action: 'checkout', tier, billingInterval, requestId: Crypto.randomUUID() }); await openUrl(result.url);
+    }
     catch (caught) { setNotice({ tone: 'danger', title: 'Could not open checkout', body: billingErrorMessage(caught) }); }
     finally { setBusy(''); }
+  };
+
+  const restorePurchases = async () => {
+    const userId=session?.user.id;if(!userId)return;
+    setBusy('restore');setNotice(null);
+    try{
+      await restoreNativePurchases(userId);
+      setNotice({tone:'neutral',title:'Checking past purchases',body:'The app store finished restoring. Kivelle is syncing the signed membership status.'});
+      const result=await query.refetch();
+      setNotice(result.data?.tier&&result.data.tier!=='free'?{tone:'success',title:`${result.data.capabilities.displayName} restored`,body:'Your membership and benefits are available again.'}:{tone:'neutral',title:'Restore complete',body:'No active Kivelle membership was found for this store account.'});
+    }catch(caught){setNotice({tone:'danger',title:'Could not restore purchases',body:billingErrorMessage(caught),retry:true});}
+    finally{setBusy('');}
   };
 
   const openManagement = async () => {
@@ -163,11 +189,15 @@ export default function Subscription() {
   const paidPlans = (['kivelle_plus', 'kivelle_max'] as const).map((tier) => state.catalog.find((plan) => plan.tier === tier)).filter((plan): plan is SubscriptionPlan => Boolean(plan));
   const currentPlan = state.catalog.find((plan) => plan.tier === state.tier) ?? state.capabilities;
   const mode = membershipPageMode(state.tier);
-  const checkoutConfiguredFor = (plan: SubscriptionPlan) => billingInterval === 'annual' ? Boolean(state.billingConfiguredAnnual?.[plan.tier as Exclude<SubscriptionTier, 'free'>]) : state.billingConfigured[plan.tier as Exclude<SubscriptionTier, 'free'>];
+  const nativeStoreCheckout=Platform.OS!=='web'&&nativePurchasesConfigured();
+  const hostedNativeCheckout=Platform.OS==='web'||state.billingPolicy?.nativeExternalCheckoutEnabled!==false;
+  const checkoutConfiguredFor = (plan: SubscriptionPlan) => nativeStoreCheckout||hostedNativeCheckout&&(billingInterval === 'annual' ? Boolean(state.billingConfiguredAnnual?.[plan.tier as Exclude<SubscriptionTier, 'free'>]) : state.billingConfigured[plan.tier as Exclude<SubscriptionTier, 'free'>]);
   const planActionFor = (plan: SubscriptionPlan): PlanAction | null => {
     if (plan.tier === state.tier) return null;
     if (state.tier !== 'free') return { label: managementActionLabel(state.management) || 'Change plan', enabled: state.management.canManageSubscription, reason: state.management.managementReason, onPress: () => void openManagement() };
-    return { label: `Choose ${plan.displayName}`, enabled: checkoutConfiguredFor(plan), reason: 'Checkout is temporarily unavailable for this billing interval.', onPress: () => void checkout(plan.tier as Exclude<SubscriptionTier, 'free'>) };
+    const webCheckoutDisabled=Platform.OS==='web'&&state.billingPolicy?.subscriptionCheckoutEnabled===false;
+    const storeUnavailable=Platform.OS!=='web'&&!nativeStoreCheckout&&!hostedNativeCheckout;
+    return { label: webCheckoutDisabled?'Available in the Kivelli app':`Choose ${plan.displayName}`, enabled: checkoutConfiguredFor(plan), reason: webCheckoutDisabled?'New memberships are available in Kivelli for iOS and Android. Existing App Store and Google Play memberships still work here.':storeUnavailable?'App-store billing is not configured in this build.':'Checkout is temporarily unavailable for this billing interval.', onPress: () => void checkout(plan.tier as Exclude<SubscriptionTier, 'free'>) };
   };
   const maxPlan = paidPlans.find((plan) => plan.tier === 'kivelle_max');
 
@@ -202,6 +232,7 @@ export default function Subscription() {
         <Pressable accessibilityRole="button" accessibilityState={{ expanded: compareOpen }} accessibilityLabel={`${compareOpen ? 'Hide' : 'Show'} membership comparison`} onPress={() => setCompareOpen((value) => !value)} style={({ pressed }) => [styles.compareToggle, pressed && styles.pressed]}><View style={{ flex: 1 }}><Text style={styles.compareTitle}>Compare all memberships</Text><Text style={styles.compareCopy}>See Kivelli Free, Kivelli+, and Max side by side.</Text></View><View style={{ transform: [{ rotate: compareOpen ? '180deg' : '0deg' }] }}><ChevronDown size={20} color={colors.muted} /></View></Pressable>
         {compareOpen ? <Comparison plans={state.catalog} currentTier={state.tier} compact={compact} /> : null}
       </View>
+      {nativeStoreCheckout?<Pressable accessibilityRole="button" accessibilityLabel="Restore app-store purchases" accessibilityState={{disabled:busy==='restore'}} disabled={busy==='restore'} onPress={()=>void restorePurchases()} style={({pressed})=>[styles.restoreButton,pressed&&styles.pressed,busy==='restore'&&styles.disabled]}><RefreshCw size={16} color={colors.violet}/><Text style={styles.restoreText}>{busy==='restore'?'Restoring purchases…':'Restore purchases'}</Text></Pressable>:null}
       <View style={styles.policyLinks}><PolicyLink label="Terms" route="/terms" /><Text style={styles.policyDot}>•</Text><PolicyLink label="Privacy" route="/privacy-policy" /><Text style={styles.policyDot}>•</Text><PolicyLink label="Refunds & cancellation" route="/refund-policy" /><Text style={styles.policyDot}>•</Text><PolicyLink label="Support" route="/support" /></View>
     </Screen>
   );
@@ -318,5 +349,15 @@ const styles = StyleSheet.create({
   activityRow: { minHeight: 55, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }, activityIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.04)' }, activityLabel: { color: colors.text, fontSize: 11, fontWeight: '900' }, activityDetail: { color: colors.dimmed, fontSize: 9, marginTop: 3 }, activityAmount: { color: colors.muted, fontSize: 13, fontWeight: '900' }, activityPositive: { color: colors.success }, emptyActivity: { color: colors.dimmed, fontSize: 10, paddingVertical: 12 },
   compareToggle: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 17, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, compareTitle: { color: colors.text, fontSize: 13, fontWeight: '900' }, compareCopy: { color: colors.muted, fontSize: 10, marginTop: 3 }, compareGrid: { gap: 10, marginTop: 10 }, compareGridWide: { flexDirection: 'row', alignItems: 'stretch' }, compareCard: { flex: 1, minWidth: 0, overflow: 'hidden', borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, compareCardCompact: { width: '100%' }, compareCardTop: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: 12, backgroundColor: colors.elevated }, comparePlan: { color: colors.text, fontFamily: 'Georgia', fontSize: 17 }, compareCurrent: { color: colors.success, fontSize: 7, fontWeight: '900', letterSpacing: .6 }, compareRow: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }, compareLabel: { color: colors.dimmed, fontSize: 8, fontWeight: '900', letterSpacing: .4 }, compareValue: { color: colors.text, fontSize: 10, fontWeight: '800', marginTop: 3, textTransform: 'capitalize' },
   notice: { gap: 10, padding: 15, borderRadius: radius.lg, backgroundColor: 'rgba(154,99,215,.09)', borderWidth: 1, borderColor: 'rgba(175,162,255,.24)' }, noticeSuccess: { backgroundColor: 'rgba(77,162,116,.09)', borderColor: 'rgba(127,209,170,.26)' }, noticeWarning: { backgroundColor: 'rgba(222,166,75,.08)', borderColor: 'rgba(233,176,86,.26)' }, noticeDanger: { backgroundColor: 'rgba(211,92,94,.09)', borderColor: 'rgba(211,92,94,.28)' }, noticeTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 }, noticeTitle: { color: colors.text, fontSize: 13, fontWeight: '900' }, noticeCopy: { color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 3 }, noticeAction: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.06)' }, noticeActionText: { color: '#E5C7F1', fontSize: 12, fontWeight: '900' },
+  restoreButton:{alignSelf:'center',minHeight:48,paddingHorizontal:18,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,borderRadius:24,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface},restoreText:{color:colors.text,fontSize:11,fontWeight:'900'},
   policyLinks: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 6 }, policyLink: { minHeight: 44, textAlignVertical: 'center', color: colors.muted, fontSize: 10, fontWeight: '800', textDecorationLine: 'underline' }, policyDot: { color: colors.dimmed, fontSize: 9 }, errorCard: { gap: 14, padding: 18, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, error: { color: colors.danger, fontSize: 11, textAlign: 'center' },
 });
+
+async function waitForNativeTier(refetch:()=>Promise<{data?:SubscriptionStatus}>,tier:Exclude<SubscriptionTier,'free'>):Promise<boolean>{
+  for(const delay of[0,700,1400,2400,4000]){
+    if(delay)await new Promise((resolve)=>setTimeout(resolve,delay));
+    const result=await refetch();
+    if(result.data&&(result.data.tier===tier||tier==='kivelle_plus'&&result.data.tier==='kivelle_max'))return true;
+  }
+  return false;
+}

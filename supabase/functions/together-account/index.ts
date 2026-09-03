@@ -13,6 +13,7 @@ import { resolveSubscriptionAccess } from '../_shared/kivelle-subscription.ts';
 import { cancelStripeSubscriptionNow } from '../_shared/stripe.ts';
 import { accountDeletionBillingPlan, hasRecentAccountAuthentication, isOwnedAvatarPath } from '../_shared/kivelle-account-lifecycle.ts';
 import { validatePrivateAvatarJpeg } from '../_shared/kivelle-avatar.ts';
+import { resolveAdultAccess } from '../_shared/web-adult-access.ts';
 
 const goals = z.enum(['Dating', 'Friendship', 'Stories', 'Social worlds']);
 const schema = z.discriminatedUnion('action', [
@@ -31,6 +32,7 @@ const exportLifetimeMs = 24 * 60 * 60_000;
 
 serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
+  const adultAccess = await resolveAdultAccess(request, user, db);
   const input = await parseBody(request, schema);
   const actionLimit = input.action === 'export_request' ? 4 : input.action === 'export_status' ? 120 : input.action === 'delete' ? 3 : 20;
   await enforceRateLimit(db, user.id, `together_account_${input.action}`, actionLimit, 3600);
@@ -59,7 +61,7 @@ serve(async (request, correlationId) => {
     }
     if (before.avatar_path && before.avatar_path !== input.avatarPath) waitUntil(removeAvatarWhenUnreferenced(db, user.id, String(before.avatar_path)));
     await track(db, user.id, 'account_profile_updated', { main_persona_synced: input.syncMainPersona, avatar_changed: before.avatar_path !== input.avatarPath });
-    return json({ data: { profile: data, mainPersona }, correlationId }, 200, correlationId);
+    return json({ data: { profile: publicProfile(data), mainPersona }, correlationId }, 200, correlationId);
   }
 
   if (input.action === 'privacy') {
@@ -89,18 +91,20 @@ serve(async (request, correlationId) => {
 
   if (input.action === 'export_request') {
     await expireAccountExports(db, user.id);
-    const { data: existing } = await db.from('together_account_exports').select('id,status,file_name,expires_at').eq('user_id', user.id).in('status', ['queued','processing','ready']).gt('expires_at', new Date().toISOString()).order('requested_at', { ascending: false }).limit(1).maybeSingle();
+    const projectionScope=adultAccess.authorized_web_adult?'canonical':'safe';
+    const { data: existing } = await db.from('together_account_exports').select('id,status,file_name,expires_at').eq('user_id', user.id).eq('projection_scope',projectionScope).in('status', ['queued','processing','ready']).gt('expires_at', new Date().toISOString()).order('requested_at', { ascending: false }).limit(1).maybeSingle();
     if (existing) return json({ data: { id: existing.id, status: existing.status, fileName: existing.file_name, expiresAt: existing.expires_at }, correlationId }, 200, correlationId);
     const id = crypto.randomUUID(), expiresAt = new Date(Date.now() + exportLifetimeMs).toISOString(), fileName = `kivelle-data-${new Date().toISOString().slice(0, 10)}.zip`;
-    const { error } = await db.from('together_account_exports').insert({ id, user_id: user.id, status: 'queued', file_name: fileName, expires_at: expiresAt });
+    const { error } = await db.from('together_account_exports').insert({ id, user_id: user.id, status: 'queued', file_name: fileName, expires_at: expiresAt, projection_scope:projectionScope });
     if (error) throw new AppError('INTERNAL_ERROR', 'Your data export could not be queued.', 500, true);
-    waitUntil(prepareAccountExport(db, { id, userId: user.id, email: user.email ?? null }));
+    waitUntil(prepareAccountExport(db, { id, userId: user.id, email: user.email ?? null, canonical:projectionScope==='canonical' }));
     return json({ data: { id, status: 'queued', fileName, expiresAt }, correlationId }, 202, correlationId);
   }
 
   if (input.action === 'export_status') {
-    const { data: item, error } = await db.from('together_account_exports').select('id,status,file_name,storage_bucket,storage_path,expires_at,size_bytes,record_count,failure_code').eq('id', input.exportId).eq('user_id', user.id).maybeSingle();
+    const { data: item, error } = await db.from('together_account_exports').select('id,status,file_name,storage_bucket,storage_path,expires_at,size_bytes,record_count,failure_code,projection_scope').eq('id', input.exportId).eq('user_id', user.id).maybeSingle();
     if (error || !item) throw new AppError('NOT_FOUND', 'That data export was not found.', 404);
+    if(item.projection_scope==='canonical'&&!adultAccess.authorized_web_adult)throw new AppError('NOT_FOUND','That data export is unavailable in this session.',404);
     if (item.status === 'ready' && new Date(item.expires_at).getTime() <= Date.now()) {
       if (item.storage_path) await queueStorageCleanup(db, user.id, String(item.storage_bucket), String(item.storage_path));
       await db.from('together_account_exports').update({ status: 'expired', storage_path: null, updated_at: new Date().toISOString() }).eq('id', item.id).eq('user_id', user.id);
@@ -154,12 +158,12 @@ serve(async (request, correlationId) => {
   return json({ data: { deleted: true, receiptId }, correlationId }, 200, correlationId);
 });
 
-async function prepareAccountExport(db: SupabaseClient, input: { id: string; userId: string; email: string | null }) {
+async function prepareAccountExport(db: SupabaseClient, input: { id: string; userId: string; email: string | null;canonical:boolean }) {
   const path = `${input.userId}/exports/${input.id}.zip`;
   let failureCode = 'EXPORT_QUERY_FAILED';
   try {
     await db.from('together_account_exports').update({ status: 'processing', updated_at: new Date().toISOString() }).eq('id', input.id).eq('user_id', input.userId);
-    const payload = await buildAccountExport(db, input.userId, input.email);
+    const payload = await buildAccountExport(db, input.userId, input.email,input.canonical);
     const zip = zipSync({ 'kivelle-data.json': strToU8(JSON.stringify(payload, null, 2)) }, { level: 6 });
     failureCode = 'EXPORT_STORAGE_FAILED';
     const upload = await db.storage.from('together-user-media').upload(path, zip, { contentType: 'application/zip', cacheControl: '0', upsert: false });
@@ -172,19 +176,37 @@ async function prepareAccountExport(db: SupabaseClient, input: { id: string; use
   }
 }
 
-async function buildAccountExport(db: SupabaseClient, userId: string, email: string | null) {
+async function buildAccountExport(db: SupabaseClient, userId: string, email: string | null,canonical:boolean) {
   const results = await Promise.all(exportTables.map(async (table) => ({ table, result: await db.from(table).select('*').eq('user_id', userId) })));
   const failed = results.find(({ result }) => result.error);
   if (failed?.result.error) throw failed.result.error;
   const data = Object.fromEntries(results.map(({ table, result }) => [table, result.data ?? []])) as Record<string, Array<Record<string, unknown>>>;
+  if(!canonical)projectSafeAccountData(data);
   const { data: createdTemplates, error: templateError } = await db.from('together_character_templates').select('*,together_character_versions(*)').eq('creator_id', userId);
   if (templateError) throw templateError;
   const versionIds = (createdTemplates ?? []).flatMap((template) => Array.isArray(template.together_character_versions) ? template.together_character_versions.map((version: Record<string, unknown>) => String(version.id)) : []);
   const [mediaProfiles, referenceAssets] = versionIds.length ? await Promise.all([db.from('together_character_media_profiles').select('id,character_version_id,provider,model_family,profile_kind,status,trigger_word,source_revision,source_reference_asset_ids,trained_at,failure_code,compatibility,metadata,created_at,updated_at').in('character_version_id', versionIds), db.from('together_media_reference_assets').select('id,asset_role,character_version_id,source_key,content_type,width,height,revision,active,metadata,created_at,updated_at').in('character_version_id', versionIds)]) : [{ data: [] }, { data: [] }];
   if (mediaProfiles.error || referenceAssets.error) throw mediaProfiles.error ?? referenceAssets.error;
   const lives = (data.together_continuities ?? []).map((life) => ({ continuity: life, persona: (data.together_user_personas ?? []).find((persona) => persona.id === life.persona_id) ?? null, companions: (data.together_character_instances ?? []).filter((instance) => instance.continuity_id === life.id).map((instance) => ({ instance, relationship: (data.together_relationship_states ?? []).find((row) => row.character_instance_id === instance.id) ?? null, memories: (data.together_memories ?? []).filter((row) => row.character_instance_id === instance.id), plans: (data.together_shared_plans ?? []).filter((row) => row.character_instance_id === instance.id), dates: (data.together_date_sessions ?? []).filter((row) => row.character_instance_id === instance.id), moments: (data.together_moments ?? []).filter((row) => row.character_instance_id === instance.id), stories: (data.together_story_arc_instances ?? []).filter((row) => row.character_instance_id === instance.id), conversations: (data.together_conversations ?? []).filter((row) => row.character_instance_id === instance.id) })) }));
-  return { exportedAt: new Date().toISOString(), account: { id: userId, email }, personas: data.together_user_personas ?? [], lives, createdCharacters: createdTemplates ?? [], createdCharacterMediaProfiles: mediaProfiles.data ?? [], createdCharacterReferenceAssets: referenceAssets.data ?? [], raw: data };
+  const exportedTemplates=canonical?(createdTemplates??[]):(createdTemplates??[]).map(({together_character_versions:versions,...template})=>({...template,together_character_versions:(Array.isArray(versions)?versions:[]).map(({system_prompt:_,character_bible:__,content_boundaries:___,...version})=>version)}));
+  return { exportedAt: new Date().toISOString(), account: { id: userId, email }, personas: data.together_user_personas ?? [], lives, createdCharacters: exportedTemplates, createdCharacterMediaProfiles: canonical?mediaProfiles.data??[]:[], createdCharacterReferenceAssets: canonical?referenceAssets.data??[]:[], raw: data };
 }
+
+function projectSafeAccountData(data:Record<string,Array<Record<string,unknown>>>):void{
+  const safe=(row:Record<string,unknown>)=>row.visibility_scope==='all'&&['safe','suggestive'].includes(String(row.content_rating??''));
+  for(const table of ['together_messages','together_conversation_attachments','together_memories','together_open_threads','together_generated_media'])data[table]=(data[table]??[]).filter(safe);
+  // These legacy derived tables predate content labels. Adult turns no longer
+  // write them; existing unclassified rows fail closed in a safe export.
+  data.together_scene_messages=[];
+  data.together_knowledge_transfers=[];
+  data.together_voice_call_sessions=(data.together_voice_call_sessions??[]).map(({transcript:_,summary:__,...row})=>row);
+  data.together_profiles=(data.together_profiles??[]).map(({adult_eligible_at:_,adult_eligibility_method:__,adult_eligibility_reference:___,...profile})=>profile);
+  data.together_conversations=(data.together_conversations??[]).map((conversation)=>{const row={...conversation};delete row.canonical_context;const safeContext=record(row.safe_context);row.summary=typeof safeContext.summary==='string'?safeContext.summary:null;row.context=safeContext;return row;});
+  data.together_conversation_attachments=(data.together_conversation_attachments??[]).map(({storage_path:_,analysis_metadata:__,safe_variant_key:___,...row})=>row);
+  data.together_generated_media=(data.together_generated_media??[]).map(({storage_path:_,metadata:__,canonical_text:___,...row})=>row);
+}
+
+function publicProfile(profile:Record<string,unknown>):Record<string,unknown>{const{date_of_birth:_,adult_eligible_at:__,adult_eligibility_method:___,adult_eligibility_reference:____,...safe}=profile;return safe;}
 
 async function expireAccountExports(db: SupabaseClient, userId: string) {
   const { data } = await db.from('together_account_exports').select('id,storage_bucket,storage_path').eq('user_id', userId).eq('status', 'ready').lte('expires_at', new Date().toISOString());

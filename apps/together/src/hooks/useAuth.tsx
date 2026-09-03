@@ -1,9 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 import { Platform } from 'react-native';
 import type { AuthError, Session } from '@supabase/supabase-js';
-import * as AppleAuthentication from 'expo-apple-authentication';
-import * as Crypto from 'expo-crypto';
-import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '../lib/supabase';
 import { authErrorMessage } from '../lib/authErrors';
 import { createTogetherAccount } from '../lib/api';
@@ -18,7 +15,7 @@ type AuthValue = {
   socialAuth: SocialAuthCapabilities;
   signIn(email: string, password: string): Promise<void>;
   signInWithSocial(provider: SocialAuthProvider, next?: string | null): Promise<void>;
-  signUp(email: string, password: string): Promise<SignUpResult>;
+  signUp(email: string, password: string,dateOfBirth:string): Promise<SignUpResult>;
   resendSignUpConfirmation(email: string): Promise<void>;
   requestPasswordReset(email: string): Promise<void>;
   signOut(): Promise<void>;
@@ -37,7 +34,9 @@ const socialAuth = resolveSocialAuthCapabilities({
   google: process.env.EXPO_PUBLIC_KIVELLE_GOOGLE_AUTH_ENABLED ?? 'true',
   apple: process.env.EXPO_PUBLIC_KIVELLE_APPLE_AUTH_ENABLED,
 });
-void WebBrowser.maybeCompleteAuthSession();
+if (Platform.OS !== 'web') {
+  void import('expo-web-browser').then((module) => module.maybeCompleteAuthSession());
+}
 
 export function authRedirectUrl(path = '/auth/callback') {
   if (Platform.OS === 'web' && typeof window !== 'undefined') return new URL(path, window.location.origin).toString();
@@ -93,6 +92,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (!socialAuth[provider]) throw new Error(`${provider === 'google' ? 'Google' : 'Apple'} sign-in is not configured yet.`);
       try {
         if (provider === 'apple' && Platform.OS === 'ios') {
+          const [AppleAuthentication, Crypto] = await Promise.all([
+            import('expo-apple-authentication'),
+            import('expo-crypto'),
+          ]);
           const available = await AppleAuthentication.isAvailableAsync();
           if (!available) throw new Error('Apple sign-in is unavailable on this device.');
           const rawNonce = Crypto.randomUUID();
@@ -134,6 +137,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         if (error) throw error;
         if (Platform.OS === 'web') return;
         if (!data.url) throw new Error(`${provider === 'google' ? 'Google' : 'Apple'} sign-in could not be opened.`);
+        const WebBrowser = await import('expo-web-browser');
         const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo, { showTitle: false });
         if (result.type === 'cancel' || result.type === 'dismiss') throw new Error('Sign-in was cancelled.');
         if (result.type !== 'success' || !result.url) throw new Error('Sign-in did not complete.');
@@ -147,8 +151,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
         throw new Error(socialAuthErrorMessage(provider, error));
       }
     },
-    signUp: async (email, password) => {
-      await createTogetherAccount(email, password);
+    signUp: async (email, password,dateOfBirth) => {
+      await createTogetherAccount(email, password,dateOfBirth);
       const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: authRedirectUrl() } });
       if (error) throw readableAuthError(error);
       return { needsEmailConfirmation: true };

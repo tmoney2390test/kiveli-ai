@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { initiativeLevels, normalizeInitiativeLevel, type InitiativeLevel } from '@together/domain';
+import { initiativeLevels, normalizeInitiativeLevel, type InitiativeLevel } from '@together/domain/src/life';
 import { ArrowLeft, Bell, CalendarDays, LockKeyhole, Sparkles } from 'lucide-react-native';
 import { CharacterAvatar, GradientButton, PageTitle, Screen } from '../src/components';
 import { colors, radius } from '../src/theme';

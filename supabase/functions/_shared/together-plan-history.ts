@@ -71,12 +71,12 @@ export async function loadPlanHistory(input:{db:SupabaseClient;userId:string;con
   if(sceneError||dateError)throw new AppError('INTERNAL_ERROR','That plan history could not be loaded.',500,true);
   const sceneIds=(scenes??[]).map((row)=>String(row.id)),dateIds=(dates??[]).map((row)=>String(row.id));
   const messageResult=sceneIds.length
-    ?await db.from('together_messages').select('id,conversation_id,character_instance_id,speaker_character_instance_id,scene_session_id,scene_sequence,role,content,delivery_status,created_at,together_conversation_attachments(id,message_id,kind,source,storage_path,mime_type,width,height,upload_status,analysis_status,expires_at,storage_deleted_at,created_at)').eq('user_id',userId).in('scene_session_id',sceneIds).in('role',['user','assistant']).order('created_at').limit(501)
+    ?await db.from('together_messages').select('id,conversation_id,character_instance_id,speaker_character_instance_id,scene_session_id,scene_sequence,role,content,delivery_status,content_rating,visibility_scope,created_at,together_conversation_attachments(id,message_id,kind,source,storage_path,mime_type,width,height,upload_status,analysis_status,content_rating,visibility_scope,expires_at,storage_deleted_at,created_at)').eq('user_id',userId).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).in('scene_session_id',sceneIds).in('role',['user','assistant']).order('created_at').limit(501)
     :{data:[],error:null};
   const scope=[`shared_plan_id.eq.${String(plan.id)}`];
   if(sceneIds.length)scope.push(`scene_session_id.in.(${sceneIds.join(',')})`);
   if(dateIds.length)scope.push(`date_session_id.in.(${dateIds.join(',')})`);
-  const generatedResult=await db.from('together_generated_media').select('id,character_instance_id,message_id,media_type,status,storage_path,width,height,content_type,content_level,metadata,created_at').eq('user_id',userId).eq('continuity_id',continuityId).eq('media_type','image').eq('status','ready').in('content_level',['standard','romance']).or(scope.join(',')).order('created_at').limit(80);
+  const generatedResult=await db.from('together_generated_media').select('id,character_instance_id,message_id,media_type,status,storage_path,width,height,content_type,content_level,content_rating,visibility_scope,metadata,created_at').eq('user_id',userId).eq('continuity_id',continuityId).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).eq('media_type','image').eq('status','ready').in('content_level',['standard','romance']).or(scope.join(',')).order('created_at').limit(80);
   if(messageResult.error||generatedResult.error)throw new AppError('INTERNAL_ERROR','That plan history could not be loaded.',500,true);
   const messages=(messageResult.data??[]) as Row[],generated=(generatedResult.data??[]) as Row[];
   const paths=[...new Set([
@@ -95,7 +95,7 @@ export async function loadPlanHistory(input:{db:SupabaseClient;userId:string;con
   };
 }
 
-function messageAttachments(row:Row):Row[]{return Array.isArray(row.together_conversation_attachments)?row.together_conversation_attachments as Row[]:[];}
+function messageAttachments(row:Row):Row[]{return Array.isArray(row.together_conversation_attachments)?(row.together_conversation_attachments as Row[]).filter((item)=>item.visibility_scope==='all'&&['safe','suggestive'].includes(String(item.content_rating??''))):[];}
 function displayableAttachment(row:Row){return row.kind==='image'&&row.upload_status==='uploaded'&&!row.storage_deleted_at&&Boolean(row.storage_path);}
 function nullableString(value:unknown):string|null{return typeof value==='string'&&value?value:null;}
 function nullableNumber(value:unknown):number|null{const parsed=Number(value);return Number.isFinite(parsed)?parsed:null;}

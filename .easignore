@@ -1,0 +1,24 @@
+# EAS archives this monorepo from the repository root. Keep generated output,
+# dependency caches, local tooling state, and Git history out of remote builds.
+
+.git/
+node_modules/
+.pnpm-store/
+.wrangler/
+supabase/.temp/
+.expo/
+dist/
+dist-*/
+coverage/
+.env
+.env.local
+apps/together/android/
+apps/together/ios/
+apps/together/.together-web-*.log
+apps/together/.web-preview*.log
+apps/together/deploy.tar.gz
+.codex-output/
+.codex-temp/
+work/
+*.log
+

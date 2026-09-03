@@ -56,11 +56,13 @@ const romanticPattern = /\b(?:kiss(?:ing|ed)?|date|romantic|flirt(?:ing)?|crush|
 const maturePattern = /\b(?:desire|intimate|sensual|turned on|make out|bedroom)\b/i;
 const continuationPattern = /^(?:(?:yes(?: please)?|yeah|okay|more|keep going|continue|don'?t stop|go on|please(?: continue)?|pretty please|do it|again)|(?:sí|si|claro|más|continúa|no pares|oui|encore|continue|ne t['’]arrête pas|sì|si|ancora|continua|non fermarti|ja|mehr|weiter|hör nicht auf|sim|mais|continua|não para)|(?:はい|もっと|続けて|やめないで|응|네|더|계속해|멈추지 마|是|好|继续|再来|别停))[.!?。！？\s]*$/iu;
 const explicitContextContinuationPattern = /(?:\b(?:how (?:does|did|would|will) (?:that|it|this) feel|what does (?:that|it|this) feel like|describe (?:that|it|the sensation)|tell me (?:how|what) (?:that|it|this)|do you like (?:that|it|this)|harder|faster|slower|deeper|inside (?:me|you)|keep (?:doing|touching)|don'?t (?:slow|stop)|make me (?:finish|come)|i'?m close|más fuerte|más rápido|más despacio|más profundo|plus fort|plus vite|plus lentement|plus profond|più forte|più veloce|più piano|più profondo|härter|schneller|langsamer|tiefer|mais forte|mais rápido|mais devagar|mais fundo)\b|もっと強く|もっと速く|ゆっくり|もっと深く|더 세게|더 빨리|천천히|더 깊게|用力一点|快一点|慢一点|深一点)/iu;
-const minorPattern = /\b(?:minor|child(?:ren)?|underage|preteen|teen(?:ager)?|young girl|young boy|schoolgirl|schoolboy|(?:[0-9]|1[0-7])[- ]?year[- ]?old)\b/i;
+const minorPattern = /\b(?:minor|child(?:ren)?|underage|preteen|teen(?:ager)?|barely legal|youthful|young girl|young boy|schoolgirl|schoolboy|(?:[0-9]|1[0-7])[- ]?year[- ]?old)\b/i;
 const coercionPattern = /\b(?:rape|raping|forc(?:e|ed|ing)\s+(?:her|him|them|me|you)|forced sex|without consent|non[- ]?consensual|unconscious|drugged|blackmail(?:ed)? into|can'?t say no)\b/i;
 const directSexualCoercionPattern = /\b(?:rape|raping|forced sex|sex without consent|non[- ]?consensual sex)\b/i;
 const incestPattern = /\bincest\b|\b(?:have sex with|fuck|sleep with|make love to|hook up with)\s+(?:(?:my|your|his|her|their|the)\s+)?(?:mother|father|mom|dad|sister|brother|daughter|son|aunt|uncle|cousin)\b|\b(?:mother|father|mom|dad|sister|brother|daughter|son|aunt|uncle|cousin)\s+(?:sex|sexual|naked|nude)\b/i;
 const exploitationPattern = /\b(?:traffick(?:ing|ed)?|sexual exploitation|sexual slavery|exploited? for sex|bestiality|zoophilia|sex with (?:an? )?animal)\b/i;
+const compensatedSexPattern=/\b(?:escort|prostitut(?:e|ion)|pay(?:ing)? for sex|paid sex|sugar (?:baby|daddy)|transactional sex)\b/i;
+const sexualDeepfakePattern=/\b(?:sexual|nude|naked|explicit)\s+deepfake\b|\bdeepfake\b.{0,40}\b(?:sexual|nude|naked|explicit)\b/i;
 const exploitativeSexSlaveryPattern = /(?:\b(?:kidnap(?:ped|ping)?|abduct(?:ed|ing)?|traffic(?:k|ked|king)?|sell|sold|buy|bought|force(?:d|ing)?|enslave(?:d|ment)?)\b.{0,80}\bsex slave\b)|(?:\bsex slave\b.{0,80}\b(?:without consent|against (?:her|his|their) will|can'?t say no|cannot say no|forc(?:e|ed|ing)|sell|sold|traffic(?:k|ked|king)?)\b)/i;
 const incapableConsentPattern = /\b(?:drug(?:ged|ging)|unconscious|passed out|asleep|blackmail(?:ed)? into)\b/i;
 const thirdPartySexualTargetPattern = /\b(?:rape|force|forced sex|sex without consent|non[- ]?consensual sex)\b.{0,80}\b(?:her|him|them|someone|a woman|a man|that woman|that man)\b|\b(?:her|him|them|someone|a woman|a man|that woman|that man)\b.{0,80}\b(?:rape|forced sex|sex without consent|non[- ]?consensual sex)\b/i;
@@ -100,7 +102,7 @@ export function moderationHardBlock(result?: NormalizedModerationResult): boolea
 export function isDialogueHardBlocked(input:{message:string;moderation?:NormalizedModerationResult}):boolean{
   const sexual=hasSexualDialogueLanguage(input.message)||Boolean(input.moderation?.categories.some((category)=>category==='sexual'||category==='sexual/adult'||category==='sexual/minors'));
   const consensualFantasy=isConsensualNonConsentFantasy(input.message);
-  return moderationHardBlock(input.moderation)||incestPattern.test(input.message)||exploitationPattern.test(input.message)||exploitativeSexSlaveryPattern.test(input.message)||(sexual&&incapableConsentPattern.test(input.message))||thirdPartySexualTargetPattern.test(input.message)||(sexual&&minorPattern.test(input.message))||(!consensualFantasy&&(directSexualCoercionPattern.test(input.message)||(sexual&&coercionPattern.test(input.message))));
+  return moderationHardBlock(input.moderation)||incestPattern.test(input.message)||exploitationPattern.test(input.message)||compensatedSexPattern.test(input.message)||sexualDeepfakePattern.test(input.message)||exploitativeSexSlaveryPattern.test(input.message)||(sexual&&incapableConsentPattern.test(input.message))||thirdPartySexualTargetPattern.test(input.message)||(sexual&&minorPattern.test(input.message))||(!consensualFantasy&&(directSexualCoercionPattern.test(input.message)||(sexual&&coercionPattern.test(input.message))));
 }
 
 export function classifyDialogueContent(input: {
@@ -152,24 +154,30 @@ export function routeKivelleDialogue(input: {
   characterAge?: number | null;
   relationshipAllowsExplicit?: boolean;
   photoRequest?: boolean;
+  photoAdultRequest?: boolean;
+  photoSafetyBlocked?: boolean;
   providers: DialogueProviderAvailability;
 }): DialogueRoutingDecision {
   const requestedMode = input.requestedMode ?? 'standard';
   const adultEligible = input.ageVerified && Number.isFinite(input.characterAge) && Number(input.characterAge) >= 18;
-  if (input.classification === 'hard_block') return { provider: 'deterministic', requestedMode, resolvedMode: 'standard', reason: 'safety_block', explicit: false, adultEligible, hardBlocked: true, classification: input.classification };
 
   // PhotoGen owns photo permission and delivery. The prose provider should
   // only produce a short acknowledgement, not reject a valid media request
   // because explicit dialogue or relationship-stage routing is unavailable.
-  // Preserve adult-age and hard-safety checks before taking this branch.
+  // Preserve adult-age and media-specific hard-safety checks before taking
+  // this branch. A dialogue-only lexical hard block is not authoritative for
+  // an image request; the media policy evaluates the complete visual intent.
   if (input.photoRequest) {
-    if ((input.classification === 'adult_intimacy' || input.classification === 'explicit_adult') && !adultEligible) return { provider: 'deterministic', requestedMode, resolvedMode: 'romance', reason: 'safety_block', explicit: false, adultEligible, hardBlocked: true, classification: input.classification };
+    if (input.photoSafetyBlocked) return { provider: 'deterministic', requestedMode, resolvedMode: 'standard', reason: 'safety_block', explicit: false, adultEligible, hardBlocked: true, classification: input.classification };
+    if ((input.photoAdultRequest || input.classification === 'adult_intimacy' || input.classification === 'explicit_adult') && !adultEligible) return { provider: 'deterministic', requestedMode, resolvedMode: 'romance', reason: 'safety_block', explicit: false, adultEligible, hardBlocked: true, classification: input.classification };
     const resolvedMode: DialogueContentMode = requestedMode === 'standard' ? 'standard' : 'romance';
     const reason: DialogueRouteReason = resolvedMode === 'romance' ? 'romance_default' : 'standard_default';
     if (input.providers.openai) return { provider: 'openai', requestedMode, resolvedMode, reason, explicit: false, adultEligible, hardBlocked: false, classification: input.classification };
     if (input.providers.gemini) return { provider: 'gemini', requestedMode, resolvedMode, reason: 'provider_fallback', explicit: false, adultEligible, hardBlocked: false, classification: input.classification };
     return { provider: 'deterministic', requestedMode, resolvedMode, reason: 'provider_unavailable', explicit: false, adultEligible, hardBlocked: false, classification: input.classification };
   }
+
+  if (input.classification === 'hard_block') return { provider: 'deterministic', requestedMode, resolvedMode: 'standard', reason: 'safety_block', explicit: false, adultEligible, hardBlocked: true, classification: input.classification };
 
   if (input.classification === 'adult_intimacy' || input.classification === 'explicit_adult') {
     if (!adultEligible) return { provider: 'deterministic', requestedMode, resolvedMode: 'romance', reason: 'safety_block', explicit: false, adultEligible, hardBlocked: true, classification: input.classification };

@@ -178,11 +178,6 @@ function expoRouterHref(href: AppRouteHref, destination: string): AppRouteHref {
   return { ...href, pathname: `/(tabs)${href.pathname}` };
 }
 
-function hardNavigate(destination: string, mode: "push" | "replace"): void {
-  beginPendingWebRouteTransition(destination);
-  window.location[mode === "replace" ? "replace" : "assign"](destination);
-}
-
 type HistoryWriteObserver = {
   pushed: () => boolean;
   replaced: () => boolean;
@@ -255,12 +250,11 @@ export function navigateLocalRouteOnWeb(
   if (!destination) return false;
   const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
   if (current === destination) return true;
-  if (routePath(current) === routePath(destination) || (isConversationRoute(current) && isConversationRoute(destination))) {
-    window.history[mode === "replace" ? "replaceState" : "pushState"]({}, "", destination);
-    dispatchRouteChange();
-  } else {
-    hardNavigate(destination, mode);
-  }
+  const sameScreen = routePath(current) === routePath(destination);
+  const conversationSwitch = isConversationRoute(current) && isConversationRoute(destination);
+  if (!sameScreen && !conversationSwitch) beginPendingWebRouteTransition(destination);
+  window.history[mode === "replace" ? "replaceState" : "pushState"]({}, "", destination);
+  dispatchRouteChange();
   return true;
 }
 
@@ -300,9 +294,10 @@ function installInternalLinkGuard(): void {
 }
 
 /**
- * Expo Router's static-web imperative queue can resolve valid nested routes to `/`.
- * Route every browser transition through History + popstate while retaining the
- * native router implementation on iOS and Android.
+ * Expo Router's static-web imperative queue can resolve valid nested routes to
+ * `/`. Observe each browser transition and repair a malformed history entry in
+ * place. Internal navigation must never reload the document: doing so discards
+ * the authenticated shell, flashes the root route, and repeats bootstrap work.
  */
 export function installWebNavigationCompatibility(router: object): void {
   if (typeof window === "undefined") return;
@@ -345,39 +340,59 @@ export function installWebNavigationCompatibility(router: object): void {
       completePendingWebRouteTransition();
       throw error;
     }
-    window.setTimeout(() => {
+
+    const reconcile = (allowPending: boolean): boolean => {
       const active = `${window.location.pathname}${window.location.search}${window.location.hash}`;
       const pushed = historyObserver.pushed();
       const replaced = historyObserver.replaced();
-      historyObserver.restore();
       if (active === destination) {
+        historyObserver.restore();
         if (mode === "push" && !pushed && replaced) {
           restoreReplacedPushEntry(historyObserver, startingLocation, startingState, destination);
         }
         completePendingWebRouteTransition(active);
-        return;
+        return true;
       }
       const fellHome = routePath(active) === "/" && routePath(destination) !== "/";
       if (fellHome && mode === "push" && pushed) {
         // Expo already created a new entry, but serialized it as `/`. Replace
-        // that transient entry so Back returns to the real source screen.
-        hardNavigate(destination, "replace");
-        return;
+        // that transient entry before the root screen can paint. Back still
+        // returns to the real source screen and no document is reloaded.
+        const destinationState = window.history.state;
+        historyObserver.restore();
+        historyObserver.replaceState(destinationState, "", destination);
+        dispatchRouteChange();
+        return true;
       }
       if (fellHome && mode === "push" && replaced) {
         // Expo overwrote the source entry with `/`. Restore the source before
-        // creating the destination entry with a full-browser safety load.
-        historyObserver.replaceState(startingState, "", startingLocation);
-        hardNavigate(destination, "push");
-        return;
+        // creating the destination entry within the same document.
+        historyObserver.restore();
+        restoreReplacedPushEntry(historyObserver, startingLocation, startingState, destination);
+        dispatchRouteChange();
+        return true;
       }
-      if (active === startingLocation || fellHome) {
-        hardNavigate(destination, mode);
-        return;
+      if (fellHome) {
+        historyObserver.restore();
+        window.history[mode === "replace" ? "replaceState" : "pushState"]({}, "", destination);
+        dispatchRouteChange();
+        return true;
+      }
+      if (active === startingLocation && allowPending) return false;
+      historyObserver.restore();
+      if (active === startingLocation) {
+        window.history[mode === "replace" ? "replaceState" : "pushState"]({}, "", destination);
+        dispatchRouteChange();
+        return true;
       }
       // Authentication and onboarding can intentionally redirect elsewhere.
       completePendingWebRouteTransition();
-    }, 300);
+      return true;
+    };
+
+    // Expo normally writes history synchronously. Repair a transient `/`
+    // immediately, before the browser has a chance to render the index route.
+    if (!reconcile(true)) window.setTimeout(() => reconcile(false), 300);
     return result;
   };
 

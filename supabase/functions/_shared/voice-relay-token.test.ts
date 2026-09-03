@@ -16,7 +16,7 @@ Deno.test("relay token is short-lived, call-bound, and does not expose its signi
     ttlSeconds: 120,
   });
   const [header, payload, signature] = result.token.split(".");
-  assert(Boolean(header && payload && signature));
+  assert(header && payload && signature);
   assert(!result.token.includes(secret));
   const claims = JSON.parse(decodeBase64Url(payload)) as Record<string, unknown>;
   assert(claims.sub === "user-1");

@@ -10,6 +10,8 @@ export type VideoPriceShape = {
   route: VideoRouteDefinition;
   sourceMode: VideoSourceMode;
   durationSeconds: number;
+  resolution: string;
+  sound: boolean;
   aspectRatio: '9:16' | '16:9';
   referenceCount: number;
 };
@@ -20,8 +22,8 @@ export function videoPriceCacheKey(input: VideoPriceShape): string {
     input.route.id,
     input.sourceMode,
     input.durationSeconds,
-    input.route.resolution,
-    input.route.audioBehavior,
+    input.resolution,
+    input.sound?'sound':'silent',
     input.aspectRatio,
     Math.max(0, Math.min(12, Math.floor(input.referenceCount))),
   ].join(':');

@@ -10,6 +10,17 @@ export function mediaReconciliationComplete(media: GeneratedMedia): boolean {
   return media.status === 'ready' && Boolean(media.signed_url);
 }
 
+/**
+ * A successful batch response is authoritative for the requested IDs. Missing
+ * rows were deleted or are no longer visible to this session (for example,
+ * after a web-adult entitlement expires), so retaining their old signed URLs
+ * in client state would be both misleading and unsafe.
+ */
+export function missingMediaIds(requestedIds: readonly string[], returned: readonly Pick<GeneratedMedia, 'id'>[]): string[] {
+  const returnedIds=new Set(returned.map((media)=>media.id));
+  return requestedIds.filter((id)=>!returnedIds.has(id));
+}
+
 export function isTransientMediaFetchFailure(error: unknown): boolean {
   if (typeof error === 'object' && error !== null && 'retryable' in error && error.retryable === true) return true;
   const message = error instanceof Error ? error.message : String(error ?? '');

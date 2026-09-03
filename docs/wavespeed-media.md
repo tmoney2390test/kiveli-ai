@@ -17,7 +17,28 @@ pnpm exec supabase secrets set --project-ref YOUR_PROJECT_REF \
 
 Store the same dispatcher value in Supabase Vault as `together_media_dispatch_secret`; Vault also needs `together_project_url`. The migration schedules a one-minute recovery sweep. Request-time kicks remain the fast path, so a dropped HTTP kick adds bounded delay instead of stranding a queued request.
 
-Increase the canary only after the benchmark set and production telemetry are healthy. `KIVELLE_IMAGE_PROVIDER=wavespeed` opts all eligible image requests into WaveSpeed; otherwise the stable hash canary selects requests. Video and LoRA are independently gated.
+Increase the canary only after the benchmark set and production telemetry are healthy. `KIVELLE_IMAGE_PROVIDER=wavespeed` opts standard eligible image requests into WaveSpeed; otherwise the stable hash canary selects them. Adult still images have an independent route and canary so changing their provider does not alter SFW photo generation. Video and LoRA are independently gated.
+
+### Adult still-image routes
+
+Fresh, single-companion adult photos may use the feature-flagged `wavespeed-wan22-realism-face-swap-adult` composed route. Stage one calls `wavespeed-ai/wan-2.2/text-to-image-realism` with a new-scene prompt, canonical appearance text, world/location context, exact pose, camera, and approved anatomy scope. The prompt explicitly requires a real-camera aesthetic and rejects illustrated, animated, rendered, doll-like, plastic, or airbrushed results. No private reference URL is sent to Wan. Stage two calls `wavespeed-ai/image-face-swap` with only the temporary generated scene and the server-resolved fictional-character identity reference. The final result still passes Kivelle's independent identity, prompt-adherence, adult-safety, anatomy, participant, photorealism, and world checks before private delivery.
+
+`wavespeed-qwen2-pro-adult-reference-edit`, backed by `wavespeed-ai/qwen-image-2.0-pro/edit`, remains the identity-preserving route for edits, requests that intentionally conceal the face, partnered images, and rollback. New Qwen generations send identity first; edits send the owned source first, then identity and setting. Requests use only server-resolved signed references and the documented `prompt`, `images`, and `seed` shape, plus WaveSpeed's model-page safety-check control disabled only after Kivelle has issued a valid adult authorization.
+
+The route remains independently fail-closed behind all of:
+
+- `WEB_ADULT_MODE_ENABLED=true`
+- `KIVELLE_ADULT_MEDIA_ENABLED=true`
+- `KIVELLE_WAVESPEED_ENABLED=true`
+- `KIVELLE_WAVESPEED_ADULT_IMAGES_ENABLED=true`
+- `KIVELLE_WAVESPEED_ADULT_ROUTE_VALIDATED=true`
+- `KIVELLE_WAVESPEED_ADULT_IMAGE_CANARY_PERCENT=1..100`
+
+Enable the composed route separately with `KIVELLE_WAVESPEED_ADULT_COMPOSED_PIPELINE_ENABLED=true`. Optional server-only overrides are `WAVESPEED_MODEL_ADULT_SCENE`, `WAVESPEED_MODEL_ADULT_IDENTITY`, and `KIVELLE_WAVESPEED_ADULT_STAGE_TIMEOUT_MS`. Turning the composed flag off immediately returns fresh requests to the Qwen route without changing stored media or client code.
+
+The canary is a stable hash of the media ID. Zero excludes the route even when WaveSpeed is the standard image provider; 100 moves every otherwise-authorized single-companion adult image. The existing server-issued web session, verified adult account, premium rules, fictional-character age, consent/boundary moderation, credit reservation, async job persistence, signed webhook/polling, private storage, and visual output quality gate still apply. Adult results with missing, synthetic, doll-like, fused, or otherwise malformed visible anatomy are retried once through the same WaveSpeed route and then withheld/refunded if they remain invalid. SFW requests continue to use `KIVELLE_IMAGE_PROVIDER` unchanged.
+
+The composed provider baseline is $0.035 ($0.025 Wan 2.2 Realism plus $0.010 face swap); the Qwen edit baseline remains $0.07. Both are stored with their routes for cost telemetry. WaveSpeed documents those prices as reference values, so compare them with actual provider task cost before changing credit economics. No paid generations run in automated tests.
 
 Two-character group photos use the dedicated `wavespeed-ai/qwen-image-2.0-pro/edit` route with two ordered identity references, or three references when editing an existing group photo. Enable standard and romantic group photos with `KIVELLE_WAVESPEED_GROUP_IMAGES_ENABLED=true`. Adult group levels additionally require `KIVELLE_ADULT_MEDIA_ENABLED=true` and `KIVELLE_WAVESPEED_GROUP_ADULT_ROUTE_VALIDATED=true`; every selected companion still passes Kivelle's independent age, fictionality, relationship, preference, consent, and boundary checks before submission. This route is excluded from direct-chat routing.
 

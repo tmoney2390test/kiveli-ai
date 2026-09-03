@@ -1,18 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Body, ErrorState, LoadingSkeleton, Screen } from '../../src/components';
+import { ErrorState, LoadingSkeleton, Screen } from '../../src/components';
 import { supabase } from '../../src/lib/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { resolvePostAuthDestination } from '../../src/lib/authRouting';
 import { useTogether } from '../../src/store/useTogether';
+import { confirmAdultAge } from '../../src/lib/api';
+import { consumePendingBirthdate } from '../../src/lib/pendingBirthdate';
+import { authCallbackErrorMessage } from '../../src/lib/authErrors';
 
 export default function AuthCallback() {
   const params = useLocalSearchParams<{ code?: string; error?: string; error_description?: string; next?: string }>();
   const { session, loading } = useAuth();
   const refresh = useTogether((state) => state.refresh);
+  const setSnapshot=useTogether((state)=>state.setSnapshot);
   const processed = useRef(false);
   const routed = useRef(false);
-  const [error, setError] = useState(params.error_description ?? params.error ?? '');
+  const [error, setError] = useState(() => {
+    const providerError = params.error_description ?? params.error;
+    return providerError ? authCallbackErrorMessage({ message: providerError }) : '';
+  });
 
   useEffect(() => {
     if (loading || processed.current) return;
@@ -30,7 +37,9 @@ export default function AuthCallback() {
         }
         if (!authenticated) throw new Error('The confirmation did not create a Kivelle session.');
 
-        await refresh({ force: true });
+        const pendingBirthdate=consumePendingBirthdate();
+        if(pendingBirthdate)setSnapshot(await confirmAdultAge(pendingBirthdate));
+        else await refresh({ force: true });
         const state = useTogether.getState();
         if (!state.snapshot) throw new Error(state.error ?? 'Kivelle could not open your account.');
         const destination = resolvePostAuthDestination({ authenticated: true, snapshot: state.snapshot, requestedNext: params.next });
@@ -38,13 +47,13 @@ export default function AuthCallback() {
         routed.current = true;
         router.replace(destination as never);
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : 'The sign-in confirmation could not be completed.');
+        setError(authCallbackErrorMessage(caught));
       }
     };
 
     void finish();
-  }, [loading, params.code, params.error, params.error_description, params.next, refresh, session]);
+  }, [loading, params.code, params.error, params.error_description, params.next, refresh, session,setSnapshot]);
 
-  if (error) return <Screen contentStyle={{ minHeight: '100%', justifyContent: 'center' }}><ErrorState message={error} /><Body muted>Return to sign in to request a fresh confirmation link.</Body></Screen>;
+  if (error) return <Screen contentStyle={{ minHeight: '100%', justifyContent: 'center' }}><ErrorState message={error} onRetry={() => router.replace('/auth?mode=signin')} /></Screen>;
   return <LoadingSkeleton label="Confirming your account…" />;
 }

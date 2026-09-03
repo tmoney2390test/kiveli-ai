@@ -49,7 +49,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
     db.from('together_profiles').select('age_verified_at,content_preferences,experience_timezone,memory_categories').eq('user_id', userId).maybeSingle(),
     db.from('together_life_events').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).gte('starts_at', recentCutoff).order('starts_at', { ascending: false }).limit(20),
     db.from('together_proactive_messages').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).order('created_at', { ascending: false }).limit(10),
-    db.from('together_memories').select('canonical_text,memory_type,pinned,importance,sensitivity_category').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status', 'active').neq('sensitivity_category', 'sensitive').order('pinned', { ascending: false }).order('importance', { ascending: false }).limit(8),
+    db.from('together_memories').select('canonical_text,memory_type,pinned,importance,sensitivity_category').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status', 'active').eq('visibility_scope','all').in('content_rating',['safe','suggestive']).neq('sensitivity_category', 'sensitive').order('pinned', { ascending: false }).order('importance', { ascending: false }).limit(8),
     db.from('together_character_instances').select('id,character_template_id').eq('user_id', userId).eq('continuity_id',instance.continuity_id),
     db.from('together_shared_plans').select('*,together_locations(name)').eq('user_id', userId).contains('participant_instance_ids', [instance.id]).order('starts_at', { ascending: true }),
     db.from('together_entitlements').select('tier,metadata,expires_at').eq('user_id',userId).maybeSingle(),
@@ -74,7 +74,8 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const passivePresence=await resolveCharacterPresence({db,userId,characterInstanceId:String(instance.id),now,ensure:false}).catch(()=>null);
   const presence=await resolveCompanionPresence({db,userId,characterInstanceId:String(instance.id),now,ensure:false}).catch(()=>null);
   const scheduleState=passivePresence?{locationId:passivePresence.locationId,location:passivePresence.placeContext?.location.name??baseLocation?.name??'Current place',activity:passivePresence.activity,activityKey:passivePresence.activityKey,availability:passivePresence.interruptibility==='open'?'available':passivePresence.interruptibility==='limited'?'limited':'busy',mood:String(instance.current_mood??'content'),energy:String(instance.current_energy??'medium'),interruptibility:passivePresence.interruptibility,scheduleEventId:passivePresence.scheduleEventId,state:passivePresence.state,expectedEndAt:passivePresence.expectedEndAt,nextEvent:passivePresence.nextEvent}:resolveLifeState(worldSchedules as Array<Record<string, unknown>>, now, timezone,baseLocation?{locationId:String(baseLocation.id),location:String(baseLocation.name)}:currentPlace?{locationId:currentPlace.location.id,location:currentPlace.location.name}:undefined);
-  const requestedContentMode = profile.data?.age_verified_at ? String(profile.data?.content_preferences?.contentMode ?? 'standard') : 'standard';
+  // Background simulation has no verified browser session and is always SFW.
+  const requestedContentMode = 'standard';
   const worldTemplates=(templates.data??[]).filter((row:EventRow)=>row.world_id?String(row.world_id)===currentWorldId:!row.default_location_id||String(row.together_locations?.world_id??'')===currentWorldId);
   const eventCandidates = simulateEvents ? selectEventCandidates(eventSimulationStart, now, worldTemplates, String(instance.simulation_seed), recentEvents.data ?? [], worldSchedules, relationship.data, passivePresence?.locationId??scheduleState.locationId??instance.current_location_id, requestedContentMode,timezone) : [];
   const instanceByTemplate = new Map((allInstances.data ?? []).map((item) => [String(item.character_template_id), String(item.id)]));
@@ -132,7 +133,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const memoryPreferences=(profile.data?.memory_categories??{}) as Record<string,unknown>;
   const { data: dueThreads } = memoryPreferences.open_thread===false
     ? {data:[] as EventRow[]}
-    : await db.from('together_open_threads').update({ follow_up_eligible: true, updated_at: now.toISOString() }).eq('user_id', userId).eq('character_instance_id', instance.id).is('resolved_at', null).lte('expected_at', now.toISOString()).select('*');
+    : await db.from('together_open_threads').update({ follow_up_eligible: true, updated_at: now.toISOString() }).eq('user_id', userId).eq('character_instance_id', instance.id).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).is('resolved_at', null).lte('expected_at', now.toISOString()).select('*');
   const prefs = preferences.data ?? { character_initiated_messages: true, push_enabled: false, quiet_hours_start: '23:00', quiet_hours_end: '08:00', timezone: 'UTC' };
   const durableMemory=filterMemoriesForPreferences(memories.data??[],memoryPreferences).find((memory)=>isDurableUserMemory({memoryType:String(memory.memory_type??'semantic'),canonicalText:String(memory.canonical_text??'')}));
   let proactive: EventRow | null = null;

@@ -3,11 +3,17 @@ import { appRouteHref } from "./appNavigation";
 export { navigateLocalRouteOnWeb } from "./appNavigation";
 
 export type ConversationRouteTarget =
-  | { pathname: "/chat"; params: { character: string } }
+  | { pathname: "/chat"; params: { character: string; conversationId?: string } }
   | { pathname: "/group-chat"; params: Record<string, string> };
 
-export function directConversationTarget(character: string): ConversationRouteTarget {
-  return { pathname: "/chat", params: { character } };
+export function directConversationTarget(
+  character: string,
+  conversationId?: string,
+): ConversationRouteTarget {
+  return {
+    pathname: "/chat",
+    params: { character, ...(conversationId ? { conversationId } : {}) },
+  };
 }
 
 export function groupConversationTarget(
@@ -42,7 +48,8 @@ export function conversationRouteTarget(href: string): ConversationRouteTarget |
       });
     }
     const character = parsed.searchParams.get("character")?.trim();
-    return character ? directConversationTarget(character) : null;
+    const conversationId = parsed.searchParams.get("conversationId")?.trim();
+    return character ? directConversationTarget(character, conversationId) : null;
   }
   if (parsed.pathname === "/group-chat") {
     const id = parsed.searchParams.get("id")?.trim();

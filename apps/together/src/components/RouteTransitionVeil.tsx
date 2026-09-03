@@ -10,8 +10,8 @@ export function RouteTransitionVeil() {
   const previous = useRef(pathname);
   const opacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    // A hard-navigation safety fallback stores its destination before leaving
-    // the previous document. Clear that cover only when this route has mounted.
+    // The shared web navigator stores its destination before changing history.
+    // Clear that cover only when this route has actually mounted.
     completePendingWebRouteTransition(pathname);
     if (!shouldShowRouteTransition(previous.current, pathname)) {
       previous.current = pathname;

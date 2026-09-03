@@ -5,6 +5,8 @@ import { json, serve } from '../_shared/http.ts';
 // Keep video route/inspection modules in Supabase's remote upload graph.
 import '../_shared/kivelle-video-routes.ts';
 import '../_shared/together-video-inspection.ts';
+import '../_shared/web-adult-access.ts';
+import '../_shared/web-billing-policy.ts';
 import { AppError } from '../_shared/types.ts';
 import { dispatchMediaJobs } from '../_shared/together-media-dispatcher.ts';
 // Explicit deployment roots for the async provider graph. Supabase's remote
@@ -16,6 +18,7 @@ import '../_shared/together-media-base.ts';
 import '../_shared/together-media-finalizer.ts';
 import '../_shared/together-direct-video-frame.ts';
 import '../_shared/together-media-quality.ts';
+import '../_shared/together-video-quality.ts';
 import '../_shared/together-media-providers.ts';
 // Keep the Venice adapter in Supabase's remote bundle.
 import '../_shared/venice.ts';

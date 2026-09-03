@@ -404,6 +404,7 @@ Deno.test("validated Qwen route is group-only and does not replace direct-chat m
           requestText: "A consensual nude photo of Mara and Priya together.",
           requestedContentLevel: "explicit" as const,
         },
+        adultPipelineAuthorized:true,
       },
       group = routeCanonicalMedia({ ...explicit, mediaType: "image" }, {
         source: "user_request",

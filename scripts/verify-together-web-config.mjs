@@ -3,10 +3,14 @@ import { resolve } from 'node:path';
 
 const outputDirectory = resolve(process.argv[2] ?? 'dist');
 const bundleDirectory = resolve(outputDirectory, '_expo/static/js/web');
-const expectedSupabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const expectedSupabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_WEB_URL ?? process.env.EXPO_PUBLIC_SUPABASE_URL;
 
 if (!expectedSupabaseUrl) {
-  throw new Error('EXPO_PUBLIC_SUPABASE_URL is required to verify a production web export.');
+  throw new Error('EXPO_PUBLIC_SUPABASE_WEB_URL is required to verify a production web export.');
+}
+
+if (!/^https:\/\/[^/]+(?:\/[^?#]*)?$/.test(expectedSupabaseUrl)) {
+  throw new Error('EXPO_PUBLIC_SUPABASE_WEB_URL must be an HTTPS gateway URL.');
 }
 
 const bundleNames = (await readdir(bundleDirectory)).filter((name) => name.endsWith('.js'));

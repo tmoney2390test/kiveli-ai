@@ -7,6 +7,7 @@ import { colors, radius, spacing, typography } from '../theme';
 import { FrostedBackdrop, FrostedSurface } from './FrostedGlass';
 import { resolveCharacterPortraitSource } from './ui';
 import { naturalizeCharacterBiography } from '@together/domain/src/character-language';
+import { SpiceBadge } from './SpiceBadge';
 
 export function CharacterProfilePreviewModal({
   companion,
@@ -43,6 +44,7 @@ export function CharacterProfilePreviewModal({
           <Pressable accessibilityRole="button" accessibilityLabel="Close profile" onPress={onClose} style={styles.close}>
             <X size={18} color="#fff" />
           </Pressable>
+          <SpiceBadge level={companion.spice_level} overlay />
           <View style={styles.identity}>
             <View style={styles.nameRow}>
               <Text style={styles.name}>{companion.name} <Text style={styles.age}>{companion.age}</Text></Text>

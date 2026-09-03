@@ -20,7 +20,8 @@ export type SubscriptionStatus={
   pricing?:{currency:string;pricesExcludeTax:boolean};
   billingConfigured:{kivelle_plus:boolean;kivelle_max:boolean;credits:boolean;portal:boolean};
   billingConfiguredAnnual?:{kivelle_plus:boolean;kivelle_max:boolean};
-  billingProvider?:'stripe'|'configured'|null;
+  billingPolicy?:{clientSurface:'web'|'native_or_unknown';subscriptionCheckoutEnabled:boolean;appStoreEntitlementsRecognized:boolean;nativeExternalCheckoutEnabled:boolean};
+  billingProvider?:'stripe'|'revenuecat'|'apple'|'google_play'|'configured'|null;
 };
 export type CheckoutConfirmation={outcome:'pending'|'succeeded'|'failed';retryable?:boolean;failureReason?:string;purchase?:{kind:'subscription'}|{kind:'credits';creditsAdded:number};state:SubscriptionStatus};
 

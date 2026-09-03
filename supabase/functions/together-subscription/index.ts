@@ -22,6 +22,8 @@ import {
   stripePriceForCreditPack,
 } from '../_shared/stripe.ts';
 import { track } from '../_shared/together.ts';
+import { verifyWebSurfaceAssertion } from '../_shared/web-adult-access.ts';
+import { resolveBillingSurfacePolicy, type BillingSurfacePolicy } from '../_shared/web-billing-policy.ts';
 
 const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('status')}),
@@ -40,7 +42,9 @@ serve(async(request,correlationId)=>{
   await enforceRateLimit(db,user.id,`together_subscription_${input.action}`,input.action==='status'||input.action==='checkout_confirmation'?120:12,3600);
 
   let state=await resolveSubscriptionState(db,user.id);
-  const configuration=configurationForUser(user.id,user.email);
+  const clientSurface=await verifyWebSurfaceAssertion(request,user.id)?'web':'native_or_unknown';
+  const billingPolicy=resolveBillingSurfacePolicy(clientSurface);
+  const configuration=configurationForUser(user.id,user.email,billingPolicy);
 
   if(input.action==='status')return json({data:await publicSubscriptionStatus(db,user.id,state,configuration),correlationId},200,correlationId);
 
@@ -54,6 +58,7 @@ serve(async(request,correlationId)=>{
   const management=managementFor(state,configuration);
 
   if(input.action==='checkout'){
+    if(!billingPolicy.subscriptionCheckoutEnabled)throw new AppError('BILLING_NOT_CONFIGURED',billingPolicy.clientSurface==='web'?'New memberships are available in the Kivelli iOS and Android apps.':'Hosted membership checkout is disabled for this app build.',503);
     const checkoutConfigured=input.billingInterval==='annual'?configuration.configuredAnnual[input.tier]:configuration.configured[input.tier];
     if(!checkoutConfigured)throw new AppError('BILLING_NOT_CONFIGURED',`${input.billingInterval==='annual'?'Annual':'Monthly'} checkout is not available for this plan right now.`,503);
     if(state.tier!=='free'||state.billing.status&&['active','trialing','past_due','unpaid','paused','incomplete'].includes(state.billing.status)){
@@ -98,7 +103,7 @@ serve(async(request,correlationId)=>{
   throw new AppError('NOT_FOUND','That billing action is unavailable.',404);
 });
 
-function configurationForUser(userId:string,email?:string|null){
+function configurationForUser(userId:string,email:string|null|undefined,billingPolicy:BillingSurfacePolicy){
   const stripe=stripeBillingConfiguration();
   const legacy={
     kivelle_plus:Boolean(configuredUrl('KIVELLE_PLUS_CHECKOUT_URL',userId,email)),
@@ -109,8 +114,9 @@ function configurationForUser(userId:string,email?:string|null){
   return{
     stripe,
     legacy,
-    configured:{kivelle_plus:stripe.kivelle_plus||legacy.kivelle_plus,kivelle_max:stripe.kivelle_max||legacy.kivelle_max,credits:stripe.credits||legacy.credits,portal:stripe.portal||legacy.portal},
-    configuredAnnual:{kivelle_plus:stripe.kivelle_plus_annual,kivelle_max:stripe.kivelle_max_annual},
+    configured:{kivelle_plus:billingPolicy.subscriptionCheckoutEnabled&&(stripe.kivelle_plus||legacy.kivelle_plus),kivelle_max:billingPolicy.subscriptionCheckoutEnabled&&(stripe.kivelle_max||legacy.kivelle_max),credits:stripe.credits||legacy.credits,portal:stripe.portal||legacy.portal},
+    configuredAnnual:{kivelle_plus:billingPolicy.subscriptionCheckoutEnabled&&stripe.kivelle_plus_annual,kivelle_max:billingPolicy.subscriptionCheckoutEnabled&&stripe.kivelle_max_annual},
+    billingPolicy,
   };
 }
 
@@ -146,6 +152,7 @@ async function publicSubscriptionStatus(db:Db,userId:string,state:KivelleSubscri
     pricing:{currency:'USD',pricesExcludeTax:true},
     billingConfigured:configuration.configured,
     billingConfiguredAnnual:configuration.configuredAnnual,
+    billingPolicy:configuration.billingPolicy,
     billingProvider:configuration.stripe.secretKey?'stripe':Object.values(configuration.legacy).some(Boolean)?'configured':null,
   };
 }

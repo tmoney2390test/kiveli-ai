@@ -8,16 +8,56 @@ export type ExploreCategoryId='food'|'nightlife'|'lodging'|'quiet'|'entertainmen
 export type ExploreRecommendation={id:'tonight'|'companion'|'different'|'liked';title:string;subtitle:string;option:PlanOption;location:Location};
 export type ExploreContext={locations:Location[];featuredLocations:Location[];categories:Array<{id:ExploreCategoryId;label:string;count:number}>;recommendations:ExploreRecommendation[];worldEvents:Snapshot['lifeEvents'];people:FeaturedCompanion[]};
 export type ExplorePeopleOptions={gender?:FeaturedGenderFilter;limit?:number};
+export type ExploreEventStatus='HAPPENING NOW'|'UPCOMING';
 
 export const EXPLORE_CATEGORIES:Array<{id:ExploreCategoryId;label:string}>=[{id:'food',label:'Food'},{id:'nightlife',label:'Nightlife'},{id:'lodging',label:'Lodging'},{id:'quiet',label:'Quiet Spots'},{id:'entertainment',label:'Entertainment'}];
 
-export function buildExploreContext(snapshot:Snapshot,companion:CharacterInstance|undefined,worldId:string,peopleOptions:ExplorePeopleOptions={}):ExploreContext{
+export function buildExploreContext(snapshot:Snapshot,companion:CharacterInstance|undefined,worldId:string,peopleOptions:ExplorePeopleOptions={},now=new Date()):ExploreContext{
   const locations=snapshot.locations.filter((location)=>location.world_id===worldId&&isBrowsableLocation(location));
   const recommendations=companion?buildRecommendations(snapshot,companion,locations):[];
   const featuredLocations=featureLocations(locations,recommendations.map((item)=>item.location.id));
-  const worldEvents=snapshot.lifeEvents.filter((event)=>event.location_id&&snapshot.locations.find((location)=>location.id===event.location_id)?.world_id===worldId).sort((left,right)=>new Date(right.starts_at).getTime()-new Date(left.starts_at).getTime()).slice(0,4);
+  const worldEvents=selectExploreWorldEvents(snapshot,worldId,now);
   const people=peopleForWorld(snapshot,worldId,companion,peopleOptions);
   return{locations,featuredLocations,categories:EXPLORE_CATEGORIES.map((category)=>({...category,count:locationsForExploreCategory(locations,category.id).length})).filter((category)=>category.count>0),recommendations,worldEvents,people};
+}
+
+export function selectExploreWorldEvents(snapshot:Snapshot,worldId:string,now=new Date()):Snapshot['lifeEvents']{
+  const nowMs=now.getTime(),windowEndMs=nowMs+7*86400000;
+  const locationIds=new Set(snapshot.locations.filter((location)=>location.world_id===worldId).map((location)=>location.id));
+  const seen=new Set<string>();
+  return snapshot.lifeEvents
+    .filter((event)=>Boolean(event.location_id&&locationIds.has(event.location_id)))
+    .filter((event)=>isDisplayableExploreEvent(event,nowMs,windowEndMs))
+    .sort((left,right)=>{
+      const leftActive=exploreEventStatus(left,now)==='HAPPENING NOW',rightActive=exploreEventStatus(right,now)==='HAPPENING NOW';
+      if(leftActive!==rightActive)return leftActive?-1:1;
+      return new Date(left.starts_at).getTime()-new Date(right.starts_at).getTime();
+    })
+    .filter((event)=>{const key=exploreEventIdentity(event);if(seen.has(key))return false;seen.add(key);return true;})
+    .slice(0,4);
+}
+
+export function exploreEventStatus(event:Snapshot['lifeEvents'][number],now=new Date()):ExploreEventStatus{
+  const nowMs=now.getTime(),starts=new Date(event.starts_at).getTime(),ends=eventEndMs(event);
+  return starts<=nowMs&&ends>nowMs?'HAPPENING NOW':'UPCOMING';
+}
+
+function isDisplayableExploreEvent(event:Snapshot['lifeEvents'][number],nowMs:number,windowEndMs:number){
+  const starts=new Date(event.starts_at).getTime(),ends=eventEndMs(event),type=String(event.event_type??'').toLowerCase(),metadata=event.metadata??{};
+  if(!Number.isFinite(starts)||starts>windowEndMs||ends<=nowMs)return false;
+  if(type.startsWith('commitment_')||type==='shared_plan_completed'||type==='schedule_presence'||type==='schedule_outcome')return false;
+  if(metadata.canonicalPlanId||metadata.commitmentBeat||metadata.source==='character_schedule')return false;
+  return true;
+}
+
+function eventEndMs(event:Snapshot['lifeEvents'][number]){
+  const starts=new Date(event.starts_at).getTime(),explicit=event.ends_at?new Date(event.ends_at).getTime():Number.NaN;
+  return Number.isFinite(explicit)?explicit:starts+2*60*60*1000;
+}
+
+function exploreEventIdentity(event:Snapshot['lifeEvents'][number]){
+  const title=normalize(event.title),summary=normalize(event.narrative_summary),location=event.location_id??'',starts=new Date(event.starts_at).getTime(),timeBucket=Number.isFinite(starts)?Math.floor(starts/(30*60*1000)):0;
+  return`${location}|${title}|${summary}|${timeBucket}`;
 }
 
 export function locationsForExploreCategory(locations:Location[],category:ExploreCategoryId){return locations.filter((location)=>matchesExploreCategory(location,category));}

@@ -102,13 +102,13 @@ import {
   quoteVoiceNote,
   refreshVoiceNote,
   rememberMessage,
-  reportMessage,
   requestVoiceNote,
   sendGroupDialogue,
   setConversationPinned,
   setMessageFavorite,
   type VoiceNoteQuote,
 } from "../src/lib/api";
+import { ReportMessageModal } from "../src/components/ReportMessageModal";
 import { characterAssets, locationHeroAsset } from "../src/assets";
 import { endPlanExperience, getPlanExperience, joinCommitment, switchPlanExperience } from "../src/lib/commitments";
 import { activePlanForGroup, collapsePlanTimelineEvents, isPlanLifecycleDividerEvent, joinablePlanForGroup, planActionAvailability, planLifecycleDividerLabel, shouldShowPlanTimelineEvent } from "../src/lib/planActions";
@@ -145,6 +145,7 @@ import {
 } from "../src/lib/groupChatPresentation";
 import { mergeDictationTranscript } from "../src/lib/dictation";
 import { privateStoredImageSource } from "../src/lib/mediaImageSource";
+import { missingMediaIds } from "../src/lib/mediaReconciliation";
 import { presentMemoryText } from "../src/lib/memoryPresentation";
 import { mediaWithoutActivePhotoOffer, photoMediaForOffer, visibleChatPhotoMedia } from "../src/lib/photoRequestPresentation";
 import { characterCatalogForWorld, characterResidentWorld } from "../src/lib/place";
@@ -502,15 +503,22 @@ export default function GroupChatScreen() {
     if (!params.id || !mediaNeedsRefresh) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    let attempt=0;
+    let attempt=0,consecutiveFailures=0;
     const poll = () => {
       timer = setTimeout(() => {
         const ids=(detailRef.current?.generatedMedia??[]).filter((item)=>item.status==='queued'||item.status==='generating'||(item.status==='ready'&&!item.signed_url)).map((item)=>item.id).slice(0,20);
         if(!ids.length)return;
         void manageMedia<{media:GeneratedMedia[]}>({action:'batch_status',mediaIds:ids}).then((next) => {
-          if (!cancelled) setDetail((current)=>current?mergeGroupMedia(current,next.media):current);
-        }).catch(() => undefined).finally(() => {
-          if (!cancelled){attempt+=1;poll();}
+          consecutiveFailures=0;
+          if (!cancelled) setDetail((current)=>{
+            if(!current)return current;
+            const missing=new Set(missingMediaIds(ids,next.media));
+            const merged=mergeGroupMedia(current,next.media);
+            if(!missing.size)return merged;
+            return{...merged,generatedMedia:merged.generatedMedia.filter((item)=>!missing.has(item.id)),mediaOffers:(merged.mediaOffers??[]).filter((offer)=>!offer.generated_media_id||!missing.has(offer.generated_media_id))};
+          });
+        }).catch(() => {consecutiveFailures+=1;}).finally(() => {
+          if (!cancelled&&consecutiveFailures<8){attempt+=1;poll();}
         });
       }, Math.min(10_000,2_000+attempt*1_500));
     };
@@ -1854,7 +1862,7 @@ export default function GroupChatScreen() {
                   item.message_id === message.id
                 )}
                 offer={offer}
-                offerBusy={mediaOfferBusy === offer?.id}
+                offerBusy={mediaOfferBusy === offer?.id||mediaOfferBusy === offer?.generated_media_id}
                 activeVoiceId={activeVoiceId}
                 onVoiceActive={setActiveVoiceId}
                 onOfferAccept={(item,paymentMethod) => void acceptMediaOffer(item,paymentMethod)}
@@ -1916,11 +1924,12 @@ export default function GroupChatScreen() {
             key={offer.id}
             offer={offer}
             media={photoMediaForOffer(detail.generatedMedia ?? [],offer.generated_media_id)}
-            busy={mediaOfferBusy === offer.id}
+            busy={mediaOfferBusy === offer.id||mediaOfferBusy === offer.generated_media_id}
             onAccept={(paymentMethod) => void acceptMediaOffer(offer,paymentMethod)}
             onDecline={() => void declineMediaOffer(offer)}
             onBuyCredits={() => navigateGroupSurface(creditsSubscriptionHref)}
             readyContentFit="contain"
+            onRetry={offer.generated_media_id&&(detail.generatedMedia??[]).find((item)=>item.id===offer.generated_media_id)?.status==='failed'?()=>{const failed=(detail.generatedMedia??[]).find((item)=>item.id===offer.generated_media_id);if(failed)void retryGeneratedMedia(failed);}:undefined}
           />
         ))}
         </>}
@@ -3004,7 +3013,7 @@ function GroupBubble({
 }) {
   const opacity = useRef(new Animated.Value(0)).current,
     translate = useRef(new Animated.Value(8)).current;
-  const [actionsOpen,setActionsOpen]=useState(false),[voiceRequestToken,setVoiceRequestToken]=useState(0),[sharedPhoto,setSharedPhoto]=useState<ConversationAttachment|null>(null);
+  const [actionsOpen,setActionsOpen]=useState(false),[reportOpen,setReportOpen]=useState(false),[voiceRequestToken,setVoiceRequestToken]=useState(0),[sharedPhoto,setSharedPhoto]=useState<ConversationAttachment|null>(null);
   useEffect(() => {
     Animated.parallel([
       Animated.timing(opacity, {
@@ -3065,7 +3074,7 @@ function GroupBubble({
     ...(!user&&voiceVisible?[{key:'voice',label:'Voice',icon:<Volume2 size={23} color={voiceEnabled?colors.textSecondary:colors.muted}/>,onPress:()=>setVoiceRequestToken((value)=>value+1)}]:[]),
     ...(!user?[{key:'plan',label:'Plan with group',icon:<CalendarDays size={23} color={colors.textSecondary}/>,onPress:onPlan},{key:'photo',label:'Group photo',icon:<Camera size={23} color={colors.textSecondary}/>,onPress:onPhoto}]:[]),
     ...(user&&attachments.length&&!message.id.startsWith('local-')?[{key:'delete-photo',label:'Delete photo',icon:<X size={23} color={colors.danger}/>,destructive:true,onPress:()=>onDeletePhoto(attachments[0]!)}]:[]),
-    ...(!user&&!message.id.startsWith('local-')?[{key:'report',label:'Report',icon:<Flag size={23} color={colors.muted}/>,onPress:()=>reportMessage(message.id,'other')}]:[]),
+    ...(!user&&!message.id.startsWith('local-')?[{key:'report',label:'Report',icon:<Flag size={23} color={colors.muted}/>,onPress:()=>setReportOpen(true)}]:[]),
     ...(message.delivery_status==='failed'&&onRetry?[{key:'retry',label:'Retry send',icon:<RefreshCw size={23} color={colors.rose}/>,onPress:onRetry}]:[]),
   ];
   return (
@@ -3238,6 +3247,7 @@ function GroupBubble({
         </View>
       </View>
       <MessageActionSheet visible={actionsOpen} message={message.content} senderName={speakerName} sentAt={message.created_at} userMessage={user} actions={actionItems} onClose={()=>setActionsOpen(false)}/>
+      <ReportMessageModal visible={reportOpen} messageId={message.id} onClose={()=>setReportOpen(false)}/>
       {sharedPhoto?.signed_url
         ? (
           <ImageLightbox

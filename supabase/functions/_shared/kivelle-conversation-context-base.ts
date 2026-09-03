@@ -16,6 +16,7 @@ import { resolveRelevantConversationEpisodes, type RelevantConversationEpisode }
 import { temporalContinuitySummary, type WorldPulseContextEvent } from '../../../packages/together-domain/src/world-pulse.ts';
 import { resolveRelevantWorldPulse } from './kivelle-world-pulse.ts';
 import { naturalizeCharacterActivity, naturalizeCharacterEventSummary, naturalizeCharacterEventTitle } from '../../../packages/together-domain/src/character-language.ts';
+import type { ChatGenerationPreferences } from '../../../packages/together-domain/src/chat-generation.ts';
 
 type Row = Record<string, any>;
 
@@ -26,6 +27,8 @@ export type KivelleConversationContext = {
   contentMode?:string;
   photoRequest?:boolean;
   conversationStyle:ConversationStyle;
+  generationPreferences?:ChatGenerationPreferences;
+  chatGenerationControlsApplied?:boolean;
   chatLanguage?:ChatLanguagePreference;
   experienceCapabilities:ReturnType<typeof resolveServerExperienceCapabilities>;
   persona: Row;
@@ -78,7 +81,7 @@ export function detectContextQueryIntent(message: string): ContextQueryIntent {
 
 export async function buildKivelleConversationContext(input: {
   db: SupabaseClient; userId:string; instance:Row; conversation:Row; userMessage:string;
-  lifeRun:Row; semanticRows?:Row[]; semanticQueryEmbedding?:number[]|null; attachments?:Row[]; now?:Date; visibleHistoryFromSequence?:number; visibleSceneSessionId?:string; visibleSceneFromSequence?:number; forceRemoteInteraction?:boolean;conversationSceneResolution?:Row;
+  lifeRun:Row; semanticRows?:Row[]; semanticQueryEmbedding?:number[]|null; attachments?:Row[]; now?:Date; visibleHistoryFromSequence?:number; visibleSceneSessionId?:string; visibleSceneFromSequence?:number; forceRemoteInteraction?:boolean;conversationSceneResolution?:Row;authorizedWebAdult?:boolean;authorizedPrivateAdultText?:boolean;
 }): Promise<KivelleConversationContext> {
   const { db, userId, instance, conversation, userMessage } = input;
   const now = input.now ?? new Date();
@@ -88,14 +91,14 @@ export async function buildKivelleConversationContext(input: {
   const historyIntent=intent==='history'||intent==='memory_overview'||intent==='story';
   const socialIntent=intent==='social'||Boolean(conversation.metadata?.activeScene?.sceneSessionId);
   const emptyRows=()=>Promise.resolve({data:[] as Row[],error:null});
-  const conversationEpisodesPromise=resolveRelevantConversationEpisodes({db,userId,continuityId:String(instance.continuity_id),conversationId:String(conversation.id),userMessage,queryEmbedding:input.semanticQueryEmbedding,minimumSequence:Number(input.visibleHistoryFromSequence??1),limit:8});
-  let recentMessageQuery=db.from('together_messages').select('id,role,content,created_at,provider_metadata,speaker_character_instance_id,character_instance_id,conversation_sequence').eq('conversation_id',conversation.id);
+  const conversationEpisodesPromise:Promise<RelevantConversationEpisode[]>=input.authorizedPrivateAdultText?resolveRelevantConversationEpisodes({db,userId,continuityId:String(instance.continuity_id),conversationId:String(conversation.id),userMessage,queryEmbedding:input.semanticQueryEmbedding,minimumSequence:Number(input.visibleHistoryFromSequence??1),limit:8}):Promise.resolve([]);
+  let recentMessageQuery=textPolicyQuery(db.from('together_messages').select('id,role,content,created_at,provider_metadata,speaker_character_instance_id,character_instance_id,conversation_sequence').eq('conversation_id',conversation.id),input.authorizedWebAdult,input.authorizedPrivateAdultText);
   if(input.visibleSceneSessionId)recentMessageQuery=recentMessageQuery.eq('scene_session_id',input.visibleSceneSessionId).gte('scene_sequence',Number(input.visibleSceneFromSequence??1));
   else if(conversation.kind==='group'&&Number(input.visibleHistoryFromSequence??1)>1)recentMessageQuery=recentMessageQuery.gte('conversation_sequence',Number(input.visibleHistoryFromSequence));
   const [core, memories, threads, messages, schedules, events, plans, dates, stories, edges, instances, worlds, locations, media, moments, episodes,relationshipPlaceRows,placeProfileRows,conversationEpisodes] = await Promise.all([
     db.rpc('kivelle_dialogue_context_core',{p_user_id:userId,p_continuity_id:String(instance.continuity_id),p_character_instance_id:String(instance.id)}),
-    db.from('together_memories').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).in('status', intent === 'history' || intent === 'memory_overview' ? ['active','superseded'] : ['active']).order('pinned', { ascending:false }).order('importance', { ascending:false }).limit(intent === 'memory_overview' ? 40 : 20),
-    db.from('together_open_threads').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).is('resolved_at', null).order('expected_at', { ascending:true, nullsFirst:false }).limit(10),
+    textPolicyQuery(db.from('together_memories').select('*').eq('user_id', userId).eq('character_instance_id', instance.id),input.authorizedWebAdult,input.authorizedPrivateAdultText).in('status', intent === 'history' || intent === 'memory_overview' ? ['active','superseded'] : ['active']).order('pinned', { ascending:false }).order('importance', { ascending:false }).limit(intent === 'memory_overview' ? 40 : 20),
+    textPolicyQuery(db.from('together_open_threads').select('*').eq('user_id', userId).eq('character_instance_id', instance.id),input.authorizedWebAdult,input.authorizedPrivateAdultText).is('resolved_at', null).order('expected_at', { ascending:true, nullsFirst:false }).limit(10),
     recentMessageQuery.order('conversation_sequence', { ascending:false, nullsFirst:false }).order('created_at', { ascending:false }).limit(18),
     scheduleIntent?db.from('together_character_schedule_events').select('*,together_locations(name,world_id)').eq('user_id',userId).eq('character_instance_id',instance.id).gte('ends_at',now.toISOString()).lte('starts_at',new Date(now.getTime()+7*86400000).toISOString()).order('starts_at').limit(24):emptyRows(),
     db.from('together_life_events').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).not('event_type','in','(shared_plan,legacy_shared_plan)').gte('starts_at',new Date(now.getTime()-72*3600000).toISOString()).lte('starts_at', now.toISOString()).order('starts_at', { ascending:false }).limit(historyIntent?12:6),
@@ -106,7 +109,7 @@ export async function buildKivelleConversationContext(input: {
     socialIntent?db.from('together_character_instances').select('id,character_template_id,introduced_at,together_character_templates(name)').eq('user_id', userId).eq('continuity_id',instance.continuity_id):emptyRows(),
     planningIntent?db.from('together_worlds').select('id,slug,name,access_type,entitlement_key').eq('published',true):emptyRows(),
     planningIntent?db.from('together_locations').select('*'):emptyRows(),
-    historyIntent?db.from('together_generated_media').select('id,location_id,metadata,created_at').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status','ready').order('created_at', { ascending:false }).limit(6):emptyRows(),
+    historyIntent?policyQuery(db.from('together_generated_media').select('id,location_id,metadata,created_at,content_rating,visibility_scope').eq('user_id', userId).eq('character_instance_id', instance.id),input.authorizedWebAdult).eq('status','ready').order('created_at', { ascending:false }).limit(6):emptyRows(),
     historyIntent?db.from('together_moments').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).order('occurred_at', { ascending:false }).limit(intent === 'history' ? 20 : 6):emptyRows(),
     historyIntent?db.from('together_scene_episodes').select('*').eq('user_id',userId).eq('character_instance_id',instance.id).order('ended_at',{ascending:false}).limit(intent==='history'?12:5):emptyRows(),
     planningIntent?db.from('together_relationship_places').select('location_id,visit_count,sentiment,confidence,opinion_summary,evidence_count').eq('user_id',userId).eq('character_instance_id',instance.id):emptyRows(),
@@ -173,7 +176,8 @@ export async function buildKivelleConversationContext(input: {
   const personalizationEnabled=(profile.data?.privacy_settings as Row|undefined)?.personalization!==false;
   const memoryPreferences=(profile.data?.memory_categories??{}) as Record<string,unknown>;
   const enabledStoredMemories=filterMemoriesForPreferences(memories.data??[],memoryPreferences);
-  const enabledSemanticMemories=filterMemoriesForPreferences(input.semanticRows??[],memoryPreferences);
+  const safeSemanticRows=input.authorizedWebAdult?input.semanticRows??[]:(input.semanticRows??[]).filter((row:Row)=>(row.visibility_scope??'all')==='all'&&['safe','suggestive',...(input.authorizedPrivateAdultText?['explicit']:[])].includes(String(row.content_rating??'safe')));
+  const enabledSemanticMemories=filterMemoriesForPreferences(safeSemanticRows,memoryPreferences);
   const memoryContext:ActivatedMemoryContext=personalizationEnabled
     ?await retrieveActivatedMemories({db,userId,characterInstanceId:String(instance.id),userMessage,intent,storedRows:enabledStoredMemories,semanticRows:enabledSemanticMemories,currentScene:{...currentScene,worldId:place?.world.id},relationship:relationship.data??{},recentAssistantMessages:(messages.data??[]).filter((item:Row)=>item.role==='assistant'),now})
     :{silent:[],callbacks:[],directRecall:[],callbackAllowance:0,retrievedIds:[]};
@@ -213,10 +217,12 @@ export async function buildKivelleConversationContext(input: {
   if(!attachmentRows.length){
     const recentMessageIds=(messages.data??[]).slice(0,6).map((item:Row)=>String(item.id)).filter(Boolean);
     if(recentMessageIds.length){
-      const{data:recentAttachments}=await db.from('together_conversation_attachments')
+      let recentAttachmentQuery=db.from('together_conversation_attachments')
         .select('id,message_id,analysis_status,analysis_metadata,created_at')
         .eq('user_id',userId).eq('conversation_id',conversation.id).eq('analysis_status','ready')
-        .in('message_id',recentMessageIds).order('created_at',{ascending:false}).limit(1);
+        .in('message_id',recentMessageIds);
+      if(!input.authorizedWebAdult)recentAttachmentQuery=recentAttachmentQuery.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
+      const{data:recentAttachments}=await recentAttachmentQuery.order('created_at',{ascending:false}).limit(1);
       attachmentRows=recentAttachments??[];
     }
   }
@@ -252,7 +258,7 @@ export async function buildKivelleConversationContext(input: {
     knownLifeEvents:visibleLifeEvents.map(({id,title,summary,startsAt})=>({id,title,summary,startsAt})).slice(0,6),worldPulse,temporalContinuity,
     location:currentLocation,place,referencedPlaces,placePerspectives,userAttachments,sceneParticipants,worldFacts:[],dialogueOpportunities:[],sceneInteractionBeats:[],
     recentMedia:personalizationEnabled?(media.data??[]).map((item:Row)=>({id:String(item.id),summary:String(item.metadata?.sceneSummary??'A recent shared photo.'),createdAt:String(item.created_at),locationId:item.location_id})):[],
-    sharedHistory:history,conversationEpisodes, conversationSummary:typeof conversation.summary==='string'?conversation.summary:'', conversationSummaryUpdatedAt:conversation.summary_through??conversation.updated_at??undefined, conversationFocus:resolveConversationFocus(conversation.metadata?.focus as Row|null,plansView,now),
+    sharedHistory:history,conversationEpisodes, conversationSummary:input.authorizedPrivateAdultText?String((conversation.canonical_context as Row|undefined)?.summary??conversation.summary??''):String((conversation.safe_context as Row|undefined)?.summary??''), conversationSummaryUpdatedAt:conversation.summary_through??conversation.updated_at??undefined, conversationFocus:resolveConversationFocus(conversation.metadata?.focus as Row|null,plansView,now),
     recent:(messages.data??[]).filter((item:Row)=>item.provider_metadata?.uiHidden!==true).reverse().map(attributedRecentTurn), userMessage, queryIntent:intent,
     debug:{sources:['persona','continuity','life-engine','schedule','shared-plans','dates','stories','memory','open-threads','social-graph','location','history','conversation-episodes','world-pulse'],limits:{memories:memoryRows.length,threads:memoryPreferences.open_thread===false?0:(threads.data??[]).length,recentMessages:(messages.data??[]).length,history:history.length,conversationEpisodes:conversationEpisodes.length,worldPulse:worldPulse.length,temporalContinuity:temporalContinuity.events.length}},
   };
@@ -263,6 +269,9 @@ function attributedRecentTurn(item:Row){
   const speakerCharacterInstanceId=item.role==='assistant'?String(item.speaker_character_instance_id??item.character_instance_id??'')||null:null;
   return{role:String(item.role),content:String(item.content),createdAt:item.created_at?String(item.created_at):undefined,speakerCharacterInstanceId,speakerName:typeof providerMetadata?.speakerName==='string'?providerMetadata.speakerName:null,conversationSequence:item.conversation_sequence==null?null:Number(item.conversation_sequence),...(providerMetadata?{providerMetadata}:{})};
 }
+
+function policyQuery(query:any,authorizedWebAdult:boolean|undefined){return authorizedWebAdult?query:query.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);}
+function textPolicyQuery(query:any,authorizedWebAdult:boolean|undefined,authorizedPrivateAdultText:boolean|undefined){return authorizedWebAdult?query:query.eq('visibility_scope','all').in('content_rating',authorizedPrivateAdultText?['safe','suggestive','explicit']:['safe','suggestive']);}
 
 function selectMemories(query:string, stored:Row[], semantic:Row[], intent:ContextQueryIntent):Row[] {
   const terms=new Set(query.toLowerCase().replace(/[^a-z0-9]+/g,' ').split(' ').filter((term)=>term.length>2));

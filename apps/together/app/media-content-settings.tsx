@@ -15,7 +15,7 @@ export default function MediaContentSettings() {
       <Heart color={colors.violet} />
       <View style={styles.copy}>
         <Text style={styles.title}>Romantic photos</Text>
-        <Body muted>Kivelle supports everyday and romantic companion photos. Sexual, nude, and explicit imagery is not available.</Body>
+        <Body muted>Kivelle supports everyday and romantic companion photos. All generated media follows Kivelle safety rules.</Body>
       </View>
     </View>
   </Screen>;

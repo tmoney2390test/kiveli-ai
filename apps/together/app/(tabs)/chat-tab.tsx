@@ -74,6 +74,9 @@ import { useAppShell } from "../../src/shell/AppShellContext";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useNetworkStatus } from "../../src/providers/NetworkStatusProvider";
 import { conversationRouteTarget, navigateLocalRouteOnWeb, webConversationHref } from "../../src/lib/conversationNavigation";
+import { characterConversationHref } from "../../src/lib/chatRoute";
+import { prefetchConversationMessagePage } from "../../src/lib/conversationMessageWarmup";
+import { warmRoute } from "../../src/lib/routeWarmup";
 
 const demoMode = __DEV__ &&
   process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === "true";
@@ -549,6 +552,7 @@ function ConversationRow(
   },
 ) {
   const { character, conversation } = row;
+  const { session } = useAuth();
   const template = character.together_character_templates;
   const group = conversation.kind === "group" ? row.group : undefined;
   const displayName = conversation.kind === "group"
@@ -562,11 +566,20 @@ function ConversationRow(
   const unreadCount = conversation.kind === "group" ? conversation.unread_count ?? 0 : 0;
   const href = conversation.kind === "group"
     ? `/group-chat?id=${encodeURIComponent(conversation.id)}`
-    : `/chat?character=${encodeURIComponent(template.slug)}`;
+    : characterConversationHref(
+      template.public_handle ?? template.slug,
+      conversation.id,
+    );
+  const warm = () => {
+    warmRoute(href, (value) => router.prefetch(value as never));
+    if (conversation.kind !== "group") prefetchConversationMessagePage(session?.user.id, conversation.id, () => manageConversation({ action: "messages", conversationId: conversation.id, limit: 50 }));
+  };
   const rowControl = (
     <Pressable
       accessibilityRole="link"
       accessibilityLabel={`Open ${displayName}${conversation.unread ? ", unread messages" : ""}`}
+      onHoverIn={warm}
+      onPressIn={warm}
       onPress={() => openChatHref(href)}
       disabled={busy}
       style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
@@ -923,9 +936,15 @@ function ConversationActions(
 }
 
 function openChatHref(href: string) {
-  if (Platform.OS === "web" && navigateLocalRouteOnWeb(webConversationHref(href) ?? href)) return;
   const target = conversationRouteTarget(href);
-  if (target) router.push(target as never);
+  // Let the repaired Expo router preserve the active authenticated shell when
+  // entering chat from Messages. A document navigation here could bootstrap
+  // at `/` and send a valid mobile session back to Home.
+  if (target) {
+    router.push(target as never);
+    return;
+  }
+  if (Platform.OS === "web" && navigateLocalRouteOnWeb(webConversationHref(href) ?? href)) return;
 }
 
 const styles = StyleSheet.create({

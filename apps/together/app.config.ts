@@ -6,7 +6,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // existing development builds can still finish an in-flight auth callback.
   name: 'Kivelle.AI', slug: 'together', scheme: ['kivelli','together'], version: '1.0.0', orientation: 'default', userInterfaceStyle: 'dark',
   icon: './assets/icon.png',
-  ios: { supportsTablet: true, bundleIdentifier: 'app.kivelli', usesAppleSignIn:true, infoPlist: { CFBundleAllowMixedLocalizations:true,NSPhotoLibraryUsageDescription: 'Choose a photo to share privately in Kivelle Chat.',NSMicrophoneUsageDescription:'Use your microphone for private voice-to-text and live calls with your Kivelle companion.',UIBackgroundModes:['audio'] } },
+  ios: { supportsTablet: true, bundleIdentifier: 'app.kivelli', usesAppleSignIn:true, infoPlist: { CFBundleAllowMixedLocalizations:true,ITSAppUsesNonExemptEncryption:false,NSPhotoLibraryUsageDescription: 'Choose a photo to share privately in Kivelle Chat.',NSMicrophoneUsageDescription:'Use your microphone for private voice-to-text and live calls with your Kivelle companion.',UIBackgroundModes:['audio'] } },
   android: { package: 'app.kivelli', adaptiveIcon: { foregroundImage: './assets/icon.png', backgroundColor: '#080B13' }, permissions: ['POST_NOTIFICATIONS','RECORD_AUDIO','MODIFY_AUDIO_SETTINGS'] },
   web: { bundler: 'metro', output: 'static', favicon: './assets/kivelle-icon-transparent.png' },
   plugins: [[
@@ -15,7 +15,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       origin: 'https://kivelli.app',
       asyncRoutes: { web: true, default: 'development' },
     },
-  ],'expo-secure-store','expo-system-ui','expo-notifications','expo-audio','@edkimmel/expo-audio-stream','expo-apple-authentication',['expo-image-picker',{photosPermission:'Choose a photo to share privately in Kivelle Chat.',cameraPermission:'Take a photo to share privately in Kivelle Chat.'}],['expo-splash-screen',{image:'./assets/icon.png',imageWidth:180,resizeMode:'contain',backgroundColor:'#080B13'}]],
+  ],'expo-secure-store','expo-system-ui','expo-notifications','expo-audio','expo-image','expo-video','@edkimmel/expo-audio-stream','expo-apple-authentication',['expo-image-picker',{photosPermission:'Choose a photo to share privately in Kivelle Chat.',cameraPermission:'Take a photo to share privately in Kivelle Chat.'}],['expo-splash-screen',{image:'./assets/icon.png',imageWidth:180,resizeMode:'contain',backgroundColor:'#080B13'}]],
   experiments: { typedRoutes: true },
   extra: {
     eas: {

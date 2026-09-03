@@ -3,18 +3,40 @@ import type { DialogueContentMode } from '../../../packages/together-domain/src/
 type Row = Record<string, unknown>;
 
 export function normalizeDialogueContentMode(value: unknown): DialogueContentMode {
-  // Mature is Kivelle's production ceiling. Treat old explicit/standard values
-  // and missing preferences as mature so stale clients cannot reopen the
-  // retired explicit route while existing conversations keep working.
-  return value === 'romance' ? 'romance' : 'mature';
+  return value === 'explicit' ? 'explicit' : value === 'romance' ? 'romance' : 'mature';
 }
 
-export function conversationDialogueContentMode(profile: Row | null | undefined, conversation: Row | null | undefined): DialogueContentMode {
+export function conversationDialogueContentMode(profile: Row | null | undefined, conversation: Row | null | undefined,adultAuthorized=false): DialogueContentMode {
   const metadata = record(conversation?.metadata);
   const chatPreferences = record(metadata.chatPreferences);
   const contentPreferences = record(profile?.content_preferences);
   const requestedMode=normalizeDialogueContentMode(chatPreferences.contentMode ?? contentPreferences.contentMode);
-  return !profile?.age_verified_at&&requestedMode==='mature'?'romance':requestedMode;
+  if(!profile?.age_verified_at&&['mature','explicit'].includes(requestedMode))return'romance';
+  if(requestedMode==='explicit')return adultAuthorized?'explicit':'mature';
+  return requestedMode;
+}
+
+/** Returns the stored preference after age assurance, without applying rollout or platform policy. */
+export function requestedConversationDialogueContentMode(profile: Row | null | undefined, conversation: Row | null | undefined): DialogueContentMode {
+  const metadata = record(conversation?.metadata);
+  const chatPreferences = record(metadata.chatPreferences);
+  const contentPreferences = record(profile?.content_preferences);
+  const requestedMode=normalizeDialogueContentMode(chatPreferences.contentMode ?? contentPreferences.contentMode);
+  if(!profile?.age_verified_at&&['mature','explicit'].includes(requestedMode))return'romance';
+  return requestedMode;
+}
+
+/**
+ * Adult media authorization belongs to the verified session and the
+ * conversation's selected content mode. It must not depend on the dialogue
+ * provider route: photo requests intentionally use the standard prose route
+ * while PhotoGen applies its own media policy and provider routing.
+ */
+export function conversationAdultMediaAuthorized(
+  requestedMode: DialogueContentMode,
+  adultAuthorized: boolean,
+): boolean {
+  return requestedMode === 'explicit' && adultAuthorized;
 }
 
 function record(value: unknown): Row {

@@ -2,13 +2,17 @@ import { supabase, supabasePublishableKey, supabaseUrl } from './supabase';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { MESSAGE_CHARACTER_LIMIT, messageCharacterLimitError } from '@together/domain/src/message-limits';
+import { classifyPhotoIntent } from '@together/domain/src/media';
 import type { CompanionVoicePreset } from '@together/domain/src/voice-presets';
 import type { ChatLanguagePreference } from '@together/domain/src/chat-language';
 import type { AroundTownItem, WorldPulseEvent } from '@together/domain/src/world-pulse';
-import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, ExploreCatalogSnapshot, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, MemoryCenterCategory, MemoryCenterItem, MemoryCenterResponse, MemoryCenterSort, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, ScheduleItem, Snapshot, SnapshotDelta, VideoDiagnostics, VideoGenerationOptions, VideoMotionPreset, VideoRouteOption, VoiceCallSession } from '../types';
+import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, ExploreCatalogSnapshot, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, MemoryCenterCategory, MemoryCenterItem, MemoryCenterResponse, MemoryCenterSort, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, ScheduleItem, Snapshot, SnapshotDelta, VideoDiagnostics, VideoMotionPreset, VideoResolution, VideoRouteOption, VoiceCallSession } from '../types';
 import type { RealtimeVoiceConfiguration } from './realtimeVoice';
 import { withIdempotentRetry } from './requestRetry';
 import { clearSessionForApiFailure } from './authSession';
+import { coalesceSimulationRequest } from './simulationRequests';
+import { ensureWebAdultSession } from './webAdultSession';
+import { normalizeVideoGenerationOptions } from './videoGeneration';
 
 export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false,readonly correlationId?:string) { super(message); } }
 type Envelope<T> = { data: T; correlationId: string };
@@ -17,11 +21,13 @@ function deviceTimezone():string{try{return Intl.DateTimeFormat().resolvedOption
 type ClientPerformanceEvent={surface:string;operation:string;durationMs:number;success:boolean;statusCode?:number;platform:string;appVersion:string;buildId:string;metadata:Record<string,string|number|boolean|null>};
 const performanceSurfaces=new Set(['together-bootstrap','together-companion','together-group','together-conversation','together-media','together-dialogue','together-group-dialogue','together-plan','together-interaction','together-memory','together-subscription','together-world-pulse']);
 const performanceQueue:ClientPerformanceEvent[]=[];let performanceFlushTimer:ReturnType<typeof setTimeout>|null=null,performanceFlushRunning=false;
+const performanceReportingReadyAt=Date.now()+20_000;
 export function queueClientPerformance(input:Omit<ClientPerformanceEvent,'platform'|'appVersion'|'buildId'>){
   if(process.env.EXPO_PUBLIC_KIVELLE_PERFORMANCE_REPORTING_ENABLED==='false')return;
   performanceQueue.push({...input,platform:Platform.OS,appVersion:Constants.expoConfig?.version??'unknown',buildId:Constants.expoConfig?.runtimeVersion?String(Constants.expoConfig.runtimeVersion):'unknown'});
-  if(performanceQueue.length>=20){void flushClientPerformance();return;}
-  if(!performanceFlushTimer)performanceFlushTimer=setTimeout(()=>void flushClientPerformance(),15_000);
+  const startupDelay=Math.max(0,performanceReportingReadyAt-Date.now());
+  if(performanceQueue.length>=20&&startupDelay===0){void flushClientPerformance();return;}
+  if(!performanceFlushTimer)performanceFlushTimer=setTimeout(()=>void flushClientPerformance(),Math.max(15_000,startupDelay));
 }
 async function flushClientPerformance(){
   if(performanceFlushRunning||!performanceQueue.length)return;
@@ -32,7 +38,15 @@ async function flushClientPerformance(){
   finally{performanceFlushRunning=false;if(performanceQueue.length&&!performanceFlushTimer)performanceFlushTimer=setTimeout(()=>void flushClientPerformance(),15_000);}
 }
 
-async function token(): Promise<string> { const { data } = await supabase.auth.getSession(); if (!data.session) throw new ApiError('Sign in to continue.', 'AUTH_REQUIRED'); return data.session.access_token; }
+let recentAccessToken:{value:string;expiresAt:number}|null=null;
+async function token(): Promise<string> {
+  if(recentAccessToken&&recentAccessToken.expiresAt>Date.now())return recentAccessToken.value;
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) {recentAccessToken=null;throw new ApiError('Sign in to continue.', 'AUTH_REQUIRED');}
+  const expiresAt=Math.min(Number(data.session.expires_at??0)*1_000-30_000,Date.now()+5_000);
+  recentAccessToken={value:data.session.access_token,expiresAt};
+  return data.session.access_token;
+}
 export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POST' = 'POST',options:{signal?:AbortSignal}={}): Promise<T> {
   const started=Date.now(),surface=name.split('?')[0]!,operation=typeof body==='object'&&body&&'action'in body?String((body as Record<string,unknown>).action):method.toLowerCase();let response:Response|undefined;
   try{
@@ -49,7 +63,7 @@ export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POS
 }
 export const loadSnapshot = () => invoke<Snapshot>('together-bootstrap', undefined, 'GET');
 export const loadExploreCatalog = () => invoke<ExploreCatalogSnapshot>('together-bootstrap?scope=explore',undefined,'GET');
-export const confirmAdultAge = () => invoke<Snapshot>('together-bootstrap', {action:'confirm_age',ageConfirmed:true});
+export const confirmAdultAge = (dateOfBirth:string) => invoke<Snapshot>('together-bootstrap', {action:'confirm_age',ageConfirmed:true,dateOfBirth});
 export const loadCharacterPresence = (characterInstanceId:string) => invoke<CharacterPresenceSnapshot>(`together-bootstrap?scope=presence&characterInstanceId=${encodeURIComponent(characterInstanceId)}`,undefined,'GET');
 export const loadCharacterSchedule = (characterTemplateId:string) => invoke<{characterTemplateId:string;characterVersionId:string;schedules:ScheduleItem[]}>(`together-bootstrap?scope=character_schedule&characterTemplateId=${encodeURIComponent(characterTemplateId)}`,undefined,'GET');
 export const loadPlaceDetail = (locationId:string) => invoke<{place:PlaceContext}>('together-place',{locationId});
@@ -63,7 +77,7 @@ export const getMemoryCenter = (characterInstanceId:string,options:{privacyMode?
 export const getMemoryHistory = (memoryId:string) => invoke<{revisions:MemoryCenterItem[]}>('together-memory',{action:'history',memoryId});
 export const rememberMessage = (messageId:string,characterInstanceId:string) => invoke<MemoryCenterItem>('together-memory',{action:'remember_message',messageId,characterInstanceId});
 export const mutateDate = <T>(input: Record<string,unknown>) => invoke<T>('together-date', input);
-export const simulate = (characterInstanceId?: string) => invoke('together-simulate', { characterInstanceId, evaluateProactive: true });
+export const simulate = (characterInstanceId?: string) => coalesceSimulationRequest(characterInstanceId??'active',()=>invoke('together-simulate', { characterInstanceId, evaluateProactive: true }));
 export const markProactiveOpened = (proactiveMessageId: string) => invoke('together-notifications', { action: 'opened', proactiveMessageId });
 export const introduction = <T>(action: 'preview'|'accept'|'complete', choice?: string) => invoke<T>('together-introduction', { action, choice });
 export const reportMessage = (messageId: string, reason: string, detail = '') => invoke('together-report', { messageId, reason, detail });
@@ -74,28 +88,38 @@ export const cancelSharedPlan = <T>(planId:string,conversationId?:string) => inv
 export const confirmConversationAction = <T>(candidateId:string,input?:{startsAt?:string;scheduledFor?:string;timingChoice?:'now'|'in_one_hour'|'custom';windowStartsAt?:string;windowEndsAt?:string;timePrecision?:'exact'|'approximate'|'daypart'|'window'|'day';originalTimeExpression?:string;activityKey?:string;activity?:string;locationId?:string;planId?:string}) => invoke<T>('together-plan',{action:'confirm_proposal',candidateId,startsAt:input?.startsAt??input?.scheduledFor,timingChoice:input?.timingChoice,windowStartsAt:input?.windowStartsAt,windowEndsAt:input?.windowEndsAt,timePrecision:input?.timePrecision,originalTimeExpression:input?.originalTimeExpression,activityKey:input?.activityKey??input?.activity,locationId:input?.locationId,planId:input?.planId});
 export const dismissConversationAction = <T>(candidateId:string) => invoke<T>('together-plan',{action:'dismiss_proposal',candidateId});
 export const resolveRelationshipMilestone = (milestoneId:string,action:'accept'|'defer'|'stay_friends'|'talk_it_out'|'give_space') => invoke<{snapshot:Snapshot}>('together-relationship',{milestoneId,action});
-export const manageConversation = <T>(input: Record<string, unknown>) => invoke<T>('together-conversation', input);
+export const manageConversation = async<T>(input: Record<string, unknown>) => {await ensureWebAdultSession(await token()).catch(()=>undefined);return invoke<T>('together-conversation', input);};
 export const setConversationPinned = (conversationId:string,pinned:boolean) => manageConversation<Conversation>({action:'pin',conversationId,pinned});
 export const setMessageFavorite = (conversationId:string,messageId:string,favorite:boolean) => manageConversation<Message>({action:'message_favorite',conversationId,messageId,favorite});
 export const ensureConversation = (characterInstanceId:string) => withIdempotentRetry(()=>manageConversation<Conversation>({action:'ensure',characterInstanceId}),{attempts:2,delayMs:180});
+export const openConversation = (characterInstanceId:string) => withIdempotentRetry(()=>manageConversation<{conversation:Conversation;messages:Message[];hasMore:boolean}>({action:'open',characterInstanceId,limit:50}),{attempts:2,delayMs:180});
 export const previewCharacterReset = (characterInstanceId:string) => manageConversation<CharacterResetPreview>({action:'reset_preview',characterInstanceId});
 export const startOverCharacter = (characterInstanceId:string,requestId:string) => manageConversation<CharacterResetResult>({action:'start_over',characterInstanceId,requestId});
 export const manageInteraction = <T = {scene:SceneSession;action?:SceneAction;interactions:InteractionCandidate[];destinations:InteractionCandidate[];characterProposal?:CharacterInteractionProposal}>(input: Record<string, unknown>) => typeof input.requestId === 'string'
   ? withIdempotentRetry(() => invoke<T>('together-interaction', input), { attempts: 2, delayMs: 180 })
   : invoke<T>('together-interaction', input);
 export const enterScene = <T>(input:{characterInstanceId:string;locationId:string;conversationId?:string}) => invoke<T>('together-conversation',{action:'enter_scene',...input});
-export const manageMedia = <T>(input: Record<string, unknown>) => invoke<T>('together-media', input);
+export const manageMedia = async<T>(input: Record<string, unknown>) => {
+  // WebAdultSessionBridge establishes the website cookie at session start and
+  // explicit dialogue refreshes it before creating an adult offer. Media
+  // actions go directly to the authoritative endpoint so Accept/Decline never
+  // wait on a redundant session-status round trip.
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),15_000);
+  try{return await invoke<T>('together-media',input,'POST',{signal:controller.signal});}
+  catch(caught){if(controller.signal.aborted)throw new ApiError('The media request took too long. Please try again.','REQUEST_TIMEOUT',true);throw caught;}
+  finally{clearTimeout(timeout);}
+};
 export const rateGeneratedMedia = (mediaId:string,feedback:'positive'|'negative') => manageMedia<{mediaId:string;userFeedback:'positive'|'negative';userFeedbackAt:string}>({action:'feedback',mediaId,feedback});
-export const getVideoGenerationOptions = (sourceMediaId:string) => manageMedia<VideoGenerationOptions>({action:'video_options',sourceMediaId});
-export const getDirectVideoGenerationOptions = (characterInstanceId:string) => manageMedia<VideoGenerationOptions>({action:'video_direct_options',characterInstanceId});
+export const getVideoGenerationOptions = async(sourceMediaId:string) => normalizeVideoGenerationOptions(await manageMedia<unknown>({action:'video_options',sourceMediaId}));
+export const getDirectVideoGenerationOptions = async(characterInstanceId:string) => normalizeVideoGenerationOptions(await manageMedia<unknown>({action:'video_direct_options',characterInstanceId}));
 export const trackVideoSelectorEvent = (sourceMediaId:string,event:'option_sheet_opened'|'model_selected'|'motion_selected',videoRouteId?:string,motionPreset?:VideoMotionPreset) => manageMedia<{recorded:boolean}>({action:'video_event',sourceMediaId,event,videoRouteId,motionPreset});
-export const animateMedia = (sourceMediaId:string,videoRouteId:string,motionPreset:VideoMotionPreset,durationSeconds:10|15|20,requestId:string) => manageMedia<{media:GeneratedMedia;creditCost:number;creditBalance:number;route:VideoRouteOption}>({action:'animate',sourceMediaId,videoRouteId,motionPreset,durationSeconds,requestId});
-export const createDirectVideo = (input:{characterInstanceId:string;conversationId?:string;videoRouteId:string;motionPreset:VideoMotionPreset;durationSeconds:10|15|20;aspectRatio:'9:16'|'16:9';locationSource:'current'|'home'|'place';locationId?:string;requestText:string;requestId:string}) => manageMedia<{media:GeneratedMedia;creditCost:number;creditBalance:number;route:VideoRouteOption}>({action:'video_direct_generate',...input});
+export type VideoRequestSettings={model:string;sound:boolean;resolution:VideoResolution;duration:number};
+export const animateMedia = (sourceMediaId:string,settings:VideoRequestSettings,motionPreset:VideoMotionPreset,requestId:string) => manageMedia<{media:GeneratedMedia;creditCost:number;creditBalance:number;route:VideoRouteOption}>({action:'animate',sourceMediaId,settings,motionPreset,requestId});
+export const createDirectVideo = (input:{characterInstanceId:string;conversationId?:string;settings:VideoRequestSettings;motionPreset:VideoMotionPreset;aspectRatio:'9:16'|'16:9';locationSource:'current'|'home'|'place';locationId?:string;requestText:string;requestId:string}) => manageMedia<{media:GeneratedMedia;creditCost:number;creditBalance:number;route:VideoRouteOption}>({action:'video_direct_generate',...input});
 export const submitVideoFeedback = (mediaId:string,verdict:'looks_good'|'needs_work',reasonCodes:string[]=[],otherText?:string) => manageMedia<{feedback:Record<string,unknown>}>({action:'video_feedback',mediaId,verdict,reasonCodes,otherText});
 export const recordVideoPlayback = (mediaId:string) => manageMedia<{recorded:boolean}>({action:'video_playback',mediaId});
 export const getVideoDiagnostics = (mediaId:string) => manageMedia<{diagnostics:VideoDiagnostics}>({action:'video_diagnostics',mediaId});
 export const editGeneratedMedia = (mediaId:string,requestId:string,instruction:string) => manageMedia<{media:GeneratedMedia;creditCost:number;creditBalance?:{permanentBalance:number;subscriptionBalance:number;total:number}}>({action:'edit',mediaId,requestId,instruction});
-export const saveMediaContentPreferences = (input:{suggestiveMediaEnabled:boolean;matureMediaEnabled:boolean;explicitMediaEnabled:boolean;adultVideoEnabled:boolean}) => manageMedia<{saved:boolean;preferences:Record<string,unknown>}>({action:'content_preferences',...input});
 export const manageMultimodal = <T>(input:Record<string,unknown>) => invoke<T>('together-multimodal',input);
 export const getExperienceCapabilities = () => manageMultimodal<{experience:KivelleExperienceCapabilities;providers:KivelleExperienceCapabilities['providers']}>({action:'capabilities'});
 export const saveMultimodalPreferences = (preferences:Required<MultimodalPreferences>) => manageMultimodal<{preferences:MultimodalPreferences;experience:KivelleExperienceCapabilities}>({action:'preferences',...preferences});
@@ -130,14 +154,14 @@ export type VoiceRouteOption={route:'standard'|'express';displayName:string;desc
 export type ManageCallResult={call?:VoiceCallSession;status?:string;providerStatus?:string;message?:string;clientSecret?:string;expiresAt?:string;clientConfiguration?:RealtimeVoiceConfiguration;billing?:VoiceCallBilling;routes?:VoiceRouteOption[];reconciliation?:{messageCount:number;reconciled:boolean}};
 export const manageCall = <T=ManageCallResult>(input:Record<string,unknown>) => invoke<T>('together-call',input);
 export const manageSharedScene = <T>(input:Record<string,unknown>) => invoke<T>('together-shared-scene',input);
-export const manageGroup = <T=GroupDetail>(input:Record<string,unknown>) => invoke<T>('together-group',input);
+export const manageGroup = async<T=GroupDetail>(input:Record<string,unknown>) => {await ensureWebAdultSession(await token()).catch(()=>undefined);return invoke<T>('together-group',input);};
 export async function loadGroupDetail(conversationId:string,options:{messageLimit?:number;signal?:AbortSignal;timeoutMs?:number}={}):Promise<GroupDetail>{
   const controller=new AbortController(),timeoutMs=options.timeoutMs??12_000;
   let timedOut=false;
   const abort=()=>controller.abort();
   if(options.signal?.aborted)controller.abort();else options.signal?.addEventListener('abort',abort,{once:true});
   const timer=setTimeout(()=>{timedOut=true;controller.abort();},timeoutMs);
-  try{return await invoke<GroupDetail>('together-group',{action:'detail',conversationId,messageLimit:options.messageLimit??30},'POST',{signal:controller.signal});}
+  try{await ensureWebAdultSession(await token()).catch(()=>undefined);return await invoke<GroupDetail>('together-group',{action:'detail',conversationId,messageLimit:options.messageLimit??30},'POST',{signal:controller.signal});}
   catch(caught){
     if(timedOut)throw new ApiError('This group is taking longer than expected. Try opening it again.','REQUEST_TIMEOUT',true);
     throw caught;
@@ -160,7 +184,11 @@ export async function sendGroupDialogue(input:{conversationId:string;message:str
   if(input.message.length>MESSAGE_CHARACTER_LIMIT)throw new ApiError(messageCharacterLimitError(),'VALIDATION_FAILED');
   const started=Date.now();let firstActivityRecorded=false,statusCode:number|undefined;
   try{
-  const response=await fetch(`${supabaseUrl}/functions/v1/together-group-dialogue`,{method:'POST',headers:{Authorization:`Bearer ${await token()}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify(input),signal});
+  const accessToken=await token();
+  // A website-session outage must fail closed to the server's SFW projection,
+  // not prevent an otherwise safe group conversation from loading or replying.
+  await ensureWebAdultSession(accessToken).catch(()=>undefined);
+  const response=await fetch(`${supabaseUrl}/functions/v1/together-group-dialogue`,{method:'POST',headers:{Authorization:`Bearer ${accessToken}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify(input),signal});
   statusCode=response.status;
   if(!response.ok){const payload=await response.json().catch(()=>({})) as{error?:{message?:string;code?:string;retryable?:boolean}};await clearSessionForApiFailure(supabase.auth,response.status,payload.error?.code);throw new ApiError(payload.error?.message??'The group could not reply.',payload.error?.code,payload.error?.retryable);}
   if(!response.body)throw new ApiError('The group response ended early.','STREAM_INTERRUPTED',true);
@@ -184,17 +212,38 @@ export const selectCreatorFirstMeeting = (draftId:string,meetingId:string) => ma
 export const finalizeCreatorDraft = (draftId:string,requestId:string) => manageCreator<{draft:CreatorDraft;result:{draftId:string;characterTemplateId:string;characterVersionId:string;publicHandle:string;idempotent:boolean}}>({action:'finalize_draft',draftId,requestId});
 export const archiveCreatorDraft = (draftId:string) => manageCreator<{archived:boolean;draftId:string}>({action:'archive_draft',draftId});
 export const manageSubscription = <T>(input?:Record<string,unknown>) => input?invoke<T>('together-subscription',input):invoke<T>('together-subscription',undefined,'GET');
-export async function createTogetherAccount(email: string, password: string): Promise<void> {
-  const response = await fetch(`${supabaseUrl}/functions/v1/together-signup`, { method: 'POST', headers: { apikey: supabasePublishableKey, Authorization: `Bearer ${supabasePublishableKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+export async function createTogetherAccount(email: string, password: string,dateOfBirth:string): Promise<void> {
+  const response = await fetch(`${supabaseUrl}/functions/v1/together-signup`, { method: 'POST', headers: { apikey: supabasePublishableKey, Authorization: `Bearer ${supabasePublishableKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password,dateOfBirth }) });
   const payload = await response.json().catch(() => ({})) as { error?: { message?: string; code?: string; retryable?: boolean } };
   if (!response.ok) throw new ApiError(payload.error?.message ?? 'Your Kivelle account could not be created.', payload.error?.code, payload.error?.retryable);
 }
 
 export async function sendDialogue(input: {conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;sceneActionId?:string;messageAction?:'continue';anchorMessageId?:string;autoDialogueSuggestionId?:string;autoDialogueSuggestionSource?:AutoDialogueSuggestion['source'];autoDialogueSuggestionEdited?:boolean;autoDialogueSuggestionIntent?:AutoDialogueSuggestion['intent'];autoDialogueSuggestionPreference?:AutoDialoguePreference;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta}> {
   if (input.message.length > MESSAGE_CHARACTER_LIMIT) throw new ApiError(messageCharacterLimitError(), 'VALIDATION_FAILED');
-  const started=Date.now();let firstTokenRecorded=false,statusCode:number|undefined;
+  const started=Date.now();let firstTokenRecorded=false,statusCode:number|undefined,responseTimeout:ReturnType<typeof setTimeout>|undefined,responseTimedOut=false,photoRequest=false;
   try{
-  const response = await fetch(`${supabaseUrl}/functions/v1/together-dialogue`, { method: 'POST', headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+  const accessToken=await token();
+  const photoIntent=classifyPhotoIntent(input.message);
+  photoRequest=photoIntent.requested;
+  const explicitWebsitePhoto=Platform.OS==='web'&&photoIntent.requested&&photoIntent.requestedContentLevel==='explicit';
+  let adultSession;
+  try{adultSession=await ensureWebAdultSession(accessToken,{force:explicitWebsitePhoto});}
+  catch{
+    if(explicitWebsitePhoto)throw new ApiError('Your private website session could not be prepared. Tap to retry.','WEBSITE_SESSION_PREPARATION_FAILED',true);
+  }
+  if(explicitWebsitePhoto&&adultSession?.authorized!==true){
+    const message=adultSession?.adultEligible===false
+      ?'Confirm your adult birthdate in Account settings before requesting explicit photos.'
+      :adultSession?.premiumAccess===false
+      ?'An active Kivelle+ or Max membership is required for explicit photos.'
+      :adultSession?.available===false
+      ?'Explicit photo generation is temporarily unavailable.'
+      :'Your private website session could not be verified. Refresh and try again.';
+    throw new ApiError(message,'ADULT_MEDIA_SESSION_REQUIRED',adultSession?.available!==false);
+  }
+  const responseController=new AbortController();
+  responseTimeout=setTimeout(()=>{responseTimedOut=true;responseController.abort();},photoRequest?18_000:120_000);
+  const response = await fetch(`${supabaseUrl}/functions/v1/together-dialogue`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json' }, body: JSON.stringify(input),signal:responseController.signal });
   statusCode=response.status;
   if (!response.ok) { const error = await response.json().catch(() => ({})); await clearSessionForApiFailure(supabase.auth,response.status,error.error?.code); throw new ApiError(error.error?.message ?? 'Your companion could not reply.', error.error?.code, error.error?.retryable); }
   if (!response.body) throw new ApiError('The response stream ended early.', 'STREAM_INTERRUPTED', true);
@@ -206,7 +255,8 @@ export async function sendDialogue(input: {conversationId:string;characterInstan
   if (!final) throw new ApiError('The reply was interrupted. Try again.', 'STREAM_INTERRUPTED', true);
   queueClientPerformance({surface:'together-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:true,metadata:{firstToken:firstTokenRecorded}});
   return {message:final,...(additionalMessages?.length?{additionalMessages}:{}),...(generatedMedia?{generatedMedia}:{}),...(mediaOffer?{mediaOffer}:{}),...(photoRequestError?{photoRequestError}:{}),...(delta?{delta}:{})};
-  }catch(caught){queueClientPerformance({surface:'together-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:false,...(statusCode?{statusCode}:{}),metadata:{firstToken:firstTokenRecorded}});throw caught;}
+  }catch(caught){const failure=responseTimedOut?new ApiError(photoRequest?'The photo request took too long to confirm. Recovering it now…':'The reply took too long. Please try again.','PROVIDER_TIMEOUT',true):caught;queueClientPerformance({surface:'together-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:false,...(statusCode?{statusCode}:{}),metadata:{firstToken:firstTokenRecorded}});throw failure;}
+  finally{if(responseTimeout)clearTimeout(responseTimeout);}
 }
 
 export async function suggestDialogue(input:{conversationId:string;characterInstanceId:string;anchorMessageId:string;clientRequestId:string;preference?:AutoDialoguePreference},signal?:AbortSignal):Promise<AutoDialogueSuggestion>{

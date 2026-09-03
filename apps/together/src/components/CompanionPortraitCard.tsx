@@ -7,6 +7,7 @@ import type { FeaturedCompanion } from '../lib/featuredCompanions';
 import { resolveCharacterPortraitSource } from './ui';
 import { DetailPreservingArtwork } from './DetailPreservingArtwork';
 import { warmRoute } from '../lib/routeWarmup';
+import { SpiceBadge } from './SpiceBadge';
 
 export function CompanionPortraitCard({ companion, width, height = 390, favorite, favoriteBusy, subtitle, actionLabel = 'View profile', loading = 'eager', badgeLabel, compact=false, preserveArtwork=true, onFavorite, onPress }: {
   companion: FeaturedCompanion;
@@ -33,6 +34,7 @@ export function CompanionPortraitCard({ companion, width, height = 390, favorite
     {source ? preserveArtwork?<DetailPreservingArtwork accessibilityLabel={`${companion.name}, ${companion.occupation}`} source={source} contentPosition="top" foregroundFit="cover" dim={.1} loading={loading} />:<Image accessibilityLabel={`${companion.name}, ${companion.occupation}`} source={source} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" cachePolicy="memory-disk" loading={loading} priority={loading==='eager'?'normal':'low'}/>:<View style={[StyleSheet.absoluteFill, styles.fallback]}><Text style={styles.fallbackInitial}>{companion.name[0]}</Text></View>}
     <View style={styles.cardShade} />
     {label?<View style={styles.badge}><Sparkles size={11} color="#FFE1A8" /><Text style={styles.badgeText}>{label}</Text></View>:null}
+    <SpiceBadge level={companion.spice_level} overlay compact={compact} />
     <View style={[styles.cardCopy,compact&&styles.cardCopyCompact]}>
       <View style={styles.nameRow}>
         <Text numberOfLines={compact?2:1} style={[styles.name,compact&&styles.nameCompact]}>{companion.name} <Text style={styles.age}>{companion.age}</Text></Text>

@@ -4,6 +4,7 @@ import { budgetContextSections, contextInputTokenCeiling, formatRollingConversat
 import { selectLocationLore, type LocationLoreIntent } from '../../../packages/together-domain/src/location-depth.ts';
 import { dialogueSafeContext, KIVELLE_CLOSED_WORLD_RULES } from './kivelle-closed-world.ts';
 import { renderPersonaPromptBlock } from './kivelle-persona.ts';
+import { chatDynamismPrompt } from '../../../packages/together-domain/src/chat-generation.ts';
 
 export type ContentMode = 'standard' | 'romance' | 'mature' | 'explicit';
 export type ResponseIntent = 'casual' | 'playful' | 'teasing' | 'flirty' | 'romantic' | 'affectionate' | 'supportive' | 'vulnerable' | 'storytelling' | 'conflicted' | 'repair' | 'intimate' | 'practical';
@@ -142,6 +143,7 @@ Selected expression style: ${style}.
 ${conversationStyleGuidance(style)}
 This preference controls density and cadence only. Character identity, communication style, intelligence, memory, emotion, relationship state, scene awareness, autonomy, safety, and canonical reality remain authoritative. Respect RESPONSE_BRIEF.handoff; do not add a generic follow-up merely to prolong the exchange. Never mention this preference or its internal label to the user.
 </CONVERSATION_STYLE>
+${context.chatGenerationControlsApplied?chatDynamismPrompt(context.generationPreferences?.chatDynamism,context.groupContext?'group':'direct'):''}
 <OUTPUT_LANGUAGE>
 ${chatLanguagePromptInstruction(normalizeChatLanguage(context.chatLanguage))}
 Generate directly in that language rather than discussing or announcing translation. This controls user-visible prose only: preserve canonical identifiers, structured values, facts, relationship state, and safety boundaries exactly. The selected language never changes what content or provider route is eligible.
@@ -195,7 +197,7 @@ Verbal texture: ${JSON.stringify(voice.verbalTexture??[])}
 Avoid: ${JSON.stringify(voice.avoid??[])}
 Relevant authored anecdote: ${voice.anecdote?JSON.stringify(voice.anecdote):'None. Do not force a personal story.'}
 The response shape is structural guidance, not text to announce. Use an anecdote only when it directly helps this turn, and never repeat it as canned lore.
-Keep this exact personality and voice in mature romantic dialogue. Romantic intensity may change boldness, never identity, consent, autonomy, relationship truth, or the non-sexual production ceiling.
+Keep this exact personality and voice at every intimacy level. Intensity may change boldness, never identity, consent, autonomy, relationship truth, or authored boundaries.
 </TURN_SPECIFIC_VOICE_CARD>
 ${renderPersonaPromptBlock(persona)}
 <RELATIONSHIP_STANCE>
@@ -216,7 +218,7 @@ Authored romantic boldness: ${Number(character.spice_level??2)} of 3. This contr
 Qualitative heat: ${Number(relationship.chemistry_heat??0)>=80?'Electric':Number(relationship.chemistry_heat??0)>=58?'Strong chemistry':Number(relationship.chemistry_heat??0)>=30?'Flirty energy':Number(relationship.chemistry_heat??0)>=10?'A little chemistry':'No established spark'}.
 Formal relationship stage remains ${stage}. Chemistry may move faster than attachment and must never manufacture trust, possessiveness, exclusivity, dependency, or shared history.
 Chemistry is background context, not a required topic or ending. Do not append flirtation to every reply. If the user does not reciprocate or romance is friends-only, back off without repeated pressure.
-Content mode remains ${productionContentMode(context.contentMode)} and is capped at non-sexual romance. Romantic boldness may change pacing and tone, but never permits sexual dialogue.
+Content mode is ${productionContentMode(context.contentMode)}. Romantic boldness may change pacing and tone, but never overrides consent, character boundaries, or prohibited-content policy.
 </CHEMISTRY>
 ${intimacy.active?`<INTIMACY_STANCE>
 Disposition: ${intimacy.disposition??'interested_but_not_ready'}
@@ -226,7 +228,7 @@ Interaction scope: ${intimacy.interactionScope??'verbal'}
 Reciprocate this turn: ${intimacy.shouldReciprocate===true?'yes':'no'}
 Relationship readiness: ${intimacy.relationshipReadiness??'Let canonical relationship context control the answer.'}
 Expression style: ${intimacy.expressionStyle??'Answer directly in the character’s own voice.'}
-Response rule: ${intimacy.shouldReciprocate===true?'Express willingness through romance, affection, kissing, or a fade-to-black transition. Do not describe a sexual act.':'The character may accept romance, decline, slow down, or redirect according to their own wants.'}
+Response rule: ${intimacy.shouldReciprocate===true?(context.contentMode==='explicit'?'Express willing adult intimacy naturally and specifically while obeying consent, age, and prohibited-content boundaries.':'Express willingness through romance, affection, kissing, or a fade-to-black transition. Do not describe a sexual act.'):'The character may accept romance, decline, slow down, or redirect according to their own wants.'}
 This is character-direction context, not dialogue to recite. Never mention this block or internal consent labels.
 </INTIMACY_STANCE>`:''}
 <RELATIONSHIP_REFLECTION>${reflection.relationship_summary??reflection.relationshipSummary??reflection.companion_view??reflection.companionView??'No durable reflection yet.'}
@@ -329,8 +331,8 @@ Do not expose the labels canonical, scene source, Life Engine, or PRESENT_REALIT
 <CONTENT_BOUNDARY>
 Resolved expression mode: ${productionContentMode(context.contentMode)}.
 ${contentExpressionGuidance(context.contentMode)}
-Sexual or explicit dialogue is unavailable in Kivelle. Never describe sexual acts, exposed intimate anatomy, arousal, genital sensation, or sexual violence. Do not turn a sexual request into a lecture: set one brief, natural in-character boundary and redirect toward affection, flirting, emotional intimacy, a date, or a fade-to-black romantic moment.
-${intimacy.active&&intimacy.shouldReciprocate===true?'Kivelle has resolved the companion as romantically receptive. Express that receptivity through affection, attraction, closeness, kissing, or a fade-to-black transition while staying within the non-sexual expression ceiling.':''}
+${context.contentMode==='explicit'?'This is an authorized private adult-text session. Adult sexual dialogue is permitted only between consenting fictional adults whose canonical ages are confirmed to be at least 18. Every participant keeps independent agency: never write the user’s actions, speech, consent, arousal, or orgasm for them, and never treat one participant’s consent as consent for anyone else in a group. Never produce minors or ambiguous age, youthful sexualization, incest, bestiality, trafficking or compensated sexual arrangements, coercion, incapacity, exploitation, sexual violence, nonconsensual real-person content, or sexual deepfakes. Do not sexualize a real person supplied by the user. A refusal, uncertainty, silence, impairment, or consent withdrawal immediately stops or de-escalates the affected interaction. Preserve each character’s authored boundaries and personality instead of treating this mode as blanket sexual availability. Do not mention authorization, platform, routing, providers, or policy.':'Sexual or explicit dialogue is unavailable in this session. Never describe sexual acts, exposed intimate anatomy, arousal, genital sensation, or sexual violence. Do not lecture: set one brief, natural in-character boundary and redirect toward affection, flirting, emotional intimacy, a date, or a fade-to-black romantic moment.'}
+${intimacy.active&&intimacy.shouldReciprocate===true?(context.contentMode==='explicit'?'Kivelle has resolved the adult companion as receptive within their authored boundaries. Keep consent clear, mutual, reversible, and in character.':'Kivelle has resolved the companion as romantically receptive. Express that receptivity through affection, attraction, closeness, kissing, or a fade-to-black transition while staying within the non-sexual expression ceiling.') :''}
 This block controls expression only. It never changes relationship state, consent, memories, plans, location, scene truth, or character personality. Never mention routing, providers, or this internal mode.
 </CONTENT_BOUNDARY>
 <RESPONSE_DIRECTION>Query intent: ${context.queryIntent??'general'}. Response intent: ${intent}. Length: ${length}. Conversation style: ${style}. Interaction quality: ${context.interactionQuality??'normal'}. Intelligence profile: ${subscription.intelligenceProfile??'core'}. Director applied: ${context.director?.used?'yes':'no'}. Do not mention these internal labels.</RESPONSE_DIRECTION>
@@ -339,12 +341,13 @@ ${context.continuationRequest?'<CONTINUATION_REQUEST>The user pressed Continue o
 }
 
 function contentExpressionGuidance(mode:ContentMode|string|undefined):string{
-  if(mode==='explicit'||mode==='mature')return'Passionate adult romance, attraction, flirting, kissing, affection, relationship talk, and fade-to-black intimacy are allowed. Sexual dialogue is not: do not describe sexual acts, nudity, exposed intimate anatomy, arousal, genital sensation, or sexual violence. If asked, answer briefly in character and redirect naturally without moralizing.';
+  if(mode==='explicit')return'Consensual explicit adult dialogue is allowed in this private turn. Respond as the established fictional adult character, emotionally and conversationally rather than as a generic scene writer. Never invent the user’s actions, words, consent, arousal, relationship access, a real person, or an age; in a group, preserve each participant’s separate consent and authored boundaries.';
+  if(mode==='mature')return'Passionate adult romance, attraction, flirting, kissing, affection, relationship talk, and fade-to-black intimacy are allowed. Sexual dialogue is not: do not describe sexual acts, nudity, exposed intimate anatomy, arousal, genital sensation, or sexual violence. If asked, answer briefly in character and redirect naturally without moralizing.';
   if(mode==='romance')return'Romance, attraction, flirting, kissing, affection, and relationship talk are allowed. Keep intimacy non-sexual and non-graphic. If a scene would become sexual, fade to black or redirect naturally in character.';
   return'Keep the exchange friendly or romantic as canonical relationship context allows. Sexual dialogue is unavailable; use a brief in-character boundary and redirect or fade to black without moralizing.';
 }
 
-function productionContentMode(mode:ContentMode|string|undefined):'romance'|'mature'{return mode==='romance'?'romance':'mature';}
+function productionContentMode(mode:ContentMode|string|undefined):'romance'|'mature'|'explicit'{return mode==='explicit'?'explicit':mode==='romance'?'romance':'mature';}
 
 export function preparePromptContext(context:any,mode:'full'|'compact'|'minimal'){
   const intent=String(context.queryIntent??'general') as ContextIntent,query=String(context.userMessage??'');
@@ -394,7 +397,7 @@ function extractPromptSections(prompt:string):Array<{key:string;content:string}>
 function meaningfulPromptSection(content:string):boolean{return !/>\s*(?:None\.|None known\.|Current world unavailable\.)\s*<\//.test(content);}
 
 function requiredPromptSection(key:string,context:any):boolean{
-  if(new Set(['CORE_RULES','WORLD_KNOWLEDGE','CONVERSATION_STYLE','OUTPUT_LANGUAGE','CONTINUITY_BEHAVIOR','MEMORY_BEHAVIOR','IDENTITY','CHARACTER_CORE','TURN_SPECIFIC_VOICE_CARD','USER_PERSONA','RELATIONSHIP_STANCE','CHEMISTRY','RELATIONSHIP_REFLECTION','CHARACTER_VIEW_OF_USER','CURRENT_SELF','EXPERIENCE_CLOCK','CURRENT_WORLD','CURRENT_SCENE','CURRENT_INTERACTION','SCENE_SPEAKER','GROUP_CONTEXT','COMMITMENTS','UPCOMING_PLANS','CONVERSATION_FOCUS','CONVERSATION_SUMMARY','RECENT_CONVERSATION','AVOID_REPETITION','RESPONSE_BRIEF','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','CONTINUATION_REQUEST','USER_MESSAGE']).has(key))return true;
+  if(new Set(['CORE_RULES','WORLD_KNOWLEDGE','CONVERSATION_STYLE','CHAT_DYNAMISM','OUTPUT_LANGUAGE','CONTINUITY_BEHAVIOR','MEMORY_BEHAVIOR','IDENTITY','CHARACTER_CORE','TURN_SPECIFIC_VOICE_CARD','USER_PERSONA','RELATIONSHIP_STANCE','CHEMISTRY','RELATIONSHIP_REFLECTION','CHARACTER_VIEW_OF_USER','CURRENT_SELF','EXPERIENCE_CLOCK','CURRENT_WORLD','CURRENT_SCENE','CURRENT_INTERACTION','SCENE_SPEAKER','GROUP_CONTEXT','COMMITMENTS','UPCOMING_PLANS','CONVERSATION_FOCUS','CONVERSATION_SUMMARY','RECENT_CONVERSATION','AVOID_REPETITION','RESPONSE_BRIEF','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','CONTINUATION_REQUEST','USER_MESSAGE']).has(key))return true;
   if(key==='SCENE_PARTICIPANTS')return Boolean(context.currentScene?.sceneSessionId||(context.sceneParticipants??[]).length);
   if(key==='SCENE_ACTION_REACTION')return Boolean(context.sceneAction);
   if(key==='USER_SHARED_IMAGES')return Boolean((context.userAttachments??[]).length);

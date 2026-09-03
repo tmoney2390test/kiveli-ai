@@ -5,6 +5,7 @@ import { ArrowRight, MapPin } from 'lucide-react-native';
 import { colors, typography } from '../../theme';
 import type { CharacterInstance, CharacterVersion } from '../../types';
 import { KIVELLI_IMAGE_PLACEHOLDER } from '../../lib/imageWarmup';
+import { SpiceBadge } from '../SpiceBadge';
 
 export function CinematicCompanionHero({ companion, portraitVersion, source, location, world, actionLabel, notice, prompt, onContinue, onProfile, onVisualReady }: {
   companion: CharacterInstance;
@@ -56,6 +57,7 @@ export function CinematicCompanionHero({ companion, portraitVersion, source, loc
     <View pointerEvents="none" style={styles.tint} />
     <View pointerEvents="none" style={[styles.scrim, Platform.OS === 'web' ? styles.webScrim : styles.nativeScrim]} />
     <View pointerEvents="none" style={[styles.vignette, Platform.OS === 'web' ? styles.webVignette : undefined]} />
+    <SpiceBadge level={template.spice_level} overlay />
     <View style={[styles.content, compact && styles.contentCompact]}>
       <View style={[styles.bottom, desktop && styles.bottomDesktop]}>
         {notice ? <View style={styles.notice}><Text numberOfLines={1} style={styles.noticeText}>{notice}</Text></View> : null}

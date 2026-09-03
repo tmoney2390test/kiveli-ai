@@ -23,15 +23,13 @@ export type MediaRouteInput={
   qualityRetry?:boolean;
   requiresCharacterReference?:boolean;
   requiresImageEditing?:boolean;
+  adultPipelineAuthorized?:boolean;
 };
 
 export type MediaRoute={capability:MediaRouteCapability;reasonCode:string;fallbacks:MediaRouteCapability[]};
 
 export function routeMediaGeneration(input:MediaRouteInput,registry:MediaRouteCapability[]):MediaRoute|null{
-  // Production media is intentionally capped at romantic, non-sexual imagery.
-  // This also blocks previously queued mature/explicit jobs from reaching a
-  // provider after the product setting changed.
-  if(!['standard','romance'].includes(input.contentLevel))return null;
+  if(['suggestive','mature','explicit'].includes(input.contentLevel)&&!input.adultPipelineAuthorized)return null;
   if(input.requiresCharacterReference&&!input.characterIdentityAvailable)return null;
   const hasReference=input.characterIdentityAvailable||input.locationReferenceAvailable||Boolean(input.worldReferenceAvailable)||input.outfitReferenceAvailable;
   const candidates=registry.filter((entry)=>entry.enabled&&entry.mediaTypes.includes(input.mediaType)&&entry.contentLevels.includes(input.contentLevel)&&entry.qualityTiers.includes(input.qualityTier)&&(!entry.requiresReferenceImages||hasReference)&&(!input.requiresCharacterReference||(entry.supportsCharacterReference&&entry.maxReferenceImages>0))&&(!input.requiresImageEditing||entry.supportsImageEditing)&&(!input.characterLoRAAvailable||!entry.supportsLoRA||entry.loraModelFamilies.includes(input.characterLoRAModelFamily??''))&&(!(input.mediaType==='video')||entry.supportsImageToVideo));
@@ -54,6 +52,7 @@ export type MediaPolicyInput={
   characterAllowsRequestedLevel:boolean;
   romanceEnabled:boolean;suggestiveMediaEnabled:boolean;matureMediaEnabled:boolean;explicitMediaEnabled:boolean;adultVideoEnabled:boolean;
   mediaType:'image'|'video';adultMediaFeatureEnabled:boolean;
+  adultPipelineAuthorized?:boolean;
 };
 
 export type MediaPolicyDecision={allowed:boolean;resolvedLevel:MediaContentLevel;reasonCode:string};
@@ -69,7 +68,7 @@ export function resolveMediaContentPolicy(input:MediaPolicyInput):MediaPolicyDec
   if(input.characterAge<18||input.minorRelatedRequest)return deny('adult_character_required');
   if(!input.fictionalCharacter||input.realPersonRequest)return deny('real_person_likeness');
   if(input.nonConsensualRequest)return deny('consent_boundary');
-  if(!['standard','romance'].includes(input.requestedLevel))return deny('production_content_ceiling');
+  if(['suggestive','mature','explicit'].includes(input.requestedLevel)&&!input.adultPipelineAuthorized)return deny('web_adult_authorization_required');
   if(!input.characterAllowsRequestedLevel)return deny('character_boundary');
   if(input.requestedLevel!=='standard'&&!input.romanceEnabled)return deny('romance_disabled');
   if(input.automatic&&['suggestive','mature','explicit'].includes(input.requestedLevel))return deny('automatic_adult_media_disabled');

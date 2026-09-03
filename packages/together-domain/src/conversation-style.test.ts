@@ -32,6 +32,11 @@ describe('conversation style', () => {
     expect(conversationResponseTokenBudget({ style:'texting', length:'long' })).toBe(380);
   });
 
+  it('preserves the established visible reply budgets independently from reasoning reserves',()=>{
+    expect((['micro','short','medium','long'] as const).map((length)=>conversationResponseTokenBudget({style:'texting',length}))).toEqual([80,160,300,380]);
+    expect((['micro','short','medium','long'] as const).map((length)=>conversationResponseTokenBudget({style:'paragraph',length}))).toEqual([100,220,380,520]);
+  });
+
   it('keeps cadence guidance separate from character personality', () => {
     expect(conversationStyleGuidance('texting')).toContain('Do not force slang');
     expect(conversationStyleGuidance('paragraph')).toContain('Do not become essay-like');

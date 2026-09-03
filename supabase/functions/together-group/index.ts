@@ -6,6 +6,8 @@ import {
   groupPlanBlockingParticipantRemoval,
 } from "../../../packages/together-domain/src/index.ts";
 import { chatLanguagePreferences } from "../../../packages/together-domain/src/chat-language.ts";
+import { projectConversationRows, signProjectedAttachments } from "../_shared/content-projection.ts";
+import { issueAdultAssetUrl, resolveAdultAccess, type AdultAccessContext } from "../_shared/web-adult-access.ts";
 import { parseBody } from "../_shared/body.ts";
 import { authenticated, enforceRateLimit } from "../_shared/context.ts";
 import { json, serve } from "../_shared/http.ts";
@@ -21,6 +23,8 @@ import { track } from "../_shared/together.ts";
 import { AppError } from "../_shared/types.ts";
 import { conversationArchiveFields } from "../_shared/together-conversation-archive.ts";
 import { activeConversationLimitError, enforceActiveConversationLimit, isActiveConversationLimitDatabaseError } from "../_shared/kivelle-subscription.ts";
+import { normalizeChatDynamism,normalizeReasoningPreference,reasoningPreferenceAllowedForTier } from "../../../packages/together-domain/src/chat-generation.ts";
+import { characterAdultStatusFromGroupParticipant, privateTextProjectionAuthorizedForConversation } from "../_shared/private-adult-text-policy.ts";
 
 const schema = z.discriminatedUnion("action", [
   z.object({
@@ -69,7 +73,10 @@ const schema = z.discriminatedUnion("action", [
     title: z.string().trim().max(80).nullable().optional(),
     responseStyle: z.enum(["texting", "paragraph"]).optional(),
     textSize: z.enum(["small", "medium", "large"]).optional(),
+    contentMode:z.enum(["standard","romance","mature","explicit"]).optional(),
     chatLanguage: z.enum(chatLanguagePreferences).optional(),
+    chatDynamism:z.union([z.literal(0),z.literal(25),z.literal(50),z.literal(75),z.literal(100)]).optional(),
+    reasoningPreference:z.enum(['auto','none','low','medium','high']).optional(),
     responseMode: z.enum(["automatic", "choose_speaker"]),
     energy: z.enum(["quiet", "balanced", "lively"]),
     notificationMode: z.enum(["all", "mentions", "muted"]).optional(),
@@ -93,6 +100,8 @@ const schema = z.discriminatedUnion("action", [
 
 serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
+  const adultAccess=await resolveAdultAccess(request,user,db);
+  const security={request,access:adultAccess,userId:user.id};
   const input = await parseBody(request, schema);
   const continuity = await activeContinuity(db, user.id);
   const subscription = await requireGroupChatAccess(db, user.id);
@@ -108,7 +117,7 @@ serve(async (request, correlationId) => {
     if (existing.data) {
       return json(
         {
-          data: await groupDetail(db, user.id, continuity.id, existing.data),
+          data: await groupDetail(db, user.id, continuity.id, existing.data,true,60,undefined,security),
           correlationId,
         },
         200,
@@ -246,7 +255,7 @@ serve(async (request, correlationId) => {
     );
     return json(
       {
-        data: await groupDetail(db, user.id, continuity.id, conversation),
+        data: await groupDetail(db, user.id, continuity.id, conversation,true,60,undefined,security),
         correlationId,
       },
       201,
@@ -305,6 +314,7 @@ serve(async (request, correlationId) => {
           false,
           60,
           participantsByConversation.get(String(group.id)) ?? [],
+          security,
         )
       ),
     );
@@ -323,7 +333,7 @@ serve(async (request, correlationId) => {
       }).is("archived_at", null).maybeSingle();
     if (existingFresh) {
       return json({
-        data: await groupDetail(db, user.id, continuity.id, existingFresh),
+        data: await groupDetail(db, user.id, continuity.id, existingFresh,true,60,undefined,security),
         correlationId,
       }, 200, correlationId);
     }
@@ -343,6 +353,8 @@ serve(async (request, correlationId) => {
         conversation,
         true,
         input.messageLimit,
+        undefined,
+        security,
       ),
       db.from("together_conversations")
         .update({ last_read_at: readAt }).eq("id", conversation.id).eq(
@@ -350,9 +362,11 @@ serve(async (request, correlationId) => {
           user.id,
         ).select("*").single(),
     ]);
+    const responseConversation=readConversation??conversation;
+    const adultTextAuthorized=await privateTextProjectionAuthorizedForConversation({db,userId:user.id,continuityId:continuity.id,conversation:responseConversation,access:adultAccess});
     return json(
       {
-        data: { ...detail, conversation: readConversation ?? conversation },
+        data: { ...detail, conversation: projectGroupConversation(responseConversation,adultTextAuthorized) },
         correlationId,
       },
       200,
@@ -361,12 +375,12 @@ serve(async (request, correlationId) => {
   }
   if (input.action === "messages") {
     return json({
-      data: await groupMessagePage(db, user.id, conversation.id, input.limit, input.beforeSequence, input.before),
+      data: await groupMessagePage(db, user.id, continuity.id, conversation, input.limit, input.beforeSequence, input.before,security),
       correlationId,
     }, 200, correlationId);
   }
   if (input.action === "changes") {
-    return json({ data: await groupChanges(db, user.id, continuity.id, conversation, input.since), correlationId }, 200, correlationId);
+    return json({ data: await groupChanges(db, user.id, continuity.id, conversation, input.since,security), correlationId }, 200, correlationId);
   }
   if (input.action === "fresh") {
     await enforceRateLimit(db, user.id, "together_group_fresh", 12, 3600);
@@ -410,7 +424,7 @@ serve(async (request, correlationId) => {
       previousConversationId: conversation.id,
     });
     return json({
-      data: await groupDetail(db, user.id, continuity.id, fresh),
+      data: await groupDetail(db, user.id, continuity.id, fresh,true,60,undefined,security),
       correlationId,
     }, 201, correlationId);
   }
@@ -436,7 +450,7 @@ serve(async (request, correlationId) => {
       favorite: input.favorite,
     });
     return json({
-      data: await groupDetail(db, user.id, continuity.id, data),
+      data: await groupDetail(db, user.id, continuity.id, data,true,60,undefined,security),
       correlationId,
     }, 200, correlationId);
   }
@@ -452,6 +466,7 @@ serve(async (request, correlationId) => {
           user.id,
           continuity.id,
           data ?? conversation,
+          true,60,undefined,security,
         ),
         correlationId,
       },
@@ -471,6 +486,9 @@ serve(async (request, correlationId) => {
         !Array.isArray(storedPreferences)
       ? storedPreferences as Record<string, unknown>
       : {};
+    const requestedReasoning=normalizeReasoningPreference(input.reasoningPreference);
+    const existingReasoning=normalizeReasoningPreference(currentPreferences.reasoningPreference);
+    if(input.reasoningPreference!==undefined&&requestedReasoning!==existingReasoning&&!reasoningPreferenceAllowedForTier(requestedReasoning,subscription.tier))throw new AppError('PLAN_LIMIT_REACHED',requestedReasoning==='high'?'Deep reasoning is available with Kivelle Max.':'Thoughtful reasoning is available with Kivelle+ or Max.',403,false);
     const responseStyle = input.responseStyle ??
       (currentPreferences.responseStyle === "paragraph" ? "paragraph" : "texting");
     const textSize = input.textSize ??
@@ -481,14 +499,24 @@ serve(async (request, correlationId) => {
       (chatLanguagePreferences.includes(currentPreferences.chatLanguage as never)
         ? currentPreferences.chatLanguage as typeof chatLanguagePreferences[number]
         : "en");
+    const storedMode=typeof currentPreferences.contentMode==='string'?currentPreferences.contentMode:'mature';
+    const requestedMode=input.contentMode??storedMode;
+    let contentMode=requestedMode==='standard'||requestedMode==='romance'||requestedMode==='mature'?requestedMode:'mature';
+    if(requestedMode==='explicit'){
+      if(!adultAccess.adult_eligibility.allowed)throw new AppError('FORBIDDEN','Confirm your age before changing this private conversation boundary.',403,false);
+      const participants=await activeGroupParticipants(db,{userId:user.id,continuityId:continuity.id,conversationId:conversation.id});
+      if(!participants.length||participants.some((participant)=>characterAdultStatusFromGroupParticipant(participant).ageStatus!=='confirmed_adult'))throw new AppError('FORBIDDEN','This group is not eligible for adult content.',403,false);
+      contentMode='explicit';
+    }
     const chatPreferences: Record<string, unknown> = {
       ...currentPreferences,
       responseStyle,
       textSize,
-      contentMode: "mature",
+      contentMode,
       chatLanguage,
+      chatDynamism:normalizeChatDynamism(input.chatDynamism??currentPreferences.chatDynamism),
+      reasoningPreference:normalizeReasoningPreference(input.reasoningPreference??currentPreferences.reasoningPreference),
     };
-    delete chatPreferences.spiceLevel;
     const metadata = {
       ...currentMetadata,
       chatPreferences,
@@ -516,10 +544,16 @@ serve(async (request, correlationId) => {
       responseStyle,
       textSize,
       chatLanguage,
+      contentMode,
+      chatDynamism:chatPreferences.chatDynamism,
+      reasoningPreference:chatPreferences.reasoningPreference,
       responseMode: input.responseMode,
       energy: input.energy,
       notificationMode: input.notificationMode ?? normalizeGroupSettings(currentMetadata).notificationMode,
     });
+    const previousDynamism=normalizeChatDynamism(currentPreferences.chatDynamism),previousReasoning=normalizeReasoningPreference(currentPreferences.reasoningPreference);
+    if(previousDynamism!==chatPreferences.chatDynamism)await track(db,user.id,'chat_dynamism_changed',{conversationId:conversation.id,conversationMode:'group',previousValue:previousDynamism,nextValue:chatPreferences.chatDynamism});
+    if(previousReasoning!==chatPreferences.reasoningPreference)await track(db,user.id,'reasoning_preference_changed',{conversationId:conversation.id,conversationMode:'group',previousValue:previousReasoning,nextValue:chatPreferences.reasoningPreference});
     return json(
       {
         data: await groupDetail(
@@ -527,6 +561,7 @@ serve(async (request, correlationId) => {
           user.id,
           continuity.id,
           data ?? { ...conversation, metadata },
+          true,60,undefined,security,
         ),
         correlationId,
       },
@@ -649,7 +684,7 @@ serve(async (request, correlationId) => {
     });
     return json(
       {
-        data: await groupDetail(db, user.id, continuity.id, conversation),
+        data: await groupDetail(db, user.id, continuity.id, conversation,true,60,undefined,security),
         correlationId,
       },
       200,
@@ -714,7 +749,7 @@ serve(async (request, correlationId) => {
     });
     return json(
       {
-        data: await groupDetail(db, user.id, continuity.id, conversation),
+        data: await groupDetail(db, user.id, continuity.id, conversation,true,60,undefined,security),
         correlationId,
       },
       200,
@@ -746,7 +781,7 @@ serve(async (request, correlationId) => {
   ]);
   if (archiveResult.error || !archiveResult.data) throw new AppError("CONFLICT", "This group is already archived.", 409);
   await track(db,user.id,"conversation_archived",{conversationId:conversation.id,kind:"group",restoreUntil:archive.restore_until});
-  return json({ data: { archived: true, conversation: archiveResult.data }, correlationId }, 200, correlationId);
+  return json({ data: { archived: true, conversation: projectGroupConversation(archiveResult.data,false) }, correlationId }, 200, correlationId);
 });
 
 async function requireCommonResidentWorld(db: any, instances: any[]) {
@@ -807,6 +842,7 @@ async function groupDetail(
   includeTimeline = true,
   messageLimit = 60,
   participantRows?: any[],
+  security?:{request:Request;access:AdultAccessContext;userId:string},
 ) {
   const syncedAt = new Date().toISOString();
   const participantsPromise = participantRows
@@ -816,11 +852,13 @@ async function groupDetail(
       continuityId,
       conversationId: String(conversation.id),
     });
+  const participants = await participantsPromise;
+  const adultTextAuthorized=security?await privateTextProjectionAuthorizedForConversation({db,userId,continuityId,conversation,access:security.access}):false;
   const timelinePromise = includeTimeline
     ? Promise.all([
-      groupMessagePage(db, userId, conversation.id, messageLimit),
-      db.from("together_generated_media").select("*").eq("conversation_id", conversation.id).in("status", ["queued", "generating"]).in("content_level", ["standard", "romance"]).order("created_at", { ascending: false }).limit(20),
-      db.from("together_media_offers").select("*").eq("conversation_id", conversation.id).in("status", ["pending", "accepted", "failed"]).in("content_level", ["standard", "romance"]).order("created_at", { ascending: false }).limit(20),
+      groupMessagePage(db, userId, continuityId, conversation, messageLimit,undefined,undefined,security,adultTextAuthorized),
+      db.from("together_generated_media").select("*").eq("conversation_id", conversation.id).in("status", ["queued", "generating"]).in("content_level", security?.access.authorized_web_adult?["standard","romance","suggestive","mature","explicit"]:["standard", "romance"]).order("created_at", { ascending: false }).limit(20),
+      db.from("together_media_offers").select("*").eq("conversation_id", conversation.id).in("status", ["pending", "accepted", "failed"]).in("content_level", security?.access.authorized_web_adult?["standard","romance","suggestive","mature","explicit"]:["standard", "romance"]).order("created_at", { ascending: false }).limit(20),
       db.from("together_shared_plans").select(
         "*,together_locations(id,name,slug),together_plan_attendance(*),together_plan_participant_responses(*)",
       ).eq("source_conversation_id", conversation.id).eq("user_id", userId)
@@ -841,7 +879,6 @@ async function groupDetail(
       ).eq("user_id", userId).order("created_at", { ascending: false }).limit(120),
     ])
     : null;
-  const participants = await participantsPromise;
   let messages: any[] = [],
     reactions: any[] = [],
     generatedMedia: any[] = [],
@@ -867,7 +904,7 @@ async function groupDetail(
     conversationEvents = [...(eventResult.data ?? [])].reverse();
   }
   return {
-    conversation,
+    conversation:projectGroupConversation(conversation,adultTextAuthorized),
     participants,
     messages,
     reactions,
@@ -885,11 +922,16 @@ async function groupDetail(
 async function groupMessagePage(
   db: any,
   userId: string,
-  conversationId: string,
+  continuityId: string,
+  conversation: any,
   limit: number,
   beforeSequence?: number,
   before?: string,
+  security?:{request:Request;access:AdultAccessContext;userId:string},
+  precomputedAdultTextAuthorized?:boolean,
 ) {
+  const conversationId=String(conversation.id);
+  const adultTextAuthorized=precomputedAdultTextAuthorized??(security?await privateTextProjectionAuthorizedForConversation({db,userId,continuityId,conversation,access:security.access}):false);
   let query = db.from("together_messages")
     .select("*,together_conversation_attachments(*)")
     .eq("user_id", userId)
@@ -902,27 +944,28 @@ async function groupMessagePage(
   else if (before) query = query.lt("created_at", before);
   const { data, error } = await query;
   if (error) throw new AppError("INTERNAL_ERROR", "Group messages could not be loaded.", 500, true);
-  const rows = data ?? [], hasMore = rows.length > limit, messages = [...rows.slice(0, limit)].reverse(), ids = messages.map((message: any) => String(message.id));
+  const rows = data ?? [],projected=projectConversationRows(rows as Record<string,unknown>[],{authorizedWebAdult:security?.access.authorized_web_adult===true,authorizedPrivateAdultText:adultTextAuthorized}), hasMore = rows.length > limit||projected.length>limit, messages = [...projected.slice(0, limit)].reverse(), ids = messages.filter((message:any)=>!String(message.id).startsWith('bridge-')).map((message: any) => String(message.id));
   const [reactionResult, mediaResult, offerResult] = ids.length
     ? await Promise.all([
       db.from("together_message_reactions").select("*").eq("conversation_id", conversationId).in("message_id", ids).order("created_at"),
-      db.from("together_generated_media").select("*").eq("user_id", userId).eq("conversation_id", conversationId).in("message_id", ids).in("content_level", ["standard", "romance"]).order("created_at"),
-      db.from("together_media_offers").select("*").eq("user_id", userId).eq("conversation_id", conversationId).in("message_id", ids).in("content_level", ["standard", "romance"]).order("created_at"),
+      db.from("together_generated_media").select("*").eq("user_id", userId).eq("conversation_id", conversationId).in("message_id", ids).in("content_level", security?.access.authorized_web_adult?["standard","romance","suggestive","mature","explicit"]:["standard", "romance"]).order("created_at"),
+      db.from("together_media_offers").select("*").eq("user_id", userId).eq("conversation_id", conversationId).in("message_id", ids).in("content_level", security?.access.authorized_web_adult?["standard","romance","suggestive","mature","explicit"]:["standard", "romance"]).order("created_at"),
     ])
     : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
   const failed = [reactionResult, mediaResult, offerResult].find((result: any) => result.error);
   if (failed?.error) throw new AppError("INTERNAL_ERROR", "Group message details could not be loaded.", 500, true);
-  const signed = await signGroupAssets(db, messages, mediaResult.data ?? []);
+  const signed = await signGroupAssets(db, messages, mediaResult.data ?? [],security);
   return { messages: signed.messages, reactions: reactionResult.data ?? [], generatedMedia: signed.media, mediaOffers: offerResult.data ?? [], hasMore };
 }
 
-async function groupChanges(db: any, userId: string, continuityId: string, conversation: any, since: string) {
+async function groupChanges(db: any, userId: string, continuityId: string, conversation: any, since: string,security?:{request:Request;access:AdultAccessContext;userId:string}) {
   const syncedAt = new Date().toISOString();
+  const adultTextAuthorized=security?await privateTextProjectionAuthorizedForConversation({db,userId,continuityId,conversation,access:security.access}):false;
   const [messageResult, reactionResult, mediaResult, offerResult, planResult, actionResult, eventResult, conversationResult] = await Promise.all([
     db.from("together_messages").select("*,together_conversation_attachments(*)").eq("user_id", userId).eq("conversation_id", conversation.id).gt("created_at", since).order("created_at").limit(80),
     db.from("together_message_reactions").select("*").eq("conversation_id", conversation.id).gt("created_at", since).order("created_at").limit(100),
-    db.from("together_generated_media").select("*").eq("user_id", userId).eq("conversation_id", conversation.id).in("content_level", ["standard", "romance"]).gt("updated_at", since).order("updated_at").limit(40),
-    db.from("together_media_offers").select("*").eq("user_id", userId).eq("conversation_id", conversation.id).in("content_level", ["standard", "romance"]).gt("updated_at", since).order("updated_at").limit(40),
+    db.from("together_generated_media").select("*").eq("user_id", userId).eq("conversation_id", conversation.id).in("content_level", security?.access.authorized_web_adult?["standard","romance","suggestive","mature","explicit"]:["standard", "romance"]).gt("updated_at", since).order("updated_at").limit(40),
+    db.from("together_media_offers").select("*").eq("user_id", userId).eq("conversation_id", conversation.id).in("content_level", security?.access.authorized_web_adult?["standard","romance","suggestive","mature","explicit"]:["standard", "romance"]).gt("updated_at", since).order("updated_at").limit(40),
     db.from("together_shared_plans").select("*,together_locations(id,name,slug),together_plan_attendance(*),together_plan_participant_responses(*)").eq("source_conversation_id", conversation.id).eq("user_id", userId).eq("continuity_id", continuityId).gt("updated_at", since).order("updated_at").limit(40),
     db.from("together_conversation_actions").select("*").eq("conversation_id", conversation.id).eq("user_id", userId).eq("continuity_id", continuityId).gt("updated_at", since).order("updated_at").limit(40),
     db.from("together_conversation_events").select("*").eq("conversation_id", conversation.id).eq("user_id", userId).gt("created_at", since).order("created_at").limit(80),
@@ -930,8 +973,10 @@ async function groupChanges(db: any, userId: string, continuityId: string, conve
   ]);
   const failed = [messageResult, reactionResult, mediaResult, offerResult, planResult, actionResult, eventResult, conversationResult].find((result: any) => result.error);
   if (failed?.error) throw new AppError("INTERNAL_ERROR", "The group could not catch up.", 500, true);
-  const signed = await signGroupAssets(db, messageResult.data ?? [], mediaResult.data ?? []);
-  return { conversation: conversationResult.data ?? conversation, messages: signed.messages, reactions: reactionResult.data ?? [], generatedMedia: signed.media, mediaOffers: offerResult.data ?? [], sharedPlans: (planResult.data ?? []).map(decorateGroupPlan), conversationActions: actionResult.data ?? [], conversationEvents: eventResult.data ?? [], syncedAt };
+  const projected=projectConversationRows(messageResult.data??[],{authorizedWebAdult:security?.access.authorized_web_adult===true,authorizedPrivateAdultText:adultTextAuthorized});
+  const signed = await signGroupAssets(db, projected, mediaResult.data ?? [],security);
+  const reactions=await projectReactions(db,reactionResult.data??[],adultTextAuthorized);
+  return { conversation: projectGroupConversation(conversationResult.data ?? conversation,adultTextAuthorized), messages: signed.messages, reactions, generatedMedia: signed.media, mediaOffers: offerResult.data ?? [], sharedPlans: (planResult.data ?? []).map(decorateGroupPlan), conversationActions: actionResult.data ?? [], conversationEvents: eventResult.data ?? [], syncedAt };
 }
 
 function decorateGroupPlan(plan: any) {
@@ -939,9 +984,15 @@ function decorateGroupPlan(plan: any) {
   return { ...plan, participant_responses: plan.together_plan_participant_responses ?? [], attendance: { user: attendance.find((row: any) => row.participant_type === "user") ?? null, character: attendance.find((row: any) => row.participant_type === "character" && String(row.character_instance_id) === String(plan.character_instance_id)) ?? null } };
 }
 function mergeRows<T extends { id: string }>(left: T[], right: T[]) { const values = new Map(left.map((item) => [item.id, item])); for (const item of right) values.set(item.id, item); return [...values.values()]; }
-async function signGroupAssets(db: any, messages: any[], media: any[]) {
-  const paths = [...messages.flatMap((message: any) => message.together_conversation_attachments ?? []).map((attachment: any) => String(attachment.storage_path ?? "")), ...media.filter((item: any) => item.status === "ready" && item.storage_path).map((item: any) => String(item.storage_path))].filter(Boolean), unique = [...new Set(paths)];
-  if (!unique.length) return { messages, media };
-  const { data: signed } = await db.storage.from("together-user-media").createSignedUrls(unique, 3600), byPath = new Map((signed ?? []).map((item: any) => [String(item.path), item.signedUrl]));
-  return { messages: messages.map((message: any) => ({ ...message, together_conversation_attachments: (message.together_conversation_attachments ?? []).map((attachment: any) => ({ ...attachment, signed_url: byPath.get(String(attachment.storage_path)) ?? null })) })), media: media.map((item: any) => ({ ...item, signed_url: item.storage_path ? byPath.get(String(item.storage_path)) ?? null : null })) };
+async function signGroupAssets(db: any, messages: any[], media: any[],security?:{request:Request;access:AdultAccessContext;userId:string}) {
+  const signedMessages=await signProjectedAttachments(db,messages,security?.access.authorized_web_adult===true,security);
+  const safeMedia=media.filter((item:any)=>security?.access.authorized_web_adult||(item.visibility_scope==='all'&&['safe','suggestive'].includes(String(item.content_rating))));
+  const paths=safeMedia.filter((item:any)=>item.status==='ready'&&item.storage_path&&(item.visibility_scope??'all')==='all').map((item:any)=>String(item.storage_path));
+  const{data:signed}=paths.length?await db.storage.from('together-user-media').createSignedUrls([...new Set(paths)],900):{data:[]};
+  const byPath=new Map((signed??[]).map((item:any)=>[String(item.path),item.signedUrl]));
+  const signedMedia=await Promise.all(safeMedia.map(async(item:any)=>{const restricted=item.visibility_scope==='web_adult'||item.content_rating==='explicit';const signed_url=restricted&&security?await issueAdultAssetUrl({request:security.request,db,access:security.access,userId:security.userId,generatedMediaId:String(item.id)}):byPath.get(String(item.storage_path??''))??null;const clean={...item,signed_url};delete clean.storage_path;if(!security?.access.authorized_web_adult){delete clean.prompt;delete clean.provider_metadata;}return clean;}));
+  return { messages:signedMessages, media:signedMedia };
 }
+
+async function projectReactions(db:any,reactions:any[],authorized:boolean){if(authorized||!reactions.length)return reactions;const ids=[...new Set(reactions.map((reaction:any)=>String(reaction.message_id??'')).filter(Boolean))];if(!ids.length)return[];const{data}=await db.from('together_messages').select('id').in('id',ids).eq('visibility_scope','all').in('content_rating',['safe','suggestive']);const visible=new Set((data??[]).map((message:any)=>String(message.id)));return reactions.filter((reaction:any)=>visible.has(String(reaction.message_id)));}
+function projectGroupConversation(conversation:any,authorized:boolean){const safe={...conversation},canonical=safe.canonical_context&&typeof safe.canonical_context==='object'?safe.canonical_context:{},projected=safe.safe_context&&typeof safe.safe_context==='object'?safe.safe_context:{};safe.summary=authorized?String(canonical.summary??safe.summary??'')||null:String(projected.summary??'')||null;delete safe.canonical_context;delete safe.safe_context;return safe;}

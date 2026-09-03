@@ -1,0 +1,13 @@
+diff --git a/android/src/main/java/expo/modules/audiostream/AudioRecorderManager.kt b/android/src/main/java/expo/modules/audiostream/AudioRecorderManager.kt
+index eebf2fdc8d1405e42f9db6455f55922ed3ff1a59..03061e1cc2295fbb47cc88af37234ed1f22467de 100644
+--- a/android/src/main/java/expo/modules/audiostream/AudioRecorderManager.kt
++++ b/android/src/main/java/expo/modules/audiostream/AudioRecorderManager.kt
+@@ -610,7 +610,7 @@ class AudioRecorderManager(
+                         Log.d(Constants.TAG, "Recording stopped during release")
+                     }
+ 
+-                    override fun reject(code: String, message: String?, cause: Throwable?) {
++                    override fun reject(code: String?, message: String?, cause: Throwable?) {
+                         Log.e(Constants.TAG, "Error stopping recording during release: $message", cause)
+                     }
+                 }

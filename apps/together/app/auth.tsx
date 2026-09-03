@@ -14,6 +14,8 @@ import { safeAppReturnPath } from '../src/lib/sessionRouting';
 import { resolvePostAuthDestination } from '../src/lib/authRouting';
 import type { SocialAuthProvider } from '../src/lib/socialAuth';
 import { useWebHydrated } from '../src/hooks/useWebHydrated';
+import { confirmAdultAge } from '../src/lib/api';
+import { rememberPendingBirthdate,validBirthdateEntry } from '../src/lib/pendingBirthdate';
 
 export default function Auth() {
   const params = useLocalSearchParams<{ mode?: string; next?: string }>();
@@ -23,6 +25,7 @@ export default function Auth() {
   const [creating, setCreating] = useState(params.mode !== 'signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [dateOfBirth,setDateOfBirth]=useState('');
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [socialBusy,setSocialBusy]=useState<SocialAuthProvider|null>(null);
@@ -34,6 +37,7 @@ export default function Auth() {
   const [nativeAppleAvailable,setNativeAppleAvailable]=useState(Platform.OS!=='ios');
   const { signIn, signInWithSocial, signUp, resendSignUpConfirmation, requestPasswordReset, signingOut, socialAuth } = useAuth();
   const refresh = useTogether((state) => state.refresh);
+  const setSnapshot=useTogether((state)=>state.setSnapshot);
 
   useEffect(()=>{
     if(Platform.OS!=='ios'||!socialAuth.apple)return;
@@ -74,12 +78,16 @@ export default function Auth() {
       setError('Your password needs at least 8 characters.');
       return;
     }
+    if(creating&&!validBirthdateEntry(dateOfBirth)){
+      setError('Enter your birthdate as YYYY-MM-DD.');
+      return;
+    }
     setBusy(true);
     setError('');
     setNotice('');
     try {
       if (creating) {
-        const result = await signUp(normalizedEmail, password);
+        const result = await signUp(normalizedEmail, password,dateOfBirth);
         if (result.needsEmailConfirmation) {
           setConfirmationEmail(normalizedEmail);
           setNotice('Check your email for a secure link to finish creating your account.');
@@ -123,9 +131,12 @@ export default function Auth() {
   const socialSignIn=async(provider:SocialAuthProvider)=>{
     setSocialBusy(provider);setError('');setNotice('');
     try{
+      if(creating&&!validBirthdateEntry(dateOfBirth))throw new Error('Enter your birthdate as YYYY-MM-DD.');
+      if(creating&&Platform.OS==='web')rememberPendingBirthdate(dateOfBirth);
       const requestedNext=safeAppReturnPath(params.next);
       await signInWithSocial(provider,requestedNext);
       if(Platform.OS==='web')return;
+      if(creating)setSnapshot(await confirmAdultAge(dateOfBirth));
       await refresh();const state=useTogether.getState();if(!state.snapshot)throw new Error(state.error??'Kivelle could not open your world.');
       router.replace(resolvePostAuthDestination({authenticated:true,snapshot:state.snapshot,requestedNext}) as never);
     }catch(caught){setError(caught instanceof Error?caught.message:`${provider==='google'?'Google':'Apple'} sign-in failed.`);}finally{setSocialBusy(null);}
@@ -188,6 +199,10 @@ export default function Auth() {
             <TextInput accessibilityLabel={creating ? 'Create a password' : 'Password'} editable={!authBusy} value={password} onChangeText={setPassword} autoCapitalize="none" autoCorrect={false} autoComplete={creating ? 'new-password' : 'current-password'} secureTextEntry={!visible} placeholder={creating ? 'Create a password' : 'Password'} placeholderTextColor={colors.dimmed} style={styles.passwordInput} />
             <Pressable accessibilityLabel={visible ? 'Hide password' : 'Show password'} disabled={authBusy} onPress={() => setVisible(!visible)} style={styles.eye}>{visible ? <EyeOff size={20} color={colors.text} /> : <Eye size={20} color={colors.text} />}</Pressable>
           </View>
+          {creating?<View style={styles.birthdateBlock}>
+            <TextInput accessibilityLabel="Birthdate" editable={!authBusy} value={dateOfBirth} onChangeText={setDateOfBirth} autoCapitalize="none" autoCorrect={false} keyboardType="numbers-and-punctuation" placeholder="Birthdate · YYYY-MM-DD" placeholderTextColor={colors.dimmed} maxLength={10} style={styles.input} />
+            <Text style={styles.birthdateHint}>You must be 18 or older. Your birthdate is kept private.</Text>
+          </View>:null}
 
           {error ? <View style={styles.errorBox}><Text style={styles.error}>{error}</Text></View> : null}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
@@ -259,6 +274,8 @@ const styles = StyleSheet.create({
   password: { minHeight: 50, flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
   passwordInput: { flex: 1, minHeight: 48, color: colors.text, paddingHorizontal: 15, fontSize: 16, outlineStyle: 'none' } as never,
   eye: { padding: 13 },
+  birthdateBlock:{gap:6},
+  birthdateHint:{color:colors.dimmed,fontSize:10,lineHeight:14},
   age: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13, paddingVertical: 9, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
   ageActive: { borderColor: 'rgba(216,62,234,.55)', backgroundColor: 'rgba(216,62,234,.09)' },
   check: { width: 22, height: 22, borderRadius: 7, borderWidth: 1, borderColor: colors.borderBright, alignItems: 'center', justifyContent: 'center' },

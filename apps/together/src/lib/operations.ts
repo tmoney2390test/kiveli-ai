@@ -1,5 +1,4 @@
 import Constants from "expo-constants";
-import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
 import { invoke } from "./api";
 
@@ -164,10 +163,10 @@ export async function reportClientError(
   }
   const safe = safeError(error),
     stackHash = safe.stack
-      ? await Crypto.digestStringAsync(
-        Crypto.CryptoDigestAlgorithm.SHA256,
-        safe.stack,
-      )
+      ? await import("expo-crypto").then((Crypto) => Crypto.digestStringAsync(
+          Crypto.CryptoDigestAlgorithm.SHA256,
+          safe.stack,
+        ))
       : undefined;
   await invoke("together-ops", {
     action: "report_client_error",

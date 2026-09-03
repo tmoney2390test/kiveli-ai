@@ -16,10 +16,11 @@ export type CreateMediaOfferInput={
   subjectCharacterInstanceIds?:string[];
   conversationId?:string;messageId?:string;lifeEventId?:string;dateSessionId?:string;momentId?:string;storyArcId?:string;sceneSessionId?:string;sharedPlanId?:string;
   title?:string;companionMessage?:string;contentLevel?:MediaContentLevel;shotType?:MediaShotType;offerKey?:string;previewMetadata?:Record<string,unknown>;
+  adultPipelineAuthorized?:boolean;
 };
 
 export async function createMediaOffer(db:SupabaseClient,input:CreateMediaOfferInput):Promise<Record<string,any>|null>{
-  const originalPreview=input.previewMetadata??{},productionRequest=resolveProductionSafePhotoRequest({requestText:typeof originalPreview.requestText==='string'?originalPreview.requestText:undefined,requestedContentLevel:input.contentLevel,fallbackLevel:input.source==='date'?'romance':'standard'});
+  const originalPreview=input.previewMetadata??{},productionRequest=resolveProductionSafePhotoRequest({requestText:typeof originalPreview.requestText==='string'?originalPreview.requestText:undefined,requestedContentLevel:input.contentLevel,fallbackLevel:input.source==='date'?'romance':'standard',adultPipelineAuthorized:input.adultPipelineAuthorized===true});
   const subjectIds=normalizeMediaSubjectIds(input.characterInstanceId,input.subjectCharacterInstanceIds);
   const[subjects,profileResult,tier]=await Promise.all([
     loadValidatedMediaSubjects(db,{userId:input.userId,characterInstanceId:input.characterInstanceId,subjectCharacterInstanceIds:subjectIds,conversationId:input.conversationId}),
@@ -57,13 +58,13 @@ export async function createMediaOffer(db:SupabaseClient,input:CreateMediaOfferI
   return data;
 }
 
-export async function listPendingMediaOffers(db:SupabaseClient,input:{userId:string;continuityId?:string|null;characterInstanceId?:string|null}):Promise<Record<string,any>[]>{
+export async function listPendingMediaOffers(db:SupabaseClient,input:{userId:string;continuityId?:string|null;characterInstanceId?:string|null;adultPipelineAuthorized?:boolean}):Promise<Record<string,any>[]>{
   const now=new Date().toISOString();
   const{data:expired}=await db.from('together_media_offers').update({status:'expired',updated_at:now}).eq('user_id',input.userId).eq('status','pending').not('expires_at','is',null).lte('expires_at',now).select('id,source,subscription_tier_at_creation,credit_cost,character_instance_id,included_benefit_type,preview_metadata');
   for(const offer of expired??[]){if(offer.included_benefit_type==='daily_companion_photo')await releaseDailyPhotoAllowance(db,{userId:input.userId,reservationKey:dailyPhotoReservationKey(offer.preview_metadata)});await track(db,input.userId,'media_offer_expired',{offerId:offer.id,source:offer.source,tier:offer.subscription_tier_at_creation,creditCost:offer.credit_cost,characterInstanceId:offer.character_instance_id});}
   // Keep recent failed requests in the chat snapshot so the inline card can
   // explain what happened and offer a retry instead of disappearing silently.
-  let query=db.from('together_media_offers').select('*').eq('user_id',input.userId).in('status',['pending','accepted','failed']).in('content_level',['standard','romance']).order('created_at',{ascending:false}).limit(40);
+  let query=db.from('together_media_offers').select('*').eq('user_id',input.userId).in('status',['pending','accepted','failed']).in('content_level',input.adultPipelineAuthorized?['standard','romance','suggestive','mature','explicit']:['standard','romance']).order('created_at',{ascending:false}).limit(40);
   if(input.continuityId)query=query.eq('continuity_id',input.continuityId);
   if(input.characterInstanceId)query=query.eq('character_instance_id',input.characterInstanceId);
   const{data,error}=await query;if(error)throw new AppError('INTERNAL_ERROR','Photo offers could not be loaded.',500,true);

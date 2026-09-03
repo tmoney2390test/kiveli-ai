@@ -14,3 +14,4 @@ apps/together/.together-web-*.log
 apps/together/deploy.tar.gz
 .codex-output/
 .codex-temp/
+work/

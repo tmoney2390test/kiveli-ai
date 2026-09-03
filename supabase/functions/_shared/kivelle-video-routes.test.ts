@@ -1,132 +1,148 @@
 import { assert, assertEquals, assertNotEquals, assertRejects } from 'jsr:@std/assert@1';
-import { buildVideoProviderPayload, canSelectVideoRoute, configuredVideoRouteCatalog, defaultVideoRouteId, resolveVideoRoute, sourceVideoAspectRatio, videoCreditCost, VIDEO_ROUTE_IDS, VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT } from './kivelle-video-routes.ts';
+import {
+  buildVideoProviderPayload,
+  buildVideoMotionPrompt,
+  canSelectVideoRoute,
+  configuredVideoRouteCatalog,
+  defaultVideoRouteId,
+  publicVideoRoutes,
+  resolveVideoRoute,
+  sourceVideoAspectRatio,
+  validateVideoSettings,
+  videoCreditCost,
+  videoProviderBaselineCostUsd,
+  VIDEO_ROUTE_IDS,
+  VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT,
+} from './kivelle-video-routes.ts';
 import { findQuoteAmount } from './wavespeed.ts';
 
-function catalog() {
-  const before = Object.fromEntries(['KIVELLE_VIDEO_ENABLED', 'KIVELLE_WAVESPEED_ENABLED', 'WAVESPEED_API_KEY', ...VIDEO_ROUTE_IDS.map((id) => ({
-    'wavespeed-gemini-omni-flash-i2v': 'KIVELLE_VIDEO_ROUTE_GEMINI_OMNI_FLASH_I2V_ENABLED',
-    'wavespeed-minimax-h3-i2v': 'KIVELLE_VIDEO_ROUTE_MINIMAX_H3_I2V_ENABLED',
-    'wavespeed-p-video-i2v': 'KIVELLE_VIDEO_ROUTE_P_VIDEO_I2V_ENABLED',
-    'wavespeed-gemini-omni-flash-r2v': 'KIVELLE_VIDEO_ROUTE_GEMINI_OMNI_FLASH_R2V_ENABLED',
-    'wavespeed-minimax-h3-r2v': 'KIVELLE_VIDEO_ROUTE_MINIMAX_H3_R2V_ENABLED',
-  }[id]))].map((name) => [String(name), Deno.env.get(String(name))]));
-  Deno.env.set('KIVELLE_VIDEO_ENABLED', 'true'); Deno.env.set('KIVELLE_WAVESPEED_ENABLED', 'true'); Deno.env.set('WAVESPEED_API_KEY', 'test');
-  for (const name of Object.keys(before).filter((name) => name.includes('_ROUTE_'))) Deno.env.set(name, 'true');
-  return { routes: configuredVideoRouteCatalog(), restore: () => { for (const [name, value] of Object.entries(before)) value === undefined ? Deno.env.delete(name) : Deno.env.set(name, value); } };
+const modelEnv=(id:string)=>`KIVELLE_VIDEO_MODEL_${id.replaceAll('-','_').toUpperCase()}_ENABLED`;
+function catalog(expose=true){
+  const names=['KIVELLE_VIDEO_ENABLED','KIVELLE_WAVESPEED_ENABLED','WAVESPEED_API_KEY','EXPOSE_VIDEO_MODEL_PICKER','KIVELLE_VIDEO_MODEL_SELECTOR_MODE','KIVELLE_VIDEO_DEFAULT_ROUTE_ID','KIVELLE_VIDEO_CREDITS_PER_USD','KIVELLE_VIDEO_MINIMUM_CREDITS',...VIDEO_ROUTE_IDS.map(modelEnv)];
+  const before=Object.fromEntries(names.map((name)=>[name,Deno.env.get(name)]));
+  Deno.env.set('KIVELLE_VIDEO_ENABLED','true');Deno.env.set('KIVELLE_WAVESPEED_ENABLED','true');Deno.env.set('WAVESPEED_API_KEY','test');Deno.env.set('EXPOSE_VIDEO_MODEL_PICKER',String(expose));Deno.env.set('KIVELLE_VIDEO_MODEL_SELECTOR_MODE','all');Deno.env.set('KIVELLE_VIDEO_CREDITS_PER_USD','250');Deno.env.set('KIVELLE_VIDEO_MINIMUM_CREDITS','25');
+  for(const id of VIDEO_ROUTE_IDS)Deno.env.set(modelEnv(id),'true');
+  return{routes:configuredVideoRouteCatalog(),restore:()=>{for(const[name,value]of Object.entries(before))value===undefined?Deno.env.delete(name):Deno.env.set(name,value);}};
 }
 
-Deno.test('video attempt limiter stays separate from the successful-video allowance', () => {
-  assertNotEquals(VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT.action, 'together_video_submit');
-  assert(VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT.limit > 3);
-  assertEquals(VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT.windowSeconds, 15 * 60);
-  assert(VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT.message.includes('Wait a few minutes'));
+Deno.test('video attempt limiter stays separate from successful-video allowance',()=>{
+  assertNotEquals(VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT.action,'together_video_submit');
+  assert(VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT.limit>20);
+  assertEquals(VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT.windowSeconds,15*60);
 });
 
-Deno.test('video route builders emit exact model-specific fields without cross-route leakage', () => {
-  const state = catalog();
-  try {
-    const base = { sourceImageUrl: 'https://example.test/source.jpg', canonicalReferences: [{url:'https://example.test/ref.jpg',role:'character_identity' as const}], sourceAspectRatio: '9:16' as const, motionPreset: 'subtle' as const, durationSeconds:10 };
-    const payloads = Object.fromEntries(state.routes.map((route) => [route.id, buildVideoProviderPayload(route, base)]));
-    const geminiImage = payloads['wavespeed-gemini-omni-flash-i2v']!;
-    const minimax = payloads['wavespeed-minimax-h3-i2v']!;
-    const pVideo = payloads['wavespeed-p-video-i2v']!;
-    const geminiReferences = payloads['wavespeed-gemini-omni-flash-r2v']!;
-    const minimaxReferences = payloads['wavespeed-minimax-h3-r2v']!;
-    assertEquals(Object.keys(geminiImage).sort(), ['aspect_ratio', 'duration', 'image', 'prompt']);
-    assertEquals(minimax.resolution, '768p');
-    assertEquals(Object.keys(minimax).sort(), ['duration', 'image', 'prompt', 'resolution']);
-    assertEquals(pVideo.save_audio, false);
-    assertEquals(Object.keys(pVideo).sort(), ['duration', 'image', 'prompt', 'resolution', 'save_audio', 'seed']);
-    assertEquals(geminiReferences.images, ['https://example.test/source.jpg', 'https://example.test/ref.jpg']);
-    assertEquals(Object.keys(geminiReferences).sort(), ['aspect_ratio', 'duration', 'images', 'prompt']);
-    assertEquals(minimaxReferences.reference_images, ['https://example.test/source.jpg', 'https://example.test/ref.jpg']);
-    assertEquals(Object.keys(minimaxReferences).sort(), ['aspect_ratio', 'duration', 'prompt', 'reference_images', 'resolution', 'seed']);
-  } finally { state.restore(); }
+Deno.test('exact model registry exposes every enabled testing endpoint and capability quote',()=>{
+  const state=catalog();try{
+    assertEquals([...state.routes.map((route)=>route.id)].sort(),[...VIDEO_ROUTE_IDS].sort());
+    const options=publicVideoRoutes(state.routes,{includeAdultCapable:true});
+    assertEquals(options.length,VIDEO_ROUTE_IDS.length);
+    for(const option of options){
+      assert(option.modelEndpoint?.includes('/'));
+      assert(option.rawModelNamesExposed);
+      assert(['sfw','adult_capable'].includes(option.contentClass));
+      assert(option.allowedDurations.length>0);
+      assert(option.supportedResolutions.length>0);
+      for(const resolution of option.supportedResolutions)for(const duration of option.allowedDurations){
+        assert(Number.isFinite(option.creditQuotes[`${resolution}:${duration}:silent`]));
+        assert(Number.isFinite(option.providerCostQuotes[`${resolution}:${duration}:silent`]));
+        if(!['none','reference_only'].includes(option.audioMode))assert(Number.isFinite(option.creditQuotes[`${resolution}:${duration}:sound`]));
+        if(!['none','reference_only'].includes(option.audioMode))assert(Number.isFinite(option.providerCostQuotes[`${resolution}:${duration}:sound`]));
+      }
+    }
+  }finally{state.restore();}
 });
 
-Deno.test('reference route rejects a source without an approved canonical reference', async () => {
-  const state = catalog();
-  try {
-    const route = state.routes.find((item) => item.id.endsWith('r2v'))!;
-    await assertRejects(async () => buildVideoProviderPayload(route, { sourceImageUrl: 'https://example.test/source.jpg', sourceAspectRatio: '16:9', motionPreset: 'playful', durationSeconds:10 }));
-  } finally { state.restore(); }
+Deno.test('standard sessions receive only explicit Safe for work video options',()=>{
+  const state=catalog();try{
+    const options=publicVideoRoutes(state.routes);
+    assertEquals(options.length,VIDEO_ROUTE_IDS.length/2);
+    assert(options.every((option)=>option.contentClass==='sfw'&&option.contentLabel==='Safe for work'));
+    assert(options.every((option)=>!option.displayName.includes('Spicy')&&!option.modelEndpoint?.includes('-spicy')));
+    const adultOptions=publicVideoRoutes(state.routes,{includeAdultCapable:true});
+    assert(adultOptions.some((option)=>option.contentClass==='adult_capable'&&option.modelEndpoint?.includes('-spicy')));
+  }finally{state.restore();}
 });
 
-Deno.test('direct video preserves the user direction and canonical references without a source photo', () => {
-  const state = catalog();
-  try {
-    const route = state.routes.find((item) => item.id === 'wavespeed-minimax-h3-r2v')!;
-    const payload = buildVideoProviderPayload(route, {
-      canonicalReferences: [
-        {url:'https://example.test/identity.jpg',role:'character_identity'},
-        {url:'https://example.test/location.jpg',role:'location_environment'},
-      ],
-      sourceAspectRatio:'16:9',
-      motionPreset:'cinematic',
-      durationSeconds:15,
-      userPrompt:'Walk through the room and look toward the camera.',
-      context:{companionName:'Ari',locationName:'Moonlight Cafe',activity:'meeting the user'},
-    });
-    assertEquals(payload.reference_images,['https://example.test/identity.jpg','https://example.test/location.jpg']);
-    assertEquals(payload.duration,15);
-    assertEquals(String(payload.prompt).includes('User direction: Walk through the room'),true);
-    assertEquals(String(payload.prompt).includes('Canonical location: Moonlight Cafe.'),true);
-  } finally { state.restore(); }
+Deno.test('model payload builders preserve exact endpoint-specific audio fields',()=>{
+  const state=catalog();try{
+    const payload=(id:typeof VIDEO_ROUTE_IDS[number],sound=false)=>{const route=state.routes.find((item)=>item.id===id)!;return buildVideoProviderPayload(route,{sourceImageUrl:'https://example.test/source.jpg',lastImageUrl:'https://example.test/last.jpg',sourceAspectRatio:'9:16',motionPreset:'subtle',resolution:route.defaultResolution,duration:route.defaultDuration,sound});};
+    assertEquals(payload('ltx-2-3-spicy').preset,'tuned');
+    assertEquals(payload('ltx-2-3-sfw').preset,'tuned');
+    const vidu=payload('vidu-q3-spicy',true);assertEquals(vidu.generate_audio,true);assertEquals(vidu.bgm,false);assertEquals(vidu.movement_amplitude,'auto');
+    const seedance=payload('seedance-1-5-pro-spicy',true);assertEquals(seedance.generate_audio,true);
+    const minimax=payload('minimax-h3-spicy');assertEquals(minimax.last_image,'https://example.test/last.jpg');assertEquals('generate_audio'in minimax,false);
+    for(const id of ['wan-2-7-spicy','wan-2-6-spicy','wan-2-2-spicy'] as const)assertEquals('generate_audio'in payload(id),false);
+  }finally{state.restore();}
 });
 
-Deno.test('P-Video is the silent lowest-cost default for prompt and existing-photo video',()=>{
-  const state=catalog(),previousDefault=Deno.env.get('KIVELLE_VIDEO_DEFAULT_ROUTE_ID');
-  try{
-    Deno.env.delete('KIVELLE_VIDEO_DEFAULT_ROUTE_ID');
-    const route=state.routes.find((item)=>item.id==='wavespeed-p-video-i2v')!;
-    assertEquals(defaultVideoRouteId(),'wavespeed-p-video-i2v');
-    assertEquals(route.sourceModes.includes('existing_photo'),true);
-    assertEquals(route.sourceModes.includes('generated_first_frame'),true);
-    assertEquals(route.allowedDurations,[10,15,20]);
-    assertEquals(route.audioBehavior,'silent');
-    assertEquals(route.audioLabel,'Silent · lowest cost');
-  }finally{previousDefault===undefined?Deno.env.delete('KIVELLE_VIDEO_DEFAULT_ROUTE_ID'):Deno.env.set('KIVELLE_VIDEO_DEFAULT_ROUTE_ID',previousDefault);state.restore();}
+Deno.test('video prompts preserve coverage and reject doll-like or unstable anatomy',()=>{
+  const prompt=buildVideoMotionPrompt('playful','Give a small wave',{locationName:'Aurora Spa'});
+  assert(prompt.includes('Keep every originally covered body area covered'));
+  assert(prompt.includes('doll-like'));
+  assert(prompt.includes('missing, fused, duplicated, or morphing'));
 });
 
-Deno.test('source orientation maps only to supported video aspect ratios', () => {
-  assertEquals(sourceVideoAspectRatio(800, 1200), '9:16');
-  assertEquals(sourceVideoAspectRatio(1600, 900), '16:9');
-  assertEquals(sourceVideoAspectRatio(null, null), '9:16');
+Deno.test('authorized adult video prompts preserve requested composition without silent SFW substitution',()=>{
+  const prompt=buildVideoMotionPrompt('cinematic','A consenting fictional adult couple shares an explicit intimate moment',{companionName:'Elena',locationName:'Snowcrest'},{contentLevel:'explicit',adultAuthorized:true,anonymousAdultPartner:true});
+  assert(prompt.includes('approved fictional-adult clothing state, intimate composition'));
+  assert(prompt.includes('exactly the companion and the one anonymous fictional adult partner'));
+  assert(prompt.includes('age 25 or older'));
+  assert(prompt.includes('without adding censorship'));
+  assert(!prompt.includes('Keep every originally covered body area covered'));
 });
 
-Deno.test('selector mode and tester allowlist are enforced on the server', () => {
-  const previousMode=Deno.env.get('KIVELLE_VIDEO_MODEL_SELECTOR_MODE'),previousUsers=Deno.env.get('KIVELLE_VIDEO_TESTER_USER_IDS');
-  try{
+Deno.test('pricing follows model, resolution, duration, and toggleable sound',()=>{
+  const state=catalog();try{
+    const seedance=state.routes.find((item)=>item.id==='seedance-1-5-pro-spicy')!;
+    assertEquals(videoProviderBaselineCostUsd(seedance,{resolution:'720p',duration:5,sound:false}),.13);
+    assertEquals(videoProviderBaselineCostUsd(seedance,{resolution:'720p',duration:5,sound:true}),.26);
+    assertEquals(videoCreditCost(seedance,{resolution:'720p',duration:5,sound:false}),33);
+    const ltx=state.routes.find((item)=>item.id==='ltx-2-3-spicy')!;
+    assertEquals(videoProviderBaselineCostUsd(ltx,{resolution:'480p',duration:20,sound:false}),.4);
+    assertEquals(videoProviderBaselineCostUsd(ltx,{resolution:'480p',duration:20,sound:true}),.4);
+  }finally{state.restore();}
+});
+
+Deno.test('unsupported settings and arbitrary or disabled model identifiers fail closed',async()=>{
+  const state=catalog();try{
+    const route=state.routes.find((item)=>item.id==='wan-2-2-spicy')!;
+    await assertRejects(async()=>validateVideoSettings(route,{resolution:'1080p',duration:5,sound:false}));
+    await assertRejects(async()=>validateVideoSettings(route,{resolution:'720p',duration:5,sound:true}));
+    await assertRejects(async()=>resolveVideoRoute('wavespeed/fake-model','user'));
+    Deno.env.set(modelEnv('wan-2-2-spicy'),'false');
+    await assertRejects(async()=>resolveVideoRoute('wan-2-2-spicy','user'));
+  }finally{state.restore();}
+});
+
+Deno.test('selector flag and tester allowlist are enforced server-side',()=>{
+  const state=catalog(false),previousUsers=Deno.env.get('KIVELLE_VIDEO_TESTER_USER_IDS');try{
     Deno.env.set('KIVELLE_VIDEO_MODEL_SELECTOR_MODE','testers');Deno.env.set('KIVELLE_VIDEO_TESTER_USER_IDS','tester-id, tester@example.test');
     assertEquals(canSelectVideoRoute('other-id','other@example.test'),false);
     assertEquals(canSelectVideoRoute('tester-id',null),true);
     assertEquals(canSelectVideoRoute('other-id','TESTER@example.test'),true);
-    Deno.env.set('KIVELLE_VIDEO_MODEL_SELECTOR_MODE','all');assertEquals(canSelectVideoRoute('other-id',null),true);
-    Deno.env.set('KIVELLE_VIDEO_MODEL_SELECTOR_MODE','off');assertEquals(canSelectVideoRoute('tester-id',null),false);
-  }finally{previousMode===undefined?Deno.env.delete('KIVELLE_VIDEO_MODEL_SELECTOR_MODE'):Deno.env.set('KIVELLE_VIDEO_MODEL_SELECTOR_MODE',previousMode);previousUsers===undefined?Deno.env.delete('KIVELLE_VIDEO_TESTER_USER_IDS'):Deno.env.set('KIVELLE_VIDEO_TESTER_USER_IDS',previousUsers);}
+    Deno.env.set('EXPOSE_VIDEO_MODEL_PICKER','true');assertEquals(canSelectVideoRoute('other-id',null),true);
+  }finally{previousUsers===undefined?Deno.env.delete('KIVELLE_VIDEO_TESTER_USER_IDS'):Deno.env.set('KIVELLE_VIDEO_TESTER_USER_IDS',previousUsers);state.restore();}
 });
 
-Deno.test('spoofed and disabled canonical route IDs are rejected', async () => {
-  const state=catalog(),previousMode=Deno.env.get('KIVELLE_VIDEO_MODEL_SELECTOR_MODE');
-  try{
-    Deno.env.set('KIVELLE_VIDEO_MODEL_SELECTOR_MODE','all');
-    await assertRejects(async()=>resolveVideoRoute('wavespeed/fake-model','user'));
-    Deno.env.set('KIVELLE_VIDEO_ROUTE_P_VIDEO_I2V_ENABLED','false');
-    await assertRejects(async()=>resolveVideoRoute('wavespeed-p-video-i2v','user'));
-    assertEquals(state.routes.every((route)=>videoCreditCost(route,10)===250),true);
-  }finally{previousMode===undefined?Deno.env.delete('KIVELLE_VIDEO_MODEL_SELECTOR_MODE'):Deno.env.set('KIVELLE_VIDEO_MODEL_SELECTOR_MODE',previousMode);state.restore();}
-});
-
-Deno.test('WaveSpeed price responses require a finite authoritative quote', () => {
-  assertEquals(findQuoteAmount({ data: { price: 0.7 } }), 0.7);
-  assertEquals(findQuoteAmount({ result: { total_price: '$0.80' } }), 0.8);
-  assertEquals(Number.isNaN(findQuoteAmount({ data: { message: 'unknown' } })), true);
-});
-
-Deno.test('Gemini route estimates reflect current 10-second provider pricing',()=>{
-  const state=catalog();
-  try{
-    assertEquals(state.routes.find((route)=>route.id==='wavespeed-gemini-omni-flash-i2v')?.estimatedProviderCostUsd,1.40);
-    assertEquals(state.routes.find((route)=>route.id==='wavespeed-gemini-omni-flash-r2v')?.estimatedProviderCostUsd,1.60);
+Deno.test('hidden model names resolve through future consumer tiers without changing backend registry',()=>{
+  const state=catalog(false);try{
+    const options=publicVideoRoutes(state.routes);
+    assert(options.length>=3);
+    assert(options.every((option)=>!option.modelEndpoint&&!option.modelKey&&!option.rawModelNamesExposed));
+    assert(options.some((option)=>option.id==='tier:standard'));
+    assertEquals(resolveVideoRoute('tier:standard','user').futureConsumerTier,'standard');
   }finally{state.restore();}
+});
+
+Deno.test('Seedance 1.5 remains the safe-cost default and source orientation is normalized',()=>{
+  const state=catalog();try{
+    Deno.env.delete('KIVELLE_VIDEO_DEFAULT_ROUTE_ID');assertEquals(defaultVideoRouteId(),'seedance-1-5-pro-sfw');
+    assertEquals(sourceVideoAspectRatio(800,1200),'9:16');assertEquals(sourceVideoAspectRatio(1600,900),'16:9');assertEquals(sourceVideoAspectRatio(null,null),'9:16');
+  }finally{state.restore();}
+});
+
+Deno.test('WaveSpeed price responses require a finite authoritative quote',()=>{
+  assertEquals(findQuoteAmount({data:{price:.7}}),.7);
+  assertEquals(findQuoteAmount({result:{total_price:'$0.80'}}),.8);
+  assertEquals(Number.isNaN(findQuoteAmount({data:{message:'unknown'}})),true);
 });

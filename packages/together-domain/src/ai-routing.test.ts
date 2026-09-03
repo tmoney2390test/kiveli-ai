@@ -46,7 +46,11 @@ describe('Kivelle AI routing',()=>{
   });
   it('retains adult-age and hard-safety blocks for photo requests',()=>{
     expect(route('send me a nude photo',{ageVerified:false,photoRequest:true}).hardBlocked).toBe(true);
-    expect(route('force her to send a nude photo',{photoRequest:true}).hardBlocked).toBe(true);
+    expect(route('force her to send a nude photo',{photoRequest:true,photoSafetyBlocked:true}).hardBlocked).toBe(true);
+  });
+  it('does not let a dialogue-only lexical match override an approved media request',()=>{
+    expect(route('send an adult photo using a forced-perspective camera angle',{photoRequest:true,photoAdultRequest:true,photoSafetyBlocked:false})).toMatchObject({hardBlocked:false,provider:'openai'});
+    expect(route('send an adult photo using a forced-perspective camera angle',{photoRequest:true,photoAdultRequest:true,photoSafetyBlocked:false,ageVerified:false}).hardBlocked).toBe(true);
   });
   it('requires canonical age verification and an adult character',()=>{
     expect(route('I want to have sex with you',{ageVerified:false}).provider).not.toBe('xai');
@@ -56,6 +60,7 @@ describe('Kivelle AI routing',()=>{
     expect(route('sexual content with a minor').hardBlocked).toBe(true);
     expect(route('force her to have sex').hardBlocked).toBe(true);
   });
+  it.each(['paying an escort for sex','make a sexual deepfake','a barely legal teen sexual scene'])('hard blocks prohibited adult categories: %s',(message)=>expect(route(message).hardBlocked).toBe(true));
   it('requires both xAI flags and its key',()=>{
     expect(route('I want to have sex with you',{providers:{...providers,xaiEnabled:false}})).toMatchObject({provider:'openai',resolvedMode:'mature',reason:'adult_expression_downgrade'});
     expect(route('I want to have sex with you',{providers:{...providers,xai:false}})).toMatchObject({provider:'openai',resolvedMode:'mature',reason:'adult_expression_downgrade'});

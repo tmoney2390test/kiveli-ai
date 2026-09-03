@@ -334,7 +334,7 @@ async function reconcileVoiceCallContinuity(
     input.db.from("together_open_threads").select("*").eq("user_id", userId).eq(
       "character_instance_id",
       instanceId,
-    ).is("resolved_at", null).limit(20),
+    ).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).is("resolved_at", null).limit(20),
     input.db.from("together_relationship_states").select("*").eq(
       "user_id",
       userId,
@@ -343,11 +343,12 @@ async function reconcileVoiceCallContinuity(
       "relationship_stage,continuity_id,together_character_templates(spice_level),together_character_versions(personality_config)",
     ).eq("id", instanceId).eq("user_id", userId).maybeSingle(),
     input.db.from("together_conversations").select(
-      "summary,summary_through,summary_message_count,metadata",
+      "safe_context,summary_through,summary_message_count,metadata",
     ).eq("id", conversationId).eq("user_id", userId).maybeSingle(),
     input.db.from("together_relationship_reflections").select(
       "user_view,metadata",
     ).eq("character_instance_id", instanceId).eq("user_id", userId)
+      .eq('visibility_scope','all').in('content_rating',['safe','suggestive'])
       .maybeSingle(),
   ]);
   if (!relationship || !instance) return;
@@ -463,6 +464,7 @@ async function reconcileVoiceCallContinuity(
     continuity_id: instance.continuity_id,
     user_view: userView,
     updated_through_message_id: input.assistantMessageId,
+    content_rating:'safe',visibility_scope:'all',moderation_version:'safe-voice-v1',
     metadata: {
       ...(reflection?.metadata ?? {}),
       userViewSource: "voice_call_evidence",
@@ -589,7 +591,7 @@ async function reconcileVoiceCallContinuity(
       status: "pending",
       payload: {
         ...candidate.payload,
-        source: "voice_call",
+      source: "voice_call",
         callSessionId: input.call.id,
       },
       confidence: candidate.confidence,
@@ -615,17 +617,15 @@ async function reconcileVoiceCallContinuity(
   }
   const { data: messageRows } = await input.db.from("together_messages").select(
     "id,role,content,created_at",
-  ).eq("user_id", userId).eq("conversation_id", conversationId).order(
+  ).eq("user_id", userId).eq("conversation_id", conversationId).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).order(
     "created_at",
     { ascending: false },
   ).limit(80);
   const messages = [...(messageRows ?? [])].reverse();
   if (messages.length) {
+    const priorSafe=record(conversation?.safe_context),safeSummary=mergeConversationSummary(String(priorSafe.summary??""),messages);
     await input.db.from("together_conversations").update({
-      summary: mergeConversationSummary(
-        String(conversation?.summary ?? ""),
-        messages,
-      ),
+      safe_context:{...priorSafe,summary:safeSummary,updatedAt:now.toISOString()},
       summary_through: messages.at(-1)?.created_at,
       summary_message_count: messages.length,
       updated_at: now.toISOString(),

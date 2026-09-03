@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Easing,
@@ -238,11 +239,7 @@ export function ChatPhotoRequestCard({
       : "";
   if (ready && media?.signed_url) {
     return (
-      <View
-        accessible
-        accessibilityLabel="Generated companion photo"
-        style={styles.chatPhotoCard}
-      >
+      <View style={styles.chatPhotoCard}>
         <Pressable
           accessibilityRole="imagebutton"
           accessibilityLabel="Open generated photo"
@@ -266,7 +263,7 @@ export function ChatPhotoRequestCard({
   }
   return (
     <View
-      accessible
+      accessible={generating || preparing || !offer}
       accessibilityLiveRegion={generating ? "polite" : "none"}
       accessibilityLabel={generating
         ? "Taking your photo"
@@ -325,11 +322,14 @@ export function ChatPhotoRequestCard({
               ? (
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel="Retry photo generation"
+                  accessibilityState={{ disabled: busy, busy }}
+                  disabled={busy}
                   onPress={onRetry}
-                  style={styles.chatPhotoRetry}
+                  style={[styles.chatPhotoRetry, busy && { opacity: .6 }]}
                 >
-                  <RefreshCw size={14} color="#FFF" />
-                  <Text style={styles.chatPhotoRetryText}>Try again</Text>
+                  {busy?<ActivityIndicator size="small" color="#FFF"/>:<RefreshCw size={14} color="#FFF" />}
+                  <Text style={styles.chatPhotoRetryText}>{busy?"Retrying…":"Try again"}</Text>
                 </Pressable>
               )
               : null}

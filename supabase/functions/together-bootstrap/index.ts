@@ -7,6 +7,7 @@ import { AppError } from '../_shared/types.ts';
 import { buildCharacterPresenceSnapshot, buildExploreCatalogSnapshot, buildSnapshot, resolveLifeState, track } from '../_shared/together.ts';
 import { getActiveConversation } from '../_shared/together-conversation.ts';
 import { ensureMainContinuity } from '../_shared/together-continuity.ts';
+import { isAtLeast18 } from '../../../packages/together-domain/src/adult-access.ts';
 
 const onboardingSchema = z.object({
   action: z.literal('complete_onboarding').optional(),
@@ -20,7 +21,7 @@ const onboardingSchema = z.object({
   experienceTimezone:z.string().trim().min(1).max(80).default('UTC'),
 });
 const schema = z.union([
-  z.object({ action: z.literal('confirm_age'), ageConfirmed: z.literal(true) }),
+  z.object({ action: z.literal('confirm_age'), ageConfirmed: z.literal(true),dateOfBirth:z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
   onboardingSchema,
 ]);
 const relationOne=(value:unknown):Record<string,unknown>|null=>{const row=Array.isArray(value)?value[0]:value;return row&&typeof row==='object'?row as Record<string,unknown>:null;};
@@ -65,8 +66,9 @@ serve(async (request, correlationId) => {
   const input = await parseBody(request, schema);
   const now = new Date().toISOString();
   if ('action' in input && input.action === 'confirm_age') {
-    await confirmAdultProfile(db, user, now);
-    await track(db, user.id, 'adult_age_confirmed', { source: 'explicit_confirmation' });
+    if(!isAtLeast18(input.dateOfBirth,new Date()))throw new AppError('FORBIDDEN','You must be 18 or older to use Kivelle.',403,false);
+    await confirmAdultProfile(db, user, now,input.dateOfBirth);
+    await track(db, user.id, 'adult_age_confirmed', { source: 'birthdate' });
     return json({data:await buildSnapshot(db,user.id),correlationId},201,correlationId);
   }
 
@@ -137,15 +139,19 @@ serve(async (request, correlationId) => {
   return json({ data: await buildSnapshot(db, user.id), correlationId }, 201, correlationId);
 });
 
-async function confirmAdultProfile(db:SupabaseClient,user:{id:string;email?:string|null;user_metadata?:Record<string,unknown>},now:string){
-  const existing=await db.from('together_profiles').select('user_id,age_verified_at').eq('user_id',user.id).maybeSingle();
+async function confirmAdultProfile(db:SupabaseClient,user:{id:string;email?:string|null;user_metadata?:Record<string,unknown>},now:string,dateOfBirth:string){
+  const existing=await db.from('together_profiles').select('user_id,age_verified_at,content_preferences').eq('user_id',user.id).maybeSingle();
   if(existing.error)throw new AppError('INTERNAL_ERROR','Kivelle could not confirm your age.',500,true);
   if(!existing.data){
     const metadata=user.user_metadata??{};
     const candidate=[metadata.display_name,metadata.full_name,metadata.name,user.email?.split('@')[0]].find((value)=>typeof value==='string'&&value.trim());
     const displayName=typeof candidate==='string'?candidate.trim().slice(0,50):'You';
-    const created=await db.from('together_profiles').insert({user_id:user.id,display_name:displayName,age_verified_at:now,onboarding_completed_at:null,updated_at:now});
+    const created=await db.from('together_profiles').insert({user_id:user.id,display_name:displayName,date_of_birth:dateOfBirth,age_verified_at:now,adult_eligible_at:now,adult_eligibility_method:'self_declared_dob_v2',content_preferences:{contentMode:'explicit',romanceEnabled:true,matureContentEnabled:false,explicitContentEnabled:true,suggestiveMediaEnabled:false,nudityMediaEnabled:false,explicitMediaEnabled:false},onboarding_completed_at:null,updated_at:now});
     if(created.error&&!/duplicate|unique/i.test(created.error.message))throw new AppError('INTERNAL_ERROR','Kivelle could not confirm your age.',500,true);
+  }else{
+    const contentPreferences={...((existing.data.content_preferences??{}) as Record<string,unknown>),contentMode:'explicit',explicitContentEnabled:true};
+    const updated=await db.from('together_profiles').update({date_of_birth:dateOfBirth,age_verified_at:existing.data.age_verified_at??now,adult_eligible_at:now,adult_eligibility_method:'self_declared_dob_v2',content_preferences:contentPreferences,updated_at:now}).eq('user_id',user.id);
+    if(updated.error)throw new AppError('INTERNAL_ERROR','Kivelle could not confirm your age.',500,true);
   }
   // This field is analytics-only. Authorization remains tied to the authenticated
   // user and server-owned Kivelle profile, never editable user metadata.

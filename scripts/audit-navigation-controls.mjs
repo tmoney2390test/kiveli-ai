@@ -10,6 +10,7 @@ const auditRoots = [
   path.join(repositoryRoot, "apps", "together", "src", "shell"),
 ];
 const rootLayout = path.join(appRoot, "_layout.tsx");
+const appErrorBoundary = path.join(repositoryRoot, "apps", "together", "src", "components", "AppErrorBoundary.tsx");
 
 function sourceFiles(root) {
   return fs.readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
@@ -107,6 +108,10 @@ const rootLayoutSource = fs.readFileSync(rootLayout, "utf8");
 if (!/installWebNavigationCompatibility\s*\(\s*router\s*\)/.test(rootLayoutSource)) {
   failures.push("apps/together/app/_layout.tsx must install the production-web navigation compatibility boundary.");
 }
+const appErrorBoundarySource = fs.readFileSync(appErrorBoundary, "utf8");
+if (/<Boundary\b[^>]*\bkey\s*=/.test(appErrorBoundarySource)) {
+  failures.push("AppErrorBoundary must not key the authenticated application by route; doing so remounts the persistent desktop shell.");
+}
 
 for (const file of auditRoots.flatMap(sourceFiles)) {
   const source = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
@@ -151,6 +156,9 @@ for (const file of auditRoots.flatMap(sourceFiles)) {
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
       const owner = node.expression.expression.getText();
       const method = node.expression.name.text;
+      if (owner === "window.location" && ["assign", "replace"].includes(method)) {
+        report(node, "internal app navigation must not reload the browser document; use Expo Router or navigateLocalRouteOnWeb.");
+      }
       if ((owner === "router" && ["push", "replace", "navigate", "dismissTo"].includes(method)) ||
           (owner === "window.location" && ["assign", "replace"].includes(method))) {
         const href = node.arguments[0] ? staticHref(node.arguments[0]) : null;

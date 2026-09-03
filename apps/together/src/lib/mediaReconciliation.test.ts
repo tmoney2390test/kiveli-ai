@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GeneratedMedia } from '../types';
-import { isTransientMediaFetchFailure, mediaReconciliationComplete, mergeReconciledMedia } from './mediaReconciliation';
+import { isTransientMediaFetchFailure, mediaReconciliationComplete, mergeReconciledMedia, missingMediaIds } from './mediaReconciliation';
 
 function media(overrides: Partial<GeneratedMedia> = {}): GeneratedMedia {
   return {
@@ -37,5 +37,10 @@ describe('generated media reconciliation', () => {
     expect(isTransientMediaFetchFailure(new TypeError('Failed to fetch'))).toBe(true);
     expect(isTransientMediaFetchFailure({ retryable: true })).toBe(true);
     expect(isTransientMediaFetchFailure(new Error('That photo offer is unavailable.'))).toBe(false);
+  });
+
+  it('identifies media omitted by an authoritative batch response', () => {
+    expect(missingMediaIds(['safe','restricted','deleted'],[{id:'safe'},{id:'restricted'}])).toEqual(['deleted']);
+    expect(missingMediaIds(['restricted'],[])).toEqual(['restricted']);
   });
 });

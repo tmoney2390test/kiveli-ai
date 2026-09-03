@@ -35,6 +35,7 @@ describe('media economics',()=>{
     expect(estimatedMediaProviderCost('wavespeed-multiref')).toBe(.025);
     expect(estimatedMediaProviderCost('wavespeed-kontext-pro-multiref')).toBe(.04);
     expect(estimatedMediaProviderCost('wavespeed-kontext-max-multiref')).toBe(.08);
+    expect(estimatedMediaProviderCost('wavespeed-wan22-realism-face-swap-adult')).toBe(.035);
     expect(estimatedMediaProviderCost('wavespeed-qwen2-pro-group-multiref')).toBe(.07);
     expect(mediaUsageCost({estimated_provider_cost_usd:.04,actual_provider_cost_usd:null})).toBe(.04);
     expect(mediaUsageCost({estimated_provider_cost_usd:.04,actual_provider_cost_usd:.037})).toBe(.037);

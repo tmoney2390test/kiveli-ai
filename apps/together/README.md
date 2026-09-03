@@ -13,19 +13,21 @@ Copy `.env.example` and provide both public Supabase values before starting the 
 
 Google and Apple login are implemented through Supabase Auth. Configure each provider in Supabase, add the Kivelle web and `kivelli://` callback URLs to its allowlist, then set the matching `EXPO_PUBLIC_KIVELLE_*_AUTH_ENABLED=true` build flag. Provider secrets stay in Supabase/Apple/Google configuration; only the boolean availability flags belong in Expo. Production Google is enabled; Apple remains fail-closed until its Supabase provider configuration is complete. See [Apple authentication operations](../../docs/apple-authentication.md) for the exact production identifiers, credential order, tests, and six-month secret rotation requirement.
 
-Canonical callbacks are `https://kivelli.app/auth/callback`, `https://kivelli.app/reset-password`, `kivelli://auth/callback`, and `kivelli://reset-password`. The old `together://` scheme remains registered temporarily for development-build compatibility. Local web uses the same paths on `http://localhost:8082`. All providers route profileless users through `/age-confirmation`; only an explicit confirmation creates `age_verified_at`, and onboarding completion is tracked separately.
+Canonical callbacks are `https://kivelli.app/auth/callback`, `https://kivelli.app/reset-password`, `kivelli://auth/callback`, and `kivelli://reset-password`. The old `together://` scheme remains registered temporarily for development-build compatibility. Local web uses the same paths on `http://localhost:8082`. All providers route profileless users through `/age-confirmation`; only a server-validated adult birthdate creates `age_verified_at`, and onboarding completion is tracked separately.
 
 For a local visual fixture without creating an account, start with `EXPO_PUBLIC_TOGETHER_DEMO_MODE=true`. The fixture is development-only and cannot activate in a production bundle.
 
 ## Server configuration
 
-Dialogue, moderation, and embeddings are server-side provider interfaces. Dialogue defaults to OpenAI `gpt-5.6-luna` with reasoning disabled and is capped at non-sexual romance. Legacy explicit settings are ignored and xAI is not used for text chat. With `OPENAI_API_KEY` unset, dialogue falls back to Gemini or deterministic continuity behavior; embeddings are skipped without failing the conversation. xAI may remain configured independently for non-sexual voice calls and voice notes.
+Dialogue, moderation, and embeddings are server-side provider interfaces. Dialogue defaults to OpenAI `gpt-5.6-luna`; eligible private explicit text can use the separately configured xAI route when `KIVELLE_PRIVATE_ADULT_TEXT_MODE=on`. Adult eligibility and current character/group adulthood are resolved server-side and do not depend on subscription tier. This private-text policy is shared by web and native clients, while native explicit image/video generation remains unavailable. With `OPENAI_API_KEY` unset, non-explicit dialogue can fall back to Gemini or deterministic continuity behavior; embeddings are skipped without failing the conversation. Voice retains its separate non-explicit policy.
 
 Optional server secrets:
 
 - `OPENAI_API_KEY`
 - `KIVELLE_VISION_PROVIDER=openai` and `KIVELLE_OPENAI_VISION_ENABLED=true` enable server-side moderation and visual understanding for Kivelle+ photo sharing; `KIVELLE_OPENAI_VISION_MODEL` optionally overrides the default Luna model.
 - `KIVELLE_OPENAI_DIALOGUE_MODEL` (defaults to `gpt-5.6-luna`)
+- `KIVELLE_CHAT_GENERATION_CONTROLS_MODE` (`off`, `shadow`, or `on`; missing/invalid values fail closed to `off`)
+- `KIVELLE_PRIVATE_ADULT_TEXT_MODE` (`off`, `shadow`, or `on`; server-only, defaults to `off`)
 - `KIVELLE_PROACTIVE_VOICE_ENABLED` and `KIVELLE_PROACTIVE_MODEL` control the optional isolated character-voice pass for grounded companion initiative. See `docs/initiative.md`.
 - `XAI_API_KEY` (server only)
 - `KIVELLE_XAI_ENABLED`
@@ -53,7 +55,7 @@ First-class group chat uses the same canonical conversation, memory, relationshi
 
 ## Verification
 
-Web subscriptions and subscriber credit packs use Stripe-hosted Checkout; native purchases remain RevenueCat-owned. The client treats webhook-synchronized `together-subscription` state as authoritative and never grants from a redirect. See [the billing operations guide](../../docs/billing.md) for setup and test-mode verification.
+Native Apple/Google subscriptions use RevenueCat as a store-lifecycle adapter while Kivelle's webhook-synchronized `together-subscription` state remains authoritative. New website membership checkout can stay disabled without affecting valid mobile entitlements on the website. Legacy Stripe management and configured credit-pack compatibility remain isolated. See [the billing operations guide](../../docs/billing.md) for RevenueCat products, package identifiers, HMAC webhook setup, EAS variables, rollout switches, and test verification.
 
 ```sh
 pnpm --filter @together/app typecheck

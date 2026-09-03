@@ -173,7 +173,12 @@ serve(async (request, correlationId) => {
         true,
       );
     }
-    const pageRows = (data ?? []) as Row[],
+    const rawPageRows=(data??[]) as Row[];
+    const safeIds=rawPageRows.map((row)=>String(row.id));
+    const safePolicyResult=safeIds.length?await db.from('together_memories').select('id').eq('user_id',user.id).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).in('id',safeIds):{data:[],error:null};
+    if(safePolicyResult.error)throw new AppError('INTERNAL_ERROR','Memories could not be loaded.',500,true);
+    const visibleIds=new Set((safePolicyResult.data??[]).map((row)=>String(row.id)));
+    const pageRows = rawPageRows.filter((row)=>visibleIds.has(String(row.id))),
       hasMore = pageRows.length > input.limit,
       rows = pageRows.slice(0, input.limit),
       last = rows.at(-1);
@@ -304,6 +309,9 @@ serve(async (request, correlationId) => {
       shareability: "private",
       valid_from: now,
       metadata: { manual: true, createdInMemoryCenter: true },
+      content_rating:'safe',
+      visibility_scope:'all',
+      moderation_version:'manual-memory-v1',
       updated_at: now,
     }).select("*").single();
     if (error || !data) {
@@ -336,12 +344,12 @@ serve(async (request, correlationId) => {
     const { data: message, error: messageError } = await db.from(
       "together_messages",
     ).select(
-      "id,conversation_id,role,content,character_instance_id,speaker_character_instance_id,created_at",
+      "id,conversation_id,role,content,character_instance_id,speaker_character_instance_id,created_at,content_rating,visibility_scope",
     ).eq("id", input.messageId).eq("user_id", user.id).maybeSingle();
     if (
       messageError || !message ||
       !["user", "assistant"].includes(String(message.role)) ||
-      !String(message.content ?? "").trim()
+      !String(message.content ?? "").trim()||message.visibility_scope!=='all'||!['safe','suggestive'].includes(String(message.content_rating))
     ) throw new AppError("NOT_FOUND", "That message is unavailable.", 404);
     const { data: conversation, error: conversationError } = await db.from(
       "together_conversations",
@@ -443,7 +451,7 @@ serve(async (request, correlationId) => {
     const ids = [...new Set(input.memoryIds)];
     const { data: rows, error: checkError } = await db.from("together_memories")
       .select("id").eq("user_id", user.id).eq("continuity_id", continuity.id)
-      .eq("status", "active").in("id", ids);
+      .eq("status", "active").eq('visibility_scope','all').in('content_rating',['safe','suggestive']).in("id", ids);
     if (checkError || rows?.length !== ids.length) {
       throw new AppError(
         "NOT_FOUND",
@@ -495,7 +503,7 @@ serve(async (request, correlationId) => {
       const { data, error } = await db.from("together_memories").select("*").eq(
         "id",
         predecessor,
-      ).eq("user_id", user.id).eq("continuity_id", continuity.id).maybeSingle();
+      ).eq("user_id", user.id).eq("continuity_id", continuity.id).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).maybeSingle();
       if (error || !data) break;
       revisions.push(data);
       predecessor = String(data.supersedes_memory_id ?? "");
@@ -629,11 +637,7 @@ async function loadCounts(
   continuityId: string,
   characterInstanceId: string,
 ) {
-  const { data, error } = await db.rpc("kivelle_memory_center_counts_v2", {
-    p_user_id: userId,
-    p_continuity_id: continuityId,
-    p_character_instance_id: characterInstanceId,
-  });
+  const { data, error } = await db.from('together_memories').select('memory_type').eq('user_id',userId).eq('continuity_id',continuityId).eq('character_instance_id',characterInstanceId).eq('status','active').eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
   if (error) {
     throw new AppError(
       "INTERNAL_ERROR",
@@ -643,8 +647,8 @@ async function loadCounts(
     );
   }
   return {
-    count: Number(data?.count ?? 0),
-    categories: (data?.categories ?? {}) as Record<string, number>,
+    count: data?.length??0,
+    categories: Object.fromEntries(['semantic','emotional','preference','episodic','relationship','open_thread'].map((kind)=>[kind,(data??[]).filter((row:Record<string,unknown>)=>row.memory_type===kind).length])),
   };
 }
 async function loadCompanion(
@@ -680,7 +684,7 @@ async function loadOwnedMemory(
   let query = db.from("together_memories").select("*").eq("id", memoryId).eq(
     "user_id",
     userId,
-  ).eq("continuity_id", continuityId);
+  ).eq("continuity_id", continuityId).eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
   if (status) query = query.eq("status", status);
   const { data, error } = await query.maybeSingle();
   if (error) {
@@ -880,30 +884,18 @@ async function loadMaxInsights(
   continuityId: string,
   characterInstanceId: string,
 ) {
-  const [reflection, patterns, recalled] = await Promise.all([
-    db.from("together_relationship_reflections").select(
-      "relationship_summary,shared_references,updated_at",
-    ).eq("user_id", userId).eq("continuity_id", continuityId).eq(
-      "character_instance_id",
-      characterInstanceId,
-    ).maybeSingle(),
-    db.from("together_companion_user_patterns").select(
-      "category,summary,confidence,support_count,updated_at",
-    ).eq("user_id", userId).eq("continuity_id", continuityId).eq(
-      "character_instance_id",
-      characterInstanceId,
-    ).eq("status", "active").order("confidence", { ascending: false }).limit(8),
+  const [recalled] = await Promise.all([
     db.from("together_memories").select("canonical_text,retrieval_count").eq(
       "user_id",
       userId,
     ).eq("continuity_id", continuityId).eq(
       "character_instance_id",
       characterInstanceId,
-    ).eq("status", "active").gt("retrieval_count", 0).order("retrieval_count", {
+    ).eq("status", "active").eq('visibility_scope','all').in('content_rating',['safe','suggestive']).gt("retrieval_count", 0).order("retrieval_count", {
       ascending: false,
     }).limit(5),
   ]);
-  if (reflection.error || patterns.error || recalled.error) {
+  if (recalled.error) {
     throw new AppError(
       "INTERNAL_ERROR",
       "Deeper memory insights could not be loaded.",
@@ -912,14 +904,9 @@ async function loadMaxInsights(
     );
   }
   return {
-    relationshipSummary: String(reflection.data?.relationship_summary ?? ""),
-    sharedReferences: Array.isArray(reflection.data?.shared_references)
-      ? reflection.data.shared_references.map(String).slice(0, 8)
-      : [],
-    learnedPatterns: (patterns.data ?? []).map((pattern: Row) => ({
-      category: String(pattern.category),
-      summary: String(pattern.summary),
-    })),
+    relationshipSummary: "",
+    sharedReferences: [],
+    learnedPatterns: [],
     recalledReferences: (recalled.data ?? []).map((memory: Row) =>
       String(memory.canonical_text)
     ),

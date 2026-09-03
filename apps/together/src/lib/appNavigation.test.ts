@@ -144,7 +144,7 @@ describe("app navigation", () => {
       await vi.advanceTimersByTimeAsync(300);
 
       expect(nativePush).toHaveBeenCalledWith("/(tabs)/singles?world=eos-meridian", undefined);
-      expect(browser.location.replace).toHaveBeenCalledWith("/singles?world=eos-meridian");
+      expect(browser.location.replace).not.toHaveBeenCalled();
       expect(browser.location.assign).not.toHaveBeenCalled();
       expect(browser.location.href).toBe("https://kivelli.app/singles?world=eos-meridian");
       history.back();
@@ -231,15 +231,18 @@ describe("app navigation", () => {
     expect(browser.location.href).toBe("https://kivelli.app/");
   });
 
-  it("uses a full browser transition for explicit cross-screen safety calls", () => {
+  it("keeps explicit cross-screen safety calls inside the current document", () => {
     vi.useFakeTimers();
     try {
       const { browser, classes, history, storage } = browserAt("https://kivelli.app/chat?character=iris");
 
       expect(navigateLocalRouteOnWeb("/subscription?intent=voice")).toBe(true);
 
-      expect(browser.location.assign).toHaveBeenCalledWith("/subscription?intent=voice");
-      expect(history.pushState).not.toHaveBeenCalled();
+      expect(browser.location.assign).not.toHaveBeenCalled();
+      expect(browser.location.replace).not.toHaveBeenCalled();
+      expect(history.pushState).toHaveBeenCalledWith({}, "", "/subscription?intent=voice");
+      expect(browser.location.href).toBe("https://kivelli.app/subscription?intent=voice");
+      expect(browser.dispatchEvent).toHaveBeenCalled();
       expect(classes.has(WEB_ROUTE_TRANSITION_CLASS)).toBe(true);
       expect(JSON.parse(storage.get(WEB_ROUTE_TRANSITION_KEY) ?? "{}").destination).toBe("/subscription");
       expect(completePendingWebRouteTransition("/chat")).toBe(false);
@@ -249,6 +252,30 @@ describe("app navigation", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it.each([
+    "/home",
+    "/explore",
+    "/moments",
+    "/dates",
+    "/companions",
+    "/settings",
+    "/subscription",
+    "/chat-tab?messages=1",
+    "/chat?character=iris-vale&conversationId=conversation-1",
+    "/chat?group=1&id=group-1",
+  ])("routes a persistent-sidebar destination to %s without reloading", (destination) => {
+    const startingRoute = destination.startsWith("/home") ? "/settings" : "/home";
+    const { browser, history, routeEvents } = browserAt(`https://kivelli.app${startingRoute}`);
+
+    expect(navigateLocalRouteOnWeb(destination)).toBe(true);
+
+    expect(browser.location.assign).not.toHaveBeenCalled();
+    expect(browser.location.replace).not.toHaveBeenCalled();
+    expect(history.pushState).toHaveBeenCalledWith({}, "", destination);
+    expect(browser.location.href).toBe(`https://kivelli.app${destination}`);
+    expect(routeEvents).toEqual(["popstate"]);
   });
 
   it("merges and removes route selector parameters in place", () => {

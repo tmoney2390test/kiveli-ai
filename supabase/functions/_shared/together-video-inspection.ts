@@ -21,6 +21,30 @@ export type Mp4FastStartResult={
   adjustedChunkOffsets:number;
 };
 
+export type Mp4AudioStripResult={bytes:Uint8Array;stripped:boolean;removedTracks:number};
+
+/**
+ * Removes MP4 audio track declarations without decoding or re-encoding the
+ * video stream. Unreferenced audio samples may remain inside `mdat`, but no
+ * player can discover or play them after the `soun` tracks are removed.
+ */
+export function stripMp4AudioTracks(bytes:Uint8Array,contentType:string):Mp4AudioStripResult{
+  const unchanged:Mp4AudioStripResult={bytes,stripped:false,removedTracks:0};
+  if(contentType!=='video/mp4'||bytes.byteLength<24)return unchanged;
+  const boxes=parseTopLevelBoxes(bytes),moov=boxes?.find((box)=>box.type==='moov');
+  if(!boxes||!moov||moov.headerSize!==8)return unchanged;
+  const children=parseBoxesInRange(bytes,moov.start+moov.headerSize,moov.start+moov.size);if(!children)return unchanged;
+  const removed=children.filter((box)=>box.type==='trak'&&boxContainsAudioHandler(bytes,box));if(!removed.length)return unchanged;
+  const kept=children.filter((box)=>!removed.includes(box)),removedBytes=removed.reduce((sum,box)=>sum+box.size,0),newMoovSize=moov.size-removedBytes;
+  if(newMoovSize<8||newMoovSize>0xffff_ffff)return unchanged;
+  const nextMoov=new Uint8Array(newMoovSize);nextMoov.set(bytes.subarray(moov.start,moov.start+8),0);new DataView(nextMoov.buffer).setUint32(0,newMoovSize,false);
+  let cursor=8;for(const box of kept){const part=bytes.subarray(box.start,box.start+box.size);nextMoov.set(part,cursor);cursor+=part.byteLength;}
+  const mdat=boxes.find((box)=>box.type==='mdat');
+  if(mdat&&moov.start<mdat.start&&!adjustChunkOffsetsBy(nextMoov,-removedBytes,mdat.start))return unchanged;
+  const output=new Uint8Array(bytes.byteLength-removedBytes);output.set(bytes.subarray(0,moov.start),0);output.set(nextMoov,moov.start);output.set(bytes.subarray(moov.start+moov.size),moov.start+nextMoov.byteLength);
+  return{bytes:output,stripped:true,removedTracks:removed.length};
+}
+
 type Mp4Box={start:number;size:number;headerSize:number;type:string};
 
 /**
@@ -73,6 +97,24 @@ function parseTopLevelBoxes(bytes:Uint8Array):Mp4Box[]|null{
     start+=size;
   }
   return boxes;
+}
+
+function parseBoxesInRange(bytes:Uint8Array,start:number,end:number):Mp4Box[]|null{
+  const view=dataView(bytes),boxes:Mp4Box[]=[];
+  for(let cursor=start;cursor<end;){if(cursor+8>end)return null;const size=view.getUint32(cursor,false),type=boxType(bytes,cursor+4);if(size<8||cursor+size>end)return null;boxes.push({start:cursor,size,headerSize:8,type});cursor+=size;}
+  return boxes;
+}
+
+function boxContainsAudioHandler(bytes:Uint8Array,box:Mp4Box):boolean{
+  const end=box.start+box.size;
+  for(let offset=box.start+8;offset+20<=end;offset+=1){if(boxType(bytes,offset)!=='hdlr')continue;const handler=String.fromCharCode(bytes[offset+12]??0,bytes[offset+13]??0,bytes[offset+14]??0,bytes[offset+15]??0);if(handler==='soun')return true;}
+  return false;
+}
+
+function adjustChunkOffsetsBy(moov:Uint8Array,delta:number,minimumOriginalOffset:number):boolean{
+  const view=dataView(moov);
+  for(let typeOffset=4;typeOffset+12<=moov.byteLength;typeOffset+=1){const type=boxType(moov,typeOffset);if(type!=='stco'&&type!=='co64')continue;const boxStart=typeOffset-4,boxSize=view.getUint32(boxStart,false),entrySize=type==='stco'?4:8;if(boxSize<16||boxStart+boxSize>moov.byteLength)return false;const count=view.getUint32(typeOffset+8,false),entriesStart=typeOffset+12;if(count>Math.floor((boxStart+boxSize-entriesStart)/entrySize))return false;for(let index=0;index<count;index+=1){const at=entriesStart+index*entrySize,current=entrySize===4?BigInt(view.getUint32(at,false)):view.getBigUint64(at,false);if(current<BigInt(minimumOriginalOffset))continue;const next=current+BigInt(delta);if(next<0n)return false;if(entrySize===4){if(next>0xffff_ffffn)return false;view.setUint32(at,Number(next),false);}else view.setBigUint64(at,next,false);}typeOffset=boxStart+boxSize-1;}
+  return true;
 }
 
 function adjustChunkOffsetTables(moov:Uint8Array,delta:number,mdatStart:number,moovStart:number):number|null{

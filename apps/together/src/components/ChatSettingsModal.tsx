@@ -5,17 +5,20 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { router } from 'expo-router';
 import { companionVoiceGenderFromSignals, companionVoicePresetsForGender, type CompanionVoicePreset } from '@together/domain/src/voice-presets';
 import { manageConversation, previewCompanionVoice } from '../lib/api';
-import { chatTextSizeOptions, resolveChatLanguage, resolveChatResponseStyle, resolveChatTextSize, resolveChatVoicePreset, withLocalChatSettings } from '../lib/chatSettings';
+import { chatPreferencesFromConversation, chatTextSizeOptions, resolveChatContentMode, resolveChatLanguage, resolveChatResponseStyle, resolveChatTextSize, resolveChatVoicePreset, withLocalChatSettings } from '../lib/chatSettings';
 import { conversationStyleOptions } from '../lib/conversationStyle';
 import { useTogether } from '../store/useTogether';
 import { colors, radius, spacing, typography } from '../theme';
-import type { CharacterInstance, ChatTextSize, Conversation, ConversationStyle } from '../types';
+import type { CharacterInstance, ChatTextSize, Conversation, ConversationStyle, DialogueContentMode } from '../types';
 import { FrostedSurface } from './FrostedGlass';
 import { createClientRequestId } from '../lib/requestId';
 import { cachedVoicePreview, rememberVoicePreview, type VoicePreview } from '../lib/voicePreviewCache';
 import { chatLanguageOptions, type ChatLanguagePreference } from '@together/domain/src/chat-language';
 import { subscriptionHref } from '../lib/subscriptionPresentation';
 import { navigateLocalRouteOnWeb } from '../lib/conversationNavigation';
+import { ChatContentModeControl } from './ChatContentModeControl';
+import { ChatGenerationSettings } from './settings/ChatGenerationSettings';
+import { type ChatDynamism, type ReasoningPreference } from '@together/domain/src/chat-generation';
 
 type Props = {
   visible: boolean;
@@ -31,6 +34,9 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
   const [title, setTitle] = useState('');
   const [responseStyle, setResponseStyle] = useState<ConversationStyle>('texting');
   const [textSize, setTextSize] = useState<ChatTextSize>('medium');
+  const [chatDynamism,setChatDynamism]=useState<ChatDynamism>(50);
+  const [reasoningPreference,setReasoningPreference]=useState<ReasoningPreference>('auto');
+  const [contentMode,setContentMode]=useState<DialogueContentMode>('mature');
   const [chatLanguage, setChatLanguage] = useState<ChatLanguagePreference>('en');
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [voicePreset, setVoicePreset] = useState<CompanionVoicePreset | null>(null);
@@ -41,6 +47,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
   const voicePlayer = useAudioPlayer(null, { updateInterval: 200 });
   const voicePlayerStatus = useAudioPlayerStatus(voicePlayer);
   const voiceEntitled = snapshot?.experienceCapabilities?.voiceNotes === true || snapshot?.entitlements?.entitlement_keys?.includes('voice_notes') === true;
+  const adultEligible=Boolean((snapshot?.profile as {adult_content_eligible?:boolean}|null|undefined)?.adult_content_eligible);
   const name = character?.together_character_templates.name ?? 'this companion';
   const voiceGender = companionVoiceGenderFromSignals(
     character?.together_character_templates.discovery_metadata?.gender,
@@ -65,6 +72,10 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     setTitle(conversation.title ?? '');
     setResponseStyle(resolveChatResponseStyle(conversation, snapshot?.profile ?? null));
     setTextSize(resolveChatTextSize(conversation));
+    const generationPreferences=chatPreferencesFromConversation(conversation);
+    setChatDynamism(generationPreferences.chatDynamism);
+    setReasoningPreference(generationPreferences.reasoningPreference);
+    setContentMode(resolveChatContentMode(conversation,snapshot?.profile??null));
     setChatLanguage(resolveChatLanguage(conversation));
     setLanguageMenuOpen(false);
     const selectedVoice = resolveChatVoicePreset(conversation);
@@ -119,7 +130,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     const cleanTitle = title.trim() || null;
     setSaving(true);
     try {
-      const input = { title: cleanTitle, responseStyle, textSize, chatLanguage, ...(voiceEntitled ? { voicePreset } : {}) };
+      const input = { title: cleanTitle, responseStyle, textSize,contentMode, chatLanguage,chatDynamism,reasoningPreference, ...(voiceEntitled ? { voicePreset } : {}) };
       const updated = demoMode
         ? withLocalChatSettings(conversation, input)
         : await manageConversation<Conversation>({ action: 'settings', conversationId: conversation.id, ...input });
@@ -178,6 +189,8 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
             </View>
           </SettingSection>
 
+          <ChatGenerationSettings mode="direct" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>{onClose();const href=subscriptionHref({intent:'plans',returnTo:`/chat?conversationId=${conversation?.id??''}`});if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never);}}/>
+
           <SettingSection icon={<Type size={16} color={colors.violet} />} label="Text size">
             <View accessibilityRole="radiogroup" style={styles.textSizeOptions}>
               {chatTextSizeOptions.map((option) => {
@@ -196,6 +209,8 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
               })}
             </View>
           </SettingSection>
+
+          <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible}/>
 
           <SettingSection icon={<Languages size={16} color={colors.violet} />} label="Chat language">
             <Pressable accessibilityRole="button" accessibilityLabel={`Chat language: ${selectedLanguage.label}`} accessibilityState={{ expanded: languageMenuOpen, disabled: saving }} disabled={saving} onPress={() => { setVoiceMenuOpen(false); setLanguageMenuOpen(true); }} style={({ pressed }) => [styles.intensitySelect, pressed && styles.pressed]}>

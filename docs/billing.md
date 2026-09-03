@@ -1,8 +1,46 @@
-# Kivelle web billing
+# Kivelle billing
 
-Kivelle uses Stripe-hosted Checkout for web subscriptions and one-time credit packs, Stripe Customer Portal for self-service, signed Stripe webhooks for provider state, and Supabase for application entitlements and the immutable credit ledger. Native purchases remain RevenueCat-owned. `resolveSubscriptionState()` chooses one effective internal entitlement across both providers and grants each monthly benefit only up to the highest applicable tier.
+Kivelle's database is the authoritative source for plans, entitlements, limits, and Credits. RevenueCat is an Apple/Google lifecycle adapter—not the entitlement authority—and Stripe remains only for legacy web subscriptions, management, and configured credit-pack compatibility. New website membership checkout is disabled independently. `resolveSubscriptionState()` chooses one effective internal entitlement across all provider rows and grants each monthly benefit only up to the highest applicable tier.
 
 No card number, Stripe secret, webhook secret, or Supabase service-role key belongs in Expo or browser code. The optional `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` is only for a future embedded Elements flow; hosted Checkout does not use it.
+
+## Native Apple/Google subscriptions through RevenueCat
+
+The Expo app uses `react-native-purchases` only on iOS and Android. It configures RevenueCat with the authenticated Supabase user UUID as the custom App User ID, disables automatic device-identifier collection, exposes a restore action, and never grants access from client `CustomerInfo`. A purchase success starts a short synchronization wait; only the authenticated server webhook can activate Kivelle benefits.
+
+Create one RevenueCat offering (the optional client offering ID defaults to `default`) with these custom package identifiers:
+
+```text
+kivelle_plus_monthly
+kivelle_plus_annual
+kivelle_max_monthly
+kivelle_max_annual
+```
+
+Attach the corresponding App Store Connect and Google Play subscription/base-plan products to those packages and to the `kivelle_plus` or `kivelle_max` entitlement. Supply the per-app **public SDK keys** to EAS as `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY` and `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`, then set `EXPO_PUBLIC_KIVELLE_REVENUECAT_ENABLED=true` in native builds. Never put a RevenueCat secret key in an `EXPO_PUBLIC_*` variable.
+
+The production Google Play catalog uses one subscription per Kivelle tier and one auto-renewing base plan per billing interval:
+
+```text
+app.kivelli.plus:monthly
+app.kivelli.plus:annual
+app.kivelli.max:monthly
+app.kivelli.max:annual
+```
+
+RevenueCat identifies modern Google Play subscription products as `<subscription-id>:<base-plan-id>`. Keep all four identifiers in `KIVELLE_REVENUECAT_CONFIG_JSON` alongside the four App Store product identifiers. Do not create four redundant Play subscriptions or infer the billing interval from display text.
+
+Deploy `together-revenuecat-webhook` and register:
+
+```text
+https://<SUPABASE_PROJECT_REF>.supabase.co/functions/v1/together-revenuecat-webhook
+```
+
+Configure an unpredictable `Authorization` header and enable RevenueCat HMAC signing. Store the exact header, one-time signing secret, and a server-only RevenueCat secret API key in `KIVELLE_REVENUECAT_WEBHOOK_AUTHORIZATION`, `KIVELLE_REVENUECAT_WEBHOOK_SIGNING_SECRET`, and `KIVELLE_REVENUECAT_SECRET_API_KEY`. `KIVELLE_REVENUECAT_CONFIG_JSON` is the kill switch and server-authoritative map of allowed RevenueCat app IDs, entitlement IDs, product IDs, tiers, and intervals. Production should keep `acceptSandbox=false`; use a separate non-production webhook/configuration for sandbox events.
+
+The webhook verifies the exact authorization value and raw-body HMAC, rejects stale signatures, accepts only allowlisted apps and mapped products, deduplicates by RevenueCat event ID, fetches the current subscriber snapshot from RevenueCat, and applies it through the same stale-event-guarded subscription RPC as Stripe. Unknown products fail closed. Payloads, receipts, API keys, and full subscriber data are not written to logs or the billing-event ledger.
+
+Keep `KIVELLE_NATIVE_EXTERNAL_CHECKOUT_ENABLED=true` only during the native rollout. After tested App Store and Play Store builds are live, set it to `false`; RevenueCat purchase buttons remain available because that switch controls only the legacy hosted checkout fallback. Keep `KIVELLE_WEB_APP_STORE_ENTITLEMENTS_ENABLED=true` while mobile memberships should unlock Premium benefits on the website.
 
 ## Products and environment
 
@@ -111,7 +149,7 @@ Support staff may inspect `together_credit_accounts`, `together_credit_ledger`, 
 - Create and approve live products/Prices, promotion-code policy, Portal configuration, branding, statement descriptor, tax registrations, and payout/bank details.
 - Request written processor approval with an accurate description:
 
-> Kivelli is an interactive storytelling and virtual-world entertainment platform. Users explore authored worlds and converse with fictional AI characters. Paid products include subscriptions and platform credits for additional conversations and media generation. Kivelli does not match users with real people and does not provide nudity, pornography, sexually explicit text, images or audio, escort services, or user-to-user payments. Some fictional stories may include non-explicit romantic relationships.
+> Kivelli is an adults-only interactive storytelling and virtual-world entertainment platform. Users explore authored worlds and converse privately with fictional adult AI characters; eligible adults may encounter user-directed mature or explicit fictional text roleplay. Paid products provide general capabilities such as additional conversations, model quality, memory, voice, and media credits; payment does not determine adult-content eligibility. Kivelli does not match users with real people, arrange sexual services, enable user-to-user payments, or provide explicit image/video generation in its native apps. Public and shared content remains non-explicit.
 
 - Review Apple/Google rules before exposing web purchase links inside native builds. RevenueCat remains the native purchase route.
 - Complete Stripe identity/business verification and seek qualified tax/legal advice. Kivelle code cannot determine registration, refund, consumer-renewal, or invoice obligations for every jurisdiction.

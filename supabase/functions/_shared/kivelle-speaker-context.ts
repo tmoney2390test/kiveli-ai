@@ -20,6 +20,8 @@ export type SpeakerContextInput = {
   attachments?: Row[];
   sceneSessionId?: string;
   sceneContext?: Row;
+  authorizedWebAdult?:boolean;
+  authorizedPrivateAdultText?:boolean;
 };
 
 /**
@@ -110,10 +112,10 @@ export async function buildIsolatedSpeakerContext(
       1,
       Number(participant.witnessed_from_sequence ?? 1),
     );
-    participantGroupSummary =
+    participantGroupSummary =input.authorizedPrivateAdultText?
       typeof participant.metadata?.groupSummary === "string"
         ? participant.metadata.groupSummary
-        : "";
+        : "":String(input.conversation.safe_context?.summary??'');
   } else if (input.sceneSessionId) {
     const { data: participant } = await input.db.from(
       "together_scene_participants",
@@ -213,6 +215,8 @@ export async function buildIsolatedSpeakerContext(
     now,
     visibleHistoryFromSequence: witnessedFromSequence,
     forceRemoteInteraction: isPersistentGroup,
+    authorizedWebAdult:input.authorizedWebAdult===true,
+    authorizedPrivateAdultText:input.authorizedPrivateAdultText===true,
     ...(input.sceneSessionId
       ? {
         visibleSceneSessionId: input.sceneSessionId,

@@ -1,5 +1,5 @@
 import{describe,expect,it}from'vitest';
-import{billingManagementCapabilities,checkoutConfirmationOutcome,creditReversalTarget,normalizeSubscriptionStatus,selectEffectiveBillingSubscription,subscriptionGrantPeriodKey,subscriptionHasApplicationAccess}from'../src/billing';
+import{billingManagementCapabilities,checkoutConfirmationOutcome,creditReversalTarget,isAppStoreBillingProvider,normalizeSubscriptionStatus,selectEffectiveBillingSubscription,subscriptionGrantPeriodKey,subscriptionHasApplicationAccess}from'../src/billing';
 
 describe('Kivelle billing rules',()=>{
   const now=new Date('2026-08-28T12:00:00Z');
@@ -31,6 +31,10 @@ describe('Kivelle billing rules',()=>{
   });
   it('routes store subscriptions back to their store and explains unavailable credit packs',()=>{
     expect(billingManagementCapabilities({tier:'kivelle_plus',provider:'revenuecat',status:'active',creditCheckoutConfigured:true})).toMatchObject({mode:'app_store',manageAction:'app_store',canManageSubscription:true,canPurchaseCredits:false});
+    expect(billingManagementCapabilities({tier:'kivelle_plus',provider:'apple',status:'active'})).toMatchObject({mode:'app_store',manageAction:'app_store'});
+    expect(billingManagementCapabilities({tier:'kivelle_max',provider:'google_play',status:'active'})).toMatchObject({mode:'app_store',manageAction:'app_store'});
+    expect(isAppStoreBillingProvider('revenuecat')).toBe(true);
+    expect(isAppStoreBillingProvider('stripe')).toBe(false);
     expect(billingManagementCapabilities({tier:'free',provider:null,status:null})).toMatchObject({mode:'none',canManageSubscription:false,canPurchaseCredits:false});
   });
   it('normalizes webhook-backed checkout confirmation without trusting return parameters',()=>{

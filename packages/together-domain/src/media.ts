@@ -13,11 +13,24 @@ export type MediaPresenceState={locationId?:string|null;activity?:string|null;ac
 export type ResolvedMediaPresence={locationId:string|null;activity:string;activityKey?:string;mood:string;source:string;resolvedAt?:string};
 
 export type ProductionSafePhotoRequest={
-  contentLevel:'standard'|'romance';
+  contentLevel:MediaLevel;
   requestText?:string;
   downgraded:boolean;
   reasonCode:'allowed'|'production_sexual_content_ceiling';
 };
+
+export type UserAuthoredMediaSafetyReason=
+  |'allowed'
+  |'provider_hard_block'
+  |'minor_related'
+  |'nonconsensual'
+  |'incest'
+  |'sexual_exploitation'
+  |'compensated_sex'
+  |'sexual_deepfake'
+  |'real_person_likeness';
+
+export type UserAuthoredMediaSafetyDecision={allowed:boolean;reasonCode:UserAuthoredMediaSafetyReason};
 
 export const PRODUCTION_SAFE_ROMANTIC_PHOTO_DIRECTION=[
   'Create a tasteful, confident companion photograph in the current canonical setting.',
@@ -33,6 +46,41 @@ export const PRODUCTION_SAFE_SWIM_PHOTO_DIRECTION=[
 
 const PRODUCTION_UNSAFE_VISUAL_DIRECTION=/\b(?:nude|nudes|naked|nudity|topless|bottomless|explicit|nsfw|uncensored|erotic|sexual|sexually|lingerie|underwear|panties|bra|braless|crotchless|pantieless|commando|see[- ]?through|transparent|sheer|fetish|seductive|thirst trap|strip(?:ping)?|undress(?:ed|ing)?|take (?:your|her|his|their) clothes off|remove (?:your|her|his|their) (?:clothes|shirt|top|blouse|bra|shorts|pants|skirt|underwear|panties))\b/i;
 const PRODUCTION_SWIM_SETTING=/\b(?:pool|swimming|swim|beach|shore|seaside|ocean|sea|lake|cove|hot tub|spa|waterside|waterfront|bathing suit|swimsuit|bikini)\b/i;
+const MEDIA_MINOR_PATTERN=/\b(?:minor|child(?:ren)?|underage|preteen|teen(?:ager)?|barely legal|youthful|young girl|young boy|schoolgirl|schoolboy|(?:[0-9]|1[0-7])[- ]?year[- ]?old)\b/i;
+const MEDIA_NONCONSENSUAL_PATTERN=/\b(?:rape|raping|sexual violence|forced sex|sex without consent|non[- ]?consensual(?: sex)?|without (?:her|his|their) consent|secretly nude|revenge porn|unconscious|passed out|asleep|drugged|blackmail(?:ed)? into|can'?t say no)\b/i;
+const MEDIA_INCEST_PATTERN=/\bincest\b|\b(?:have sex with|fuck|sleep with|make love to|nude (?:photo|picture|image) of|naked (?:photo|picture|image) of)\s+(?:(?:my|your|his|her|their|the)\s+)?(?:mother|father|mom|dad|sister|brother|daughter|son|aunt|uncle|cousin)\b|\b(?:my|your|his|her|their)\s+(?:mother|father|mom|dad|sister|brother|daughter|son|aunt|uncle|cousin)\b.{0,80}\b(?:sex|sexual|naked|nude|explicit)\b/i;
+const MEDIA_EXPLOITATION_PATTERN=/\b(?:traffick(?:ing|ed)?|sexual exploitation|sexual slavery|exploited? for sex|bestiality|zoophilia|animal sex|sex with (?:an? )?animal|sex slave)\b/i;
+const MEDIA_COMPENSATED_SEX_PATTERN=/\b(?:prostitut(?:e|ion)|pay(?:ing)? for sex|paid sex|escort(?:ed|ing)?\s+(?:for|into)\s+sex|sex with (?:an? )?escort|sugar (?:baby|daddy)|transactional sex)\b/i;
+const MEDIA_SEXUAL_DEEPFAKE_PATTERN=/\b(?:sexual|nude|naked|explicit)\s+deepfake\b|\bdeepfake\b.{0,40}\b(?:sexual|nude|naked|explicit)\b/i;
+const MEDIA_REAL_PERSON_PATTERN=/\b(?:celebrity|public figure|look exactly like|face of|identical to|real person|my (?:wife|husband|girlfriend|boyfriend|partner)|uploaded (?:person|woman|man)|this (?:person|woman|man))\b/i;
+const MEDIA_HARD_MODERATION_CATEGORIES=new Set(['sexual/minors','self-harm/instructions','illicit/violent']);
+
+/**
+ * Applies image/video-specific hard boundaries to a user-authored direction.
+ * Dialogue routing deliberately does not own media permission: words such as
+ * "escort" or "force" have ordinary visual meanings and must not become a
+ * refusal unless the complete request establishes a prohibited media scenario.
+ */
+export function classifyUserAuthoredMediaSafety(input:{
+  text:string;
+  requestedContentLevel?:MediaLevel;
+  moderation?:{flagged?:boolean;categories?:string[]};
+}):UserAuthoredMediaSafetyDecision{
+  const text=input.text.normalize('NFKC').replace(/\s+/g,' ').trim();
+  const categories=input.moderation?.categories??[];
+  if(input.moderation?.flagged&&categories.some((category)=>MEDIA_HARD_MODERATION_CATEGORIES.has(category)))return{allowed:false,reasonCode:'provider_hard_block'};
+  const inferred=input.requestedContentLevel??classifyPhotoIntent(text).requestedContentLevel;
+  const adult=['suggestive','mature','explicit'].includes(String(inferred??''))||analyzeAdultLanguage(text).explicit||PRODUCTION_UNSAFE_VISUAL_DIRECTION.test(text);
+  if(!adult)return{allowed:true,reasonCode:'allowed'};
+  if(MEDIA_MINOR_PATTERN.test(text))return{allowed:false,reasonCode:'minor_related'};
+  if(MEDIA_NONCONSENSUAL_PATTERN.test(text))return{allowed:false,reasonCode:'nonconsensual'};
+  if(MEDIA_INCEST_PATTERN.test(text))return{allowed:false,reasonCode:'incest'};
+  if(MEDIA_EXPLOITATION_PATTERN.test(text))return{allowed:false,reasonCode:'sexual_exploitation'};
+  if(MEDIA_COMPENSATED_SEX_PATTERN.test(text))return{allowed:false,reasonCode:'compensated_sex'};
+  if(MEDIA_SEXUAL_DEEPFAKE_PATTERN.test(text))return{allowed:false,reasonCode:'sexual_deepfake'};
+  if(MEDIA_REAL_PERSON_PATTERN.test(text))return{allowed:false,reasonCode:'real_person_likeness'};
+  return{allowed:true,reasonCode:'allowed'};
+}
 
 /**
  * Enforces Kivelle's production photo ceiling before any provider boundary.
@@ -43,12 +91,14 @@ export function resolveProductionSafePhotoRequest(input:{
   requestText?:string;
   requestedContentLevel?:MediaLevel;
   fallbackLevel?:'standard'|'romance';
+  adultPipelineAuthorized?:boolean;
 }):ProductionSafePhotoRequest{
   const original=String(input.requestText??'').normalize('NFKC').replace(/[<>]/g,'').replace(/\s+/g,' ').trim().slice(0,400);
   const inferred=classifyPhotoIntent(original).requestedContentLevel;
   const requested=input.requestedContentLevel??inferred??input.fallbackLevel??'standard';
   const adult=analyzeAdultLanguage(original);
   const unsafe=!['standard','romance'].includes(requested)||adult.explicit||PRODUCTION_UNSAFE_VISUAL_DIRECTION.test(adult.normalized)||PRODUCTION_UNSAFE_VISUAL_DIRECTION.test(original);
+  if(input.adultPipelineAuthorized)return{contentLevel:requested,...(original?{requestText:original}:{}),downgraded:false,reasonCode:'allowed'};
   if(unsafe)return{
     // A redirected request uses the standard provider route. This keeps the
     // original photo intent alive while avoiding a second rejection caused by
@@ -246,7 +296,7 @@ const NATURAL_DIRECTIONS:Record<PhotoShotType,Array<[string,string]>>={
 
 /** Converts approved spatial wording into pose-only direction, never raw content. */
 export function resolvePhotoDirection(input:{requestText?:string;shotType:PhotoShotType;seed:string}):PhotoDirection{
-  const normalized=normalizePhotoIntentText(input.requestText??''),faceMayBeHidden=photoRequestAllowsHiddenFace(normalized),requested=REQUESTED_POSE_CUES.filter(([pattern])=>pattern.test(normalized)).map(([,direction])=>direction).slice(0,5);
+  const normalized=normalizePhotoIntentText(input.requestText??''),faceMayBeHidden=photoRequestAllowsHiddenFace(normalized),adult=analyzeAdultLanguage(normalized),lowerAnatomyRearView=/\b(?:bent|bending|leaning)\s+(?:over|forward)\b/i.test(normalized)&&(adult.categories.includes('female_genitalia')||adult.categories.includes('male_genitalia')||adult.categories.includes('buttocks_anus')),requested=[...REQUESTED_POSE_CUES.filter(([pattern])=>pattern.test(normalized)).map(([,direction])=>direction),...(lowerAnatomyRearView?['rear or rear-three-quarter camera orientation behind the subject, keeping requested lower anatomy fully visible']:[])].slice(0,5);
   if(requested.length||faceMayBeHidden)return{poseDirection:[...new Set(requested.length?requested:['head and face directed away from the lens exactly as requested'])].join('; '),faceDirection:faceMayBeHidden?'Do not turn or insert the face toward the camera. Keep it hidden or away exactly as requested. No eye contact or camera-facing smile.':'Keep head direction consistent with the requested pose rather than defaulting to a straight-on face.',faceMayBeHidden,source:'requested'};
   const options=NATURAL_DIRECTIONS[input.shotType],index=stableDirectionIndex(`${input.seed}:${input.shotType}`,options.length),[poseDirection,faceDirection]=options[index]!;
   return{poseDirection,faceDirection,faceMayBeHidden:false,source:'natural_variation'};

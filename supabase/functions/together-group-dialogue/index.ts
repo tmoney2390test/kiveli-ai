@@ -6,6 +6,7 @@ import {
   classifyGroupSocialEvent,
   compileIntimacyStance,
   hasSexualDialogueLanguage,
+  isDialogueHardBlocked,
   isLocationPlanDismissalCoolingDown,
   LOCATION_PLAN_DISMISSAL_COOLDOWN_MS,
   matchAssistantLocationPlan,
@@ -35,14 +36,23 @@ import {
   buildIsolatedSpeakerContext,
 } from "../_shared/kivelle-speaker-context.ts";
 import {
+  ConfiguredConversationAnalysisProvider,
   ConfiguredDialogueProvider,
   ConfiguredEmbeddingProvider,
   ConfiguredModerationProvider,
   type DialogueRunOptions,
 } from "../_shared/together-ai.ts";
 import { resolveDialogueRouting } from "../_shared/kivelle-ai-routing.ts";
-import { conversationDialogueContentMode } from "../_shared/conversation-content-mode.ts";
-import { enforceExplicitDialogueAllowance, enforcePhotoSharingEntitlement } from "../_shared/kivelle-subscription.ts";
+import {
+  conversationAdultMediaAuthorized,
+  requestedConversationDialogueContentMode,
+} from "../_shared/conversation-content-mode.ts";
+import {
+  privateAdultTextTelemetry,
+  privateDialoguePolicyMetadata,
+  resolvePrivateDialoguePolicy,
+} from "../_shared/private-adult-text-policy.ts";
+import { enforcePhotoSharingEntitlement } from "../_shared/kivelle-subscription.ts";
 import { track } from "../_shared/together.ts";
 import { createMediaOffer } from "../_shared/together-media-offers.ts";
 import { classifyPhotoRequest } from "../_shared/together-media.ts";
@@ -58,6 +68,8 @@ import {
   touchConversationTurn,
 } from "../_shared/together-dialogue-turns.ts";
 import { writeConversationEvent } from "../_shared/together-plans.ts";
+import { projectConversationRows } from "../_shared/content-projection.ts";
+import { resolveAdultAccess } from "../_shared/web-adult-access.ts";
 import {
   assertChatRequestId,
   chatRequestFingerprint,
@@ -65,6 +77,7 @@ import {
   findExistingChatRequest,
   normalizeChatMessage,
 } from "../_shared/chat-message-hardening.ts";
+import { deriveSafeRelationalSummary } from "../_shared/safe-relational-context.ts";
 
 const schema = z.object({
   conversationId: z.string().uuid(),
@@ -83,6 +96,7 @@ const schema = z.object({
 );
 const dialogue = new ConfiguredDialogueProvider(),
   episodeEmbeddings = new ConfiguredEmbeddingProvider(),
+  safeSummaryAnalysis = new ConfiguredConversationAnalysisProvider(),
   moderation = new ConfiguredModerationProvider(),
   encoder = new TextEncoder();
 
@@ -95,6 +109,7 @@ Deno.serve(async (request) => {
   }
   try {
     const { user, db } = await authenticated(request);
+    const adultAccess=await resolveAdultAccess(request,user,db);
     turnDb = db;
     const input = await parseBody(request, schema);
     const requestId = assertChatRequestId(input.clientRequestId);
@@ -119,6 +134,8 @@ Deno.serve(async (request) => {
         409,
       );
     }
+    const projectionPolicy=resolvePrivateDialoguePolicy({access:adultAccess,requestedMode:'explicit',conversationMode:'group',participants:roster,safetyAllowed:true});
+    const authorizedPrivateAdultText=projectionPolicy.rollout.generationAllowed;
     const rosterIds = new Set(
       roster.map((row) => String(row.character_instance_id)),
     );
@@ -178,12 +195,12 @@ Deno.serve(async (request) => {
         : ({ data: [] } as any);
       if ((existingMessages?.length ?? 0) > 0 || existingTurn?.state === "completed" || existingTurn?.state === "yielded") {
         if (existingTurn?.state !== "planning" && existingTurn?.state !== "generating") {
-          return completedReplay(correlationId, existingTurn, existingMessages ?? []);
+          return completedReplay(correlationId, existingTurn, existingMessages ?? [],{authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText});
         }
       }
       if (existingTurn?.state === "planning" || existingTurn?.state === "generating") {
         const replay = await waitForCompletedGroupTurn(db,user.id,existingTurn.id);
-        if(replay)return completedReplay(correlationId,replay.turn,replay.messages);
+        if(replay)return completedReplay(correlationId,replay.turn,replay.messages,{authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText});
         throw new AppError("PROVIDER_TIMEOUT","The group is still finishing that reply. Reconnect in a moment.",503,true);
       }
     }
@@ -203,6 +220,23 @@ Deno.serve(async (request) => {
       }
     }
     if (!existingUserMessage) await enforceRateLimit(db, user.id, "together_dialogue", 80, 3600);
+    // Classify the canonical user message once, before persistence. This makes
+    // its visibility policy independent from surface-forgeable client hints
+    // and avoids storing an obfuscated adult request as an app-safe message.
+    const{data:groupProfile}=await db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id',user.id).maybeSingle();
+    const storedRequestedMode=requestedConversationDialogueContentMode(groupProfile,conversation);
+    const inputSafety=await moderation.check(messageText,{
+      db,userId:user.id,continuityId:continuity.id,conversationId:conversation.id,
+      characterInstanceId:anchor,subscriptionTier:subscription.tier,
+      contentMode:storedRequestedMode,correlationId,
+      metadata:{direction:'input',groupChat:true},
+    });
+    const groupDialoguePolicy=resolvePrivateDialoguePolicy({access:adultAccess,requestedMode:storedRequestedMode,conversationMode:'group',participants:roster,safetyAllowed:!isDialogueHardBlocked({message:messageText,moderation:inputSafety})});
+    const groupAdultAuthorized=groupDialoguePolicy.rollout.generationAllowed;
+    if(storedRequestedMode==='explicit')await track(db,user.id,'private_adult_text_policy_decision',privateAdultTextTelemetry({policy:groupDialoguePolicy,access:adultAccess,conversationMode:'group'}));
+    const restrictedUserMessage=groupAdultAuthorized&&(
+      hasSexualDialogueLanguage(messageText)||inputSafety.categories.some((category)=>/(?:sexual|adult|explicit)/i.test(category))
+    );
     let replyTargetId: string | undefined;
     if (input.replyToMessageId) {
       const { data: reply } = await db.from("together_messages").select(
@@ -272,6 +306,8 @@ Deno.serve(async (request) => {
           replyToMessageId: input.replyToMessageId ?? null,
           requestFingerprint,
           requestAttachmentIds: [...input.attachmentIds].sort(),
+          ...(restrictedUserMessage?adultMessagePolicy():safeMessagePolicy('safe')),
+          ...privateDialoguePolicyMetadata({policy:groupDialoguePolicy,access:adultAccess,conversationMode:'group'}),
         },
       });
     const userMessage = userClaim.message;
@@ -430,6 +466,9 @@ Deno.serve(async (request) => {
         : [],
       settings,
       subscription,
+      inputSafety,
+      adultAccess,
+      storedRequestedMode,
       correlationId,
     });
   } catch (error) {
@@ -461,6 +500,8 @@ function groupStream(input: any): Response {
       let firstActivityAt: number | null = null;
       let replyCount = 0;
       let reactionCount = 0;
+      const generationProfiles:Array<Record<string,unknown>>=[];
+      let restrictedTurn=false;
       const speakerCounts = new Map<string, number>();
       const markActivity = (speakerId?: string) => {
         firstActivityAt ??= Date.now();
@@ -510,6 +551,13 @@ function groupStream(input: any): Response {
             userId: input.userId,
             continuityId: input.continuityId,
             conversationId: input.conversation.id,
+          });
+          const liveDialoguePolicy=resolvePrivateDialoguePolicy({
+            access:input.adultAccess,
+            requestedMode:input.storedRequestedMode,
+            conversationMode:'group',
+            participants:liveRoster,
+            safetyAllowed:!isDialogueHardBlocked({message:String(input.userMessage.content??input.input.message),moderation:input.inputSafety}),
           });
           const participant = liveRoster.find((row: any) =>
             String(row.character_instance_id) === action!.characterInstanceId
@@ -577,6 +625,8 @@ function groupStream(input: any): Response {
             attachments: input.userMessage.together_conversation_attachments ??
               [],
             correlationId: input.correlationId,
+            authorizedWebAdult:input.adultAccess.authorized_web_adult,
+            authorizedPrivateAdultText:liveDialoguePolicy.rollout.generationAllowed,
           });
           const context: any = selected.context;
           assertSpeakerPrivateContext(context, action.characterInstanceId);
@@ -619,29 +669,11 @@ function groupStream(input: any): Response {
                 : false,
             },
           };
-          const { data: profile } = await input.db.from("together_profiles")
-            .select("age_verified_at,content_preferences").eq(
-              "user_id",
-              input.userId,
-            ).maybeSingle();
-          const requestedMode = conversationDialogueContentMode(
-            profile,
-            input.conversation,
-          ) as DialogueContentMode;
+          const requestedMode = liveDialoguePolicy.effectiveMode as DialogueContentMode;
           const canonicalUserText = String(
             input.userMessage.content ?? input.input.message,
           );
-          const inputSafety = await moderation.check(canonicalUserText, {
-            db: input.db,
-            userId: input.userId,
-            continuityId: input.continuityId,
-            conversationId: input.conversation.id,
-            characterInstanceId: action.characterInstanceId,
-            subscriptionTier: input.subscription.tier,
-            contentMode: requestedMode,
-            correlationId: input.correlationId,
-            metadata: { direction: "input", groupChat: true },
-          });
+          const inputSafety=input.inputSafety;
           const routeInput = {
             message: canonicalUserText,
             recentTurns: (context.recent ?? []).slice(-8).map((row: any) => ({
@@ -649,7 +681,8 @@ function groupStream(input: any): Response {
               content: row.content,
             })),
             requestedMode,
-            ageVerified: Boolean(profile?.age_verified_at),
+            ageVerified: input.adultAccess.adult_eligible,
+            adultAuthorized:liveDialoguePolicy.rollout.generationAllowed,
             characterAge: Number(context.character?.age ?? 0) || null,
             relationshipAllowsExplicit:
               context.relationship?.romance_enabled !== false &&
@@ -658,6 +691,7 @@ function groupStream(input: any): Response {
             moderation: inputSafety,
           };
           let route = resolveDialogueRouting(routeInput);
+          restrictedTurn=restrictedTurn||route.explicit;
           if (route.hardBlocked) {
             const boundary = chatLanguageSafetyBoundary(speakerName,context.chatLanguage,canonicalUserText);
             const committed = await commitMessage(input, action, boundary, {
@@ -669,6 +703,7 @@ function groupStream(input: any): Response {
               speakerSlug: template.slug,
               directorReasonCodes: action.reasonCodes,
               chatLanguage:normalizeChatLanguage(context.chatLanguage),
+              ...safeMessagePolicy('safe'),
             });
             const saved=committed?.message;
             if (!saved) {
@@ -691,6 +726,7 @@ function groupStream(input: any): Response {
               directorReasonCodes: action.reasonCodes,
               groupEnergy: input.settings.energy,
               chatLanguage:normalizeChatLanguage(context.chatLanguage),
+              ...safeMessagePolicy('safe'),
             });
             const saved=committed?.message;
             if (!saved) {
@@ -724,6 +760,10 @@ function groupStream(input: any): Response {
                 senderCharacterInstanceId: action.characterInstanceId,
                 subjectCharacterInstanceIds: photoSubjectIds,
               },
+              adultPipelineAuthorized: conversationAdultMediaAuthorized(
+                input.storedRequestedMode,
+                input.adultAccess.authorized_web_adult,
+              ),
             });
             if (!offer) {
               throw new AppError(
@@ -747,13 +787,6 @@ function groupStream(input: any): Response {
               subjectCount: photoSubjectIds.length,
             });
             break;
-          }
-          if (route.provider === "xai") {
-            await enforceExplicitDialogueAllowance(
-              input.db,
-              input.userId,
-              input.subscription.capabilities,
-            );
           }
           context.contentMode = route.resolvedMode;
           context.dialogueRouting = {
@@ -797,17 +830,19 @@ function groupStream(input: any): Response {
           const options: DialogueRunOptions = {
             route,
             usageScope,
+            generationContext:{mode:'group',speakerRole:replyCount===0?'primary':'secondary',activeSpeakerCount:Math.max(1,input.plan.actions.length)},
             operation: route.provider === "xai"
               ? "group_dialogue_xai"
               : "group_dialogue",
           };
           const generated = await dialogue.generate(context, options);
+          generationProfiles.push({speakerRole:generated.metadata.speakerRole??(replyCount===0?'primary':'secondary'),requestedReasoning:generated.metadata.requestedReasoning??'auto',effectiveReasoning:generated.metadata.effectiveReasoning??'none',chatDynamism:generated.metadata.chatDynamism??50,reasoningReasonCodes:generated.metadata.reasoningReasonCodes??[],profileVersion:generated.metadata.chatGenerationProfileVersion??generated.metadata.generationProfileVersion??'legacy'});
           if (!generated.text.trim()) break;
           const outputSafety = await moderation.check(generated.text, {
             ...usageScope,
             metadata: { direction: "output", groupChat: true },
           });
-          const text = outputSafety.allowed && !hasSexualDialogueLanguage(generated.text)
+          const text = outputSafety.allowed && (route.explicit||!hasSexualDialogueLanguage(generated.text))
             ? generated.text
             : chatLanguageChangeSubject(context.chatLanguage,canonicalUserText);
           const committed = await commitMessage(input, action, text, {
@@ -817,6 +852,8 @@ function groupStream(input: any): Response {
             directorReasonCodes: action.reasonCodes,
             groupEnergy: input.settings.energy,
             chatLanguage:normalizeChatLanguage(context.chatLanguage),
+            ...(outputSafety.allowed&&route.explicit?adultMessagePolicy():safeMessagePolicy(outputSafety.allowed&&route.resolvedMode!=='standard'?'suggestive':'safe')),
+            ...privateDialoguePolicyMetadata({policy:liveDialoguePolicy,access:input.adultAccess,conversationMode:'group',safetyDisposition:outputSafety.allowed?'allowed':'redirected',providerRoute:route.provider}),
           });
           const saved=committed?.message;
           if (!saved) {
@@ -829,7 +866,7 @@ function groupStream(input: any): Response {
           markActivity(action.characterInstanceId);
           emit({ type: "message_completed", message: saved });
           if(!committed.created)break;
-          await maybeCreateGroupLocationPlanCandidate(input.db, {
+          if(!route.explicit)await maybeCreateGroupLocationPlanCandidate(input.db, {
             userId: input.userId,
             conversationId: input.conversation.id,
             characterInstanceId: action.characterInstanceId,
@@ -842,14 +879,14 @@ function groupStream(input: any): Response {
             conversationId: input.conversation.id,
             code: error instanceof Error ? error.name : "unknown_error",
           })));
-          if (action.intent === "answer_user") {
+          if (!route.explicit&&action.intent === "answer_user") {
             await recordDirectedGroupRelationshipTurn(input.db, {
               userId: input.userId,
               continuityId: input.continuityId,
               characterInstanceId: action.characterInstanceId,
             });
           }
-          await applyDetectedGroupSocialEvent(input.db, {
+          if(!route.explicit)await applyDetectedGroupSocialEvent(input.db, {
             userId: input.userId,
             continuityId: input.continuityId,
             speakerId: action.characterInstanceId,
@@ -933,22 +970,23 @@ function groupStream(input: any): Response {
           await cancelTurn("completion_rejected");
           return;
         }
-        await persistWitnessedGroupMemories(input.db, {
+        if(!restrictedTurn)await persistWitnessedGroupMemories(input.db, {
           userId: input.userId,
           continuityId: input.continuityId,
           conversationId: input.conversation.id,
           sourceMessage: input.userMessage,
           participants: input.roster,
         });
-        await updateAttributedGroupSummary(
+        if(!restrictedTurn)await updateAttributedGroupSummary(
           input.db,
           input.conversation.id,
           input.userId,
         );
-        waitUntil(consolidateConversationEpisodes({
+        if(!restrictedTurn)waitUntil(consolidateConversationEpisodes({
           db:input.db,userId:input.userId,conversationId:input.conversation.id,
           embed:(text)=>episodeEmbeddings.embed(text,{db:input.db,userId:input.userId,continuityId:input.continuityId,conversationId:input.conversation.id,purpose:"group_conversation_episode"}),
         }).catch((error)=>console.warn(JSON.stringify({level:"warn",operation:"group_episode_consolidation",conversationId:input.conversation.id,message:error instanceof Error?error.message:"unknown_error"}))));
+        if(restrictedTurn)await recordAdultGroupSafeContext(input.db,input.userId,input.conversation.id,new Date().toISOString(),String(input.turn.id));
         const latencyMs = Date.now() - turnStartedAt;
         const counts = [...speakerCounts.values()];
         const activityCount = replyCount + reactionCount;
@@ -962,6 +1000,8 @@ function groupStream(input: any): Response {
           silent: replyCount === 0 && reactionCount === 0,
           uniqueSpeakerCount: speakerCounts.size,
           maxSpeakerShare,
+          generationMode:'per_speaker',
+          generationProfiles,
         });
         if (replyCount === 0 && reactionCount === 0) {
           await track(input.db, input.userId, "group_turn_silent", {
@@ -1515,10 +1555,12 @@ function completedReplay(
   correlationId: string,
   turn: any,
   messages: any[],
+  access:{authorizedWebAdult:boolean;authorizedPrivateAdultText:boolean},
 ): Response {
+  const visible=projectConversationRows(messages,access);
   const payload = [
     { type: "turn_started", turnId: turn?.id, replayed: true },
-    ...messages.map((message) => ({ type: "message_completed", message })),
+    ...visible.map((message) => ({ type: "message_completed", message })),
     { type: "turn_yielded", turnId: turn?.id, replayed: true },
   ];
   return new Response(
@@ -1532,6 +1574,17 @@ function completedReplay(
       },
     },
   );
+}
+
+function safeMessagePolicy(rating:'safe'|'suggestive'='safe'){return{contentRating:rating,visibilityScope:'all',moderationVersion:'web-adult-v1'};}
+function adultMessagePolicy(){return{contentRating:'explicit',visibilityScope:'all',moderationVersion:'private-adult-text-v1',adultAuthorized:true,safeBridge:'You and your companions shared a more intimate moment and grew closer.'};}
+async function recordAdultGroupSafeContext(db:any,userId:string,conversationId:string,at:string,turnId:string){
+  const[{data},{data:messages}]=await Promise.all([db.from('together_conversations').select('canonical_context,safe_context').eq('id',conversationId).eq('user_id',userId).maybeSingle(),db.from('together_messages').select('role,content,provider_metadata').eq('user_id',userId).eq('dialogue_turn_id',turnId).order('conversation_sequence')]);if(!data)return;
+  const exchange=(messages??[]).map((message:any)=>`${message.role==='user'?'USER':String(message.provider_metadata?.speakerName??'COMPANION').toUpperCase()}: ${String(message.content??'').trim()}`).join('\n');
+  const userText=(messages??[]).filter((message:any)=>message.role==='user').map((message:any)=>String(message.content??'')).join('\n'),assistantText=(messages??[]).filter((message:any)=>message.role==='assistant').map((message:any)=>String(message.content??'')).join('\n');
+  const priorCanonical=String(data.canonical_context?.summary??'').trim(),priorSafe=String(data.safe_context?.summary??'').trim(),bridge=await deriveSafeRelationalSummary({analysis:safeSummaryAnalysis,moderation,userText,assistantText,group:true,usageScope:{db,userId,conversationId,contentMode:'explicit',metadata:{pipeline:'safe_relational_summary',groupChat:true}}});
+  const canonicalSummary=[priorCanonical,exchange].filter(Boolean).join('\n\n').slice(-4_000),safeSummary=(priorSafe.endsWith(bridge)?priorSafe:[priorSafe,bridge].filter(Boolean).join('\n\n')).slice(-2_000);
+  await db.from('together_conversations').update({canonical_context:{...(data.canonical_context??{}),summary:canonicalSummary,lastAdultExchangeAt:at,projectionVersion:'private-adult-text-v1'},safe_context:{...(data.safe_context??{}),summary:safeSummary,relationshipDevelopment:bridge,updatedAt:at,projectionVersion:'private-adult-text-v1'},updated_at:at}).eq('id',conversationId).eq('user_id',userId);
 }
 
 async function waitForCompletedGroupTurn(db:any,userId:string,turnId:string,timeoutMs=20_000):Promise<{turn:any;messages:any[]}|null>{

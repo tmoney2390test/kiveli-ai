@@ -113,7 +113,10 @@ export class VeniceImageClient {
               ...(input.referenceImageUrls??[]).slice(0,2).map((url)=>({type:'image_url',image_url:{url}})),
             ],
           }],
-          max_completion_tokens: 48,
+          // Leave enough room for providers that emit a small reasoning block
+          // despite the explicit disable_thinking request. The delivery gate
+          // still accepts only the strict PASS/FAIL contract.
+          max_completion_tokens: 128,
           temperature: 0,
           stream: false,
           venice_parameters: {

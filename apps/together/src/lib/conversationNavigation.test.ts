@@ -18,6 +18,10 @@ describe("conversation navigation", () => {
       pathname: "/chat",
       params: { character: "iris-vale" },
     });
+    expect(directConversationTarget("iris-vale", "conversation-1")).toEqual({
+      pathname: "/chat",
+      params: { character: "iris-vale", conversationId: "conversation-1" },
+    });
     expect(groupConversationTarget("group-1", { settings: true })).toEqual({
       pathname: "/group-chat",
       params: { id: "group-1", settings: "1" },
@@ -31,6 +35,12 @@ describe("conversation navigation", () => {
     expect(conversationRouteTarget("/chat?character=iris%20vale")).toEqual({
       pathname: "/chat",
       params: { character: "iris vale" },
+    });
+    expect(conversationRouteTarget(
+      "/chat?character=iris%20vale&conversationId=conversation%2F1",
+    )).toEqual({
+      pathname: "/chat",
+      params: { character: "iris vale", conversationId: "conversation/1" },
     });
     expect(conversationRouteTarget("/group-chat?id=group-1&settings=1")).toEqual({
       pathname: "/group-chat",

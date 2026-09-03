@@ -6,6 +6,7 @@ import { Body, GradientButton, KivelleLogo, PageTitle, Screen } from '../src/com
 import { colors, radius, spacing } from '../src/theme';
 import { supabase } from '../src/lib/supabase';
 import { useAuth } from '../src/hooks/useAuth';
+import { authCallbackErrorMessage } from '../src/lib/authErrors';
 
 export default function ResetPassword() {
   const params = useLocalSearchParams<{ code?: string; error?: string; error_description?: string }>();
@@ -15,13 +16,16 @@ export default function ResetPassword() {
   const [password, setPassword] = useState('');
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(params.error_description ?? params.error ?? '');
+  const [error, setError] = useState(() => {
+    const providerError = params.error_description ?? params.error;
+    return providerError ? authCallbackErrorMessage({ message: providerError }) : '';
+  });
 
   useEffect(() => {
     if (processed.current) return;
     if (params.error_description || params.error) {
       processed.current = true;
-      setError(params.error_description ?? params.error ?? 'This password reset link could not be used.');
+      setError(authCallbackErrorMessage({ message: params.error_description ?? params.error ?? 'This password reset link could not be used.' }));
       return;
     }
     if (session) {
@@ -36,7 +40,7 @@ export default function ResetPassword() {
     }
     processed.current = true;
     void supabase.auth.exchangeCodeForSession(params.code).then(({ data, error: exchangeError }) => {
-      if (exchangeError) setError(exchangeError.message);
+      if (exchangeError) setError(authCallbackErrorMessage(exchangeError));
       else if (!data.session) setError('This password reset link did not create a recovery session.');
       else setReady(true);
     });

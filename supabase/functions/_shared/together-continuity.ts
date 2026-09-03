@@ -18,8 +18,13 @@ export async function ensureMainContinuity(db:SupabaseClient,userId:string):Prom
 }
 
 export async function activeContinuity(db:SupabaseClient,userId:string):Promise<ContinuityRow>{
-  const{data:profile}=await db.from('together_profiles').select('active_continuity_id').eq('user_id',userId).maybeSingle();
-  if(profile?.active_continuity_id){const found=await continuityById(db,userId,String(profile.active_continuity_id));if(found)return found;}
+  const[profileResult,continuityResult]=await Promise.all([
+    db.from('together_profiles').select('active_continuity_id').eq('user_id',userId).maybeSingle(),
+    db.from('together_continuities').select('*,together_user_personas(*)').eq('user_id',userId).limit(20),
+  ]);
+  const activeId=String(profileResult.data?.active_continuity_id??'');
+  const found=(continuityResult.data??[]).find((row)=>String(row.id)===activeId);
+  if(found)return normalizeContinuity(found);
   return ensureMainContinuity(db,userId);
 }
 

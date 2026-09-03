@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildExploreContext, exploreCompanionBadge, locationsForExploreCategory } from './explore';
+import { buildExploreContext, exploreCompanionBadge, exploreEventStatus, locationsForExploreCategory, selectExploreWorldEvents } from './explore';
 import type { CharacterInstance, Snapshot } from '../types';
 
 const companion={
@@ -94,4 +94,42 @@ describe('Explore view model',()=>{
     const result=buildExploreContext(snapshot,companion,'neon');
     expect(new Set(result.recommendations.map((item)=>item.option.id)).size).toBe(result.recommendations.length);
   });
+
+  it('shows only active and future world happenings, with active events first',()=>{
+    const now=new Date('2026-09-02T14:00:00Z');
+    const scoped={...snapshot,lifeEvents:[
+      event('expired','Last night at Velvet','2026-09-01T22:00:00Z','2026-09-01T23:00:00Z'),
+      event('future','Neon tasting menu','2026-09-02T18:00:00Z','2026-09-02T20:00:00Z'),
+      event('active','Afternoon vinyl set','2026-09-02T13:30:00Z','2026-09-02T15:00:00Z'),
+    ]} as unknown as Snapshot;
+    const result=selectExploreWorldEvents(scoped,'neon',now);
+    expect(result.map((item)=>item.id)).toEqual(['active','future']);
+    expect(exploreEventStatus(result[0]!,now)).toBe('HAPPENING NOW');
+    expect(exploreEventStatus(result[1]!,now)).toBe('UPCOMING');
+  });
+
+  it('does not expose plan progress or routine schedule records as world happenings',()=>{
+    const now=new Date('2026-09-02T14:00:00Z');
+    const scoped={...snapshot,lifeEvents:[
+      event('prep','Getting ready for Massage at Aurora Spa','2026-09-02T15:00:00Z','2026-09-02T15:30:00Z',{event_type:'commitment_prep',metadata:{canonicalPlanId:'plan',commitmentBeat:'prep'}}),
+      event('waiting','Waiting for you','2026-09-02T14:00:00Z','2026-09-02T15:00:00Z',{event_type:'commitment_waiting',metadata:{canonicalPlanId:'plan',commitmentBeat:'waiting'}}),
+      event('schedule','Taking an afternoon walk','2026-09-02T14:00:00Z','2026-09-02T15:00:00Z',{event_type:'schedule_presence',metadata:{source:'character_schedule'}}),
+      event('world','Aurora lantern hour','2026-09-02T14:00:00Z','2026-09-02T16:00:00Z',{event_type:'world_event'}),
+    ]} as unknown as Snapshot;
+    expect(selectExploreWorldEvents(scoped,'neon',now).map((item)=>item.id)).toEqual(['world']);
+  });
+
+  it('collapses duplicate event rows without hiding distinct happenings',()=>{
+    const now=new Date('2026-09-02T14:00:00Z');
+    const scoped={...snapshot,lifeEvents:[
+      event('first','Moon market opens','2026-09-02T18:00:00Z','2026-09-02T20:00:00Z'),
+      event('duplicate','Moon market opens','2026-09-02T18:05:00Z','2026-09-02T20:00:00Z'),
+      event('other','Rooftop film begins','2026-09-02T19:00:00Z','2026-09-02T21:00:00Z'),
+    ]} as unknown as Snapshot;
+    expect(selectExploreWorldEvents(scoped,'neon',now).map((item)=>item.id)).toEqual(['first','other']);
+  });
 });
+
+function event(id:string,title:string,starts_at:string,ends_at:string,extra:Partial<Snapshot['lifeEvents'][number]>={}):Snapshot['lifeEvents'][number]{
+  return{id,title,narrative_summary:`${title} at Velvet Static.`,starts_at,ends_at,location_id:'velvet',event_type:'world_event',metadata:{},...extra};
+}

@@ -25,6 +25,7 @@ import { colors, typography } from '../theme';
 import { markRouteIntent, warmRoute } from '../lib/routeWarmup';
 import { subscriptionHref } from '../lib/subscriptionPresentation';
 import { conversationRouteTarget, navigateLocalRouteOnWeb, webConversationHref } from '../lib/conversationNavigation';
+import { characterConversationHref } from '../lib/chatRoute';
 
 type Props = { expanded: boolean; onHoverChange: (hovered: boolean) => void };
 type NavItem = { key: DesktopNavigationKey; label: string; href: string; icon: (color: string) => ReactNode; count?: number };
@@ -60,18 +61,12 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
     onHoverChange(true);
     markRouteIntent(href);
     warmRoute(href,(value)=>router.prefetch(value as never));
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const current = `${window.location.pathname}${window.location.search}`;
-      if (current === href) return;
-      const conversationTarget = conversationRouteTarget(href);
-      if (conversationTarget) {
-        navigateLocalRouteOnWeb(webConversationHref(href) ?? href, 'replace');
-        return;
-      }
-      window.location.assign(href);
-      return;
+    const conversationTarget = conversationRouteTarget(href);
+    if (Platform.OS === 'web') {
+      const destination = conversationTarget ? webConversationHref(href) ?? href : href;
+      if (navigateLocalRouteOnWeb(destination, conversationTarget ? 'replace' : 'push')) return;
     }
-    router.push(href as never);
+    router.push((conversationTarget ?? href) as never);
   };
   const openMessagesInbox = () => navigate(inboxHref);
   const mainItems: NavItem[] = [
@@ -120,7 +115,14 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
           const character = snapshot?.characters.find((item) => item.id === conversation.character_instance_id);
           const group = conversation.kind === 'group';
           const name = group ? conversation.title || 'Group chat' : character?.together_character_templates.name ?? conversation.title ?? 'Conversation';
-          const href = group ? `/group-chat?id=${encodeURIComponent(conversation.id)}` : character ? `/chat?character=${encodeURIComponent(character.together_character_templates.public_handle ?? character.together_character_templates.slug)}` : '/chat';
+          const href = group
+            ? `/group-chat?id=${encodeURIComponent(conversation.id)}`
+            : character
+            ? characterConversationHref(
+              character.together_character_templates.public_handle ?? character.together_character_templates.slug,
+              conversation.id,
+            )
+            : '/chat';
           return <Pressable key={conversation.id} accessibilityLabel={`Open ${name}${conversation.unread ? ', unread' : ''}`} onPress={() => navigate(href)} style={({ pressed }) => [styles.recentRow, pressed && styles.rowPressed]}>
             {group ? <View style={styles.groupMark}><UsersRound size={19} color={colors.violet} /></View> : character ? <CharacterAvatar name={name} template={character.together_character_templates} version={character.together_character_versions} size={35} /> : <View style={styles.groupMark}><MessageCircle size={18} color={colors.muted} /></View>}
             <View style={styles.recentCopy}><Text style={[styles.recentName, conversation.unread && styles.recentUnread]} numberOfLines={1}>{name}</Text><Text style={styles.recentPreview} numberOfLines={1}>{conversation.last_message_preview?.trim() || 'Continue the conversation'}</Text></View>

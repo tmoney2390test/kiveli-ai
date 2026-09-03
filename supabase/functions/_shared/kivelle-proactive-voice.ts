@@ -10,7 +10,7 @@ export async function renderCharacterInitiative(input:{db:SupabaseClient;userId:
   const canonicalDraft=sanitizeInitiativeText(input.draft),chatLanguage=conversationChatLanguage(input.conversation),fallback=chatLanguage==='en'?canonicalDraft:'';
   const key=Deno.env.get('OPENAI_API_KEY');
   if(!key||Deno.env.get('KIVELLE_PROACTIVE_VOICE_ENABLED')==='false'||!input.conversation?.id)return fallback;
-  const{data:rows}=await input.db.from('together_messages').select('role,content,speaker_character_instance_id,character_instance_id,created_at').eq('conversation_id',input.conversation.id).order('conversation_sequence',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false}).limit(12);
+  const{data:rows}=await input.db.from('together_messages').select('role,content,speaker_character_instance_id,character_instance_id,created_at').eq('conversation_id',input.conversation.id).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).order('conversation_sequence',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false}).limit(12);
   const speakerRows=(rows??[]).filter((row)=>row.role==='user'||String(row.speaker_character_instance_id??row.character_instance_id??'')===String(input.instance.id)).slice(0,6);
   const model=Deno.env.get('KIVELLE_PROACTIVE_MODEL')?.trim()||Deno.env.get('KIVELLE_OPENAI_DIALOGUE_MODEL')?.trim()||'gpt-5.6-luna';
   const started=Date.now();let response:Response|undefined;

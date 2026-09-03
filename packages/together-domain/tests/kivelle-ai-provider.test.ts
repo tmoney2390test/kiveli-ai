@@ -1,8 +1,8 @@
 import { describe,expect,it,vi } from 'vitest';
-import { buildResponsesRequestBody, canRetryStreamFailure, deriveOpaquePromptCacheKey, dialogueFallbackProvider, executeResponsesHttp, extractResponsesText, parseResponsesStreamEvent } from '../src/ai-provider.ts';
+import { buildResponsesRequestBody, canRetryStreamFailure, deriveOpaquePromptCacheKey, dialogueFallbackProvider, executeResponsesHttp, extractResponsesText, isUnsupportedTemperatureResponse, parseResponsesStreamEvent } from '../src/ai-provider.ts';
 
 describe('Kivelle Responses provider adapter',()=>{
-  it.each([['openai','https://api.openai.com/v1/responses','gpt-5.6-luna'],['xai','https://api.x.ai/v1/responses','grok-4.3']] as const)('uses the correct %s endpoint, model, disabled reasoning, and token budget',async(provider,endpoint,model)=>{
+  it.each([['openai','https://api.openai.com/v1/responses','gpt-5.6-luna'],['xai','https://api.x.ai/v1/responses','grok-4.3']] as const)('uses the correct %s endpoint, model, reasoning, and token budget',async(provider,endpoint,model)=>{
     const fetchMock=vi.fn(async()=>new Response(JSON.stringify({output_text:'hello',usage:{input_tokens:10,output_tokens:2}}),{status:200})) as unknown as typeof fetch;
     const requestBody=buildResponsesRequestBody({model,prompt:'same canonical prompt',maxOutputTokens:160,stream:false,...(provider==='xai'?{promptCacheKey:'kivelle_opaque'}:{})});
     await executeResponsesHttp(fetchMock,provider,'server-secret',requestBody);
@@ -10,6 +10,9 @@ describe('Kivelle Responses provider adapter',()=>{
     const calls=vi.mocked(fetchMock).mock.calls;const[url,init]=calls[0]??[];expect(url).toBe(endpoint);const request=init as RequestInit,parsedBody=JSON.parse(typeof request.body==='string'?request.body:'{}') as Record<string,unknown>,headers=request.headers as Record<string,string>;expect(parsedBody).toMatchObject({model,input:'same canonical prompt',max_output_tokens:160,reasoning:{effort:'none'}});expect(headers['Authorization']).toBe('Bearer server-secret');
     if(provider==='xai')expect(parsedBody['prompt_cache_key']).toBe('kivelle_opaque');
   });
+  it.each(['none','low','medium','high'] as const)('constructs a request with %s reasoning',reasoningEffort=>{expect(buildResponsesRequestBody({model:'gpt-5.6-luna',prompt:'hello',maxOutputTokens:900,stream:true,reasoningEffort})).toMatchObject({reasoning:{effort:reasoningEffort},stream:true,max_output_tokens:900});});
+  it('includes temperature only when explicitly resolved and preserves prompt caching',()=>{expect(buildResponsesRequestBody({model:'grok-4.3',prompt:'hello',maxOutputTokens:900,stream:false,promptCacheKey:'opaque',reasoningEffort:'low',temperature:.85})).toMatchObject({reasoning:{effort:'low'},temperature:.85,prompt_cache_key:'opaque'});expect(buildResponsesRequestBody({model:'gpt-5.6-luna',prompt:'hello',maxOutputTokens:900,stream:false,reasoningEffort:'medium'})).not.toHaveProperty('temperature');});
+  it('recognizes only an explicit unsupported sampling-parameter response as retryable',()=>{expect(isUnsupportedTemperatureResponse(400,{error:{message:'temperature is not supported with this model'}})).toBe(true);expect(isUnsupportedTemperatureResponse(422,'Invalid sampling parameter temperature')).toBe(true);expect(isUnsupportedTemperatureResponse(429,'temperature quota')).toBe(false);expect(isUnsupportedTemperatureResponse(400,'reasoning effort unsupported')).toBe(false);});
   it('parses non-streaming text and streaming completion usage',()=>{
     expect(extractResponsesText({output_text:' hi '})).toBe('hi');
     expect(parseResponsesStreamEvent({type:'response.output_text.delta',delta:'hey'})).toEqual({token:'hey'});

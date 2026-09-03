@@ -2,13 +2,19 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AlignLeft, Bell, Check, ChevronDown, Languages, MessageCircle, Settings, Sparkles, Type, UsersRound, X } from 'lucide-react-native';
 import { manageGroup } from '../lib/api';
-import { chatTextSizeOptions, resolveChatLanguage, resolveChatResponseStyle, resolveChatTextSize, withLocalChatSettings } from '../lib/chatSettings';
+import { chatPreferencesFromConversation, chatTextSizeOptions, resolveChatContentMode, resolveChatLanguage, resolveChatResponseStyle, resolveChatTextSize, withLocalChatSettings } from '../lib/chatSettings';
 import { conversationStyleOptions } from '../lib/conversationStyle';
 import { useTogether } from '../store/useTogether';
 import { colors, radius } from '../theme';
-import type { ChatTextSize, Conversation, ConversationStyle, GroupDetail, GroupSettings } from '../types';
+import type { ChatTextSize, Conversation, ConversationStyle, DialogueContentMode, GroupDetail, GroupSettings } from '../types';
 import { FrostedSurface } from './FrostedGlass';
 import { chatLanguageOptions, type ChatLanguagePreference } from '@together/domain/src/chat-language';
+import { ChatContentModeControl } from './ChatContentModeControl';
+import { ChatGenerationSettings } from './settings/ChatGenerationSettings';
+import { type ChatDynamism, type ReasoningPreference } from '@together/domain/src/chat-generation';
+import { subscriptionHref } from '../lib/subscriptionPresentation';
+import { groupConversationWebHref,navigateLocalRouteOnWeb } from '../lib/conversationNavigation';
+import { router } from 'expo-router';
 
 type Props = {
   visible: boolean;
@@ -25,6 +31,9 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
   const [title, setTitle] = useState('');
   const [responseStyle, setResponseStyle] = useState<ConversationStyle>('texting');
   const [textSize, setTextSize] = useState<ChatTextSize>('medium');
+  const [chatDynamism,setChatDynamism]=useState<ChatDynamism>(50);
+  const [reasoningPreference,setReasoningPreference]=useState<ReasoningPreference>('auto');
+  const [contentMode,setContentMode]=useState<DialogueContentMode>('mature');
   const [chatLanguage, setChatLanguage] = useState<ChatLanguagePreference>('en');
   const [languageOpen, setLanguageOpen] = useState(false);
   const [responseMode, setResponseMode] = useState<GroupSettings['responseMode']>('automatic');
@@ -32,12 +41,17 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
   const [notificationMode, setNotificationMode] = useState<GroupSettings['notificationMode']>('all');
   const [saving, setSaving] = useState(false);
   const selectedLanguage = chatLanguageOptions.find((option) => option.value === chatLanguage) ?? chatLanguageOptions[1]!;
+  const adultEligible=Boolean((snapshot?.profile as {adult_content_eligible?:boolean}|null|undefined)?.adult_content_eligible);
 
   useEffect(() => {
     if (!visible || !conversation) return;
     setTitle(conversation.title ?? '');
     setResponseStyle(resolveChatResponseStyle(conversation, snapshot?.profile ?? null));
     setTextSize(resolveChatTextSize(conversation));
+    const generationPreferences=chatPreferencesFromConversation(conversation);
+    setChatDynamism(generationPreferences.chatDynamism);
+    setReasoningPreference(generationPreferences.reasoningPreference);
+    setContentMode(resolveChatContentMode(conversation,snapshot?.profile??null));
     setChatLanguage(resolveChatLanguage(conversation));
     setLanguageOpen(false);
     setResponseMode(settings.responseMode);
@@ -48,7 +62,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
   const save = async () => {
     if (!conversation || saving) return;
     setSaving(true);
-    const input = { title: title.trim() || null, responseStyle, textSize, chatLanguage };
+    const input = { title: title.trim() || null, responseStyle, textSize,contentMode, chatLanguage,chatDynamism,reasoningPreference };
     try {
       if (demoMode) {
         const updated = withLocalChatSettings(conversation, input);
@@ -81,27 +95,6 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
           <Section icon={<UsersRound size={16} color={colors.violet} />} label="Group name">
             <TextInput accessibilityLabel="Group name" value={title} onChangeText={setTitle} editable={!saving} maxLength={80} placeholder="Name this group" placeholderTextColor={colors.dimmed} style={styles.input} />
           </Section>
-          <Section icon={<Languages size={16} color={colors.violet} />} label="Chat language">
-            <Pressable accessibilityRole="button" accessibilityLabel={`Chat language: ${selectedLanguage.label}`} accessibilityState={{ expanded: languageOpen, disabled: saving }} disabled={saving} onPress={() => setLanguageOpen(true)} style={styles.languageSelect}>
-              <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.languageValue}>{selectedLanguage.nativeLabel}</Text>{selectedLanguage.nativeLabel !== selectedLanguage.label ? <Text style={styles.languageDetail}>{selectedLanguage.label}</Text> : null}</View><ChevronDown size={17} color={colors.muted} />
-            </Pressable>
-            <Text style={styles.languageHint}>All companions in this group reply and speak in this language.</Text>
-          </Section>
-          <Section icon={<AlignLeft size={16} color={colors.violet} />} label="Response style">
-            <View accessibilityRole="radiogroup" style={styles.columns}>
-              {conversationStyleOptions.map((option) => {
-                const selected = option.value === responseStyle;
-                const Icon = option.value === 'texting' ? MessageCircle : AlignLeft;
-                return <Choice key={option.value} label={option.value === 'texting' ? 'SMS' : 'Paragraph'} selected={selected} disabled={saving} icon={<Icon size={18} color={selected ? colors.violet : colors.muted} />} onPress={() => setResponseStyle(option.value)} />;
-              })}
-            </View>
-          </Section>
-          <Section icon={<Type size={16} color={colors.violet} />} label="Text size">
-            <View accessibilityRole="radiogroup" style={styles.columns}>
-              {chatTextSizeOptions.map((option) => <Choice key={option.value} label={option.label} selected={option.value === textSize} disabled={saving} icon={<Text style={[styles.aa, option.value === textSize && styles.selectedText]}>Aa</Text>} onPress={() => setTextSize(option.value)} />)}
-            </View>
-          </Section>
-          <View style={styles.divider} />
           <Section icon={<UsersRound size={16} color={colors.violet} />} label="Who responds">
             <Text style={styles.sectionHint}>Automatic lets the conversation choose naturally. Choose speaker makes one companion your default; you can still override it beside the composer.</Text>
             <View accessibilityRole="radiogroup" style={styles.columns}>
@@ -114,6 +107,29 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
             <View accessibilityRole="radiogroup" style={styles.columns}>
               {(['quiet', 'balanced', 'lively'] as const).map((value) => <Choice key={value} label={value[0]!.toUpperCase() + value.slice(1)} selected={energy === value} disabled={saving} onPress={() => setEnergy(value)} />)}
             </View>
+          </Section>
+          <Section icon={<AlignLeft size={16} color={colors.violet} />} label="Response style">
+            <View accessibilityRole="radiogroup" style={styles.columns}>
+              {conversationStyleOptions.map((option) => {
+                const selected = option.value === responseStyle;
+                const Icon = option.value === 'texting' ? MessageCircle : AlignLeft;
+                return <Choice key={option.value} label={option.value === 'texting' ? 'SMS' : 'Paragraph'} selected={selected} disabled={saving} icon={<Icon size={18} color={selected ? colors.violet : colors.muted} />} onPress={() => setResponseStyle(option.value)} />;
+              })}
+            </View>
+          </Section>
+          <ChatGenerationSettings mode="group" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>{onClose();const href=subscriptionHref({intent:'plans',returnTo:groupConversationWebHref(conversation?.id??'')});if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never);}}/>
+          <Section icon={<Type size={16} color={colors.violet} />} label="Text size">
+            <View accessibilityRole="radiogroup" style={styles.columns}>
+              {chatTextSizeOptions.map((option) => <Choice key={option.value} label={option.label} selected={option.value === textSize} disabled={saving} icon={<Text style={[styles.aa, option.value === textSize && styles.selectedText]}>Aa</Text>} onPress={() => setTextSize(option.value)} />)}
+            </View>
+          </Section>
+          <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible}/>
+          <View style={styles.divider} />
+          <Section icon={<Languages size={16} color={colors.violet} />} label="Chat language">
+            <Pressable accessibilityRole="button" accessibilityLabel={`Chat language: ${selectedLanguage.label}`} accessibilityState={{ expanded: languageOpen, disabled: saving }} disabled={saving} onPress={() => setLanguageOpen(true)} style={styles.languageSelect}>
+              <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.languageValue}>{selectedLanguage.nativeLabel}</Text>{selectedLanguage.nativeLabel !== selectedLanguage.label ? <Text style={styles.languageDetail}>{selectedLanguage.label}</Text> : null}</View><ChevronDown size={17} color={colors.muted} />
+            </Pressable>
+            <Text style={styles.languageHint}>All companions in this group reply and speak in this language.</Text>
           </Section>
           <Section icon={<Bell size={16} color={colors.violet} />} label="Notifications">
             <Text style={styles.sectionHint}>Choose which group activity can send a push notification. Messages still appear here when notifications are quiet.</Text>

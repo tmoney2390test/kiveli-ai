@@ -12,4 +12,5 @@ overrides:
   uuid@<11.1.1: 11.1.1
 
 patchedDependencies:
+  '@edkimmel/expo-audio-stream@1.1.1': patches/@edkimmel__expo-audio-stream@1.1.1.patch
   image-size@1.2.1: patches/image-size@1.2.1.patch

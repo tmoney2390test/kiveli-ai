@@ -1,7 +1,14 @@
 import { normalizeSubscriptionTier, type SubscriptionTier } from './entitlements.ts';
 
-export const billingProviders=['stripe','revenuecat','configured'] as const;
+/**
+ * Kivelle owns the entitlement model. Providers are ingestion adapters only.
+ * Apple and Google are accepted here as dormant direct-adapter seams so a
+ * future RevenueCat migration does not require another entitlement rewrite.
+ */
+export const billingProviders=['stripe','revenuecat','apple','google_play','configured'] as const;
 export type BillingProvider=typeof billingProviders[number];
+export const appStoreBillingProviders=['revenuecat','apple','google_play'] as const;
+export type AppStoreBillingProvider=typeof appStoreBillingProviders[number];
 export const billingIntervals=['monthly','annual'] as const;
 export type BillingInterval=typeof billingIntervals[number];
 export const subscriptionStatuses=['trialing','active','past_due','unpaid','paused','canceled','incomplete','incomplete_expired'] as const;
@@ -53,6 +60,10 @@ export function billingTierRank(value:unknown):number{
   return tier==='kivelle_max'?2:tier==='kivelle_plus'?1:0;
 }
 
+export function isAppStoreBillingProvider(value:unknown):value is AppStoreBillingProvider{
+  return appStoreBillingProviders.includes(value as AppStoreBillingProvider);
+}
+
 /**
  * Converts provider state and server configuration into account-specific UI
  * capabilities. Clients should never infer management actions from a paid tier
@@ -70,7 +81,7 @@ export function billingManagementCapabilities(input:{
 }):BillingManagementCapabilities{
   const tier=normalizeSubscriptionTier(input.tier),paid=tier!=='free',provider=typeof input.provider==='string'?input.provider:null,status=normalizeSubscriptionStatus(input.status);
   if(!paid)return{mode:'none',label:'Kivelle Free',canManageSubscription:false,manageAction:'none',canPurchaseCredits:false,managementReason:'There is no paid subscription to manage.',creditPurchaseReason:'Credit packs are available with an active Kivelle+ or Kivelle Max plan.'};
-  const mode:BillingManagementMode=input.managedByKivelle?'kivelle':provider==='stripe'?'stripe':provider==='revenuecat'?'app_store':provider==='configured'?'configured':'kivelle';
+  const mode:BillingManagementMode=input.managedByKivelle?'kivelle':provider==='stripe'?'stripe':isAppStoreBillingProvider(provider)?'app_store':provider==='configured'?'configured':'kivelle';
   const hasSubscription=typeof input.subscriptionId==='string'&&input.subscriptionId.length>0;
   const canManageSubscription=mode==='app_store'||mode==='stripe'&&hasSubscription&&input.stripePortalConfigured===true||mode==='configured'&&input.configuredPortalConfigured===true;
   const manageAction:BillingManageAction=mode==='app_store'?'app_store':canManageSubscription?'portal':'none';

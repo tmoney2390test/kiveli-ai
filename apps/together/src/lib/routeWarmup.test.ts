@@ -19,7 +19,7 @@ describe('route warmup', () => {
     vi.advanceTimersByTime(99);
     expect(prefetch).not.toHaveBeenCalled();
     vi.advanceTimersByTime(101);
-    expect(prefetch.mock.calls.map(([href]) => href)).toEqual(['/home', '/explore', '/chat-tab?messages=1']);
+    expect(prefetch.mock.calls.map(([href]) => href)).toEqual(['/home', '/chat', '/chat-tab?messages=1']);
     cancel();
   });
 

@@ -10,10 +10,13 @@ type State={error:Error|null};
 class Boundary extends React.Component<React.PropsWithChildren<{route:string}>,State>{
   override state:State={error:null};
   static getDerivedStateFromError(error:Error):State{return{error};}
+  override componentDidUpdate(previous:Readonly<React.PropsWithChildren<{route:string}>>){
+    if(this.state.error&&previous.route!==this.props.route)this.setState({error:null});
+  }
   override componentDidCatch(error:Error,info:React.ErrorInfo){void reportClientError(error,{route:this.props.route,surface:'react_boundary',metadata:{componentStack:Boolean(info.componentStack)}}).catch(()=>undefined);recoverStaleWebRelease(error);}
   override render(){if(!this.state.error)return this.props.children;return <View style={styles.screen}><View style={styles.glow}/><View style={styles.card}><View style={styles.icon}><AlertTriangle color={colors.warm} size={28}/></View><Text accessibilityRole="header" style={styles.title}>Kivelle hit an unexpected snag</Text><Text style={styles.body}>Your account and conversations are safe. Refresh this page to reconnect without losing your place.</Text><Pressable accessibilityRole="button" onPress={()=>{if(!reloadCurrentWebRoute())this.setState({error:null});}} style={styles.primary}><RotateCcw size={17} color="#fff"/><Text style={styles.primaryText}>Refresh Kivelle</Text></Pressable><Pressable onPress={()=>{this.setState({error:null});router.replace('/home');}} style={styles.secondary}><Text style={styles.secondaryText}>Return home</Text></Pressable></View></View>;}
 }
-export function AppErrorBoundary({children}:React.PropsWithChildren){const route=usePathname();return <Boundary key={route} route={route}>{children}</Boundary>;}
+export function AppErrorBoundary({children}:React.PropsWithChildren){const route=usePathname();return <Boundary route={route}>{children}</Boundary>;}
 type NativeErrorHandler=(error:Error,isFatal?:boolean)=>void;
 type ErrorUtilsShape={getGlobalHandler?:()=>NativeErrorHandler;setGlobalHandler?:(handler:NativeErrorHandler)=>void};
 export function GlobalErrorReporter(){const route=usePathname(),routeRef=useRef(route);routeRef.current=route;useEffect(()=>{

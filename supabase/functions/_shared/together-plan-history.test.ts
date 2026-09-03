@@ -16,8 +16,8 @@ Deno.test('plan transcript keeps only completed user and companion scene dialogu
 
 Deno.test('plan history media includes generated and unexpired shared photos without leaking private metadata',()=>{
   const messages=[{id:'message',together_conversation_attachments:[
-    {id:'shared',kind:'image',upload_status:'uploaded',storage_path:'user/shared.webp',mime_type:'image/webp',created_at:'2026-08-31T12:01:00Z',analysis_metadata:{description:'private vision detail'}},
-    {id:'expired',kind:'image',upload_status:'uploaded',storage_path:'user/expired.webp',mime_type:'image/webp',expires_at:'2026-08-30T12:01:00Z',created_at:'2026-08-29T12:01:00Z'},
+    {id:'shared',kind:'image',upload_status:'uploaded',storage_path:'user/shared.webp',mime_type:'image/webp',created_at:'2026-08-31T12:01:00Z',content_rating:'safe',visibility_scope:'all',analysis_metadata:{description:'private vision detail'}},
+    {id:'expired',kind:'image',upload_status:'uploaded',storage_path:'user/expired.webp',mime_type:'image/webp',expires_at:'2026-08-30T12:01:00Z',created_at:'2026-08-29T12:01:00Z',content_rating:'safe',visibility_scope:'all'},
   ]}];
   const result=projectPlanHistoryMedia({
     generated:[{id:'generated',media_type:'image',status:'ready',storage_path:'user/generated.webp',content_type:'image/webp',created_at:'2026-08-31T12:02:00Z',metadata:{providerSecret:'never return'}}],

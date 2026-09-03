@@ -39,6 +39,8 @@ import {
   type IntimacyStance,
   isContradictoryAcceptedIntimacyRefusal,
   isDialogueHardBlocked,
+  isUnsupportedTemperatureResponse,
+  providerGenerationControls,
   type NormalizedAiUsage,
   type NormalizedModerationResult,
   normalizeResponsesUsage,
@@ -49,6 +51,8 @@ import {
   acquireProviderSlot,
   releaseProviderSlot,
 } from "./kivelle-provider-concurrency.ts";
+import { chatGenerationControlsMode,resolveDialogueRunGenerationProfile,type DialogueGenerationContext } from './kivelle-chat-generation.ts';
+import type { ChatGenerationControlsMode,DialogueGenerationProfile } from '../../../packages/together-domain/src/chat-generation.ts';
 
 export type DialogueContext = KivelleConversationContext & {
   contentMode?: string;
@@ -68,6 +72,23 @@ export type DialogueRunMetadata = {
   firstByteLatencyMs?: number;
   firstTokenLatencyMs?: number;
   fallback?: boolean;
+  chatGenerationControlsMode?:ChatGenerationControlsMode;
+  requestedReasoning?:string;
+  autoDesiredReasoning?:string;
+  effectiveReasoning?:string;
+  chatDynamism?:number;
+  temperatureApplied?:boolean;
+  visibleTokenBudget?:number;
+  providerMaxOutputTokens?:number;
+  reasoningReasonCodes?:string[];
+  generationProfileVersion?:string;
+  chatGenerationProfileVersion?:string;
+  unsupportedTemperatureFallback?:boolean;
+  resolvedTemperature?:number;
+  reasoningTokenReserve?:number;
+  conversationMode?:'direct'|'group';
+  groupGenerationMode?:'per_speaker';
+  speakerRole?:'primary'|'secondary';
 };
 export type DialogueGenerationResult = {
   text: string;
@@ -82,6 +103,10 @@ export type DialogueRunOptions = {
   usageScope?: AiUsageScope;
   operation?: string;
   sharedSceneParticipant?: boolean;
+  generationContext?:DialogueGenerationContext;
+  generationProfile?:DialogueGenerationProfile;
+  chatGenerationControlsMode?:ChatGenerationControlsMode;
+  unsupportedTemperatureFallback?:boolean;
 };
 export interface DialogueProvider {
   generate(
@@ -432,13 +457,9 @@ async function generateResponses(
     firstByteLatencyMs: number | undefined;
   const controller = new AbortController();
   try {
+    const body=await responsesBody(context, options, modelName, false);
     response = await withDialogueProviderDeadline(
-      executeResponsesHttp(
-        deadlineFetch(controller),
-        provider,
-        key,
-        await responsesBody(context, options, modelName, false),
-      ),
+      executeResponsesWithTemperatureFallback(deadlineFetch(controller),provider,key,body,options),
       controller,
     );
     firstByteLatencyMs = Date.now() - started;
@@ -454,6 +475,7 @@ async function generateResponses(
         metadata: {
           sharedSceneParticipant: options.sharedSceneParticipant === true,
           firstByteLatencyMs,
+          ...generationTelemetry(options),
         },
       });
       recorded = true;
@@ -484,6 +506,9 @@ async function generateResponses(
         sharedSceneParticipant: options.sharedSceneParticipant === true,
         firstByteLatencyMs,
         bodyLatencyMs: Math.max(0, latency - (firstByteLatencyMs ?? latency)),
+        visibleOutputTokens:usage.outputTokens,
+        totalOutputTokens:usage.outputTokens+usage.reasoningTokens,
+        ...generationTelemetry(options),
       },
     });
     recorded = true;
@@ -512,6 +537,7 @@ async function generateResponses(
         metadata: {
           sharedSceneParticipant: options.sharedSceneParticipant === true,
           ...(firstByteLatencyMs === undefined ? {} : { firstByteLatencyMs }),
+          ...generationTelemetry(options),
         },
       });
     }
@@ -543,13 +569,9 @@ async function* streamResponses(
     firstTokenLatencyMs: number | undefined;
   const controller = new AbortController();
   try {
+    const body=await responsesBody(context, options, modelName, true);
     response = await withDialogueProviderDeadline(
-      executeResponsesHttp(
-        deadlineFetch(controller),
-        provider,
-        key,
-        await responsesBody(context, options, modelName, true),
-      ),
+      executeResponsesWithTemperatureFallback(deadlineFetch(controller),provider,key,body,options),
       controller,
     );
     firstByteLatencyMs = Date.now() - started;
@@ -562,7 +584,7 @@ async function* streamResponses(
         success: false,
         httpStatus: response.status,
         errorCode: `HTTP_${response.status}`,
-        metadata: { firstByteLatencyMs },
+        metadata: { firstByteLatencyMs,...generationTelemetry(options) },
       });
       recorded = true;
       throw new Error(`${provider}_stream_failed`);
@@ -595,6 +617,10 @@ async function* streamResponses(
         sharedSceneParticipant: options.sharedSceneParticipant === true,
         firstByteLatencyMs,
         firstTokenLatencyMs,
+        timeToFirstTokenMs:firstTokenLatencyMs??null,
+        visibleOutputTokens:usage?.outputTokens??0,
+        totalOutputTokens:(usage?.outputTokens??0)+(usage?.reasoningTokens??0),
+        ...generationTelemetry(options),
       },
     });
     recorded = true;
@@ -624,6 +650,7 @@ async function* streamResponses(
           sharedSceneParticipant: options.sharedSceneParticipant === true,
           ...(firstByteLatencyMs === undefined ? {} : { firstByteLatencyMs }),
           ...(firstTokenLatencyMs === undefined ? {} : { firstTokenLatencyMs }),
+          ...generationTelemetry(options),
         },
       });
     }
@@ -639,11 +666,17 @@ async function responsesBody(
   modelName: string,
   stream: boolean,
 ) {
+  const provider=options.route.provider as 'openai'|'xai';
+  const profile=options.generationProfile??=resolveDialogueRunGenerationProfile({context,provider,model:modelName,generationContext:options.generationContext});
+  const controlsMode=options.chatGenerationControlsMode??=chatGenerationControlsMode();
+  const applied=providerGenerationControls(profile,controlsMode);
   return buildResponsesRequestBody({
     model: modelName,
-    prompt: buildCompanionPrompt(context),
-    maxOutputTokens: responseTokenBudget(context),
+    prompt: buildCompanionPrompt({...context,chatGenerationControlsApplied:applied.promptDynamismApplied}),
+    maxOutputTokens: applied.maxOutputTokens,
     stream,
+    reasoningEffort:applied.reasoningEffort,
+    ...(applied.temperature!==undefined?{temperature:applied.temperature}:{}),
     ...(options.route.provider === "xai"
       ? {
         promptCacheKey: await deriveOpaquePromptCacheKey({
@@ -654,6 +687,45 @@ async function responsesBody(
       }
       : {}),
   });
+}
+
+export async function executeResponsesWithTemperatureFallback(fetchImpl:typeof fetch,provider:'openai'|'xai',key:string,body:Record<string,unknown>,options:DialogueRunOptions):Promise<Response>{
+  const first=await executeResponsesHttp(fetchImpl,provider,key,body);
+  if(first.ok||typeof body.temperature!=='number')return first;
+  const errorBody=await first.clone().text().catch(()=>"");
+  if(!isUnsupportedTemperatureResponse(first.status,errorBody))return first;
+  const withoutTemperature={...body};delete withoutTemperature.temperature;
+  options.unsupportedTemperatureFallback=true;
+  return executeResponsesHttp(fetchImpl,provider,key,withoutTemperature);
+}
+
+function generationTelemetry(options:DialogueRunOptions):Record<string,unknown>{
+  const profile=options.generationProfile;
+  if(!profile)return{chatGenerationControlsMode:options.chatGenerationControlsMode??'off'};
+  const applied=options.chatGenerationControlsMode==='on';
+  return{
+    chatGenerationProfileVersion:profile.profileVersion,
+    chatGenerationControlsMode:options.chatGenerationControlsMode,
+    conversationMode:options.generationContext?.mode??'direct',
+    ...(options.generationContext?.mode==='group'?{groupGenerationMode:'per_speaker'}:{}),
+    speakerRole:options.generationContext?.speakerRole??'primary',
+    requestedReasoning:profile.requestedReasoning,
+    autoDesiredReasoning:profile.autoDesiredReasoning??null,
+    effectiveReasoning:profile.effectiveReasoning,
+    providerReasoningApplied:applied?profile.effectiveReasoning:'none',
+    chatDynamism:profile.chatDynamism,
+    resolvedTemperature:profile.temperature??null,
+    temperatureApplied:applied&&profile.temperature!==undefined&&!options.unsupportedTemperatureFallback,
+    visibleTokenBudget:profile.visibleTokenBudget,
+    reasoningTokenReserve:profile.reasoningTokenReserve,
+    providerMaxOutputTokens:profile.providerMaxOutputTokens,
+    appliedReasoningTokenReserve:applied?profile.reasoningTokenReserve:0,
+    appliedProviderMaxOutputTokens:applied?profile.providerMaxOutputTokens:profile.visibleTokenBudget,
+    reasonCodes:profile.reasonCodes,
+    reasoningReasonCodes:profile.reasonCodes,
+    generationProfileVersion:profile.profileVersion,
+    unsupportedTemperatureFallback:options.unsupportedTemperatureFallback===true,
+  };
 }
 function operationName(options: DialogueRunOptions, provider: string) {
   return options.operation ?? `dialogue_${provider}`;
@@ -676,7 +748,31 @@ function metadataFor(
     outputTokens: usage?.outputTokens ?? 0,
     reasoningTokens: usage?.reasoningTokens ?? 0,
     latencyMs,
+    ...generationMetadata(options),
     ...(fallback ? { fallback: true } : {}),
+  };
+}
+
+function generationMetadata(options:DialogueRunOptions):Partial<DialogueRunMetadata>{
+  const telemetry=generationTelemetry(options);
+  return{
+    chatGenerationControlsMode:telemetry.chatGenerationControlsMode as ChatGenerationControlsMode,
+    ...(typeof telemetry.requestedReasoning==='string'?{requestedReasoning:telemetry.requestedReasoning}:{}),
+    ...(typeof telemetry.autoDesiredReasoning==='string'?{autoDesiredReasoning:telemetry.autoDesiredReasoning}:{}),
+    ...(typeof telemetry.effectiveReasoning==='string'?{effectiveReasoning:telemetry.effectiveReasoning}:{}),
+    ...(typeof telemetry.chatDynamism==='number'?{chatDynamism:telemetry.chatDynamism}:{}),
+    ...(typeof telemetry.temperatureApplied==='boolean'?{temperatureApplied:telemetry.temperatureApplied}:{}),
+    ...(typeof telemetry.resolvedTemperature==='number'?{resolvedTemperature:telemetry.resolvedTemperature}:{}),
+    ...(typeof telemetry.visibleTokenBudget==='number'?{visibleTokenBudget:telemetry.visibleTokenBudget}:{}),
+    ...(typeof telemetry.reasoningTokenReserve==='number'?{reasoningTokenReserve:telemetry.reasoningTokenReserve}:{}),
+    ...(typeof telemetry.providerMaxOutputTokens==='number'?{providerMaxOutputTokens:telemetry.providerMaxOutputTokens}:{}),
+    ...(telemetry.conversationMode==='direct'||telemetry.conversationMode==='group'?{conversationMode:telemetry.conversationMode}:{}),
+    ...(telemetry.groupGenerationMode==='per_speaker'?{groupGenerationMode:'per_speaker' as const}:{}),
+    ...(telemetry.speakerRole==='primary'||telemetry.speakerRole==='secondary'?{speakerRole:telemetry.speakerRole}:{}),
+    ...(Array.isArray(telemetry.reasonCodes)?{reasoningReasonCodes:telemetry.reasonCodes.map(String)}:{}),
+    ...(typeof telemetry.generationProfileVersion==='string'?{generationProfileVersion:telemetry.generationProfileVersion}:{}),
+    ...(typeof telemetry.chatGenerationProfileVersion==='string'?{chatGenerationProfileVersion:telemetry.chatGenerationProfileVersion}:{}),
+    ...(telemetry.unsupportedTemperatureFallback===true?{unsupportedTemperatureFallback:true}:{}),
   };
 }
 async function generateAdultProviderDowngrade(
@@ -704,6 +800,8 @@ async function generateAdultProviderDowngrade(
     try {
       const fallbackOptions = {
         ...options,
+        generationProfile:undefined,
+        unsupportedTemperatureFallback:false,
         route: {
           ...options.route,
           provider: "openai" as const,
@@ -896,7 +994,7 @@ export class ConfiguredModerationProvider implements ModerationProvider {
       return {
         allowed: true,
         flagged: false,
-        categories: [],
+        categories: ["moderation/unavailable"],
         categoryScores: {},
       };
     }
@@ -928,7 +1026,7 @@ export class ConfiguredModerationProvider implements ModerationProvider {
         return {
           allowed: true,
           flagged: false,
-          categories: [],
+          categories: ["moderation/unavailable"],
           categoryScores: {},
         };
       }
@@ -979,7 +1077,7 @@ export class ConfiguredModerationProvider implements ModerationProvider {
       return {
         allowed: true,
         flagged: false,
-        categories: [],
+        categories: ["moderation/unavailable"],
         categoryScores: {},
       };
     }

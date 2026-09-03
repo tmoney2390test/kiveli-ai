@@ -31,3 +31,4 @@ export * from './PhotoSharingPaywallModal';
 export * from './RouteLoadingState';
 export * from './JumpToLatestButton';
 export * from './MobileChatContextCard';
+export * from './SpiceBadge';

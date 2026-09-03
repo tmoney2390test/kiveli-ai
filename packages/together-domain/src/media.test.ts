@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHARACTER_PHOTO_REALISM_GUIDANCE, PHOTO_ONLY_MESSAGE_CONTENT, PRODUCTION_SAFE_ROMANTIC_PHOTO_DIRECTION, PRODUCTION_SAFE_SWIM_PHOTO_DIRECTION, classifyPhotoIntent, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, isPhotoOnlyConversationMessage, photoRequestAllowsHiddenFace, photoRequestWantsVisibleCaptureDevice, resolveAdultNudityScope, resolveCanonicalMediaPresence, resolvePhotoComposition, resolvePhotoDirection, resolveProductionSafePhotoRequest, resolveSpecificAnatomyExposure, sanitizePhotoDeliveryAcknowledgement } from './media';
+import { CHARACTER_PHOTO_REALISM_GUIDANCE, PHOTO_ONLY_MESSAGE_CONTENT, PRODUCTION_SAFE_ROMANTIC_PHOTO_DIRECTION, PRODUCTION_SAFE_SWIM_PHOTO_DIRECTION, classifyPhotoIntent, classifyUserAuthoredMediaSafety, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, isPhotoOnlyConversationMessage, photoRequestAllowsHiddenFace, photoRequestWantsVisibleCaptureDevice, resolveAdultNudityScope, resolveCanonicalMediaPresence, resolvePhotoComposition, resolvePhotoDirection, resolveProductionSafePhotoRequest, resolveSpecificAnatomyExposure, sanitizePhotoDeliveryAcknowledgement } from './media';
 
 describe('production photo ceiling',()=>{
   it('turns a nude request into a clothed romantic photo instead of rejecting generation',()=>{
@@ -28,6 +28,20 @@ describe('production photo ceiling',()=>{
   it('preserves ordinary and romantic visual direction',()=>{
     expect(resolveProductionSafePhotoRequest({requestText:'Send a photo at the pool in your blue summer dress'})).toMatchObject({contentLevel:'standard',downgraded:false,requestText:'Send a photo at the pool in your blue summer dress'});
     expect(resolveProductionSafePhotoRequest({requestText:'Send a romantic photo by the lake'})).toMatchObject({contentLevel:'romance',downgraded:false});
+  });
+
+  it('preserves an authorized adult request for the adult media route',()=>{
+    const adult=resolveProductionSafePhotoRequest({
+      requestText:'Send me a nude photo from the bookstore',
+      requestedContentLevel:'explicit',
+      adultPipelineAuthorized:true,
+    });
+    expect(adult).toMatchObject({
+      contentLevel:'explicit',
+      requestText:'Send me a nude photo from the bookstore',
+      downgraded:false,
+      reasonCode:'allowed',
+    });
   });
 });
 
@@ -288,6 +302,14 @@ describe('character photo identity grounding',()=>{
     expect(direction.faceDirection).toContain('Do not turn');
   });
 
+  it('infers the required rear camera for a bent-over lower-anatomy request',()=>{
+    const direction=resolvePhotoDirection({requestText:'Send me a photo of you bent over with your ass and pussy showing',shotType:'full_body',seed:'elena-rear'});
+    expect(direction).toMatchObject({source:'requested'});
+    expect(direction.poseDirection).toContain('body bent forward');
+    expect(direction.poseDirection).toContain('rear or rear-three-quarter camera orientation');
+    expect(direction.poseDirection).toContain('requested lower anatomy fully visible');
+  });
+
   it('treats face-down-in-pillows as a requested prone pose rather than a camera-facing portrait',()=>{
     const direction=resolvePhotoDirection({requestText:'Send me a photo face down in the pillows',shotType:'full_body',seed:'brooke-pillows'});
     expect(photoRequestAllowsHiddenFace('face down in the pillows')).toBe(true);
@@ -343,5 +365,17 @@ describe('character photo identity grounding',()=>{
     });
     expect(classifyPhotoIntent('Send a chest-up portrait in your work shirt').requestedContentLevel).toBeUndefined();
     expect(classifyPhotoIntent('Show me your full body in that outfit').requestedContentLevel).toBeUndefined();
+  });
+
+  it('keeps valid adult image directions out of dialogue-only lexical refusals',()=>{
+    expect(classifyUserAuthoredMediaSafety({text:'Send me a nude photo using a forced-perspective camera angle'})).toEqual({allowed:true,reasonCode:'allowed'});
+    expect(classifyUserAuthoredMediaSafety({text:'Send me a nude photo after you escort me to the private studio'})).toEqual({allowed:true,reasonCode:'allowed'});
+  });
+
+  it('retains the media-specific prohibited-content boundaries',()=>{
+    expect(classifyUserAuthoredMediaSafety({text:'Send an explicit photo with a 17-year-old'}).reasonCode).toBe('minor_related');
+    expect(classifyUserAuthoredMediaSafety({text:'Create a nude photo while she is unconscious'}).reasonCode).toBe('nonconsensual');
+    expect(classifyUserAuthoredMediaSafety({text:'Create an explicit sexual deepfake of a celebrity'}).allowed).toBe(false);
+    expect(classifyUserAuthoredMediaSafety({text:'Create an explicit fictional adult photo',moderation:{flagged:true,categories:['sexual/minors']}}).reasonCode).toBe('provider_hard_block');
   });
 });

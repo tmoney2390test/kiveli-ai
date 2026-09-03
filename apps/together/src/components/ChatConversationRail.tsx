@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { MessageCircle, Pin, UsersRound } from "lucide-react-native";
-import { manageGroup } from "../lib/api";
+import { manageConversation, manageGroup } from "../lib/api";
 import { cacheGroupDetailSummary } from "../lib/groupDetailCache";
 import {
   inboxPreview,
@@ -11,7 +11,10 @@ import {
   returnToMessagesInbox,
 } from "../lib/messageInbox";
 import { conversationRouteTarget, groupConversationWebHref, navigateLocalRouteOnWeb } from "../lib/conversationNavigation";
+import { characterConversationHref } from "../lib/chatRoute";
 import { warmRoute } from "../lib/routeWarmup";
+import { prefetchConversationMessagePage } from "../lib/conversationMessageWarmup";
+import { useAuth } from "../hooks/useAuth";
 import { colors, radius } from "../theme";
 import type {
   CharacterInstance,
@@ -37,6 +40,7 @@ export function ChatConversationRail({
   snapshot: Snapshot;
   activeConversationId: string;
 }) {
+  const { session } = useAuth();
   const scope = snapshot.activeContinuity?.id ?? "default";
   const [groups, setGroups] = useState<GroupDetail[]>(() =>
     groupRailCache.get(scope) ?? []
@@ -103,9 +107,10 @@ export function ChatConversationRail({
     const template = row.character?.together_character_templates;
     if (!template) return;
     openRailHref(
-      `/chat?character=${
-        encodeURIComponent(template.public_handle ?? template.slug)
-      }`,
+      characterConversationHref(
+        template.public_handle ?? template.slug,
+        row.conversation.id,
+      ),
     );
   };
 
@@ -156,8 +161,8 @@ export function ChatConversationRail({
                 row.conversation.unread ? ", unread" : ""
               }`}
               accessibilityState={{ selected: active, busy: opening }}
-              onHoverIn={() => warmConversation(row)}
-              onPressIn={() => warmConversation(row)}
+              onHoverIn={() => warmConversation(row, session?.user.id)}
+              onPressIn={() => warmConversation(row, session?.user.id)}
               onPress={() => openConversation(row)}
               style={({ pressed }) => [
                 styles.row,
@@ -213,18 +218,20 @@ function openRailHref(href: string) {
   if (target) router.replace(target as never);
 }
 
-function warmConversation(row: RailRow) {
+function warmConversation(row: RailRow, userId?: string) {
   const href = row.conversation.kind === "group"
     ? Platform.OS === "web"
       ? groupConversationWebHref(row.conversation.id)
       : `/group-chat?id=${encodeURIComponent(row.conversation.id)}`
     : row.character
-    ? `/chat?character=${encodeURIComponent(
+    ? characterConversationHref(
       row.character.together_character_templates.public_handle ??
         row.character.together_character_templates.slug,
-    )}`
+      row.conversation.id,
+    )
     : "";
   if (href) warmRoute(href, (value) => router.prefetch(value as never));
+  if (row.conversation.kind !== "group") prefetchConversationMessagePage(userId, row.conversation.id, () => manageConversation({ action: "messages", conversationId: row.conversation.id, limit: 50 }));
 }
 
 function RailGroupAvatar({ group }: { group?: GroupDetail }) {

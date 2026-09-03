@@ -74,6 +74,8 @@ verify_jwt = false
 verify_jwt = false
 [functions.together-billing-webhook]
 verify_jwt = false
+[functions.together-revenuecat-webhook]
+verify_jwt = false
 
 [functions.together-billing-grants]
 verify_jwt = false
@@ -95,6 +97,10 @@ verify_jwt = false
 [functions.together-group]
 verify_jwt = false
 [functions.together-group-dialogue]
+verify_jwt = false
+[functions.together-adult-mode]
+verify_jwt = false
+[functions.together-adult-asset]
 verify_jwt = false
 
 [functions.together-dialogue-suggestion]

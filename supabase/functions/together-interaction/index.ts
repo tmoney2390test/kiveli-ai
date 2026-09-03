@@ -167,7 +167,7 @@ async function loadContext(input: { db: any; userId: string; continuityId: strin
     input.db.from('together_locations').select('*').eq('world_id', place.world.id).neq('id', locationId).limit(120),
     input.db.from('together_worlds').select('id,activity_families,metadata').eq('id', place.world.id).maybeSingle(),
     resolveCompanionPresence({ db: input.db, userId: input.userId, characterInstanceId: input.characterInstanceId, now: input.now, ensure: false }),
-    input.db.from('together_memories').select('id,memory_type,canonical_text,importance,location_id,context_tags,metadata').eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).eq('status','active').order('importance',{ascending:false}).limit(16),
+    input.db.from('together_memories').select('id,memory_type,canonical_text,importance,location_id,context_tags,metadata').eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).eq('status','active').eq('visibility_scope','all').in('content_rating',['safe','suggestive']).order('importance',{ascending:false}).limit(16),
     input.db.from('together_scene_episodes').select('id,location_id,context_tags,significance,summary,ended_at,action_ids').eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).order('ended_at',{ascending:false}).limit(8),
     input.db.from('together_companion_user_patterns').select('pattern_key,category,summary,confidence').eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).eq('status','active').order('confidence',{ascending:false}).limit(8),
   ]);

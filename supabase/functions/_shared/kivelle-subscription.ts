@@ -18,10 +18,14 @@ export async function resolveSubscriptionState(db:SupabaseClient,userId:string,n
 
 /** Resolve authoritative paid access without touching the Kivelle Credits ledger. */
 export async function resolveSubscriptionAccess(db:SupabaseClient,userId:string,now=new Date()):Promise<KivelleSubscriptionAccess>{
-  let{data:row,error}=await db.from('together_entitlements').select('*').eq('user_id',userId).maybeSingle();
+  const[entitlementResult,normalized]=await Promise.all([
+    db.from('together_entitlements').select('*').eq('user_id',userId).maybeSingle(),
+    loadNormalizedSubscriptions(db,userId),
+  ]);
+  let{data:row,error}=entitlementResult;
   if(error)throw new AppError('INTERNAL_ERROR','Subscription status could not be loaded.',500,true);
   if(!row){const created=await db.from('together_entitlements').insert({user_id:userId,tier:'free',entitlement_keys:[...entitlementsForTier('free')]}).select('*').single();if(created.error||!created.data)throw new AppError('INTERNAL_ERROR','Subscription status could not be prepared.',500,true);row=created.data;}
-  const normalized=await loadNormalizedSubscriptions(db,userId),effective=selectEffectiveBillingSubscription(normalized.map((item)=>({provider:item.provider,planKey:item.plan_key,status:item.status,accessEndsAt:item.access_ends_at,currentPeriodEnd:item.current_period_end,updatedAt:item.updated_at})),now),selected=effective?normalized.find((item)=>item.provider===effective.provider&&item.plan_key===effective.planKey&&item.status===effective.status&&(item.access_ends_at??item.current_period_end)===(effective.accessEndsAt??effective.currentPeriodEnd)):newestBillingRow(normalized);
+  const effective=selectEffectiveBillingSubscription(normalized.map((item)=>({provider:item.provider,planKey:item.plan_key,status:item.status,accessEndsAt:item.access_ends_at,currentPeriodEnd:item.current_period_end,updatedAt:item.updated_at})),now),selected=effective?normalized.find((item)=>item.provider===effective.provider&&item.plan_key===effective.planKey&&item.status===effective.status&&(item.access_ends_at??item.current_period_end)===(effective.accessEndsAt??effective.currentPeriodEnd)):newestBillingRow(normalized);
   const expired=Boolean(row.expires_at&&new Date(row.expires_at).getTime()<=now.getTime()),legacyTier=expired?'free':normalizeSubscriptionTier(row.tier),tier=effective?effective.planKey:normalized.length?'free':legacyTier,capabilities=capabilitiesForAccount(tier,row.metadata);
   if(row.tier!==tier||!sameKeys(row.entitlement_keys,capabilities.entitlements)||selected&&row.billing_status!==selected.status){const updated=await db.from('together_entitlements').update({tier,entitlement_keys:[...capabilities.entitlements],...(selected?{billing_provider:selected.provider,billing_customer_id:selected.provider_customer_id??row.billing_customer_id,billing_subscription_id:selected.provider_subscription_id,billing_status:selected.status,product_key:selected.provider_price_id??row.product_key,billing_period_start:selected.current_period_start??null,billing_period_end:selected.current_period_end??null,expires_at:effective?selected.access_ends_at??selected.current_period_end:null}:expired?{metadata:{...(row.metadata??{}),expiredAt:row.expires_at,expiredResolvedAt:now.toISOString()}}:{}),updated_at:now.toISOString()}).eq('user_id',userId).select('*').single();if(updated.data)row=updated.data;}
   const status=selected?.status??row.billing_status??null,rowMetadata=isRecord(row.metadata)?row.metadata:{},selectedMetadata=isRecord(selected?.metadata)?selected.metadata:{},interval=selected?.billing_interval??(rowMetadata.billingInterval==='annual'?'annual':'monthly');
@@ -81,12 +85,6 @@ export async function spendCredits(db:SupabaseClient,input:{userId:string;action
 export async function refundCredits(db:SupabaseClient,input:{userId:string;transactionId:string;idempotencyKey:string;metadata?:Record<string,unknown>}):Promise<boolean>{const{error}=await db.rpc('kivelle_refund_credit_transaction',{p_user_id:input.userId,p_transaction_id:input.transactionId,p_idempotency_key:input.idempotencyKey,p_metadata:input.metadata??{}});if(error){console.error('Kivelle credit refund failed',error.message);return false;}return true;}
 
 export async function enforceCreditBalance(db:SupabaseClient,userId:string,action:CreditAction):Promise<CreditBalance>{const state=await resolveSubscriptionState(db,userId);const cost=creditCost(action);if(state.creditBalance.total<cost)throw new AppError('INSUFFICIENT_CREDITS',`This action uses ${cost} Kivelle Credits. You have ${state.creditBalance.total}.`,402);return state.creditBalance;}
-export async function enforceExplicitDialogueAllowance(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities,now=new Date()):Promise<void>{
-  // Kept as a compatibility seam for existing dialogue callers. Adult dialogue
-  // is never metered separately; only the account's global chat allowance applies.
-  void db;void userId;void capabilities;void now;
-}
-
 export async function reconcileSubscriptionCreditLifecycle(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities,now=new Date()):Promise<void>{
   const{error}=await db.rpc('kivelle_reconcile_subscription_credits',{p_user_id:userId,p_expected_tier:capabilities.tier,p_cap:capabilities.subscriptionCreditRolloverCap,p_paid_active:capabilities.tier!=='free',p_grace_days:30,p_now:now.toISOString()});
   if(error)throw new AppError('INTERNAL_ERROR','Subscription credit balance could not be reconciled.',500,true);

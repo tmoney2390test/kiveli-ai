@@ -186,8 +186,42 @@ function cleanContinuityObject(value: string): string {
 }
 
 export async function track(db: SupabaseClient, userId: string, eventName: string, properties: Record<string, unknown> = {}): Promise<void> {
-  const { error } = await db.rpc('kivelle_track_event', { p_user_id:userId, p_event_name:eventName, p_properties:properties });
+  const { error } = await db.rpc('kivelle_track_event', { p_user_id:userId, p_event_name:eventName, p_properties:safeAnalyticsProperties(properties) });
   if (error) console.warn('Together analytics failed', eventName, error.message);
+}
+
+const PRIVATE_ANALYTICS_KEY=/(?:^|_)(?:content|message|prompt|caption|description|transcript|signed(?:_?url)?|asset(?:_?url)?|storage(?:_?path)?|base64|image|ocr|alt(?:_?text)?|filename|exif)(?:$|_)/i;
+const URL_OR_DATA_VALUE=/^(?:https?:\/\/|data:|blob:|[A-Za-z0-9+/]{256,}={0,2}$)/i;
+
+/**
+ * Analytics is operational metadata only. This boundary prevents message,
+ * prompt, private-media, and provider URL data from reaching analytics even
+ * if a future call site accidentally includes it in an event payload.
+ */
+export function safeAnalyticsProperties(value:Record<string,unknown>,depth=0):Record<string,unknown>{
+  if(depth>3)return{};
+  const safe:Record<string,unknown>={};
+  for(const[key,item]of Object.entries(value)){
+    const normalizedKey=key.replace(/([a-z0-9])([A-Z])/g,'$1_$2').replace(/[.\-\s]+/g,'_');
+    if(PRIVATE_ANALYTICS_KEY.test(normalizedKey))continue;
+    if(item===null||typeof item==='boolean'||typeof item==='number'){safe[key]=item;continue;}
+    if(typeof item==='string'){
+      if(URL_OR_DATA_VALUE.test(item.trim()))continue;
+      safe[key]=item.slice(0,160);
+      continue;
+    }
+    if(Array.isArray(item)){
+      const entries:Array<string|number|boolean>=[];
+      for(const entry of item.slice(0,20)){
+        if(typeof entry==='string'&&!URL_OR_DATA_VALUE.test(entry.trim()))entries.push(entry.slice(0,80));
+        else if(typeof entry==='number'||typeof entry==='boolean')entries.push(entry);
+      }
+      safe[key]=entries;
+      continue;
+    }
+    if(typeof item==='object')safe[key]=safeAnalyticsProperties(item as Record<string,unknown>,depth+1);
+  }
+  return safe;
 }
 
 export async function buildExploreCatalogSnapshot(db:SupabaseClient,userId:string):Promise<Record<string,unknown>>{
@@ -255,8 +289,8 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
     db.from('together_relationship_milestones').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).order('created_at', { ascending: false }).limit(100),
     db.from('together_date_sessions').select('*, together_date_templates(*)').eq('user_id', userId).eq('continuity_id',continuity.id),
     db.from('together_moments').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).order('occurred_at', { ascending: false }).limit(30),
-    db.from('together_memories').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).eq('status', 'active').order('pinned', { ascending: false }).order('importance', { ascending: false }).limit(100),
-    db.from('together_open_threads').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).is('resolved_at', null),
+    db.from('together_memories').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).eq('status', 'active').eq('visibility_scope','all').in('content_rating',['safe','suggestive']).order('pinned', { ascending: false }).order('importance', { ascending: false }).limit(100),
+    db.from('together_open_threads').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).is('resolved_at', null),
     db.from('together_conversations').select('*,together_messages(count)').eq('user_id', userId).eq('continuity_id',continuity.id).order('last_message_at', { ascending: false, nullsFirst: false }),
     db.from('together_scene_sessions').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).is('ended_at',null).order('started_at',{ascending:false}).limit(24),
     db.from('together_scene_participants').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).is('left_at',null).order('joined_at'),
@@ -269,7 +303,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
     db.from('together_story_arc_instances').select('*,together_story_arc_templates(slug,title,priority,chapters,world_scope,specific_world_id)').eq('user_id', userId).eq('continuity_id',continuity.id).in('status', ['active','paused']).order('updated_at', { ascending: false }),
     catalog.then((value)=>value.trips),
     catalog.then((value)=>value.photoOpportunities),
-    db.from('together_generated_media').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).order('created_at', { ascending: false }).limit(60),
+    db.from('together_generated_media').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).order('created_at', { ascending: false }).limit(60),
     db.from('together_conversation_actions').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).eq('status','pending').or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`).order('created_at',{ascending:false}).limit(20),
   ]);
   const failed = [profile,personas,continuities, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, favorites, schedules, scheduleEvents, relationships,relationshipPlaces, milestones, dates, moments, memories, threads, conversations, sceneSessions,sceneParticipants, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions].find((result) => result.error);
@@ -305,7 +339,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
   });
   const stageByInstance = new Map(visibleInstances.map((instance) => [instance.id, instance.relationship_stage]));
   const relationshipCues = Object.fromEntries((relationships.data ?? []).map((relationship) => [relationship.character_instance_id, describeRelationshipCue({ ...relationship, relationship_stage: stageByInstance.get(relationship.character_instance_id) })]));
-  const conversationMetadata = (conversations.data ?? []).map((conversation) => ({ ...conversation, message_count: Number(conversation.together_messages?.[0]?.count ?? 0), unread: Boolean(conversation.last_assistant_message_at && (!conversation.last_read_at || new Date(conversation.last_assistant_message_at) > new Date(conversation.last_read_at))) }));
+  const conversationMetadata = (conversations.data ?? []).map((conversation) => {const safe={...conversation, message_count: Number(conversation.together_messages?.[0]?.count ?? 0), unread: Boolean(conversation.last_assistant_message_at && (!conversation.last_read_at || new Date(conversation.last_assistant_message_at) > new Date(conversation.last_read_at)))};const safeContext=safe.safe_context&&typeof safe.safe_context==='object'&&!Array.isArray(safe.safe_context)?safe.safe_context:{};safe.summary=typeof safeContext.summary==='string'?safeContext.summary:null;delete safe.canonical_context;delete safe.safe_context;return safe;});
   const mediaRows=(generatedMedia.data??[]).filter((item)=>item.metadata?.hiddenIntermediate!==true).filter((item)=>item.media_type==='voice_note'
     ? !hasSexualDialogueLanguage(String(item.canonical_text??''))
     : item.content_level==='standard'||item.content_level==='romance');
@@ -325,9 +359,9 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
   if(characterPlaceProfilesResult.error)throw new AppError('INTERNAL_ERROR','Kivelle could not load companion place context.',500,true);
   const characterPlaceProfiles=characterPlaceProfilesResult.data??[];
   const urlByPath=new Map((signed.data??[]).map((item)=>[item.path,item.signedUrl]));
-  const mediaPayload=mediaRows.map((item)=>({...item,signed_url:item.storage_path?urlByPath.get(item.storage_path)??null:null}));
+  const mediaPayload=mediaRows.map((item)=>{const safe={...item,signed_url:item.storage_path?urlByPath.get(item.storage_path)??null:null};delete safe.storage_path;return safe;});
   const snapshotLocations=publishedLocations.map(compactSnapshotLocation);
-  const profilePayload=profile.data?{...profile.data,active_continuity_id:continuity.id,active_companion_instance_id:activeInstance?.id??null}:profile.data;
+  const profilePayload=profile.data?projectClientProfile({...profile.data,active_continuity_id:continuity.id,active_companion_instance_id:activeInstance?.id??null}):profile.data;
   const experienceCapabilities=resolveServerExperienceCapabilities(normalizeMultimodalPreferences(profile.data?.multimodal_preferences),(entitlements.data?.entitlement_keys??[]).map(String)).experience;
   return { profile: profilePayload, activePersona:continuity.together_user_personas??null,activeContinuity:continuity,personas:personas.data??[],continuities:continuities.data??[],worlds:publishedWorlds,userWorlds:publishedWorldAccess,characterWorldPresence:publishedCharacterPresence,currentPlaceContext,locations:snapshotLocations,relationshipPlaces:relationshipPlaces.data??[],characterPlaceProfiles,characters:visibleInstances,discoverableCharacters,favoriteCharacterTemplateIds:(favorites.data??[]).map((item)=>String(item.character_template_id)),schedules:schedules.data??[],scheduleEvents:(scheduleEvents.data??[]).filter((event)=>!event.metadata?.suppressedByPlanId&&(!event.location_id||publishedLocationIds.has(String(event.location_id)))),relationships:relationships.data??[],relationshipMilestones:(milestones.data??[]).filter((milestone)=>milestone.status==='pending'),relationshipMilestoneHistory:(milestones.data??[]).filter((milestone)=>milestone.status!=='pending'),relationshipCues,dates:publishedDates,moments:moments.data??[],memories:clientMemories,memoryCounts,openThreads:threads.data??[],conversations:conversationMetadata,sceneSessions:activeScenes,sceneParticipants:sceneParticipants.data??[],sharedPlans:publishedSharedPlans,conversationEvents:conversationEvents.data??[],lifeEvents:publishedLifeEvents,proactiveMessages:proactive.data??[],storyArcs:storyArcs.data??[],trips:trips.data??[],photoOpportunities:photoOpportunities.data??[],generatedMedia:mediaPayload,conversationActions:conversationActions.data??[],entitlements:{...(entitlements.data??{}),tier:snapshotCapabilities.tier,entitlement_keys:[...snapshotCapabilities.entitlements]},experienceCapabilities,notificationPreferences:preferences.data&&requestedTimezone?{...preferences.data,timezone:requestedTimezone}:preferences.data };
 }
@@ -385,11 +419,20 @@ async function buildOnboardingSnapshot(db:SupabaseClient,userId:string,profile:R
   const discoverableCharacters=await hydrateDiscoverableCharacters(db,discoverable.data??[]);
   const entitlementKeys=(entitlements.data?.entitlement_keys??[]).map(String);
   return{
-    profile,activePersona:null,activeContinuity:null,personas:[],continuities:[],
+    profile:profile?projectClientProfile(profile):null,activePersona:null,activeContinuity:null,personas:[],continuities:[],
     worlds:publishedWorlds,userWorlds:[],characterWorldPresence:(characterWorldPresence.data??[]).filter((presence)=>publishedWorldIds.has(String(presence.world_id))),currentPlaceContext:null,locations:publishedLocations,relationshipPlaces:[],characterPlaceProfiles:[],
     characters:[],discoverableCharacters,favoriteCharacterTemplateIds:[],schedules:[],scheduleEvents:[],relationships:[],relationshipMilestones:[],relationshipMilestoneHistory:[],relationshipCues:{},dates:[],moments:[],memories:[],openThreads:[],conversations:[],sceneSessions:[],sceneParticipants:[],sharedPlans:[],conversationEvents:[],lifeEvents:[],proactiveMessages:[],storyArcs:[],trips:[],photoOpportunities:[],generatedMedia:[],conversationActions:[],
     entitlements:entitlements.data??null,experienceCapabilities:resolveServerExperienceCapabilities(normalizeMultimodalPreferences(undefined),entitlementKeys).experience,notificationPreferences:preferences.data??null,
   };
+}
+
+function projectClientProfile(profile:Record<string,unknown>):Record<string,unknown>{
+  const safe:Record<string,unknown>={...profile,adult_content_eligible:Boolean(profile.adult_eligible_at)};
+  delete safe.date_of_birth;
+  delete safe.adult_eligible_at;
+  delete safe.adult_eligibility_method;
+  delete safe.adult_eligibility_reference;
+  return safe;
 }
 
 async function hydrateDiscoverableCharacters(db:SupabaseClient,templates:Array<Record<string,any>>){

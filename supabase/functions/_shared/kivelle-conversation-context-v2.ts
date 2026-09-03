@@ -17,6 +17,8 @@ import {
   type ResponseBrief,
   scoreConversationEngagement,
   type SpiceLevel,
+  normalizeChatGenerationPreferences,
+  type ChatGenerationPreferences,
 } from "../../../packages/together-domain/src/index.ts";
 import {
   buildKivelleConversationContext as buildBaseContext,
@@ -50,6 +52,7 @@ export type TieredConversationContext = BaseContext & {
   interactionQuality: PromptInteractionQuality;
   antiRepetition: string[];
   director: { used: boolean; provider: string; policy: string };
+  generationPreferences:ChatGenerationPreferences;
 };
 
 export async function buildTieredKivelleConversationContext(
@@ -70,6 +73,8 @@ export async function buildTieredKivelleConversationContext(
     visibleSceneFromSequence?: number;
     forceRemoteInteraction?: boolean;
     conversationSceneResolution?: Row;
+    authorizedWebAdult?: boolean;
+    authorizedPrivateAdultText?: boolean;
   },
 ): Promise<TieredConversationContext> {
   const [subscription, base] = await Promise.all([
@@ -80,8 +85,9 @@ export async function buildTieredKivelleConversationContext(
   let recent = base.recent.slice(-caps.recentTurnBudget);
   if (caps.recentTurnBudget > recent.length) {
     let query = input.db.from("together_messages").select(
-      "role,content,created_at,provider_metadata,speaker_character_instance_id,character_instance_id,conversation_sequence,scene_session_id,scene_sequence",
+      "role,content,created_at,provider_metadata,speaker_character_instance_id,character_instance_id,conversation_sequence,scene_session_id,scene_sequence,content_rating,visibility_scope",
     ).eq("conversation_id", input.conversation.id);
+    if(!input.authorizedPrivateAdultText)query=query.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
     if (input.visibleSceneSessionId) {
       query = query.eq("scene_session_id", input.visibleSceneSessionId).gte(
         "scene_sequence",
@@ -160,7 +166,7 @@ export async function buildTieredKivelleConversationContext(
         ? input.db.from("together_relationship_reflections").select("*").eq(
           "user_id",
           input.userId,
-        ).eq("character_instance_id", input.instance.id).maybeSingle()
+        ).eq("character_instance_id", input.instance.id).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).maybeSingle()
         : Promise.resolve({ data: null, error: null }),
       nestedVersion
         ? Promise.resolve({ data: nestedVersion, error: null })
@@ -202,6 +208,7 @@ export async function buildTieredKivelleConversationContext(
       chatPreferences.responseStyle === "texting"
     ? chatPreferences.responseStyle
     : base.conversationStyle;
+  const generationPreferences=normalizeChatGenerationPreferences(chatPreferences);
   const personality =
     (version?.personality_config ?? base.character?.personality_config ??
       {}) as Record<string, unknown>;
@@ -354,7 +361,7 @@ export async function buildTieredKivelleConversationContext(
       relationshipStance.affectionBoundary,
     ],
   };
-  const shouldRefresh = base.personalizationEnabled &&
+  const shouldRefresh = base.personalizationEnabled && !input.authorizedPrivateAdultText &&
     (!reflection ||
       Date.now() - new Date(String(reflection.updated_at ?? 0)).getTime() >
         6 * 3600000);
@@ -369,6 +376,7 @@ export async function buildTieredKivelleConversationContext(
       recurring_dynamics: compiled.recurringDynamics,
       shared_references: compiled.sharedReferences,
       emotional_expectations: compiled.emotionalExpectations,
+      content_rating:'safe',visibility_scope:'all',moderation_version:'safe-context-v1',
       metadata: {
         source: "prompt_compiler",
         tier: subscription.tier,
@@ -380,6 +388,7 @@ export async function buildTieredKivelleConversationContext(
   return {
     ...base,
     conversationStyle,
+    generationPreferences,
     commitments,
     character: effectiveCharacter,
     recent,
