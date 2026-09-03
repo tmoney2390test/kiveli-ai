@@ -36,6 +36,12 @@ describe('Venice media contracts', () => {
     expect(request.body).not.toHaveProperty('model');
   });
 
+  it('sends uncensored adult identity edits on the compact /image/edit contract', () => {
+    const request = buildVeniceEditRequest({ model: VENICE_ADULT_FINAL_EDIT_MODEL, prompt: 'Create a NEW photograph.', images: ['https://signed.test/character.jpg'], aspectRatio: '4:5', safeMode: false, compactSingleEdit: true });
+    expect(request.endpoint).toBe('/image/edit');
+    expect(request.body).toEqual({ prompt: 'Create a NEW photograph.', model: VENICE_ADULT_FINAL_EDIT_MODEL, image: 'https://signed.test/character.jpg', safe_mode: false });
+  });
+
   it('can force a one-image adult stage through multi-edit so safe mode is explicit', () => {
     const request = buildVeniceEditRequest({ model: VENICE_ADULT_EDIT_MODEL, prompt: 'Apply the approved edit.', images: ['base64-image'], aspectRatio: '4:5', safeMode: false, forceMultiEdit: true });
     expect(request.endpoint).toBe('/image/multi-edit');

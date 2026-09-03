@@ -14,6 +14,7 @@ export type VeniceEditInput = {
   safeMode: boolean;
   forceMultiEdit?: boolean;
   includeAspectRatio?: boolean;
+  compactSingleEdit?: boolean;
   resolution?: string;
   outputFormat?: 'png' | 'jpeg' | 'webp';
 };

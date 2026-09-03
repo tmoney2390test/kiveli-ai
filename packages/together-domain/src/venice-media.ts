@@ -60,6 +60,7 @@ export function buildVeniceEditRequest(input: {
   safeMode: boolean;
   forceMultiEdit?: boolean;
   includeAspectRatio?: boolean;
+  compactSingleEdit?: boolean;
   resolution?: string;
   outputFormat?: 'png' | 'jpeg' | 'webp';
 }): VeniceEditRequest {
@@ -69,11 +70,11 @@ export function buildVeniceEditRequest(input: {
     prompt: input.prompt,
     ...(input.includeAspectRatio ? { aspect_ratio: normalizeVeniceAspectRatio(input.aspectRatio) } : {}),
   };
-  if (images.length === 1 && !input.forceMultiEdit && !VENICE_MULTI_EDIT_ONLY_MODELS.has(input.model.toLowerCase())) {
-    // /image/edit has a smaller, model-agnostic contract. In particular,
-    // safe_mode, resolution and output_format are not accepted consistently
-    // by this experimental endpoint.
-    return { endpoint: '/image/edit', body: { ...common, model: input.model, image: images[0] } };
+  if (input.compactSingleEdit || (images.length === 1 && !input.forceMultiEdit && !VENICE_MULTI_EDIT_ONLY_MODELS.has(input.model.toLowerCase()))) {
+    // Uncensored adult identity edits must use /image/edit with an explicit
+    // safe_mode=false. Extra multi-edit fields (resolution, output_format)
+    // 400 on qwen-edit-uncensored in production.
+    return { endpoint: '/image/edit', body: { ...common, model: input.model, image: images[0], ...(input.compactSingleEdit||input.safeMode===false?{safe_mode:input.safeMode}:{}) } };
   }
   return {
     endpoint: '/image/multi-edit',
