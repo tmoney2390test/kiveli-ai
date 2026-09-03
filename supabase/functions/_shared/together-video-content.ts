@@ -1,5 +1,6 @@
 import {
   classifyPhotoIntent,
+  visibleAdultAnatomyTargetLabels,
   type MediaLevel,
 } from "../../../packages/together-domain/src/media.ts";
 
@@ -16,7 +17,7 @@ export type DirectVideoContentDecision = {
 
 const ADULT_LEVELS = new Set<MediaLevel>(["suggestive", "mature", "explicit"]);
 const ANONYMOUS_PARTNER =
-  /\b(?:couple|two\s+(?:fictional\s+)?adults?|man\s+and\s+(?:a\s+)?woman|woman\s+and\s+(?:a\s+)?man|with\s+(?:him|her|their\s+partner|a\s+partner)|intercourse|doggy(?:[- ]style)?|penetrat(?:e|es|ed|ing|ion)|having\s+sex|making\s+love)\b/i;
+  /\b(?:couple|two\s+(?:fictional\s+)?adults?|man\s+and\s+(?:a\s+)?woman|woman\s+and\s+(?:a\s+)?man|with\s+(?:him|her|their\s+partner|a\s+partner)|intercourse|doggy(?:[- ]style)?|missionary(?:[- ]style)?|cowgirl|reverse\s+cowgirl|penetrat(?:e|es|ed|ing|ion)|having\s+sex|making\s+love|oral\s+sex)\b/i;
 
 export function resolveDirectVideoContentDecision(input: {
   requestText: string;
@@ -62,25 +63,26 @@ export function directVideoOpeningFrameRequest(input: {
   anonymousAdultPartner: boolean;
 }): string {
   const adult = ADULT_LEVELS.has(input.contentLevel);
-  // canonicalRequestForMedia intentionally caps requestText at 400 characters.
-  // Put the non-negotiable policy and anatomy requirements first so a long user
-  // direction can never truncate them before the opening-frame provider sees it.
-  const head = adult
-    ? input.anonymousAdultPartner
-      ? `Opening frame at ${input.locationName}. Exactly two consenting fictional adults visibly 25+: companion plus one anonymous original, non-identifiable partner not based on the user or any real person.`
-      : `Opening frame at ${input.locationName}. Only the consenting fictional companion, visibly age 25+.`
-    : `Opening frame at ${input.locationName}. Show one stable natural pose with the companion clearly visible.`;
-  const tail = adult
-    ? "Keep the intimate composition and natural complete anatomy; no censoring, smoothing, blanking, doll-like surfaces, or text."
-    : "No text, captions, or extra people.";
-  const fixed = `${head} Direction:  ${tail}`.replace(/\s+/g, " ").trim();
-  const directionBudget = Math.max(0, 400 - fixed.length - 1);
-  const direction = input.prompt.replace(/\s+/g, " ").trim().slice(
-    0,
-    directionBudget,
-  );
-  return `${head} Direction: ${direction} ${tail}`.replace(/\s+/g, " ").trim()
-    .slice(0, 400);
+  const direction = input.prompt.replace(/\s+/g, " ").trim();
+  // Stills classifiers and pose-rebuild routing read this requestText. Put the
+  // user's anatomy and pose first so a 400-character cap cannot drop them.
+  if (!adult) {
+    const policy =
+      `Opening frame at ${input.locationName}. Show one stable natural pose with the companion clearly visible. No text, captions, or extra people.`;
+    return `${direction.slice(0, Math.max(0, 400 - policy.length - 1))} ${policy}`
+      .replace(/\s+/g, " ").trim().slice(0, 400);
+  }
+  const anatomy = visibleAdultAnatomyTargetLabels(direction);
+  const anatomyCue = anatomy.length
+    ? `Visible complete ${anatomy.join(", ")}; no censoring, smoothing, blanking, or doll-like surfaces.`
+    : "Keep complete natural adult anatomy; no censoring, smoothing, blanking, doll-like surfaces, or text.";
+  const people = input.anonymousAdultPartner
+    ? "Exactly two consenting fictional adults 25+: companion plus one anonymous original non-identifiable partner, not the user or any real person."
+    : "Only the consenting fictional companion, visibly 25+.";
+  const policy =
+    `Opening frame at ${input.locationName}. ${people} ${anatomyCue} Photoreal; no text.`;
+  return `${direction.slice(0, Math.max(0, 400 - policy.length - 1))} ${policy}`
+    .replace(/\s+/g, " ").trim().slice(0, 400);
 }
 
 export function adultVideoFeatureEnabled(

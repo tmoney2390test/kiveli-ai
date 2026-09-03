@@ -130,6 +130,7 @@ export type CanonicalMediaSubject = {
 export type CanonicalImageGenerationRequest = {
   mediaId: string;
   adultPipelineAuthorized?: boolean;
+  anonymousAdultPartner?: boolean;
   generationKind?: "companion_photo" | "creator_identity" | "photo_edit";
   sourceImage?: MediaReferenceImage;
   companion: {
@@ -2223,6 +2224,7 @@ export async function canonicalRequestForMedia(
   return {
     mediaId: String(media.id),
     adultPipelineAuthorized,
+    ...(meta.anonymousAdultPartner===true?{anonymousAdultPartner:true}:{}),
     ...(meta.generationKind === "photo_edit"
       ? { generationKind: "photo_edit" as const, sourceImage: editSource }
       : {}),

@@ -30,6 +30,7 @@ type Props={
 };
 
 const VIDEO_PROMPTS=['Look toward the camera and smile','Walk naturally through the scene','A quiet cinematic moment'];
+const ADULT_VIDEO_PROMPTS=['Look toward the camera and smile','Nude pose with natural motion','Consenting fictional adults in an intimate scene'];
 
 export function MediaRequestModal({visible,character,conversationId,onPhotoRequest,photoSharingEntitled,onShareLibrary,onTakePhoto,onPhotoSharingUpgrade,onVideoCreated,onBuyCredits,onClose}:Props){
   const {width}=useWindowDimensions(),insets=useSafeAreaInsets(),compact=width<620;
@@ -80,7 +81,7 @@ export function MediaRequestModal({visible,character,conversationId,onPhotoReque
                 <Text style={styles.label}>DESCRIBE THE VIDEO</Text>
                 <TextInput testID="direct-video-prompt" accessibilityLabel="Describe the video you want" value={description} onChangeText={setDescription} placeholder={`What should ${name} do in this video?`} placeholderTextColor={colors.dimmed} maxLength={400} multiline style={styles.videoInput}/>
                 <Text accessibilityLiveRegion="polite" style={styles.promptCount}>{description.length}/400 · Your prompt guides the action while Kivelle keeps the normal identity and location references.</Text>
-                <View style={styles.suggestions}>{VIDEO_PROMPTS.map((prompt)=><Pressable key={prompt} onPress={()=>setDescription(prompt)} style={styles.suggestion}><Text style={styles.suggestionText}>{prompt}</Text></Pressable>)}</View>
+                <View style={styles.suggestions}>{(hasAdultRoutes?ADULT_VIDEO_PROMPTS:VIDEO_PROMPTS).map((prompt)=><Pressable key={prompt} onPress={()=>setDescription(prompt)} style={styles.suggestion}><Text style={styles.suggestionText}>{prompt}</Text></Pressable>)}</View>
                 {options.locationOptions?<>
                   <Text style={styles.label}>LOCATION</Text>
                   <Text style={styles.durationHint}>Places are limited to {options.locationOptions.worldName}. Home remains available even when {name} is elsewhere.</Text>

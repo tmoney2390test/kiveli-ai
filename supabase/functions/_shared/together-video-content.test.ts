@@ -55,10 +55,11 @@ Deno.test("adult opening frames establish the requested composition without usin
     contentLevel: "explicit",
     anonymousAdultPartner: true,
   });
-  assertStringIncludes(prompt, "consenting fictional adults visibly 25+");
-  assertStringIncludes(prompt, "not based on the user or any real person");
+  assertStringIncludes(prompt, "consenting fictional adults 25+");
+  assertStringIncludes(prompt, "not the user or any real person");
   assertStringIncludes(prompt, "no censoring");
   assertStringIncludes(prompt, "couple embraces");
+  assert(prompt.indexOf("couple embraces") < prompt.indexOf("Opening frame"));
   assert(prompt.length <= 400);
 });
 
@@ -69,8 +70,24 @@ Deno.test("adult opening-frame safety survives a maximum-length direction", () =
     contentLevel: "explicit",
     anonymousAdultPartner: true,
   });
-  assertStringIncludes(prompt, "not based on the user or any real person");
+  assertStringIncludes(prompt, "not the user or any real person");
   assertStringIncludes(prompt, "no censoring");
+  assert(prompt.startsWith("intimate cinematic direction"));
+  assert(prompt.length <= 400);
+});
+
+Deno.test("adult opening frames keep named anatomy in the stills request", () => {
+  const prompt = directVideoOpeningFrameRequest({
+    prompt:
+      "naked photo bent over with your ass and pussy on display front and center",
+    locationName: "Neon Kyo",
+    contentLevel: "explicit",
+    anonymousAdultPartner: false,
+  });
+  assertStringIncludes(prompt, "bent over");
+  assertStringIncludes(prompt, "pussy");
+  assertStringIncludes(prompt, "vulva");
+  assert(prompt.indexOf("naked photo") < prompt.indexOf("Opening frame"));
   assert(prompt.length <= 400);
 });
 

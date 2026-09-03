@@ -11,6 +11,7 @@ import {
   validateVideoSettings,
   videoCreditCost,
   videoProviderBaselineCostUsd,
+  videoRouteForContentClass,
   VIDEO_ROUTE_IDS,
   VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT,
 } from './kivelle-video-routes.ts';
@@ -88,7 +89,25 @@ Deno.test('authorized adult video prompts preserve requested composition without
   assert(prompt.includes('exactly the companion and the one anonymous fictional adult partner'));
   assert(prompt.includes('age 25 or older'));
   assert(prompt.includes('without adding censorship'));
+  assert(prompt.includes('continuous anatomically correct motion')||prompt.includes('authorized sexual act'));
   assert(!prompt.includes('Keep every originally covered body area covered'));
+  assert(!prompt.includes('or large pose changes'));
+  assert(prompt.length<=1600);
+  assert(prompt.includes('explicit intimate moment'));
+});
+
+Deno.test('consumer tiers remap onto spicy twins for authorized adult content',()=>{
+  const state=catalog(false);try{
+    const sfw=resolveVideoRoute('tier:standard','user');
+    assertEquals(sfw.contentClass,'sfw');
+    const adult=resolveVideoRoute('tier:standard','user',null,{preferredContentClass:'adult_capable'});
+    assertEquals(adult.contentClass,'adult_capable');
+    assertEquals(adult.modelFamily,sfw.modelFamily);
+    assert(adult.model.includes('spicy')||adult.id.endsWith('-spicy'));
+    const named=resolveVideoRoute('seedance-1-5-pro-sfw','user',null,{preferredContentClass:'adult_capable'});
+    assertEquals(named.id,'seedance-1-5-pro-spicy');
+    assertEquals(videoRouteForContentClass(sfw,'adult_capable')?.id,adult.id);
+  }finally{state.restore();}
 });
 
 Deno.test('pricing follows model, resolution, duration, and toggleable sound',()=>{

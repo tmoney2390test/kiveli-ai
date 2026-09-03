@@ -20,6 +20,8 @@ Deno.test("video quality prompt explicitly rejects doll anatomy and temporal bod
   ) assertStringIncludes(standard, code);
   assertStringIncludes(standard, "Fail unexpected_nudity_or_sexual_content");
   assertStringIncludes(adult, "Authorized fictional-adult nudity and consensual sexual activity may pass");
+  assertStringIncludes(adult, "should not be failed as unexpected_nudity_or_sexual_content");
+  assertStringIncludes(adult, "Fail unexpected_censoring if clothing");
   const partnered = buildVideoQualityPrompt(true, true);
   assertStringIncludes(
     partnered,

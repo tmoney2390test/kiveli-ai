@@ -366,6 +366,8 @@ describe('character photo identity grounding',()=>{
     expect(requestRequiresIdentityPreservingAdultRoute('Send a flirty clothed portrait')).toBe(false);
     expect(adultPoseMustRebuild('remove only the blouse while preserving the shorts and scene')).toBe(false);
     expect(adultPoseMustRebuild('Send a flirty clothed portrait')).toBe(false);
+    expect(adultPoseMustRebuild('A fictional adult couple having explicit intercourse')).toBe(true);
+    expect(requestImpliesSexualPose('A fictional adult couple having explicit intercourse')).toBe(true);
   });
 
   it('treats face-down-in-pillows as a requested prone pose rather than a camera-facing portrait',()=>{

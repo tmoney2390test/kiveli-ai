@@ -301,7 +301,7 @@ const NATURAL_DIRECTIONS:Record<PhotoShotType,Array<[string,string]>>={
 
 const REAR_ADULT_POSE_PATTERN=/\b(?:bent|bending|leaning)\s+(?:over|forward)\b|\bon all fours\b|\ball[- ]fours\b|\bhands? and knees?\b|\bdoggy(?:[- ]style)?\b|\bfrom behind\b|\bback\s+(?:to|toward|towards)\s+(?:the\s+)?camera\b|\bfacing away\b|\brear(?:[- ]three[- ]quarter)?\s+(?:view|angle|camera)\b/i;
 const FRONTAL_GENITAL_POSE_PATTERN=/\b(?:missionary(?:[- ]style)?|flat on (?:your|her|his) back|on (?:your|her|his) back|cowgirl|reverse\s+cowgirl|spreadeagle|spread[- ]eagle|starfish|legs?\s+(?:spread|open|apart|wide(?:\s+apart)?|up|raised|elevated)|knees?\s+(?:spread|open|apart))\b/i;
-const SEXUAL_POSE_PATTERN=new RegExp(`${REAR_ADULT_POSE_PATTERN.source}|${FRONTAL_GENITAL_POSE_PATTERN.source}|\\b(?:straddl(?:e|ing)|piledriver(?:[- ]style)?|face[- ]down|presenting)\\b`,'i');
+const SEXUAL_POSE_PATTERN=new RegExp(`${REAR_ADULT_POSE_PATTERN.source}|${FRONTAL_GENITAL_POSE_PATTERN.source}|\\b(?:straddl(?:e|ing)|piledriver(?:[- ]style)?|face[- ]down|presenting|intercourse|having\\s+sex|making\\s+love|oral\\s+sex)\\b`,'i');
 
 function adultRequestHasLowerNudity(text:string):boolean{
   const scope=resolveAdultNudityScope(text);
@@ -348,7 +348,7 @@ export function visibleAdultAnatomyTargetLabels(text?:string):string[]{
 /** Full nudes and requested genitalia cannot keep a clothed standing identity portrait. */
 export function adultPoseMustRebuild(text?:string):boolean{
   const scope=resolveAdultNudityScope(text);
-  return scope==='full_nude'||requestImpliesRearAdultAnatomy(text)||requestImpliesFrontalGenitalVisibility(text)||visibleAdultAnatomyTargetLabels(text).some((label)=>/genital|vulva|penis|buttock/i.test(label));
+  return scope==='full_nude'||requestImpliesSexualPose(text)||requestImpliesRearAdultAnatomy(text)||requestImpliesFrontalGenitalVisibility(text)||visibleAdultAnatomyTargetLabels(text).some((label)=>/genital|vulva|penis|buttock/i.test(label));
 }
 
 /** Nude, sexual-pose, and hidden-face requests need identity+location editing, not SFW face-swap. */

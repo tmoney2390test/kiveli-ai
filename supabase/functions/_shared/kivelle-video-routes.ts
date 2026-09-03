@@ -284,12 +284,20 @@ export function publicVideoRoutes(routes = configuredVideoRouteCatalog(), option
   for (const tier of ['standard', 'sound', 'silent', 'premium'] as const) { const route = selectable.find((item) => item.futureConsumerTier === tier); if (route) selected.set(tier, route); }
   return [...selected].map(([tier, route]) => safeVideoRouteOption(route, tier));
 }
-export function resolveVideoRoute(routeId: string, userId: string, email?: string | null): VideoRouteDefinition {
+export function resolveVideoRoute(routeId: string, userId: string, email?: string | null, options: { preferredContentClass?: VideoContentClass } = {}): VideoRouteDefinition {
   if (!canSelectVideoRoute(userId, email)) throw new AppError('FORBIDDEN', 'Video generation is not available for this account.', 403);
   const catalog = configuredVideoRouteCatalog();
+  const preferred = options.preferredContentClass;
+  const matches = (item: VideoRouteDefinition) => item.enabled && item.selectable && (!preferred || item.contentClass === preferred);
   const tier = (Object.entries(consumerTierAliases).find(([, alias]) => alias === routeId)?.[0] ?? null) as VideoConsumerTier | null;
-  const route = tier ? catalog.find((item) => item.enabled && item.selectable && item.futureConsumerTier === tier) : catalog.find((item) => item.id === routeId);
+  const route = tier
+    ? catalog.find((item) => matches(item) && item.futureConsumerTier === tier) ?? catalog.find((item) => item.enabled && item.selectable && item.futureConsumerTier === tier)
+    : catalog.find((item) => item.id === routeId);
   if (!route || !route.enabled || !route.selectable) throw new AppError('PROVIDER_NOT_CONFIGURED', 'That video model is not available. Choose another model.', 503);
+  if (preferred && route.contentClass !== preferred) {
+    const twin = videoRouteForContentClass(route, preferred, catalog);
+    if (twin) return twin;
+  }
   return route;
 }
 export function safeVideoRouteOption(route: VideoRouteDefinition, consumerTier?: VideoConsumerTier): SafeVideoRouteOption {
@@ -340,15 +348,35 @@ export function videoProviderCostQuotes(route: VideoRouteDefinition): Record<str
 export function sourceVideoAspectRatio(width: unknown, height: unknown): VideoAspectRatio { const w = Number(width), h = Number(height); return Number.isFinite(w) && Number.isFinite(h) && w > h ? '16:9' : '9:16'; }
 
 const motionDirections: Record<VideoMotionPreset, string> = { subtle: 'Natural breathing and blinking, one small micro-expression, light hair or clothing movement, and a nearly locked camera.', playful: 'A brief smile or side glance, small head and shoulder movement, restrained environmental motion, and a steady camera.', cinematic: 'A gentle push-in or restrained parallax with subtle natural environmental motion and no abrupt movement.' };
+const adultMotionDirections: Record<VideoMotionPreset, string> = {
+  subtle: 'Keep the approved adult pose and continue it with natural breathing, weight shifts, and small intimate motion. Visible anatomy stays complete and uncovered.',
+  playful: 'Keep the approved adult pose and continue it with teasing hip movement, responsive body language, and natural contact. Visible anatomy stays complete and photographically detailed.',
+  cinematic: 'Continue the authorized sexual act as one continuous anatomically correct motion. Hips, pelvis, hands, breasts, buttocks, and genitals that are visible in the opening frame must stay visible and move naturally as requested. Do not freeze into a still portrait or a clothed standing shot.',
+};
+export function videoRouteForContentClass(route: VideoRouteDefinition, contentClass: VideoContentClass, catalog = configuredVideoRouteCatalog()): VideoRouteDefinition | null {
+  if (route.contentClass === contentClass) return route;
+  return catalog.find((item) => item.enabled && item.selectable && item.modelFamily === route.modelFamily && item.contentClass === contentClass) ?? null;
+}
 export function buildVideoMotionPrompt(preset: VideoMotionPreset, userPrompt?: string, context?: VideoPayloadInput['context'], policy?: Pick<VideoPayloadInput, 'contentLevel' | 'adultAuthorized' | 'anonymousAdultPartner'>): string {
   const adult = policy?.adultAuthorized === true && ['suggestive', 'mature', 'explicit'].includes(String(policy.contentLevel));
   const continuity = adult
-    ? 'Preserve the approved fictional-adult clothing state, intimate composition, and visible anatomy from the opening frame. Follow the authorized user direction without adding censorship, invented clothing, blanking, smoothing, or doll-like anatomy.'
+    ? 'Preserve the approved fictional-adult clothing state, intimate composition, and visible anatomy from the opening frame. Follow the authorized user direction as continuous sexual or nude motion without adding censorship, invented clothing, blanking, smoothing, or doll-like anatomy.'
     : 'Keep every originally covered body area covered; never introduce nudity or sexual detail that is absent from the approved opening frame.';
   const people = adult && policy?.anonymousAdultPartner
     ? 'Keep exactly the companion and the one anonymous fictional adult partner already present in the opening frame. The partner must remain age 25 or older, non-identifiable, and unrelated to any real person.'
     : 'No new people.';
-  return ['Animate this exact approved Kivelle image without redesigning it.', userPrompt ? `User direction: ${userPrompt.replace(/\s+/g, ' ').trim().slice(0, 900)}` : '', context?.locationName ? `Canonical location: ${context.locationName}.` : '', context?.activity ? `Current activity context: ${context.activity}.` : '', motionDirections[preset], 'Keep the same fictional adult character, face, body proportions, hair, environment, lighting, camera angle, crop, and framing.', continuity, people, 'Maintain complete, anatomically coherent adult bodies in every frame. Skin, joints, limbs, hands, chest, pelvis, and any anatomy visible in the opening frame must remain natural and photographically detailed across motion—never blank, smoothed over, plastic, mannequin-like, doll-like, missing, fused, duplicated, or morphing.', 'One continuous shot. No face swaps, morphing, cuts, captions, text, warped hands, sudden camera movement, or large pose changes.'].filter(Boolean).join(' ');
+  const lock = adult
+    ? 'Keep the same fictional adult character, face, body proportions, hair, environment, and lighting. Camera may reframe slightly to keep requested anatomy in frame.'
+    : 'Keep the same fictional adult character, face, body proportions, hair, environment, lighting, camera angle, crop, and framing.';
+  const shot = adult
+    ? 'One continuous shot. No face swaps, morphing, cuts, captions, text, or warped hands. Hip, pelvis, and body contact may move as authorized.'
+    : 'One continuous shot. No face swaps, morphing, cuts, captions, text, warped hands, sudden camera movement, or large pose changes.';
+  const anatomy = 'Maintain complete, anatomically coherent adult bodies in every frame. Skin, joints, limbs, hands, chest, pelvis, and any anatomy visible in the opening frame must remain natural and photographically detailed across motion—never blank, smoothed over, plastic, mannequin-like, doll-like, missing, fused, duplicated, or morphing.';
+  const required = ['Animate this exact approved Kivelle image without redesigning it.', lock, continuity, people, anatomy, adult ? adultMotionDirections[preset] : motionDirections[preset], shot].join(' ');
+  const extras = [context?.locationName ? `Canonical location: ${context.locationName}.` : '', context?.activity ? `Current activity context: ${context.activity}.` : ''].filter(Boolean).join(' ');
+  const direction = userPrompt ? `User direction: ${userPrompt.replace(/\s+/g, ' ').trim()}` : '';
+  const budget = Math.max(0, 1600 - required.length - (extras ? extras.length + 1 : 0) - (direction ? 1 : 0));
+  return [required, direction.slice(0, budget), extras].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim().slice(0, 1600);
 }
 
 const url = z.string().url().refine((value) => value.startsWith('https://'), 'Only HTTPS references are allowed');
