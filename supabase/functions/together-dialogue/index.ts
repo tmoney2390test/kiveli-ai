@@ -650,6 +650,7 @@ Deno.serve(async (request) => {
             adultPipelineAuthorized: conversationAdultMediaAuthorized(
               storedRequestedMode,
               adultAccess.authorized_web_adult,
+              photoIntent.requestedContentLevel,
             ),
             inputModerationApproved:photoSafety?.allowed===true,
           });

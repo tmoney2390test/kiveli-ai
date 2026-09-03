@@ -156,17 +156,18 @@ Deno.test("adult composed registry uses Wan Realism scene generation plus fictio
 
 Deno.test("adult WaveSpeed rollout overrides Venice only for adult images", () => withProviderEnv(() => {
   const adult = routeCanonicalMedia({ ...request(), mediaType: "image" }, { source: "user_request", userTier: "kivelle_max" });
-  assertEquals(adult.route.capability.id, WAVESPEED_ADULT_QWEN_ROUTE_ID);
-  assertEquals(adult.provider.id, "wavespeed");
+  assertEquals(adult.route.capability.id, "venice-adult-two-stage");
+  assertEquals(adult.provider.id, "venice");
 
   const standard = routeCanonicalMedia({ ...request("standard"), mediaType: "image" }, { source: "user_request", userTier: "kivelle_max" });
   assertEquals(standard.provider.id, "venice");
   assert(standard.route.capability.id.startsWith("venice-"));
 }));
 
-Deno.test("nude and sexual poses use the identity-and-location Qwen route instead of Wan face-swap", () => withProviderEnv(() => {
+Deno.test("nude and sexual poses use Venice uncensored adult edit instead of WaveSpeed SFW models", () => withProviderEnv(() => {
   for (const requestText of [
     "Send me a picture of you bent over nude",
+    "Send me a photo showing exactly this: naked photo bent over with your ass and pussy on display front and center",
     "Send me a nude photo on all fours",
     "Send a fully nude photo lying on your back with your legs spread",
     "Send a nude cowgirl pose photo",
@@ -177,7 +178,8 @@ Deno.test("nude and sexual poses use the identity-and-location Qwen route instea
       mediaType: "image",
       generationIntent: { requestText, requestedContentLevel: "explicit" },
     }, { source: "user_request", userTier: "kivelle_max" });
-    assertEquals(routed.route.capability.id, WAVESPEED_ADULT_QWEN_ROUTE_ID);
+    assertEquals(routed.route.capability.id, "venice-adult-two-stage");
+    assertEquals(routed.provider.id, "venice");
   }
   const clothed = routeCanonicalMedia({
     ...request(),
@@ -187,17 +189,21 @@ Deno.test("nude and sexual poses use the identity-and-location Qwen route instea
   assertEquals(clothed.route.capability.id, WAVESPEED_ADULT_COMPOSED_ROUTE_ID);
 }));
 
-Deno.test("disabling the composed pipeline leaves Qwen available for adult edits", () => withProviderEnv(() => {
+Deno.test("disabling the composed pipeline leaves Qwen available for clothed adult stills", () => withProviderEnv(() => {
   Deno.env.set("KIVELLE_WAVESPEED_ADULT_COMPOSED_PIPELINE_ENABLED", "false");
-  const routed = routeCanonicalMedia({ ...request(), mediaType: "image" }, { source: "user_request", userTier: "kivelle_max" });
+  const routed = routeCanonicalMedia({
+    ...request(),
+    mediaType: "image",
+    generationIntent: { requestText: "Send a flirty clothed portrait in the private suite", requestedContentLevel: "explicit" },
+  }, { source: "user_request", userTier: "kivelle_max" });
   assertEquals(routed.route.capability.id, WAVESPEED_ADULT_QWEN_ROUTE_ID);
 }));
 
-Deno.test("source edits and intentionally hidden faces stay on the identity-preserving Qwen route",()=>withProviderEnv(()=>{
-  const source=reference("previous_media","approved-source"),edited=routeCanonicalMedia({...request(),mediaType:"image",generationKind:"photo_edit",sourceImage:source,referenceImages:[source,...request().referenceImages]},{source:"user_edit",userTier:"kivelle_max"});
+Deno.test("source edits stay on the identity-preserving Qwen route while nudes use Venice",()=>withProviderEnv(()=>{
+  const source=reference("previous_media","approved-source"),edited=routeCanonicalMedia({...request(),mediaType:"image",generationKind:"photo_edit",sourceImage:source,referenceImages:[source,...request().referenceImages],generationIntent:{requestText:"Send a flirty clothed portrait in the private suite",requestedContentLevel:"explicit"}},{source:"user_edit",userTier:"kivelle_max"});
   assertEquals(edited.route.capability.id,WAVESPEED_ADULT_QWEN_ROUTE_ID);
   const hidden=routeCanonicalMedia({...request(),mediaType:"image",generationIntent:{requestText:"Send a nude photo face down in the pillows",requestedContentLevel:"explicit"}},{source:"user_request",userTier:"kivelle_max"});
-  assertEquals(hidden.route.capability.id,WAVESPEED_ADULT_QWEN_ROUTE_ID);
+  assertEquals(hidden.route.capability.id,"venice-adult-two-stage");
 }));
 
 Deno.test("adult WaveSpeed canary at zero keeps the existing Venice route", () => withProviderEnv(() => {
@@ -209,17 +215,18 @@ Deno.test("adult WaveSpeed canary at zero keeps the existing Venice route", () =
 Deno.test("adult WaveSpeed payload keeps identity first and uses the exact Qwen edit schema", () => withProviderEnv(() => {
   const canonical = request(), route = configuredMediaRegistry().find((item) => item.id === WAVESPEED_ADULT_QWEN_ROUTE_ID)!;
   const input = waveSpeedInput({ ...canonical, mediaType: "image" }, route), prompt = String(input.prompt);
-  assertEquals(input.images, ["https://signed.test/elena.webp", "https://signed.test/suite.webp"]);
+  assertEquals(input.images, ["https://signed.test/suite.webp", "https://signed.test/elena.webp"]);
   assertEquals(input.seed, -1);
   assertEquals(input.enable_safety_checker, false);
   assert(!("image" in input));
   assert(!("size" in input));
   assert(!("num_images" in input));
   assert(prompt.length <= 800);
-  assert(prompt.includes("Image 1 supplies identity only"));
+  assert(prompt.includes("NEW PHOTO"));
+  assert(prompt.includes("identity ONLY"));
   assert(prompt.includes("fictional consenting adult age 29"));
   assert(prompt.includes("match that exact face"));
-  assert(prompt.includes("Image 2 is the exact canonical place"));
+  assert(prompt.includes("Image 1 is the exact canonical place"));
   assert(prompt.includes("MANDATORY TARGET"));
   assert(/complete uncovered external genitalia matching this adult body/i.test(prompt));
   assert(prompt.includes("Photoreal")||prompt.includes("VISIBLE ANATOMY")||prompt.includes("Approved full adult nudity"));
@@ -230,13 +237,14 @@ Deno.test("adult WaveSpeed prompt makes requested pose and anatomy outrank the i
   const canonical={...request(),generationIntent:{requestText:"Send me a photo of you bent over with your ass and pussy showing",requestedContentLevel:"explicit" as const}},route=configuredMediaRegistry().find((item)=>item.id===WAVESPEED_ADULT_QWEN_ROUTE_ID)!;
   const input=waveSpeedInput({...canonical,mediaType:"image"},route),prompt=String(input.prompt);
   assert(prompt.length<=800);
-  assert(prompt.includes("Replace its pose, clothes/robe, crop, background, and camera; do not make a small edit"));
-  assert(prompt.includes("bend forward at waist"));
-  assert(prompt.includes("camera behind at a rear or rear-three-quarter angle"));
+  assertEquals(input.images, ["https://signed.test/suite.webp", "https://signed.test/elena.webp"]);
+  assert(prompt.includes("NEW PHOTO"));
+  assert(prompt.includes("identity ONLY"));
+  assert(prompt.includes("buttocks and genitals fill the center of the frame"));
   assert(prompt.includes("external vulva and labia plus buttocks and rear anatomy"));
   assert(prompt.includes("no robe, underwear, fabric"));
   assert(prompt.includes("match that exact face"));
-  assert(prompt.includes("Image 2 is the exact canonical place"));
+  assert(prompt.includes("Image 1 is the exact canonical place"));
   assert(prompt.indexOf("MANDATORY TARGET")<prompt.indexOf("IDENTITY:"));
 }));
 
@@ -244,12 +252,11 @@ Deno.test("a bent-over nude request without named genitals still demands visible
   const canonical={...request(),generationIntent:{requestText:"Send me a picture of you bent over nude",requestedContentLevel:"explicit" as const}},route=configuredMediaRegistry().find((item)=>item.id===WAVESPEED_ADULT_QWEN_ROUTE_ID)!;
   const prompt=String(waveSpeedInput({...canonical,mediaType:"image"},route).prompt);
   assert(prompt.length<=800);
-  assert(prompt.includes("bend forward at waist"));
-  assert(prompt.includes("camera behind at a rear or rear-three-quarter angle"));
+  assert(prompt.includes("buttocks and genitals fill the center of the frame"));
   assert(prompt.includes("complete uncovered external genitalia matching this adult body"));
   assert(prompt.includes("buttocks and rear anatomy"));
   assert(prompt.includes("match that exact face"));
-  assert(prompt.includes("Image 2 is the exact canonical place"));
+  assert(prompt.includes("Image 1 is the exact canonical place"));
 }));
 
 Deno.test("Wan Realism scene payload creates a fresh photographic composition without leaking private references", () => withProviderEnv(() => {
@@ -261,7 +268,7 @@ Deno.test("Wan Realism scene payload creates a fresh photographic composition wi
   assert(!("images" in input));
   assert(!prompt.includes("signed.test"));
   assertStringIncludes(prompt,"RAW documentary photograph captured with a full-frame professional camera");
-  assertStringIncludes(prompt,"camera behind at a rear or rear-three-quarter angle");
+  assertStringIncludes(prompt,"buttocks and genitals fill the center of the frame");
   assert(!prompt.includes("over-the-shoulder glance"));
   assertStringIncludes(prompt,"external vulva and labia plus buttocks and rear anatomy");
   assertStringIncludes(prompt,"Vulva/labia must be plausible, correctly placed, and integrated with the pelvis");

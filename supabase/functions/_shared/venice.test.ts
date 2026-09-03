@@ -167,7 +167,7 @@ Deno.test('Venice adult prompt uncovers specifically requested anatomy by defaul
     const client=new VeniceImageClient('secret','https://venice.test/api/v1',1_000,async(_url,init)=>{prompts.push(String((JSON.parse(String(init?.body)) as Record<string,unknown>).prompt));return new Response(png,{status:200,headers:{'content-type':'image/png'}});});
     await new VeniceMediaProvider(client).submit({...adultRequest(),generationIntent:{requestText:'show me your vulva sitting on the couch',requestedContentLevel:'explicit'}},adultRoute());
     assert(prompts[1]?.includes('uncovered by default')&&prompts[1]?.includes('Remove or reposition only the garment')&&prompts[1]?.includes('useful photographic scale'));
-    assert(prompts[1]?.includes('minimally reframe, reposition, or adjust the crop')&&!prompts[1]?.includes('Preserve the same adult identity, hair, body proportions, camera angle, crop'));
+    assert(prompts[1]?.includes('Do not preserve the identity-reference standing pose')&&prompts[1]?.includes('Rebuild camera and body pose'));
     prompts.length=0;
     await new VeniceMediaProvider(client).submit({...adultRequest(),generationIntent:{requestText:'show me your vulva through your panties and keep them on',requestedContentLevel:'explicit'}},adultRoute());
     assert(prompts[1]?.includes('coverage explicitly retained')&&prompts[1]?.includes('do not expose anatomy through it'));

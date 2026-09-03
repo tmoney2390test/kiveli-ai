@@ -35,8 +35,11 @@ export function requestedConversationDialogueContentMode(profile: Row | null | u
 export function conversationAdultMediaAuthorized(
   requestedMode: DialogueContentMode,
   adultAuthorized: boolean,
+  photoContentLevel?: string,
 ): boolean {
-  return requestedMode === 'explicit' && adultAuthorized;
+  if (!adultAuthorized) return false;
+  if (requestedMode === 'explicit') return true;
+  return ['suggestive', 'mature', 'explicit'].includes(String(photoContentLevel ?? ''));
 }
 
 function record(value: unknown): Row {

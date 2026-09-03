@@ -763,6 +763,7 @@ function groupStream(input: any): Response {
               adultPipelineAuthorized: conversationAdultMediaAuthorized(
                 input.storedRequestedMode,
                 input.adultAccess.authorized_web_adult,
+                input.photoIntent.requestedContentLevel,
               ),
             });
             if (!offer) {

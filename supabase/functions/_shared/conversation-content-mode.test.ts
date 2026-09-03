@@ -39,3 +39,10 @@ Deno.test('adult photo authorization follows the verified explicit conversation 
   assert(!conversationAdultMediaAuthorized('mature', true));
   assert(!conversationAdultMediaAuthorized('romance', true));
 });
+
+Deno.test('an explicit photo request is adult-authorized on a verified web session even if chat mode is not explicit', () => {
+  assert(conversationAdultMediaAuthorized('mature', true, 'explicit'));
+  assert(conversationAdultMediaAuthorized('romance', true, 'explicit'));
+  assert(!conversationAdultMediaAuthorized('mature', true, 'standard'));
+  assert(!conversationAdultMediaAuthorized('mature', false, 'explicit'));
+});

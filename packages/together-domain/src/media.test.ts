@@ -310,6 +310,18 @@ describe('character photo identity grounding',()=>{
     expect(direction.poseDirection).toContain('requested lower anatomy fully visible');
   });
 
+  it('centers a bent-over display request instead of a standing portrait',()=>{
+    const request='Send me a photo showing exactly this: naked photo bent over with your ass and pussy on display front and center.';
+    expect(classifyPhotoIntent(request)).toMatchObject({requested:true,requestedContentLevel:'explicit',shotPreference:'full_body'});
+    expect(resolveAdultNudityScope(request)).toBe('full_nude');
+    expect(requestImpliesRearAdultAnatomy(request)).toBe(true);
+    expect(requestRequiresIdentityPreservingAdultRoute(request)).toBe(true);
+    const direction=resolvePhotoDirection({requestText:request,shotType:'full_body',seed:'kira-3'});
+    expect(direction.poseDirection).toContain('body bent forward');
+    expect(direction.poseDirection).toContain('rear or rear-three-quarter camera orientation');
+    expect(direction.poseDirection).toContain('buttocks and genitals are the primary centered subject');
+  });
+
   it('treats bent-over nude as a rear full-nude request even without naming genitals',()=>{
     const request='Send me a picture of you bent over nude';
     expect(classifyPhotoIntent(request)).toMatchObject({requested:true,requestedContentLevel:'explicit',shotPreference:'full_body'});
