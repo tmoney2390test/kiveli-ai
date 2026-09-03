@@ -101,6 +101,24 @@ export class VeniceMediaProvider implements MediaGenerationProvider{
     }
     if(!envBoolean('KIVELLE_ADULT_MEDIA_ENABLED')||!envBoolean('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED'))throw new AppError('PROVIDER_UNAVAILABLE','That kind of photo is not available right now.',503);
     const stages=resolveVenicePipeline({contentLevel:request.contentLevel,standardModel:env('KIVELLE_VENICE_STANDARD_MODEL',VENICE_STANDARD_EDIT_MODEL),adultModel:route.model,adultFinalModel:env('KIVELLE_VENICE_ADULT_FINAL_MODEL',VENICE_ADULT_FINAL_EDIT_MODEL)}),attempts:ProviderAttempt[]=[];
+    const rebuildPose=adultPoseMustRebuild(request.generationIntent?.requestText);
+    if(rebuildPose&&request.generationKind!=='photo_edit'){
+      try{
+        const final=await runVeniceAdultFinal({client:this.client,attempts,routeId:route.id,primaryModel:stages.at(-1)!.model,references,prompt:adultEditPrompt(request),aspectRatio:request.composition.aspectRatio});
+        return{provider:'venice',providerRequestId:final.providerRequestId,model:final.model,status:'completed',result:{bytes:final.bytes,contentType:final.contentType,providerRequestId:final.providerRequestId,model:final.model,estimatedCost:attempts.reduce((sum,item)=>sum+Number(item.estimatedCost??0),0),generationMs:attempts.reduce((sum,item)=>sum+Number(item.generationMs??0),0),providerAttempts:attempts,providerMetadata:{pipeline:'uncensored_adult_identity_edit',stageCount:attempts.length,fallbackUsed:attempts.some((item)=>item.stage==='final_adult_fallback')}}};
+      }catch(error){
+        try{
+          const intent=request.generationIntent?.requestText;
+          const requestedDirection=resolvePhotoDirection({requestText:intent,shotType:request.composition.shotType,seed:request.mediaId});
+          const posed={...request.composition,poseDirection:requestedDirection.poseDirection,faceDirection:requestedDirection.faceDirection,faceMayBeHidden:requestedDirection.faceMayBeHidden};
+          const baseRequest={...request,composition:posed,context:{...request.context,outfitDescription:veniceAdultBaseWardrobe(intent,request.context.outfitDescription)}};
+          const fallback=await runVeniceStage({client:this.client,attempts,stage:'canonical_base',routeId:route.id,model:stages[0]!.model,estimatedCost:stages[0]!.estimatedCostUsd,edit:optimizedVeniceEdit({model:stages[0]!.model,prompt:veniceAdultCanonicalBasePrompt(baseRequest),images:references,aspectRatio:request.composition.aspectRatio,safeMode:false,forceMultiEdit:true})});
+          return{provider:'venice',providerRequestId:fallback.providerRequestId,model:fallback.model,status:'completed',result:{bytes:fallback.bytes,contentType:fallback.contentType,providerRequestId:fallback.providerRequestId,model:fallback.model,estimatedCost:attempts.reduce((sum,item)=>sum+Number(item.estimatedCost??0),0),generationMs:attempts.reduce((sum,item)=>sum+Number(item.generationMs??0),0),providerAttempts:attempts,providerMetadata:{pipeline:'uncensored_adult_identity_edit_then_grok_fallback',stageCount:attempts.length,fallbackUsed:true}}};
+        }catch{
+          throw new MediaProviderPipelineError(error,attempts);
+        }
+      }
+    }
     if(request.generationKind==='photo_edit'){
       try{
         const final=await runVeniceAdultFinal({client:this.client,attempts,routeId:route.id,primaryModel:stages.at(-1)!.model,references,prompt:adultEditPrompt(request),aspectRatio:request.composition.aspectRatio});
@@ -109,15 +127,11 @@ export class VeniceMediaProvider implements MediaGenerationProvider{
     }
     let base:VeniceEditResult;
     try{
-      const intent=request.generationIntent?.requestText;
-      const requestedDirection=resolvePhotoDirection({requestText:intent,shotType:request.composition.shotType,seed:request.mediaId});
-      const posed={...request.composition,poseDirection:requestedDirection.poseDirection,faceDirection:requestedDirection.faceDirection,faceMayBeHidden:requestedDirection.faceMayBeHidden};
-      const rebuildPose=adultPoseMustRebuild(intent);
-      const baseRequest=rebuildPose?{...request,composition:posed,context:{...request.context,outfitDescription:veniceAdultBaseWardrobe(intent,request.context.outfitDescription)}}:{...request,contentLevel:'romance' as const,generationIntent:undefined,composition:posed};
+      const requestedDirection=resolvePhotoDirection({requestText:request.generationIntent?.requestText,shotType:request.composition.shotType,seed:request.mediaId});
+      const neutral={...request,contentLevel:'romance' as const,generationIntent:undefined,composition:{...request.composition,poseDirection:requestedDirection.poseDirection,faceDirection:requestedDirection.faceDirection,faceMayBeHidden:requestedDirection.faceMayBeHidden}};
       // Simple clothing edits keep a non-explicit identity base. Pose-rebuild
-      // nudes must change coverage and camera in this uncensored grok-imagine
-      // stage; a clothed standing portrait cannot be undressed into a new pose.
-      base=await runVeniceStage({client:this.client,attempts,stage:'canonical_base',routeId:route.id,model:stages[0]!.model,estimatedCost:stages[0]!.estimatedCostUsd,edit:optimizedVeniceEdit({model:stages[0]!.model,prompt:rebuildPose?veniceAdultCanonicalBasePrompt(baseRequest):buildVeniceImagePrompt(baseRequest),images:references,aspectRatio:request.composition.aspectRatio,safeMode:stages[0]!.safeMode,forceMultiEdit:true})});
+      // nudes return earlier through the uncensored identity edit.
+      base=await runVeniceStage({client:this.client,attempts,stage:'canonical_base',routeId:route.id,model:stages[0]!.model,estimatedCost:stages[0]!.estimatedCostUsd,edit:optimizedVeniceEdit({model:stages[0]!.model,prompt:buildVeniceImagePrompt(neutral),images:references,aspectRatio:request.composition.aspectRatio,safeMode:stages[0]!.safeMode,forceMultiEdit:true})});
     }catch(error){
       throw new MediaProviderPipelineError(error,attempts);
     }
@@ -125,9 +139,6 @@ export class VeniceMediaProvider implements MediaGenerationProvider{
       const final=await runVeniceAdultFinal({client:this.client,attempts,routeId:route.id,primaryModel:stages[1]!.model,references:[uint8ToDataUrl(base.bytes,base.contentType)],prompt:adultEditPrompt(request),aspectRatio:request.composition.aspectRatio});
       return{provider:'venice',providerRequestId:final.providerRequestId,model:final.model,status:'completed',result:{bytes:final.bytes,contentType:final.contentType,providerRequestId:final.providerRequestId,model:final.model,estimatedCost:attempts.reduce((sum,item)=>sum+Number(item.estimatedCost??0),0),generationMs:attempts.reduce((sum,item)=>sum+Number(item.generationMs??0),0),providerAttempts:attempts,providerMetadata:{pipeline:'canonical_base_then_scoped_adult_edit',stageCount:attempts.length,fallbackUsed:attempts.some((item)=>item.stage==='final_adult_fallback')}}};
     }catch(error){
-      if(adultPoseMustRebuild(request.generationIntent?.requestText)&&base.bytes){
-        return{provider:'venice',providerRequestId:base.providerRequestId,model:base.model,status:'completed',result:{bytes:base.bytes,contentType:base.contentType,providerRequestId:base.providerRequestId,model:base.model,estimatedCost:attempts.reduce((sum,item)=>sum+Number(item.estimatedCost??0),0),generationMs:attempts.reduce((sum,item)=>sum+Number(item.generationMs??0),0),providerAttempts:attempts,providerMetadata:{pipeline:'canonical_base_after_adult_final_unavailable',stageCount:attempts.length,fallbackUsed:true}}};
-      }
       throw new MediaProviderPipelineError(error,attempts);
     }
   }
@@ -402,7 +413,7 @@ function adultEditPrompt(request:CanonicalMediaRequest):string{
   const direction=resolvePhotoDirection({requestText:intent,shotType:request.composition.shotType,seed:request.mediaId}),faceGuidance=direction.faceMayBeHidden?'Keep the face hidden or away exactly as requested. No eye contact, camera-facing smile, over-shoulder glance, or inserted face; preserve identity through body and hair.':`Keep the same sharp, undistorted, recognizable face when visible. ${direction.faceDirection}`,nudityScope=resolveAdultNudityScope(intent),nudityGuidance=adultNudityGuidance(nudityScope,intent),preservationGuidance=adultPreservationGuidance(nudityScope,intent);
   const instruction=request.generationKind==='photo_edit'?buildMediaEditConstraint(intent,classifyMediaEditSemantics(intent)):requestRequiresIdentityPreservingAdultRoute(intent)?`Create a NEW photograph of this same adult. Do not keep the identity-reference standing pose, crop, or clothing. Approved request: ${clipVenicePrompt(intent,240)}.`:`Edit only this approved change: ${clipVenicePrompt(intent,300)}.`;
   const containment=request.context.worldContainment,worldLock=containment?`Only ${containment.worldName}; exact setting ${containment.locationName??'a native canonical setting'}; never Earth, another world, or generic real-world scenery.`:buildMediaWorldContainmentInstruction(undefined);
-  return[instruction,`${request.companion.name} is one fictional consenting adult age ${request.companion.age}.`,`WORLD/SETTING LOCK: ${clipVenicePrompt(worldLock,180)}`,`Pose: ${clipVenicePrompt(direction.poseDirection,260)}. ${clipVenicePrompt(direction.faceDirection,120)}`,nudityGuidance,preservationGuidance,clipVenicePrompt(faceGuidance,180),'One coherent adult body, realistic skin and anatomy, natural joints, connected limbs, and five fingers per visible hand. No duplication, fusion, distortion, blank anatomy, censorship, collage, caption, watermark, or text.'].join('\n').slice(0,1_400);
+  return[instruction,`${request.companion.name} is one fictional consenting adult age ${request.companion.age}.`,`WORLD/SETTING LOCK: ${clipVenicePrompt(worldLock,180)}`,`Pose: ${clipVenicePrompt(direction.poseDirection,400)}. ${clipVenicePrompt(direction.faceDirection,140)}`,nudityGuidance,preservationGuidance,clipVenicePrompt(faceGuidance,180),'One coherent adult body, realistic skin and anatomy, natural joints, connected limbs, and five fingers per visible hand. No duplication, fusion, distortion, blank anatomy, censorship, collage, caption, watermark, or text.'].join('\n').slice(0,1_600);
 }
 function veniceAdultBaseWardrobe(intent:string|undefined,existing?:string):string{
   const scope=resolveAdultNudityScope(intent);

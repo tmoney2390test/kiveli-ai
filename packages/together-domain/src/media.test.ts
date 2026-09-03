@@ -291,6 +291,8 @@ describe('character photo identity grounding',()=>{
   it('distinguishes an intentionally concealed face from an ordinary portrait',()=>{
     expect(photoRequestAllowsHiddenFace('Send a picture bent over with your face covered')).toBe(true);
     expect(photoRequestAllowsHiddenFace('A photo from behind, facing away')).toBe(true);
+    expect(photoRequestAllowsHiddenFace('Send me a photo showing exactly this: naked photo bent over with your ass and pussy on display front and center.')).toBe(true);
+    expect(photoRequestAllowsHiddenFace('Send me a picture of you bent over nude')).toBe(true);
     expect(photoRequestAllowsHiddenFace('Send a selfie with your face visible')).toBe(false);
   });
 
@@ -318,9 +320,11 @@ describe('character photo identity grounding',()=>{
     expect(adultPoseMustRebuild(request)).toBe(true);
     expect(requestRequiresIdentityPreservingAdultRoute(request)).toBe(true);
     const direction=resolvePhotoDirection({requestText:request,shotType:'full_body',seed:'kira-3'});
+    expect(direction).toMatchObject({source:'requested',faceMayBeHidden:true});
     expect(direction.poseDirection).toContain('body bent forward');
     expect(direction.poseDirection).toContain('rear or rear-three-quarter camera orientation');
     expect(direction.poseDirection).toContain('buttocks and genitals are the primary centered subject');
+    expect(direction.faceDirection).toContain('Do not turn');
   });
 
   it('treats bent-over nude as a rear full-nude request even without naming genitals',()=>{

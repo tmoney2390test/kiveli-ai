@@ -145,32 +145,31 @@ Deno.test('Venice preserves the complete natural-language pose matrix across bot
   }finally{restoreEnv('KIVELLE_ADULT_MEDIA_ENABLED',previousAdult);restoreEnv('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED',previousValidated);}
 });
 
-Deno.test('Venice pose-rebuild nudes put the requested nude pose into the grok-imagine base', async () => {
+Deno.test('Venice pose-rebuild nudes edit the identity photo with the uncensored Qwen model', async () => {
   const previousAdult = Deno.env.get('KIVELLE_ADULT_MEDIA_ENABLED'), previousValidated = Deno.env.get('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED');
   Deno.env.set('KIVELLE_ADULT_MEDIA_ENABLED', 'true'); Deno.env.set('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED', 'true');
   const bodies: Array<Record<string, unknown>> = [], png = Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,1]);
   try {
     const client = new VeniceImageClient('secret', 'https://venice.test/api/v1', 1_000, async (_url, init) => { bodies.push(JSON.parse(String(init?.body))); return new Response(png, { status: 200, headers: { 'content-type': 'image/png' } }); });
-    await new VeniceMediaProvider(client).submit({
+    const submission = await new VeniceMediaProvider(client).submit({
       ...adultRequest(),
       composition: { shotType: 'full_body', aspectRatio: '4:5' },
       generationIntent: { requestText: 'Send me a photo showing exactly this: naked photo bent over with your ass and pussy on display front and center', requestedContentLevel: 'explicit' },
     }, adultRoute());
-    assert(bodies.length === 2);
-    assert(bodies[0]?.modelId === 'grok-imagine-edit' && bodies[1]?.modelId === VENICE_ADULT_FINAL_EDIT_MODEL);
-    const basePrompt = String(bodies[0]?.prompt), finalPrompt = String(bodies[1]?.prompt);
-    assert(basePrompt.includes('body bent forward') && basePrompt.includes('buttocks and genitals are the primary centered subject'));
-    assert(basePrompt.includes('no clothing') && basePrompt.includes('fully nude'));
-    assert(basePrompt.includes('Approved request') && basePrompt.includes('naked photo bent over'));
-    assert(basePrompt.includes('Do not copy the identity-reference standing pose'));
-    assert(!/natural contemporary clothing/i.test(basePrompt));
-    assert(finalPrompt.includes('Approved scope: full adult nudity') && finalPrompt.includes('Do not preserve the identity-reference standing pose'));
+    assert(bodies.length === 1);
+    assert(bodies[0]?.modelId === VENICE_ADULT_FINAL_EDIT_MODEL && bodies[0]?.safe_mode === false);
+    assert(Array.isArray(bodies[0]?.images) && bodies[0]?.images[0] === 'https://signed.test/brooke.jpg');
+    const prompt = String(bodies[0]?.prompt);
+    assert(prompt.includes('body bent forward') && prompt.includes('buttocks and genitals are the primary centered subject'));
+    assert(prompt.includes('Approved scope: full adult nudity') && prompt.includes('naked photo bent over'));
+    assert(prompt.includes('Do not keep the identity-reference standing pose') || prompt.includes('Do not preserve the identity-reference standing pose'));
+    assert(submission.result?.providerMetadata?.pipeline === 'uncensored_adult_identity_edit');
   } finally {
     restoreEnv('KIVELLE_ADULT_MEDIA_ENABLED', previousAdult); restoreEnv('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED', previousValidated);
   }
 });
 
-Deno.test('Venice delivers the grok-imagine nude base when the uncensored final edit is unavailable', async () => {
+Deno.test('Venice falls back to grok-imagine when the uncensored identity edit is unavailable', async () => {
   const previousAdult = Deno.env.get('KIVELLE_ADULT_MEDIA_ENABLED'), previousValidated = Deno.env.get('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED'), previousFallback = Deno.env.get('KIVELLE_VENICE_ADULT_FALLBACK_MODEL');
   Deno.env.set('KIVELLE_ADULT_MEDIA_ENABLED', 'true'); Deno.env.set('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED', 'true'); Deno.env.set('KIVELLE_VENICE_ADULT_FALLBACK_MODEL', 'firered-image-edit');
   const calls: Array<Record<string, unknown>> = [];
@@ -179,16 +178,17 @@ Deno.test('Venice delivers the grok-imagine nude base when the uncensored final 
     const client = new VeniceImageClient('secret', 'https://venice.test/api/v1', 1_000, async (_url, init) => {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       calls.push(body);
-      if (calls.length === 1) return new Response(png, { status: 200, headers: { 'content-type': 'image/png' } });
+      if (body.modelId === 'grok-imagine-edit') return new Response(png, { status: 200, headers: { 'content-type': 'image/png' } });
       return new Response('{}', { status: 400 });
     });
     const submission = await new VeniceMediaProvider(client).submit({
       ...adultRequest(),
       generationIntent: { requestText: 'Send me a photo showing exactly this: naked photo bent over with your ass and pussy on display front and center', requestedContentLevel: 'explicit' },
     }, adultRoute());
-    assert(calls.length === 3 && calls[0]?.modelId === 'grok-imagine-edit' && calls[1]?.modelId === VENICE_ADULT_FINAL_EDIT_MODEL && calls[2]?.modelId === 'firered-image-edit');
-    assert(submission.model === 'grok-imagine-edit' && submission.result?.providerMetadata?.pipeline === 'canonical_base_after_adult_final_unavailable');
+    assert(calls.length === 3 && calls[0]?.modelId === VENICE_ADULT_FINAL_EDIT_MODEL && calls[1]?.modelId === 'firered-image-edit' && calls[2]?.modelId === 'grok-imagine-edit');
+    assert(submission.model === 'grok-imagine-edit' && submission.result?.providerMetadata?.pipeline === 'uncensored_adult_identity_edit_then_grok_fallback');
     assert(submission.result?.bytes?.length === png.length && submission.result?.providerMetadata?.fallbackUsed === true);
+    assert(String(calls[2]?.prompt).includes('fully nude') && String(calls[2]?.prompt).includes('body bent forward'));
   } finally {
     restoreEnv('KIVELLE_ADULT_MEDIA_ENABLED', previousAdult); restoreEnv('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED', previousValidated); restoreEnv('KIVELLE_VENICE_ADULT_FALLBACK_MODEL', previousFallback);
   }
@@ -201,7 +201,7 @@ Deno.test('Venice adult prompt renders full nudity completely without escalating
   try{
     const client=new VeniceImageClient('secret','https://venice.test/api/v1',1_000,async(_url,init)=>{prompts.push(String((JSON.parse(String(init?.body)) as Record<string,unknown>).prompt));return new Response(png,{status:200,headers:{'content-type':'image/png'}});});
     await new VeniceMediaProvider(client).submit({...adultRequest(),generationIntent:{requestText:'send a fully nude photo from behind',requestedContentLevel:'explicit'}},adultRoute());
-    assert(prompts[1]?.includes('Approved scope: full adult nudity')&&prompts[1]?.includes('External genitalia')&&prompts[1]?.includes('keep genitalia and buttocks fully in frame'));
+    assert(prompts[0]?.includes('Approved scope: full adult nudity')&&prompts[0]?.includes('External genitalia')&&prompts[0]?.includes('keep genitalia and buttocks fully in frame'));
     prompts.length=0;
     await new VeniceMediaProvider(client).submit(adultRequest(),adultRoute());
     assert(prompts[1]?.includes('Approved scope: upper-body nudity only')&&prompts[1]?.includes('do not expose unrequested lower anatomy'));
@@ -215,8 +215,8 @@ Deno.test('Venice adult prompt uncovers specifically requested anatomy by defaul
   try{
     const client=new VeniceImageClient('secret','https://venice.test/api/v1',1_000,async(_url,init)=>{prompts.push(String((JSON.parse(String(init?.body)) as Record<string,unknown>).prompt));return new Response(png,{status:200,headers:{'content-type':'image/png'}});});
     await new VeniceMediaProvider(client).submit({...adultRequest(),generationIntent:{requestText:'show me your vulva sitting on the couch',requestedContentLevel:'explicit'}},adultRoute());
-    assert(prompts[1]?.includes('uncovered by default')&&prompts[1]?.includes('Remove or reposition only the garment')&&prompts[1]?.includes('useful photographic scale'));
-    assert(prompts[1]?.includes('Do not preserve the identity-reference standing pose')&&prompts[1]?.includes('Rebuild camera and body pose'));
+    assert(prompts[0]?.includes('uncovered by default')&&prompts[0]?.includes('Remove or reposition only the garment')&&prompts[0]?.includes('useful photographic scale'));
+    assert(prompts[0]?.includes('Do not preserve the identity-reference standing pose')&&prompts[0]?.includes('Rebuild camera and body pose'));
     prompts.length=0;
     await new VeniceMediaProvider(client).submit({...adultRequest(),generationIntent:{requestText:'show me your vulva through your panties and keep them on',requestedContentLevel:'explicit'}},adultRoute());
     assert(prompts[1]?.includes('coverage explicitly retained')&&prompts[1]?.includes('do not expose anatomy through it'));

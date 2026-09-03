@@ -231,7 +231,12 @@ const INTENTIONAL_FACE_CONCEALMENT=/\b(?:face\s+(?:covered|hidden|concealed|obsc
 
 /** Explicit composition may intentionally omit a face without lowering quality. */
 export function photoRequestAllowsHiddenFace(text?:string):boolean{
-  return Boolean(text&&INTENTIONAL_FACE_CONCEALMENT.test(normalizePhotoIntentText(text)));
+  const normalized=normalizePhotoIntentText(text??'');
+  if(!normalized)return false;
+  if(INTENTIONAL_FACE_CONCEALMENT.test(normalized))return true;
+  // Rear lower-anatomy display is a behind-the-subject crop. Requiring a
+  // camera-facing identity portrait would fight the approved pose.
+  return requestImpliesRearAdultAnatomy(normalized);
 }
 
 const REQUESTED_POSE_CUES:Array<[RegExp,string]>=[
@@ -355,7 +360,7 @@ export function requestRequiresIdentityPreservingAdultRoute(text?:string):boolea
 
 /** Converts approved spatial wording into pose-only direction, never raw content. */
 export function resolvePhotoDirection(input:{requestText?:string;shotType:PhotoShotType;seed:string}):PhotoDirection{
-  const normalized=normalizePhotoIntentText(input.requestText??''),faceMayBeHidden=photoRequestAllowsHiddenFace(normalized),lowerAnatomyRearView=requestImpliesRearAdultAnatomy(normalized),frontalGenitalView=requestImpliesFrontalGenitalVisibility(normalized)&&!lowerAnatomyRearView,anatomyCentered=/\b(?:front and center|on display|fill the frame|close[- ]?up of (?:your )?(?:ass|pussy|cock|genitals?))\b/i.test(normalized)&&lowerAnatomyRearView,requested=[...REQUESTED_POSE_CUES.filter(([pattern])=>pattern.test(normalized)).map(([,direction])=>direction),...(lowerAnatomyRearView?['rear or rear-three-quarter camera orientation behind the subject, keeping requested lower anatomy fully visible']:[]),...(anatomyCentered?['fill the frame so buttocks and genitals are the primary centered subject; no distant standing portrait']:[]),...(frontalGenitalView?['keep uncovered genitalia fully inside the frame and photographically readable from this camera angle']:[])].slice(0,6);
+  const normalized=normalizePhotoIntentText(input.requestText??''),faceMayBeHidden=photoRequestAllowsHiddenFace(normalized),lowerAnatomyRearView=requestImpliesRearAdultAnatomy(normalized),frontalGenitalView=requestImpliesFrontalGenitalVisibility(normalized)&&!lowerAnatomyRearView,anatomyCentered=/\b(?:front and center|on display|fill the frame|close[- ]?up of (?:your )?(?:ass|pussy|cock|genitals?))\b/i.test(normalized)&&lowerAnatomyRearView,requested=[...(anatomyCentered?['fill the frame so buttocks and genitals are the primary centered subject; no distant standing portrait']:[]),...(lowerAnatomyRearView?['rear or rear-three-quarter camera orientation behind the subject, keeping requested lower anatomy fully visible']:[]),...REQUESTED_POSE_CUES.filter(([pattern])=>pattern.test(normalized)).map(([,direction])=>direction),...(frontalGenitalView?['keep uncovered genitalia fully inside the frame and photographically readable from this camera angle']:[])].slice(0,6);
   if(requested.length||faceMayBeHidden)return{poseDirection:[...new Set(requested.length?requested:['head and face directed away from the lens exactly as requested'])].join('; '),faceDirection:faceMayBeHidden?'Do not turn or insert the face toward the camera. Keep it hidden or away exactly as requested. No eye contact or camera-facing smile.':'Keep head direction consistent with the requested pose rather than defaulting to a straight-on face.',faceMayBeHidden,source:'requested'};
   const options=NATURAL_DIRECTIONS[input.shotType],index=stableDirectionIndex(`${input.seed}:${input.shotType}`,options.length),[poseDirection,faceDirection]=options[index]!;
   return{poseDirection,faceDirection,faceMayBeHidden:false,source:'natural_variation'};
