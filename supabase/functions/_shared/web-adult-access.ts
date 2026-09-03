@@ -116,7 +116,7 @@ export function adultMediaJobAuthorizationValid(input:{tier:string;adultEligible
 
 export async function issueAdultAssetUrl(input:{request:Request;db:SupabaseClient;access:AdultAccessContext;userId:string;generatedMediaId?:string;attachmentId?:string}):Promise<string>{
   if(!input.access.authorized_web_adult||!input.access.web_session_id)throw new Error('ADULT_ASSET_AUTHORIZATION_REQUIRED');
-  const token=newAdultSessionToken(),tokenHash=await sha256Hex(token),expiresAt=new Date(Date.now()+5*60_000).toISOString();
+  const token=newAdultSessionToken(),tokenHash=await sha256Hex(token),expiresAt=new Date(Date.now()+15*60_000).toISOString();
   const{error}=await input.db.from('together_adult_asset_grants').insert({user_id:input.userId,web_session_id:input.access.web_session_id,token_hash:tokenHash,expires_at:expiresAt,generated_media_id:input.generatedMediaId??null,attachment_id:input.attachmentId??null});
   if(error)throw new Error('ADULT_ASSET_GRANT_FAILED');
   const forwardedHost=input.request.headers.get('x-forwarded-host'),host=forwardedHost&&/^(?:kivelli\.app|localhost(?::\d+)?|127\.0\.0\.1(?::\d+)?)$/i.test(forwardedHost)?forwardedHost:'kivelli.app';

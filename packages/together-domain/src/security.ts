@@ -39,6 +39,13 @@ export function matchesDeclaredMediaSignature(bytes: Uint8Array, contentType: st
   return false;
 }
 
+export function sniffImageContentType(bytes: Uint8Array): 'image/jpeg' | 'image/png' | 'image/webp' | null {
+  if (matchesDeclaredMediaSignature(bytes, 'image/png')) return 'image/png';
+  if (matchesDeclaredMediaSignature(bytes, 'image/jpeg')) return 'image/jpeg';
+  if (matchesDeclaredMediaSignature(bytes, 'image/webp')) return 'image/webp';
+  return null;
+}
+
 function ascii(bytes: Uint8Array, start: number, end: number): string {
   return String.fromCharCode(...bytes.slice(start, end));
 }
