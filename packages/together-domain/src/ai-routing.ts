@@ -48,7 +48,7 @@ export const dialogueProviderCapabilities: Record<DialogueProviderName, { romanc
   deterministic: { romance: true, matureThemes: false, explicitSexualText: false },
 };
 
-const explicitActPattern = /\b(?:strip(?:ping)?|horny|orgasm|masturbat(?:e|ing|ion)|fuck(?:ing|ed)?|sex(?:ual|ually)?|oral sex|anal sex|blowjob|handjob|go down on|eat (?:me|you|her|him|them) out|ride (?:me|you|her|him|them)|finger(?:ing|ed)?|cum|penetrat(?:e|ion|ing)|bdsm|bondage|spank(?:ing|ed)?|dominant|submissive|safe\s*word|cnc|consensual non[- ]?consent|sixty[- ]?nine)\b/i;
+const explicitActPattern = /\b(?:strip(?:ping)?|horny|orgasm|masturbat(?:e|ing|ion)|fuck(?:ing|ed)?|sex(?:ual|ually)?|oral sex|anal sex|blowjob|handjob|go down on|eat (?:me|you|her|him|them) out|ride (?:me|you|her|him|them)|finger(?:ing|ed)?|cum|penetrat(?:e|ion|ing)|bdsm|bondage|spank(?:ing|ed)?|dominant|submissive|safe\s*word|cnc|consensual non[- ]?consent|sixty[- ]?nine|rape(?:s|d|ing)?)\b/i;
 const adultIntimacyIntentPattern = /(?:\b(?:have sex|sex with (?:me|you)|sleep (?:with|together)|make love|hook up|come to bed|go to bed with|spend the night|be intimate|take me to bed|tener sexo|acostarnos juntos|hacer el amor|coucher (?:ensemble|avec (?:moi|toi))|faire l['’]amour|andare a letto insieme|fare (?:l['’]amore|sesso)|miteinander schlafen|liebe machen|sex mit (?:mir|dir)|fazer sexo|dormir juntos|fazer amor)\b|セックスしたい|一緒に寝たい|愛し合いたい|섹스하고 싶|같이 자고 싶|사랑을 나누|想做爱|想和你睡|一起过夜)/iu;
 const explicitAdvancePattern = /^(?:i (?:really )?(?:want|need) you(?: right now| so badly| so bad| tonight)?)\s*[.!?]*$|(?:\b(?:take off (?:your|my) clothes|undress (?:me|yourself)|touch me|let me touch you|put your hands on me|get on top of me|come under the covers|quítate la ropa|desvísteme|tócame|déjame tocarte|déshabille-toi|déshabille-moi|touche-moi|spogliati|spogliami|toccami|zieh dich aus|fass mich an|tire a roupa|me despe|me toca)\b|脱いで|触って|옷 벗어|만져 줘|脱掉衣服|摸我)/iu;
 export const hasSexualDialogueLanguage=(text:string)=>explicitActPattern.test(text)||adultIntimacyIntentPattern.test(text)||explicitAdvancePattern.test(text)||hasExplicitAdultLanguage(text);
@@ -72,7 +72,8 @@ export function isDialogueContinuation(message:string):boolean{return continuati
 export function hasConsentWithdrawalSignal(message:string):boolean{
   const value=message.trim();
   if(isDialogueContinuation(value))return false;
-  return /(?:\b(?:stop|wait|slow down|pause|no sex|not now|don'?t want|do not want|not comfortable|changed my mind|para|espera|más despacio|ahora no|no quiero|cambié de opinión|arrête|attends|doucement|pas maintenant|je ne veux pas|changé d['’]avis|fermati|aspetta|più piano|non ora|non voglio|cambiato idea|stopp|warte|langsamer|nicht jetzt|ich will nicht|anders überlegt|pare|espera|mais devagar|agora não|não quero|mudei de ideia)\b|やめて|待って|今は(?:だめ|やめて)|したくない|気が変わった|그만|기다려|지금은 안 돼|원하지 않아|마음이 바뀌었|停下|等等|现在不要|我不想|我改变主意)/iu.test(value);
+  // Scene direction such as "wait" or "slow down" is not an automatic stop.
+  return /(?:\b(?:stop|no sex|not now|don'?t want|do not want|not comfortable|changed my mind|para|ahora no|no quiero|cambié de opinión|arrête|pas maintenant|je ne veux pas|changé d['’]avis|fermati|non ora|non voglio|cambiato idea|stopp|nicht jetzt|ich will nicht|anders überlegt|agora não|não quero|mudei de ideia)\b|やめて|今は(?:だめ|やめて)|したくない|気が変わった|그만|지금은 안 돼|원하지 않아|마음이 바뀌었|停下|现在不要|我不想|我改变主意)/iu.test(value);
 }
 
 export function isDirectAdultAdvance(message:string):boolean{
@@ -81,8 +82,9 @@ export function isDirectAdultAdvance(message:string):boolean{
 
 export function isConsensualNonConsentFantasy(message:string):boolean{
   const explicitlyFramed=/\b(?:cnc|consensual non[- ]?consent|consensual force fantasy|consensual coercion fantasy|consensual (?:role[- ]?play|fantasy)|role[- ]?play\b.{0,50}\b(?:safe\s*word|consensual)|safe\s*word\b.{0,50}\brole[- ]?play)\b/i.test(message);
+  const firstPersonForce=/\b(?:rape me|raping me|force me|forced sex with me|take me against my will|without my consent|non[- ]?consensual (?:sex )?(?:with me|between us)|use me|make me (?:take it|submit))\b/i.test(message);
   const firstPersonScene=/\b(?:me|my|myself|us|our|ours|you|your|yours)\b/i.test(message);
-  return explicitlyFramed&&firstPersonScene&&!thirdPartySexualTargetPattern.test(message)&&!incapableConsentPattern.test(message);
+  return (explicitlyFramed||firstPersonForce)&&firstPersonScene&&!thirdPartySexualTargetPattern.test(message)&&!incapableConsentPattern.test(message);
 }
 
 const hardBlockModerationCategories = new Set([

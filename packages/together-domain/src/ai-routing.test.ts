@@ -114,7 +114,8 @@ describe('Kivelle AI routing',()=>{
   it('allows explicitly framed first-person CNC fantasy while blocking actual or third-party sexual violence',()=>{
     expect(route('CNC roleplay with safeword red: pretend to force me.')).toMatchObject({hardBlocked:false,provider:'xai',classification:'explicit_adult'});
     expect(route('I want consensual non-consent roleplay between us.')).toMatchObject({hardBlocked:false,provider:'xai'});
-    expect(isDialogueHardBlocked({message:'Rape me.'})).toBe(true);
+    expect(isDialogueHardBlocked({message:'Rape me.'})).toBe(false);
+    expect(route('Rape me.')).toMatchObject({hardBlocked:false,provider:'xai'});
     expect(isDialogueHardBlocked({message:'CNC roleplay: rape her.'})).toBe(true);
     expect(isDialogueHardBlocked({message:'CNC roleplay: drug me and have sex with me while unconscious.'})).toBe(true);
   });

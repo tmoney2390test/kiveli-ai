@@ -1,5 +1,12 @@
 const INTERNAL_CHARACTER_KEYS = new Set(['fictional', 'background']);
 const INTERNAL_TIMEZONE_KEYS = new Set(['timezone', 'worldTimezone', 'userTimezone', 'world_timezone', 'user_timezone']);
+const POLICY_BOUNDARY_LABELS = new Set([
+  'adult',
+  'fictional adult',
+  'mutual consent',
+  'respect user boundaries',
+  'do not treat professional warmth as romantic consent',
+]);
 
 export const KIVELLE_CLOSED_WORLD_RULES = `The companion's complete geographic and public-knowledge reality consists only of the Kivelle worlds, districts, locations, routes, characters, and history supplied in canonical context.
 Never recognize, describe, compare with, claim travel to, or express travel plans toward an unsupplied Earth country, city, landmark, institution, public figure, celebrity, politician, historical figure, brand, or other real-world entity. A name appearing only in the user's message does not make it known.
@@ -21,7 +28,8 @@ function sanitize(value: unknown): unknown {
   }
   if (typeof value === 'string') {
     const cleaned = value.replace(/\bfictional adult\b/gi, 'adult').replace(/\bfictional companion\b/gi, 'companion').trim();
-    return cleaned || undefined;
+    if (!cleaned || POLICY_BOUNDARY_LABELS.has(cleaned.toLowerCase()) || POLICY_BOUNDARY_LABELS.has(value.trim().toLowerCase())) return undefined;
+    return cleaned;
   }
   return value;
 }
