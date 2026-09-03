@@ -110,7 +110,7 @@ export function compileCharacterVoiceCard(input:{bible:unknown;characterName?:st
     perceptionLens:pick(lenses,`${seed}|lens`),conversationalMove:pick(moves,`${seed}|move`),responseShape:shape,
     disclosureBoundary:disclosureForStage(bible,input.relationshipStage??'stranger'),metaphorSources:bible.voice.metaphorSources,verbalTexture:texture,
     avoid:unique([...bible.voice.forbiddenPhrases,...shapeAvoid(shape)]).slice(0,10),anecdote,
-    adultContinuity:'Keep this exact personality and voice in mature romantic dialogue. Romantic intensity may change boldness, never identity, consent, autonomy, relationship truth, or the non-sexual production ceiling.',
+    adultContinuity:'Keep this exact personality and voice in mature romantic dialogue. Romantic intensity may change boldness, never identity, autonomy, relationship truth, or the non-sexual production ceiling.',
   };
 }
 

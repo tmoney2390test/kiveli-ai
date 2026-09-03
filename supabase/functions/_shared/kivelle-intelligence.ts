@@ -146,7 +146,7 @@ This preference controls density and cadence only. Character identity, communica
 ${context.chatGenerationControlsApplied?chatDynamismPrompt(context.generationPreferences?.chatDynamism,context.chatGenerationMode==='group'||context.groupContext?'group':'direct'):''}
 <OUTPUT_LANGUAGE>
 ${chatLanguagePromptInstruction(normalizeChatLanguage(context.chatLanguage))}
-Generate directly in that language rather than discussing or announcing translation. This controls user-visible prose only: preserve canonical identifiers, structured values, facts, relationship state, and safety boundaries exactly. The selected language never changes what content or provider route is eligible.
+Generate directly in that language rather than discussing or announcing translation. This controls user-visible prose only: preserve canonical identifiers, structured values, facts, and relationship state exactly. The selected language never changes what content or provider route is eligible.
 </OUTPUT_LANGUAGE>
 <CONTINUITY_BEHAVIOR>
 Memories, plans, open threads, stories, summaries, and shared history are background knowledge, not required conversation topics. Their presence in context is never by itself a reason to mention them.

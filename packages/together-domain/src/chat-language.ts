@@ -125,15 +125,15 @@ function languageScore(text: string, markers: readonly string[]): number {
 
 export function chatLanguageSafetyBoundary(characterName: string, value: unknown, sourceText?: unknown): string {
   const messages: Record<Exclude<ChatLanguagePreference, 'auto'>, string> = {
-    en: `${characterName}: “No. I won't cross consent or safety boundaries. We need to take this in another direction.”`,
-    'es-MX': `${characterName}: «No. No voy a cruzar límites de consentimiento o seguridad. Tenemos que llevar esto en otra dirección.»`,
-    fr: `${characterName} : « Non. Je ne franchirai pas les limites du consentement ou de la sécurité. Il faut prendre une autre direction. »`,
-    it: `${characterName}: «No. Non oltrepasserò i limiti del consenso o della sicurezza. Dobbiamo cambiare direzione.»`,
-    de: `${characterName}: „Nein. Ich überschreite keine Grenzen bei Zustimmung oder Sicherheit. Wir müssen eine andere Richtung einschlagen.“`,
-    'pt-BR': `${characterName}: “Não. Não vou ultrapassar limites de consentimento ou segurança. Precisamos mudar de direção.”`,
-    ja: `${characterName}：「だめ。合意や安全の境界は越えない。この話は別の方向に変えよう。」`,
-    ko: `${characterName}: “안 돼. 동의나 안전의 경계는 넘지 않을 거야. 다른 방향으로 이야기하자.”`,
-    zh: `${characterName}：“不行。我不会越过同意或安全的界限。我们换个方向聊吧。”`,
+    en: `${characterName}: “No. Let's take this in another direction.”`,
+    'es-MX': `${characterName}: «No. Mejor llevemos esto en otra dirección.»`,
+    fr: `${characterName} : « Non. Prenons une autre direction. »`,
+    it: `${characterName}: «No. Cambiamo direzione.»`,
+    de: `${characterName}: „Nein. Lass uns das anders angehen.“`,
+    'pt-BR': `${characterName}: “Não. Vamos mudar de direção.”`,
+    ja: `${characterName}：「だめ。この話は別の方向に変えよう。」`,
+    ko: `${characterName}: “안 돼. 다른 방향으로 이야기하자.”`,
+    zh: `${characterName}：“不行。我们换个方向聊吧。”`,
   };
   const language = resolveChatLanguageForText(value, sourceText);
   return messages[language];

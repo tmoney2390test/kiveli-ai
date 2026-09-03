@@ -48,10 +48,12 @@ describe('chat language', () => {
     expect(chatLanguagePreviewText('es-MX')).toBe('Hola.');
   });
 
-  it('localizes deterministic safety responses', () => {
+  it('localizes deterministic safety responses without reciting policy', () => {
     expect(chatLanguageSafetyBoundary('Avery', 'de')).toContain('Nein');
-    expect(chatLanguageSafetyBoundary('Avery', 'auto')).toContain("won't cross");
-    expect(chatLanguageSafetyBoundary('Avery', 'auto', '今はやめて')).toContain('境界');
+    expect(chatLanguageSafetyBoundary('Avery', 'auto')).toContain('another direction');
+    expect(chatLanguageSafetyBoundary('Avery', 'auto')).not.toMatch(/consent|safety boundar/i);
+    expect(chatLanguageSafetyBoundary('Avery', 'auto', '今はやめて')).toContain('だめ');
+    expect(chatLanguageSafetyBoundary('Avery', 'auto', '今はやめて')).not.toMatch(/合意|安全の境界/);
   });
 
   it('detects supported scripts and requires a clear Latin-language signal', () => {

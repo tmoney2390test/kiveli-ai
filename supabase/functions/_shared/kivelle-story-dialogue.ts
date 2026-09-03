@@ -126,7 +126,7 @@ export async function generateStoryDialogue(input: {
     ...(continuity?.pendingResumeCue ? [`REUNION CONTINUITY: ${continuity.pendingResumeCue} Treat this as already-established reality. Briefly reconnect, then continue the unfinished thought rather than restarting the conversation.`] : []),
     ...(continuity?.recentExchangeSummaries.length ? ['CHARACTER-SPECIFIC CONTINUITY:', ...continuity.recentExchangeSummaries.map((item) => `- ${item}`)] : []),
     ...(continuity?.openThreads.length ? ['OPEN THREADS THIS CHARACTER MAY NATURALLY RETURN TO:', ...continuity.openThreads.map((item) => `- ${item}`)] : []),
-    `STORY TONE: ${input.contentMode === 'mature' ? 'Mature. Adult themes and stronger language are allowed when natural, but story canon and consent remain authoritative.' : 'Standard. Keep language and themes broadly accessible.'}`,
+    `STORY TONE: ${input.contentMode === 'mature' ? 'Mature. Adult themes and stronger language are allowed when natural, but story canon remains authoritative.' : 'Standard. Keep language and themes broadly accessible.'}`,
     'ALLOWED CANONICAL FACTS:',
     ...(allowedEvidence.length ? allowedEvidence.map((item) => `- [${item.id}] ${item.title}: ${item.hiddenCanonicalDescription ?? item.description}`) : ['- No hidden story fact is currently authorized for disclosure.']),
     'AUTHORIZED NON-CANONICAL CLAIMS:',
