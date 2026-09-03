@@ -1,5 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert@1';
-import { jwtSubjectFromAccessToken, serverSecretLooksUsable } from './context.ts';
+import { jwtSubjectFromAccessToken, resolveServerSecret, serverSecretLooksUsable } from './context.ts';
 
 function tokenWithPayload(payload:Record<string,unknown>):string{
   const encoded=btoa(JSON.stringify(payload)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -19,4 +19,14 @@ Deno.test('server credentials reject publishable, redacted, and non-ASCII values
   assertEquals(serverSecretLooksUsable('sb_publishable_not-a-server-secret'),false);
   assertEquals(serverSecretLooksUsable('sb_secret_redacted…ending'),false);
   assertEquals(serverSecretLooksUsable('sb_secret_redacted****'),false);
+});
+
+Deno.test('server credential resolution supports current and legacy deployment names',()=>{
+  const values:Record<string,string>={
+    SUPABASE_SERVICE_ROLE_KEY:' service-role ',
+    SUPABASE_SECRET_KEY:'legacy-secret',
+  };
+  assertEquals(resolveServerSecret((name)=>values[name]),'service-role');
+  assertEquals(resolveServerSecret((name)=>name==='SUPABASE_SECRET_KEY'?'legacy-secret':undefined),'legacy-secret');
+  assertEquals(resolveServerSecret(()=>undefined),null);
 });

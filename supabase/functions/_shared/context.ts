@@ -10,13 +10,27 @@ function env(name: string): string {
 
 let sharedAdminClient:SupabaseClient|null=null;
 
+const serverSecretNames = [
+  'KIVELLE_SUPABASE_SECRET_KEY',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'JUKESTR_SUPABASE_SECRET_KEY',
+  'SUPABASE_SECRET_KEY',
+] as const;
+
+export function resolveServerSecret(
+  read: (name: string) => string | undefined | null = (name) => Deno.env.get(name),
+): string | null {
+  for (const name of serverSecretNames) {
+    const value = read(name)?.trim();
+    if (value) return value;
+  }
+  return null;
+}
+
 export function adminClient(): SupabaseClient {
   if(sharedAdminClient)return sharedAdminClient;
-  const secret = Deno.env.get('KIVELLE_SUPABASE_SECRET_KEY')
-    ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    ?? Deno.env.get('JUKESTR_SUPABASE_SECRET_KEY')
-    ?? Deno.env.get('SUPABASE_SECRET_KEY');
-  if (!secret) throw new Error('Server configuration is missing KIVELLE_SUPABASE_SECRET_KEY.');
+  const secret = resolveServerSecret();
+  if (!secret) throw new AppError('INTERNAL_ERROR', 'Server authentication is not configured.', 500);
   if (!serverSecretLooksUsable(secret)) throw new AppError('INTERNAL_ERROR', 'Server authentication is not configured correctly.', 500);
   sharedAdminClient=createClient(env('SUPABASE_URL'), secret, { auth: { persistSession: false, autoRefreshToken: false } });
   return sharedAdminClient;
