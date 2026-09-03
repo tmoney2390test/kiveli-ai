@@ -3,8 +3,7 @@ import{AppError}from'./types.ts';
 import{buildImagePrompt,configuredImageProvider,type CanonicalImageGenerationRequest,type ImageGenerationResult,type MediaReferenceImage}from'./together-media-base.ts';
 import{configuredWaveSpeedClient,envBoolean,envNumber,type WaveSpeedClient,type WaveSpeedPrediction}from'./wavespeed.ts';
 import{estimatedMediaProviderCost}from'../../../packages/together-domain/src/media-economics.ts';
-import{hasUsableCharacterIdentityReference,photoRequestAllowsHiddenFace,resolveAdultNudityScope,resolvePhotoDirection,resolveSpecificAnatomyExposure}from'../../../packages/together-domain/src/media.ts';
-import{analyzeAdultLanguage}from'../../../packages/together-domain/src/adult-language.ts';
+import{hasUsableCharacterIdentityReference,requestImpliesRearAdultAnatomy,requestRequiresIdentityPreservingAdultRoute,resolveAdultNudityScope,resolvePhotoDirection,resolveSpecificAnatomyExposure,visibleAdultAnatomyTargetLabels}from'../../../packages/together-domain/src/media.ts';
 import{resolveVenicePipeline,VENICE_ADULT_EDIT_MODEL,VENICE_ADULT_FALLBACK_EDIT_MODEL,VENICE_ADULT_FINAL_EDIT_MODEL,VENICE_QUALITY_EDIT_MODEL,VENICE_STANDARD_EDIT_MODEL,VENICE_STANDARD_FALLBACK_EDIT_MODEL,veniceModelCostUsd}from'../../../packages/together-domain/src/venice-media.ts';
 import{configuredVeniceClient,type VeniceEditResult,type VeniceImageClient}from'./venice.ts';
 import{buildMediaEditConstraint,classifyMediaEditSemantics}from'../../../packages/together-domain/src/media-edit.ts';
@@ -64,7 +63,7 @@ export function routeCanonicalMedia(request:CanonicalMediaRequest,input:{source:
   const references=request.referenceImages;const profile=request.mediaProfile,subjectCount=Math.max(1,request.subjects?.length??1);
   const identitySubjects=new Set(references.filter((reference)=>reference.role==='character_identity'&&Boolean(reference.signedUrl||reference.bytes?.byteLength)).map((reference)=>reference.characterInstanceId).filter(Boolean)),characterIdentityAvailable=subjectCount===1?hasUsableCharacterIdentityReference(references):identitySubjects.size===subjectCount,requiresCharacterReference=request.mediaType==='image'&&request.generationKind!=='creator_identity';
   if(requiresCharacterReference&&!characterIdentityAvailable)throw new AppError('CHARACTER_REFERENCE_REQUIRED','The companion reference photo could not be prepared. No ungrounded image was sent to the provider.',409,true);
-  const requiredReferences=subjectCount+(subjectCount>1&&request.generationKind==='photo_edit'?1:0),adultImage=request.mediaType==='image'&&ADULT_CONTENT_LEVELS.includes(request.contentLevel),adultWaveSpeedPreferred=adultImage&&adultImageCanaryWaveSpeed(request.mediaId),selected=input.preferredProvider??(request.mediaType==='video'||adultWaveSpeedPreferred?'wavespeed':env('KIVELLE_IMAGE_PROVIDER','').toLowerCase()||undefined),preferred=selected??(canaryWaveSpeed(request.mediaId)?'wavespeed':undefined),composedAdultEligible=adultWaveSpeedPreferred&&subjectCount===1&&request.generationKind!=='photo_edit'&&request.anonymousAdultPartner!==true&&!photoRequestAllowsHiddenFace(request.generationIntent?.requestText),registry=configuredMediaRegistry().filter((route)=>route.id===WAVESPEED_ADULT_QWEN_ROUTE_ID&&!adultWaveSpeedPreferred?false:route.id===WAVESPEED_ADULT_COMPOSED_ROUTE_ID&&!composedAdultEligible?false:subjectCount===1?route.id!==WAVESPEED_GROUP_QWEN_ROUTE_ID:(![WAVESPEED_ADULT_QWEN_ROUTE_ID,WAVESPEED_ADULT_COMPOSED_ROUTE_ID].includes(route.id)&&route.supportsCharacterReference&&route.maxReferenceImages>=requiredReferences&&route.provider!=='venice'));
+  const requiredReferences=subjectCount+(subjectCount>1&&request.generationKind==='photo_edit'?1:0),adultImage=request.mediaType==='image'&&ADULT_CONTENT_LEVELS.includes(request.contentLevel),adultWaveSpeedPreferred=adultImage&&adultImageCanaryWaveSpeed(request.mediaId),selected=input.preferredProvider??(request.mediaType==='video'||adultWaveSpeedPreferred?'wavespeed':env('KIVELLE_IMAGE_PROVIDER','').toLowerCase()||undefined),preferred=selected??(canaryWaveSpeed(request.mediaId)?'wavespeed':undefined),composedAdultEligible=adultWaveSpeedPreferred&&subjectCount===1&&request.generationKind!=='photo_edit'&&request.anonymousAdultPartner!==true&&!requestRequiresIdentityPreservingAdultRoute(request.generationIntent?.requestText),registry=configuredMediaRegistry().filter((route)=>route.id===WAVESPEED_ADULT_QWEN_ROUTE_ID&&!adultWaveSpeedPreferred?false:route.id===WAVESPEED_ADULT_COMPOSED_ROUTE_ID&&!composedAdultEligible?false:subjectCount===1?route.id!==WAVESPEED_GROUP_QWEN_ROUTE_ID:(![WAVESPEED_ADULT_QWEN_ROUTE_ID,WAVESPEED_ADULT_COMPOSED_ROUTE_ID].includes(route.id)&&route.supportsCharacterReference&&route.maxReferenceImages>=requiredReferences&&route.provider!=='venice'));
   const route=routeMediaGeneration({mediaType:request.mediaType,contentLevel:request.contentLevel,qualityTier:request.qualityTier,shotType:request.composition.shotType,characterIdentityAvailable,characterLoRAAvailable:Boolean(profile?.modelUrl),characterLoRAModelFamily:profile?.modelFamily,locationReferenceAvailable:references.some((item)=>item.role==='location_environment'),worldReferenceAvailable:references.some((item)=>item.role==='world_environment'),outfitReferenceAvailable:references.some((item)=>item.role==='outfit_continuity'),source:input.source,userTier:input.userTier,preferredProvider:preferred,qualityRetry:Boolean(request.qualityRetry),requiresCharacterReference,requiresImageEditing:request.generationKind==='photo_edit',adultPipelineAuthorized:request.adultPipelineAuthorized===true},registry);
   if(!route)throw new AppError('PROVIDER_UNAVAILABLE',subjectCount>1?'No configured provider can preserve both companion identities for that photo.':'No configured provider can preserve this companion’s identity for that photo.',503);
   const provider=providerForCapability(route.capability);return{route,provider};
@@ -146,7 +145,7 @@ export class WaveSpeedMediaProvider implements MediaGenerationProvider{
 
   private async submitComposedAdultImage(request:CanonicalMediaRequest,route:MediaRouteCapability):Promise<ProviderSubmission>{
     if(request.mediaType!=='image'||!ADULT_CONTENT_LEVELS.includes(request.contentLevel)||request.adultPipelineAuthorized!==true)throw new AppError('PROVIDER_REQUEST_INVALID','The adult image route requires a currently authorized request.',403,false);
-    if(request.generationKind==='photo_edit'||request.anonymousAdultPartner===true||photoRequestAllowsHiddenFace(request.generationIntent?.requestText))throw new AppError('PROVIDER_REQUEST_INVALID','This photo needs the identity-preserving edit route.',422,false);
+    if(request.generationKind==='photo_edit'||request.anonymousAdultPartner===true||requestRequiresIdentityPreservingAdultRoute(request.generationIntent?.requestText))throw new AppError('PROVIDER_REQUEST_INVALID','This photo needs the identity-preserving edit route.',422,false);
     const identity=request.referenceImages.find((item)=>item.role==='character_identity'&&item.signedUrl);
     if(!identity?.signedUrl)throw new AppError('CHARACTER_REFERENCE_REQUIRED','The companion reference photo could not be prepared.',409,true);
     const attempts:ProviderAttempt[]=[],sceneModel=route.model,identityModel=env('WAVESPEED_MODEL_ADULT_IDENTITY',WAVESPEED_ADULT_IDENTITY_MODEL),timeoutMs=Math.max(15_000,Math.min(90_000,envNumber('KIVELLE_WAVESPEED_ADULT_STAGE_TIMEOUT_MS',75_000)));
@@ -216,11 +215,11 @@ export function buildWaveSpeedAdultScenePrompt(request:CanonicalMediaRequest):st
   if(!ADULT_CONTENT_LEVELS.includes(request.contentLevel)||request.adultPipelineAuthorized!==true)throw new AppError('PROVIDER_REQUEST_INVALID','The adult image route requires a currently authorized request.',403,false);
   const intent=request.generationIntent?.requestText?.replace(/\s+/g,' ').trim();
   if(!intent)throw new AppError('PROVIDER_REQUEST_INVALID','The approved adult photo request was incomplete.',422,false);
-  const direction=resolvePhotoDirection({requestText:intent,shotType:request.composition.shotType,seed:request.mediaId}),identity=request.visualIdentity,appearance=[identity.canonicalDescription,identity.hair&&`hair ${identity.hair}`,identity.eyes&&`eyes ${identity.eyes}`,identity.skinTone&&`skin ${identity.skinTone}`,identity.build&&`build ${identity.build}`,identity.identifyingFeatures?.length&&`features ${identity.identifyingFeatures.slice(0,3).join(', ')}`].filter(Boolean).join('; '),containment=request.context.worldContainment,location=request.context.place?.location??request.context.location,world=containment?`${containment.worldName}${containment.locationName?` at ${containment.locationName}`:''}. ${containment.worldDescription??''}`:[location?.name,location?.description].filter(Boolean).join('. '),rearDirection=direction.poseDirection.includes('rear or rear-three-quarter');
+  const direction=resolvePhotoDirection({requestText:intent,shotType:request.composition.shotType,seed:request.mediaId}),identity=request.visualIdentity,appearance=[identity.canonicalDescription,identity.hair&&`hair ${identity.hair}`,identity.eyes&&`eyes ${identity.eyes}`,identity.skinTone&&`skin ${identity.skinTone}`,identity.build&&`build ${identity.build}`,identity.identifyingFeatures?.length&&`features ${identity.identifyingFeatures.slice(0,3).join(', ')}`].filter(Boolean).join('; '),containment=request.context.worldContainment,location=request.context.place?.location??request.context.location,world=containment?`${containment.worldName}${containment.locationName?` at ${containment.locationName}`:''}. ${containment.worldDescription??''}`:[location?.name,location?.description].filter(Boolean).join('. '),rearAnatomy=requestImpliesRearAdultAnatomy(intent),rearDirection=direction.poseDirection.includes('rear or rear-three-quarter');
   return clipWaveSpeedPrompt([
     `RAW documentary photograph captured with a full-frame professional camera of one real-looking fictional consenting adult, canonical age ${request.companion.age}.`,
     `MANDATORY TARGET: ${intent}.`,
-    `POSE AND CAMERA: ${waveSpeedConciseDirection(direction.poseDirection)} ${rearDirection?'Keep their face clearly visible in a natural over-the-shoulder glance for fictional identity matching.':direction.faceDirection}`,
+    `POSE AND CAMERA: ${waveSpeedConciseDirection(direction.poseDirection)} ${rearAnatomy?direction.faceDirection:rearDirection?'Keep their face clearly visible in a natural over-the-shoulder glance for fictional identity matching.':direction.faceDirection}`,
     waveSpeedRequestedAnatomyGuidance(intent,true)||waveSpeedAdultNudityGuidance(resolveAdultNudityScope(intent),intent),
     appearance&&`APPEARANCE: ${appearance}.`,
     world&&`SETTING: ${world}.`,
@@ -252,41 +251,35 @@ export function buildWaveSpeedAdultImagePrompt(request:CanonicalMediaRequest,ref
   if(!ADULT_CONTENT_LEVELS.includes(request.contentLevel)||request.adultPipelineAuthorized!==true)throw new AppError('PROVIDER_REQUEST_INVALID','The adult image route requires a currently authorized request.',403,false);
   const intent=request.generationIntent?.requestText?.replace(/\s+/g,' ').trim();
   if(!intent)throw new AppError('PROVIDER_REQUEST_INVALID','The approved adult photo request was incomplete.',422,false);
-  const identityIndex=Math.max(0,references.findIndex((item)=>item.role==='character_identity'))+1,direction=resolvePhotoDirection({requestText:intent,shotType:request.composition.shotType,seed:request.mediaId}),containment=request.context.worldContainment,worldLock=containment?`Only ${containment.worldName} at ${containment.locationName??'its canonical setting'}; never Earth.`:'Use the canonical setting.',scope=resolveAdultNudityScope(intent),nudity=waveSpeedAdultNudityGuidance(scope,intent),anatomyTargets=waveSpeedRequestedAnatomyGuidance(intent),qualityRetry=request.qualityRetry?`FIX: ${clipWaveSpeedPrompt(request.qualityRetry.reasonCodes.join(', '),70)}.`:'';
-  const sourceInstruction=request.generationKind==='photo_edit'
-    ?'EDIT SOURCE: Edit the approved source photo; preserve unrelated details, but replace pose, camera, clothing, or coverage when required.'
-    :`NEW SCENE: Image ${identityIndex} supplies identity only. Replace its pose, clothes/robe, crop, background, and camera; do not make a small edit.`;
-  return clipWaveSpeedPrompt([
-    sourceInstruction,
-    `MANDATORY TARGET: ${clipWaveSpeedPrompt(intent,170)}.`,
-    `POSE/CAMERA: ${waveSpeedConciseDirection(direction.poseDirection)} ${direction.faceMayBeHidden?'Face may remain away or out of frame.':''}`,
-    anatomyTargets||nudity,
-    `IDENTITY: Image ${identityIndex} = ${request.companion.name}, fictional consenting adult age ${request.companion.age}; preserve face, hair, complexion, and adult identity.`,
-    `SETTING: ${clipWaveSpeedPrompt(worldLock,60)}`,
-    qualityRetry,
-    'Photorealistic natural skin and complete coherent adult anatomy; no doll, mannequin, plastic, blank/censored, fused, duplicated, missing, or blurred parts. One photo; no text, watermark, collage, illustration, CGI, or visible reference.',
-  ].filter(Boolean).join(' '),800);
+  const identityIndex=Math.max(0,references.findIndex((item)=>item.role==='character_identity'))+1,locationIndex=references.findIndex((item)=>item.role==='location_environment'||item.role==='world_environment')+1,direction=resolvePhotoDirection({requestText:intent,shotType:request.composition.shotType,seed:request.mediaId}),containment=request.context.worldContainment,worldLock=containment?`Only ${containment.worldName} at ${containment.locationName??'its canonical setting'}; never Earth.`:'Keep the canonical setting.',scope=resolveAdultNudityScope(intent),required=[
+    request.generationKind==='photo_edit'?'EDIT SOURCE: Edit the approved source photo; change pose, camera, or clothing when required.':`NEW SCENE: Image ${identityIndex} supplies identity only. Replace its pose, clothes/robe, crop, background, and camera; do not make a small edit.`,
+    `MANDATORY TARGET: ${clipWaveSpeedPrompt(intent,120)}.`,
+    `POSE/CAMERA: ${waveSpeedConciseDirection(direction.poseDirection)} ${direction.faceMayBeHidden?'Face may remain away or out of frame.':'Keep the same recognizable face when visible.'}`,
+    waveSpeedRequestedAnatomyGuidance(intent)||waveSpeedAdultNudityGuidance(scope,intent),
+    `IDENTITY: Image ${identityIndex} = ${request.companion.name}, fictional consenting adult age ${request.companion.age}; match that exact face, hair, complexion, and adult identity.`,
+    locationIndex>0?`SETTING: Image ${locationIndex} is the exact canonical place; keep that location. ${clipWaveSpeedPrompt(worldLock,40)}`:`SETTING: ${clipWaveSpeedPrompt(worldLock,48)}`,
+    request.qualityRetry?`FIX: ${clipWaveSpeedPrompt(request.qualityRetry.reasonCodes.join(', '),40)}.`:'',
+  ].filter(Boolean);
+  const closer='Photoreal; complete coherent adult anatomy; no doll, plastic, blank/censored parts, CGI, text, or visible reference.';
+  const core=required.join(' ');
+  return core.length+1+closer.length<=800?`${core} ${closer}`:core.slice(0,800);
 }
 
 function waveSpeedAdultNudityGuidance(scope:ReturnType<typeof resolveAdultNudityScope>,intent:string):string{
-  if(scope==='full_nude')return'Approved full adult nudity: preserve naturally visible external adult anatomy completely; add no clothing, strategic covering, blur, or blanking.';
-  if(scope==='bottomless')return'Approved lower-body adult nudity: retain unrelated upper clothing and render naturally visible lower anatomy completely without covering or blanking.';
-  if(scope==='topless')return'Approved upper-body adult nudity: retain lower clothing and render naturally visible requested upper anatomy completely.';
-  if(scope==='specific_anatomy')return resolveSpecificAnatomyExposure(intent)==='covered'?'Keep the specifically requested adult anatomy covered exactly as requested.':'The specifically requested adult anatomy is approved uncovered and must be clearly visible, unobstructed, complete, anatomically coherent, and large enough to read.';
+  if(scope==='full_nude')return'Approved full adult nudity: no clothing or covering. complete uncovered external genitalia matching this adult body; no blur or blanking.';
+  if(scope==='bottomless')return'Approved lower-body nudity: keep unrelated upper clothes; uncovered genitalia matching this adult body must stay visible.';
+  if(scope==='topless')return'Approved upper-body nudity: keep lower clothes; render this adult’s chest/nipples completely.';
+  if(scope==='specific_anatomy')return resolveSpecificAnatomyExposure(intent)==='covered'?'Keep the requested adult anatomy covered exactly as asked.':'Requested adult anatomy is uncovered and must be clearly visible and complete.';
   return'Honor only the approved adult scope; do not add unrequested nudity or participants.';
 }
 
 function waveSpeedRequestedAnatomyGuidance(intent:string,detailed=false):string{
   if(resolveSpecificAnatomyExposure(intent)==='covered')return'';
-  const categories=analyzeAdultLanguage(intent).categories,targets=[
-    categories.includes('female_genitalia')?'external vulva and labia':null,
-    categories.includes('male_genitalia')?'external penis and scrotum':null,
-    categories.includes('buttocks_anus')?'buttocks and rear anatomy':null,
-    categories.includes('breasts')?'breasts and nipples':null,
-  ].filter((value):value is string=>Boolean(value));
+  const targets=visibleAdultAnatomyTargetLabels(intent);
   if(!targets.length)return'';
-  const genitalAccuracy=!detailed?'':categories.includes('female_genitalia')?' External vulvar anatomy must be biologically plausible and correctly placed and integrated with the pelvis, with natural adult proportions and detail; no fused labia, duplicated or misplaced structures, impossible openings, protruding artifacts, seams, blank slits, or doll-like geometry.':categories.includes('male_genitalia')?' External penile and scrotal anatomy must be biologically plausible, correctly placed and integrated with the pelvis, and naturally proportioned; no fused, duplicated, detached, misplaced, melted, blank, or doll-like structures.':'';
-  return`VISIBLE ANATOMY: ${targets.join(' plus ')}; uncovered, unobstructed, natural and clear; no robe, underwear, fabric, hand, hair, shadow, crop, or pose may hide it.${genitalAccuracy}`;
+  const joined=targets.join(' plus ');
+  const genitalAccuracy=!detailed?'':/vulva/.test(joined)?' Vulva/labia must be plausible, correctly placed, and integrated with the pelvis; no fused, blank, or doll-like geometry.':/penis/.test(joined)?' Penis/scrotum must be plausible, correctly placed, and integrated with the pelvis; no fused, blank, or doll-like structures.':/genitalia/.test(joined)?' External genitalia must be plausible, complete, and uncensored.':'';
+  return`VISIBLE ANATOMY: ${joined}; uncovered, unobstructed, natural and clear; no robe, underwear, fabric, hand, hair, shadow, crop, or pose may hide it.${genitalAccuracy}`;
 }
 
 function waveSpeedConciseDirection(direction:string):string{
@@ -407,7 +400,7 @@ function adultPreservationGuidance(scope:ReturnType<typeof resolveAdultNuditySco
   return'Preserve the same adult identity, hair, body proportions, camera angle, crop, lighting, background, location, activity, and all clothing not explicitly changed.';
 }
 function adultNudityGuidance(scope:ReturnType<typeof resolveAdultNudityScope>,intent:string):string{
-  if(scope==='full_nude')return'Approved scope: full adult nudity. Remove all clothing while preserving identity and pose. Any external adult anatomy naturally visible from the requested camera angle must be complete, anatomically coherent, and photographically detailed—not censored, covered by invented clothing, blurred, smoothed over, or rendered as a featureless doll-like region. Do not invent visibility for regions that are genuinely occluded or outside the frame.';
+  if(scope==='full_nude')return'Approved scope: full adult nudity. Remove all clothing while preserving the same adult face and canonical location. External genitalia, buttocks, and chest matching this adult body must be uncovered, complete, and photographically detailed—not censored, covered, blurred, or blank. For a rear, bent-over, or all-fours pose, keep genitalia and buttocks fully in frame.';
   if(scope==='bottomless')return'Approved scope: lower-body nudity only. Preserve unmentioned upper clothing. Any external adult anatomy naturally visible from the requested camera angle must be complete, coherent, and photographically detailed rather than blank, blurred, or doll-like. Do not invent visibility through occlusion.';
   if(scope==='specific_anatomy'){
     if(resolveSpecificAnatomyExposure(intent)==='covered')return'Approved scope: the specifically requested adult anatomy with coverage explicitly retained. Keep the requested garment or fabric in place and do not expose anatomy through it. Preserve all other clothing and body details.';

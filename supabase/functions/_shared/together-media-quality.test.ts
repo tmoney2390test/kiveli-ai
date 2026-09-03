@@ -33,6 +33,9 @@ Deno.test('adult QA names the exact requested anatomy and rejects a generic robe
   assertStringIncludes(rule,'buttocks and rear anatomy');
   assertStringIncludes(rule,'covered by a robe');
   assertStringIncludes(rule,'breasts-only');
+  const implied=requestedAnatomyQualityRule('Send me a picture of you bent over nude','uncovered',true);
+  assertStringIncludes(implied,'complete uncovered external genitalia matching this adult body');
+  assertStringIncludes(implied,'buttocks and rear anatomy');
   if(requestedAnatomyQualityRule('Send a portrait','uncovered',true)!=='')throw new Error('non-anatomical requests should not invent anatomy targets');
   if(requestedAnatomyQualityRule('Send an explicit photo','covered',true)!=='')throw new Error('covered requests should not demand exposed anatomy');
 });
@@ -51,5 +54,7 @@ Deno.test('requested genital anatomy receives a dedicated plausibility inspectio
   assertStringIncludes(rule,'biological plausibility');
   assertStringIncludes(rule,'FAIL genital_anatomy_error');
   assertStringIncludes(rule,'seam or generic slit');
+  const implied=requestedGenitalAnatomyQualityRule('Send me a nude photo');
+  assertStringIncludes(implied,'uncovered external genitalia matching this adult body');
   if(requestedGenitalAnatomyQualityRule('Send a topless portrait')!=='')throw new Error('non-genital requests should not add a genital inspection');
 });

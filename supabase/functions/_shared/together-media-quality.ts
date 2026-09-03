@@ -6,8 +6,7 @@ import{track}from'./together.ts';
 import{configuredVeniceClient,type VeniceImageClient}from'./venice.ts';
 import{AppError}from'./types.ts';
 import{enforceMediaQualityRequirements,parseMediaQualityVerdict,type MediaQualityVerdict}from'../../../packages/together-domain/src/media-quality.ts';
-import{photoRequestAllowsHiddenFace,resolveAdultNudityScope,resolvePhotoDirection,resolveSpecificAnatomyExposure}from'../../../packages/together-domain/src/media.ts';
-import{analyzeAdultLanguage}from'../../../packages/together-domain/src/adult-language.ts';
+import{photoRequestAllowsHiddenFace,resolveAdultNudityScope,resolvePhotoDirection,resolveSpecificAnatomyExposure,visibleAdultAnatomyTargetLabels}from'../../../packages/together-domain/src/media.ts';
 import{completeMediaUsageAttempt,recordMediaUsageAttempt}from'./together-media-usage.ts';
 import{currentAdultMediaJobAuthorized}from'./web-adult-access.ts';
 
@@ -38,7 +37,7 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     const prepared=await prepareQualityInput(db,job,media,result);if(!prepared)return adultAuthorized?{action:'reject',reasonCodes:['adult_safety_unverified']}:{action:'accept',result};
     try{assessment=await assessImage(client,prepared.url,faceRequired,nudityScope,specificAnatomyExposure,requestText,requestedDirection?.source==='requested'?requestedDirection:null,subjects??[],canonical?.context.worldContainment,canonical?.referenceImages??[],adultAuthorized,anonymousAdultPartner);}finally{if(prepared.temporary)await db.storage.from('together-user-media').remove([prepared.temporary]);}
   }
-  const verdict=enforceMediaQualityRequirements(assessment.verdict,{requiresVisibleSpecificAnatomy:nudityScope==='specific_anatomy'&&specificAnatomyExposure==='uncovered',requiresWorldVerification:Boolean(canonical?.context.worldContainment)&&envEnabled('KIVELLE_MEDIA_WORLD_QA_REQUIRED',true),requiresAdultSafetyVerification:adultAuthorized}),qualityMetadata=assessmentMetadata({...assessment,verdict}),providerMetadata={...((job.provider_metadata??{}) as Record<string,unknown>),...qualityMetadata};
+  const verdict=enforceMediaQualityRequirements(assessment.verdict,{requiresVisibleSpecificAnatomy:specificAnatomyExposure==='uncovered'&&(nudityScope==='specific_anatomy'||nudityScope==='full_nude'||nudityScope==='bottomless'||visibleAdultAnatomyTargetLabels(requestText).some((label)=>/genital|vulva|penis/i.test(label))),requiresWorldVerification:Boolean(canonical?.context.worldContainment)&&envEnabled('KIVELLE_MEDIA_WORLD_QA_REQUIRED',true),requiresAdultSafetyVerification:adultAuthorized}),qualityMetadata=assessmentMetadata({...assessment,verdict}),providerMetadata={...((job.provider_metadata??{}) as Record<string,unknown>),...qualityMetadata};
   await db.from('together_media_provider_jobs').update({provider_metadata:providerMetadata,updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
   await track(db,String(media.user_id),'media_quality_checked',compactRecord({mediaId:media.id,verdict:verdict.status,retryCount:Number(providerMetadata.qualityRetryCount??0),qaProviderRequestId:assessment.providerRequestId,qaProviderModel:assessment.providerModel,qaProviderStatus:assessment.providerStatus,qaErrorCode:assessment.errorCode,qaTimedOut:assessment.timedOut,qaInferenceMs:assessment.inferenceMs}));
   if(verdict.status!=='fail')return{action:'accept',result};
@@ -149,21 +148,17 @@ export function authorizedAdultImageSafetyRule(subjects:Array<{companion:{name:s
 const DELIVERABLE_QUALITY_WARNINGS=new Set(['pose_mismatch','face_direction_mismatch','world_mismatch','location_mismatch','earth_leakage']);
 export function requestedAnatomyQualityRule(requestText:string|undefined,specificAnatomyExposure:ReturnType<typeof resolveSpecificAnatomyExposure>,adultAuthorized:boolean):string{
   if(!adultAuthorized||specificAnatomyExposure!=='uncovered')return'';
-  const categories=analyzeAdultLanguage(requestText??'').categories,targets=[
-    categories.includes('female_genitalia')?'external vulva and labia':null,
-    categories.includes('male_genitalia')?'external penis and scrotum':null,
-    categories.includes('buttocks_anus')?'buttocks and rear anatomy':null,
-    categories.includes('breasts')?'breasts and nipples':null,
-  ].filter((value):value is string=>Boolean(value));
+  const targets=visibleAdultAnatomyTargetLabels(requestText);
   if(!targets.length)return'';
   return`REQUEST ADHERENCE: The approved request specifically requires visible ${targets.join(' plus ')}. Return requested_anatomy_missing if any requested target is absent, covered by a robe, underwear, fabric, hand or hair, hidden by pose, shadow or crop, too small to verify, or replaced with a generic different exposure. Do not pass a breasts-only or partial undressing result when lower anatomy was requested.`;
 }
 
 export function requestedGenitalAnatomyQualityRule(requestText:string|undefined):string{
-  const categories=analyzeAdultLanguage(requestText??'').categories;
-  const female=categories.includes('female_genitalia'),male=categories.includes('male_genitalia');
-  if(!female&&!male)return'';
-  const target=female&&male?'the requested external female and male genital anatomy':female?'the requested external vulvar anatomy and labia':'the requested external penile and scrotal anatomy';
+  const targets=visibleAdultAnatomyTargetLabels(requestText);
+  const genital=targets.filter((label)=>/genital|vulva|penis/i.test(label));
+  if(!genital.length)return'';
+  const female=genital.some((label)=>/vulva/i.test(label)),male=genital.some((label)=>/penis/i.test(label));
+  const target=female&&male?'the requested external female and male genital anatomy':female?'the requested external vulvar anatomy and labia':male?'the requested external penile and scrotal anatomy':'the requested uncovered external genitalia matching this adult body';
   return`Image 1 is a generated fictional-adult photograph. Inspect ${target} only for requested visibility, photographic detail, and biological plausibility; explicit adult anatomy itself is allowed and is not a reason to reject. Return PASS only when every requested structure is clearly visible, naturally proportioned, correctly placed, and coherently integrated with the surrounding pelvis and body. Return FAIL genital_anatomy_error when a requested structure is fused, duplicated, detached, misplaced, impossible, unnaturally protruding, incorrectly oriented, incorrectly integrated, rendered as a seam or generic slit, or otherwise anatomically implausible. Return FAIL requested_anatomy_missing when it is absent, covered, cropped, obscured, or too small to judge. Return FAIL anatomy_low_detail when it is blank, doll-like, plastic, melted, airbrushed, or featureless. Output only PASS or FAIL followed by those exact codes.`;
 }
 

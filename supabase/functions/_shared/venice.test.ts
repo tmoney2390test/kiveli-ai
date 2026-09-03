@@ -152,7 +152,7 @@ Deno.test('Venice adult prompt renders full nudity completely without escalating
   try{
     const client=new VeniceImageClient('secret','https://venice.test/api/v1',1_000,async(_url,init)=>{prompts.push(String((JSON.parse(String(init?.body)) as Record<string,unknown>).prompt));return new Response(png,{status:200,headers:{'content-type':'image/png'}});});
     await new VeniceMediaProvider(client).submit({...adultRequest(),generationIntent:{requestText:'send a fully nude photo from behind',requestedContentLevel:'explicit'}},adultRoute());
-    assert(prompts[1]?.includes('Approved scope: full adult nudity')&&prompts[1]?.includes('featureless doll-like region'));
+    assert(prompts[1]?.includes('Approved scope: full adult nudity')&&prompts[1]?.includes('External genitalia')&&prompts[1]?.includes('keep genitalia and buttocks fully in frame'));
     prompts.length=0;
     await new VeniceMediaProvider(client).submit(adultRequest(),adultRoute());
     assert(prompts[1]?.includes('Approved scope: upper-body nudity only')&&prompts[1]?.includes('do not expose unrequested lower anatomy'));

@@ -294,9 +294,62 @@ const NATURAL_DIRECTIONS:Record<PhotoShotType,Array<[string,string]>>={
   ],
 };
 
+const REAR_ADULT_POSE_PATTERN=/\b(?:bent|bending|leaning)\s+(?:over|forward)\b|\bon all fours\b|\ball[- ]fours\b|\bhands? and knees?\b|\bdoggy(?:[- ]style)?\b|\bfrom behind\b|\bback\s+(?:to|toward|towards)\s+(?:the\s+)?camera\b|\bfacing away\b|\brear(?:[- ]three[- ]quarter)?\s+(?:view|angle|camera)\b/i;
+const FRONTAL_GENITAL_POSE_PATTERN=/\b(?:missionary(?:[- ]style)?|flat on (?:your|her|his) back|on (?:your|her|his) back|cowgirl|reverse\s+cowgirl|spreadeagle|spread[- ]eagle|starfish|legs?\s+(?:spread|open|apart|wide(?:\s+apart)?|up|raised|elevated)|knees?\s+(?:spread|open|apart))\b/i;
+const SEXUAL_POSE_PATTERN=new RegExp(`${REAR_ADULT_POSE_PATTERN.source}|${FRONTAL_GENITAL_POSE_PATTERN.source}|\\b(?:straddl(?:e|ing)|piledriver(?:[- ]style)?|face[- ]down|presenting)\\b`,'i');
+
+function adultRequestHasLowerNudity(text:string):boolean{
+  const scope=resolveAdultNudityScope(text);
+  if(['full_nude','bottomless','specific_anatomy'].includes(scope))return true;
+  const categories=analyzeAdultLanguage(text).categories;
+  return categories.includes('female_genitalia')||categories.includes('male_genitalia')||categories.includes('buttocks_anus');
+}
+
+/** Rear sexual poses plus approved lower-body nudity need a behind-the-subject camera. */
+export function requestImpliesRearAdultAnatomy(text?:string):boolean{
+  const normalized=normalizePhotoIntentText(text??'');
+  return REAR_ADULT_POSE_PATTERN.test(normalized)&&adultRequestHasLowerNudity(normalized);
+}
+
+export function requestImpliesFrontalGenitalVisibility(text?:string):boolean{
+  const normalized=normalizePhotoIntentText(text??'');
+  return FRONTAL_GENITAL_POSE_PATTERN.test(normalized)&&adultRequestHasLowerNudity(normalized);
+}
+
+export function requestImpliesSexualPose(text?:string):boolean{
+  return SEXUAL_POSE_PATTERN.test(normalizePhotoIntentText(text??''));
+}
+
+/**
+ * Named anatomy plus implied anatomy from full nudity or a sexual pose.
+ * Does not invent a sex; unnamed genitalia stay body-matched.
+ */
+export function visibleAdultAnatomyTargetLabels(text?:string):string[]{
+  if(resolveSpecificAnatomyExposure(text)==='covered')return[];
+  const normalized=normalizePhotoIntentText(text??'');
+  const categories=analyzeAdultLanguage(normalized).categories;
+  const scope=resolveAdultNudityScope(normalized);
+  const rear=requestImpliesRearAdultAnatomy(normalized);
+  const frontal=requestImpliesFrontalGenitalVisibility(normalized);
+  const labels:string[]=[];
+  if(categories.includes('female_genitalia'))labels.push('external vulva and labia');
+  else if(categories.includes('male_genitalia'))labels.push('external penis and scrotum');
+  else if(scope==='full_nude'||scope==='bottomless'||rear||frontal)labels.push('complete uncovered external genitalia matching this adult body');
+  if(categories.includes('buttocks_anus')||rear)labels.push('buttocks and rear anatomy');
+  if(categories.includes('breasts')||scope==='topless')labels.push('breasts and nipples');
+  return[...new Set(labels)];
+}
+
+/** Nude, sexual-pose, and hidden-face requests need identity+location editing, not SFW face-swap. */
+export function requestRequiresIdentityPreservingAdultRoute(text?:string):boolean{
+  if(photoRequestAllowsHiddenFace(text))return true;
+  const scope=resolveAdultNudityScope(text);
+  return['full_nude','bottomless','specific_anatomy','topless'].includes(scope)||requestImpliesRearAdultAnatomy(text)||requestImpliesSexualPose(text)||visibleAdultAnatomyTargetLabels(text).length>0;
+}
+
 /** Converts approved spatial wording into pose-only direction, never raw content. */
 export function resolvePhotoDirection(input:{requestText?:string;shotType:PhotoShotType;seed:string}):PhotoDirection{
-  const normalized=normalizePhotoIntentText(input.requestText??''),faceMayBeHidden=photoRequestAllowsHiddenFace(normalized),adult=analyzeAdultLanguage(normalized),lowerAnatomyRearView=/\b(?:bent|bending|leaning)\s+(?:over|forward)\b/i.test(normalized)&&(adult.categories.includes('female_genitalia')||adult.categories.includes('male_genitalia')||adult.categories.includes('buttocks_anus')),requested=[...REQUESTED_POSE_CUES.filter(([pattern])=>pattern.test(normalized)).map(([,direction])=>direction),...(lowerAnatomyRearView?['rear or rear-three-quarter camera orientation behind the subject, keeping requested lower anatomy fully visible']:[])].slice(0,5);
+  const normalized=normalizePhotoIntentText(input.requestText??''),faceMayBeHidden=photoRequestAllowsHiddenFace(normalized),lowerAnatomyRearView=requestImpliesRearAdultAnatomy(normalized),frontalGenitalView=requestImpliesFrontalGenitalVisibility(normalized)&&!lowerAnatomyRearView,requested=[...REQUESTED_POSE_CUES.filter(([pattern])=>pattern.test(normalized)).map(([,direction])=>direction),...(lowerAnatomyRearView?['rear or rear-three-quarter camera orientation behind the subject, keeping requested lower anatomy fully visible']:[]),...(frontalGenitalView?['keep uncovered genitalia fully inside the frame and photographically readable from this camera angle']:[])].slice(0,6);
   if(requested.length||faceMayBeHidden)return{poseDirection:[...new Set(requested.length?requested:['head and face directed away from the lens exactly as requested'])].join('; '),faceDirection:faceMayBeHidden?'Do not turn or insert the face toward the camera. Keep it hidden or away exactly as requested. No eye contact or camera-facing smile.':'Keep head direction consistent with the requested pose rather than defaulting to a straight-on face.',faceMayBeHidden,source:'requested'};
   const options=NATURAL_DIRECTIONS[input.shotType],index=stableDirectionIndex(`${input.seed}:${input.shotType}`,options.length),[poseDirection,faceDirection]=options[index]!;
   return{poseDirection,faceDirection,faceMayBeHidden:false,source:'natural_variation'};
@@ -335,7 +388,7 @@ export function classifyPhotoIntent(text:string):PhotoIntent{
   const sourceText=text.normalize('NFKC'),normalized=normalizePhotoIntentText(text),classificationText=normalized.replace(/\bnon\s+explicit\b/gi,''),adult=analyzeAdultLanguage(classificationText),adultVisualRequest=adult.explicit&&/\b(?:show|send|share|let me see|can i see|could i see|may i see|i want to see|want to see|get a look at|zoom(?:ed)? in|close up)\b/i.test(normalized),multilingualRequest=MULTILINGUAL_PHOTO_REQUEST.test(sourceText)||MULTILINGUAL_VISUAL_BODY_REQUEST.test(sourceText)||MULTILINGUAL_PHOTO_REQUEST.test(normalized)||MULTILINGUAL_VISUAL_BODY_REQUEST.test(normalized)||NORMALIZED_MULTILINGUAL_VISUAL_BODY_REQUEST.test(normalized),hasRequest=NAMED_PHOTO_REQUEST.test(normalized)||CONTEXTUAL_VISUAL_REQUEST.test(normalized)||DIRECT_VISUAL_BODY_REQUEST.test(normalized)||adultVisualRequest||multilingualRequest,requested=hasRequest&&!PHOTO_DISCUSSION_OR_MANAGEMENT.test(normalized),lower=normalized.toLowerCase();
   const subject:PhotoIntent['subject']=/where you are|the view|surroundings|around there|your room|your place|studio|gallery|museum|cafe|café|rooftop|riverwalk|venue|place/.test(lower)||MULTILINGUAL_SCENE.test(normalized)?'location':/outfit|wearing|dressed|clothes|fit check|ootd/.test(lower)?'outfit':/doing|working|activity/.test(lower)?'activity':/date/.test(lower)?'date':requested?'companion':'unknown';
   const environmentOnly=/\b(?:show|send|take|share)\b.{0,36}\b(?:the|your)?\s*(?:view|surroundings|room|gallery|museum|venue|place itself)\b|\bwhat (?:it|the (?:place|room|gallery|museum|venue)) looks like\b/i.test(normalized)||MULTILINGUAL_SCENE.test(normalized);
-  const anatomyNeedsWideFrame=photoRequestNeedsCompletePose(lower)||MULTILINGUAL_FULL_BODY.test(normalized),closeDetailRequested=CLOSE_DETAIL_REQUEST.test(normalized);
+  const nudityScope=resolveAdultNudityScope(normalized),closeDetailRequested=CLOSE_DETAIL_REQUEST.test(normalized),anatomyNeedsWideFrame=photoRequestNeedsCompletePose(lower)||MULTILINGUAL_FULL_BODY.test(normalized)||((nudityScope==='full_nude'||nudityScope==='bottomless')&&!closeDetailRequested);
   const shotPreference:PhotoIntent['shotPreference']=anatomyNeedsWideFrame?'full_body':closeDetailRequested?'portrait':/selfie|mirror pic/.test(lower)||/(?:自撮り|セルフィー|셀카|自拍)/u.test(normalized)?'selfie':/outfit|wearing|dressed|clothes|fit check|ootd|full.?body/.test(lower)?'full_body':/portrait|face|smile|eyes|hair/.test(lower)||MULTILINGUAL_PORTRAIT.test(normalized)?'portrait':environmentOnly?'scene':subject==='location'||subject==='activity'?'candid':undefined;
   // "Full-body", "body shot", and "chest-up" are framing language, not adult-content
   // signals. Strip an explicit negation before classification so "non-explicit" does

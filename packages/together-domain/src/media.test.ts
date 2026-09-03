@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHARACTER_PHOTO_REALISM_GUIDANCE, PHOTO_ONLY_MESSAGE_CONTENT, PRODUCTION_SAFE_ROMANTIC_PHOTO_DIRECTION, PRODUCTION_SAFE_SWIM_PHOTO_DIRECTION, classifyPhotoIntent, classifyUserAuthoredMediaSafety, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, isPhotoOnlyConversationMessage, photoRequestAllowsHiddenFace, photoRequestWantsVisibleCaptureDevice, resolveAdultNudityScope, resolveCanonicalMediaPresence, resolvePhotoComposition, resolvePhotoDirection, resolveProductionSafePhotoRequest, resolveSpecificAnatomyExposure, sanitizePhotoDeliveryAcknowledgement } from './media';
+import { CHARACTER_PHOTO_REALISM_GUIDANCE, PHOTO_ONLY_MESSAGE_CONTENT, PRODUCTION_SAFE_ROMANTIC_PHOTO_DIRECTION, PRODUCTION_SAFE_SWIM_PHOTO_DIRECTION, classifyPhotoIntent, classifyUserAuthoredMediaSafety, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, isPhotoOnlyConversationMessage, photoRequestAllowsHiddenFace, photoRequestWantsVisibleCaptureDevice, requestImpliesRearAdultAnatomy, requestImpliesSexualPose, requestRequiresIdentityPreservingAdultRoute, resolveAdultNudityScope, resolveCanonicalMediaPresence, resolvePhotoComposition, resolvePhotoDirection, resolveProductionSafePhotoRequest, resolveSpecificAnatomyExposure, sanitizePhotoDeliveryAcknowledgement, visibleAdultAnatomyTargetLabels } from './media';
 
 describe('production photo ceiling',()=>{
   it('turns a nude request into a clothed romantic photo instead of rejecting generation',()=>{
@@ -308,6 +308,44 @@ describe('character photo identity grounding',()=>{
     expect(direction.poseDirection).toContain('body bent forward');
     expect(direction.poseDirection).toContain('rear or rear-three-quarter camera orientation');
     expect(direction.poseDirection).toContain('requested lower anatomy fully visible');
+  });
+
+  it('treats bent-over nude as a rear full-nude request even without naming genitals',()=>{
+    const request='Send me a picture of you bent over nude';
+    expect(classifyPhotoIntent(request)).toMatchObject({requested:true,requestedContentLevel:'explicit',shotPreference:'full_body'});
+    expect(resolveAdultNudityScope(request)).toBe('full_nude');
+    expect(requestImpliesRearAdultAnatomy(request)).toBe(true);
+    expect(requestRequiresIdentityPreservingAdultRoute(request)).toBe(true);
+    expect(visibleAdultAnatomyTargetLabels(request).join(' ')).toMatch(/genitalia/);
+    expect(visibleAdultAnatomyTargetLabels(request).join(' ')).toMatch(/buttocks/);
+    const direction=resolvePhotoDirection({requestText:request,shotType:'full_body',seed:'elena-nude-rear'});
+    expect(direction.poseDirection).toContain('body bent forward');
+    expect(direction.poseDirection).toContain('rear or rear-three-quarter camera orientation');
+  });
+
+  it('keeps a wide set of nude sexual poses on the identity-preserving adult route',()=>{
+    const requests=[
+      'Send me a nude photo on all fours',
+      'Send a fully nude photo lying on your back with your legs spread',
+      'Send a nude cowgirl pose photo',
+      'Send me a nude photo from behind',
+      'Send a nude photo of you kneeling',
+    ];
+    for(const request of requests){
+      expect(resolveAdultNudityScope(request)).toBe('full_nude');
+      expect(requestRequiresIdentityPreservingAdultRoute(request)).toBe(true);
+      expect(visibleAdultAnatomyTargetLabels(request).some((label)=>/genital/i.test(label))).toBe(true);
+      expect(classifyPhotoIntent(request).shotPreference).toBe('full_body');
+    }
+    expect(requestImpliesSexualPose('Send a fully nude photo lying on your back with your legs spread')).toBe(true);
+    const frontal=resolvePhotoDirection({requestText:'Send a fully nude photo lying on your back with your legs spread',shotType:'full_body',seed:'elena-frontal'});
+    expect(frontal.poseDirection).toContain('uncovered genitalia fully inside the frame');
+    expect(frontal.poseDirection).not.toContain('rear or rear-three-quarter');
+  });
+
+  it('does not invent genital targets for a clothed non-nude photo',()=>{
+    expect(visibleAdultAnatomyTargetLabels('Send a fully clothed portrait')).toEqual([]);
+    expect(requestRequiresIdentityPreservingAdultRoute('Send a flirty clothed portrait')).toBe(false);
   });
 
   it('treats face-down-in-pillows as a requested prone pose rather than a camera-facing portrait',()=>{
