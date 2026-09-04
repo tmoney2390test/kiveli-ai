@@ -26,4 +26,11 @@ export const vharadrenLocationAssets:Record<string,ImageSource>={
   'deepnail-mines':require('../../assets/locations/vharadren/deepnail-mines.jpg'),
   'wolfgate-barracks':require('../../assets/locations/vharadren/wolfgate-barracks.jpg'),
   'chapel-iron-saint':require('../../assets/locations/vharadren/chapel-iron-saint.jpg'),
+  'pyrehold-castle':require('../../assets/locations/vharadren/pyrehold-castle.jpg'),
+  'caldera-hatchery':require('../../assets/locations/vharadren/caldera-hatchery.jpg'),
+  'saltfire-bazaar':require('../../assets/locations/vharadren/saltfire-bazaar.jpg'),
+  'crimson-veil':require('../../assets/locations/vharadren/crimson-veil.jpg'),
+  'ashen-docks':require('../../assets/locations/vharadren/ashen-docks.jpg'),
+  'wyrmglass-arena':require('../../assets/locations/vharadren/wyrmglass-arena.jpg'),
+  'widows-vineyard':require('../../assets/locations/vharadren/widows-vineyard.jpg'),
 };

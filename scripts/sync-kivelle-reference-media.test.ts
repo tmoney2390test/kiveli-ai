@@ -91,6 +91,26 @@ test('discovers and registers the complete Black March location-art set',async()
   assert.equal(keys.size,mappedCount,'Every published Vharadren reference must also be registered with the client resolver');
 });
 
+test('discovers and registers the complete Ember Isles location-art set',async()=>{
+  const assets=await discoverAssets();
+  const keys=new Set(assets.filter((asset)=>asset.role==='location_canonical'&&asset.worldSlug==='vharadren').map((asset)=>asset.sourceKey));
+  const moduleSource=await readFile('apps/together/src/location-assets/vharadren.ts','utf8');
+  for(const slug of[
+    'ashen-docks',
+    'caldera-hatchery',
+    'crimson-veil',
+    'pyrehold-castle',
+    'saltfire-bazaar',
+    'widows-vineyard',
+    'wyrmglass-arena',
+  ]){
+    assert.ok(keys.has(`location:vharadren:${slug}:canonical`),`${slug} must remain discoverable`);
+    assert.match(moduleSource,new RegExp(`'${slug}':require\\('\\.\\./\\.\\./assets/locations/vharadren/${slug}\\.jpg'\\)`));
+  }
+  const mappedCount=(moduleSource.match(/assets\/locations\/vharadren\//g)??[]).length;
+  assert.equal(keys.size,mappedCount,'Every published Vharadren reference must also be registered with the client resolver');
+});
+
 test('discovers the authored Vharadren primary and supplied secondary portrait pack',async()=>{
   const assets=await discoverAssets();
   const vharadren=assets.filter((asset)=>asset.role==='character_identity'&&asset.worldSlug==='vharadren');
