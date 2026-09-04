@@ -12,4 +12,10 @@ export const vharadrenLocationAssets:Record<string,ImageSource>={
   'ashlands':require('../../assets/locations/vharadren/ashlands.jpg'),
   'dragonbone-citadel':require('../../assets/locations/vharadren/dragonbone-citadel.jpg'),
   'ember-throne-hall':require('../../assets/locations/vharadren/ember-throne-hall.jpg'),
+  'gilded-steps-market':require('../../assets/locations/vharadren/gilded-steps-market.jpg'),
+  'house-of-velvet-oaths':require('../../assets/locations/vharadren/house-of-velvet-oaths.jpg'),
+  'basilica-seven-flames':require('../../assets/locations/vharadren/basilica-seven-flames.jpg'),
+  'blackglass-baths':require('../../assets/locations/vharadren/blackglass-baths.jpg'),
+  'red-ledger-exchange':require('../../assets/locations/vharadren/red-ledger-exchange.jpg'),
+  'lantern-gallows':require('../../assets/locations/vharadren/lantern-gallows.jpg'),
 };

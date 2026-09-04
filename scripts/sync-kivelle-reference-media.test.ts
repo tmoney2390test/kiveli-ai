@@ -33,7 +33,6 @@ test('discovers the first authored Vharadren location-art batch',async()=>{
     'shattered-coast',
     'verdant-reach',
   ])assert.ok(keys.has(`location:vharadren:${slug}:canonical`),`${slug} must remain discoverable`);
-  assert.equal(keys.size,8,'Only visually approved Vharadren locations should be published in this batch');
 });
 
 test('registers the approved Vharadren location batch with the client resolver',async()=>{
@@ -52,6 +51,24 @@ test('registers the approved Vharadren location batch with the client resolver',
     'shattered-coast',
     'verdant-reach',
   ])assert.match(moduleSource,new RegExp(`'${slug}':require\\('\\.\\./\\.\\./assets/locations/vharadren/${slug}\\.jpg'\\)`));
+});
+
+test('discovers and registers the complete Crownspire location-art set',async()=>{
+  const assets=await discoverAssets();
+  const keys=new Set(assets.filter((asset)=>asset.role==='location_canonical'&&asset.worldSlug==='vharadren').map((asset)=>asset.sourceKey));
+  const moduleSource=await readFile('apps/together/src/location-assets/vharadren.ts','utf8');
+  for(const slug of[
+    'basilica-seven-flames',
+    'blackglass-baths',
+    'gilded-steps-market',
+    'house-of-velvet-oaths',
+    'lantern-gallows',
+    'red-ledger-exchange',
+  ]){
+    assert.ok(keys.has(`location:vharadren:${slug}:canonical`),`${slug} must remain discoverable`);
+    assert.match(moduleSource,new RegExp(`'${slug}':require\\('\\.\\./\\.\\./assets/locations/vharadren/${slug}\\.jpg'\\)`));
+  }
+  assert.equal(keys.size,14,'Only the fourteen visually approved Vharadren locations should be published');
 });
 
 test('discovers the authored Vharadren primary and supplied secondary portrait pack',async()=>{
