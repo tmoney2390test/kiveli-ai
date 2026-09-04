@@ -18,7 +18,7 @@ import { DetailPreservingArtwork } from '../../src/components/DetailPreservingAr
 import { characterProfilePhotos } from '../../src/character-profile-assets';
 import { loadCharacterSchedule, manageConversation, meetCompanion, openConversation } from '../../src/lib/api';
 import { buildCharacterDaySchedule, type CharacterDayScheduleEntry } from '../../src/lib/characterDaySchedule';
-import { characterRelationshipPresentation, characterTrustPresentation, compactCharacterSchedule } from '../../src/lib/characterProfilePresentation';
+import { characterRelationshipPresentation, characterTrustPresentation, characterUpcomingCommitments, compactCharacterSchedule, type CharacterUpcomingCommitment } from '../../src/lib/characterProfilePresentation';
 import { relationshipDaysKnown } from '../../src/lib/companionLife';
 import { activeConversationFor } from '../../src/lib/conversation';
 import { characterConversationHref } from '../../src/lib/chatRoute';
@@ -47,6 +47,8 @@ export default function CharacterProfile() {
   const [openingStage, setOpeningStage] = useState<'idle'|'meeting'|'conversation'>('idle');
   const [error, setError] = useState('');
   const [trustHelpOpen, setTrustHelpOpen] = useState(false);
+  const [upcomingOpen, setUpcomingOpen] = useState(false);
+  useEffect(() => setUpcomingOpen(false), [slug]);
 
   if (!snapshot) return null;
 
@@ -94,9 +96,13 @@ export default function CharacterProfile() {
   const relationship = instance ? snapshot.relationships.find((item) => item.character_instance_id === instance.id) : undefined;
   const daysKnown = instance ? relationshipDaysKnown(relationship) : 0;
   const placesTogether = new Set(moments.map((item) => item.location_id).filter(Boolean)).size;
-  const upcoming = instance
-    ? snapshot.sharedPlans.filter((item) => item.character_instance_id === instance.id && ['scheduled', 'active'].includes(item.status)).length
-    : 0;
+  const upcomingCommitments = instance ? characterUpcomingCommitments({
+    characterInstanceId: instance.id,
+    plans: snapshot.sharedPlans,
+    dates: snapshot.dates,
+    locations: snapshot.locations,
+  }) : [];
+  const nextUpcoming = upcomingCommitments[0];
   const relationshipPresentation = characterRelationshipPresentation({
     name: template.name,
     known,
@@ -104,7 +110,7 @@ export default function CharacterProfile() {
     daysKnown,
     momentCount: moments.length,
     placesTogether,
-    upcomingCount: upcoming,
+    upcomingCount: upcomingCommitments.length,
   });
   const trustPresentation = instance ? characterTrustPresentation(relationship?.trust, {
     recentDirection: relationship?.recent_direction,
@@ -248,8 +254,20 @@ export default function CharacterProfile() {
         </View>
 
         {relationshipPresentation.stats.length ? <View accessibilityLabel="Relationship highlights" style={styles.history}>
-          {relationshipPresentation.stats.map((stat) => <Stat key={stat.label} value={stat.value} label={stat.label} />)}
+          {relationshipPresentation.stats.map((stat) => stat.label === 'Upcoming' && nextUpcoming
+            ? <UpcomingStat key={stat.label} commitment={nextUpcoming} count={upcomingCommitments.length} timezone={snapshot.profile?.experience_timezone} onPress={() => setUpcomingOpen(true)}/>
+            : <Stat key={stat.label} value={stat.value} label={stat.label} />)}
         </View> : null}
+
+        {nextUpcoming ? <UpcomingCommitmentModal
+          visible={upcomingOpen}
+          commitment={nextUpcoming}
+          count={upcomingCommitments.length}
+          timezone={snapshot.profile?.experience_timezone}
+          onClose={() => setUpcomingOpen(false)}
+          onOpenDetails={() => { setUpcomingOpen(false); router.push(nextUpcoming.route as never); }}
+          onOpenAll={() => { setUpcomingOpen(false); router.push(`/(tabs)/dates?character=${encodeURIComponent(handle)}&tab=Upcoming` as never); }}
+        /> : null}
 
         <Text style={styles.detailsLabel}>CHARACTER DETAILS</Text>
         <View style={styles.facts}>
@@ -367,6 +385,74 @@ function Stat({ value, label }: { value: string; label: string }) {
   return <View style={styles.stat}><Text style={styles.statValue}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>;
 }
 
+function dateTimeParts(value: string, timezone?: string | null) {
+  const date = new Date(value);
+  const options = timezone ? { timeZone: timezone } : {};
+  try {
+    return {
+      shortDate: date.toLocaleDateString(undefined, { ...options, month: 'short', day: 'numeric' }),
+      fullDate: date.toLocaleDateString(undefined, { ...options, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+      time: date.toLocaleTimeString(undefined, { ...options, hour: 'numeric', minute: '2-digit' }),
+    };
+  } catch {
+    return {
+      shortDate: date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      fullDate: date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+      time: date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
+    };
+  }
+}
+
+function UpcomingStat({ commitment, count, timezone, onPress }: { commitment: CharacterUpcomingCommitment; count: number; timezone?: string | null; onPress: () => void }) {
+  const when = dateTimeParts(commitment.startsAt, timezone);
+  const active = commitment.status === 'active';
+  return <Pressable
+    accessibilityRole="button"
+    accessibilityLabel={`${active ? 'Happening now' : 'Upcoming'}: ${commitment.title}, ${when.fullDate} at ${when.time}, ${commitment.locationName}`}
+    accessibilityHint="Shows date details"
+    onPress={onPress}
+    style={({ pressed }) => [styles.stat, styles.upcomingStat, pressed && styles.previewCardPressed]}
+  >
+    <View style={styles.upcomingStatTop}><Text style={styles.upcomingStatKicker}>{active ? 'HAPPENING NOW' : `UPCOMING${count > 1 ? ` · ${count}` : ''}`}</Text><ChevronRight size={14} color={colors.rose}/></View>
+    <Text style={styles.upcomingStatDate}>{active ? 'Now' : when.shortDate}</Text>
+    <Text numberOfLines={1} style={styles.upcomingStatTitle}>{commitment.title}</Text>
+    <Text numberOfLines={1} style={styles.upcomingStatMeta}>{when.time} · {commitment.locationName}</Text>
+  </Pressable>;
+}
+
+function UpcomingCommitmentModal({ visible, commitment, count, timezone, onClose, onOpenDetails, onOpenAll }: { visible: boolean; commitment: CharacterUpcomingCommitment; count: number; timezone?: string | null; onClose: () => void; onOpenDetails: () => void; onOpenAll: () => void }) {
+  const starts = dateTimeParts(commitment.startsAt, timezone);
+  const ends = commitment.endsAt ? dateTimeParts(commitment.endsAt, timezone) : null;
+  const time = ends ? `${starts.time} – ${ends.time}` : starts.time;
+  return <Modal transparent visible={visible} animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+    <View style={styles.upcomingModalRoot}>
+      <Pressable accessibilityLabel="Close upcoming date details" onPress={onClose} style={StyleSheet.absoluteFill}/>
+      <View accessibilityViewIsModal style={styles.upcomingModal}>
+        <View style={styles.upcomingModalHeader}>
+          <View style={styles.upcomingModalIcon}><CalendarDays size={19} color={colors.rose}/></View>
+          <View style={styles.flex}><Text style={styles.upcomingModalKicker}>{commitment.status === 'active' ? 'HAPPENING NOW' : commitment.kind === 'date' ? 'UPCOMING DATE' : 'UPCOMING PLAN'}</Text><Text accessibilityRole="header" style={styles.upcomingModalTitle}>{commitment.title}</Text></View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.upcomingModalClose}><X size={18} color={colors.muted}/></Pressable>
+        </View>
+        {commitment.description ? <Text style={styles.upcomingModalDescription}>{commitment.description}</Text> : null}
+        <View style={styles.upcomingModalDetails}>
+          <CommitmentDetail icon={<CalendarDays size={16} color={colors.violet}/>} label="Date" value={starts.fullDate}/>
+          <CommitmentDetail icon={<Clock3 size={16} color={colors.violet}/>} label="Time" value={time}/>
+          <CommitmentDetail icon={<MapPin size={16} color={colors.violet}/>} label="Location" value={commitment.locationName}/>
+        </View>
+        {count > 1 ? <Text style={styles.upcomingModalCount}>This is the next of {count} upcoming plans.</Text> : null}
+        <View style={styles.upcomingModalActions}>
+          <Pressable accessibilityRole="button" onPress={onOpenDetails} style={styles.upcomingModalPrimary}><Text style={styles.upcomingModalPrimaryText}>View details</Text><ChevronRight size={16} color="#fff"/></Pressable>
+          {count > 1 ? <Pressable accessibilityRole="button" onPress={onOpenAll} style={styles.upcomingModalSecondary}><Text style={styles.upcomingModalSecondaryText}>See all upcoming</Text></Pressable> : null}
+        </View>
+      </View>
+    </View>
+  </Modal>;
+}
+
+function CommitmentDetail({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return <View style={styles.commitmentDetail}><View style={styles.commitmentDetailIcon}>{icon}</View><View style={styles.flex}><Text style={styles.commitmentDetailLabel}>{label}</Text><Text style={styles.commitmentDetailValue}>{value}</Text></View></View>;
+}
+
 function ProfilePreviewCard({icon,kicker,title,body,meta,onPress,accessibilityLabel}:{icon:ReactNode;kicker:string;title:string;body:string;meta?:string;onPress:()=>void;accessibilityLabel:string}) {
   return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} onPress={onPress} style={({pressed})=>[styles.previewCard,pressed&&styles.previewCardPressed]}>
     <View style={styles.previewIcon}>{icon}</View>
@@ -467,6 +553,31 @@ const styles = StyleSheet.create({
   stat: { flexGrow: 1, flexBasis: 92, minWidth: 0, paddingHorizontal: 8, paddingVertical: 12, borderRadius: radius.md, backgroundColor: colors.surface, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
   statValue: { fontFamily: typography.display, fontSize: 23, color: colors.text },
   statLabel: { fontSize: 9, color: colors.muted, fontWeight: '800', marginTop: 2, textAlign: 'center' },
+  upcomingStat: { flexBasis: 190, alignItems: 'stretch', paddingHorizontal: 12, paddingVertical: 10 },
+  upcomingStatTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
+  upcomingStatKicker: { color: colors.rose, fontSize: 8, lineHeight: 11, fontWeight: '900', letterSpacing: .8 },
+  upcomingStatDate: { color: colors.text, fontFamily: typography.display, fontSize: 19, lineHeight: 23, marginTop: 4 },
+  upcomingStatTitle: { color: colors.textSecondary, fontSize: 10, lineHeight: 14, fontWeight: '900', marginTop: 1 },
+  upcomingStatMeta: { color: colors.muted, fontSize: 8.5, lineHeight: 12, marginTop: 2 },
+  upcomingModalRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20, backgroundColor: 'rgba(3,2,7,.72)' },
+  upcomingModal: { width: '100%', maxWidth: 440, padding: 18, borderRadius: radius.xl, backgroundColor: 'rgba(24,17,34,.99)', borderWidth: 1, borderColor: 'rgba(216,62,234,.34)', gap: 14 },
+  upcomingModalHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  upcomingModalIcon: { width: 38, height: 38, flexShrink: 0, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(216,62,234,.12)' },
+  upcomingModalKicker: { color: colors.rose, fontSize: 8, lineHeight: 11, fontWeight: '900', letterSpacing: .9 },
+  upcomingModalTitle: { color: colors.text, fontFamily: typography.display, fontSize: 22, lineHeight: 26, fontWeight: '700', marginTop: 2 },
+  upcomingModalClose: { width: 40, height: 40, flexShrink: 0, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.05)' },
+  upcomingModalDescription: { color: colors.muted, fontSize: 11, lineHeight: 17 },
+  upcomingModalDetails: { overflow: 'hidden', borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  commitmentDetail: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  commitmentDetailIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(154,104,255,.10)' },
+  commitmentDetailLabel: { color: colors.dimmed, fontSize: 8, lineHeight: 11, fontWeight: '900', letterSpacing: .7 },
+  commitmentDetailValue: { color: colors.text, fontSize: 12, lineHeight: 17, fontWeight: '800', marginTop: 1 },
+  upcomingModalCount: { color: colors.muted, fontSize: 10, lineHeight: 15, textAlign: 'center' },
+  upcomingModalActions: { gap: 8 },
+  upcomingModalPrimary: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 16, borderRadius: radius.md, backgroundColor: colors.rose },
+  upcomingModalPrimaryText: { color: '#fff', fontSize: 12, fontWeight: '900' },
+  upcomingModalSecondary: { minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  upcomingModalSecondaryText: { color: colors.textSecondary, fontSize: 11, fontWeight: '900' },
   trustSection: { gap: 8, paddingVertical: 2 },
   trustHeader: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderRadius: radius.sm },
   trustIdentity: { minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 9 },

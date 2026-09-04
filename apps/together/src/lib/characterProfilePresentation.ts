@@ -1,4 +1,5 @@
 import type { CharacterDayScheduleEntry } from './characterDaySchedule';
+import type { DateSession, Location, SharedPlan } from '../types';
 import { DEFAULT_INITIAL_TRUST } from '@together/domain/src/relationship';
 
 export type CharacterProfileStat = {
@@ -20,6 +21,69 @@ export type CharacterTrustPresentation = {
   tone: 'steady' | 'strained' | 'repairing';
   recentChange: number | null;
 };
+
+export type CharacterUpcomingCommitment = {
+  id: string;
+  kind: 'plan' | 'date';
+  title: string;
+  description: string | null;
+  startsAt: string;
+  endsAt: string | null;
+  locationId: string | null;
+  locationName: string;
+  status: 'active' | 'upcoming';
+  route: string;
+};
+
+export function characterUpcomingCommitments(input: {
+  characterInstanceId: string;
+  plans: readonly SharedPlan[];
+  dates: readonly DateSession[];
+  locations: readonly Location[];
+  now?: Date;
+}): CharacterUpcomingCommitment[] {
+  const now = input.now ?? new Date();
+  const locationName = (locationId?: string | null, fallback?: string | null) =>
+    input.locations.find((item) => item.id === locationId)?.name ?? fallback ?? 'Location to be decided';
+  const plans = input.plans
+    .filter((plan) => plan.character_instance_id === input.characterInstanceId || plan.participant_instance_ids?.includes(input.characterInstanceId))
+    .filter((plan) => plan.status === 'active' || plan.status === 'scheduled' && new Date(plan.ends_at).getTime() > now.getTime())
+    .map<CharacterUpcomingCommitment>((plan) => ({
+      id: plan.id,
+      kind: 'plan',
+      title: plan.title,
+      description: plan.note?.trim() || null,
+      startsAt: plan.starts_at,
+      endsAt: plan.ends_at,
+      locationId: plan.location_id,
+      locationName: locationName(plan.location_id, plan.together_locations?.name),
+      status: plan.status === 'active' ? 'active' : 'upcoming',
+      route: `/plan/${plan.id}`,
+    }));
+  const linkedPlanIds = new Set(plans.map((plan) => plan.id));
+  const dates = input.dates
+    .filter((date) => date.character_instance_id === input.characterInstanceId)
+    .filter((date) => (date.status === 'active' || date.status === 'upcoming') && Boolean(date.scheduled_for))
+    .filter((date) => !date.shared_plan_id || !linkedPlanIds.has(date.shared_plan_id))
+    .filter((date) => date.status === 'active' || new Date(date.scheduled_for!).getTime() > now.getTime())
+    .map<CharacterUpcomingCommitment>((date) => ({
+      id: date.id,
+      kind: 'date',
+      title: date.together_date_templates.name,
+      description: date.together_date_templates.description?.trim() || null,
+      startsAt: date.scheduled_for!,
+      endsAt: null,
+      locationId: date.together_date_templates.location_id ?? null,
+      locationName: locationName(date.together_date_templates.location_id),
+      status: date.status === 'active' ? 'active' : 'upcoming',
+      route: `/date/${date.id}`,
+    }));
+
+  return [...plans, ...dates].sort((left, right) => {
+    if (left.status !== right.status) return left.status === 'active' ? -1 : 1;
+    return new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime();
+  });
+}
 
 export function characterTrustPresentation(rawValue: unknown, context: {
   recentDirection?: unknown;

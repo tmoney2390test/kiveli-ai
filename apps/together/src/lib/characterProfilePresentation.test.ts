@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CharacterDayScheduleEntry } from './characterDaySchedule';
-import { characterNameFromSlug, characterRelationshipPresentation, characterTrustPresentation, compactCharacterSchedule } from './characterProfilePresentation';
+import { characterNameFromSlug, characterRelationshipPresentation, characterTrustPresentation, characterUpcomingCommitments, compactCharacterSchedule } from './characterProfilePresentation';
+import type { DateSession, Location, SharedPlan } from '../types';
 
 const schedule = (id: string, state: Partial<CharacterDayScheduleEntry> = {}): CharacterDayScheduleEntry => ({
   id,
@@ -95,5 +96,40 @@ describe('character profile presentation', () => {
 
   it('creates a readable loading-shell name from a route slug', () => {
     expect(characterNameFromSlug('commander-rhea-navarro')).toBe('Commander Rhea Navarro');
+  });
+
+  it('builds a chronological upcoming view from plans and scheduled dates', () => {
+    const locations = [{ id: 'spa', name: 'Aurora Spa' }] as Location[];
+    const plans = [{
+      id: 'later-plan', character_instance_id: 'character', title: 'Dinner after the spa', note: 'Dress warmly.',
+      location_id: 'spa', starts_at: '2026-09-06T23:00:00.000Z', ends_at: '2026-09-07T01:00:00.000Z',
+      status: 'scheduled', participant_instance_ids: [], activity_key: 'dinner', source: 'date',
+      created_at: '2026-09-01T00:00:00.000Z', updated_at: '2026-09-01T00:00:00.000Z',
+    }] as SharedPlan[];
+    const dates = [{
+      id: 'spa-date', character_instance_id: 'character', shared_plan_id: null, status: 'upcoming', scheduled_for: '2026-09-06T20:00:00.000Z',
+      current_phase: 'waiting', phase_index: 0, state: {}, completed_at: null,
+      together_date_templates: { id: 'template', name: 'Massage at Aurora Spa', description: 'Unwind together.', world_id: 'world', location_id: 'spa', phases: [] },
+    }] as DateSession[];
+
+    expect(characterUpcomingCommitments({ characterInstanceId: 'character', plans, dates, locations, now: new Date('2026-09-05T00:00:00.000Z') })).toEqual([
+      expect.objectContaining({ id: 'spa-date', kind: 'date', locationName: 'Aurora Spa', route: '/date/spa-date' }),
+      expect.objectContaining({ id: 'later-plan', kind: 'plan', description: 'Dress warmly.', route: '/plan/later-plan' }),
+    ]);
+  });
+
+  it('does not count a scheduled date twice when it belongs to an upcoming plan', () => {
+    const plans = [{
+      id: 'plan', character_instance_id: 'character', title: 'Aurora Spa', location_id: 'spa', starts_at: '2026-09-06T20:00:00.000Z',
+      ends_at: '2026-09-06T22:00:00.000Z', status: 'scheduled', participant_instance_ids: [], activity_key: 'spa', source: 'date',
+      created_at: '2026-09-01T00:00:00.000Z', updated_at: '2026-09-01T00:00:00.000Z',
+    }] as SharedPlan[];
+    const dates = [{
+      id: 'date', character_instance_id: 'character', shared_plan_id: 'plan', status: 'upcoming', scheduled_for: '2026-09-06T20:00:00.000Z',
+      current_phase: 'waiting', phase_index: 0, state: {}, completed_at: null,
+      together_date_templates: { id: 'template', name: 'Massage', description: 'Relax.', world_id: 'world', location_id: 'spa', phases: [] },
+    }] as DateSession[];
+
+    expect(characterUpcomingCommitments({ characterInstanceId: 'character', plans, dates, locations: [], now: new Date('2026-09-05T00:00:00.000Z') })).toHaveLength(1);
   });
 });
