@@ -33,4 +33,11 @@ export const vharadrenLocationAssets:Record<string,ImageSource>={
   'ashen-docks':require('../../assets/locations/vharadren/ashen-docks.jpg'),
   'wyrmglass-arena':require('../../assets/locations/vharadren/wyrmglass-arena.jpg'),
   'widows-vineyard':require('../../assets/locations/vharadren/widows-vineyard.jpg'),
+  'hartwood-hall':require('../../assets/locations/vharadren/hartwood-hall.jpg'),
+  'rootmarket':require('../../assets/locations/vharadren/rootmarket.jpg'),
+  'motherleaf-sanctuary':require('../../assets/locations/vharadren/motherleaf-sanctuary.jpg'),
+  'green-hart-lodge':require('../../assets/locations/vharadren/green-hart-lodge.jpg'),
+  'briar-and-cup':require('../../assets/locations/vharadren/briar-and-cup.jpg'),
+  'weeping-archive':require('../../assets/locations/vharadren/weeping-archive.jpg'),
+  'hollow-crown-grove':require('../../assets/locations/vharadren/hollow-crown-grove.jpg'),
 };
