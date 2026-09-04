@@ -104,6 +104,24 @@ test('discovers the fifth generated Vharadren primary portrait batch',async()=>{
   ])assert.ok(keys.has(key),`${key} must remain discoverable`);
 });
 
+test('discovers the complete final Vharadren primary portrait batch',async()=>{
+  const assets=await discoverAssets();
+  const vharadren=assets.filter((asset)=>asset.role==='character_identity'&&asset.worldSlug==='vharadren');
+  const keys=new Set(vharadren.map((asset)=>asset.sourceKey));
+  for(const key of[
+    'character:catrin-brann:identity',
+    'character:liora-saintless:identity',
+    'character:maeve-redreed:identity',
+    'character:malrec-vale:identity',
+    'character:nessa-honeybell-marrow:identity',
+    'character:rhevan-crownsbane:identity',
+    'character:rorik-pell:identity',
+    'character:sabine-silk-veyl:identity',
+    'character:vespera-saan:identity',
+  ])assert.ok(keys.has(key),`${key} must remain discoverable`);
+  assert.equal(vharadren.filter((asset)=>asset.variant==='primary').length,49,'Every Vharadren character must have one primary portrait');
+});
+
 test('keeps secondary identities on the same character and private portrait bucket',()=>{
   assert.deepEqual(parseCharacterAssetName('high-flame-elowen-orison--secondary-1.png'),{characterSlug:'high-flame-elowen-orison',variant:'secondary-1'});
   assert.deepEqual(defaultStorageTarget({sourceKey:'character:high-flame-elowen-orison:identity:secondary-1',role:'character_identity',path:'ignored',worldSlug:'vharadren',characterSlug:'high-flame-elowen-orison',variant:'secondary-1'},'0123456789abcdef0123456789abcdef','png'),{bucket:CHARACTER_REFERENCE_BUCKET,path:'vharadren/high-flame-elowen-orison/secondary-1-0123456789abcdef0123.png'});
