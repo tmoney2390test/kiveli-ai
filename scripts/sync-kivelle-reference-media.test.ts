@@ -272,9 +272,10 @@ test('discovers the complete final Vharadren primary portrait batch',async()=>{
     'character:rhevan-crownsbane:identity',
     'character:rorik-pell:identity',
     'character:sabine-silk-veyl:identity',
+    'character:sable-wren:identity',
     'character:vespera-saan:identity',
   ])assert.ok(keys.has(key),`${key} must remain discoverable`);
-  assert.equal(vharadren.filter((asset)=>asset.variant==='primary').length,49,'Every Vharadren character must have one primary portrait');
+  assert.equal(vharadren.filter((asset)=>asset.variant==='primary').length,50,'Every Vharadren character must have one primary portrait');
 });
 
 test('keeps secondary identities on the same character and private portrait bucket',()=>{

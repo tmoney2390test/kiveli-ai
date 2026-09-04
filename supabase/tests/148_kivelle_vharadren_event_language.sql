@@ -19,7 +19,7 @@ select is(
    from public.together_schedule_templates schedule
    join public.together_character_world_presence presence on presence.character_version_id=schedule.character_version_id
    where presence.world_id='10000000-0000-4000-8000-000000000013'::uuid),
-  2058,
+  2100,
   'all authored Vharadren schedule rows remain present'
 );
 
