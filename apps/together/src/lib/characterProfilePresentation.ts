@@ -54,10 +54,10 @@ export function characterTrustPresentation(rawValue: unknown, context: {
     recentChange,
     trendLabel: tone === 'strained' ? 'Recently strained' : tone === 'repairing' ? 'Repairing' : null,
     detail: tone === 'strained'
-      ? 'Something recent affected this connection. Consistent, respectful follow-through can rebuild it over time.'
+      ? 'Trust took a hit recently. Being honest, respecting their boundaries, and following through will help, but it may take a little time.'
       : tone === 'repairing'
-        ? 'A sincere repair helped. Trust returns gradually through accountability and changed behavior.'
-        : 'Built through honest conversation, shared experiences, and reliability. Trust is separate from attraction.',
+        ? 'You’ve started to make things right. Keep being honest and following through, and trust can grow again over time.'
+        : 'Trust shows how safe and dependable this relationship feels to them. It grows when you’re honest, keep promises, and show up for them. It can drop when you lie, break promises, ignore their boundaries, or repeatedly let them down.',
   };
 }
 

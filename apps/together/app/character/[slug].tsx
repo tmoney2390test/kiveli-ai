@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Modal, PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image as ExpoImage, type ImageContentPosition } from 'expo-image';
-import { ArrowLeft, Brain, CalendarDays, Camera, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, LockKeyhole, MapPin, ShieldCheck, Sparkles } from 'lucide-react-native';
+import { ArrowLeft, Brain, CalendarDays, Camera, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, Info as InfoIcon, LockKeyhole, MapPin, ShieldCheck, Sparkles, X } from 'lucide-react-native';
 import {
   Body,
   EmptyState,
@@ -46,6 +46,7 @@ export default function CharacterProfile() {
   const [busy, setBusy] = useState(false);
   const [openingStage, setOpeningStage] = useState<'idle'|'meeting'|'conversation'>('idle');
   const [error, setError] = useState('');
+  const [trustHelpOpen, setTrustHelpOpen] = useState(false);
 
   if (!snapshot) return null;
 
@@ -200,10 +201,17 @@ export default function CharacterProfile() {
           {relationshipPresentation.supportingCopy ? <Text style={styles.relationshipSupporting}>{relationshipPresentation.supportingCopy}</Text> : null}
         </View> : null}
 
-        {trustPresentation ? <View style={styles.trustCard}>
-          <View accessible accessibilityLabel={`Trust level: ${trustPresentation.label}, ${trustPresentation.value} out of 100`} style={styles.trustHeader}>
+        {trustPresentation ? <View style={styles.trustSection}>
+          <Pressable
+            testID="character-trust-level"
+            accessibilityRole="button"
+            accessibilityLabel={`Trust level: ${trustPresentation.label}, ${trustPresentation.value} out of 100`}
+            accessibilityHint="Explains how trust changes"
+            onPress={() => setTrustHelpOpen(true)}
+            style={({ pressed }) => [styles.trustHeader, pressed && styles.pressed]}
+          >
             <View style={styles.trustIdentity}>
-              <View style={styles.trustIcon}><ShieldCheck size={17} color={colors.violet}/></View>
+              <View style={styles.trustIcon}><ShieldCheck size={18} color={colors.violet}/></View>
               <View>
                 <Text style={styles.trustKicker}>TRUST LEVEL</Text>
                 <Text style={styles.trustLabel}>{trustPresentation.label}</Text>
@@ -213,8 +221,8 @@ export default function CharacterProfile() {
                 ]}>{trustPresentation.trendLabel}{trustPresentation.recentChange ? ` ${trustPresentation.recentChange > 0 ? '+' : ''}${trustPresentation.recentChange}` : ''}</Text> : null}
               </View>
             </View>
-            <Text style={styles.trustValue}>{trustPresentation.value}<Text style={styles.trustTotal}> / 100</Text></Text>
-          </View>
+            <View style={styles.trustValueRow}><Text style={styles.trustValue}>{trustPresentation.value}<Text style={styles.trustTotal}> / 100</Text></Text><InfoIcon size={15} color={colors.muted}/></View>
+          </Pressable>
           <View
             accessibilityLabel={`Trust progress, ${trustPresentation.value} out of 100`}
             accessibilityRole="progressbar"
@@ -223,7 +231,15 @@ export default function CharacterProfile() {
           >
             <View style={[styles.trustFill, { width: `${trustPresentation.value}%` }]} />
           </View>
-          <Text style={styles.trustDetail}>{trustPresentation.detail}</Text>
+          <Modal transparent visible={trustHelpOpen} animationType="fade" statusBarTranslucent onRequestClose={() => setTrustHelpOpen(false)}>
+            <View style={styles.trustTooltipRoot}>
+              <Pressable accessibilityLabel="Close trust information" onPress={() => setTrustHelpOpen(false)} style={StyleSheet.absoluteFill}/>
+              <View testID="character-trust-tooltip" accessibilityViewIsModal style={styles.trustTooltip}>
+                <View style={styles.trustTooltipHeader}><View style={styles.trustTooltipMark}><ShieldCheck size={18} color={colors.violet}/></View><Text accessibilityRole="header" style={styles.trustTooltipTitle}>How trust works</Text><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setTrustHelpOpen(false)} style={styles.trustTooltipClose}><X size={18} color={colors.muted}/></Pressable></View>
+                <Text style={styles.trustTooltipBody}>{trustPresentation.detail}</Text>
+              </View>
+            </View>
+          </Modal>
         </View> : null}
 
         <View style={styles.about}>
@@ -451,20 +467,27 @@ const styles = StyleSheet.create({
   stat: { flexGrow: 1, flexBasis: 92, minWidth: 0, paddingHorizontal: 8, paddingVertical: 12, borderRadius: radius.md, backgroundColor: colors.surface, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
   statValue: { fontFamily: typography.display, fontSize: 23, color: colors.text },
   statLabel: { fontSize: 9, color: colors.muted, fontWeight: '800', marginTop: 2, textAlign: 'center' },
-  trustCard: { gap: 10, padding: 13, borderRadius: radius.lg, backgroundColor: 'rgba(154,104,255,.08)', borderWidth: 1, borderColor: 'rgba(154,104,255,.22)' },
-  trustHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  trustSection: { gap: 8, paddingVertical: 2 },
+  trustHeader: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderRadius: radius.sm },
   trustIdentity: { minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  trustIcon: { width: 34, height: 34, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: 'rgba(154,104,255,.12)' },
+  trustIcon: { width: 24, height: 34, flexShrink: 0, alignItems: 'flex-start', justifyContent: 'center' },
   trustKicker: { color: colors.dimmed, fontSize: 8, fontWeight: '900', letterSpacing: .9 },
   trustLabel: { color: colors.text, fontSize: 14, lineHeight: 18, fontWeight: '900', marginTop: 1 },
   trustTrend: { marginTop: 2, fontSize: 9, lineHeight: 12, fontWeight: '800' },
   trustTrendStrained: { color: colors.danger },
   trustTrendRepairing: { color: colors.success },
+  trustValueRow: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
   trustValue: { flexShrink: 0, color: colors.text, fontFamily: typography.display, fontSize: 20 },
   trustTotal: { color: colors.muted, fontFamily: typography.interface, fontSize: 9, fontWeight: '800' },
   trustTrack: { height: 6, overflow: 'hidden', borderRadius: 3, backgroundColor: 'rgba(255,255,255,.08)' },
   trustFill: { height: '100%', minWidth: 2, borderRadius: 3, backgroundColor: colors.violet },
-  trustDetail: { color: colors.muted, fontSize: 10, lineHeight: 15 },
+  trustTooltipRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20, backgroundColor: 'rgba(3,2,7,.66)' },
+  trustTooltip: { width: '100%', maxWidth: 380, padding: 17, borderRadius: radius.lg, backgroundColor: 'rgba(29,21,40,.99)', borderWidth: 1, borderColor: 'rgba(199,120,255,.42)' },
+  trustTooltipHeader: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  trustTooltipMark: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(168,69,242,.13)' },
+  trustTooltipTitle: { flex: 1, color: colors.text, fontFamily: typography.display, fontSize: 20, fontWeight: '800' },
+  trustTooltipClose: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.05)' },
+  trustTooltipBody: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 12 },
   detailsLabel: { color: colors.dimmed, fontSize: 9, fontWeight: '900', letterSpacing: 1.05 },
   facts: { borderTopWidth: 1, borderTopColor: colors.border },
   info: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },

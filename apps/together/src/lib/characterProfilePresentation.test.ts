@@ -55,7 +55,11 @@ describe('character profile presentation', () => {
   });
 
   it('shows the established starting trust while a relationship snapshot is still loading', () => {
-    expect(characterTrustPresentation(undefined)).toMatchObject({ value: 30, label: 'Taking root' });
+    expect(characterTrustPresentation(undefined)).toMatchObject({
+      value: 30,
+      label: 'Taking root',
+      detail: expect.stringContaining('It grows when you’re honest'),
+    });
   });
 
   it('distinguishes a recent strain from a low starting baseline', () => {
