@@ -6,9 +6,10 @@ import{pathToFileURL}from'node:url';
 import{locations as eosMeridianLocations}from'./eos-meridian-content.mjs';
 
 const root=process.cwd(),apply=process.argv.includes('--apply'),charactersOnly=process.argv.includes('--characters-only'),locationsOnly=process.argv.includes('--locations-only'),worldSlugFilter=process.argv.find((argument)=>argument.startsWith('--world='))?.slice('--world='.length),bucket='kivelle-reference-media';
+export const CHARACTER_REFERENCE_BUCKET='kivelle-character-reference';
 export const DIRECT_LOCATION_ARTWORK_WORLDS=['juniper-city','port-vervelle','neon-kyo','northvale','vespormoor'] as const;
 
-type Asset={sourceKey:string;role:'character_identity'|'location_canonical'|'world_canonical';path:string;worldSlug?:string;locationSlug?:string;characterSlug?:string};
+type Asset={sourceKey:string;role:'character_identity'|'location_canonical'|'world_canonical';path:string;worldSlug?:string;locationSlug?:string;characterSlug?:string;variant?:'primary'|`secondary-${number}`};
 
 async function main(){
   const url=process.env.SUPABASE_URL,key=process.env.SUPABASE_SECRET_KEY??process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -29,7 +30,7 @@ async function main(){
     if(existing?.sha256===sha256){summary.unchanged+=1;continue;}
     const{data:reusable,error:reusableError}=await db.from('together_media_reference_assets').select('storage_bucket,storage_path').eq('asset_role',asset.role).eq('sha256',sha256).eq('active',true).limit(1).maybeSingle();
     if(reusableError)throw reusableError;
-    const revision=Number(existing?.revision??0)+1,defaultStoragePath=`${asset.role}/${asset.sourceKey}/${sha256.slice(0,20)}.${extension}`,storageBucket=String(reusable?.storage_bucket??bucket),storagePath=String(reusable?.storage_path??defaultStoragePath);
+    const revision=Number(existing?.revision??0)+1,storageTarget=defaultStorageTarget(asset,sha256,extension),storageBucket=String(reusable?.storage_bucket??storageTarget.bucket),storagePath=String(reusable?.storage_path??storageTarget.path);
     if(!apply){console.log(`[dry-run] ${asset.sourceKey} -> ${storagePath}${reusable?' (reuse)':''}`);summary.uploaded+=1;if(reusable)summary.reusedStorage+=1;else summary.storageUploads+=1;continue;}
     if(!reusable){const{error:uploadError}=await db.storage.from(storageBucket).upload(storagePath,bytes,{contentType,upsert:false,cacheControl:'31536000'});if(uploadError&&!/already exists/i.test(uploadError.message))throw uploadError;summary.storageUploads+=1;}else summary.reusedStorage+=1;
     if(existing?.id)await db.from('together_media_reference_assets').update({active:false,updated_at:new Date().toISOString()}).eq('id',existing.id);
@@ -60,10 +61,20 @@ export async function discoverAssets():Promise<Asset[]>{
   output.push({sourceKey:'world:neon-kyo:canonical',role:'world_canonical',path:join(root,'apps','together','assets','worlds','neon-kyo','neon-kyo-hero.png'),worldSlug:'neon-kyo'});
   output.push({sourceKey:'world:northvale:canonical',role:'world_canonical',path:join(root,'apps','together','assets','worlds','northvale','northvale-hero.png'),worldSlug:'northvale'});
   output.push({sourceKey:'world:eos-meridian:canonical',role:'world_canonical',path:join(root,'apps','together','assets','worlds','eos-meridian','eos-meridian-hero.jpg'),worldSlug:'eos-meridian'});
-  for(const worldSlug of['juniper-city','port-vervelle','neon-kyo','vespormoor','northvale','eos-meridian']){const characterDirectory=join(root,'apps','together','assets','characters',worldSlug);for(const name of(await readdir(characterDirectory)).filter((item)=>/\.(jpe?g|png|webp)$/i.test(item)))output.push({sourceKey:`character:${parse(name).name}:identity`,role:'character_identity',path:join(characterDirectory,name),worldSlug,characterSlug:parse(name).name});}
+  for(const worldSlug of['juniper-city','port-vervelle','neon-kyo','vespormoor','northvale','eos-meridian','vharadren']){const characterDirectory=join(root,'apps','together','assets','characters',worldSlug);for(const name of(await readdir(characterDirectory)).filter((item)=>/\.(jpe?g|png|webp)$/i.test(item))){const identity=parseCharacterAssetName(name);output.push({sourceKey:`character:${identity.characterSlug}:identity${identity.variant==='primary'?'':`:${identity.variant}`}`,role:'character_identity',path:join(characterDirectory,name),worldSlug,characterSlug:identity.characterSlug,variant:identity.variant});}}
   output.push({sourceKey:'character:avery:identity',role:'character_identity',path:join(root,'apps','together','assets','characters','juniper-city','avery-ellis.jpg'),worldSlug:'juniper-city',characterSlug:'avery'});
   for(const characterSlug of['maya','chloe','alex']){const path=join(root,'apps','together','assets',`${characterSlug}-portrait.png`);output.push({sourceKey:`character:${characterSlug}:identity`,role:'character_identity',path,characterSlug});}
   return output;
+}
+
+export function parseCharacterAssetName(name:string):{characterSlug:string;variant:'primary'|`secondary-${number}`} {
+  const stem=parse(name).name,match=stem.match(/^(.*)--secondary-(\d+)$/);
+  return match?{characterSlug:match[1]!,variant:`secondary-${Number(match[2])}`}:{characterSlug:stem,variant:'primary'};
+}
+
+export function defaultStorageTarget(asset:Asset,sha256:string,extension:string):{bucket:string;path:string}{
+  if(asset.role==='character_identity'&&asset.characterSlug){const variant=asset.variant??'primary';return{bucket:CHARACTER_REFERENCE_BUCKET,path:`${asset.worldSlug??'canonical'}/${asset.characterSlug}/${variant}-${sha256.slice(0,20)}.${extension}`};}
+  return{bucket,path:`${asset.role}/${asset.sourceKey}/${sha256.slice(0,20)}.${extension}`};
 }
 
 async function loadContext(client:SupabaseClient){const[{data:worlds,error:worldError},{data:locations,error:locationError},{data:templates,error:templateError}]=await Promise.all([client.from('together_worlds').select('id,slug'),client.from('together_locations').select('id,slug,world_id'),client.from('together_character_templates').select('id,slug,current_published_version,together_character_versions(id,version,published_at)')]);if(worldError)throw worldError;if(locationError)throw locationError;if(templateError)throw templateError;return{worlds:new Map((worlds??[]).map((item)=>[item.slug,item.id])),locations:locations??[],templates:templates??[]};}

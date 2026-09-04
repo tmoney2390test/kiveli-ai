@@ -2363,7 +2363,7 @@ export async function snapshotReferenceAssets(
     const role = String(row.asset_role);
     if (
       seen.has(role) &&
-      !["character_training", "location_alternate"].includes(role)
+      !["character_identity", "character_training", "location_alternate"].includes(role)
     ) return false;
     seen.add(role);
     return true;
