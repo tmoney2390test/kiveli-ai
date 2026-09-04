@@ -1,5 +1,5 @@
 import{assertEquals,assertRejects}from'jsr:@std/assert';
-import{ConfiguredVideoPromptEnhancer,normalizeEnhancedVideoPrompt,videoEnhancementInstructions}from'./together-video-prompt-enhancer.ts';
+import{ConfiguredVideoPromptEnhancer,normalizeEnhancedVideoPrompt,videoEnhancementInstructions}from'./together-video-content.ts';
 
 const input={prompt:'walk to the window',characterName:'Kira',locationName:'Aurora Spa',routeName:'Seedance',duration:5,resolution:'720p',sound:false,aspectRatio:'9:16' as const,contentLevel:'standard'};
 
