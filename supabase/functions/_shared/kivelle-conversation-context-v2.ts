@@ -30,6 +30,7 @@ import {
 } from "./kivelle-commitment-context.ts";
 import { resolveSubscriptionState } from "./kivelle-subscription.ts";
 import { runKivelleDirector } from "./kivelle-director.ts";
+import { mergePrivateCharacterPromptContext } from "./kivelle-character-private-context.ts";
 
 type Row = Record<string, any>;
 export type TieredConversationContext = BaseContext & {
@@ -163,7 +164,7 @@ export async function buildTieredKivelleConversationContext(
     Array.isArray(input.instance.together_character_versions)
       ? input.instance.together_character_versions[0]
       : input.instance.together_character_versions;
-  const [{ data: reflection }, { data: version }, commitments] = await Promise
+  const [{ data: reflection }, { data: version }, commitments, {data:privateCharacterProfile}] = await Promise
     .all([
       base.personalizationEnabled
         ? input.db.from("together_relationship_reflections").select("*").eq(
@@ -183,6 +184,9 @@ export async function buildTieredKivelleConversationContext(
         queryIntent: base.queryIntent,
         now: input.now,
       }),
+      input.db.from('together_character_private_profiles')
+        .select('private_truth,adult_continuity,intimate_anatomy,hidden_sexual')
+        .eq('character_version_id',String(input.instance.character_version_id)).maybeSingle(),
     ]);
   const reflectionView = reflection
     ? {
@@ -216,6 +220,7 @@ export async function buildTieredKivelleConversationContext(
     (version?.personality_config ?? base.character?.personality_config ??
       {}) as Record<string, unknown>;
   const relationshipState = toRelationshipState(base.relationship);
+  const characterBible=mergePrivateCharacterPromptContext(version?.character_bible??{},privateCharacterProfile,input.authorizedPrivateAdultText===true);
   const effectiveCharacter = {
     ...base.character,
     spice_level: spiceLevel,
@@ -224,7 +229,7 @@ export async function buildTieredKivelleConversationContext(
     interests: Array.isArray(version?.interests)
       ? version.interests
       : base.character?.interests ?? [],
-    character_bible: version?.character_bible ?? {},
+    character_bible: characterBible,
     life_config: version?.life_config ?? {},
     relationship_config: version?.relationship_config ?? {},
   };
@@ -236,7 +241,7 @@ export async function buildTieredKivelleConversationContext(
   const characterGoals = compileCharacterGoals({
     occupation: String(base.character?.occupation ?? ""),
     currentActivity: base.currentScene.activity,
-    bible: (version?.character_bible ?? {}) as Record<string, unknown>,
+    bible: characterBible,
     activeStory: base.activeStory
       ? {
         title: String(base.activeStory.title ?? ""),
@@ -328,7 +333,7 @@ export async function buildTieredKivelleConversationContext(
     },
   });
   const characterVoice = compileCharacterVoiceCard({
-    bible: version?.character_bible ?? {},
+    bible: characterBible,
     characterName: String(base.character?.name ?? ""),
     occupation: String(base.character?.occupation ?? ""),
     message: input.userMessage,

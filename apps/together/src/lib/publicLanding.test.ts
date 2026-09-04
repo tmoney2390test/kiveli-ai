@@ -12,6 +12,7 @@ describe('public landing content', () => {
       'vespormoor',
       'northvale',
       'eos-meridian',
+      'vharadren',
     ]);
   });
 

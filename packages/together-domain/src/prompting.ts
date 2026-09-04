@@ -286,8 +286,8 @@ export function intimateLifeEligible(input:{relationshipStage?:string;contentMod
 export function publicCharacterBible(bible:unknown,eligible:boolean):unknown{
   if(!bible||typeof bible!=='object'||Array.isArray(bible))return bible;
   const record={...(bible as Record<string,unknown>)};
-  delete record.hiddenSexual;
-  delete record.intimateAnatomy;
-  if(Array.isArray(record.anecdotes))record.anecdotes=record.anecdotes.filter((item)=>eligible||!String((item as{id?:unknown})?.id??'').endsWith('-intimate'));
+  delete record['hiddenSexual'];
+  delete record['intimateAnatomy'];
+  if(Array.isArray(record['anecdotes']))record['anecdotes']=record['anecdotes'].filter((item)=>{const id=typeof(item as{id?:unknown})?.id==='string'?(item as{id:string}).id:'';return eligible||!id.endsWith('-intimate');});
   return record;
 }

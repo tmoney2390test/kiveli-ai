@@ -4,6 +4,7 @@ import { port_vervelleHero } from './port-vervelle';
 import { vespormoorHero } from './vespormoor';
 import { northvaleHero } from './northvale';
 import { eosMeridianHero } from './eos-meridian';
+import { vharadrenHero } from './vharadren';
 
 export const worldHeroAssets: Record<string, ImageSource> = {
   'port-vervelle': port_vervelleHero,
@@ -11,4 +12,5 @@ export const worldHeroAssets: Record<string, ImageSource> = {
   vespormoor:vespormoorHero,
   northvale:northvaleHero,
   'eos-meridian':eosMeridianHero,
+  vharadren:vharadrenHero,
 };

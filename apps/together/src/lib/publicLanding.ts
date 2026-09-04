@@ -1,5 +1,5 @@
 export type PublicWorld = {
-  slug: 'juniper-city' | 'port-vervelle' | 'neon-kyo' | 'vespormoor' | 'northvale' | 'eos-meridian';
+  slug: 'juniper-city' | 'port-vervelle' | 'neon-kyo' | 'vespormoor' | 'northvale' | 'eos-meridian' | 'vharadren';
   name: string;
   eyebrow: string;
   description: string;
@@ -61,6 +61,13 @@ export const PUBLIC_WORLDS: readonly PublicWorld[] = [
     name: 'Eos Meridian',
     eyebrow: 'FRONTIER ROMANCE · LIVING COLONY',
     description: 'A human colony beneath a fixed twilight sky, where work, independence, and an impossible signal shape ordinary intimacy.',
+    new: true,
+  },
+  {
+    slug: 'vharadren',
+    name: 'Vharadren',
+    eyebrow: 'DARK FANTASY · DRAGONS · BROKEN OATHS',
+    description: 'Three crowns contest an empty throne while dragons, rebels, and dangerous loyalties reshape a fractured realm.',
     new: true,
   },
 ] as const;

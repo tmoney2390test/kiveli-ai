@@ -14,6 +14,7 @@ export const publicWorldAssets: Record<PublicWorld['slug'], ImageSource> = {
   vespormoor: require('../../../assets/worlds/vespormoor/vespormoor-hero.jpg'),
   northvale: require('../../../assets/worlds/northvale/northvale-hero.jpg'),
   'eos-meridian': require('../../../assets/worlds/eos-meridian/eos-meridian-hero.jpg'),
+  vharadren: require('../../../assets/worlds/vharadren/vharadren-hero.png'),
 };
 
 export const publicLandingMobileHeroAsset: ImageSource = {

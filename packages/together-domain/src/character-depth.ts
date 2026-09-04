@@ -147,7 +147,7 @@ export function isValidCharacterCuriosityProfile(value:unknown):value is Charact
 
 export function selectCharacterAnecdote(input:{bible:CharacterDepthBible;message:string;relationshipStage?:string;trust?:number;recentAssistantMessages?:string[];contentMode?:string;age?:number|null}):CharacterAnecdote|null{
   const stage=input.relationshipStage??'stranger';const trust=finite(input.trust,0);const messageTokens=tokens(input.message);
-  const intimateOk=intimateLifeEligible({relationshipStage:stage,contentMode:input.contentMode,age:input.age});
+  const intimateOk=intimateLifeEligible({relationshipStage:stage,...(input.contentMode!==undefined?{contentMode:input.contentMode}:{}),...(input.age!==undefined?{age:input.age}:{})});
   const eligible=input.bible.anecdotes.filter((item)=>item.minimumTrust<=trust&&stageAllowed(stage,item.revealStages)&&!anecdoteRecentlyUsed(item,input.recentAssistantMessages??[])&&(intimateOk||!item.id.endsWith('-intimate'))).map((item)=>({item,score:item.topics.reduce((sum,topic)=>sum+(messageTokens.has(normalize(topic))?3:[...messageTokens].some((token)=>normalize(topic).includes(token)||token.includes(normalize(topic)))?1:0),0)})).filter((entry)=>entry.score>0).sort((a,b)=>b.score-a.score||a.item.id.localeCompare(b.item.id));
   return eligible[0]?.item??null;
 }
