@@ -1,5 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { auditVharadrenEvents, enrichVharadrenSchedules } from './lib/vharadren-event-language.mjs';
 
 const sourcePath = resolve(process.argv[2] ?? 'C:/Users/Tim19/Downloads/vharadren_content_pack.json');
 const repoRoot = resolve(import.meta.dirname, '..');
@@ -185,8 +186,11 @@ const appWorld = {
   weather_profile: pack.world.weatherProfile,
 };
 
+const scheduleAudit = auditVharadrenEvents(pack);
+if (!scheduleAudit.ok) throw new Error(`Vharadren event-language audit failed: ${scheduleAudit.failures.join('; ')}`);
+const enrichedPack = { ...pack, weeklySchedules: enrichVharadrenSchedules(pack) };
 const json = (value) => JSON.stringify(value);
-const packJson = json(pack);
+const packJson = json(enrichedPack);
 if (packJson.includes('$vharadren_pack$')) throw new Error('Unexpected SQL dollar-quote delimiter in Vharadren source.');
 
 const migration = `-- Complete Vharadren world, residents, simulation, retrieval depth, and private canon.
@@ -470,7 +474,9 @@ select (item->>'characterVersionId')::uuid,
   jsonb_build_object('source',item->>'source','scheduleMode','authored','activityKey',item->>'activityKey','slot',(item->>'slot')::int,
     'diegeticDay',item->>'diegeticDay','originalDayOfWeek',(item->>'dayOfWeek')::int,
     'originalStartMinute',(item->>'startMinute')::int,'originalEndMinute',(item->>'endMinute')::int,
-    'userLocalClock',true,'generationVersion','vharadren_authored_weekly_v1')
+    'userLocalClock',true,'generationVersion','vharadren_authored_weekly_v1',
+    'activityLabel',item->>'activityLabel','activityVariants',item->'activityVariants',
+    'displayLocation',item->>'displayLocation','eventLanguageVersion',item->>'eventLanguageVersion')
 from vharadren_pack cross join lateral jsonb_array_elements(data->'weeklySchedules') item
 left join public.together_locations location on location.world_id='10000000-0000-4000-8000-000000000013'::uuid and location.slug=item->>'locationSlug'
 on conflict(character_version_id,day_of_week,start_minute) do update set end_minute=excluded.end_minute,
