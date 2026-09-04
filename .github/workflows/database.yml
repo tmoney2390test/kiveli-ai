@@ -2,17 +2,6 @@ name: Kivelle Database
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - supabase/migrations/**
-      - supabase/tests/**
-      - supabase/config.toml
-  pull_request:
-    paths:
-      - supabase/migrations/**
-      - supabase/tests/**
-      - supabase/config.toml
 
 concurrency:
   group: kivelle-database-${{ github.ref }}

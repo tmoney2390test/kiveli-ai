@@ -67,8 +67,9 @@ select has_function(
   'Current existing-photo video reservation is available'
 );
 select ok(
-  position($needle$status=any(array['queued','generating'])$needle$ in replace(regexp_replace(lower(pg_get_functiondef('public.kivelle_reserve_video_generation_v7(uuid,uuid,uuid,text,text,text,text,text,text,text,integer,numeric,numeric,integer,text,text,boolean,text,text,text,text,boolean,boolean,integer,boolean,uuid)'::regprocedure)),E'\\s+','','g'),'::text',''))>0,
-  'Failed and completed existing-photo videos do not block the active slot'
+  position('ACTIVE_VIDEO_EXISTS' in pg_get_functiondef('public.kivelle_reserve_video_generation_v7(uuid,uuid,uuid,text,text,text,text,text,text,text,integer,numeric,numeric,integer,text,text,boolean,text,text,text,text,boolean,boolean,integer,boolean,uuid)'::regprocedure))>0
+  and position('VIDEO_DAILY_LIMIT' in pg_get_functiondef('public.kivelle_reserve_video_generation_v7(uuid,uuid,uuid,text,text,text,text,text,text,text,integer,numeric,numeric,integer,text,text,boolean,text,text,text,text,boolean,boolean,integer,boolean,uuid)'::regprocedure))=0,
+  'Existing-photo videos enforce one active job without the retired daily cap'
 );
 select has_function(
   'public','kivelle_reserve_direct_video_generation_v5',
@@ -76,8 +77,9 @@ select has_function(
   'Current prompt-first video reservation is available'
 );
 select ok(
-  position($needle$status=any(array['queued','generating'])$needle$ in replace(regexp_replace(lower(pg_get_functiondef('public.kivelle_reserve_direct_video_generation_v5(uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,text,integer,numeric,numeric,integer,text,text,boolean,text,text,text,text,boolean,uuid,boolean,jsonb,integer,uuid,uuid,jsonb,jsonb)'::regprocedure)),E'\\s+','','g'),'::text',''))>0,
-  'Failed and completed prompt-first videos do not block the active slot'
+  position('ACTIVE_VIDEO_EXISTS' in pg_get_functiondef('public.kivelle_reserve_direct_video_generation_v5(uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,text,integer,numeric,numeric,integer,text,text,boolean,text,text,text,text,boolean,uuid,boolean,jsonb,integer,uuid,uuid,jsonb,jsonb)'::regprocedure))>0
+  and position('VIDEO_DAILY_LIMIT' in pg_get_functiondef('public.kivelle_reserve_direct_video_generation_v5(uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,text,integer,numeric,numeric,integer,text,text,boolean,text,text,text,text,boolean,uuid,boolean,jsonb,integer,uuid,uuid,jsonb,jsonb)'::regprocedure))=0,
+  'Prompt-first videos enforce one active job without the retired daily cap'
 );
 
 select * from finish();
