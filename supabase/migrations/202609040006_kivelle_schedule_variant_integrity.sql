@@ -183,26 +183,6 @@ where version.id=activity.character_version_id
     or activity.metadata::text~*'(privacy layer|making private time|picking up a few practical things|overlapping music, media, and design crowd)'
   );
 
-update public.together_character_schedule_events schedule
-set title=public.kivelle_clean_schedule_variant(schedule.title,schedule.activity_key,template.occupation),
-    metadata=jsonb_set(
-      public.kivelle_remove_schedule_cliche_metadata(schedule.metadata),
-      '{activityVariants}',
-      public.kivelle_ensure_schedule_variants(
-        schedule.metadata->'activityVariants',schedule.title,schedule.activity_key,schedule.metadata->>'routineKind',template.occupation
-      ),
-      true
-    ),
-    updated_at=now()
-from public.together_character_instances instance
-join public.together_character_templates template on template.id=instance.character_template_id
-where instance.id=schedule.character_instance_id
-  and schedule.source in('recurring','generated','override')
-  and(
-    (jsonb_typeof(schedule.metadata->'activityVariants')='array' and jsonb_array_length(schedule.metadata->'activityVariants')<3)
-    or schedule.metadata::text~*'(privacy layer|making private time|picking up a few practical things|overlapping music, media, and design crowd)'
-  );
-
 comment on function public.kivelle_ensure_schedule_variants(jsonb,text,text,text,text) is
   'Preserves authored schedule variants, removes generator scaffolding, and supplies three natural deterministic fallbacks when a recovery path produced fewer.';
 
