@@ -37,4 +37,9 @@ describe("resolveMediaCarousel", () => {
     const video = { ...newest, id: "video", media_type: "video" as const };
     expect(resolveMediaCarousel({ media: [failed, video, current], current }).items.map((item) => item.id)).toEqual(["current"]);
   });
+
+  it("does not expose direct-video opening frames as standalone gallery photos",()=>{
+    const poster={...newest,id:"poster",metadata:{hiddenIntermediate:true,galleryPosterOnly:true}};
+    expect(resolveMediaCarousel({media:[poster,current],current}).items.map((item)=>item.id)).toEqual(["current"]);
+  });
 });

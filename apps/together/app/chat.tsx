@@ -12,11 +12,11 @@ import { MESSAGE_CHARACTER_LIMIT, messageCharacterLimitError } from '@together/d
 import { isPhotoOnlyConversationMessage } from '../src/lib/chatMediaPresentation';
 import { shouldGroupChatMessages } from '@together/domain/src/group-chat';
 import { preservedPrependOffset, shouldKeepChatPinned, shouldLoadOlderChatMessages } from '../src/lib/chatScroll';
-import { CharacterAvatar, CharacterMentionText, CharacterProfilePreviewModal, ChatConversationRail, ChatPhotoRequestCard, ConnectionBanner, ConversationOverflowMenu, DateTimeFields, EndPlanConfirmation, ErrorState, FailedMessageRecovery, FrostedBackdrop, FrostedSurface, JumpToLatestButton, LoadingSkeleton, MediaRequestModal, MediaTile, MemorySavedToast, MessageActionSheet, MessageCharacterCounter, MobileChatContextCard, MobileChatMediaHeader, PhotoSharingPaywallModal, PlanDetailsModal, PlanJoinBar, VideoMomentThumbnail, VoiceNotePurchaseModal, resolveCharacterPortraitSource, type MessageActionDefinition } from '../src/components';
+import { CharacterAvatar, CharacterMentionText, CharacterProfilePreviewModal, ChatConversationRail, ChatPhotoRequestCard, ConnectionBanner, ConversationOverflowMenu, DateTimeFields, EndPlanConfirmation, ErrorState, FailedMessageRecovery, FrostedBackdrop, FrostedSurface, JumpToLatestButton, LoadingSkeleton, MediaRequestModal, MediaTile, MemorySavedToast, MessageActionSheet, MessageCharacterCounter, MobileChatContextCard, MobileChatMediaHeader, PhotoSharingPaywallModal, PlanDetailsModal, PlanJoinBar, VoiceNotePurchaseModal, resolveCharacterPortraitSource, type MessageActionDefinition } from '../src/components';
 import { characterAssets, cityLifeAsset, locationHeroAsset, worldHeroAsset } from '../src/assets';
 import { colors, radius, spacing } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
-import { ApiError, confirmConversationAction, confirmUserImage, createSharedPlan, deleteConversationAttachment, dismissConversationAction, manageConversation, manageInteraction, manageMedia, manageSharedScene, meetCompanion, mutateMemory, openConversation, prepareUserImage, quoteVoiceNote, refreshVoiceNote, rememberMessage, removePendingAttachment, requestVoiceNote, resolveRelationshipMilestone, sendDialogue, sendSceneReaction, setCharacterFavorite, setConversationPinned, setMessageFavorite, simulate, suggestDialogue } from '../src/lib/api';
+import { ApiError, confirmConversationAction, confirmUserImage, createSharedPlan, deleteConversationAttachment, dismissConversationAction, loadConversationMediaGallery, manageConversation, manageInteraction, manageMedia, manageSharedScene, meetCompanion, mutateMemory, openConversation, prepareUserImage, quoteVoiceNote, refreshVoiceNote, rememberMessage, removePendingAttachment, requestVoiceNote, resolveRelationshipMilestone, sendDialogue, sendSceneReaction, setCharacterFavorite, setConversationPinned, setMessageFavorite, simulate, suggestDialogue } from '../src/lib/api';
 import { supabase } from '../src/lib/supabase';
 import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInstance, CharacterInteractionProposal, ConversationAction, ConversationAttachment, ConversationEvent, GeneratedMedia, InteractionCandidate, MediaOffer,Message, MessageReaction, PlanExperience, RelationshipMilestone, SceneAction, SceneParticipant, SceneSession, SharedPlan, Snapshot } from '../src/types';
 import { mergeOlderMessages, scopedConversationMessages } from '../src/lib/conversation';
@@ -50,7 +50,7 @@ import { cleanupNormalizedImage, normalizeUserImage, userImagePickerOptions } fr
 import { photoUploadPresentation, type PhotoUploadPhase } from '../src/lib/photoUploadPresentation';
 import { privateStoredImageSource } from '../src/lib/mediaImageSource';
 import { chatMediaGalleryItems, type ChatMediaGalleryItem } from '../src/lib/chatMediaGallery';
-import { isTransientMediaFetchFailure, mediaReconciliationComplete, missingMediaIds } from '../src/lib/mediaReconciliation';
+import { isTransientMediaFetchFailure, mediaReconciliationComplete, mergeGeneratedMediaCollections, missingMediaIds } from '../src/lib/mediaReconciliation';
 import { shouldConsumeComposerEnter, shouldSendComposerOnEnter } from '../src/lib/composerKeyboard';
 import { useAuth } from '../src/hooks/useAuth';
 import { useNetworkStatus } from '../src/providers/NetworkStatusProvider';
@@ -150,6 +150,8 @@ function ChatSession() {
   const [showChatSettings, setShowChatSettings] = useState(false);
   const [showPlaceInfo,setShowPlaceInfo]=useState(false);
   const [showChatMedia,setShowChatMedia]=useState(false);
+  const [loadedGalleryMedia,setLoadedGalleryMedia]=useState<GeneratedMedia[]>([]),[loadedGalleryAttachments,setLoadedGalleryAttachments]=useState<ConversationAttachment[]>([]),[galleryLoading,setGalleryLoading]=useState(false),[galleryError,setGalleryError]=useState('');
+  const galleryRequest=useRef(0);
   const [characterPreview,setCharacterPreview]=useState<FeaturedCompanion|null>(null);
   const [pendingImage,setPendingImage]=useState<PendingImage|null>(null);
   const [photoUploadPhase,setPhotoUploadPhase]=useState<PhotoUploadPhase>('idle');
@@ -187,7 +189,7 @@ function ChatSession() {
   const replyPending=sending||Boolean(pendingDialogue);
   const conversationReady=!loading&&hasCoherentConversationTimeline({activeConversationId:conversation?.id,loadedConversationId});
   useEffect(()=>{if(connectionPhase==='online')setShowSendConnectionNotice(false);},[connectionPhase]);
-  useEffect(()=>{setShowSendConnectionNotice(false);setShowPlaceInfo(false);setShowChatMedia(false);},[conversation?.id]);
+  useEffect(()=>{galleryRequest.current+=1;setShowSendConnectionNotice(false);setShowPlaceInfo(false);setShowChatMedia(false);setLoadedGalleryMedia([]);setLoadedGalleryAttachments([]);setGalleryLoading(false);setGalleryError('');},[conversation?.id]);
   useEffect(()=>{
     const userId=session?.user.id,planId=activeSharedPlan?.id;
     let cancelled=false;
@@ -227,6 +229,19 @@ function ChatSession() {
   const resumedSharePhoto=useRef<string|null>(null);
   const seamlessCompletionIds=useRef(new Set<string>());
   const unreadWindow=useRef<{conversationId:string|null;lastReadAt:string|null;openedAt:string}>({conversationId:null,lastReadAt:null,openedAt:new Date().toISOString()});
+  const loadChatGallery=useCallback(async()=>{
+    const conversationId=conversation?.id;if(!conversationId)return;
+    const request=++galleryRequest.current;setGalleryLoading(true);setGalleryError('');
+    try{
+      const result=await loadConversationMediaGallery(conversationId,160);
+      if(request!==galleryRequest.current)return;
+      setLoadedGalleryMedia(result.media??[]);setLoadedGalleryAttachments(result.attachments??[]);
+      for(const item of result.media??[]){if(item.metadata?.hiddenIntermediate!==true)upsertMedia(item);}
+    }catch(error){if(request===galleryRequest.current)setGalleryError(error instanceof Error?error.message:'Conversation media could not be loaded.');}
+    finally{if(request===galleryRequest.current)setGalleryLoading(false);}
+  },[conversation?.id,upsertMedia]);
+  useEffect(()=>{if(showChatMedia)void loadChatGallery();},[loadChatGallery,showChatMedia]);
+  const openChatGallery=useCallback(()=>setShowChatMedia(true),[]);
   const mentionCharacters=useMemo<FeaturedCompanion[]>(()=>{
     if(!snapshot||!character)return[];
     const residentWorld=characterResidentWorld(snapshot,character);
@@ -572,7 +587,8 @@ function ChatSession() {
   const joinableSharedPlan=joinablePlanForChat(snapshot.sharedPlans??[],character.id);
   const location = chatContext.scene.location;
   const generatedMedia=snapshot.generatedMedia??[];
-  const chatGalleryItems=chatMediaGalleryItems(generatedMedia,visibleMessages,conversation.id);
+  const galleryGeneratedMedia=mergeGeneratedMediaCollections(loadedGalleryMedia,generatedMedia);
+  const chatGalleryItems=chatMediaGalleryItems(galleryGeneratedMedia,visibleMessages,conversation.id,loadedGalleryAttachments);
   const activePlace=snapshot.locations.find((item)=>item.id===(chatContext.scene.locationId??character.current_location_id));
   const activePlaceWorld=activePlace?worldForLocation(snapshot,activePlace.id):characterResidentWorld(snapshot,character);
   const activePlaceHref=activePlace?conversationLocationHref(activePlace.slug,{worldSlug:activePlaceWorld?.slug,character:characterHandle}):null;
@@ -974,9 +990,9 @@ function ChatSession() {
           placeName={activePlace?.name}
           onMenu={()=>setShowConversationMenu((value)=>!value)}
           mediaCount={chatGalleryItems.length}
-          onMedia={()=>setShowChatMedia(true)}
+          onMedia={openChatGallery}
           onFeaturedMedia={latestHeaderMedia?()=>navigateChatSurface(mediaViewerHref(latestHeaderMedia.id,subscriptionReturnTo)):undefined}
-        />:<ChatHeader character={character} location={location} mediaCount={chatGalleryItems.length} onBack={openMessagesInbox} onMedia={()=>setShowChatMedia(true)} onCall={()=>navigateChatSurface(`/call?character=${character.id}&conversation=${conversation.id}`)} onMenu={()=>setShowConversationMenu((value)=>!value)} />}
+        />:<ChatHeader character={character} location={location} mediaCount={chatGalleryItems.length} onBack={openMessagesInbox} onMedia={openChatGallery} onCall={()=>navigateChatSurface(`/call?character=${character.id}&conversation=${conversation.id}`)} onMenu={()=>setShowConversationMenu((value)=>!value)} />}
         <ConnectionBanner sendFailed={messages.some((item)=>item.delivery_status==='failed')} sendScoped={showSendConnectionNotice}/>
         {!showRight&&width>=720?<MobileChatContextCard identityKey={conversation.id} name={character.together_character_templates.name} location={chatContext.scene.location} activity={chatContext.scene.activity} next={chatContext.nextCommitment?{title:chatContext.nextCommitment.title,detail:new Date(chatContext.nextCommitment.startsAt).toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'}),onPress:chatContext.nextCommitment.kind==='plan'?()=>navigateChatSurface(`/plan/${chatContext.nextCommitment!.id}`):undefined}:null} memoryCount={snapshot.memoryCounts?.[character.id]??snapshot.memories.filter((item)=>item.character_instance_id===character.id).length} memoryLocked={snapshot.entitlements?.entitlement_keys?.includes('memory_inspector')!==true} onMemory={()=>navigateChatSurface(`/memories?character=${slug}`)} onPlan={activeSharedPlan?undefined:openPlanPicker}/>:null}
         {showConversationMenu ? <ConversationOverflowMenu
@@ -1003,7 +1019,7 @@ function ChatSession() {
           onDelete={deleteConversation}
         /> : null}
         <ChatSettingsModal visible={showChatSettings} conversation={conversation} character={character} onClose={()=>setShowChatSettings(false)} />
-        <ChatMediaGalleryModal visible={showChatMedia} items={chatGalleryItems} generatedMedia={generatedMedia} companionName={character.together_character_templates.name} returnTo={subscriptionReturnTo} onClose={()=>setShowChatMedia(false)}/>
+        <ChatMediaGalleryModal visible={showChatMedia} items={chatGalleryItems} generatedMedia={galleryGeneratedMedia} companionName={character.together_character_templates.name} returnTo={subscriptionReturnTo} loading={galleryLoading} error={galleryError} onRetry={()=>void loadChatGallery()} onClose={()=>setShowChatMedia(false)}/>
         <ChatPlaceInfoModal
           visible={showPlaceInfo&&Boolean(activePlace)}
           name={activePlace?.name??location}
@@ -1182,7 +1198,7 @@ function ChatPlaceInfoModal({visible,name,worldName,category,description,activit
   </Modal>;
 }
 
-function ChatMediaGalleryModal({visible,items,generatedMedia,companionName,returnTo,onClose}:{visible:boolean;items:ChatMediaGalleryItem[];generatedMedia:GeneratedMedia[];companionName:string;returnTo:string;onClose:()=>void}){
+function ChatMediaGalleryModal({visible,items,generatedMedia,companionName,returnTo,loading,error,onRetry,onClose}:{visible:boolean;items:ChatMediaGalleryItem[];generatedMedia:GeneratedMedia[];companionName:string;returnTo:string;loading:boolean;error:string;onRetry:()=>void;onClose:()=>void}){
   const generatedById=new Map(generatedMedia.map((item)=>[item.id,item]));
   const openItem=(item:ChatMediaGalleryItem)=>{
     onClose();
@@ -1194,14 +1210,15 @@ function ChatMediaGalleryModal({visible,items,generatedMedia,companionName,retur
       <FrostedBackdrop intensity={38}/>
       <Pressable accessibilityLabel="Close conversation media" onPress={onClose} style={StyleSheet.absoluteFill}/>
       <FrostedSurface intensity={94} style={styles.chatMediaModal}>
-        <View style={styles.chatMediaHeader}><View style={{flex:1,minWidth:0}}><Text style={styles.chatMediaKicker}>CONVERSATION MEDIA</Text><Text numberOfLines={1} style={styles.chatMediaTitle}>You + {companionName}</Text><Text style={styles.chatMediaSubtitle}>{items.length?`${items.length} ${items.length===1?'photo or video':'photos and videos'}`:'Photos and videos will collect here.'}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close conversation media" onPress={onClose} style={styles.chatMediaClose}><X size={19} color={colors.text}/></Pressable></View>
+        <View style={styles.chatMediaHeader}><View style={{flex:1,minWidth:0}}><Text style={styles.chatMediaKicker}>CONVERSATION MEDIA</Text><Text numberOfLines={1} style={styles.chatMediaTitle}>You + {companionName}</Text><View style={styles.chatMediaSubtitleRow}><Text style={styles.chatMediaSubtitle}>{items.length?`${items.length} ${items.length===1?'photo or video':'photos and videos'}`:'Photos and videos will collect here.'}</Text>{loading&&items.length?<><ActivityIndicator size="small" color={colors.rose}/><Text style={styles.chatMediaUpdating}>Updating</Text></>:null}</View></View><Pressable accessibilityRole="button" accessibilityLabel="Close conversation media" onPress={onClose} style={styles.chatMediaClose}><X size={19} color={colors.text}/></Pressable></View>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.chatMediaContent}>
+          {error?<Pressable accessibilityRole="button" accessibilityLabel="Retry loading conversation media" onPress={onRetry} style={styles.chatMediaError}><Text style={styles.chatMediaErrorText}>{error}</Text><Text style={styles.chatMediaRetry}>Try again</Text></Pressable>:null}
           {items.length?<View style={styles.chatMediaGrid}>{items.map((item)=>{
-            const generated=item.kind==='generated'?item.media:null,attachment=item.kind==='attachment'?item.attachment:null,isVideo=generated?.media_type==='video'||attachment?.kind==='video',poster=generated?.parent_media_id?generatedById.get(generated.parent_media_id):undefined,posterUri=poster?.signed_url??null,uri=generated?.signed_url??attachment?.signed_url??null;
+            const generated=item.kind==='generated'?item.media:null,attachment=item.kind==='attachment'?item.attachment:null,isVideo=generated?.media_type==='video'||attachment?.kind==='video',poster=generated?.parent_media_id?generatedById.get(generated.parent_media_id):undefined,posterUri=poster?.signed_url??null,uri=generated?.signed_url??attachment?.signed_url??null,pending=generated?.status==='queued'||generated?.status==='generating';
             return <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Open ${isVideo?'video':'photo'} from ${new Date(item.createdAt).toLocaleDateString()}`} onPress={()=>openItem(item)} style={({pressed})=>[styles.chatMediaTile,pressed&&styles.chatMediaTilePressed]}>
-              {isVideo?<><View style={styles.chatMediaVideoFallback}/>{posterUri?<Image source={privateStoredImageSource(posterUri,poster?.storage_path)} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" cachePolicy="memory-disk"/>:null}{uri?<VideoMomentThumbnail uri={uri} posterUri={posterUri}/>:null}<View style={styles.chatMediaPlay}><Play size={16} color="#fff" fill="#fff"/></View></>:uri?<ConversationMediaPhoto uri={uri} storagePath={generated?.storage_path??attachment?.storage_path}/>:<View style={styles.chatMediaVideoFallback}/>}<View style={styles.chatMediaTileShade}/><View style={styles.chatMediaTileMeta}><Text style={styles.chatMediaType}>{isVideo?'VIDEO':'PHOTO'}</Text><Text style={styles.chatMediaDate}>{new Date(item.createdAt).toLocaleDateString([],{month:'short',day:'numeric'})}</Text></View>
+              {isVideo?<><View style={styles.chatMediaVideoFallback}/>{posterUri?<Image source={privateStoredImageSource(posterUri,poster?.storage_path)} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" cachePolicy="memory-disk"/>:null}<View style={styles.chatMediaPlay}>{pending?<ActivityIndicator size="small" color="#fff"/>:<Play size={16} color="#fff" fill="#fff"/>}</View></>:uri?<ConversationMediaPhoto uri={uri} storagePath={generated?.storage_path??attachment?.storage_path}/>:<View style={styles.chatMediaVideoFallback}>{pending?<ActivityIndicator color={colors.rose}/>:null}</View>}<View style={styles.chatMediaTileShade}/><View style={styles.chatMediaTileMeta}><Text style={styles.chatMediaType}>{pending?'CREATING':isVideo?'VIDEO':'PHOTO'}</Text><Text style={styles.chatMediaDate}>{new Date(item.createdAt).toLocaleDateString([],{month:'short',day:'numeric'})}</Text></View>
             </Pressable>;
-          })}</View>:<View style={styles.chatMediaEmpty}><Images size={34} color={colors.dimmed}/><Text style={styles.chatMediaEmptyTitle}>No shared media yet</Text><Text style={styles.chatMediaEmptyCopy}>Generated and shared photos and videos from this conversation will appear here.</Text></View>}
+          })}</View>:loading?<View accessibilityLiveRegion="polite" style={styles.chatMediaEmpty}><ActivityIndicator color={colors.rose}/><Text style={styles.chatMediaEmptyTitle}>Gathering your media…</Text><Text style={styles.chatMediaEmptyCopy}>The gallery is open now; photos and videos will fill in as they arrive.</Text></View>:<View style={styles.chatMediaEmpty}><Images size={34} color={colors.dimmed}/><Text style={styles.chatMediaEmptyTitle}>No shared media yet</Text><Text style={styles.chatMediaEmptyCopy}>Generated and shared photos and videos from this conversation will appear here.</Text></View>}
         </ScrollView>
       </FrostedSurface>
     </View>
@@ -1777,8 +1794,13 @@ const styles=StyleSheet.create({
   ,chatMediaKicker:{color:colors.rose,fontSize:9,fontWeight:'900',letterSpacing:1.35}
   ,chatMediaTitle:{color:colors.text,fontFamily:'Georgia',fontSize:27,lineHeight:32,marginTop:3}
   ,chatMediaSubtitle:{color:colors.muted,fontSize:11,marginTop:3}
+  ,chatMediaSubtitleRow:{minHeight:20,flexDirection:'row',alignItems:'center',gap:7,flexWrap:'wrap'}
+  ,chatMediaUpdating:{color:colors.rose,fontSize:9,fontWeight:'800'}
   ,chatMediaClose:{width:42,height:42,borderRadius:21,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(255,255,255,.055)',borderWidth:1,borderColor:colors.border}
   ,chatMediaContent:{padding:18,paddingBottom:24}
+  ,chatMediaError:{minHeight:52,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12,paddingHorizontal:13,marginBottom:12,borderRadius:radius.md,backgroundColor:'rgba(219,72,86,.08)',borderWidth:1,borderColor:'rgba(219,72,86,.25)'}
+  ,chatMediaErrorText:{flex:1,color:colors.danger,fontSize:11,fontWeight:'700'}
+  ,chatMediaRetry:{color:colors.text,fontSize:11,fontWeight:'900'}
   ,chatMediaGrid:{flexDirection:'row',flexWrap:'wrap',gap:11}
   ,chatMediaTile:{position:'relative',flexGrow:1,flexBasis:220,minWidth:180,height:190,overflow:'hidden',borderRadius:radius.lg,backgroundColor:colors.elevated,borderWidth:1,borderColor:'rgba(255,255,255,.10)'}
   ,chatMediaTilePressed:{opacity:.78,transform:[{scale:.99}]}

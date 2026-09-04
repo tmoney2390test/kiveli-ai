@@ -16,6 +16,7 @@ export function resolveMediaCarousel({
   if (!current) return { items: [], index: -1, previous: undefined, next: undefined };
   const readyImages = media
     .filter((item) => item.media_type === "image" && item.status === "ready" && Boolean(item.signed_url))
+    .filter((item)=>item.metadata?.hiddenIntermediate!==true)
     .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
   const items = mode === "moments"
     ? readyImages.filter((item) => !characterInstanceId || characterInstanceId === "all" || item.character_instance_id === characterInstanceId)

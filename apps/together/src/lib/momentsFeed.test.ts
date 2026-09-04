@@ -66,4 +66,11 @@ describe('Moments feed', () => {
     const readyFeed=buildMomentsFeed({...snapshot,generatedMedia:[unlinkedPhoto,{...video,status:'ready',signed_url:'https://example.test/video.mp4'}]},'maya','Videos');
     expect(videoMomentFrameUrl(readyFeed[0]!)).toBe('https://example.test/video.mp4');
   });
+
+  it('uses a hidden direct-video opening frame as its poster without listing that frame as a photo',()=>{
+    const poster={...unlinkedPhoto,id:'opening-frame',metadata:{hiddenIntermediate:true,galleryPosterOnly:true}};
+    const video:GeneratedMedia={id:'direct-video',character_instance_id:'maya',parent_media_id:poster.id,media_type:'video',content_level:'standard',status:'ready',signed_url:'https://example.test/video.mp4',created_at:'2026-08-18T15:00:00.000Z'};
+    expect(buildMomentsFeed({...snapshot,generatedMedia:[poster,video]},'maya','Photos')).toHaveLength(0);
+    expect(buildMomentsFeed({...snapshot,generatedMedia:[poster,video]},'maya','Videos')[0]).toMatchObject({kind:'video',poster:{id:'opening-frame'}});
+  });
 });

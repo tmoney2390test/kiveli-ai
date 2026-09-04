@@ -22,4 +22,13 @@ describe('chatMediaGalleryItems',()=>{
 
     expect(items.map((item)=>item.id)).toEqual(['generated:video','attachment:shared','generated:photo']);
   });
+
+  it('keeps in-progress videos visible and merges attachments loaded outside the message page',()=>{
+    const items=chatMediaGalleryItems([
+      generated({id:'working-video',conversation_id:'conversation',media_type:'video',status:'generating',signed_url:null}),
+      generated({id:'failed-video',conversation_id:'conversation',media_type:'video',status:'failed',signed_url:null}),
+    ],[],'conversation',[attachment({id:'older-shared',created_at:'2026-08-30T13:00:00.000Z'})]);
+
+    expect(items.map((item)=>item.id)).toEqual(['generated:working-video','attachment:older-shared']);
+  });
 });

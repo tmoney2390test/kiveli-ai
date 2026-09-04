@@ -10,6 +10,21 @@ export function mediaReconciliationComplete(media: GeneratedMedia): boolean {
   return media.status === 'ready' && Boolean(media.signed_url);
 }
 
+/**
+ * Merge scoped library reads with the startup snapshot without letting an
+ * older response erase a freshly reconciled signed URL.
+ */
+export function mergeGeneratedMediaCollections(...collections:Array<GeneratedMedia[]|undefined>):GeneratedMedia[]{
+  const byId=new Map<string,GeneratedMedia>();
+  for(const collection of collections){
+    for(const media of collection??[]){
+      const current=byId.get(media.id);
+      byId.set(media.id,mergeReconciledMedia(current,media));
+    }
+  }
+  return[...byId.values()].sort((left,right)=>Date.parse(right.created_at)-Date.parse(left.created_at));
+}
+
 export function pendingMediaIds(media:GeneratedMedia[]|undefined,limit=20):string[]{
   return(media??[]).filter((item)=>item.status==='queued'||item.status==='generating').slice(0,limit).map((item)=>item.id);
 }

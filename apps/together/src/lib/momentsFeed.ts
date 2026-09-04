@@ -19,7 +19,8 @@ export function buildMomentsFeed(snapshot: Snapshot, companionId: string, filter
   const dates = snapshot.dates.filter((date) => scoped(date.character_instance_id) && date.status === 'completed' && Boolean(date.completed_at));
   const milestones = (snapshot.relationshipMilestoneHistory ?? []).filter((milestone) => scoped(milestone.character_instance_id) && milestone.status !== 'deferred');
   const memories = snapshot.memories.filter((memory) => scoped(memory.character_instance_id) && ['episodic', 'relationship'].includes(memory.memory_type));
-  const photos = (snapshot.generatedMedia ?? []).filter((item) => item.media_type === 'image' && item.status === 'ready' && scoped(item.character_instance_id));
+  const allPhotos = (snapshot.generatedMedia ?? []).filter((item) => item.media_type === 'image' && item.status === 'ready' && scoped(item.character_instance_id));
+  const photos = allPhotos.filter((item)=>item.metadata?.hiddenIntermediate!==true);
   const videos = (snapshot.generatedMedia ?? []).filter((item) => item.media_type === 'video' && ['queued', 'generating', 'ready'].includes(item.status) && scoped(item.character_instance_id));
   const normalizedQuery = query.trim().toLowerCase();
 
@@ -64,7 +65,7 @@ export function buildMomentsFeed(snapshot: Snapshot, companionId: string, filter
       id: media.id,
       occurred_at: media.created_at,
       media,
-      poster: photos.find((photo) => photo.id === media.parent_media_id),
+      poster: allPhotos.find((photo) => photo.id === media.parent_media_id),
       title: generatedVideoTitle(snapshot, media),
     })));
   }

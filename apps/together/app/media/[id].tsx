@@ -18,6 +18,7 @@ import { privateMediaPlaybackUrl } from '../../src/lib/privateMediaUrl';
 import { supabaseUrl } from '../../src/lib/supabase';
 import { conversationReturnHref, mediaViewerHref, navigateLocalRouteOnWeb } from '../../src/lib/conversationNavigation';
 import { mediaRouteFailureState, resolveMediaRoutePresentation, type MediaRouteRecovery } from '../../src/lib/mediaRouteRecovery';
+import { mediaReconciliationComplete } from '../../src/lib/mediaReconciliation';
 
 const EDIT_SUGGESTIONS=['Fix the face','Fix the hands','Change the outfit','Change the pose','Adjust the lighting','Reframe the photo'];
 
@@ -77,12 +78,12 @@ export default function MediaViewer(){
   },[media?.id,media?.media_type,media?.parent_media_id,media?.status,upsertMedia]);
 
   useEffect(()=>{
-    if(!media||!['queued','generating'].includes(media.status))return;
+    if(!media||mediaReconciliationComplete(media))return;
     let active=true;
     const poll=async()=>{try{const result=await manageMedia<{media:GeneratedMedia;progressState?:string}>({action:'status',mediaId:media.id});if(active){upsertMedia(result.media);setVideoProgress(result.progressState??null);}}catch{/* A later poll can recover without replacing the current generation state. */}};
     const timer=setInterval(()=>void poll(),2500);void poll();
     return()=>{active=false;clearInterval(timer);};
-  },[media?.id,media?.status,upsertMedia]);
+  },[media?.id,media?.signed_url,media?.status,upsertMedia]);
 
   useEffect(()=>{
     if(!shouldRefreshReadyVideo(media)){setVideoPlaybackUrl(null);setVideoPosterUrl(null);setVideoPlaybackError(null);return;}
@@ -108,12 +109,12 @@ export default function MediaViewer(){
   },[player]);
 
   useEffect(()=>{
-    if(!associatedVideo||!['queued','generating'].includes(associatedVideo.status))return;
+    if(!associatedVideo||mediaReconciliationComplete(associatedVideo))return;
     let active=true;
     const poll=async()=>{try{const result=await manageMedia<{media:GeneratedMedia}>({action:'status',mediaId:associatedVideo.id});if(active)upsertMedia(result.media);}catch{/* The next snapshot or poll can recover. */}};
     const timer=setInterval(()=>void poll(),2500);void poll();
     return()=>{active=false;clearInterval(timer);};
-  },[associatedVideo?.id,associatedVideo?.status,upsertMedia]);
+  },[associatedVideo?.id,associatedVideo?.signed_url,associatedVideo?.status,upsertMedia]);
 
   useEffect(()=>{
     if(media?.media_type!=='image'||media.status!=='ready')return;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ChevronDown, Search, Sparkles } from 'lucide-react-native';
@@ -15,6 +15,9 @@ import { explicitMomentsCompanionSelection, loadMomentsCompanionSelection, resto
 import type { Moment, Snapshot } from '../../src/types';
 import { uniqueHttpsImageUris } from '../../src/lib/imageWarmup';
 import { useSurfaceReadyTiming } from '../../src/components/ClientPerformanceBridge';
+import { loadMediaLibrary } from '../../src/lib/api';
+import { mergeGeneratedMediaCollections } from '../../src/lib/mediaReconciliation';
+import type { GeneratedMedia } from '../../src/types';
 
 const filters: MomentsFeedFilter[] = ['All', 'Experiences', 'Milestones', 'Memories', 'Photos', 'Videos'];
 
@@ -24,6 +27,7 @@ export default function MomentsTab() {
 
 function MomentsFeed() {
   const snapshot = useTogether((state) => state.snapshot);
+  const upsertMedia=useTogether((state)=>state.upsertMedia);
   const firstMediaReady=useSurfaceReadyTiming('moments','first_media_ready',Boolean(snapshot&&snapshot.profile?.privacy_settings?.analytics!==false));
   const params=useLocalSearchParams<{character?:string;filter?:MomentsFeedFilter}>();
   const active = snapshot ? selectActiveCompanion(snapshot) : undefined;
@@ -40,7 +44,15 @@ function MomentsFeed() {
   const [filter, setFilter] = useState<MomentsFeedFilter>(()=>filters.includes(params.filter as MomentsFeedFilter)?params.filter as MomentsFeedFilter:'All');
   const [query, setQuery] = useState('');
   const [visibleCount,setVisibleCount]=useState(48);
-  useFocusEffect(useCallback(()=>{setShowCompanions(false);},[]));
+  const[libraryMedia,setLibraryMedia]=useState<GeneratedMedia[]>([]),[libraryLoading,setLibraryLoading]=useState(false),[libraryError,setLibraryError]=useState('');
+  const libraryRequest=useRef(0);
+  const loadLibrary=useCallback(async()=>{
+    const request=++libraryRequest.current;setLibraryLoading(true);setLibraryError('');
+    try{const result=await loadMediaLibrary({limit:160});if(request!==libraryRequest.current)return;setLibraryMedia(result.media??[]);for(const item of result.media??[]){if(item.metadata?.hiddenIntermediate!==true)upsertMedia(item);}}
+    catch(error){if(request===libraryRequest.current)setLibraryError(error instanceof Error?error.message:'Your media library could not be refreshed.');}
+    finally{if(request===libraryRequest.current)setLibraryLoading(false);}
+  },[upsertMedia]);
+  useFocusEffect(useCallback(()=>{setShowCompanions(false);void loadLibrary();return()=>{libraryRequest.current+=1;};},[loadLibrary]));
   useEffect(()=>{
     if(!snapshotReady)return;
     if(requestedCompanionId){
@@ -63,24 +75,27 @@ function MomentsFeed() {
     void saveMomentsCompanionSelection(selection);
   },[]);
   const selected = companions.find((item) => item.id === companionId);
-  const entries = useMemo(() => snapshot ? buildMomentsFeed(snapshot, companionId, filter, query) : [], [companionId, filter, query, snapshot]);
+  const completeMedia=useMemo(()=>mergeGeneratedMediaCollections(libraryMedia,snapshot?.generatedMedia),[libraryMedia,snapshot?.generatedMedia]);
+  const feedSnapshot=useMemo(()=>snapshot?{...snapshot,generatedMedia:completeMedia}:null,[completeMedia,snapshot]);
+  const entries = useMemo(() => feedSnapshot ? buildMomentsFeed(feedSnapshot, companionId, filter, query) : [], [companionId, feedSnapshot, filter, query]);
   useEffect(()=>{
-    if(!snapshot)return;
-    const urls=uniqueHttpsImageUris(entries.map((entry)=>entryMediaUrl(snapshot,entry)),12);
+    if(!feedSnapshot)return;
+    const urls=uniqueHttpsImageUris(entries.map((entry)=>entryMediaUrl(feedSnapshot,entry)),12);
     if(!urls.length)return;
     const timer=setTimeout(()=>void Image.prefetch(urls,'memory-disk').catch(()=>undefined),120);
     return()=>clearTimeout(timer);
-  },[entries,snapshot]);
+  },[entries,feedSnapshot]);
   useEffect(()=>setVisibleCount(48),[companionId,filter,query]);
   const groups = groupEntries(entries.slice(0,visibleCount));
   const name = selected?.together_character_templates.name;
 
   return <Screen>
-    <View style={styles.header}><View style={{flex:1}}><PageTitle>Moments</PageTitle><Text style={styles.subtitle}>{name ? `Your living history with ${name}.` : 'Experiences, milestones, memories, and photos from every story.'}</Text></View></View>
+    <View style={styles.header}><View style={{flex:1}}><PageTitle>Moments</PageTitle><Text style={styles.subtitle}>{name ? `Your living history with ${name}.` : 'Experiences, milestones, memories, photos, and videos from every story.'}</Text></View>{libraryLoading&&entries.length?<View style={styles.syncing}><ActivityIndicator size="small" color={colors.rose}/><Text style={styles.syncingText}>Updating</Text></View>:null}</View>
     {companions.length>1?<View style={styles.selectorWrap}><Pressable onPress={()=>setShowCompanions((value)=>!value)} style={styles.selector}>{selected?<CharacterAvatar slug={selected.together_character_templates.slug} name={selected.together_character_templates.name} template={selected.together_character_templates} version={snapshot?selectPortraitVersion(snapshot,selected):selected.together_character_versions} size={30}/>:<View style={styles.allAvatar}><Sparkles size={14} color={colors.rose}/></View>}<View style={{flex:1}}><Text style={styles.selectorLabel}>SHARED HISTORY</Text><Text style={styles.selectorName}>{name??'All companions'}</Text></View><ChevronDown size={17} color={colors.muted}/></Pressable>{showCompanions?<FrostedSurface style={styles.picker}><Pressable onPress={()=>chooseCompanion('all')} style={styles.pickerRow}><View style={styles.allAvatar}><Sparkles size={14} color={colors.rose}/></View><Text style={styles.pickerName}>All companions</Text></Pressable>{companions.map((companion)=><Pressable key={companion.id} onPress={()=>chooseCompanion(companion.id)} style={styles.pickerRow}><CharacterAvatar slug={companion.together_character_templates.slug} name={companion.together_character_templates.name} template={companion.together_character_templates} version={snapshot?selectPortraitVersion(snapshot,companion):companion.together_character_versions} size={32}/><Text style={styles.pickerName}>{companion.together_character_templates.name}</Text></Pressable>)}</FrostedSurface>:null}</View>:null}
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>{filters.map((item)=><Pressable key={item} onPress={()=>setFilter(item)} style={[styles.tab,filter===item&&styles.active]}><Text style={[styles.tabText,filter===item&&styles.activeText]}>{item}</Text></Pressable>)}</ScrollView>
     {entries.length >= 6 ? <View style={styles.search}><Search size={16} color={colors.muted}/><TextInput value={query} onChangeText={setQuery} placeholder="Search people, places, or memories" placeholderTextColor={colors.muted} style={styles.searchInput}/></View> : null}
-    {entries.length ? <>{groups.map((group,groupIndex)=><View key={group.label} style={styles.group}><Text style={styles.groupTitle}>{group.label}</Text><View style={styles.grid}>{group.items.map((entry,itemIndex)=><FeedCard key={`${entry.kind}:${entry.id}`} entry={entry} companionId={companionId} onMediaLoad={groupIndex===0&&itemIndex===0?firstMediaReady:undefined}/>)}</View></View>)}{visibleCount<entries.length?<Pressable accessibilityRole="button" onPress={()=>setVisibleCount((value)=>Math.min(entries.length,value+48))} style={styles.loadMore}><Text style={styles.loadMoreText}>Show more moments</Text></Pressable>:null}</> : <View style={styles.emptyWrap}><View style={styles.emptyIcon}><Sparkles size={24} color={colors.rose}/></View><EmptyState title={emptyTitle(filter,name)} body={emptyBody(filter,name)}/></View>}
+    {libraryError?<Pressable accessibilityRole="button" accessibilityLabel="Retry loading media" onPress={()=>void loadLibrary()} style={styles.libraryError}><Text style={styles.libraryErrorText}>{libraryError} Tap to retry.</Text></Pressable>:null}
+    {entries.length ? <>{groups.map((group,groupIndex)=><View key={group.label} style={styles.group}><Text style={styles.groupTitle}>{group.label}</Text><View style={styles.grid}>{group.items.map((entry,itemIndex)=><FeedCard key={`${entry.kind}:${entry.id}`} entry={entry} companionId={companionId} onMediaLoad={groupIndex===0&&itemIndex===0?firstMediaReady:undefined}/>)}</View></View>)}{visibleCount<entries.length?<Pressable accessibilityRole="button" onPress={()=>setVisibleCount((value)=>Math.min(entries.length,value+48))} style={styles.loadMore}><Text style={styles.loadMoreText}>Show more moments</Text></Pressable>:null}</> : libraryLoading?<View style={styles.libraryLoading}><ActivityIndicator color={colors.rose}/><Text style={styles.libraryLoadingText}>Gathering your moments…</Text></View>:<View style={styles.emptyWrap}><View style={styles.emptyIcon}><Sparkles size={24} color={colors.rose}/></View><EmptyState title={emptyTitle(filter,name)} body={emptyBody(filter,name)}/></View>}
     <GlassCard style={styles.note}><Sparkles size={17} color={colors.warm}/><Text style={styles.noteText}>Completed plans appear immediately. Especially meaningful experiences can still be promoted into featured Moments.</Text></GlassCard>
   </Screen>;
 }
@@ -130,4 +145,4 @@ function emptyTitle(filter:MomentsFeedFilter,name?:string){if(filter==='All')ret
 function emptyBody(filter:MomentsFeedFilter,name?:string){if(filter==='Experiences')return'Completed plans and Dates will collect here automatically.';if(filter==='Milestones')return'Relationship turning points appear here after you make a choice.';if(filter==='Memories')return'Shared episodic and relationship memories will appear here.';if(filter==='Photos')return'Photos shared in Chat, Dates, Stories, and Moments will appear here.';if(filter==='Videos')return'Videos created from your photos will stay available here.';return name?`As you spend time with ${name}, your experiences will collect here.`:'Try another companion or filter.';}
 function groupEntries<T extends {occurred_at:string}>(entries:T[]){const now=new Date();const startOfWeek=new Date(now);startOfWeek.setHours(0,0,0,0);startOfWeek.setDate(startOfWeek.getDate()-6);const groups=new Map<string,T[]>();for(const entry of entries){const date=new Date(entry.occurred_at);const label=date>=startOfWeek?'THIS WEEK':date.toLocaleDateString([],{month:'long',year:'numeric'}).toUpperCase();groups.set(label,[...(groups.get(label)??[]),entry]);}return[...groups].map(([label,items])=>({label,items}));}
 
-const styles=StyleSheet.create({header:{flexDirection:'row',alignItems:'flex-start'},subtitle:{color:colors.muted,fontSize:12,marginTop:3},selectorWrap:{gap:7},selector:{minHeight:56,flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:12,borderRadius:radius.md,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border},selectorLabel:{color:colors.dimmed,fontSize:8,fontWeight:'900',letterSpacing:.8},selectorName:{color:colors.text,fontSize:14,fontWeight:'900',marginTop:2},allAvatar:{width:30,height:30,borderRadius:15,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(216,62,234,.10)'},picker:{paddingVertical:4},pickerRow:{minHeight:48,flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:8,borderBottomWidth:1,borderBottomColor:colors.border},pickerName:{color:colors.text,fontWeight:'800',fontSize:12},tabs:{gap:7,paddingRight:10},tab:{paddingHorizontal:11,paddingVertical:8,borderRadius:99,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border},active:{backgroundColor:'rgba(216,62,234,.16)',borderColor:'rgba(216,62,234,.45)'},tabText:{color:colors.muted,fontSize:11,fontWeight:'800'},activeText:{color:colors.rose},search:{flexDirection:'row',alignItems:'center',gap:8,paddingHorizontal:12,borderRadius:radius.md,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border},searchInput:{flex:1,minHeight:44,color:colors.text},group:{gap:10},groupTitle:{color:colors.rose,fontSize:10,fontWeight:'900',letterSpacing:1.1},grid:{flexDirection:'row',flexWrap:'wrap',gap:12},momentWrap:{width:154,gap:5},momentMeta:{color:colors.muted,fontSize:9,paddingHorizontal:2},loadMore:{alignSelf:'center',minHeight:40,justifyContent:'center',paddingHorizontal:18,borderRadius:radius.pill,backgroundColor:'rgba(216,62,234,.08)',borderWidth:1,borderColor:colors.border},loadMoreText:{color:colors.rose,fontSize:11,fontWeight:'900'},emptyWrap:{minHeight:330,justifyContent:'center',alignItems:'center'},emptyIcon:{width:58,height:58,borderRadius:29,backgroundColor:'rgba(216,62,234,.11)',alignItems:'center',justifyContent:'center',marginBottom:-36,zIndex:1},note:{flexDirection:'row',gap:10,alignItems:'center',paddingVertical:13},noteText:{flex:1,color:colors.muted,fontSize:12,lineHeight:17}});
+const styles=StyleSheet.create({header:{flexDirection:'row',alignItems:'flex-start',gap:12},subtitle:{color:colors.muted,fontSize:12,marginTop:3},syncing:{minHeight:34,flexDirection:'row',alignItems:'center',gap:7,paddingHorizontal:10,borderRadius:radius.pill,backgroundColor:'rgba(216,62,234,.08)'},syncingText:{color:colors.muted,fontSize:10,fontWeight:'800'},selectorWrap:{gap:7},selector:{minHeight:56,flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:12,borderRadius:radius.md,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border},selectorLabel:{color:colors.dimmed,fontSize:8,fontWeight:'900',letterSpacing:.8},selectorName:{color:colors.text,fontSize:14,fontWeight:'900',marginTop:2},allAvatar:{width:30,height:30,borderRadius:15,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(216,62,234,.10)'},picker:{paddingVertical:4},pickerRow:{minHeight:48,flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:8,borderBottomWidth:1,borderBottomColor:colors.border},pickerName:{color:colors.text,fontWeight:'800',fontSize:12},tabs:{gap:7,paddingRight:10},tab:{paddingHorizontal:11,paddingVertical:8,borderRadius:99,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border},active:{backgroundColor:'rgba(216,62,234,.16)',borderColor:'rgba(216,62,234,.45)'},tabText:{color:colors.muted,fontSize:11,fontWeight:'800'},activeText:{color:colors.rose},search:{flexDirection:'row',alignItems:'center',gap:8,paddingHorizontal:12,borderRadius:radius.md,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border},searchInput:{flex:1,minHeight:44,color:colors.text},libraryError:{minHeight:44,alignItems:'center',justifyContent:'center',paddingHorizontal:14,borderRadius:radius.md,backgroundColor:'rgba(219,72,86,.08)',borderWidth:1,borderColor:'rgba(219,72,86,.25)'},libraryErrorText:{color:colors.danger,fontSize:11,fontWeight:'700',textAlign:'center'},libraryLoading:{minHeight:300,alignItems:'center',justifyContent:'center',gap:12},libraryLoadingText:{color:colors.muted,fontSize:12},group:{gap:10},groupTitle:{color:colors.rose,fontSize:10,fontWeight:'900',letterSpacing:1.1},grid:{flexDirection:'row',flexWrap:'wrap',gap:12},momentWrap:{width:154,gap:5},momentMeta:{color:colors.muted,fontSize:9,paddingHorizontal:2},loadMore:{alignSelf:'center',minHeight:40,justifyContent:'center',paddingHorizontal:18,borderRadius:radius.pill,backgroundColor:'rgba(216,62,234,.08)',borderWidth:1,borderColor:colors.border},loadMoreText:{color:colors.rose,fontSize:11,fontWeight:'900'},emptyWrap:{minHeight:330,justifyContent:'center',alignItems:'center'},emptyIcon:{width:58,height:58,borderRadius:29,backgroundColor:'rgba(216,62,234,.11)',alignItems:'center',justifyContent:'center',marginBottom:-36,zIndex:1},note:{flexDirection:'row',gap:10,alignItems:'center',paddingVertical:13},noteText:{flex:1,color:colors.muted,fontSize:12,lineHeight:17}});

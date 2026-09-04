@@ -58,6 +58,8 @@ const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('status'),mediaId:z.string().uuid()}),
   z.object({action:z.literal('batch_status'),mediaIds:z.array(z.string().uuid()).min(1).max(20).refine((ids)=>new Set(ids).size===ids.length,'Media IDs must be unique.')}),
   z.object({action:z.literal('list_recent'),characterInstanceId:z.string().uuid(),conversationId:z.string().uuid(),createdAfter:z.string().datetime(),limit:z.number().int().min(1).max(20).default(10)}),
+  z.object({action:z.literal('list_library'),characterInstanceId:z.string().uuid().optional(),before:z.string().datetime().optional(),limit:z.number().int().min(1).max(200).default(120)}),
+  z.object({action:z.literal('list_conversation_gallery'),conversationId:z.string().uuid(),limit:z.number().int().min(1).max(200).default(120)}),
   z.object({action:z.literal('feedback'),mediaId:z.string().uuid(),feedback:z.enum(['positive','negative'])}),
   z.object({action:z.literal('edit'),mediaId:z.string().uuid(),requestId:z.string().trim().min(8).max(120),instruction:z.string().trim().min(2).max(400)}),
   z.object({action:z.literal('remove'),mediaId:z.string().uuid()}),
@@ -179,6 +181,30 @@ serve(async(request,correlationId)=>{
     if(error)throw new AppError('INTERNAL_ERROR','Recent photos could not be loaded.',500,true);
     const media=await signMediaRows(request,db,user.id,adultAccess,(rows??[]).filter((row)=>row.metadata?.hiddenIntermediate!==true).slice(0,input.limit));
     return json({data:{media},correlationId},200,correlationId);
+  }
+  if(input.action==='list_library'){
+    const continuity=await activeContinuity(db,user.id);
+    if(input.characterInstanceId)await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId);
+    let mediaQuery=db.from('together_generated_media').select('*').eq('user_id',user.id).eq('continuity_id',continuity.id).in('media_type',['image','video']).in('status',['queued','generating','ready']);
+    if(input.characterInstanceId)mediaQuery=mediaQuery.eq('character_instance_id',input.characterInstanceId);
+    if(input.before)mediaQuery=mediaQuery.lt('created_at',input.before);
+    if(!adultAccess.authorized_web_adult)mediaQuery=mediaQuery.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
+    const fetchLimit=Math.min(240,input.limit+25),{data:rows,error}=await mediaQuery.order('created_at',{ascending:false}).limit(fetchLimit);
+    if(error)throw new AppError('INTERNAL_ERROR','Your media library could not be loaded.',500,true);
+    const visibleRows=(rows??[]).filter((row)=>row.metadata?.hiddenIntermediate!==true),page=visibleRows.slice(0,input.limit),posterRows=await loadVideoPosterRows(db,user.id,String(continuity.id),page,adultAccess),media=await signMediaRows(request,db,user.id,adultAccess,[...page,...posterRows]);
+    return json({data:{media,hasMore:visibleRows.length>input.limit||Number(rows?.length??0)===fetchLimit,nextBefore:page.at(-1)?.created_at??null},correlationId},200,correlationId);
+  }
+  if(input.action==='list_conversation_gallery'){
+    const continuity=await activeContinuity(db,user.id),{data:conversation}=await db.from('together_conversations').select('id').eq('id',input.conversationId).eq('user_id',user.id).eq('continuity_id',continuity.id).maybeSingle();
+    if(!conversation)throw new AppError('NOT_FOUND','That conversation is unavailable in this Kivelle Life.',404);
+    let mediaQuery=db.from('together_generated_media').select('*').eq('user_id',user.id).eq('continuity_id',continuity.id).eq('conversation_id',input.conversationId).in('media_type',['image','video']).in('status',['queued','generating','ready']);
+    let attachmentQuery=db.from('together_conversation_attachments').select('*').eq('user_id',user.id).eq('continuity_id',continuity.id).eq('conversation_id',input.conversationId).in('kind',['image','video']).eq('upload_status','uploaded').is('storage_deleted_at',null);
+    if(!adultAccess.authorized_web_adult){mediaQuery=mediaQuery.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);attachmentQuery=attachmentQuery.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);}
+    const fetchLimit=Math.min(240,input.limit+25),[mediaResult,attachmentResult]=await Promise.all([mediaQuery.order('created_at',{ascending:false}).limit(fetchLimit),attachmentQuery.order('created_at',{ascending:false}).limit(fetchLimit)]);
+    if(mediaResult.error||attachmentResult.error)throw new AppError('INTERNAL_ERROR','Conversation media could not be loaded.',500,true);
+    const mediaRows=(mediaResult.data??[]).filter((row)=>row.metadata?.hiddenIntermediate!==true).slice(0,input.limit),posterRows=await loadVideoPosterRows(db,user.id,String(continuity.id),mediaRows,adultAccess),media=await signMediaRows(request,db,user.id,adultAccess,[...mediaRows,...posterRows]);
+    const attachments=await signGalleryAttachments(request,db,user.id,adultAccess,(attachmentResult.data??[]).slice(0,input.limit));
+    return json({data:{media,attachments,hasMore:Number(mediaResult.data?.length??0)>input.limit||Number(attachmentResult.data?.length??0)>input.limit},correlationId},200,correlationId);
   }
   if(input.action==='batch_status'){
     const continuity=await activeContinuity(db,user.id);
@@ -312,7 +338,7 @@ serve(async(request,correlationId)=>{
 });
 
 async function signMediaRows(request:Request,db:any,userId:string,access:AdultAccessContext,rows:Array<Record<string,any>>){
-  rows=rows.filter((row)=>row.metadata?.hiddenIntermediate!==true);
+  rows=rows.filter((row)=>row.metadata?.hiddenIntermediate!==true||row.metadata?.galleryPosterOnly===true);
   const ordinary=rows.filter((row)=>row.visibility_scope==='all'&&['safe','suggestive'].includes(String(row.content_rating??''))),paths=[...new Set(ordinary.filter((row)=>row.status==='ready'&&typeof row.storage_path==='string'&&row.storage_path).map((row)=>String(row.storage_path)))];
   const signed=paths.length?await db.storage.from('together-user-media').createSignedUrls(paths,3600):{data:[]};
   const byPath=new Map<string,string>((signed.data??[]).flatMap((item:any)=>typeof item.path==='string'&&typeof item.signedUrl==='string'?[[item.path,item.signedUrl] as [string,string]]:[]));
@@ -360,6 +386,27 @@ async function validateVideoSource(db:any,userId:string,continuityId:string,medi
   const policy=resolveMediaContentPolicy({requestedLevel:level,source:'user_request',automatic:false,ageVerified:sourceDecision.adult?Boolean(access.adult_eligible):Boolean(profile?.age_verified_at),characterAge:Number(template.age),fictionalCharacter:isFictionalCompanion(template,version),realPersonRequest:false,nonConsensualRequest:false,minorRelatedRequest:false,characterAllowsRequestedLevel:characterAllows,romanceEnabled:preferences.romanceEnabled!==false,suggestiveMediaEnabled:sourceDecision.adult,matureMediaEnabled:sourceDecision.adult,explicitMediaEnabled:sourceDecision.adult,adultVideoEnabled:sourceDecision.adult&&adultVideoFeatureEnabled(),mediaType:'video',adultMediaFeatureEnabled:sourceDecision.adult&&adultVideoFeatureEnabled(),adultPipelineAuthorized:sourceDecision.adult&&access.authorized_web_adult});
   if(!policy.allowed)throw new AppError('FORBIDDEN','This photo is not eligible for video generation.',403);
   return{profile,instance,policy,...sourceDecision};
+}
+
+async function loadVideoPosterRows(db:any,userId:string,continuityId:string,rows:Array<Record<string,any>>,access:AdultAccessContext):Promise<Array<Record<string,any>>>{
+  const rowIds=new Set(rows.map((row)=>String(row.id))),parentIds=[...new Set(rows.filter((row)=>row.media_type==='video'&&typeof row.parent_media_id==='string').map((row)=>String(row.parent_media_id)).filter((id)=>!rowIds.has(id)))];
+  if(!parentIds.length)return[];
+  let query=db.from('together_generated_media').select('*').eq('user_id',userId).eq('continuity_id',continuityId).in('id',parentIds).eq('media_type','image').eq('status','ready');
+  if(!access.authorized_web_adult)query=query.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
+  const{data,error}=await query;if(error)return[];
+  return(data??[]).map((row:Record<string,any>)=>({...row,metadata:{...((row.metadata??{}) as Record<string,unknown>),galleryPosterOnly:true}}));
+}
+
+async function signGalleryAttachments(request:Request,db:any,userId:string,access:AdultAccessContext,rows:Array<Record<string,any>>):Promise<Array<Record<string,any>>>{
+  const safeRows=rows.filter((row)=>row.visibility_scope==='all'&&['safe','suggestive'].includes(String(row.content_rating??''))),paths=[...new Set(safeRows.filter((row)=>typeof row.storage_path==='string'&&row.storage_path).map((row)=>String(row.storage_path)))];
+  const signed=paths.length?await db.storage.from('together-user-media').createSignedUrls(paths,900):{data:[]},byPath=new Map<string,string>((signed.data??[]).flatMap((item:any)=>typeof item.path==='string'&&typeof item.signedUrl==='string'?[[item.path,item.signedUrl] as [string,string]]:[]));
+  return Promise.all(rows.map(async(row)=>{
+    const restricted=row.visibility_scope!=='all'||!['safe','suggestive'].includes(String(row.content_rating??''));
+    if(restricted&&!access.authorized_web_adult)return null;
+    const signedUrl=restricted?await issueAdultAssetUrl({request,db,access,userId,attachmentId:String(row.id)}):typeof row.storage_path==='string'?byPath.get(String(row.storage_path))??null:null,safe:Record<string,any>={...row,signed_url:signedUrl};
+    delete safe.storage_path;delete safe.analysis_metadata;delete safe.safe_variant_key;
+    return safe;
+  })).then((items)=>items.filter(Boolean) as Array<Record<string,any>>);
 }
 
 type DirectVideoLocationSource='current'|'home'|'place';

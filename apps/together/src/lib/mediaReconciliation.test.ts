@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GeneratedMedia } from '../types';
-import { isTransientMediaFetchFailure, mediaReconciliationComplete, mergeReconciledMedia, missingMediaIds } from './mediaReconciliation';
+import { isTransientMediaFetchFailure, mediaReconciliationComplete, mergeGeneratedMediaCollections, mergeReconciledMedia, missingMediaIds } from './mediaReconciliation';
 
 function media(overrides: Partial<GeneratedMedia> = {}): GeneratedMedia {
   return {
@@ -42,5 +42,14 @@ describe('generated media reconciliation', () => {
   it('identifies media omitted by an authoritative batch response', () => {
     expect(missingMediaIds(['safe','restricted','deleted'],[{id:'safe'},{id:'restricted'}])).toEqual(['deleted']);
     expect(missingMediaIds(['restricted'],[])).toEqual(['restricted']);
+  });
+
+  it('merges library pages with fresher reconciled media without losing its playable URL',()=>{
+    const older=media({id:'older',created_at:'2026-08-20T12:00:00.000Z',status:'ready',signed_url:'https://example.test/older'});
+    const cached=media({status:'generating',signed_url:null});
+    const reconciled=media({status:'ready',signed_url:'https://example.test/ready'});
+    const merged=mergeGeneratedMediaCollections([cached,older],[reconciled]);
+    expect(merged.map((item)=>item.id)).toEqual(['media-1','older']);
+    expect(merged[0]?.signed_url).toBe('https://example.test/ready');
   });
 });

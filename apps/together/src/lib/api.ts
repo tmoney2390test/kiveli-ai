@@ -110,6 +110,8 @@ export const manageMedia = async<T>(input: Record<string, unknown>) => {
   catch(caught){if(controller.signal.aborted)throw new ApiError('The media request took too long. Please try again.','REQUEST_TIMEOUT',true);throw caught;}
   finally{clearTimeout(timeout);}
 };
+export const loadMediaLibrary = (options:{characterInstanceId?:string;before?:string;limit?:number}={}) => manageMedia<{media:GeneratedMedia[];hasMore:boolean;nextBefore:string|null}>({action:'list_library',...options});
+export const loadConversationMediaGallery = (conversationId:string,limit=120) => manageMedia<{media:GeneratedMedia[];attachments:ConversationAttachment[];hasMore:boolean}>({action:'list_conversation_gallery',conversationId,limit});
 export const rateGeneratedMedia = (mediaId:string,feedback:'positive'|'negative') => manageMedia<{mediaId:string;userFeedback:'positive'|'negative';userFeedbackAt:string}>({action:'feedback',mediaId,feedback});
 export const getVideoGenerationOptions = async(sourceMediaId:string) => normalizeVideoGenerationOptions(await manageMedia<unknown>({action:'video_options',sourceMediaId}));
 export const getDirectVideoGenerationOptions = async(characterInstanceId:string) => normalizeVideoGenerationOptions(await manageMedia<unknown>({action:'video_direct_options',characterInstanceId}));
