@@ -1,3 +1,5 @@
+import { intimateLifeEligible } from './prompting.ts';
+
 export const CHARACTER_DEPTH_VERSION=5 as const;
 
 export type CharacterResponseMode='casual'|'playful'|'supportive'|'vulnerable'|'conflicted'|'repair'|'practical'|'storytelling'|'affectionate';
@@ -96,14 +98,14 @@ export function normalizeCharacterDepthBible(value:unknown,fallback:Record<strin
   };
 }
 
-export function compileCharacterVoiceCard(input:{bible:unknown;characterName?:string;occupation?:string;message:string;mode:CharacterResponseMode;relationshipStage?:string;trust?:number;interactionMode?:string;interactionQuality?:string;recentAssistantMessages?:string[]}):CharacterVoiceCard{
+export function compileCharacterVoiceCard(input:{bible:unknown;characterName?:string;occupation?:string;message:string;mode:CharacterResponseMode;relationshipStage?:string;trust?:number;interactionMode?:string;interactionQuality?:string;recentAssistantMessages?:string[];contentMode?:string;age?:number|null}):CharacterVoiceCard{
   const bible=normalizeCharacterDepthBible(input.bible,row(input.bible));const seed=`${input.characterName??''}|${input.message}|${input.mode}`;
   const lenses=bible.perceptionLenses.length?bible.perceptionLenses:[`Notice what ${input.occupation||'this life'} reveals about effort, attention, and intent.`];
   const moves=bible.conversationalMoves[input.mode]?.length?bible.conversationalMoves[input.mode]!:defaultMoves(input.mode);
   const recentShapes=(input.recentAssistantMessages??[]).slice(-4).map(inferResponseShape);
   const usableShapes=input.interactionMode==='co_present'?responseShapes:responseShapes.filter((shape)=>shape!=='action_then_line');
   const candidates=usableShapes.filter((shape)=>!recentShapes.includes(shape));const shape=pick(candidates.length?candidates:usableShapes,`${seed}|shape`);
-  const anecdote=selectCharacterAnecdote({bible,message:input.message,...(input.relationshipStage!==undefined?{relationshipStage:input.relationshipStage}:{}),...(input.trust!==undefined?{trust:input.trust}:{}),...(input.recentAssistantMessages!==undefined?{recentAssistantMessages:input.recentAssistantMessages}:{})});
+  const anecdote=selectCharacterAnecdote({bible,message:input.message,...(input.relationshipStage!==undefined?{relationshipStage:input.relationshipStage}:{}),...(input.trust!==undefined?{trust:input.trust}:{}),...(input.recentAssistantMessages!==undefined?{recentAssistantMessages:input.recentAssistantMessages}:{}),...(input.contentMode!==undefined?{contentMode:input.contentMode}:{}),...(input.age!==undefined?{age:input.age}:{})});
   const texture=unique([...bible.voice.verbalTics,...bible.voice.petNames.map((item)=>`Pet name available sparingly: ${item}`)]).slice(0,5);
   return{
     depthVersion:bible.depthVersion,cadence:bible.voice.cadence,vocabulary:bible.voice.vocabulary,humor:bible.voice.humorMechanism,questionStyle:bible.voice.questionStyle,curiosity:bible.voice.curiosity,
@@ -143,9 +145,10 @@ export function isValidCharacterCuriosityProfile(value:unknown):value is Charact
   return strings(source['domains']).length>=2&&isCuriosityStyle(source['style'])&&(source['disclosureBeforeQuestion']==='rare'||source['disclosureBeforeQuestion']==='sometimes'||source['disclosureBeforeQuestion']==='usually')&&Object.values(moves).some((entry)=>strings(entry).length>0)&&strings(source['avoids']).length>0;
 }
 
-export function selectCharacterAnecdote(input:{bible:CharacterDepthBible;message:string;relationshipStage?:string;trust?:number;recentAssistantMessages?:string[]}):CharacterAnecdote|null{
+export function selectCharacterAnecdote(input:{bible:CharacterDepthBible;message:string;relationshipStage?:string;trust?:number;recentAssistantMessages?:string[];contentMode?:string;age?:number|null}):CharacterAnecdote|null{
   const stage=input.relationshipStage??'stranger';const trust=finite(input.trust,0);const messageTokens=tokens(input.message);
-  const eligible=input.bible.anecdotes.filter((item)=>item.minimumTrust<=trust&&stageAllowed(stage,item.revealStages)&&!anecdoteRecentlyUsed(item,input.recentAssistantMessages??[])).map((item)=>({item,score:item.topics.reduce((sum,topic)=>sum+(messageTokens.has(normalize(topic))?3:[...messageTokens].some((token)=>normalize(topic).includes(token)||token.includes(normalize(topic)))?1:0),0)})).filter((entry)=>entry.score>0).sort((a,b)=>b.score-a.score||a.item.id.localeCompare(b.item.id));
+  const intimateOk=intimateLifeEligible({relationshipStage:stage,contentMode:input.contentMode,age:input.age});
+  const eligible=input.bible.anecdotes.filter((item)=>item.minimumTrust<=trust&&stageAllowed(stage,item.revealStages)&&!anecdoteRecentlyUsed(item,input.recentAssistantMessages??[])&&(intimateOk||!item.id.endsWith('-intimate'))).map((item)=>({item,score:item.topics.reduce((sum,topic)=>sum+(messageTokens.has(normalize(topic))?3:[...messageTokens].some((token)=>normalize(topic).includes(token)||token.includes(normalize(topic)))?1:0),0)})).filter((entry)=>entry.score>0).sort((a,b)=>b.score-a.score||a.item.id.localeCompare(b.item.id));
   return eligible[0]?.item??null;
 }
 

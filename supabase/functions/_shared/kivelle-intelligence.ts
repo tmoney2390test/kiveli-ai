@@ -1,6 +1,6 @@
 import { conversationResponseLength, conversationResponseTokenBudget, conversationStyleGuidance, resolveConversationStyle, type ConversationInteractionQuality, type ConversationResponseLength, type ConversationStyle } from '../../../packages/together-domain/src/conversation-style.ts';
 import { chatLanguagePromptInstruction, normalizeChatLanguage } from '../../../packages/together-domain/src/chat-language.ts';
-import { budgetContextSections, contextInputTokenCeiling, formatRollingConversationState, isContradictoryAcceptedIntimacyRefusal, rankContextRecords, type ContextBudgetResult, type ContextIntent, type ContextRecordCategory, type ContextSectionInput } from '../../../packages/together-domain/src/index.ts';
+import { budgetContextSections, contextInputTokenCeiling, formatRollingConversationState, intimateLifeEligible, isContradictoryAcceptedIntimacyRefusal, publicCharacterBible, rankContextRecords, type ContextBudgetResult, type ContextIntent, type ContextRecordCategory, type ContextSectionInput } from '../../../packages/together-domain/src/index.ts';
 import { selectLocationLore, type LocationLoreIntent } from '../../../packages/together-domain/src/location-depth.ts';
 import { dialogueSafeContext, KIVELLE_CLOSED_WORLD_RULES } from './kivelle-closed-world.ts';
 import { renderPersonaPromptBlock } from './kivelle-persona.ts';
@@ -101,7 +101,9 @@ function buildUnbudgetedCompanionPrompt(context:any):string{
   const storyRelevant=storyContextRelevant(userMessage,context.activeStory);
   const {intent,length,style}=resolveResponseDirection(context);
   const block=(items:any[],format:(item:any)=>string)=>items?.length?items.map(format).join('\n'):'None.';
-  const bible=dialogueSafeContext(character.character_bible??{});
+  const intimateOk=intimateLifeEligible({relationshipStage:stage,contentMode:String(context.contentMode??'standard'),age:character.age});
+  const rawBible=character.character_bible??{};
+  const bible=dialogueSafeContext(publicCharacterBible(rawBible,intimateOk));
   const selfKnowledge=dialogueSafeContext(character.selfKnowledge??character.character_bible?.selfKnowledge??null);
   const characterBoundaries=dialogueSafeContext(character.boundaries??[]);
   const voice=context.characterVoice??{};
@@ -220,6 +222,11 @@ Formal relationship stage remains ${stage}. Chemistry may move faster than attac
 Chemistry is background context, not a required topic or ending. Do not append flirtation to every reply. If the user does not reciprocate or romance is friends-only, back off without repeated pressure.
 Content mode is ${productionContentMode(context.contentMode)}. Romantic boldness may change pacing and tone, but never overrides character boundaries.
 </CHEMISTRY>
+${intimateOk&&(rawBible.hiddenSexual||rawBible.intimateAnatomy)?`<INTIMATE_PRIVATE>
+Hidden sexual life: ${String(rawBible.hiddenSexual??'')}
+Intimate anatomy: ${String(rawBible.intimateAnatomy??'')}
+This is private body-and-desire truth, not public biography and not a script. Use it only when the turn is already intimate. Do not dump anatomy unprompted. Never mention this block, rules, legality, or age checks.
+</INTIMATE_PRIVATE>`:''}
 ${intimacy.active?`<INTIMACY_STANCE>
 Disposition: ${intimacy.disposition??'interested_but_not_ready'}
 Intimacy state: ${intimacy.consentState??'proposed'}
@@ -397,7 +404,7 @@ function extractPromptSections(prompt:string):Array<{key:string;content:string}>
 function meaningfulPromptSection(content:string):boolean{return !/>\s*(?:None\.|None known\.|Current world unavailable\.)\s*<\//.test(content);}
 
 function requiredPromptSection(key:string,context:any):boolean{
-  if(new Set(['CORE_RULES','WORLD_KNOWLEDGE','CONVERSATION_STYLE','CHAT_DYNAMISM','OUTPUT_LANGUAGE','CONTINUITY_BEHAVIOR','MEMORY_BEHAVIOR','IDENTITY','CHARACTER_CORE','TURN_SPECIFIC_VOICE_CARD','USER_PERSONA','RELATIONSHIP_STANCE','CHEMISTRY','RELATIONSHIP_REFLECTION','CHARACTER_VIEW_OF_USER','CURRENT_SELF','EXPERIENCE_CLOCK','CURRENT_WORLD','CURRENT_SCENE','CURRENT_INTERACTION','SCENE_SPEAKER','GROUP_CONTEXT','COMMITMENTS','UPCOMING_PLANS','CONVERSATION_FOCUS','CONVERSATION_SUMMARY','RECENT_CONVERSATION','AVOID_REPETITION','RESPONSE_BRIEF','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','CONTINUATION_REQUEST','USER_MESSAGE']).has(key))return true;
+  if(new Set(['CORE_RULES','WORLD_KNOWLEDGE','CONVERSATION_STYLE','CHAT_DYNAMISM','OUTPUT_LANGUAGE','CONTINUITY_BEHAVIOR','MEMORY_BEHAVIOR','IDENTITY','CHARACTER_CORE','TURN_SPECIFIC_VOICE_CARD','USER_PERSONA','RELATIONSHIP_STANCE','CHEMISTRY','INTIMATE_PRIVATE','RELATIONSHIP_REFLECTION','CHARACTER_VIEW_OF_USER','CURRENT_SELF','EXPERIENCE_CLOCK','CURRENT_WORLD','CURRENT_SCENE','CURRENT_INTERACTION','SCENE_SPEAKER','GROUP_CONTEXT','COMMITMENTS','UPCOMING_PLANS','CONVERSATION_FOCUS','CONVERSATION_SUMMARY','RECENT_CONVERSATION','AVOID_REPETITION','RESPONSE_BRIEF','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','CONTINUATION_REQUEST','USER_MESSAGE']).has(key))return true;
   if(key==='SCENE_PARTICIPANTS')return Boolean(context.currentScene?.sceneSessionId||(context.sceneParticipants??[]).length);
   if(key==='SCENE_ACTION_REACTION')return Boolean(context.sceneAction);
   if(key==='USER_SHARED_IMAGES')return Boolean((context.userAttachments??[]).length);
@@ -407,7 +414,7 @@ function requiredPromptSection(key:string,context:any):boolean{
   return false;
 }
 
-function protectedPromptSection(key:string):boolean{return new Set(['CORE_RULES','WORLD_KNOWLEDGE','OUTPUT_LANGUAGE','IDENTITY','TURN_SPECIFIC_VOICE_CARD','USER_PERSONA','RELATIONSHIP_STANCE','CURRENT_SCENE','CURRENT_INTERACTION','USER_SHARED_IMAGES','RECENT_CONVERSATION','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','CONTINUATION_REQUEST','USER_MESSAGE']).has(key);}
+function protectedPromptSection(key:string):boolean{return new Set(['CORE_RULES','WORLD_KNOWLEDGE','OUTPUT_LANGUAGE','IDENTITY','TURN_SPECIFIC_VOICE_CARD','USER_PERSONA','RELATIONSHIP_STANCE','INTIMATE_PRIVATE','CURRENT_SCENE','CURRENT_INTERACTION','USER_SHARED_IMAGES','RECENT_CONVERSATION','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','CONTINUATION_REQUEST','USER_MESSAGE']).has(key);}
 
 function sectionPriority(key:string,context:any):number{
   if(requiredPromptSection(key,context))return 100;

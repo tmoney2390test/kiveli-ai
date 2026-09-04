@@ -341,6 +341,8 @@ export async function buildTieredKivelleConversationContext(
     interactionMode: String(base.currentScene?.interactionMode ?? "remote"),
     interactionQuality,
     recentAssistantMessages: assistantMessages,
+    contentMode: String(base.contentMode ?? "standard"),
+    age: Number(base.character?.age ?? 0) || null,
   });
   const compiled: {
     companionView: string;

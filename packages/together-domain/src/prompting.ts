@@ -270,3 +270,24 @@ function normalizePhrase(value:string){return value.toLowerCase().replace(/[^a-z
 function mostRepeated(values:string[]){return values.sort((a,b)=>count(values,b)-count(values,a))[0]??'';}
 function count(values:string[],target:string){return values.filter((value)=>value===target).length;}
 function short(value:string){return value.length>64?`${value.slice(0,61)}…`:value;}
+
+const intimateStageRank:Record<string,number>={stranger:0,acquaintance:1,friend:2,flirting:3,dating:4,exclusive:5,long_term:6};
+
+export function intimateLifeEligible(input:{relationshipStage?:string;contentMode?:string;age?:number|null}):boolean{
+  const age=Number(input.age);
+  if(Number.isFinite(age)&&age<18)return false;
+  const rank=intimateStageRank[String(input.relationshipStage??'stranger')]??0;
+  const mode=String(input.contentMode??'standard');
+  if(mode==='explicit')return rank>=3;
+  if(mode==='mature')return rank>=4;
+  return false;
+}
+
+export function publicCharacterBible(bible:unknown,eligible:boolean):unknown{
+  if(!bible||typeof bible!=='object'||Array.isArray(bible))return bible;
+  const record={...(bible as Record<string,unknown>)};
+  delete record.hiddenSexual;
+  delete record.intimateAnatomy;
+  if(Array.isArray(record.anecdotes))record.anecdotes=record.anecdotes.filter((item)=>eligible||!String((item as{id?:unknown})?.id??'').endsWith('-intimate'));
+  return record;
+}

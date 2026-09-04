@@ -1,4 +1,4 @@
-const INTERNAL_CHARACTER_KEYS = new Set(['fictional', 'background']);
+const INTERNAL_CHARACTER_KEYS = new Set(['fictional', 'background', 'hiddenSexual', 'intimateAnatomy']);
 const INTERNAL_TIMEZONE_KEYS = new Set(['timezone', 'worldTimezone', 'userTimezone', 'world_timezone', 'user_timezone']);
 const POLICY_BOUNDARY_LABELS = new Set([
   'adult',

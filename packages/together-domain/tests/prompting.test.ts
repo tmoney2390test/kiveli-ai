@@ -1,5 +1,5 @@
 import{describe,expect,it}from'vitest';
-import{antiRepetitionGuidance,compileCharacterGoals,compileIntimacyStance,compileRelationshipStance,compileResponseBrief,deriveConversationReciprocity,messageHasConversationalHandoff,shouldUseDirector}from'../src';
+import{antiRepetitionGuidance,compileCharacterGoals,compileIntimacyStance,compileRelationshipStance,compileResponseBrief,deriveConversationReciprocity,intimateLifeEligible,messageHasConversationalHandoff,publicCharacterBible,shouldUseDirector}from'../src';
 
 describe('Kivelle prompt compiler',()=>{
   it('turns metrics into stage-appropriate qualitative stance',()=>{const stance=compileRelationshipStance({relationship_stage:'flirting',trust:48,comfort:52,attraction:67,commitment:12,conflict:4});expect(stance.summary).toContain('chemistry');expect(stance.affectionBoundary).toContain('exclusivity');expect(stance.autonomyRule).toContain('disagree');});
@@ -38,4 +38,14 @@ describe('Kivelle prompt compiler',()=>{
   it('reopens an active story when the user asks for it',()=>{const stance=compileRelationshipStance({relationship_stage:'friend',trust:55,comfort:60,familiarity:60});const brief=compileResponseBrief({message:'What happens next in the Gallery Opportunity?',interactionQuality:'normal',relationshipStance:stance,activeStory:'Gallery Opportunity'});expect(brief.callbackCandidate).toBe('Gallery Opportunity');expect(brief.mode).toBe('storytelling');expect(brief.actionCandidate).toBe('story');});
   it('only follows an open thread when the user references that subject',()=>{const stance=compileRelationshipStance({relationship_stage:'friend',trust:55,comfort:60,familiarity:60});const unrelated=compileResponseBrief({message:'I am exhausted.',interactionQuality:'normal',relationshipStance:stance,openThread:'Presentation'});const reopened=compileResponseBrief({message:'My presentation is finally over.',interactionQuality:'meaningful',relationshipStance:stance,openThread:'Presentation'});expect(unrelated.callbackCandidate).toBeUndefined();expect(reopened.callbackCandidate).toBe('Presentation');expect(reopened.actionCandidate).toBe('memory_followup');});
   it('uses Director by tier policy rather than making free characters inaccurate',()=>{expect(shouldUseDirector('major_only','normal')).toBe(false);expect(shouldUseDirector('major_only','major_relationship_event')).toBe(true);expect(shouldUseDirector('meaningful','meaningful')).toBe(true);expect(shouldUseDirector('normal_and_up','normal')).toBe(true);expect(shouldUseDirector('normal_and_up','trivial')).toBe(false);});
+  it('keeps hidden sexual life out of public bible until eligible adult intimacy',()=>{
+    const bible={occupation:'Photographer',hiddenSexual:'She comes on her knees.',intimateAnatomy:'Full breasts, a wet cunt.',anecdotes:[{id:'maya-origin',title:'Origin',summary:'Gallery work.'},{id:'maya-intimate',title:'The body kept back',summary:'She comes on her knees.'}]};
+    expect(intimateLifeEligible({relationshipStage:'friend',contentMode:'explicit'})).toBe(false);
+    expect(intimateLifeEligible({relationshipStage:'flirting',contentMode:'explicit'})).toBe(true);
+    expect(intimateLifeEligible({relationshipStage:'flirting',contentMode:'standard'})).toBe(false);
+    expect(intimateLifeEligible({relationshipStage:'dating',contentMode:'mature',age:17})).toBe(false);
+    const publicBible=publicCharacterBible(bible,false) as {hiddenSexual?:string;anecdotes:Array<{id:string}>};
+    expect(publicBible.hiddenSexual).toBeUndefined();
+    expect(publicBible.anecdotes.map((item)=>item.id)).toEqual(['maya-origin']);
+  });
 });

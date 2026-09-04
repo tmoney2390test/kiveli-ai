@@ -1,5 +1,6 @@
 import type { CompanionVoiceProfile } from '../../../packages/together-domain/src/multimodal.ts';
 import type { DialogueContentMode } from '../../../packages/together-domain/src/ai-routing.ts';
+import { publicCharacterBible } from '../../../packages/together-domain/src/prompting.ts';
 import { dialogueSafeContext, KIVELLE_CLOSED_WORLD_RULES } from './kivelle-closed-world.ts';
 import { compactPersonaForRealtime } from './kivelle-persona.ts';
 import { chatLanguagePromptInstruction, normalizeChatLanguage, resolveChatLanguageForText, xaiVoiceLanguage } from '../../../packages/together-domain/src/chat-language.ts';
@@ -164,7 +165,10 @@ function normalizeContentMode(value:unknown):DialogueContentMode{
 
 function compactContext(context: Record<string, unknown>): Record<string, unknown> {
   const character = record(context.character);
-  const safeCharacter = record(dialogueSafeContext(character));
+  const safeCharacter = record(dialogueSafeContext({
+    ...character,
+    character_bible: publicCharacterBible(character.character_bible, false),
+  }));
   const relationship = record(context.relationship);
   const scene = record(context.currentScene ?? context.life);
   return {
