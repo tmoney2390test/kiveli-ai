@@ -5,6 +5,7 @@ import { northvaleLocationAssets } from './northvale';
 import { portVervelleLocationAssets } from './port-vervelle';
 import { vespormoorLocationAssets } from './vespormoor';
 import { eosMeridianLocationAssets } from './eos-meridian';
+import { vharadrenLocationAssets } from './vharadren';
 
 export const locationAssetsByWorld:Record<string,Record<string,ImageSource>>={
   'juniper-city':juniperCityLocationAssets,
@@ -13,6 +14,7 @@ export const locationAssetsByWorld:Record<string,Record<string,ImageSource>>={
   'port-vervelle':portVervelleLocationAssets,
   'vespormoor':vespormoorLocationAssets,
   'eos-meridian':eosMeridianLocationAssets,
+  'vharadren':vharadrenLocationAssets,
 };
 
 export function mappedLocationAsset(worldSlug?:string|null,locationSlug?:string|null):ImageSource|undefined{

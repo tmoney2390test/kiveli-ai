@@ -29,7 +29,7 @@ describe('Vharadren playable world',()=>{
     expect(vharadrenLocations.find((location)=>location.id===VHARADREN_ARRIVAL_ID)?.slug).toBe('gilded-steps-market');
   });
 
-  it('keeps every location prompt-ready without pretending its pending image slot exists',()=>{
+  it('keeps every location prompt-ready while the authored art rollout is partial',()=>{
     expect(new Set(vharadrenLocations.map((location)=>location.id)).size).toBe(51);
     expect(new Set(vharadrenLocations.map((location)=>location.slug)).size).toBe(51);
     expect(vharadrenLocations.every((location)=>location.canonical_visual_context?.canonicalPrompt?.includes('Vharadren'))).toBe(true);

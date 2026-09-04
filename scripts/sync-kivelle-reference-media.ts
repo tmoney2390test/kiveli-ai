@@ -7,7 +7,7 @@ import{locations as eosMeridianLocations}from'./eos-meridian-content.mjs';
 
 const root=process.cwd(),apply=process.argv.includes('--apply'),charactersOnly=process.argv.includes('--characters-only'),locationsOnly=process.argv.includes('--locations-only'),worldSlugFilter=process.argv.find((argument)=>argument.startsWith('--world='))?.slice('--world='.length),bucket='kivelle-reference-media';
 export const CHARACTER_REFERENCE_BUCKET='kivelle-character-reference';
-export const DIRECT_LOCATION_ARTWORK_WORLDS=['juniper-city','port-vervelle','neon-kyo','northvale','vespormoor'] as const;
+export const DIRECT_LOCATION_ARTWORK_WORLDS=['juniper-city','port-vervelle','neon-kyo','northvale','vespormoor','vharadren'] as const;
 
 type Asset={sourceKey:string;role:'character_identity'|'location_canonical'|'world_canonical';path:string;worldSlug?:string;locationSlug?:string;characterSlug?:string;variant?:'primary'|`secondary-${number}`};
 

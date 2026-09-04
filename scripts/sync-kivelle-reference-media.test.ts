@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import test from 'node:test';
 import {CHARACTER_REFERENCE_BUCKET,DIRECT_LOCATION_ARTWORK_WORLDS,defaultStorageTarget,discoverAssets,parseCharacterAssetName} from './sync-kivelle-reference-media.ts';
 
@@ -16,6 +17,41 @@ test('discovers authored Vespormoor locations instead of silently omitting a wor
   assert.ok(DIRECT_LOCATION_ARTWORK_WORLDS.includes('vespormoor'));
   const assets=await discoverAssets();
   assert.ok(assets.some((asset)=>asset.role==='location_canonical'&&asset.worldSlug==='vespormoor'));
+});
+
+test('discovers the first authored Vharadren location-art batch',async()=>{
+  assert.ok(DIRECT_LOCATION_ARTWORK_WORLDS.includes('vharadren'));
+  const assets=await discoverAssets();
+  const keys=new Set(assets.filter((asset)=>asset.role==='location_canonical'&&asset.worldSlug==='vharadren').map((asset)=>asset.sourceKey));
+  for(const slug of[
+    'ashlands',
+    'black-march',
+    'crownspire',
+    'dragonbone-citadel',
+    'ember-isles',
+    'ember-throne-hall',
+    'shattered-coast',
+    'verdant-reach',
+  ])assert.ok(keys.has(`location:vharadren:${slug}:canonical`),`${slug} must remain discoverable`);
+  assert.equal(keys.size,8,'Only visually approved Vharadren locations should be published in this batch');
+});
+
+test('registers the approved Vharadren location batch with the client resolver',async()=>{
+  const[moduleSource,indexSource]=await Promise.all([
+    readFile('apps/together/src/location-assets/vharadren.ts','utf8'),
+    readFile('apps/together/src/location-assets/index.ts','utf8'),
+  ]);
+  assert.match(indexSource,/'vharadren':vharadrenLocationAssets/);
+  for(const slug of[
+    'ashlands',
+    'black-march',
+    'crownspire',
+    'dragonbone-citadel',
+    'ember-isles',
+    'ember-throne-hall',
+    'shattered-coast',
+    'verdant-reach',
+  ])assert.match(moduleSource,new RegExp(`'${slug}':require\\('\\.\\./\\.\\./assets/locations/vharadren/${slug}\\.jpg'\\)`));
 });
 
 test('discovers the authored Vharadren primary and supplied secondary portrait pack',async()=>{
