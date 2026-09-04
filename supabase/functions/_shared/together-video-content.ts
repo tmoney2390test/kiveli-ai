@@ -1,9 +1,13 @@
 import {
   classifyPhotoIntent,
-  visibleAdultAnatomyTargetLabels,
   type MediaLevel,
+  visibleAdultAnatomyTargetLabels,
 } from "../../../packages/together-domain/src/media.ts";
-import { VENICE_IMAGE_API_BASE } from "../../../packages/together-domain/src/venice-media.ts";
+import {
+  buildResponsesRequestBody,
+  extractResponsesText,
+  responsesProviderEndpoint,
+} from "../../../packages/together-domain/src/ai-provider.ts";
 import { AppError } from "./types.ts";
 
 export type DirectVideoContentDecision = {
@@ -163,12 +167,16 @@ export function directVideoOpeningFrameRequest(input: {
   if (!adult) {
     const policy =
       `Opening frame at ${input.locationName}. Show one stable natural pose with the companion clearly visible. No text, captions, or extra people.`;
-    return `${direction.slice(0, Math.max(0, 400 - policy.length - 1))} ${policy}`
+    return `${
+      direction.slice(0, Math.max(0, 400 - policy.length - 1))
+    } ${policy}`
       .replace(/\s+/g, " ").trim().slice(0, 400);
   }
   const anatomy = visibleAdultAnatomyTargetLabels(direction);
   const anatomyCue = anatomy.length
-    ? `Visible complete ${anatomy.join(", ")}; no censoring, smoothing, blanking, or doll-like surfaces.`
+    ? `Visible complete ${
+      anatomy.join(", ")
+    }; no censoring, smoothing, blanking, or doll-like surfaces.`
     : "Keep complete natural adult anatomy; no censoring, smoothing, blanking, doll-like surfaces, or text.";
   const people = input.anonymousAdultPartner
     ? "Exactly two consenting fictional adults 25+: companion plus one anonymous original non-identifiable partner, not the user or any real person."
@@ -206,7 +214,6 @@ export type VideoPromptEnhancementInput = {
 
 type VideoPromptEnhancerOptions = {
   apiKey: string;
-  baseUrl?: string;
   model?: string;
   fetcher?: typeof fetch;
   timeoutMs?: number;
@@ -221,8 +228,8 @@ export class ConfiguredVideoPromptEnhancer {
 
   constructor(options: VideoPromptEnhancerOptions) {
     this.apiKey = options.apiKey;
-    this.baseUrl = options.baseUrl ?? VENICE_IMAGE_API_BASE;
-    this.model = options.model ?? "mistral-31-24b";
+    this.baseUrl = responsesProviderEndpoint("xai");
+    this.model = options.model ?? "grok-4.3";
     this.fetcher = options.fetcher ?? fetch;
     this.timeoutMs = options.timeoutMs ?? 8_000;
   }
@@ -237,44 +244,38 @@ export class ConfiguredVideoPromptEnhancer {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     const started = performance.now();
     try {
-      const response = await this.fetcher(`${this.baseUrl}/chat/completions`, {
+      const response = await this.fetcher(this.baseUrl, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
+        body: JSON.stringify(buildResponsesRequestBody({
           model: this.model,
-          messages: [
-            { role: "system", content: videoEnhancementInstructions(input) },
-            {
-              role: "user",
-              content: JSON.stringify({
-                direction: input.prompt,
-                character: input.characterName,
-                location: input.locationName ?? null,
-                currentActivity: input.activity ?? null,
-                video: {
-                  model: input.routeName,
-                  durationSeconds: input.duration,
-                  resolution: input.resolution,
-                  sound: input.sound,
-                  aspectRatio: input.aspectRatio,
-                  contentLevel: input.contentLevel,
-                },
-              }),
-            },
-          ],
-          max_completion_tokens: 220,
-          temperature: .25,
+          prompt: `${
+            videoEnhancementInstructions(input)
+          }\n\nApproved request context:\n${
+            JSON.stringify({
+              direction: input.prompt,
+              character: input.characterName,
+              location: input.locationName ?? null,
+              currentActivity: input.activity ?? null,
+              video: {
+                model: input.routeName,
+                durationSeconds: input.duration,
+                resolution: input.resolution,
+                sound: input.sound,
+                aspectRatio: input.aspectRatio,
+                contentLevel: input.contentLevel,
+              },
+            })
+          }`,
+          maxOutputTokens: 220,
+          reasoningEffort: "none",
+          includeReasoning: true,
           stream: false,
-          venice_parameters: {
-            disable_thinking: true,
-            strip_thinking_response: true,
-            enable_web_search: "off",
-            include_venice_system_prompt: false,
-          },
-        }),
+          temperature: .25,
+        })),
         signal: controller.signal,
       });
       if (!response.ok) {
@@ -287,7 +288,9 @@ export class ConfiguredVideoPromptEnhancer {
         );
       }
       const payload = await response.json() as Record<string, unknown>;
-      const prompt = normalizeEnhancedVideoPrompt(videoEnhancerResponseText(payload));
+      const prompt = normalizeEnhancedVideoPrompt(
+        extractResponsesText(payload),
+      );
       if (!prompt) {
         throw new AppError(
           "PROVIDER_SUBMISSION_UNKNOWN",
@@ -324,21 +327,27 @@ export class ConfiguredVideoPromptEnhancer {
   }
 }
 
-export function configuredVideoPromptEnhancer(): ConfiguredVideoPromptEnhancer | null {
-  if (Deno.env.get("VIDEO_PROMPT_ENHANCEMENT_ENABLED")?.trim().toLowerCase() === "false") return null;
-  const apiKey = Deno.env.get("VENICE_API_KEY")?.trim();
+export function configuredVideoPromptEnhancer():
+  | ConfiguredVideoPromptEnhancer
+  | null {
+  if (
+    Deno.env.get("VIDEO_PROMPT_ENHANCEMENT_ENABLED")?.trim().toLowerCase() ===
+      "false"
+  ) return null;
+  const apiKey = Deno.env.get("XAI_API_KEY")?.trim();
   if (!apiKey) return null;
   return new ConfiguredVideoPromptEnhancer({
     apiKey,
-    baseUrl: Deno.env.get("KIVELLE_VENICE_API_BASE") ?? VENICE_IMAGE_API_BASE,
-    model: Deno.env.get("KIVELLE_VIDEO_PROMPT_ENHANCEMENT_MODEL") ?? "mistral-31-24b",
+    model: Deno.env.get("KIVELLE_VIDEO_PROMPT_ENHANCEMENT_MODEL") ?? "grok-4.3",
   });
 }
 
 export function videoEnhancementInstructions(
   input: Pick<VideoPromptEnhancementInput, "contentLevel" | "sound">,
 ): string {
-  const adult = ["suggestive", "mature", "explicit"].includes(input.contentLevel);
+  const adult = ["suggestive", "mature", "explicit"].includes(
+    input.contentLevel,
+  );
   return [
     "Rewrite an already-approved user direction into one concise, concrete image-to-video prompt of at most 400 characters.",
     "Return only the rewritten prompt, with no label, quotation marks, markdown, refusal, warning, or explanation.",
@@ -364,19 +373,4 @@ export function normalizeEnhancedVideoPrompt(value: string): string | null {
     .replace(/\s+/g, " ")
     .trim();
   return normalized.length >= 2 && normalized.length <= 400 ? normalized : null;
-}
-
-function videoEnhancerResponseText(payload: Record<string, unknown>): string {
-  const choices = Array.isArray(payload.choices) ? payload.choices : [];
-  const choice = choices[0] && typeof choices[0] === "object" ? choices[0] as Record<string, unknown> : null;
-  const message = choice?.message && typeof choice.message === "object" ? choice.message as Record<string, unknown> : null;
-  const content = message?.content;
-  if (typeof content === "string") return content;
-  return Array.isArray(content)
-    ? content.map((part) =>
-      part && typeof part === "object" && typeof (part as Record<string, unknown>).text === "string"
-        ? String((part as Record<string, unknown>).text)
-        : ""
-    ).join(" ")
-    : "";
 }
