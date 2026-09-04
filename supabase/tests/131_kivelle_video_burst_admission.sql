@@ -64,20 +64,20 @@ select function_privs_are('public','kivelle_defer_media_submission',array['uuid'
 select has_function(
   'public','kivelle_reserve_video_generation_v7',
   array['uuid','uuid','uuid','text','text','text','text','text','text','text','integer','numeric','numeric','integer','text','text','boolean','text','text','text','text','boolean','boolean','integer','boolean','uuid'],
-  'Current existing-photo video reservation uses failure-safe daily accounting'
+  'Current existing-photo video reservation is available'
 );
 select ok(
-  position($needle$status in('queued','generating','ready')$needle$ in replace(regexp_replace(pg_get_functiondef('public.kivelle_reserve_video_generation_v7(uuid,uuid,uuid,text,text,text,text,text,text,text,integer,numeric,numeric,integer,text,text,boolean,text,text,text,text,boolean,boolean,integer,boolean,uuid)'::regprocedure),E'\\s+','','g'),'::text',''))>0,
-  'Failed existing-photo videos do not consume a successful daily slot'
+  position($needle$status=any(array['queued','generating'])$needle$ in replace(regexp_replace(lower(pg_get_functiondef('public.kivelle_reserve_video_generation_v7(uuid,uuid,uuid,text,text,text,text,text,text,text,integer,numeric,numeric,integer,text,text,boolean,text,text,text,text,boolean,boolean,integer,boolean,uuid)'::regprocedure)),E'\\s+','','g'),'::text',''))>0,
+  'Failed and completed existing-photo videos do not block the active slot'
 );
 select has_function(
   'public','kivelle_reserve_direct_video_generation_v5',
   array['uuid','uuid','uuid','uuid','text','text','text','text','text','text','text','text','integer','numeric','numeric','integer','text','text','boolean','text','text','text','text','boolean','uuid','boolean','jsonb','integer','uuid','uuid','jsonb','jsonb'],
-  'Current prompt-first video reservation uses failure-safe daily accounting'
+  'Current prompt-first video reservation is available'
 );
 select ok(
-  position($needle$status in('queued','generating','ready')$needle$ in replace(regexp_replace(pg_get_functiondef('public.kivelle_reserve_direct_video_generation_v5(uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,text,integer,numeric,numeric,integer,text,text,boolean,text,text,text,text,boolean,uuid,boolean,jsonb,integer,uuid,uuid,jsonb,jsonb)'::regprocedure),E'\\s+','','g'),'::text',''))>0,
-  'Failed prompt-first videos do not consume a successful daily slot'
+  position($needle$status=any(array['queued','generating'])$needle$ in replace(regexp_replace(lower(pg_get_functiondef('public.kivelle_reserve_direct_video_generation_v5(uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,text,integer,numeric,numeric,integer,text,text,boolean,text,text,text,text,boolean,uuid,boolean,jsonb,integer,uuid,uuid,jsonb,jsonb)'::regprocedure)),E'\\s+','','g'),'::text',''))>0,
+  'Failed and completed prompt-first videos do not block the active slot'
 );
 
 select * from finish();
