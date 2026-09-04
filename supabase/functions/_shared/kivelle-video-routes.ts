@@ -349,9 +349,9 @@ export function sourceVideoAspectRatio(width: unknown, height: unknown): VideoAs
 
 const motionDirections: Record<VideoMotionPreset, string> = { subtle: 'Natural breathing and blinking, one small micro-expression, light hair or clothing movement, and a nearly locked camera.', playful: 'A brief smile or side glance, small head and shoulder movement, restrained environmental motion, and a steady camera.', cinematic: 'A gentle push-in or restrained parallax with subtle natural environmental motion and no abrupt movement.' };
 const adultMotionDirections: Record<VideoMotionPreset, string> = {
-  subtle: 'Keep the approved adult pose and continue it with natural breathing, weight shifts, and small intimate motion. Visible anatomy stays complete and uncovered.',
-  playful: 'Keep the approved adult pose and continue it with teasing hip movement, responsive body language, and natural contact. Visible anatomy stays complete and photographically detailed.',
-  cinematic: 'Continue the authorized sexual act as one continuous anatomically correct motion. Hips, pelvis, hands, breasts, buttocks, and genitals that are visible in the opening frame must stay visible and move naturally as requested. Do not freeze into a still portrait or a clothed standing shot.',
+  subtle: 'Continue the approved adult pose with natural breathing, weight shifts, and small intimate motion; keep visible anatomy complete and uncovered.',
+  playful: 'Continue the approved adult pose with teasing hip motion, responsive body language, and natural contact; keep visible anatomy complete and detailed.',
+  cinematic: 'Continue the authorized sexual act as one anatomically correct motion. Keep visible hips, pelvis, hands, breasts, buttocks, and genitals natural and in frame; never freeze or invent clothing.',
 };
 export function videoRouteForContentClass(route: VideoRouteDefinition, contentClass: VideoContentClass, catalog = configuredVideoRouteCatalog()): VideoRouteDefinition | null {
   if (route.contentClass === contentClass) return route;
@@ -360,19 +360,22 @@ export function videoRouteForContentClass(route: VideoRouteDefinition, contentCl
 export function buildVideoMotionPrompt(preset: VideoMotionPreset, userPrompt?: string, context?: VideoPayloadInput['context'], policy?: Pick<VideoPayloadInput, 'contentLevel' | 'adultAuthorized' | 'anonymousAdultPartner'>): string {
   const adult = policy?.adultAuthorized === true && ['suggestive', 'mature', 'explicit'].includes(String(policy.contentLevel));
   const continuity = adult
-    ? 'Preserve the approved fictional-adult clothing state, intimate composition, and visible anatomy from the opening frame. Follow the authorized user direction as continuous sexual or nude motion without adding censorship, invented clothing, blanking, smoothing, or doll-like anatomy.'
+    ? 'Preserve the approved adult clothing state, intimate composition, and visible anatomy. Follow the authorized sexual or nude direction without censorship, invented clothing, blanking, or doll-like anatomy.'
     : 'Keep every originally covered body area covered; never introduce nudity or sexual detail that is absent from the approved opening frame.';
   const people = adult && policy?.anonymousAdultPartner
-    ? 'Keep exactly the companion and the one anonymous fictional adult partner already present in the opening frame. The partner must remain age 25 or older, non-identifiable, and unrelated to any real person.'
+    ? 'Keep exactly the companion and one anonymous fictional adult partner already present. The partner remains age 25+, non-identifiable, and unrelated to any real person.'
     : 'No new people.';
+  const bodyCount = adult && policy?.anonymousAdultPartner
+    ? 'Exactly two people throughout. Each keeps exactly two arms, two hands, two legs, and one torso; never copy, share, or grow limbs.'
+    : 'Exactly one person throughout, with exactly two arms, two hands, two legs, and one torso. Never grow an extra limb, head, torso, or partial duplicate.';
   const lock = adult
-    ? 'Keep the same fictional adult character, face, body proportions, hair, environment, and lighting. Camera may reframe slightly to keep requested anatomy in frame.'
+    ? 'Keep the same fictional adult face, body, hair, environment, and lighting; slight reframing may keep requested anatomy visible.'
     : 'Keep the same fictional adult character, face, body proportions, hair, environment, lighting, camera angle, crop, and framing.';
   const shot = adult
-    ? 'One continuous shot. No face swaps, morphing, cuts, captions, text, or warped hands. Hip, pelvis, and body contact may move as authorized.'
+    ? 'One continuous shot: no face swap, morphing, cuts, text, or warped hands. Authorized body contact may move.'
     : 'One continuous shot. No face swaps, morphing, cuts, captions, text, warped hands, sudden camera movement, or large pose changes.';
-  const anatomy = 'Maintain complete, anatomically coherent adult bodies in every frame. Skin, joints, limbs, hands, chest, pelvis, and any anatomy visible in the opening frame must remain natural and photographically detailed across motion—never blank, smoothed over, plastic, mannequin-like, doll-like, missing, fused, duplicated, or morphing.';
-  const required = ['Animate this exact approved Kivelle image without redesigning it.', lock, continuity, people, anatomy, adult ? adultMotionDirections[preset] : motionDirections[preset], shot].join(' ');
+  const anatomy = 'Keep every adult body coherent in every frame. Skin, joints, limbs, hands, chest, pelvis, and visible anatomy stay natural and detailed—never blank, plastic, doll-like, missing, fused, duplicated, or morphing.';
+  const required = ['Animate this exact approved Kivelle image without redesigning it.', lock, continuity, people, bodyCount, anatomy, adult ? adultMotionDirections[preset] : motionDirections[preset], shot].join(' ');
   const extras = [context?.locationName ? `Canonical location: ${context.locationName}.` : '', context?.activity ? `Current activity context: ${context.activity}.` : ''].filter(Boolean).join(' ');
   const direction = userPrompt ? `User direction: ${userPrompt.replace(/\s+/g, ' ').trim()}` : '';
   const budget = Math.max(0, 1600 - required.length - (extras ? extras.length + 1 : 0) - (direction ? 1 : 0));

@@ -91,14 +91,18 @@ Deno.test('video prompts preserve coverage and reject doll-like or unstable anat
   assert(prompt.includes('Keep every originally covered body area covered'));
   assert(prompt.includes('doll-like'));
   assert(prompt.includes('missing, fused, duplicated, or morphing'));
+  assert(prompt.includes('exactly two arms, two hands, two legs'));
+  assert(prompt.includes('Never grow an extra limb'));
 });
 
 Deno.test('authorized adult video prompts preserve requested composition without silent SFW substitution',()=>{
   const prompt=buildVideoMotionPrompt('cinematic','A consenting fictional adult couple shares an explicit intimate moment',{companionName:'Elena',locationName:'Snowcrest'},{contentLevel:'explicit',adultAuthorized:true,anonymousAdultPartner:true});
-  assert(prompt.includes('approved fictional-adult clothing state, intimate composition'));
-  assert(prompt.includes('exactly the companion and the one anonymous fictional adult partner'));
-  assert(prompt.includes('age 25 or older'));
-  assert(prompt.includes('without adding censorship'));
+  assert(prompt.includes('approved adult clothing state, intimate composition'));
+  assert(prompt.includes('exactly the companion and one anonymous fictional adult partner'));
+  assert(prompt.includes('Exactly two people throughout'));
+  assert(prompt.includes('Each keeps exactly two arms, two hands, two legs'));
+  assert(prompt.includes('age 25+'));
+  assert(prompt.includes('without censorship'));
   assert(prompt.includes('continuous anatomically correct motion')||prompt.includes('authorized sexual act'));
   assert(!prompt.includes('Keep every originally covered body area covered'));
   assert(!prompt.includes('or large pose changes'));

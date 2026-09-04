@@ -69,6 +69,8 @@ Deno.test("video quality prompt explicitly rejects doll anatomy and temporal bod
   assertStringIncludes(adult, "Authorized fictional-adult nudity and consensual sexual activity may pass");
   assertStringIncludes(adult, "should not be failed as unexpected_nudity_or_sexual_content");
   assertStringIncludes(adult, "Fail unexpected_censoring if clothing");
+  assertStringIncludes(standard, "brief isolated generation glitch");
+  assertStringIncludes(standard, "should PASS with duplicate_body_parts");
   const partnered = buildVideoQualityPrompt(true, true);
   assertStringIncludes(
     partnered,
@@ -83,6 +85,15 @@ Deno.test("video quality verdict parsing is strict and retains anatomy failures"
     status: "pass",
     reasonCodes: [],
   });
+  assertEquals(
+    parseVideoQualityVerdict(
+      "PASS: duplicate_body_parts, temporal_anatomy_inconsistency",
+    ),
+    {
+      status: "pass",
+      reasonCodes: ["duplicate_body_parts", "temporal_anatomy_inconsistency"],
+    },
+  );
   assertEquals(
     parseVideoQualityVerdict(
       "FAIL: doll_like_anatomy, temporal_anatomy_inconsistency",
@@ -110,6 +121,13 @@ Deno.test("video quality verdict parsing is strict and retains anatomy failures"
       reasonCodes: ["identity_drift"],
     }),
     { status: "fail", reasonCodes: ["identity_drift"] },
+  );
+  assertEquals(
+    parseVideoQualityVerdict({
+      verdict: "PASS",
+      reasonCodes: ["duplicate_body_parts"],
+    }),
+    { status: "pass", reasonCodes: ["duplicate_body_parts"] },
   );
 });
 
@@ -140,6 +158,17 @@ Deno.test("video delivery fails closed when quality cannot be verified", () => {
     {
       action: "reject",
       reasonCodes: ["doll_like_anatomy"],
+      verificationUnavailable: false,
+    },
+  );
+  assertEquals(
+    resolveVideoQualityDecision({
+      status: "pass",
+      reasonCodes: ["duplicate_body_parts"],
+    }, true),
+    {
+      action: "accept",
+      reasonCodes: ["duplicate_body_parts"],
       verificationUnavailable: false,
     },
   );

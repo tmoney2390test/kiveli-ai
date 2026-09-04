@@ -59,12 +59,13 @@ export function buildVideoQualityPrompt(
       : "Authorized fictional-adult nudity and consensual sexual activity may pass and should not be failed as unexpected_nudity_or_sexual_content, but only when every person is unmistakably an adult and all visible anatomy, including genitals, breasts, and buttocks present in the opening frame, stays natural, complete, coherent, uncovered, and stable through time. Fail unexpected_censoring if clothing, blur, bars, or blank anatomy appear over requested nudity."
     : "This is a standard or romantic Kivelle video. Fail unexpected_nudity_or_sexual_content for exposed breasts, nipples, buttocks, genitals, sexual activity, fetish presentation, or sexual posing, including content that was not present in the opening image.";
   return [
-    "Act as a strict pre-delivery quality inspector for this short generated character video. Inspect the complete timeline, not only the opening frame.",
+    "Act as a practical pre-delivery quality inspector for this short generated character video. Inspect the complete timeline, not only the opening frame.",
     contentRule,
-    "Return exactly PASS only when the video is suitable for delivery. Otherwise return FAIL followed only by comma-separated codes from: doll_like_anatomy, missing_anatomy, fused_anatomy, malformed_anatomy, body_proportion_error, duplicate_body_parts, malformed_hands, digit_error, temporal_anatomy_inconsistency, identity_drift, unexpected_nudity_or_sexual_content, unexpected_censoring, ambiguous_age, adult_safety_violation, rendered_text, video_quality_failed.",
+    "Use a viewer-centered threshold. A brief isolated generation glitch that appears for only one sampled instant and does not obscure the subject, identity, requested action, or safety may still be delivered. Return PASS followed by any applicable comma-separated quality codes as non-blocking advisories for such minor glitches. Return FAIL only for a safety violation or a defect that is prominent, materially disruptive, or persists across multiple consecutive moments.",
+    "Return PASS, optionally followed by advisory codes, when suitable for delivery. Otherwise return FAIL followed only by comma-separated codes from: doll_like_anatomy, missing_anatomy, fused_anatomy, malformed_anatomy, body_proportion_error, duplicate_body_parts, malformed_hands, digit_error, temporal_anatomy_inconsistency, identity_drift, unexpected_nudity_or_sexual_content, unexpected_censoring, ambiguous_age, adult_safety_violation, rendered_text, video_quality_failed.",
     "Fail doll_like_anatomy when a chest, pelvic, genital, buttock, or other body region looks like smooth plastic, a mannequin, a doll, or a featureless synthetic patch instead of natural adult anatomy.",
     "Fail missing_anatomy, fused_anatomy, or malformed_anatomy for absent, merged, melted, disconnected, implausibly shaped, or incoherent visible body structures. Fail unexpected_censoring for accidental blanking, smoothing, blur, bars, mosaics, invented fabric, or other visual censorship.",
-    "Fail temporal_anatomy_inconsistency when body parts, proportions, coverage, or visible anatomy appear, vanish, fuse, split, or change unnaturally between frames. Also fail distorted hands, extra or missing digits, duplicate parts, severe identity drift, text, watermarks, or unstable faces.",
+    "Fail temporal_anatomy_inconsistency when body parts, proportions, coverage, or visible anatomy appear, vanish, fuse, split, or change unnaturally across multiple consecutive moments. A fleeting extra limb, hand, or digit limited to one sampled instant should PASS with duplicate_body_parts, malformed_hands, digit_error, or temporal_anatomy_inconsistency retained only as an advisory. Fail persistent duplicate parts, severe identity drift, prominent text or watermarks, or repeatedly unstable faces.",
     "Every person must be an unambiguously fictional adult. Fail ambiguous_age or adult_safety_violation for an underage or age-ambiguous presentation, non-consent, coercion, sexual violence, incest, bestiality, trafficking, exploitation, a real person or deepfake, or illegal content.",
     "Do not describe the video and do not repeat any dialogue, prompt, identity, or sexual details. Output only the verdict contract.",
   ].join(" ");
@@ -82,12 +83,12 @@ export function parseVideoQualityVerdict(output: unknown): VideoQualityVerdict {
     /[`"']/g,
     "",
   ).trim();
-  if (/^PASS\b/i.test(text)) return { status: "pass", reasonCodes: [] };
-  if (!/^FAIL\b/i.test(text)) return { status: "unavailable", reasonCodes: [] };
   const lower = text.toLowerCase(),
     reasons = VIDEO_QUALITY_REASONS.filter((reason) =>
       lower.includes(reason) || lower.includes(reason.replaceAll("_", " "))
     );
+  if (/^PASS\b/i.test(text)) return { status: "pass", reasonCodes: [...reasons] };
+  if (!/^FAIL\b/i.test(text)) return { status: "unavailable", reasonCodes: [] };
   return {
     status: "fail",
     reasonCodes: reasons.length ? [...reasons] : ["video_quality_failed"],
@@ -108,14 +109,14 @@ function structuredVideoQualityVerdict(
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>,
     status = String(record.verdict ?? record.status ?? "").toUpperCase();
-  if (status === "PASS") return { status: "pass", reasonCodes: [] };
-  if (status !== "FAIL") return null;
   const requested = Array.isArray(record.reasonCodes)
       ? record.reasonCodes.map((reason) => String(reason).toLowerCase())
       : [],
     reasons = VIDEO_QUALITY_REASONS.filter((reason) =>
       requested.includes(reason)
     );
+  if (status === "PASS") return { status: "pass", reasonCodes: [...reasons] };
+  if (status !== "FAIL") return null;
   return {
     status: "fail",
     reasonCodes: reasons.length ? [...reasons] : ["video_quality_failed"],
@@ -132,7 +133,7 @@ export function resolveVideoQualityDecision(
   if (verdict.status === "pass") {
     return {
       action: "accept",
-      reasonCodes: [],
+      reasonCodes: verdict.reasonCodes,
       verificationUnavailable: false,
     };
   }
