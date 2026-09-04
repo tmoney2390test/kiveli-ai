@@ -1,8 +1,7 @@
 import type { ImageSource } from 'expo-image';
 
-// Vharadren is being illustrated in authored batches. Keep this map limited to
-// scenes that have passed visual review so unfinished places continue to use
-// their normal world-level fallback instead of an unrelated location image.
+// Vharadren's complete authored location set. Every entry below has passed
+// visual review and has a matching private canonical reference in production.
 export const vharadrenLocationAssets:Record<string,ImageSource>={
   'crownspire':require('../../assets/locations/vharadren/crownspire.jpg'),
   'black-march':require('../../assets/locations/vharadren/black-march.jpg'),
@@ -40,4 +39,19 @@ export const vharadrenLocationAssets:Record<string,ImageSource>={
   'briar-and-cup':require('../../assets/locations/vharadren/briar-and-cup.jpg'),
   'weeping-archive':require('../../assets/locations/vharadren/weeping-archive.jpg'),
   'hollow-crown-grove':require('../../assets/locations/vharadren/hollow-crown-grove.jpg'),
+  'drowned-crown-palace':require('../../assets/locations/vharadren/drowned-crown-palace.jpg'),
+  'knifeharbor-market':require('../../assets/locations/vharadren/knifeharbor-market.jpg'),
+  'lantern-rooms':require('../../assets/locations/vharadren/lantern-rooms.jpg'),
+  'salt-widow-tavern':require('../../assets/locations/vharadren/salt-widow-tavern.jpg'),
+  'greymere-shipyard':require('../../assets/locations/vharadren/greymere-shipyard.jpg'),
+  'tidevault-prison':require('../../assets/locations/vharadren/tidevault-prison.jpg'),
+  'saint-orlas-lighthouse':require('../../assets/locations/vharadren/saint-orlas-lighthouse.jpg'),
+  'cinder-camp':require('../../assets/locations/vharadren/cinder-camp.jpg'),
+  'chainbreakers-market':require('../../assets/locations/vharadren/chainbreakers-market.jpg'),
+  'glass-battlefield':require('../../assets/locations/vharadren/glass-battlefield.jpg'),
+  'unshackled-cup':require('../../assets/locations/vharadren/unshackled-cup.jpg'),
+  'ash-mother-infirmary':require('../../assets/locations/vharadren/ash-mother-infirmary.jpg'),
+  'old-imperial-waystation':require('../../assets/locations/vharadren/old-imperial-waystation.jpg'),
+  'vault-nameless-kings':require('../../assets/locations/vharadren/vault-nameless-kings.jpg'),
+  'saintless-house':require('../../assets/locations/vharadren/saintless-house.jpg'),
 };

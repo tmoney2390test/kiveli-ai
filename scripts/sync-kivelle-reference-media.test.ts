@@ -131,6 +131,48 @@ test('discovers and registers the complete Verdant Reach location-art set',async
   assert.equal(keys.size,mappedCount,'Every published Vharadren reference must also be registered with the client resolver');
 });
 
+test('discovers and registers the complete Shattered Coast location-art set',async()=>{
+  const assets=await discoverAssets();
+  const keys=new Set(assets.filter((asset)=>asset.role==='location_canonical'&&asset.worldSlug==='vharadren').map((asset)=>asset.sourceKey));
+  const moduleSource=await readFile('apps/together/src/location-assets/vharadren.ts','utf8');
+  for(const slug of[
+    'drowned-crown-palace',
+    'greymere-shipyard',
+    'knifeharbor-market',
+    'lantern-rooms',
+    'saint-orlas-lighthouse',
+    'salt-widow-tavern',
+    'tidevault-prison',
+  ]){
+    assert.ok(keys.has(`location:vharadren:${slug}:canonical`),`${slug} must remain discoverable`);
+    assert.match(moduleSource,new RegExp(`'${slug}':require\\('\\.\\./\\.\\./assets/locations/vharadren/${slug}\\.jpg'\\)`));
+  }
+  const mappedCount=(moduleSource.match(/assets\/locations\/vharadren\//g)??[]).length;
+  assert.equal(keys.size,mappedCount,'Every published Vharadren reference must also be registered with the client resolver');
+});
+
+test('discovers and registers the complete Ashlands location-art set',async()=>{
+  const assets=await discoverAssets();
+  const keys=new Set(assets.filter((asset)=>asset.role==='location_canonical'&&asset.worldSlug==='vharadren').map((asset)=>asset.sourceKey));
+  const moduleSource=await readFile('apps/together/src/location-assets/vharadren.ts','utf8');
+  for(const slug of[
+    'ash-mother-infirmary',
+    'chainbreakers-market',
+    'cinder-camp',
+    'glass-battlefield',
+    'old-imperial-waystation',
+    'saintless-house',
+    'unshackled-cup',
+    'vault-nameless-kings',
+  ]){
+    assert.ok(keys.has(`location:vharadren:${slug}:canonical`),`${slug} must remain discoverable`);
+    assert.match(moduleSource,new RegExp(`'${slug}':require\\('\\.\\./\\.\\./assets/locations/vharadren/${slug}\\.jpg'\\)`));
+  }
+  const mappedCount=(moduleSource.match(/assets\/locations\/vharadren\//g)??[]).length;
+  assert.equal(keys.size,51,'The complete Vharadren location set must remain discoverable');
+  assert.equal(mappedCount,51,'Every Vharadren location must remain registered with the client resolver');
+});
+
 test('discovers the authored Vharadren primary and supplied secondary portrait pack',async()=>{
   const assets=await discoverAssets();
   const vharadren=assets.filter((asset)=>asset.role==='character_identity'&&asset.worldSlug==='vharadren');

@@ -29,14 +29,16 @@ describe('Vharadren playable world',()=>{
     expect(vharadrenLocations.find((location)=>location.id===VHARADREN_ARRIVAL_ID)?.slug).toBe('gilded-steps-market');
   });
 
-  it('keeps every location prompt-ready while the authored art rollout is partial',()=>{
+  it('keeps every location prompt-ready with a complete authored art catalog',()=>{
     expect(new Set(vharadrenLocations.map((location)=>location.id)).size).toBe(51);
     expect(new Set(vharadrenLocations.map((location)=>location.slug)).size).toBe(51);
     expect(vharadrenLocations.every((location)=>location.canonical_visual_context?.canonicalPrompt?.includes('Vharadren'))).toBe(true);
     expect(vharadrenLocations.every((location)=>location.canonical_lore?.version===2&&location.canonical_lore.authored===true)).toBe(true);
-    expect(vharadrenLocations.every((location)=>location.metadata?.photoStatus==='pending')).toBe(true);
+    expect(vharadrenLocations.every((location)=>location.metadata?.photoStatus==='ready')).toBe(true);
     expect(vharadrenAssetSlots.locations).toHaveLength(51);
-    expect(vharadrenAssetSlots.locations.every((slot)=>slot.status==='pending')).toBe(true);
+    expect(vharadrenAssetSlots.locations.every((slot)=>slot.status==='ready')).toBe(true);
+    expect(vharadrenWorld.metadata.locationPhotoStatus).toBe('ready');
+    expect(vharadrenWorld.metadata.mappedLocationPhotoCount).toBe(51);
   });
 
   it('registers all 49 portrait slots without bundling server-only adult character depth',()=>{

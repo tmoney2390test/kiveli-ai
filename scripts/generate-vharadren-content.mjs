@@ -112,8 +112,8 @@ const publicLocation = (location) => {
     metadata: {
       source: 'vharadren_content_pack_v1',
       district: location.districtSlug,
-      assetStatus: 'pending',
-      photoStatus: 'pending',
+      assetStatus: 'ready',
+      photoStatus: 'ready',
       imageSlotKey: location.visualAssetKey,
       userLocalClock: true,
     },
@@ -131,8 +131,8 @@ const publicWorldMetadata = {
   residentScheduleStatus: 'authored_weekly_v1',
   socialGraphStatus: 'authored_v1',
   photoStatus: 'hero_ready',
-  locationPhotoStatus: 'slots_pending',
-  mappedLocationPhotoCount: 0,
+  locationPhotoStatus: 'ready',
+  mappedLocationPhotoCount: 51,
   locationImageSlotCount: 51,
   residentPortraitStatus: 'slots_pending',
   mappedResidentPortraitCount: 0,
@@ -692,7 +692,7 @@ const worldModule = `import type{Location,World}from'../types';
 export const VHARADREN_WORLD_ID='${pack.world.id}';
 export const VHARADREN_ARRIVAL_ID='2d000000-0000-4000-8000-000000000009';
 export const vharadrenCharacterSlugs=${json(pack.characters.map((item) => item.slug))} as const;
-export const vharadrenAssetSlots={hero:{key:'vharadren-hero',status:'ready'},locations:${json(pack.locations.map((item) => ({ key: item.visualAssetKey, status: 'pending' })))},portraits:${json(pack.characters.map((item) => ({ key: item.portraitAssetKey, status: 'pending' })))}} as const;
+export const vharadrenAssetSlots={hero:{key:'vharadren-hero',status:'ready'},locations:${json(pack.locations.map((item) => ({ key: item.visualAssetKey, status: 'ready' })))},portraits:${json(pack.characters.map((item) => ({ key: item.portraitAssetKey, status: 'pending' })))}} as const;
 export const vharadrenWorld:World=${json(appWorld)};
 export const vharadrenLocations:Location[]=${json(pack.locations.map(publicLocation))};
 `;
