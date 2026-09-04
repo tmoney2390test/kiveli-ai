@@ -18,4 +18,12 @@ export const vharadrenLocationAssets:Record<string,ImageSource>={
   'blackglass-baths':require('../../assets/locations/vharadren/blackglass-baths.jpg'),
   'red-ledger-exchange':require('../../assets/locations/vharadren/red-ledger-exchange.jpg'),
   'lantern-gallows':require('../../assets/locations/vharadren/lantern-gallows.jpg'),
+  'thornwall-keep':require('../../assets/locations/vharadren/thornwall-keep.jpg'),
+  'ironwake-foundry':require('../../assets/locations/vharadren/ironwake-foundry.jpg'),
+  'red-mare-camp-market':require('../../assets/locations/vharadren/red-mare-camp-market.jpg'),
+  'broken-spur-tavern':require('../../assets/locations/vharadren/broken-spur-tavern.jpg'),
+  'house-red-reeds':require('../../assets/locations/vharadren/house-red-reeds.jpg'),
+  'deepnail-mines':require('../../assets/locations/vharadren/deepnail-mines.jpg'),
+  'wolfgate-barracks':require('../../assets/locations/vharadren/wolfgate-barracks.jpg'),
+  'chapel-iron-saint':require('../../assets/locations/vharadren/chapel-iron-saint.jpg'),
 };
