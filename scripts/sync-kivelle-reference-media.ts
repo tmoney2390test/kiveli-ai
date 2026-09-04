@@ -2,15 +2,18 @@ import{createClient,type SupabaseClient}from'@supabase/supabase-js';
 import{createHash}from'node:crypto';
 import{readFile,readdir}from'node:fs/promises';
 import{extname,join,parse}from'node:path';
+import{pathToFileURL}from'node:url';
 import{locations as eosMeridianLocations}from'./eos-meridian-content.mjs';
 
-const root=process.cwd(),apply=process.argv.includes('--apply'),charactersOnly=process.argv.includes('--characters-only'),locationsOnly=process.argv.includes('--locations-only'),worldSlugFilter=process.argv.find((argument)=>argument.startsWith('--world='))?.slice('--world='.length),url=process.env.SUPABASE_URL,key=process.env.SUPABASE_SECRET_KEY??process.env.SUPABASE_SERVICE_ROLE_KEY;
-if(!url||!key)throw new Error('SUPABASE_URL and SUPABASE_SECRET_KEY are required.');
-const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}}),bucket='kivelle-reference-media';
+const root=process.cwd(),apply=process.argv.includes('--apply'),charactersOnly=process.argv.includes('--characters-only'),locationsOnly=process.argv.includes('--locations-only'),worldSlugFilter=process.argv.find((argument)=>argument.startsWith('--world='))?.slice('--world='.length),bucket='kivelle-reference-media';
+export const DIRECT_LOCATION_ARTWORK_WORLDS=['juniper-city','port-vervelle','neon-kyo','northvale','vespormoor'] as const;
 
 type Asset={sourceKey:string;role:'character_identity'|'location_canonical'|'world_canonical';path:string;worldSlug?:string;locationSlug?:string;characterSlug?:string};
 
 async function main(){
+  const url=process.env.SUPABASE_URL,key=process.env.SUPABASE_SECRET_KEY??process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if(!url||!key)throw new Error('SUPABASE_URL and SUPABASE_SECRET_KEY are required.');
+  const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
   const discovered=await discoverAssets();
   let assets=charactersOnly?discovered.filter((asset)=>asset.role==='character_identity'):locationsOnly?discovered.filter((asset)=>asset.role==='location_canonical'):discovered;
   if(worldSlugFilter)assets=assets.filter((asset)=>asset.worldSlug===worldSlugFilter);
@@ -38,9 +41,12 @@ async function main(){
   console.log(JSON.stringify({...summary,mode:apply?'apply':'dry-run'}));
 }
 
-async function discoverAssets():Promise<Asset[]>{
+export async function discoverAssets():Promise<Asset[]>{
   const output:Asset[]=[];
-  for(const worldSlug of['juniper-city','port-vervelle','neon-kyo']){
+  // Worlds with one authored image per canonical location can be discovered
+  // directly from their asset directories. Eos Meridian remains below because
+  // its district artwork is intentionally shared by several child locations.
+  for(const worldSlug of DIRECT_LOCATION_ARTWORK_WORLDS){
     const directory=join(root,'apps','together','assets','locations',worldSlug),files=await readdir(directory);
     for(const name of files.filter((item)=>/\.(jpe?g|png|webp)$/i.test(item))){
       const slug=parse(name).name;
@@ -64,4 +70,4 @@ async function loadContext(client:SupabaseClient){const[{data:worlds,error:world
 function resolveScope(asset:Asset,context:Awaited<ReturnType<typeof loadContext>>){if(asset.characterSlug){const template=context.templates.find((item)=>item.slug===asset.characterSlug);const versions=(template?.together_character_versions??[]) as Array<{id:string;version:number;published_at?:string}>;const version=[...versions].sort((a,b)=>Number(b.version)-Number(a.version))[0];return version?{character_version_id:version.id}:null;}if(asset.worldSlug&&!asset.locationSlug){const id=context.worlds.get(asset.worldSlug);return id?{world_id:id}:null;}if(asset.worldSlug&&asset.locationSlug){const worldId=context.worlds.get(asset.worldSlug),location=context.locations.find((item)=>item.world_id===worldId&&item.slug===asset.locationSlug);return location?{location_id:location.id}:null;}return null;}
 function imageDimensions(bytes:Buffer,contentType:string):{width?:number;height?:number}{if(contentType==='image/png'&&bytes.length>=24)return{width:bytes.readUInt32BE(16),height:bytes.readUInt32BE(20)};if(contentType==='image/jpeg'){let offset=2;while(offset+9<bytes.length){if(bytes[offset]!==0xff){offset+=1;continue;}const marker=bytes[offset+1]!,length=bytes.readUInt16BE(offset+2);if([0xc0,0xc1,0xc2,0xc3,0xc5,0xc6,0xc7,0xc9,0xca,0xcb,0xcd,0xce,0xcf].includes(marker))return{height:bytes.readUInt16BE(offset+5),width:bytes.readUInt16BE(offset+7)};offset+=2+length;}}return{};}
 
-await main();
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)await main();
