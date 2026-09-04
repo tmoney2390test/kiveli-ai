@@ -11,6 +11,7 @@ export type NormalizedAiUsage = {
 export const aiPricing = {
   openai: {
     'gpt-5.6-luna': { inputPerMillion: 0.2, cachedInputPerMillion: 0.02, outputPerMillion: 1.2 },
+    'gpt-4.1-nano': { inputPerMillion: 0.1, cachedInputPerMillion: 0.025, outputPerMillion: 0.4 },
     'text-embedding-3-small': { inputPerMillion: 0.02, cachedInputPerMillion: 0, outputPerMillion: 0 },
   },
   xai: {
@@ -39,12 +40,14 @@ export function normalizeResponsesUsage(provider: 'openai' | 'xai', raw: unknown
   };
 }
 
-export function estimateAiCost(provider: 'openai' | 'xai', model: string, usage: NormalizedAiUsage): number | null {
+export function estimateAiCost(provider: 'openai' | 'xai', model: string, usage: NormalizedAiUsage, serviceTier?:unknown): number | null {
   const registry = aiPricing[provider] as Record<string, { inputPerMillion: number; cachedInputPerMillion: number; outputPerMillion: number }>;
   const price = registry[model];
   if (!price) return null;
   const uncached = Math.max(0, usage.inputTokens - usage.cachedInputTokens);
-  return (uncached * price.inputPerMillion + usage.cachedInputTokens * price.cachedInputPerMillion + usage.outputTokens * price.outputPerMillion) / 1_000_000;
+  const normalizedTier=typeof serviceTier==='string'?serviceTier.trim().toLowerCase():'';
+  const multiplier=provider==='openai'&&(normalizedTier==='fast'||normalizedTier==='priority')?2:1;
+  return multiplier*(uncached * price.inputPerMillion + usage.cachedInputTokens * price.cachedInputPerMillion + usage.outputTokens * price.outputPerMillion) / 1_000_000;
 }
 
 export type AiUsageSummary = {

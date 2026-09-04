@@ -11,17 +11,18 @@ describe('Kivelle Responses provider adapter',()=>{
     if(provider==='xai')expect(parsedBody['prompt_cache_key']).toBe('kivelle_opaque');
   });
   it.each(['none','low','medium','high'] as const)('constructs a request with %s reasoning',reasoningEffort=>{expect(buildResponsesRequestBody({model:'gpt-5.6-luna',prompt:'hello',maxOutputTokens:900,stream:true,reasoningEffort})).toMatchObject({reasoning:{effort:reasoningEffort},stream:true,max_output_tokens:900});});
-  it('includes temperature only when explicitly resolved and preserves prompt caching',()=>{expect(buildResponsesRequestBody({model:'grok-4.3',prompt:'hello',maxOutputTokens:900,stream:false,promptCacheKey:'opaque',reasoningEffort:'low',temperature:.85})).toMatchObject({reasoning:{effort:'low'},temperature:.85,prompt_cache_key:'opaque'});expect(buildResponsesRequestBody({model:'gpt-5.6-luna',prompt:'hello',maxOutputTokens:900,stream:false,reasoningEffort:'medium'})).not.toHaveProperty('temperature');});
+  it('omits the reasoning object for lightweight non-reasoning models',()=>{expect(buildResponsesRequestBody({model:'gpt-4.1-nano',prompt:'hello',maxOutputTokens:160,stream:true,includeReasoning:false})).not.toHaveProperty('reasoning');});
+  it('includes explicitly resolved temperature, prompt caching, and service tier controls',()=>{expect(buildResponsesRequestBody({model:'grok-4.3',prompt:'hello',maxOutputTokens:900,stream:false,promptCacheKey:'opaque',reasoningEffort:'low',temperature:.85,serviceTier:'fast'})).toMatchObject({reasoning:{effort:'low'},temperature:.85,prompt_cache_key:'opaque',service_tier:'fast'});expect(buildResponsesRequestBody({model:'gpt-5.6-luna',prompt:'hello',maxOutputTokens:900,stream:false,reasoningEffort:'medium'})).not.toHaveProperty('temperature');});
   it('recognizes only an explicit unsupported sampling-parameter response as retryable',()=>{expect(isUnsupportedTemperatureResponse(400,{error:{message:'temperature is not supported with this model'}})).toBe(true);expect(isUnsupportedTemperatureResponse(422,'Invalid sampling parameter temperature')).toBe(true);expect(isUnsupportedTemperatureResponse(429,'temperature quota')).toBe(false);expect(isUnsupportedTemperatureResponse(400,'reasoning effort unsupported')).toBe(false);});
   it('parses non-streaming text and streaming completion usage',()=>{
     expect(extractResponsesText({output_text:' hi '})).toBe('hi');
     expect(parseResponsesStreamEvent({type:'response.output_text.delta',delta:'hey'})).toEqual({token:'hey'});
-    expect(parseResponsesStreamEvent({type:'response.completed',response:{usage:{input_tokens:5}}})).toEqual({usage:{input_tokens:5}});
+    expect(parseResponsesStreamEvent({type:'response.completed',response:{usage:{input_tokens:5},service_tier:'priority'}})).toEqual({usage:{input_tokens:5},serviceTier:'priority'});
   });
   it('derives a stable opaque cache key without exposing conversation identifiers',async()=>{
     const scope={conversationId:'conversation-private',continuityId:'life-private',characterInstanceId:'character-private'};
     const first=await deriveOpaquePromptCacheKey(scope),second=await deriveOpaquePromptCacheKey(scope);
-    expect(first).toBe(second);expect(first).toMatch(/^kivelle_[0-9a-f]{64}$/);expect(first).not.toContain('conversation-private');
+    expect(first).toBe(second);expect(first).toMatch(/^kivelle_[0-9a-f]{56}$/);expect(first.length).toBeLessThanOrEqual(64);expect(first).not.toContain('conversation-private');
   });
   it('never retries another provider after partial output and never sends explicit fallback to OpenAI',()=>{
     expect(canRetryStreamFailure(false)).toBe(true);expect(canRetryStreamFailure(true)).toBe(false);

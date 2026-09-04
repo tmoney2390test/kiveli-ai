@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { isLifeSetupPath, isPublicAppPath, joinPathFor, safeAppReturnPath, shouldHoldPrivateWebRouteForHydration, signInPathFor } from './sessionRouting';
+import { isLifeSetupPath, isPublicAppPath, joinPathFor, safeAppReturnPath, shouldHoldPrivateWebRouteForHydration, shouldKeepAuthTransitionMounted, signInPathFor } from './sessionRouting';
 
 describe('session routing', () => {
+  it('keeps auth handoff routes mounted when a session appears',()=>{
+    expect(shouldKeepAuthTransitionMounted('/auth')).toBe(true);
+    expect(shouldKeepAuthTransitionMounted('/auth/callback/')).toBe(true);
+    expect(shouldKeepAuthTransitionMounted('/reset-password')).toBe(true);
+    expect(shouldKeepAuthTransitionMounted('/home')).toBe(false);
+  });
+
   it('recognizes only routes that can safely render without a session', () => {
     expect(isPublicAppPath('/')).toBe(true);
     expect(isPublicAppPath('/auth')).toBe(true);

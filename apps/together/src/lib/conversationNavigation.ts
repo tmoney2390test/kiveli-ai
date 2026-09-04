@@ -90,6 +90,18 @@ export function mediaViewerHref(mediaId: string, returnTo?: string | null): stri
   return `${path}?${new URLSearchParams({ returnTo: conversation }).toString()}`;
 }
 
+export function conversationLocationHref(
+  locationSlug: string,
+  options: { worldSlug?: string | null; character?: string | null } = {},
+): string {
+  const path = `/location/${encodeURIComponent(locationSlug)}`;
+  const params = new URLSearchParams();
+  if (options.worldSlug) params.set("world", options.worldSlug);
+  if (options.character) params.set("character", options.character);
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
+}
+
 export function isConversationPath(pathname: string): boolean {
   const path = (pathname.split(/[?#]/, 1)[0] ?? "").replace(/\/$/, "") || "/";
   return path === "/chat" || path === "/group-chat";

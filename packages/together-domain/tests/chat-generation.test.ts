@@ -135,6 +135,13 @@ describe('generation profile resolution', () => {
     expect(profile.reasonCodes).toEqual(['explicit_user_preference']);
   });
 
+  it('reserves accelerated delivery for an explicitly selected Fast preference',()=>{
+    const fast=resolveDialogueGenerationProfile({...baseInput,preferences:{chatDynamism:50,reasoningPreference:'none'}});
+    const automatic=resolveDialogueGenerationProfile({...baseInput,preferences:{chatDynamism:50,reasoningPreference:'auto'}});
+    expect(fast.latencyProfile).toBe('fast');
+    expect(automatic.latencyProfile).toBe('standard');
+  });
+
   it('applies subscription and provider clamps in a stable order', () => {
     const profile = resolveDialogueGenerationProfile({
       ...baseInput,

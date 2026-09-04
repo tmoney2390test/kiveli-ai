@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { creatorReadiness, routineConflicts, type CreatorRoutineBlock } from '../../../packages/together-domain/src/index.ts';
+import { creatorReadiness, imageDimensions, routineConflicts, type CreatorRoutineBlock } from '../../../packages/together-domain/src/index.ts';
 import { AppError } from './types.ts';
+import { matchesChatPhotoSignature } from './chat-photo-policy.ts';
 import { ConfiguredModerationProvider } from './together-ai.ts';
 import { ConfiguredCharacterCreationProvider, appearanceCandidates, type CharacterDraftProposal } from './together-creator.ts';
 import { activeContinuity } from './together-continuity.ts';
@@ -13,6 +14,7 @@ import { track } from './together.ts';
 const identitySchema = z.object({
   name: z.string().trim().min(1).max(50),
   age: z.number().int().min(18).max(99),
+  gender: z.string().trim().max(40).optional().default(''),
   pronouns: z.string().trim().max(40).optional().default(''),
   occupation: z.string().trim().min(1).max(100),
   biography: z.string().trim().min(20).max(1000),
@@ -55,7 +57,7 @@ const routineSchema = z.object({ blocks: z.array(routineBlockSchema).min(1).max(
 
 type Db = any;
 type StudioAction = Record<string, any> & { action: string };
-const studioActions = new Set(['create_draft', 'get_draft', 'list_drafts', 'update_draft_section', 'regenerate_draft_section', 'generate_draft_appearance', 'select_draft_appearance', 'select_first_meeting', 'finalize_draft', 'archive_draft']);
+const studioActions = new Set(['create_draft', 'get_draft', 'list_drafts', 'update_draft_section', 'regenerate_draft_section', 'generate_draft_appearance', 'select_draft_appearance', 'authorize_draft_appearance_upload', 'complete_draft_appearance_upload', 'cancel_draft_appearance_upload', 'select_first_meeting', 'finalize_draft', 'archive_draft']);
 const provider = new ConfiguredCharacterCreationProvider();
 const moderation = new ConfiguredModerationProvider();
 
@@ -85,6 +87,9 @@ export async function handleCreatorStudioAction(input: {
   if (action.action === 'regenerate_draft_section') return regenerateSection(db, userId, draft, action, now);
   if (action.action === 'generate_draft_appearance') return generateAppearance(db, userId, draft, action, now);
   if (action.action === 'select_draft_appearance') return selectAppearance(db, userId, draft, action, now);
+  if (action.action === 'authorize_draft_appearance_upload') return authorizeAppearanceUpload(db, userId, draft, action, now);
+  if (action.action === 'complete_draft_appearance_upload') return completeAppearanceUpload(db, userId, draft, action, now);
+  if (action.action === 'cancel_draft_appearance_upload') return cancelAppearanceUpload(db, userId, draft, action, now);
   if (action.action === 'select_first_meeting') return selectFirstMeeting(db, userId, draft, action, now);
   if (action.action === 'finalize_draft') return finalizeDraft(db, userId, draft, action, now);
   throw new AppError('VALIDATION_ERROR', 'Unknown Creator Studio action.', 400);
@@ -109,12 +114,13 @@ async function createDraft(db: Db, userId: string, input: StudioAction, now: str
   const { data: world } = await db.from('together_worlds').select('id,name,default_arrival_location_id').eq('id', worldId).eq('published', true).maybeSingle();
   if (!world) throw new AppError('NOT_FOUND', 'Choose an available world.', 404);
   const proposal = await provider.propose(concept);
+  const seed = input.identitySeed && typeof input.identitySeed === 'object' ? input.identitySeed as Record<string, unknown> : null;
   const locations = await worldLocations(db, worldId);
   const home = chooseHomeArea(locations, world.default_arrival_location_id);
   if (!home) throw new AppError('CONFLICT', 'That world needs an authored district or neighborhood before someone can live there.', 409);
   const work = chooseWorkLocation(locations, proposal.occupation, proposal.interests, home.id);
   const identity = identitySchema.parse({
-    name: proposal.displayName, age: proposal.age, pronouns: proposal.pronouns ?? '', occupation: proposal.occupation,
+    name: seed?.name ?? proposal.displayName, age: seed?.age ?? proposal.age, gender: seed?.gender ?? '', pronouns: seed?.pronouns ?? proposal.pronouns ?? '', occupation: proposal.occupation,
     biography: proposal.biography, interests: proposal.interests, traits: proposal.traits,
     ambitions: [`Build a meaningful life as ${article(proposal.occupation)} ${proposal.occupation.toLowerCase()}.`],
   });
@@ -132,11 +138,11 @@ async function createDraft(db: Db, userId: string, input: StudioAction, now: str
   const continuity = await activeContinuity(db, userId);
   const relationshipGoal = ['friendship', 'romance', 'either'].includes(String(input.relationshipGoal)) ? String(input.relationshipGoal) : 'either';
   const inserted = await db.from('together_creator_drafts').insert({
-    user_id: userId, target_continuity_id: continuity.id, world_id: worldId, status: 'editing', current_step: 'identity',
+    user_id: userId, target_continuity_id: continuity.id, world_id: worldId, status: 'editing', current_step: seed ? 'appearance' : 'identity',
     create_request_id: requestId, source_concept: concept, relationship_goal: relationshipGoal,
     identity_config: identity, personality_config: personality, communication_config: communication, connection_config: connection,
-    appearance_config: { description: proposal.appearanceDescription }, life_config: life, routine_config: routine,
-    first_meeting_config: firstMeeting, metadata: { providerMode: 'configured', contextVersion: 2 }, created_at: now, updated_at: now,
+    appearance_config: { description: String(seed?.description ?? '').trim().length >= 20 ? String(seed?.description).trim() : proposal.appearanceDescription }, life_config: life, routine_config: routine,
+    first_meeting_config: firstMeeting, metadata: { providerMode: 'configured', contextVersion: seed ? 3 : 2 }, created_at: now, updated_at: now,
   }).select('*').single();
   if (inserted.error || !inserted.data) {
     const retry = await db.from('together_creator_drafts').select('*').eq('user_id', userId).eq('create_request_id', requestId).maybeSingle();
@@ -152,8 +158,15 @@ async function updateDraftSection(db: Db, userId: string, draft: Record<string, 
   const section = String(input.section ?? '');
   let column: string;
   let config: Record<string, unknown>;
-  if (section === 'identity') { config = identitySchema.parse(input.config); column = 'identity_config'; }
-  else if (section === 'appearance') { config = { ...draft.appearance_config, ...appearanceSchema.parse(input.config) }; column = 'appearance_config'; }
+  if (section === 'identity') {
+    config = identitySchema.parse(input.config); column = 'identity_config';
+    if (Number(draft.metadata?.contextVersion ?? 0) >= 3 && !String(config.gender ?? '').trim()) throw new AppError('VALIDATION_ERROR', 'Gender is required for consistent chat and media generation.', 400);
+  }
+  else if (section === 'appearance') {
+    const appearance = appearanceSchema.parse(input.config);
+    if (Number(draft.metadata?.contextVersion ?? 0) >= 3 && appearance.description.length > 800) throw new AppError('VALIDATION_ERROR', 'Keep the appearance description to 800 characters.', 400);
+    config = { ...draft.appearance_config, ...appearance }; column = 'appearance_config';
+  }
   else if (section === 'personality') { config = personalitySchema.parse(input.config); column = 'personality_config'; }
   else if (section === 'communication') { config = communicationSchema.parse(input.config); column = 'communication_config'; }
   else if (section === 'connection') { config = connectionSchema.parse(input.config); column = 'connection_config'; }
@@ -242,6 +255,82 @@ async function generateAppearance(db: Db, userId: string, draft: Record<string, 
   }
 }
 
+async function authorizeAppearanceUpload(db: Db, userId: string, draft: Record<string, any>, input: StudioAction, now: string): Promise<Record<string, unknown>> {
+  const requestId = String(input.requestId ?? '');
+  const byteSize = Number(input.byteSize ?? 0);
+  const width = Number(input.width ?? 0);
+  const height = Number(input.height ?? 0);
+  const description = String(input.description ?? '').trim();
+  const referenceOrigin = String(input.referenceOrigin ?? '');
+  if (!z.string().uuid().safeParse(requestId).success || byteSize < 1 || byteSize > 10 * 1024 * 1024) throw new AppError('VALIDATION_ERROR', 'Choose a JPEG photo smaller than 10 MB.', 400);
+  if (width < 256 || height < 256 || Math.max(width, height) > 2048) throw new AppError('VALIDATION_ERROR', 'Use a clear portrait between 256 px and 2048 px on its longest edge.', 400);
+  if (description.length < 20 || description.length > 800) throw new AppError('VALIDATION_ERROR', 'Describe their appearance in 20 to 800 characters.', 400);
+  if (!['fictional_ai', 'authorized_real_person'].includes(referenceOrigin)) throw new AppError('VALIDATION_ERROR', 'Choose the kind of portrait reference you are uploading.', 400);
+  await moderateText(description);
+  const existing = await db.from('together_creator_assets').select('*').eq('draft_id', draft.id).eq('user_id', userId).eq('group_request_id', requestId).eq('provider', 'user_upload').maybeSingle();
+  if (existing.data) {
+    const signed = await db.storage.from('kivelle-character-reference').createSignedUploadUrl(existing.data.storage_path, { upsert: true });
+    if (signed.error || !signed.data?.token) throw new AppError('INTERNAL_ERROR', 'The portrait upload could not be authorized.', 500, true);
+    return { assetId: existing.data.id, path: existing.data.storage_path, token: signed.data.token, idempotent: true };
+  }
+  const assetId = crypto.randomUUID();
+  const path = `${userId}/creator-drafts/${draft.id}/uploaded-${requestId}.jpg`;
+  const inserted = await db.from('together_creator_assets').insert({
+    id: assetId, user_id: userId, draft_id: draft.id, asset_type: 'appearance_candidate', status: 'queued', label: 'Uploaded portrait', description,
+    storage_path: path, content_type: 'image/jpeg', width, height, provider: 'user_upload', model: 'normalized-jpeg', group_request_id: requestId, selected: false,
+    metadata: { source: 'user_upload', referenceOrigin, adultMediaReferenceEligible: referenceOrigin === 'fictional_ai', declaredByteSize: byteSize, declaredWidth: width, declaredHeight: height },
+    created_at: now, updated_at: now,
+  }).select('*').single();
+  if (inserted.error || !inserted.data) throw new AppError('INTERNAL_ERROR', 'The portrait upload could not be prepared.', 500, true);
+  const signed = await db.storage.from('kivelle-character-reference').createSignedUploadUrl(path, { upsert: true });
+  if (signed.error || !signed.data?.token) {
+    await db.from('together_creator_assets').delete().eq('id', assetId).eq('user_id', userId);
+    throw new AppError('INTERNAL_ERROR', 'The portrait upload could not be authorized.', 500, true);
+  }
+  return { assetId, path, token: signed.data.token };
+}
+
+async function completeAppearanceUpload(db: Db, userId: string, draft: Record<string, any>, input: StudioAction, now: string): Promise<Record<string, unknown>> {
+  const assetId = String(input.assetId ?? '');
+  const requestId = String(input.requestId ?? '');
+  const assetResult = await db.from('together_creator_assets').select('*').eq('id', assetId).eq('draft_id', draft.id).eq('user_id', userId).eq('group_request_id', requestId).eq('provider', 'user_upload').maybeSingle();
+  const asset = assetResult.data;
+  if (!asset) throw new AppError('NOT_FOUND', 'That portrait upload is no longer available.', 404);
+  if (asset.status === 'ready' && asset.selected) return { draft: await serializeDraft(db, draft, true), idempotent: true };
+  try {
+    const downloaded = await db.storage.from('kivelle-character-reference').download(asset.storage_path);
+    if (downloaded.error || !downloaded.data) throw new AppError('VALIDATION_ERROR', 'The portrait upload did not finish. Choose it again.', 400, true);
+    const bytes = new Uint8Array(await downloaded.data.arrayBuffer());
+    if (bytes.length < 1 || bytes.length > 10 * 1024 * 1024 || !matchesChatPhotoSignature(bytes, 'image/jpeg')) throw new AppError('VALIDATION_ERROR', 'That file is not a valid JPEG portrait.', 400);
+    const dimensions = imageDimensions(bytes, 'image/jpeg');
+    if (!dimensions || dimensions.width < 256 || dimensions.height < 256 || Math.max(dimensions.width, dimensions.height) > 2048) throw new AppError('VALIDATION_ERROR', 'Use a clear portrait between 256 px and 2048 px on its longest edge.', 400);
+    await db.from('together_creator_assets').update({ selected: false, updated_at: now }).eq('draft_id', draft.id).eq('user_id', userId).eq('asset_type', 'appearance_candidate');
+    const selected = await db.from('together_creator_assets').update({ status: 'ready', selected: true, width: dimensions.width, height: dimensions.height, updated_at: now, metadata: { ...(asset.metadata ?? {}), verifiedByteSize: bytes.length, verifiedAt: now } }).eq('id', assetId).eq('user_id', userId).select('*').single();
+    if (selected.error || !selected.data) throw new AppError('INTERNAL_ERROR', 'That portrait could not be selected.', 500, true);
+    const updated = await db.from('together_creator_drafts').update({
+      appearance_config: { ...draft.appearance_config, description: asset.description, selectedAssetId: assetId, canonicalDescription: asset.description, referenceStoragePaths: [asset.storage_path], referenceOrigin: asset.metadata?.referenceOrigin, adultMediaReferenceEligible: asset.metadata?.adultMediaReferenceEligible === true },
+      current_step: 'appearance', revision: draft.revision + 1, updated_at: now,
+    }).eq('id', draft.id).eq('user_id', userId).select('*').single();
+    const ready = await readiness(db, updated.data ?? draft);
+    const finalDraft = ready.ready ? await setDraftStatus(db, updated.data, 'ready', now) : updated.data;
+    await track(db, userId, 'custom_companion_portrait_uploaded', { creator_draft_id: draft.id, reference_origin: asset.metadata?.referenceOrigin });
+    return { draft: await serializeDraft(db, finalDraft, true), readiness: ready };
+  } catch (error) {
+    await db.storage.from('kivelle-character-reference').remove([asset.storage_path]);
+    await db.from('together_creator_assets').update({ status: 'failed', selected: false, updated_at: now, metadata: { ...(asset.metadata ?? {}), failure: 'validation_failed' } }).eq('id', asset.id).eq('user_id', userId);
+    throw error;
+  }
+}
+
+async function cancelAppearanceUpload(db: Db, userId: string, draft: Record<string, any>, input: StudioAction, now: string): Promise<Record<string, unknown>> {
+  const asset = await db.from('together_creator_assets').select('*').eq('id', String(input.assetId ?? '')).eq('draft_id', draft.id).eq('user_id', userId).eq('group_request_id', String(input.requestId ?? '')).eq('provider', 'user_upload').maybeSingle();
+  if (!asset.data) return { cancelled: true };
+  if (asset.data.status === 'ready' && asset.data.selected) throw new AppError('CONFLICT', 'A selected portrait cannot be cancelled.', 409);
+  if (asset.data.storage_path) await db.storage.from('kivelle-character-reference').remove([asset.data.storage_path]);
+  await db.from('together_creator_assets').update({ status: 'failed', selected: false, updated_at: now, metadata: { ...(asset.data.metadata ?? {}), failure: 'client_upload_failed' } }).eq('id', asset.data.id).eq('user_id', userId);
+  return { cancelled: true };
+}
+
 async function selectAppearance(db: Db, userId: string, draft: Record<string, any>, input: StudioAction, now: string): Promise<Record<string, unknown>> {
   const assetId = String(input.assetId ?? '');
   const asset = await db.from('together_creator_assets').select('*').eq('id', assetId).eq('draft_id', draft.id).eq('user_id', userId).eq('status', 'ready').maybeSingle();
@@ -249,7 +338,8 @@ async function selectAppearance(db: Db, userId: string, draft: Record<string, an
   await db.from('together_creator_assets').update({ selected: false, updated_at: now }).eq('draft_id', draft.id).eq('user_id', userId).eq('asset_type', 'appearance_candidate');
   const selected = await db.from('together_creator_assets').update({ selected: true, updated_at: now }).eq('id', assetId).eq('user_id', userId).select('*').single();
   if (selected.error) throw new AppError('INTERNAL_ERROR', 'That appearance could not be selected.', 500, true);
-  const updated = await db.from('together_creator_drafts').update({ appearance_config: { ...draft.appearance_config, selectedAssetId: assetId, canonicalDescription: asset.data.description, referenceStoragePaths: [asset.data.storage_path] }, revision: draft.revision + 1, updated_at: now }).eq('id', draft.id).eq('user_id', userId).select('*').single();
+  const referenceOrigin = String(asset.data.metadata?.referenceOrigin ?? (asset.data.provider === 'user_upload' ? 'authorized_real_person' : 'generated_fictional'));
+  const updated = await db.from('together_creator_drafts').update({ appearance_config: { ...draft.appearance_config, selectedAssetId: assetId, canonicalDescription: asset.data.description, referenceStoragePaths: [asset.data.storage_path], referenceOrigin, adultMediaReferenceEligible: referenceOrigin !== 'authorized_real_person' }, revision: draft.revision + 1, updated_at: now }).eq('id', draft.id).eq('user_id', userId).select('*').single();
   const ready = await readiness(db, updated.data ?? draft);
   const finalDraft = ready.ready ? await setDraftStatus(db, updated.data, 'ready', now) : updated.data;
   return { draft: await serializeDraft(db, finalDraft, true), readiness: ready };
@@ -279,8 +369,17 @@ async function finalizeDraft(db: Db, userId: string, draft: Record<string, any>,
   if (selectedAssetId && result.data.characterVersionId) {
     const selected = await db.from('together_creator_assets').select('*').eq('id', selectedAssetId).eq('draft_id', draft.id).eq('user_id', userId).eq('status', 'ready').maybeSingle();
     if (selected.data?.storage_path) {
+      const referenceOrigin = String(selected.data.metadata?.referenceOrigin ?? (selected.data.provider === 'user_upload' ? 'authorized_real_person' : 'generated_fictional'));
+      const adultMediaReferenceEligible = referenceOrigin !== 'authorized_real_person' && selected.data.metadata?.adultMediaReferenceEligible !== false;
+      const version = await db.from('together_character_versions').select('visual_identity,appearance_config,character_bible').eq('id', result.data.characterVersionId).maybeSingle();
+      if (version.data) await db.from('together_character_versions').update({
+        visual_identity: { ...(version.data.visual_identity ?? {}), referenceOrigin, adultMediaReferenceEligible, gender: draft.identity_config?.gender ?? '' },
+        appearance_config: { ...(version.data.appearance_config ?? {}), referenceOrigin, gender: draft.identity_config?.gender ?? '' },
+        character_bible: { ...(version.data.character_bible ?? {}), gender: draft.identity_config?.gender ?? '' },
+        updated_at: now,
+      }).eq('id', result.data.characterVersionId);
       const sourceKey = `custom:${result.data.characterVersionId}:canonical-identity`;
-      await db.from('together_media_reference_assets').upsert({ asset_role: 'character_identity', character_version_id: result.data.characterVersionId, source_key: sourceKey, storage_bucket: 'kivelle-character-reference', storage_path: selected.data.storage_path, content_type: selected.data.content_type ?? 'image/jpeg', width: selected.data.width, height: selected.data.height, revision: 1, active: true, metadata: { creatorDraftId: draft.id, creatorAssetId: selected.data.id, provider: selected.data.provider, model: selected.data.model } }, { onConflict: 'asset_role,source_key,revision' });
+      await db.from('together_media_reference_assets').upsert({ asset_role: 'character_identity', character_version_id: result.data.characterVersionId, source_key: sourceKey, storage_bucket: 'kivelle-character-reference', storage_path: selected.data.storage_path, content_type: selected.data.content_type ?? 'image/jpeg', width: selected.data.width, height: selected.data.height, revision: 1, active: true, metadata: { creatorDraftId: draft.id, creatorAssetId: selected.data.id, provider: selected.data.provider, model: selected.data.model, referenceOrigin, adultMediaReferenceEligible } }, { onConflict: 'asset_role,source_key,revision' });
     }
   }
   await track(db, userId, 'custom_companion_ready', { creator_draft_id: draft.id, character_template_id: result.data.characterTemplateId, world_id: draft.world_id });
@@ -291,7 +390,7 @@ async function finalizeDraft(db: Db, userId: string, draft: Record<string, any>,
 
 async function readiness(db: Db, draft: Record<string, any>) {
   const selected = await db.from('together_creator_assets').select('id', { count: 'exact', head: true }).eq('draft_id', draft.id).eq('user_id', draft.user_id).eq('selected', true).eq('status', 'ready');
-  return creatorReadiness({ identity: draft.identity_config ?? {}, appearance: draft.appearance_config ?? {}, routine: draft.routine_config ?? { blocks: [] }, firstMeeting: draft.first_meeting_config ?? { options: [] }, hasSelectedAsset: Number(selected.count ?? 0) > 0, hasLegacyReference: Array.isArray(draft.appearance_config?.referenceStoragePaths) && draft.appearance_config.referenceStoragePaths.length > 0 });
+  return creatorReadiness({ identity: draft.identity_config ?? {}, appearance: draft.appearance_config ?? {}, routine: draft.routine_config ?? { blocks: [] }, firstMeeting: draft.first_meeting_config ?? { options: [] }, hasSelectedAsset: Number(selected.count ?? 0) > 0, hasLegacyReference: Array.isArray(draft.appearance_config?.referenceStoragePaths) && draft.appearance_config.referenceStoragePaths.length > 0, requireGender: Number(draft.metadata?.contextVersion ?? 0) >= 3 });
 }
 
 async function serializeDraft(db: Db, draft: Record<string, any>, includeContext: boolean): Promise<Record<string, unknown>> {
@@ -452,7 +551,7 @@ function proposalFromDraft(draft: Record<string, any>): CharacterDraftProposal {
     displayName: identity.name, age: identity.age, pronouns: identity.pronouns || undefined, occupation: identity.occupation,
     biography: identity.biography, interests: identity.interests, traits: identity.traits, personality,
     communicationStyle: draft.communication_config ?? {}, relationshipStyle: draft.connection_config ?? {},
-    appearanceDescription: String(draft.appearance_config?.description ?? `An original fictional adult appearance for ${identity.name}.`),
+    appearanceDescription: `${identity.gender ? `${identity.gender}. ` : ''}${String(draft.appearance_config?.description ?? `An original fictional adult appearance for ${identity.name}.`)}`,
     lifestyleHints: { preferredActivities: draft.life_config?.preferredActivities ?? identity.interests, scheduleStyle: draft.life_config?.scheduleStyle },
   };
 }

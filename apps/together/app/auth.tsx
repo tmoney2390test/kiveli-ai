@@ -69,6 +69,7 @@ export default function Auth() {
   };
 
   const submit = async () => {
+    if (busy || signingOut) return;
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail.includes('@')) {
       setError('Enter a valid email address.');
@@ -194,9 +195,9 @@ export default function Auth() {
             </Pressable>
           </View>
 
-          <TextInput accessibilityLabel="Email" editable={!authBusy} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} autoComplete="email" keyboardType="email-address" placeholder="Email address" placeholderTextColor={colors.dimmed} style={styles.input} />
+          <TextInput accessibilityLabel="Email" editable={!authBusy} value={email} onChangeText={setEmail} onSubmitEditing={()=>{if(password.length)void submit();}} returnKeyType={password.length?'go':'next'} autoCapitalize="none" autoCorrect={false} autoComplete="email" keyboardType="email-address" placeholder="Email address" placeholderTextColor={colors.dimmed} style={[styles.input,error&&styles.inputError]} />
           <View style={styles.password}>
-            <TextInput accessibilityLabel={creating ? 'Create a password' : 'Password'} editable={!authBusy} value={password} onChangeText={setPassword} autoCapitalize="none" autoCorrect={false} autoComplete={creating ? 'new-password' : 'current-password'} secureTextEntry={!visible} placeholder={creating ? 'Create a password' : 'Password'} placeholderTextColor={colors.dimmed} style={styles.passwordInput} />
+            <TextInput accessibilityLabel={creating ? 'Create a password' : 'Password'} editable={!authBusy} value={password} onChangeText={setPassword} onSubmitEditing={()=>void submit()} returnKeyType="go" autoCapitalize="none" autoCorrect={false} autoComplete={creating ? 'new-password' : 'current-password'} secureTextEntry={!visible} placeholder={creating ? 'Create a password' : 'Password'} placeholderTextColor={colors.dimmed} style={styles.passwordInput} />
             <Pressable accessibilityLabel={visible ? 'Hide password' : 'Show password'} disabled={authBusy} onPress={() => setVisible(!visible)} style={styles.eye}>{visible ? <EyeOff size={20} color={colors.text} /> : <Eye size={20} color={colors.text} />}</Pressable>
           </View>
           {creating?<View style={styles.birthdateBlock}>
@@ -204,7 +205,7 @@ export default function Auth() {
             <Text style={styles.birthdateHint}>You must be 18 or older. Your birthdate is kept private.</Text>
           </View>:null}
 
-          {error ? <View style={styles.errorBox}><Text style={styles.error}>{error}</Text></View> : null}
+          {error ? <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.errorBox}><Text style={styles.errorTitle}>{creating?'We couldn’t create that account':'We couldn’t sign you in'}</Text><Text style={styles.error}>{error}</Text></View> : null}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
           {confirmationEmail ? <Pressable disabled={authBusy} onPress={() => void resendSignUpConfirmation(confirmationEmail).then(() => setNotice('A fresh secure sign-in link was sent.')).catch((caught) => setError(caught instanceof Error ? caught.message : 'Could not resend the link.'))}><Text style={styles.secondary}>Resend secure sign-in link</Text></Pressable> : null}
 
@@ -271,6 +272,7 @@ const styles = StyleSheet.create({
   tabText: { color: colors.muted, fontWeight: '800', fontSize: 13 },
   tabTextActive: { color: colors.text },
   input: { minHeight: 50, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, color: colors.text, paddingHorizontal: 15, fontSize: 16 },
+  inputError:{borderColor:'rgba(255,113,129,.52)'},
   password: { minHeight: 50, flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
   passwordInput: { flex: 1, minHeight: 48, color: colors.text, paddingHorizontal: 15, fontSize: 16, outlineStyle: 'none' } as never,
   eye: { padding: 13 },
@@ -284,6 +286,7 @@ const styles = StyleSheet.create({
   ageTitle: { color: colors.text, fontWeight: '900', fontSize: 12 },
   ageBody: { color: colors.muted, fontSize: 10, marginTop: 2 },
   errorBox: { borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: 'rgba(255,113,129,.1)', borderWidth: 1, borderColor: 'rgba(255,113,129,.28)' },
+  errorTitle:{color:'#FFD3D8',fontSize:12,fontWeight:'900',marginBottom:2},
   error: { color: '#FF9BA7', fontSize: 12, lineHeight: 17 },
   notice: { color: colors.success, fontSize: 12, textAlign: 'center' },
   divider:{flexDirection:'row',alignItems:'center',gap:9,marginVertical:2},

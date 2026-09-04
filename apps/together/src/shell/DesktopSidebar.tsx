@@ -26,6 +26,7 @@ import { markRouteIntent, warmRoute } from '../lib/routeWarmup';
 import { subscriptionHref } from '../lib/subscriptionPresentation';
 import { conversationRouteTarget, navigateLocalRouteOnWeb, webConversationHref } from '../lib/conversationNavigation';
 import { characterConversationHref } from '../lib/chatRoute';
+import { privateStoredImageSource } from '../lib/mediaImageSource';
 
 type Props = { expanded: boolean; onHoverChange: (hovered: boolean) => void };
 type NavItem = { key: DesktopNavigationKey; label: string; href: string; icon: (color: string) => ReactNode; count?: number };
@@ -40,6 +41,7 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
     ?snapshot.activePersona.appearance_config.avatarPath
     :snapshot?.activePersona?.is_default?snapshot?.profile?.avatar_path:null;
   const profileAvatarUrl = useProfileAvatarUrl(personaAvatarPath);
+  const profileAvatarSource = privateStoredImageSource(profileAvatarUrl, personaAvatarPath);
   const [profileAvatarFailed, setProfileAvatarFailed] = useState(false);
   useEffect(() => setProfileAvatarFailed(false), [profileAvatarUrl]);
   const activeKey = desktopNavigationKey(pathname);
@@ -54,7 +56,7 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
     ?? (snapshot?.currentPlaceContext ? snapshot.worlds.find((world) => world.id === snapshot.currentPlaceContext?.world.id) : undefined)
     ?? snapshot?.worlds.find((world) => world.published);
   const personaName = snapshot?.activePersona?.display_name ?? snapshot?.profile?.display_name ?? 'You';
-  const showProfileAvatar = Boolean(profileAvatarUrl && !profileAvatarFailed);
+  const showProfileAvatar = Boolean(profileAvatarSource && !profileAvatarFailed);
   const navigate = (href: string) => {
     // Keep the rail expanded while its action swaps the active route. A genuine
     // pointer leave still collapses it through ResponsiveAppShell.
@@ -136,7 +138,7 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
         <SidebarAction expanded={expanded} label={subscription ? `${subscription.creditBalance.total.toLocaleString()} Credits` : 'Kivelle Credits'} icon={<KivelleCreditIcon size={24} />} onPress={() => navigate(subscriptionHref({intent:'credits'}))} />
         <SidebarAction expanded={expanded} label="Notifications" icon={<Bell size={23} color={colors.muted} />} onPress={() => navigate('/notifications')} />
         <Pressable accessibilityRole="button" accessibilityLabel={expanded ? undefined : 'Open Settings'} accessibilityHint="Open Settings" onPress={() => navigate('/settings')} style={({ pressed }) => [styles.account, !expanded && styles.accountCollapsed, activeKey === 'settings' && styles.accountActive, pressed && styles.rowPressed]}>
-          <View style={styles.initial}>{showProfileAvatar ? <Image accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" alt="" source={{ uri: profileAvatarUrl!, cacheKey: `kivelle-persona-avatar:${personaAvatarPath}` }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" onError={() => setProfileAvatarFailed(true)} /> : <Text style={styles.initialText}>{personaName.trim()[0]?.toUpperCase() || 'Y'}</Text>}</View>
+          <View style={styles.initial}>{showProfileAvatar ? <Image accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" alt="" source={profileAvatarSource!} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" transition={0} onError={() => setProfileAvatarFailed(true)} /> : <Text style={styles.initialText}>{personaName.trim()[0]?.toUpperCase() || 'Y'}</Text>}</View>
           {expanded ? <View style={styles.accountCopy}><Text style={styles.accountName} numberOfLines={1}>{personaName}</Text><Text style={styles.accountTier}>{subscriptionLabel(subscription?.tier ?? snapshot?.entitlements?.tier)}</Text></View> : null}
           {expanded ? <Settings size={22} color={activeKey === 'settings' ? colors.text : colors.muted} /> : null}
         </Pressable>

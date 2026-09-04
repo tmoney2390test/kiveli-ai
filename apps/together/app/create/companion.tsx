@@ -2,35 +2,45 @@ import { useEffect, useMemo, useState } from 'react';
 import { hasOpenBuildWorldAccess } from '@together/domain/src/world-access';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, ArrowRight, Check, Globe2, Sparkles, UserRound } from 'lucide-react-native';
-import { GradientButton, GlassCard, LoadingSkeleton, PageTitle, Screen } from '../../src/components';
+import { ArrowRight, Check, Globe2, Sparkles, X } from 'lucide-react-native';
+import { GradientButton, LoadingSkeleton, Screen } from '../../src/components';
 import { createCreatorDraft, listCreatorDrafts } from '../../src/lib/api';
+import { companionBasicsIssues } from '../../src/lib/creatorWizard';
 import { createClientRequestId } from '../../src/lib/requestId';
 import { useTogether } from '../../src/store/useTogether';
 import { colors, radius, spacing } from '../../src/theme';
 
-const prompts = [
-  'A confident architect with dry humor who takes time to open up.',
-  'A warm, adventurous photographer who loves live music and quiet mornings.',
-  'A thoughtful chef with playful confidence and strong opinions about food.',
+const genders = [
+  { value: 'woman', label: 'Woman', pronouns: 'she/her' },
+  { value: 'man', label: 'Man', pronouns: 'he/him' },
+  { value: 'nonbinary', label: 'Nonbinary', pronouns: 'they/them' },
+  { value: 'custom', label: 'Custom', pronouns: '' },
 ];
 const goals = [
   { key: 'friendship', title: 'Friendship', detail: 'Build trust without romantic progression.' },
   { key: 'romance', title: 'Romance', detail: 'Let attraction develop naturally over time.' },
-  { key: 'either', title: 'Either', detail: 'Let the relationship find its own direction.' },
+  { key: 'either', title: 'Let it develop', detail: 'Let the relationship find its own direction.' },
 ] as const;
 
 export default function CreateCompanionEntry() {
   const params = useLocalSearchParams<{ template?: string }>();
   const snapshot = useTogether((state) => state.snapshot);
   const { width } = useWindowDimensions();
-  const [concept, setConcept] = useState('');
+  const [name, setName] = useState('');
+  const [ageText, setAgeText] = useState('28');
+  const [genderChoice, setGenderChoice] = useState('');
+  const [customGender, setCustomGender] = useState('');
+  const [pronouns, setPronouns] = useState('');
+  const [description, setDescription] = useState('');
   const [worldId, setWorldId] = useState('');
   const [goal, setGoal] = useState<'friendship' | 'romance' | 'either'>('either');
   const [busy, setBusy] = useState(false);
   const [recovering, setRecovering] = useState(Boolean(params.template));
   const worlds = useMemo(() => snapshot?.worlds.filter((world) => world.published && (hasOpenBuildWorldAccess(world.published) || world.access_type === 'free' || snapshot.userWorlds?.some((item) => item.world_id === world.id && item.access_status === 'unlocked'))) ?? [], [snapshot]);
   const selectedWorldId = worldId || worlds[0]?.id || '';
+  const gender = genderChoice === 'custom' ? customGender : genderChoice;
+  const age = Number(ageText);
+  const issues = companionBasicsIssues({ name, age, gender, pronouns, worldId: selectedWorldId, description });
 
   useEffect(() => {
     if (!params.template) return;
@@ -44,70 +54,56 @@ export default function CreateCompanionEntry() {
     return () => { active = false; };
   }, [params.template]);
 
-  if (!snapshot || recovering) return <LoadingSkeleton label={recovering ? 'Opening your character draft…' : 'Opening Creator Studio…'} />;
+  if (!snapshot || recovering) return <LoadingSkeleton label={recovering ? 'Opening your companion draft…' : 'Opening companion creator…'} />;
 
+  const chooseGender = (value: string, suggestedPronouns: string) => {
+    setGenderChoice(value);
+    if (!pronouns || genders.some((item) => item.pronouns === pronouns)) setPronouns(suggestedPronouns);
+  };
   const create = async () => {
+    if (issues.length) { Alert.alert('Finish the required details', issues.join('\n')); return; }
     setBusy(true);
     try {
-      const { draft } = await createCreatorDraft({ concept: concept.trim(), worldId: selectedWorldId, relationshipGoal: goal, requestId: createClientRequestId() });
+      const world = worlds.find((item) => item.id === selectedWorldId)?.name ?? 'their world';
+      const concept = `${name.trim()} is an original fictional ${age}-year-old ${gender} adult who uses ${pronouns.trim()} pronouns and is a citizen of ${world}. ${description.trim() || 'Build a distinctive adult personality, career, interests, and independent life that fit this world.'}`;
+      const { draft } = await createCreatorDraft({ concept, worldId: selectedWorldId, relationshipGoal: goal, requestId: createClientRequestId(), identitySeed: { name: name.trim(), age, gender, pronouns: pronouns.trim(), description: description.trim() || undefined } });
       router.replace(`/create/companion/${draft.id}` as never);
     } catch (error) {
-      Alert.alert('Could not create that person', error instanceof Error ? error.message : 'Try a different description.');
+      Alert.alert('Could not start this companion', error instanceof Error ? error.message : 'Your details are safe. Please try again.');
     } finally { setBusy(false); }
   };
 
-  const desktop = width >= 900;
   return <Screen contentStyle={styles.screen}>
-    <View style={styles.header}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => router.canGoBack() ? router.back() : router.replace('/singles')} style={styles.back}><ArrowLeft color={colors.text} size={21} /></Pressable>
-      <View style={{ flex: 1 }}><Text style={styles.kicker}>KIVELLE CREATOR</Text><PageTitle>Create someone</PageTitle><Text style={styles.subtitle}>Describe a person. Kivelle will help you shape an identity, a life, and a real first meeting.</Text></View>
-    </View>
+    <View style={styles.scrim}><View style={[styles.modal, width < 700 && styles.modalMobile]}>
+      <View style={styles.modalHeader}>
+        <View style={styles.headerIcon}><Sparkles size={20} color={colors.rose} /></View>
+        <View style={{ flex: 1 }}><Text style={styles.kicker}>CREATE A COMPANION</Text><Text style={styles.title}>Who are they?</Text><Text style={styles.subtitle}>Start with the facts Kivelle needs to keep their identity, world, and future media consistent.</Text></View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close companion creator" onPress={() => router.canGoBack() ? router.back() : router.replace('/singles')} style={styles.close}><X size={21} color={colors.text} /></Pressable>
+      </View>
+      <View style={styles.progress}><View style={[styles.progressPart, styles.progressActive]} /><View style={styles.progressPart} /><View style={styles.progressPart} /><View style={styles.progressPart} /><View style={styles.progressPart} /></View>
+      <Text style={styles.stepLabel}>1 OF 5 · BASICS</Text>
 
-    <View style={[styles.layout, desktop && styles.layoutDesktop]}>
-      <View style={styles.editor}>
-        <View>
-          <Text style={styles.sectionLabel}>WHO DO YOU WANT TO MEET?</Text>
-          <Text style={styles.sectionTitle}>Start with the idea.</Text>
-          <Text style={styles.help}>You can change every detail before this person enters your Kivelle Life.</Text>
-        </View>
-        <TextInput
-          accessibilityLabel="Character concept"
-          value={concept}
-          onChangeText={setConcept}
-          multiline
-          maxLength={1200}
-          textAlignVertical="top"
-          style={styles.concept}
-          placeholder="A confident 29-year-old architect with dry humor. She loves jazz, travel and great food, but takes a while to genuinely open up."
-          placeholderTextColor={colors.muted}
-        />
-        <View style={styles.suggestions}>{prompts.map((prompt) => <Pressable key={prompt} accessibilityRole="button" onPress={() => setConcept(prompt)} style={styles.suggestion}><Sparkles size={14} color={colors.violet} /><Text style={styles.suggestionText}>{prompt}</Text></Pressable>)}</View>
-
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Home world</Text>
-          <View style={styles.choiceGrid}>{worlds.map((world) => <Pressable key={world.id} accessibilityRole="radio" accessibilityState={{ checked: selectedWorldId === world.id }} onPress={() => setWorldId(world.id)} style={[styles.worldChoice, selectedWorldId === world.id && styles.choiceSelected]}><Globe2 size={18} color={selectedWorldId === world.id ? '#fff' : colors.violet} /><View style={{ flex: 1 }}><Text style={[styles.choiceTitle, selectedWorldId === world.id && styles.choiceTitleSelected]}>{world.name}</Text><Text style={[styles.choiceDetail, selectedWorldId === world.id && styles.choiceDetailSelected]}>Included world</Text></View>{selectedWorldId === world.id ? <Check size={17} color="#fff" /> : null}</Pressable>)}</View>
-        </View>
-
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Relationship direction</Text>
-          <View style={styles.goalGrid}>{goals.map((item) => <Pressable key={item.key} accessibilityRole="radio" accessibilityState={{ checked: goal === item.key }} onPress={() => setGoal(item.key)} style={[styles.goal, goal === item.key && styles.goalSelected]}><Text style={styles.goalTitle}>{item.title}</Text><Text style={styles.goalDetail}>{item.detail}</Text>{goal === item.key ? <View style={styles.selectedDot}><Check size={12} color="#fff" /></View> : null}</Pressable>)}</View>
-        </View>
-
-        <GradientButton label={busy ? 'Creating Character DNA…' : 'Build Character DNA'} icon={<ArrowRight size={18} color="#fff" />} disabled={busy || concept.trim().length < 20 || !selectedWorldId} onPress={() => void create()} />
-        <Text style={styles.privateNote}>Your draft stays private. No relationship or simulation begins until you choose Meet.</Text>
+      <View style={styles.form}>
+        <View style={styles.row}><Field label="Name *" value={name} onChange={setName} placeholder="Their name" maxLength={50} /><Field label="Age *" value={ageText} onChange={(value) => setAgeText(value.replace(/\D/g, '').slice(0, 2))} placeholder="28" keyboard="number-pad" maxLength={2} /></View>
+        <View style={styles.field}><Text style={styles.fieldLabel}>Gender *</Text><View style={styles.chips}>{genders.map((item) => <Pressable key={item.value} accessibilityRole="radio" accessibilityState={{ checked: genderChoice === item.value }} onPress={() => chooseGender(item.value, item.pronouns)} style={[styles.chip, genderChoice === item.value && styles.chipSelected]}><Text style={[styles.chipText, genderChoice === item.value && styles.chipTextSelected]}>{item.label}</Text></Pressable>)}</View></View>
+        {genderChoice === 'custom' ? <Field label="Gender details *" value={customGender} onChange={setCustomGender} placeholder="How they describe their gender" maxLength={40} /> : null}
+        <Field label="Pronouns *" value={pronouns} onChange={setPronouns} placeholder="she/her, he/him, they/them" maxLength={40} />
+        <View style={styles.field}><Text style={styles.fieldLabel}>World citizenship *</Text><Text style={styles.fieldHelp}>Their home, work, schedule, and first meeting will use real places from this world.</Text><View style={styles.worldGrid}>{worlds.map((world) => <Pressable key={world.id} accessibilityRole="radio" accessibilityState={{ checked: selectedWorldId === world.id }} onPress={() => setWorldId(world.id)} style={[styles.world, selectedWorldId === world.id && styles.worldSelected]}><Globe2 size={17} color={selectedWorldId === world.id ? colors.rose : colors.violet} /><Text style={styles.worldName}>{world.name}</Text>{selectedWorldId === world.id ? <Check size={16} color={colors.rose} /> : null}</Pressable>)}</View></View>
+        <View style={styles.field}><View style={styles.labelRow}><Text style={styles.fieldLabel}>Starting description</Text><Text style={styles.counter}>{description.length}/800</Text></View><Text style={styles.fieldHelp}>Optional for now. Describe the person you imagine; you will refine appearance and personality next.</Text><TextInput accessibilityLabel="Starting description" value={description} onChangeText={setDescription} maxLength={800} multiline textAlignVertical="top" style={[styles.input, styles.multiline]} placeholder="A perceptive architect with dry humor, strong opinions, and a softer side that takes time to show…" placeholderTextColor={colors.muted} /></View>
+        <View style={styles.field}><Text style={styles.fieldLabel}>Relationship direction</Text><View style={styles.goalGrid}>{goals.map((item) => <Pressable key={item.key} accessibilityRole="radio" accessibilityState={{ checked: goal === item.key }} onPress={() => setGoal(item.key)} style={[styles.goal, goal === item.key && styles.goalSelected]}><Text style={styles.goalTitle}>{item.title}</Text><Text style={styles.goalDetail}>{item.detail}</Text></Pressable>)}</View></View>
       </View>
 
-      <GlassCard style={styles.preview}>
-        <View style={styles.previewIcon}><UserRound size={34} color={colors.rose} /></View>
-        <Text style={styles.previewKicker}>WHAT KIVELLE BUILDS</Text>
-        <Text style={styles.previewTitle}>A person, not a prompt.</Text>
-        {['A persistent identity and appearance', 'A personality with independent preferences', 'A home and weekly rhythm in a real world', 'A connection style that guides—not guarantees—the relationship', 'A canonical first meeting that flows into Chat'].map((item, index) => <View key={item} style={styles.previewRow}><View style={styles.previewNumber}><Text style={styles.previewNumberText}>{index + 1}</Text></View><Text style={styles.previewText}>{item}</Text></View>)}
-        <View style={styles.meetingAs}><Text style={styles.meetingAsLabel}>MEETING AS</Text><Text style={styles.meetingAsName}>{snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'}</Text><Text style={styles.meetingAsLife}>{snapshot.activeContinuity?.title ?? 'Main Life'}</Text></View>
-      </GlassCard>
-    </View>
+      {issues.length && (name || genderChoice || pronouns) ? <View style={styles.issueBox}><Text style={styles.issueTitle}>Still needed</Text>{issues.map((issue) => <Text key={issue} style={styles.issueText}>• {issue}</Text>)}</View> : null}
+      <GradientButton label={busy ? 'Building their foundation…' : 'Continue to portrait'} icon={<ArrowRight size={18} color="#fff" />} disabled={busy || issues.length > 0} onPress={() => void create()} />
+      <Text style={styles.privateNote}>This creates a private draft only. Nothing enters chat until you review and confirm the companion.</Text>
+    </View></View>
   </Screen>;
 }
 
+function Field({ label, value, onChange, placeholder, maxLength, keyboard }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; maxLength?: number; keyboard?: 'number-pad' }) {
+  return <View style={styles.field}><Text style={styles.fieldLabel}>{label}</Text><TextInput accessibilityLabel={label.replace(' *', '')} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={colors.muted} maxLength={maxLength} keyboardType={keyboard} style={styles.input} /></View>;
+}
+
 const styles = StyleSheet.create({
-  screen: { maxWidth: 1120, paddingHorizontal: spacing.lg }, header: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 }, back: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, kicker: { color: colors.rose, fontSize: 10, fontWeight: '900', letterSpacing: 1.5, marginBottom: 4 }, subtitle: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 5, maxWidth: 640 }, layout: { gap: 18 }, layoutDesktop: { flexDirection: 'row', alignItems: 'flex-start' }, editor: { flex: 1.7, gap: 18, padding: 18, borderRadius: radius.xl, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, sectionLabel: { color: colors.rose, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 }, sectionTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 28, marginTop: 5 }, help: { color: colors.muted, lineHeight: 19, marginTop: 6 }, concept: { minHeight: 172, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.borderBright, backgroundColor: colors.background, padding: 15, color: colors.text, fontSize: 15, lineHeight: 23 }, suggestions: { gap: 8 }, suggestion: { flexDirection: 'row', gap: 9, alignItems: 'flex-start', padding: 11, borderRadius: radius.md, backgroundColor: colors.elevated }, suggestionText: { flex: 1, color: colors.muted, fontSize: 11, lineHeight: 17 }, fieldGroup: { gap: 9 }, fieldLabel: { color: colors.text, fontSize: 12, fontWeight: '900' }, choiceGrid: { gap: 8 }, worldChoice: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }, choiceSelected: { backgroundColor: colors.violet, borderColor: colors.violet }, choiceTitle: { color: colors.text, fontWeight: '800' }, choiceTitleSelected: { color: '#fff' }, choiceDetail: { color: colors.muted, fontSize: 10, marginTop: 3 }, choiceDetailSelected: { color: 'rgba(255,255,255,.72)' }, goalGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, goal: { flex: 1, minWidth: 150, minHeight: 106, padding: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }, goalSelected: { borderColor: colors.rose, backgroundColor: 'rgba(216,62,234,.08)' }, goalTitle: { color: colors.text, fontWeight: '900' }, goalDetail: { color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: 7, paddingRight: 16 }, selectedDot: { position: 'absolute', right: 9, top: 9, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.rose }, privateNote: { color: colors.muted, fontSize: 10, lineHeight: 15, textAlign: 'center' }, preview: { flex: 1, minWidth: 280, gap: 13, padding: 20 }, previewIcon: { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(216,62,234,.12)' }, previewKicker: { color: colors.violet, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 }, previewTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 25 }, previewRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 }, previewNumber: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.elevated }, previewNumberText: { color: colors.rose, fontSize: 10, fontWeight: '900' }, previewText: { flex: 1, color: colors.muted, fontSize: 11, lineHeight: 17 }, meetingAs: { marginTop: 4, paddingTop: 15, borderTopWidth: 1, borderTopColor: colors.border }, meetingAsLabel: { color: colors.muted, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 }, meetingAsName: { color: colors.text, fontFamily: 'Georgia', fontSize: 21, marginTop: 4 }, meetingAsLife: { color: colors.rose, fontSize: 10, marginTop: 2 },
+  screen: { maxWidth: 1400, paddingHorizontal: spacing.md }, scrim: { minHeight: '100%', alignItems: 'center', justifyContent: 'flex-start', paddingVertical: spacing.lg }, modal: { width: '100%', maxWidth: 820, gap: 16, padding: 24, borderRadius: 30, borderWidth: 1, borderColor: colors.borderBright, backgroundColor: colors.surface, shadowColor: '#000', shadowOpacity: .42, shadowRadius: 30, shadowOffset: { width: 0, height: 18 } }, modalMobile: { padding: 16, borderRadius: radius.xl }, modalHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 13 }, headerIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(216,62,234,.1)' }, close: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.elevated }, kicker: { color: colors.rose, fontWeight: '900', fontSize: 10, letterSpacing: 1.3 }, title: { color: colors.text, fontFamily: 'Georgia', fontSize: 31, marginTop: 3 }, subtitle: { color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 4, maxWidth: 570 }, progress: { flexDirection: 'row', gap: 6 }, progressPart: { flex: 1, height: 3, borderRadius: 2, backgroundColor: colors.border }, progressActive: { backgroundColor: colors.rose }, stepLabel: { color: colors.muted, fontSize: 9, fontWeight: '900', letterSpacing: 1 }, form: { gap: 15 }, row: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 }, field: { flex: 1, minWidth: 120, gap: 7 }, fieldLabel: { color: colors.text, fontSize: 11, fontWeight: '900' }, fieldHelp: { color: colors.muted, fontSize: 9, lineHeight: 14 }, input: { minHeight: 50, paddingHorizontal: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, color: colors.text, fontSize: 13 }, multiline: { minHeight: 112, paddingTop: 13 }, labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, counter: { color: colors.muted, fontSize: 10 }, chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, chip: { flexGrow: 1, minWidth: 105, alignItems: 'center', paddingHorizontal: 13, paddingVertical: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }, chipSelected: { borderColor: colors.rose, backgroundColor: 'rgba(216,62,234,.09)' }, chipText: { color: colors.muted, fontWeight: '800', fontSize: 11 }, chipTextSelected: { color: colors.text }, worldGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, world: { flexGrow: 1, flexBasis: 220, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 9, padding: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }, worldSelected: { borderColor: colors.rose, backgroundColor: 'rgba(216,62,234,.07)' }, worldName: { flex: 1, color: colors.text, fontWeight: '800', fontSize: 11 }, goalGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, goal: { flex: 1, minWidth: 150, padding: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }, goalSelected: { borderColor: colors.rose, backgroundColor: 'rgba(216,62,234,.08)' }, goalTitle: { color: colors.text, fontWeight: '900', fontSize: 11 }, goalDetail: { color: colors.muted, fontSize: 9, lineHeight: 14, marginTop: 5 }, issueBox: { padding: 12, borderRadius: radius.md, borderWidth: 1, borderColor: 'rgba(242,162,127,.28)', backgroundColor: 'rgba(242,162,127,.07)' }, issueTitle: { color: colors.warm, fontWeight: '900', fontSize: 10 }, issueText: { color: colors.muted, fontSize: 9, marginTop: 4 }, privateNote: { color: colors.muted, fontSize: 9, textAlign: 'center', lineHeight: 14 },
 });

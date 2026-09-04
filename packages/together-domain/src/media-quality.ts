@@ -16,7 +16,7 @@ const KNOWN_REASONS=[
   'pose_mismatch','face_direction_mismatch',
   'embedded_reference','rendered_text','multiple_subjects','subject_count_mismatch','identity_mismatch','identity_swap',
   'sexual_content','adult_safety_violation','adult_safety_unverified','ambiguous_age',
-  'world_mismatch','location_mismatch','earth_leakage','world_unverified',
+  'world_mismatch','location_mismatch','earth_leakage','world_unverified','time_mismatch',
 ] as const;
 
 export function parseMediaQualityVerdict(output:unknown):MediaQualityVerdict{

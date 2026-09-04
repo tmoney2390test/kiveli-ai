@@ -47,7 +47,7 @@ const dynamismDescriptions:Record<ChatDynamism,string>={
 
 const reasoningDescriptions:Record<ReasoningPreference,string>={
   auto:'Kivelli chooses the right depth for each message.',
-  none:'Fastest responses for simple conversation.',
+  none:'A lighter, lower-cost model for quicker everyday replies.',
   low:'A little more thought while staying responsive.',
   medium:'Deeper reasoning for emotional and complex moments.',
   high:'Maximum available reasoning for important scenes.',

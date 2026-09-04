@@ -3,7 +3,7 @@ import { Check } from 'lucide-react-native';
 import type { VideoContentClass } from '../types';
 import { radius } from '../theme';
 
-type Props={contentClass:VideoContentClass;hasAdultRoutes:boolean;onChange:(value:VideoContentClass)=>void};
+type Props={contentClass:VideoContentClass;hasAdultRoutes:boolean;hasSafeRoutes?:boolean;onChange:(value:VideoContentClass)=>void};
 
 export function VideoContentRouteSelector(_props:Props){
   void _props;

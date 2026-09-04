@@ -260,7 +260,7 @@ Deno.test("a bent-over nude request without named genitals still demands visible
 }));
 
 Deno.test("Wan Realism scene payload creates a fresh photographic composition without leaking private references", () => withProviderEnv(() => {
-  const canonical={...request(),generationIntent:{requestText:"Send me a photo of you bent over with your ass and pussy showing",requestedContentLevel:"explicit" as const},mediaType:"image" as const};
+  const base=request(),canonical={...base,context:{...base.context,timeOfDay:"late_night"},generationIntent:{requestText:"Send me a photo of you bent over with your ass and pussy showing",requestedContentLevel:"explicit" as const},mediaType:"image" as const};
   const input=waveSpeedAdultSceneInput(canonical),prompt=buildWaveSpeedAdultScenePrompt(canonical);
   assertEquals(input.size,"1024*1280");
   assertEquals(input.output_format,"jpeg");
@@ -272,6 +272,7 @@ Deno.test("Wan Realism scene payload creates a fresh photographic composition wi
   assert(!prompt.includes("over-the-shoulder glance"));
   assertStringIncludes(prompt,"external vulva and labia plus buttocks and rear anatomy");
   assertStringIncludes(prompt,"Vulva/labia must be plausible, correctly placed, and integrated with the pelvis");
+  assertStringIncludes(prompt,"NIGHT REQUIRED");
   assertStringIncludes(prompt,"Exactly one adult subject and no other person");
   assertStringIncludes(prompt,"No beauty-filter smoothing, airbrushing, anime, cartoon, painting, illustration, 2D or 3D render, CGI");
 }));

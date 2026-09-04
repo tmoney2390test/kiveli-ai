@@ -18,10 +18,15 @@ import {
   validatePlaceOpinionCandidates as validateDerivedPlaceOpinionCandidates,
 } from "../../../packages/together-domain/src/place-opinion-analysis.ts";
 import {
+  classifyDeterministicTrustConsequence,
+  classifyDeterministicTrustRepair,
   detectFlirtSignal,
   mergeRelationshipAnalysisChanges,
+  normalizeTrustConsequence,
+  normalizeTrustRepair,
   scoreConversationEngagement,
 } from "../../../packages/together-domain/src/relationship.ts";
+import type { TrustConsequenceProposal, TrustRepairProposal } from "../../../packages/together-domain/src/types.ts";
 import {
   isDurableUserMemory,
   isRelationshipDirectedPreferenceMemory,
@@ -47,6 +52,7 @@ import {
   type NormalizedModerationResult,
   normalizeResponsesUsage,
   parseResponsesStreamEvent,
+  type ResponsesServiceTier,
   visibleDialoguePrefix,
 } from "../../../packages/together-domain/src/index.ts";
 import { type AiUsageScope, recordAiUsage } from "./kivelle-ai-usage.ts";
@@ -94,6 +100,10 @@ export type DialogueRunMetadata = {
   speakerRole?:'primary'|'secondary';
   visibleOutputTruncated?:boolean;
   deliveredVisibleOutputTokensEstimate?:number;
+  latencyProfile?:'fast'|'standard';
+  requestedServiceTier?:string;
+  appliedServiceTier?:string;
+  serviceTierFallback?:boolean;
 };
 export type DialogueGenerationResult = {
   text: string;
@@ -114,6 +124,9 @@ export type DialogueRunOptions = {
   unsupportedTemperatureFallback?:boolean;
   visibleOutputTruncated?:boolean;
   deliveredVisibleOutputTokensEstimate?:number;
+  requestedServiceTier?:ResponsesServiceTier;
+  appliedServiceTier?:string;
+  serviceTierFallback?:boolean;
 };
 export interface DialogueProvider {
   generate(
@@ -151,6 +164,8 @@ export type ConversationAnalysisInput = {
 };
 export type ConversationAnalysisProposal = {
   relationshipChanges: Record<string, number>;
+  trustConsequence?: TrustConsequenceProposal | null;
+  trustRepair?: TrustRepairProposal | null;
   chemistry: {
     userFlirtSignal: number;
     characterFlirtSignal: number;
@@ -226,7 +241,10 @@ function deadlineFetch(controller: AbortController): typeof fetch {
     fetch(input, { ...init, signal: controller.signal })) as typeof fetch;
 }
 
-export function openAIDialogueModel(): string {
+export function openAIDialogueModel(context?:Pick<DialogueContext,'generationPreferences'>): string {
+  if(context?.generationPreferences?.reasoningPreference==='none'){
+    return model('KIVELLE_OPENAI_FAST_DIALOGUE_MODEL','gpt-4.1-nano');
+  }
   return model(
     "KIVELLE_OPENAI_DIALOGUE_MODEL",
     model(
@@ -235,8 +253,11 @@ export function openAIDialogueModel(): string {
     ),
   );
 }
-export function xaiDialogueModel(): string {
-  return model("KIVELLE_XAI_DIALOGUE_MODEL", "grok-4.3");
+export function xaiDialogueModel(context?:Pick<DialogueContext,'generationPreferences'>): string {
+  const standard=model("KIVELLE_XAI_DIALOGUE_MODEL", "grok-4.3");
+  return context?.generationPreferences?.reasoningPreference==='none'
+    ?model('KIVELLE_XAI_FAST_DIALOGUE_MODEL',standard)
+    :standard;
 }
 export function dialogueProviderName(): "openai" | "gemini" | "deterministic" {
   if (apiKey()) return "openai";
@@ -456,8 +477,8 @@ async function generateResponses(
   const provider = options.route.provider as "openai" | "xai",
     key = provider === "openai" ? apiKey() : xaiKey(),
     modelName = provider === "openai"
-      ? openAIDialogueModel()
-      : xaiDialogueModel();
+      ? openAIDialogueModel(context)
+      : xaiDialogueModel(context);
   if (!key) throw new Error(`${provider}_not_configured`);
   const slot = await acquireProviderSlot(
     options.usageScope,
@@ -507,6 +528,7 @@ async function generateResponses(
       rawText = extractResponsesText(data),
       visible = limitVisibleDialogue(rawText, options.generationProfile?.visibleTokenBudget ?? responseTokenBudget(context)),
       text = visible.text;
+    options.appliedServiceTier=typeof data.service_tier==='string'?data.service_tier:undefined;
     options.visibleOutputTruncated = visible.truncated;
     options.deliveredVisibleOutputTokensEstimate = visible.estimatedTokens;
     const latency = Date.now() - started;
@@ -572,8 +594,8 @@ async function* streamResponses(
   const provider = options.route.provider as "openai" | "xai",
     key = provider === "openai" ? apiKey() : xaiKey(),
     modelName = provider === "openai"
-      ? openAIDialogueModel()
-      : xaiDialogueModel();
+      ? openAIDialogueModel(context)
+      : xaiDialogueModel(context);
   if (!key) throw new Error(`${provider}_not_configured`);
   const slot = await acquireProviderSlot(
     options.usageScope,
@@ -633,6 +655,7 @@ async function* streamResponses(
         }
       }
       if (parsed.usage) usage = normalizeResponsesUsage(provider, parsed.usage);
+      if (parsed.serviceTier) options.appliedServiceTier=parsed.serviceTier;
     }
     const latency = Date.now() - started;
     options.deliveredVisibleOutputTokensEstimate = limitVisibleDialogue(deliveredText, visibleBudget).estimatedTokens;
@@ -703,33 +726,53 @@ async function responsesBody(
   const profile=options.generationProfile??=resolveDialogueRunGenerationProfile({context,provider,model:modelName,generationContext:options.generationContext});
   const controlsMode=options.chatGenerationControlsMode??=chatGenerationControlsMode();
   const applied=providerGenerationControls(profile,controlsMode);
+  const serviceTier=provider==='openai'&&controlsMode==='on'&&profile.latencyProfile==='fast'
+    ?openAIFastServiceTier()
+    :undefined;
+  options.requestedServiceTier=serviceTier;
   return buildResponsesRequestBody({
     model: modelName,
     prompt: buildCompanionPrompt({...context,chatGenerationControlsApplied:applied.promptDynamismApplied,chatGenerationMode:options.generationContext?.mode??'direct'}),
     maxOutputTokens: applied.maxOutputTokens,
     stream,
     reasoningEffort:applied.reasoningEffort,
+    includeReasoning:provider==='xai'||/^(?:gpt-5|o\d)/i.test(modelName),
+    promptCacheKey:await deriveOpaquePromptCacheKey({
+      conversationId:options.usageScope?.conversationId,
+      continuityId:options.usageScope?.continuityId,
+      characterInstanceId:options.usageScope?.characterInstanceId,
+    }),
+    ...(serviceTier?{serviceTier}:{}),
     ...(applied.temperature!==undefined?{temperature:applied.temperature}:{}),
-    ...(options.route.provider === "xai"
-      ? {
-        promptCacheKey: await deriveOpaquePromptCacheKey({
-          conversationId: options.usageScope?.conversationId,
-          continuityId: options.usageScope?.continuityId,
-          characterInstanceId: options.usageScope?.characterInstanceId,
-        }),
-      }
-      : {}),
   });
 }
 
 export async function executeResponsesWithTemperatureFallback(fetchImpl:typeof fetch,provider:'openai'|'xai',key:string,body:Record<string,unknown>,options:DialogueRunOptions):Promise<Response>{
-  const first=await executeResponsesHttp(fetchImpl,provider,key,body);
-  if(first.ok||typeof body.temperature!=='number')return first;
-  const errorBody=await first.clone().text().catch(()=>"");
-  if(!isUnsupportedTemperatureResponse(first.status,errorBody))return first;
-  const withoutTemperature={...body};delete withoutTemperature.temperature;
+  const compatibleBody={...body};
+  let response=await executeResponsesHttp(fetchImpl,provider,key,compatibleBody);
+  let errorBody=response.ok?'':await response.clone().text().catch(()=>"");
+  if(!response.ok&&typeof compatibleBody.service_tier==='string'&&isUnsupportedServiceTierResponse(response.status,errorBody)){
+    delete compatibleBody.service_tier;
+    options.serviceTierFallback=true;
+    response=await executeResponsesHttp(fetchImpl,provider,key,compatibleBody);
+    errorBody=response.ok?'':await response.clone().text().catch(()=>"");
+  }
+  if(response.ok||typeof compatibleBody.temperature!=='number')return response;
+  if(!isUnsupportedTemperatureResponse(response.status,errorBody))return response;
+  const withoutTemperature={...compatibleBody};delete withoutTemperature.temperature;
   options.unsupportedTemperatureFallback=true;
   return executeResponsesHttp(fetchImpl,provider,key,withoutTemperature);
+}
+
+export function openAIFastServiceTier(value:unknown=Deno.env.get('KIVELLE_OPENAI_FAST_SERVICE_TIER')??'off'):ResponsesServiceTier|undefined{
+  const normalized=String(value??'').trim().toLowerCase();
+  if(['off','none','disabled','default'].includes(normalized))return undefined;
+  return normalized==='priority'?'priority':'fast';
+}
+
+export function isUnsupportedServiceTierResponse(status:number,body:unknown):boolean{
+  const text=typeof body==='string'?body:JSON.stringify(body);
+  return(status===400||status===403||status===422)&&/service[_ -]?tier|priority|fast mode/i.test(text)&&/unsupported|not supported|invalid|unknown|not allowed|unavailable|not available|access|eligible/i.test(text);
 }
 
 function generationTelemetry(options:DialogueRunOptions):Record<string,unknown>{
@@ -752,6 +795,10 @@ function generationTelemetry(options:DialogueRunOptions):Record<string,unknown>{
     visibleTokenBudget:profile.visibleTokenBudget,
     reasoningTokenReserve:profile.reasoningTokenReserve,
     providerMaxOutputTokens:profile.providerMaxOutputTokens,
+    latencyProfile:profile.latencyProfile,
+    requestedServiceTier:options.requestedServiceTier??null,
+    appliedServiceTier:options.appliedServiceTier??null,
+    serviceTierFallback:options.serviceTierFallback===true,
     appliedReasoningTokenReserve:applied?profile.reasoningTokenReserve:0,
     appliedProviderMaxOutputTokens:applied?profile.providerMaxOutputTokens:profile.visibleTokenBudget,
     reasonCodes:profile.reasonCodes,
@@ -777,6 +824,9 @@ function fallbackRunOptions(
     unsupportedTemperatureFallback: false,
     visibleOutputTruncated: false,
     deliveredVisibleOutputTokensEstimate: undefined,
+    requestedServiceTier:undefined,
+    appliedServiceTier:undefined,
+    serviceTierFallback:false,
     route: {
       ...options.route,
       provider,
@@ -822,6 +872,10 @@ function generationMetadata(options:DialogueRunOptions):Partial<DialogueRunMetad
     ...(typeof telemetry.visibleTokenBudget==='number'?{visibleTokenBudget:telemetry.visibleTokenBudget}:{}),
     ...(typeof telemetry.reasoningTokenReserve==='number'?{reasoningTokenReserve:telemetry.reasoningTokenReserve}:{}),
     ...(typeof telemetry.providerMaxOutputTokens==='number'?{providerMaxOutputTokens:telemetry.providerMaxOutputTokens}:{}),
+    ...(telemetry.latencyProfile==='fast'||telemetry.latencyProfile==='standard'?{latencyProfile:telemetry.latencyProfile}:{}),
+    ...(typeof telemetry.requestedServiceTier==='string'?{requestedServiceTier:telemetry.requestedServiceTier}:{}),
+    ...(typeof telemetry.appliedServiceTier==='string'?{appliedServiceTier:telemetry.appliedServiceTier}:{}),
+    ...(telemetry.serviceTierFallback===true?{serviceTierFallback:true}:{}),
     ...(telemetry.conversationMode==='direct'||telemetry.conversationMode==='group'?{conversationMode:telemetry.conversationMode}:{}),
     ...(telemetry.groupGenerationMode==='per_speaker'?{groupGenerationMode:'per_speaker' as const}:{}),
     ...(telemetry.speakerRole==='primary'||telemetry.speakerRole==='secondary'?{speakerRole:telemetry.speakerRole}:{}),
@@ -1231,21 +1285,19 @@ function deterministicAnalysis(
     ...(precedingAssistantMessage ? { precedingAssistantMessage } : {}),
     memoryWorthy: memoryCandidates.length > 0 || Boolean(thread),
   });
-  const tense =
-    /\b(shut up|don'?t care|whatever|you(?:'re| are) annoying|hate talking to you|leave me alone)\b/i
-      .test(input.userMessage);
-  const repairing =
-    /\b(i(?:'m| am) sorry|i apologize|can we talk|i didn'?t mean that|make this right)\b/i
-      .test(input.userMessage);
+  const trustConsequence = classifyDeterministicTrustConsequence(input.userMessage, {
+    recentAssistantMessages: (input.context?.recent ?? []).filter((turn) => turn.role === "assistant").map((turn) => turn.content),
+  });
+  const trustRepair = classifyDeterministicTrustRepair(input.userMessage);
   const userFlirt = detectFlirtSignal(input.userMessage),
     characterFlirt = detectFlirtSignal(input.assistantMessage),
     mutual = userFlirt.kind === "rejection"
       ? 0
       : Math.min(userFlirt.strength, characterFlirt.strength);
-  const relationshipChanges: Record<string, number> = tense
-    ? { trust: -3, comfort: -3, affinity: -2, respect: -2, conflict: 4 }
-    : repairing
-    ? { trust: 2, comfort: 1, respect: 2, conflict: -4 }
+  const relationshipChanges: Record<string, number> = trustConsequence
+    ? { comfort: -2, affinity: -1, respect: -1, conflict: 3 }
+    : trustRepair
+    ? { comfort: 1, respect: 1 }
     : engagement.relationshipSignificant
     ? { trust: 3, comfort: 2, familiarity: 3, affinity: 2, respect: 1 }
     : engagement.quality === "trivial"
@@ -1261,6 +1313,8 @@ function deterministicAnalysis(
     };
   return {
     relationshipChanges,
+    trustConsequence,
+    trustRepair,
     chemistry: {
       userFlirtSignal: userFlirt.strength,
       characterFlirtSignal: characterFlirt.strength,
@@ -1314,6 +1368,9 @@ ${input.userMessage}
 CHARACTER RESPONSE
 ${input.assistantMessage}
 
+RECENT CANONICAL CONVERSATION
+${JSON.stringify((input.context?.recent ?? []).slice(-6).map((turn) => ({ role: turn.role, content: turn.content })))}
+
 OPEN THREADS
 ${JSON.stringify(threadList)}
 
@@ -1341,9 +1398,9 @@ ${
   }
 
 Return this shape:
-{"relationshipChanges":{"trust":0,"comfort":0,"attraction":0,"affinity":0,"familiarity":0,"respect":0,"conflict":0,"romantic_interest":0,"commitment":0},"chemistry":{"userFlirtSignal":0.0,"characterFlirtSignal":0.0,"mutualChemistry":0.0,"heatDelta":0},"memoryCandidates":[{"memory_type":"semantic|preference|episodic|relationship|emotional","canonical_text":"User ...","subject_key":"stable topic key","importance":0.0,"confidence":0.0,"sensitivity_category":"none|personal|sensitive","metadata":{}}],"placeOpinionCandidates":[{"placeRef":"allowed-place-slug","sentiment":0.0,"confidence":0.0,"summary":"Durable neutral summary of the companion's expressed view.","tags":[],"favoriteDetails":[],"dislikedDetails":[],"reasoningCode":"explicit_character_opinion|opinion_changed|shared_experience_reaction"}],"resolvedThreadIds":[],"newThreads":[{"topic":"Ask how ... went.","subject":"presentation","expected_at":"ISO timestamp or null","importance":0.0}],"mentionedMemoryIds":[],"reinforcedMemoryIds":[],"correctedMemorySubjects":[],"momentCandidate":false,"moodEffects":{}}
+{"relationshipChanges":{"trust":0,"comfort":0,"attraction":0,"affinity":0,"familiarity":0,"respect":0,"conflict":0,"romantic_interest":0,"commitment":0},"trustConsequence":null,"trustRepair":null,"chemistry":{"userFlirtSignal":0.0,"characterFlirtSignal":0.0,"mutualChemistry":0.0,"heatDelta":0},"memoryCandidates":[{"memory_type":"semantic|preference|episodic|relationship|emotional","canonical_text":"User ...","subject_key":"stable topic key","importance":0.0,"confidence":0.0,"sensitivity_category":"none|personal|sensitive","metadata":{}}],"placeOpinionCandidates":[{"placeRef":"allowed-place-slug","sentiment":0.0,"confidence":0.0,"summary":"Durable neutral summary of the companion's expressed view.","tags":[],"favoriteDetails":[],"dislikedDetails":[],"reasoningCode":"explicit_character_opinion|opinion_changed|shared_experience_reaction"}],"resolvedThreadIds":[],"newThreads":[{"topic":"Ask how ... went.","subject":"presentation","expected_at":"ISO timestamp or null","importance":0.0}],"mentionedMemoryIds":[],"reinforcedMemoryIds":[],"correctedMemorySubjects":[],"momentCandidate":false,"moodEffects":{}}
 
-Rules: relationship deltas must be integers from -4 to 4. Ordinary genuine conversation should normally earn 1 trust and 1 familiarity. Familiarity reflects sustained back-and-forth and learning stable details about each other. Trust reflects continued respectful interaction and should decline only for a clear negative trust event such as deception, hostility, manipulation, a boundary violation, or a broken commitment; ordinary disagreement is not a trust violation. Deeper disclosure, demonstrated reliability, support, or repair may justify larger changes. Memory-worthiness is not relationship significance: an ordinary preference or biographical fact may become memory but must not receive vulnerability-level trust/comfort changes. Direct declarations to the companion such as "I love you" or "I like you" are relationship evidence, never preference memories; do not produce text such as "User likes you." Momentary user state and generic actions belong only to recent conversation context: never create durable memories such as "User is in bed," "User is eating," "User is tired," "User is at home," or "User is watching television." Store only stable facts/preferences, meaningful relationship evidence, future-relevant commitments, or genuinely significant shared episodes. Chemistry signals are 0 to 1 and require actual romantic/flirt evidence; generic positivity such as "you're cool", "nice", or "you're funny" is not flirting. Never infer private facts. Do not create a memory from the character response or from visual details the character mentioned after seeing an uploaded photo; only facts the user explicitly states in their own message may become memory. A correction must use the same subject_key as the earlier fact. Mentioned/reinforced memory IDs must be from the available list and only if the assistant actually referenced them. Resolve only an eligible thread that this user message actually answers. A place opinion candidate is allowed only when the CHARACTER RESPONSE explicitly expresses or changes a durable personal view of one listed place. Never turn the user's opinion, objective venue description, or a passing observation into the companion's opinion. Use only an allowed placeRef and never invent an ID.`;
+Rules: relationship deltas must be integers from -4 to 4. Ordinary genuine conversation should normally earn 1 trust and 1 familiarity. Familiarity reflects sustained back-and-forth and learning stable details about each other. A negative trust change is valid only with a trustConsequence object. Allowed kinds are hostility, contempt, deception, manipulation, boundary_violation, confidence_breach, vulnerability_dismissal, threat, and broken_promise. Allowed severities are minor, moderate, serious, and major. confidence must be at least 0.8 and evidenceBasis must be explicit_user_language or canonical_context. Do not penalize ordinary disagreement, declining a suggestion, asking for space, terse replies, delayed replies, sexual or romantic requests by themselves, app/provider failures, or a plan cancelled with notice. A boundary_violation requires a clear canonical boundary or refusal followed by pressure; never infer one from general reluctance. Deception and confidence_breach require canonical evidence, not suspicion. Formal missed-plan consequences are handled elsewhere and must not be duplicated here. Set trustRepair only when an apology includes accountability or a concrete corrective action; an apology word alone is insufficient. Deeper disclosure, demonstrated reliability, support, or verified repair may justify positive changes. Memory-worthiness is not relationship significance: an ordinary preference or biographical fact may become memory but must not receive vulnerability-level trust/comfort changes. Direct declarations to the companion such as "I love you" or "I like you" are relationship evidence, never preference memories; do not produce text such as "User likes you." Momentary user state and generic actions belong only to recent conversation context: never create durable memories such as "User is in bed," "User is eating," "User is tired," "User is at home," or "User is watching television." Store only stable facts/preferences, meaningful relationship evidence, future-relevant commitments, or genuinely significant shared episodes. Chemistry signals are 0 to 1 and require actual romantic/flirt evidence; generic positivity such as "you're cool", "nice", or "you're funny" is not flirting. Never infer private facts. Do not create a memory from the character response or from visual details the character mentioned after seeing an uploaded photo; only facts the user explicitly states in their own message may become memory. A correction must use the same subject_key as the earlier fact. Mentioned/reinforced memory IDs must be from the available list and only if the assistant actually referenced them. Resolve only an eligible thread that this user message actually answers. A place opinion candidate is allowed only when the CHARACTER RESPONSE explicitly expresses or changes a durable personal view of one listed place. Never turn the user's opinion, objective venue description, or a passing observation into the companion's opinion. Use only an allowed placeRef and never invent an ID.`;
 }
 
 function validateAnalysisJson(
@@ -1353,6 +1410,8 @@ function validateAnalysisJson(
   const record = value && typeof value === "object"
     ? value as Record<string, unknown>
     : {};
+  const trustConsequence = normalizeTrustConsequence(record.trustConsequence, "model");
+  const trustRepair = normalizeTrustRepair(record.trustRepair, "model");
   const changes =
     record.relationshipChanges && typeof record.relationshipChanges === "object"
       ? record.relationshipChanges as Record<string, unknown>
@@ -1370,9 +1429,13 @@ function validateAnalysisJson(
       "commitment",
     ].map((key) => {
       const raw = Number(changes[key] ?? 0);
+      const safeRaw = key === "trust" && (raw < 0 || trustConsequence || trustRepair)
+        || key === "conflict" && Boolean(trustRepair) && raw < 0
+        ? 0
+        : raw;
       return [
         key,
-        Math.max(-4, Math.min(4, Number.isFinite(raw) ? Math.round(raw) : 0)),
+        Math.max(-4, Math.min(4, Number.isFinite(safeRaw) ? Math.round(safeRaw) : 0)),
       ];
     }),
   );
@@ -1477,6 +1540,8 @@ function validateAnalysisJson(
   };
   return {
     relationshipChanges,
+    trustConsequence,
+    trustRepair,
     chemistry,
     memoryCandidates,
     resolvedThreadIds,
@@ -1512,6 +1577,8 @@ function mergeAnalysis(
   }
   return {
     ...modelProposal,
+    trustConsequence: base.trustConsequence ?? modelProposal.trustConsequence ?? null,
+    trustRepair: base.trustRepair ?? modelProposal.trustRepair ?? null,
     relationshipChanges: mergeRelationshipAnalysisChanges({
       deterministic: base.relationshipChanges,
       analyzed: modelProposal.relationshipChanges,

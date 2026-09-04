@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MediaOffer } from '../types';
-import { customPhotoRequestText, mediaWithoutActivePhotoOffer, photoMediaForOffer, photoOfferForMessage, photoOffersWithoutVisibleMessages, shouldShowPhotoGenerationPending, visibleChatPhotoMedia } from './photoRequestPresentation';
+import { customPhotoRequestText, mediaWithoutActivePhotoOffer, photoMediaForOffer, photoOfferForMessage, photoOffersAtTimelineTail, photoOffersWithoutVisibleMessages, shouldShowPhotoGenerationPending, visibleChatPhotoMedia } from './photoRequestPresentation';
 
 function offer(id: string, status: MediaOffer['status'], source: MediaOffer['source'], createdAt: string): MediaOffer {
   return {id,continuity_id:'life',character_instance_id:'character',message_id:id.includes('orphan')?null:'photo-message',source,status,content_level:'standard',quality_tier:'standard',shot_type:'selfie',credit_action:'companion_photo',credit_cost:10,title:'Picture request',companion_message:'A picture is ready to confirm',preview_metadata:{},included_subscription_benefit:false,created_at:createdAt,updated_at:createdAt};
@@ -64,6 +64,17 @@ describe('photo request presentation', () => {
     const failed={...offer('orphan-failed','failed','user_request','2026-08-21T12:02:00.000Z'),generated_media_id:'failed-media'};
     const pending=offer('orphan-pending','pending','story','2026-08-21T12:03:00.000Z');
     expect(photoOffersWithoutVisibleMessages([failed,pending],new Set())).toEqual([pending]);
+  });
+
+  it('does not append a historical photo request after newer messages', () => {
+    const oldOffer=offer('orphan-old','pending','story','2026-09-01T10:00:00.000Z');
+    const currentOffer=offer('orphan-current','pending','story','2026-09-03T14:00:00.000Z');
+
+    expect(photoOffersAtTimelineTail(
+      [currentOffer,oldOffer],
+      new Set(),
+      ['2026-09-03T13:00:00.000Z'],
+    )).toEqual([currentOffer]);
   });
 
   it('does not render the legacy media loader beside an active blurred offer card', () => {

@@ -5,26 +5,30 @@ export const VENICE_IMAGE_API_BASE = 'https://api.venice.ai/api/v1';
 // older qwen-edit route remains available, but has produced intermittent HTTP
 // 500 inference failures for otherwise valid full-body composition changes.
 export const VENICE_STANDARD_EDIT_MODEL = 'qwen-image-2-edit';
-export const VENICE_STANDARD_FALLBACK_EDIT_MODEL = 'firered-image-edit';
+export const VENICE_QUALITY_EDIT_MODEL = 'qwen-image-2-pro-edit';
+// The production FireRed fallback repeatedly rejected otherwise valid
+// single-reference requests with HTTP 400. Qwen Pro uses the same validated
+// multi-edit contract as the primary model and has completed those requests
+// successfully, so it is the safe standard fallback.
+export const VENICE_STANDARD_FALLBACK_EDIT_MODEL = VENICE_QUALITY_EDIT_MODEL;
 // Keep the identity-establishing stage on grok-imagine-edit with safe_mode
 // disabled. Simple clothing edits stay non-explicit here; pose-rebuild nudes
 // include the approved pose and coverage in this same uncensored stage.
 export const VENICE_ADULT_EDIT_MODEL = 'grok-imagine-edit';
-// `qwen-edit` blocks explicit sexual imagery regardless of safe_mode.
-// Venice's current multi-edit catalog accepts `qwen-edit-uncensored` as the
-// uncensored Qwen edit ID. Override with KIVELLE_VENICE_ADULT_FINAL_MODEL only
-// if Venice publishes a replacement ID. This stage receives only requests that
-// already passed Kivelle's adult, fictional-character, consent, and content
-// gates; safe_mode remains disabled.
-export const VENICE_ADULT_FINAL_EDIT_MODEL = 'qwen-edit-uncensored';
+// Venice removed the former qwen-edit-uncensored identifier from its published
+// multi-edit catalog. Qwen Image 2 is the current reference-edit model and
+// supports the same multi-edit safe_mode contract used after Kivelle's adult,
+// fictional-character, consent, and content gates have passed.
+export const VENICE_ADULT_FINAL_EDIT_MODEL = 'qwen-image-2-edit';
 // FireRed remains a technical fallback for model availability and request-shape
 // failures. A provider content-policy block is never bypassed by fallback.
 export const VENICE_ADULT_FALLBACK_EDIT_MODEL = 'firered-image-edit';
-export const VENICE_QUALITY_EDIT_MODEL = 'qwen-image-2-pro-edit';
 
 const VENICE_MULTI_EDIT_ONLY_MODELS = new Set([
   VENICE_STANDARD_EDIT_MODEL,
   VENICE_QUALITY_EDIT_MODEL,
+  VENICE_ADULT_EDIT_MODEL,
+  VENICE_ADULT_FALLBACK_EDIT_MODEL,
 ]);
 
 export type VeniceEditRequest = {
@@ -120,7 +124,7 @@ export function parseVeniceSafetyHeaders(headers: { get(name: string): string | 
 export function veniceModelCostUsd(model: string): number {
   const normalized = model.toLowerCase();
   if (normalized === VENICE_QUALITY_EDIT_MODEL) return 0.10;
-  if (normalized === VENICE_ADULT_FINAL_EDIT_MODEL || normalized === 'qwen-edit' || normalized === 'qwen-edit-uncensored') return 0.04;
+  if (normalized === 'qwen-edit') return 0.04;
   if (normalized === 'qwen-image-2-edit') return 0.05;
   if (normalized === 'qwen-image-2-pro-edit') return 0.10;
   // Remaining validated adult edit routes are billed per edit.

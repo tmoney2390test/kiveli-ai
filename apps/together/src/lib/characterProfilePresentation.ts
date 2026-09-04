@@ -1,4 +1,5 @@
 import type { CharacterDayScheduleEntry } from './characterDaySchedule';
+import { DEFAULT_INITIAL_TRUST } from '@together/domain/src/relationship';
 
 export type CharacterProfileStat = {
   value: string;
@@ -10,6 +11,55 @@ export type CharacterRelationshipPresentation = {
   supportingCopy: string | null;
   stats: CharacterProfileStat[];
 };
+
+export type CharacterTrustPresentation = {
+  value: number;
+  label: string;
+  detail: string;
+  trendLabel: string | null;
+  tone: 'steady' | 'strained' | 'repairing';
+  recentChange: number | null;
+};
+
+export function characterTrustPresentation(rawValue: unknown, context: {
+  recentDirection?: unknown;
+  recentTrustChange?: unknown;
+} = {}): CharacterTrustPresentation {
+  const parsed = rawValue === null || rawValue === undefined ? DEFAULT_INITIAL_TRUST : Number(rawValue);
+  const value = Math.max(0, Math.min(100, Math.round(Number.isFinite(parsed) ? parsed : 0)));
+  const direction = String(context.recentDirection ?? '').trim().toLowerCase();
+  const tone: CharacterTrustPresentation['tone'] = direction === 'repairing'
+    ? 'repairing'
+    : direction === 'strained'
+      ? 'strained'
+      : 'steady';
+  const parsedChange = Number(context.recentTrustChange);
+  const recentChange = tone === 'steady' || !Number.isFinite(parsedChange) || parsedChange === 0
+    ? null
+    : Math.max(-100, Math.min(100, Math.round(parsedChange)));
+  const label = value >= 80
+    ? 'Deep trust'
+    : value >= 60
+      ? 'Strong trust'
+      : value >= 35
+        ? 'Growing trust'
+        : value >= 14
+          ? 'Taking root'
+          : 'Still new';
+
+  return {
+    value,
+    label,
+    tone,
+    recentChange,
+    trendLabel: tone === 'strained' ? 'Recently strained' : tone === 'repairing' ? 'Repairing' : null,
+    detail: tone === 'strained'
+      ? 'Something recent affected this connection. Consistent, respectful follow-through can rebuild it over time.'
+      : tone === 'repairing'
+        ? 'A sincere repair helped. Trust returns gradually through accountability and changed behavior.'
+        : 'Built through honest conversation, shared experiences, and reliability. Trust is separate from attraction.',
+  };
+}
 
 export function characterRelationshipPresentation(input: {
   name: string;

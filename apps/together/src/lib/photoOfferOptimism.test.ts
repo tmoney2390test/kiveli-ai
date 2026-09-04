@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MediaOffer } from '../types';
-import { createOptimisticPhotoRequest, matchingServerPhotoOffer } from './photoOfferOptimism';
+import { createOptimisticPhotoRequest, matchingServerPhotoOffer, queueOptimisticPhotoOfferAcceptance } from './photoOfferOptimism';
 
 function serverOffer(overrides: Partial<MediaOffer> = {}): MediaOffer {
   return {
@@ -43,5 +43,17 @@ describe('photo offer optimism', () => {
     const current = serverOffer({ id: 'current', created_at: new Date(Date.now() + 100).toISOString() });
     expect(matchingServerPhotoOffer([old], request)).toBeUndefined();
     expect(matchingServerPhotoOffer([old, current], request)?.id).toBe('current');
+  });
+
+  it('keeps a queued acceptance cancelable until the server starts generation', () => {
+    const request = createOptimisticPhotoRequest({
+      requestId: 'request-starting',
+      conversationId: 'conversation-1',
+      characterInstanceId: 'character-1',
+      characterName: 'Kira-3',
+    });
+    const starting = queueOptimisticPhotoOfferAcceptance(request);
+    expect(starting.offer.status).toBe('pending');
+    expect(starting.offer.preview_metadata.acceptQueued).toBe(true);
   });
 });

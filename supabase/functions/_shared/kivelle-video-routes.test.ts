@@ -64,6 +64,16 @@ Deno.test('standard sessions receive only explicit Safe for work video options',
   }finally{state.restore();}
 });
 
+Deno.test('adult bring-to-life exposes every enabled spicy image-to-video model',()=>{
+  const state=catalog();try{
+    const routes=publicVideoRoutes(state.routes.filter((route)=>route.contentClass==='adult_capable'&&route.sourceModes.includes('existing_photo')),{includeAdultCapable:true});
+    assertEquals(routes.length,VIDEO_ROUTE_IDS.filter((id)=>id.endsWith('-spicy')).length);
+    assert(routes.every((route)=>route.contentClass==='adult_capable'));
+    assert(routes.every((route)=>route.modelEndpoint?.includes('spicy')));
+    assertEquals(new Set(routes.map((route)=>route.modelFamily)).size,routes.length);
+  }finally{state.restore();}
+});
+
 Deno.test('model payload builders preserve exact endpoint-specific audio fields',()=>{
   const state=catalog();try{
     const payload=(id:typeof VIDEO_ROUTE_IDS[number],sound=false)=>{const route=state.routes.find((item)=>item.id===id)!;return buildVideoProviderPayload(route,{sourceImageUrl:'https://example.test/source.jpg',lastImageUrl:'https://example.test/last.jpg',sourceAspectRatio:'9:16',motionPreset:'subtle',resolution:route.defaultResolution,duration:route.defaultDuration,sound});};

@@ -8,7 +8,7 @@ export type ActivatedMemoryContext = { silent:MemoryContextEntry[]; callbacks:Me
 
 const flagEnabled = () => Deno.env.get('KIVELLE_MEMORY_ACTIVATION_V2') !== 'false';
 
-export async function retrieveActivatedMemories(input:{db:any;userId:string;characterInstanceId:string;userMessage:string;intent:string;storedRows:Row[];semanticRows?:Row[];currentScene?:Row|null;relationship?:Row|null;recentAssistantMessages?:Array<{content?:string}>;now:Date}):Promise<ActivatedMemoryContext>{
+export async function retrieveActivatedMemories(input:{db:any;userId:string;characterInstanceId:string;userMessage:string;intent:string;storedRows:Row[];semanticRows?:Row[];currentScene?:Row|null;relationship?:Row|null;recentAssistantMessages?:Array<{content?:string}>;now:Date;candidateLimit?:number}):Promise<ActivatedMemoryContext>{
   const candidates=new Map<string,MemoryRow>();
   for(const item of input.storedRows){const id=String(item.id??'');if(id&&durableRow(item))candidates.set(id,{...item,id});}
   for(const item of input.semanticRows??[]){const id=String(item.id??'');if(!id||!durableRow(item))continue;candidates.set(id,{...(candidates.get(id)??{}),...item,id,metadata:{...(candidates.get(id)?.metadata??{}),...(item.metadata??{})}});}
@@ -20,7 +20,8 @@ export async function retrieveActivatedMemories(input:{db:any;userId:string;char
   const scene=input.currentScene??{};
   const recentAssistantMemoryIds=(input.recentAssistantMessages??[]).flatMap((message)=>extractMemoryIds(String(message.content??''),candidates));
   const activation:MemoryActivationContext={now:input.now,query:input.userMessage,intent:input.intent,worldId:scene.worldId??scene.world_id,locationId:scene.locationId??scene.location_id,activityKey:scene.activityKey??scene.activity,interactionKey:scene.lastInteractionKey,participantInstanceIds:Array.isArray(scene.participantInstanceIds)?scene.participantInstanceIds:undefined,relationshipStage:input.relationship?.relationship_stage??input.relationship?.stage,currentMood:scene.mood,recentAssistantMemoryIds};
-  const plan=buildMemoryRecallPlan([...candidates.values()],activation,input.intent==='memory_overview'?20:10);
+  const candidateLimit=Math.max(1,Math.min(40,Math.floor(input.candidateLimit??(input.intent==='memory_overview'?20:10))));
+  const plan=buildMemoryRecallPlan([...candidates.values()],activation,candidateLimit);
   const silent=plan.silentContext.map((item)=>present(candidates.get(item.id)??{},item));
   const callbacks=plan.callbackCandidates.map((item)=>present(candidates.get(item.id)??{},item));
   const directRecall=plan.directRecall.map((item)=>present(candidates.get(item.id)??{},item));

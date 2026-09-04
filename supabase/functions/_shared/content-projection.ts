@@ -33,10 +33,22 @@ export function safeSearchRows(rows:Row[],accessInput:ProjectionAccessInput):Row
 
 export function isTrustedPrivateAdultText(row:Row):boolean{
   const metadata=row.provider_metadata&&typeof row.provider_metadata==='object'&&!Array.isArray(row.provider_metadata)?row.provider_metadata as Row:{};
-  return row.visibility_scope==='all'&&row.content_rating==='explicit'&&
+  const version=String(row.moderation_version??metadata.moderationVersion??'');
+  const currentPolicy=row.visibility_scope==='all'&&row.content_rating==='explicit'&&
     String(row.moderation_version??metadata.moderationVersion??'')==='private-adult-text-v1'&&
     String(metadata.contentPolicyVersion??'')==='private-adult-text-v1'&&metadata.privacyScope==='private'&&
     metadata.adultEligibilityApplied===true&&metadata.allParticipantsAdults===true&&metadata.safetyDisposition==='allowed';
+  if(currentPolicy)return true;
+  // Private text written by the original website-only pipeline predates the
+  // versioned policy metadata above. These rows were already approved by the
+  // server and carry the server-authored neutral bridge. Admit their text only
+  // after the conversation-level adult policy has authorized private text;
+  // restricted attachments are still removed by signProjectedAttachments.
+  const knownBridge=row.safe_bridge==='You and your companion shared a more intimate moment and grew closer.'||
+    row.safe_bridge==='You and your companions shared a more intimate moment and grew closer.';
+  return row.visibility_scope==='web_adult'&&row.content_rating==='explicit'&&
+    (row.role==='user'||row.role==='assistant')&&row.moderation_status==='approved'&&knownBridge&&
+    (version==='legacy-adult-route-v1'||version==='web-adult-v1'||version==='private-adult-text-v1');
 }
 
 function isVisibleTextPolicy(row:Row,access:ConversationProjectionAccess):boolean{return isSafePolicy(row)||(access.authorizedPrivateAdultText&&isTrustedPrivateAdultText(row));}

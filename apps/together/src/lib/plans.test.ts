@@ -1,5 +1,5 @@
 import{describe,expect,it}from'vitest';
-import{buildPlanSlots,companionPick,defaultPlanTimeFields,hasPlanConflict,isLocationOpen,isVenueProgramTime,localPlanDateValue,nextAvailableGroupPlanTime,parseCustomPlanTime,planOptionCanStartNow,previewPlanTiming,recommendPlanOptions,resolveGroupPlanAvailability,resolvePlanDraft}from'./plans';
+import{buildPlanSlots,companionPick,defaultPlanTimeFields,formatQuickPlanClock,hasPlanConflict,isLocationOpen,isVenueProgramTime,localPlanDateValue,nextAvailableGroupPlanTime,parseCustomPlanTime,planOptionCanStartNow,previewPlanTiming,recommendPlanOptions,resolveGroupPlanAvailability,resolvePlanDraft}from'./plans';
 import type{CharacterInstance,Location,SharedPlan}from'../types';
 
 const locations=[
@@ -83,6 +83,7 @@ describe('native shared-plan recommendations',()=>{
 
 describe('real scheduling validation',()=>{
   it('previews the shared NOW and IN 1 HOUR timing choices without rounding',()=>{const now=new Date('2026-08-20T12:34:56.000Z');expect(previewPlanTiming('now',now).toISOString()).toBe(now.toISOString());expect(previewPlanTiming('in_one_hour',now).toISOString()).toBe('2026-08-20T13:34:56.000Z');});
+  it('shows IN 1 HOUR on the viewer clock instead of the selected world clock',()=>{const now=new Date('2026-09-03T23:50:00.000Z');expect(formatQuickPlanClock('in_one_hour','America/New_York',now,'en-US')).toBe('8:50 PM');expect(formatQuickPlanClock('in_one_hour','America/Denver',now,'en-US')).toBe('6:50 PM');});
   it('only offers future smart slots',()=>{const now=new Date('2026-08-14T20:30:00-04:00');const slots=buildPlanSlots(now);expect(slots.length).toBeGreaterThanOrEqual(2);expect(slots.every((slot)=>new Date(slot.value)>now)).toBe(true);});
   it('keeps a viable late-evening suggestion on the same local calendar day',()=>{const now=new Date(2026,7,15,22,38);const option=recommendPlanOptions({...context,scopedLocationId:'velvet'})[0]!;const slots=buildPlanSlots({now,option,schedules:[],plans:[],dates:[]});expect(slots[0]).toBeDefined();const first=new Date(slots[0]!.value);expect(localPlanDateValue(first)).toBe(localPlanDateValue(now));expect(first.getTime()).toBeGreaterThan(now.getTime()+10*60000);});
   it('defaults custom planning to the local day and next quarter-hour',()=>{const now=new Date(2026,7,15,22,38);expect(defaultPlanTimeFields(now)).toEqual({date:'2026-08-15',time:'23:15'});expect(localPlanDateValue(now)).toBe('2026-08-15');});

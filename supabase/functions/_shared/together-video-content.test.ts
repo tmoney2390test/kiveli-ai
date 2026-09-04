@@ -2,7 +2,9 @@ import { assert, assertEquals, assertStringIncludes } from "jsr:@std/assert";
 import {
   adultVideoFeatureEnabled,
   directVideoOpeningFrameRequest,
+  resolveAnimatedVideoContentLevel,
   resolveDirectVideoContentDecision,
+  resolveSourcePhotoVideoDecision,
 } from "./together-video-content.ts";
 
 Deno.test("direct video keeps ordinary requests on the safe path", () => {
@@ -100,4 +102,54 @@ Deno.test("adult video requires all three server kill switches", () => {
   assert(adultVideoFeatureEnabled((name) => values[name]));
   values.KIVELLE_ADULT_VIDEO_ENABLED = "false";
   assertEquals(adultVideoFeatureEnabled((name) => values[name]), false);
+});
+
+Deno.test("bring to life exposes the matching model class for its source photo", () => {
+  const safe = resolveSourcePhotoVideoDecision({
+    contentLevel: "romance",
+    contentRating: "suggestive",
+    visibilityScope: "all",
+    authorizedWebAdult: false,
+    adultVideoFeatureEnabled: true,
+  });
+  assertEquals(safe.contentClass, "sfw");
+  assert(safe.allowed);
+
+  const adult = resolveSourcePhotoVideoDecision({
+    contentLevel: "explicit",
+    contentRating: "explicit",
+    visibilityScope: "web_adult",
+    authorizedWebAdult: true,
+    adultVideoFeatureEnabled: true,
+  });
+  assertEquals(adult.contentClass, "adult_capable");
+  assert(adult.allowed);
+});
+
+Deno.test("bring to life fails closed for adult photos outside an authorized web session", () => {
+  const denied = resolveSourcePhotoVideoDecision({
+    contentLevel: "explicit",
+    contentRating: "explicit",
+    visibilityScope: "web_adult",
+    authorizedWebAdult: false,
+    adultVideoFeatureEnabled: true,
+  });
+  assertEquals(denied.reasonCode, "web_adult_authorization_required");
+  assertEquals(denied.allowed, false);
+
+  const mismatched = resolveSourcePhotoVideoDecision({
+    contentLevel: "explicit",
+    contentRating: "explicit",
+    visibilityScope: "all",
+    authorizedWebAdult: true,
+    adultVideoFeatureEnabled: true,
+  });
+  assertEquals(mismatched.reasonCode, "source_content_mismatch");
+});
+
+Deno.test("bring-to-life output inherits the higher approved photo or prompt level", () => {
+  assertEquals(resolveAnimatedVideoContentLevel("explicit", "standard"), "explicit");
+  assertEquals(resolveAnimatedVideoContentLevel("mature", "mature"), "mature");
+  assertEquals(resolveAnimatedVideoContentLevel("standard", "suggestive"), "suggestive");
+  assertEquals(resolveAnimatedVideoContentLevel("romance", "explicit"), "explicit");
 });

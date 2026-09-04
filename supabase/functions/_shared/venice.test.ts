@@ -76,15 +76,29 @@ Deno.test('Venice adult media establishes canonical reality before an explicitly
     const client = new VeniceImageClient('secret', 'https://venice.test/api/v1', 1_000, async (url, init) => { calls.push({url:String(url),body:JSON.parse(String(init?.body))}); return new Response(png, { status: 200, headers: { 'content-type': 'image/png' } }); });
     const provider = new VeniceMediaProvider(client), submission = await provider.submit(adultRequest(), adultRoute());
     assert(submission.status === 'completed' && submission.result?.providerAttempts?.length === 2);
-    assert(calls[0]?.url.endsWith('/image/multi-edit')&&calls[0]?.body.modelId === 'grok-imagine-edit' && calls[0]?.body.safe_mode === false&&calls[0]?.body.output_format==='webp'&&calls[0]?.body.resolution==='1K');
+    assert(calls[0]?.url.endsWith('/image/multi-edit')&&calls[0]?.body.modelId === 'grok-imagine-edit'&&calls[0]?.body.safe_mode===false&&calls[0]?.body.output_format==='webp'&&calls[0]?.body.resolution==='1K');
     assert(calls[1]?.url.endsWith('/image/multi-edit')&&calls[1]?.body.modelId === VENICE_ADULT_FINAL_EDIT_MODEL&&calls[1]?.body.safe_mode === false&&calls[1]?.body.output_format==='webp'&&calls[1]?.body.resolution==='1K');
     assert(Array.isArray(calls[1]?.body.images)&&String(calls[1]?.body.images?.[0]).startsWith('data:image/png;base64,')&&!String(calls[1]?.body.images?.[0]).includes('signed.test'));
     assert(String(calls[1]?.body.prompt).includes('five fingers')&&String(calls[1]?.body.prompt).includes('Preserve the same adult identity'));
     assert(String(calls[1]?.body.prompt).length<=1_200);
-    assert(submission.result?.estimatedCost === .08);
+    assert(submission.result?.estimatedCost === .09);
   } finally {
     restoreEnv('KIVELLE_ADULT_MEDIA_ENABLED', previousAdult); restoreEnv('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED', previousValidated);
   }
+});
+
+Deno.test('Venice adult media falls through to the scoped final edit when the Grok base contract is rejected',async()=>{
+  const previousAdult=Deno.env.get('KIVELLE_ADULT_MEDIA_ENABLED'),previousValidated=Deno.env.get('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED');
+  Deno.env.set('KIVELLE_ADULT_MEDIA_ENABLED','true');Deno.env.set('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED','true');
+  const calls:Array<{url:string;body:Record<string,unknown>}>=[],png=Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,1]);
+  try{
+    const client=new VeniceImageClient('secret','https://venice.test/api/v1',1_000,async(url,init)=>{const body=JSON.parse(String(init?.body)) as Record<string,unknown>;calls.push({url:String(url),body});return calls.length===1?new Response('{}',{status:400}):new Response(png,{status:200,headers:{'content-type':'image/png'}});});
+    const submission=await new VeniceMediaProvider(client).submit(adultRequest(),adultRoute());
+    assert(calls.length===2&&calls[0]?.url.endsWith('/image/multi-edit')&&calls[0]?.body.modelId==='grok-imagine-edit');
+    assert(calls[1]?.url.endsWith('/image/multi-edit')&&calls[1]?.body.modelId===VENICE_ADULT_FINAL_EDIT_MODEL);
+    assert(submission.result?.providerMetadata?.pipeline==='direct_adult_fallback_after_base_rejection'&&submission.result?.providerMetadata?.fallbackUsed===true);
+    assert(submission.result?.providerAttempts?.[0]?.failureCode==='PROVIDER_REQUEST_INVALID'&&submission.result?.providerAttempts?.[1]?.success===true);
+  }finally{restoreEnv('KIVELLE_ADULT_MEDIA_ENABLED',previousAdult);restoreEnv('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED',previousValidated);}
 });
 
 Deno.test('Venice adult base preserves approved away-facing pose before the final edit', async () => {
@@ -267,7 +281,7 @@ Deno.test('Venice adult final edit falls back after a Qwen request rejection at 
   }finally{restoreEnv('KIVELLE_ADULT_MEDIA_ENABLED',previousAdult);restoreEnv('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED',previousValidated);restoreEnv('KIVELLE_VENICE_ADULT_FALLBACK_MODEL',previousFallback);}
 });
 
-Deno.test('Venice standard media falls back to FireRed after a retryable primary model failure',async()=>{
+Deno.test('Venice standard media uses the documented multi-edit FireRed contract after a retryable primary model failure',async()=>{
   const previousFallback=Deno.env.get('KIVELLE_VENICE_STANDARD_FALLBACK_MODEL');
   Deno.env.set('KIVELLE_VENICE_STANDARD_FALLBACK_MODEL','firered-image-edit');
   const calls:Array<{url:string;body:Record<string,unknown>}>=[],png=Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,1]);
@@ -365,6 +379,18 @@ Deno.test('canonical media routing prefers Venice while preserving feature-gated
     Deno.env.set('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED','false');
     let blocked = false; try { routeCanonicalMedia(adultRequest(), { source:'user_request',userTier:'free' }); } catch (error) { blocked = error instanceof AppError && error.code === 'PROVIDER_UNAVAILABLE'; }
     assert(blocked);
+  } finally { for (const name of names) restoreEnv(name, previous[name]); }
+});
+
+Deno.test('canonical media routing keeps ordinary photos on OpenAI while retaining Venice for adult photos', () => {
+  const names = ['OPENAI_API_KEY','VENICE_API_KEY','KIVELLE_VENICE_ENABLED','KIVELLE_IMAGE_PROVIDER','KIVELLE_ADULT_MEDIA_ENABLED','KIVELLE_VENICE_ADULT_ROUTE_VALIDATED'] as const;
+  const previous = Object.fromEntries(names.map((name) => [name, Deno.env.get(name)]));
+  try {
+    Deno.env.set('OPENAI_API_KEY','openai-test-key'); Deno.env.set('VENICE_API_KEY','venice-test-key'); Deno.env.set('KIVELLE_VENICE_ENABLED','true'); Deno.env.set('KIVELLE_IMAGE_PROVIDER','openai'); Deno.env.set('KIVELLE_ADULT_MEDIA_ENABLED','true'); Deno.env.set('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED','true');
+    const standard = routeCanonicalMedia({ ...adultRequest(), contentLevel:'standard', generationIntent:undefined }, { source:'user_request',userTier:'free' });
+    const adult = routeCanonicalMedia(adultRequest(), { source:'user_request',userTier:'free' });
+    assert(standard.route.capability.id === 'openai-image' && standard.provider.id === 'openai');
+    assert(adult.route.capability.id === 'venice-adult-two-stage' && adult.provider.id === 'venice');
   } finally { for (const name of names) restoreEnv(name, previous[name]); }
 });
 

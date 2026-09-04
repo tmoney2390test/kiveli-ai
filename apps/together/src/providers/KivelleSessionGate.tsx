@@ -5,7 +5,7 @@ import { LoadingSkeleton } from '../components/RouteState';
 import { RouteLoadingState } from '../components/RouteLoadingState';
 import { useAuth } from '../hooks/useAuth';
 import { useWebHydrated } from '../hooks/useWebHydrated';
-import { isPublicAppPath, shouldHoldPrivateWebRouteForHydration, signInPathFor } from '../lib/sessionRouting';
+import { isPublicAppPath, shouldHoldPrivateWebRouteForHydration, shouldKeepAuthTransitionMounted, signInPathFor } from '../lib/sessionRouting';
 import { consumeWebEntryHref, effectiveWebEntryHref, entryPathname, initialWebEntryHref, shouldRecoverWebEntry } from '../lib/webEntryRoute';
 import { clearSessionSnapshot } from '../lib/sessionSnapshotCache';
 
@@ -69,6 +69,13 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
 
   if (shouldHoldPrivateWebRouteForHydration({ platform: Platform.OS, hydrated: webHydrated, pathname })) {
     return <View style={styles.hydration}><LoadingSkeleton label="Opening Kivelle…" /></View>;
+  }
+
+  if (session && shouldKeepAuthTransitionMounted(pathname)) {
+    // Auth and callback screens present their own success/loading state and
+    // navigate only after the destination is ready. Preserve their component
+    // identity so controlled credentials and feedback do not reset mid-flow.
+    return <>{children}</>;
   }
 
   if (demoMode || session) {

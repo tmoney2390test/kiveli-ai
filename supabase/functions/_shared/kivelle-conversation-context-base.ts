@@ -82,7 +82,7 @@ export function detectContextQueryIntent(message: string): ContextQueryIntent {
 
 export async function buildKivelleConversationContext(input: {
   db: SupabaseClient; userId:string; instance:Row; conversation:Row; userMessage:string;
-  lifeRun:Row; semanticRows?:Row[]; semanticQueryEmbedding?:number[]|null; attachments?:Row[]; now?:Date; visibleHistoryFromSequence?:number; visibleSceneSessionId?:string; visibleSceneFromSequence?:number; forceRemoteInteraction?:boolean;conversationSceneResolution?:Row;authorizedWebAdult?:boolean;authorizedPrivateAdultText?:boolean;
+  lifeRun:Row; semanticRows?:Row[]; semanticQueryEmbedding?:number[]|null; attachments?:Row[]; now?:Date; visibleHistoryFromSequence?:number; visibleSceneSessionId?:string; visibleSceneFromSequence?:number; forceRemoteInteraction?:boolean;conversationSceneResolution?:Row;authorizedWebAdult?:boolean;authorizedPrivateAdultText?:boolean;memoryCandidateLimit?:number;
 }): Promise<KivelleConversationContext> {
   const { db, userId, instance, conversation, userMessage } = input;
   const now = input.now ?? new Date();
@@ -180,7 +180,7 @@ export async function buildKivelleConversationContext(input: {
   const safeSemanticRows=input.authorizedWebAdult?input.semanticRows??[]:(input.semanticRows??[]).filter((row:Row)=>(row.visibility_scope??'all')==='all'&&['safe','suggestive',...(input.authorizedPrivateAdultText?['explicit']:[])].includes(String(row.content_rating??'safe')));
   const enabledSemanticMemories=filterMemoriesForPreferences(safeSemanticRows,memoryPreferences);
   const memoryContext:ActivatedMemoryContext=personalizationEnabled
-    ?await retrieveActivatedMemories({db,userId,characterInstanceId:String(instance.id),userMessage,intent,storedRows:enabledStoredMemories,semanticRows:enabledSemanticMemories,currentScene:{...currentScene,worldId:place?.world.id},relationship:relationship.data??{},recentAssistantMessages:(messages.data??[]).filter((item:Row)=>item.role==='assistant'),now})
+    ?await retrieveActivatedMemories({db,userId,characterInstanceId:String(instance.id),userMessage,intent,storedRows:enabledStoredMemories,semanticRows:enabledSemanticMemories,currentScene:{...currentScene,worldId:place?.world.id},relationship:relationship.data??{},recentAssistantMessages:(messages.data??[]).filter((item:Row)=>item.role==='assistant'),now,candidateLimit:input.memoryCandidateLimit})
     :{silent:[],callbacks:[],directRecall:[],callbackAllowance:0,retrievedIds:[]};
   const memoryRows=[...memoryContext.silent,...memoryContext.callbacks,...memoryContext.directRecall];
   const plansView = (plans.data ?? []).map((plan:Row) => ({

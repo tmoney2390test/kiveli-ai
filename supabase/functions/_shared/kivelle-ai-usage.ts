@@ -32,7 +32,10 @@ export type AiUsageEvent = {
 export async function recordAiUsage(scope: AiUsageScope | undefined, event: AiUsageEvent): Promise<void> {
   if (!scope?.db || !scope.userId || Deno.env.get('KIVELLE_AI_COST_TELEMETRY_ENABLED') === 'false') return;
   const usage=event.usage;
-  const estimated=event.estimatedCostUsd ?? (usage && (event.provider==='openai'||event.provider==='xai') ? estimateAiCost(event.provider,event.model,usage) : null);
+  const serviceTier=event.metadata?.serviceTierFallback===true
+    ?undefined
+    :event.metadata?.appliedServiceTier??event.metadata?.requestedServiceTier;
+  const estimated=event.estimatedCostUsd ?? (usage && (event.provider==='openai'||event.provider==='xai') ? estimateAiCost(event.provider,event.model,usage,serviceTier) : null);
   const row={
     user_id:scope.userId,
     continuity_id:scope.continuityId??null,

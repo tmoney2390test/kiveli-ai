@@ -20,6 +20,7 @@ export type CreatorReadinessInput = {
   firstMeeting: { selectedId?: string | null; options?: Array<{ id: string }> };
   hasSelectedAsset: boolean;
   hasLegacyReference?: boolean;
+  requireGender?: boolean;
 };
 
 export type CreatorReadiness = {
@@ -33,11 +34,13 @@ export function creatorReadiness(input: CreatorReadinessInput): CreatorReadiness
   const name = typeof input.identity['name'] === 'string' ? input.identity['name'] : '';
   const occupation = typeof input.identity['occupation'] === 'string' ? input.identity['occupation'] : '';
   const biography = typeof input.identity['biography'] === 'string' ? input.identity['biography'] : '';
+  const gender = typeof input.identity['gender'] === 'string' ? input.identity['gender'] : '';
   if (
     name.trim().length < 1
     || age < 18
     || occupation.trim().length < 1
     || biography.trim().length < 20
+    || (input.requireGender === true && gender.trim().length < 1)
   ) missing.push('identity');
   if (!input.hasSelectedAsset && !input.hasLegacyReference) missing.push('appearance');
   if (!Array.isArray(input.routine.blocks) || input.routine.blocks.length === 0 || routineConflicts(input.routine.blocks).length > 0) missing.push('routine');

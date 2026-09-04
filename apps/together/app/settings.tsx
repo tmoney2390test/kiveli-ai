@@ -53,6 +53,7 @@ import { shouldRenderSettingsRoute, shouldUseDesktopSettingsLayout } from '../sr
 import { DESKTOP_SIDEBAR_EXPANDED_WIDTH } from '../src/lib/desktopNavigation';
 import { startSignOutTransition } from '../src/lib/signOutTransition';
 import { createClientRequestId } from '../src/lib/requestId';
+import { privateStoredImageSource } from '../src/lib/mediaImageSource';
 import {
   normalizeProfileDraft,
   profileDraftChanged,
@@ -240,7 +241,7 @@ export default function Settings() {
     let uploadedPath: string | null = null;
     try {
       const asset = result.assets[0];
-      normalized = await normalizeUserImage({ uri: asset.uri, width: asset.width, height: asset.height, fileSize: asset.fileSize, fileName: asset.fileName }, .9);
+      normalized = await normalizeUserImage({ uri: asset.uri, width: asset.width, height: asset.height, fileSize: asset.fileSize, fileName: asset.fileName }, .84, 512);
       const path = `${session.user.id}/avatar-${createClientRequestId()}.jpg`;
       const blob = await (await fetch(normalized.uri)).blob();
       const { error } = await supabase.storage.from('together-user-media').upload(path, blob, { contentType: normalized.mimeType, upsert: false, cacheControl: '31536000' });
@@ -339,7 +340,7 @@ export default function Settings() {
             keyboardShouldPersistTaps="handled"
           >
             {!snapshot ? <LoadingSkeleton label="Loading your settings…" /> : activeSection ? <>
-              {activeSection === 'profile' ? <ProfilePanel avatar={avatar} hasAvatar={Boolean(avatarPath)} name={name} setName={(value) => { setSaveNotice(null); setName(value); }} about={about} setAbout={(value) => { setSaveNotice(null); setAbout(value); }} interests={interests} setInterests={(value) => { setSaveNotice(null); setInterests(value); }} goals={goals} setGoals={(value) => { setSaveNotice(null); setGoals(value); }} syncMainPersona={syncMainPersona} setSyncMainPersona={setSyncMainPersona} busy={busy} dirty={dirty} notice={saveNotice} email={session?.user.email} onAvatar={chooseAvatarSource} onRemoveAvatar={() => void removeAvatar()} onSave={() => void saveProfile()} showInlineSave={desktop} /> : null}
+              {activeSection === 'profile' ? <ProfilePanel avatar={avatar} avatarPath={avatarPath} hasAvatar={Boolean(avatarPath)} name={name} setName={(value) => { setSaveNotice(null); setName(value); }} about={about} setAbout={(value) => { setSaveNotice(null); setAbout(value); }} interests={interests} setInterests={(value) => { setSaveNotice(null); setInterests(value); }} goals={goals} setGoals={(value) => { setSaveNotice(null); setGoals(value); }} syncMainPersona={syncMainPersona} setSyncMainPersona={setSyncMainPersona} busy={busy} dirty={dirty} notice={saveNotice} email={session?.user.email} onAvatar={chooseAvatarSource} onRemoveAvatar={() => void removeAvatar()} onSave={() => void saveProfile()} showInlineSave={desktop} /> : null}
               {activeSection === 'account' ? <AccountPanel email={session?.user.email} providerLabel={providerState.label} verified={providerState.verifiedEmail} pendingEmail={providerState.pendingEmail} tier={subscriptionLabel(snapshot.entitlements?.tier)} onRoute={openRoute} onResend={() => void resendPendingEmailChange().then(() => Alert.alert('Confirmation sent', 'Check the new email address.')).catch((error) => Alert.alert('Could not send email', error.message))} onSignOutOthers={() => Alert.alert('Sign out everywhere else?', 'This device will remain signed in.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out others', style: 'destructive', onPress: () => void signOutOthers().then(() => Alert.alert('Other sessions signed out.')).catch((error) => Alert.alert('Could not update sessions', error.message)) }])} /> : null}
               {activeSection === 'identity' ? <IdentityPanel snapshot={snapshot} onRoute={openRoute} /> : null}
               {activeSection === 'experience' ? <ExperiencePanel snapshot={snapshot} onRoute={openRoute} /> : null}
@@ -387,16 +388,17 @@ function SettingsOverview({ snapshot, name, verified, tier, query, onQuery, onSe
 }
 
 function ProfilePanel(props: {
-  avatar: string | null; hasAvatar: boolean; name: string; setName: (value: string) => void; about: string; setAbout: (value: string) => void;
+  avatar: string | null; avatarPath: string | null; hasAvatar: boolean; name: string; setName: (value: string) => void; about: string; setAbout: (value: string) => void;
   interests: string; setInterests: (value: string) => void; goals: string; setGoals: (value: string) => void;
   syncMainPersona: boolean; setSyncMainPersona: (value: boolean) => void; busy: boolean; dirty: boolean; notice: SaveNotice;
   email?: string; onAvatar: () => void; onRemoveAvatar: () => void; onSave: () => void; showInlineSave: boolean;
 }) {
+  const avatarSource = privateStoredImageSource(props.avatar, props.avatarPath);
   return <View style={styles.panel}>
     <PanelHeading title="Your profile" body="This is you—not your active companion. Relationship memories and alternate-Life identities remain separate." />
     <View style={styles.profileHero}>
       <Pressable accessibilityRole="button" accessibilityLabel="Change account avatar" accessibilityHint="Your avatar saves immediately" onPress={props.onAvatar} style={styles.avatar}>
-        {props.avatar ? <Image source={{ uri: props.avatar }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Text style={styles.avatarInitial}>{(props.name || 'Y')[0]?.toUpperCase()}</Text>}
+        {avatarSource ? <Image source={avatarSource} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" priority="high" transition={0} recyclingKey={props.avatarPath ?? undefined} /> : <Text style={styles.avatarInitial}>{(props.name || 'Y')[0]?.toUpperCase()}</Text>}
         <View style={styles.camera}><Camera size={14} color="#fff" /></View>
       </Pressable>
       <View style={styles.profileHeroCopy}><Text style={styles.profileName}>{props.name || 'You'}</Text><Text style={styles.profileEmail}>{props.email ?? 'Signed-in Kivelle account'}</Text><Text style={styles.avatarHelper}>Your account photo saves immediately.</Text><View style={styles.avatarActions}><Pressable accessibilityRole="button" accessibilityLabel={props.hasAvatar ? 'Replace photo' : 'Add photo'} disabled={props.busy} onPress={props.onAvatar} style={styles.avatarAction}><Text style={styles.avatarActionText}>{props.hasAvatar ? 'Replace photo' : 'Add photo'}</Text></Pressable>{props.hasAvatar ? <Pressable accessibilityRole="button" accessibilityLabel="Remove account photo" disabled={props.busy} onPress={props.onRemoveAvatar} style={styles.avatarAction}><Text style={styles.avatarRemoveText}>Remove</Text></Pressable> : null}</View></View>

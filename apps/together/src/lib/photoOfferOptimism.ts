@@ -7,6 +7,22 @@ export type OptimisticPhotoRequest = {
   offer: MediaOffer;
 };
 
+export function queueOptimisticPhotoOfferAcceptance(
+  request: OptimisticPhotoRequest,
+): OptimisticPhotoRequest {
+  return {
+    ...request,
+    offer: {
+      ...request.offer,
+      // Keep the offer cancelable until the server has actually accepted it.
+      // `accepted` means a real media job exists; using it for a queued tap
+      // strands the UI in a false generating state if reconciliation is late.
+      status: 'pending',
+      preview_metadata: { ...request.offer.preview_metadata, acceptQueued: true },
+    },
+  };
+}
+
 export function createOptimisticPhotoRequest(input: {
   requestId: string;
   conversationId: string;

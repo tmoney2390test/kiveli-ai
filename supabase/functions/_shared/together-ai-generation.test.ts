@@ -1,5 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert';
-import { executeResponsesWithTemperatureFallback,geminiDialogueRequestBody } from './together-ai.ts';
+import { executeResponsesWithTemperatureFallback,geminiDialogueRequestBody,isUnsupportedServiceTierResponse,openAIDialogueModel,openAIFastServiceTier,xaiDialogueModel } from './together-ai.ts';
 
 Deno.test('temperature compatibility retry removes only temperature and runs once',async()=>{
   const bodies:Record<string,unknown>[]=[];
@@ -24,6 +24,49 @@ Deno.test('other provider validation failures are not retried',async()=>{
   const response=await executeResponsesWithTemperatureFallback(fetchImpl,'xai','secret',{temperature:1},{} as never);
   assertEquals(response.status,400);
   assertEquals(calls,1);
+});
+
+Deno.test('premium delivery stays opt-in and falls back safely when unavailable',async()=>{
+  assertEquals(openAIFastServiceTier(undefined),undefined);
+  assertEquals(openAIFastServiceTier('fast'),'fast');
+  assertEquals(openAIFastServiceTier('priority'),'priority');
+  assertEquals(openAIFastServiceTier('off'),undefined);
+  assertEquals(isUnsupportedServiceTierResponse(403,{error:{message:'Fast mode access is unavailable'}}),true);
+  const bodies:Record<string,unknown>[]=[];
+  const fetchImpl=(async(_input:RequestInfo|URL,init?:RequestInit)=>{
+    bodies.push(JSON.parse(String(init?.body)));
+    return bodies.length===1
+      ?new Response(JSON.stringify({error:{message:'service_tier fast is not available for this project'}}),{status:403})
+      :new Response(JSON.stringify({output_text:'hello'}),{status:200});
+  }) as typeof fetch;
+  const options={route:{provider:'openai'},serviceTierFallback:false} as never;
+  const response=await executeResponsesWithTemperatureFallback(fetchImpl,'openai','secret',{model:'test',service_tier:'fast'},options);
+  assertEquals(response.status,200);
+  assertEquals(bodies.length,2);
+  assertEquals(bodies[0]?.service_tier,'fast');
+  assertEquals('service_tier' in (bodies[1]??{}),false);
+  assertEquals((options as {serviceTierFallback:boolean}).serviceTierFallback,true);
+});
+
+Deno.test('Fast reasoning selects the cheaper lightweight dialogue model',()=>{
+  assertEquals(openAIDialogueModel({generationPreferences:{reasoningPreference:'none'}} as never),'gpt-4.1-nano');
+});
+
+Deno.test('Fast Grok uses the dedicated model seam and safely defaults to Grok 4.3',()=>{
+  const previousStandard=Deno.env.get('KIVELLE_XAI_DIALOGUE_MODEL');
+  const previousFast=Deno.env.get('KIVELLE_XAI_FAST_DIALOGUE_MODEL');
+  try{
+    Deno.env.delete('KIVELLE_XAI_DIALOGUE_MODEL');
+    Deno.env.delete('KIVELLE_XAI_FAST_DIALOGUE_MODEL');
+    assertEquals(xaiDialogueModel({generationPreferences:{reasoningPreference:'none'}} as never),'grok-4.3');
+    Deno.env.set('KIVELLE_XAI_DIALOGUE_MODEL','grok-standard-test');
+    Deno.env.set('KIVELLE_XAI_FAST_DIALOGUE_MODEL','grok-fast-test');
+    assertEquals(xaiDialogueModel({generationPreferences:{reasoningPreference:'none'}} as never),'grok-fast-test');
+    assertEquals(xaiDialogueModel({generationPreferences:{reasoningPreference:'low'}} as never),'grok-standard-test');
+  }finally{
+    if(previousStandard===undefined)Deno.env.delete('KIVELLE_XAI_DIALOGUE_MODEL');else Deno.env.set('KIVELLE_XAI_DIALOGUE_MODEL',previousStandard);
+    if(previousFast===undefined)Deno.env.delete('KIVELLE_XAI_FAST_DIALOGUE_MODEL');else Deno.env.set('KIVELLE_XAI_FAST_DIALOGUE_MODEL',previousFast);
+  }
 });
 
 Deno.test('Gemini fallback applies dynamism, group hierarchy, reasoning, and visible budget',()=>{

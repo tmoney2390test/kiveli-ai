@@ -5,6 +5,7 @@ import {
   isRetryableMediaFinalizationError,
   mediaFinalizationFailure,
   mediaSubmissionRetryDelayMs,
+  providerJobTimeoutStartedAt,
 } from './together-media-dispatcher.ts';
 
 Deno.test('media finalization retries one transient failure and then succeeds', async () => {
@@ -80,5 +81,19 @@ Deno.test('unknown submissions and invalid requests are never submitted twice', 
   assertEquals(
     mediaSubmissionRetryDelayMs(new AppError('PROVIDER_REQUEST_INVALID', 'Invalid request.', 422, false), 1),
     null,
+  );
+});
+
+Deno.test('quality recovery uses its fresh recovery time without rewriting provider history', () => {
+  assertEquals(
+    providerJobTimeoutStartedAt({
+      created_at: '2026-09-03T20:00:00.000Z',
+      provider_metadata: { qualityRecoveryRequestedAt: '2026-09-03T21:00:00.000Z' },
+    }),
+    Date.parse('2026-09-03T21:00:00.000Z'),
+  );
+  assertEquals(
+    providerJobTimeoutStartedAt({ created_at: '2026-09-03T20:00:00.000Z' }),
+    Date.parse('2026-09-03T20:00:00.000Z'),
   );
 });

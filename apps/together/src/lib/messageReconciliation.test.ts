@@ -41,4 +41,19 @@ describe("message reconciliation", () => {
     const first = message({ id: "assistant-1", role: "assistant", conversation_sequence: 1 });
     expect(reconcileMessages([second], [first]).map((item) => item.id)).toEqual(["assistant-1", "assistant-2"]);
   });
+
+  it("does not erase a fast reply when an older focus refresh finishes late", () => {
+    const earlier = message({ id: "server-1", role: "assistant", content: "Earlier" });
+    const fastReply = message({
+      id: "assistant-fast",
+      role: "assistant",
+      content: "Already delivered",
+      created_at: "2026-08-23T12:00:02.000Z",
+      response_key: "direct:request-fast:primary",
+    });
+    const staleFocusPage = [earlier];
+
+    expect(reconcileMessages([earlier, fastReply], staleFocusPage).map((item) => item.id))
+      .toEqual(["server-1", "assistant-fast"]);
+  });
 });

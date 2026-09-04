@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image as ExpoImage, type ImageContentPosition } from 'expo-image';
-import { ArrowLeft, Brain, CalendarDays, Camera, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, LockKeyhole, MapPin, Sparkles } from 'lucide-react-native';
+import { ArrowLeft, Brain, CalendarDays, Camera, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, LockKeyhole, MapPin, ShieldCheck, Sparkles } from 'lucide-react-native';
 import {
   Body,
   EmptyState,
   GradientButton,
+  ImageLightbox,
   MoodBadge,
   RelationshipBadge,
   Screen,
@@ -17,7 +18,7 @@ import { DetailPreservingArtwork } from '../../src/components/DetailPreservingAr
 import { characterProfilePhotos } from '../../src/character-profile-assets';
 import { loadCharacterSchedule, manageConversation, meetCompanion, openConversation } from '../../src/lib/api';
 import { buildCharacterDaySchedule, type CharacterDayScheduleEntry } from '../../src/lib/characterDaySchedule';
-import { characterRelationshipPresentation, compactCharacterSchedule } from '../../src/lib/characterProfilePresentation';
+import { characterRelationshipPresentation, characterTrustPresentation, compactCharacterSchedule } from '../../src/lib/characterProfilePresentation';
 import { relationshipDaysKnown } from '../../src/lib/companionLife';
 import { activeConversationFor } from '../../src/lib/conversation';
 import { characterConversationHref } from '../../src/lib/chatRoute';
@@ -104,6 +105,10 @@ export default function CharacterProfile() {
     placesTogether,
     upcomingCount: upcoming,
   });
+  const trustPresentation = instance ? characterTrustPresentation(relationship?.trust, {
+    recentDirection: relationship?.recent_direction,
+    recentTrustChange: relationship?.last_relationship_delta?.trust,
+  }) : null;
   const memoryInspector = snapshot.entitlements?.entitlement_keys?.includes('memory_inspector') === true;
   const memoryCount = instance ? snapshot.memoryCounts?.[instance.id] ?? memories.length : 0;
   const featuredMemory = memories[0];
@@ -167,7 +172,6 @@ export default function CharacterProfile() {
       <CharacterPortraitGallery
         slug={template.slug}
         name={template.name}
-        age={template.age}
         occupation={template.occupation}
         photos={profilePhotos}
         focal={focal}
@@ -195,6 +199,33 @@ export default function CharacterProfile() {
           <Text accessibilityRole="header" style={[styles.heading, styles.relationshipHeadingText]}>{relationshipPresentation.heading}</Text>
           {relationshipPresentation.supportingCopy ? <Text style={styles.relationshipSupporting}>{relationshipPresentation.supportingCopy}</Text> : null}
         </View> : null}
+
+        {trustPresentation ? <View style={styles.trustCard}>
+          <View accessible accessibilityLabel={`Trust level: ${trustPresentation.label}, ${trustPresentation.value} out of 100`} style={styles.trustHeader}>
+            <View style={styles.trustIdentity}>
+              <View style={styles.trustIcon}><ShieldCheck size={17} color={colors.violet}/></View>
+              <View>
+                <Text style={styles.trustKicker}>TRUST LEVEL</Text>
+                <Text style={styles.trustLabel}>{trustPresentation.label}</Text>
+                {trustPresentation.trendLabel ? <Text style={[
+                  styles.trustTrend,
+                  trustPresentation.tone === 'strained' ? styles.trustTrendStrained : styles.trustTrendRepairing,
+                ]}>{trustPresentation.trendLabel}{trustPresentation.recentChange ? ` ${trustPresentation.recentChange > 0 ? '+' : ''}${trustPresentation.recentChange}` : ''}</Text> : null}
+              </View>
+            </View>
+            <Text style={styles.trustValue}>{trustPresentation.value}<Text style={styles.trustTotal}> / 100</Text></Text>
+          </View>
+          <View
+            accessibilityLabel={`Trust progress, ${trustPresentation.value} out of 100`}
+            accessibilityRole="progressbar"
+            accessibilityValue={{ min: 0, max: 100, now: trustPresentation.value, text: trustPresentation.label }}
+            style={styles.trustTrack}
+          >
+            <View style={[styles.trustFill, { width: `${trustPresentation.value}%` }]} />
+          </View>
+          <Text style={styles.trustDetail}>{trustPresentation.detail}</Text>
+        </View> : null}
+
         <View style={styles.about}>
           <Text style={styles.aboutLabel}>ABOUT {template.name.toUpperCase()}</Text>
           <Body muted>{naturalizeCharacterBiography(template.biography)}</Body>
@@ -204,7 +235,9 @@ export default function CharacterProfile() {
           {relationshipPresentation.stats.map((stat) => <Stat key={stat.label} value={stat.value} label={stat.label} />)}
         </View> : null}
 
+        <Text style={styles.detailsLabel}>CHARACTER DETAILS</Text>
         <View style={styles.facts}>
+          <Info label="Age" value={String(template.age)} />
           {instance ? <>
             <Info label="Right now" value={currentActivity} />
             <Info label="Location" value={currentLocation} onPress={locationHref ? () => router.push(locationHref as never) : undefined} />
@@ -261,8 +294,9 @@ export default function CharacterProfile() {
   </Screen>;
 }
 
-function CharacterPortraitGallery({slug,name,age,occupation,photos,focal,spiceLevel,desktop,viewportWidth,onBack}:{slug:string;name:string;age:number;occupation:string;photos:ReturnType<typeof characterProfilePhotos>;focal:ImageContentPosition;spiceLevel?:number|null;desktop:boolean;viewportWidth:number;onBack:()=>void}) {
+function CharacterPortraitGallery({slug,name,occupation,photos,focal,spiceLevel,desktop,viewportWidth,onBack}:{slug:string;name:string;occupation:string;photos:ReturnType<typeof characterProfilePhotos>;focal:ImageContentPosition;spiceLevel?:number|null;desktop:boolean;viewportWidth:number;onBack:()=>void}) {
   const[photoIndex,setPhotoIndex]=useState(0);
+  const[lightboxOpen,setLightboxOpen]=useState(false);
   const[failedPhotoIndexes,setFailedPhotoIndexes]=useState<Record<number,true>>({});
   useEffect(()=>{setPhotoIndex(0);setFailedPhotoIndexes({});},[slug]);
   const activePhotoIndex=photoIndex<photos.length?photoIndex:0;
@@ -279,8 +313,8 @@ function CharacterPortraitGallery({slug,name,age,occupation,photos,focal,spiceLe
   return <View {...panResponder.panHandlers} style={[styles.portrait,desktop?styles.portraitDesktop:styles.portraitMobile,compactPhone&&styles.portraitCompact]}>
     <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.portraitFallback}>{!activePhoto||activePhotoFailed?<Text accessible={false} style={styles.portraitFallbackInitial}>{name[0]}</Text>:null}</View>
     {nextPhoto?<ExpoImage accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" alt="" source={nextPhoto} style={styles.photoPreload} contentFit="cover" cachePolicy="memory-disk" priority="low"/>:null}
-    {activePhoto&&!activePhotoFailed?<DetailPreservingArtwork
-      accessibilityLabel={`${name}, age ${age}, ${occupation}. Photo ${activePhotoIndex+1} of ${photos.length}.`}
+    {activePhoto&&!activePhotoFailed?<Pressable accessibilityRole="imagebutton" accessibilityLabel={`Open full-size photo ${activePhotoIndex+1} of ${photos.length} of ${name}`} onPress={()=>setLightboxOpen(true)} style={styles.portraitImageButton}><DetailPreservingArtwork
+      accessibilityLabel={`${name}, ${occupation}. Photo ${activePhotoIndex+1} of ${photos.length}.`}
       source={activePhoto}
       contentPosition={focal}
       frameStyle={desktop?styles.portraitFrameDesktop:styles.portraitFrameMobile}
@@ -289,7 +323,7 @@ function CharacterPortraitGallery({slug,name,age,occupation,photos,focal,spiceLe
       recyclingKey={`${slug}:profile:${activePhotoIndex}`}
       onLoad={()=>setFailedPhotoIndexes((current)=>{if(!current[activePhotoIndex])return current;const next={...current};delete next[activePhotoIndex];return next;})}
       onError={()=>setFailedPhotoIndexes((current)=>({...current,[activePhotoIndex]:true}))}
-    />:null}
+    /></Pressable>:null}
     <View pointerEvents="none" style={styles.portraitShade}/>
     <Pressable accessibilityRole="button" accessibilityLabel="Go back" hitSlop={4} onPress={onBack} style={({pressed})=>[styles.back,pressed&&styles.pressed]}><ArrowLeft size={20} color="#fff"/></Pressable>
     <SpiceBadge level={spiceLevel} overlay style={photos.length>1?styles.profileSpiceWithCounter:undefined}/>
@@ -301,9 +335,10 @@ function CharacterPortraitGallery({slug,name,age,occupation,photos,focal,spiceLe
     </>:null}
     {activePhotoFailed?<View style={styles.photoError}><Text style={styles.photoErrorText}>This photo couldn’t be displayed.</Text>{photos.length>1?<Pressable accessibilityRole="button" onPress={()=>cyclePhoto(1)} style={styles.photoErrorAction}><Text style={styles.photoErrorActionText}>Try another photo</Text></Pressable>:null}</View>:null}
     <View pointerEvents="none" style={styles.portraitTitle}>
-      <View style={styles.nameRow}><Text numberOfLines={2} adjustsFontSizeToFit minimumFontScale={.78} style={[styles.name,compactPhone&&styles.nameCompact]}>{name}</Text><View style={styles.agePill}><Text style={styles.age}>{age}</Text></View></View>
+      <Text numberOfLines={2} adjustsFontSizeToFit minimumFontScale={.78} style={[styles.name,compactPhone&&styles.nameCompact]}>{name}</Text>
       <Text numberOfLines={2} style={styles.job}>{occupation}</Text>
     </View>
+    {activePhoto?<ImageLightbox visible={lightboxOpen} source={activePhoto} sources={photos} initialIndex={activePhotoIndex} accessibilityLabel={`${name} profile photo`} onIndexChange={setPhotoIndex} onClose={()=>setLightboxOpen(false)}/>:null}
   </View>;
 }
 
@@ -380,6 +415,7 @@ const styles = StyleSheet.create({
   portraitFallback: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.plum },
   portraitFallbackInitial: { color: 'rgba(255,255,255,.18)', fontFamily: typography.display, fontSize: 112, fontWeight: '600' },
   photoPreload: { position: 'absolute', top: 0, left: 0, width: 1, height: 1, opacity: 0 },
+  portraitImageButton: { ...StyleSheet.absoluteFill },
   portraitFrameMobile: { top: 4, right: 4, bottom: 4, left: 4 },
   portraitFrameDesktop: { top: 5, right: 5, bottom: 5, left: 5 },
   portraitShade: { position: 'absolute', right: 0, bottom: 0, left: 0, height: 118, backgroundColor: 'rgba(6,4,9,.72)' },
@@ -398,11 +434,8 @@ const styles = StyleSheet.create({
   photoErrorAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 },
   photoErrorActionText: { color: colors.rose, fontSize: 11, fontWeight: '900' },
   portraitTitle: { position: 'absolute', right: 20, bottom: 18, left: 20 },
-  nameRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   name: { flex: 1, minWidth: 0, fontFamily: typography.display, fontSize: 34, lineHeight: 37, color: '#fff', fontWeight: '600', textShadowColor: '#000', textShadowRadius: 14 },
   nameCompact: { fontSize: 29, lineHeight: 32 },
-  agePill: { flexShrink: 0, minWidth: 38, height: 30, paddingHorizontal: 9, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,.17)' },
-  age: { fontFamily: typography.interface, fontSize: 14, color: 'rgba(255,255,255,.88)', fontWeight: '900' },
   job: { color: 'rgba(255,255,255,.90)', fontSize: 13, lineHeight: 17, marginTop: 5, fontWeight: '700', textShadowColor: '#000', textShadowRadius: 8 },
   details: { width: '100%', gap: spacing.md, padding: spacing.lg, borderRadius: radius.xl, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
   detailsDesktop: { flex: 1, width: 'auto', minHeight: 430, backgroundColor: colors.glass },
@@ -418,6 +451,21 @@ const styles = StyleSheet.create({
   stat: { flexGrow: 1, flexBasis: 92, minWidth: 0, paddingHorizontal: 8, paddingVertical: 12, borderRadius: radius.md, backgroundColor: colors.surface, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
   statValue: { fontFamily: typography.display, fontSize: 23, color: colors.text },
   statLabel: { fontSize: 9, color: colors.muted, fontWeight: '800', marginTop: 2, textAlign: 'center' },
+  trustCard: { gap: 10, padding: 13, borderRadius: radius.lg, backgroundColor: 'rgba(154,104,255,.08)', borderWidth: 1, borderColor: 'rgba(154,104,255,.22)' },
+  trustHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  trustIdentity: { minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  trustIcon: { width: 34, height: 34, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: 'rgba(154,104,255,.12)' },
+  trustKicker: { color: colors.dimmed, fontSize: 8, fontWeight: '900', letterSpacing: .9 },
+  trustLabel: { color: colors.text, fontSize: 14, lineHeight: 18, fontWeight: '900', marginTop: 1 },
+  trustTrend: { marginTop: 2, fontSize: 9, lineHeight: 12, fontWeight: '800' },
+  trustTrendStrained: { color: colors.danger },
+  trustTrendRepairing: { color: colors.success },
+  trustValue: { flexShrink: 0, color: colors.text, fontFamily: typography.display, fontSize: 20 },
+  trustTotal: { color: colors.muted, fontFamily: typography.interface, fontSize: 9, fontWeight: '800' },
+  trustTrack: { height: 6, overflow: 'hidden', borderRadius: 3, backgroundColor: 'rgba(255,255,255,.08)' },
+  trustFill: { height: '100%', minWidth: 2, borderRadius: 3, backgroundColor: colors.violet },
+  trustDetail: { color: colors.muted, fontSize: 10, lineHeight: 15 },
+  detailsLabel: { color: colors.dimmed, fontSize: 9, fontWeight: '900', letterSpacing: 1.05 },
   facts: { borderTopWidth: 1, borderTopColor: colors.border },
   info: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
   infoInteractive: { paddingHorizontal: 4, marginHorizontal: -4, borderRadius: radius.sm },

@@ -83,6 +83,7 @@ import {
 import { PlanSelection } from "../src/components/PlanSelection";
 import { GroupManagementModal } from "../src/components/GroupManagementModal";
 import { GroupChatSettingsModal } from "../src/components/GroupChatSettingsModal";
+import { ConversationTimelineSkeleton } from "../src/components/ConversationTimelineSkeleton";
 import {
   ApiError,
   confirmUserImage,
@@ -152,6 +153,7 @@ import { characterCatalogForWorld, characterResidentWorld } from "../src/lib/pla
 import type { FeaturedCompanion } from "../src/lib/featuredCompanions";
 import { placeHoursStatus } from "../src/lib/placeHours";
 import { latestConversationHeaderImage } from "../src/lib/chatHeaderMedia";
+import { hasCoherentConversationTimeline } from "../src/lib/conversationTimelineVisibility";
 import { newGroupPrefillHref } from "../src/lib/groupInvite";
 import { canContinueMessage, isMessageFavorite, isVisibleChatMessage } from "../src/lib/messageActions";
 import { handlePhotoSharingTap } from "../src/lib/photoSharing";
@@ -303,6 +305,11 @@ export default function GroupChatScreen() {
     initialBottomPinConversation = useRef<string | null>(null),
     initialBottomPinReleaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedGroupRef = useRef<string | null>(null);
+  const groupTimelineReady=hasCoherentConversationTimeline({
+    activeConversationId:params.id,
+    loadedConversationId:loadedGroupRef.current,
+    hasCompleteCachedTimeline:cachedRouteDetail?.complete===true,
+  });
   const groupLoadAbortRef=useRef<AbortController|null>(null);
   const resumedSharePhoto=useRef<string|null>(null);
   const unreadWindow=useRef<{conversationId:string|null;lastReadAt:string|null;openedAt:string}>({conversationId:null,lastReadAt:null,openedAt:new Date().toISOString()});
@@ -1710,7 +1717,7 @@ export default function GroupChatScreen() {
       </Modal>
       <FlatList
         ref={scrollRef}
-        data={groupTimeline}
+        data={groupTimelineReady?groupTimeline:[]}
         keyExtractor={(item) => `${item.kind}:${item.value.id}`}
         style={styles.timeline}
         contentContainerStyle={styles.timelineContent}
@@ -1771,7 +1778,7 @@ export default function GroupChatScreen() {
             scrollRef.current?.scrollToEnd({ animated: false });
           }
         }}
-        ListHeaderComponent={detail.hasMoreMessages ? <Pressable
+        ListHeaderComponent={groupTimelineReady&&detail.hasMoreMessages ? <Pressable
           accessibilityRole="button"
           accessibilityLabel="Load earlier group messages"
           disabled={olderLoading}
@@ -1780,11 +1787,8 @@ export default function GroupChatScreen() {
         >
           <Text style={styles.earlierText}>{olderLoading ? "Loading earlier messages…" : "Load earlier messages"}</Text>
         </Pressable> : null}
-        ListEmptyComponent={loading
-          ? <View style={styles.timelineLoading}>
-            <ActivityIndicator color={colors.rose} />
-            <Text style={styles.timelineLoadingText}>Opening conversation…</Text>
-          </View>
+        ListEmptyComponent={!groupTimelineReady
+          ? loading?<ConversationTimelineSkeleton label={`Loading ${detail.conversation.title??"group"} messages`}/>:<GroupConversationHistoryFailure onRetry={retryOpeningGroup}/>
           : <GroupWelcome
             participants={detail.participants}
             onPrompt={(prompt) => {
@@ -1916,7 +1920,7 @@ export default function GroupChatScreen() {
             </Fragment>
           );
         }}
-        ListFooterComponent={<>
+        ListFooterComponent={groupTimelineReady?<>
         {(detail.mediaOffers ?? []).filter((offer) =>
           offer.status === "pending" && !offer.message_id
         ).map((offer) => (
@@ -1932,7 +1936,7 @@ export default function GroupChatScreen() {
             onRetry={offer.generated_media_id&&(detail.generatedMedia??[]).find((item)=>item.id===offer.generated_media_id)?.status==='failed'?()=>{const failed=(detail.generatedMedia??[]).find((item)=>item.id===offer.generated_media_id);if(failed)void retryGeneratedMedia(failed);}:undefined}
           />
         ))}
-        </>}
+        </>:null}
         initialNumToRender={18}
         maxToRenderPerBatch={12}
         updateCellsBatchingPeriod={24}
@@ -1940,7 +1944,7 @@ export default function GroupChatScreen() {
         removeClippedSubviews={Platform.OS !== "web"}
       />
       <JumpToLatestButton visible={showJumpToLatest} bottom={width<720?104:92} onPress={()=>{keepPinnedToBottom.current=true;setShowJumpToLatest(false);if(params.id)clearChatScrollPosition(params.id);scrollRef.current?.scrollToEnd({animated:true});}}/>
-      {error ? <View accessibilityLiveRegion="polite" style={styles.errorBanner}>
+      {error&&groupTimelineReady ? <View accessibilityLiveRegion="polite" style={styles.errorBanner}>
         <Text style={styles.error}>{error}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Dismiss group chat error" onPress={()=>setError("")} style={styles.errorDismiss}>
           <X size={16} color={colors.text}/>
@@ -1973,7 +1977,7 @@ export default function GroupChatScreen() {
       <GroupRecipientPicker
         participants={detail.participants}
         selection={recipientSelection}
-        disabled={sending}
+        disabled={sending||!groupTimelineReady}
         onSelect={setRecipientSelection}
       />
       {replyTo
@@ -2073,7 +2077,7 @@ export default function GroupChatScreen() {
         groupName={detail.conversation.title ?? "the group"}
         input={input}
         hasPendingImage={Boolean(pendingImage)}
-        sending={sending}
+        sending={sending||!groupTimelineReady}
         onChange={setInput}
         onPhoto={openPhotoMenu}
         onSend={() => void sendPrepared()}
@@ -3422,6 +3426,16 @@ function GroupChatLoadingSkeleton() {
   </View>;
 }
 
+function GroupConversationHistoryFailure({onRetry}:{onRetry:()=>void}) {
+  return <View accessibilityLiveRegion="polite" style={styles.timelineFailure}>
+    <Text style={styles.timelineFailureTitle}>Messages didn’t load</Text>
+    <Text style={styles.timelineFailureBody}>Your group conversation is safe. Try loading its history again.</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel="Retry loading group conversation messages" onPress={onRetry} style={styles.timelineFailureButton}>
+      <Text style={styles.timelineFailureButtonText}>Try again</Text>
+    </Pressable>
+  </View>;
+}
+
 function GroupWelcome({
   participants,
   onPrompt,
@@ -3879,6 +3893,11 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   timelineLoadingText: { color: colors.muted, fontSize: 11 },
+  timelineFailure:{alignSelf:"center",width:"100%",maxWidth:460,alignItems:"center",gap:9,marginTop:22,paddingHorizontal:22,paddingVertical:24,borderRadius:radius.lg,backgroundColor:"rgba(255,255,255,.035)",borderWidth:1,borderColor:colors.border},
+  timelineFailureTitle:{color:colors.text,fontSize:15,fontWeight:"900"},
+  timelineFailureBody:{color:colors.muted,fontSize:12,lineHeight:18,textAlign:"center"},
+  timelineFailureButton:{minHeight:42,marginTop:4,paddingHorizontal:19,alignItems:"center",justifyContent:"center",borderRadius:radius.pill,backgroundColor:"rgba(216,62,234,.14)",borderWidth:1,borderColor:"rgba(216,62,234,.32)"},
+  timelineFailureButtonText:{color:colors.text,fontSize:12,fontWeight:"900"},
   groupWelcome:{alignSelf:"center",width:"100%",maxWidth:520,minHeight:360,alignItems:"center",justifyContent:"center",paddingHorizontal:18,paddingVertical:34},
   groupWelcomeTitle:{color:colors.text,fontFamily:"Georgia",fontSize:25,fontWeight:"800",marginTop:13},
   groupWelcomeBody:{maxWidth:390,color:colors.muted,fontSize:12,lineHeight:18,textAlign:"center",marginTop:7},

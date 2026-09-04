@@ -402,6 +402,7 @@ export async function buildCharacterPresenceSnapshot(
   return{
     character:visible,
     scheduleEvents:(scheduleEvents.data??[]).filter((event)=>!event.metadata?.suppressedByPlanId&&(!event.location_id||locationIds.has(String(event.location_id)))),
+    sceneSessions:activeScene?[activeScene]:[],
     refreshedAt:new Date().toISOString(),
   };
 }

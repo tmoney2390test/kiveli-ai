@@ -6,6 +6,8 @@ describe('AI usage normalization',()=>{
     const usage=normalizeResponsesUsage('openai',{input_tokens:10_000,input_tokens_details:{cached_tokens:8_000},output_tokens:1_000,output_tokens_details:{reasoning_tokens:0},total_tokens:11_000});
     expect(usage).toMatchObject({inputTokens:10_000,cachedInputTokens:8_000,outputTokens:1_000,totalTokens:11_000});
     expect(estimateAiCost('openai','gpt-5.6-luna',usage)).toBeCloseTo(.00176,8);
+    expect(estimateAiCost('openai','gpt-5.6-luna',usage,'fast')).toBeCloseTo(.00352,8);
+    expect(estimateAiCost('openai','gpt-4.1-nano',usage)).toBeCloseTo(.0008,8);
   });
   it('normalizes xAI exact cost ticks',()=>{
     const usage=normalizeResponsesUsage('xai',{input_tokens:100,input_tokens_details:{cached_tokens:20},output_tokens:40,cost_in_usd_ticks:1_250_000});

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
   Platform,
@@ -11,11 +11,12 @@ import {
 import { Image, type ImageSource } from "expo-image";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { Minus, Plus, RotateCcw, X } from "lucide-react-native";
+import { ChevronLeft, ChevronRight, Minus, Plus, RotateCcw, X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, radius } from "../theme";
 import { clampImageZoom, MAX_IMAGE_ZOOM, MIN_IMAGE_ZOOM } from "../lib/imageZoom";
@@ -25,12 +26,18 @@ const DOUBLE_TAP_ZOOM = 2.5;
 export function ImageLightbox({
   visible,
   source,
+  sources,
+  initialIndex = 0,
   accessibilityLabel = "Full-size photo",
+  onIndexChange,
   onClose,
 }: {
   visible: boolean;
   source: ImageSource | number;
+  sources?: Array<ImageSource | number>;
+  initialIndex?: number;
   accessibilityLabel?: string;
+  onIndexChange?: (index: number) => void;
   onClose: () => void;
 }) {
   const { width, height } = useWindowDimensions();
@@ -42,6 +49,10 @@ export function ImageLightbox({
   const translateY = useSharedValue(0);
   const panStartX = useSharedValue(0);
   const panStartY = useSharedValue(0);
+  const photoCount = sources?.length ?? 1;
+  const [activeIndex, setActiveIndex] = useState(() => Math.min(Math.max(initialIndex, 0), Math.max(0, photoCount - 1)));
+  const activeSource = sources?.[activeIndex] ?? source;
+  const hasCarousel = photoCount > 1;
 
   const reset = useCallback((animated = true) => {
     const next = (value: number) => animated ? withTiming(value, { duration: 170 }) : value;
@@ -62,8 +73,39 @@ export function ImageLightbox({
   }, [savedScale, scale, translateX, translateY]);
 
   useEffect(() => {
-    if (visible) reset(false);
-  }, [reset, visible]);
+    if (!visible) return;
+    const nextIndex = Math.min(Math.max(initialIndex, 0), Math.max(0, photoCount - 1));
+    setActiveIndex(nextIndex);
+    reset(false);
+  }, [initialIndex, photoCount, reset, visible]);
+
+  const movePhoto = useCallback((delta: number) => {
+    if (!hasCarousel) return;
+    setActiveIndex((current) => {
+      const next = ((current + delta) % photoCount + photoCount) % photoCount;
+      onIndexChange?.(next);
+      return next;
+    });
+    reset(false);
+  }, [hasCarousel, onIndexChange, photoCount, reset]);
+
+  useEffect(() => {
+    if (!visible || Platform.OS !== "web") return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowLeft" && hasCarousel) {
+        event.preventDefault();
+        movePhoto(-1);
+      } else if (event.key === "ArrowRight" && hasCarousel) {
+        event.preventDefault();
+        movePhoto(1);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [hasCarousel, movePhoto, onClose, visible]);
 
   useEffect(() => {
     if (!visible || Platform.OS !== "web") return;
@@ -103,7 +145,12 @@ export function ImageLightbox({
       const maxY = Math.max(0, (height * (scale.value - 1)) / 2);
       translateX.value = Math.min(maxX, Math.max(-maxX, panStartX.value + event.translationX));
       translateY.value = Math.min(maxY, Math.max(-maxY, panStartY.value + event.translationY));
-    }), [height, panStartX, panStartY, scale, translateX, translateY, width]);
+    })
+    .onEnd((event) => {
+      if (scale.value > MIN_IMAGE_ZOOM || !hasCarousel) return;
+      if (Math.abs(event.translationX) < 52 || Math.abs(event.translationX) <= Math.abs(event.translationY)) return;
+      runOnJS(movePhoto)(event.translationX < 0 ? 1 : -1);
+    }), [hasCarousel, height, movePhoto, panStartX, panStartY, scale, translateX, translateY, width]);
 
   const doubleTap = useMemo(() => Gesture.Tap()
     .numberOfTaps(2)
@@ -145,12 +192,13 @@ export function ImageLightbox({
           <GestureDetector gesture={gesture}>
             <Animated.View style={[styles.imageCanvas, animatedImageStyle]}>
               <Image
-                source={source}
+                source={activeSource}
                 style={StyleSheet.absoluteFill}
                 contentFit="contain"
                 cachePolicy="memory-disk"
                 priority="high"
-                accessibilityLabel={accessibilityLabel}
+                recyclingKey={hasCarousel ? `lightbox-photo-${activeIndex}` : undefined}
+                accessibilityLabel={hasCarousel ? `${accessibilityLabel}, photo ${activeIndex + 1} of ${photoCount}` : accessibilityLabel}
               />
             </Animated.View>
           </GestureDetector>
@@ -163,6 +211,27 @@ export function ImageLightbox({
         >
           <X size={23} color="#fff" />
         </Pressable>
+        {hasCarousel ? <>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Previous photo"
+            onPress={() => movePhoto(-1)}
+            style={({ pressed }) => [styles.carouselButton, styles.carouselPrevious, pressed && styles.pressed]}
+          >
+            <ChevronLeft size={27} color="#fff" />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Next photo"
+            onPress={() => movePhoto(1)}
+            style={({ pressed }) => [styles.carouselButton, styles.carouselNext, pressed && styles.pressed]}
+          >
+            <ChevronRight size={27} color="#fff" />
+          </Pressable>
+          <View pointerEvents="none" style={[styles.counter, { top: Platform.OS === "web" ? 24 : Math.max(22, insets.top + 14) }]}>
+            <Text accessibilityLiveRegion="polite" style={styles.counterText}>{activeIndex + 1} / {photoCount}</Text>
+          </View>
+        </> : null}
         <View style={[styles.controls, { bottom: Platform.OS === "web" ? 42 : Math.max(56, insets.bottom + 38) }]}>
           <Pressable accessibilityRole="button" accessibilityLabel="Zoom out" onPress={() => setZoom(savedScale.value / 1.35)} style={styles.controlButton}>
             <Minus size={18} color="#fff" />
@@ -175,7 +244,9 @@ export function ImageLightbox({
           </Pressable>
         </View>
         <Text pointerEvents="none" style={[styles.hint, { bottom: Platform.OS === "web" ? 16 : Math.max(20, insets.bottom + 8) }]}>
-          {Platform.OS === "web" ? "Scroll to zoom · drag to move · double-click to reset" : "Pinch to zoom · drag to move · double-tap to reset"}
+          {Platform.OS === "web"
+            ? hasCarousel ? "Use arrows to browse · scroll to zoom · drag to move" : "Scroll to zoom · drag to move · double-click to reset"
+            : hasCarousel ? "Swipe to browse · pinch to zoom · drag to move" : "Pinch to zoom · drag to move · double-tap to reset"}
         </Text>
       </View>
     </Modal>
@@ -215,6 +286,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,.20)",
   },
+  carouselButton: {
+    position: "absolute",
+    top: "50%",
+    width: 48,
+    height: 56,
+    marginTop: -28,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(20,16,27,.72)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,.18)",
+  },
+  carouselPrevious: { left: 14 },
+  carouselNext: { right: 14 },
+  counter: {
+    position: "absolute",
+    alignSelf: "center",
+    minWidth: 58,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    alignItems: "center",
+    backgroundColor: "rgba(20,16,27,.76)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,.18)",
+  },
+  counterText: { color: "#fff", fontSize: 11, lineHeight: 14, fontWeight: "900", letterSpacing: .5 },
   controls: {
     position: "absolute",
     flexDirection: "row",

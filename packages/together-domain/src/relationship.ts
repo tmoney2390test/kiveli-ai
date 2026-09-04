@@ -1,4 +1,4 @@
-import { relationshipMetricNames, relationshipStages, type ChemistryBand, type ChemistrySignal, type ChemistryUpdate, type ChemistryUpdateInput, type ConversationEngagementEvaluation, type ConversationEngagementInput, type FlirtExpressionStyle, type InteractionQuality, type RelationshipChangeSource, type RelationshipEvidenceSummary, type RelationshipHealth, type RelationshipMetrics, type RelationshipMilestoneProposal, type RelationshipPacingConfig, type RelationshipPresentationContext, type RelationshipProgressionEvaluation, type RelationshipStage, type RelationshipState, type SpiceLevel } from './types.ts';
+import { relationshipMetricNames, relationshipStages, trustConsequenceKinds, trustConsequenceSeverities, type ChemistryBand, type ChemistrySignal, type ChemistryUpdate, type ChemistryUpdateInput, type ConversationEngagementEvaluation, type ConversationEngagementInput, type FlirtExpressionStyle, type InteractionQuality, type RelationshipChangeSource, type RelationshipEvidenceSummary, type RelationshipHealth, type RelationshipMetrics, type RelationshipMilestoneProposal, type RelationshipPacingConfig, type RelationshipPresentationContext, type RelationshipProgressionEvaluation, type RelationshipStage, type RelationshipState, type SpiceLevel, type TrustConsequenceProposal, type TrustRepairProposal } from './types.ts';
 
 export const STRANGER_ENGAGEMENT_THRESHOLD=6;
 export const STRANGER_GENUINE_TURN_THRESHOLD=3;
@@ -6,9 +6,11 @@ export const TRIVIAL_ENGAGEMENT_CAP=1.75;
 export const ACQUAINTANCE_TRUST_THRESHOLD=14;
 export const ACQUAINTANCE_HISTORY_FAMILIARITY_THRESHOLD=15;
 export const ACQUAINTANCE_NATURAL_THRESHOLDS={fast:{engagementScore:10,genuineTurns:7,familiarity:11},balanced:{engagementScore:12,genuineTurns:9,familiarity:12},slow:{engagementScore:15,genuineTurns:12,familiarity:14}} as const;
-export const defaultRelationship:RelationshipState={stage:'stranger',trust:8,comfort:6,attraction:8,affinity:8,familiarity:0,respect:10,conflict:0,romantic_interest:0,commitment:0,conversationCount:0,conversationSessionCount:0,meaningfulInteractionCount:0,engagementScore:0,genuineBackAndForthTurns:0,trivialEngagementScore:0,chemistryHeat:0,physicalTension:0,userFlirtSignals:0,characterFlirtSignals:0,mutualFlirtSignals:0,attractionAcknowledged:false,activeMajorConflict:false,romanceEnabled:true,romancePathStatus:'open'};
+export const DEFAULT_INITIAL_TRUST=30;
+export const defaultRelationship:RelationshipState={stage:'stranger',trust:DEFAULT_INITIAL_TRUST,comfort:6,attraction:8,affinity:8,familiarity:0,respect:10,conflict:0,romantic_interest:0,commitment:0,conversationCount:0,conversationSessionCount:0,meaningfulInteractionCount:0,engagementScore:0,genuineBackAndForthTurns:0,trivialEngagementScore:0,chemistryHeat:0,physicalTension:0,userFlirtSignals:0,characterFlirtSignals:0,mutualFlirtSignals:0,attractionAcknowledged:false,activeMajorConflict:false,romanceEnabled:true,romancePathStatus:'open'};
 const maxDelta:Record<RelationshipChangeSource,number>={ordinary_chat:2,meaningful_disclosure:4,date:8,life_event:3,introduction:3,debug:100};
 const qualityLimit:Record<InteractionQuality,number>={trivial:0,normal:1,meaningful:4,shared_experience:8,major_relationship_event:10};
+const trustSeverityDelta={minor:-1,moderate:-2,serious:-4,major:-8} as const;
 
 export function clampMetric(value:number):number{return Math.max(0,Math.min(100,Math.round(value)));}
 export function applyRelationshipProposal(state:RelationshipState,proposal:Partial<RelationshipMetrics>,source:RelationshipChangeSource):RelationshipState{return applyBoundedChanges(state,proposal,maxDelta[source]);}
@@ -21,6 +23,62 @@ export function applyInteractionProposal(state:RelationshipState,proposal:Partia
   return applyBoundedChanges(state,Object.fromEntries(Object.entries(sanitized).map(([key,value])=>[key,Number(value)*repetitionMultiplier])),qualityLimit[quality]);
 }
 function applyBoundedChanges(state:RelationshipState,proposal:Partial<RelationshipMetrics>,limit:number):RelationshipState{const next={...state};for(const metric of relationshipMetricNames){const requested=Number(proposal[metric]??0);const delta=Math.max(-limit,Math.min(limit,Number.isFinite(requested)?requested:0));next[metric]=clampMetric(state[metric]+delta);}return next;}
+
+export function trustConsequenceDelta(proposal:TrustConsequenceProposal):number{
+  if(proposal.confidence<.8)return 0;
+  const requested=trustSeverityDelta[proposal.severity]??0;
+  return proposal.source==='model'?Math.max(-4,requested):requested;
+}
+
+export function normalizeTrustConsequence(value:unknown,source:'deterministic'|'model'='model'):TrustConsequenceProposal|null{
+  if(!value||typeof value!=='object')return null;
+  const row=value as Record<string,unknown>;
+  const kind=typeof row['kind']==='string'?row['kind']:'';
+  const severity=typeof row['severity']==='string'?row['severity']:'';
+  const confidence=Math.max(0,Math.min(1,Number(row['confidence']??0)||0));
+  const rawEvidenceBasis=row['evidenceBasis']??row['evidence_basis'];
+  const evidenceBasis=typeof rawEvidenceBasis==='string'?rawEvidenceBasis:'';
+  if(!trustConsequenceKinds.includes(kind as TrustConsequenceProposal['kind'])||!trustConsequenceSeverities.includes(severity as TrustConsequenceProposal['severity'])||confidence<.8||!['explicit_user_language','canonical_context'].includes(evidenceBasis))return null;
+  const rawReason=row['reasonCode']??row['reason_code'];
+  const reasonCode=(typeof rawReason==='string'?rawReason:kind).replace(/[^a-z0-9_:-]/gi,'_').slice(0,80)||kind;
+  return{kind:kind as TrustConsequenceProposal['kind'],severity:severity as TrustConsequenceProposal['severity'],confidence,reasonCode,evidenceBasis:evidenceBasis as TrustConsequenceProposal['evidenceBasis'],repairable:row['repairable']!==false,source};
+}
+
+export function classifyDeterministicTrustConsequence(message:string,context:{recentAssistantMessages?:readonly string[];allowThreatClassification?:boolean}={}):TrustConsequenceProposal|null{
+  const value=message.trim().toLowerCase();
+  if(!value)return null;
+  if(context.allowThreatClassification!==false&&/\b(?:i(?:'ll| will) (?:kill|physically hurt) you)\b/i.test(value))return{kind:'threat',severity:'major',confidence:.99,reasonCode:'explicit_direct_threat',evidenceBasis:'explicit_user_language',repairable:true,source:'deterministic'};
+  if(/\b(?:i lied to you|i have been lying to you|what i told you was a lie|i made (?:that|it) up)\b/i.test(value))return{kind:'deception',severity:'serious',confidence:.99,reasonCode:'explicit_deception_admission',evidenceBasis:'explicit_user_language',repairable:true,source:'deterministic'};
+  if(/\b(?:i manipulated you|i was manipulating you|i only used you|i(?:'ve| have) been using you)\b/i.test(value))return{kind:'manipulation',severity:'serious',confidence:.99,reasonCode:'explicit_manipulation_admission',evidenceBasis:'explicit_user_language',repairable:true,source:'deterministic'};
+  if(/\b(?:i told (?:everyone|someone|them) (?:your secret|what you told me)|i shared your secret)\b/i.test(value))return{kind:'confidence_breach',severity:'serious',confidence:.99,reasonCode:'explicit_confidence_breach',evidenceBasis:'explicit_user_language',repairable:true,source:'deterministic'};
+  if(/\b(?:i do not care about your feelings|i don't care about your feelings|your feelings do not matter|your feelings don't matter|stop whining|nobody cares how you feel)\b/i.test(value))return{kind:'vulnerability_dismissal',severity:'moderate',confidence:.98,reasonCode:'explicit_vulnerability_dismissal',evidenceBasis:'explicit_user_language',repairable:true,source:'deterministic'};
+  const recentBoundary=(context.recentAssistantMessages??[]).slice(-3).some((turn)=>/\b(?:stop|do not|don't|not comfortable|not okay|i said no|i won't|i will not|cannot agree|can't agree)\b/i.test(turn));
+  const continuedPressure=/\b(?:do it anyway|i do not care|i don't care|come on,? do it|you have to|stop saying no|i won't take no)\b/i.test(value);
+  if(recentBoundary&&continuedPressure)return{kind:'boundary_violation',severity:'serious',confidence:.98,reasonCode:'continued_pressure_after_clear_boundary',evidenceBasis:'canonical_context',repairable:true,source:'deterministic'};
+  const serious=/\b(?:i hate you|you(?:'re| are) (?:worthless|pathetic|useless|disgusting)|nobody (?:cares|could care) about you)\b/i.test(value);
+  if(serious)return{kind:'contempt',severity:'serious',confidence:.99,reasonCode:'explicit_dehumanizing_contempt',evidenceBasis:'explicit_user_language',repairable:true,source:'deterministic'};
+  if(/\b(?:shut up|you(?:'re| are) (?:stupid|an idiot|annoying)|idiot)\b/i.test(value))return{kind:'hostility',severity:'moderate',confidence:.98,reasonCode:'explicit_personal_hostility',evidenceBasis:'explicit_user_language',repairable:true,source:'deterministic'};
+  return null;
+}
+
+export function normalizeTrustRepair(value:unknown,source:'deterministic'|'model'='model'):TrustRepairProposal|null{
+  if(!value||typeof value!=='object')return null;
+  const row=value as Record<string,unknown>,apology=row['apology']===true,accountability=row['accountability']===true,correctiveAction=row['correctiveAction']===true||row['corrective_action']===true,confidence=Math.max(0,Math.min(1,Number(row['confidence']??0)||0));
+  if(confidence<.8||!apology||(!accountability&&!correctiveAction))return null;
+  const rawReason=row['reasonCode']??row['reason_code'];
+  const reasonCode=(typeof rawReason==='string'?rawReason:'repair_attempt').replace(/[^a-z0-9_:-]/gi,'_').slice(0,80)||'repair_attempt';
+  return{apology,accountability,correctiveAction,confidence,reasonCode,source};
+}
+
+export function classifyDeterministicTrustRepair(message:string):TrustRepairProposal|null{
+  const value=message.trim().toLowerCase();
+  const apology=/\b(?:i(?:'m| am) sorry|i apologize|forgive me)\b/i.test(value);
+  if(!apology)return null;
+  const accountability=/\b(?:my fault|i was wrong|i shouldn(?:'t| not) have|i hurt you|i crossed (?:a|your) boundary|no excuse)\b/i.test(value);
+  const correctiveAction=/\b(?:won(?:'t| not) happen again|i(?:'ll| will) (?:do better|make it right|respect that|fix it)|make this right|what can i do)\b/i.test(value);
+  if(!accountability&&!correctiveAction)return null;
+  return{apology,accountability,correctiveAction,confidence:.98,reasonCode:accountability&&correctiveAction?'accountable_repair':'partial_repair',source:'deterministic'};
+}
 
 const trivialAcknowledgment=/^(?:hey|hi|hello|lol|lmao|cool|yeah|yea|yep|nope|sure|k|ok|okay|nice|haha|sup|what'?s up|hola|sí|si|claro|vale|jaja|salut|bonjour|oui|d['’]accord|mdr|ciao|sì|certo|va bene|hallo|ja|klar|olá|ola|oi|sim|tá|ta|はい|うん|そう|了解|笑|네|응|그래|알겠어|ㅋㅋ|是|好|嗯|好的|哈哈)[!?.。！？，¿¡\s]*$/iu;
 const relationshipDisclosure=/\b(i feel|i'm scared|i am scared|i need to tell you|i've never told|i am worried|i'm worried|thank you for|i was wrong|i'm sorry|i don't usually tell|rough breakup|make this easy to talk|nervous about|afraid that|i love you|i really like you)\b/i;

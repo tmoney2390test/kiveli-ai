@@ -19,6 +19,7 @@ import { navigateLocalRouteOnWeb } from '../lib/conversationNavigation';
 import { ChatContentModeControl } from './ChatContentModeControl';
 import { ChatGenerationSettings } from './settings/ChatGenerationSettings';
 import { type ChatDynamism, type ReasoningPreference } from '@together/domain/src/chat-generation';
+import { defaultDirectConversationTitle } from '../lib/conversation';
 
 type Props = {
   visible: boolean;
@@ -69,7 +70,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
 
   useEffect(() => {
     if (!visible || !conversation) return;
-    setTitle(conversation.title ?? '');
+    setTitle(conversation.title ?? defaultDirectConversationTitle(name));
     setResponseStyle(resolveChatResponseStyle(conversation, snapshot?.profile ?? null));
     setTextSize(resolveChatTextSize(conversation));
     const generationPreferences=chatPreferencesFromConversation(conversation,snapshot?.entitlements?.tier);
@@ -132,7 +133,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
 
   const save = async (afterSave?:()=>void) => {
     if (!conversation || saving) return;
-    const cleanTitle = title.trim() || null;
+    const cleanTitle = title.trim() || defaultDirectConversationTitle(name);
     setSaving(true);
     try {
       const input = { title: cleanTitle, responseStyle, textSize,contentMode, chatLanguage,chatDynamism,reasoningPreference, ...(voiceEntitled ? { voicePreset } : {}) };

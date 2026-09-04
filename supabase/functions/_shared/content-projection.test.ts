@@ -29,3 +29,12 @@ Deno.test('private adult text projection admits only server-policy-marked explic
   assertEquals((visible[1]?.reply_to_message as {id?:string}|undefined)?.id,'trusted');
   assertEquals(projectConversationRows([trusted,forged],{authorizedWebAdult:false,authorizedPrivateAdultText:true}).map((row)=>row.id),['trusted','bridge-forged-forged']);
 });
+
+Deno.test('approved legacy website dialogue is restored for an authorized private conversation only',()=>{
+  const legacy={id:'legacy',role:'assistant',content:'older private dialogue',content_rating:'explicit',visibility_scope:'web_adult',moderation_status:'approved',moderation_version:'web-adult-v1',safe_bridge:'You and your companion shared a more intimate moment and grew closer.'};
+  const original={...legacy,id:'original',moderation_version:'legacy-adult-route-v1'};
+  const incomplete={...legacy,id:'incomplete',moderation_status:'pending'};
+  assertEquals(projectConversationRows([legacy],{authorizedWebAdult:false,authorizedPrivateAdultText:false}).map((row)=>row.id),['bridge-legacy-legacy']);
+  assertEquals(projectConversationRows([original,legacy,incomplete],{authorizedWebAdult:false,authorizedPrivateAdultText:true}).map((row)=>row.id),['original','legacy','bridge-incomplete-incomplete']);
+  assertEquals(safeSearchRows([original,legacy,incomplete],{authorizedWebAdult:false,authorizedPrivateAdultText:true}).map((row)=>row.id),['original','legacy']);
+});

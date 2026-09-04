@@ -11,8 +11,14 @@ export type InteractionQuality='trivial'|'normal'|'meaningful'|'shared_experienc
 export const relationshipMilestoneKinds=['keep_in_touch','friendship_deepened','romantic_spark','first_date_invitation','dating_start','exclusivity','long_term','repair'] as const;
 export type RelationshipMilestoneKind=typeof relationshipMilestoneKinds[number];
 export interface RelationshipMilestoneProposal{kind:RelationshipMilestoneKind;fromStage:RelationshipStage;toStage?:RelationshipStage;tone:string;presentationKey:string;context?:Record<string,unknown>}
-export const relationshipEvidenceTypes=['meaningful_conversation','romantic_signal','shared_plan_completed','date_completed','trip_completed','major_shared_moment','commitment_kept','commitment_missed','repair_completed','future_planning'] as const;
+export const relationshipEvidenceTypes=['meaningful_conversation','romantic_signal','shared_plan_completed','date_completed','trip_completed','major_shared_moment','commitment_kept','commitment_missed','repair_completed','future_planning','trust_consequence','trust_repair'] as const;
 export type RelationshipEvidenceType=typeof relationshipEvidenceTypes[number];
+export const trustConsequenceKinds=['hostility','contempt','deception','manipulation','boundary_violation','confidence_breach','vulnerability_dismissal','threat','broken_promise'] as const;
+export type TrustConsequenceKind=typeof trustConsequenceKinds[number];
+export const trustConsequenceSeverities=['minor','moderate','serious','major'] as const;
+export type TrustConsequenceSeverity=typeof trustConsequenceSeverities[number];
+export interface TrustConsequenceProposal{kind:TrustConsequenceKind;severity:TrustConsequenceSeverity;confidence:number;reasonCode:string;evidenceBasis:'explicit_user_language'|'canonical_context';repairable:boolean;source:'deterministic'|'model'}
+export interface TrustRepairProposal{apology:boolean;accountability:boolean;correctiveAction:boolean;confidence:number;reasonCode:string;source:'deterministic'|'model'}
 export interface RelationshipEvidenceSummary{meaningfulConversations:number;romanticSignals:number;distinctActiveDays:number;progressionInteractions:number;engagementScore?:number;genuineBackAndForthTurns?:number;sharedExperiences:number;positiveDates:number;completedTrips:number;majorSharedMoments:number;commitmentsKept:number;commitmentsMissed:number;repairsCompleted:number;futurePlanning:number;unresolvedMisses:number;sharedExperiencesAfterStage:number;futurePlanningAfterStage:number;repairsAfterMajorConflict:number;definingDateCompleted:boolean;definingDatePositive:boolean}
 export interface RelationshipPacingConfig{pace?:'slow'|'balanced'|'fast';romanceInitiative?:number;exclusivityPreference?:number;longTermOrientation?:number;needsTrustBeforeRomance?:number;needsComfortBeforeCommitment?:number;conflictSensitivity?:number}
 export interface RelationshipPresentationContext{availability?:string;energy?:string;mood?:string;activity?:string;activeCommitment?:boolean;waitingOnMissResolution?:boolean;now?:Date}

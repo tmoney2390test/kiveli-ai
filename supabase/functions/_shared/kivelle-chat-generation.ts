@@ -21,6 +21,11 @@ export function chatGenerationControlsMode(value:unknown=Deno.env.get('KIVELLE_C
   return normalizeChatGenerationControlsMode(value);
 }
 
+export function xaiFastVisibleTokenCap(value:unknown=Deno.env.get('KIVELLE_XAI_FAST_VISIBLE_TOKEN_CAP')):number{
+  const parsed=Number(value);
+  return Number.isFinite(parsed)?Math.min(520,Math.max(80,Math.floor(parsed))):240;
+}
+
 export function dialogueReasoningSignals(context:KivelleConversationContext,activeSpeakerCount=1):DialogueReasoningSignals{
   const message=String(context.userMessage??'').trim();
   const quality=String(context.interactionQuality??'normal');
@@ -53,7 +58,7 @@ export function resolveDialogueRunGenerationProfile(input:{
 }):DialogueGenerationProfile{
   const direction=resolveResponseDirection(input.context);
   const generationContext=input.generationContext??{mode:'direct' as const,speakerRole:'primary' as const,activeSpeakerCount:1};
-  return resolveDialogueGenerationProfile({
+  const profile=resolveDialogueGenerationProfile({
     preferences:input.context.generationPreferences,
     provider:input.provider,
     model:input.model,
@@ -65,4 +70,14 @@ export function resolveDialogueRunGenerationProfile(input:{
     speakerRole:generationContext.speakerRole??'primary',
     signals:dialogueReasoningSignals(input.context,generationContext.activeSpeakerCount??1),
   });
+  if(input.provider!=='xai'||profile.latencyProfile!=='fast')return profile;
+  const visibleTokenBudget=Math.min(profile.visibleTokenBudget,xaiFastVisibleTokenCap());
+  if(visibleTokenBudget===profile.visibleTokenBudget)return profile;
+  return{
+    ...profile,
+    visibleTokenBudget,
+    reasoningTokenReserve:0,
+    providerMaxOutputTokens:visibleTokenBudget,
+    reasonCodes:[...profile.reasonCodes,'fast_response_budget'],
+  };
 }

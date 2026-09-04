@@ -17,6 +17,16 @@ describe('Creator Studio domain', () => {
     }).ready).toBe(true);
   });
 
+  it('requires gender for current creator drafts without invalidating legacy drafts', () => {
+    const base = {
+      identity: { name: 'Sofia', age: 29, occupation: 'Architect', biography: 'An ambitious architect with dry humor.' },
+      appearance: {}, routine: { blocks: [block()] }, firstMeeting: { selectedId: 'meeting', options: [{ id: 'meeting' }] }, hasSelectedAsset: true,
+    };
+    expect(creatorReadiness(base).ready).toBe(true);
+    expect(creatorReadiness({ ...base, requireGender: true }).missing).toContain('identity');
+    expect(creatorReadiness({ ...base, identity: { ...base.identity, gender: 'woman' }, requireGender: true }).ready).toBe(true);
+  });
+
   it('detects routine overlap on the same day', () => {
     expect(routineConflicts([block(), block({ id: 'two', startMinute: 900, endMinute: 1100 })])).toEqual([{ firstId: 'one', secondId: 'two' }]);
   });

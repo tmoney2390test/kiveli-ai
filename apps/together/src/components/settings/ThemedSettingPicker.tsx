@@ -18,9 +18,12 @@ type Props<T extends string|number>={
   onClose:()=>void;
   returnFocusRef?:RefObject<{focus?:()=>void}|null>;
   testIDPrefix:string;
+  showChoiceDescriptions?:boolean;
+  lockedRequirement?:string;
+  lockedAccessibilityHint?:string;
 };
 
-export function ThemedSettingPicker<T extends string|number>({visible,title,description,choices,selected,disabled=false,onSelect,onLockedSelect,onClose,returnFocusRef,testIDPrefix}:Props<T>){
+export function ThemedSettingPicker<T extends string|number>({visible,title,description,choices,selected,disabled=false,onSelect,onLockedSelect,onClose,returnFocusRef,testIDPrefix,showChoiceDescriptions=true,lockedRequirement='Requires an upgraded membership',lockedAccessibilityHint='Saves your current settings, then opens membership options.'}:Props<T>){
   const {width}=useWindowDimensions();
   const insets=useSafeAreaInsets();
   const wasVisible=useRef(false);
@@ -43,14 +46,14 @@ export function ThemedSettingPicker<T extends string|number>({visible,title,desc
                 key={String(choice.value)}
                 testID={`${testIDPrefix}-${choice.value}`}
                 accessibilityRole={interaction.accessibilityRole}
-                accessibilityLabel={`${choice.label}. ${choice.description}${interaction.upgrade?'. Requires an upgraded membership':''}`}
-                accessibilityHint={interaction.upgrade?'Saves your current settings, then opens membership options.':undefined}
+                accessibilityLabel={[choice.label,choice.description,interaction.upgrade?lockedRequirement:''].filter(Boolean).join('. ')}
+                accessibilityHint={interaction.upgrade?lockedAccessibilityHint:undefined}
                 accessibilityState={interaction.accessibilityRole==='radio'?{checked:active,disabled}:{disabled}}
                 disabled={disabled}
                 onPress={()=>{if(interaction.action==='close'){onClose();return;}if(interaction.action==='upgrade'){onLockedSelect?.(choice);return;}onSelect(choice.value);onClose();}}
-                style={({pressed})=>[styles.option,active&&styles.optionActive,pressed&&styles.pressed]}
+                style={({pressed})=>[styles.option,!showChoiceDescriptions&&styles.optionCompact,active&&styles.optionActive,pressed&&styles.pressed]}
               >
-                <View style={styles.optionCopy}><View style={styles.optionTitleRow}><Text style={[styles.optionTitle,active&&styles.optionTitleActive]}>{choice.label}</Text>{choice.badge?<Text style={styles.badge}>{choice.badge}</Text>:null}</View><Text style={styles.optionDescription}>{choice.description}</Text></View>
+                <View style={styles.optionCopy}><View style={styles.optionTitleRow}><Text style={[styles.optionTitle,active&&styles.optionTitleActive]}>{choice.label}</Text>{choice.badge?<Text style={styles.badge}>{choice.badge}</Text>:null}</View>{showChoiceDescriptions&&choice.description?<Text style={styles.optionDescription}>{choice.description}</Text>:null}</View>
                 {interaction.showCheck?<View style={styles.check}><Check size={13} color="#fff" strokeWidth={3}/></View>:interaction.showLock?<LockKeyhole size={18} color={colors.muted}/>:<View style={styles.radio}/>}
               </Pressable>;
             })}
@@ -73,6 +76,7 @@ const styles=StyleSheet.create({
   close:{width:40,height:40,borderRadius:20,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(255,255,255,.05)'},
   list:{paddingBottom:2},
   option:{minHeight:72,flexDirection:'row',alignItems:'center',gap:12,paddingVertical:12,paddingHorizontal:13,borderRadius:radius.md,borderWidth:1,borderColor:'transparent'},
+  optionCompact:{minHeight:54},
   optionActive:{backgroundColor:'rgba(112,55,139,.25)',borderColor:'rgba(199,120,255,.56)'},
   optionCopy:{flex:1,minWidth:0},
   optionTitleRow:{flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:7},

@@ -47,6 +47,7 @@ const VIDEO_QUALITY_REASONS = [
 ] as const;
 
 const DEFAULT_MODEL = "gemini-2.5-flash";
+const MAX_ASSESSMENT_ATTEMPTS = 2;
 
 export function buildVideoQualityPrompt(
   adultAuthorized = false,
@@ -70,6 +71,8 @@ export function buildVideoQualityPrompt(
 }
 
 export function parseVideoQualityVerdict(output: unknown): VideoQualityVerdict {
+  const structured = structuredVideoQualityVerdict(output);
+  if (structured) return structured;
   const serialized = typeof output === "string"
     ? output
     : output == null
@@ -84,6 +87,34 @@ export function parseVideoQualityVerdict(output: unknown): VideoQualityVerdict {
   const lower = text.toLowerCase(),
     reasons = VIDEO_QUALITY_REASONS.filter((reason) =>
       lower.includes(reason) || lower.includes(reason.replaceAll("_", " "))
+    );
+  return {
+    status: "fail",
+    reasonCodes: reasons.length ? [...reasons] : ["video_quality_failed"],
+  };
+}
+
+function structuredVideoQualityVerdict(
+  output: unknown,
+): VideoQualityVerdict | null {
+  let value = output;
+  if (typeof value === "string" && value.trim().startsWith("{")) {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>,
+    status = String(record.verdict ?? record.status ?? "").toUpperCase();
+  if (status === "PASS") return { status: "pass", reasonCodes: [] };
+  if (status !== "FAIL") return null;
+  const requested = Array.isArray(record.reasonCodes)
+      ? record.reasonCodes.map((reason) => String(reason).toLowerCase())
+      : [],
+    reasons = VIDEO_QUALITY_REASONS.filter((reason) =>
+      requested.includes(reason)
     );
   return {
     status: "fail",
@@ -150,75 +181,125 @@ export class GeminiVideoQualityClient {
     try {
       uploaded = await this.upload(input.bytes, input.contentType);
       uploaded = await this.waitUntilReady(uploaded);
-      const response = await this.request(
-        `https://generativelanguage.googleapis.com/v1beta/models/${
-          encodeURIComponent(this.model)
-        }:generateContent`,
-        {
-          method: "POST",
-          headers: this.jsonHeaders(),
-          body: JSON.stringify({
-            contents: [{
-              role: "user",
-              parts: [{
-                file_data: {
-                  mime_type: uploaded.mimeType,
-                  file_uri: uploaded.uri,
-                },
-                video_metadata: { fps: 3 },
-              }, {
-                text: buildVideoQualityPrompt(
-                  input.adultAuthorized === true,
-                  input.anonymousAdultPartner === true,
-                ),
-              }],
-            }],
-            generationConfig: {
-              temperature: 0,
-              maxOutputTokens: 96,
-              responseMimeType: "text/plain",
-            },
-            safetySettings: [{
-              category: "HARM_CATEGORY_HARASSMENT",
-              threshold: "BLOCK_NONE",
-            }, {
-              category: "HARM_CATEGORY_HATE_SPEECH",
-              threshold: "BLOCK_NONE",
-            }, {
-              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-              threshold: "BLOCK_NONE",
-            }, {
-              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-              threshold: "BLOCK_NONE",
-            }],
-          }),
-        },
-        45_000,
+      const basePrompt = buildVideoQualityPrompt(
+        input.adultAuthorized === true,
+        input.anonymousAdultPartner === true,
       );
-      if (!response.ok) {
-        return {
-          verdict: { status: "unavailable", reasonCodes: [] },
-          model: this.model,
-          inferenceMs: Date.now() - started,
-          providerStatus: `http_${response.status}`,
-        };
-      }
-      const payload = await response.json() as Record<string, any>,
-        finishReason = String(payload.candidates?.[0]?.finishReason ?? "")
-          .toUpperCase(),
-        content = String(
-          payload.candidates?.[0]?.content?.parts?.map((
-            part: Record<string, unknown>,
-          ) => part.text).filter(Boolean).join("") ?? "",
+      let lastProviderStatus = "unavailable";
+      for (let attempt = 1; attempt <= MAX_ASSESSMENT_ATTEMPTS; attempt += 1) {
+        const response = await this.request(
+          `https://generativelanguage.googleapis.com/v1beta/models/${
+            encodeURIComponent(this.model)
+          }:generateContent`,
+          {
+            method: "POST",
+            headers: this.jsonHeaders(),
+            body: JSON.stringify({
+              contents: [{
+                role: "user",
+                parts: [{
+                  file_data: {
+                    mime_type: uploaded.mimeType,
+                    file_uri: uploaded.uri,
+                  },
+                  video_metadata: { fps: 3 },
+                }, {
+                  text: attempt === 1
+                    ? basePrompt
+                    : `${basePrompt} The prior inspection did not return the required contract. Return JSON only with verdict set to PASS or FAIL and reasonCodes containing only allowed codes.`,
+                }],
+              }],
+              generationConfig: attempt === 1
+                ? {
+                  temperature: 0,
+                  maxOutputTokens: 128,
+                  responseMimeType: "text/plain",
+                }
+                : {
+                  temperature: 0,
+                  maxOutputTokens: 160,
+                  responseMimeType: "application/json",
+                  responseSchema: {
+                    type: "OBJECT",
+                    properties: {
+                      verdict: { type: "STRING", enum: ["PASS", "FAIL"] },
+                      reasonCodes: {
+                        type: "ARRAY",
+                        items: {
+                          type: "STRING",
+                          enum: [...VIDEO_QUALITY_REASONS].filter((reason) =>
+                            reason !== "video_quality_unverified"
+                          ),
+                        },
+                      },
+                    },
+                    required: ["verdict", "reasonCodes"],
+                  },
+                },
+              safetySettings: [{
+                category: "HARM_CATEGORY_HARASSMENT",
+                threshold: "BLOCK_NONE",
+              }, {
+                category: "HARM_CATEGORY_HATE_SPEECH",
+                threshold: "BLOCK_NONE",
+              }, {
+                category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+                threshold: "BLOCK_NONE",
+              }, {
+                category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                threshold: "BLOCK_NONE",
+              }],
+            }),
+          },
+          45_000,
         );
-      const verdict = finishReason === "SAFETY"
-        ? { status: "fail" as const, reasonCodes: ["adult_safety_violation"] }
-        : parseVideoQualityVerdict(content);
+        if (!response.ok) {
+          lastProviderStatus = `http_${response.status}`;
+          if (
+            attempt < MAX_ASSESSMENT_ATTEMPTS &&
+            (response.status === 429 || response.status >= 500)
+          ) {
+            await this.wait(500 * attempt);
+            continue;
+          }
+          break;
+        }
+        const payload = await response.json() as Record<string, any>,
+          finishReason = String(payload.candidates?.[0]?.finishReason ?? "")
+            .toUpperCase(),
+          content = String(
+            payload.candidates?.[0]?.content?.parts?.map((
+              part: Record<string, unknown>,
+            ) => part.text).filter(Boolean).join("") ?? "",
+          );
+        lastProviderStatus = finishReason || "completed";
+        if (finishReason === "SAFETY") {
+          return {
+            verdict: {
+              status: "fail",
+              reasonCodes: ["adult_safety_violation"],
+            },
+            model: this.model,
+            inferenceMs: Date.now() - started,
+            providerStatus: finishReason,
+          };
+        }
+        const verdict = parseVideoQualityVerdict(content);
+        if (verdict.status !== "unavailable") {
+          return {
+            verdict,
+            model: this.model,
+            inferenceMs: Date.now() - started,
+            providerStatus: lastProviderStatus,
+          };
+        }
+        if (attempt < MAX_ASSESSMENT_ATTEMPTS) await this.wait(500 * attempt);
+      }
       return {
-        verdict,
+        verdict: { status: "unavailable", reasonCodes: [] },
         model: this.model,
         inferenceMs: Date.now() - started,
-        providerStatus: finishReason || "completed",
+        providerStatus: lastProviderStatus,
       };
     } catch {
       return {
@@ -372,6 +453,45 @@ export async function gateGeneratedVideoQuality(
       action: "reject",
       reasonCodes: ["adult_safety_violation"],
       metadata: { videoQualityGate: "adult_authorization_expired" },
+      verificationUnavailable: false,
+    };
+  }
+  // A manual approval is an explicit, per-asset operational decision. It is
+  // intentionally stored only on the private server record and cannot be set
+  // through the client API. Provider safety, current adult authorization, and
+  // private-asset delivery checks still run before this quality-only bypass.
+  if (mediaMetadata.videoQualityManualOverride === true) {
+    const metadata = compact({
+      videoQualityCheckedAt: new Date().toISOString(),
+      videoQualityVerdict: "manual_approval",
+      videoQualityReasonCodes: [],
+      videoQualityProvider: "manual_review",
+      videoQualityModel: null,
+      videoQualityProviderStatus: "approved",
+      videoQualityInferenceMs: 0,
+      videoQualityFailClosed: failClosed,
+    });
+    await db.from("together_media_provider_jobs").update({
+      provider_metadata: {
+        ...((job.provider_metadata ?? {}) as Record<string, unknown>),
+        ...metadata,
+      },
+      updated_at: new Date().toISOString(),
+    }).eq("id", job.id).eq("status", "processing");
+    await track(db, String(media.user_id), "video_quality_checked", {
+      mediaId: media.id,
+      verdict: "manual_approval",
+      reasonCodes: [],
+      verificationUnavailable: false,
+      qaProvider: "manual_review",
+      qaModel: null,
+      qaProviderStatus: "approved",
+      qaInferenceMs: 0,
+    });
+    return {
+      action: "accept",
+      reasonCodes: [],
+      metadata,
       verificationUnavailable: false,
     };
   }

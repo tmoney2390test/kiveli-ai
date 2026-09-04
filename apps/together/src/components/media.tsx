@@ -20,6 +20,7 @@ import {
   Sparkles,
   ThumbsDown,
   ThumbsUp,
+  X,
 } from "lucide-react-native";
 import { router } from "expo-router";
 import type { GeneratedMedia, MediaOffer } from "../types";
@@ -227,6 +228,7 @@ export function ChatPhotoRequestCard({
     generating = !ready && !failed &&
       (media?.status === "queued" || media?.status === "generating" ||
         offer?.status === "accepted"),
+    acceptQueued = offer?.preview_metadata?.acceptQueued === true,
     included = offer?.included_subscription_benefit === true,
     dailyRemaining = offer?.source === "user_request"
       ? Math.max(0, Number(offer.preview_metadata?.dailyPhotoAllowanceRemaining ?? 0))
@@ -298,6 +300,25 @@ export function ChatPhotoRequestCard({
         )
         : null}
       <View pointerEvents="none" style={styles.chatPhotoScrim} />
+      {offer?.status === "pending" && !preparing && !failed && !generating
+        ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Cancel photo request"
+            accessibilityHint="Removes this photo offer without starting generation"
+            accessibilityState={{ disabled: busy }}
+            disabled={busy}
+            hitSlop={8}
+            onPress={onDecline}
+            style={({ pressed }) => [
+              styles.chatPhotoCancel,
+              (pressed || busy) && styles.chatPhotoCancelPressed,
+            ]}
+          >
+            <X size={18} color="#FFF" strokeWidth={2.5} />
+          </Pressable>
+        )
+        : null}
       {generating
         ? (
           <View style={styles.chatPhotoGenerating}>
@@ -360,9 +381,9 @@ export function ChatPhotoRequestCard({
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Use an included daily photo. ${dailyRemaining} remaining today.`}
-                    disabled={busy}
+                    disabled={busy || acceptQueued}
                     onPress={() => onAccept("daily_included")}
-                    style={[styles.offerIncluded, busy && { opacity: .55 }]}
+                    style={[styles.offerIncluded, (busy || acceptQueued) && { opacity: .55 }]}
                   >
                     <Sparkles size={17} color="#FFD8E7" />
                     <Text style={styles.offerIncludedText}>Use today&apos;s included photo</Text>
@@ -390,24 +411,16 @@ export function ChatPhotoRequestCard({
             <View style={styles.offerActions}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Decline photo"
-                disabled={busy}
-                onPress={onDecline}
-                style={[styles.offerSecondary, busy && { opacity: .55 }]}
-              >
-                <Text style={styles.offerSecondaryText}>Decline</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
                 accessibilityLabel={`Accept photo for ${
                   included ? "no credits" : `${offer.credit_cost} credits`
                 }`}
-                disabled={busy}
+                accessibilityState={{ disabled: busy || acceptQueued, busy: busy || acceptQueued }}
+                disabled={busy || acceptQueued}
                 onPress={() => onAccept("credits")}
-                style={[styles.offerPrimary, busy && { opacity: .55 }]}
+                style={[styles.offerPrimary, (busy || acceptQueued) && { opacity: .55 }]}
               >
                 <Text style={styles.offerPrimaryText}>
-                  {busy ? "Preparing…" : dailyRemaining > 0 ? `Use ${offer.credit_cost} Credits` : "Accept"}
+                  {busy || acceptQueued ? "Starting…" : dailyRemaining > 0 ? `Use ${offer.credit_cost} Credits` : "Accept"}
                 </Text>
               </Pressable>
             </View>
@@ -845,6 +858,21 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(22,15,29,.64)",
   },
+  chatPhotoCancel: {
+    position: "absolute",
+    top: 14,
+    right: 14,
+    zIndex: 4,
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 19,
+    backgroundColor: "rgba(12,8,16,.82)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,.2)",
+  },
+  chatPhotoCancelPressed: { opacity: .58 },
   chatPhotoOfferContent: {
     flex: 1,
     gap: 10,
@@ -1006,17 +1034,6 @@ const styles = StyleSheet.create({
     borderColor: "rgba(130,242,198,.55)",
   },
   offerPrimaryText: { color: "#fff", fontSize: 14, fontWeight: "900", textAlign: "center" },
-  offerSecondary: {
-    flex: 1,
-    minHeight: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 18,
-    backgroundColor: "rgba(177,92,128,.58)",
-    borderWidth: 1,
-    borderColor: "rgba(255,166,202,.38)",
-  },
-  offerSecondaryText: { color: "#fff", fontSize: 14, fontWeight: "900" },
   offerFailure: { color: colors.danger, fontSize: 10, lineHeight: 15 },
   retry: {
     flexDirection: "row",

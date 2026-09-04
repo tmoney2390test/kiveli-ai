@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CharacterDayScheduleEntry } from './characterDaySchedule';
-import { characterNameFromSlug, characterRelationshipPresentation, compactCharacterSchedule } from './characterProfilePresentation';
+import { characterNameFromSlug, characterRelationshipPresentation, characterTrustPresentation, compactCharacterSchedule } from './characterProfilePresentation';
 
 const schedule = (id: string, state: Partial<CharacterDayScheduleEntry> = {}): CharacterDayScheduleEntry => ({
   id,
@@ -36,6 +36,41 @@ describe('character profile presentation', () => {
     expect(characterRelationshipPresentation({
       name: 'Noa', known: false, daysKnown: 0, momentCount: 0, placesTogether: 0, upcomingCount: 0,
     })).toEqual({ heading: null, supportingCopy: null, stats: [] });
+  });
+
+  it.each([
+    [8, 8, 'Still new'],
+    [14, 14, 'Taking root'],
+    [35, 35, 'Growing trust'],
+    [60, 60, 'Strong trust'],
+    [80, 80, 'Deep trust'],
+    [140, 100, 'Deep trust'],
+    [-20, 0, 'Still new'],
+  ])('presents trust %s as a bounded, readable level', (input, value, label) => {
+    expect(characterTrustPresentation(input)).toMatchObject({ value, label });
+  });
+
+  it('fails closed to the lowest trust presentation for malformed data', () => {
+    expect(characterTrustPresentation('not-a-score')).toMatchObject({ value: 0, label: 'Still new' });
+  });
+
+  it('shows the established starting trust while a relationship snapshot is still loading', () => {
+    expect(characterTrustPresentation(undefined)).toMatchObject({ value: 30, label: 'Taking root' });
+  });
+
+  it('distinguishes a recent strain from a low starting baseline', () => {
+    expect(characterTrustPresentation(30)).toMatchObject({
+      label: 'Taking root', tone: 'steady', trendLabel: null, recentChange: null,
+    });
+    expect(characterTrustPresentation(30, { recentDirection: 'strained', recentTrustChange: -2 })).toMatchObject({
+      label: 'Taking root', tone: 'strained', trendLabel: 'Recently strained', recentChange: -2,
+    });
+  });
+
+  it('shows accountable repair without pretending the full loss disappeared', () => {
+    expect(characterTrustPresentation(28, { recentDirection: 'repairing', recentTrustChange: 1 })).toMatchObject({
+      tone: 'repairing', trendLabel: 'Repairing', recentChange: 1,
+    });
   });
 
   it('shows now and the next schedule entry while hiding the rest', () => {

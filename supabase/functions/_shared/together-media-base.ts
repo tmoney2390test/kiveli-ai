@@ -29,7 +29,7 @@ import {
 } from "../../../packages/together-domain/src/media.ts";
 import { isMediaGenerationAuthorized } from "../../../packages/together-domain/src/media-economics.ts";
 import { generatedPhotosEnabled } from "./together-photo-preferences.ts";
-import { isFictionalCompanion } from "./together-media-character.ts";
+import { isAdultMediaReferenceEligible, isFictionalCompanion } from "./together-media-character.ts";
 import {
   buildMediaEditConstraint,
   classifyMediaEditSemantics,
@@ -50,6 +50,10 @@ import {
   type MediaWorldContainment,
   validateReferenceAssetWorldScope,
 } from "./together-media-world.ts";
+import {
+  resolveMediaCaptureLighting,
+  type MediaCaptureLighting,
+} from "./together-media-time.ts";
 
 export type MediaSource =
   | "user_request"
@@ -188,6 +192,20 @@ export type CanonicalImageGenerationRequest = {
     revision: number;
   };
 };
+
+export function mediaCaptureLightingForRequest(
+  request: CanonicalImageGenerationRequest,
+): MediaCaptureLighting {
+  const place = request.context.place;
+  return resolveMediaCaptureLighting({
+    requestText: request.generationIntent?.requestText,
+    localTime: place?.clock.localTime,
+    localIso: place?.clock.localIso,
+    timezone: place?.clock.timezone,
+    daypart: place?.clock.daypart ?? request.context.timeOfDay,
+    indoorOutdoor: place?.location.visualContext.indoorOutdoor,
+  });
+}
 export type ImageProviderCapabilities = {
   referenceImages: boolean;
   identityFidelity: boolean;
@@ -676,6 +694,7 @@ export function buildImagePrompt(
     ].join("\n");
   }
   const place = request.context.place, location = request.context.location;
+  const captureLighting = mediaCaptureLightingForRequest(request);
   const visibleCaptureDevice = photoRequestWantsVisibleCaptureDevice(
     request.generationIntent?.requestText,
   );
@@ -822,11 +841,7 @@ export function buildImagePrompt(
     "MOOD",
     line(request.context.mood, "natural and relaxed"),
     "TIME / LIGHTING",
-    `${
-      place
-        ? `${place.clock.weekday} ${place.clock.localTime} (${place.clock.timezone}), ${place.clock.daypart}`
-        : line(request.context.timeOfDay, "current local time")
-    }; believable available light.`,
+    captureLighting.instruction,
     "WARDROBE",
     wardrobe,
     "COMPOSITION",
@@ -890,6 +905,7 @@ export function buildGroupImagePrompt(
     place = request.context.place,
     location = request.context.location,
     staged = request.context.groupSceneMode === "staged_group_portrait";
+  const captureLighting = mediaCaptureLightingForRequest(request);
   const visibleCaptureDevice = photoRequestWantsVisibleCaptureDevice(
     request.generationIntent?.requestText,
   );
@@ -968,6 +984,8 @@ export function buildGroupImagePrompt(
     "Each character identity reference belongs only to its named subject. Never copy one identity into both people. Never render any reference as a print, screen, inset, collage, or picture-in-picture.",
     "SCENE",
     scene,
+    "TIME / LIGHTING",
+    captureLighting.instruction,
     "COMPOSITION",
     `${
       request.composition.shotType.replace("_", " ")
@@ -1448,11 +1466,8 @@ export async function queueMediaRequest(
         automatic: input.source !== "user_request",
         ageVerified: ['suggestive','mature','explicit'].includes(requestedForPolicy)?Boolean(input.adultPipelineAuthorized&&profile?.adult_eligible_at):Boolean(profile?.age_verified_at),
         characterAge: Number(subjectTemplate.age),
-        fictionalCharacter: isFictionalCompanion(
-          subjectTemplate,
-          subjectVersion,
-        ),
-        realPersonRequest: REAL_PERSON_PATTERN.test(requestText)||mediaSafety.reasonCode==='real_person_likeness',
+        fictionalCharacter: isFictionalCompanion(subjectTemplate, subjectVersion),
+        realPersonRequest: REAL_PERSON_PATTERN.test(requestText)||mediaSafety.reasonCode==='real_person_likeness'||(['suggestive','mature','explicit'].includes(requestedForPolicy)&&!isAdultMediaReferenceEligible(subjectVersion)),
         nonConsensualRequest: !mediaSafety.allowed&&!['minor_related','real_person_likeness'].includes(mediaSafety.reasonCode),
         minorRelatedRequest: mediaSafety.reasonCode==='minor_related',
         characterAllowsRequestedLevel,

@@ -20,6 +20,7 @@ export default tseslint.config(
     },
   },
   { files: ['**/tests/**/*.ts'], rules: { '@typescript-eslint/require-await': 'off' } },
+  { files: ['scripts/**/*.test.ts'], ...tseslint.configs.disableTypeChecked },
   { files: ['**/*.{js,mjs,cjs}'], ...tseslint.configs.disableTypeChecked }
 );
 

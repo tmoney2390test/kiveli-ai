@@ -5,6 +5,15 @@ export function isPublicAppPath(pathname: string) {
   return PUBLIC_PATHS.has(normalizePathname(pathname));
 }
 
+/**
+ * These routes own their authenticated handoff UI. Re-parenting them into the
+ * authenticated app shell as soon as a session appears remounts the form and
+ * makes a successful sign-in look like blank, failed credentials.
+ */
+export function shouldKeepAuthTransitionMounted(pathname: string) {
+  return ['/auth', '/auth/callback', '/reset-password'].includes(normalizePathname(pathname));
+}
+
 export function shouldHoldPrivateWebRouteForHydration(input: {
   platform: string;
   hydrated: boolean;

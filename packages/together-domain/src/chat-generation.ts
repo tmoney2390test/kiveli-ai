@@ -31,7 +31,8 @@ export type ReasoningReasonCode =
   | 'subscription_cap'
   | 'provider_capability_clamp'
   | 'secondary_group_speaker_cap'
-  | 'provider_output_token_clamp';
+  | 'provider_output_token_clamp'
+  | 'fast_response_budget';
 
 export interface ChatGenerationPreferences {
   chatDynamism: ChatDynamism;
@@ -64,7 +65,7 @@ export const MAX_REASONING_BY_PLAN: Record<DialogueSubscriptionTier, EffectiveRe
   max: 'high',
 };
 
-export const DIALOGUE_GENERATION_PROFILE_VERSION = 'chat-generation-v2';
+export const DIALOGUE_GENERATION_PROFILE_VERSION = 'chat-generation-v3';
 
 export interface DialogueReasoningSignals {
   isGreetingOrAcknowledgement: boolean;
@@ -109,6 +110,7 @@ export interface DialogueGenerationProfile {
   visibleTokenBudget: number;
   reasoningTokenReserve: number;
   providerMaxOutputTokens: number;
+  latencyProfile: 'fast' | 'standard';
   reasonCodes: ReasoningReasonCode[];
   profileVersion: string;
 }
@@ -267,6 +269,7 @@ export function resolveDialogueGenerationProfile(input: ResolveDialogueGeneratio
     visibleTokenBudget,
     reasoningTokenReserve,
     providerMaxOutputTokens,
+    latencyProfile: preferences.reasoningPreference === 'none' ? 'fast' : 'standard',
     reasonCodes,
     profileVersion: DIALOGUE_GENERATION_PROFILE_VERSION,
   };

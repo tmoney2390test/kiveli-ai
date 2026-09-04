@@ -282,7 +282,7 @@ async function processStorageCleanupJobs(db: SupabaseClient, ids: string[]) {
 }
 
 async function accountFingerprint(userId: string) {
-  const pepper = Deno.env.get('SUPABASE_SECRET_KEY') ?? Deno.env.get('JUKESTR_SUPABASE_SECRET_KEY') ?? '';
+  const pepper = Deno.env.get('KIVELLE_SUPABASE_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('JUKESTR_SUPABASE_SECRET_KEY') ?? Deno.env.get('SUPABASE_SECRET_KEY') ?? '';
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${pepper}:${userId}`));
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }

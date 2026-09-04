@@ -45,6 +45,15 @@ export function planConversationDraft(plan:Pick<SharedPlan,'title'|'status'>):st
   return`Are we still good for ${title}?`;
 }
 
+export function companionFirstName(name:unknown):string{
+  const normalized=typeof name==='string'?name.trim().replace(/^(?:dr\.?|doctor|prof\.?|professor|mr\.?|mrs\.?|ms\.?|mx\.?)\s+/i,''):'';
+  return normalized.split(/\s+/)[0]||'your companion';
+}
+
+export function defaultDirectConversationTitle(characterName:unknown):string{
+  return `Chat with ${companionFirstName(characterName)}`;
+}
+
 function conversationActivityTime(conversation:Conversation):number{
   const value=conversation.last_message_at??conversation.updated_at??conversation.created_at;
   const timestamp=value?new Date(value).getTime():0;

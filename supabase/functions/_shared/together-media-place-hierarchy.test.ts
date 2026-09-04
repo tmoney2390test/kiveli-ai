@@ -26,4 +26,6 @@ Deno.test('media prompts layer world, district, then stronger exact-location vis
   assert(prompt.includes(locationVisual),'exact location visual context must reach the provider');
   assert(prompt.indexOf(districtVisual)<prompt.indexOf(locationVisual),'district context must be established before exact-location anchors');
   assert(prompt.includes('subordinate to stronger exact-location anchors'),'prompt must explicitly preserve location precedence');
+  assert(prompt.includes('NIGHT REQUIRED'),'10 PM must be treated as a nighttime capture');
+  assert(prompt.includes('No daylight'),'mixed nighttime locations must reject daytime exterior cues');
 });

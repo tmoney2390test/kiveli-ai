@@ -13,13 +13,16 @@ import { enforceCustomCompanionLimit, refundCredits, resolveSubscriptionState, s
 import { handleCreatorStudioAction, isCreatorStudioAction } from '../_shared/kivelle-creator-studio.ts';
 
 const schema=z.discriminatedUnion('action',[
-  z.object({action:z.literal('create_draft'),concept:z.string().trim().min(20).max(1200),worldId:z.string().uuid(),relationshipGoal:z.enum(['friendship','romance','either']),requestId:z.string().uuid()}),
+  z.object({action:z.literal('create_draft'),concept:z.string().trim().min(20).max(1200),worldId:z.string().uuid(),relationshipGoal:z.enum(['friendship','romance','either']),requestId:z.string().uuid(),identitySeed:z.object({name:z.string().trim().min(1).max(50),age:z.number().int().min(18).max(99),gender:z.string().trim().min(1).max(40),pronouns:z.string().trim().min(1).max(40),description:z.string().trim().max(800).optional()}).optional()}),
   z.object({action:z.literal('get_draft'),draftId:z.string().uuid()}),
   z.object({action:z.literal('list_drafts')}),
   z.object({action:z.literal('update_draft_section'),draftId:z.string().uuid(),section:z.enum(['identity','appearance','personality','communication','connection','life','routine']),config:z.record(z.string(),z.unknown()),relationshipGoal:z.enum(['friendship','romance','either']).optional(),currentStep:z.enum(['identity','appearance','personality','life','connection','meeting','review']).optional(),expectedRevision:z.number().int().positive()}),
   z.object({action:z.literal('regenerate_draft_section'),draftId:z.string().uuid(),section:z.enum(['routine','first_meetings'])}),
   z.object({action:z.literal('generate_draft_appearance'),draftId:z.string().uuid(),requestId:z.string().uuid()}),
   z.object({action:z.literal('select_draft_appearance'),draftId:z.string().uuid(),assetId:z.string().uuid()}),
+  z.object({action:z.literal('authorize_draft_appearance_upload'),draftId:z.string().uuid(),requestId:z.string().uuid(),contentType:z.literal('image/jpeg'),byteSize:z.number().int().min(1).max(10*1024*1024),width:z.number().int().min(256).max(8192),height:z.number().int().min(256).max(8192),description:z.string().trim().min(20).max(800),referenceOrigin:z.enum(['fictional_ai','authorized_real_person'])}),
+  z.object({action:z.literal('complete_draft_appearance_upload'),draftId:z.string().uuid(),assetId:z.string().uuid(),requestId:z.string().uuid()}),
+  z.object({action:z.literal('cancel_draft_appearance_upload'),draftId:z.string().uuid(),assetId:z.string().uuid(),requestId:z.string().uuid()}),
   z.object({action:z.literal('select_first_meeting'),draftId:z.string().uuid(),meetingId:z.string().uuid()}),
   z.object({action:z.literal('finalize_draft'),draftId:z.string().uuid(),requestId:z.string().uuid()}),
   z.object({action:z.literal('archive_draft'),draftId:z.string().uuid()}),

@@ -1,5 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert';
-import { chatGenerationControlsMode,dialogueReasoningSignals,resolveDialogueRunGenerationProfile,sharedSceneGenerationContext } from './kivelle-chat-generation.ts';
+import { chatGenerationControlsMode,dialogueReasoningSignals,resolveDialogueRunGenerationProfile,sharedSceneGenerationContext,xaiFastVisibleTokenCap } from './kivelle-chat-generation.ts';
 
 const context=(overrides:Record<string,unknown>={})=>({
   userMessage:'hello',interactionQuality:'normal',relationship:{conflict:0},responseBrief:{mode:'casual'},memoryContext:{directRecall:[],callbacks:[]},openThreads:[],queryIntent:'general',director:{used:false},conversationStyle:'texting',generationPreferences:{chatDynamism:50,reasoningPreference:'auto'},subscription:{tier:'kivelle_max'},...overrides,
@@ -27,6 +27,21 @@ Deno.test('run profile preserves group speaker hierarchy and independent style b
   assertEquals(primary.effectiveReasoning,'medium');
   assertEquals(secondary.effectiveReasoning,'low');
   assertEquals(primary.visibleTokenBudget,secondary.visibleTokenBudget);
+});
+
+Deno.test('Fast Grok replies use a lower-cost bounded visible response budget',()=>{
+  const previous=Deno.env.get('KIVELLE_XAI_FAST_VISIBLE_TOKEN_CAP');
+  try{
+    Deno.env.set('KIVELLE_XAI_FAST_VISIBLE_TOKEN_CAP','240');
+    const profile=resolveDialogueRunGenerationProfile({context:context({interactionQuality:'major_relationship_event',conversationStyle:'paragraph',generationPreferences:{chatDynamism:50,reasoningPreference:'none'}}),provider:'xai',model:'grok-4.3'});
+    assertEquals(profile.effectiveReasoning,'none');
+    assertEquals(profile.latencyProfile,'fast');
+    assertEquals(profile.visibleTokenBudget,240);
+    assertEquals(profile.providerMaxOutputTokens,240);
+    assertEquals(profile.reasonCodes.includes('fast_response_budget'),true);
+    assertEquals(xaiFastVisibleTokenCap('9999'),520);
+    assertEquals(xaiFastVisibleTokenCap('invalid'),240);
+  }finally{if(previous===undefined)Deno.env.delete('KIVELLE_XAI_FAST_VISIBLE_TOKEN_CAP');else Deno.env.set('KIVELLE_XAI_FAST_VISIBLE_TOKEN_CAP',previous);}
 });
 
 Deno.test('shared scenes identify the selected speaker and the full active group',()=>{

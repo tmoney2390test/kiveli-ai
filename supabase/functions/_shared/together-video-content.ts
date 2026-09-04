@@ -15,9 +15,91 @@ export type DirectVideoContentDecision = {
     | "web_adult_authorization_required";
 };
 
+export type SourcePhotoVideoDecision = {
+  contentLevel: MediaLevel;
+  contentClass: "sfw" | "adult_capable";
+  adult: boolean;
+  allowed: boolean;
+  reasonCode:
+    | "allowed"
+    | "source_content_mismatch"
+    | "adult_video_disabled"
+    | "web_adult_authorization_required";
+};
+
 const ADULT_LEVELS = new Set<MediaLevel>(["suggestive", "mature", "explicit"]);
+const CONTENT_LEVEL_RANK: Record<MediaLevel, number> = {
+  standard: 0,
+  romance: 1,
+  suggestive: 2,
+  mature: 3,
+  explicit: 4,
+};
 const ANONYMOUS_PARTNER =
   /\b(?:couple|two\s+(?:fictional\s+)?adults?|man\s+and\s+(?:a\s+)?woman|woman\s+and\s+(?:a\s+)?man|with\s+(?:him|her|their\s+partner|a\s+partner)|intercourse|doggy(?:[- ]style)?|missionary(?:[- ]style)?|cowgirl|reverse\s+cowgirl|penetrat(?:e|es|ed|ing|ion)|having\s+sex|making\s+love|oral\s+sex)\b/i;
+
+/**
+ * Resolve the source photo's already-approved policy before the animation
+ * prompt is considered. Restricted sources stay restricted and can only be
+ * used from an authorized web-adult session.
+ */
+export function resolveSourcePhotoVideoDecision(input: {
+  contentLevel: unknown;
+  contentRating: unknown;
+  visibilityScope: unknown;
+  authorizedWebAdult: boolean;
+  adultVideoFeatureEnabled: boolean;
+}): SourcePhotoVideoDecision {
+  const rawLevel = String(input.contentLevel ?? "standard") as MediaLevel;
+  const validLevel =
+    (["standard", "romance", "suggestive", "mature", "explicit"] as const)
+      .includes(rawLevel as never);
+  const restricted = ADULT_LEVELS.has(rawLevel) ||
+    input.contentRating === "explicit" || input.visibilityScope === "web_adult";
+  const contentLevel: MediaLevel = restricted && !ADULT_LEVELS.has(rawLevel)
+    ? "explicit"
+    : rawLevel;
+  const sourceShapeValid = validLevel &&
+    (restricted
+      ? input.visibilityScope === "web_adult"
+      : input.visibilityScope === "all" &&
+        (input.contentRating === "safe" ||
+          input.contentRating === "suggestive"));
+  if (!sourceShapeValid) {
+    return {
+      contentLevel,
+      contentClass: restricted ? "adult_capable" : "sfw",
+      adult: restricted,
+      allowed: false,
+      reasonCode: "source_content_mismatch",
+    };
+  }
+  if (restricted && !input.adultVideoFeatureEnabled) {
+    return {
+      contentLevel,
+      contentClass: "adult_capable",
+      adult: true,
+      allowed: false,
+      reasonCode: "adult_video_disabled",
+    };
+  }
+  if (restricted && !input.authorizedWebAdult) {
+    return {
+      contentLevel,
+      contentClass: "adult_capable",
+      adult: true,
+      allowed: false,
+      reasonCode: "web_adult_authorization_required",
+    };
+  }
+  return {
+    contentLevel,
+    contentClass: restricted ? "adult_capable" : "sfw",
+    adult: restricted,
+    allowed: true,
+    reasonCode: "allowed",
+  };
+}
 
 export function resolveDirectVideoContentDecision(input: {
   requestText: string;
@@ -54,6 +136,16 @@ export function resolveDirectVideoContentDecision(input: {
     allowed: true,
     reasonCode: "allowed",
   };
+}
+
+/** The finished video inherits whichever approved input has the higher level. */
+export function resolveAnimatedVideoContentLevel(
+  sourceLevel: MediaLevel,
+  promptLevel: MediaLevel,
+): MediaLevel {
+  return CONTENT_LEVEL_RANK[promptLevel] > CONTENT_LEVEL_RANK[sourceLevel]
+    ? promptLevel
+    : sourceLevel;
 }
 
 export function directVideoOpeningFrameRequest(input: {

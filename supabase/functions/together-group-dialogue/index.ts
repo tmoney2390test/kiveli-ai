@@ -3,6 +3,8 @@ import {
   boundedGroupSocialDelta,
   chatLanguageChangeSubject,
   chatLanguageSafetyBoundary,
+  classifyDeterministicTrustConsequence,
+  classifyDeterministicTrustRepair,
   classifyGroupSocialEvent,
   compileIntimacyStance,
   hasSexualDialogueLanguage,
@@ -880,11 +882,22 @@ function groupStream(input: any): Response {
             conversationId: input.conversation.id,
             code: error instanceof Error ? error.name : "unknown_error",
           })));
-          if (!route.explicit&&action.intent === "answer_user") {
-            await recordDirectedGroupRelationshipTurn(input.db, {
+          if (action.intent === "answer_user") {
+            if (!route.explicit) {
+              await recordDirectedGroupRelationshipTurn(input.db, {
+                userId: input.userId,
+                continuityId: input.continuityId,
+                characterInstanceId: action.characterInstanceId,
+              });
+            }
+            await applyDirectedGroupTrustSignal(input.db, {
               userId: input.userId,
-              continuityId: input.continuityId,
               characterInstanceId: action.characterInstanceId,
+              sourceMessageId: String(input.userMessage.id),
+              message: canonicalUserText,
+              occurredAt: String(input.userMessage.created_at ?? new Date().toISOString()),
+              conversationId: input.conversation.id,
+              explicit: route.explicit,
             });
           }
           if(!route.explicit)await applyDetectedGroupSocialEvent(input.db, {
@@ -1475,6 +1488,68 @@ async function recordDirectedGroupRelationshipTurn(
     input.characterInstanceId,
   );
 }
+
+async function applyDirectedGroupTrustSignal(
+  db: any,
+  input: {
+    userId: string;
+    characterInstanceId: string;
+    sourceMessageId: string;
+    message: string;
+    occurredAt: string;
+    conversationId: string;
+    explicit: boolean;
+  },
+) {
+  if (Deno.env.get("KIVELLE_TRUST_CONSEQUENCES_V2") === "false") return;
+  const consequence = classifyDeterministicTrustConsequence(input.message, { allowThreatClassification: !input.explicit });
+  const repair = consequence ? null : classifyDeterministicTrustRepair(input.message);
+  if (!consequence && !repair) return;
+
+  const { data, error } = consequence
+    ? await db.rpc("kivelle_apply_trust_consequence_v2", {
+      p_user_id: input.userId,
+      p_character_instance_id: input.characterInstanceId,
+      p_source_id: input.sourceMessageId,
+      p_kind: consequence.kind,
+      p_severity: consequence.severity,
+      p_confidence: consequence.confidence,
+      p_reason_code: consequence.reasonCode,
+      p_evidence_basis: consequence.evidenceBasis,
+      p_event_source: consequence.source,
+      p_repairable: consequence.repairable,
+      p_occurred_at: input.occurredAt,
+    })
+    : await db.rpc("kivelle_apply_trust_repair_v2", {
+      p_user_id: input.userId,
+      p_character_instance_id: input.characterInstanceId,
+      p_source_id: input.sourceMessageId,
+      p_confidence: repair!.confidence,
+      p_apology: repair!.apology,
+      p_accountability: repair!.accountability,
+      p_corrective_action: repair!.correctiveAction,
+      p_reason_code: repair!.reasonCode,
+      p_occurred_at: input.occurredAt,
+    });
+  if (error) {
+    console.error(JSON.stringify({
+      level: "error",
+      operation: consequence ? "apply_group_trust_consequence" : "apply_group_trust_repair",
+      conversationId: input.conversationId,
+      code: error.code ?? "TRUST_SIGNAL_FAILED",
+    }));
+    return;
+  }
+  await track(db, input.userId, consequence ? "relationship_trust_consequence" : "relationship_trust_repair", {
+    conversationId: input.conversationId,
+    characterInstanceId: input.characterInstanceId,
+    groupChat: true,
+    ...(consequence ? { kind: consequence.kind, severity: consequence.severity } : {}),
+    applied: data?.applied === true,
+    result: String(data?.reason ?? "unknown"),
+  });
+}
+
 async function applyDetectedGroupSocialEvent(
   db: any,
   input: {

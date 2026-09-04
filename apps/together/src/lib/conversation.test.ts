@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeConversationFor, isActiveConversation, mergeOlderMessages, mostRecentlyMessagedConversation, mostRecentlyUsedConversation, planConversationDraft, scopedConversationMessages } from './conversation';
+import { activeConversationFor, defaultDirectConversationTitle, isActiveConversation, mergeOlderMessages, mostRecentlyMessagedConversation, mostRecentlyUsedConversation, planConversationDraft, scopedConversationMessages } from './conversation';
 import type { Conversation, Message } from '../types';
 
 const message=(id:string,created_at:string):Message=>({id,conversation_id:'conversation',role:'user',content:id,delivery_status:'complete',created_at});
@@ -13,4 +13,5 @@ describe('conversation continuity helpers',()=>{
   it('defaults continuity views to the latest actual conversation instead of a newly opened empty chat',()=>{const conversations:Conversation[]=[{id:'camille-empty',character_instance_id:'camille',kind:'direct',title:null,last_message_at:null,created_at:'2026-08-17T12:00:00Z'},{id:'chloe-chat',character_instance_id:'chloe',kind:'direct',title:null,last_message_at:'2026-08-16T12:00:00Z',created_at:'2026-08-10T12:00:00Z'}];expect(mostRecentlyMessagedConversation(conversations)?.character_instance_id).toBe('chloe');});
   it('reverses older pages, prepends them, and removes duplicates',()=>{const current=[message('3','2026-08-14T03:00:00Z'),message('4','2026-08-14T04:00:00Z')];const older=[message('3','2026-08-14T03:00:00Z'),message('2','2026-08-14T02:00:00Z'),message('1','2026-08-14T01:00:00Z')];expect(mergeOlderMessages(older,current).map((item)=>item.id)).toEqual(['1','2','3','4']);});
   it('creates a specific conversational draft for the selected plan',()=>{expect(planConversationDraft({title:'Drinks at Velvet Hour',status:'scheduled'})).toBe('Are we still good for Drinks at Velvet Hour?');expect(planConversationDraft({title:'Rooftop Movie Night',status:'completed'})).toBe('We should do Rooftop Movie Night again.');expect(planConversationDraft({title:'Trivia night',status:'missed'})).toContain('Trivia night');});
+  it('names a default chat after the companion first name',()=>{expect(defaultDirectConversationTitle('Bianca De Luca')).toBe('Chat with Bianca');expect(defaultDirectConversationTitle('Dr. Sana Rahman')).toBe('Chat with Sana');expect(defaultDirectConversationTitle('')).toBe('Chat with your companion');});
 });

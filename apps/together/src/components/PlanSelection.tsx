@@ -7,7 +7,7 @@ import { DateTimeFields } from './DateTimeFields';
 import { locationHeroAsset } from '../assets';
 import { colors, radius } from '../theme';
 import type { CharacterInstance, ConversationAction, SharedPlan, Snapshot } from '../types';
-import { companionPick, companionPickQuote, defaultPlanTimeFields, isVenueProgramTime, localPlanDateValue, nextAvailableGroupPlanTime, parseCustomPlanTime, planOptionCanStartNow, previewPlanTiming, recommendPlanOptions, resolveGroupPlanAvailability, type PlanDiscoveryIntent, type PlanOption, type PlanTimingChoice, type PlanTimingSelection } from '../lib/plans';
+import { companionPick, companionPickQuote, defaultPlanTimeFields, formatQuickPlanClock, isVenueProgramTime, localPlanDateValue, nextAvailableGroupPlanTime, parseCustomPlanTime, planOptionCanStartNow, previewPlanTiming, recommendPlanOptions, resolveGroupPlanAvailability, type PlanDiscoveryIntent, type PlanOption, type PlanTimingChoice, type PlanTimingSelection } from '../lib/plans';
 import { characterResidentWorld, locationsForWorld, worldForLocation } from '../lib/place';
 import { placeHoursStatus } from '../lib/placeHours';
 import { userExperienceTimezone } from '../lib/experienceTimezone';
@@ -169,7 +169,7 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
     setValidation('');
     if(value==='custom'){
       setCustomOpen(true);
-      if(selectedDateTime)syncFields(selectedDateTime,setDateValue,setTimeValue,selectedWorld?.timezone);
+      if(selectedDateTime)syncFields(selectedDateTime,setDateValue,setTimeValue,viewerTimezone);
       return;
     }
     setCustomOpen(false);
@@ -210,13 +210,16 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
   const confirm = () => { if(!choice||!timingChoice)return;if(timingChoice==='custom'){if(selectedDateTime)onPlan(choice,{choice:'custom',startsAt:selectedDateTime});return;}onPlan(choice,{choice:timingChoice}); };
   const companionName = companionLabel?.trim() || character.together_character_templates.name;
   const availability = pluralCompanions ? 'Check everyone below' : availabilityCopy(character);
-  const timingPreview=timingChoice==='now'?'Start now':timingChoice==='in_one_hour'?`In 1 hour · ${formatPlanDate(previewPlanTiming('in_one_hour'),selectedWorld?.timezone)}`:selectedDateTime?formatPlanDate(new Date(selectedDateTime),selectedWorld?.timezone):'Choose a time above';
+  // Plans are commitments on the viewer's clock. World timezones still drive
+  // venue-hours simulation, but must never make a relative choice such as
+  // "In 1 hour" appear earlier than the user's current local time.
+  const timingPreview=timingChoice==='now'?'Start now':timingChoice==='in_one_hour'?`In 1 hour · ${formatPlanDate(previewPlanTiming('in_one_hour'),viewerTimezone)}`:selectedDateTime?formatPlanDate(new Date(selectedDateTime),viewerTimezone):'Choose a time above';
   const planParticipants=participants?.length?participants:[character];
   const timingDate=timingChoice==='now'?new Date():timingChoice==='in_one_hour'?previewPlanTiming('in_one_hour'):selectedDateTime?new Date(selectedDateTime):null;
   const groupAvailability=pluralCompanions&&choice&&timingDate?resolveGroupPlanAvailability({participants:planParticipants,start:timingDate,durationMinutes:choice.durationMinutes,schedules:snapshot.schedules,plans:snapshot.sharedPlans,dates:snapshot.dates,immediate:timingChoice==='now',excludePlanId:currentPlan?.id,replacingActivePlan:mode==='switch'}):[];
   const groupBlocked=groupAvailability.some((status)=>!status.available);
   const nextGroupTime=pluralCompanions&&choice&&timingDate&&groupBlocked?nextAvailableGroupPlanTime({participants:planParticipants,after:new Date(Math.max(Date.now()+10*60000,timingDate.getTime())),option:choice,schedules:snapshot.schedules,plans:snapshot.sharedPlans,dates:snapshot.dates,excludePlanId:currentPlan?.id}):null;
-  const chooseRecommendedGroupTime=()=>{if(!nextGroupTime)return;const value=nextGroupTime.toISOString();setTimingChoice('custom');setSelectedDateTime(value);setCustomOpen(false);syncFields(value,setDateValue,setTimeValue,selectedWorld?.timezone);setValidation('');};
+  const chooseRecommendedGroupTime=()=>{if(!nextGroupTime)return;const value=nextGroupTime.toISOString();setTimingChoice('custom');setSelectedDateTime(value);setCustomOpen(false);syncFields(value,setDateValue,setTimeValue,viewerTimezone);setValidation('');};
   const canConfirm=Boolean(timingChoice&&(timingChoice!=='custom'||selectedDateTime)&&!groupBlocked);
 
   return <View style={styles.surface} accessibilityViewIsModal={Platform.OS === 'web' ? undefined : true}>
@@ -264,11 +267,11 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
       {mode==='switch'?<View style={styles.switchNotice}><RefreshCw size={15} color={colors.rose}/><View style={{flex:1}}><Text style={styles.switchNoticeTitle}>Switch together now</Text><Text style={styles.switchNoticeCopy}>Only places open for the full activity are shown. Your current plan will be saved first.</Text></View></View>:<><View style={styles.whenHeader}><Text style={styles.sectionTitle}>When works?</Text><Text style={styles.sectionHint}>Choose the moment that feels right.</Text></View>
       <View style={styles.timingRow}>
         <TimingOption label="NOW" detail="Start together immediately" selected={timingChoice==='now'} disabled={busy} onPress={()=>selectTiming('now')}/>
-        <TimingOption label="IN 1 HOUR" detail={previewPlanTiming('in_one_hour').toLocaleTimeString([],{hour:'numeric',minute:'2-digit',...(selectedWorld?.timezone?{timeZone:selectedWorld.timezone}:{})})} selected={timingChoice==='in_one_hour'} disabled={busy} onPress={()=>selectTiming('in_one_hour')}/>
+        <TimingOption label="IN 1 HOUR" detail={formatQuickPlanClock('in_one_hour',viewerTimezone)} selected={timingChoice==='in_one_hour'} disabled={busy} onPress={()=>selectTiming('in_one_hour')}/>
         <TimingOption label="PICK ANOTHER TIME" detail="Choose an exact date and time" selected={timingChoice==='custom'} disabled={busy} expanded={customOpen} onPress={()=>selectTiming('custom')}/>
       </View>
       {customOpen ? <View style={styles.custom}><Text style={styles.customEyebrow}>OTHER TIME</Text><DateTimeFields date={dateValue} time={timeValue} onDateChange={(value) => updateCustom(value, timeValue)} onTimeChange={(value) => updateCustom(dateValue, value)} />{validation ? <Text style={styles.validation}>{validation}</Text> : null}</View> : null}</>}
-      {pluralCompanions&&groupAvailability.length?<View style={styles.groupAvailability} accessibilityLabel="Group availability"><View style={styles.groupAvailabilityHeading}><Text style={styles.groupAvailabilityTitle}>{groupBlocked?'SOMEONE HAS A CONFLICT':'EVERYONE IS IN'}</Text><Text style={styles.groupAvailabilityTime}>{timingPreview}</Text></View>{groupAvailability.map((status)=><View key={status.characterInstanceId} style={styles.groupAvailabilityRow}><View style={[styles.groupAvailabilityDot,status.available?styles.groupAvailabilityFree:styles.groupAvailabilityBusy]}/><Text numberOfLines={1} style={styles.groupAvailabilityName}>{status.name}</Text><Text numberOfLines={1} style={[styles.groupAvailabilityDetail,!status.available&&styles.groupAvailabilityConflict]}>{status.detail}</Text></View>)}{nextGroupTime?<Pressable accessibilityRole="button" onPress={chooseRecommendedGroupTime} style={styles.groupAvailabilitySuggestion}><Check size={14} color={colors.success}/><Text style={styles.groupAvailabilitySuggestionText}>Everyone is free {formatPlanDate(nextGroupTime,selectedWorld?.timezone)}</Text></Pressable>:null}</View>:null}
+      {pluralCompanions&&groupAvailability.length?<View style={styles.groupAvailability} accessibilityLabel="Group availability"><View style={styles.groupAvailabilityHeading}><Text style={styles.groupAvailabilityTitle}>{groupBlocked?'SOMEONE HAS A CONFLICT':'EVERYONE IS IN'}</Text><Text style={styles.groupAvailabilityTime}>{timingPreview}</Text></View>{groupAvailability.map((status)=><View key={status.characterInstanceId} style={styles.groupAvailabilityRow}><View style={[styles.groupAvailabilityDot,status.available?styles.groupAvailabilityFree:styles.groupAvailabilityBusy]}/><Text numberOfLines={1} style={styles.groupAvailabilityName}>{status.name}</Text><Text numberOfLines={1} style={[styles.groupAvailabilityDetail,!status.available&&styles.groupAvailabilityConflict]}>{status.detail}</Text></View>)}{nextGroupTime?<Pressable accessibilityRole="button" onPress={chooseRecommendedGroupTime} style={styles.groupAvailabilitySuggestion}><Check size={14} color={colors.success}/><Text style={styles.groupAvailabilitySuggestionText}>Everyone is free {formatPlanDate(nextGroupTime,viewerTimezone)}</Text></Pressable>:null}</View>:null}
       <View style={styles.confirmation}><Text style={styles.confirmationTitle} numberOfLines={2}>{choice.title}</Text><Text style={styles.confirmationWhen}>{mode==='switch'?'Starts now':timingPreview}</Text>{error?<Text accessibilityRole="alert" style={styles.validation}>{error}</Text>:null}<Pressable accessibilityRole="button" accessibilityLabel={mode==='switch'?'Switch plan now':'Confirm plan'} accessibilityHint={mode==='switch'?'Ends the current plan and starts this one':timingChoice==='custom'?'Custom time selected':timingChoice?`${timingChoice.replace(/_/g,' ')} selected`:'Choose a time first'} disabled={busy || !canConfirm} onPress={confirm} style={[styles.confirm, (busy || !canConfirm) && styles.disabled]}><Text style={styles.confirmText}>{busy ? mode==='switch'?'Switching…':'Saving…' : mode==='switch'?'Switch Now':timingChoice==='now'?'Start Now':'Confirm Plan'}</Text></Pressable></View>
     </>}
   </View>;

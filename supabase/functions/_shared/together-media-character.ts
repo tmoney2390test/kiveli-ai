@@ -14,3 +14,9 @@ export function isFictionalCompanion(template:unknown,version:unknown):boolean{
   ];
   return !flags.some((value)=>value===false);
 }
+
+/** Real-person portrait references remain usable for safe media, but never for adult-capable media. */
+export function isAdultMediaReferenceEligible(version:unknown):boolean{
+  const visual=record(record(version).visual_identity);
+  return visual.referenceOrigin!=='authorized_real_person'&&visual.adultMediaReferenceEligible!==false;
+}

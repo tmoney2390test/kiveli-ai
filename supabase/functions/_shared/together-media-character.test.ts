@@ -1,4 +1,4 @@
-import{isFictionalCompanion,MEDIA_OFFER_COMPANION_SELECT}from'./together-media-character.ts';
+import{isAdultMediaReferenceEligible,isFictionalCompanion,MEDIA_OFFER_COMPANION_SELECT}from'./together-media-character.ts';
 
 function assertEquals(actual:unknown,expected:unknown,message:string){if(actual!==expected)throw new Error(`${message}: expected ${String(expected)}, received ${String(actual)}`);}
 
@@ -16,4 +16,10 @@ Deno.test('a canonical non-fictional flag blocks media eligibility',()=>{
   assertEquals(isFictionalCompanion({discovery_metadata:{fictional:false}},{visual_identity:{fictional:true}}),false,'template flag');
   assertEquals(isFictionalCompanion({discovery_metadata:{fictional:true}},{visual_identity:{fictional:false}}),false,'visual identity flag');
   assertEquals(isFictionalCompanion({}, {character_bible:{fictional:false}}),false,'character bible flag');
+});
+
+Deno.test('real-person portrait references are isolated from adult-capable media',()=>{
+  assertEquals(isAdultMediaReferenceEligible({visual_identity:{referenceOrigin:'authorized_real_person',adultMediaReferenceEligible:false}}),false,'real portrait');
+  assertEquals(isAdultMediaReferenceEligible({visual_identity:{referenceOrigin:'generated_fictional',adultMediaReferenceEligible:true}}),true,'generated portrait');
+  assertEquals(isAdultMediaReferenceEligible({visual_identity:{}}),true,'legacy portrait');
 });

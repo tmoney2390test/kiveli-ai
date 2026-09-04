@@ -90,7 +90,7 @@ export const useTogether=create<State>((set)=>{
         const characterInstanceId=options.characterInstanceId;
         const existing=presenceRequests.get(characterInstanceId);
         if(existing&&!options.force)return existing;
-        const request=loadCharacterPresence(characterInstanceId).then((delta)=>set((state)=>state.snapshot?{snapshot:{...state.snapshot,characters:upsert(state.snapshot.characters,delta.character),scheduleEvents:[...(state.snapshot.scheduleEvents??[]).filter((event)=>event.character_instance_id!==characterInstanceId),...delta.scheduleEvents]},error:null}:state)).catch((error)=>set({error:error instanceof Error?error.message:'Companion presence could not be refreshed.'})).finally(()=>{if(presenceRequests.get(characterInstanceId)===request)presenceRequests.delete(characterInstanceId);});
+        const request=loadCharacterPresence(characterInstanceId).then((delta)=>set((state)=>state.snapshot?{snapshot:{...state.snapshot,characters:upsert(state.snapshot.characters,delta.character),scheduleEvents:[...(state.snapshot.scheduleEvents??[]).filter((event)=>event.character_instance_id!==characterInstanceId),...delta.scheduleEvents],sceneSessions:delta.sceneSessions?[...(state.snapshot.sceneSessions??[]).filter((scene)=>scene.character_instance_id!==characterInstanceId),...delta.sceneSessions]:state.snapshot.sceneSessions},error:null}:state)).catch((error)=>set({error:error instanceof Error?error.message:'Companion presence could not be refreshed.'})).finally(()=>{if(presenceRequests.get(characterInstanceId)===request)presenceRequests.delete(characterInstanceId);});
         presenceRequests.set(characterInstanceId,request);
         return request;
       }

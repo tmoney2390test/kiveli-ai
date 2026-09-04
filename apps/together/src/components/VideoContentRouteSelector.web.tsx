@@ -2,13 +2,13 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { VideoContentClass } from '../types';
 import { colors, radius } from '../theme';
 
-type Props={contentClass:VideoContentClass;hasAdultRoutes:boolean;onChange:(value:VideoContentClass)=>void};
+type Props={contentClass:VideoContentClass;hasAdultRoutes:boolean;hasSafeRoutes?:boolean;onChange:(value:VideoContentClass)=>void};
 
-export function VideoContentRouteSelector({contentClass,hasAdultRoutes,onChange}:Props){
+export function VideoContentRouteSelector({contentClass,hasAdultRoutes,hasSafeRoutes=true,onChange}:Props){
   return <>
     <Text style={styles.help}>Safe-for-work uses WaveSpeed’s standard endpoints. Adult-capable endpoints appear only in an authorized adult website session.</Text>
     {hasAdultRoutes?<View accessibilityRole="radiogroup" accessibilityLabel="Video content route" style={styles.row}>
-      <Option label="Safe for work" selected={contentClass==='sfw'} onPress={()=>onChange('sfw')}/>
+      {hasSafeRoutes?<Option label="Safe for work" selected={contentClass==='sfw'} onPress={()=>onChange('sfw')}/>:null}
       <Option label="Adult-capable" selected={contentClass==='adult_capable'} onPress={()=>onChange('adult_capable')}/>
     </View>:<View style={styles.notice}><Text style={styles.noticeText}>Safe-for-work models</Text></View>}
   </>;

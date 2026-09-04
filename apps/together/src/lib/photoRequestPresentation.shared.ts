@@ -15,6 +15,31 @@ export function photoOffersWithoutVisibleMessages(offers: MediaOffer[], visibleM
   return offers.filter((offer) => offer.status !== 'failed' && (!offer.message_id || !visibleMessageIds.has(offer.message_id)));
 }
 
+/**
+ * Detached offers render in a small tail section after the loaded timeline.
+ * Only offers that are actually as new as that timeline belong there; older
+ * offers render inline once their source message is loaded instead of making
+ * "Latest" jump back to a historical photo request.
+ */
+export function photoOffersAtTimelineTail(
+  offers: MediaOffer[],
+  visibleMessageIds: ReadonlySet<string>,
+  visibleTimelineDates: string[],
+): MediaOffer[] {
+  const latestTimelineTime = visibleTimelineDates.reduce((latest, value) => {
+    const time = Date.parse(value);
+    return Number.isFinite(time) ? Math.max(latest, time) : latest;
+  }, Number.NEGATIVE_INFINITY);
+
+  return photoOffersWithoutVisibleMessages(offers, visibleMessageIds)
+    .filter((offer) => {
+      if (!Number.isFinite(latestTimelineTime)) return true;
+      const offerTime = Date.parse(offer.created_at);
+      return Number.isFinite(offerTime) && offerTime >= latestTimelineTime;
+    })
+    .sort((left, right) => Date.parse(left.created_at) - Date.parse(right.created_at));
+}
+
 export function mediaWithoutActivePhotoOffer(media: GeneratedMedia[], generatedMediaId?: string | null): GeneratedMedia[] {
   if (!generatedMediaId) return media;
   return media.filter((item) => item.id !== generatedMediaId);

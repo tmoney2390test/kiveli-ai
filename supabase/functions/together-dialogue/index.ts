@@ -22,6 +22,8 @@ import {
   applyInteractionProposal,
   boundedGroupSocialDelta,
   chatLanguageSafetyBoundary,
+  classifyDeterministicTrustConsequence,
+  classifyDeterministicTrustRepair,
   classifyUserAuthoredMediaSafety,
   classifyConversationQuery,
   type ChemistrySignal,
@@ -1212,7 +1214,10 @@ Deno.serve(async (request) => {
               characterInstanceId: primarySpeakerId,
             });
           }
-          if(!isContinuation&&route.explicit)scheduleConversationEffects(()=>recordAdultSafeContext(db,user.id,input.conversationId,String(assistantMessage.created_at),String(userMessage.content??''),String(assistantMessage.content??'')),correlationId);
+          if(!isContinuation&&route.explicit)scheduleConversationEffects(async()=>{
+            await recordAdultSafeContext(db,user.id,input.conversationId,String(assistantMessage.created_at),String(userMessage.content??''),String(assistantMessage.content??''));
+            await applyDeterministicTrustSignal(db,{userId:user.id,characterInstanceId:primarySpeakerId,sourceMessageId:String(userMessage.id),message:userText,recentAssistantMessages:(dialogueContext.recent??[]).filter((turn:any)=>turn.role==='assistant').map((turn:any)=>String(turn.content??'')),occurredAt:String(assistantMessage.created_at),correlationId,allowThreatClassification:false});
+          },correlationId);
           if(!isContinuation&&!route.explicit)scheduleConversationEffects(async () => {
             await safelyApplyConversationEffects(
               db,
@@ -1777,6 +1782,19 @@ async function recordAdultSafeContext(db:any,userId:string,conversationId:string
     updated_at:at,
   }).eq('id',conversationId).eq('user_id',userId);
 }
+
+async function applyDeterministicTrustSignal(db:any,input:{userId:string;characterInstanceId:string;sourceMessageId:string;message:string;recentAssistantMessages:string[];occurredAt:string;correlationId:string;allowThreatClassification:boolean}):Promise<void>{
+  if(Deno.env.get('KIVELLE_TRUST_CONSEQUENCES_V2')==='false')return;
+  const consequence=classifyDeterministicTrustConsequence(input.message,{recentAssistantMessages:input.recentAssistantMessages,allowThreatClassification:input.allowThreatClassification});
+  const repair=consequence?null:classifyDeterministicTrustRepair(input.message);
+  if(!consequence&&!repair)return;
+  const{data,error}=consequence
+    ?await db.rpc('kivelle_apply_trust_consequence_v2',{p_user_id:input.userId,p_character_instance_id:input.characterInstanceId,p_source_id:input.sourceMessageId,p_kind:consequence.kind,p_severity:consequence.severity,p_confidence:consequence.confidence,p_reason_code:consequence.reasonCode,p_evidence_basis:consequence.evidenceBasis,p_event_source:consequence.source,p_repairable:consequence.repairable,p_occurred_at:input.occurredAt})
+    :await db.rpc('kivelle_apply_trust_repair_v2',{p_user_id:input.userId,p_character_instance_id:input.characterInstanceId,p_source_id:input.sourceMessageId,p_confidence:repair!.confidence,p_apology:repair!.apology,p_accountability:repair!.accountability,p_corrective_action:repair!.correctiveAction,p_reason_code:repair!.reasonCode,p_occurred_at:input.occurredAt});
+  if(error){console.error(JSON.stringify({level:'error',operation:consequence?'apply_explicit_trust_consequence':'apply_explicit_trust_repair',correlationId:input.correlationId,code:error.code??'TRUST_SIGNAL_FAILED'}));return;}
+  await track(db,input.userId,consequence?'relationship_trust_consequence':'relationship_trust_repair',{characterInstanceId:input.characterInstanceId,explicitConversation:true,...(consequence?{kind:consequence.kind,severity:consequence.severity}:{}),applied:data?.applied===true,result:String(data?.reason??'unknown')});
+}
+
 function normalizeContentMode(value: unknown): DialogueContentMode {
   return value === "romance" || value === "mature" || value === "explicit"
     ? value
@@ -2109,7 +2127,10 @@ function streamDialogue({
               characterInstanceId: primarySpeakerId,
             });
           }
-          if(input.messageAction!=='continue'&&runOptions.route.explicit)scheduleConversationEffects(()=>recordAdultSafeContext(db,user.id,input.conversationId,String(assistantMessage.created_at),String(userMessage.content??''),String(assistantMessage.content??'')),correlationId);
+          if(input.messageAction!=='continue'&&runOptions.route.explicit)scheduleConversationEffects(async()=>{
+            await recordAdultSafeContext(db,user.id,input.conversationId,String(assistantMessage.created_at),String(userMessage.content??''),String(assistantMessage.content??''));
+            await applyDeterministicTrustSignal(db,{userId:user.id,characterInstanceId:primarySpeakerId,sourceMessageId:String(userMessage.id),message:String(context.userMessage??input.message),recentAssistantMessages:(context.recent??[]).filter((turn:any)=>turn.role==='assistant').map((turn:any)=>String(turn.content??'')),occurredAt:String(assistantMessage.created_at),correlationId,allowThreatClassification:false});
+          },correlationId);
           if(input.messageAction!=='continue'&&!runOptions.route.explicit)scheduleConversationEffects(async () => {
             await safelyApplyConversationEffects(
               db,
@@ -3351,6 +3372,73 @@ async function applyConversationEffects(
     recent_direction: recentDirection,
     updated_at: new Date().toISOString(),
   }).eq("character_instance_id", instanceId);
+  if (Deno.env.get("KIVELLE_TRUST_CONSEQUENCES_V2") !== "false") {
+    const trustEvent = proposal.trustConsequence;
+    const trustRepair = proposal.trustRepair;
+    if (trustEvent) {
+      const { data: trustResult, error: trustError } = await db.rpc(
+        "kivelle_apply_trust_consequence_v2",
+        {
+          p_user_id: userId,
+          p_character_instance_id: instanceId,
+          p_source_id: sourceMessageId,
+          p_kind: trustEvent.kind,
+          p_severity: trustEvent.severity,
+          p_confidence: trustEvent.confidence,
+          p_reason_code: trustEvent.reasonCode,
+          p_evidence_basis: trustEvent.evidenceBasis,
+          p_event_source: trustEvent.source,
+          p_repairable: trustEvent.repairable,
+          p_occurred_at: analysisNow.toISOString(),
+        },
+      );
+      if (trustError) {
+        console.error(JSON.stringify({
+          level: "error",
+          operation: "apply_trust_consequence",
+          correlationId,
+          code: trustError.code ?? "TRUST_CONSEQUENCE_FAILED",
+        }));
+      } else {
+        await track(db, userId, "relationship_trust_consequence", {
+          characterInstanceId: instanceId,
+          kind: trustEvent.kind,
+          severity: trustEvent.severity,
+          applied: trustResult?.applied === true,
+          result: String(trustResult?.reason ?? "unknown"),
+        });
+      }
+    } else if (trustRepair) {
+      const { data: repairResult, error: repairError } = await db.rpc(
+        "kivelle_apply_trust_repair_v2",
+        {
+          p_user_id: userId,
+          p_character_instance_id: instanceId,
+          p_source_id: sourceMessageId,
+          p_confidence: trustRepair.confidence,
+          p_apology: trustRepair.apology,
+          p_accountability: trustRepair.accountability,
+          p_corrective_action: trustRepair.correctiveAction,
+          p_reason_code: trustRepair.reasonCode,
+          p_occurred_at: analysisNow.toISOString(),
+        },
+      );
+      if (repairError) {
+        console.error(JSON.stringify({
+          level: "error",
+          operation: "apply_trust_repair",
+          correlationId,
+          code: repairError.code ?? "TRUST_REPAIR_FAILED",
+        }));
+      } else if (repairResult?.applied === true) {
+        await track(db, userId, "relationship_trust_repair", {
+          characterInstanceId: instanceId,
+          applied: true,
+          result: "repair_applied",
+        });
+      }
+    }
+  }
   await db.from("together_character_instances").update({
     updated_at: new Date().toISOString(),
   }).eq("id", instanceId);

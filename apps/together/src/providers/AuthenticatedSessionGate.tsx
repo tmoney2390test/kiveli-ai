@@ -15,6 +15,7 @@ import { authenticatedRoutePathname, consumeWebEntryHref, initialWebEntryHref, s
 import { mostRecentlyUsedConversation } from '../lib/conversation';
 import { prefetchConversationMessagePage } from '../lib/conversationMessageWarmup';
 import { manageConversation } from '../lib/api';
+import { prefetchProfileAvatarUrl } from '../hooks/useProfileAvatarUrl';
 
 const demoMode = __DEV__ && process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === 'true';
 
@@ -44,6 +45,17 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
     const heroUri=readSessionHeroUri(session.user.id);
     if(heroUri)void Image.prefetch(heroUri,'memory-disk').catch(()=>undefined);
   },[session?.user.id]);
+
+  useEffect(()=>{
+    const avatarPath=snapshot?.profile?.avatar_path;
+    if(!avatarPath)return;
+    let cancelled=false;
+    void prefetchProfileAvatarUrl(avatarPath).then((uri)=>{
+      if(!cancelled&&uri)return Image.prefetch(uri,'memory-disk').catch(()=>undefined);
+      return undefined;
+    });
+    return()=>{cancelled=true;};
+  },[snapshot?.profile?.avatar_path]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || !session?.user.id || !snapshot) return;

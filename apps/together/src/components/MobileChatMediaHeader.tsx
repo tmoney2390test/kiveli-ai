@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Image, type ImageSource } from 'expo-image';
-import { ArrowLeft, Camera, ChevronDown, MoreHorizontal, Phone } from 'lucide-react-native';
+import { ArrowLeft, Camera, ChevronDown, Images, MapPin, MoreHorizontal, Phone } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme';
 import { FrostedSurface } from './FrostedGlass';
@@ -29,8 +29,12 @@ type MobileChatMediaHeaderProps = {
   onProfile: () => void;
   onPhoto: () => void;
   onCall?: () => void;
+  onPlace?: () => void;
+  placeName?: string;
   onMenu: () => void;
   onMedia?: () => void;
+  onFeaturedMedia?: () => void;
+  mediaCount?: number;
 };
 
 const ACTION_SIZE = 44;
@@ -47,14 +51,18 @@ export function MobileChatMediaHeader({
   onProfile,
   onPhoto,
   onCall,
+  onPlace,
+  placeName,
   onMenu,
   onMedia,
+  onFeaturedMedia,
+  mediaCount,
 }: MobileChatMediaHeaderProps) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const topInset = Platform.OS === 'web' ? 10 : Math.max(insets.top, 24);
   const compactHeight = topInset + 62;
-  const expandedHeight = Math.min(410, Math.max(330, width * .9));
+  const expandedHeight = Math.min(430, Math.max(350, width * .9, topInset + 300));
   const [mode, setMode] = useState<HeaderMode>('compact');
   const progress = useRef(new Animated.Value(0)).current;
   const modeRef = useRef<HeaderMode>('compact');
@@ -159,6 +167,8 @@ export function MobileChatMediaHeader({
   });
   const image = mediaSource ?? portraitSource;
   const profileLabel = profileAccessibilityLabel ?? `View ${name}'s profile`;
+  const showMediaAction=mediaCount!==undefined&&Boolean(onMedia);
+  const placeActionTop=topInset+(onCall?186:132);
 
   if (mode === 'hidden') {
     return <View pointerEvents="box-none" style={styles.hiddenShell}>
@@ -204,7 +214,7 @@ export function MobileChatMediaHeader({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={hasMedia ? `Open the latest photo from ${name}` : `View ${name}'s profile`}
-            onPress={hasMedia ? onMedia : onProfile}
+            onPress={hasMedia ? onFeaturedMedia??onMedia??onProfile : onProfile}
             style={styles.expandedMediaButton}
           >
             <Image source={image} style={styles.expandedMedia} contentFit="cover" contentPosition="top" transition={180} />
@@ -224,6 +234,23 @@ export function MobileChatMediaHeader({
         {onCall?<Animated.View style={[styles.action, animatedActionStyle(62, topInset + 78)]}>
           <Pressable accessibilityRole="button" accessibilityLabel={`Call ${name}`} onPress={onCall} style={styles.actionPressable}>
             <Phone size={18} color={colors.text} />
+          </Pressable>
+        </Animated.View>:null}
+        {onPlace?<Animated.View
+          pointerEvents={mode === 'expanded' ? 'auto' : 'none'}
+          style={[styles.action,styles.expandedPlaceAction,{top:placeActionTop,opacity:expandedOpacity}]}
+        >
+          <Pressable accessibilityRole="button" accessibilityLabel={`About ${placeName??subtitle}`} onPress={onPlace} style={styles.actionPressable}>
+            <MapPin size={18} color={colors.warm}/>
+          </Pressable>
+        </Animated.View>:null}
+        {showMediaAction?<Animated.View
+          pointerEvents={mode === 'expanded' ? 'auto' : 'none'}
+          style={[styles.action,styles.expandedPlaceAction,{top:placeActionTop+(onPlace?54:0),opacity:expandedOpacity}]}
+        >
+          <Pressable accessibilityRole="button" accessibilityLabel={`Open ${name} conversation media${mediaCount?`, ${mediaCount} items`:''}`} onPress={onMedia} style={styles.actionPressable}>
+            <Images size={18} color={colors.violet}/>
+            {mediaCount?<View style={styles.mediaCount}><Text style={styles.mediaCountText}>{mediaCount>99?'99+':mediaCount}</Text></View>:null}
           </Pressable>
         </Animated.View>:null}
         <Animated.View style={[styles.action, animatedActionStyle(12, topInset + 24)]}>
@@ -341,6 +368,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: ACTION_SIZE / 2,
+  },
+  expandedPlaceAction: {
+    right: 12,
+  },
+  mediaCount:{
+    position:'absolute',
+    right:-3,
+    top:-3,
+    minWidth:18,
+    height:18,
+    paddingHorizontal:4,
+    borderRadius:9,
+    alignItems:'center',
+    justifyContent:'center',
+    backgroundColor:colors.rose,
+    borderWidth:2,
+    borderColor:'rgba(18,12,28,.95)',
+  },
+  mediaCountText:{
+    color:'#fff',
+    fontSize:8,
+    lineHeight:10,
+    fontWeight:'900',
   },
   expandedMediaWrap: {
     position: 'absolute',

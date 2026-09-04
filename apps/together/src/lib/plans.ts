@@ -68,6 +68,11 @@ export function nextAvailableGroupPlanTime(input:{participants:CharacterInstance
 
 export function previewPlanTiming(choice:Exclude<PlanTimingChoice,'custom'>,now=new Date()):Date{return new Date(now.getTime()+(choice==='in_one_hour'?60*60000:0));}
 
+/** Formats quick relative choices on the viewer's clock, never the world's. */
+export function formatQuickPlanClock(choice:Exclude<PlanTimingChoice,'custom'>,viewerTimezone:string,now=new Date(),locale?:string|string[]):string{
+  return new Intl.DateTimeFormat(locale,{hour:'numeric',minute:'2-digit',timeZone:viewerTimezone}).format(previewPlanTiming(choice,now));
+}
+
 export function resolvePlanDraft(draft:PlanDraft,context:PlanContext&{schedules?:ScheduleItem[];plans?:SharedPlan[];dates?:DateSession[]}):ResolvedPlanDraft{
   const options=recommendPlanOptions({...context,scopedLocationId:draft.locationId??context.scopedLocationId});
   const activity=normalize(draft.activityIntent??'');

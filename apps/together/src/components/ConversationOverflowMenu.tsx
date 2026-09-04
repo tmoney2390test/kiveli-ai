@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   Brain,
@@ -73,6 +74,27 @@ export function ConversationOverflowMenu({
   onAdvanced,
   onDelete,
 }: Props) {
+  const menuRef = useRef<View>(null);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const dismissOutsideMenu = (event: PointerEvent) => {
+      const menu = menuRef.current as unknown as HTMLElement | null;
+      if (menu && !menu.contains(event.target as Node)) onClose();
+    };
+    const dismissWithEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    document.addEventListener('pointerdown', dismissOutsideMenu);
+    document.addEventListener('keydown', dismissWithEscape);
+    return () => {
+      document.removeEventListener('pointerdown', dismissOutsideMenu);
+      document.removeEventListener('keydown', dismissWithEscape);
+    };
+  }, [onClose]);
+
   const planActions = { createPlan: onCreatePlan, changePlan: onChangePlan, endPlan: onEndPlan };
   const identity: MenuAction[] = [
     {
@@ -104,23 +126,33 @@ export function ConversationOverflowMenu({
     { label: 'Delete this conversation', icon: <Trash2 size={16} color={colors.danger} />, onPress: onDelete, danger: true },
   ];
 
-  return <FrostedSurface intensity={90} style={styles.menu}>
-    <View style={styles.header}>
-      <Text numberOfLines={1} style={styles.title}>{title}</Text>
-      <Pressable accessibilityRole="button" accessibilityLabel="Close chat menu" onPress={onClose} style={styles.close}>
-        <X size={17} color={colors.muted} />
-      </Pressable>
+  return <View pointerEvents="box-none" style={styles.layer}>
+    <Pressable
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      onPress={onClose}
+      style={styles.dismissArea}
+    />
+    <View ref={menuRef} style={styles.menuFrame}>
+      <FrostedSurface intensity={90} style={styles.menu}>
+        <View style={styles.header}>
+          <Text numberOfLines={1} style={styles.title}>{title}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close chat menu" onPress={onClose} style={styles.close}>
+            <X size={17} color={colors.muted} />
+          </Pressable>
+        </View>
+        <MenuSection label={kind === 'group' ? 'GROUP' : 'COMPANION'} actions={identity} />
+        <MenuSection label="PLAN" actions={conversationPlanMenuItems(hasActivePlan).map((item) => ({
+          label: item.label,
+          icon: <CalendarDays size={16} color={item.danger ? colors.danger : colors.rose} />,
+          onPress: planActions[item.key],
+          danger: item.danger,
+        }))} />
+        <MenuSection label="CONVERSATION" actions={conversation} />
+        <MenuSection label="MANAGE" actions={manage} />
+      </FrostedSurface>
     </View>
-    <MenuSection label={kind === 'group' ? 'GROUP' : 'COMPANION'} actions={identity} />
-    <MenuSection label="PLAN" actions={conversationPlanMenuItems(hasActivePlan).map((item) => ({
-      label: item.label,
-      icon: <CalendarDays size={16} color={item.danger ? colors.danger : colors.rose} />,
-      onPress: planActions[item.key],
-      danger: item.danger,
-    }))} />
-    <MenuSection label="CONVERSATION" actions={conversation} />
-    <MenuSection label="MANAGE" actions={manage} />
-  </FrostedSurface>;
+  </View>;
 }
 
 function MenuSection({ label, actions }: { label: string; actions: MenuAction[] }) {
@@ -141,13 +173,24 @@ function MenuSection({ label, actions }: { label: string; actions: MenuAction[] 
 }
 
 const styles = StyleSheet.create({
-  menu: {
+  layer: {
     position: 'absolute',
+    inset: 0,
     zIndex: 30,
+  },
+  dismissArea: {
+    position: 'absolute',
+    inset: 0,
+  },
+  menuFrame: {
+    position: 'absolute',
     top: 72,
     right: 12,
     width: 292,
     maxHeight: '82%',
+  },
+  menu: {
+    width: '100%',
     padding: 10,
     borderRadius: radius.lg,
     backgroundColor: 'rgba(20,16,29,.97)',

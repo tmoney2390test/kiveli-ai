@@ -46,8 +46,8 @@ async function finalizeProviderMediaClaimed(db:SupabaseClient,input:{jobId:strin
   if(!media)throw new AppError('NOT_FOUND','That media request is unavailable.',404);
   if(job.finalized_at&&media.status==='ready')return media as Record<string,unknown>;
   if(job.status==='failed'||job.status==='cancelled')throw new AppError('CONFLICT','That media job has already ended.',409);
-  const mediaMetadata=(media.metadata??{}) as Record<string,unknown>,adultVideo=String(media.media_type)==='video'&&media.visibility_scope==='web_adult'&&mediaMetadata.adultAuthorized===true&&['suggestive','mature','explicit'].includes(String(media.content_level??''));
-  if(adultVideo&&(!adultVideoFeatureEnabled()||!await currentAdultMediaJobAuthorized(db,media))){
+  const mediaMetadata=(media.metadata??{}) as Record<string,unknown>,privateAdultRouteVideo=String(media.media_type)==='video'&&media.visibility_scope==='web_adult'&&mediaMetadata.adultAuthorized===true,adultVideo=privateAdultRouteVideo&&['suggestive','mature','explicit'].includes(String(media.content_level??''));
+  if(privateAdultRouteVideo&&(!adultVideoFeatureEnabled()||!await currentAdultMediaJobAuthorized(db,media))){
     await failProviderMedia(db,{jobId:input.jobId,failureCode:'adult_authorization_expired',failureReasonSafe:'The authorized website session is no longer available. Your credits were returned.'});
     const{data:failed}=await db.from('together_generated_media').select('*').eq('id',media.id).maybeSingle();
     return(failed??media) as Record<string,unknown>;
@@ -79,7 +79,12 @@ async function finalizeProviderMediaClaimed(db:SupabaseClient,input:{jobId:strin
   const isVideo=String(media.media_type)==='video',providerAudioBehavior=isVideo?detectActualVideoAudioBehavior(downloaded.bytes,downloaded.contentType):null,soundRequested=media.sound_requested===true;
   const videoQuality=isVideo?await gateGeneratedVideoQuality(db,job,media,downloaded):{action:'accept' as const,reasonCodes:[],metadata:{},verificationUnavailable:false};
   if(videoQuality.action==='reject'){
-    await failProviderMedia(db,{jobId:input.jobId,failureCode:videoQuality.verificationUnavailable?'video_quality_unverified':'video_quality_failed',failureReasonSafe:videoQuality.verificationUnavailable?'The video could not be safely verified. Your Kivelle Credits were restored.':'The video did not meet Kivelle’s visual quality standard. Your Kivelle Credits were restored.',providerMetadata:{qualityReasonCodes:videoQuality.reasonCodes}});
+    // A provider outage, malformed verifier response, or verifier rate limit is
+    // not evidence that the generated video failed quality review. Preserve the
+    // completed provider asset and let the durable poller retry verification.
+    // An actual FAIL verdict remains terminal and still refunds immediately.
+    if(videoQuality.verificationUnavailable)throw new AppError('PROVIDER_UNAVAILABLE','Video verification is temporarily unavailable.',503,true);
+    await failProviderMedia(db,{jobId:input.jobId,failureCode:'video_quality_failed',failureReasonSafe:'The video did not meet Kivelle’s visual quality standard. Your Kivelle Credits were restored.',providerMetadata:{qualityReasonCodes:videoQuality.reasonCodes}});
     const{data:failed}=await db.from('together_generated_media').select('*').eq('id',media.id).maybeSingle();
     return(failed??media) as Record<string,unknown>;
   }

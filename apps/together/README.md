@@ -32,8 +32,11 @@ Optional server secrets:
 - `XAI_API_KEY` (server only)
 - `KIVELLE_XAI_ENABLED`
 - `KIVELLE_XAI_DIALOGUE_MODEL` (defaults to `grok-4.3`)
+- `KIVELLE_XAI_FAST_DIALOGUE_MODEL` (optional Fast-mode override; defaults to the standard xAI dialogue model)
+- `KIVELLE_XAI_FAST_VISIBLE_TOKEN_CAP` (defaults to `240`; bounds Fast-mode Grok replies to reduce completion latency and output cost)
 - `KIVELLE_XAI_EXPLICIT_ENABLED`
 - `KIVELLE_AI_COST_TELEMETRY_ENABLED`
+- `KIVELLE_TRUST_CONSEQUENCES_V2` (server-only emergency switch; defaults on, and `false` stops applying new dialogue-derived trust losses/repairs while preserving history)
 - `TOGETHER_DIALOGUE_MODEL` (legacy fallback)
 - `TOGETHER_MODERATION_MODEL`
 - `TOGETHER_EMBEDDING_MODEL`

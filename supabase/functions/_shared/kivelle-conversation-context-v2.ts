@@ -55,6 +55,17 @@ export type TieredConversationContext = BaseContext & {
   generationPreferences:ChatGenerationPreferences;
 };
 
+type BudgetedMemoryContext<T,D extends {id:string}>={silent:T[];callbacks:T[];directRecall:T[];callbackAllowance:number;retrievedIds:string[];debug?:D[]};
+
+/** Apply the subscription budget to the combined recall set, not each bucket independently. */
+export function applyMemoryRetrievalBudget<T extends {id:string},D extends {id:string}>(context:BudgetedMemoryContext<T,D>,requestedBudget:number):BudgetedMemoryContext<T,D>{
+  let remaining=Math.max(0,Math.floor(requestedBudget));
+  const directRecall=context.directRecall.slice(0,Math.min(5,remaining));remaining-=directRecall.length;
+  const callbacks=context.callbacks.slice(0,Math.min(1,remaining));remaining-=callbacks.length;
+  const silent=context.silent.slice(0,remaining),selectedIds=new Set([...directRecall,...callbacks,...silent].map((item)=>item.id));
+  return{...context,directRecall,callbacks,silent,callbackAllowance:Math.min(context.callbackAllowance,directRecall.length||callbacks.length),retrievedIds:context.retrievedIds.filter((id)=>selectedIds.has(id)),...(context.debug?{debug:context.debug.filter((item)=>selectedIds.has(item.id))}:{})};
+}
+
 export async function buildTieredKivelleConversationContext(
   input: {
     db: SupabaseClient;
@@ -79,7 +90,7 @@ export async function buildTieredKivelleConversationContext(
 ): Promise<TieredConversationContext> {
   const [subscription, base] = await Promise.all([
     resolveSubscriptionState(input.db, input.userId, input.now),
-    buildBaseContext(input),
+    buildBaseContext({...input,memoryCandidateLimit:20}),
   ]);
   const caps = subscription.capabilities;
   let recent = base.recent.slice(-caps.recentTurnBudget);
@@ -133,15 +144,7 @@ export async function buildTieredKivelleConversationContext(
       });
     }
   }
-  const memoryContext = {
-    ...base.memoryContext,
-    silent: base.memoryContext.silent.slice(0, caps.memoryRetrievalBudget),
-    callbacks: base.memoryContext.callbacks.slice(0, 1),
-    directRecall: base.memoryContext.directRecall.slice(
-      0,
-      Math.min(5, caps.memoryRetrievalBudget),
-    ),
-  };
+  const memoryContext=applyMemoryRetrievalBudget(base.memoryContext,caps.memoryRetrievalBudget);
   const conversationEpisodes=base.conversationEpisodes.slice(0,caps.historyRetrievalBudget);
   const memories = [
       ...memoryContext.silent,

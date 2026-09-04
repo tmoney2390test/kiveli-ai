@@ -1,5 +1,5 @@
 begin;
-select plan(26);
+select plan(27);
 
 select is((select count(*)::integer from public.together_character_templates
   where slug in('jun-park','rowan-hale') and discovery_metadata->>'gender'='woman' and discovery_metadata->>'pronouns'='she/her'),2,
@@ -11,6 +11,11 @@ select is((select count(*)::integer
   where template.slug in('jun-park','rowan-hale') and version.pronouns='she/her'
     and version.appearance_config->>'gender'='woman' and version.visual_identity->>'gender'='woman'),2,
   'Jun and Rowan carry female identity through their published versions');
+
+select ok((select lower(biography) !~ '\m(he|him|his)\M'
+    and lower(discovery_metadata->>'summary') !~ '\m(he|him|his)\M'
+    from public.together_character_templates where slug='rowan-hale'),
+  'Rowan Hale has consistently feminine public profile copy');
 
 select ok(not exists(
   select 1

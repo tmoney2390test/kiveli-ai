@@ -314,6 +314,7 @@ serve(async (request, correlationId) => {
       moderation_version:'manual-memory-v1',
       updated_at: now,
     }).select("*").single();
+    if (memoryCapacityError(error)) throw memoryCapacityAppError(error);
     if (error || !data) {
       throw new AppError(
         "INTERNAL_ERROR",
@@ -421,6 +422,7 @@ serve(async (request, correlationId) => {
       metadata: { manual: true, originalRole: message.role },
       updated_at: now,
     }, { onConflict: "character_instance_id,dedupe_key" }).select("*").single();
+    if (memoryCapacityError(error)) throw memoryCapacityAppError(error);
     if (error || !data) {
       throw new AppError(
         "INTERNAL_ERROR",
@@ -877,6 +879,8 @@ function locationFields(row: Row | undefined) {
     ? { location_name: String(row.name), location_slug: String(row.slug) }
     : {};
 }
+function memoryCapacityError(error:unknown):boolean{const message=error&&typeof error==='object'&&'message' in error?String((error as {message?:unknown}).message??''):String(error??'');return message.includes('MEMORY_COMPANION_CAP_REACHED')||message.includes('MEMORY_ACCOUNT_CAP_REACHED');}
+function memoryCapacityAppError(error:unknown):AppError{const account=error&&typeof error==='object'&&'message' in error&&String((error as {message?:unknown}).message??'').includes('MEMORY_ACCOUNT_CAP_REACHED');return new AppError('CONFLICT',account?'Your memory library has reached its safety limit. Forget an older memory before adding another.':"This companion's memory library has reached its safety limit. Forget an older memory before adding another.",409);}
 
 async function loadMaxInsights(
   db: any,

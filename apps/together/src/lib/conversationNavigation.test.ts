@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   conversationRouteTarget,
   conversationReturnHref,
+  conversationLocationHref,
   directConversationTarget,
   groupConversationTarget,
   groupConversationWebHref,
@@ -100,5 +101,15 @@ describe("conversation navigation", () => {
     expect(mediaViewerHref("media-3", "https://example.com/chat")).toBe(
       "/media/media-3",
     );
+  });
+
+  it("builds an encoded location route that preserves chat context", () => {
+    expect(conversationLocationHref("aurora spa", {
+      worldSlug: "north vale",
+      character: "elena/petrova",
+    })).toBe(
+      "/location/aurora%20spa?world=north+vale&character=elena%2Fpetrova",
+    );
+    expect(conversationLocationHref("home")).toBe("/location/home");
   });
 });
