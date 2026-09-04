@@ -375,7 +375,10 @@ export function buildVideoMotionPrompt(preset: VideoMotionPreset, userPrompt?: s
     ? 'One continuous shot: no face swap, morphing, cuts, text, or warped hands. Authorized body contact may move.'
     : 'One continuous shot. No face swaps, morphing, cuts, captions, text, warped hands, sudden camera movement, or large pose changes.';
   const anatomy = 'Keep every adult body coherent in every frame. Skin, joints, limbs, hands, chest, pelvis, and visible anatomy stay natural and detailed—never blank, plastic, doll-like, missing, fused, duplicated, or morphing.';
-  const required = ['Animate this exact approved Kivelle image without redesigning it.', lock, continuity, people, bodyCount, anatomy, adult ? adultMotionDirections[preset] : motionDirections[preset], shot].join(' ');
+  const motion = userPrompt?.trim()
+    ? 'Follow the user direction as the primary motion plan. Keep movement physically coherent and proportional to the requested action instead of forcing a canned motion style.'
+    : adult ? adultMotionDirections[preset] : motionDirections[preset];
+  const required = ['Animate this exact approved Kivelle image without redesigning it.', lock, continuity, people, bodyCount, anatomy, motion, shot].join(' ');
   const extras = [context?.locationName ? `Canonical location: ${context.locationName}.` : '', context?.activity ? `Current activity context: ${context.activity}.` : ''].filter(Boolean).join(' ');
   const direction = userPrompt ? `User direction: ${userPrompt.replace(/\s+/g, ' ').trim()}` : '';
   const budget = Math.max(0, 1600 - required.length - (extras ? extras.length + 1 : 0) - (direction ? 1 : 0));

@@ -93,6 +93,8 @@ Deno.test('video prompts preserve coverage and reject doll-like or unstable anat
   assert(prompt.includes('missing, fused, duplicated, or morphing'));
   assert(prompt.includes('exactly two arms, two hands, two legs'));
   assert(prompt.includes('Never grow an extra limb'));
+  assert(prompt.includes('Follow the user direction as the primary motion plan'));
+  assert(!prompt.includes('brief smile or side glance'));
 });
 
 Deno.test('authorized adult video prompts preserve requested composition without silent SFW substitution',()=>{
@@ -103,7 +105,7 @@ Deno.test('authorized adult video prompts preserve requested composition without
   assert(prompt.includes('Each keeps exactly two arms, two hands, two legs'));
   assert(prompt.includes('age 25+'));
   assert(prompt.includes('without censorship'));
-  assert(prompt.includes('continuous anatomically correct motion')||prompt.includes('authorized sexual act'));
+  assert(prompt.includes('Follow the user direction as the primary motion plan'));
   assert(!prompt.includes('Keep every originally covered body area covered'));
   assert(!prompt.includes('or large pose changes'));
   assert(prompt.length<=1600);
