@@ -28,6 +28,7 @@ export const juniperCityMappedLocationSlugs=[
   'paper-trail',
   'photography-studio',
   'pixel-and-pint',
+  'red-hour',
   'riverhouse-apartments',
   'riverside',
   'riverside-landing',

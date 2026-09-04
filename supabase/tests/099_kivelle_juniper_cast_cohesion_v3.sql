@@ -11,8 +11,8 @@ select is((select count(*)::integer
   join public.together_character_versions version on version.id=presence.character_version_id
   join public.together_character_templates template on template.id=version.character_template_id
   where presence.world_id='10000000-0000-4000-8000-000000000001' and presence.presence_type='resident'
-    and template.published and template.lifecycle_status='published' and template.can_be_selected),36,
-  'Juniper City has 36 active selectable residents');
+    and template.published and template.lifecycle_status='published' and template.can_be_selected),38,
+  'Juniper City has 38 active selectable residents');
 
 select is((select count(*)::integer from public.together_character_templates
   where id::text like '22000000-0000-4000-8001-0000000002%'),13,

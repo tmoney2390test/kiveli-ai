@@ -16,7 +16,7 @@ describe('Juniper City location art catalog',()=>{
 
 describe('Juniper City geography v2 artwork',()=>{
   it('maps every newly supplied district and destination asset',()=>{
-    expect(juniperCityMappedLocationSlugs).toHaveLength(39);
+    expect(juniperCityMappedLocationSlugs).toHaveLength(40);
     expect(juniperCityMappedLocationSlugs).toEqual(expect.arrayContaining([
       'northside','marquee-quarter','halcyon-green','riverside','civic-commons',
       'alder-house','northline-motor-lodge','riverhouse-apartments','riverside-landing',

@@ -15,14 +15,14 @@ select is(
 
 select is(
   (select count(*)::integer from public.together_locations where world_id='10000000-0000-4000-8000-000000000001'::uuid),
-  52,
+  53,
   'Juniper City preserves all prior rows while adding the geography-v2 catalog'
 );
 
 select is(
   (select count(*)::integer from public.together_locations where world_id='10000000-0000-4000-8000-000000000001'::uuid and metadata->>'geographyRole'='destination'),
-  33,
-  'Juniper City has exactly 33 canonical destinations beneath its districts'
+  34,
+  'Juniper City has exactly 34 canonical destinations beneath its districts'
 );
 
 select is(

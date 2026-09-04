@@ -250,7 +250,7 @@ select is(
 
 select is(
   (select (metadata->>'residentCompanionCount')::integer from public.together_worlds where slug='port-vervelle'),
-  42,'Port Vervelle advertises the complete forty-two-character roster');
+  44,'Port Vervelle advertises the complete forty-four-character roster');
 
 select ok(not exists(
   select 1 from public.together_character_versions version

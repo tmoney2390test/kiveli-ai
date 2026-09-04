@@ -12,6 +12,7 @@ export const portVervelleLocationAssets:Record<string,ImageSource>={
   'casa-del-mare':require('../../assets/locations/port-vervelle/casa-del-mare.jpg'),
   'casa-livia':require('../../assets/locations/port-vervelle/casa-livia.jpg'),
   'celeste-spa':require('../../assets/locations/port-vervelle/celeste-spa.jpg'),
+  'circolo-nove':require('../../assets/locations/port-vervelle/circolo-nove.jpg'),
   'domaine-vervelle':require('../../assets/locations/port-vervelle/domaine-vervelle.jpg'),
   'farmacia-vervelle':require('../../assets/locations/port-vervelle/farmacia-vervelle.jpg'),
   'fiore-and-fig':require('../../assets/locations/port-vervelle/fiore-and-fig.jpg'),

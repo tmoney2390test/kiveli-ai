@@ -30,6 +30,7 @@ export const juniperCityLocationAssets:Record<string,ImageSource>={
   'paper-trail':require('../../assets/locations/juniper-city/paper-trail.jpg'),
   'photography-studio':require('../../assets/locations/juniper-city/photography-studio.jpg'),
   'pixel-and-pint':require('../../assets/locations/juniper-city/pixel-and-pint.jpg'),
+  'red-hour':require('../../assets/locations/juniper-city/red-hour.jpg'),
   'riverhouse-apartments':require('../../assets/locations/juniper-city/riverhouse-apartments.jpg'),
   'riverside':require('../../assets/locations/juniper-city/riverside.jpg'),
   'riverside-landing':require('../../assets/locations/juniper-city/riverside-landing.jpg'),
