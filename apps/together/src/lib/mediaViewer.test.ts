@@ -31,10 +31,11 @@ describe('associated video discovery',()=>{
     expect(resolveAssociatedVideoAction(media({status:'ready'}),options({activeVideoId:'active-1'}))?.label).toBe('View video');
     expect(resolveAssociatedVideoAction(undefined,options({latestVideoId:'latest-1',latestVideoStatus:'failed'}))?.label).toBe('View video result');
   });
-  it('polls until a video is discovered and while it is active',()=>{
+  it('fetches once while empty and only continues polling for an active video',()=>{
     expect(shouldPollVideoAvailability(null)).toBe(true);
-    expect(shouldPollVideoAvailability(options({}))).toBe(true);
+    expect(shouldPollVideoAvailability(options({}))).toBe(false);
     expect(shouldPollVideoAvailability(options({activeVideoId:'active-1',activeVideoStatus:'generating'}))).toBe(true);
+    expect(shouldPollVideoAvailability(options({activeVideoId:'active-1',activeVideoStatus:'failed'}))).toBe(false);
     expect(shouldPollVideoAvailability(options({latestVideoId:'latest-1',latestVideoStatus:'ready'}))).toBe(false);
   });
 });

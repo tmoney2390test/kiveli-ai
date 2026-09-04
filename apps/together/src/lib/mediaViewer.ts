@@ -32,8 +32,7 @@ export function resolveAssociatedVideoAction(associated:GeneratedMedia|undefined
 
 export function shouldPollVideoAvailability(options:VideoGenerationOptions|null):boolean{
   if(!options)return true;
-  if(options.activeVideoId)return !['ready','failed'].includes(String(options.activeVideoStatus));
-  return !options.latestVideoId;
+  return Boolean(options.activeVideoId&&!['ready','failed'].includes(String(options.activeVideoStatus)));
 }
 
 export function shouldRefreshReadyVideo(media:Pick<GeneratedMedia,'media_type'|'status'>|null|undefined):boolean{
