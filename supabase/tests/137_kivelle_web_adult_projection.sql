@@ -17,8 +17,8 @@ select trigger_is('public','together_messages','together_messages_apply_policy',
 select trigger_is('public','together_generated_media','together_generated_media_apply_policy','public','kivelle_apply_generated_media_policy','Generated media is classified at the database boundary');
 select has_function('public','kivelle_match_memories_for_projection',array['uuid','uuid','extensions.vector','integer','double precision','boolean'],'Semantic recall has an explicit safe/canonical projection parameter');
 select ok(not has_table_privilege('authenticated','public.together_conversations','select'),'Authenticated clients cannot read canonical conversation context directly');
-select like((select qual from pg_policies where schemaname='public' and tablename='together_messages' and policyname='together_messages_safe_own_read'),'%visibility_scope%all%content_rating%','Direct message reads are limited to classified safe content');
-select like((select qual from pg_policies where schemaname='storage' and tablename='objects' and policyname='together_media_avatar_own_read'),'%avatar-%persona-avatars%','Direct object reads are limited to avatar paths');
+select matches(coalesce((select qual::text from pg_policies where schemaname='public' and tablename='together_messages' and policyname='together_messages_safe_own_read'),''),'visibility_scope.*all.*content_rating','Direct message reads are limited to classified safe content');
+select matches(coalesce((select qual::text from pg_policies where schemaname='storage' and tablename='objects' and policyname='together_media_avatar_own_read'),''),'avatar-.*persona-avatars','Direct object reads are limited to avatar paths');
 
 select * from finish();
 rollback;
