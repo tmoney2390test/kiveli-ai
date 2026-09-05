@@ -289,6 +289,17 @@ Deno.test("video delivery fails closed when quality cannot be verified", () => {
       verificationUnavailable: false,
     },
   );
+  assertEquals(
+    resolveVideoQualityDecision({
+      status: "fail",
+      reasonCodes: ["ambiguous_age", "doll_like_anatomy"],
+    }, true, false),
+    {
+      action: "reject",
+      reasonCodes: ["doll_like_anatomy"],
+      verificationUnavailable: false,
+    },
+  );
 });
 
 Deno.test("Gemini video inspection uploads, evaluates, and deletes the private candidate", async () => {

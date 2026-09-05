@@ -148,11 +148,10 @@ export function resolveVideoQualityDecision(
     };
   }
   if (verdict.status === "fail") {
-    if (
-      !customCharacterAgeCheck &&
-      verdict.reasonCodes.length > 0 &&
-      verdict.reasonCodes.every((reason) => reason === "ambiguous_age")
-    ) {
+    const reasonCodes = customCharacterAgeCheck
+      ? verdict.reasonCodes
+      : verdict.reasonCodes.filter((reason) => reason !== "ambiguous_age");
+    if (!reasonCodes.length) {
       return {
         action: "accept",
         reasonCodes: verdict.reasonCodes,
@@ -161,7 +160,7 @@ export function resolveVideoQualityDecision(
     }
     return {
       action: "reject",
-      reasonCodes: verdict.reasonCodes,
+      reasonCodes,
       verificationUnavailable: false,
     };
   }

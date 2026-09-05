@@ -50,8 +50,9 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   // Custom companions keep the visual age gate. Official catalog adults only
   // fail closed on actual adult-safety violations, not a youthful 18+ look.
   const terminalReasons=['adult_safety_violation','adult_safety_unverified',...(customAgeCheck?['ambiguous_age']:[])];
-  if(verdict.reasonCodes.some((reason)=>terminalReasons.includes(reason)))return{action:'reject',reasonCodes:verdict.reasonCodes};
-  if(!customAgeCheck&&verdict.reasonCodes.length>0&&verdict.reasonCodes.every((reason)=>reason==='ambiguous_age')){
+  const blockingReasons=customAgeCheck?verdict.reasonCodes:verdict.reasonCodes.filter((reason)=>reason!=='ambiguous_age');
+  if(blockingReasons.some((reason)=>terminalReasons.includes(reason)))return{action:'reject',reasonCodes:blockingReasons};
+  if(!customAgeCheck&&verdict.reasonCodes.includes('ambiguous_age')&&blockingReasons.length===0){
     await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_official_age_warning_accepted',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
     return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
