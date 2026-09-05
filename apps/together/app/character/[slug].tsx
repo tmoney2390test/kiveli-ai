@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Modal, PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image as ExpoImage, type ImageContentPosition } from 'expo-image';
-import { ArrowLeft, Brain, CalendarDays, Camera, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, Info as InfoIcon, LockKeyhole, MapPin, ShieldCheck, Sparkles, X } from 'lucide-react-native';
+import { ArrowLeft, Brain, CalendarDays, Camera, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, Info as InfoIcon, LockKeyhole, MapPin, ShieldCheck, Sparkles, Users, X } from 'lucide-react-native';
 import {
   Body,
   EmptyState,
@@ -16,7 +17,7 @@ import {
 } from '../../src/components';
 import { DetailPreservingArtwork } from '../../src/components/DetailPreservingArtwork';
 import { characterProfilePhotos } from '../../src/character-profile-assets';
-import { loadCharacterSchedule, manageConversation, meetCompanion, openConversation } from '../../src/lib/api';
+import { loadCharacterProfileDetails, manageConversation, meetCompanion, openConversation } from '../../src/lib/api';
 import { buildCharacterDaySchedule, type CharacterDayScheduleEntry } from '../../src/lib/characterDaySchedule';
 import { characterRelationshipPresentation, characterTrustPresentation, characterUpcomingCommitments, compactCharacterSchedule, type CharacterUpcomingCommitment } from '../../src/lib/characterProfilePresentation';
 import { relationshipDaysKnown } from '../../src/lib/companionLife';
@@ -32,6 +33,7 @@ import { colors, radius, spacing, typography } from '../../src/theme';
 import { characterAssets } from '../../src/assets';
 import { useAuth } from '../../src/hooks/useAuth';
 import { prefetchConversationMessagePage, writeConversationMessagePage } from '../../src/lib/conversationMessageWarmup';
+import type { CharacterConnection } from '../../src/types';
 
 export function generateStaticParams() {
   return Object.keys(characterAssets).map((slug) => ({ slug }));
@@ -49,6 +51,29 @@ export default function CharacterProfile() {
   const [trustHelpOpen, setTrustHelpOpen] = useState(false);
   const [upcomingOpen, setUpcomingOpen] = useState(false);
   useEffect(() => setUpcomingOpen(false), [slug]);
+
+  const profileRequest = useMemo(() => {
+    if (!snapshot) return { templateId: null as string|null, worldId: null as string|null };
+    const targetInstance = snapshot.characters.find((item) => item.together_character_templates.slug === slug || item.together_character_templates.public_handle === slug || item.character_template_id === slug);
+    const discoverableTarget = snapshot.discoverableCharacters?.find((item) => item.slug === slug || item.public_handle === slug || item.id === slug);
+    const targetTemplate = targetInstance?.together_character_templates ?? discoverableTarget;
+    if (!targetTemplate) return { templateId: null as string|null, worldId: null as string|null };
+    const targetVersion = targetInstance?.together_character_versions ?? discoverableTarget?.together_character_versions;
+    const locationWorldId = targetInstance?.current_location_id ? snapshot.locations.find((item) => item.id === targetInstance.current_location_id)?.world_id : null;
+    const presenceWorldId = snapshot.characterWorldPresence?.find((item) => item.character_version_id === targetVersion?.id && item.presence_type !== 'unavailable')?.world_id;
+    return { templateId: targetTemplate.id, worldId: locationWorldId ?? targetTemplate.first_meeting?.world_id ?? presenceWorldId ?? null };
+  }, [snapshot, slug]);
+  const profileDetailsQuery = useQuery({
+    queryKey: ['kivelle-character-profile', session?.user.id ?? 'signed-out', profileRequest.templateId, profileRequest.worldId],
+    queryFn: () => loadCharacterProfileDetails(profileRequest.templateId!, profileRequest.worldId),
+    enabled: Boolean(session?.user.id && profileRequest.templateId),
+    staleTime: 5 * 60_000,
+    // Profile supplements can include an owner's private custom character.
+    // Drop them as soon as this authenticated screen unmounts.
+    gcTime: 0,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
 
   if (!snapshot) return null;
 
@@ -85,6 +110,14 @@ export default function CharacterProfile() {
   const world = instance
     ? worldForLocation(snapshot, instance.current_location_id)
     : snapshot.worlds.find((item) => item.id === (template.first_meeting?.world_id ?? authoredPresence?.world_id));
+  const profileDetails = profileDetailsQuery.data?.characterTemplateId === template.id
+    && (!world?.id || profileDetailsQuery.data.worldId === world.id)
+    ? profileDetailsQuery.data
+    : null;
+  const profileSnapshot = profileDetails ? {
+    ...snapshot,
+    schedules: [...snapshot.schedules.filter((item) => item.character_version_id !== profileDetails.characterVersionId), ...profileDetails.schedules],
+  } : snapshot;
   const meetingLocation = !instance ? snapshot.locations.find((item) => item.id === template.first_meeting?.location_id) : undefined;
   const location = locationRow?.name ?? world?.name ?? 'Current place';
   const moments = instance ? snapshot.moments
@@ -122,7 +155,7 @@ export default function CharacterProfile() {
   const latestMoment = moments[0];
   const handle = template.public_handle ?? template.slug;
   const canTalk = selectable || known;
-  const daySchedule = buildCharacterDaySchedule({ snapshot, instance, characterVersionId: version.id, timezone: snapshot.profile?.experience_timezone });
+  const daySchedule = buildCharacterDaySchedule({ snapshot: profileSnapshot, instance, characterVersionId: version.id, timezone: snapshot.profile?.experience_timezone });
   const authoredScheduleOwnsPresence = Boolean(instance
     && daySchedule.source === 'authored'
     && !['scene', 'active_date', 'active_plan', 'active_event', 'plan', 'life_event'].includes(String(instance.current_presence_source)));
@@ -281,6 +314,16 @@ export default function CharacterProfile() {
           <Info label="Occupation" value={template.occupation} />
         </View>
 
+        <CharacterRelationshipsSection
+          profileName={template.name}
+          connections={profileDetails?.connections ?? []}
+          loading={profileDetailsQuery.isLoading}
+          error={profileDetailsQuery.isError}
+          worldSlug={world?.slug}
+          desktop={desktop}
+          onRetry={() => { void profileDetailsQuery.refetch(); }}
+        />
+
         <View style={styles.interests}>
           <Text style={styles.label}>Interests</Text>
           <View style={styles.interestChips}>
@@ -288,7 +331,7 @@ export default function CharacterProfile() {
           </View>
         </View>
 
-        <CharacterScheduleCard snapshot={snapshot} instance={instance} characterTemplateId={template.id} characterVersionId={version.id} characterName={template.name}/>
+        <CharacterScheduleCard snapshot={profileSnapshot} instance={instance} characterVersionId={version.id} characterName={template.name} loading={profileDetailsQuery.isLoading} loadError={profileDetailsQuery.isError} onRetry={() => { void profileDetailsQuery.refetch(); }}/>
 
         {error ? <Text accessibilityLiveRegion="assertive" style={styles.error}>{error}</Text> : null}
         {busy ? <Text accessibilityLiveRegion="polite" style={styles.openingStatus}>{openingStage==='meeting'?`Introducing you to ${template.name}…`:`Preparing your conversation with ${template.name}…`}</Text> : null}
@@ -461,25 +504,54 @@ function ProfilePreviewCard({icon,kicker,title,body,meta,onPress,accessibilityLa
   </Pressable>;
 }
 
-function CharacterScheduleCard({snapshot,instance,characterTemplateId,characterVersionId,characterName}:{snapshot:NonNullable<ReturnType<typeof useTogether.getState>['snapshot']>;instance?:NonNullable<ReturnType<typeof useTogether.getState>['snapshot']>['characters'][number];characterTemplateId:string;characterVersionId:string;characterName:string}){
-  const setCoreState=useTogether((state)=>state.setCoreState);
+function CharacterRelationshipsSection({profileName,connections,loading,error,worldSlug,desktop,onRetry}:{profileName:string;connections:CharacterConnection[];loading:boolean;error:boolean;worldSlug?:string;desktop:boolean;onRetry:()=>void}) {
+  const[showAll,setShowAll]=useState(false);
+  useEffect(()=>setShowAll(false),[profileName]);
+  const open=(connection:CharacterConnection)=>{
+    setShowAll(false);
+    const handle=connection.character.public_handle??connection.character.slug;
+    router.push(`/character/${handle}${worldSlug?`?world=${encodeURIComponent(worldSlug)}`:''}` as never);
+  };
+  if(loading&&!connections.length)return <View accessibilityLabel="Loading character relationships" style={styles.connectionsSection}>
+    <View style={styles.connectionsHeader}><View style={styles.connectionsIcon}><Users size={17} color={colors.violet}/></View><Text style={styles.connectionsTitle}>Relationships</Text></View>
+    <View style={styles.connectionSkeleton}><View style={styles.connectionSkeletonPortrait}/><View style={styles.connectionSkeletonCopy}><View style={styles.connectionSkeletonName}/><View style={styles.connectionSkeletonLine}/></View></View>
+    <View style={styles.connectionSkeleton}><View style={styles.connectionSkeletonPortrait}/><View style={styles.connectionSkeletonCopy}><View style={styles.connectionSkeletonName}/><View style={styles.connectionSkeletonLine}/></View></View>
+  </View>;
+  if(error&&!connections.length)return <View style={styles.connectionsSection}>
+    <View style={styles.connectionsHeader}><View style={styles.connectionsIcon}><Users size={17} color={colors.violet}/></View><View style={styles.flex}><Text style={styles.connectionsTitle}>Relationships</Text><Text style={styles.connectionsError}>Connections couldn’t be loaded.</Text></View><Pressable accessibilityRole="button" onPress={onRetry} style={styles.connectionsRetry}><Text style={styles.connectionsRetryText}>Try again</Text></Pressable></View>
+  </View>;
+  if(!connections.length)return null;
+  const preview=connections.slice(0,4);
+  return <View style={styles.connectionsSection}>
+    <View style={styles.connectionsHeader}><View style={styles.connectionsIcon}><Users size={17} color={colors.violet}/></View><View style={styles.flex}><Text accessibilityRole="header" style={styles.connectionsTitle}>Relationships</Text><Text style={styles.connectionsCount}>{connections.length} {connections.length===1?'person':'people'} in {profileName}’s world</Text></View>{connections.length>4?<Pressable accessibilityRole="button" accessibilityLabel={`See all ${connections.length} relationships`} onPress={()=>setShowAll(true)} style={({pressed})=>[styles.connectionsAll,pressed&&styles.pressed]}><Text style={styles.connectionsAllText}>See all</Text><ChevronRight size={14} color={colors.rose}/></Pressable>:null}</View>
+    <View style={styles.connectionGrid}>{preview.map((connection)=><CharacterConnectionCard key={connection.id} connection={connection} profileName={profileName} onPress={()=>open(connection)}/>)}</View>
+    <Modal transparent visible={showAll} animationType="fade" statusBarTranslucent onRequestClose={()=>setShowAll(false)}>
+      <View style={[styles.connectionsModalRoot,desktop?styles.connectionsModalCentered:styles.connectionsModalBottom]}>
+        <Pressable accessibilityLabel="Close relationships" onPress={()=>setShowAll(false)} style={StyleSheet.absoluteFill}/>
+        <View accessibilityViewIsModal style={[styles.connectionsModal,desktop&&styles.connectionsModalDesktop]}>
+          <View style={styles.connectionsModalHeader}><View style={styles.connectionsIcon}><Users size={18} color={colors.violet}/></View><View style={styles.flex}><Text accessibilityRole="header" style={styles.connectionsModalTitle}>{profileName}’s relationships</Text><Text style={styles.connectionsCount}>Public connections in this world</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={()=>setShowAll(false)} style={styles.connectionsModalClose}><X size={18} color={colors.muted}/></Pressable></View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.connectionsModalList}>{connections.map((connection)=><CharacterConnectionCard key={connection.id} connection={connection} profileName={profileName} expanded onPress={()=>open(connection)}/>)}</ScrollView>
+        </View>
+      </View>
+    </Modal>
+  </View>;
+}
+
+function CharacterConnectionCard({connection,profileName,expanded=false,onPress}:{connection:CharacterConnection;profileName:string;expanded?:boolean;onPress:()=>void}) {
+  const character=connection.character;
+  const portrait=characterAssets[character.together_character_versions.portrait_asset_key??'']??characterAssets[character.slug];
+  const relationship=connection.direction==='incoming'?`Their view · ${connection.relationshipLabel}`:connection.relationshipLabel;
+  return <Pressable accessibilityRole="link" accessibilityLabel={`Open ${character.name}, ${relationship}`} onPress={onPress} style={({pressed})=>[styles.connectionCard,expanded&&styles.connectionCardExpanded,pressed&&styles.previewCardPressed]}>
+    <View style={styles.connectionPortrait}>{portrait?<ExpoImage source={portrait} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" cachePolicy="memory-disk"/>:<Text style={styles.connectionInitial}>{character.name[0]}</Text>}</View>
+    <View style={styles.connectionCopy}><Text numberOfLines={1} style={styles.connectionName}>{character.name}</Text><Text numberOfLines={1} style={styles.connectionRelationship}>{relationship}</Text>{connection.history?<Text numberOfLines={expanded?4:2} style={styles.connectionHistory}>{connection.history}</Text>:null}{connection.direction==='incoming'?<Text style={styles.connectionDirection}>How {character.name} sees {profileName}</Text>:null}</View>
+    <ChevronRight size={17} color={colors.muted}/>
+  </Pressable>;
+}
+
+function CharacterScheduleCard({snapshot,instance,characterVersionId,characterName,loading,loadError,onRetry}:{snapshot:NonNullable<ReturnType<typeof useTogether.getState>['snapshot']>;instance?:NonNullable<ReturnType<typeof useTogether.getState>['snapshot']>['characters'][number];characterVersionId:string;characterName:string;loading:boolean;loadError:boolean;onRetry:()=>void}){
   const hasSchedule=snapshot.schedules.some((item)=>item.character_version_id===characterVersionId);
-  const[loading,setLoading]=useState(!hasSchedule);
-  const[loadError,setLoadError]=useState('');
-  const[retry,setRetry]=useState(0);
   const[expanded,setExpanded]=useState(false);
   useEffect(()=>setExpanded(false),[characterVersionId]);
-  useEffect(()=>{
-    let cancelled=false;
-    if(hasSchedule){setLoading(false);setLoadError('');return()=>{cancelled=true;};}
-    setLoading(true);setLoadError('');
-    void loadCharacterSchedule(characterTemplateId).then((result)=>{
-      if(cancelled)return;
-      setCoreState({schedules:[...snapshot.schedules.filter((item)=>item.character_version_id!==result.characterVersionId),...result.schedules]});
-      setLoading(false);
-    }).catch(()=>{if(!cancelled){setLoading(false);setLoadError('Today’s routine could not be loaded.');}});
-    return()=>{cancelled=true;};
-  },[characterTemplateId,characterVersionId,hasSchedule,retry,setCoreState]);
   const daySchedule=buildCharacterDaySchedule({snapshot,instance,characterVersionId,timezone:snapshot.profile?.experience_timezone});
   const compact=compactCharacterSchedule(daySchedule.entries);
   const visibleEntries=expanded?daySchedule.entries:compact.entries;
@@ -493,8 +565,8 @@ function CharacterScheduleCard({snapshot,instance,characterTemplateId,characterV
   return <View style={styles.schedule}>
     <View style={styles.scheduleHeader}><View style={styles.scheduleIcon}><CalendarDays size={17} color={colors.rose}/></View><View style={styles.flex}><Text style={styles.scheduleTitle}>Today</Text><Text style={styles.scheduleDate}>{daySchedule.dateLabel}</Text></View>{canToggle?<Pressable accessibilityRole="button" accessibilityLabel={expanded?'Show schedule summary':'Show full day schedule'} accessibilityState={{expanded}} onPress={()=>setExpanded((value)=>!value)} style={({pressed})=>[styles.scheduleToggle,pressed&&styles.pressed]}><Text style={styles.scheduleToggleText}>{expanded?'Summary':`Full day · ${daySchedule.entries.length}`}</Text>{expanded?<ChevronUp size={15} color={colors.rose}/>:<ChevronDown size={15} color={colors.rose}/>}</Pressable>:null}</View>
     {daySchedule.entries.length?<View style={styles.scheduleList}>{visibleEntries.map((entry)=><ScheduleRow key={entry.id} entry={entry} summary={!expanded} onLocation={entry.locationId?()=>openLocation(entry):undefined}/>)}</View>
-      :loading?<View style={styles.scheduleEmpty}><Clock3 size={16} color={colors.rose}/><Text style={styles.scheduleLoadingText}>Loading {characterName}’s routine…</Text></View>
-      :loadError?<View style={styles.scheduleEmpty}><Text style={styles.scheduleEmptyText}>{loadError}</Text><Pressable accessibilityRole="button" onPress={()=>setRetry((value)=>value+1)} style={styles.scheduleRetry}><Text style={styles.scheduleRetryText}>Try again</Text></Pressable></View>
+      :loading&&!hasSchedule?<View style={styles.scheduleEmpty}><Clock3 size={16} color={colors.rose}/><Text style={styles.scheduleLoadingText}>Loading {characterName}’s routine…</Text></View>
+      :loadError&&!hasSchedule?<View style={styles.scheduleEmpty}><Text style={styles.scheduleEmptyText}>Today’s routine could not be loaded.</Text><Pressable accessibilityRole="button" onPress={onRetry} style={styles.scheduleRetry}><Text style={styles.scheduleRetryText}>Try again</Text></Pressable></View>
       :<View style={styles.scheduleEmpty}><Clock3 size={16} color={colors.muted}/><Text style={styles.scheduleEmptyText}>{characterName} is keeping today flexible.</Text></View>}
   </View>;
 }
@@ -521,7 +593,7 @@ const styles = StyleSheet.create({
   portraitFrameMobile: { top: 4, right: 4, bottom: 4, left: 4 },
   portraitFrameDesktop: { top: 5, right: 5, bottom: 5, left: 5 },
   portraitShade: { position: 'absolute', right: 0, bottom: 0, left: 0, height: 118, backgroundColor: 'rgba(6,4,9,.72)' },
-  back: { position: 'absolute', top: 12, left: 12, zIndex: 5, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(8,11,19,.72)', borderWidth: 1, borderColor: 'rgba(255,255,255,.18)', alignItems: 'center', justifyContent: 'center' },
+  back: { position: 'absolute', top: 12, left: 12, zIndex: 5, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   photoButton: { position: 'absolute', top: '43%', zIndex: 4, width: 44, height: 48, borderRadius: 22, backgroundColor: 'rgba(8,11,19,.68)', borderWidth: 1, borderColor: 'rgba(255,255,255,.22)', alignItems: 'center', justifyContent: 'center' },
   previousPhoto: { left: 12 },
   nextPhoto: { right: 12 },
@@ -606,6 +678,40 @@ const styles = StyleSheet.create({
   infoValue: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 5 },
   label: { color: colors.muted, flexShrink: 0 },
   value: { flexShrink: 1, color: colors.text, textAlign: 'right' },
+  connectionsSection: { gap: 10, paddingTop: 2 },
+  connectionsHeader: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  connectionsIcon: { width: 34, height: 34, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: 'rgba(154,104,255,.12)' },
+  connectionsTitle: { color: colors.text, fontFamily: typography.display, fontSize: 20, lineHeight: 24, fontWeight: '700' },
+  connectionsCount: { color: colors.muted, fontSize: 9.5, lineHeight: 13, marginTop: 1 },
+  connectionsAll: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: 10 },
+  connectionsAllText: { color: colors.rose, fontSize: 10, fontWeight: '900' },
+  connectionsError: { color: colors.muted, fontSize: 10, lineHeight: 14, marginTop: 2 },
+  connectionsRetry: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
+  connectionsRetryText: { color: colors.rose, fontSize: 10, fontWeight: '900' },
+  connectionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  connectionCard: { flexGrow: 1, flexBasis: 245, minWidth: 0, minHeight: 88, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  connectionCardExpanded: { flexBasis: 'auto', width: '100%', minHeight: 96 },
+  connectionPortrait: { width: 58, height: 68, flexShrink: 0, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: colors.elevated },
+  connectionInitial: { color: colors.textSecondary, fontFamily: typography.display, fontSize: 24, fontWeight: '700' },
+  connectionCopy: { flex: 1, minWidth: 0 },
+  connectionName: { color: colors.text, fontSize: 12, lineHeight: 16, fontWeight: '900' },
+  connectionRelationship: { color: colors.violet, fontSize: 9, lineHeight: 13, fontWeight: '900', marginTop: 1, textTransform: 'capitalize' },
+  connectionHistory: { color: colors.muted, fontSize: 9.5, lineHeight: 14, marginTop: 4 },
+  connectionDirection: { color: colors.dimmed, fontSize: 8, lineHeight: 11, marginTop: 4 },
+  connectionSkeleton: { minHeight: 82, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: radius.lg, backgroundColor: colors.surface },
+  connectionSkeletonPortrait: { width: 52, height: 62, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.07)' },
+  connectionSkeletonCopy: { flex: 1, gap: 8 },
+  connectionSkeletonName: { width: '42%', height: 10, borderRadius: 5, backgroundColor: 'rgba(255,255,255,.09)' },
+  connectionSkeletonLine: { width: '82%', height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,.055)' },
+  connectionsModalRoot: { flex: 1, padding: 12, backgroundColor: 'rgba(3,2,7,.72)' },
+  connectionsModalCentered: { alignItems: 'center', justifyContent: 'center' },
+  connectionsModalBottom: { justifyContent: 'flex-end' },
+  connectionsModal: { width: '100%', maxHeight: '88%', overflow: 'hidden', padding: 16, paddingBottom: 24, borderRadius: radius.xl, borderWidth: 1, borderColor: 'rgba(199,120,255,.34)', backgroundColor: 'rgba(24,17,34,.99)' },
+  connectionsModalDesktop: { maxWidth: 570, maxHeight: '78%' },
+  connectionsModalHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  connectionsModalTitle: { color: colors.text, fontFamily: typography.display, fontSize: 22, lineHeight: 27, fontWeight: '700' },
+  connectionsModalClose: { width: 42, height: 42, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: 'rgba(255,255,255,.05)' },
+  connectionsModalList: { gap: 8, paddingBottom: 4 },
   interests: { gap: 8 },
   interestChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   interestChip: { minHeight: 32, justifyContent: 'center', paddingHorizontal: 10, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },

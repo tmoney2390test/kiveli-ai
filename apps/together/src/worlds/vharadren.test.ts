@@ -41,15 +41,18 @@ describe('Vharadren playable world',()=>{
     expect(vharadrenWorld.metadata.mappedLocationPhotoCount).toBe(51);
   });
 
-  it('registers all 50 portrait slots without bundling server-only adult character depth',()=>{
-    expect(vharadrenWorld.metadata.residentCompanionCount).toBe(50);
-    expect(vharadrenWorld.metadata.portraitSlotCount).toBe(50);
-    expect(vharadrenWorld.metadata.residentGenderRatio).toEqual({women:34,men:16});
-    expect(vharadrenCharacterSlugs).toHaveLength(50);
-    expect(new Set(vharadrenCharacterSlugs).size).toBe(50);
+  it('registers all 52 portrait slots without bundling server-only adult character depth',()=>{
+    expect(vharadrenWorld.metadata.residentCompanionCount).toBe(52);
+    expect(vharadrenWorld.metadata.portraitSlotCount).toBe(52);
+    expect(vharadrenWorld.metadata.residentGenderRatio).toEqual({women:36,men:16});
+    expect(vharadrenWorld.metadata.weeklyScheduleRowCount).toBe(2184);
+    expect(vharadrenCharacterSlugs).toHaveLength(52);
+    expect(new Set(vharadrenCharacterSlugs).size).toBe(52);
     expect(vharadrenCharacterSlugs).toContain('sable-wren');
-    expect(vharadrenAssetSlots.portraits).toHaveLength(50);
-    expect(vharadrenAssetSlots.portraits.every((slot)=>slot.status==='pending')).toBe(true);
+    expect(vharadrenCharacterSlugs).toContain('princess-maris-vaelorian');
+    expect(vharadrenCharacterSlugs).toContain('celia-thatch');
+    expect(vharadrenAssetSlots.portraits).toHaveLength(52);
+    expect(vharadrenAssetSlots.portraits.every((slot)=>slot.status==='ready')).toBe(true);
     const publicCatalog=JSON.stringify({vharadrenWorld,vharadrenLocations,vharadrenCharacterSlugs,vharadrenAssetSlots});
     expect(publicCatalog).not.toMatch(/privateTruth|adultContinuity|intimateAnatomy|hiddenSexual/);
   });

@@ -62,6 +62,16 @@ import {
 } from "./kivelle-provider-concurrency.ts";
 import { chatGenerationControlsMode,resolveDialogueRunGenerationProfile,type DialogueGenerationContext } from './kivelle-chat-generation.ts';
 import type { ChatGenerationControlsMode,DialogueGenerationProfile } from '../../../packages/together-domain/src/chat-generation.ts';
+import {
+  classifyHighStakesStoryRequest,
+  deriveNarrativeConsequenceCandidate,
+  evaluateNarrativeConsequenceGate,
+  narrativeConsequenceDomains,
+  narrativeConsequenceRequestWindow,
+  narrativeConsequenceScopes,
+  type NarrativeConsequenceCandidate,
+  validateNarrativeConsequenceCandidate,
+} from '../../../packages/together-domain/src/narrative-consequences.ts';
 
 export type DialogueContext = KivelleConversationContext & {
   contentMode?: string;
@@ -183,6 +193,7 @@ export type ConversationAnalysisProposal = {
   mentionedMemoryIds: string[];
   reinforcedMemoryIds: string[];
   correctedMemorySubjects: string[];
+  narrativeConsequenceCandidates: NarrativeConsequenceCandidate[];
   source: "deterministic" | "hybrid";
 };
 export interface ConversationAnalysisProvider {
@@ -1200,7 +1211,7 @@ export class ConfiguredConversationAnalysisProvider
               }],
               generationConfig: {
                 temperature: 0.1,
-                maxOutputTokens: 650,
+                maxOutputTokens: 950,
                 responseMimeType: "application/json",
               },
             }),
@@ -1337,12 +1348,15 @@ function deterministicAnalysis(
     ),
     reinforcedMemoryIds: [],
     correctedMemorySubjects: [],
+    narrativeConsequenceCandidates: deterministicNarrativeConsequenceCandidates(input),
     source: "deterministic",
   };
 }
 
 function shouldUseModelAnalysis(input: ConversationAnalysisInput): boolean {
   const message = input.userMessage;
+  const consequenceWindow=narrativeConsequenceRequestWindow({userMessage:message,recent:input.context?.recent??[]});
+  if(Deno.env.get("KIVELLE_HIGH_STAKES_STORY_ACTIONS_ENABLED")!=="false"&&classifyHighStakesStoryRequest(consequenceWindow).relevant)return true;
   if (
     input.context?.place &&
     /\b(what do you think|do you like|how do you feel|opinion|this place|here|growing on|favorite)\b/i
@@ -1360,7 +1374,9 @@ function analysisPrompt(input: ConversationAnalysisInput): string {
     eligible: item.follow_up_eligible,
     expectedAt: item.expected_at,
   }));
-  return `Analyze one conversation turn for a relationship simulation. Return JSON only. The application owns truth; propose small changes and only facts explicitly stated by the user.
+  const consequenceRequest=narrativeConsequenceRequestWindow({userMessage:input.userMessage,recent:input.context?.recent??[]});
+  const consequenceGate=evaluateNarrativeConsequenceGate({requestText:consequenceRequest,character:input.context?.character??{},relationship:input.context?.relationship??{},hasWorld:Boolean(input.context?.place?.world?.id),activeStory:Boolean(input.context?.activeStory)});
+  return `Analyze one conversation turn for a relationship simulation. Return JSON only. The application owns truth; relationship and memory proposals must remain small and use only facts explicitly stated by the user. A high-stakes fictional decision is a separate proposal type and is allowed only under the gate below.
 
 USER MESSAGE
 ${input.userMessage}
@@ -1397,10 +1413,29 @@ ${
     )
   }
 
-Return this shape:
-{"relationshipChanges":{"trust":0,"comfort":0,"attraction":0,"affinity":0,"familiarity":0,"respect":0,"conflict":0,"romantic_interest":0,"commitment":0},"trustConsequence":null,"trustRepair":null,"chemistry":{"userFlirtSignal":0.0,"characterFlirtSignal":0.0,"mutualChemistry":0.0,"heatDelta":0},"memoryCandidates":[{"memory_type":"semantic|preference|episodic|relationship|emotional","canonical_text":"User ...","subject_key":"stable topic key","importance":0.0,"confidence":0.0,"sensitivity_category":"none|personal|sensitive","metadata":{}}],"placeOpinionCandidates":[{"placeRef":"allowed-place-slug","sentiment":0.0,"confidence":0.0,"summary":"Durable neutral summary of the companion's expressed view.","tags":[],"favoriteDetails":[],"dislikedDetails":[],"reasoningCode":"explicit_character_opinion|opinion_changed|shared_experience_reaction"}],"resolvedThreadIds":[],"newThreads":[{"topic":"Ask how ... went.","subject":"presentation","expected_at":"ISO timestamp or null","importance":0.0}],"mentionedMemoryIds":[],"reinforcedMemoryIds":[],"correctedMemorySubjects":[],"momentCandidate":false,"moodEffects":{}}
+HIGH-STAKES FICTIONAL DECISION GATE
+${JSON.stringify({relevant:consequenceGate.relevant,eligible:consequenceGate.eligible,domain:consequenceGate.domain,scope:consequenceGate.scope,authorityMatched:consequenceGate.authorityMatched,relationshipReady:consequenceGate.relationshipReady,reasonCodes:consequenceGate.reasonCodes})}
 
-Rules: relationship deltas must be integers from -4 to 4. Ordinary genuine conversation should normally earn 1 trust and 1 familiarity. Familiarity reflects sustained back-and-forth and learning stable details about each other. A negative trust change is valid only with a trustConsequence object. Allowed kinds are hostility, contempt, deception, manipulation, boundary_violation, confidence_breach, vulnerability_dismissal, threat, and broken_promise. Allowed severities are minor, moderate, serious, and major. confidence must be at least 0.8 and evidenceBasis must be explicit_user_language or canonical_context. Do not penalize ordinary disagreement, declining a suggestion, asking for space, terse replies, delayed replies, sexual or romantic requests by themselves, app/provider failures, or a plan cancelled with notice. A boundary_violation requires a clear canonical boundary or refusal followed by pressure; never infer one from general reluctance. Deception and confidence_breach require canonical evidence, not suspicion. Formal missed-plan consequences are handled elsewhere and must not be duplicated here. Set trustRepair only when an apology includes accountability or a concrete corrective action; an apology word alone is insufficient. Deeper disclosure, demonstrated reliability, support, or verified repair may justify positive changes. Memory-worthiness is not relationship significance: an ordinary preference or biographical fact may become memory but must not receive vulnerability-level trust/comfort changes. Direct declarations to the companion such as "I love you" or "I like you" are relationship evidence, never preference memories; do not produce text such as "User likes you." Momentary user state and generic actions belong only to recent conversation context: never create durable memories such as "User is in bed," "User is eating," "User is tired," "User is at home," or "User is watching television." Store only stable facts/preferences, meaningful relationship evidence, future-relevant commitments, or genuinely significant shared episodes. Chemistry signals are 0 to 1 and require actual romantic/flirt evidence; generic positivity such as "you're cool", "nice", or "you're funny" is not flirting. Never infer private facts. Do not create a memory from the character response or from visual details the character mentioned after seeing an uploaded photo; only facts the user explicitly states in their own message may become memory. A correction must use the same subject_key as the earlier fact. Mentioned/reinforced memory IDs must be from the available list and only if the assistant actually referenced them. Resolve only an eligible thread that this user message actually answers. A place opinion candidate is allowed only when the CHARACTER RESPONSE explicitly expresses or changes a durable personal view of one listed place. Never turn the user's opinion, objective venue description, or a passing observation into the companion's opinion. Use only an allowed placeRef and never invent an ID.`;
+CURRENT WORLD
+${JSON.stringify(input.context?.place?.world?{id:input.context.place.world.id,name:input.context.place.world.name,slug:input.context.place.world.slug}:null)}
+
+Return this shape:
+{"relationshipChanges":{"trust":0,"comfort":0,"attraction":0,"affinity":0,"familiarity":0,"respect":0,"conflict":0,"romantic_interest":0,"commitment":0},"trustConsequence":null,"trustRepair":null,"chemistry":{"userFlirtSignal":0.0,"characterFlirtSignal":0.0,"mutualChemistry":0.0,"heatDelta":0},"memoryCandidates":[{"memory_type":"semantic|preference|episodic|relationship|emotional","canonical_text":"User ...","subject_key":"stable topic key","importance":0.0,"confidence":0.0,"sensitivity_category":"none|personal|sensitive","metadata":{}}],"placeOpinionCandidates":[{"placeRef":"allowed-place-slug","sentiment":0.0,"confidence":0.0,"summary":"Durable neutral summary of the companion's expressed view.","tags":[],"favoriteDetails":[],"dislikedDetails":[],"reasoningCode":"explicit_character_opinion|opinion_changed|shared_experience_reaction"}],"narrativeConsequenceCandidates":[{"title":"Concise in-world event title","summary":"A factual neutral summary of the character's final decision and immediate first order.","domain":"military|political|legal|economic|factional|public_safety|other","scope":"local|regional|world","knowledgeScope":"public|local|insider|private","durationHours":168,"confidence":0.0,"authorityBasis":"Why this character can decide it.","persuasionBasis":"What in the conversation earned or motivated it.","consequences":["Immediate unresolved consequence"]}],"resolvedThreadIds":[],"newThreads":[{"topic":"Ask how ... went.","subject":"presentation","expected_at":"ISO timestamp or null","importance":0.0}],"mentionedMemoryIds":[],"reinforcedMemoryIds":[],"correctedMemorySubjects":[],"momentCandidate":false,"moodEffects":{}}
+
+Rules: relationship deltas must be integers from -4 to 4. Ordinary genuine conversation should normally earn 1 trust and 1 familiarity. Familiarity reflects sustained back-and-forth and learning stable details about each other. A negative trust change is valid only with a trustConsequence object. Allowed kinds are hostility, contempt, deception, manipulation, boundary_violation, confidence_breach, vulnerability_dismissal, threat, and broken_promise. Allowed severities are minor, moderate, serious, and major. confidence must be at least 0.8 and evidenceBasis must be explicit_user_language or canonical_context. Do not penalize ordinary disagreement, declining a suggestion, asking for space, terse replies, delayed replies, sexual or romantic requests by themselves, app/provider failures, or a plan cancelled with notice. A boundary_violation requires a clear canonical boundary or refusal followed by pressure; never infer one from general reluctance. Deception and confidence_breach require canonical evidence, not suspicion. Formal missed-plan consequences are handled elsewhere and must not be duplicated here. Set trustRepair only when an apology includes accountability or a concrete corrective action; an apology word alone is insufficient. Deeper disclosure, demonstrated reliability, support, or verified repair may justify positive changes. Memory-worthiness is not relationship significance: an ordinary preference or biographical fact may become memory but must not receive vulnerability-level trust/comfort changes. Direct declarations to the companion such as "I love you" or "I like you" are relationship evidence, never preference memories; do not produce text such as "User likes you." Momentary user state and generic actions belong only to recent conversation context: never create durable memories such as "User is in bed," "User is eating," "User is tired," "User is at home," or "User is watching television." Store only stable facts/preferences, meaningful relationship evidence, future-relevant commitments, or genuinely significant shared episodes. Chemistry signals are 0 to 1 and require actual romantic/flirt evidence; generic positivity such as "you're cool", "nice", or "you're funny" is not flirting. Never infer private facts. Do not create a memory from the character response or from visual details the character mentioned after seeing an uploaded photo; only facts the user explicitly states in their own message may become memory. A correction must use the same subject_key as the earlier fact. Mentioned/reinforced memory IDs must be from the available list and only if the assistant actually referenced them. Resolve only an eligible thread that this user message actually answers. A place opinion candidate is allowed only when the CHARACTER RESPONSE explicitly expresses or changes a durable personal view of one listed place. Never turn the user's opinion, objective venue description, or a passing observation into the companion's opinion. Use only an allowed placeRef and never invent an ID. A narrativeConsequenceCandidate is allowed only when the high-stakes gate says eligible AND the CHARACTER RESPONSE makes a clear final decision within the character's own authority. Never emit one for deliberation, a threat, a question, a condition, a refusal, an aspiration, an action attributed to the user, a real-world action, or a downstream outcome that has not occurred. Return at most one. Otherwise return an empty array.`;
+}
+
+function deterministicNarrativeConsequenceCandidates(input: ConversationAnalysisInput): NarrativeConsequenceCandidate[] {
+  if (Deno.env.get("KIVELLE_HIGH_STAKES_STORY_ACTIONS_ENABLED") === "false") return [];
+  const candidate = deriveNarrativeConsequenceCandidate({
+    requestText: narrativeConsequenceRequestWindow({ userMessage: input.userMessage, recent: input.context?.recent ?? [] }),
+    assistantText: input.assistantMessage,
+    character: input.context?.character ?? {},
+    relationship: input.context?.relationship ?? {},
+    hasWorld: Boolean(input.context?.place?.world?.id),
+    activeStory: Boolean(input.context?.activeStory),
+  });
+  return candidate ? [candidate] : [];
 }
 
 function validateAnalysisJson(
@@ -1538,6 +1573,10 @@ function validateAnalysisJson(
       Math.min(16, Number(chemistryRow.heatDelta ?? 0) || 0),
     ),
   };
+  const narrativeConsequenceCandidates = validateNarrativeConsequenceCandidates(
+    record.narrativeConsequenceCandidates,
+    input,
+  );
   return {
     relationshipChanges,
     trustConsequence,
@@ -1556,8 +1595,51 @@ function validateAnalysisJson(
     correctedMemorySubjects: Array.isArray(record.correctedMemorySubjects)
       ? record.correctedMemorySubjects.map(String).slice(0, 4)
       : [],
+    narrativeConsequenceCandidates,
     source: "hybrid",
   };
+}
+
+function validateNarrativeConsequenceCandidates(
+  value: unknown,
+  input: ConversationAnalysisInput,
+): NarrativeConsequenceCandidate[] {
+  if (!Array.isArray(value) || Deno.env.get("KIVELLE_HIGH_STAKES_STORY_ACTIONS_ENABLED") === "false") return [];
+  const requestText = narrativeConsequenceRequestWindow({ userMessage: input.userMessage, recent: input.context?.recent ?? [] });
+  return value.slice(0, 1).flatMap((item): NarrativeConsequenceCandidate[] => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    const domain = String(row.domain ?? "") as NarrativeConsequenceCandidate["domain"];
+    const scope = String(row.scope ?? "") as NarrativeConsequenceCandidate["scope"];
+    const knowledgeScope = String(row.knowledgeScope ?? "") as NarrativeConsequenceCandidate["knowledgeScope"];
+    if (!narrativeConsequenceDomains.includes(domain) || !narrativeConsequenceScopes.includes(scope) || !["public", "local", "insider", "private"].includes(knowledgeScope)) return [];
+    const candidate: NarrativeConsequenceCandidate = {
+      title: normalizeNarrativeField(row.title,120),
+      summary: normalizeNarrativeField(row.summary,700),
+      domain,
+      scope,
+      knowledgeScope,
+      durationHours: Math.max(6, Math.min(720, Math.round(Number(row.durationHours ?? 168) || 168))),
+      confidence: clampUnit(row.confidence),
+      authorityBasis: normalizeNarrativeField(row.authorityBasis,280),
+      persuasionBasis: normalizeNarrativeField(row.persuasionBasis,280),
+      consequences: (Array.isArray(row.consequences) ? row.consequences : []).map((text)=>normalizeNarrativeField(text,240)).filter(Boolean).slice(0, 4),
+    };
+    const validation = validateNarrativeConsequenceCandidate({
+      candidate,
+      requestText,
+      assistantText: input.assistantMessage,
+      character: input.context?.character ?? {},
+      relationship: input.context?.relationship ?? {},
+      hasWorld: Boolean(input.context?.place?.world?.id),
+      activeStory: Boolean(input.context?.activeStory),
+    });
+    return validation.allowed ? [candidate] : [];
+  });
+}
+
+function normalizeNarrativeField(value:unknown,maximum:number):string{
+  return String(value??'').replace(/[<>]/g,'').replace(/[\u0000-\u001f\u007f]+/g,' ').replace(/\s+/g,' ').trim().slice(0,maximum);
 }
 
 function mergeAnalysis(
@@ -1595,6 +1677,9 @@ function mergeAnalysis(
     placeOpinionCandidates: modelProposal.placeOpinionCandidates.length
       ? modelProposal.placeOpinionCandidates
       : base.placeOpinionCandidates,
+    narrativeConsequenceCandidates: modelProposal.narrativeConsequenceCandidates.length
+      ? modelProposal.narrativeConsequenceCandidates
+      : base.narrativeConsequenceCandidates,
     referencedEntities: [
       ...new Set([
         ...base.referencedEntities,

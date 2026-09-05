@@ -130,6 +130,7 @@ import {
 import { resolveAdultAccess } from "../_shared/web-adult-access.ts";
 import { isSafePolicy } from "../_shared/content-projection.ts";
 import { deriveSafeRelationalSummary } from "../_shared/safe-relational-context.ts";
+import { persistNarrativeConsequence, type PersistedNarrativeConsequence } from "../_shared/kivelle-narrative-consequences.ts";
 
 const schema = z.object({
   conversationId: z.string().uuid(),
@@ -3140,6 +3141,17 @@ async function applyConversationEffects(
       correlationId,
     },
   });
+  let narrativeConsequence:PersistedNarrativeConsequence|null=null;
+  const narrativeCandidate=proposal.narrativeConsequenceCandidates[0];
+  const narrativeContinuityId=String(instanceRow?.continuity_id??context.relationship?.continuity_id??current.continuity_id??'');
+  if(narrativeCandidate&&narrativeContinuityId){
+    try{
+      narrativeConsequence=await persistNarrativeConsequence({db,userId,continuityId:narrativeContinuityId,characterInstanceId:instanceId,conversationId,sourceUserMessageId:sourceMessageId,sourceAssistantMessageId:assistantMessageId,userText,assistantText,context,candidate:narrativeCandidate,now:new Date()});
+      if(narrativeConsequence?.created)await track(db,userId,'narrative_consequence_created',{characterInstanceId:instanceId,worldId:narrativeConsequence.worldId,domain:narrativeCandidate.domain,scope:narrativeCandidate.scope,knowledgeScope:narrativeCandidate.knowledgeScope});
+    }catch(error){
+      console.error(JSON.stringify({level:'error',operation:'persist_narrative_consequence',correlationId,code:error instanceof Error?error.message:'NARRATIVE_CONSEQUENCE_FAILED'}));
+    }
+  }
   const assistantLocationCandidate = proposal.actionCandidates.length
     ? null
     : await resolveAssistantLocationPlanCandidate(
@@ -3633,7 +3645,15 @@ async function applyConversationEffects(
     item.payload.planId || item.payload.locationId
   );
   const focusEntity = proposal.referencedEntities[0];
-  const focus = actionFocus?.payload.planId
+  const focus = narrativeConsequence
+    ? {
+      type: "story",
+      label: narrativeConsequence.title,
+      worldEventId: narrativeConsequence.id,
+      updatedAt: new Date().toISOString(),
+      sourceMessageId,
+    }
+    : actionFocus?.payload.planId
     ? {
       type: "plan",
       planId: actionFocus.payload.planId,

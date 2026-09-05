@@ -58,3 +58,4 @@ export * from './stories.ts';
 export * from './story-director.ts';
 export * from './story-guidance.ts';
 export * from './world-pulse.ts';
+export * from './narrative-consequences.ts';

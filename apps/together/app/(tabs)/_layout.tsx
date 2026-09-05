@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { router, Tabs, usePathname } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { Compass, Crown, Home, Images, MessageCircle } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppShell } from '../../src/shell/AppShellContext';
 import { MESSAGES_INBOX_HREF, mostRecentChatHref, shouldOpenMostRecentChat, WEB_MESSAGES_INBOX_HREF } from '../../src/lib/messageInbox';
 import { useTogether } from '../../src/store/useTogether';
@@ -14,6 +15,7 @@ const web = Platform.OS === 'web';
 
 export default function TabsLayout() {
   const { width } = useWindowDimensions();
+  const insets=useSafeAreaInsets();
   const { desktop } = useAppShell();
   const desktopViewport=isDesktopShellViewport(Platform.OS,width);
   const pathname=usePathname();
@@ -22,22 +24,32 @@ export default function TabsLayout() {
   const openLatestFromCurrentPage=shouldOpenMostRecentChat(pathname);
   const latestChatHref=snapshot?mostRecentChatHref(snapshot.conversations,snapshot.characters):null;
   const messagesInboxHref=web?WEB_MESSAGES_INBOX_HREF:MESSAGES_INBOX_HREF;
+  const[webInputFocused,setWebInputFocused]=useState(false);
   useEffect(()=>snapshot?scheduleCoreRouteWarmup((href)=>router.prefetch(href as never)):undefined,[Boolean(snapshot)]);
+  useEffect(()=>{
+    if(!web)return;
+    const editable=(target:EventTarget|null)=>target instanceof HTMLElement&&(target.tagName==='INPUT'||target.tagName==='TEXTAREA'||target.isContentEditable);
+    const handleFocusIn=(event:FocusEvent)=>setWebInputFocused(editable(event.target));
+    const handleFocusOut=()=>requestAnimationFrame(()=>setWebInputFocused(editable(document.activeElement)));
+    document.addEventListener('focusin',handleFocusIn,true);document.addEventListener('focusout',handleFocusOut,true);
+    return()=>{document.removeEventListener('focusin',handleFocusIn,true);document.removeEventListener('focusout',handleFocusOut,true);};
+  },[]);
   const prepare=(href:string)=>{markRouteIntent(href);warmRoute(href,(value)=>router.prefetch(value as never));};
   return <Tabs screenOptions={{
     headerShown: false,
-    sceneStyle: { backgroundColor: colors.background },
+    sceneStyle: { backgroundColor: colors.background, ...(web ? ({ minHeight: '100dvh' } as never) : {}) },
     tabBarActiveTintColor: '#FF86AB',
     tabBarInactiveTintColor: '#938996',
-    tabBarActiveBackgroundColor: 'rgba(239,82,137,.18)',
+    tabBarActiveBackgroundColor: 'rgba(239,82,137,.12)',
+    tabBarHideOnKeyboard: true,
     tabBarBackground: () => <FrostedTabBarBackground />,
     tabBarStyle: {
-      display: desktop||desktopViewport ? 'none' : 'flex',
+      display: desktop||desktopViewport||webInputFocused ? 'none' : 'flex',
       position: 'absolute',
       zIndex: 100,
-      left: 12,
-      right: 12,
-      bottom: Platform.OS === 'ios' ? 18 : 10,
+      left: 8,
+      right: 8,
+      bottom: Math.max(8,insets.bottom),
       height: 72,
       paddingTop: 5,
       paddingBottom: 7,
@@ -45,17 +57,17 @@ export default function TabsLayout() {
       borderTopWidth: 1,
       borderWidth: 1,
       borderColor: 'rgba(255,248,244,.11)',
-      borderRadius: 24,
+      borderRadius: 20,
       elevation: 18,
       shadowColor: '#000',
       shadowOpacity: .45,
       shadowRadius: 26,
       shadowOffset: { width: 0, height: 13 },
       overflow: 'hidden',
-      ...(web ? { position: 'fixed' as never, width: webBarWidth, left: '50%', right: undefined, marginLeft: -webBarWidth / 2, bottom: width < 620 ? 10 : 18, backdropFilter: 'blur(30px) saturate(145%)' } : {}),
+      ...(web ? { position: 'fixed' as never, width: webBarWidth, left: '50%', right: undefined, marginLeft: -webBarWidth / 2, bottom: 'max(8px, env(safe-area-inset-bottom))' as never, backdropFilter: 'blur(30px) saturate(145%)' } : {}),
     },
-    tabBarItemStyle: { borderRadius: 18, marginHorizontal: 3, marginVertical: 1, overflow: 'hidden' },
-    tabBarLabelStyle: { fontSize: 9.5, fontWeight: '800', letterSpacing: .15 },
+    tabBarItemStyle: { minHeight:44,borderRadius: 14, marginHorizontal: 5, marginVertical: 7, overflow: 'hidden' },
+    tabBarLabelStyle: { fontSize: 9, fontWeight: '800', letterSpacing: .12 },
   }}>
     <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: ({ color, size, focused }) => <Home color={color} size={focused ? size + 1 : size} fill={focused ? 'rgba(239,82,137,.13)' : 'transparent'} /> }} listeners={{tabPress:()=>prepare('/home')}} />
     <Tabs.Screen name="explore" options={{ title: 'Explore', tabBarIcon: ({ color, size, focused }) => <Compass color={color} size={focused ? size + 2 : size} /> }} listeners={{tabPress:()=>prepare('/explore')}} />

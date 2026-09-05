@@ -8,6 +8,7 @@ import { buildCharacterPresenceSnapshot, buildExploreCatalogSnapshot, buildSnaps
 import { getActiveConversation } from '../_shared/together-conversation.ts';
 import { ensureMainContinuity } from '../_shared/together-continuity.ts';
 import { isAtLeast18 } from '../../../packages/together-domain/src/adult-access.ts';
+import { loadCharacterProfileDetails } from '../_shared/together-character-profile.ts';
 
 const onboardingSchema = z.object({
   action: z.literal('complete_onboarding').optional(),
@@ -39,6 +40,13 @@ serve(async (request, correlationId) => {
       return json({data:await buildCharacterPresenceSnapshot(db,user.id,characterInstanceId.data),correlationId},200,correlationId);
     }
     if(scope==='explore')return json({data:await buildExploreCatalogSnapshot(db,user.id),correlationId},200,correlationId);
+    if(scope==='character_profile'){
+      const characterTemplateId=z.string().uuid().safeParse(url.searchParams.get('characterTemplateId'));
+      const requestedWorld=url.searchParams.get('worldId');
+      const worldId=requestedWorld?z.string().uuid().safeParse(requestedWorld):null;
+      if(!characterTemplateId.success||worldId&&!worldId.success)throw new AppError('VALIDATION_ERROR','Choose an available companion profile.',400);
+      return json({data:await loadCharacterProfileDetails(db,user.id,characterTemplateId.data,worldId?.data),correlationId},200,correlationId);
+    }
     if(scope==='character_schedule'){
       const characterTemplateId=z.string().uuid().safeParse(url.searchParams.get('characterTemplateId'));
       if(!characterTemplateId.success)throw new AppError('VALIDATION_ERROR','Choose a companion whose routine you want to view.',400);

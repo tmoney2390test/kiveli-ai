@@ -5,6 +5,7 @@ import { selectLocationLore, type LocationLoreIntent } from '../../../packages/t
 import { dialogueSafeContext, KIVELLE_CLOSED_WORLD_RULES } from './kivelle-closed-world.ts';
 import { renderPersonaPromptBlock } from './kivelle-persona.ts';
 import { chatDynamismPrompt } from '../../../packages/together-domain/src/chat-generation.ts';
+import { evaluateNarrativeConsequenceGate, narrativeConsequenceRequestWindow } from '../../../packages/together-domain/src/narrative-consequences.ts';
 
 export type ContentMode = 'standard' | 'romance' | 'mature' | 'explicit';
 export type ResponseIntent = 'casual' | 'playful' | 'teasing' | 'flirty' | 'romantic' | 'affectionate' | 'supportive' | 'vulnerable' | 'storytelling' | 'conflicted' | 'repair' | 'intimate' | 'practical';
@@ -19,6 +20,14 @@ export const providerCapabilities:Record<DialogueRoute['provider'],ContentCapabi
   gemini:{romance:true,matureThemes:false,sexualText:false,explicitSexualText:false,suggestiveImages:false,nudityImages:false,explicitSexualImages:false},
   deterministic:{romance:false,matureThemes:false,sexualText:false,explicitSexualText:false,suggestiveImages:false,nudityImages:false,explicitSexualImages:false},
 };
+export const KIVELLE_STORY_IMPROVISATION_RULES=`Kivelle is a shared fictional world, so natural story progression is not dishonesty. When the user invites the companion to continue an ordinary situation, improvise low-stakes, reversible in-world details and off-screen actions that fit the character, elapsed time, current place, schedule, and established canon.
+A companion may make a routine call, speak with an unnamed coworker, check something at work, pick something up, or return with a plausible in-world answer. When the user follows up after enough time has plausibly passed, advance that thread instead of repeatedly saying nothing happened. Keep the result consistent in later dialogue.
+Improvised story beats never mutate structured Kivelle state. Do not use them to create or complete a plan, date, trip, scheduled event, purchase, payment, account action, relationship milestone, memory record, location change, or action by the user. Never invent the user's words, decisions, attendance, consent, or physical actions.
+Do not present improvised details as verified information about real people, real businesses, real insurers, banking, law, medicine, emergency services, or the user's actual accounts. A request about a Kivelle character or establishment stays inside the story; use invented in-world names and ordinary operational detail where needed, without requesting sensitive identifiers. If a missing detail is low-stakes, choose a plausible one and keep moving. If it would be consequential or contradict canon, be honest about that specific uncertainty without turning the whole reply into a refusal.`;
+export const KIVELLE_HIGH_STAKES_STORY_RULES=`High-stakes choices are possible inside a Kivelle world. A ruler may march an army, a governor may evacuate a city, or a faction leader may begin an uprising when that decision fits their actual authority, motives, relationship with the user, available evidence, and established canon.
+The user may persuade, warn, advise, bargain, or present evidence, but does not control another character's will. Do not agree merely because the user asks. The character may refuse, demand proof, impose terms, consult an ally, choose a narrower action, or change course. Make the decision feel earned by the conversation.
+When a character is eligible and freely reaches a final decision, state the decision and its immediate first order clearly. Do not narrate later victories, casualties, regime changes, or other downstream outcomes in the same reply. The server records the decision as a canonical world turning point so later characters and conversations can respond to it.
+When the character lacks authority or the influence has not been earned, stay in-world: explain the character's concrete hesitation or identify the leverage, evidence, ally, or story step that could make the outcome possible. Never expose scores, gates, or system language.`;
 export function contentModeAllows(level:ContentMode,requested:ContentMode,capabilities:ContentCapabilities):boolean{const rank:Record<ContentMode,number>={standard:0,romance:1,mature:2,explicit:3};if(rank[level]>rank[requested])return false;if(level==='explicit')return capabilities.explicitSexualText;if(level==='mature')return capabilities.matureThemes;if(level==='romance')return capabilities.romance;return true;}
 export function routeDialogueProvider(provider:DialogueRoute['provider'],requested:ContentMode='standard'):DialogueRoute{const capability=providerCapabilities[provider];if(requested==='explicit'&&!capability.explicitSexualText)return{provider,resolvedMode:capability.matureThemes?'mature':capability.romance?'romance':'standard',fallbackReason:'No configured provider supports explicit text.'};if(requested==='mature'&&!capability.matureThemes)return{provider,resolvedMode:capability.romance?'romance':'standard',fallbackReason:'No configured provider supports mature themes.'};if(requested==='romance'&&!capability.romance)return{provider,resolvedMode:'standard',fallbackReason:'No configured provider supports romance.'};return{provider,resolvedMode:requested};}
 export function classifyContent(text:string):{minorRelated:boolean;coercive:boolean;sexual:boolean;requestedMode:ContentMode}{const lower=text.toLowerCase();const minorRelated=/\b(minor|underage|child|children|teen)\b/.test(lower);const coercive=/\b(force|forced|without consent|drugged)\b/.test(lower);const sexual=/\b(sex|nude|naked|explicit|sexual)\b/.test(lower);return{minorRelated,coercive,sexual,requestedMode:sexual?'mature':'standard'};}
@@ -93,6 +102,22 @@ export function compileCompanionPrompt(context:any):ContextBudgetResult{
   return budgetContextSections(sections,{ceilingTokens:contextInputTokenCeiling(profile)});
 }
 
+function highStakesStoryGuidance(context:any):string {
+  const requestText=narrativeConsequenceRequestWindow({userMessage:String(context.userMessage??''),recent:context.recent??[]});
+  const gate=evaluateNarrativeConsequenceGate({
+    requestText,
+    character:context.character??{},
+    relationship:context.relationship??{},
+    hasWorld:Boolean(context.place?.world?.id),
+    activeStory:Boolean(context.activeStory),
+  });
+  if(!gate.relevant)return'Current high-stakes story gate: no consequential request is active. Do not force a realm-changing decision into this turn.';
+  if(gate.eligible)return`Current high-stakes story gate: eligible for a ${gate.scope} ${gate.domain} decision. The character may freely accept, refuse, or counter based on identity and canon. If accepting, make the final decision explicit so it can become persistent world state.`;
+  if(!gate.authorityMatched)return`Current high-stakes story gate: this character does not personally hold the required ${gate.domain} authority. They may advise, connect the user to an authority, gather leverage, or pursue an authored route toward influence, but may not issue the decision themself.`;
+  if(!gate.relationshipReady)return'Current high-stakes story gate: the user has not yet earned enough influence for this magnitude of decision. Keep the outcome possible, but require persuasive evidence, trust-building, an alliance, or a meaningful story step instead of giving a flat system-like refusal.';
+  return'Current high-stakes story gate: the consequential decision is not ready to become canonical this turn. Keep the path forward concrete and in-world.';
+}
+
 function buildUnbudgetedCompanionPrompt(context:any):string{
   const character=context.character??{},persona=context.persona??{},life=context.currentScene??context.life??{},relationship=context.relationship??{},place=context.place;
   const stage=String(relationship.relationship_stage??'stranger');
@@ -122,9 +147,13 @@ function buildUnbudgetedCompanionPrompt(context:any):string{
   const datesForPrompt=planRelevant||context.queryIntent==='date'?(context.dates??{}):{active:context.dates?.active??null,upcoming:[],unlocked:[],recentCompleted:[]};
   const focusForPrompt=context.conversationFocus?.type==='plan'&&!planRelevant?null:context.conversationFocus?.type==='story'&&!storyRelevant?null:context.conversationFocus;
   const memoryContext=context.memoryContext??{silent:context.memories??[],callbacks:[],directRecall:[],callbackAllowance:0};
+  const highStakesGuidance=highStakesStoryGuidance(context);
   return `<CORE_RULES>
 Speak only as the adult companion defined by canonical Kivelle identity and current lived context. Kivelle owns canonical reality; you own expression.
-Never contradict or invent events, dates, plans, locations, schedules, memories, attendance, social knowledge, relationship changes, or history.
+Never contradict canonical events, dates, plans, locations, schedules, memories, attendance, social knowledge, relationship changes, or history, and never invent changes to those structured facts.
+${KIVELLE_STORY_IMPROVISATION_RULES}
+${KIVELLE_HIGH_STAKES_STORY_RULES}
+${highStakesGuidance}
 A plan mentioned in dialogue is only a proposal until the interface confirms it. Never say a proposal was saved, cancelled, rescheduled, attended, missed, or completed unless canonical context says so.
 SharedPlan owns commitment time, place, attendance, cancellation, lateness, and missed state. Date owns the interactive Date experience. Trip owns travel/lodging experience. Do not create a second scheduling reality in dialogue.
 Creating or agreeing to a plan does not itself deepen the relationship. Shared experience, attendance, choices, repair, and canonical outcomes may do so.
@@ -257,7 +286,7 @@ Emotional residue: ${context.emotionalResidue?`${context.emotionalResidue.tone} 
 Current goal: ${goals.currentGoal??'Continue the established day.'}
 Current concern: ${goals.currentConcern??'No specific concern is established.'}
 Medium-term ambition: ${goals.mediumTermAmbition??'Continue building an independent life through canonical events.'}
-Goals are motivations, not permission to invent completed events or future outcomes.
+Goals are motivations, not permission to invent completed canonical events, structured state changes, or consequential future outcomes. Ordinary story improvisation remains available under CORE_RULES.
 </CURRENT_SELF>
 <EXPERIENCE_CLOCK>${context.clock?.localDate??''} ${context.clock?.localTime??''} · ${context.clock?.daypart??''}</EXPERIENCE_CLOCK>
 <CURRENT_WORLD>${place?`${place.world.name}\n${place.world.description}\nLocal time: ${place.clock.weekday} ${place.clock.localTime}`:'Current world unavailable.'}</CURRENT_WORLD>
@@ -294,9 +323,9 @@ These are canonical developments since the last exchange. Use at most one natura
 ${item.summary}${item.characterIsParticipant?`\nThis companion is a canonical participant.`:''}`)}
 These are shared events actually unfolding in the current Kivelle world. They are optional context, not required conversation topics. Never claim the companion attended unless marked as a participant; never imply the user witnessed one; never invent outcomes.</WORLD_PULSE>
 <CURRENT_LOCATION>${place?placeDetailBlock(place,promptLocationIntent(context.queryIntent)):context.location?`${context.location.name}: ${context.location.description}\nActivities: ${(context.location.possible_activities??[]).join(', ')}`:'None.'}
-Use these details as environmental understanding. Mention only what is relevant to the current exchange; never recite this block or invent unstated venue facts.</CURRENT_LOCATION>
+Use these details as environmental understanding. Mention only what is relevant to the current exchange and never recite this block. You may add ordinary, reversible sensory or operational texture under CORE_RULES, but never contradict supplied facts or turn improvisation into a consequential real-world claim.</CURRENT_LOCATION>
 <REFERENCED_PLACES>${block(context.referencedPlaces??[],(item)=>placeDetailBlock(item,promptLocationIntent(context.queryIntent))) }
-These are canonical facts for places explicitly named by the user. Use only what is supplied; do not invent venue details.</REFERENCED_PLACES>
+These are canonical facts for places explicitly named by the user. Preserve what is supplied. Ordinary low-stakes in-world texture may be improvised under CORE_RULES; do not invent venue details about consequential access, prices, purchases, bookings, schedules, safety conditions, or real-world service claims.</REFERENCED_PLACES>
 <RELEVANT_WORLD_FACTS>${block(context.worldFacts??[],worldFactPromptLine)}
 Facts are optional context, not mandatory subjects. Use only when relevant to this reply; never recite the block or invent extensions. RUMOR is unverified, DISPUTED has competing accounts, and SECRET is restricted canonical knowledge. Never turn rumor or dispute into settled truth. Character perspective may color interpretation but cannot alter the underlying fact.</RELEVANT_WORLD_FACTS>
 <DIALOGUE_OPPORTUNITIES>${block(context.dialogueOpportunities??[],(item)=>`OPTIONAL · Topic: ${item.topic}\nInteresting tension: ${item.angle}${item.framing?`\nFraming: ${item.framing}`:''}${item.requiredFactSlug?`\nGrounding fact: ${item.requiredFactSlug}`:''}`)}
