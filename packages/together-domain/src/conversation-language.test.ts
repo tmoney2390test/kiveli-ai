@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyConversationQuery } from './conversation.ts';
+import { classifyConversationQuery, conversationReferencesKnownCharacter } from './conversation.ts';
 
 describe('multilingual conversation intent', () => {
   it.each([
@@ -29,5 +29,11 @@ describe('relationship conversation intent', () => {
 
   it('does not steal a direct place question', () => {
     expect(classifyConversationQuery('What is this place?')).toBe('location');
+  });
+
+  it('recognizes authored names without hard-coding them into the classifier', () => {
+    const social=[{name:'Princess Maris Vaelorian',slug:'princess-maris-vaelorian'}];
+    expect(conversationReferencesKnownCharacter('Tell me about Maris.',social)).toBe(true);
+    expect(conversationReferencesKnownCharacter('What happened at Aurora Spa?',social)).toBe(false);
   });
 });

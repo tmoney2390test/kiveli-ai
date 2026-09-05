@@ -101,6 +101,18 @@ export function classifyConversationQuery(message:string):ConversationQueryInten
   return'general';
 }
 
+export function conversationReferencesKnownCharacter(message:string,characters:Array<{name?:string|null;slug?:string|null}>):boolean{
+  const normalized=` ${message.toLowerCase().replace(/[’]/g,"'").replace(/[^a-z0-9']+/g,' ').trim()} `;
+  if(normalized.trim().length<3)return false;
+  const honorifics=new Set(['queen','king','princess','prince','lady','lord','duke','duchess','captain','doctor','dr','mister','miss','ms','sir','dame']);
+  return characters.some((character)=>{
+    const phrases=[character.name,character.slug].map((value)=>String(value??'').toLowerCase().replace(/[^a-z0-9']+/g,' ').trim()).filter(Boolean);
+    if(phrases.some((phrase)=>phrase.length>=4&&normalized.includes(` ${phrase} `)))return true;
+    const distinctive=phrases.flatMap((phrase)=>phrase.split(' ')).filter((part)=>part.length>=4&&!honorifics.has(part));
+    return distinctive.some((part)=>normalized.includes(` ${part} `));
+  });
+}
+
 /** High-confidence launch-language phrases keep context retrieval working even
  * though canonical world names and stored facts remain authored in English. */
 function classifyMultilingualConversationQuery(text:string):ConversationQueryIntent|null{

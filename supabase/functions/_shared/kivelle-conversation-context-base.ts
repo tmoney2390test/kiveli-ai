@@ -6,7 +6,7 @@ import { activeEmotionalResidue, retrieveActivatedMemories, type ActivatedMemory
 import { loadPlacePerspectives, type PlacePerspectiveView } from './kivelle-place-perspective.ts';
 import { resolveConversationStyle, type ConversationStyle } from '../../../packages/together-domain/src/conversation-style.ts';
 import { normalizeChatLanguage, type ChatLanguagePreference } from '../../../packages/together-domain/src/chat-language.ts';
-import { classifyConversationQuery, resolvePresentReality } from '../../../packages/together-domain/src/conversation.ts';
+import { classifyConversationQuery, conversationReferencesKnownCharacter, resolvePresentReality } from '../../../packages/together-domain/src/conversation.ts';
 import { normalizeMultimodalPreferences, resolveServerExperienceCapabilities } from './kivelle-multimodal.ts';
 import type { RelevantWorldFact } from './kivelle-world-facts.ts';
 import type { RelevantDialogueOpportunity } from './kivelle-dialogue-opportunities.ts';
@@ -214,6 +214,7 @@ export async function buildKivelleConversationContext(input: {
     knowledgeScope:String(item.knowledge_scope??item.knowledgeScope??'direct'),
     userHasMet:Boolean(item.user_has_met??item.userHasMet),
   })).filter((item)=>item.id&&item.characterTemplateId&&item.name);
+  const resolvedIntent:ContextQueryIntent=intent==='general'&&conversationReferencesKnownCharacter(userMessage,social)?'social':intent;
   const activeStory = buildActiveStory(stories.data?.[0] ?? null);
   const history = retrieveSharedHistory({ intent, moments: moments.data ?? [], dates: dateRows, plans: plansView, now }).slice(0, intent === 'history' ? 12 : 5);
   const emotionalResidue=personalizationEnabled?activeEmotionalResidue(residue.data??null,now):null;
@@ -267,7 +268,7 @@ export async function buildKivelleConversationContext(input: {
     location:currentLocation,place,referencedPlaces,placePerspectives,userAttachments,sceneParticipants,worldFacts:[],dialogueOpportunities:[],sceneInteractionBeats:[],
     recentMedia:personalizationEnabled?(media.data??[]).map((item:Row)=>({id:String(item.id),summary:String(item.metadata?.sceneSummary??'A recent shared photo.'),createdAt:String(item.created_at),locationId:item.location_id})):[],
     sharedHistory:history,conversationEpisodes, conversationSummary:input.authorizedPrivateAdultText?String((conversation.canonical_context as Row|undefined)?.summary??conversation.summary??''):String((conversation.safe_context as Row|undefined)?.summary??''), conversationSummaryUpdatedAt:conversation.summary_through??conversation.updated_at??undefined, conversationFocus:resolveConversationFocus(conversation.metadata?.focus as Row|null,plansView,now),
-    recent:(messages.data??[]).filter((item:Row)=>item.provider_metadata?.uiHidden!==true).reverse().map(attributedRecentTurn), userMessage, queryIntent:intent,
+    recent:(messages.data??[]).filter((item:Row)=>item.provider_metadata?.uiHidden!==true).reverse().map(attributedRecentTurn), userMessage, queryIntent:resolvedIntent,
     debug:{sources:['persona','continuity','life-engine','schedule','shared-plans','dates','stories','memory','open-threads','social-graph','location','history','conversation-episodes','world-pulse'],limits:{memories:memoryRows.length,threads:memoryPreferences.open_thread===false?0:(threads.data??[]).length,recentMessages:(messages.data??[]).length,history:history.length,conversationEpisodes:conversationEpisodes.length,worldPulse:worldPulse.length,temporalContinuity:temporalContinuity.events.length}},
   };
 }
