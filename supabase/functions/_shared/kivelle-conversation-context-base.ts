@@ -51,7 +51,7 @@ export type KivelleConversationContext = {
   userPatterns:Array<{id:string;patternKey:string;category:string;summary:string;confidence:number}>;
   recentEpisodes:Array<{id:string;title:string;summary:string;significance:number;locationId?:string|null;endedAt:string}>;
   openThreads: Array<{ id:string; subject:string; displaySubject:string; followupPrompt:string; expectedAt:string|null; eligible:boolean; importance:number; lastFollowedUpAt:string|null; followupCount:number }>;
-  social: Array<{ name:string; relationship:string; userHasMet:boolean }>;
+  social: Array<{ id:string; characterTemplateId:string; name:string; slug:string; relationship:string; history:string|null; affinity:number; trust:number; direction:'outgoing'|'incoming'; privateTension:string|null; knowledgeScope:string; userHasMet:boolean }>;
   knownLifeEvents: Array<{ id:string; title:string; summary:string; startsAt:string }>;
   worldPulse:WorldPulseContextEvent[];
   temporalContinuity:{elapsedHours:number|null;events:Array<{title:string;summary:string;startsAt:string}>};
@@ -90,13 +90,13 @@ export async function buildKivelleConversationContext(input: {
   const planningIntent=intent==='plan'||intent==='date'||intent==='location';
   const scheduleIntent=planningIntent||intent==='schedule';
   const historyIntent=intent==='history'||intent==='memory_overview'||intent==='story';
-  const socialIntent=intent==='social'||Boolean(conversation.metadata?.activeScene?.sceneSessionId);
+  const sceneSocialIntent=Boolean(conversation.metadata?.activeScene?.sceneSessionId);
   const emptyRows=()=>Promise.resolve({data:[] as Row[],error:null});
   const conversationEpisodesPromise:Promise<RelevantConversationEpisode[]>=input.authorizedPrivateAdultText?resolveRelevantConversationEpisodes({db,userId,continuityId:String(instance.continuity_id),conversationId:String(conversation.id),userMessage,queryEmbedding:input.semanticQueryEmbedding,minimumSequence:Number(input.visibleHistoryFromSequence??1),limit:8}):Promise.resolve([]);
   let recentMessageQuery=textPolicyQuery(db.from('together_messages').select('id,role,content,created_at,provider_metadata,speaker_character_instance_id,character_instance_id,conversation_sequence').eq('conversation_id',conversation.id),input.authorizedWebAdult,input.authorizedPrivateAdultText);
   if(input.visibleSceneSessionId)recentMessageQuery=recentMessageQuery.eq('scene_session_id',input.visibleSceneSessionId).gte('scene_sequence',Number(input.visibleSceneFromSequence??1));
   else if(conversation.kind==='group'&&Number(input.visibleHistoryFromSequence??1)>1)recentMessageQuery=recentMessageQuery.gte('conversation_sequence',Number(input.visibleHistoryFromSequence));
-  const [core, memories, threads, messages, schedules, events, plans, dates, stories, edges, instances, worlds, locations, media, moments, episodes,relationshipPlaceRows,placeProfileRows,conversationEpisodes] = await Promise.all([
+  const [core, memories, threads, messages, schedules, events, plans, dates, stories, edges, worlds, locations, media, moments, episodes,relationshipPlaceRows,placeProfileRows,conversationEpisodes] = await Promise.all([
     db.rpc('kivelle_dialogue_context_core',{p_user_id:userId,p_continuity_id:String(instance.continuity_id),p_character_instance_id:String(instance.id)}),
     textPolicyQuery(db.from('together_memories').select('*').eq('user_id', userId).eq('character_instance_id', instance.id),input.authorizedWebAdult,input.authorizedPrivateAdultText).in('status', intent === 'history' || intent === 'memory_overview' ? ['active','superseded'] : ['active']).order('pinned', { ascending:false }).order('importance', { ascending:false }).limit(intent === 'memory_overview' ? 40 : 20),
     textPolicyQuery(db.from('together_open_threads').select('*').eq('user_id', userId).eq('character_instance_id', instance.id),input.authorizedWebAdult,input.authorizedPrivateAdultText).is('resolved_at', null).order('expected_at', { ascending:true, nullsFirst:false }).limit(10),
@@ -106,8 +106,7 @@ export async function buildKivelleConversationContext(input: {
     db.from('together_shared_plans').select('*,together_locations(name,slug)').eq('user_id', userId).contains('participant_instance_ids', [instance.id]).order('starts_at', { ascending:true }).limit(40),
     db.from('together_date_sessions').select('*,together_date_templates(*)').eq('user_id', userId).eq('character_instance_id', instance.id).order('updated_at', { ascending:false }).limit(20),
     db.from('together_story_arc_instances').select('*,together_story_arc_templates(slug,title,priority,chapters)').eq('user_id', userId).eq('character_instance_id', instance.id).in('status',['active','paused']).order('updated_at', { ascending:false }).limit(3),
-    socialIntent?db.from('together_character_relationship_edges').select('*').or(`source_template_id.eq.${instance.character_template_id},target_template_id.eq.${instance.character_template_id}`):emptyRows(),
-    socialIntent?db.from('together_character_instances').select('id,character_template_id,introduced_at,together_character_templates(name)').eq('user_id', userId).eq('continuity_id',instance.continuity_id):emptyRows(),
+    sceneSocialIntent?db.from('together_character_relationship_edges').select('*').or(`source_template_id.eq.${instance.character_template_id},target_template_id.eq.${instance.character_template_id}`):emptyRows(),
     planningIntent?db.from('together_worlds').select('id,slug,name,access_type,entitlement_key').eq('published',true):emptyRows(),
     planningIntent?db.from('together_locations').select('*'):emptyRows(),
     historyIntent?policyQuery(db.from('together_generated_media').select('id,location_id,metadata,created_at,content_rating,visibility_scope').eq('user_id', userId).eq('character_instance_id', instance.id),input.authorizedWebAdult).eq('status','ready').order('created_at', { ascending:false }).limit(6):emptyRows(),
@@ -201,12 +200,20 @@ export async function buildKivelleConversationContext(input: {
   ]).slice(0, 5);
   const worldSchedules=(schedules.data??[]).filter((row:Row)=>!place||String(row.together_locations?.world_id??'')===place.world.id);
   const schedule = worldSchedules.filter((row:Row)=>new Date(row.starts_at)>now&&row.visibility!=='hidden').slice(0,4).map((row:Row)=>({startsAt:String(row.starts_at),label:naturalizeCharacterActivity(row.metadata?.activityLabel??row.title,{activityKey:row.activity_key}),location:String(row.together_locations?.name??locationById.get(String(row.location_id))?.name??'Current place'),availability:String(row.interruptibility??'open')}));
-  const instanceByTemplate = new Map((instances.data ?? []).map((item:Row) => [String(item.character_template_id), item]));
-  const social = (edges.data ?? []).map((edge:Row) => {
-    const otherId = String(edge.source_template_id) === String(instance.character_template_id) ? String(edge.target_template_id) : String(edge.source_template_id);
-    const other = instanceByTemplate.get(otherId);
-    return { name:String(other?.together_character_templates?.name ?? 'Someone in the city'), relationship:String(edge.relationship_type ?? 'acquaintance'), userHasMet:Boolean(other?.introduced_at) };
-  }).slice(0, 8);
+  const social = (Array.isArray(coreData.socialKnowledge)?coreData.socialKnowledge:[]).map((item:Row) => ({
+    id:String(item.id??''),
+    characterTemplateId:String(item.character_template_id??item.characterTemplateId??''),
+    name:String(item.name??'Known character'),
+    slug:String(item.slug??''),
+    relationship:String(item.relationship??item.relationship_type??'connection'),
+    history:item.history?String(item.history):null,
+    affinity:Number(item.affinity??50),
+    trust:Number(item.trust??50),
+    direction:item.direction==='incoming'?'incoming' as const:'outgoing' as const,
+    privateTension:item.private_tension?String(item.private_tension):item.privateTension?String(item.privateTension):null,
+    knowledgeScope:String(item.knowledge_scope??item.knowledgeScope??'direct'),
+    userHasMet:Boolean(item.user_has_met??item.userHasMet),
+  })).filter((item)=>item.id&&item.characterTemplateId&&item.name);
   const activeStory = buildActiveStory(stories.data?.[0] ?? null);
   const history = retrieveSharedHistory({ intent, moments: moments.data ?? [], dates: dateRows, plans: plansView, now }).slice(0, intent === 'history' ? 12 : 5);
   const emotionalResidue=personalizationEnabled?activeEmotionalResidue(residue.data??null,now):null;

@@ -94,6 +94,7 @@ export function classifyConversationQuery(message:string):ConversationQueryInten
   if(/\b(plan|cancel|reschedule|move it|make plans)\b/.test(text))return'plan';
   if(/\b(date|dinner|riverwalk|rooftop movie)\b/.test(text))return'date';
   if(/\b(story|chapter|what happened next)\b/.test(text))return'story';
+  if(/\b(?:do|did) you know\b|\bhave you met\b|\bhow do you know\b|\bwho(?:'s| is)\b|\bwhat do you think (?:of|about)\b|\bhow are you related to\b|\b(?:your|her|his|their) relationship (?:with|to)\b|\bwhat is [^.!?]{1,80} to you\b|\btell me about (?:queen|king|princess|prince|lady|lord|duke|duchess|captain|doctor|dr\.?|mr\.?|ms\.?|miss|sir|dame)\s+/i.test(text))return'social';
   if(/\b(chloe|alex|friend|friends|people)\b/.test(text))return'social';
   if(/\b(where|location|juniper|rooftop|riverwalk|northside|studio)\b/.test(text))return'location';
   if(/\b(last time|before|our first|history|moment)\b/.test(text))return'history';

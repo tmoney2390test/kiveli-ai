@@ -15,3 +15,19 @@ describe('multilingual conversation intent', () => {
     expect(classifyConversationQuery(message)).toBe(intent);
   });
 });
+
+describe('relationship conversation intent', () => {
+  it.each([
+    'Do you know Princess Maris?',
+    'How do you know Princess Maris?',
+    'What do you think of Princess Maris?',
+    'What is Princess Maris to you?',
+    'Tell me about Queen Maerra.',
+  ])('recognizes a relationship question: %s', (message) => {
+    expect(classifyConversationQuery(message)).toBe('social');
+  });
+
+  it('does not steal a direct place question', () => {
+    expect(classifyConversationQuery('What is this place?')).toBe('location');
+  });
+});

@@ -314,7 +314,8 @@ Respond in your established personality and relationship context, like someone r
 <USER_BEHAVIOR_PATTERNS>Use only for subtle choices and recommendations. Never describe these as tracking or statistics.\n${block(context.userPatterns??[],(item)=>`${item.category}: ${item.summary}`)}</USER_BEHAVIOR_PATTERNS>
 <RECENT_EPISODES>Canonical shared experiences. Do not recap one unless relevant.\n${block(context.recentEpisodes??[],(item)=>`${item.endedAt}: ${item.title} — ${item.summary}`)}</RECENT_EPISODES>
 <OPEN_THREADS>Background follow-up possibilities. Initiate only the exact thread authorized by RESPONSE_BRIEF.handoff.\n${block(context.openThreads,(item)=>`${item.eligible?'Eligible follow-up':'Pending'}: ${item.displaySubject} · ${item.expectedAt??'unscheduled'}`)}</OPEN_THREADS>
-<SOCIAL_KNOWLEDGE>${block(context.social,(item)=>`${item.name}: ${item.relationship}; user has ${item.userHasMet?'met':'not met'} them`)}</SOCIAL_KNOWLEDGE>
+<SOCIAL_KNOWLEDGE>${block(context.social,socialKnowledgePromptLine)}
+These are this companion's canonical relationships, not the user's contacts. Use them as known facts even when the user has not met the other person. When asked about a named connection, answer from the established relationship and history instead of denying knowledge. The user's introduction status controls whether you may assume the user knows that person; it never means you do not know them. Do not expose numeric relationship scores, source labels, records, or internal notes. A private perspective may shape a natural answer, but do not recite it or volunteer a secret without a story-supported reason.</SOCIAL_KNOWLEDGE>
 <KNOWN_LIFE_EVENTS>${block(context.knownLifeEvents,(item)=>`${item.startsAt}: ${item.summary}`)}</KNOWN_LIFE_EVENTS>
 <SINCE_LAST_CONVERSATION>${context.temporalContinuity?.events?.length?`Time elapsed: ${context.temporalContinuity.elapsedHours==null?'unknown':`${Math.round(context.temporalContinuity.elapsedHours)} hours`}
 ${block(context.temporalContinuity.events,(item)=>`${item.startsAt}: ${item.title} — ${item.summary}`)}
@@ -405,7 +406,7 @@ export function preparePromptContext(context:any,mode:'full'|'compact'|'minimal'
     userPatterns:ranked(context.userPatterns,'pattern',limits.patterns,(item)=>`${item.category??''} ${item.summary??''}`,undefined,item=>Number(item.confidence??.5)),
     recentEpisodes:ranked(context.recentEpisodes,'episode',limits.episodes,(item)=>`${item.title??''} ${item.summary??''}`,item=>item.endedAt,item=>Number(item.significance??.5)),
     openThreads:ranked(context.openThreads,'thread',limits.threads,(item)=>`${item.displaySubject??''} ${item.followupPrompt??''}`,item=>item.expectedAt,item=>item.eligible?.9:.5,item=>Boolean(item.eligible)),
-    social:ranked(context.social,'social',limits.social,(item)=>`${item.name??''} ${item.relationship??''}`,undefined,item=>item.userHasMet?.75:.35),
+    social:ranked(context.social,'social',limits.social,(item)=>`${item.name??''} ${item.slug??''} ${item.relationship??''} ${item.history??''} ${item.privateTension??''}`,undefined,item=>Math.max(item.userHasMet?.75:.35,(Number(item.affinity??50)+Number(item.trust??50))/200)),
     knownLifeEvents:ranked(context.knownLifeEvents,'life_event',limits.events,(item)=>`${item.title??''} ${item.summary??''}`,item=>item.startsAt,item=>Number(item.significance??.5)),
     worldPulse:ranked(context.worldPulse,'life_event',limits.pulse,(item)=>`${item.title??''} ${item.summary??''} ${item.locationName??''}`,item=>item.startsAt,item=>Number(item.relevance??item.significance??.5),item=>item.status==='active'),
     temporalContinuity:{...(context.temporalContinuity??{elapsedHours:null,events:[]}),events:(context.temporalContinuity?.events??[]).slice(0,limits.temporal)},
@@ -440,6 +441,7 @@ function requiredPromptSection(key:string,context:any):boolean{
   if(key==='DIRECT_RECALL_MEMORIES')return context.queryIntent==='memory_overview'||context.queryIntent==='history';
   if(key==='DATES')return context.queryIntent==='date'||Boolean(context.dates?.active);
   if(key==='CURRENT_STORY')return context.queryIntent==='story';
+  if(key==='SOCIAL_KNOWLEDGE')return context.queryIntent==='social'&&Boolean((context.social??[]).length);
   return false;
 }
 
@@ -483,6 +485,16 @@ function sectionRecordIds(key:string,context:any):string[]{
 }
 
 function recordId(item:any):string{return String(item?.id??item?.characterInstanceId??item?.locationId??item?.location?.id??item?.locationName??item?.name??'');}
+
+export function socialKnowledgePromptLine(item:any):string{
+  const name=String(item?.name??'Known character');
+  const relationship=String(item?.relationship??'connection');
+  const direction=item?.direction==='incoming'?`${name}'s relationship to you is ${relationship}`:`Your relationship to ${name} is ${relationship}`;
+  const history=item?.history?` Established history: ${String(item.history)}`:'';
+  const perspective=item?.privateTension?` Private perspective: ${String(item.privateTension)}`:'';
+  const introduction=item?.userHasMet?` The user has met ${name}.`:` The user has not been introduced to ${name}; do not confuse that with your own familiarity.`;
+  return`${direction}.${history}${perspective}${introduction}`;
+}
 
 function worldFactPromptLine(item:any):string{const truth=String(item.truthMode??'canonical'),label=truth==='rumor'?'RUMOR — UNVERIFIED':truth==='disputed'?'DISPUTED — COMPETING ACCOUNTS':truth==='secret'?'SECRET — RESTRICTED CANONICAL KNOWLEDGE':String(item.knowledgeScope??'public').toUpperCase();return`${label} · ${item.category??'world'} · ${item.title??'World fact'} · ${String(item.factText??'').slice(0,180)}`;}
 
