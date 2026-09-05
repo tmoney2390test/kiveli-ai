@@ -43,7 +43,7 @@ type NarrativeCharacter = Record<string, unknown>;
 type NarrativeRelationship = Record<string, unknown>;
 
 const domainPatterns: Array<[NarrativeConsequenceDomain, RegExp]> = [
-  ["military", /\b(?:war|invad(?:e|es|ed|ing)|march|mobiliz(?:e|es|ed|ing)|army|armies|troops?|legions?|battalions?|fleet|siege|attack|retreat|reinforcements?|declare war|send soldiers?|raise the banners?)\b/i],
+  ["military", /\b(?:war|combat|battle|invad(?:e|es|ed|ing)|march|mobiliz(?:e|es|ed|ing)|army|armies|troops?|legions?|battalions?|fleet|siege|attack|retreat|reinforcements?|declare war|send soldiers?|raise the banners?|kill(?:s|ed|ing)?|slay(?:s|ed|ing)?|slaughter|execute|murder)\b/i],
   ["political", /\b(?:abdicate|coup|throne|crown|succession|alliance|treaty|diplomatic|recognize a ruler|appoint|dismiss the council|dissolve parliament|declare independence|peace summit)\b/i],
   ["legal", /\b(?:decree|law|outlaw|legaliz(?:e|es|ed|ing)|abolish|pardon|amnesty|ban|free the prisoners?|free the slaves?|sentence|commute|royal order)\b/i],
   ["economic", /\b(?:embargo|sanction|treasury|tax|tariff|seize assets?|nationaliz(?:e|es|ed|ing)|trade blockade|cancel the debt|forgive the debt)\b/i],

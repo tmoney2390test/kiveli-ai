@@ -90,14 +90,14 @@ export function isConsensualNonConsentFantasy(message:string):boolean{
 const hardBlockModerationCategories = new Set([
   'sexual/minors',
   'self-harm/instructions',
-  'illicit/violent',
 ]);
 
 export function moderationHardBlock(result?: NormalizedModerationResult): boolean {
   if (!result?.flagged) return false;
   // Moderation flags are broad signals, not all-purpose dialogue bans. Let the
-  // companion respond safely to ordinary romance, conflict, and other benign
-  // language while reserving scripted refusal for unequivocal hard boundaries.
+  // companion respond to ordinary romance, conflict, war, combat, murder, and
+  // other fictional violence. Reserve scripted refusal for minors and
+  // real-world self-harm instructions.
   return result.categories.some((category) => hardBlockModerationCategories.has(category));
 }
 

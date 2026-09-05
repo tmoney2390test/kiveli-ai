@@ -126,7 +126,13 @@ describe('Kivelle AI routing',()=>{
       expect(routeKivelleDialogue({classification,requestedMode:'romance',ageVerified:true,characterAge:29,providers})).toMatchObject({provider:'openai',reason:'romance_default',hardBlocked:false});
     }
   });
-  it.each(['self-harm/instructions','illicit/violent'])('retains hard safety routing for %s',(category)=>{
-    expect(classifyDialogueContent({message:'keep going',moderation:{allowed:false,flagged:true,categories:[category],categoryScores:{[category]:.99}}})).toBe('hard_block');
+  it('retains hard safety routing for self-harm instructions',()=>{
+    expect(classifyDialogueContent({message:'keep going',moderation:{allowed:false,flagged:true,categories:['self-harm/instructions'],categoryScores:{'self-harm/instructions':.99}}})).toBe('hard_block');
+  });
+  it('does not hard-block fictional war, combat, murder, or explicit kills',()=>{
+    expect(route('March the army into combat and kill their captain.').hardBlocked).toBe(false);
+    expect(route('I murder the usurper in the throne hall.').hardBlocked).toBe(false);
+    expect(isDialogueHardBlocked({message:'Cut him down. I want an explicit kill.'})).toBe(false);
+    expect(classifyDialogueContent({message:'Execute the prisoners after the battle.',moderation:{allowed:false,flagged:true,categories:['illicit/violent','violence'],categoryScores:{'illicit/violent':.99,violence:.88}}})).not.toBe('hard_block');
   });
 });

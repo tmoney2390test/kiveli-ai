@@ -34,6 +34,12 @@ describe("high-stakes narrative consequences", () => {
     });
   });
 
+  it("treats combat, murder, and explicit kills as military story requests", () => {
+    expect(classifyHighStakesStoryRequest("Kill their captain in combat.")).toMatchObject({ relevant: true, domain: "military" });
+    expect(classifyHighStakesStoryRequest("I murder the usurper.")).toMatchObject({ relevant: true, domain: "military" });
+    expect(classifyHighStakesStoryRequest("Execute the prisoners after the battle.")).toMatchObject({ relevant: true, domain: "military" });
+  });
+
   it("requires both actual authority and earned influence", () => {
     expect(evaluateNarrativeConsequenceGate({ requestText: "March the army to war.", character: queen, relationship: ready, hasWorld: true }).eligible).toBe(true);
     expect(evaluateNarrativeConsequenceGate({ requestText: "March the army to war.", character: companion, relationship: ready, hasWorld: true }).eligible).toBe(false);

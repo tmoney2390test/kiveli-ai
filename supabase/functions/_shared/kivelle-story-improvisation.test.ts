@@ -32,6 +32,7 @@ Deno.test('story improvisation cannot forge user actions or structured and real-
 
 Deno.test('high-stakes fictional decisions remain possible but earned and persistent',()=>{
   assert(KIVELLE_HIGH_STAKES_STORY_RULES.includes('A ruler may march an army'));
+  assert(KIVELLE_HIGH_STAKES_STORY_RULES.includes('Immediate combat, killings, executions, and battlefield results'));
   assert(KIVELLE_HIGH_STAKES_STORY_RULES.includes("does not control another character's will"));
   assert(KIVELLE_HIGH_STAKES_STORY_RULES.includes('canonical world turning point'));
   const prompt=buildCompanionPrompt({...baseContext,userMessage:'March the army to war.',character:{...baseContext.character,occupation:'Queen of the Cinder Crown',biography:'She commands the royal host.'},relationship:{relationship_stage:'friend',trust:65,respect:70},place:{path:'Vharadren → Cinder Court',world:{id:'world-vharadren',name:'Vharadren',description:'A realm of rival crowns.'},clock:{weekday:'Oathday',localTime:'20:00'},location:{id:'cinder-court',name:'Cinder Court',description:'The seat of the Cinder Crown.',possibleActivities:[]}}});
