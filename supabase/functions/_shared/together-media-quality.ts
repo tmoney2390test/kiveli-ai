@@ -9,7 +9,7 @@ import{enforceMediaQualityRequirements,parseMediaQualityVerdict,type MediaQualit
 import{photoRequestAllowsHiddenFace,resolveAdultNudityScope,resolvePhotoDirection,resolveSpecificAnatomyExposure,visibleAdultAnatomyTargetLabels}from'../../../packages/together-domain/src/media.ts';
 import{completeMediaUsageAttempt,recordMediaUsageAttempt}from'./together-media-usage.ts';
 import{currentAdultMediaJobAuthorized}from'./web-adult-access.ts';
-import{requiresCustomCharacterAgePresentationCheck}from'./together-media-character.ts';
+import{blockingQualityReasonsForAgePolicy,customCharacterAgeCheckFromMetadata,requiresCustomCharacterAgePresentationCheck}from'./together-media-character.ts';
 
 export type MediaQualityGateResult={action:'accept';result:ProviderCompletedMedia}|{action:'deferred'}|{action:'reject';reasonCodes:string[]};
 type MediaQualityAssessment={verdict:MediaQualityVerdict;providerRequestId?:string|undefined;providerModel?:string|undefined;providerStatus?:string|undefined;providerError?:string|undefined;errorCode?:string|undefined;inferenceMs?:number|undefined;timedOut:boolean};
@@ -39,7 +39,7 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     const captureLighting=canonical?mediaCaptureLightingForRequest(canonical):null;
     try{assessment=await assessImage(client,prepared.url,faceRequired,nudityScope,specificAnatomyExposure,requestText,requestedDirection?.source==='requested'?requestedDirection:null,subjects??[],canonical?.context.worldContainment,canonical?.referenceImages??[],captureLighting?.qualityInstruction,adultAuthorized,anonymousAdultPartner);}finally{if(prepared.temporary)await db.storage.from('together-user-media').remove([prepared.temporary]);}
   }
-  const customAgeCheck=requiresCustomCharacterAgePresentationCheck(subjects??[]);
+  const customAgeCheck=customCharacterAgeCheckFromMetadata(metadata)??requiresCustomCharacterAgePresentationCheck(subjects??[]);
   const verdict=enforceMediaQualityRequirements(assessment.verdict,{requiresVisibleSpecificAnatomy:specificAnatomyExposure==='uncovered'&&(nudityScope==='specific_anatomy'||nudityScope==='full_nude'||nudityScope==='bottomless'||visibleAdultAnatomyTargetLabels(requestText).some((label)=>/genital|vulva|penis/i.test(label))),requiresWorldVerification:Boolean(canonical?.context.worldContainment)&&envEnabled('KIVELLE_MEDIA_WORLD_QA_REQUIRED',true),requiresAdultSafetyVerification:adultAuthorized}),qualityMetadata=assessmentMetadata({...assessment,verdict}),providerMetadata={...((job.provider_metadata??{}) as Record<string,unknown>),...qualityMetadata};
   await db.from('together_media_provider_jobs').update({provider_metadata:providerMetadata,updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
   await track(db,String(media.user_id),'media_quality_checked',compactRecord({mediaId:media.id,verdict:verdict.status,retryCount:Number(providerMetadata.qualityRetryCount??0),qaProviderRequestId:assessment.providerRequestId,qaProviderModel:assessment.providerModel,qaProviderStatus:assessment.providerStatus,qaErrorCode:assessment.errorCode,qaTimedOut:assessment.timedOut,qaInferenceMs:assessment.inferenceMs}));
@@ -50,7 +50,7 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   // Custom companions keep the visual age gate. Official catalog adults only
   // fail closed on actual adult-safety violations, not a youthful 18+ look.
   const terminalReasons=['adult_safety_violation','adult_safety_unverified',...(customAgeCheck?['ambiguous_age']:[])];
-  const blockingReasons=customAgeCheck?verdict.reasonCodes:verdict.reasonCodes.filter((reason)=>reason!=='ambiguous_age');
+  const blockingReasons=blockingQualityReasonsForAgePolicy(verdict.reasonCodes,customAgeCheck);
   if(blockingReasons.some((reason)=>terminalReasons.includes(reason)))return{action:'reject',reasonCodes:blockingReasons};
   if(!customAgeCheck&&verdict.reasonCodes.includes('ambiguous_age')&&blockingReasons.length===0){
     await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));

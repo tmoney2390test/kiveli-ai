@@ -169,7 +169,7 @@ Deno.test("video quality prompt explicitly rejects doll anatomy and temporal bod
   assertStringIncludes(partnered, "must not resemble the user");
   const official = buildVideoQualityPrompt(true, false, false);
   assertStringIncludes(official, "Fail ambiguous_age only for a clearly underage or child presentation");
-  assertStringIncludes(official, "Do not fail ambiguous_age because an official catalog adult looks youthful");
+  assertStringIncludes(official, "Do not fail ambiguous_age or adult_safety_violation because an official catalog adult looks youthful");
   if (official.includes("underage or age-ambiguous presentation")) {
     throw new Error("official catalog video QA must not treat youthful adults as age-ambiguous");
   }
@@ -297,6 +297,28 @@ Deno.test("video delivery fails closed when quality cannot be verified", () => {
     {
       action: "reject",
       reasonCodes: ["doll_like_anatomy"],
+      verificationUnavailable: false,
+    },
+  );
+  assertEquals(
+    resolveVideoQualityDecision({
+      status: "fail",
+      reasonCodes: ["ambiguous_age", "adult_safety_violation"],
+    }, true, false),
+    {
+      action: "accept",
+      reasonCodes: ["ambiguous_age", "adult_safety_violation"],
+      verificationUnavailable: false,
+    },
+  );
+  assertEquals(
+    resolveVideoQualityDecision({
+      status: "fail",
+      reasonCodes: ["adult_safety_violation"],
+    }, true, false),
+    {
+      action: "reject",
+      reasonCodes: ["adult_safety_violation"],
       verificationUnavailable: false,
     },
   );

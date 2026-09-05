@@ -25,6 +25,19 @@ export function customCharacterAgeCheckFromMetadata(metadata:unknown):boolean|nu
   return null;
 }
 
+/** Official catalog ignores youthful-adult age flags; custom companions keep them. */
+export function blockingQualityReasonsForAgePolicy(reasonCodes:string[],customCharacterAgeCheck:boolean):string[]{
+  if(customCharacterAgeCheck)return[...reasonCodes];
+  const ageFlagged=reasonCodes.includes('ambiguous_age');
+  return reasonCodes.filter((reason)=>{
+    if(reason==='ambiguous_age')return false;
+    // Legacy QA emits adult_safety_violation together with ambiguous_age for a
+    // youthful official adult. A standalone adult_safety_violation still blocks.
+    if(ageFlagged&&reason==='adult_safety_violation')return false;
+    return true;
+  });
+}
+
 /** Authored companions are fictional by default; any canonical false flag wins. */
 export function isFictionalCompanion(template:unknown,version:unknown):boolean{
   const templateRow=record(template),versionRow=record(version);

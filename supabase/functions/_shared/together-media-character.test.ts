@@ -1,5 +1,6 @@
 import { assertEquals } from 'jsr:@std/assert@1';
 import {
+  blockingQualityReasonsForAgePolicy,
   customCharacterAgeCheckFromMetadata,
   isAdultMediaReferenceEligible,
   isCustomCharacterTemplate,
@@ -54,4 +55,12 @@ Deno.test('media metadata can pin the custom-character age gate', () => {
   assertEquals(customCharacterAgeCheckFromMetadata({ customCharacter: true }), true);
   assertEquals(customCharacterAgeCheckFromMetadata({ customCharacter: false }), false);
   assertEquals(customCharacterAgeCheckFromMetadata({}), null);
+});
+
+Deno.test('official catalog ignores bundled youthful-adult safety flags', () => {
+  assertEquals(blockingQualityReasonsForAgePolicy(['ambiguous_age'], false), []);
+  assertEquals(blockingQualityReasonsForAgePolicy(['ambiguous_age', 'adult_safety_violation'], false), []);
+  assertEquals(blockingQualityReasonsForAgePolicy(['adult_safety_violation'], false), ['adult_safety_violation']);
+  assertEquals(blockingQualityReasonsForAgePolicy(['ambiguous_age', 'doll_like_anatomy'], false), ['doll_like_anatomy']);
+  assertEquals(blockingQualityReasonsForAgePolicy(['ambiguous_age', 'adult_safety_violation'], true), ['ambiguous_age', 'adult_safety_violation']);
 });

@@ -3,6 +3,7 @@ import { track } from "./together.ts";
 import { currentAdultMediaJobAuthorized } from "./web-adult-access.ts";
 import { adultVideoFeatureEnabled } from "./together-video-content.ts";
 import {
+  blockingQualityReasonsForAgePolicy,
   customCharacterAgeCheckFromMetadata,
   isCustomCharacterTemplate,
 } from "./together-media-character.ts";
@@ -66,7 +67,7 @@ export function buildVideoQualityPrompt(
     : "This is a standard or romantic Kivelle video. Fail unexpected_nudity_or_sexual_content for exposed breasts, nipples, buttocks, genitals, sexual activity, fetish presentation, or sexual posing, including content that was not present in the opening image.";
   const ageRule = customCharacterAgeCheck
     ? "Every person must be an unambiguously fictional adult. Fail ambiguous_age or adult_safety_violation for an underage or age-ambiguous presentation, non-consent, coercion, sexual violence, incest, bestiality, trafficking, exploitation, a real person or deepfake, or illegal content."
-    : "Official catalog companions are confirmed fictional adults. Fail ambiguous_age only for a clearly underage or child presentation. Do not fail ambiguous_age because an official catalog adult looks youthful, petite, or young-adult. Fail adult_safety_violation for non-consent, coercion, sexual violence, incest, bestiality, trafficking, exploitation, a real person or deepfake, or illegal content.";
+    : "Official catalog companions are confirmed fictional adults. Fail ambiguous_age only for a clearly underage or child presentation. Do not fail ambiguous_age or adult_safety_violation because an official catalog adult looks youthful, petite, or young-adult. Fail adult_safety_violation for non-consent, coercion, sexual violence, incest, bestiality, trafficking, exploitation, a real person or deepfake, or illegal content.";
   return [
     "Act as a practical pre-delivery quality inspector for this short generated character video. Inspect the complete timeline, not only the opening frame.",
     contentRule,
@@ -148,9 +149,10 @@ export function resolveVideoQualityDecision(
     };
   }
   if (verdict.status === "fail") {
-    const reasonCodes = customCharacterAgeCheck
-      ? verdict.reasonCodes
-      : verdict.reasonCodes.filter((reason) => reason !== "ambiguous_age");
+    const reasonCodes = blockingQualityReasonsForAgePolicy(
+      verdict.reasonCodes,
+      customCharacterAgeCheck,
+    );
     if (!reasonCodes.length) {
       return {
         action: "accept",
