@@ -77,6 +77,16 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
   }
 
+  // A harmless setting or time drift is better surfaced as a delivered photo
+  // than converted into a provider bill plus a failed user request. Identity,
+  // anatomy, extra-person, photorealism, and safety defects are not warnings
+  // and continue into the single bounded retry/rejection path below.
+  if(shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:blockingReasons},adultAuthorized})){
+    await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
+    await track(db,String(media.user_id),'media_quality_first_candidate_delivered_with_warnings',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
+    return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
+  }
+
   const retryCount=Number(providerMetadata.qualityRetryCount??0);
   if(retryCount>=1){
     // After the provider has already produced a second candidate, do not turn
@@ -225,6 +235,10 @@ export function generatedImagePhotorealismRule():string{return'PHOTOREALISM IS R
 export function canDeliverQualityRetryWithWarnings(verdict:MediaQualityVerdict,input:{requiresExactRequestedComposition?:boolean;allowOfficialAgePresentationWarning?:boolean}={}):boolean{
   if(input.requiresExactRequestedComposition&&verdict.reasonCodes.some((reason)=>reason==='pose_mismatch'||reason==='face_direction_mismatch'))return false;
   return verdict.status==='fail'&&verdict.reasonCodes.length>0&&verdict.reasonCodes.every((reason)=>DELIVERABLE_QUALITY_WARNINGS.has(reason)||(input.allowOfficialAgePresentationWarning===true&&reason==='ambiguous_age'));
+}
+
+export function shouldDeliverFirstImageQualityCandidateWithWarnings(input:{verdict:MediaQualityVerdict;adultAuthorized:boolean}):boolean{
+  return input.adultAuthorized===false&&canDeliverQualityRetryWithWarnings(input.verdict);
 }
 
 async function assessWithVisionFallback(client:VeniceImageClient,input:{imageUrl:string;referenceImageUrls?:string[];prompt:string}):Promise<MediaQualityAssessment>{

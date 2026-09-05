@@ -1,5 +1,5 @@
 import { assertStringIncludes } from 'jsr:@std/assert@1';
-import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, shouldAttemptPaidImageQualityRetry, shouldRevalidateCompletedQualityRetry, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
+import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, shouldAttemptPaidImageQualityRetry, shouldDeliverFirstImageQualityCandidateWithWarnings, shouldRevalidateCompletedQualityRetry, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
 
 Deno.test('solo adult quality checks do not confuse explicit posing with non-consent',()=>{
   const rule=authorizedAdultImageSafetyRule([{companion:{name:'Elena Petrova',age:27,custom:false}}]);
@@ -52,6 +52,12 @@ Deno.test('a second safe candidate may be delivered with composition warnings',(
   if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['ambiguous_age']}))throw new Error('custom-character age failures must remain terminal');
   if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['ambiguous_age']},{allowOfficialAgePresentationWarning:true}))throw new Error('official catalog youthful-adult presentation must not stay terminal');
   if(canDeliverQualityRetryWithWarnings({status:'pass',reasonCodes:[]}))throw new Error('passing results do not need warning fallback');
+});
+
+Deno.test('a first SFW candidate may keep harmless scene drift without hiding hard defects',()=>{
+  if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['world_mismatch','time_mismatch']},adultAuthorized:false}))throw new Error('SFW setting drift should not fail an otherwise usable paid photo');
+  if(shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['identity_mismatch','time_mismatch']},adultAuthorized:false}))throw new Error('identity mismatch must still receive correction or rejection');
+  if(shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['world_mismatch']},adultAuthorized:true}))throw new Error('adult output must retain its stricter first-candidate review');
 });
 
 Deno.test('synchronous quality retries are reviewed as new candidates',()=>{

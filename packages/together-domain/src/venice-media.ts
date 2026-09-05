@@ -1,14 +1,17 @@
 import type { MediaContentLevel } from './media-routing.ts';
 
 export const VENICE_IMAGE_API_BASE = 'https://api.venice.ai/api/v1';
-// Qwen Image 3 Pro is Venice's current cost-efficient reference edit model.
-// It is priced below Qwen Image 2 Pro while retaining the photographic Pro
-// route and the same one-reference multi-edit contract used by Kivelle.
-export const VENICE_STANDARD_EDIT_MODEL = 'qwen-image-3-pro-edit';
-export const VENICE_QUALITY_EDIT_MODEL = 'qwen-image-2-pro-edit';
-// Keep the established Qwen Image 2 edit route as the single technical
-// fallback. It costs the same base $0.05 without promoting every SFW fallback
-// to the former $0.10 Qwen Image 2 Pro route.
+// Qwen Image 2 is the validated $0.05 reference-edit route. Qwen Image 3 Pro
+// is similarly priced, but live SFW requests have returned provider-blurred
+// output before Kivelle can inspect it. Reliability wins over the small catalog
+// price difference here.
+export const VENICE_STANDARD_EDIT_MODEL = 'qwen-image-2-edit';
+// A quality retry uses the same economical model rather than silently turning
+// a $0.05 request into a $0.15 Qwen Pro request.
+export const VENICE_QUALITY_EDIT_MODEL = 'qwen-image-2-edit';
+// Keeping the fallback equal to the primary makes the provider adapter dedupe
+// it. A failed provider attempt therefore cannot buy a second model behind the
+// user's back; the separate, reviewed quality retry remains capped at one.
 export const VENICE_STANDARD_FALLBACK_EDIT_MODEL = 'qwen-image-2-edit';
 // Keep the identity-establishing stage on grok-imagine-edit with safe_mode
 // disabled. Simple clothing edits stay non-explicit here; pose-rebuild nudes
@@ -122,7 +125,6 @@ export function parseVeniceSafetyHeaders(headers: { get(name: string): string | 
 /** Auditable estimates; provider billing data should replace these when available. */
 export function veniceModelCostUsd(model: string): number {
   const normalized = model.toLowerCase();
-  if (normalized === VENICE_QUALITY_EDIT_MODEL) return 0.10;
   if (normalized === 'qwen-edit') return 0.04;
   if (normalized === 'qwen-image-3-edit') return 0.04345;
   if (normalized === 'qwen-image-3-pro-edit') return 0.05345;
