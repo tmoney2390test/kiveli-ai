@@ -303,13 +303,13 @@ describe("message inbox presentation", () => {
     expect(inboxPreview({
       ...conversation("pending", "maya", "2026-08-18T12:00:00.000Z", "Hello"),
       reply_pending: true,
-    })).toBe("Generating a response…");
+    })).toBe("Typing…");
     expect(inboxPreview({
       ...conversation("group-pending", "maya", "2026-08-18T12:00:00.000Z", "Hello"),
       kind: "group",
       reply_pending: true,
       reply_pending_speaker_name: "Maya Chen",
-    })).toBe("Maya is replying…");
+    })).toBe("Maya is typing…");
     expect(inboxPreview({
       ...conversation("group-reply", "maya", "2026-08-18T12:00:00.000Z", "I agree"),
       kind: "group",
@@ -418,6 +418,27 @@ describe("message inbox presentation", () => {
       character: "elena",
       conversationId: "conversation-1",
     })).toBe("/chat?character=elena&conversationId=conversation-1");
+  });
+
+  it("accepts authoritative inbox completion state at the same message time", () => {
+    const canonical = {
+      ...conversation("maya-chat", "maya", "2026-08-18T12:00:00.000Z", "Hello"),
+      reply_pending: true,
+      reply_pending_speaker_name: "Maya Chen",
+    };
+    const hydrated = {
+      ...canonical,
+      last_message_preview: "I’m here.",
+      last_message_role: "assistant" as const,
+      reply_pending: false,
+      reply_pending_speaker_name: null,
+    };
+    expect(mergeInboxConversations([canonical], [hydrated])[0]).toMatchObject({
+      last_message_preview: "I’m here.",
+      last_message_role: "assistant",
+      reply_pending: false,
+      reply_pending_speaker_name: null,
+    });
   });
 
   it('opens the latest direct or group chat from discovery tabs',()=>{

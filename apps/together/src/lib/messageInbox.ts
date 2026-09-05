@@ -264,10 +264,8 @@ export function inboxPreview(
   }
   if (conversation.reply_pending) {
     return conversation.reply_pending_speaker_name
-      ? `${firstName(conversation.reply_pending_speaker_name)} is replying…`
-      : conversation.kind === "group"
-      ? "The group is replying…"
-      : "Generating a response…";
+      ? `${firstName(conversation.reply_pending_speaker_name)} is typing…`
+      : "Typing…";
   }
   const preview = conversation.last_message_preview?.replace(/\s+/g, " ")
     .trim();
@@ -306,9 +304,8 @@ export function mergeInboxConversations(
     hydrated.map((conversation) => [conversation.id, conversation]),
   );
   return canonical.map((conversation) => {
-    if (conversation.last_message_preview?.trim()) return conversation;
     const cached = hydratedById.get(conversation.id);
-    if (!cached?.last_message_preview?.trim()) return conversation;
+    if (!cached) return conversation;
     const canonicalTime = timestamp(conversation.last_message_at);
     const cachedTime = timestamp(cached.last_message_at);
     if (canonicalTime > cachedTime) return conversation;
@@ -319,13 +316,16 @@ export function mergeInboxConversations(
       last_message_role: cached.last_message_role,
       last_message_delivery_status: cached.last_message_delivery_status,
       last_message_attachment_kind: cached.last_message_attachment_kind,
-      reply_pending: conversation.reply_pending ?? cached.reply_pending,
-      reply_pending_speaker_name: conversation.reply_pending_speaker_name ?? cached.reply_pending_speaker_name,
-      last_speaker_character_instance_id: conversation.last_speaker_character_instance_id ?? cached.last_speaker_character_instance_id,
-      last_speaker_name: conversation.last_speaker_name ?? cached.last_speaker_name,
+      // The inbox response derives these fields from current dialogue-turn and
+      // safe-projection state. On equal timestamps it is authoritative: keeping
+      // a previous `true` here strands the rail on Typing… until a full reload.
+      reply_pending: cached.reply_pending ?? false,
+      reply_pending_speaker_name: cached.reply_pending_speaker_name ?? null,
+      last_speaker_character_instance_id: cached.last_speaker_character_instance_id ?? null,
+      last_speaker_name: cached.last_speaker_name ?? null,
       message_count: cached.message_count ?? conversation.message_count,
-      unread: conversation.unread ?? cached.unread,
-      unread_count: conversation.unread_count ?? cached.unread_count,
+      unread: cached.unread ?? conversation.unread,
+      unread_count: cached.unread_count ?? conversation.unread_count,
     };
   });
 }

@@ -76,6 +76,7 @@ import { conversationRouteTarget, navigateLocalRouteOnWeb, webConversationHref }
 import { characterConversationHref } from "../../src/lib/chatRoute";
 import { prefetchConversationMessagePage } from "../../src/lib/conversationMessageWarmup";
 import { warmRoute } from "../../src/lib/routeWarmup";
+import { supabase } from "../../src/lib/supabase";
 
 const demoMode = __DEV__ &&
   process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === "true";
@@ -123,12 +124,12 @@ export default function MessageInbox() {
     if (params.compose) setShowNewConversation(true);
   }, [params.compose]);
 
-  const fetchInbox = useCallback(async (mode: "refresh" | "more") => {
+  const fetchInbox = useCallback(async (mode: "refresh" | "more" | "silent") => {
     if (chatHref || demoMode) return;
     const currentSnapshot = useTogether.getState().snapshot;
     if (!currentSnapshot) return;
     if (mode === "more" && (!hasMoreRef.current || fetchingMoreRef.current || fetchingRefreshRef.current)) return;
-    if (mode === "refresh" && fetchingRefreshRef.current) return;
+    if (mode !== "more" && (fetchingRefreshRef.current || fetchingMoreRef.current)) return;
     if (!online) {
       setLoading(false);
       setRefreshing(false);
@@ -143,9 +144,11 @@ export default function MessageInbox() {
       setLoadingMore(true);
     } else {
       fetchingRefreshRef.current = true;
-      setLoading(conversationsRef.current.length === 0);
-      setRefreshing(conversationsRef.current.length > 0);
-      setError("");
+      if (mode === "refresh") {
+        setLoading(conversationsRef.current.length === 0);
+        setRefreshing(conversationsRef.current.length > 0);
+        setError("");
+      }
     }
     try {
       const page = normalizeInboxPage(await manageConversation<InboxPage | Conversation[]>({ action: "inbox_v2", limit: INBOX_PAGE_SIZE, offset }));
@@ -164,7 +167,7 @@ export default function MessageInbox() {
         setCoreState({ conversations: mergeInboxConversations(latest.conversations, nextConversations) });
       }
     } catch (caught) {
-      if (requestSequence.current === requestId) setError(caught instanceof Error ? caught.message : "Messages could not be loaded.");
+      if (requestSequence.current === requestId && mode !== "silent") setError(caught instanceof Error ? caught.message : "Messages could not be loaded.");
     } finally {
       if (requestSequence.current === requestId) {
         setLoading(false);
@@ -175,6 +178,55 @@ export default function MessageInbox() {
       }
     }
   }, [chatHref, online, session?.user.id, setCoreState]);
+
+  useEffect(() => {
+    const userId = session?.user.id;
+    const continuityId = snapshot?.activeContinuity?.id;
+    if (chatHref || demoMode || !userId || !continuityId || !online) return;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+    const refreshWhenIdle = () => {
+      if (cancelled || refreshTimer) return;
+      refreshTimer = setTimeout(() => {
+        refreshTimer = undefined;
+        if (cancelled) return;
+        if (fetchingRefreshRef.current || fetchingMoreRef.current) {
+          refreshWhenIdle();
+          return;
+        }
+        void fetchInbox("silent");
+      }, 160);
+    };
+    const channel = supabase.channel(`kivelle-inbox-${continuityId}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "together_messages",
+        filter: `user_id=eq.${userId}`,
+      }, refreshWhenIdle)
+      .subscribe();
+    return () => {
+      cancelled = true;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      void supabase.removeChannel(channel);
+    };
+  }, [chatHref, fetchInbox, online, session?.user.id, snapshot?.activeContinuity?.id]);
+
+  const pendingReplyKey = conversations
+    .filter((conversation) => conversation.reply_pending)
+    .map((conversation) => conversation.id)
+    .sort()
+    .join(":");
+  useEffect(() => {
+    if (chatHref || demoMode || !online || !pendingReplyKey) return;
+    // Realtime message delivery is the fast path. This short reconciliation is
+    // active only while a reply is pending, covering failed turns and restricted
+    // rows that are intentionally not delivered to a standard/native client.
+    const timer = setInterval(() => {
+      if (!fetchingRefreshRef.current && !fetchingMoreRef.current) void fetchInbox("silent");
+    }, 1_500);
+    return () => clearInterval(timer);
+  }, [chatHref, fetchInbox, online, pendingReplyKey]);
 
   useFocusEffect(useCallback(() => {
     if (chatHref) return;
