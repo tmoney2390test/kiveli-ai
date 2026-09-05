@@ -83,3 +83,29 @@ export function matchingServerPhotoOffer(
     )
     .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0];
 }
+
+export async function waitForMatchingServerPhotoOffer(input: {
+  request: Pick<OptimisticPhotoRequest, 'requestId' | 'startedAt' | 'offer'>;
+  loadOffers: () => Promise<MediaOffer[]>;
+  delays?: number[];
+  wait?: (delayMs: number) => Promise<void>;
+}): Promise<{ offer?: MediaOffer; offers: MediaOffer[] }> {
+  const delays = input.delays ?? [0, 400, 900, 1_800];
+  const wait = input.wait ?? ((delayMs: number) => new Promise<void>((resolve) => setTimeout(resolve, delayMs)));
+  let offers: MediaOffer[] = [];
+  let lastError: unknown;
+  let loaded = false;
+  for (const delay of delays) {
+    if (delay > 0) await wait(delay);
+    try {
+      offers = await input.loadOffers();
+      loaded = true;
+      const offer = matchingServerPhotoOffer(offers, input.request);
+      if (offer) return { offer, offers };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (!loaded && lastError) throw lastError instanceof Error ? lastError : new Error('The photo confirmation could not be loaded.');
+  return { offers };
+}

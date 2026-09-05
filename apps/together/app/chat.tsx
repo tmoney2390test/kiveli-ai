@@ -43,7 +43,7 @@ import { activePlanForChat, attendedPlansForLifecycleReconciliation, collapsePla
 import { hideVoiceNoteConfirmation, isVoiceNoteConfirmationHidden } from '../src/lib/voiceNoteConfirmation';
 import { chatSessionRouteKey, conversationWithLastMessage, isConversationPinned, returnToMessagesInbox } from '../src/lib/messageInbox';
 import { clearChatScrollPosition, readChatScrollPosition, restoredChatOffset, saveChatScrollPosition, shouldRestoreChatScrollPosition, type ChatScrollPosition } from '../src/lib/chatNavigationState';
-import { createOptimisticPhotoRequest, matchingServerPhotoOffer, queueOptimisticPhotoOfferAcceptance, type OptimisticPhotoRequest } from '../src/lib/photoOfferOptimism';
+import { createOptimisticPhotoRequest, matchingServerPhotoOffer, queueOptimisticPhotoOfferAcceptance, waitForMatchingServerPhotoOffer, type OptimisticPhotoRequest } from '../src/lib/photoOfferOptimism';
 import { mergeDictationTranscript } from '../src/lib/dictation';
 import { useChatDictation, type ChatDictationPhase } from '../src/hooks/useChatDictation';
 import { cleanupNormalizedImage, normalizeUserImage, userImagePickerOptions } from '../src/lib/imageUploads';
@@ -160,6 +160,8 @@ function ChatSession() {
   const [optimisticPhotoRequest,setOptimisticPhotoRequest]=useState<OptimisticPhotoRequest|null>(null);
   const optimisticPhotoRequestRef=useRef<OptimisticPhotoRequest|null>(null);
   const queuedPhotoOfferDecisionRef=useRef<QueuedPhotoOfferDecision|null>(null);
+  const optimisticPhotoDecisionInFlight=useRef(new Set<string>());
+  const optimisticPhotoDecisionDispatched=useRef(new Set<string>());
   const resolveOptimisticPhotoOfferRef=useRef<(offers:MediaOffer[])=>void>(()=>undefined);
   const [reconcilingMediaId,setReconcilingMediaId]=useState<string|null>(null);
   const [mediaOffers,setMediaOffers]=useState<MediaOffer[]>([]);
@@ -417,7 +419,7 @@ function ChatSession() {
     const conversationId=conversation.id,userId=session?.user.id,cached=userId?readConversationMessagePage(userId,conversationId):null;
     let cancelled=false;
     prepareConversationScroll(conversationId);
-    setError('');setHistoryLoadFailed(false);setStream('');setSending(false);setFeedback(null);setMemorySavedNotice(null);setAwaitingPhotoOffer(false);setOptimisticPhotoRequest(null);optimisticPhotoRequestRef.current=null;queuedPhotoOfferDecisionRef.current=null;setPendingImage(null);setMediaOffers([]);setPendingSceneAction(null);setCharacterProposal(null);setPendingActionId(null);setFocusDismissed(false);setFocusPlanId(params.planId??null);setShowPlans(params.plan==='1');setShowPhotoRequests(false);setShowInteractions(false);setShowConversationMenu(false);setShowChatSettings(false);setPlanModal(null);setPlanActionBusyId(null);setPlanEndTarget(null);setSwitchPlanId(params.switchPlanId??null);setInput('');
+    setError('');setHistoryLoadFailed(false);setStream('');setSending(false);setFeedback(null);setMemorySavedNotice(null);setAwaitingPhotoOffer(false);setOptimisticPhotoRequest(null);optimisticPhotoRequestRef.current=null;queuedPhotoOfferDecisionRef.current=null;optimisticPhotoDecisionInFlight.current.clear();optimisticPhotoDecisionDispatched.current.clear();setPendingImage(null);setMediaOffers([]);setPendingSceneAction(null);setCharacterProposal(null);setPendingActionId(null);setFocusDismissed(false);setFocusPlanId(params.planId??null);setShowPlans(params.plan==='1');setShowPhotoRequests(false);setShowInteractions(false);setShowConversationMenu(false);setShowChatSettings(false);setPlanModal(null);setPlanActionBusyId(null);setPlanEndTarget(null);setSwitchPlanId(params.switchPlanId??null);setInput('');
     if(cached){setMessages(cached.messages);setHasMore(cached.hasMore);setLoadedConversationId(conversationId);setLoading(false);}
     else{setMessages([]);setHasMore(true);setLoadedConversationId(null);setLoading(true);}
     if(__DEV__&&process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE==='true'){setMessages([]);setHasMore(false);setLoadedConversationId(conversationId);setLoading(false);return;}
@@ -681,19 +683,29 @@ function ChatSession() {
     catch(caught){setMediaOffers((current)=>current.some((item)=>item.id===offer.id)?current:[offer,...current]);setError(caught instanceof Error?caught.message:'The offer could not be dismissed.');}
     finally{setMediaOfferBusy(null);}
   };
+  const dispatchOptimisticPhotoDecision=(requestId:string,offer:MediaOffer,decision:QueuedPhotoOfferDecision)=>{
+    if(decision.requestId!==requestId||optimisticPhotoDecisionDispatched.current.has(requestId))return false;
+    optimisticPhotoDecisionDispatched.current.add(requestId);
+    if(optimisticPhotoRequestRef.current?.requestId===requestId){
+      optimisticPhotoRequestRef.current=null;
+      setAwaitingPhotoOffer(false);
+      setOptimisticPhotoRequest(null);
+    }
+    if(queuedPhotoOfferDecisionRef.current?.requestId===requestId)queuedPhotoOfferDecisionRef.current=null;
+    if(decision.action==='decline')void declineOffer(offer);
+    else void acceptOffer(offer,decision.paymentMethod??'credits');
+    return true;
+  };
   resolveOptimisticPhotoOfferRef.current=(offers)=>{
     const request=optimisticPhotoRequestRef.current;
     if(!request)return;
     const offer=matchingServerPhotoOffer(offers,request);
     if(!offer)return;
+    const decision=queuedPhotoOfferDecisionRef.current;
+    if(decision?.requestId===request.requestId){dispatchOptimisticPhotoDecision(request.requestId,offer,decision);return;}
     optimisticPhotoRequestRef.current=null;
     setAwaitingPhotoOffer(false);
     setOptimisticPhotoRequest(null);
-    const decision=queuedPhotoOfferDecisionRef.current;
-    if(!decision||decision.requestId!==request.requestId)return;
-    queuedPhotoOfferDecisionRef.current=null;
-    if(decision.action==='decline')void declineOffer(offer);
-    else void acceptOffer(offer,decision.paymentMethod??'credits');
   };
   const decideOptimisticPhotoOffer=(action:'accept'|'decline',paymentMethod?:'credits'|'daily_included')=>{
     const request=optimisticPhotoRequestRef.current;
@@ -705,22 +717,38 @@ function ChatSession() {
     // Accept/Decline cannot wait forever for an unrelated future update.
     const readyOffer=matchingServerPhotoOffer(mediaOffers,request);
     if(readyOffer){
-      optimisticPhotoRequestRef.current=null;
-      queuedPhotoOfferDecisionRef.current=null;
-      setAwaitingPhotoOffer(false);
-      setOptimisticPhotoRequest(null);
-      if(action==='decline')void declineOffer(readyOffer);
-      else void acceptOffer(readyOffer,paymentMethod??'credits');
+      dispatchOptimisticPhotoDecision(request.requestId,readyOffer,decision);
       return;
     }
     if(action==='decline'){
       setAwaitingPhotoOffer(false);
       setOptimisticPhotoRequest(null);
-      return;
-    }
-    setOptimisticPhotoRequest((current)=>current&&current.requestId===request.requestId
-      ? queueOptimisticPhotoOfferAcceptance(current)
-      : current);
+    }else setOptimisticPhotoRequest((current)=>current&&current.requestId===request.requestId
+        ? queueOptimisticPhotoOfferAcceptance(current)
+        : current);
+    if(optimisticPhotoDecisionInFlight.current.has(request.requestId))return;
+    optimisticPhotoDecisionInFlight.current.add(request.requestId);
+    void waitForMatchingServerPhotoOffer({
+      request,
+      loadOffers:()=>fetchPendingMediaOffers(request.offer.character_instance_id,String(request.offer.conversation_id)),
+    }).then(({offer,offers})=>{
+      if(offers.length)setMediaOffers(offers);
+      if(offer){dispatchOptimisticPhotoDecision(request.requestId,offer,decision);return;}
+      if(queuedPhotoOfferDecisionRef.current?.requestId===request.requestId){
+        queuedPhotoOfferDecisionRef.current=null;
+        setOptimisticPhotoRequest((current)=>current?.requestId===request.requestId
+          ? {...current,offer:{...current.offer,preview_metadata:{...current.offer.preview_metadata,acceptQueued:false}}}
+          : current);
+        setError(action==='decline'?'The photo request could not be dismissed. Tap the close button again.':'The photo confirmation is ready, but the start did not connect. Tap again to retry.');
+      }
+    }).catch((caught)=>{
+      if(queuedPhotoOfferDecisionRef.current?.requestId!==request.requestId)return;
+      queuedPhotoOfferDecisionRef.current=null;
+      setOptimisticPhotoRequest((current)=>current?.requestId===request.requestId
+        ? {...current,offer:{...current.offer,preview_metadata:{...current.offer.preview_metadata,acceptQueued:false}}}
+        : current);
+      setError(caught instanceof Error?caught.message:'The photo could not be started. Tap again to retry.');
+    }).finally(()=>optimisticPhotoDecisionInFlight.current.delete(request.requestId));
   };
   const retryGeneratedMedia=async(mediaId:string)=>{
     if(mediaRetryInFlight.current.has(mediaId))return;
