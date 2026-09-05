@@ -88,6 +88,46 @@ export async function declineMediaOffer(db:SupabaseClient,input:{userId:string;o
   await track(db,input.userId,'media_offer_declined',{offerId:data.id,source:data.source,tier:data.subscription_tier_at_creation,creditCost:data.credit_cost,characterInstanceId:data.character_instance_id});return data;
 }
 
+/**
+ * Removes a photo request from the chat without erasing the accounting trail.
+ * Pending offers are declined normally. Failed generations are deleted along
+ * with any private failed asset while the offer remains as a non-presented
+ * declined audit record.
+ */
+export async function dismissMediaOffer(db:SupabaseClient,input:{userId:string;offerId:string}):Promise<{offer:Record<string,any>;removedMediaId:string|null}>{
+  const{data:offer,error:offerError}=await db.from('together_media_offers').select('*').eq('id',input.offerId).eq('user_id',input.userId).maybeSingle();
+  if(offerError)throw new AppError('INTERNAL_ERROR','The photo request could not be checked.',500,true);
+  if(!offer)throw new AppError('NOT_FOUND','That photo request is unavailable.',404);
+  if(offer.status==='pending')return{offer:await declineMediaOffer(db,input),removedMediaId:null};
+  if(offer.status==='declined')return{offer,removedMediaId:null};
+  if(offer.status!=='failed')throw new AppError('CONFLICT','A photo that is currently being created cannot be removed.',409);
+
+  const mediaId=typeof offer.generated_media_id==='string'?offer.generated_media_id:null;
+  let storagePath:string|null=null;
+  if(mediaId){
+    const{data:media,error:mediaError}=await db.from('together_generated_media').select('id,status,media_type,storage_path').eq('id',mediaId).eq('user_id',input.userId).maybeSingle();
+    if(mediaError)throw new AppError('INTERNAL_ERROR','The failed photo could not be checked.',500,true);
+    if(media){
+      if(media.media_type!=='image'||media.status!=='failed')throw new AppError('CONFLICT','A photo that is currently being created cannot be removed.',409);
+      storagePath=typeof media.storage_path==='string'&&media.storage_path?media.storage_path:null;
+      const{error:deleteError}=await db.from('together_generated_media').delete().eq('id',mediaId).eq('user_id',input.userId).eq('media_type','image').eq('status','failed');
+      if(deleteError)throw new AppError('INTERNAL_ERROR','The failed photo could not be removed.',500,true);
+    }
+  }
+
+  const now=new Date().toISOString(),{data:dismissed,error:dismissError}=await db.from('together_media_offers').update({status:'declined',declined_at:now,updated_at:now}).eq('id',input.offerId).eq('user_id',input.userId).eq('status','failed').select('*').maybeSingle();
+  if(dismissError)throw new AppError('INTERNAL_ERROR','The failed photo request could not be removed.',500,true);
+  const resolved=dismissed??(await db.from('together_media_offers').select('*').eq('id',input.offerId).eq('user_id',input.userId).maybeSingle()).data;
+  if(!resolved)throw new AppError('NOT_FOUND','That photo request is unavailable.',404);
+  if(offer.included_benefit_type==='daily_companion_photo')await releaseDailyPhotoAllowance(db,{userId:input.userId,reservationKey:dailyPhotoReservationKey(offer.preview_metadata)});
+  if(storagePath){
+    const{error:storageError}=await db.storage.from('together-user-media').remove([storagePath]);
+    if(storageError)await db.from('together_storage_cleanup_jobs').insert({user_id:input.userId,bucket_id:'together-user-media',storage_path:storagePath,status:'pending',attempt_count:1,last_error:storageError.message});
+  }
+  await track(db,input.userId,'media_offer_dismissed',{offerId:offer.id,source:offer.source,characterInstanceId:offer.character_instance_id,removedMediaId:mediaId,previousStatus:'failed'});
+  return{offer:resolved,removedMediaId:mediaId};
+}
+
 function canonicalOfferKey(input:CreateMediaOfferInput):string{
   const event=input.source==='user_request'?input.messageId:input.dateSessionId??input.lifeEventId??input.momentId??input.storyArcId??input.sceneSessionId??input.sharedPlanId;
   if(!event)throw new AppError('VALIDATION_FAILED','A canonical event is required for a photo offer.',400);return`${input.source}:${event}`;

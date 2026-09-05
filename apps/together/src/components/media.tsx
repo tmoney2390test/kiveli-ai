@@ -28,6 +28,7 @@ import { colors, radius } from "../theme";
 import { rateGeneratedMedia } from "../lib/api";
 import { mediaViewerHref, navigateLocalRouteOnWeb } from "../lib/conversationNavigation";
 import { generatedMediaImageSource } from "../lib/mediaImageSource";
+import { photoOfferDismissAction } from "../lib/photoRequestPresentation";
 import { KivelleCreditIcon } from "./KivelleCreditIcon";
 
 const PHOTO_GENERATION_LOADER = require(
@@ -238,7 +239,8 @@ export function ChatPhotoRequestCard({
     resolvedWorld = String(offer?.preview_metadata?.resolvedWorldName ?? "").trim(),
     resolvedSettingLabel = requestedSetting && resolvedLocation
       ? `${requestedSetting.toLocaleLowerCase() === resolvedLocation.toLocaleLowerCase() ? resolvedLocation : `${requestedSetting} → ${resolvedLocation}`}${resolvedWorld ? ` · ${resolvedWorld}` : ""}`
-      : "";
+      : "",
+    dismissAction = photoOfferDismissAction(offer?.status, preparing, generating);
   if (ready && media?.signed_url) {
     return (
       <View style={styles.chatPhotoCard}>
@@ -300,12 +302,12 @@ export function ChatPhotoRequestCard({
         )
         : null}
       <View pointerEvents="none" style={styles.chatPhotoScrim} />
-      {offer?.status === "pending" && !preparing && !failed && !generating
+      {dismissAction
         ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Cancel photo request"
-            accessibilityHint="Removes this photo offer without starting generation"
+            accessibilityLabel={dismissAction === "remove" ? "Remove failed photo request" : "Cancel photo request"}
+            accessibilityHint={dismissAction === "remove" ? "Permanently removes this failed request from the chat" : "Removes this photo offer without starting generation"}
             accessibilityState={{ disabled: busy }}
             disabled={busy}
             hitSlop={8}

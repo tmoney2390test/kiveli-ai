@@ -1,5 +1,15 @@
 import type { GeneratedMedia, MediaOffer } from '../types';
 
+export function photoOfferDismissAction(
+  status: MediaOffer['status'] | undefined,
+  preparing = false,
+  generating = false,
+): 'cancel' | 'remove' | null {
+  if (status === 'failed') return 'remove';
+  if (status === 'pending' && !preparing && !generating) return 'cancel';
+  return null;
+}
+
 export function photoOfferForMessage(offers: MediaOffer[], messageId: string): MediaOffer | null {
   return offers
     // The source message is the single visual owner for the full offer

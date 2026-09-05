@@ -1189,7 +1189,7 @@ export default function GroupChatScreen() {
   const declineMediaOffer = async (offer: MediaOffer) => {
     setMediaOfferBusy(offer.id);
     try {
-      await manageMedia({ action: "decline_offer", offerId: offer.id });
+      const result=await manageMedia<{offer:MediaOffer;removedMediaId:string|null}>({ action: "dismiss_offer", offerId: offer.id });
       setDetail((current) =>
         current
           ? {
@@ -1197,6 +1197,9 @@ export default function GroupChatScreen() {
             mediaOffers: (current.mediaOffers ?? []).filter((item) =>
               item.id !== offer.id
             ),
+            generatedMedia: result.removedMediaId
+              ? (current.generatedMedia ?? []).filter((item) => item.id !== result.removedMediaId)
+              : current.generatedMedia,
           }
           : current
       );

@@ -28,7 +28,7 @@ import '../_shared/together-video-content.ts';
 import '../_shared/together-direct-video-frame.ts';
 import { resolveMediaContentPolicy } from '../../../packages/together-domain/src/media-routing.ts';
 import {acceptMediaOffer} from '../_shared/together-media-offer-acceptance.ts';
-import {declineMediaOffer,listPendingMediaOffers} from '../_shared/together-media-offers.ts';
+import {declineMediaOffer,dismissMediaOffer,listPendingMediaOffers} from '../_shared/together-media-offers.ts';
 import {queueMediaEdit} from '../_shared/together-media-edit.ts';
 import{synchronizedGeneratedPhotoPreferences}from'../_shared/together-photo-preferences.ts';
 import{isCustomCharacterTemplate,isFictionalCompanion}from'../_shared/together-media-character.ts';
@@ -54,6 +54,7 @@ const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('list_pending_offers'),characterInstanceId:z.string().uuid().optional()}),
   z.object({action:z.literal('accept_offer'),offerId:z.string().uuid(),requestId:z.string().trim().min(8).max(120),paymentMethod:z.enum(['credits','daily_included']).default('credits')}),
   z.object({action:z.literal('decline_offer'),offerId:z.string().uuid()}),
+  z.object({action:z.literal('dismiss_offer'),offerId:z.string().uuid()}),
   z.object({action:z.literal('retry'),mediaId:z.string().uuid()}),
   z.object({action:z.literal('status'),mediaId:z.string().uuid()}),
   z.object({action:z.literal('batch_status'),mediaIds:z.array(z.string().uuid()).min(1).max(20).refine((ids)=>new Set(ids).size===ids.length,'Media IDs must be unique.')}),
@@ -119,6 +120,12 @@ serve(async(request,correlationId)=>{
     const continuity=await activeContinuity(db,user.id),{data:offer}=await db.from('together_media_offers').select('continuity_id').eq('id',input.offerId).eq('user_id',user.id).maybeSingle();
     if(!offer||String(offer.continuity_id)!==String(continuity.id))throw new AppError('NOT_FOUND','That photo offer is unavailable in this Kivelle Life.',404);
     const declined=await declineMediaOffer(db,{userId:user.id,offerId:input.offerId});return json({data:{offer:declined},correlationId},200,correlationId);
+  }
+  if(input.action==='dismiss_offer'){
+    const continuity=await activeContinuity(db,user.id),{data:offer}=await db.from('together_media_offers').select('continuity_id').eq('id',input.offerId).eq('user_id',user.id).maybeSingle();
+    if(!offer||String(offer.continuity_id)!==String(continuity.id))throw new AppError('NOT_FOUND','That photo request is unavailable in this Kivelle Life.',404);
+    const dismissed=await dismissMediaOffer(db,{userId:user.id,offerId:input.offerId});
+    return json({data:dismissed,correlationId},200,correlationId);
   }
   if(input.action==='content_preferences'){
     const{data:profile}=await db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id',user.id).maybeSingle();

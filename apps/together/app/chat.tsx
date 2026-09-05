@@ -679,7 +679,7 @@ function ChatSession() {
   };
   const declineOffer=async(offer:MediaOffer)=>{
     setMediaOfferBusy(offer.id);setMediaOffers((current)=>current.filter((item)=>item.id!==offer.id));
-    try{await manageMedia({action:'decline_offer',offerId:offer.id});}
+    try{const result=await manageMedia<{offer:MediaOffer;removedMediaId:string|null}>({action:'dismiss_offer',offerId:offer.id});if(result.removedMediaId)removeMedia(result.removedMediaId);}
     catch(caught){setMediaOffers((current)=>current.some((item)=>item.id===offer.id)?current:[offer,...current]);setError(caught instanceof Error?caught.message:'The offer could not be dismissed.');}
     finally{setMediaOfferBusy(null);}
   };
