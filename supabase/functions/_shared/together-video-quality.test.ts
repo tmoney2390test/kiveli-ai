@@ -322,6 +322,17 @@ Deno.test("video delivery fails closed when quality cannot be verified", () => {
       verificationUnavailable: false,
     },
   );
+  assertEquals(
+    resolveVideoQualityDecision({
+      status: "unavailable",
+      reasonCodes: [],
+    }, false, false),
+    {
+      action: "accept",
+      reasonCodes: [],
+      verificationUnavailable: true,
+    },
+  );
 });
 
 Deno.test("Gemini video inspection uploads, evaluates, and deletes the private candidate", async () => {

@@ -1,5 +1,5 @@
 import { assertStringIncludes } from 'jsr:@std/assert@1';
-import { authorizedAdultImageSafetyRule, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule } from './together-media-quality.ts';
+import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
 
 Deno.test('solo adult quality checks do not confuse explicit posing with non-consent',()=>{
   const rule=authorizedAdultImageSafetyRule([{companion:{name:'Elena Petrova',age:27,custom:false}}]);
@@ -50,6 +50,18 @@ Deno.test('a second safe candidate may be delivered with composition warnings',(
   if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['ambiguous_age']}))throw new Error('custom-character age failures must remain terminal');
   if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['ambiguous_age']},{allowOfficialAgePresentationWarning:true}))throw new Error('official catalog youthful-adult presentation must not stay terminal');
   if(canDeliverQualityRetryWithWarnings({status:'pass',reasonCodes:[]}))throw new Error('passing results do not need warning fallback');
+});
+
+Deno.test('the SFW quality switch does not bypass custom adult output-safety review',()=>{
+  if(!shouldSkipGeneratedImageQualityGate({adultAuthorized:false,customCharacter:false,providerSafetyFlag:false,gateEnabled:false}))throw new Error('SFW photos should skip when the quality gate is off');
+  if(shouldSkipGeneratedImageQualityGate({adultAuthorized:false,customCharacter:false,providerSafetyFlag:false,gateEnabled:true}))throw new Error('SFW photos should still be checked when the quality gate is on');
+  if(!shouldSkipGeneratedImageQualityGate({adultAuthorized:true,customCharacter:false,providerSafetyFlag:false,gateEnabled:false}))throw new Error('official catalog adult photos may skip when the quality gate is off');
+  if(shouldSkipGeneratedImageQualityGate({adultAuthorized:true,customCharacter:false,providerSafetyFlag:false,gateEnabled:true}))throw new Error('official catalog adult photos still run QA when the gate is on');
+  if(shouldSkipGeneratedImageQualityGate({adultAuthorized:true,customCharacter:true,providerSafetyFlag:false,gateEnabled:false}))throw new Error('custom adult photos must still receive output-safety review when the SFW gate is off');
+  if(shouldSkipGeneratedImageQualityGate({adultAuthorized:true,customCharacter:true,providerSafetyFlag:true,gateEnabled:false}))throw new Error('a provider safety flag must not skip custom adult review');
+  if(adultOutputSafetyFailClosed({adultAuthorized:true,customCharacter:false}))throw new Error('official catalog must not fail closed when adult QA is unavailable');
+  if(!adultOutputSafetyFailClosed({adultAuthorized:true,customCharacter:true}))throw new Error('custom adult photos must fail closed when output-safety QA is unavailable');
+  if(adultOutputSafetyFailClosed({adultAuthorized:false,customCharacter:true}))throw new Error('SFW photos do not use the adult fail-closed path');
 });
 
 Deno.test('terminal age and safety rejection is custom-character only',()=>{

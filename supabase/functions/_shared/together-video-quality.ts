@@ -538,7 +538,7 @@ export async function gateGeneratedVideoQuality(
     };
   const decision = resolveVideoQualityDecision(
     assessment.verdict,
-    failClosed,
+    failClosed && (!adultAuthorized || customCharacterAgeCheck),
     customCharacterAgeCheck,
   ),
     metadata = compact({
