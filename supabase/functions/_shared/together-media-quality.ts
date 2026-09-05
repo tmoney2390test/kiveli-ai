@@ -45,14 +45,11 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   await track(db,String(media.user_id),'media_quality_checked',compactRecord({mediaId:media.id,verdict:verdict.status,retryCount:Number(providerMetadata.qualityRetryCount??0),qaProviderRequestId:assessment.providerRequestId,qaProviderModel:assessment.providerModel,qaProviderStatus:assessment.providerStatus,qaErrorCode:assessment.errorCode,qaTimedOut:assessment.timedOut,qaInferenceMs:assessment.inferenceMs}));
   if(verdict.status!=='fail')return{action:'accept',result};
 
-  // Safety classifications are terminal. Retrying a prohibited or
-  // unverifiable adult candidate would create another unsafe provider call.
-  // Custom companions keep the visual age gate. Official catalog adults only
-  // fail closed on actual adult-safety violations, not a youthful 18+ look.
-  const terminalReasons=['adult_safety_violation','adult_safety_unverified',...(customAgeCheck?['ambiguous_age']:[])];
+  // Immediate fail-closed rejection of age/safety codes is custom-only.
+  // Official catalog adults retry or deliver instead of dying on youthful-adult QA.
   const blockingReasons=blockingQualityReasonsForAgePolicy(verdict.reasonCodes,customAgeCheck);
-  if(blockingReasons.some((reason)=>terminalReasons.includes(reason)))return{action:'reject',reasonCodes:blockingReasons};
-  if(!customAgeCheck&&verdict.reasonCodes.includes('ambiguous_age')&&blockingReasons.length===0){
+  if(isCustomCharacterTerminalQualityFailure(verdict.reasonCodes,customAgeCheck))return{action:'reject',reasonCodes:verdict.reasonCodes};
+  if(!customAgeCheck&&blockingReasons.length===0){
     await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_official_age_warning_accepted',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
     return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
@@ -66,12 +63,12 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     // still fail closed. This returns the best safe candidate only when QA's
     // remaining concerns are direction or setting preferences.
     const requiresExactRequestedComposition=adultAuthorized&&specificAnatomyExposure==='uncovered'&&requestedDirection?.source==='requested';
-    if(canDeliverQualityRetryWithWarnings(verdict,{requiresExactRequestedComposition,allowOfficialAgePresentationWarning:!customAgeCheck})){
+    if((!customAgeCheck&&blockingReasons.length===0)||canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:blockingReasons},{requiresExactRequestedComposition,allowOfficialAgePresentationWarning:!customAgeCheck})){
       await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
       await track(db,String(media.user_id),'media_quality_retry_delivered_with_warnings',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
       return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
     }
-    return{action:'reject',reasonCodes:verdict.reasonCodes};
+    return{action:'reject',reasonCodes:blockingReasons};
   }
 
   const now=new Date().toISOString();
@@ -161,6 +158,11 @@ export function authorizedAdultImageSafetyRule(subjects:Array<{companion:{name:s
 }
 
 const DELIVERABLE_QUALITY_WARNINGS=new Set(['pose_mismatch','face_direction_mismatch','world_mismatch','location_mismatch','earth_leakage','time_mismatch']);
+const CUSTOM_TERMINAL_QUALITY_REASONS=new Set(['adult_safety_violation','adult_safety_unverified','ambiguous_age']);
+
+export function isCustomCharacterTerminalQualityFailure(reasonCodes:string[],customCharacterAgeCheck:boolean):boolean{
+  return customCharacterAgeCheck===true&&reasonCodes.some((reason)=>CUSTOM_TERMINAL_QUALITY_REASONS.has(reason));
+}
 export function requestedAnatomyQualityRule(requestText:string|undefined,specificAnatomyExposure:ReturnType<typeof resolveSpecificAnatomyExposure>,adultAuthorized:boolean):string{
   if(!adultAuthorized||specificAnatomyExposure!=='uncovered')return'';
   const targets=visibleAdultAnatomyTargetLabels(requestText);

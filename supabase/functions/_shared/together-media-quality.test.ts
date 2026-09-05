@@ -1,5 +1,5 @@
 import { assertStringIncludes } from 'jsr:@std/assert@1';
-import { authorizedAdultImageSafetyRule, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule } from './together-media-quality.ts';
+import { authorizedAdultImageSafetyRule, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule } from './together-media-quality.ts';
 
 Deno.test('solo adult quality checks do not confuse explicit posing with non-consent',()=>{
   const rule=authorizedAdultImageSafetyRule([{companion:{name:'Elena Petrova',age:27,custom:false}}]);
@@ -50,6 +50,16 @@ Deno.test('a second safe candidate may be delivered with composition warnings',(
   if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['ambiguous_age']}))throw new Error('custom-character age failures must remain terminal');
   if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['ambiguous_age']},{allowOfficialAgePresentationWarning:true}))throw new Error('official catalog youthful-adult presentation must not stay terminal');
   if(canDeliverQualityRetryWithWarnings({status:'pass',reasonCodes:[]}))throw new Error('passing results do not need warning fallback');
+});
+
+Deno.test('terminal age and safety rejection is custom-character only',()=>{
+  if(!isCustomCharacterTerminalQualityFailure(['ambiguous_age'],true))throw new Error('custom companions must fail closed on ambiguous_age');
+  if(!isCustomCharacterTerminalQualityFailure(['adult_safety_violation'],true))throw new Error('custom companions must fail closed on adult safety');
+  if(!isCustomCharacterTerminalQualityFailure(['adult_safety_unverified'],true))throw new Error('custom companions must fail closed when adult safety cannot be verified');
+  if(isCustomCharacterTerminalQualityFailure(['ambiguous_age'],false))throw new Error('official catalog must not terminal-reject on ambiguous_age');
+  if(isCustomCharacterTerminalQualityFailure(['ambiguous_age','adult_safety_violation'],false))throw new Error('official catalog must not terminal-reject a youthful-adult false positive');
+  if(isCustomCharacterTerminalQualityFailure(['adult_safety_unverified'],false))throw new Error('official catalog must not terminal-reject unverified age presentation');
+  if(isCustomCharacterTerminalQualityFailure(['pose_mismatch'],true))throw new Error('composition drift is not a custom terminal safety reject');
 });
 
 Deno.test('adult QA names the exact requested anatomy and rejects a generic robe reveal',()=>{
