@@ -1,5 +1,5 @@
 import { assertStringIncludes } from 'jsr:@std/assert@1';
-import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
+import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, shouldRevalidateCompletedQualityRetry, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
 
 Deno.test('solo adult quality checks do not confuse explicit posing with non-consent',()=>{
   const rule=authorizedAdultImageSafetyRule([{companion:{name:'Elena Petrova',age:27,custom:false}}]);
@@ -46,10 +46,18 @@ Deno.test('a second safe candidate may be delivered with composition warnings',(
   if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['pose_mismatch','face_direction_mismatch','world_mismatch']}))throw new Error('safe composition-only drift should be deliverable after the retry');
   if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['pose_mismatch']},{requiresExactRequestedComposition:true}))throw new Error('an explicit requested pose must not be silently accepted after a retry');
   if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['pose_mismatch','identity_mismatch']}))throw new Error('identity failures must remain terminal');
+  if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['multiple_subjects']}))throw new Error('an extra person in a solo photo must remain terminal');
+  if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['subject_count_mismatch']}))throw new Error('a subject-count mismatch must remain terminal');
   if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['adult_safety_violation']}))throw new Error('adult safety failures must remain terminal');
   if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['ambiguous_age']}))throw new Error('custom-character age failures must remain terminal');
   if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['ambiguous_age']},{allowOfficialAgePresentationWarning:true}))throw new Error('official catalog youthful-adult presentation must not stay terminal');
   if(canDeliverQualityRetryWithWarnings({status:'pass',reasonCodes:[]}))throw new Error('passing results do not need warning fallback');
+});
+
+Deno.test('synchronous quality retries are reviewed as new candidates',()=>{
+  if(!shouldRevalidateCompletedQualityRetry({status:'completed',hasResult:true}))throw new Error('a completed Venice retry must receive a second quality review');
+  if(shouldRevalidateCompletedQualityRetry({status:'processing',hasResult:true}))throw new Error('an unfinished retry must remain deferred');
+  if(shouldRevalidateCompletedQualityRetry({status:'completed',hasResult:false}))throw new Error('a completed retry without output must remain deferred');
 });
 
 Deno.test('the SFW quality switch does not bypass custom adult output-safety review',()=>{

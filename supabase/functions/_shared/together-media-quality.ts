@@ -27,6 +27,10 @@ export function adultOutputSafetyFailClosed(input:{adultAuthorized:boolean;custo
   return input.adultAuthorized===true&&input.customCharacter===true;
 }
 
+export function shouldRevalidateCompletedQualityRetry(input:{status:string;hasResult:boolean}):boolean{
+  return input.status==='completed'&&input.hasResult;
+}
+
 export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<string,any>,media:Record<string,any>,result:ProviderCompletedMedia):Promise<MediaQualityGateResult>{
   const metadata=(media.metadata??{}) as Record<string,unknown>;
   const economicallyAuthorized=metadata.source==='user_request'||typeof metadata.mediaOfferId==='string';
@@ -102,10 +106,22 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     const nextMetadata={...providerMetadata,qualityRetryPreparing:false,qualityRetryCount:1,qualityVerdict:'fail',qualityReasonCodes:verdict.reasonCodes,rejectedProviderRequestIds:[...asStrings(providerMetadata.rejectedProviderRequestIds),String(result.providerRequestId??job.provider_request_id)],routingReason:routed.route.reasonCode};
     const{data:updatedJob,error:jobError}=await db.from('together_media_provider_jobs').update({provider_request_id:submission.providerRequestId,model:routed.route.capability.model,route_id:routed.route.capability.id,status:'processing',attempt_count:retryAttempt,submitted_at:now,provider_completed_at:null,next_poll_at:new Date(Date.now()+5_000).toISOString(),last_polled_at:null,provider_metadata:nextMetadata,updated_at:now}).eq('id',job.id).eq('status','submitting').select('id').maybeSingle();
     if(jobError||!updatedJob)throw new Error('quality_retry_job_update_failed');
-    const{error:mediaError}=await db.from('together_generated_media').update({provider_request_id:submission.providerRequestId,metadata:{...metadata,providerRouteId:routed.route.capability.id,providerStatus:submission.status,qualityRetryCount:1,qualityReasonCodes:verdict.reasonCodes},updated_at:now}).eq('id',media.id).eq('status','generating');
+    const updatedMediaMetadata={...metadata,providerRouteId:routed.route.capability.id,providerStatus:submission.status,qualityRetryCount:1,qualityReasonCodes:verdict.reasonCodes};
+    const{error:mediaError}=await db.from('together_generated_media').update({provider_request_id:submission.providerRequestId,metadata:updatedMediaMetadata,updated_at:now}).eq('id',media.id).eq('status','generating');
     if(mediaError)throw new Error('quality_retry_media_update_failed');
     await track(db,String(media.user_id),'media_quality_retry_started',{mediaId:media.id,reasonCodes:verdict.reasonCodes,routeId:routed.route.capability.id});
-    if(submission.status==='completed'&&submission.result)return{action:'accept',result:submission.result};
+    if(shouldRevalidateCompletedQualityRetry({status:submission.status,hasResult:Boolean(submission.result)})&&submission.result){
+      // Venice returns image edits synchronously. A retry is a new generated
+      // candidate and can introduce a different defect (for example, an extra
+      // person in an otherwise solo photo), so it must pass the same output
+      // review as an asynchronously completed retry before delivery.
+      return gateGeneratedImageQuality(
+        db,
+        {...job,provider_request_id:submission.providerRequestId,model:routed.route.capability.model,route_id:routed.route.capability.id,status:'processing',attempt_count:retryAttempt,submitted_at:now,provider_completed_at:null,provider_metadata:nextMetadata,updated_at:now},
+        {...media,provider_request_id:submission.providerRequestId,metadata:updatedMediaMetadata,updated_at:now},
+        submission.result,
+      );
+    }
     return{action:'deferred'};
   }catch{
     if(retryRecorded)await completeMediaUsageAttempt(db,{providerJobId:String(job.id),attemptNumber:retryAttempt,success:false,failureCode:'quality_retry_setup_failed'});
