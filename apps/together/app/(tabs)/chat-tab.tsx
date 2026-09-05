@@ -28,7 +28,6 @@ import {
   MoreVertical,
   Pin,
   Plus,
-  RefreshCw,
   Search,
   Settings,
   Undo2,
@@ -95,7 +94,7 @@ export default function MessageInbox() {
   const params = useLocalSearchParams<ChatLaunchParams>();
   const { desktop } = useAppShell();
   const { session } = useAuth();
-  const { online, phase: connectionPhase } = useNetworkStatus();
+  const { online } = useNetworkStatus();
   const { snapshot, refresh, setCoreState } = useTogether();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [groups, setGroups] = useState<InboxGroupDetail[]>([]);
@@ -347,10 +346,6 @@ export default function MessageInbox() {
   }
   const status = !online
     ? { icon: <CloudOff size={15} color={colors.text} />, text: "Offline · Showing saved conversations", tone: "offline" as const }
-    : refreshing && conversations.length
-    ? { icon: <RefreshCw size={15} color={colors.text} />, text: "Updating messages…", tone: "updating" as const }
-    : connectionPhase === "reconnected"
-    ? { icon: <RefreshCw size={15} color={colors.text} />, text: "Back online · Updating messages", tone: "online" as const }
     : null;
   const emptyTitle = query
     ? "No matching chats"
