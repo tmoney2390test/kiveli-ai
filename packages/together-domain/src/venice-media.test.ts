@@ -12,7 +12,7 @@ import {
 } from './venice-media.ts';
 
 describe('Venice media contracts', () => {
-  it('uses the documented multi-edit wire contract for Qwen Image 2 with one canonical reference', () => {
+  it('uses the documented multi-edit wire contract for the SFW model with one canonical reference', () => {
     const request = buildVeniceEditRequest({ model: VENICE_STANDARD_EDIT_MODEL, prompt: 'Preserve her identity.', images: ['https://signed.test/character.jpg'], aspectRatio: '4:5', safeMode: true });
     expect(request.endpoint).toBe('/image/multi-edit');
     expect(request.body).toMatchObject({ modelId: VENICE_STANDARD_EDIT_MODEL, images: ['https://signed.test/character.jpg'], safe_mode: true });
@@ -49,7 +49,7 @@ describe('Venice media contracts', () => {
   });
 
   it('builds a bounded two-stage pipeline only for approved adult levels', () => {
-    expect(resolveVenicePipeline({ contentLevel: 'standard' })).toEqual([{ kind: 'final_edit', model: VENICE_STANDARD_EDIT_MODEL, safeMode: true, estimatedCostUsd: .05 }]);
+    expect(resolveVenicePipeline({ contentLevel: 'standard' })).toEqual([{ kind: 'final_edit', model: VENICE_STANDARD_EDIT_MODEL, safeMode: true, estimatedCostUsd: .05345 }]);
     expect(resolveVenicePipeline({ contentLevel: 'explicit' })).toEqual([
       { kind: 'canonical_base', model: VENICE_ADULT_EDIT_MODEL, safeMode: false, estimatedCostUsd: .04 },
       { kind: 'final_edit', model: VENICE_ADULT_FINAL_EDIT_MODEL, safeMode: false, estimatedCostUsd: .05 },
@@ -65,8 +65,9 @@ describe('Venice media contracts', () => {
     expect(veniceModelCostUsd('qwen-edit')).toBe(.04);
     expect(veniceModelCostUsd('qwen-edit-uncensored')).toBe(.04);
     expect(veniceModelCostUsd(VENICE_ADULT_FINAL_EDIT_MODEL)).toBe(.05);
-    expect(veniceModelCostUsd(VENICE_STANDARD_EDIT_MODEL)).toBe(.05);
-    expect(veniceModelCostUsd(VENICE_STANDARD_FALLBACK_EDIT_MODEL)).toBe(.10);
+    expect(veniceModelCostUsd(VENICE_STANDARD_EDIT_MODEL)).toBe(.05345);
+    expect(veniceModelCostUsd(VENICE_STANDARD_FALLBACK_EDIT_MODEL)).toBe(.05);
+    expect(veniceModelCostUsd('qwen-image-3-edit')).toBe(.04345);
     expect(veniceModelCostUsd('firered-image-edit')).toBe(.04);
     expect(veniceModelCostUsd(VENICE_QUALITY_EDIT_MODEL)).toBe(.10);
   });

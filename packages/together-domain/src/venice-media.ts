@@ -1,16 +1,15 @@
 import type { MediaContentLevel } from './media-routing.ts';
 
 export const VENICE_IMAGE_API_BASE = 'https://api.venice.ai/api/v1';
-// Qwen Image 2 is Venice's current general-purpose reference edit model. The
-// older qwen-edit route remains available, but has produced intermittent HTTP
-// 500 inference failures for otherwise valid full-body composition changes.
-export const VENICE_STANDARD_EDIT_MODEL = 'qwen-image-2-edit';
+// Qwen Image 3 Pro is Venice's current cost-efficient reference edit model.
+// It is priced below Qwen Image 2 Pro while retaining the photographic Pro
+// route and the same one-reference multi-edit contract used by Kivelle.
+export const VENICE_STANDARD_EDIT_MODEL = 'qwen-image-3-pro-edit';
 export const VENICE_QUALITY_EDIT_MODEL = 'qwen-image-2-pro-edit';
-// The production FireRed fallback repeatedly rejected otherwise valid
-// single-reference requests with HTTP 400. Qwen Pro uses the same validated
-// multi-edit contract as the primary model and has completed those requests
-// successfully, so it is the safe standard fallback.
-export const VENICE_STANDARD_FALLBACK_EDIT_MODEL = VENICE_QUALITY_EDIT_MODEL;
+// Keep the established Qwen Image 2 edit route as the single technical
+// fallback. It costs the same base $0.05 without promoting every SFW fallback
+// to the former $0.10 Qwen Image 2 Pro route.
+export const VENICE_STANDARD_FALLBACK_EDIT_MODEL = 'qwen-image-2-edit';
 // Keep the identity-establishing stage on grok-imagine-edit with safe_mode
 // disabled. Simple clothing edits stay non-explicit here; pose-rebuild nudes
 // include the approved pose and coverage in this same uncensored stage.
@@ -125,6 +124,8 @@ export function veniceModelCostUsd(model: string): number {
   const normalized = model.toLowerCase();
   if (normalized === VENICE_QUALITY_EDIT_MODEL) return 0.10;
   if (normalized === 'qwen-edit') return 0.04;
+  if (normalized === 'qwen-image-3-edit') return 0.04345;
+  if (normalized === 'qwen-image-3-pro-edit') return 0.05345;
   if (normalized === 'qwen-image-2-edit') return 0.05;
   if (normalized === 'qwen-image-2-pro-edit') return 0.10;
   // Remaining validated adult edit routes are billed per edit.

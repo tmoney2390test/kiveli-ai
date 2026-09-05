@@ -12,7 +12,7 @@ import{currentAdultMediaJobAuthorized}from'./web-adult-access.ts';
 import{blockingQualityReasonsForAgePolicy,customCharacterAgeCheckFromMetadata,requiresCustomCharacterAgePresentationCheck}from'./together-media-character.ts';
 
 export type MediaQualityGateResult={action:'accept';result:ProviderCompletedMedia}|{action:'deferred'}|{action:'reject';reasonCodes:string[]};
-type MediaQualityAssessment={verdict:MediaQualityVerdict;providerRequestId?:string|undefined;providerModel?:string|undefined;providerStatus?:string|undefined;providerError?:string|undefined;errorCode?:string|undefined;inferenceMs?:number|undefined;timedOut:boolean};
+type MediaQualityAssessment={verdict:MediaQualityVerdict;providerRequestId?:string|undefined;providerModel?:string|undefined;providerStatus?:string|undefined;providerError?:string|undefined;errorCode?:string|undefined;inferenceMs?:number|undefined;actualCostUsd?:number|undefined;timedOut:boolean};
 
 const QUALITY_MODEL='qwen3-vl-235b-a22b';
 
@@ -233,7 +233,7 @@ async function assessWithVisionFallback(client:VeniceImageClient,input:{imageUrl
   for(const model of models){
     try{
       const run=await client.assessQuality({...input,model}),verdict=parseMediaQualityVerdict(run.content);
-      last={verdict,providerRequestId:run.providerRequestId,providerModel:run.model,providerStatus:'completed',inferenceMs:run.generationMs,timedOut:false,...(verdict.status==='unavailable'?{errorCode:'provider_output_invalid'}:{})};
+      last={verdict,providerRequestId:run.providerRequestId,providerModel:run.model,providerStatus:'completed',inferenceMs:run.generationMs,...(run.actualCostUsd==null?{}:{actualCostUsd:run.actualCostUsd}),timedOut:false,...(verdict.status==='unavailable'?{errorCode:'provider_output_invalid'}:{})};
       if(verdict.status!=='unavailable')return last;
     }catch(error){
       const code=error instanceof AppError?error.code:'provider_unknown_error';
@@ -244,6 +244,6 @@ async function assessWithVisionFallback(client:VeniceImageClient,input:{imageUrl
 }
 
 function asStrings(value:unknown):string[]{return Array.isArray(value)?value.map(String).filter(Boolean):[];}
-function assessmentMetadata(assessment:MediaQualityAssessment):Record<string,unknown>{return compactRecord({qualityCheckedAt:new Date().toISOString(),qualityVerdict:assessment.verdict.status,qualityReasonCodes:assessment.verdict.reasonCodes,qualityProviderRequestId:assessment.providerRequestId,qualityProviderModel:assessment.providerModel,qualityProviderStatus:assessment.providerStatus,qualityProviderError:assessment.providerError,qualityErrorCode:assessment.errorCode,qualityTimedOut:assessment.timedOut,qualityInferenceMs:assessment.inferenceMs});}
+function assessmentMetadata(assessment:MediaQualityAssessment):Record<string,unknown>{return compactRecord({qualityCheckedAt:new Date().toISOString(),qualityVerdict:assessment.verdict.status,qualityReasonCodes:assessment.verdict.reasonCodes,qualityProviderRequestId:assessment.providerRequestId,qualityProviderModel:assessment.providerModel,qualityProviderStatus:assessment.providerStatus,qualityProviderError:assessment.providerError,qualityErrorCode:assessment.errorCode,qualityTimedOut:assessment.timedOut,qualityInferenceMs:assessment.inferenceMs,qualityActualCostUsd:assessment.actualCostUsd});}
 function compactRecord(value:Record<string,unknown>):Record<string,unknown>{return Object.fromEntries(Object.entries(value).filter(([,item])=>item!==undefined));}
 function envEnabled(name:string,fallback=false):boolean{const value=Deno.env.get(name);if(value==null)return fallback;return['1','true','yes','on'].includes(value.toLowerCase());}
