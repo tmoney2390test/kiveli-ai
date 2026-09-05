@@ -1,5 +1,5 @@
 import { assertStringIncludes } from 'jsr:@std/assert@1';
-import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, shouldRevalidateCompletedQualityRetry, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
+import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, shouldAttemptPaidImageQualityRetry, shouldRevalidateCompletedQualityRetry, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
 
 Deno.test('solo adult quality checks do not confuse explicit posing with non-consent',()=>{
   const rule=authorizedAdultImageSafetyRule([{companion:{name:'Elena Petrova',age:27,custom:false}}]);
@@ -58,6 +58,12 @@ Deno.test('synchronous quality retries are reviewed as new candidates',()=>{
   if(!shouldRevalidateCompletedQualityRetry({status:'completed',hasResult:true}))throw new Error('a completed Venice retry must receive a second quality review');
   if(shouldRevalidateCompletedQualityRetry({status:'processing',hasResult:true}))throw new Error('an unfinished retry must remain deferred');
   if(shouldRevalidateCompletedQualityRetry({status:'completed',hasResult:false}))throw new Error('a completed retry without output must remain deferred');
+});
+
+Deno.test('Venice does not buy a second quality candidate by default',()=>{
+  if(shouldAttemptPaidImageQualityRetry({provider:'venice',veniceRetryEnabled:false}))throw new Error('a Venice quality failure must not spend on a second image by default');
+  if(!shouldAttemptPaidImageQualityRetry({provider:'venice',veniceRetryEnabled:true}))throw new Error('the server override should permit a deliberate Venice quality retry');
+  if(!shouldAttemptPaidImageQualityRetry({provider:'wavespeed',veniceRetryEnabled:false}))throw new Error('the Venice cost control must not change other providers');
 });
 
 Deno.test('the SFW quality switch does not bypass custom adult output-safety review',()=>{

@@ -31,6 +31,10 @@ export function shouldRevalidateCompletedQualityRetry(input:{status:string;hasRe
   return input.status==='completed'&&input.hasResult;
 }
 
+export function shouldAttemptPaidImageQualityRetry(input:{provider:string;veniceRetryEnabled:boolean}):boolean{
+  return input.provider.toLowerCase()!=='venice'||input.veniceRetryEnabled;
+}
+
 export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<string,any>,media:Record<string,any>,result:ProviderCompletedMedia):Promise<MediaQualityGateResult>{
   const metadata=(media.metadata??{}) as Record<string,unknown>;
   const economicallyAuthorized=metadata.source==='user_request'||typeof metadata.mediaOfferId==='string';
@@ -88,6 +92,13 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     }
     return{action:'reject',reasonCodes:blockingReasons};
   }
+
+  // Venice charges for every generated candidate. Do not double the provider
+  // cost of an ordinary photo merely because the first candidate missed a
+  // quality requirement. The user-facing charge is released by the normal
+  // terminal-failure path, and operators can explicitly opt back into a paid
+  // second candidate if provider economics change.
+  if(!shouldAttemptPaidImageQualityRetry({provider:String(job.provider??''),veniceRetryEnabled:envEnabled('KIVELLE_VENICE_QUALITY_RETRY_ENABLED',false)}))return{action:'reject',reasonCodes:blockingReasons};
 
   const now=new Date().toISOString();
   const{data:claimed}=await db.from('together_media_provider_jobs').update({status:'submitting',provider_metadata:{...providerMetadata,qualityRetryPreparing:true,qualityVerdict:'fail',qualityReasonCodes:verdict.reasonCodes},updated_at:now}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id)).select('*').maybeSingle();
