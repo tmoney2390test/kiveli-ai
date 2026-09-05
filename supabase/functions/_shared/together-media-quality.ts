@@ -95,7 +95,11 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     // still fail closed. This returns the best safe candidate only when QA's
     // remaining concerns are direction or setting preferences.
     const requiresExactRequestedComposition=adultAuthorized&&specificAnatomyExposure==='uncovered'&&requestedDirection?.source==='requested';
-    if((!customAgeCheck&&blockingReasons.length===0)||canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:blockingReasons},{requiresExactRequestedComposition,allowOfficialAgePresentationWarning:!customAgeCheck})){
+    const correctedCandidate={status:'fail' as const,reasonCodes:blockingReasons};
+    const deliverCorrectedCandidate=!adultAuthorized
+      ?canDeliverFinalSfwQualityCandidateWithWarnings(correctedCandidate)
+      :canDeliverQualityRetryWithWarnings(correctedCandidate,{requiresExactRequestedComposition,allowOfficialAgePresentationWarning:!customAgeCheck});
+    if((!customAgeCheck&&blockingReasons.length===0)||deliverCorrectedCandidate){
       await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
       await track(db,String(media.user_id),'media_quality_retry_delivered_with_warnings',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
       return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
@@ -209,6 +213,13 @@ export function authorizedAdultImageSafetyRule(subjects:Array<{companion:{name:s
 }
 
 const DELIVERABLE_QUALITY_WARNINGS=new Set(['pose_mismatch','face_direction_mismatch','world_mismatch','location_mismatch','earth_leakage','time_mismatch']);
+const FINAL_SFW_DELIVERABLE_QUALITY_WARNINGS=new Set([
+  ...DELIVERABLE_QUALITY_WARNINGS,
+  // Once the economical route has already made its single correction, these
+  // subjective misses should not erase the result. Structural defects,
+  // additional people, unsafe content, and age uncertainty stay excluded.
+  'face_low_detail','face_too_small','non_photorealistic','identity_mismatch',
+]);
 const CUSTOM_TERMINAL_QUALITY_REASONS=new Set(['adult_safety_violation','adult_safety_unverified','ambiguous_age']);
 
 export function isCustomCharacterTerminalQualityFailure(reasonCodes:string[],customCharacterAgeCheck:boolean):boolean{
@@ -239,6 +250,10 @@ export function canDeliverQualityRetryWithWarnings(verdict:MediaQualityVerdict,i
 
 export function shouldDeliverFirstImageQualityCandidateWithWarnings(input:{verdict:MediaQualityVerdict;adultAuthorized:boolean}):boolean{
   return input.adultAuthorized===false&&canDeliverQualityRetryWithWarnings(input.verdict);
+}
+
+export function canDeliverFinalSfwQualityCandidateWithWarnings(verdict:MediaQualityVerdict):boolean{
+  return verdict.status==='fail'&&verdict.reasonCodes.length>0&&verdict.reasonCodes.every((reason)=>FINAL_SFW_DELIVERABLE_QUALITY_WARNINGS.has(reason));
 }
 
 async function assessWithVisionFallback(client:VeniceImageClient,input:{imageUrl:string;referenceImageUrls?:string[];prompt:string}):Promise<MediaQualityAssessment>{
