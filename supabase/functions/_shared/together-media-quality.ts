@@ -9,6 +9,7 @@ import{enforceMediaQualityRequirements,parseMediaQualityVerdict,type MediaQualit
 import{photoRequestAllowsHiddenFace,resolveAdultNudityScope,resolvePhotoDirection,resolveSpecificAnatomyExposure,visibleAdultAnatomyTargetLabels}from'../../../packages/together-domain/src/media.ts';
 import{completeMediaUsageAttempt,recordMediaUsageAttempt}from'./together-media-usage.ts';
 import{currentAdultMediaJobAuthorized}from'./web-adult-access.ts';
+import{requiresCustomCharacterAgePresentationCheck}from'./together-media-character.ts';
 
 export type MediaQualityGateResult={action:'accept';result:ProviderCompletedMedia}|{action:'deferred'}|{action:'reject';reasonCodes:string[]};
 type MediaQualityAssessment={verdict:MediaQualityVerdict;providerRequestId?:string|undefined;providerModel?:string|undefined;providerStatus?:string|undefined;providerError?:string|undefined;errorCode?:string|undefined;inferenceMs?:number|undefined;timedOut:boolean};
@@ -38,6 +39,7 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     const captureLighting=canonical?mediaCaptureLightingForRequest(canonical):null;
     try{assessment=await assessImage(client,prepared.url,faceRequired,nudityScope,specificAnatomyExposure,requestText,requestedDirection?.source==='requested'?requestedDirection:null,subjects??[],canonical?.context.worldContainment,canonical?.referenceImages??[],captureLighting?.qualityInstruction,adultAuthorized,anonymousAdultPartner);}finally{if(prepared.temporary)await db.storage.from('together-user-media').remove([prepared.temporary]);}
   }
+  const customAgeCheck=requiresCustomCharacterAgePresentationCheck(subjects??[]);
   const verdict=enforceMediaQualityRequirements(assessment.verdict,{requiresVisibleSpecificAnatomy:specificAnatomyExposure==='uncovered'&&(nudityScope==='specific_anatomy'||nudityScope==='full_nude'||nudityScope==='bottomless'||visibleAdultAnatomyTargetLabels(requestText).some((label)=>/genital|vulva|penis/i.test(label))),requiresWorldVerification:Boolean(canonical?.context.worldContainment)&&envEnabled('KIVELLE_MEDIA_WORLD_QA_REQUIRED',true),requiresAdultSafetyVerification:adultAuthorized}),qualityMetadata=assessmentMetadata({...assessment,verdict}),providerMetadata={...((job.provider_metadata??{}) as Record<string,unknown>),...qualityMetadata};
   await db.from('together_media_provider_jobs').update({provider_metadata:providerMetadata,updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
   await track(db,String(media.user_id),'media_quality_checked',compactRecord({mediaId:media.id,verdict:verdict.status,retryCount:Number(providerMetadata.qualityRetryCount??0),qaProviderRequestId:assessment.providerRequestId,qaProviderModel:assessment.providerModel,qaProviderStatus:assessment.providerStatus,qaErrorCode:assessment.errorCode,qaTimedOut:assessment.timedOut,qaInferenceMs:assessment.inferenceMs}));
@@ -45,7 +47,15 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
 
   // Safety classifications are terminal. Retrying a prohibited or
   // unverifiable adult candidate would create another unsafe provider call.
-  if(verdict.reasonCodes.some((reason)=>['adult_safety_violation','adult_safety_unverified','ambiguous_age'].includes(reason)))return{action:'reject',reasonCodes:verdict.reasonCodes};
+  // Custom companions keep the visual age gate. Official catalog adults only
+  // fail closed on actual adult-safety violations, not a youthful 18+ look.
+  const terminalReasons=['adult_safety_violation','adult_safety_unverified',...(customAgeCheck?['ambiguous_age']:[])];
+  if(verdict.reasonCodes.some((reason)=>terminalReasons.includes(reason)))return{action:'reject',reasonCodes:verdict.reasonCodes};
+  if(!customAgeCheck&&verdict.reasonCodes.length>0&&verdict.reasonCodes.every((reason)=>reason==='ambiguous_age')){
+    await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
+    await track(db,String(media.user_id),'media_quality_official_age_warning_accepted',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
+    return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
+  }
 
   const retryCount=Number(providerMetadata.qualityRetryCount??0);
   if(retryCount>=1){
@@ -55,7 +65,7 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     // still fail closed. This returns the best safe candidate only when QA's
     // remaining concerns are direction or setting preferences.
     const requiresExactRequestedComposition=adultAuthorized&&specificAnatomyExposure==='uncovered'&&requestedDirection?.source==='requested';
-    if(canDeliverQualityRetryWithWarnings(verdict,{requiresExactRequestedComposition})){
+    if(canDeliverQualityRetryWithWarnings(verdict,{requiresExactRequestedComposition,allowOfficialAgePresentationWarning:!customAgeCheck})){
       await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
       await track(db,String(media.user_id),'media_quality_retry_delivered_with_warnings',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
       return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
@@ -97,7 +107,7 @@ async function prepareQualityInput(db:SupabaseClient,job:Record<string,any>,medi
   const{data}=await db.storage.from('together-user-media').createSignedUrl(path,600);if(!data?.signedUrl){await db.storage.from('together-user-media').remove([path]);return null;}return{url:data.signedUrl,temporary:path};
 }
 
-async function assessImage(client:VeniceImageClient,imageUrl:string,faceRequired:boolean,nudityScope:ReturnType<typeof resolveAdultNudityScope>,specificAnatomyExposure:ReturnType<typeof resolveSpecificAnatomyExposure>,requestText:string|undefined,requestedDirection:ReturnType<typeof resolvePhotoDirection>|null,subjects:Array<{companion:{name:string;age?:number};visualIdentity?:{canonicalDescription?:string;hair?:string;eyes?:string;skinTone?:string;identifyingFeatures?:string[]};referenceImages:Array<{signedUrl?:string}>}>,worldContainment?:{worldName:string;locationName?:string;worldDescription?:string;worldVisualContext?:Record<string,unknown>},allReferences:Array<{role:string;signedUrl?:string}>=[],timeRule?:string,adultAuthorized=false,anonymousAdultPartner=false):Promise<MediaQualityAssessment>{
+async function assessImage(client:VeniceImageClient,imageUrl:string,faceRequired:boolean,nudityScope:ReturnType<typeof resolveAdultNudityScope>,specificAnatomyExposure:ReturnType<typeof resolveSpecificAnatomyExposure>,requestText:string|undefined,requestedDirection:ReturnType<typeof resolvePhotoDirection>|null,subjects:Array<{companion:{name:string;age?:number;custom?:boolean};visualIdentity?:{canonicalDescription?:string;hair?:string;eyes?:string;skinTone?:string;identifyingFeatures?:string[]};referenceImages:Array<{signedUrl?:string}>}>,worldContainment?:{worldName:string;locationName?:string;worldDescription?:string;worldVisualContext?:Record<string,unknown>},allReferences:Array<{role:string;signedUrl?:string}>=[],timeRule?:string,adultAuthorized=false,anonymousAdultPartner=false):Promise<MediaQualityAssessment>{
   try{
     const subjectCount=Math.max(1,subjects.length),expectedSubjectCount=anonymousAdultPartner?2:subjectCount,group=expectedSubjectCount>1,faceRule=anonymousAdultPartner?`The output must contain exactly two clearly fictional adults age 25 or older: the one approved companion and one anonymous original partner. The companion must match the authoritative identity reference wherever they appear in the image. The anonymous partner must not resemble the companion, the user, or any recognizable real person and may remain non-identifiable. Fail subject_count_mismatch for a missing person, extra person, duplicate companion, or fused people. Fail identity_mismatch when the companion does not match their reference.`:group?`The output must contain exactly ${subjectCount} intended adult companions and no one else. Both selected faces must be visible, distinct, recognizable, and large enough to judge. The reference images after the generated output correspond in order to ${subjects.map((subject)=>subject.companion.name).join(' then ')}. Fail identity_mismatch when either intended person does not match their reference. Fail identity_swap when their identities or assigned positions are exchanged, blended, or copied. Fail subject_count_mismatch for a missing selected person, an extra person, or any duplicate person. Do not fail merely because this is an intentional two-person image.`:faceRequired?`The companion face must be visible, recognizable, and large enough to judge. The first identity reference after the generated output is authoritative for ${subjects[0]?.companion.name??'the companion'}; compare facial structure, eyes, nose, complexion, hair identity, and distinctive traits. Fail identity_mismatch for material identity drift. Fail face_too_small when the face is too small to judge. Fail face_blur, face_low_detail, face_distortion, or duplicate_features whenever applicable.`:'The approved composition may intentionally cover, turn away, crop out, or omit the face. Do not fail a missing, hidden, obscured, turned-away, or small face. If a face is visibly rendered, still fail obvious distortion or duplicated features.';
     const nudityRule=adultAuthorized?authorizedAdultImageSafetyRule(subjects,anonymousAdultPartner): 'PRODUCTION CONTENT CEILING: the delivered image must use opaque clothing suitable for a general audience. Ordinary opaque swimwear is allowed when the canonical location or activity calls for it. Fail sexual_content for any exposed breasts, nipples, buttocks, genitals, transparent or lingerie-like coverage, sexual activity, fetish presentation, or clearly sexual posing. This rule overrides any source/reference residue.';
@@ -136,14 +146,17 @@ async function assessImage(client:VeniceImageClient,imageUrl:string,faceRequired
   }catch(error){return{verdict:{status:'unavailable',reasonCodes:[]},errorCode:error instanceof AppError?error.code:'provider_unknown_error',timedOut:false};}
 }
 
-export function authorizedAdultImageSafetyRule(subjects:Array<{companion:{name:string;age?:number}}>,anonymousAdultPartner=false):string{
+export function authorizedAdultImageSafetyRule(subjects:Array<{companion:{name:string;age?:number;custom?:boolean}}>,anonymousAdultPartner=false):string{
   const canonicalAdults=subjects.map(({companion})=>`${companion.name}${Number.isFinite(companion.age)?` (canonical age ${companion.age})`:''}`).join(', ')||'the approved fictional adult companion';
   const participantRule=anonymousAdultPartner
     ? `The authorized participants are ${canonicalAdults} and one distinct anonymous original fictional adult age 25 or older.`
     : subjects.length>1
     ? `The authorized participants are the registered fictional adults ${canonicalAdults}.`
     : `The only authorized subject is ${canonicalAdults}. This is a solo image: consensual solo nudity, explicit anatomy, sexual posing, or solo sexual activity is not evidence of non-consent and may pass when otherwise safe.`;
-  return `ADULT SAFETY GATE: authorized fictional-adult nudity and consensual sexual content may pass. ${participantRule} Every visible person must have an unambiguously adult presentation matching the authoritative fictional-character references. Fail ambiguous_age if any person visually appears under 18, age-ambiguous, teen-like, youthful, or childlike, including when that contradicts a canonical age. Fail adult_safety_violation for visible indications of coercion, non-consent, distress, force, restraint, sexual violence, incest, bestiality, trafficking, compensated sexual arrangements, exploitation, a recognizable real person or sexual deepfake, or illegal sexual content. A still image does not need to display affirmative-consent evidence; do not fail merely because consent is not visually narrated. Do not turn pose_mismatch, face_direction_mismatch, nudity, or explicit anatomy into an adult_safety_violation. This gate must assess the image and authoritative fictional-character references, not trust unverified identity claims in free-form text.`;
+  const ageRule=requiresCustomCharacterAgePresentationCheck(subjects)
+    ? 'Every visible person must have an unambiguously adult presentation matching the authoritative fictional-character references. Fail ambiguous_age if any person visually appears under 18, age-ambiguous, teen-like, youthful, or childlike, including when that contradicts a canonical age.'
+    : 'Official catalog companions are confirmed fictional adults. Match the authoritative fictional-character references, including a youthful or young-adult presentation when that is the canonical adult identity. Fail ambiguous_age only if a visible person is clearly a child or otherwise under 18. Do not fail ambiguous_age for petite, youthful, or young-adult adult features, and do not override a canonical age of 18 or older.';
+  return `ADULT SAFETY GATE: authorized fictional-adult nudity and consensual sexual content may pass. ${participantRule} ${ageRule} Fail adult_safety_violation for visible indications of coercion, non-consent, distress, force, restraint, sexual violence, incest, bestiality, trafficking, compensated sexual arrangements, exploitation, a recognizable real person or sexual deepfake, or illegal sexual content. A still image does not need to display affirmative-consent evidence; do not fail merely because consent is not visually narrated. Do not turn pose_mismatch, face_direction_mismatch, nudity, or explicit anatomy into an adult_safety_violation. This gate must assess the image and authoritative fictional-character references, not trust unverified identity claims in free-form text.`;
 }
 
 const DELIVERABLE_QUALITY_WARNINGS=new Set(['pose_mismatch','face_direction_mismatch','world_mismatch','location_mismatch','earth_leakage','time_mismatch']);
@@ -165,9 +178,9 @@ export function requestedGenitalAnatomyQualityRule(requestText:string|undefined)
 
 export function generatedImagePhotorealismRule():string{return'PHOTOREALISM IS REQUIRED. The output must be indistinguishable from a real camera photograph, with natural skin pores and imperfections, individual hair, plausible optics, light, depth of field, and sensor response. Fail non_photorealistic for anime, cartoons, paintings, illustrations, 2D/3D renders, CGI, game art, stylized animation, dolls, mannequins, wax figures, plastic or heavily airbrushed skin, oversized illustrated eyes, or any clearly synthetic visual style.';}
 
-export function canDeliverQualityRetryWithWarnings(verdict:MediaQualityVerdict,input:{requiresExactRequestedComposition?:boolean}={}):boolean{
+export function canDeliverQualityRetryWithWarnings(verdict:MediaQualityVerdict,input:{requiresExactRequestedComposition?:boolean;allowOfficialAgePresentationWarning?:boolean}={}):boolean{
   if(input.requiresExactRequestedComposition&&verdict.reasonCodes.some((reason)=>reason==='pose_mismatch'||reason==='face_direction_mismatch'))return false;
-  return verdict.status==='fail'&&verdict.reasonCodes.length>0&&verdict.reasonCodes.every((reason)=>DELIVERABLE_QUALITY_WARNINGS.has(reason));
+  return verdict.status==='fail'&&verdict.reasonCodes.length>0&&verdict.reasonCodes.every((reason)=>DELIVERABLE_QUALITY_WARNINGS.has(reason)||(input.allowOfficialAgePresentationWarning===true&&reason==='ambiguous_age'));
 }
 
 async function assessWithVisionFallback(client:VeniceImageClient,input:{imageUrl:string;referenceImageUrls?:string[];prompt:string}):Promise<MediaQualityAssessment>{

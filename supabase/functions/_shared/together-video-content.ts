@@ -360,7 +360,7 @@ export function videoEnhancementInstructions(
     input.sound
       ? "Include a brief natural audio cue only when it follows directly from the request."
       : "Do not mention dialogue, music, or audio.",
-    "Never introduce minors, ambiguous ages, non-consent, incest, exploitation, sexual violence, bestiality, trafficking, or a real-person likeness.",
+    "Never introduce minors or a child presentation, non-consent, incest, exploitation, sexual violence, bestiality, trafficking, or a real-person likeness. Do not rewrite an official catalog adult to look older merely because they look youthful.",
   ].join(" ");
 }
 

@@ -231,7 +231,7 @@ async function generateAppearance(db: Db, userId: string, draft: Record<string, 
     for (const candidate of candidateSet) {
       const mediaRequest: CanonicalImageGenerationRequest = {
         mediaId: candidate.id,
-        companion: { templateId: draft.id, versionId: draft.id, name: identity.name, age: identity.age },
+        companion: { templateId: draft.id, versionId: draft.id, name: identity.name, age: identity.age, custom: true },
         visualIdentity: { canonicalDescription: candidate.description, age: identity.age, referenceStoragePaths: [], identifyingFeatures: [], fashionStyle: candidate.label, visualDoNotChange: candidate.visualDoNotChange ?? [] },
         referenceImages: [], context: { place, activity: 'a neutral canonical identity portrait', mood: 'natural, self-possessed, approachable', timeOfDay: place.clock.daypart },
         composition: { shotType: 'portrait', framing: 'waist-up portrait, face clearly visible, natural posture, uncluttered background', aspectRatio: '4:5' }, contentLevel: 'standard', qualityTier: 'standard',

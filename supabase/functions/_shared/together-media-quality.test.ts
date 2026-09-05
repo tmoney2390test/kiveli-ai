@@ -2,7 +2,7 @@ import { assertStringIncludes } from 'jsr:@std/assert@1';
 import { authorizedAdultImageSafetyRule, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule } from './together-media-quality.ts';
 
 Deno.test('solo adult quality checks do not confuse explicit posing with non-consent',()=>{
-  const rule=authorizedAdultImageSafetyRule([{companion:{name:'Elena Petrova',age:27}}]);
+  const rule=authorizedAdultImageSafetyRule([{companion:{name:'Elena Petrova',age:27,custom:false}}]);
   assertStringIncludes(rule,'canonical age 27');
   assertStringIncludes(rule,'This is a solo image');
   assertStringIncludes(rule,'explicit anatomy');
@@ -13,10 +13,33 @@ Deno.test('solo adult quality checks do not confuse explicit posing with non-con
 });
 
 Deno.test('partnered adult quality checks retain strict participant and consent rules',()=>{
-  const rule=authorizedAdultImageSafetyRule([{companion:{name:'Elena Petrova',age:27}}],true);
+  const rule=authorizedAdultImageSafetyRule([{companion:{name:'Elena Petrova',age:27,custom:false}}],true);
   assertStringIncludes(rule,'anonymous original fictional adult age 25 or older');
   assertStringIncludes(rule,'visible indications of coercion');
   assertStringIncludes(rule,'A still image does not need to display affirmative-consent evidence');
+});
+
+Deno.test('official catalog adults are not failed for a youthful 18+ look',()=>{
+  const rule=authorizedAdultImageSafetyRule([{companion:{name:'Princess Maris Vaelorian',age:18,custom:false}}]);
+  assertStringIncludes(rule,'canonical age 18');
+  assertStringIncludes(rule,'Fail ambiguous_age only if a visible person is clearly a child');
+  assertStringIncludes(rule,'Do not fail ambiguous_age for petite, youthful, or young-adult adult features');
+  if(rule.includes('including when that contradicts a canonical age'))throw new Error('official catalog QA must not override a canonical adult age');
+  if(rule.includes('teen-like, youthful, or childlike'))throw new Error('official catalog QA must not treat youthful adults as age-ambiguous');
+});
+
+Deno.test('custom companions keep the strict visual age presentation gate',()=>{
+  const rule=authorizedAdultImageSafetyRule([{companion:{name:'Custom Companion',age:19,custom:true}}]);
+  assertStringIncludes(rule,'Fail ambiguous_age if any person visually appears under 18');
+  assertStringIncludes(rule,'teen-like, youthful, or childlike');
+  assertStringIncludes(rule,'including when that contradicts a canonical age');
+  const mixed=authorizedAdultImageSafetyRule([
+    {companion:{name:'Princess Maris Vaelorian',age:18,custom:false}},
+    {companion:{name:'Custom Companion',age:22,custom:true}},
+  ]);
+  assertStringIncludes(mixed,'including when that contradicts a canonical age');
+  const unknown=authorizedAdultImageSafetyRule([{companion:{name:'Unknown Companion',age:21}}]);
+  assertStringIncludes(unknown,'including when that contradicts a canonical age');
 });
 
 Deno.test('a second safe candidate may be delivered with composition warnings',()=>{
@@ -24,6 +47,8 @@ Deno.test('a second safe candidate may be delivered with composition warnings',(
   if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['pose_mismatch']},{requiresExactRequestedComposition:true}))throw new Error('an explicit requested pose must not be silently accepted after a retry');
   if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['pose_mismatch','identity_mismatch']}))throw new Error('identity failures must remain terminal');
   if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['adult_safety_violation']}))throw new Error('adult safety failures must remain terminal');
+  if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['ambiguous_age']}))throw new Error('custom-character age failures must remain terminal');
+  if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['ambiguous_age']},{allowOfficialAgePresentationWarning:true}))throw new Error('official catalog youthful-adult presentation must not stay terminal');
   if(canDeliverQualityRetryWithWarnings({status:'pass',reasonCodes:[]}))throw new Error('passing results do not need warning fallback');
 });
 

@@ -29,7 +29,7 @@ import {
 } from "../../../packages/together-domain/src/media.ts";
 import { isMediaGenerationAuthorized } from "../../../packages/together-domain/src/media-economics.ts";
 import { generatedPhotosEnabled } from "./together-photo-preferences.ts";
-import { isAdultMediaReferenceEligible, isFictionalCompanion } from "./together-media-character.ts";
+import { isAdultMediaReferenceEligible, isCustomCharacterTemplate, isFictionalCompanion } from "./together-media-character.ts";
 import {
   buildMediaEditConstraint,
   classifyMediaEditSemantics,
@@ -124,6 +124,7 @@ export type CanonicalMediaSubject = {
     versionId: string;
     name: string;
     age: number;
+    custom?: boolean;
   };
   visualIdentity: CompanionVisualIdentity;
   referenceImages: MediaReferenceImage[];
@@ -142,6 +143,7 @@ export type CanonicalImageGenerationRequest = {
     versionId: string;
     name: string;
     age: number;
+    custom?: boolean;
   };
   visualIdentity: CompanionVisualIdentity;
   subjects?: CanonicalMediaSubject[];
@@ -1677,6 +1679,7 @@ export async function queueMediaRequest(
       : "single_companion",
     characterReferenceRequired: true,
     photorealismRequired: true,
+    customCharacter: subjects.some((subject) => isCustomCharacterTemplate(subject.together_character_templates)),
     sceneBoundary: sceneBoundary.setting,
     locationReferenceResolution: hasLocationReference
       ? "location"
@@ -2217,6 +2220,7 @@ export async function canonicalRequestForMedia(
           versionId: String(subject.character_version_id),
           name: String(subjectTemplate.name),
           age: Number(subjectTemplate.age),
+          custom: isCustomCharacterTemplate(subjectTemplate),
         },
         visualIdentity: canonicalVisualIdentity(
           subjectIdentity,

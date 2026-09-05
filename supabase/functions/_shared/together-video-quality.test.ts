@@ -53,6 +53,95 @@ Deno.test("a server-only manual approval bypasses quality classification for one
   assert(writes.length >= 2);
 });
 
+function videoQualityDb() {
+  const writes: unknown[] = [];
+  const chain: Record<string, unknown> = {};
+  chain.update = (value: unknown) => {
+    writes.push(value);
+    return chain;
+  };
+  chain.insert = (value: unknown) => {
+    writes.push(value);
+    return chain;
+  };
+  chain.eq = () => chain;
+  chain.then = (resolve: (value: unknown) => void) =>
+    resolve({ data: null, error: null });
+  return {
+    writes,
+    db: {
+      from: () => chain,
+      rpc: (_name: string, value: unknown) => {
+        writes.push(value);
+        return Promise.resolve({ data: null, error: null });
+      },
+    } as never,
+  };
+}
+
+Deno.test("official catalog videos can deliver a youthful-adult ambiguous_age warning", async () => {
+  const { db } = videoQualityDb();
+  const result = await gateGeneratedVideoQuality(db, {
+    id: "job-official",
+    status: "processing",
+    provider_metadata: {},
+  }, {
+    id: "media-official",
+    user_id: "user-1",
+    media_type: "video",
+    content_level: "standard",
+    visibility_scope: "all",
+    metadata: { customCharacter: false },
+  }, {
+    bytes: new Uint8Array([1, 2, 3]),
+    contentType: "video/mp4",
+    client: {
+      assess: async (input: { customCharacterAgeCheck?: boolean }) => {
+        if (input.customCharacterAgeCheck !== false) {
+          throw new Error("official catalog video QA must use the catalog age rule");
+        }
+        return {
+          verdict: { status: "fail", reasonCodes: ["ambiguous_age"] },
+          model: "gemini-test",
+          inferenceMs: 1,
+          providerStatus: "completed",
+        };
+      },
+    } as never,
+  });
+  assertEquals(result.action, "accept");
+  assertEquals(result.reasonCodes, ["ambiguous_age"]);
+});
+
+Deno.test("custom companion videos still reject an ambiguous_age failure", async () => {
+  const { db } = videoQualityDb();
+  const result = await gateGeneratedVideoQuality(db, {
+    id: "job-custom",
+    status: "processing",
+    provider_metadata: {},
+  }, {
+    id: "media-custom",
+    user_id: "user-1",
+    media_type: "video",
+    content_level: "standard",
+    visibility_scope: "all",
+    metadata: { customCharacter: true },
+  }, {
+    bytes: new Uint8Array([1, 2, 3]),
+    contentType: "video/mp4",
+    client: {
+      assess: async () => ({
+        verdict: { status: "fail", reasonCodes: ["ambiguous_age"] },
+        model: "gemini-test",
+        inferenceMs: 1,
+        providerStatus: "completed",
+      }),
+    } as never,
+  });
+  assertEquals(result.action, "reject");
+  assertEquals(result.reasonCodes, ["ambiguous_age"]);
+});
+
 Deno.test("video quality prompt explicitly rejects doll anatomy and temporal body failures", () => {
   const standard = buildVideoQualityPrompt(false),
     adult = buildVideoQualityPrompt(true);
@@ -78,6 +167,12 @@ Deno.test("video quality prompt explicitly rejects doll anatomy and temporal bod
   );
   assertStringIncludes(partnered, "age 25 or older");
   assertStringIncludes(partnered, "must not resemble the user");
+  const official = buildVideoQualityPrompt(true, false, false);
+  assertStringIncludes(official, "Fail ambiguous_age only for a clearly underage or child presentation");
+  assertStringIncludes(official, "Do not fail ambiguous_age because an official catalog adult looks youthful");
+  if (official.includes("underage or age-ambiguous presentation")) {
+    throw new Error("official catalog video QA must not treat youthful adults as age-ambiguous");
+  }
 });
 
 Deno.test("video quality verdict parsing is strict and retains anatomy failures", () => {
@@ -169,6 +264,28 @@ Deno.test("video delivery fails closed when quality cannot be verified", () => {
     {
       action: "accept",
       reasonCodes: ["duplicate_body_parts"],
+      verificationUnavailable: false,
+    },
+  );
+  assertEquals(
+    resolveVideoQualityDecision({
+      status: "fail",
+      reasonCodes: ["ambiguous_age"],
+    }, true, true),
+    {
+      action: "reject",
+      reasonCodes: ["ambiguous_age"],
+      verificationUnavailable: false,
+    },
+  );
+  assertEquals(
+    resolveVideoQualityDecision({
+      status: "fail",
+      reasonCodes: ["ambiguous_age"],
+    }, true, false),
+    {
+      action: "accept",
+      reasonCodes: ["ambiguous_age"],
       verificationUnavailable: false,
     },
   );

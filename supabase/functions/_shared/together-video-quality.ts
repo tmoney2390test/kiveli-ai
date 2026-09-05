@@ -2,6 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { track } from "./together.ts";
 import { currentAdultMediaJobAuthorized } from "./web-adult-access.ts";
 import { adultVideoFeatureEnabled } from "./together-video-content.ts";
+import {
+  customCharacterAgeCheckFromMetadata,
+  isCustomCharacterTemplate,
+} from "./together-media-character.ts";
+import { normalizeMediaSubjectIds } from "./together-media-subjects.ts";
 
 export type VideoQualityVerdict = {
   status: "pass" | "fail" | "unavailable";
@@ -52,12 +57,16 @@ const MAX_ASSESSMENT_ATTEMPTS = 2;
 export function buildVideoQualityPrompt(
   adultAuthorized = false,
   anonymousAdultPartner = false,
+  customCharacterAgeCheck = true,
 ): string {
   const contentRule = adultAuthorized
     ? anonymousAdultPartner
       ? "Authorized fictional-adult nudity and consensual sexual activity may pass and should not be failed as unexpected_nudity_or_sexual_content. The video must contain exactly the approved fictional companion and one distinct anonymous original fictional adult partner; both must be unmistakably age 25 or older. The anonymous partner must not resemble the user or a recognizable real person. All visible anatomy, including genitals, breasts, and buttocks present in the opening frame, must stay natural, complete, coherent, uncovered, and stable through time. Fail unexpected_censoring if clothing, blur, bars, or blank anatomy appear over requested nudity."
       : "Authorized fictional-adult nudity and consensual sexual activity may pass and should not be failed as unexpected_nudity_or_sexual_content, but only when every person is unmistakably an adult and all visible anatomy, including genitals, breasts, and buttocks present in the opening frame, stays natural, complete, coherent, uncovered, and stable through time. Fail unexpected_censoring if clothing, blur, bars, or blank anatomy appear over requested nudity."
     : "This is a standard or romantic Kivelle video. Fail unexpected_nudity_or_sexual_content for exposed breasts, nipples, buttocks, genitals, sexual activity, fetish presentation, or sexual posing, including content that was not present in the opening image.";
+  const ageRule = customCharacterAgeCheck
+    ? "Every person must be an unambiguously fictional adult. Fail ambiguous_age or adult_safety_violation for an underage or age-ambiguous presentation, non-consent, coercion, sexual violence, incest, bestiality, trafficking, exploitation, a real person or deepfake, or illegal content."
+    : "Official catalog companions are confirmed fictional adults. Fail ambiguous_age only for a clearly underage or child presentation. Do not fail ambiguous_age because an official catalog adult looks youthful, petite, or young-adult. Fail adult_safety_violation for non-consent, coercion, sexual violence, incest, bestiality, trafficking, exploitation, a real person or deepfake, or illegal content.";
   return [
     "Act as a practical pre-delivery quality inspector for this short generated character video. Inspect the complete timeline, not only the opening frame.",
     contentRule,
@@ -66,7 +75,7 @@ export function buildVideoQualityPrompt(
     "Fail doll_like_anatomy when a chest, pelvic, genital, buttock, or other body region looks like smooth plastic, a mannequin, a doll, or a featureless synthetic patch instead of natural adult anatomy.",
     "Fail missing_anatomy, fused_anatomy, or malformed_anatomy for absent, merged, melted, disconnected, implausibly shaped, or incoherent visible body structures. Fail unexpected_censoring for accidental blanking, smoothing, blur, bars, mosaics, invented fabric, or other visual censorship.",
     "Fail temporal_anatomy_inconsistency when body parts, proportions, coverage, or visible anatomy appear, vanish, fuse, split, or change unnaturally across multiple consecutive moments. A fleeting extra limb, hand, or digit limited to one sampled instant should PASS with duplicate_body_parts, malformed_hands, digit_error, or temporal_anatomy_inconsistency retained only as an advisory. Fail persistent duplicate parts, severe identity drift, prominent text or watermarks, or repeatedly unstable faces.",
-    "Every person must be an unambiguously fictional adult. Fail ambiguous_age or adult_safety_violation for an underage or age-ambiguous presentation, non-consent, coercion, sexual violence, incest, bestiality, trafficking, exploitation, a real person or deepfake, or illegal content.",
+    ageRule,
     "Do not describe the video and do not repeat any dialogue, prompt, identity, or sexual details. Output only the verdict contract.",
   ].join(" ");
 }
@@ -126,6 +135,7 @@ function structuredVideoQualityVerdict(
 export function resolveVideoQualityDecision(
   verdict: VideoQualityVerdict,
   failClosed = true,
+  customCharacterAgeCheck = true,
 ): Pick<
   VideoQualityGateResult,
   "action" | "reasonCodes" | "verificationUnavailable"
@@ -138,6 +148,17 @@ export function resolveVideoQualityDecision(
     };
   }
   if (verdict.status === "fail") {
+    if (
+      !customCharacterAgeCheck &&
+      verdict.reasonCodes.length > 0 &&
+      verdict.reasonCodes.every((reason) => reason === "ambiguous_age")
+    ) {
+      return {
+        action: "accept",
+        reasonCodes: verdict.reasonCodes,
+        verificationUnavailable: false,
+      };
+    }
     return {
       action: "reject",
       reasonCodes: verdict.reasonCodes,
@@ -168,6 +189,7 @@ export class GeminiVideoQualityClient {
       contentType: string;
       adultAuthorized?: boolean;
       anonymousAdultPartner?: boolean;
+      customCharacterAgeCheck?: boolean;
     },
   ): Promise<
     {
@@ -185,6 +207,7 @@ export class GeminiVideoQualityClient {
       const basePrompt = buildVideoQualityPrompt(
         input.adultAuthorized === true,
         input.anonymousAdultPartner === true,
+        input.customCharacterAgeCheck !== false,
       );
       let lastProviderStatus = "unavailable";
       for (let attempt = 1; attempt <= MAX_ASSESSMENT_ATTEMPTS; attempt += 1) {
@@ -444,7 +467,9 @@ export async function gateGeneratedVideoQuality(
         String(media.content_level ?? ""),
       ),
     anonymousAdultPartner = adultAuthorized &&
-      mediaMetadata.anonymousAdultPartner === true;
+      mediaMetadata.anonymousAdultPartner === true,
+    customCharacterAgeCheck =
+      await mediaRequiresCustomCharacterAgeCheck(db, media);
   if (
     adultAuthorized &&
     (!adultVideoFeatureEnabled() ||
@@ -502,6 +527,7 @@ export async function gateGeneratedVideoQuality(
       contentType: input.contentType,
       adultAuthorized,
       anonymousAdultPartner,
+      customCharacterAgeCheck,
     })
     : {
       verdict: { status: "unavailable" as const, reasonCodes: [] },
@@ -509,7 +535,11 @@ export async function gateGeneratedVideoQuality(
       providerStatus: "not_configured",
       inferenceMs: 0,
     };
-  const decision = resolveVideoQualityDecision(assessment.verdict, failClosed),
+  const decision = resolveVideoQualityDecision(
+    assessment.verdict,
+    failClosed,
+    customCharacterAgeCheck,
+  ),
     metadata = compact({
       videoQualityCheckedAt: new Date().toISOString(),
       videoQualityVerdict: assessment.verdict.status,
@@ -538,6 +568,34 @@ export async function gateGeneratedVideoQuality(
     qaInferenceMs: assessment.inferenceMs,
   });
   return { ...decision, metadata };
+}
+
+async function mediaRequiresCustomCharacterAgeCheck(
+  db: SupabaseClient,
+  media: Record<string, any>,
+): Promise<boolean> {
+  const fromMeta = customCharacterAgeCheckFromMetadata(media.metadata);
+  if (fromMeta !== null) return fromMeta;
+  const characterInstanceId = String(media.character_instance_id ?? "");
+  if (!characterInstanceId) return true;
+  try {
+    const ids = normalizeMediaSubjectIds(
+      characterInstanceId,
+      media.subject_character_instance_ids,
+    );
+    const result = await db.from("together_character_instances").select(
+      "together_character_templates(creator_id)",
+    ).in("id", ids);
+    const rows = Array.isArray(result?.data) ? result.data : [];
+    if (!rows.length) return true;
+    return rows.some((row: Record<string, unknown>) => {
+      const template = row.together_character_templates;
+      const record = Array.isArray(template) ? template[0] : template;
+      return isCustomCharacterTemplate(record);
+    });
+  } catch {
+    return true;
+  }
 }
 
 function normalizeFile(

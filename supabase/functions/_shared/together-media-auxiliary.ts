@@ -28,7 +28,7 @@ export async function dispatchCreatorAppearanceJobs(db: SupabaseClient, limit: n
         mediaId: String(asset.id),
         mediaType: 'image',
         generationKind: 'creator_identity',
-        companion: { templateId: String(draft.id), versionId: String(draft.id), name: String(identity.name ?? 'Companion'), age: Number(identity.age ?? 18) },
+        companion: { templateId: String(draft.id), versionId: String(draft.id), name: String(identity.name ?? 'Companion'), age: Number(identity.age ?? 18), custom: true },
         visualIdentity: { canonicalDescription: String(asset.description), age: Number(identity.age ?? 18), referenceStoragePaths: [], identifyingFeatures: [], fashionStyle: String(asset.label), visualDoNotChange: stringArray((asset.metadata as Record<string, unknown> | null)?.visualDoNotChange) },
         referenceImages: [],
         context: { place, activity: 'a neutral canonical identity portrait', mood: 'natural, self-possessed, approachable', timeOfDay: place.clock.daypart },
