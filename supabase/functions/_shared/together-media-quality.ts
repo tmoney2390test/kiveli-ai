@@ -62,6 +62,12 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     const captureLighting=canonical?mediaCaptureLightingForRequest(canonical):null;
     try{assessment=await assessImage(client,prepared.url,faceRequired,nudityScope,specificAnatomyExposure,requestText,requestedDirection?.source==='requested'?requestedDirection:null,subjects??[],canonical?.context.worldContainment,canonical?.referenceImages??[],captureLighting?.qualityInstruction,adultAuthorized,anonymousAdultPartner);}finally{if(prepared.temporary)await db.storage.from('together-user-media').remove([prepared.temporary]);}
   }
+  if(shouldDeliverSfwWhenQualityReviewIsUnavailable({adultAuthorized,verdict:assessment.verdict})){
+    const qualityMetadata=assessmentMetadata(assessment),providerMetadata={...((job.provider_metadata??{}) as Record<string,unknown>),...qualityMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:['quality_review_unavailable']};
+    await db.from('together_media_provider_jobs').update({provider_metadata:providerMetadata,updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
+    await track(db,String(media.user_id),'media_quality_unavailable_sfw_delivered',{mediaId:media.id,qaErrorCode:assessment.errorCode,qaTimedOut:assessment.timedOut});
+    return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:['quality_review_unavailable']}}};
+  }
   const verdict=enforceMediaQualityRequirements(assessment.verdict,{requiresVisibleSpecificAnatomy:specificAnatomyExposure==='uncovered'&&(nudityScope==='specific_anatomy'||nudityScope==='full_nude'||nudityScope==='bottomless'||visibleAdultAnatomyTargetLabels(requestText).some((label)=>/genital|vulva|penis/i.test(label))),requiresWorldVerification:Boolean(canonical?.context.worldContainment)&&envEnabled('KIVELLE_MEDIA_WORLD_QA_REQUIRED',true),requiresAdultSafetyVerification:customAdultSafety}),qualityMetadata=assessmentMetadata({...assessment,verdict}),providerMetadata={...((job.provider_metadata??{}) as Record<string,unknown>),...qualityMetadata};
   await db.from('together_media_provider_jobs').update({provider_metadata:providerMetadata,updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
   await track(db,String(media.user_id),'media_quality_checked',compactRecord({mediaId:media.id,verdict:verdict.status,retryCount:Number(providerMetadata.qualityRetryCount??0),qaProviderRequestId:assessment.providerRequestId,qaProviderModel:assessment.providerModel,qaProviderStatus:assessment.providerStatus,qaErrorCode:assessment.errorCode,qaTimedOut:assessment.timedOut,qaInferenceMs:assessment.inferenceMs}));
@@ -212,7 +218,7 @@ export function authorizedAdultImageSafetyRule(subjects:Array<{companion:{name:s
   return `ADULT SAFETY GATE: authorized fictional-adult nudity and consensual sexual content may pass. ${participantRule} ${ageRule} Fail adult_safety_violation for visible indications of coercion, non-consent, distress, force, restraint, sexual violence, incest, bestiality, trafficking, compensated sexual arrangements, exploitation, a recognizable real person or sexual deepfake, or illegal sexual content. A still image does not need to display affirmative-consent evidence; do not fail merely because consent is not visually narrated. Do not turn pose_mismatch, face_direction_mismatch, nudity, or explicit anatomy into an adult_safety_violation. This gate must assess the image and authoritative fictional-character references, not trust unverified identity claims in free-form text.`;
 }
 
-const DELIVERABLE_QUALITY_WARNINGS=new Set(['pose_mismatch','face_direction_mismatch','world_mismatch','location_mismatch','earth_leakage','time_mismatch']);
+const DELIVERABLE_QUALITY_WARNINGS=new Set(['face_too_small','pose_mismatch','face_direction_mismatch','world_mismatch','location_mismatch','earth_leakage','time_mismatch']);
 const FINAL_SFW_DELIVERABLE_QUALITY_WARNINGS=new Set([
   ...DELIVERABLE_QUALITY_WARNINGS,
   // Once the economical route has already made its single correction, these
@@ -250,6 +256,10 @@ export function canDeliverQualityRetryWithWarnings(verdict:MediaQualityVerdict,i
 
 export function shouldDeliverFirstImageQualityCandidateWithWarnings(input:{verdict:MediaQualityVerdict;adultAuthorized:boolean}):boolean{
   return input.adultAuthorized===false&&canDeliverQualityRetryWithWarnings(input.verdict);
+}
+
+export function shouldDeliverSfwWhenQualityReviewIsUnavailable(input:{adultAuthorized:boolean;verdict:MediaQualityVerdict}):boolean{
+  return input.adultAuthorized===false&&input.verdict.status==='unavailable';
 }
 
 export function canDeliverFinalSfwQualityCandidateWithWarnings(verdict:MediaQualityVerdict):boolean{

@@ -1,5 +1,5 @@
 import { assertStringIncludes } from 'jsr:@std/assert@1';
-import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverFinalSfwQualityCandidateWithWarnings, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, shouldAttemptPaidImageQualityRetry, shouldDeliverFirstImageQualityCandidateWithWarnings, shouldRevalidateCompletedQualityRetry, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
+import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverFinalSfwQualityCandidateWithWarnings, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, shouldAttemptPaidImageQualityRetry, shouldDeliverFirstImageQualityCandidateWithWarnings, shouldDeliverSfwWhenQualityReviewIsUnavailable, shouldRevalidateCompletedQualityRetry, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
 
 Deno.test('solo adult quality checks do not confuse explicit posing with non-consent',()=>{
   const rule=authorizedAdultImageSafetyRule([{companion:{name:'Elena Petrova',age:27,custom:false}}]);
@@ -55,9 +55,15 @@ Deno.test('a second safe candidate may be delivered with composition warnings',(
 });
 
 Deno.test('a first SFW candidate may keep harmless scene drift without hiding hard defects',()=>{
-  if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['world_mismatch','time_mismatch']},adultAuthorized:false}))throw new Error('SFW setting drift should not fail an otherwise usable paid photo');
+  if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['face_too_small','world_mismatch','time_mismatch']},adultAuthorized:false}))throw new Error('a wider SFW scene and setting drift should not fail an otherwise usable paid photo');
   if(shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['identity_mismatch','time_mismatch']},adultAuthorized:false}))throw new Error('identity mismatch must still receive correction or rejection');
   if(shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['world_mismatch']},adultAuthorized:true}))throw new Error('adult output must retain its stricter first-candidate review');
+});
+
+Deno.test('an unavailable quality reviewer never erases a provider-approved SFW photo',()=>{
+  if(!shouldDeliverSfwWhenQualityReviewIsUnavailable({adultAuthorized:false,verdict:{status:'unavailable',reasonCodes:[]}}))throw new Error('SFW review outages must fail open for delivery');
+  if(shouldDeliverSfwWhenQualityReviewIsUnavailable({adultAuthorized:true,verdict:{status:'unavailable',reasonCodes:[]}}))throw new Error('adult review outages must remain fail closed');
+  if(shouldDeliverSfwWhenQualityReviewIsUnavailable({adultAuthorized:false,verdict:{status:'fail',reasonCodes:['multiple_subjects']}}))throw new Error('an actual hard verdict must not be treated as a reviewer outage');
 });
 
 Deno.test('a corrected SFW candidate is delivered with subjective warnings but never hard defects',()=>{
