@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CircleCheck, Eye, EyeOff, Sparkles } from 'lucide-react-native';
-import { GradientButton, KivelleLogo, Screen } from '../src/components';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GradientButton } from '../src/components';
 import { GoogleMark } from '../src/components/GoogleMark';
-import { cityLifeAsset } from '../src/assets';
 import { colors, radius, typography } from '../src/theme';
 import { useAuth } from '../src/hooks/useAuth';
 import { useTogether } from '../src/store/useTogether';
@@ -16,12 +16,16 @@ import type { SocialAuthProvider } from '../src/lib/socialAuth';
 import { useWebHydrated } from '../src/hooks/useWebHydrated';
 import { confirmAdultAge } from '../src/lib/api';
 import { rememberPendingBirthdate,validBirthdateEntry } from '../src/lib/pendingBirthdate';
+import { publicLandingPrimaryHeroAsset } from '../src/components/landing/publicLandingAssets';
 
 export default function Auth() {
   const params = useLocalSearchParams<{ mode?: string; next?: string }>();
-  const { width } = useWindowDimensions();
+  const { width,height } = useWindowDimensions();
+  const insets=useSafeAreaInsets();
   const webHydrated = useWebHydrated();
-  const wide = webHydrated && width >= 760;
+  const wide = webHydrated && width >= 900;
+  const minimumHeight=Math.max(height,wide?620:720);
+  const mobileHeroHeight=Math.max(285,Math.min(minimumHeight*.43,440));
   const [creating, setCreating] = useState(params.mode !== 'signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -148,24 +152,19 @@ export default function Auth() {
   const showApple=socialAuth.apple&&nativeAppleAvailable;
 
   return <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    <Screen contentStyle={styles.screen}>
+    <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.scroll} contentContainerStyle={[styles.page,{minHeight:minimumHeight}]}>
       <View style={[styles.shell, wide ? styles.shellWide : styles.shellCompact]}>
-        <View style={[styles.hero, wide ? styles.heroWide : styles.heroCompact]}>
-          <Image source={cityLifeAsset} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" />
-          <View style={styles.heroShade}>
-            <View style={styles.heroTop}>
-              <KivelleLogo height={31} />
-              <View style={styles.fictionalPill}><Text style={styles.fictionalText}>FICTIONAL AI</Text></View>
-            </View>
-            <View>
-              <View style={styles.liveRow}><View style={styles.liveDot} /><Text style={styles.liveText}>CITY LIFE · NOW</Text></View>
-              <Text style={styles.heroTitle}>Your next world is waiting.</Text>
-              <Text style={styles.heroBody}>Choose where your story begins.</Text>
-            </View>
-          </View>
+        <View style={[styles.hero, wide ? styles.heroWide : {height:mobileHeroHeight}]}>
+          <Image accessibilityLabel="Evelyn Harrow in her Vespormoor study" source={publicLandingPrimaryHeroAsset} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={wide?'center':'top'} loading="eager" priority="high" transition={0}/>
+          <View pointerEvents="none" style={styles.heroShade}/>
+          {Platform.OS==='web'
+            ? <View pointerEvents="none" style={[styles.heroFade,wide?styles.heroFadeWideWeb:styles.heroFadeCompactWeb]}/>
+            : <View pointerEvents="none" style={[styles.heroFade,wide?styles.heroFadeWideNative:styles.heroFadeCompactNative]}/>
+          }
+          <Text accessibilityRole="header" accessibilityLabel="Kivelle" style={[styles.wordmark,wide?styles.wordmarkWide:styles.wordmarkCompact,!wide&&{top:Math.max(insets.top+18,28)}]}>kivelle</Text>
         </View>
 
-        <View style={[styles.form, wide && styles.formWide, signedIn && styles.formSuccess]}>
+        <View style={[styles.form, wide ? styles.formWide : styles.formCompact,!wide&&{paddingBottom:Math.max(insets.bottom+28,34)}, signedIn && styles.formSuccess]}>
           {signedIn ? <View accessibilityRole={openingError ? 'alert' : undefined} accessibilityLiveRegion="assertive" accessibilityLabel={openingError ? `Signed in successfully. ${openingError}` : 'Signed in successfully. Opening your world.'} style={styles.successState}>
             <View style={styles.successIcon}><CircleCheck size={34} strokeWidth={1.8} color={colors.success} /></View>
             <View style={styles.successCopy}>
@@ -230,30 +229,31 @@ export default function Auth() {
           </>}
         </View>
       </View>
-    </Screen>
+    </ScrollView>
   </KeyboardAvoidingView>;
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.background },
-  screen: { minHeight: '100%', maxWidth: 920, justifyContent: 'center', paddingHorizontal: 14, paddingTop: 14, paddingBottom: 24 },
-  shell: { width: '100%', overflow: 'hidden', borderRadius: radius.xl, borderWidth: 1, borderColor: colors.borderBright, backgroundColor: colors.surface },
+  flex: { flex: 1, backgroundColor: '#05040A' },
+  scroll:{flex:1,backgroundColor:'#05040A'},
+  page:{width:'100%',backgroundColor:'#05040A'},
+  shell: { flex:1,width: '100%', overflow: 'hidden', backgroundColor: '#05040A' },
   shellCompact: { flexDirection: 'column' },
   shellWide: { flexDirection: 'row', minHeight: 620 },
-  hero: { position: 'relative', backgroundColor: colors.elevated },
-  heroCompact: { height: 186, width: '100%' },
-  heroWide: { flex: 1.08, minWidth: 0 },
-  heroShade: { flex: 1, justifyContent: 'space-between', padding: 18, backgroundColor: 'rgba(7,7,13,.34)' },
-  heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  fictionalPill: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: 'rgba(8,8,14,.66)', borderWidth: 1, borderColor: 'rgba(255,255,255,.18)' },
-  fictionalText: { color: '#F5DDE6', fontSize: 8, fontWeight: '900', letterSpacing: 1 },
-  liveRow: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 5 },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success },
-  liveText: { color: '#F9D9E4', fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
-  heroTitle: { fontFamily: typography.display, fontSize: 29, fontWeight: '600', color: '#fff', textShadowColor: '#000', textShadowRadius: 12 },
-  heroBody: { color: '#F5E9EE', fontSize: 13, marginTop: 3, textShadowColor: '#000', textShadowRadius: 8 },
-  form: { gap: 11, padding: 18 },
-  formWide: { flex: 0.92, justifyContent: 'center', padding: 34 },
+  hero: { position: 'relative', overflow:'hidden',backgroundColor: '#110D13' },
+  heroWide: { width:'58%',minHeight:620 },
+  heroShade:{...StyleSheet.absoluteFill,backgroundColor:'rgba(6,3,7,.08)'},
+  heroFade:{position:'absolute'},
+  heroFadeWideWeb:{top:0,right:0,bottom:0,width:90,backgroundColor:'transparent',backgroundImage:'linear-gradient(90deg, rgba(5,4,10,0) 0%, #05040A 100%)'} as never,
+  heroFadeCompactWeb:{left:0,right:0,bottom:0,height:118,backgroundColor:'transparent',backgroundImage:'linear-gradient(180deg, rgba(5,4,10,0) 0%, #05040A 100%)'} as never,
+  heroFadeWideNative:{top:0,right:0,bottom:0,width:42,backgroundColor:'rgba(5,4,10,.66)'},
+  heroFadeCompactNative:{left:0,right:0,bottom:0,height:70,backgroundColor:'rgba(5,4,10,.74)'},
+  wordmark:{position:'absolute',zIndex:2,color:'#FFF9F4',fontFamily:typography.display,fontWeight:'400',letterSpacing:7,textShadowColor:'rgba(0,0,0,.72)',textShadowRadius:12},
+  wordmarkWide:{top:30,left:42,fontSize:25,lineHeight:31},
+  wordmarkCompact:{left:0,right:0,textAlign:'center',fontSize:23,lineHeight:29},
+  form: { gap: 12,backgroundColor:'#05040A' },
+  formCompact:{paddingTop:10,paddingHorizontal:24},
+  formWide: { flex: 1,minWidth:390,justifyContent: 'center', paddingHorizontal:'6%',paddingVertical:48 },
   formSuccess: { minHeight: 340 },
   successState: { width: '100%', alignItems: 'center', justifyContent: 'center', gap: 16 },
   successIcon: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(82,211,155,.1)', borderWidth: 1, borderColor: 'rgba(82,211,155,.32)', shadowColor: colors.success, shadowOpacity: .2, shadowRadius: 18, shadowOffset: { width: 0, height: 8 } },
