@@ -200,7 +200,16 @@ export default function Auth() {
           {error ? <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.errorBox}><Text style={styles.errorTitle}>{stage==='email'?'We couldn’t send the code':'That code didn’t work'}</Text><Text style={styles.error}>{error}</Text></View> : null}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
-          <GradientButton label={signingOut ? 'Finishing sign out…' : busy ? stage==='email'?'Sending code…':'Checking code…' : stage==='email'?'Email me a code':'Continue'} disabled={authBusy} onPress={() => void submit()} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={stage==='email'?'Email me a code':'Continue'}
+            accessibilityState={{disabled:authBusy}}
+            disabled={authBusy}
+            onPress={() => void submit()}
+            style={({pressed})=>[styles.emailAction,authBusy&&styles.emailActionDisabled,pressed&&!authBusy&&styles.emailActionPressed]}
+          >
+            <Text style={styles.emailActionText}>{signingOut ? 'Finishing sign out…' : busy ? stage==='email'?'Sending code…':'Checking code…' : stage==='email'?'Email me a code':'Continue'}</Text>
+          </Pressable>
 
           {stage==='code'?<View style={styles.codeActions}>
             <Pressable accessibilityRole="button" disabled={authBusy} onPress={changeEmail} hitSlop={10}><Text style={styles.secondary}>Use a different email</Text></Pressable>
@@ -269,6 +278,10 @@ const styles = StyleSheet.create({
   tabTextActive: { color: colors.text },
   input: { minHeight: 50, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, color: colors.text, paddingHorizontal: 15, fontSize: 16 },
   codeInput:{fontSize:24,fontWeight:'800',letterSpacing:8,textAlign:'center'},
+  emailAction:{minHeight:50,borderRadius:radius.md,borderWidth:1,borderColor:'rgba(201,91,220,0.82)',backgroundColor:'rgba(166,37,189,0.10)',alignItems:'center',justifyContent:'center',paddingHorizontal:18},
+  emailActionPressed:{backgroundColor:'rgba(166,37,189,0.18)',transform:[{scale:0.992}]},
+  emailActionDisabled:{opacity:0.5},
+  emailActionText:{color:'#FFF8FC',fontSize:15,fontWeight:'800'},
   inputError:{borderColor:'rgba(255,113,129,.52)'},
   password: { minHeight: 50, flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
   passwordInput: { flex: 1, minHeight: 48, color: colors.text, paddingHorizontal: 15, fontSize: 16, outlineStyle: 'none' } as never,

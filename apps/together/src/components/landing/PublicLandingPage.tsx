@@ -81,10 +81,6 @@ function LandingAction({ label, onPress, primary = false }: { label: string; onP
     onPress={onPress}
     style={({ pressed }) => [styles.action, primary ? styles.actionPrimary : styles.actionSecondary, pressed && styles.actionPressed]}
   >
-    {primary ? <>
-      <View pointerEvents="none" style={styles.primaryLeft} />
-      <View pointerEvents="none" style={styles.primaryRight} />
-    </> : null}
     <Text style={[styles.actionLabel, !primary && styles.actionLabelSecondary]}>{label}</Text>
   </Pressable>;
 }
@@ -137,10 +133,8 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     borderWidth: 1,
   },
-  actionPrimary: { borderColor: '#C85BD7', backgroundColor: '#A625BD' },
-  actionSecondary: { borderColor: '#AAA5BA', backgroundColor: 'transparent' },
-  primaryLeft: { position: 'absolute', top: 0, bottom: 0, left: 0, width: '58%', backgroundColor: '#AF28C2' },
-  primaryRight: { position: 'absolute', top: 0, bottom: 0, right: 0, width: '48%', backgroundColor: '#A327C4', opacity: 0.78 },
+  actionPrimary: { borderColor: 'rgba(201,91,220,0.82)', backgroundColor: 'rgba(166,37,189,0.10)' },
+  actionSecondary: { borderColor: 'rgba(188,117,211,0.52)', backgroundColor: 'rgba(255,255,255,0.015)' },
   actionPressed: { opacity: 0.82, transform: [{ scale: 0.992 }] },
   actionLabel: { zIndex: 2, color: '#FFF', fontSize: 17, lineHeight: 22, fontWeight: '800' },
   actionLabelSecondary: { color: '#F8F4F8' },
