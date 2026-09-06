@@ -65,16 +65,7 @@ export function PublicLandingPage() {
           <LandingAction label="Sign in" onPress={signIn} />
         </View>
 
-        <KivelleLogo height={shortViewport ? 20 : desktop ? 29 : 24} style={[styles.logo, shortViewport && styles.logoShort]} />
-
-        <View accessibilityLabel="Legal agreement" style={[styles.legal, shortViewport && styles.legalShort]}>
-          <Text style={styles.legalText}>
-            By continuing, you agree to the{' '}
-            <Text accessibilityRole="link" onPress={() => router.push('/terms')} style={styles.legalLink}>Terms of Service</Text>
-            {' '}and{' '}
-            <Text accessibilityRole="link" onPress={() => router.push('/privacy-policy')} style={styles.legalLink}>Privacy Policy</Text>.
-          </Text>
-        </View>
+        <KivelleLogo height={shortViewport ? 28 : desktop ? 40 : 34} style={[styles.logo, shortViewport && styles.logoShort]} />
       </View>
     </View>
   </View>;
@@ -152,8 +143,4 @@ const styles = StyleSheet.create({
   actionLabelSecondary: { color: '#F8F4F8' },
   logo: { marginTop: 20 },
   logoShort: { marginTop: 12 },
-  legal: { width: '100%', maxWidth: 430, alignItems: 'center', justifyContent: 'center', marginTop: 16 },
-  legalShort: { marginTop: 10 },
-  legalText: { color: '#9E97AA', fontSize: 12, lineHeight: 18, textAlign: 'center' },
-  legalLink: { color: '#D3CBDC', textDecorationLine: 'underline' },
 });

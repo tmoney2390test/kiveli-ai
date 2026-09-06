@@ -3,10 +3,10 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollVie
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { CircleCheck, Eye, EyeOff, Sparkles } from 'lucide-react-native';
+import { CircleCheck, Eye, EyeOff } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BirthdateField } from '../src/components/BirthdateField';
-import { GradientButton } from '../src/components';
+import { GradientButton, KivelleLogo } from '../src/components';
 import { GoogleMark } from '../src/components/GoogleMark';
 import { colors, radius, typography } from '../src/theme';
 import { useAuth } from '../src/hooks/useAuth';
@@ -25,8 +25,6 @@ export default function Auth() {
   const insets=useSafeAreaInsets();
   const webHydrated = useWebHydrated();
   const wide = webHydrated && width >= 900;
-  const minimumHeight=Math.max(height,wide?620:720);
-  const mobileHeroHeight=Math.max(285,Math.min(minimumHeight*.43,440));
   const [creating, setCreating] = useState(params.mode !== 'signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -151,9 +149,13 @@ export default function Auth() {
   const authBusy = busy || signingOut;
   const socialDisabled=authBusy||Boolean(socialBusy);
   const showApple=socialAuth.apple&&nativeAppleAvailable;
+  const shortViewport=!wide&&height<720;
+  const safeAreaReserve=Math.max(0,insets.bottom-6);
+  const mobileFormReserve=(creating?(shortViewport?478:516):(shortViewport?410:438))+safeAreaReserve;
+  const mobileHeroHeight=Math.max(80,Math.min(height*.43,height-mobileFormReserve));
 
   return <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.scroll} contentContainerStyle={[styles.page,{minHeight:minimumHeight}]}>
+    <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.scroll} contentContainerStyle={[styles.page,{minHeight:height}]}>
       <View style={[styles.shell, wide ? styles.shellWide : styles.shellCompact]}>
         <View style={[styles.hero, wide ? styles.heroWide : {height:mobileHeroHeight}]}>
           <Image accessibilityLabel="Evelyn Harrow in her Vespormoor study" source={publicLandingPrimaryHeroAsset} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={wide?'center':'top'} loading="eager" priority="high" transition={0}/>
@@ -162,10 +164,19 @@ export default function Auth() {
             ? <View pointerEvents="none" style={[styles.heroFade,wide?styles.heroFadeWideWeb:styles.heroFadeCompactWeb]}/>
             : <View pointerEvents="none" style={[styles.heroFade,wide?styles.heroFadeWideNative:styles.heroFadeCompactNative]}/>
           }
-          <Text accessibilityRole="header" accessibilityLabel="Kivelle" style={[styles.wordmark,wide?styles.wordmarkWide:styles.wordmarkCompact,!wide&&{top:Math.max(insets.top+18,28)}]}>kivelle</Text>
+          <View style={[styles.heroLogo,wide?styles.heroLogoWide:[styles.heroLogoCompact,{top:Math.max(insets.top+14,22)}]]}>
+            <KivelleLogo height={wide?40:34}/>
+          </View>
         </View>
 
-        <View style={[styles.form, wide ? styles.formWide : styles.formCompact,!wide&&{paddingBottom:Math.max(insets.bottom+28,34)}, signedIn && styles.formSuccess]}>
+        <View style={[
+          styles.form,
+          shortViewport&&styles.formShort,
+          wide ? styles.formWide : styles.formCompact,
+          !wide&&shortViewport&&styles.formCompactShort,
+          !wide&&{paddingBottom:Math.max(insets.bottom+(shortViewport?8:18),shortViewport?14:24)},
+          signedIn && styles.formSuccess,
+        ]}>
           {signedIn ? <View accessibilityRole={openingError ? 'alert' : undefined} accessibilityLiveRegion="assertive" accessibilityLabel={openingError ? `Signed in successfully. ${openingError}` : 'Signed in successfully. Opening your world.'} style={styles.successState}>
             <View style={styles.successIcon}><CircleCheck size={34} strokeWidth={1.8} color={colors.success} /></View>
             <View style={styles.successCopy}>
@@ -182,8 +193,7 @@ export default function Auth() {
             </View>}
           </View> : <>
           <View style={styles.intro}>
-            <Text style={styles.title}>{signingOut ? 'Signing you out…' : creating ? 'Find your person.' : 'Welcome back.'}</Text>
-            <Text style={styles.subtitle}>{signingOut ? 'Securing this session. You can sign in again in a moment.' : creating ? 'Create your account, choose a world, and meet someone who lives there.' : 'Your conversations and shared history are waiting.'}</Text>
+            <Text style={[styles.title,wide?styles.titleWide:styles.titleCompact,shortViewport&&styles.titleShort]}>{signingOut ? 'Signing you out…' : creating ? 'Find your person.' : 'Welcome back.'}</Text>
           </View>
 
           <View style={styles.tabs}>
@@ -216,9 +226,16 @@ export default function Auth() {
             {showApple&&Platform.OS==='ios'?<View accessibilityState={{disabled:socialDisabled}} pointerEvents={socialDisabled?'none':'auto'} style={[styles.nativeAppleSlot,socialDisabled&&styles.socialDisabled]}><AppleAuthentication.AppleAuthenticationButton buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE} buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE} cornerRadius={12} style={styles.nativeAppleButton} onPress={()=>void socialSignIn('apple')}/></View>:showApple?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Apple" disabled={socialDisabled} onPress={()=>void socialSignIn('apple')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><Text style={styles.providerMark}></Text><Text style={styles.socialText}>{socialBusy==='apple'?'Connecting…':'Apple'}</Text></Pressable>:null}
           </View></>:null}
 
-          {!creating ? <Pressable disabled={authBusy} onPress={() => void reset()}><Text style={styles.secondary}>Forgot password?</Text></Pressable> : <View style={styles.instant}><Sparkles size={14} color={colors.violet} /><Text style={styles.instantText}>No setup tour. Personalize later.</Text></View>}
+          {!creating ? <Pressable disabled={authBusy} onPress={() => void reset()}><Text style={styles.secondary}>Forgot password?</Text></Pressable> : null}
 
-          <View style={styles.legalLinks}>
+          {creating?<View accessibilityLabel="Account agreement" style={styles.agreement}>
+            <Text style={styles.agreementText}>
+              By continuing, you agree to the{' '}
+              <Text accessibilityRole="link" onPress={() => router.push('/terms' as never)} style={styles.agreementLink}>Terms of Service</Text>
+              {' '}and{' '}
+              <Text accessibilityRole="link" onPress={() => router.push('/privacy-policy' as never)} style={styles.agreementLink}>Privacy Policy</Text>.
+            </Text>
+          </View>:<View style={styles.legalLinks}>
             <Pressable accessibilityRole="link" onPress={() => router.push('/terms' as never)}><Text style={styles.legalLink}>Terms</Text></Pressable>
             <Text style={styles.legalDot}>·</Text>
             <Pressable accessibilityRole="link" onPress={() => router.push('/privacy-policy' as never)}><Text style={styles.legalLink}>Privacy</Text></Pressable>
@@ -226,7 +243,7 @@ export default function Auth() {
             <Pressable accessibilityRole="link" onPress={() => router.push('/community-guidelines' as never)}><Text style={styles.legalLink}>Safety</Text></Pressable>
             <Text style={styles.legalDot}>·</Text>
             <Pressable accessibilityRole="link" onPress={() => router.push('/help' as never)}><Text style={styles.legalLink}>Help</Text></Pressable>
-          </View>
+          </View>}
           </>}
         </View>
       </View>
@@ -249,11 +266,13 @@ const styles = StyleSheet.create({
   heroFadeCompactWeb:{left:0,right:0,bottom:0,height:118,backgroundColor:'transparent',backgroundImage:'linear-gradient(180deg, rgba(5,4,10,0) 0%, #05040A 100%)'} as never,
   heroFadeWideNative:{top:0,right:0,bottom:0,width:42,backgroundColor:'rgba(5,4,10,.66)'},
   heroFadeCompactNative:{left:0,right:0,bottom:0,height:70,backgroundColor:'rgba(5,4,10,.74)'},
-  wordmark:{position:'absolute',zIndex:2,color:'#FFF9F4',fontFamily:typography.display,fontWeight:'400',letterSpacing:7,textShadowColor:'rgba(0,0,0,.72)',textShadowRadius:12},
-  wordmarkWide:{top:30,left:42,fontSize:25,lineHeight:31},
-  wordmarkCompact:{left:0,right:0,textAlign:'center',fontSize:23,lineHeight:29},
+  heroLogo:{position:'absolute',zIndex:2},
+  heroLogoWide:{top:30,left:42},
+  heroLogoCompact:{left:0,right:0,alignItems:'center'},
   form: { gap: 12,backgroundColor:'#05040A' },
+  formShort:{gap:8},
   formCompact:{paddingTop:10,paddingHorizontal:24},
+  formCompactShort:{paddingTop:6},
   formWide: { flex: 1,minWidth:390,justifyContent: 'center', paddingHorizontal:'6%',paddingVertical:48 },
   formSuccess: { minHeight: 340 },
   successState: { width: '100%', alignItems: 'center', justifyContent: 'center', gap: 16 },
@@ -265,8 +284,10 @@ const styles = StyleSheet.create({
   successProgress: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 18, borderRadius: radius.pill, backgroundColor: 'rgba(216,62,234,.08)', borderWidth: 1, borderColor: 'rgba(216,62,234,.22)' },
   successProgressText: { color: colors.text, fontSize: 13, fontWeight: '800' },
   intro: { gap: 3, marginBottom: 2 },
-  title: { fontFamily: typography.display, fontSize: 31, fontWeight: '600', color: colors.text },
-  subtitle: { color: colors.muted, fontSize: 13, lineHeight: 18 },
+  title: { fontFamily: typography.display, fontWeight: '500', color: colors.text,letterSpacing:-1.2 },
+  titleWide:{fontSize:56,lineHeight:58},
+  titleCompact:{fontSize:46,lineHeight:48,textAlign:'center'},
+  titleShort:{fontSize:40,lineHeight:42},
   tabs: { flexDirection: 'row', padding: 4, borderRadius: radius.pill, backgroundColor: colors.background },
   tab: { flex: 1, minHeight: 38, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   tabActive: { backgroundColor: colors.elevated, borderWidth: 1, borderColor: colors.border },
@@ -302,8 +323,9 @@ const styles = StyleSheet.create({
   providerMark:{color:colors.text,fontSize:18,fontWeight:'900'},
   socialText:{color:colors.text,fontSize:12,fontWeight:'800'},
   secondary: { textAlign: 'center', color: colors.muted, fontWeight: '700', fontSize: 12 },
-  instant: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
-  instantText: { color: colors.muted, fontSize: 11 },
+  agreement:{width:'100%',alignItems:'center'},
+  agreementText:{maxWidth:390,color:colors.dimmed,fontSize:10,lineHeight:15,textAlign:'center'},
+  agreementLink:{color:colors.muted,fontWeight:'800',textDecorationLine:'underline'},
   legalLinks: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 2 },
   legalLink: { color: colors.muted, fontSize: 10, fontWeight: '800' },
   legalDot: { color: colors.dimmed, fontSize: 10 },
