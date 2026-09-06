@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Snapshot } from '../types';
-import { onboardingCompanionsForWorld, onboardingWorldFantasy, onboardingWorlds } from './onboardingCatalog';
+import { onboardingCompanionsForWorld, onboardingWorldFantasy, onboardingWorldGenre, onboardingWorlds } from './onboardingCatalog';
 
 const world = (id: string, sortOrder: number, published = true) => ({
   id, slug: id, name: id, description: `${id} description`, access_type: 'free' as const,
@@ -40,5 +40,11 @@ describe('first-login catalog', () => {
   it('uses authored relationship fantasy copy when available', () => {
     const value = { ...world('first', 0), metadata: { relationshipFantasy: 'A slower kind of connection.' } };
     expect(onboardingWorldFantasy(value)).toBe('A slower kind of connection.');
+  });
+
+  it('uses the first two authored genre tags without changing world data', () => {
+    const value = { ...world('first', 0), metadata: { genreTags: ['dark fantasy', 'court intrigue', 'romance'] } };
+    expect(onboardingWorldGenre(value)).toBe('Dark Fantasy · Court Intrigue');
+    expect(onboardingWorldGenre(world('fallback', 0))).toBe('Characters · Stories');
   });
 });

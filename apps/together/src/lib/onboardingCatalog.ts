@@ -20,3 +20,17 @@ export function onboardingWorldFantasy(world: World): string {
   const fantasy = world.metadata?.relationshipFantasy;
   return typeof fantasy === 'string' && fantasy.trim() ? fantasy.trim() : world.description;
 }
+
+export function onboardingWorldGenre(world: World): string {
+  const tags = Array.isArray(world.metadata?.genreTags)
+    ? world.metadata.genreTags.filter((tag): tag is string => typeof tag === 'string' && Boolean(tag.trim())).slice(0, 2)
+    : [];
+  if (tags.length) return tags.map(titleCase).join(' · ');
+  const themes = world.relationship_themes?.filter(Boolean).slice(0, 2) ?? [];
+  if (themes.length) return themes.map(titleCase).join(' · ');
+  return 'Characters · Stories';
+}
+
+function titleCase(value: string) {
+  return value.trim().replace(/\b\w/g, (letter) => letter.toUpperCase());
+}

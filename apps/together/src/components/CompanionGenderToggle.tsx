@@ -7,9 +7,9 @@ import type { FeaturedGenderFilter } from '../lib/featuredCompanions';
 import { getCompanionGenderPreference, hydrateCompanionGenderPreference, setCompanionGenderPreference, subscribeCompanionGenderPreference } from '../lib/companionGenderPreference';
 
 const options: Array<{ value: FeaturedGenderFilter; label: string }> = [
+  { value: 'any', label: 'All' },
   { value: 'female', label: 'Female' },
   { value: 'male', label: 'Male' },
-  { value: 'any', label: 'Any' },
 ];
 
 export function useCompanionGenderPreference() {
