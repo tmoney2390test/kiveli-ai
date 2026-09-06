@@ -3,8 +3,7 @@ import { PUBLIC_COMPANIONS, PUBLIC_LANDING_COPY, PUBLIC_WORLDS } from './publicL
 
 describe('public landing content', () => {
   it('uses the focused launch headline and only the published world roster', () => {
-    expect(PUBLIC_LANDING_COPY.title).toBe('Your story starts here.');
-    expect(PUBLIC_LANDING_COPY.body).toBe('Meet AI characters. Explore new worlds. Make the story yours.');
+    expect(PUBLIC_LANDING_COPY).toEqual({ title: 'Your story starts here.' });
     expect(PUBLIC_WORLDS.map((world) => world.slug)).toEqual([
       'juniper-city',
       'neon-kyo',

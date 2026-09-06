@@ -18,7 +18,6 @@ export type PublicCompanion = {
 
 export const PUBLIC_LANDING_COPY = {
   title: 'Your story starts here.',
-  body: 'Meet AI characters. Explore new worlds. Make the story yours.',
 } as const;
 
 export const PUBLIC_WORLDS: readonly PublicWorld[] = [

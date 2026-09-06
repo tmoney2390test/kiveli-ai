@@ -1,10 +1,11 @@
-import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { typography } from '../../theme';
 import { joinPathFor } from '../../lib/sessionRouting';
 import { PUBLIC_LANDING_COPY } from '../../lib/publicLanding';
+import { KivelleLogo } from '../KivelleLogo';
 import { publicLandingPrimaryHeroAsset } from './publicLandingAssets';
 import { useWebHydrated } from '../../hooks/useWebHydrated';
 
@@ -16,18 +17,15 @@ export function PublicLandingPage() {
   const hydrated = useWebHydrated();
   const desktop = hydrated && width >= DESKTOP_BREAKPOINT;
   const compact = width < 380;
-  const minimumHeight = Math.max(height, desktop ? 620 : 720);
-  const imageHeight = Math.max(350, Math.min(minimumHeight * 0.51, 570));
+  const shortViewport = !desktop && height < 700;
+  const safeAreaReserve = Math.max(0, insets.bottom - 6);
+  const mobileContentReserve = (shortViewport ? 312 : 362) + safeAreaReserve;
+  const imageHeight = Math.max(120, Math.min(height * 0.54, height - mobileContentReserve));
 
   const getStarted = () => router.push(joinPathFor() as never);
   const signIn = () => router.push('/auth?mode=signin');
 
-  return <ScrollView
-    bounces={false}
-    showsVerticalScrollIndicator={false}
-    style={styles.scroll}
-    contentContainerStyle={[styles.page, { minHeight: minimumHeight }]}
-  >
+  return <View style={[styles.page, { height }]}>
     <View style={[styles.layout, desktop ? styles.layoutDesktop : styles.layoutMobile]}>
       <View style={[styles.visual, desktop ? styles.visualDesktop : { height: imageHeight }]}>
         <Image
@@ -45,42 +43,41 @@ export function PublicLandingPage() {
         {Platform.OS === 'web'
           ? <View pointerEvents="none" style={[styles.fade, desktop ? styles.fadeDesktopWeb : styles.fadeMobileWeb]} />
           : <View pointerEvents="none" style={[styles.fade, desktop ? styles.fadeDesktopNative : styles.fadeMobileNative]} />}
-        <Text
-          accessibilityRole="header"
-          accessibilityLabel="Kivelle"
-          style={[
-            styles.wordmark,
-            desktop ? styles.wordmarkDesktop : styles.wordmarkMobile,
-            !desktop && { top: Math.max(insets.top + 18, 28) },
-          ]}
-        >kivelle</Text>
       </View>
 
       <View style={[
         styles.content,
-        desktop ? styles.contentDesktop : styles.contentMobile,
-        !desktop && { paddingBottom: Math.max(insets.bottom + 24, 34) },
+        desktop ? styles.contentDesktop : [styles.contentMobile, shortViewport && styles.contentMobileShort],
+        !desktop && { paddingBottom: Math.max(insets.bottom + (shortViewport ? 10 : 18), shortViewport ? 16 : 24) },
       ]}>
         <View style={styles.copy}>
-          <Text accessibilityRole="header" style={[styles.title, desktop ? styles.titleDesktop : compact ? styles.titleCompact : styles.titleMobile]}>
+          <Text accessibilityRole="header" style={[
+            styles.title,
+            desktop ? styles.titleDesktop : compact ? styles.titleCompact : styles.titleMobile,
+            shortViewport && styles.titleShort,
+          ]}>
             {PUBLIC_LANDING_COPY.title}
           </Text>
-          <Text style={[styles.body, !desktop && styles.bodyMobile, compact && styles.bodyCompact]}>{PUBLIC_LANDING_COPY.body}</Text>
         </View>
 
-        <View style={styles.actions}>
+        <View style={[styles.actions, shortViewport && styles.actionsShort]}>
           <LandingAction label="Get started" onPress={getStarted} primary />
           <LandingAction label="Sign in" onPress={signIn} />
         </View>
 
-        <View accessibilityLabel="Legal links" style={styles.legal}>
-          <LegalLink label="Terms of Service" href="/terms" />
-          <Text accessible={false} style={styles.legalDivider}>•</Text>
-          <LegalLink label="Privacy Policy" href="/privacy-policy" />
+        <KivelleLogo height={shortViewport ? 20 : desktop ? 29 : 24} style={[styles.logo, shortViewport && styles.logoShort]} />
+
+        <View accessibilityLabel="Legal agreement" style={[styles.legal, shortViewport && styles.legalShort]}>
+          <Text style={styles.legalText}>
+            By continuing, you agree to the{' '}
+            <Text accessibilityRole="link" onPress={() => router.push('/terms')} style={styles.legalLink}>Terms of Service</Text>
+            {' '}and{' '}
+            <Text accessibilityRole="link" onPress={() => router.push('/privacy-policy')} style={styles.legalLink}>Privacy Policy</Text>.
+          </Text>
         </View>
       </View>
     </View>
-  </ScrollView>;
+  </View>;
 }
 
 function LandingAction({ label, onPress, primary = false }: { label: string; onPress: () => void; primary?: boolean }) {
@@ -98,26 +95,13 @@ function LandingAction({ label, onPress, primary = false }: { label: string; onP
   </Pressable>;
 }
 
-function LegalLink({ label, href }: { label: string; href: '/terms' | '/privacy-policy' }) {
-  return <Pressable
-    accessibilityRole="link"
-    accessibilityLabel={label}
-    hitSlop={12}
-    onPress={() => router.push(href)}
-    style={({ pressed }) => pressed && styles.legalPressed}
-  >
-    <Text style={styles.legalText}>{label}</Text>
-  </Pressable>;
-}
-
 const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: '#05040A' },
-  page: { width: '100%', backgroundColor: '#05040A' },
+  page: { flex: 1, width: '100%', overflow: 'hidden', backgroundColor: '#05040A' },
   layout: { flex: 1, width: '100%', overflow: 'hidden', backgroundColor: '#05040A' },
   layoutDesktop: { flexDirection: 'row' },
   layoutMobile: { flexDirection: 'column' },
   visual: { position: 'relative', overflow: 'hidden', backgroundColor: '#110D13' },
-  visualDesktop: { width: '58%', minHeight: 620 },
+  visualDesktop: { width: '58%', height: '100%' },
   visualShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(6,3,7,0.08)' },
   fade: { position: 'absolute' },
   fadeDesktopWeb: {
@@ -138,33 +122,21 @@ const styles = StyleSheet.create({
   } as never,
   fadeDesktopNative: { top: 0, right: 0, bottom: 0, width: 42, backgroundColor: 'rgba(5,4,10,0.66)' },
   fadeMobileNative: { left: 0, right: 0, bottom: 0, height: 70, backgroundColor: 'rgba(5,4,10,0.74)' },
-  wordmark: {
-    position: 'absolute',
-    zIndex: 2,
-    color: '#FFF9F4',
-    fontFamily: typography.display,
-    fontWeight: '400',
-    letterSpacing: 7,
-    textShadowColor: 'rgba(0,0,0,0.72)',
-    textShadowRadius: 12,
-  },
-  wordmarkDesktop: { top: 30, left: 42, fontSize: 25, lineHeight: 31 },
-  wordmarkMobile: { left: 0, right: 0, textAlign: 'center', fontSize: 23, lineHeight: 29 },
   content: { position: 'relative', backgroundColor: '#05040A' },
-  contentDesktop: { flex: 1, minWidth: 390, justifyContent: 'center', paddingHorizontal: '6%', paddingVertical: 54 },
-  contentMobile: { flex: 1, alignItems: 'center', marginTop: -2, paddingTop: 12, paddingHorizontal: 24 },
+  contentDesktop: { flex: 1, minWidth: 390, justifyContent: 'center', alignItems: 'center', paddingHorizontal: '6%', paddingVertical: 42 },
+  contentMobile: { flex: 1, alignItems: 'center', marginTop: -2, paddingTop: 10, paddingHorizontal: 24 },
+  contentMobileShort: { paddingTop: 6 },
   copy: { width: '100%', maxWidth: 490 },
   title: { color: '#FFF9F4', fontFamily: typography.display, fontWeight: '500', letterSpacing: -1.4 },
-  titleDesktop: { maxWidth: 440, fontSize: 64, lineHeight: 66 },
-  titleMobile: { textAlign: 'center', fontSize: 54, lineHeight: 56 },
-  titleCompact: { textAlign: 'center', fontSize: 47, lineHeight: 49, letterSpacing: -1.1 },
-  body: { maxWidth: 430, color: '#BDB5C8', fontSize: 17, lineHeight: 24, marginTop: 18 },
-  bodyMobile: { textAlign: 'center' },
-  bodyCompact: { fontSize: 15, lineHeight: 22, marginTop: 14 },
-  actions: { width: '100%', maxWidth: 420, gap: 12, marginTop: 30 },
+  titleDesktop: { maxWidth: 440, fontSize: 56, lineHeight: 58 },
+  titleMobile: { textAlign: 'center', fontSize: 46, lineHeight: 48 },
+  titleCompact: { textAlign: 'center', fontSize: 42, lineHeight: 44, letterSpacing: -1.1 },
+  titleShort: { fontSize: 40, lineHeight: 42 },
+  actions: { width: '100%', maxWidth: 420, gap: 10, marginTop: 22 },
+  actionsShort: { gap: 8, marginTop: 16 },
   action: {
     position: 'relative',
-    minHeight: 56,
+    minHeight: 52,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
@@ -178,8 +150,10 @@ const styles = StyleSheet.create({
   actionPressed: { opacity: 0.82, transform: [{ scale: 0.992 }] },
   actionLabel: { zIndex: 2, color: '#FFF', fontSize: 17, lineHeight: 22, fontWeight: '800' },
   actionLabelSecondary: { color: '#F8F4F8' },
-  legal: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 34 },
-  legalText: { color: '#9E97AA', fontSize: 12, lineHeight: 18 },
-  legalDivider: { color: '#777181', fontSize: 10 },
-  legalPressed: { opacity: 0.58 },
+  logo: { marginTop: 20 },
+  logoShort: { marginTop: 12 },
+  legal: { width: '100%', maxWidth: 430, alignItems: 'center', justifyContent: 'center', marginTop: 16 },
+  legalShort: { marginTop: 10 },
+  legalText: { color: '#9E97AA', fontSize: 12, lineHeight: 18, textAlign: 'center' },
+  legalLink: { color: '#D3CBDC', textDecorationLine: 'underline' },
 });
