@@ -14,6 +14,7 @@ import { coalesceSimulationRequest } from './simulationRequests';
 import { ensureWebAdultSession } from './webAdultSession';
 import { normalizeVideoGenerationOptions } from './videoGeneration';
 import { drainJsonSseEvents } from './sse';
+import { scheduleForegroundTimeout } from './webPageLifecycle';
 
 export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false,readonly correlationId?:string) { super(message); } }
 type Envelope<T> = { data: T; correlationId: string };
@@ -106,10 +107,10 @@ export const manageMedia = async<T>(input: Record<string, unknown>) => {
   // explicit dialogue refreshes it before creating an adult offer. Media
   // actions go directly to the authoritative endpoint so Accept/Decline never
   // wait on a redundant session-status round trip.
-  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),15_000);
+  const controller=new AbortController(),cancelTimeout=scheduleForegroundTimeout(()=>controller.abort(),15_000);
   try{return await invoke<T>('together-media',input,'POST',{signal:controller.signal});}
   catch(caught){if(controller.signal.aborted)throw new ApiError('The media request took too long. Please try again.','REQUEST_TIMEOUT',true);throw caught;}
-  finally{clearTimeout(timeout);}
+  finally{cancelTimeout();}
 };
 export const loadMediaLibrary = (options:{characterInstanceId?:string;before?:string;limit?:number}={}) => manageMedia<{media:GeneratedMedia[];hasMore:boolean;nextBefore:string|null}>({action:'list_library',...options});
 export const loadConversationMediaGallery = (conversationId:string,limit=120) => manageMedia<{media:GeneratedMedia[];attachments:ConversationAttachment[];hasMore:boolean}>({action:'list_conversation_gallery',conversationId,limit});
@@ -126,11 +127,17 @@ export const submitVideoFeedback = (mediaId:string,verdict:'looks_good'|'needs_w
 export const recordVideoPlayback = (mediaId:string) => manageMedia<{recorded:boolean}>({action:'video_playback',mediaId});
 export const getVideoDiagnostics = (mediaId:string) => manageMedia<{diagnostics:VideoDiagnostics}>({action:'video_diagnostics',mediaId});
 export const editGeneratedMedia = (mediaId:string,requestId:string,instruction:string) => manageMedia<{media:GeneratedMedia;creditCost:number;creditBalance?:{permanentBalance:number;subscriptionBalance:number;total:number}}>({action:'edit',mediaId,requestId,instruction});
-export const manageMultimodal = <T>(input:Record<string,unknown>) => invoke<T>('together-multimodal',input);
+export const manageMultimodal = async<T>(input:Record<string,unknown>) => {
+  // The website session is prepared before upload analysis so the server can
+  // distinguish an authorized adult web request from native or unknown
+  // clients. Native builds use the no-op implementation and remain SFW.
+  await ensureWebAdultSession(await token()).catch(()=>undefined);
+  return invoke<T>('together-multimodal',input);
+};
 export const getExperienceCapabilities = () => manageMultimodal<{experience:KivelleExperienceCapabilities;providers:KivelleExperienceCapabilities['providers']}>({action:'capabilities'});
 export const saveMultimodalPreferences = (preferences:Required<MultimodalPreferences>) => manageMultimodal<{preferences:MultimodalPreferences;experience:KivelleExperienceCapabilities}>({action:'preferences',...preferences});
-export const prepareUserImage = (input:{conversationId:string;characterInstanceId:string;mimeType:'image/jpeg'|'image/png'|'image/webp';byteSize:number;width?:number;height?:number;requestId:string}) => manageMultimodal<{attachment:ConversationAttachment;upload:{bucket:string;path:string}}>({action:'prepare_user_image',...input});
-export const confirmUserImage = (attachmentId:string,caption?:string) => manageMultimodal<{attachment:ConversationAttachment;upload:{bucket:string;path:string}}>({action:'confirm_user_image',attachmentId,...(caption?.trim()?{caption:caption.trim()}: {})});
+export const prepareUserImage = (input:{conversationId:string;characterInstanceId:string;mimeType:'image/jpeg'|'image/png'|'image/webp';byteSize:number;width?:number;height?:number;requestId:string}) => manageMultimodal<{attachment:ConversationAttachment;upload:{bucket:string;path:string;token?:string|null}}>({action:'prepare_user_image',...input});
+export const confirmUserImage = (attachmentId:string,caption?:string) => manageMultimodal<{attachment:ConversationAttachment;upload:{bucket:string;path:string;token?:string|null}}>({action:'confirm_user_image',attachmentId,...(caption?.trim()?{caption:caption.trim()}: {})});
 export const removePendingAttachment = (attachmentId:string) => manageMultimodal<{removed:boolean}>({action:'remove_attachment',attachmentId});
 export const deleteConversationAttachment = (attachmentId:string) => manageMultimodal<{removed:boolean}>({action:'delete_attachment',attachmentId});
 export type VoiceNoteQuote={creditCost:number;creditBalance:number;canAfford:boolean;generationRequired:boolean;characterCount:number;shortened:boolean};
@@ -166,13 +173,13 @@ export async function loadGroupDetail(conversationId:string,options:{messageLimi
   let timedOut=false;
   const abort=()=>controller.abort();
   if(options.signal?.aborted)controller.abort();else options.signal?.addEventListener('abort',abort,{once:true});
-  const timer=setTimeout(()=>{timedOut=true;controller.abort();},timeoutMs);
+  const cancelTimeout=scheduleForegroundTimeout(()=>{timedOut=true;controller.abort();},timeoutMs);
   try{await ensureWebAdultSession(await token()).catch(()=>undefined);return await invoke<GroupDetail>('together-group',{action:'detail',conversationId,messageLimit:options.messageLimit??30},'POST',{signal:controller.signal});}
   catch(caught){
     if(timedOut)throw new ApiError('This group is taking longer than expected. Try opening it again.','REQUEST_TIMEOUT',true);
     throw caught;
   }finally{
-    clearTimeout(timer);
+    cancelTimeout();
     options.signal?.removeEventListener('abort',abort);
   }
 }
@@ -231,7 +238,7 @@ export async function createTogetherAccount(email: string, password: string,date
 
 export async function sendDialogue(input: {conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;sceneActionId?:string;messageAction?:'continue';anchorMessageId?:string;autoDialogueSuggestionId?:string;autoDialogueSuggestionSource?:AutoDialogueSuggestion['source'];autoDialogueSuggestionEdited?:boolean;autoDialogueSuggestionIntent?:AutoDialogueSuggestion['intent'];autoDialogueSuggestionPreference?:AutoDialoguePreference;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta}> {
   if (input.message.length > MESSAGE_CHARACTER_LIMIT) throw new ApiError(messageCharacterLimitError(), 'VALIDATION_FAILED');
-  const started=Date.now();let firstTokenRecorded=false,statusCode:number|undefined,responseTimeout:ReturnType<typeof setTimeout>|undefined,responseTimedOut=false,photoRequest=false;
+  const started=Date.now();let firstTokenRecorded=false,statusCode:number|undefined,cancelResponseTimeout:(()=>void)|undefined,responseTimedOut=false,photoRequest=false;
   try{
   const accessToken=await token();
   const photoIntent=classifyPhotoIntent(input.message);
@@ -253,7 +260,7 @@ export async function sendDialogue(input: {conversationId:string;characterInstan
     throw new ApiError(message,'ADULT_MEDIA_SESSION_REQUIRED',adultSession?.available!==false);
   }
   const responseController=new AbortController();
-  responseTimeout=setTimeout(()=>{responseTimedOut=true;responseController.abort();},photoRequest?18_000:120_000);
+  cancelResponseTimeout=scheduleForegroundTimeout(()=>{responseTimedOut=true;responseController.abort();},photoRequest?18_000:120_000);
   const response = await fetch(`${supabaseUrl}/functions/v1/together-dialogue`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json' }, body: JSON.stringify(input),signal:responseController.signal });
   statusCode=response.status;
   if (!response.ok) { const error = await response.json().catch(() => ({})); await clearSessionForApiFailure(supabase.auth,response.status,error.error?.code); throw new ApiError(error.error?.message ?? 'Your companion could not reply.', error.error?.code, error.error?.retryable); }
@@ -268,7 +275,7 @@ export async function sendDialogue(input: {conversationId:string;characterInstan
   queueClientPerformance({surface:'together-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:true,metadata:{firstToken:firstTokenRecorded}});
   return {message:final,...(additionalMessages?.length?{additionalMessages}:{}),...(generatedMedia?{generatedMedia}:{}),...(mediaOffer?{mediaOffer}:{}),...(photoRequestError?{photoRequestError}:{}),...(delta?{delta}:{})};
   }catch(caught){const failure=responseTimedOut?new ApiError(photoRequest?'The photo request took too long to confirm. Recovering it now…':'The reply took too long. Please try again.','PROVIDER_TIMEOUT',true):caught;queueClientPerformance({surface:'together-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:false,...(statusCode?{statusCode}:{}),metadata:{firstToken:firstTokenRecorded}});throw failure;}
-  finally{if(responseTimeout)clearTimeout(responseTimeout);}
+  finally{cancelResponseTimeout?.();}
 }
 
 export async function suggestDialogue(input:{conversationId:string;characterInstanceId:string;anchorMessageId:string;clientRequestId:string;preference?:AutoDialoguePreference},signal?:AbortSignal):Promise<AutoDialogueSuggestion>{

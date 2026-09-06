@@ -92,17 +92,16 @@ export async function reconcileSubscriptionCreditLifecycle(db:SupabaseClient,use
 export async function enforceLifeLimit(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities):Promise<void>{const{count,error}=await db.from('together_continuities').select('id',{count:'exact',head:true}).eq('user_id',userId);if(error)throw new AppError('INTERNAL_ERROR','Kivelle Lives could not be counted.',500,true);if(Number(count??0)>=capabilities.maxLives)throw new AppError('PLAN_LIMIT_REACHED',`${capabilities.displayName} supports up to ${capabilities.maxLives} Kivelle ${capabilities.maxLives===1?'Life':'Lives'}.`,403);}
 export async function enforceCustomCompanionLimit(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities):Promise<void>{const{count,error}=await db.from('together_character_templates').select('id',{count:'exact',head:true}).eq('creator_id',userId).neq('lifecycle_status','archived');if(error)throw new AppError('INTERNAL_ERROR','Custom companions could not be counted.',500,true);if(Number(count??0)>=capabilities.maxCustomCompanions)throw new AppError('PLAN_LIMIT_REACHED',`${capabilities.displayName} supports up to ${capabilities.maxCustomCompanions} custom ${capabilities.maxCustomCompanions===1?'companion':'companions'}.`,403);}
 
-export type DailyPhotoAllowanceStatus={limit:number;used:number;remaining:number;benefitDate:string};
-export type DailyPhotoAllowanceClaim={claimed:boolean;remaining:number;benefitDate?:string;reservationKey:string};
+export type DailyPhotoAllowanceStatus={limit:number;used:number;remaining:number;benefitDate:string;timezone:string;resetsAt:string};
+export type DailyPhotoAllowanceClaim={claimed:boolean;remaining:number;benefitDate?:string;timezone?:string;resetsAt?:string;reservationKey:string};
 
 export async function dailyPhotoAllowanceStatus(db:SupabaseClient,input:{userId:string;limit:number;now?:Date}):Promise<DailyPhotoAllowanceStatus>{
   const limit=Math.max(0,Math.floor(input.limit));
-  const benefitDate=(input.now??new Date()).toISOString().slice(0,10);
-  if(limit===0)return{limit:0,used:0,remaining:0,benefitDate};
-  const{count,error}=await db.from('together_daily_photo_allowance_claims').select('id',{count:'exact',head:true}).eq('user_id',input.userId).eq('benefit_date',benefitDate);
+  const now=input.now??new Date();
+  const{data,error}=await db.rpc('kivelle_daily_photo_allowance_status',{p_user_id:input.userId,p_daily_limit:limit,p_now:now.toISOString()});
   if(error)throw new AppError('INTERNAL_ERROR','Your included photo allowance could not be checked.',500,true);
-  const used=Math.max(0,Number(count??0));
-  return{limit,used,remaining:Math.max(limit-used,0),benefitDate};
+  const benefitDate=typeof data?.benefitDate==='string'?data.benefitDate:now.toISOString().slice(0,10),used=Math.max(0,Number(data?.used??0));
+  return{limit,used,remaining:Math.min(limit,Math.max(0,Number(data?.remaining??Math.max(limit-used,0)))),benefitDate,timezone:typeof data?.timezone==='string'?data.timezone:'UTC',resetsAt:typeof data?.resetsAt==='string'?data.resetsAt:new Date(Date.parse(`${benefitDate}T00:00:00Z`)+86400000).toISOString()};
 }
 
 export async function prepareDailyPhotoOffer(db:SupabaseClient,input:{userId:string;offerId:string;dailyLimit:number;tier:SubscriptionTier}):Promise<DailyPhotoAllowanceClaim&{expired?:boolean}>{
@@ -113,14 +112,14 @@ export async function prepareDailyPhotoOffer(db:SupabaseClient,input:{userId:str
     if(String(error.message).includes('MEDIA_OFFER_NOT_PENDING'))throw new AppError('CONFLICT','That photo offer is no longer available.',409);
     throw new AppError('INTERNAL_ERROR','Your included photo could not be reserved.',500,true);
   }
-  return{claimed:data?.claimed===true,remaining:Math.max(0,Number(data?.remaining??0)),benefitDate:typeof data?.benefitDate==='string'?data.benefitDate:undefined,reservationKey,expired:data?.expired===true};
+  return{claimed:data?.claimed===true,remaining:Math.max(0,Number(data?.remaining??0)),benefitDate:typeof data?.benefitDate==='string'?data.benefitDate:undefined,timezone:typeof data?.timezone==='string'?data.timezone:undefined,resetsAt:typeof data?.resetsAt==='string'?data.resetsAt:undefined,reservationKey,expired:data?.expired===true};
 }
 
 export async function claimDailyPhotoAllowance(db:SupabaseClient,input:{userId:string;reservationKey:string;dailyLimit:number;tier:SubscriptionTier}):Promise<DailyPhotoAllowanceClaim>{
   if(input.dailyLimit<=0||input.tier==='free')return{claimed:false,remaining:0,reservationKey:input.reservationKey};
   const{data,error}=await db.rpc('kivelle_claim_daily_photo_allowance',{p_user_id:input.userId,p_reservation_key:input.reservationKey,p_daily_limit:input.dailyLimit,p_tier:input.tier});
   if(error)throw new AppError('INTERNAL_ERROR','Your included photo could not be reserved.',500,true);
-  return{claimed:data?.claimed===true,remaining:Math.max(0,Number(data?.remaining??0)),benefitDate:typeof data?.benefitDate==='string'?data.benefitDate:undefined,reservationKey:input.reservationKey};
+  return{claimed:data?.claimed===true,remaining:Math.max(0,Number(data?.remaining??0)),benefitDate:typeof data?.benefitDate==='string'?data.benefitDate:undefined,timezone:typeof data?.timezone==='string'?data.timezone:undefined,resetsAt:typeof data?.resetsAt==='string'?data.resetsAt:undefined,reservationKey:input.reservationKey};
 }
 
 export async function releaseDailyPhotoAllowance(db:SupabaseClient,input:{userId:string;reservationKey:unknown}):Promise<boolean>{

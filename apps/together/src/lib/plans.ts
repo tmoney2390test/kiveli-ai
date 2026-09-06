@@ -144,12 +144,12 @@ export function buildPlanSlots(input:Date|{now?:Date;option?:PlanOption;schedule
 export function localPlanDateValue(value=new Date()){return`${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}`;}
 export function defaultPlanTimeFields(now=new Date(),leadMinutes=30){const value=roundToQuarter(new Date(now.getTime()+Math.max(10,leadMinutes)*60000));return{date:localPlanDateValue(value),time:`${String(value.getHours()).padStart(2,'0')}:${String(value.getMinutes()).padStart(2,'0')}`};}
 export function isLocationOpen(location:Location,start:Date,durationMinutes:number){if(!location.hours)return true;const open=parseMinute(location.hours.open),close=parseMinute(location.hours.close);if(open===null||close===null)return true;const startMinute=start.getHours()*60+start.getMinutes(),endMinute=startMinute+durationMinutes;if(close>open)return startMinute>=open&&endMinute<=close;return(startMinute>=open||startMinute<close)&&((endMinute%1440)>open||(endMinute%1440)<=close);}
-/** Change-plan choices must be open now, remain open for the activity, and honor fixed event starts. */
+/**
+ * Immediate choices only need to be open at the moment they begin. The server
+ * caps the resulting plan at the venue's exact closing boundary.
+ */
 export function planOptionCanStartNow(option:PlanOption,now=new Date(),timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'){
-  if(!placeHoursStatus(option.hours as Location['hours'],now,timezone).isOpen)return false;
-  const endProbe=new Date(now.getTime()+option.durationMinutes*60000-1000);
-  if(!placeHoursStatus(option.hours as Location['hours'],endProbe,timezone).isOpen)return false;
-  return !option.program||isVenueProgramTime(option,now);
+  return placeHoursStatus(option.hours as Location['hours'],now,timezone).isOpen;
 }
 export function hasPlanConflict(start:Date,durationMinutes:number,plans:SharedPlan[],dates:DateSession[],excludePlanId?:string){const end=start.getTime()+durationMinutes*60000;const plan=plans.find((item)=>item.id!==excludePlanId&&['proposed','scheduled','active'].includes(item.status)&&new Date(item.starts_at).getTime()<end&&new Date(item.ends_at).getTime()>start.getTime());if(plan)return{kind:'plan' as const,title:plan.title,id:plan.id};const date=dates.find((item)=>item.status==='upcoming'&&item.scheduled_for&&new Date(item.scheduled_for).getTime()<end&&new Date(item.scheduled_for).getTime()+3*3600000>start.getTime());return date?{kind:'date' as const,title:date.together_date_templates.name,id:date.id}:null;}
 export function parseCustomPlanTime(dateValue:string,timeValue:string){const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue.trim()),time=/^(\d{1,2}):(\d{2})$/.exec(timeValue.trim());if(!match||!time)return null;const year=Number(match[1]),month=Number(match[2]),day=Number(match[3]),hour=Number(time[1]),minute=Number(time[2]);if(month<1||month>12||day<1||day>31||hour<0||hour>23||minute<0||minute>59)return null;const value=new Date(year,month-1,day,hour,minute,0,0);if(!Number.isFinite(value.getTime())||value.getFullYear()!==year||value.getMonth()!==month-1||value.getDate()!==day||value.getHours()!==hour||value.getMinutes()!==minute)return null;return value;}

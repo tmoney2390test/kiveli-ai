@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { MessageCircle, Pin, UsersRound } from "lucide-react-native";
-import { manageConversation, manageGroup } from "../lib/api";
-import { cacheGroupDetailSummary } from "../lib/groupDetailCache";
+import { loadGroupDetail, manageConversation, manageGroup } from "../lib/api";
+import { cacheGroupDetailSummary, prefetchCompleteGroupDetail } from "../lib/groupDetailCache";
 import {
   inboxPreview,
   isConversationPinned,
@@ -15,6 +15,7 @@ import { characterConversationHref } from "../lib/chatRoute";
 import { warmRoute } from "../lib/routeWarmup";
 import { prefetchConversationMessagePage } from "../lib/conversationMessageWarmup";
 import { useAuth } from "../hooks/useAuth";
+import { useTogether } from "../store/useTogether";
 import { colors, radius } from "../theme";
 import type {
   CharacterInstance,
@@ -41,7 +42,8 @@ export function ChatConversationRail({
   activeConversationId: string;
 }) {
   const { session } = useAuth();
-  const scope = snapshot.activeContinuity?.id ?? "default";
+  const pendingDialogues = useTogether((state) => state.pendingDialogues);
+  const scope = `${session?.user.id??"anonymous"}:${snapshot.activeContinuity?.id??"default"}`;
   const [groups, setGroups] = useState<GroupDetail[]>(() =>
     groupRailCache.get(scope) ?? []
   );
@@ -150,7 +152,12 @@ export function ChatConversationRail({
             ? row.conversation.title || groupName(row.group) || "Group chat"
             : row.character?.together_character_templates.name ??
               row.conversation.title ?? "Conversation";
-          const preview = inboxPreview(row.conversation) || (row.character
+          const pending=pendingDialogues[row.conversation.id];
+          const pendingCharacter=pending ? snapshot.characters.find((item)=>item.id===pending.characterInstanceId) : undefined;
+          const pendingName=pendingCharacter?.together_character_templates.name??row.group?.participants.find((item)=>item.character_instance_id===pending?.characterInstanceId)?.together_character_instances.together_character_templates.name;
+          const preview = pending
+            ? `${pendingName?.split(" ")[0]??(group?"Group":"Companion")} is typing…`
+            : inboxPreview(row.conversation) || (row.character
             ? naturalizeCharacterActivity(row.character.current_activity,{occupation:row.character.together_character_templates.occupation})
             : "Continue the conversation");
           return (
@@ -161,8 +168,8 @@ export function ChatConversationRail({
                 row.conversation.unread ? ", unread" : ""
               }`}
               accessibilityState={{ selected: active, busy: opening }}
-              onHoverIn={() => warmConversation(row, session?.user.id)}
-              onPressIn={() => warmConversation(row, session?.user.id)}
+              onHoverIn={() => warmConversation(row, scope, session?.user.id)}
+              onPressIn={() => warmConversation(row, scope, session?.user.id)}
               onPress={() => openConversation(row)}
               style={({ pressed }) => [
                 styles.row,
@@ -218,7 +225,7 @@ function openRailHref(href: string) {
   if (target) router.replace(target as never);
 }
 
-function warmConversation(row: RailRow, userId?: string) {
+function warmConversation(row: RailRow, scope: string, userId?: string) {
   const href = row.conversation.kind === "group"
     ? Platform.OS === "web"
       ? groupConversationWebHref(row.conversation.id)
@@ -231,7 +238,15 @@ function warmConversation(row: RailRow, userId?: string) {
     )
     : "";
   if (href) warmRoute(href, (value) => router.prefetch(value as never));
-  if (row.conversation.kind !== "group") prefetchConversationMessagePage(userId, row.conversation.id, () => manageConversation({ action: "messages", conversationId: row.conversation.id, limit: 50 }));
+  if (row.conversation.kind === "group") {
+    void prefetchCompleteGroupDetail(
+      scope,
+      row.conversation.id,
+      () => loadGroupDetail(row.conversation.id, { messageLimit: 30, timeoutMs: 20_000 }),
+    ).catch(() => undefined);
+    return;
+  }
+  prefetchConversationMessagePage(userId, row.conversation.id, () => manageConversation({ action: "messages", conversationId: row.conversation.id, limit: 50 }));
 }
 
 function RailGroupAvatar({ group }: { group?: GroupDetail }) {

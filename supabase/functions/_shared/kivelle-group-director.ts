@@ -95,17 +95,12 @@ export async function refineAmbiguousGroupPlan(
           candidate,
         ) => candidate.characterInstanceId),
       );
+    // An explicit user send must always get a conversational response when a
+    // participant is available. The model may decline to override the
+    // deterministic speaker choice, but it must never turn a valid reply plan
+    // into a successful, silent turn.
     if (parsed.silence === true) {
-      return {
-        provider: "openai",
-        plan: {
-          ...input.plan,
-          actions: [],
-          continuationBudget: 0,
-          directorUsed: true,
-          reasonCodes: ["ai_director_silence"],
-        },
-      };
+      return { plan: input.plan, provider: "deterministic" };
     }
     if (
       !parsed.characterInstanceId || !available.has(parsed.characterInstanceId)
@@ -152,7 +147,7 @@ function prompt(
   message: string,
   candidates: readonly GroupSpeakerCandidate[],
 ): string {
-  return `You are Kivelle Group Director. Choose who takes the conversational floor; do not write dialogue. Silence is valid. Return JSON only: {"characterInstanceId":"one allowed id"} or {"silence":true}.
+  return `You are Kivelle Group Director. Choose who takes the conversational floor; do not write dialogue. Return JSON only: {"characterInstanceId":"one allowed id"}.
 
 USER MESSAGE
 ${message}
@@ -178,7 +173,7 @@ ${
     )
   }
 
-Choose the person with the most novel, natural reason to respond. Penalize recent domination. Do not force round robin. Return silence if no one would naturally add value.`;
+Choose the person with the most novel, natural reason to respond. Penalize recent domination. Do not force round robin. A user has deliberately sent this message, so choose one available person rather than returning silence.`;
 }
 function parse(
   raw: string,

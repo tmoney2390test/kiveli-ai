@@ -8,9 +8,9 @@ export function configuredDialogueProviders(){return{
   xaiExplicitEnabled:enabled('KIVELLE_XAI_EXPLICIT_ENABLED')&&privateAdultTextEnabled(),
 };}
 
-export function resolveDialogueRouting(input:{message:string;recentTurns?:Array<{role:string;content:string}>;requestedMode?:DialogueContentMode;ageVerified:boolean;adultAuthorized?:boolean;characterAge?:number|null;relationshipAllowsExplicit?:boolean;photoRequest?:boolean;photoAdultRequest?:boolean;photoSafetyBlocked?:boolean;moderation?:NormalizedModerationResult}):DialogueRoutingDecision{
+export function resolveDialogueRouting(input:{message:string;recentTurns?:Array<{role:string;content:string}>;requestedMode?:DialogueContentMode;ageVerified:boolean;adultAuthorized?:boolean;characterAge?:number|null;relationshipAllowsExplicit?:boolean;photoRequest?:boolean;photoAdultRequest?:boolean;photoSafetyBlocked?:boolean;adultAttachment?:boolean;moderation?:NormalizedModerationResult}):DialogueRoutingDecision{
   const requestedMode:DialogueContentMode=input.adultAuthorized&&input.requestedMode==='explicit'?'explicit':input.requestedMode==='romance'?'romance':'mature';
-  const classification=classifyDialogueContent({message:input.message,recentTurns:input.recentTurns,requestedMode,moderation:input.moderation});
+  const classification=input.adultAttachment&&input.adultAuthorized?'explicit_adult':classifyDialogueContent({message:input.message,recentTurns:input.recentTurns,requestedMode,moderation:input.moderation});
   const adultRequest=classification==='adult_intimacy'||classification==='explicit_adult';
   // PhotoGen owns adult-media authorization after the request is recognized.
   // Private-text rollout state must not turn an otherwise valid adult photo

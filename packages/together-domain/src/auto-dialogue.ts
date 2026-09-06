@@ -16,6 +16,8 @@ export type AutoDialogueInput={
   relationshipStage:string;
   chatLanguage?:ChatLanguagePreference;
   contentMode?:DialogueContentMode;
+  latestContentRating?:'safe'|'suggestive'|'explicit'|'unknown';
+  explicitContinuationAllowed?:boolean;
   intimacyOutcome?:'accepted'|'pacing_delay'|'context_limit'|'declined'|'withdrawn';
   relationship?:{romanceEnabled?:boolean;friendsOnly?:boolean;conflict?:number;chemistryHeat?:number;spiceLevel?:number;trust?:number;comfort?:number};
   userName?:string;openThread?:string;upcomingCommitment?:string;activePlan?:string;activeDate?:string;activeStory?:string;conversationFocus?:string;emotionalTone?:string;voiceHints?:string[];
@@ -39,16 +41,16 @@ export function inferAutoDialogueStyle(recent:AutoDialogueTurn[],preference:Auto
 export function inferAutoDialogueIntents(input:AutoDialogueInput):AutoDialogueIntent[]{
   const latest=input.latestAssistantMessage.toLowerCase(),relationship=input.relationship??{},scene=input.scene,intents:AutoDialogueIntent[]=[];
   const add=(intent:AutoDialogueIntent)=>{if(!intents.includes(intent))intents.push(intent);};
+  if(input.latestAssistantMessage.trim().endsWith('?'))add('answer');
   if(Number(relationship.conflict??0)>=35||/\b(sorry|apologi[sz]e|hurt|upset|angry|wrong)\b/.test(latest))add('repair');
   if(/\b(tired|exhausted|overwhelmed|sad|anxious|rough|hard day|scared|worried)\b/.test(latest)||input.emotionalTone&&/sad|anxious|tense|hurt|low/i.test(input.emotionalTone))add('support');
   if(/\b(excited|amazing|great news|finally|proud|celebrat)\b/.test(latest))add('celebrate');
   if(input.preference==='romantic'&&romanceIsAvailable(input))add('flirt');
-  if(input.upcomingCommitment||input.activePlan||input.activeDate||input.conversationFocus)add('coordinate_plan');
+  if((input.upcomingCommitment||input.activePlan||input.activeDate||input.conversationFocus)&&/\b(?:tonight|tomorrow|meet|meeting|plan|reservation|when|where|ready|leave|arrive|date|going|come over)\b/.test(latest))add('coordinate_plan');
   if(scene.participantNames&&scene.participantNames.length>1)add('engage_group');
   if(scene.interactionMode==='co_present')add('advance_scene');
   if(scene.departurePressure)add('close_scene');
-  if(input.openThread)add('follow_up');
-  if(input.latestAssistantMessage.trim().endsWith('?'))add('answer');
+  if(input.openThread&&/\b(?:remember|earlier|before|still|what happened|tell me|follow up)\b/.test(latest))add('follow_up');
   add('curious');
   return intents.slice(0,4);
 }
@@ -57,7 +59,10 @@ export function buildAutoDialoguePrompt(input:AutoDialogueInput):string{
   const preference=input.preference??'natural',style=inferAutoDialogueStyle(input.recent,preference),intents=inferAutoDialogueIntents(input),transcript=input.recent.slice(-14).map((turn)=>`${turn.role.toUpperCase()}: ${turn.content}`).join('\n');
   const relationship=input.relationship??{},participants=input.scene.participantNames?.filter((name)=>name!==input.characterName)??[];
   const lengthGuidance=style.targetLength==='short'?'prefer under 100 characters and one sentence':style.targetLength==='long'?'prefer 220–560 characters and two or three sentences':'prefer 100–320 characters and one or two sentences';
-  const intimacyGuidance='Keep the draft within non-sexual romance. Flirting, affection, kissing, and a fade-to-black transition are allowed when relationship context supports them. Never draft a sexual request, sexual act, nudity request, or explicit anatomy. Do not invent user consent or physical intimacy.';
+  const explicitContinuation=shouldUseSpicyAutoDialogue(input);
+  const intimacyGuidance=explicitContinuation
+    ?'The server has confirmed that the latest stored companion message is part of an authorized, consensual adult exchange. The draft may answer or continue that established explicit exchange in the user’s first-person voice. Do not escalate beyond the latest message, introduce a new sexual act without a conversational bridge, or invent the companion’s consent. Never introduce minors, ambiguous ages, coercion, incest, exploitation, violence, intoxication, sleep, or any third party.'
+    :'Keep the draft within non-sexual romance. Flirting, affection, kissing, and a fade-to-black transition are allowed when relationship context supports them. Never draft a sexual request, sexual act, nudity request, or explicit anatomy. Do not invent user consent or physical intimacy.';
   return `Write one plausible next message for the USER in an AI companion conversation. Return JSON only as {"text":"..."}.
 
 The text is an editable draft, not an autonomous action. Write only the user's words or the user's first-person roleplay action. Never write the companion's reply, thoughts, actions, or consent. Never invent user facts, memories, identity, promises, purchases, completed plans, or relationship decisions. ${intimacyGuidance} Do not copy or closely paraphrase the companion's latest message. Do not request paid media unless the user's recent messages clearly establish that intent.
@@ -65,7 +70,9 @@ The text is an editable draft, not an autonomous action. Write only the user's w
 OUTPUT LANGUAGE
 ${chatLanguagePromptInstruction(input.chatLanguage)} This is a user-authored draft, so write it naturally in the selected language without explaining or naming the language.
 
-React specifically to the latest companion message and preserve scene continuity. Create a rich conversational handoff with two beats when length allows: first respond to what the companion actually said or did, then add one concrete emotional or scene-aware hook that gives them something meaningful to answer. Do not default to a generic interviewer question. A reaction, observation, playful challenge, vulnerable admission, or brief first-person action may lead; use a question only when it feels natural.
+The latest companion message is the controlling conversational anchor. Respond to its actual meaning before using any other context. If it asks a question, answer it directly. If it offers an action or emotional disclosure, react to that exact beat. Do not pivot to an older thread, upcoming plan, location, or activity unless the latest message clearly refers to it. Do not answer a different question from the recent transcript.
+
+Create a rich conversational handoff with two beats when length allows: first respond to what the companion actually said or did, then add one concrete emotional or scene-aware hook that gives them something meaningful to answer. Every sentence must either answer the latest message or naturally deepen the same subject. Avoid generic therapy language, vague encouragement, canned flirtation, and interview-style questions. Do not default to a generic interviewer question or end with a question by default. A reaction, observation, playful challenge, vulnerable admission, direct answer, or brief first-person action may lead.
 
 Primary response intentions, in order: ${intents.join(', ')}. Choose the first one that produces a natural reply. User control: ${preference}. ${preferenceGuidance(preference,romanceIsAvailable(input))}
 
@@ -78,7 +85,7 @@ ${input.voiceHints?.length?`- Subtle learned voice preferences: ${input.voiceHin
 CHARACTER: ${input.characterName}
 USER: ${input.userName??'the user'}
 RELATIONSHIP: ${input.relationshipStage}; romance ${relationship.romanceEnabled===false||relationship.friendsOnly?'unavailable':'available'}; conflict ${Math.round(Number(relationship.conflict??0))}; chemistry ${Math.round(Number(relationship.chemistryHeat??0))}; romantic boldness ${Math.max(1,Math.min(3,Number(relationship.spiceLevel??2)))} of 3
-CONTENT CEILING: non-sexual romance; latest intimacy outcome: ${input.intimacyOutcome??'none'}
+CONTENT CEILING: ${explicitContinuation?'authorized consensual adult continuation':'non-sexual romance'}; latest stored rating: ${input.latestContentRating??'unknown'}; latest intimacy outcome: ${input.intimacyOutcome??'none'}
 SCENE: ${input.scene.interactionMode}; ${input.scene.location}; ${input.scene.activity}; mood ${input.scene.mood??'unknown'}; energy ${input.scene.energy??'unknown'}; availability ${input.scene.interruptibility??input.scene.availability??'unknown'}${input.scene.departurePressure?'; the scene is ending soon':''}
 ${input.scene.nextObligation?`NEXT OBLIGATION: ${input.scene.nextObligation}\n`:''}${participants.length?`OTHER PEOPLE PRESENT: ${participants.join(', ')}. Do not speak or act for them.\n`:''}${input.openThread?`OPEN THREAD: ${input.openThread}\n`:''}${input.upcomingCommitment?`UPCOMING COMMITMENT: ${input.upcomingCommitment}\n`:''}${input.activePlan?`ACTIVE PLAN: ${input.activePlan}\n`:''}${input.activeDate?`ACTIVE DATE: ${input.activeDate}\n`:''}${input.activeStory?`ACTIVE STORY: ${input.activeStory}\n`:''}${input.conversationFocus?`CONVERSATION FOCUS: ${input.conversationFocus}\n`:''}${input.emotionalTone?`EMOTIONAL CARRYOVER: ${input.emotionalTone}\n`:''}LATEST COMPANION MESSAGE: ${input.latestAssistantMessage}
 
@@ -90,6 +97,7 @@ export function deterministicAutoDialogue(input:AutoDialogueInput):string{
   const latest=input.latestAssistantMessage.trim(),lower=latest.toLowerCase(),fallback=fallbackForScene(input),intent=inferAutoDialogueIntents(input)[0];
   const userLanguage=resolveChatLanguageForText(input.chatLanguage,input.recent.filter((turn)=>turn.role==='user').at(-1)?.content,[...input.recent].reverse().filter((turn)=>turn.role==='user').map((turn)=>turn.content));
   if(userLanguage!=='en')return chatLanguageUserDraftFallback(userLanguage);
+  if(shouldUseSpicyAutoDialogue(input))return normalizeAutoDialogueText("I'm right here with you. Keep going—tell me what you want from me next.",fallback,input);
   if(intent==='repair')return normalizeAutoDialogueText("I appreciate you saying that. I don't want to skate past it—can we talk through what happened?",fallback,input);
   if(intent==='support')return normalizeAutoDialogueText("You sound like you have a lot on your mind. You don't have to make it sound okay for me—what happened?",fallback,input);
   if(intent==='celebrate')return normalizeAutoDialogueText("Okay, that deserves more than a quick congratulations. Tell me the moment you realized you'd actually pulled it off.",fallback,input);
@@ -100,7 +108,7 @@ export function deterministicAutoDialogue(input:AutoDialogueInput):string{
   if(/\b(thank you|thanks)\b/.test(lower))return normalizeAutoDialogueText("Of course. I'm glad I could be here for it—how are you feeling now?",fallback,input);
   if(/\b(finished|finally done|wrapped up|completed)\b/.test(lower))return normalizeAutoDialogueText("You made it through. Now that the pressure is off, what part are you proudest of?",fallback,input);
   if(input.preference==='assertive')return normalizeAutoDialogueText("Be direct with me. What do you want from this moment?",fallback,input);
-  if(latest.endsWith('?'))return normalizeAutoDialogueText("I'm still thinking about that. My first instinct is to be honest with you—what answer are you hoping for?",fallback,input);
+  if(latest.endsWith('?'))return normalizeAutoDialogueText("Honestly, I'm still finding the words, but I want to answer you instead of dodging it.",fallback,input);
   return fallback;
 }
 
@@ -111,16 +119,15 @@ export function parseAutoDialogueSuggestion(value:unknown,fallback:string,input?
 
 export function normalizeAutoDialogueText(value:string,fallback:string,input?:AutoDialogueInput):string{
   const cleaned=value.replace(/^```(?:json)?\s*/i,'').replace(/```$/,'').trim().replace(/^(?:user|me)\s*:\s*/i,'').replace(/^['"]|['"]$/g,'').replace(/\s+/g,' ');
-  if(!cleaned||hasSexualDialogueLanguage(cleaned)||looksLikeCompanionReply(cleaned,input?.characterName)||assertsHighAgencyChoice(cleaned)||input&&tooSimilar(cleaned,input.latestAssistantMessage))return safeFallback(fallback);
+  if(!cleaned||hasSexualDialogueLanguage(cleaned)&&!(input&&shouldUseSpicyAutoDialogue(input))||looksLikeCompanionReply(cleaned,input?.characterName)||assertsHighAgencyChoice(cleaned)||input&&tooSimilar(cleaned,input.latestAssistantMessage))return safeFallback(fallback);
   const clipped=cleaned.length<=MAX_SUGGESTION_LENGTH?cleaned:`${cleaned.slice(0,MAX_SUGGESTION_LENGTH-1).trimEnd()}…`;
   return clipped||safeFallback(fallback);
 }
 
 function fallbackForScene(input:AutoDialogueInput):string{
-  const style=inferAutoDialogueStyle(input.recent,input.preference),activity=sentenceFragment(input.scene.activity||'your day');
   if(input.scene.departurePressure)return 'Before you go, is there anything you wanted to tell me?';
-  if(input.scene.interactionMode==='co_present')return style.usesActions?`*I settle in beside ${input.characterName}.* “How is ${activity} going?”`:`I settle into the moment with you. How is ${activity} really going?`;
-  return `I've been picturing you at ${input.scene.location}. How is ${activity} really going?`;
+  if(input.scene.interactionMode==='co_present')return `*I meet ${input.characterName}'s gaze.* “I'm here. Tell me what you mean.”`;
+  return "I'm with you. Tell me what you mean.";
 }
 
 function preferenceGuidance(preference:AutoDialoguePreference,romanceAvailable:boolean):string{
@@ -132,6 +139,7 @@ function preferenceGuidance(preference:AutoDialoguePreference,romanceAvailable:b
 }
 
 function romanceIsAvailable(input:AutoDialogueInput):boolean{return input.relationship?.romanceEnabled!==false&&!input.relationship?.friendsOnly;}
+export function shouldUseSpicyAutoDialogue(input:AutoDialogueInput):boolean{return input.contentMode==='explicit'&&input.explicitContinuationAllowed===true&&input.latestContentRating==='explicit';}
 function safeFallback(value:string):string{const normalized=value.trim().slice(0,MAX_SUGGESTION_LENGTH);return normalized||'Tell me more about that.';}
 function looksLikeCompanionReply(value:string,characterName?:string):boolean{
   if(/^(assistant|companion|character|ai)\s*:/i.test(value)||/\b(?:as an ai|i am your (?:ai|companion))\b/i.test(value))return true;

@@ -18,10 +18,10 @@ export function placeHoursStatus(
     return { state: 'unknown', isOpen: false, statusLabel: 'Hours not published', scheduleLabel: 'Hours not published' };
   }
 
-  const scheduleLabel = open === close || (open === 0 && close === 1439)
+  const scheduleLabel = open === close || (open === 0 && (close === 1439 || close === 1440))
     ? 'Open 24 hours'
     : `Daily ${formatMinute(open)}–${formatMinute(close)}`;
-  if (open === close || (open === 0 && close === 1439)) {
+  if (open === close || (open === 0 && (close === 1439 || close === 1440))) {
     return { state: 'open', isOpen: true, statusLabel: 'Open now · 24 hours', scheduleLabel };
   }
 
@@ -63,13 +63,14 @@ function parseMinute(value: unknown) {
   if (!match) return null;
   const hour = Number(match[1]);
   const minute = Number(match[2]);
-  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 24 || minute < 0 || minute > 59 || (hour === 24 && minute !== 0)) return null;
   return hour * 60 + minute;
 }
 
 function formatMinute(value: number) {
-  const hour = Math.floor(value / 60);
-  const minute = value % 60;
+  const normalized = ((value % 1440) + 1440) % 1440;
+  const hour = Math.floor(normalized / 60);
+  const minute = normalized % 60;
   const suffix = hour >= 12 ? 'PM' : 'AM';
   const displayHour = hour % 12 || 12;
   return minute ? `${displayHour}:${String(minute).padStart(2, '0')} ${suffix}` : `${displayHour} ${suffix}`;

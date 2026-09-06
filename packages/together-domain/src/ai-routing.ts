@@ -1,4 +1,4 @@
-import { hasExplicitAdultLanguage } from './adult-language.ts';
+import { analyzeAdultLanguage, hasExplicitAdultLanguage } from './adult-language.ts';
 
 export type DialogueProviderName = 'openai' | 'xai' | 'gemini' | 'deterministic';
 export type DialogueContentMode = 'standard' | 'romance' | 'mature' | 'explicit';
@@ -52,6 +52,17 @@ const explicitActPattern = /\b(?:strip(?:ping)?|horny|orgasm|masturbat(?:e|ing|i
 const adultIntimacyIntentPattern = /(?:\b(?:have sex|sex with (?:me|you)|sleep (?:with|together)|make love|hook up|come to bed|go to bed with|spend the night|be intimate|take me to bed|tener sexo|acostarnos juntos|hacer el amor|coucher (?:ensemble|avec (?:moi|toi))|faire l['’]amour|andare a letto insieme|fare (?:l['’]amore|sesso)|miteinander schlafen|liebe machen|sex mit (?:mir|dir)|fazer sexo|dormir juntos|fazer amor)\b|セックスしたい|一緒に寝たい|愛し合いたい|섹스하고 싶|같이 자고 싶|사랑을 나누|想做爱|想和你睡|一起过夜)/iu;
 const explicitAdvancePattern = /^(?:i (?:really )?(?:want|need) you(?: right now| so badly| so bad| tonight)?)\s*[.!?]*$|(?:\b(?:take off (?:your|my) clothes|undress (?:me|yourself)|touch me|let me touch you|put your hands on me|get on top of me|come under the covers|quítate la ropa|desvísteme|tócame|déjame tocarte|déshabille-toi|déshabille-moi|touche-moi|spogliati|spogliami|toccami|zieh dich aus|fass mich an|tire a roupa|me despe|me toca)\b|脱いで|触って|옷 벗어|만져 줘|脱掉衣服|摸我)/iu;
 export const hasSexualDialogueLanguage=(text:string)=>explicitActPattern.test(text)||adultIntimacyIntentPattern.test(text)||explicitAdvancePattern.test(text)||hasExplicitAdultLanguage(text);
+
+// This is intentionally narrower than the input router above. Generated
+// fantasy dialogue can naturally contain profanity and words such as
+// "penetrate", "strip", "ride", or "dominant" in completely non-sexual
+// combat contexts. Those words should help route an ambiguous user request,
+// but must not erase an otherwise-approved character response. The output
+// ceiling is reserved for unmistakable explicit anatomy or sexual acts.
+const explicitSexualOutputActPattern = /\b(?:orgasm(?:s|ed|ing)?|masturbat(?:e|es|ed|ing|ion)|oral sex|anal sex|blowjob|handjob|go down on|eat (?:me|her|him|them) out|finger(?:ing|ed) (?:me|her|him|them)|penetrat(?:e|es|ed|ing|ion) (?:me|her|him|them)|(?:he|she|they|we|i) (?:is|are|am|was|were) fucking|fuck(?:s|ed|ing)? (?:me|her|him|them)|sixty[- ]?nine)\b/i;
+export function hasExplicitSexualOutputLanguage(text:string):boolean{
+  return analyzeAdultLanguage(text).tier==='explicit_anatomy'||explicitSexualOutputActPattern.test(text);
+}
 const romanticPattern = /\b(?:kiss(?:ing|ed)?|date|romantic|flirt(?:ing)?|crush|love you|hold (?:me|you)|cuddle|chemistry)\b/i;
 const maturePattern = /\b(?:desire|intimate|sensual|turned on|make out|bedroom)\b/i;
 const continuationPattern = /^(?:(?:yes(?: please)?|yeah|okay|more|keep going|continue|don'?t stop|go on|please(?: continue)?|pretty please|do it|again)|(?:sí|si|claro|más|continúa|no pares|oui|encore|continue|ne t['’]arrête pas|sì|si|ancora|continua|non fermarti|ja|mehr|weiter|hör nicht auf|sim|mais|continua|não para)|(?:はい|もっと|続けて|やめないで|응|네|더|계속해|멈추지 마|是|好|继续|再来|别停))[.!?。！？\s]*$/iu;

@@ -5,6 +5,7 @@ import {
   cacheGroupDetailSummary,
   cacheInboxGroupSummary,
   clearGroupDetailCache,
+  prefetchCompleteGroupDetail,
   readCachedGroupDetail,
 } from "./groupDetailCache";
 
@@ -27,6 +28,35 @@ describe("group detail cache", () => {
   afterEach(() => {
     clearGroupDetailCache();
     Reflect.deleteProperty(globalThis, "sessionStorage");
+  });
+
+  it("coalesces group timeline warmups and stores the complete result", async () => {
+    let calls = 0;
+    const loader = async () => {
+      calls += 1;
+      await Promise.resolve();
+      return detail("group-a", "Warm group");
+    };
+
+    const [first, second] = await Promise.all([
+      prefetchCompleteGroupDetail("life-a", "group-a", loader),
+      prefetchCompleteGroupDetail("life-a", "group-a", loader),
+    ]);
+
+    expect(calls).toBe(1);
+    expect(first).toBe(second);
+    expect(readCachedGroupDetail("life-a", "group-a")?.complete).toBe(true);
+  });
+
+  it("refreshes a complete group timeline when the caller requires fresh data", async () => {
+    cacheCompleteGroupDetail("user-a:life-a",detail("group-a","Cached group"));
+    let calls=0;
+    const refreshed=await prefetchCompleteGroupDetail("user-a:life-a","group-a",()=>{
+      calls+=1;
+      return Promise.resolve(detail("group-a","Refreshed group"));
+    },{maxAgeMs:-1});
+    expect(calls).toBe(1);
+    expect(refreshed.conversation.title).toBe("Refreshed group");
   });
 
   it("makes a rail summary available before the timeline request completes", () => {

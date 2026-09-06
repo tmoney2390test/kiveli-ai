@@ -4,7 +4,7 @@ import { experienceClock } from './kivelle-time.ts';
 import { resolveCharacterPlaceContext, resolvePlaceContext } from './together-place.ts';
 import { activeContinuity } from './together-continuity.ts';
 import { normalizeMultimodalPreferences, resolveServerExperienceCapabilities } from './kivelle-multimodal.ts';
-import { applyRelationshipProposal, capabilitiesForAccount, firstDateEligibility, hasSexualDialogueLanguage, isDurableUserMemory, isRelationshipDirectedPreferenceObject, lifeEventHasExplicitPresenceAuthority, mergeRollingConversationState, nextRelationshipMilestone as selectRelationshipMilestone, relationshipCue, type RelationshipState } from '../../../packages/together-domain/src/index.ts';
+import { applyRelationshipProposal, capabilitiesForAccount, extractMemoryCandidates as extractDomainMemoryCandidates, firstDateEligibility, hasSexualDialogueLanguage, isDurableUserMemory, lifeEventHasExplicitPresenceAuthority, mergeRollingConversationState, nextRelationshipMilestone as selectRelationshipMilestone, relationshipCue, type RelationshipState } from '../../../packages/together-domain/src/index.ts';
 import { compactLocationLoreForDirectory } from '../../../packages/together-domain/src/location-depth.ts';
 import { projectSnapshotMemories } from './kivelle-memory-access.ts';
 import { waitUntil } from './background.ts';
@@ -98,33 +98,7 @@ export function normalizeContinuityKey(value: string): string {
 }
 
 export function extractMemories(text: string): MemoryCandidate[] {
-  const candidates: MemoryCandidate[] = [];
-  const add = (memory_type: string, canonical_text: string, subject_key: string, importance: number, confidence: number, metadata: Record<string, unknown> = {}, sensitivity_category = 'none') => candidates.push({ memory_type, canonical_text, dedupe_key: `${memory_type}:${normalizeContinuityKey(canonical_text)}`, subject_key, importance, confidence, sensitivity_category, metadata });
-  const pet = /\bmy\s+(dog|cat|pet)(?:'s| is)?\s+name\s+is\s+([a-z][a-z'-]{1,30})\b/i.exec(text);
-  if (pet) {
-    const animal = pet[1]!.toLowerCase();
-    const name = `${pet[2]![0]!.toUpperCase()}${pet[2]!.slice(1).toLowerCase()}`;
-    add('semantic', `User's ${animal} is named ${name}.`, `pet:${animal}:name`, .86, .97, { subject: animal, name }, 'personal');
-  }
-  const neutral = /\bi\s+(?:do not|don't)\s+(?:hate|dislike)\s+([^.!?]{2,60}?)(?:\s+anymore|\s+now)?(?:[.!?]|$)/i.exec(text);
-  const dislike = !neutral ? /\bi\s+(?:really\s+)?(?:hate|can't stand|do not like|don't like)\s+([^.!?]{2,60})/i.exec(text) : null;
-  const like = /\bi\s+(?:actually\s+)?(?:really\s+)?(?:love|like|enjoy)\s+([^.!?]{2,60}?)(?:\s+now)?(?:[.!?]|$)/i.exec(text);
-  if (neutral) {
-    const item = cleanContinuityObject(neutral[1]!);
-    add('preference', `User no longer dislikes ${item}.`, `preference:${normalizeContinuityKey(item)}`, .7, .93, { preference: 'neutral', item, correction: true });
-  } else if (dislike) {
-    const item = cleanContinuityObject(dislike[1]!);
-    add('preference', `User dislikes ${item}.`, `preference:${normalizeContinuityKey(item)}`, .7, .91, { preference: 'dislike', item });
-  } else if (like) {
-    const item = cleanContinuityObject(like[1]!);
-    if (!isRelationshipDirectedPreferenceObject(item)) add('preference', `User likes ${item}.`, `preference:${normalizeContinuityKey(item)}`, .6, .84, { preference: 'like', item });
-  }
-  const emotion = /\bi(?:'m| am)\s+(nervous|anxious|excited|worried|scared)\s+(?:about\s+)?([^.!?]{2,80})/i.exec(text);
-  if (emotion) {
-    const topic = cleanContinuityObject(emotion[2]!);
-    add('emotional', `User feels ${emotion[1]!.toLowerCase()} about ${topic}.`, `emotion:${normalizeContinuityKey(topic)}`, .72, .86, {}, 'personal');
-  }
-  return candidates;
+  return extractDomainMemoryCandidates(text).map((candidate)=>({memory_type:candidate.type,canonical_text:candidate.canonicalText,dedupe_key:candidate.dedupeKey,subject_key:candidate.subjectKey,importance:candidate.importance,confidence:candidate.confidence,sensitivity_category:candidate.sensitivity,metadata:candidate.metadata??{}}));
 }
 
 export function extractOpenThread(text: string, now = new Date()): OpenThreadCandidate | null {
@@ -179,10 +153,6 @@ export function decorateSnapshotSharedPlan(plan:Record<string,any>):Record<strin
     ??attendance.find((row:Record<string,any>)=>row.participant_type==='character')
     ??null;
   return{...canonicalPlan,participant_responses:Array.isArray(embeddedResponses)?embeddedResponses:[],attendance:{user,character}};
-}
-
-function cleanContinuityObject(value: string): string {
-  return value.trim().replace(/\s+(?:a lot|so much|though)$/i, '').toLowerCase();
 }
 
 export async function track(db: SupabaseClient, userId: string, eventName: string, properties: Record<string, unknown> = {}): Promise<void> {

@@ -16,8 +16,12 @@ export function reconcileMessages(
     const index = result.findIndex((candidate) => sameLogicalMessage(candidate, message));
     if (index >= 0) {
       const existing = result[index]!;
+      // A late component update or restored optimistic cache must never
+      // downgrade an already-persisted row back to pending/failed. This race is
+      // common when switching chats while the stream's canonical user row is
+      // arriving. Server identity and state always win.
       result[index] = message.id.startsWith("local-") && !existing.id.startsWith("local-")
-        ? { ...existing, delivery_status: message.delivery_status }
+        ? existing
         : message;
     }
     else result.push(message);

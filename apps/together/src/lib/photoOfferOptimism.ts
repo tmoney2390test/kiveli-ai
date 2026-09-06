@@ -23,6 +23,26 @@ export function queueOptimisticPhotoOfferAcceptance(
   };
 }
 
+/**
+ * Show an acceptance tap immediately without inventing the server's accepted
+ * state. An accepted offer implies that charging and media creation completed
+ * atomically; only the API response may make that claim.
+ */
+export function queueServerPhotoOfferAcceptance(
+  offer: MediaOffer,
+  queuedAt = new Date().toISOString(),
+): MediaOffer {
+  return {
+    ...offer,
+    status: 'pending',
+    preview_metadata: {
+      ...offer.preview_metadata,
+      acceptQueued: true,
+      acceptQueuedAt: queuedAt,
+    },
+  };
+}
+
 export function createOptimisticPhotoRequest(input: {
   requestId: string;
   conversationId: string;

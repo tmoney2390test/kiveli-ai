@@ -7,6 +7,7 @@ import {
   classifyDeterministicTrustRepair,
   classifyGroupSocialEvent,
   compileIntimacyStance,
+  hasExplicitSexualOutputLanguage,
   hasSexualDialogueLanguage,
   isDialogueHardBlocked,
   isLocationPlanDismissalCoolingDown,
@@ -76,10 +77,19 @@ import {
   assertChatRequestId,
   chatRequestFingerprint,
   claimChatUserMessage,
+  commitGroupSystemMessage,
   findExistingChatRequest,
   normalizeChatMessage,
 } from "../_shared/chat-message-hardening.ts";
 import { deriveSafeRelationalSummary } from "../_shared/safe-relational-context.ts";
+import {
+  applyLifeTransitionToGroupRoster,
+  deadCharacterSceneNarration,
+  groupParticipantCanSpeak,
+  lifeParticipantsFromGroupRoster,
+  lifeStatePromptLabel,
+  persistCharacterLifeTransition,
+} from "../_shared/kivelle-character-life-state.ts";
 
 const schema = z.object({
   conversationId: z.string().uuid(),
@@ -236,7 +246,9 @@ Deno.serve(async (request) => {
     const groupDialoguePolicy=resolvePrivateDialoguePolicy({access:adultAccess,requestedMode:storedRequestedMode,conversationMode:'group',participants:roster,safetyAllowed:!isDialogueHardBlocked({message:messageText,moderation:inputSafety})});
     const groupAdultAuthorized=groupDialoguePolicy.rollout.generationAllowed;
     if(storedRequestedMode==='explicit')await track(db,user.id,'private_adult_text_policy_decision',privateAdultTextTelemetry({policy:groupDialoguePolicy,access:adultAccess,conversationMode:'group'}));
+    const adultAttachment=attachments.some((attachment)=>attachment.content_rating==='explicit'||attachment.visibility_scope==='web_adult');
     const restrictedUserMessage=groupAdultAuthorized&&(
+      adultAttachment||
       hasSexualDialogueLanguage(messageText)||inputSafety.categories.some((category)=>/(?:sexual|adult|explicit)/i.test(category))
     );
     let replyTargetId: string | undefined;
@@ -313,6 +325,31 @@ Deno.serve(async (request) => {
         },
       });
     const userMessage = userClaim.message;
+    const lifeTransition = await persistCharacterLifeTransition({
+      db,
+      userId: user.id,
+      continuityId: continuity.id,
+      sourceMessageId: String(userMessage.id),
+      message: messageText,
+      participants: lifeParticipantsFromGroupRoster(roster),
+      directedCharacterInstanceIds: [
+        ...input.mentionedCharacterInstanceIds,
+        ...(input.manualSpeakerInstanceId ? [input.manualSpeakerInstanceId] : []),
+        ...(replyTargetId ? [replyTargetId] : []),
+      ],
+      conversationId: conversation.id,
+    });
+    applyLifeTransitionToGroupRoster(roster, lifeTransition);
+    if (lifeTransition) {
+      await track(db, user.id, "character_life_state_changed", {
+        characterInstanceId: lifeTransition.characterInstanceId,
+        conversationId: conversation.id,
+        from: lifeTransition.from,
+        to: lifeTransition.to,
+        transitionKind: lifeTransition.kind,
+        groupChat: true,
+      });
+    }
     if (userClaim.created && attachments.length) {
       await track(db, user.id, "user_photo_sent", {
         attachmentCount: attachments.length,
@@ -469,6 +506,7 @@ Deno.serve(async (request) => {
       settings,
       subscription,
       inputSafety,
+      adultAttachment,
       adultAccess,
       storedRequestedMode,
       correlationId,
@@ -534,6 +572,50 @@ function groupStream(input: any): Response {
         const usedInitialActionIds = new Set<string>();
         let action: GroupTurnAction | null =
           (input.plan.actions as GroupTurnAction[])[0] ?? null;
+        if (!action) {
+          const deadParticipants = input.roster.filter((row: any) =>
+            !groupParticipantCanSpeak(row)
+          );
+          if (deadParticipants.length === input.roster.length && deadParticipants.length) {
+            const first = deadParticipants[0]?.together_character_instances ?? {};
+            const names = deadParticipants.map((row: any) =>
+              String(row.together_character_instances?.together_character_templates?.name ?? "Companion")
+            );
+            const narration = names.length === 1
+              ? deadCharacterSceneNarration({
+                name: names[0]!,
+                summary: first.life_state_summary,
+              })
+              : `${names.join(", ")} are dead in this continuity. The scene can continue, but none of them can speak unless an explicit supernatural event brings them back.`;
+            const committed = await commitGroupSystemMessage(input.db, {
+              turnId: input.turn.id,
+              version: Number(input.turn.version),
+              anchorCharacterInstanceId: String(input.roster[0].character_instance_id),
+              content: narration,
+              responseKey: `dead-roster:${input.turn.id}`,
+              providerMetadata: {
+                provider: "kivelle-continuity",
+                eventType: "dead_group_silence",
+                lifeState: "dead",
+                ...safeMessagePolicy("safe"),
+              },
+            });
+            firstActivityAt ??= Date.now();
+            emit({ type: "message_completed", message: committed.message });
+            const finished = await finishConversationTurn(input.db, input.turnLease, "completed");
+            if (!finished) {
+              await cancelTurn("completion_rejected");
+              return;
+            }
+            await track(input.db, input.userId, "dead_character_dialogue_suppressed", {
+              conversationId: input.conversation.id,
+              characterCount: deadParticipants.length,
+              groupChat: true,
+            });
+            emit({ type: "turn_completed", turnId: input.turn.id });
+            return;
+          }
+        }
         while (action) {
           if (!await touchConversationTurn(input.db, input.turnLease, 240)) {
             await cancelTurn("lease_lost");
@@ -564,7 +646,7 @@ function groupStream(input: any): Response {
           const participant = liveRoster.find((row: any) =>
             String(row.character_instance_id) === action!.characterInstanceId
           );
-          if (!participant) {
+          if (!participant || !groupParticipantCanSpeak(participant)) {
             await cancelTurn("speaker_unavailable");
             return;
           }
@@ -645,6 +727,9 @@ function groupStream(input: any): Response {
                 row.together_character_instances?.together_character_templates
                   ?.name ?? "Companion",
               ),
+              lifeState: String(row.together_character_instances?.life_state ?? "alive"),
+              lifeStateLabel: lifeStatePromptLabel(row.together_character_instances ?? {}),
+              lifeStateSummary: row.together_character_instances?.life_state_summary ?? null,
             })),
             energy: input.settings.energy,
             action,
@@ -690,6 +775,7 @@ function groupStream(input: any): Response {
               context.relationship?.romance_enabled !== false &&
               context.relationship?.romance_path_status !== "friends_only",
             photoRequest: action.intent === "media_offer",
+            adultAttachment: input.adultAttachment === true,
             moderation: inputSafety,
           };
           let route = resolveDialogueRouting(routeInput);
@@ -845,7 +931,7 @@ function groupStream(input: any): Response {
             ...usageScope,
             metadata: { direction: "output", groupChat: true },
           });
-          const text = outputSafety.allowed && (route.explicit||!hasSexualDialogueLanguage(generated.text))
+          const text = outputSafety.allowed && (route.explicit||!hasExplicitSexualOutputLanguage(generated.text))
             ? generated.text
             : chatLanguageChangeSubject(context.chatLanguage,canonicalUserText);
           const committed = await commitMessage(input, action, text, {
@@ -869,6 +955,30 @@ function groupStream(input: any): Response {
           markActivity(action.characterInstanceId);
           emit({ type: "message_completed", message: saved });
           if(!committed.created)break;
+          const supernaturalTransition = await persistCharacterLifeTransition({
+            db: input.db,
+            userId: input.userId,
+            continuityId: input.continuityId,
+            sourceMessageId: String(saved.id),
+            message: text,
+            participants: lifeParticipantsFromGroupRoster(liveRoster),
+            directedCharacterInstanceIds: action.addresseeInstanceIds,
+            conversationId: input.conversation.id,
+            sourceRole: "assistant",
+            allowedKinds: ["resurrection", "supernatural_return"],
+          });
+          applyLifeTransitionToGroupRoster(liveRoster, supernaturalTransition);
+          if (supernaturalTransition) {
+            await track(input.db, input.userId, "character_life_state_changed", {
+              characterInstanceId: supernaturalTransition.characterInstanceId,
+              conversationId: input.conversation.id,
+              from: supernaturalTransition.from,
+              to: supernaturalTransition.to,
+              transitionKind: supernaturalTransition.kind,
+              groupChat: true,
+              sourceRole: "assistant",
+            });
+          }
           if(!route.explicit)await maybeCreateGroupLocationPlanCandidate(input.db, {
             userId: input.userId,
             conversationId: input.conversation.id,
@@ -1317,7 +1427,8 @@ function groupCandidates(
       characterInstanceId: id,
       name: String(template.name ?? "Companion"),
       available: !["unavailable", "sleeping"].includes(interruptibility) &&
-        !/\b(?:asleep|sleeping)\b/i.test(activity),
+        !/\b(?:asleep|sleeping)\b/i.test(activity) &&
+        groupParticipantCanSpeak(participant),
       socialEnergy: Math.max(
         0,
         Math.min(
@@ -1357,6 +1468,7 @@ async function persistWitnessedGroupMemories(
     participants: any[];
   },
 ) {
+  if(input.sourceMessage.visibility_scope!=="all"||!["safe","suggestive"].includes(String(input.sourceMessage.content_rating)))return;
   const candidates = extractMemoryCandidates(
     String(input.sourceMessage.content ?? ""),
   ).filter((candidate: any) => candidate.confidence >= .8);
@@ -1391,6 +1503,7 @@ async function persistWitnessedGroupMemories(
       visibility: "group_visible",
       group_conversation_id: input.conversationId,
       learned_conversation_sequence: input.sourceMessage.conversation_sequence,
+      content_rating:input.sourceMessage.content_rating,visibility_scope:"all",moderation_version:"safe-group-memory-v2",
       metadata: {
         ...(candidate.metadata ?? {}),
         learnedInGroup: true,

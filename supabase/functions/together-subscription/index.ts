@@ -16,8 +16,6 @@ import { resolveSubscriptionState, type KivelleSubscriptionState } from '../_sha
 import {
   createStripeCheckoutSession,
   createStripePortalSession,
-  ensureStripeCustomer,
-  listStripeSubscriptions,
   stripeBillingConfiguration,
   stripePriceForCreditPack,
 } from '../_shared/stripe.ts';
@@ -58,29 +56,13 @@ serve(async(request,correlationId)=>{
   const management=managementFor(state,configuration);
 
   if(input.action==='checkout'){
-    if(!billingPolicy.subscriptionCheckoutEnabled)throw new AppError('BILLING_NOT_CONFIGURED',billingPolicy.clientSurface==='web'?'New memberships are available in the Kivelli iOS and Android apps.':'Hosted membership checkout is disabled for this app build.',503);
-    const checkoutConfigured=input.billingInterval==='annual'?configuration.configuredAnnual[input.tier]:configuration.configured[input.tier];
-    if(!checkoutConfigured)throw new AppError('BILLING_NOT_CONFIGURED',`${input.billingInterval==='annual'?'Annual':'Monthly'} checkout is not available for this plan right now.`,503);
-    if(state.tier!=='free'||state.billing.status&&['active','trialing','past_due','unpaid','paused','incomplete'].includes(state.billing.status)){
-      if(management.manageAction==='portal')return portalResponse(db,user,requestId,state,configuration,correlationId);
-      throw new AppError('SUBSCRIPTION_ALREADY_ACTIVE',management.managementReason,409);
-    }
-    if(configuration.stripe[input.tier]){
-      const customerId=await ensureStripeCustomer(db,{userId:user.id,email:user.email});
-      const remote=await listStripeSubscriptions(customerId);
-      const manageable=remote.find((subscription)=>['active','trialing','past_due','unpaid','paused','incomplete'].includes(subscription.status));
-      if(manageable){
-        const portal=await createStripePortalSession(db,{userId:user.id,email:user.email,requestId});
-        return json({data:{url:portal.url,sessionId:portal.id,provider:'stripe',redirectedToPortal:true},correlationId},200,correlationId);
-      }
-      await track(db,user.id,'subscription_checkout_started',{tier:input.tier,billingInterval:input.billingInterval,currentTier:state.tier});
-      const session=await createStripeCheckoutSession(db,{userId:user.id,email:user.email,tier:input.tier,billingInterval:input.billingInterval,requestId});
-      return json({data:{url:session.url,sessionId:session.id,provider:'stripe'},correlationId},200,correlationId);
-    }
-    const envName=input.tier==='kivelle_plus'?'KIVELLE_PLUS_CHECKOUT_URL':'KIVELLE_MAX_CHECKOUT_URL';
-    const url=configuredUrl(envName,user.id,user.email);
-    if(!url)throw new AppError('BILLING_NOT_CONFIGURED','Checkout is not available for this plan right now.',503);
-    return json({data:{url,provider:'configured'},correlationId},200,correlationId);
+    throw new AppError(
+      'BILLING_NOT_CONFIGURED',
+      billingPolicy.clientSurface==='web'
+        ?'New memberships are available in the Kivelli iOS and Android apps. Existing App Store and Google Play memberships still work here.'
+        :'Memberships are purchased through the Apple App Store or Google Play in a store-enabled build.',
+      503,
+    );
   }
 
   if(input.action==='credits_checkout'){
@@ -106,16 +88,14 @@ serve(async(request,correlationId)=>{
 function configurationForUser(userId:string,email:string|null|undefined,billingPolicy:BillingSurfacePolicy){
   const stripe=stripeBillingConfiguration();
   const legacy={
-    kivelle_plus:Boolean(configuredUrl('KIVELLE_PLUS_CHECKOUT_URL',userId,email)),
-    kivelle_max:Boolean(configuredUrl('KIVELLE_MAX_CHECKOUT_URL',userId,email)),
     credits:Boolean(configuredUrl('KIVELLE_CREDITS_CHECKOUT_URL',userId,email)),
     portal:Boolean(configuredUrl('KIVELLE_BILLING_PORTAL_URL',userId,email)),
   };
   return{
     stripe,
     legacy,
-    configured:{kivelle_plus:billingPolicy.subscriptionCheckoutEnabled&&(stripe.kivelle_plus||legacy.kivelle_plus),kivelle_max:billingPolicy.subscriptionCheckoutEnabled&&(stripe.kivelle_max||legacy.kivelle_max),credits:stripe.credits||legacy.credits,portal:stripe.portal||legacy.portal},
-    configuredAnnual:{kivelle_plus:billingPolicy.subscriptionCheckoutEnabled&&stripe.kivelle_plus_annual,kivelle_max:billingPolicy.subscriptionCheckoutEnabled&&stripe.kivelle_max_annual},
+    configured:{kivelle_plus:false,kivelle_max:false,credits:stripe.credits||legacy.credits,portal:stripe.portal||legacy.portal},
+    configuredAnnual:{kivelle_plus:false,kivelle_max:false},
     billingPolicy,
   };
 }

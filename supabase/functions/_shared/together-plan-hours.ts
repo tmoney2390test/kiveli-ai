@@ -1,9 +1,45 @@
 type PlaceHours = { open?: unknown; close?: unknown } | null | undefined;
 
+export type LocationClosingWindow = {
+  isOpen: boolean;
+  /**
+   * The venue's closing minute relative to the local calendar date containing
+   * the plan start. Values above 1440 represent an overnight close tomorrow.
+   * Null means the authored hours are effectively all-day or unavailable.
+   */
+  closingMinute: number | null;
+};
+
+/**
+ * Resolve whether a place is open at a particular local wall-clock minute and,
+ * when it is, the closing boundary for that active service window.
+ *
+ * This deliberately checks only the start. Immediate plans may then be
+ * shortened to `closingMinute` instead of rejecting an otherwise valid visit.
+ */
+export function locationClosingWindow(hours: PlaceHours, startMinute: number): LocationClosingWindow {
+  const parsedOpen = parseMinute(hours?.open);
+  const close = parseMinute(hours?.close);
+  const open = parsedOpen === 1440 ? 0 : parsedOpen;
+  if (open === null || close === null || open === close || (open === 0 && (close === 1439 || close === 1440))) {
+    return { isOpen: true, closingMinute: null };
+  }
+
+  if (close > open) {
+    return startMinute >= open && startMinute < close
+      ? { isOpen: true, closingMinute: close }
+      : { isOpen: false, closingMinute: null };
+  }
+
+  if (startMinute >= open) return { isOpen: true, closingMinute: 1440 + close };
+  if (startMinute < close) return { isOpen: true, closingMinute: close };
+  return { isOpen: false, closingMinute: null };
+}
+
 export function planFitsLocationHours(hours: PlaceHours, startMinute: number, endMinute: number) {
   const open = parseMinute(hours?.open);
   const close = parseMinute(hours?.close);
-  if (open === null || close === null || open === close || (open === 0 && close === 1439)) return true;
+  if (open === null || close === null || open === close || (open === 0 && (close === 1439 || close === 1440))) return true;
   if (!locationStartsOpen(open, close, startMinute)) return false;
   if (close > open) return endMinute > startMinute && endMinute <= close;
   return startMinute >= open
@@ -46,7 +82,7 @@ function parseMinute(value: unknown) {
   if (!match) return null;
   const hour = Number(match[1]);
   const minute = Number(match[2]);
-  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 24 || minute < 0 || minute > 59 || (hour === 24 && minute !== 0)) return null;
   return hour * 60 + minute;
 }
 

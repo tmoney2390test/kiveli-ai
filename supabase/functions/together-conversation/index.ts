@@ -84,7 +84,7 @@ serve(async (request, correlationId) => {
         ? db.from('together_conversation_participants').select('*,together_character_instances(*,together_character_templates(*),together_character_versions(portrait_asset_key,visual_identity,personality_config,communication_style,boundaries))').eq('user_id', user.id).eq('continuity_id', continuity.id).in('conversation_id', groupIds).is('left_at', null).order('joined_at')
         : Promise.resolve({ data: [], error: null }),
       conversationIds.length
-        ? db.from('together_dialogue_turns').select('conversation_id,planned_actions,state').eq('user_id', user.id).in('conversation_id', conversationIds).in('state', ['planning','generating'])
+        ? db.from('together_dialogue_turns').select('conversation_id,planned_actions,state').eq('user_id', user.id).in('conversation_id', conversationIds).in('state', ['planning','generating']).gt('lease_expires_at',new Date().toISOString())
         : Promise.resolve({ data: [], error: null }),
       groupIds.length
         ? db.from('together_messages').select('conversation_id,speaker_character_instance_id,character_instance_id,created_at,conversation_sequence,content_rating,visibility_scope').eq('user_id', user.id).in('conversation_id', groupIds).eq('role', 'assistant').order('created_at', { ascending: false }).limit(2000)

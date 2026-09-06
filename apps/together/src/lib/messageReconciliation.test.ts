@@ -18,9 +18,9 @@ describe("message reconciliation", () => {
   });
 
   it("never replaces a canonical server row with a late optimistic copy", () => {
-    const canonical = message({ id: "server-1", role: "user", client_request_id: "request-1" });
-    const optimistic = message({ id: "local-1", role: "user", client_request_id: "request-1", delivery_status: "complete" });
-    expect(reconcileMessages([canonical], [optimistic])[0]?.id).toBe("server-1");
+    const canonical = message({ id: "server-1", role: "user", client_request_id: "request-1", delivery_status: "complete" });
+    const optimistic = message({ id: "local-1", role: "user", client_request_id: "request-1", delivery_status: "pending" });
+    expect(reconcileMessages([canonical], [optimistic])[0]).toMatchObject({ id: "server-1", delivery_status: "complete" });
   });
 
   it("deduplicates replayed assistant responses by server response key", () => {

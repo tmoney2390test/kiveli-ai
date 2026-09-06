@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyDialogueContent, hasSexualDialogueLanguage, isCapabilityStyleExplicitRefusal, isContradictoryAcceptedIntimacyRefusal, isDialogueHardBlocked, routeKivelleDialogue, type DialogueProviderAvailability } from './ai-routing.ts';
+import { classifyDialogueContent, hasExplicitSexualOutputLanguage, hasSexualDialogueLanguage, isCapabilityStyleExplicitRefusal, isContradictoryAcceptedIntimacyRefusal, isDialogueHardBlocked, routeKivelleDialogue, type DialogueProviderAvailability } from './ai-routing.ts';
 import { classifyPhotoIntent } from './media.ts';
 
 const providers: DialogueProviderAvailability = { openai:true, xai:true, gemini:true, xaiEnabled:true, xaiExplicitEnabled:true };
@@ -10,6 +10,27 @@ describe('Kivelle AI routing',()=>{
     expect(hasSexualDialogueLanguage('I want to have sex with you.')).toBe(true);
     expect(hasSexualDialogueLanguage('Take off your clothes.')).toBe(true);
     expect(hasSexualDialogueLanguage('I want to kiss you and hold you close.')).toBe(false);
+  });
+  it.each([
+    'The sword penetrates his armor and he falls dead on the battlefield.',
+    'What the fuck did you just do? Guards, seize him.',
+    'The dominant army strips the prince of command before marching to war.',
+    'She rides hard toward the siege while arrows tear through the line.',
+  ])('does not mistake fantasy violence or profanity for explicit sexual output: %s',(text)=>{
+    expect(hasExplicitSexualOutputLanguage(text)).toBe(false);
+  });
+  it.each([
+    'She is completely naked.',
+    'They are having oral sex.',
+    'He is fucking her.',
+    'He penetrates her.',
+  ])('still detects unmistakably explicit sexual output: %s',(text)=>{
+    expect(hasExplicitSexualOutputLanguage(text)).toBe(true);
+  });
+  it.each(['violence','violence/graphic'])('allows fictional-violence moderation category %s to continue through dialogue',(category)=>{
+    const moderation={allowed:false,flagged:true,categories:[category],categoryScores:{[category]:.98}};
+    expect(isDialogueHardBlocked({message:'The knight kills his rival in battle.',moderation})).toBe(false);
+    expect(classifyDialogueContent({message:'The knight kills his rival in battle.',moderation})).toBe('standard');
   });
   it.each(['hey','how was work?','you are funny'])('keeps ordinary dialogue on OpenAI: %s',(message)=>expect(route(message).provider).toBe('openai'));
   it.each(['I love you','kiss me','want to go on a date?'])('keeps romance on OpenAI: %s',(message)=>expect(route(message).provider).toBe('openai'));

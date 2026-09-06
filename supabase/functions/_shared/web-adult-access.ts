@@ -26,23 +26,44 @@ export async function resolveAdultAccess(request:Request,user:User,db:SupabaseCl
   const webSessionPromise=cookieToken
     ? sha256Hex(cookieToken).then((hash)=>db.from('together_web_adult_sessions').select('id,adult_mode_enabled,expires_at,revoked_at').eq('user_id',user.id).eq('token_hash',hash).is('revoked_at',null).gt('expires_at',new Date().toISOString()).maybeSingle())
     : Promise.resolve({data:null});
-  const [verifiedWebSurface,subscription,profile,webSessionResult]=await Promise.all([
+  // Adult Mode is no longer a user-facing browser preference. Keep accepting
+  // the legacy cookie when present, but also resolve the user's current
+  // server-side website session so older tabs and newly signed-in browsers do
+  // not fail merely because they predate that cookie.
+  const latestWebSessionPromise=db.from('together_web_adult_sessions')
+    .select('id,adult_mode_enabled,expires_at,revoked_at')
+    .eq('user_id',user.id)
+    .is('revoked_at',null)
+    .gt('expires_at',new Date().toISOString())
+    .order('last_seen_at',{ascending:false})
+    .limit(1)
+    .maybeSingle();
+  const [verifiedWebSurface,subscription,profile,webSessionResult,latestWebSessionResult]=await Promise.all([
     verifyWebSurfaceAssertion(request,user.id),
     resolveSubscriptionAccess(db,user.id),
     db.from('together_profiles').select('adult_eligible_at,age_verified_at,date_of_birth').eq('user_id',user.id).maybeSingle(),
     webSessionPromise,
+    latestWebSessionPromise,
   ]);
   const client_surface=verifiedWebSurface?'web':'native_or_unknown';
   const premium_access=paidEntitlementAccepted(resolveBillingSurfacePolicy(client_surface),subscription.tier,subscription.billing.provider);
   const adult_eligibility=resolveAdultEligibility({adultEligibleAt:profile.data?.adult_eligible_at,ageVerifiedAt:profile.data?.age_verified_at,dateOfBirth:profile.data?.date_of_birth});
   const adult_eligible=adult_eligibility.allowed;
-  let adult_mode_enabled=false,web_session_id:string|null=null;
-  const session=webSessionResult.data;
+  // This field is retained for compatibility with the access matrix, but now
+  // means "adult access enabled for this verified website request." It is not
+  // derived from local storage, a client flag, or an easily forged header.
+  let adult_mode_enabled=websiteAdultRequestEnabled(verifiedWebSurface,adult_eligible),web_session_id:string|null=null;
+  let session=client_surface==='web'?(webSessionResult.data??latestWebSessionResult.data):null;
+  if(adult_mode_enabled&&!session){
+    const tokenHash=await adultSessionTokenHash(newAdultSessionToken()),now=new Date(),expiresAt=new Date(now.getTime()+30*86400_000).toISOString();
+    const created=await db.from('together_web_adult_sessions').insert({user_id:user.id,token_hash:tokenHash,adult_mode_enabled:true,enabled_at:now.toISOString(),last_seen_at:now.toISOString(),expires_at:expiresAt}).select('id,adult_mode_enabled,expires_at,revoked_at').single();
+    if(created.error||!created.data)throw new AppError('INTERNAL_ERROR','A secure website session could not be prepared.',500,true);
+    session=created.data;
+  }
   if(client_surface==='web'&&session){
     web_session_id=String(session.id);
-    adult_mode_enabled=Boolean(session.adult_mode_enabled);
     const seenAt=new Date().toISOString();
-    waitUntil(Promise.resolve(db.from('together_web_adult_sessions').update({last_seen_at:seenAt,updated_at:seenAt}).eq('id',session.id).then(()=>undefined)));
+    waitUntil(Promise.resolve(db.from('together_web_adult_sessions').update({adult_mode_enabled:true,enabled_at:session.adult_mode_enabled?undefined:seenAt,last_seen_at:seenAt,updated_at:seenAt}).eq('id',session.id).then(()=>undefined)));
   }
   // Authorization fails closed unless both the global switch and independent
   // moderation provider are available. When either is off every caller receives
@@ -51,6 +72,10 @@ export async function resolveAdultAccess(request:Request,user:User,db:SupabaseCl
   const authorized_web_adult=adultPipelineAuthorized({client_surface,premium_access,adult_eligible,adult_mode_enabled,global_enabled:adult_generation_enabled});
   const private_adult_text_mode=normalizePrivateAdultTextMode(Deno.env.get('KIVELLE_PRIVATE_ADULT_TEXT_MODE'));
   return{premium_access,adult_eligible,adult_mode_enabled,client_surface,adult_generation_enabled,authorized_web_adult,adult_eligibility,private_adult_text_mode,web_session_id};
+}
+
+export function websiteAdultRequestEnabled(verifiedWebSurface:boolean,adultEligible:boolean):boolean{
+  return verifiedWebSurface&&adultEligible;
 }
 
 export async function requireVerifiedWebSurface(request:Request,userId:string):Promise<void>{

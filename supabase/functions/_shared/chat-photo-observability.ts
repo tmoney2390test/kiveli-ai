@@ -25,7 +25,13 @@ export function chatPhotoFailureCode(error:unknown):string{
   return error instanceof AppError?error.code:'PROVIDER_UNAVAILABLE';
 }
 
-const SAFE_TELEMETRY_KEYS=new Set(['stage','failureCode','provider','latencyBucket','byteSizeBucket','longEdgeBucket']);
+export function chatPhotoPolicyReason(error:unknown):string|undefined{
+  if(!error||typeof error!=='object'||!('policyReason'in error))return undefined;
+  const reason=String((error as{policyReason?:unknown}).policyReason??'');
+  return['adult_not_authorized','minor_or_youth','graphic_content','other_disallowed'].includes(reason)?reason:undefined;
+}
+
+const SAFE_TELEMETRY_KEYS=new Set(['stage','failureCode','policyReason','provider','latencyBucket','byteSizeBucket','longEdgeBucket']);
 export function safeChatPhotoTelemetry(input:Record<string,unknown>):Record<string,string|number|boolean>{
   return Object.fromEntries(Object.entries(input).filter(([key,value])=>SAFE_TELEMETRY_KEYS.has(key)&&['string','number','boolean'].includes(typeof value)))as Record<string,string|number|boolean>;
 }

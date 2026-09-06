@@ -77,6 +77,12 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   // Official catalog adults retry or deliver instead of dying on youthful-adult QA.
   const blockingReasons=blockingQualityReasonsForAgePolicy(verdict.reasonCodes,customAgeCheck);
   if(isCustomCharacterTerminalQualityFailure(verdict.reasonCodes,customAgeCheck))return{action:'reject',reasonCodes:verdict.reasonCodes};
+  if(adultAuthorized&&hasTerminalAdultOutputSafetyFailure(verdict.reasonCodes))return{action:'reject',reasonCodes:verdict.reasonCodes};
+  if(shouldDeliverOfficialAdultImageWithWarnings({verdict,adultAuthorized,customCharacter:customAgeCheck})){
+    await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
+    await track(db,String(media.user_id),'media_quality_official_adult_delivered_with_warnings',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
+    return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
+  }
   if(!customAgeCheck&&blockingReasons.length===0){
     await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_official_age_warning_accepted',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
@@ -227,9 +233,16 @@ const FINAL_SFW_DELIVERABLE_QUALITY_WARNINGS=new Set([
   'face_low_detail','face_too_small','non_photorealistic','identity_mismatch',
 ]);
 const CUSTOM_TERMINAL_QUALITY_REASONS=new Set(['adult_safety_violation','adult_safety_unverified','ambiguous_age']);
+const OFFICIAL_ADULT_TERMINAL_SAFETY_REASONS=new Set(['adult_safety_violation','adult_safety_unverified','ambiguous_age']);
 
 export function isCustomCharacterTerminalQualityFailure(reasonCodes:string[],customCharacterAgeCheck:boolean):boolean{
   return customCharacterAgeCheck===true&&reasonCodes.some((reason)=>CUSTOM_TERMINAL_QUALITY_REASONS.has(reason));
+}
+export function hasTerminalAdultOutputSafetyFailure(reasonCodes:string[]):boolean{
+  return reasonCodes.some((reason)=>OFFICIAL_ADULT_TERMINAL_SAFETY_REASONS.has(reason));
+}
+export function shouldDeliverOfficialAdultImageWithWarnings(input:{verdict:MediaQualityVerdict;adultAuthorized:boolean;customCharacter:boolean}):boolean{
+  return input.adultAuthorized===true&&input.customCharacter===false&&input.verdict.status==='fail'&&input.verdict.reasonCodes.length>0&&!hasTerminalAdultOutputSafetyFailure(input.verdict.reasonCodes);
 }
 export function requestedAnatomyQualityRule(requestText:string|undefined,specificAnatomyExposure:ReturnType<typeof resolveSpecificAnatomyExposure>,adultAuthorized:boolean):string{
   if(!adultAuthorized||specificAnatomyExposure!=='uncovered')return'';

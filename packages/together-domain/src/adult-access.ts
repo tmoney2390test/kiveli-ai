@@ -3,9 +3,9 @@ export type { ClientSurface } from './platform-content-policy.ts';
 export type AdultAccessProperties={premium_access:boolean;adult_eligible:boolean;adult_mode_enabled:boolean;client_surface:ClientSurface};
 
 export function adultPipelineAuthorized(input:AdultAccessProperties&{global_enabled:boolean}):boolean{
-  // adult_mode_enabled now represents a short-lived server-issued website
-  // session, not a user-facing preference. Eligible website accounts receive
-  // that session automatically; native and unverified clients still fail shut.
+  // adult_mode_enabled now represents a server-authorized adult website
+  // request, not a user-facing preference. Native and unverified clients still
+  // fail shut regardless of subscription or eligibility.
   return input.global_enabled&&input.client_surface==='web'&&input.premium_access&&input.adult_eligible&&input.adult_mode_enabled;
 }
 

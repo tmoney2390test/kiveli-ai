@@ -3,8 +3,8 @@ import { experienceClock, safeTimezone } from './kivelle-time.ts';
 import { track } from './together.ts';
 import { assertCharacterResidentInWorld, resolvePlaceContext, resolveWorldAccess } from './together-place.ts';
 import {activeContinuity}from'./together-continuity.ts';
-import { planStartSatisfiesLeadTime } from '../../../packages/together-domain/src/index.ts';
-import { closedLocationPlanMessage, planFitsLocationHours } from './together-plan-hours.ts';
+import { localToUtc, planStartSatisfiesLeadTime } from '../../../packages/together-domain/src/index.ts';
+import { closedLocationPlanMessage, locationClosingWindow, planFitsLocationHours } from './together-plan-hours.ts';
 import { planParticipantIds, recordGroupPlanCommitment, resolveSharedPlanRoster } from './together-group-plans.ts';
 
 export type PlanSource = 'chat'|'manual_planner'|'location'|'discover'|'date'|'story';
@@ -49,8 +49,9 @@ export async function createSharedPlan(db:any, input:CreatePlanInput) {
   if(worldAccess==='locked'||worldAccess==='available')throw new AppError('FORBIDDEN','Unlock this world before making plans there.',403);
   const start=new Date(input.startsAt);
   if(!Number.isFinite(start.getTime())) throw new AppError('VALIDATION_FAILED','Choose a valid date and time.',400);
-  const end=new Date(start.getTime()+resolved.durationMinutes*60000);
-  const availability=await validateAvailability(db,{userId:input.userId,characterInstanceId:input.characterInstanceId,characterVersionId:instance.character_version_id,location:resolved.location,activityKey:resolved.activityKey,start,end,immediate:input.immediate,excludePlanId:input.replacementPlanId,replacingActivePlan:input.replacingActivePlan});
+  const requestedEnd=new Date(start.getTime()+resolved.durationMinutes*60000);
+  const availability=await validateAvailability(db,{userId:input.userId,characterInstanceId:input.characterInstanceId,characterVersionId:instance.character_version_id,location:resolved.location,activityKey:resolved.activityKey,start,end:requestedEnd,immediate:input.immediate,excludePlanId:input.replacementPlanId,replacingActivePlan:input.replacingActivePlan});
+  const end=availability.end;
   if(roster.participantInstanceIds.length>1){
     const{data:groupInstances,error:groupInstancesError}=await db.from('together_character_instances').select('id,character_version_id,together_character_templates(name)').eq('user_id',input.userId).eq('continuity_id',continuity.id).in('id',roster.participantInstanceIds);
     if(groupInstancesError||(groupInstances??[]).length!==roster.participantInstanceIds.length)throw new AppError('CONFLICT','The group roster changed. Reopen the group and try again.',409,true);
@@ -76,7 +77,8 @@ export async function createSharedPlan(db:any, input:CreatePlanInput) {
 
   const groupPlan=roster.participantInstanceIds.length>1;
   const participantLabel=roster.participantNames.length?joinPlanNames(roster.participantNames):'their companions';
-  const metadata={requestId:input.requestId,durationMinutes:resolved.durationMinutes,significance:resolved.significance,completionSummary:groupPlan?`User and ${participantLabel} spent time together for ${resolved.title}.`:`User and their companion spent time together for ${resolved.title}.`,locationSlug:resolved.location.slug,immediate:input.immediate===true,participantInstanceIds:roster.participantInstanceIds,...(groupPlan?{groupPlan:true,groupConversationId:roster.groupConversationId,groupTitle:roster.groupTitle,participantNames:roster.participantNames}:{}),...(input.replacementPlanId?{replacesPlanId:input.replacementPlanId,switchState:'staged'}:{})};
+  const effectiveDurationMinutes=Math.max(1,Math.ceil((end.getTime()-start.getTime())/60000));
+  const metadata={requestId:input.requestId,durationMinutes:effectiveDurationMinutes,significance:resolved.significance,completionSummary:groupPlan?`User and ${participantLabel} spent time together for ${resolved.title}.`:`User and their companion spent time together for ${resolved.title}.`,locationSlug:resolved.location.slug,immediate:input.immediate===true,participantInstanceIds:roster.participantInstanceIds,...(availability.shortenedForClosingTime?{requestedDurationMinutes:resolved.durationMinutes,shortenedForClosingTime:true,locationClosesAt:availability.closesAt}:{}),...(groupPlan?{groupPlan:true,groupConversationId:roster.groupConversationId,groupTitle:roster.groupTitle,participantNames:roster.participantNames}:{}),...(input.replacementPlanId?{replacesPlanId:input.replacementPlanId,switchState:'staged'}:{})};
   // Send every required commitment field explicitly. PostgREST can materialize
   // omitted JSON properties as NULL rather than applying the SQL default, which
   // would reject an otherwise valid plan after the commitment migrations added
@@ -194,23 +196,38 @@ async function validateAvailability(db:any,input:{userId:string;characterInstanc
   if(input.start.getTime()>Date.now()+60*86400000)throw new AppError('VALIDATION_FAILED','Plans can be scheduled up to 60 days ahead.',400);
   const place=await resolvePlaceContext({db,locationId:String(input.location.id),userId:input.userId,characterInstanceId:input.characterInstanceId,now:input.start});
   const timezone=safeTimezone(place.clock.timezone);
-  validateVenueProgram(input.location,input.activityKey,input.start,timezone);
-  if(!locationIsOpen(input.location,input.start,input.end,timezone)){const startMinute=experienceClock(timezone,input.start).minuteOfDay,duration=Math.max(30,(input.end.getTime()-input.start.getTime())/60000);throw new AppError('LOCATION_CLOSED',closedLocationPlanMessage({name:String(input.location.name),hours:input.location.hours,startMinute,durationMinutes:duration}),409,true);}
+  const clock=experienceClock(timezone,input.start);
+  let end=input.end;
+  let shortenedForClosingTime=false;
+  let closesAt:string|undefined;
+  if(input.immediate){
+    const window=locationClosingWindow(input.location.hours,clock.minuteOfDay);
+    if(!window.isOpen){const duration=Math.max(30,(input.end.getTime()-input.start.getTime())/60000);throw new AppError('LOCATION_CLOSED',closedLocationPlanMessage({name:String(input.location.name),hours:input.location.hours,startMinute:clock.minuteOfDay,durationMinutes:duration}),409,true);}
+    if(window.closingMinute!==null){
+      const closingBoundary=localToUtc(clock.localDate,window.closingMinute,timezone);
+      if(closingBoundary.getTime()<=input.start.getTime())throw new AppError('LOCATION_CLOSED',`${input.location.name} is closing now. Choose another place.`,409,true);
+      closesAt=closingBoundary.toISOString();
+      if(end.getTime()>closingBoundary.getTime()){end=closingBoundary;shortenedForClosingTime=true;}
+    }
+  }else{
+    validateVenueProgram(input.location,input.activityKey,input.start,timezone);
+    if(!locationIsOpen(input.location,input.start,end,timezone)){const duration=Math.max(30,(end.getTime()-input.start.getTime())/60000);throw new AppError('LOCATION_CLOSED',closedLocationPlanMessage({name:String(input.location.name),hours:input.location.hours,startMinute:clock.minuteOfDay,durationMinutes:duration}),409,true);}
+  }
   const conflictStatuses=input.replacingActivePlan?['proposed','scheduled']:['proposed','scheduled','active'];
-  let plans=db.from('together_shared_plans').select('id,title,starts_at,ends_at').eq('user_id',input.userId).contains('participant_instance_ids',[input.characterInstanceId]).in('status',conflictStatuses).lt('starts_at',input.end.toISOString()).gt('ends_at',input.start.toISOString());
+  let plans=db.from('together_shared_plans').select('id,title,starts_at,ends_at').eq('user_id',input.userId).contains('participant_instance_ids',[input.characterInstanceId]).in('status',conflictStatuses).lt('starts_at',end.toISOString()).gt('ends_at',input.start.toISOString());
   if(input.excludePlanId)plans=plans.neq('id',input.excludePlanId);
   const[{data:conflicts},{data:dates},{data:schedules}]=await Promise.all([plans,db.from('together_date_sessions').select('id,scheduled_for,together_date_templates(name)').eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).eq('status','upcoming'),db.from('together_schedule_templates').select('*,together_locations!inner(world_id)').eq('character_version_id',input.characterVersionId).eq('together_locations.world_id',input.location.world_id)]);
   if(conflicts?.length)throw new AppError('PLAN_CONFLICT',`You already have ${conflicts[0].title} from ${minuteLabel(experienceClock(timezone,new Date(conflicts[0].starts_at)).minuteOfDay)} to ${minuteLabel(experienceClock(timezone,new Date(conflicts[0].ends_at)).minuteOfDay)}. Move it or choose another time.`,409,true);
-  const dateConflict=(dates??[]).find((date:any)=>{if(!date.scheduled_for)return false;const starts=new Date(date.scheduled_for).getTime();return starts<input.end.getTime()&&starts+3*3600000>input.start.getTime();});
+  const dateConflict=(dates??[]).find((date:any)=>{if(!date.scheduled_for)return false;const starts=new Date(date.scheduled_for).getTime();return starts<end.getTime()&&starts+3*3600000>input.start.getTime();});
   if(dateConflict)throw new AppError('PLAN_CONFLICT',`You already have ${dateConflict.together_date_templates?.name??'a date'} at that time.`,409,true);
-  const clock=experienceClock(timezone,input.start);const endClock=experienceClock(timezone,input.end);
+  const endClock=experienceClock(timezone,end);
   // A user-confirmed immediate plan is an explicit schedule override. The
   // shared-plan trigger suppresses overlapping passive schedule blocks, so
   // rejecting the same overlap here makes Start Now impossible for exactly
   // the companions whose lives are currently active.
   const busy=input.immediate?undefined:(schedules??[]).find((item:any)=>Number(item.day_of_week)===clock.weekday&&item.availability==='busy'&&clock.minuteOfDay<Number(item.end_minute)&&endClock.minuteOfDay>Number(item.start_minute));
   if(busy)throw new AppError('COMPANION_BUSY',`Your companion is busy with ${busy.activity} until ${minuteLabel(Number(busy.end_minute))}. Try ${minuteLabel(Number(busy.end_minute)+30)} or ${minuteLabel(Number(busy.end_minute)+60)}.`,409,true);
-  return{worldTimezone:safeTimezone(place.world.timezone),userTimezone:timezone};
+  return{worldTimezone:safeTimezone(place.world.timezone),userTimezone:timezone,end,shortenedForClosingTime,closesAt};
 }
 
 async function validateAdditionalPlanParticipants(db:any,input:{userId:string;continuityId:string;plan:any;location:any;activityKey:string;start:Date;end:Date;excludePlanId?:string}){

@@ -29,6 +29,7 @@ export function canonicalMemoryKey(type: MemoryType, text: string): string { ret
 export function isRelationshipDirectedPreferenceObject(value: string): boolean {
   const object = cleanObject(value).replace(/^["']|["']$/g, '').trim();
   return /^(?:you|u|ya|her|him|them|us|we)\b/i.test(object)
+    || /^(?:when|if|that)\s+you\b/i.test(object)
     || /^(?:my|our)\s+(?:girlfriend|boyfriend|wife|husband|partner|companion|relationship)\b/i.test(object)
     || /^(?:being|talking|spending\s+time|hanging\s+out)\s+with\s+you\b/i.test(object);
 }
@@ -66,11 +67,27 @@ export function isDurableUserMemory(input: { memoryType: string; canonicalText: 
 export function extractMemoryCandidates(message: string): MemoryCandidate[] {
   const candidates: MemoryCandidate[] = [];
   const trimmed = message.trim();
+  const userName = /\bmy\s+name\s+is\s+([a-z][a-z' -]{1,60}?)(?:[.!?]|$)/i.exec(trimmed);
+  if (userName) { const name=cleanDisplayObject(userName[1]!);push(candidates,'semantic',`User's name is ${name}.`,.94,.98,'personal','identity:name',{name}); }
   const pet = /\bmy\s+(dog|cat|pet)(?:'s| is)?\s+name\s+is\s+([a-z][a-z'-]{1,30})\b/i.exec(trimmed);
   if (pet) {
     const animal = pet[1]!.toLowerCase(), name = title(pet[2]!);
     push(candidates, 'semantic', `User's ${animal} is named ${name}.`, .86, .97, 'personal', `pet:${animal}:name`, { subject: animal, name });
   }
+  const person=/\bmy\s+(mother|mom|father|dad|sister|brother|daughter|son|wife|husband|partner|girlfriend|boyfriend|best friend|friend|roommate)(?:'s|\s+)?\s*name\s+is\s+([a-z][a-z' -]{1,60}?)(?:[.!?]|$)/i.exec(trimmed);
+  if(person){const relationship=normalizeRelationshipLabel(person[1]!),name=cleanDisplayObject(person[2]!);push(candidates,'semantic',`User's ${relationship} is named ${name}.`,.86,.96,'personal',`person:${relationship}:name`,{relationship,name});}
+  const occupation=/\b(?:i\s+work\s+as|my\s+occupation\s+is)\s+(?:an?\s+)?([^.!?]{2,80}?)(?:[.!?]|$)/i.exec(trimmed);
+  if(occupation){const role=cleanObject(occupation[1]!);push(candidates,'semantic',`User works as ${withIndefiniteArticle(role)}.`,.82,.92,'personal','identity:occupation',{role});}
+  const home=/\b(?:i\s+live\s+in|my\s+home\s+is\s+in)\s+([^.!?]{2,80}?)(?:[.!?]|$)/i.exec(trimmed);
+  if(home){const place=cleanDisplayObject(home[1]!);push(candidates,'semantic',`User lives in ${place}.`,.8,.91,'sensitive','identity:home-location',{place});}
+  const origin=/\bi(?:'m|\s+am)\s+from\s+([^.!?]{2,80}?)(?:[.!?]|$)/i.exec(trimmed);
+  if(origin){const place=cleanDisplayObject(origin[1]!);push(candidates,'semantic',`User is from ${place}.`,.78,.9,'personal','identity:origin',{place});}
+  const birthday=/\bmy\s+birthday\s+is\s+(?:on\s+)?([^.!?]{3,40}?)(?:[.!?]|$)/i.exec(trimmed);
+  if(birthday){const date=cleanDisplayObject(birthday[1]!);push(candidates,'semantic',`User's birthday is ${date}.`,.9,.96,'sensitive','identity:birthday',{date});}
+  const favorite=/\bmy\s+favou?rite\s+([a-z][a-z /-]{1,40}?)\s+is\s+([^.!?]{2,80}?)(?:[.!?]|$)/i.exec(trimmed);
+  if(favorite){const category=cleanObject(favorite[1]!),item=cleanObject(favorite[2]!);push(candidates,'preference',`User's favorite ${category} is ${item}.`,.76,.92,'none',`preference:favorite:${normalize(category)}`,{preference:'favorite',category,item});}
+  const prefers=/\bi\s+prefer\s+([^.!?]{2,80}?)(?:[.!?]|$)/i.exec(trimmed);
+  if(prefers){const item=cleanObject(prefers[1]!);if(!isRelationshipDirectedPreferenceObject(item))push(candidates,'preference',`User prefers ${item}.`,.66,.88,'none',`preference:${normalize(item.split(/\s+(?:over|to)\s+/i)[0]??item)}`,{preference:'prefer',item});}
   const neutral = /\bi\s+(?:do not|don't)\s+(?:hate|dislike)\s+([^.!?]{2,60}?)(?:\s+anymore|\s+now)?(?:[.!?]|$)/i.exec(trimmed);
   const dislike = !neutral ? /\bi\s+(?:really\s+)?(?:hate|can't stand|do not like|don't like)\s+([^.!?]{2,60})/i.exec(trimmed) : null;
   const like = /\bi\s+(?:actually\s+)?(?:really\s+)?(?:love|like|enjoy)\s+([^.!?]{2,60}?)(?:\s+now)?(?:[.!?]|$)/i.exec(trimmed);
@@ -82,7 +99,19 @@ export function extractMemoryCandidates(message: string): MemoryCandidate[] {
   }
   const emotion = /\bi(?:'m| am)\s+(nervous|anxious|excited|worried|scared)\s+(?:about\s+)?([^.!?]{2,80})/i.exec(trimmed);
   if (emotion) { const topic = cleanObject(emotion[2]!); push(candidates, 'emotional', `User feels ${emotion[1]!.toLowerCase()} about ${topic}.`, .72, .86, 'personal', `emotion:${normalize(topic)}`); }
-  return candidates;
+  return dedupeCandidates(candidates);
+}
+
+/** Selects turns with plausible continuity value without analyzing routine chat. */
+export function shouldAnalyzeConversationMemory(message:string):boolean{
+  const text=message.replace(/\s+/g,' ').trim();
+  if(!text||text.length>12_000)return false;
+  if(/^(?:ok(?:ay)?|yes|yeah|yep|no|nope|sure|thanks|thank you|hi|hello|hey|lol|haha|good (?:morning|night)|sounds good|go on|continue)[.!?\s…]*$/i.test(text))return false;
+  if(/^i(?:'m| am) (?:tired|sleepy|hungry|thirsty|bored|busy|home|at home|in bed|eating|drinking|watching|driving|walking|working out|getting ready)(?:[.!?\s]|$)/i.test(text))return false;
+  if(extractMemoryCandidates(text).length>0)return true;
+  if(/\b(?:remember (?:that|this)|actually|correction|i (?:promise|decided|got|lost|won|passed|failed|finished|started|quit)|my (?:family|mother|mom|father|dad|sister|brother|daughter|son|partner|wife|husband|friend|job|work|home|birthday|favorite|favourite)|i(?:'m| am) from|i live|i work|i study|i used to|tomorrow|next (?:week|month|year))\b/i.test(text))return true;
+  if(/\bi\s+(?:love|trust|miss|care about)\s+you\b/i.test(text))return true;
+  return text.length>=32&&/\b(?:i|i'm|i've|my|we|used to|important)\b/i.test(text);
 }
 
 export function mergeMemory(existing: MemoryRecord | undefined, candidate: MemoryCandidate, now = new Date().toISOString()): MemoryRecord {
@@ -177,3 +206,7 @@ export function evaluateBehaviorPattern(observations: readonly UserBehaviorObser
 function push(target: MemoryCandidate[], type: MemoryType, canonicalText: string, importance: number, confidence: number, sensitivity: MemoryCandidate['sensitivity'], subjectKey: string, metadata?: Record<string, unknown>): void { target.push({ type, canonicalText, importance, confidence, sensitivity, dedupeKey: canonicalMemoryKey(type, canonicalText), subjectKey, ...(metadata ? { metadata } : {}) }); }
 function title(value: string): string { return value[0]!.toUpperCase() + value.slice(1).toLowerCase(); }
 function cleanObject(value: string): string { return value.trim().replace(/\s+(?:a lot|so much|though)$/i, '').toLowerCase(); }
+function cleanDisplayObject(value:string):string{return value.trim().replace(/\s+/g,' ').replace(/\s+(?:a lot|so much|though)$/i,'');}
+function normalizeRelationshipLabel(value:string):string{const normalized=cleanObject(value);return({mom:'mother',dad:'father'} as Record<string,string>)[normalized]??normalized;}
+function withIndefiniteArticle(value:string):string{return/^(?:a|an|the)\s+/i.test(value)?value:`${/^[aeiou]/i.test(value)?'an':'a'} ${value}`;}
+function dedupeCandidates(candidates:MemoryCandidate[]):MemoryCandidate[]{const seen=new Set<string>();return candidates.filter((candidate)=>{if(seen.has(candidate.dedupeKey))return false;seen.add(candidate.dedupeKey);return true;});}

@@ -67,6 +67,29 @@ Deno.test('adult photo routing still fails closed for age and media-safety viola
   assertEquals(resolveDialogueRouting({...base,ageVerified:true,photoSafetyBlocked:true}).hardBlocked,true);
 });
 
+Deno.test('an authorized explicit upload routes its reaction through the adult dialogue provider', () => {
+  const previousKey = Deno.env.get('XAI_API_KEY');
+  const previousEnabled = Deno.env.get('KIVELLE_XAI_ENABLED');
+  const previousExplicit = Deno.env.get('KIVELLE_XAI_EXPLICIT_ENABLED');
+  const previousPrivateText = Deno.env.get('KIVELLE_PRIVATE_ADULT_TEXT_MODE');
+  try {
+    Deno.env.set('XAI_API_KEY', 'test-key');
+    Deno.env.set('KIVELLE_XAI_ENABLED', 'true');
+    Deno.env.set('KIVELLE_XAI_EXPLICIT_ENABLED', 'true');
+    Deno.env.set('KIVELLE_PRIVATE_ADULT_TEXT_MODE', 'on');
+    const route=resolveDialogueRouting({message:'What do you think?',requestedMode:'explicit',ageVerified:true,adultAuthorized:true,adultAttachment:true,characterAge:29,relationshipAllowsExplicit:true});
+    assertEquals(route.classification,'explicit_adult');
+    assertEquals(route.provider,'xai');
+    assertEquals(route.explicit,true);
+    assertEquals(resolveDialogueRouting({message:'What do you think?',requestedMode:'explicit',ageVerified:true,adultAuthorized:false,adultAttachment:true,characterAge:29,relationshipAllowsExplicit:true}).explicit,false);
+  } finally {
+    restore('XAI_API_KEY', previousKey);
+    restore('KIVELLE_XAI_ENABLED', previousEnabled);
+    restore('KIVELLE_XAI_EXPLICIT_ENABLED', previousExplicit);
+    restore('KIVELLE_PRIVATE_ADULT_TEXT_MODE', previousPrivateText);
+  }
+});
+
 function restore(name: string, value: string | undefined) {
   if (value === undefined) Deno.env.delete(name);
   else Deno.env.set(name, value);

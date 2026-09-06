@@ -90,10 +90,11 @@ describe('real scheduling validation',()=>{
   it('strictly rejects rolled-over custom dates and invalid times',()=>{expect(parseCustomPlanTime('2026-02-30','19:30')).toBeNull();expect(parseCustomPlanTime('2026-08-15','25:00')).toBeNull();expect(parseCustomPlanTime('2026-08-15','23:15')).not.toBeNull();});
   it('moves a suggestion until after a busy companion schedule',()=>{const now=new Date('2026-08-14T12:00:00-04:00');const option=recommendPlanOptions({...context,scopedLocationId:'velvet'})[0]!;const slots=buildPlanSlots({now,option,schedules:[{id:'work',character_version_id:'maya-v1',day_of_week:5,start_minute:540,end_minute:1200,location_id:'studio',activity:'client shoot',availability:'busy',energy_delta:0}],plans:[],dates:[]});expect(new Date(slots[0]!.value).getHours()).toBeGreaterThanOrEqual(20);expect(slots[0]?.reason).toContain('free');});
   it('rejects a bakery after closing',()=>{expect(isLocationOpen(locations[2]!,new Date('2026-08-15T20:00:00-04:00'),60)).toBe(false);});
-  it('only offers switch-now activities that remain open for their full duration',()=>{
+  it('offers switch-now activities whenever the place is open and lets the server shorten them at closing',()=>{
     const bakeryOption=recommendPlanOptions({...context,locations:[locations[2]!],scopedLocationId:'bakery'})[0]!;
     expect(planOptionCanStartNow(bakeryOption,new Date('2026-08-15T14:00:00-04:00'),'America/New_York')).toBe(true);
-    expect(planOptionCanStartNow(bakeryOption,new Date('2026-08-15T15:30:00-04:00'),'America/New_York')).toBe(false);
+    expect(planOptionCanStartNow(bakeryOption,new Date('2026-08-15T15:30:00-04:00'),'America/New_York')).toBe(true);
+    expect(planOptionCanStartNow(bakeryOption,new Date('2026-08-15T16:00:00-04:00'),'America/New_York')).toBe(false);
     const unknownOption=recommendPlanOptions({...context,locations:[locations[1]!],scopedLocationId:'river'})[0]!;
     expect(planOptionCanStartNow(unknownOption,new Date('2026-08-15T14:00:00-04:00'),'America/New_York')).toBe(false);
   });

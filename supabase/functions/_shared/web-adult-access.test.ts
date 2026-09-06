@@ -1,5 +1,5 @@
 import { assert, assertFalse } from 'jsr:@std/assert@1';
-import { adultMediaJobAuthorizationValid } from './web-adult-access.ts';
+import { adultMediaJobAuthorizationValid,websiteAdultRequestEnabled } from './web-adult-access.ts';
 
 const now=Date.parse('2026-09-02T21:00:00-04:00');
 
@@ -14,4 +14,10 @@ Deno.test('adult media revalidation fails closed for free, disabled, expired, or
   assertFalse(adultMediaJobAuthorizationValid({tier:'kivelle_max',adultEligibleAt:'2026-08-28T10:25:36-04:00',session:{...active,adult_mode_enabled:false}},now));
   assertFalse(adultMediaJobAuthorizationValid({tier:'kivelle_max',adultEligibleAt:'2026-08-28T10:25:36-04:00',session:{...active,expires_at:'2026-09-01T00:00:00-04:00'}},now));
   assertFalse(adultMediaJobAuthorizationValid({tier:'kivelle_max',adultEligibleAt:'2026-08-28T10:25:36-04:00',session:{...active,revoked_at:'2026-09-02T20:00:00-04:00'}},now));
+});
+
+Deno.test('verified eligible website requests no longer depend on a legacy Adult Mode cookie',()=>{
+  assert(websiteAdultRequestEnabled(true,true));
+  assertFalse(websiteAdultRequestEnabled(true,false));
+  assertFalse(websiteAdultRequestEnabled(false,true));
 });

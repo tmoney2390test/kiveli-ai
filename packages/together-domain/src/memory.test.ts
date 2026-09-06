@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMemoryRecallPlan, decayEmotionalResidue, evaluateBehaviorPattern, isDurableUserMemory, isRelationshipDirectedPreferenceMemory, mergeMemory, scoreEpisodeSignificance } from './memory.ts';
+import { buildMemoryRecallPlan, decayEmotionalResidue, evaluateBehaviorPattern, extractMemoryCandidates, isDurableUserMemory, isRelationshipDirectedPreferenceMemory, mergeMemory, scoreEpisodeSignificance, shouldAnalyzeConversationMemory } from './memory.ts';
 
 const now = new Date('2026-08-16T20:00:00.000Z');
 
@@ -56,6 +56,34 @@ describe('Memory Engine V2', () => {
     expect(isDurableUserMemory({ memoryType:'preference', canonicalText:'User likes football.' })).toBe(true);
     expect(isDurableUserMemory({ memoryType:'relationship', canonicalText:'User told Brooke they love her.' })).toBe(true);
     expect(isDurableUserMemory({ memoryType:'episodic', canonicalText:'Brooke and Tim watched the sunset at Riverwalk.' })).toBe(true);
+  });
+
+  it('extracts common stable details without storing transcript excerpts',()=>{
+    const examples=[
+      ['My name is Tim.',"User's name is Tim.",'identity:name'],
+      ["My sister's name is Emily.","User's sister is named Emily.",'person:sister:name'],
+      ['I work as an architect.','User works as an architect.','identity:occupation'],
+      ['I live in Philadelphia.','User lives in Philadelphia.','identity:home-location'],
+      ['My favorite movie is Arrival.',"User's favorite movie is arrival.",'preference:favorite:movie'],
+    ] as const;
+    for(const[message,canonicalText,subjectKey]of examples)expect(extractMemoryCandidates(message).find((item)=>item.subjectKey===subjectKey)?.canonicalText).toBe(canonicalText);
+  });
+
+  it('analyzes short meaningful disclosures but not routine chat',()=>{
+    expect(shouldAnalyzeConversationMemory('I got the job!')).toBe(true);
+    expect(shouldAnalyzeConversationMemory('I love you.')).toBe(true);
+    expect(shouldAnalyzeConversationMemory("My brother's name is Eli.")).toBe(true);
+    expect(shouldAnalyzeConversationMemory('Sounds good.')).toBe(false);
+    expect(shouldAnalyzeConversationMemory("I'm tired.")).toBe(false);
+    expect(shouldAnalyzeConversationMemory("I'm eating cereal.")).toBe(false);
+  });
+
+  it('does not promote momentary actions into deterministic memory',()=>{
+    expect(extractMemoryCandidates("I'm eating cereal at home.")).toEqual([]);
+    expect(extractMemoryCandidates('Okay, I will talk to you later.')).toEqual([]);
+    expect(extractMemoryCandidates('Walk over to the window.')).toEqual([]);
+    expect(extractMemoryCandidates('My job is exhausting.')).toEqual([]);
+    expect(extractMemoryCandidates('I prefer when you tease me.')).toEqual([]);
   });
 
   it('preserves correction provenance when newer evidence replaces an old fact', () => {

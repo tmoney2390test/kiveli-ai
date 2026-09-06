@@ -126,6 +126,23 @@ describe("group director", () => {
         .actions[0]?.characterInstanceId,
     ).not.toBe("mara");
   });
+  it("always assigns an available speaker even when every candidate has heavy floor debt", () => {
+    const exhausted = candidates.map((candidate) => ({
+      ...candidate,
+      knowledgeRelevance: 0,
+      relationshipRelevance: 0,
+      directness: 0,
+      socialEnergy: 0,
+      affinityWithUser: 0,
+      tensionWithOthers: 0,
+      recentSpeakerCount: 12,
+      consecutiveSpeakerCount: 8,
+    }));
+    const plan = planGroupTurn({ message: "What should we do next?", candidates: exhausted });
+    expect(plan.actions).toHaveLength(1);
+    expect(plan.actions[0]).toMatchObject({ type: "message", intent: "answer_user" });
+    expect(plan.reasonCodes).toEqual(["low_signal_reply_floor"]);
+  });
   it("re-evaluates only one continuation at a time and never repeats the current speaker", () => {
     const initial = planGroupTurn({
       message: "What does everyone want?",

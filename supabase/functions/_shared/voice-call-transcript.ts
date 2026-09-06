@@ -521,6 +521,7 @@ async function reconcileVoiceCallContinuity(
       candidate.dedupe_key,
     ).eq("status", "active").maybeSingle();
     if (existing) {
+      if(String(existing.source_message_id??'')===input.sourceMessageId)continue;
       await input.db.from("together_memories").update({
         importance: Math.max(Number(existing.importance), candidate.importance),
         confidence: Math.min(
@@ -533,6 +534,7 @@ async function reconcileVoiceCallContinuity(
         source_id: input.sourceMessageId,
         learned_via: "direct_user",
         reinforcement_count: Number(existing.reinforcement_count ?? 0) + 1,
+        content_rating:"safe",visibility_scope:"all",moderation_version:"safe-voice-memory-v2",
         updated_at: now.toISOString(),
       }).eq("id", existing.id);
     } else {await input.db.from("together_memories").insert({
@@ -547,6 +549,7 @@ async function reconcileVoiceCallContinuity(
         valid_from: now.toISOString(),
         embedding,
         status: "active",
+        content_rating:"safe",visibility_scope:"all",moderation_version:"safe-voice-memory-v2",
       });}
   }
   if (enabled.open_thread !== false) {
@@ -563,6 +566,7 @@ async function reconcileVoiceCallContinuity(
           character_instance_id: instanceId,
           ...thread,
           source_message_id: input.sourceMessageId,
+          content_rating:"safe",visibility_scope:"all",moderation_version:"safe-voice-thread-v2",
         });
       }
     }

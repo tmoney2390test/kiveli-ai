@@ -42,4 +42,13 @@ describe('conversation message warmup', () => {
     expect(readConversationMessagePage('user-1', 'conversation-1')?.messages.map((item) => item.id)).toEqual(['1']);
     expect(readConversationMessagePage('user-2', 'conversation-1')).toBeNull();
   });
+
+  it('keeps a normal rail-sized set of conversations warm', () => {
+    for(let index=1;index<=20;index+=1){
+      const conversationId=`conversation-${index}`;
+      writeConversationMessagePage('user-1',conversationId,{messages:[message(String(index),conversationId)],hasMore:false});
+    }
+    expect(readConversationMessagePage('user-1','conversation-1')?.messages[0]?.id).toBe('1');
+    expect(readConversationMessagePage('user-1','conversation-20')?.messages[0]?.id).toBe('20');
+  });
 });

@@ -1,6 +1,7 @@
 import{assertEquals}from'jsr:@std/assert@1';
-import{chatPhotoByteBucket,chatPhotoEdgeBucket,chatPhotoFailureCode,chatPhotoLatencyBucket,safeChatPhotoTelemetry}from'./chat-photo-observability.ts';
+import{chatPhotoByteBucket,chatPhotoEdgeBucket,chatPhotoFailureCode,chatPhotoLatencyBucket,chatPhotoPolicyReason,safeChatPhotoTelemetry}from'./chat-photo-observability.ts';
 import{AppError}from'./types.ts';
+import{VisionPolicyError}from'./openai-vision.ts';
 
 Deno.test('chat photo telemetry uses only coarse safe buckets',()=>{
   assertEquals(chatPhotoLatencyBucket(1_999),'under_2s');
@@ -12,6 +13,8 @@ Deno.test('chat photo telemetry uses only coarse safe buckets',()=>{
 Deno.test('chat photo failures expose only application error codes',()=>{
   assertEquals(chatPhotoFailureCode(new AppError('RATE_LIMITED','sensitive provider detail',429)),'RATE_LIMITED');
   assertEquals(chatPhotoFailureCode(new Error('sensitive provider detail')),'PROVIDER_UNAVAILABLE');
+  assertEquals(chatPhotoPolicyReason(new VisionPolicyError('safe message','minor_or_youth')),'minor_or_youth');
+  assertEquals(chatPhotoPolicyReason(new Error('sensitive provider detail')),undefined);
 });
 
 Deno.test('chat photo telemetry drops content, URLs, and provider request identifiers',()=>{

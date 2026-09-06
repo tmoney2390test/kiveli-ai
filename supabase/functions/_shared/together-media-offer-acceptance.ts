@@ -50,4 +50,4 @@ export async function acceptMediaOffer(db:SupabaseClient,input:{userId:string;of
 }
 
 function asRecord(value:unknown):Record<string,unknown>|null{return value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:null;}
-function offerWithDailyAllowance(offer:Record<string,any>,allowance:{limit:number;remaining:number;benefitDate:string}):Record<string,any>{return{...offer,preview_metadata:{...((offer.preview_metadata??{}) as Record<string,unknown>),dailyPhotoAllowanceLimit:allowance.limit,dailyPhotoAllowanceRemaining:allowance.remaining,dailyPhotoBenefitDate:allowance.benefitDate}};}
+function offerWithDailyAllowance(offer:Record<string,any>,allowance:{limit:number;remaining:number;benefitDate:string;timezone:string;resetsAt:string}):Record<string,any>{return{...offer,preview_metadata:{...((offer.preview_metadata??{}) as Record<string,unknown>),dailyPhotoAllowanceLimit:allowance.limit,dailyPhotoAllowanceRemaining:allowance.remaining,dailyPhotoBenefitDate:allowance.benefitDate,dailyPhotoAllowanceTimezone:allowance.timezone,dailyPhotoAllowanceResetsAt:allowance.resetsAt}};}

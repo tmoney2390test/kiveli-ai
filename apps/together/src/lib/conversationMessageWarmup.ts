@@ -4,7 +4,9 @@ export type ConversationMessagePage = { messages: Message[]; hasMore: boolean };
 type CachedConversationMessagePage = ConversationMessagePage & { loadedAt: number };
 type MessagePageLoader = () => Promise<ConversationMessagePage>;
 
-const MAX_CACHED_CONVERSATIONS = 5;
+// Keep the visible rail warm. Five entries was too small for normal switching
+// between DMs and caused avoidable cold history fetches after a short session.
+const MAX_CACHED_CONVERSATIONS = 20;
 const MAX_CACHED_MESSAGES = 150;
 const FRESH_WARMUP_MS = 15_000;
 const cacheByUser = new Map<string, Map<string, CachedConversationMessagePage>>();

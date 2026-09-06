@@ -38,7 +38,8 @@ import {
   validateCompanionVoicePreset,
 } from "../_shared/companion-voice-selection.ts";
 import { isAnimatedChatPhoto, matchesChatPhotoSignature } from "../_shared/chat-photo-policy.ts";
-import { chatPhotoByteBucket, chatPhotoEdgeBucket, chatPhotoFailureCode, chatPhotoLatencyBucket, safeChatPhotoTelemetry } from "../_shared/chat-photo-observability.ts";
+import { chatPhotoByteBucket, chatPhotoEdgeBucket, chatPhotoFailureCode, chatPhotoLatencyBucket, chatPhotoPolicyReason, safeChatPhotoTelemetry } from "../_shared/chat-photo-observability.ts";
+import { issueAdultAssetUrl, resolveAdultAccess, type AdultAccessContext } from "../_shared/web-adult-access.ts";
 
 const uuid = z.string().uuid();
 const schema = z.discriminatedUnion("action", [
@@ -191,7 +192,7 @@ serve(async (request, correlationId) => {
     ).maybeSingle();
     if (duplicate) {
       return json(
-        { data: await attachmentPayload(db, duplicate), correlationId },
+        { data: await attachmentPayload(db, duplicate, true), correlationId },
         200,
         correlationId,
       );
@@ -223,7 +224,7 @@ serve(async (request, correlationId) => {
       }).select("*").single();
     if (error?.code === "23505") {
       const { data: raced } = await db.from("together_conversation_attachments").select("*").eq("user_id", user.id).eq("metadata->>requestId", input.requestId).maybeSingle();
-      if (raced) return json({ data: await attachmentPayload(db, raced), correlationId }, 200, correlationId);
+      if (raced) return json({ data: await attachmentPayload(db, raced, true), correlationId }, 200, correlationId);
     }
     if (error || !data) {
       throw new AppError(
@@ -240,7 +241,7 @@ serve(async (request, correlationId) => {
       longEdgeBucket: chatPhotoEdgeBucket(Math.max(input.width??0,input.height??0)),
     });
     return json(
-      { data: await attachmentPayload(db, data), correlationId },
+      { data: await attachmentPayload(db, data, true), correlationId },
       201,
       correlationId,
     );
@@ -248,6 +249,7 @@ serve(async (request, correlationId) => {
 
   if (input.action === "confirm_user_image") {
     const photoProcessingStartedAt=Date.now();
+    const adultAccess=await resolveAdultAccess(request,user,db);
     await enforcePhotoSharingEntitlement(db, user.id);
     const attachment = await requireAttachment(
       db,
@@ -256,6 +258,9 @@ serve(async (request, correlationId) => {
       input.attachmentId,
     );
     if (attachment.analysis_status === "ready" && attachment.upload_status === "uploaded") {
+      if ((attachment.content_rating === "explicit" || attachment.visibility_scope === "web_adult") && !adultAccess.authorized_web_adult) {
+        throw new AppError("FORBIDDEN", "That photo is unavailable in this session.", 403, false);
+      }
       return json({ data: await attachmentPayload(db, attachment), correlationId }, 200, correlationId);
     }
     if (!attachment.storage_path) throw new AppError("NOT_FOUND", "That photo is no longer available.", 404);
@@ -324,10 +329,15 @@ serve(async (request, correlationId) => {
         contentType: String(attachment.mime_type),
         userCaption: input.caption,
         safetyIdentifier: await opaqueSafetyIdentifier(user.id),
+        allowExplicitAdult: adultAccess.authorized_web_adult,
       });
+      const restricted=result.contentRating === "explicit";
       const { data } = await db.from("together_conversation_attachments")
         .update({
           analysis_status: "ready",
+          content_rating: result.contentRating,
+          visibility_scope: restricted ? "web_adult" : "all",
+          moderation_version: restricted ? "web-adult-upload-v1" : "chat-photo-v1",
           analysis_metadata: {
             shortDescription: result.shortDescription,
             notableDetails: result.notableDetails,
@@ -352,7 +362,7 @@ serve(async (request, correlationId) => {
       });
       return json(
         {
-          data: await attachmentPayload(db, data ?? attachment),
+          data: await attachmentPayload(db, data ?? attachment, false, { request, access: adultAccess, userId: user.id }),
           correlationId,
         },
         200,
@@ -365,7 +375,7 @@ serve(async (request, correlationId) => {
           analysis_metadata: {},
           updated_at: new Date().toISOString(),
         }).eq("id", attachment.id).eq("user_id", user.id);
-      await track(db,user.id,"user_photo_processing_failed",safeChatPhotoTelemetry({stage:"vision",failureCode:chatPhotoFailureCode(error),latencyBucket:chatPhotoLatencyBucket(Date.now()-photoProcessingStartedAt),byteSizeBucket:chatPhotoByteBucket(bytes.byteLength),longEdgeBucket:chatPhotoEdgeBucket(Math.max(actualDimensions.width,actualDimensions.height))}));
+      await track(db,user.id,"user_photo_processing_failed",safeChatPhotoTelemetry({stage:"vision",failureCode:chatPhotoFailureCode(error),policyReason:chatPhotoPolicyReason(error),latencyBucket:chatPhotoLatencyBucket(Date.now()-photoProcessingStartedAt),byteSizeBucket:chatPhotoByteBucket(bytes.byteLength),longEdgeBucket:chatPhotoEdgeBucket(Math.max(actualDimensions.width,actualDimensions.height))}));
       throw error instanceof AppError ? error : new AppError("PROVIDER_UNAVAILABLE", "That photo could not be understood. Try again.", 503, true);
     }
   }
@@ -991,17 +1001,44 @@ async function requireAttachment(
   return data;
 }
 
-async function attachmentPayload(db: any, attachment: Record<string, any>) {
+async function attachmentPayload(
+  db: any,
+  attachment: Record<string, any>,
+  authorizeUpload = false,
+  security?: { request: Request; access: AdultAccessContext; userId: string },
+) {
   let signedUrl: string | null = null;
+  let uploadToken: string | null = null;
+  const restricted=attachment.content_rating === "explicit" || attachment.visibility_scope === "web_adult";
   if (attachment.upload_status === "uploaded" && attachment.storage_path) {
-    signedUrl = (await db.storage.from("together-user-media").createSignedUrl(
+    if (restricted && security?.access.authorized_web_adult) {
+      signedUrl = await issueAdultAssetUrl({
+        request: security.request,
+        db,
+        access: security.access,
+        userId: security.userId,
+        attachmentId: String(attachment.id),
+      });
+    } else if (!restricted) {
+      signedUrl = (await db.storage.from("together-user-media").createSignedUrl(
+        String(attachment.storage_path),
+        3600,
+      )).data?.signedUrl ?? null;
+    }
+  }
+  if (authorizeUpload && attachment.storage_path) {
+    const { data, error } = await db.storage.from("together-user-media").createSignedUploadUrl(
       String(attachment.storage_path),
-      3600,
-    )).data?.signedUrl ?? null;
+      { upsert: false },
+    );
+    if (error || !data?.token) {
+      throw new AppError("INTERNAL_ERROR", "That photo could not be prepared for upload.", 500, true);
+    }
+    uploadToken = data.token;
   }
   return {
     attachment: { ...attachment, signed_url: signedUrl },
-    upload: { bucket: "together-user-media", path: attachment.storage_path },
+    upload: { bucket: "together-user-media", path: attachment.storage_path, token: uploadToken },
     providers: providerCapabilityStatuses(),
   };
 }

@@ -40,7 +40,7 @@ import {
   FrostedSurface,
 } from "../../src/components";
 import { ChatSettingsModal } from "../../src/components/ChatSettingsModal";
-import { manageConversation, manageGroup, setConversationPinned } from "../../src/lib/api";
+import { loadGroupDetail, manageConversation, manageGroup, setConversationPinned } from "../../src/lib/api";
 import { confirmAction } from "../../src/lib/dialogs";
 import {
   buildInboxRows,
@@ -62,7 +62,7 @@ import {
 } from "../../src/lib/messageInbox";
 import { loadInboxFilter, saveInboxFilter } from "../../src/lib/messageInboxPreference";
 import { loadMessageDrafts } from "../../src/lib/messageDrafts";
-import { cacheInboxGroupSummary } from "../../src/lib/groupDetailCache";
+import { cacheInboxGroupSummary, prefetchCompleteGroupDetail } from "../../src/lib/groupDetailCache";
 import { useTogether } from "../../src/store/useTogether";
 import { colors, radius, spacing, typography } from "../../src/theme";
 import type {
@@ -279,10 +279,11 @@ export default function MessageInbox() {
   }, [conversations, session?.user.id]);
 
   useEffect(() => {
-    const scope = snapshot?.activeContinuity?.id;
-    if (!scope) return;
+    const userId=session?.user.id,continuityId=snapshot?.activeContinuity?.id;
+    if (!userId||!continuityId) return;
+    const scope=`${userId}:${continuityId}`;
     groups.forEach((group) => cacheInboxGroupSummary(scope, group));
-  }, [groups, snapshot?.activeContinuity?.id]);
+  }, [groups, session?.user.id, snapshot?.activeContinuity?.id]);
 
   useEffect(() => {
     if (!archiveUndo || archiveUndo.restoring) return;
@@ -601,6 +602,7 @@ function ConversationRow(
 ) {
   const { character, conversation } = row;
   const { session } = useAuth();
+  const pendingDialogue=useTogether((state)=>state.pendingDialogues[conversation.id]);
   const template = character.together_character_templates;
   const group = conversation.kind === "group" ? row.group : undefined;
   const displayName = conversation.kind === "group"
@@ -611,6 +613,9 @@ function ConversationRow(
       ).join(", ") || "Group chat"
     : template.name;
   const participantLine = groupParticipantLine(group);
+  const pendingSpeaker=conversation.kind==="group"
+    ? group?.participants.find((participant)=>participant.character_instance_id===pendingDialogue?.characterInstanceId)?.together_character_instances.together_character_templates.name.split(" ")[0]
+    : template.name.split(" ")[0];
   const unreadCount = conversation.kind === "group" ? conversation.unread_count ?? 0 : 0;
   const href = conversation.kind === "group"
     ? `/group-chat?id=${encodeURIComponent(conversation.id)}`
@@ -620,7 +625,12 @@ function ConversationRow(
     );
   const warm = () => {
     warmRoute(href, (value) => router.prefetch(value as never));
-    if (conversation.kind !== "group") prefetchConversationMessagePage(session?.user.id, conversation.id, () => manageConversation({ action: "messages", conversationId: conversation.id, limit: 50 }));
+    if(conversation.kind==="group"){
+      const scope=`${session?.user.id??"anonymous"}:${useTogether.getState().snapshot?.activeContinuity?.id??"default"}`;
+      void prefetchCompleteGroupDetail(scope,conversation.id,()=>loadGroupDetail(conversation.id,{messageLimit:30,timeoutMs:20_000})).catch(()=>undefined);
+      return;
+    }
+    prefetchConversationMessagePage(session?.user.id, conversation.id, () => manageConversation({ action: "messages", conversationId: conversation.id, limit: 50 }));
   };
   const rowControl = (
     <Pressable
@@ -665,7 +675,7 @@ function ConversationRow(
           ]}
           numberOfLines={2}
         >
-          {inboxPreview(conversation, { draft })}
+          {pendingDialogue?`${pendingSpeaker??"Someone"} is typing…`:inboxPreview(conversation, { draft })}
         </Text>
       </View>
       {unreadCount ? <View accessibilityLabel={`${unreadCount} unread messages`} style={styles.unreadBadge}><Text style={styles.unreadBadgeText}>{unreadCount >= 99 ? "99+" : unreadCount}</Text></View> : null}

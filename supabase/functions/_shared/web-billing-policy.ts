@@ -10,14 +10,14 @@ export type BillingSurfacePolicy={
 type EnvReader=(name:string)=>string|undefined;
 
 export function resolveBillingSurfacePolicy(clientSurface:BillingClientSurface,readEnv:EnvReader=(name)=>Deno.env.get(name)):BillingSurfacePolicy{
-  const nativeExternalCheckoutEnabled=envBoolean(readEnv('KIVELLE_NATIVE_EXTERNAL_CHECKOUT_ENABLED'),true);
   return{
     clientSurface,
-    subscriptionCheckoutEnabled:clientSurface==='web'
-      ?envBoolean(readEnv('KIVELLE_WEB_SUBSCRIPTION_CHECKOUT_ENABLED'),false)
-      :nativeExternalCheckoutEnabled,
+    // New memberships are purchased through StoreKit or Google Play Billing.
+    // These values remain in the public contract for older clients, but an
+    // environment toggle must never re-enable hosted subscription checkout.
+    subscriptionCheckoutEnabled:false,
     appStoreEntitlementsRecognized:clientSurface!=='web'||envBoolean(readEnv('KIVELLE_WEB_APP_STORE_ENTITLEMENTS_ENABLED'),true),
-    nativeExternalCheckoutEnabled,
+    nativeExternalCheckoutEnabled:false,
   };
 }
 

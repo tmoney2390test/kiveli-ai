@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
+import { subscribeToWebPageResume } from '../lib/webPageLifecycle';
 
 export type ConnectionPhase = 'online' | 'offline' | 'reconnected';
 type NetworkValue = { online: boolean; phase: ConnectionPhase };
@@ -30,9 +31,11 @@ export function NetworkStatusProvider({ children }: PropsWithChildren) {
     const onOffline = () => update(false);
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
+    const unsubscribeResume=subscribeToWebPageResume(()=>update(navigator.onLine));
     return () => {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
+      unsubscribeResume();
       if (reset) clearTimeout(reset);
     };
   }, []);

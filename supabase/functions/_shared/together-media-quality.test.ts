@@ -1,5 +1,5 @@
 import { assertStringIncludes } from 'jsr:@std/assert@1';
-import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverFinalSfwQualityCandidateWithWarnings, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, shouldAttemptPaidImageQualityRetry, shouldDeliverFirstImageQualityCandidateWithWarnings, shouldDeliverSfwWhenQualityReviewIsUnavailable, shouldRevalidateCompletedQualityRetry, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
+import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverFinalSfwQualityCandidateWithWarnings, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, hasTerminalAdultOutputSafetyFailure, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, shouldAttemptPaidImageQualityRetry, shouldDeliverFirstImageQualityCandidateWithWarnings, shouldDeliverOfficialAdultImageWithWarnings, shouldDeliverSfwWhenQualityReviewIsUnavailable, shouldRevalidateCompletedQualityRetry, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
 
 Deno.test('solo adult quality checks do not confuse explicit posing with non-consent',()=>{
   const rule=authorizedAdultImageSafetyRule([{companion:{name:'Elena Petrova',age:27,custom:false}}]);
@@ -58,6 +58,17 @@ Deno.test('a first SFW candidate may keep harmless scene drift without hiding ha
   if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['face_too_small','world_mismatch','time_mismatch']},adultAuthorized:false}))throw new Error('a wider SFW scene and setting drift should not fail an otherwise usable paid photo');
   if(shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['identity_mismatch','time_mismatch']},adultAuthorized:false}))throw new Error('identity mismatch must still receive correction or rejection');
   if(shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['world_mismatch']},adultAuthorized:true}))throw new Error('adult output must retain its stricter first-candidate review');
+});
+
+Deno.test('official adult candidates are delivered for visual debugging but hard safety failures remain blocked',()=>{
+  const debugVerdict={status:'fail' as const,reasonCodes:['non_photorealistic','requested_anatomy_missing','identity_mismatch','world_mismatch','time_mismatch']};
+  if(!shouldDeliverOfficialAdultImageWithWarnings({verdict:debugVerdict,adultAuthorized:true,customCharacter:false}))throw new Error('official adult visual and adherence defects should be delivered with warnings');
+  if(shouldDeliverOfficialAdultImageWithWarnings({verdict:debugVerdict,adultAuthorized:true,customCharacter:true}))throw new Error('custom characters must retain stricter output review');
+  if(shouldDeliverOfficialAdultImageWithWarnings({verdict:debugVerdict,adultAuthorized:false,customCharacter:false}))throw new Error('the debugging policy must not affect SFW generation');
+  for(const reason of ['adult_safety_violation','adult_safety_unverified','ambiguous_age']){
+    if(!hasTerminalAdultOutputSafetyFailure([reason]))throw new Error(`${reason} must be recognized before warning delivery fallbacks`);
+    if(shouldDeliverOfficialAdultImageWithWarnings({verdict:{status:'fail',reasonCodes:[reason]},adultAuthorized:true,customCharacter:false}))throw new Error(`${reason} must remain blocked`);
+  }
 });
 
 Deno.test('an unavailable quality reviewer never erases a provider-approved SFW photo',()=>{

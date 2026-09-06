@@ -30,6 +30,7 @@ import type { TrustConsequenceProposal, TrustRepairProposal } from "../../../pac
 import {
   isDurableUserMemory,
   isRelationshipDirectedPreferenceMemory,
+  shouldAnalyzeConversationMemory,
 } from "../../../packages/together-domain/src/memory.ts";
 import { resolveConversationStyle } from "../../../packages/together-domain/src/conversation-style.ts";
 import {
@@ -1362,9 +1363,7 @@ function shouldUseModelAnalysis(input: ConversationAnalysisInput): boolean {
     /\b(what do you think|do you like|how do you feel|opinion|this place|here|growing on|favorite)\b/i
       .test(message)
   ) return true;
-  if (message.length < 32) return false;
-  return /\b(i|i'm|i've|my|we|tomorrow|next|used to|actually|remember|important)\b/i
-    .test(message);
+  return shouldAnalyzeConversationMemory(message);
 }
 
 function analysisPrompt(input: ConversationAnalysisInput): string {

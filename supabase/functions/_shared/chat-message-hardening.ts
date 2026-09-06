@@ -216,6 +216,90 @@ export async function commitDirectAssistantMessage(
   return { message, created: committed.created === true };
 }
 
+export async function commitDirectSystemMessage(
+  db: SupabaseClient,
+  input: {
+    turnId: string;
+    leaseToken: string;
+    anchorCharacterInstanceId: string;
+    content: string;
+    providerMetadata: Record<string, unknown>;
+    responseKey: string;
+  },
+): Promise<ClaimedChatMessage> {
+  const { data, error } = await db.rpc("kivelle_commit_direct_system_message", {
+    p_turn_id: input.turnId,
+    p_lease_token: input.leaseToken,
+    p_anchor_character_instance_id: input.anchorCharacterInstanceId,
+    p_content: input.content,
+    p_provider_metadata: input.providerMetadata,
+    p_response_key: input.responseKey,
+  });
+  const committed = Array.isArray(data) ? data[0] : data;
+  if (error || !committed?.message_id) {
+    throw new AppError(
+      "CONFLICT",
+      "A newer message took the conversational floor.",
+      409,
+      true,
+    );
+  }
+  const { data: message, error: messageError } = await db.from(
+    "together_messages",
+  ).select("*").eq("id", String(committed.message_id)).single();
+  if (messageError || !message) {
+    throw new AppError(
+      "INTERNAL_ERROR",
+      "The scene changed, but its update could not be loaded.",
+      500,
+      true,
+    );
+  }
+  return { message, created: committed.created === true };
+}
+
+export async function commitGroupSystemMessage(
+  db: SupabaseClient,
+  input: {
+    turnId: string;
+    version: number;
+    anchorCharacterInstanceId: string;
+    content: string;
+    providerMetadata: Record<string, unknown>;
+    responseKey: string;
+  },
+): Promise<ClaimedChatMessage> {
+  const { data, error } = await db.rpc("kivelle_commit_group_system_message", {
+    p_turn_id: input.turnId,
+    p_version: input.version,
+    p_anchor_character_instance_id: input.anchorCharacterInstanceId,
+    p_content: input.content,
+    p_provider_metadata: input.providerMetadata,
+    p_response_key: input.responseKey,
+  });
+  const committed = Array.isArray(data) ? data[0] : data;
+  if (error || !committed?.message_id) {
+    throw new AppError(
+      "CONFLICT",
+      "A newer message took the conversational floor.",
+      409,
+      true,
+    );
+  }
+  const { data: message, error: messageError } = await db.from(
+    "together_messages",
+  ).select("*").eq("id", String(committed.message_id)).single();
+  if (messageError || !message) {
+    throw new AppError(
+      "INTERNAL_ERROR",
+      "The group scene changed, but its update could not be loaded.",
+      500,
+      true,
+    );
+  }
+  return { message, created: committed.created === true };
+}
+
 function stableSerialize(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(stableSerialize).join(",")}]`;

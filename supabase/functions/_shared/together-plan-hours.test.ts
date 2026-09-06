@@ -1,4 +1,4 @@
-import { closedLocationPlanMessage, planFitsLocationHours } from './together-plan-hours.ts';
+import { closedLocationPlanMessage, locationClosingWindow, planFitsLocationHours } from './together-plan-hours.ts';
 
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message);
@@ -30,4 +30,32 @@ Deno.test('unknown hours retain the generic fallback', () => {
       === 'Somewhere is closed at that time. Choose another time or place.',
     'missing authored hours should not invent an opening time',
   );
+});
+
+Deno.test('an open immediate plan exposes the same-day closing boundary', () => {
+  const result = locationClosingWindow({ open: '09:00', close: '18:00' }, 17 * 60 + 20);
+  assert(result.isOpen, 'the venue should be open at 5:20 PM');
+  assert(result.closingMinute === 18 * 60, 'the plan should be capped at 6 PM');
+});
+
+Deno.test('an open overnight venue exposes the correct closing date', () => {
+  const beforeMidnight = locationClosingWindow({ open: '18:00', close: '02:00' }, 23 * 60);
+  assert(beforeMidnight.isOpen, 'the venue should be open before midnight');
+  assert(beforeMidnight.closingMinute === 26 * 60, 'the close should resolve to 2 AM tomorrow');
+
+  const afterMidnight = locationClosingWindow({ open: '18:00', close: '02:00' }, 60);
+  assert(afterMidnight.isOpen, 'the venue should remain open after midnight');
+  assert(afterMidnight.closingMinute === 2 * 60, 'the close should resolve to 2 AM today');
+});
+
+Deno.test('a closed place cannot start immediately', () => {
+  const result = locationClosingWindow({ open: '09:00', close: '18:00' }, 20 * 60);
+  assert(!result.isOpen, 'the venue should remain closed at 8 PM');
+  assert(result.closingMinute === null, 'closed venues have no active closing boundary');
+});
+
+Deno.test('midnight-to-midnight hours are treated as always open', () => {
+  const result = locationClosingWindow({ open: '00:00', close: '24:00' }, 23 * 60 + 59);
+  assert(result.isOpen, 'an all-day venue should be open');
+  assert(result.closingMinute === null, 'an all-day venue should not shorten the plan');
 });

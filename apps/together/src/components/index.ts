@@ -32,3 +32,5 @@ export * from './RouteLoadingState';
 export * from './JumpToLatestButton';
 export * from './MobileChatContextCard';
 export * from './SpiceBadge';
+export * from './ChatTypingIndicator';
+export * from './ConversationMediaGalleryModal';

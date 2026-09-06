@@ -1,5 +1,5 @@
 import{describe,expect,it}from'vitest';
-import{buildAutoDialoguePrompt,deterministicAutoDialogue,inferAutoDialogueIntents,inferAutoDialogueStyle,parseAutoDialogueSuggestion,type AutoDialogueInput}from'./auto-dialogue';
+import{buildAutoDialoguePrompt,deterministicAutoDialogue,inferAutoDialogueIntents,inferAutoDialogueStyle,parseAutoDialogueSuggestion,shouldUseSpicyAutoDialogue,type AutoDialogueInput}from'./auto-dialogue';
 
 const input:AutoDialogueInput={characterName:'Brooke',latestAssistantMessage:'I finally finished hanging the last piece. I am exhausted.',recent:[{role:'user',content:'How did the installation go?'},{role:'assistant',content:'I finally finished hanging the last piece. I am exhausted.'}],scene:{interactionMode:'remote',location:'Glassline Gallery',activity:'finishing an installation',mood:'tired'},relationshipStage:'long_term',relationship:{romanceEnabled:true,friendsOnly:false,conflict:0,chemistryHeat:62,spiceLevel:3}};
 
@@ -11,7 +11,7 @@ describe('auto dialogue',()=>{
   it('grounds co-present fallbacks in the current scene while matching action style',()=>{
     const suggestion=deterministicAutoDialogue({...input,latestAssistantMessage:'There you are.',recent:[{role:'user',content:'*I sit beside her.* Hey.'}],scene:{...input.scene,interactionMode:'co_present'}});
     expect(suggestion).toContain('Brooke');
-    expect(suggestion).toContain('finishing an installation');
+    expect(suggestion).toContain("I'm here");
   });
 
   it('rejects companion-shaped, high-agency, and copied model output',()=>{
@@ -47,6 +47,8 @@ describe('auto dialogue',()=>{
     expect(prompt).toContain('Never write the companion');
     expect(prompt).toContain('rich conversational handoff with two beats');
     expect(prompt).toContain('Do not default to a generic interviewer question');
+    expect(prompt).toContain('controlling conversational anchor');
+    expect(prompt).toContain('Do not pivot to an older thread');
     expect(prompt).toContain('romantic boldness 3 of 3');
     expect(prompt).toContain('Meet Priya');
     expect(prompt).toContain('Maya');
@@ -55,7 +57,7 @@ describe('auto dialogue',()=>{
     expect(prompt).toContain(input.latestAssistantMessage);
   });
 
-  it('keeps legacy Explicit conversations within the non-sexual romance ceiling',()=>{
+  it('keeps an Explicit setting nonsexual unless the stored last turn is authorized and explicit',()=>{
     const explicit={...input,latestAssistantMessage:'I want you too.',contentMode:'explicit' as const,intimacyOutcome:'accepted' as const};
     expect(deterministicAutoDialogue(explicit)).not.toMatch(/sex|nude|naked/i);
     const prompt=buildAutoDialoguePrompt(explicit);
@@ -63,6 +65,24 @@ describe('auto dialogue',()=>{
     expect(prompt).toContain('latest intimacy outcome: accepted');
     expect(prompt).toContain('Never draft a sexual request');
     expect(parseAutoDialogueSuggestion({text:'I want to have sex with you.'},'Stay close to me.',explicit)).toBe('Stay close to me.');
+  });
+
+  it('allows Grok-ready adult continuation only for an authorized explicit stored anchor',()=>{
+    const spicy={...input,latestAssistantMessage:'An established explicit adult reply.',contentMode:'explicit' as const,latestContentRating:'explicit' as const,explicitContinuationAllowed:true,intimacyOutcome:'accepted' as const};
+    expect(shouldUseSpicyAutoDialogue(spicy)).toBe(true);
+    expect(shouldUseSpicyAutoDialogue({...spicy,latestContentRating:'suggestive'})).toBe(false);
+    expect(shouldUseSpicyAutoDialogue({...spicy,explicitContinuationAllowed:false})).toBe(false);
+    const prompt=buildAutoDialoguePrompt(spicy);
+    expect(prompt).toContain('authorized, consensual adult exchange');
+    expect(prompt).toContain('Do not escalate beyond the latest message');
+    expect(prompt).toContain('CONTENT CEILING: authorized consensual adult continuation');
+    expect(parseAutoDialogueSuggestion({text:'I want to have sex with you.'},'Stay close to me.',spicy)).toBe('I want to have sex with you.');
+  });
+
+  it('answers the latest direct question before considering unrelated plans or old threads',()=>{
+    const intents=inferAutoDialogueIntents({...input,latestAssistantMessage:'What do you actually want from me?',upcomingCommitment:'Dinner tomorrow',openThread:'the gallery opening'});
+    expect(intents[0]).toBe('answer');
+    expect(intents).not.toContain('follow_up');
   });
 
   it('generates user drafts directly in the selected chat language',()=>{

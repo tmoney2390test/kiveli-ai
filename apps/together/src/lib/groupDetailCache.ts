@@ -3,6 +3,7 @@ import type { GroupDetail } from "../types";
 type GroupDetailCacheEntry = {
   detail: GroupDetail;
   complete: boolean;
+  loadedAt: number;
   touchedAt: number;
 };
 
@@ -10,6 +11,7 @@ const MAX_CACHED_GROUPS = 24;
 const SESSION_CACHE_PREFIX = "kivelle:group-summary:v1:";
 const SESSION_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const entries = new Map<string, GroupDetailCacheEntry>();
+const inFlight = new Map<string, Promise<GroupDetail>>();
 
 function cacheKey(scope: string, conversationId: string) {
   return `${scope}:${conversationId}`;
@@ -50,6 +52,7 @@ export function cacheGroupDetailSummary(scope: string, detail: GroupDetail) {
       }
       : detail,
     complete: existing?.complete ?? false,
+    loadedAt: existing?.loadedAt ?? Date.now(),
     touchedAt: Date.now(),
   });
   persistSessionSummary(scope, detail);
@@ -91,20 +94,52 @@ export function cacheCompleteGroupDetail(scope: string, detail: GroupDetail) {
   entries.set(cacheKey(scope, detail.conversation.id), {
     detail,
     complete: true,
+    loadedAt: Date.now(),
     touchedAt: Date.now(),
   });
   persistSessionSummary(scope, detail);
   trimCache();
 }
 
+/**
+ * Warms a complete group timeline before navigation. Requests are coalesced so
+ * hover, pointer-down, and the destination screen cannot fan out into several
+ * identical detail loads.
+ */
+export function prefetchCompleteGroupDetail(
+  scope: string,
+  conversationId: string,
+  loader: () => Promise<GroupDetail>,
+  options: { maxAgeMs?: number } = {},
+): Promise<GroupDetail> {
+  const cached = readCachedGroupDetail(scope, conversationId);
+  const maxAgeMs=options.maxAgeMs??15_000;
+  if (cached?.complete&&Date.now()-cached.loadedAt<=maxAgeMs) return Promise.resolve(cached.detail);
+  const key = cacheKey(scope, conversationId);
+  const current = inFlight.get(key);
+  if (current) return current;
+  const request = loader()
+    .then((detail) => {
+      cacheCompleteGroupDetail(scope, detail);
+      return detail;
+    })
+    .finally(() => inFlight.delete(key));
+  inFlight.set(key, request);
+  return request;
+}
+
 export function clearGroupDetailCache(scope?: string) {
   if (!scope) {
     entries.clear();
+    inFlight.clear();
     clearSessionSummaries();
     return;
   }
   for (const key of entries.keys()) {
     if (key.startsWith(`${scope}:`)) entries.delete(key);
+  }
+  for (const key of inFlight.keys()) {
+    if (key.startsWith(`${scope}:`)) inFlight.delete(key);
   }
   clearSessionSummaries(scope);
 }
@@ -168,7 +203,7 @@ function readSessionSummary(
       storage.removeItem(key);
       return undefined;
     }
-    return { detail: summaryOnly(parsed.detail), complete: false, touchedAt: parsed.touchedAt };
+    return { detail: summaryOnly(parsed.detail), complete: false, loadedAt: parsed.touchedAt, touchedAt: parsed.touchedAt };
   } catch {
     try {
       storage.removeItem(key);

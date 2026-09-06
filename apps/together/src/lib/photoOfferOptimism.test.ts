@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MediaOffer } from '../types';
-import { createOptimisticPhotoRequest, matchingServerPhotoOffer, queueOptimisticPhotoOfferAcceptance, waitForMatchingServerPhotoOffer } from './photoOfferOptimism';
+import { createOptimisticPhotoRequest, matchingServerPhotoOffer, queueOptimisticPhotoOfferAcceptance, queueServerPhotoOfferAcceptance, waitForMatchingServerPhotoOffer } from './photoOfferOptimism';
 
 function serverOffer(overrides: Partial<MediaOffer> = {}): MediaOffer {
   return {
@@ -17,6 +17,14 @@ function serverOffer(overrides: Partial<MediaOffer> = {}): MediaOffer {
 }
 
 describe('photo offer optimism', () => {
+  it('does not claim a server offer was accepted before the API confirms it', () => {
+    const pending=serverOffer({status:'pending'});
+    const queued=queueServerPhotoOfferAcceptance(pending,'2026-09-05T20:00:00.000Z');
+    expect(queued.status).toBe('pending');
+    expect(queued.preview_metadata).toMatchObject({acceptQueued:true,acceptQueuedAt:'2026-09-05T20:00:00.000Z'});
+    expect(pending.preview_metadata.acceptQueued).toBeUndefined();
+  });
+
   it('creates an immediately actionable local confirmation using shared economics', () => {
     const request = createOptimisticPhotoRequest({
       requestId: 'request-1',

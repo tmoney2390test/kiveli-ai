@@ -55,18 +55,6 @@ export function groupRecipientRequest(
     : {};
 }
 
-export function groupTurnStatusLabel(
-  people: readonly { name: string }[],
-  sending: boolean,
-): string | null {
-  if (people.length === 1) return `${people[0]!.name} is replying…`;
-  if (people.length === 2) {
-    return `${people[0]!.name} and ${people[1]!.name} are replying…`;
-  }
-  if (people.length > 2) return `${people.length} companions are replying…`;
-  return sending ? "Choosing who responds…" : null;
-}
-
 export function groupWelcomePrompts(names: readonly string[]): string[] {
   const first = names[0] ?? "everyone";
   const second = names[1];

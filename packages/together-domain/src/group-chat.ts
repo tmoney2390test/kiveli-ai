@@ -243,16 +243,13 @@ export function planGroupTurn(input: GroupTurnInput): GroupTurnPlan {
             .025,
       };
     }).sort((left, right) => right.score - left.score);
-  if (
-    !ranked.length ||
-    (!explicitlyAddressed.length && !broad && ranked[0]!.score < .12)
-  ) {
+  if (!ranked.length) {
     return {
       actions: [],
       yieldToUserAfter: true,
       continuationBudget: 0,
       directorUsed: false,
-      reasonCodes: ["silence_preferred"],
+      reasonCodes: ["no_available_speaker"],
     };
   }
   const selected = ranked.slice(
@@ -336,7 +333,13 @@ export function planGroupTurn(input: GroupTurnInput): GroupTurnPlan {
     yieldToUserAfter: true,
     continuationBudget,
     directorUsed: false,
-    reasonCodes: [broad ? "group_broadcast" : "bounded_floor"],
+    reasonCodes: [
+      broad
+        ? "group_broadcast"
+        : ranked[0]!.score < .12
+        ? "low_signal_reply_floor"
+        : "bounded_floor",
+    ],
   };
 }
 

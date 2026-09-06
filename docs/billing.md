@@ -1,8 +1,8 @@
 # Kivelle billing
 
-Kivelle's database is the authoritative source for plans, entitlements, limits, and Credits. RevenueCat is an Apple/Google lifecycle adapter—not the entitlement authority—and Stripe remains only for legacy web subscriptions, management, and configured credit-pack compatibility. New website membership checkout is disabled independently. `resolveSubscriptionState()` chooses one effective internal entitlement across all provider rows and grants each monthly benefit only up to the highest applicable tier.
+Kivelle's database is the authoritative source for plans, entitlements, limits, and Credits. RevenueCat is the Apple/Google lifecycle adapter—not the entitlement authority. New memberships can be purchased only through StoreKit or Google Play Billing; there is no Stripe or hosted-checkout fallback. Stripe remains connected only for legacy subscription reconciliation/management and optional credit-pack checkout. `resolveSubscriptionState()` chooses one effective internal entitlement across all provider rows and grants each monthly benefit only up to the highest applicable tier.
 
-No card number, Stripe secret, webhook secret, or Supabase service-role key belongs in Expo or browser code. The optional `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` is only for a future embedded Elements flow; hosted Checkout does not use it.
+No card number, Stripe secret, webhook secret, or Supabase service-role key belongs in Expo or browser code.
 
 ## Native Apple/Google subscriptions through RevenueCat
 
@@ -40,21 +40,25 @@ Configure an unpredictable `Authorization` header and enable RevenueCat HMAC sig
 
 The webhook verifies the exact authorization value and raw-body HMAC, rejects stale signatures, accepts only allowlisted apps and mapped products, deduplicates by RevenueCat event ID, fetches the current subscriber snapshot from RevenueCat, and applies it through the same stale-event-guarded subscription RPC as Stripe. Unknown products fail closed. Payloads, receipts, API keys, and full subscriber data are not written to logs or the billing-event ledger.
 
-Keep `KIVELLE_NATIVE_EXTERNAL_CHECKOUT_ENABLED=true` only during the native rollout. After tested App Store and Play Store builds are live, set it to `false`; RevenueCat purchase buttons remain available because that switch controls only the legacy hosted checkout fallback. Keep `KIVELLE_WEB_APP_STORE_ENTITLEMENTS_ENABLED=true` while mobile memberships should unlock Premium benefits on the website.
+There is intentionally no environment switch that can re-enable hosted membership checkout. Keep `KIVELLE_WEB_APP_STORE_ENTITLEMENTS_ENABLED=true` while Apple and Google memberships should unlock paid benefits on the website.
 
-## Products and environment
+## Store products and environment
 
-Create recurring monthly and annual Stripe Prices for Kivelle+ and Kivelle Max, plus one-time Prices for each configured pack. The repository catalog remains authoritative for names, quantities, benefits, and displayed prices; the Edge Function maps safe keys to Price IDs.
+Create the recurring monthly and annual membership products in App Store Connect and Google Play, then map them in RevenueCat as described above. The repository catalog remains authoritative for names, quantities, benefits, and displayed prices.
+
+Stripe subscription Price IDs below are legacy-only. Keep them only while old Stripe subscriptions still require signed webhook reconciliation or Customer Portal access. They cannot start a new membership checkout. Stripe one-time Prices may still be used for Kivelle Credit packs.
 
 Server-only Supabase secrets:
 
 ```text
 STRIPE_SECRET_KEY=sk_test_... or sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
+# Legacy subscription reconciliation only:
 STRIPE_PRICE_KIVELLE_PLUS_MONTHLY=price_...
 STRIPE_PRICE_KIVELLE_PLUS_ANNUAL=price_...
 STRIPE_PRICE_KIVELLE_MAX_MONTHLY=price_...
 STRIPE_PRICE_KIVELLE_MAX_ANNUAL=price_...
+# Optional one-time credit packs:
 STRIPE_PRICE_CREDITS_100=price_...
 STRIPE_PRICE_CREDITS_300=price_...
 STRIPE_PRICE_CREDITS_800=price_...
@@ -65,17 +69,16 @@ KIVELLE_PUBLIC_APP_URL=https://kivelli.app
 KIVELLE_BILLING_GRANT_SECRET=<random server secret>
 ```
 
-Optional HTTPS URL overrides are `KIVELLE_CHECKOUT_SUCCESS_URL`, `KIVELLE_CHECKOUT_CANCEL_URL`, and `KIVELLE_BILLING_RETURN_URL`. Localhost HTTP is accepted for development; production/preview URLs must use HTTPS. Do not mix test and live keys or Price IDs.
+Optional HTTPS URL overrides are used only by retained Stripe credit checkout and legacy portal flows. Localhost HTTP is accepted for development; production/preview URLs must use HTTPS. Do not mix test and live keys or Price IDs.
 
 The server pins Stripe API version `2026-02-25.clover`. Revalidate webhook fixtures before changing it.
 
-## Stripe Dashboard setup
+## Retained Stripe setup
 
-1. Create the products and Prices above with the exact catalog amounts currently shown in Kivelle.
-2. Enable cards, Link, Apple Pay, and Google Pay under Payment methods. Checkout omits a manual method list so Stripe dynamically shows eligible methods.
-3. Register the production domain for payment-method/domain verification where the Dashboard requests it.
-4. Configure Customer Portal to update payment methods, show invoices, switch/cancel subscriptions, and cancel at period end.
-5. Register `https://<SUPABASE_PROJECT_REF>.supabase.co/functions/v1/together-billing-webhook` and subscribe to:
+Do not create or advertise new Stripe memberships. While legacy Stripe subscriptions or Stripe credit packs remain active:
+
+1. Keep Customer Portal configured so legacy subscribers can update payment methods, view invoices, or cancel.
+2. Keep `https://<SUPABASE_PROJECT_REF>.supabase.co/functions/v1/together-billing-webhook` registered for:
    - `checkout.session.completed`
    - `checkout.session.async_payment_succeeded`
    - `checkout.session.async_payment_failed`
@@ -91,13 +94,13 @@ The server pins Stripe API version `2026-02-25.clover`. Revalidate webhook fixtu
    - `refund.created`
    - `charge.dispute.created`
    - `charge.dispute.closed`
-6. Copy the endpoint signing secret to `STRIPE_WEBHOOK_SECRET`.
-7. If using Stripe Tax, configure registrations/product tax codes first, then enable `STRIPE_AUTOMATIC_TAX_ENABLED`. Stripe calculation does not by itself satisfy every tax registration, filing, or remittance obligation.
-8. Kivelle explicitly uses standard Checkout by default. Enable `STRIPE_MANAGED_PAYMENTS_ENABLED` only after the Stripe account and every sellable product meet Managed Payments eligibility requirements, including eligible product tax codes.
+3. Copy the endpoint signing secret to `STRIPE_WEBHOOK_SECRET`.
+4. If credit packs use Stripe Tax, configure registrations and product tax codes before enabling `STRIPE_AUTOMATIC_TAX_ENABLED`.
+5. Enable `STRIPE_MANAGED_PAYMENTS_ENABLED` only if retained credit-pack products meet its requirements.
 
 ## Monthly grants and rollover
 
-Monthly subscriptions grant credits from the successful `invoice.paid` event. Annual plans advertise a monthly benefit, so they do **not** receive twelve months at once. `together-billing-grants` performs an idempotent daily sweep and fills only the current calendar month's benefit.
+RevenueCat purchase and renewal events grant the appropriate store membership benefits through the shared subscription RPC. Legacy Stripe monthly subscriptions still grant from a successful `invoice.paid` event. Annual plans advertise a monthly benefit, so they do **not** receive twelve months at once. `together-billing-grants` performs an idempotent daily sweep and fills only the current calendar month's benefit.
 
 Add `together_project_url` and `kivelle_billing_grant_secret` to Supabase Vault before applying the grant-schedule migration in production. The server secret and Vault value must match. Subscription credits retain the existing 2x plan rollover cap and 30-day inactive grace policy; purchased credits remain permanent under the current catalog policy.
 
@@ -115,9 +118,10 @@ stripe trigger charge.refunded
 stripe trigger charge.dispute.created
 ```
 
-Generic trigger fixtures do not contain Kivelle metadata or configured Price IDs. For end-to-end grants, complete a real test Checkout from a local authenticated account, then use the resulting Customer/Subscription/PaymentIntent in Stripe CLI or Dashboard test clocks. Confirm:
+Generic trigger fixtures do not contain Kivelle metadata or configured Price IDs. For legacy subscription reconciliation, replay an existing test subscription event or use Stripe test clocks. For credit packs, complete a test credit Checkout from a local authenticated paid account. Confirm:
 
-- Checkout does not grant access before its signed webhook.
+- The subscription endpoint never creates a new Stripe Checkout session.
+- RevenueCat membership events do not grant access before their authenticated webhook.
 - A repeated event ID does not grant twice.
 - A canceled-at-period-end plan retains access through its paid end.
 - An unpaid/paused/terminal plan has no paid entitlement.
@@ -130,11 +134,11 @@ Deploy migration-first:
 
 1. Back up and apply `202608280003_kivelli_stripe_billing_v2.sql` and `202608280004_kivelli_billing_grant_schedule.sql`.
 2. Configure Edge Function secrets and Vault values.
-3. Deploy `together-subscription`, `together-billing-webhook`, and `together-billing-grants`.
-4. Register the webhook and perform test-mode checkout, renewal, failed-payment, cancellation, pack, refund, and dispute tests.
+3. Deploy `together-subscription`, `together-revenuecat-webhook`, `together-billing-webhook`, and `together-billing-grants`.
+4. Verify StoreKit/Google Play purchases through RevenueCat, plus legacy Stripe renewal, failed-payment, cancellation, credit-pack, refund, and dispute handling.
 5. Deploy the web client only after verified webhook state appears in Supabase.
 
-Rollback by disabling Checkout buttons/price secrets and the webhook endpoint before rolling back server code. The migrations are additive; retain billing events, subscriptions, ledger entries, and adjustments for audit. Do not delete or rewrite ledger rows. Unschedule `kivelli-annual-monthly-credit-grants` if the grant worker is disabled.
+Rollback by disabling RevenueCat purchases in the native build and server configuration. Do not restore hosted Stripe membership checkout as a rollback path. The migrations are additive; retain billing events, subscriptions, ledger entries, and adjustments for audit. Do not delete or rewrite ledger rows. Unschedule `kivelli-annual-monthly-credit-grants` if the grant worker is disabled.
 
 ## Reconciliation and support
 
@@ -144,13 +148,13 @@ Support staff may inspect `together_credit_accounts`, `together_credit_ledger`, 
 
 ## Account-owner checklist
 
-- Confirm the public legal seller name/address and ensure it matches Stripe, checkout, receipts, Terms, and tax records.
+- Confirm the public legal seller name/address and ensure it matches App Store Connect, Google Play, any retained Stripe credit checkout, receipts, Terms, and tax records.
 - Configure `support@kivelli.app` and the public refund/cancellation policy.
-- Create and approve live products/Prices, promotion-code policy, Portal configuration, branding, statement descriptor, tax registrations, and payout/bank details.
+- Create and approve Apple/Google subscription products and RevenueCat offerings. Keep only the Stripe Portal, webhook, and credit-pack configuration still needed for legacy accounts or one-time packs.
 - Request written processor approval with an accurate description:
 
 > Kivelli is an adults-only interactive storytelling and virtual-world entertainment platform. Users explore authored worlds and converse privately with fictional adult AI characters; eligible adults may encounter user-directed mature or explicit fictional text roleplay. Paid products provide general capabilities such as additional conversations, model quality, memory, voice, and media credits; payment does not determine adult-content eligibility. Kivelli does not match users with real people, arrange sexual services, enable user-to-user payments, or provide explicit image/video generation in its native apps. Public and shared content remains non-explicit.
 
-- Review Apple/Google rules before exposing web purchase links inside native builds. RevenueCat remains the native purchase route.
-- Complete Stripe identity/business verification and seek qualified tax/legal advice. Kivelle code cannot determine registration, refund, consumer-renewal, or invoice obligations for every jurisdiction.
+- Review Apple/Google store rules before release. RevenueCat remains the only new membership purchase route.
+- Complete Apple and Google merchant requirements, plus Stripe identity/business verification only while its legacy or credit-pack flows remain enabled. Seek qualified tax/legal advice; Kivelle code cannot determine registration, refund, consumer-renewal, or invoice obligations for every jurisdiction.
 

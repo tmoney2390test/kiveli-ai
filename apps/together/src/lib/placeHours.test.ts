@@ -20,4 +20,13 @@ describe('place hours', () => {
     expect(hasPublishedPlaceHours(undefined)).toBe(false);
     expect(placeHoursStatus(undefined)).toMatchObject({ state: 'unknown', isOpen: false, statusLabel: 'Hours not published' });
   });
+
+  it('recognizes midnight-to-midnight venue hours', () => {
+    expect(placeHoursStatus({ open: '00:00', close: '24:00' }, new Date('2026-08-21T04:30:00Z'), 'America/New_York')).toMatchObject({
+      state: 'open',
+      isOpen: true,
+      statusLabel: 'Open now · 24 hours',
+      scheduleLabel: 'Open 24 hours',
+    });
+  });
 });

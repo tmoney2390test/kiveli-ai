@@ -13,6 +13,7 @@ import {
   type DialogueRunOptions,
 } from "../_shared/together-ai.ts";
 import {
+  extractMemories,
   mergeConversationSummary,
   relationshipMetrics,
   track,
@@ -21,6 +22,7 @@ import {
   applyConversationEngagement,
   applyInteractionProposal,
   boundedGroupSocialDelta,
+  characterCanSpeak,
   chatLanguageSafetyBoundary,
   classifyDeterministicTrustConsequence,
   classifyDeterministicTrustRepair,
@@ -30,6 +32,7 @@ import {
   classifyGroupSocialEvent,
   compileIntimacyStance,
   detectFlirtSignal,
+  hasExplicitSexualOutputLanguage,
   hasSexualDialogueLanguage,
   isDialogueHardBlocked,
   evolveCharacterUserView,
@@ -119,6 +122,7 @@ import {
   chatRequestFingerprint,
   claimChatUserMessage,
   commitDirectAssistantMessage,
+  commitDirectSystemMessage,
   directResponseKey,
   findExistingChatRequest,
   normalizeChatMessage,
@@ -131,6 +135,11 @@ import { resolveAdultAccess } from "../_shared/web-adult-access.ts";
 import { isSafePolicy } from "../_shared/content-projection.ts";
 import { deriveSafeRelationalSummary } from "../_shared/safe-relational-context.ts";
 import { persistNarrativeConsequence, type PersistedNarrativeConsequence } from "../_shared/kivelle-narrative-consequences.ts";
+import {
+  deadCharacterSceneNarration,
+  lifeParticipantFromInstance,
+  persistCharacterLifeTransition,
+} from "../_shared/kivelle-character-life-state.ts";
 
 const schema = z.object({
   conversationId: z.string().uuid(),
@@ -149,6 +158,7 @@ const schema = z.object({
   autoDialogueSuggestionId: z.string().min(8).max(120).optional(),
   autoDialogueSuggestionSource: z.enum([
     "openai",
+    "xai",
     "gemini",
     "deterministic",
     "client_fallback",
@@ -459,6 +469,7 @@ Deno.serve(async (request) => {
         const relationshipAllowsExplicit =
           routingRelationship?.romance_enabled !== false &&
           routingRelationship?.romance_path_status !== "friends_only";
+        const adultAttachment=attachments.some((attachment)=>attachment.content_rating==='explicit'||attachment.visibility_scope==='web_adult');
         let route = resolveDialogueRouting({
           message: contextText,
           recentTurns: [...(recentRoutingRows ?? [])].reverse(),
@@ -473,6 +484,7 @@ Deno.serve(async (request) => {
           photoRequest: photoIntent.requested,
           photoAdultRequest: ['suggestive','mature','explicit'].includes(String(photoIntent.requestedContentLevel??'')),
           photoSafetyBlocked: photoSafety?.allowed===false,
+          adultAttachment,
           moderation: inputSafety,
         });
         const characterName = String(
@@ -584,7 +596,7 @@ Deno.serve(async (request) => {
               chatLanguage,
               requestFingerprint,
               requestAttachmentIds: [...input.attachmentIds].sort(),
-              ...userMessagePolicy(route),
+              ...userMessagePolicy(route,adultAttachment),
               ...privateDialoguePolicyMetadata({policy:dialoguePolicy,access:adultAccess,conversationMode:'direct',providerRoute:route.provider}),
               ...(isContinuation?{messageAction:'continue',anchorMessageId:input.anchorMessageId,uiHidden:true}:{}),
               ...(input.autoDialogueSuggestionId
@@ -606,6 +618,60 @@ Deno.serve(async (request) => {
         await activateConversationTurn(db, turnLease, {
           sourceMessageId: String(userMessage.id),
         });
+        const lifeTransition = !isContinuation
+          ? await persistCharacterLifeTransition({
+            db,
+            userId: user.id,
+            continuityId: continuity.id,
+            sourceMessageId: String(userMessage.id),
+            message: userText,
+            participants: [lifeParticipantFromInstance(instanceAtRequest)],
+            conversationId: input.conversationId,
+          })
+          : null;
+        if (lifeTransition) {
+          instanceAtRequest.life_state = lifeTransition.to;
+          instanceAtRequest.life_state_summary = lifeTransition.summary;
+          await track(db, user.id, "character_life_state_changed", {
+            characterInstanceId: input.characterInstanceId,
+            conversationId: input.conversationId,
+            from: lifeTransition.from,
+            to: lifeTransition.to,
+            transitionKind: lifeTransition.kind,
+          });
+        }
+        if (!characterCanSpeak(instanceAtRequest.life_state)) {
+          const narration = deadCharacterSceneNarration({
+            name: characterName,
+            summary: instanceAtRequest.life_state_summary,
+          });
+          const sceneCommit = await commitDirectSystemMessage(db, {
+            turnId: turnLease.id,
+            leaseToken: turnLease.token,
+            anchorCharacterInstanceId: input.characterInstanceId,
+            content: narration,
+            responseKey,
+            providerMetadata: {
+              provider: "kivelle-continuity",
+              eventType: "dead_character_silence",
+              lifeState: "dead",
+              chatLanguage,
+              ...safeMessagePolicy("safe"),
+            },
+          });
+          const sceneMessage = sceneCommit.message;
+          if (sceneCommit.created) {
+            await db.from("together_conversations").update({
+              last_message_at: sceneMessage.created_at,
+              updated_at: sceneMessage.created_at,
+            }).eq("id", input.conversationId).eq("user_id", user.id);
+            await track(db, user.id, "dead_character_dialogue_suppressed", {
+              characterInstanceId: input.characterInstanceId,
+              conversationId: input.conversationId,
+            });
+          }
+          return leased(streamText(narration, sceneMessage, correlationId));
+        }
         if (userClaim.created && input.autoDialogueSuggestionId) {
           await track(db, user.id, "auto_dialogue_suggestion_sent", {
             characterInstanceId: input.characterInstanceId,
@@ -1008,6 +1074,7 @@ Deno.serve(async (request) => {
             dialogueContext.relationship?.romance_path_status !==
               "friends_only",
           photoRequest: photoIntent.requested,
+          adultAttachment,
           moderation: inputSafety,
         };
         route = resolveDialogueRouting(selectedRouteInput);
@@ -1491,7 +1558,7 @@ async function waitForAssistantReply(
     const { data } = await db.from("together_messages").select("*").eq(
       "user_id",
       userId,
-    ).eq("conversation_id", conversationId).eq("role", "assistant").eq(
+    ).eq("conversation_id", conversationId).in("role", ["assistant", "system"]).eq(
       "response_key",
       responseKey,
     ).maybeSingle();
@@ -1764,8 +1831,8 @@ function dialogueRunOptions(
 
 function safeMessagePolicy(rating:'safe'|'suggestive'='safe'):Record<string,unknown>{return{contentRating:rating,visibilityScope:'all',moderationVersion:'web-adult-v1'};}
 function projectReplyForAccess(message:Record<string,any>,authorized:boolean):Record<string,any>{if(authorized||isSafePolicy(message))return message;return{id:`bridge-${String(message.id)}`,conversation_id:message.conversation_id,role:'system',content:'Private exchange\n\nA portion of this conversation is unavailable in this app.',delivery_status:'complete',moderation_status:'approved',content_rating:'safe',visibility_scope:'all',moderation_version:'safe-bridge-v1',created_at:message.created_at,updated_at:message.updated_at,provider_metadata:{systemEvent:'restricted_bridge'}};}
-function userMessagePolicy(route:DialogueRoutingDecision):Record<string,unknown>{
-  const adult=route.explicit&&(route.classification==='adult_intimacy'||route.classification==='explicit_adult');
+function userMessagePolicy(route:DialogueRoutingDecision,adultAttachment=false):Record<string,unknown>{
+  const adult=adultAttachment||route.explicit&&(route.classification==='adult_intimacy'||route.classification==='explicit_adult');
   return adult?{contentRating:'explicit',visibilityScope:'all',moderationVersion:'private-adult-text-v1',adultAuthorized:true,safeBridge:'You and your companion shared a more intimate moment and grew closer.'}:safeMessagePolicy(route.resolvedMode==='standard'?'safe':'suggestive');
 }
 function assistantMessagePolicy(route:DialogueRoutingDecision):Record<string,unknown>{
@@ -1961,7 +2028,7 @@ function streamDialogue({
             needsRepair = false;
           const approveAndEmit = async (segment: string): Promise<boolean> => {
             const candidate = approved + segment;
-            if (!runOptions.route.explicit&&hasSexualDialogueLanguage(candidate)) {
+            if (!runOptions.route.explicit&&hasExplicitSexualOutputLanguage(candidate)) {
               blockedCategories = ["production_sexual_content_ceiling"];
               return false;
             }
@@ -2798,7 +2865,7 @@ async function copyWitnessedUserMemories(
     db.from("together_memories").select("*").eq("user_id", input.userId).eq(
       "character_instance_id",
       input.sourceCharacterInstanceId,
-    ).eq("source_message_id", input.userMessageId).eq("status", "active"),
+    ).eq("source_message_id", input.userMessageId).eq("status", "active").eq("visibility_scope","all").in("content_rating",["safe","suggestive"]),
   ]);
   const witnesses = (sceneMessage?.witnessed_by_instance_ids ?? []).map(String)
     .filter((id: string) => id !== input.sourceCharacterInstanceId);
@@ -2831,6 +2898,7 @@ async function copyWitnessedUserMemories(
         "shared_scene_witness",
       ],
       embedding: memory.embedding ?? null,
+      content_rating:memory.content_rating,visibility_scope:"all",moderation_version:memory.moderation_version??"safe-scene-witness-memory-v2",
       metadata: {
         ...(memory.metadata ?? {}),
         witnessedInSceneId: input.sceneId,
@@ -2930,7 +2998,47 @@ async function safelyApplyConversationEffects(
           : "Unknown continuity error",
       }),
     );
+    try {
+      const recovered=await persistDeterministicMemoryRecovery(db,{userId,characterInstanceId:instanceId,sourceMessageId,userText});
+      await track(db,userId,"conversation_effects_failed",{characterInstanceId:instanceId,deterministicMemoriesRecovered:recovered});
+    } catch (recoveryError) {
+      console.error(JSON.stringify({level:"error",correlationId,operation:"deterministic_memory_recovery",message:recoveryError instanceof Error?recoveryError.message:"Unknown memory recovery error"}));
+    }
   }
+}
+
+async function persistDeterministicMemoryRecovery(db:any,input:{userId:string;characterInstanceId:string;sourceMessageId:string;userText:string}):Promise<number>{
+  const candidates=extractMemories(input.userText).filter((candidate)=>isDurableUserMemory({memoryType:candidate.memory_type,canonicalText:candidate.canonical_text}));
+  if(!candidates.length)return 0;
+  const[{data:source},{data:profile}]=await Promise.all([
+    db.from("together_messages").select("content_rating,visibility_scope").eq("id",input.sourceMessageId).eq("user_id",input.userId).maybeSingle(),
+    db.from("together_profiles").select("memory_categories").eq("user_id",input.userId).maybeSingle(),
+  ]);
+  if(source?.visibility_scope!=="all"||!["safe","suggestive"].includes(String(source?.content_rating)))return 0;
+  const enabled=(profile?.memory_categories??{}) as Record<string,boolean>;
+  let recovered=0;
+  for(const candidate of candidates){
+    if(enabled[candidate.memory_type]===false)continue;
+    const{data:activeRows,error:activeError}=await db.from("together_memories").select("*").eq("user_id",input.userId).eq("character_instance_id",input.characterInstanceId).eq("subject_key",candidate.subject_key).eq("status","active").order("updated_at",{ascending:false}).limit(10);
+    if(activeError)throw new Error("MEMORY_RECOVERY_LOOKUP_FAILED");
+    const matching=(activeRows??[]).find((row:Record<string,unknown>)=>row.dedupe_key===candidate.dedupe_key);
+    if(matching){
+      if(String(matching.source_message_id??"")===input.sourceMessageId)continue;
+      const{error}=await db.from("together_memories").update({importance:Math.max(Number(matching.importance),candidate.importance),confidence:Math.min(1,Math.max(Number(matching.confidence),candidate.confidence)+.02),source_message_id:input.sourceMessageId,source_type:"message",source_id:input.sourceMessageId,learned_via:"direct_user",reinforcement_count:Number(matching.reinforcement_count??0)+1,metadata:{...(matching.metadata??{}),...(candidate.metadata??{}),deterministicRecovery:true},updated_at:new Date().toISOString()}).eq("id",matching.id).eq("user_id",input.userId);
+      if(error)throw new Error("MEMORY_RECOVERY_UPDATE_FAILED");
+      recovered+=1;
+      continue;
+    }
+    // Recovery never guesses at corrections or reactivates a forgotten fact.
+    if((activeRows??[]).length)continue;
+    const{data:prior,error:priorError}=await db.from("together_memories").select("id").eq("user_id",input.userId).eq("character_instance_id",input.characterInstanceId).eq("dedupe_key",candidate.dedupe_key).limit(1).maybeSingle();
+    if(priorError)throw new Error("MEMORY_RECOVERY_DEDUPE_FAILED");
+    if(prior)continue;
+    const{error}=await db.from("together_memories").insert({user_id:input.userId,character_instance_id:input.characterInstanceId,...candidate,source_message_id:input.sourceMessageId,source_type:"message",source_id:input.sourceMessageId,learned_via:"direct_user",shareability:"private",valid_from:new Date().toISOString(),status:"active",content_rating:source.content_rating,visibility_scope:"all",moderation_version:"deterministic-memory-recovery-v1",metadata:{...(candidate.metadata??{}),deterministicRecovery:true}});
+    if(error)throw new Error("MEMORY_RECOVERY_INSERT_FAILED");
+    recovered+=1;
+  }
+  return recovered;
 }
 
 function handoffProviderMetadata(context: any): Record<string, unknown> {
@@ -3492,6 +3600,7 @@ async function applyConversationEffects(
       const sameFact = existing.dedupe_key === candidate.dedupe_key;
       const now = new Date().toISOString();
       if (sameFact) {
+        if(String(existing.source_message_id??'')===sourceMessageId)continue;
         await db.from("together_memories").update({
           importance: Math.max(
             Number(existing.importance),
@@ -3507,6 +3616,7 @@ async function applyConversationEffects(
           source_id: sourceMessageId,
           learned_via: "direct_user",
           reinforcement_count: Number(existing.reinforcement_count ?? 0) + 1,
+          content_rating:"safe",visibility_scope:"all",moderation_version:"safe-dialogue-memory-v2",
           updated_at: now,
         }).eq("id", existing.id);
       } else {
@@ -3536,6 +3646,7 @@ async function applyConversationEffects(
           supersedes_memory_id: existing.id,
           embedding,
           status: "active",
+          content_rating:"safe",visibility_scope:"all",moderation_version:"safe-dialogue-memory-v2",
         }).select("id").maybeSingle();
         if (created) {
           await track(db, userId, "memory_corrected", {
@@ -3557,6 +3668,7 @@ async function applyConversationEffects(
         valid_from: new Date().toISOString(),
         embedding,
         status: "active",
+        content_rating:"safe",visibility_scope:"all",moderation_version:"safe-dialogue-memory-v2",
       }).select("id").single();
       if (!error && data) {
         await track(db, userId, "memory_created", {
@@ -3580,6 +3692,7 @@ async function applyConversationEffects(
         character_instance_id: instanceId,
         ...thread,
         source_message_id: sourceMessageId,
+        content_rating:"safe",visibility_scope:"all",moderation_version:"safe-dialogue-thread-v2",
       }).select("id").single();
       if (data) {
         await track(db, userId, "open_thread_created", { threadId: data.id });

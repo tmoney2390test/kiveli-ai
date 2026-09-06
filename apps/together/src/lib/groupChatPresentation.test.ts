@@ -5,7 +5,6 @@ import {
   groupRecipientRequest,
   groupReplyAuthorLabel,
   groupTimelineDayLabel,
-  groupTurnStatusLabel,
   groupWelcomePrompts,
 } from "./groupChatPresentation";
 
@@ -56,16 +55,6 @@ describe("group chat timeline presentation", () => {
       manualSpeakerInstanceId: "b",
     });
     expect(groupRecipientRequest("removed", ["a", "b"])).toEqual({});
-  });
-
-  it("describes routing and active replies clearly", () => {
-    expect(groupTurnStatusLabel([], true)).toBe("Choosing who responds…");
-    expect(groupTurnStatusLabel([{ name: "Iris" }], true)).toBe(
-      "Iris is replying…",
-    );
-    expect(groupTurnStatusLabel([{ name: "Iris" }, { name: "Maya" }], true))
-      .toBe("Iris and Maya are replying…");
-    expect(groupTurnStatusLabel([], false)).toBeNull();
   });
 
   it("builds useful empty-group prompts from the current roster", () => {

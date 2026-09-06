@@ -133,16 +133,14 @@ export default function Subscription() {
     if (!state) return;
     setBusy(tier); setNotice(null);
     try {
-      if (Platform.OS !== 'web' && nativePurchasesConfigured()) {
-        const userId=session?.user.id;if(!userId)throw new Error('Sign in before purchasing a membership.');
-        const purchase=await purchaseNativeSubscription(userId,tier,billingInterval);
-        if(purchase.cancelled){setNotice({tone:'neutral',title:'Purchase cancelled',body:'Nothing was charged and your current membership is unchanged.'});return;}
-        setNotice({tone:'neutral',title:'Confirming your membership',body:'The app store approved the purchase. Kivelle is securely syncing your benefits now.'});
-        const synced=await waitForNativeTier(query.refetch,tier);
-        setNotice(synced?{tone:'success',title:`${tier==='kivelle_max'?'Kivelle Max':'Kivelle+'} is active`,body:'Your app-store membership and benefits are ready.'}:{tone:'warning',title:'Purchase received',body:'The app store completed your purchase, but the signed confirmation is still syncing. Refresh in a moment—trying again will not charge you twice.',retry:true});
-        return;
-      }
-      const result = await manageSubscription<{ url: string }>({ action: 'checkout', tier, billingInterval, requestId: Crypto.randomUUID() }); await openUrl(result.url);
+      if (Platform.OS === 'web') throw new Error('New memberships are available in the Kivelli iOS and Android apps. Existing App Store and Google Play memberships still work here.');
+      if (!nativePurchasesConfigured()) throw new Error('App-store billing is not configured in this build.');
+      const userId=session?.user.id;if(!userId)throw new Error('Sign in before purchasing a membership.');
+      const purchase=await purchaseNativeSubscription(userId,tier,billingInterval);
+      if(purchase.cancelled){setNotice({tone:'neutral',title:'Purchase cancelled',body:'Nothing was charged and your current membership is unchanged.'});return;}
+      setNotice({tone:'neutral',title:'Confirming your membership',body:'The app store approved the purchase. Kivelle is securely syncing your benefits now.'});
+      const synced=await waitForNativeTier(query.refetch,tier);
+      setNotice(synced?{tone:'success',title:`${tier==='kivelle_max'?'Kivelle Max':'Kivelle+'} is active`,body:'Your app-store membership and benefits are ready.'}:{tone:'warning',title:'Purchase received',body:'The app store completed your purchase, but the signed confirmation is still syncing. Refresh in a moment—trying again will not charge you twice.',retry:true});
     }
     catch (caught) { setNotice({ tone: 'danger', title: 'Could not open checkout', body: billingErrorMessage(caught) }); }
     finally { setBusy(''); }
@@ -190,14 +188,11 @@ export default function Subscription() {
   const currentPlan = state.catalog.find((plan) => plan.tier === state.tier) ?? state.capabilities;
   const mode = membershipPageMode(state.tier);
   const nativeStoreCheckout=Platform.OS!=='web'&&nativePurchasesConfigured();
-  const hostedNativeCheckout=Platform.OS==='web'||state.billingPolicy?.nativeExternalCheckoutEnabled!==false;
-  const checkoutConfiguredFor = (plan: SubscriptionPlan) => nativeStoreCheckout||hostedNativeCheckout&&(billingInterval === 'annual' ? Boolean(state.billingConfiguredAnnual?.[plan.tier as Exclude<SubscriptionTier, 'free'>]) : state.billingConfigured[plan.tier as Exclude<SubscriptionTier, 'free'>]);
   const planActionFor = (plan: SubscriptionPlan): PlanAction | null => {
     if (plan.tier === state.tier) return null;
     if (state.tier !== 'free') return { label: managementActionLabel(state.management) || 'Change plan', enabled: state.management.canManageSubscription, reason: state.management.managementReason, onPress: () => void openManagement() };
-    const webCheckoutDisabled=Platform.OS==='web'&&state.billingPolicy?.subscriptionCheckoutEnabled===false;
-    const storeUnavailable=Platform.OS!=='web'&&!nativeStoreCheckout&&!hostedNativeCheckout;
-    return { label: webCheckoutDisabled?'Available in the Kivelli app':`Choose ${plan.displayName}`, enabled: checkoutConfiguredFor(plan), reason: webCheckoutDisabled?'New memberships are available in Kivelli for iOS and Android. Existing App Store and Google Play memberships still work here.':storeUnavailable?'App-store billing is not configured in this build.':'Checkout is temporarily unavailable for this billing interval.', onPress: () => void checkout(plan.tier as Exclude<SubscriptionTier, 'free'>) };
+    const webStoreOnly=Platform.OS==='web';
+    return { label: webStoreOnly?'Available in the Kivelli app':`Choose ${plan.displayName}`, enabled:nativeStoreCheckout, reason:webStoreOnly?'New memberships are available in Kivelli for iOS and Android. Existing App Store and Google Play memberships still work here.':'App-store billing is not configured in this build.', onPress: () => void checkout(plan.tier as Exclude<SubscriptionTier, 'free'>) };
   };
   const maxPlan = paidPlans.find((plan) => plan.tier === 'kivelle_max');
 

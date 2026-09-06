@@ -43,6 +43,7 @@ export type VisionInput = {
   contentType: string;
   userCaption?: string;
   safetyIdentifier?: string;
+  allowExplicitAdult?: boolean;
 };
 export type VisionResult = {
   shortDescription: string;
@@ -52,6 +53,7 @@ export type VisionResult = {
   confidence: number;
   containsRealPerson?: boolean;
   containsMinor?: boolean;
+  contentRating: "safe" | "suggestive" | "explicit";
   model?: string;
   providerRequestId?: string;
 };
@@ -128,6 +130,7 @@ class DeterministicVisionProvider implements VisionProvider {
       notableDetails: [],
       safetyCategories: [],
       confidence: .75,
+      contentRating: "safe",
     };
   }
 }
