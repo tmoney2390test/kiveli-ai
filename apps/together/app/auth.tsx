@@ -225,22 +225,14 @@ export default function Auth() {
 
           {!creating ? <Pressable disabled={authBusy} onPress={() => void reset()}><Text style={styles.secondary}>Forgot password?</Text></Pressable> : null}
 
-          {creating?<View accessibilityLabel="Account agreement" style={styles.agreement}>
+          <View accessibilityLabel="Account agreement" style={styles.agreement}>
             <Text style={styles.agreementText}>
               By continuing, you agree to the{' '}
               <Text accessibilityRole="link" onPress={() => router.push('/terms' as never)} style={styles.agreementLink}>Terms of Service</Text>
               {' '}and{' '}
               <Text accessibilityRole="link" onPress={() => router.push('/privacy-policy' as never)} style={styles.agreementLink}>Privacy Policy</Text>.
             </Text>
-          </View>:<View style={styles.legalLinks}>
-            <Pressable accessibilityRole="link" onPress={() => router.push('/terms' as never)}><Text style={styles.legalLink}>Terms</Text></Pressable>
-            <Text style={styles.legalDot}>·</Text>
-            <Pressable accessibilityRole="link" onPress={() => router.push('/privacy-policy' as never)}><Text style={styles.legalLink}>Privacy</Text></Pressable>
-            <Text style={styles.legalDot}>·</Text>
-            <Pressable accessibilityRole="link" onPress={() => router.push('/community-guidelines' as never)}><Text style={styles.legalLink}>Safety</Text></Pressable>
-            <Text style={styles.legalDot}>·</Text>
-            <Pressable accessibilityRole="link" onPress={() => router.push('/help' as never)}><Text style={styles.legalLink}>Help</Text></Pressable>
-          </View>}
+          </View>
           </>}
         </View>
       </View>
@@ -320,7 +312,4 @@ const styles = StyleSheet.create({
   agreement:{width:'100%',alignItems:'center'},
   agreementText:{maxWidth:390,color:colors.dimmed,fontSize:10,lineHeight:15,textAlign:'center'},
   agreementLink:{color:colors.muted,fontWeight:'800',textDecorationLine:'underline'},
-  legalLinks: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 2 },
-  legalLink: { color: colors.muted, fontSize: 10, fontWeight: '800' },
-  legalDot: { color: colors.dimmed, fontSize: 10 },
 });
