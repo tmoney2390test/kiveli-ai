@@ -11,6 +11,11 @@ describe('Kivelle account routing', () => {
     expect(resolveKivelleAccountStage({ age_verified_at: '2026-08-24', private_text_preference_recorded_at:'2026-09-06',ai_data_consent_recorded_at:'2026-09-06',onboarding_completed_at: '2026-08-24' })).toBe('ready');
   });
 
+  it('opens missing launch choices inside account settings instead of a standalone page', () => {
+    const missingChoices = { profile: { age_verified_at: '2026-08-24', onboarding_completed_at: null } };
+    expect(resolvePostAuthDestination({ authenticated: true, snapshot: missingChoices })).toBe('/account?setup=privacy');
+  });
+
   it('routes new Apple, Google, and password users through the same explicit age gate', () => {
     const newAppleUser = { profile: null };
     const newGoogleUser = { profile: null };

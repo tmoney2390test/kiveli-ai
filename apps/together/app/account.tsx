@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Check, Eye, EyeOff, KeyRound, Mail, ShieldCheck } from 'lucide-react-native';
 import { GradientButton, PageTitle } from '../src/components';
 import { colors, radius, spacing, typography } from '../src/theme';
@@ -10,11 +10,17 @@ import { passwordCheck, validAccountEmail } from '../src/lib/accountSecurity';
 import { manageAccount } from '../src/lib/api';
 import { validBirthdateEntry } from '../src/lib/pendingBirthdate';
 import { BirthdateField } from '../src/components/BirthdateField';
+import { useTogether } from '../src/store/useTogether';
 
 type Notice = { kind: 'success' | 'error'; message: string } | null;
 type BirthdateStatus = { dateOfBirth: string | null; canCorrect: boolean; correctedAt: string | null };
+type TextPreference = 'standard' | 'mature' | 'explicit';
+type PrivacyChoices = { aiDataConsent: { decision: 'accepted' | 'declined' | 'withdrawn' | 'unknown'; recordedAt: string | null }; privateTextPreference: TextPreference | null };
 
 export default function Account() {
+  const params = useLocalSearchParams<{ setup?: string }>();
+  const setupPrivacy = params.setup === 'privacy';
+  const refresh = useTogether((state) => state.refresh);
   const { session, reauthenticate, updateEmail, updatePassword, resendPendingEmailChange, signOutOthers } = useAuth();
   const provider = authProviderState(session?.user);
   const [newEmail, setNewEmail] = useState('');
@@ -24,16 +30,31 @@ export default function Account() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showEmailPassword, setShowEmailPassword] = useState(false);
   const [showPasswords, setShowPasswords] = useState(false);
-  const [busy, setBusy] = useState<'birthdate' | 'email' | 'password' | 'sessions' | 'resend' | null>(null);
+  const [busy, setBusy] = useState<'privacy' | 'birthdate' | 'email' | 'password' | 'sessions' | 'resend' | null>(null);
   const [birthdateStatus,setBirthdateStatus]=useState<BirthdateStatus|null>(null);
   const [birthdate,setBirthdate]=useState('');
   const [birthdateLoading,setBirthdateLoading]=useState(true);
   const [birthdateNotice,setBirthdateNotice]=useState<Notice>(null);
   const [emailNotice, setEmailNotice] = useState<Notice>(null);
   const [passwordNotice, setPasswordNotice] = useState<Notice>(null);
+  const [privacyChoices, setPrivacyChoices] = useState<PrivacyChoices | null>(null);
+  const [privacyPreference, setPrivacyPreference] = useState<TextPreference>('explicit');
+  const [privacyNotice, setPrivacyNotice] = useState<Notice>(null);
+  const [privacyLoading, setPrivacyLoading] = useState(true);
   const strength = useMemo(() => passwordCheck(newPassword), [newPassword]);
   const emailReady = validAccountEmail(newEmail) && (!provider.hasPassword || emailPassword.length > 0);
   const passwordReady = strength.valid && newPassword === confirmPassword && (!provider.hasPassword || currentPassword.length > 0);
+
+  const loadPrivacyChoices = useCallback(async () => {
+    setPrivacyLoading(true); setPrivacyNotice(null);
+    try {
+      const status = await manageAccount<PrivacyChoices>({ action: 'privacy_choices_status' });
+      setPrivacyChoices(status);
+      setPrivacyPreference(status.privateTextPreference ?? 'explicit');
+    } catch (error) {
+      setPrivacyNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Your AI choices could not be loaded.' });
+    } finally { setPrivacyLoading(false); }
+  }, []);
 
   const loadBirthdate=useCallback(async()=>{
     setBirthdateLoading(true);setBirthdateNotice(null);
@@ -42,7 +63,21 @@ export default function Account() {
     finally{setBirthdateLoading(false);}
   },[]);
 
-  useEffect(()=>{void loadBirthdate();},[loadBirthdate]);
+  useEffect(()=>{void loadBirthdate();void loadPrivacyChoices();},[loadBirthdate,loadPrivacyChoices]);
+
+  const savePrivacyChoices = async () => {
+    if (busy || privacyLoading) return;
+    setBusy('privacy'); setPrivacyNotice(null);
+    try {
+      const updated = await manageAccount<PrivacyChoices>({ action: 'privacy_choices', aiDataSharing: setupPrivacy ? true : privacyChoices?.aiDataConsent.decision === 'accepted', privateTextPreference: privacyPreference, source: setupPrivacy ? 'onboarding' : 'account' });
+      setPrivacyChoices(updated);
+      await refresh({ force: true });
+      if (setupPrivacy) { router.replace('/choose-companion' as never); return; }
+      setPrivacyNotice({ kind: 'success', message: 'Your AI and conversation choices were saved.' });
+    } catch (error) {
+      setPrivacyNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Your AI choices could not be saved.' });
+    } finally { setBusy(null); }
+  };
 
   const changeBirthdate=async()=>{
     if(!birthdateStatus?.canCorrect||!validBirthdateEntry(birthdate)||birthdate===birthdateStatus.dateOfBirth||busy)return;
@@ -102,6 +137,18 @@ export default function Account() {
       <View style={styles.summaryIcon}><KeyRound color={colors.violet} /></View><View style={{ flex: 1 }}><Text style={styles.kicker}>{provider.label.toUpperCase()}</Text><Text style={styles.email}>{session?.user.email ?? 'Kivelle account'}</Text><View style={styles.verified}><Check size={13} color={provider.verifiedEmail ? colors.success : colors.warm} /><Text style={{ color: provider.verifiedEmail ? colors.success : colors.warm, fontSize: 12, fontWeight: '800' }}>{provider.verifiedEmail ? 'Verified email' : 'Email verification pending'}</Text></View>{provider.pendingEmail ? <Text style={styles.pending}>Pending change: {provider.pendingEmail}</Text> : null}</View>
     </View>
 
+    <Section title="Conversation Spiciness" body={setupPrivacy ? 'Choose the upper boundary for private text chats. Explicit is selected by default; nothing is saved until you continue.' : 'Choose the upper boundary for your private text chats.'} />
+    <View style={styles.card}>
+      {privacyLoading ? <Text style={styles.loadingText}>Loading conversation settings…</Text> : <>
+        <View accessibilityRole="radiogroup" accessibilityLabel="Conversation Spiciness" style={styles.choiceRow}>
+          {(['standard', 'mature', 'explicit'] as const).map((choice) => <Pressable key={choice} accessibilityRole="radio" accessibilityState={{ checked: privacyPreference === choice, disabled: busy !== null }} disabled={busy !== null} onPress={() => { setPrivacyPreference(choice); setPrivacyNotice(null); }} style={[styles.choiceButton, privacyPreference === choice && styles.choiceButtonSelected]}><Text style={[styles.choiceText, privacyPreference === choice && styles.choiceTextSelected]}>{choice.charAt(0).toUpperCase() + choice.slice(1)}</Text></Pressable>)}
+        </View>
+        {setupPrivacy ? <Text style={styles.consentCopy}>By continuing, you allow Kivelle to send the conversation context, memories, photos, or audio needed for features you choose to use to its disclosed AI providers. You can withdraw permission later in Privacy.</Text> : null}
+        {privacyNotice ? <NoticeView notice={privacyNotice} /> : null}
+        <GradientButton label={busy === 'privacy' ? 'Saving…' : setupPrivacy ? 'Allow AI processing & continue' : 'Save conversation setting'} disabled={busy !== null || (!setupPrivacy && privacyChoices?.privateTextPreference === privacyPreference)} onPress={() => void savePrivacyChoices()} />
+      </>}
+    </View>
+
     <Section title="Birthdate" body="Used privately to confirm that you are an adult. You can correct a saved date once." />
     <View style={styles.card}>
       {birthdateLoading?<Text style={styles.loadingText}>Loading birthdate…</Text>:birthdateStatus?<>
@@ -149,7 +196,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background }, content: { width: '100%', maxWidth: 820, alignSelf: 'center', padding: spacing.lg, paddingBottom: 90, gap: 16 }, header: { flexDirection: 'row', gap: 12, alignItems: 'center' }, back: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, lead: { color: colors.muted, lineHeight: 21, marginBottom: 2 },
   summary: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, summaryIcon: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(154,104,255,.1)' }, kicker: { color: colors.violet, fontSize: 10, fontWeight: '900', letterSpacing: 1.1 }, email: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 3 }, verified: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 }, pending: { color: colors.warm, fontSize: 11, marginTop: 5 },
   section: { gap: 5, marginTop: 8 }, sectionTitle: { color: colors.text, fontFamily: typography.display, fontSize: 25 }, sectionBody: { color: colors.muted, fontSize: 12, lineHeight: 18 }, card: { gap: 15, padding: 18, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, field: { gap: 7 }, label: { color: colors.text, fontSize: 13, fontWeight: '800' }, input: { minHeight: 52, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.elevated, color: colors.text, paddingHorizontal: 14, paddingVertical: 12 }, passwordField: { minHeight: 52, flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.elevated, paddingRight: 14 }, passwordInput: { flex: 1, minHeight: 50, color: colors.text, paddingHorizontal: 14, paddingVertical: 12 },
-  loadingText:{color:colors.muted,fontSize:13},fieldHint:{color:colors.muted,fontSize:11,lineHeight:17},
+  loadingText:{color:colors.muted,fontSize:13},fieldHint:{color:colors.muted,fontSize:11,lineHeight:17},choiceRow:{flexDirection:'row',gap:8},choiceButton:{flex:1,minHeight:46,alignItems:'center',justifyContent:'center',paddingHorizontal:10,borderRadius:radius.md,borderWidth:1,borderColor:colors.border,backgroundColor:colors.elevated},choiceButtonSelected:{borderColor:colors.rose,backgroundColor:'rgba(229,74,163,.14)'},choiceText:{color:colors.muted,fontSize:12,fontWeight:'800'},choiceTextSelected:{color:colors.text},consentCopy:{color:colors.muted,fontSize:11,lineHeight:17},
   textButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, textButtonText: { color: colors.rose, fontWeight: '800', fontSize: 13 }, showRow: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 12 }, showText: { color: colors.violet, fontSize: 13, fontWeight: '800' }, strength: { gap: 8, padding: 12, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.025)' }, strengthHeader: { flexDirection: 'row', justifyContent: 'space-between' }, strengthTitle: { color: colors.muted, fontSize: 12, fontWeight: '800' }, strengthLabel: { color: colors.warm, fontSize: 12, fontWeight: '900' }, strengthTrack: { flexDirection: 'row', gap: 5 }, strengthBar: { flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.border }, requirements: { color: colors.muted, fontSize: 11, lineHeight: 17 }, inlineError: { color: colors.danger, fontSize: 12, fontWeight: '800' },
   notice: { padding: 12, borderRadius: radius.md, backgroundColor: 'rgba(85,194,150,.09)', borderWidth: 1, borderColor: 'rgba(85,194,150,.24)' }, noticeError: { backgroundColor: 'rgba(255,107,121,.07)', borderColor: 'rgba(255,107,121,.28)' }, noticeText: { color: colors.success, fontSize: 12, lineHeight: 18, fontWeight: '700' }, noticeErrorText: { color: colors.danger }, sessionRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, sessionTitle: { color: colors.text, fontWeight: '900' }, sessionBody: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 3 },
 });

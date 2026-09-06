@@ -35,6 +35,7 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   const publicPath = isPublicAppPath(pathname);
   const agePath = isAgeConfirmationPath(pathname);
   const privacyChoicePath = isPrivacyChoicePath(pathname);
+  const accountChoicePath = pathname === '/account';
   const companionOnboardingPath = isCompanionOnboardingPath(pathname);
 
   useEffect(() => {
@@ -98,7 +99,7 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
     const target = stage === 'age_confirmation'
       ? (agePath ? null : '/age-confirmation')
       : stage === 'privacy_choice'
-        ? (privacyChoicePath ? null : '/privacy-choice')
+        ? (privacyChoicePath || accountChoicePath ? null : '/account?setup=privacy')
       : stage === 'onboarding'
         ? (companionOnboardingPath ? null : '/choose-companion')
         : (agePath || privacyChoicePath || companionOnboardingPath ? '/home' : null);
@@ -111,7 +112,7 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
       if (Platform.OS === 'web') consumeWebEntryHref();
       router.replace(target as never);
     }
-  }, [agePath, companionOnboardingPath, privacyChoicePath, publicPath, snapshot]);
+  }, [accountChoicePath, agePath, companionOnboardingPath, privacyChoicePath, publicPath, snapshot]);
 
   let blocker = null;
   if (!snapshot && !publicPath) {
@@ -120,8 +121,8 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
       : <RouteLoadingState pathname={pathname} />;
   } else if (snapshot && !publicPath) {
     const stage = resolveKivelleAccountStage(snapshot.profile);
-    if ((stage === 'age_confirmation' && !agePath) || (stage === 'privacy_choice' && !privacyChoicePath) || (stage === 'onboarding' && !companionOnboardingPath) || (stage === 'ready' && (agePath || privacyChoicePath || companionOnboardingPath))) {
-      blocker = <RouteLoadingState pathname={pathname} label={stage === 'age_confirmation' ? 'Opening age confirmation…' : stage === 'privacy_choice' ? 'Opening privacy choices…' : stage === 'onboarding' ? 'Preparing your first meeting…' : undefined} />;
+    if ((stage === 'age_confirmation' && !agePath) || (stage === 'privacy_choice' && !privacyChoicePath && !accountChoicePath) || (stage === 'onboarding' && !companionOnboardingPath) || (stage === 'ready' && (agePath || privacyChoicePath || companionOnboardingPath))) {
+      blocker = <RouteLoadingState pathname={pathname} label={stage === 'age_confirmation' ? 'Opening age confirmation…' : stage === 'privacy_choice' ? 'Opening account settings…' : stage === 'onboarding' ? 'Preparing your first meeting…' : undefined} />;
     }
   }
 

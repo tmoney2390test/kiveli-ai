@@ -24,7 +24,7 @@ export function resolvePostAuthDestination(input: {
   if (!input.snapshot) return null;
   const stage = resolveKivelleAccountStage(input.snapshot.profile);
   if (stage === 'age_confirmation') return '/age-confirmation';
-  if (stage === 'privacy_choice') return '/privacy-choice';
+  if (stage === 'privacy_choice') return '/account?setup=privacy';
   if (stage === 'onboarding') return '/choose-companion';
   return safeAppReturnPath(input.requestedNext) ?? '/home';
 }

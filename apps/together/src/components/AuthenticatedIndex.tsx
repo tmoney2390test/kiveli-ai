@@ -38,7 +38,7 @@ export default function AuthenticatedIndex() {
     const target = stage === 'age_confirmation'
       ? '/age-confirmation'
       : stage === 'privacy_choice'
-        ? '/privacy-choice'
+        ? '/account?setup=privacy'
       : stage === 'onboarding'
         ? '/choose-companion'
         : '/home';
@@ -53,5 +53,5 @@ export default function AuthenticatedIndex() {
 
   if (loading || (!snapshot && !error)) return <LoadingSkeleton label="Opening your world…" />;
   if (error) return <ErrorState message={error} onRetry={() => void refresh()} />;
-  return <LoadingSkeleton label={stage === 'age_confirmation' ? 'Opening age confirmation…' : stage === 'privacy_choice' ? 'Opening privacy choices…' : stage === 'onboarding' ? 'Preparing your first meeting…' : 'Opening your world…'} />;
+  return <LoadingSkeleton label={stage === 'age_confirmation' ? 'Opening age confirmation…' : stage === 'privacy_choice' ? 'Opening account settings…' : stage === 'onboarding' ? 'Preparing your first meeting…' : 'Opening your world…'} />;
 }

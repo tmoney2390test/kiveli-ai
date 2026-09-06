@@ -39,7 +39,7 @@ export async function loadAiDataConsent(db: SupabaseClient, userId: string): Pro
 export async function requireAiDataConsent(db: SupabaseClient, userId: string): Promise<AiDataConsentState> {
   const state = await loadAiDataConsent(db, userId);
   if (!state.allowsProviderCalls) {
-    throw new AppError('CONSENT_REQUIRED', 'Review AI data sharing in Privacy before using this feature.', 403, false);
+    throw new AppError('CONSENT_REQUIRED', 'Allow AI processing in Account settings before using this feature.', 403, false);
   }
   return state;
 }
@@ -70,4 +70,3 @@ export async function recordAiDataConsent(db: SupabaseClient, input: {
   if (event.error) throw new AppError('INTERNAL_ERROR', 'Your AI privacy choice could not be recorded.', 500, true);
   return aiDataConsentState(current);
 }
-
