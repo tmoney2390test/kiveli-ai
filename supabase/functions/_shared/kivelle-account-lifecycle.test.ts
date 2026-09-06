@@ -1,5 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert@1';
-import { accountDeletionBillingPlan, hasRecentAccountAuthentication, isOwnedAvatarPath, isOwnedPersonaAvatarPath } from './kivelle-account-lifecycle.ts';
+import { accountDeletionBillingPlan, birthdateCorrectionDecision, hasRecentAccountAuthentication, isOwnedAvatarPath, isOwnedPersonaAvatarPath } from './kivelle-account-lifecycle.ts';
 
 Deno.test('account deletion cancels Stripe before removing a billable account', () => {
   assertEquals(accountDeletionBillingPlan({ provider: 'stripe', subscriptionId: 'sub_123', status: 'active' }).action, 'cancel_stripe');
@@ -18,6 +18,13 @@ Deno.test('sensitive deletion requires recent authentication', () => {
   assertEquals(hasRecentAccountAuthentication('2026-08-30T11:55:00.000Z', now), true);
   assertEquals(hasRecentAccountAuthentication('2026-08-30T11:40:00.000Z', now), false);
   assertEquals(hasRecentAccountAuthentication(null, now), false);
+});
+
+Deno.test('birthdate correction allows one actual change without consuming a no-op or initial legacy entry', () => {
+  assertEquals(birthdateCorrectionDecision('1990-01-15', null, '1990-01-15'), { allowed: true, changed: false, consumesCorrection: false });
+  assertEquals(birthdateCorrectionDecision(null, null, '1990-01-15'), { allowed: true, changed: true, consumesCorrection: false });
+  assertEquals(birthdateCorrectionDecision('1990-01-15', null, '1991-02-16'), { allowed: true, changed: true, consumesCorrection: true });
+  assertEquals(birthdateCorrectionDecision('1990-01-15', '2026-09-06T12:00:00.000Z', '1991-02-16'), { allowed: false, changed: false, consumesCorrection: false });
 });
 
 Deno.test('avatar paths remain private and account scoped', () => {

@@ -3,14 +3,14 @@ import { Modal,Platform,Pressable,StyleSheet,Text,View } from 'react-native';
 import DateTimePicker,{type DateTimePickerEvent} from '@react-native-community/datetimepicker';
 import { CalendarDays,X } from 'lucide-react-native';
 import { colors,radius,typography } from '../theme';
-import { birthdateDate,formatBirthdateLabel,latestAdultBirthdate } from '../lib/pendingBirthdate';
+import { birthdateDate,earliestAdultBirthdate,formatBirthdateLabel,latestAdultBirthdate } from '../lib/pendingBirthdate';
 
 type Props={value:string;onChange:(value:string)=>void;disabled?:boolean;hasError?:boolean};
 
 export function BirthdateField({value,onChange,disabled=false,hasError=false}:Props){
   const [open,setOpen]=useState(false);
   const maximumDate=useMemo(()=>birthdateDate(latestAdultBirthdate())??new Date(),[]);
-  const minimumDate=useMemo(()=>new Date(1900,0,1,12),[]);
+  const minimumDate=useMemo(()=>birthdateDate(earliestAdultBirthdate())??new Date(1900,0,1,12),[]);
   const selected=birthdateDate(value)??maximumDate;
   const choose=(event:DateTimePickerEvent,date?:Date)=>{
     if(Platform.OS==='android')setOpen(false);

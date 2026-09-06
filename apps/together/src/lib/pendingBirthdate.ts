@@ -16,6 +16,11 @@ export function latestAdultBirthdate(now=new Date()):string{
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 }
 
+export function earliestAdultBirthdate(now=new Date()):string{
+  const date=new Date(now.getFullYear()-120,now.getMonth(),now.getDate(),12);
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+
 export function formatBirthdateLabel(value:string):string{
   const date=birthdateDate(value);
   return date?date.toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'}):value;

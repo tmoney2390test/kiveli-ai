@@ -32,6 +32,19 @@ export function hasRecentAccountAuthentication(lastSignInAt: string | null | und
   return Number.isFinite(signedInAt) && now.getTime() - signedInAt >= 0 && now.getTime() - signedInAt <= maxAgeMinutes * 60_000;
 }
 
+export type BirthdateCorrectionDecision = {
+  allowed: boolean;
+  changed: boolean;
+  consumesCorrection: boolean;
+};
+
+export function birthdateCorrectionDecision(currentBirthdate: string | null | undefined, correctedAt: string | null | undefined, requestedBirthdate: string): BirthdateCorrectionDecision {
+  if (currentBirthdate === requestedBirthdate) return { allowed: true, changed: false, consumesCorrection: false };
+  if (!currentBirthdate) return { allowed: true, changed: true, consumesCorrection: false };
+  if (correctedAt) return { allowed: false, changed: false, consumesCorrection: false };
+  return { allowed: true, changed: true, consumesCorrection: true };
+}
+
 export function isOwnedAvatarPath(path: string | null, userId: string): boolean {
   return path === null || new RegExp(`^${escapeRegExp(userId)}/avatar-[a-zA-Z0-9_-]+\\.jpg$`).test(path);
 }

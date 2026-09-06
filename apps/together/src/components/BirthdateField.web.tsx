@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import { colors, radius } from '../theme';
-import { latestAdultBirthdate } from '../lib/pendingBirthdate';
+import { earliestAdultBirthdate,latestAdultBirthdate } from '../lib/pendingBirthdate';
 
 type Props={value:string;onChange:(value:string)=>void;disabled?:boolean;hasError?:boolean};
 
@@ -10,7 +10,7 @@ export function BirthdateField({value,onChange,disabled=false,hasError=false}:Pr
       aria-label="Birthdate"
       disabled={disabled}
       max={latestAdultBirthdate()}
-      min="1900-01-01"
+      min={earliestAdultBirthdate()}
       onChange={(event)=>onChange(event.currentTarget.value)}
       type="date"
       value={value}

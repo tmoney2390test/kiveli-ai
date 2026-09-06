@@ -11,10 +11,11 @@ import { reconcilePersonaIdentity } from '../_shared/kivelle-persona.ts';
 import { ensureMainContinuity } from '../_shared/together-continuity.ts';
 import { resolveSubscriptionAccess } from '../_shared/kivelle-subscription.ts';
 import { cancelStripeSubscriptionNow } from '../_shared/stripe.ts';
-import { accountDeletionBillingPlan, hasRecentAccountAuthentication, isOwnedAvatarPath } from '../_shared/kivelle-account-lifecycle.ts';
+import { accountDeletionBillingPlan, birthdateCorrectionDecision, hasRecentAccountAuthentication, isOwnedAvatarPath } from '../_shared/kivelle-account-lifecycle.ts';
 import { validatePrivateAvatarJpeg } from '../_shared/kivelle-avatar.ts';
 import { resolveAdultAccess } from '../_shared/web-adult-access.ts';
 import { AI_DATA_CONSENT_DISCLOSURE_VERSION, AI_DATA_CONSENT_PURPOSE, loadAiDataConsent } from '../_shared/kivelle-ai-consent.ts';
+import { isAtLeast18 } from '../../../packages/together-domain/src/adult-access.ts';
 
 const goals = z.enum(['Dating', 'Friendship', 'Stories', 'Social worlds']);
 const schema = z.discriminatedUnion('action', [
@@ -22,6 +23,8 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('privacy'), settings: z.record(z.string(), z.boolean()) }),
   z.object({ action: z.literal('content'), romanceEnabled: z.boolean() }),
   z.object({ action: z.literal('conversation_style'), responseStyle: z.enum(['texting','paragraph']) }),
+  z.object({ action: z.literal('birthdate_status') }),
+  z.object({ action: z.literal('birthdate_update'), dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
   z.object({ action: z.literal('privacy_choices_status') }),
   z.object({ action: z.literal('privacy_choices'), aiDataSharing: z.boolean(), privateTextPreference: z.enum(['standard','mature','explicit']), source: z.enum(['onboarding','privacy','account']).default('account') }),
   z.object({ action: z.literal('export_request') }),
@@ -37,8 +40,34 @@ serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
   const adultAccess = await resolveAdultAccess(request, user, db);
   const input = await parseBody(request, schema);
-  const actionLimit = input.action === 'export_request' ? 4 : input.action === 'export_status' ? 120 : input.action === 'delete' ? 3 : 20;
+  const actionLimit = input.action === 'export_request' ? 4 : input.action === 'export_status' ? 120 : input.action === 'delete' ? 3 : input.action === 'birthdate_update' ? 5 : 20;
   await enforceRateLimit(db, user.id, `together_account_${input.action}`, actionLimit, 3600);
+
+  if (input.action === 'birthdate_status') {
+    const { data, error } = await db.from('together_profiles').select('date_of_birth,birthdate_corrected_at').eq('user_id', user.id).maybeSingle();
+    if (error || !data) throw new AppError('INTERNAL_ERROR', 'Your birthdate could not be loaded.', 500, true);
+    return json({ data: birthdateStatus(data), correlationId }, 200, correlationId);
+  }
+
+  if (input.action === 'birthdate_update') {
+    if (!isAtLeast18(input.dateOfBirth, new Date())) throw new AppError('FORBIDDEN', 'You must be 18 or older to use Kivelle.', 403, false);
+    const current = await db.from('together_profiles').select('date_of_birth,birthdate_corrected_at').eq('user_id', user.id).maybeSingle();
+    if (current.error || !current.data) throw new AppError('INTERNAL_ERROR', 'Your birthdate could not be loaded.', 500, true);
+    const currentBirthdate=current.data.date_of_birth?String(current.data.date_of_birth):null;
+    const decision=birthdateCorrectionDecision(currentBirthdate,current.data.birthdate_corrected_at?String(current.data.birthdate_corrected_at):null,input.dateOfBirth);
+    if (!decision.allowed) throw new AppError('CONFLICT', 'Your self-service birthdate correction has already been used. Contact support if this date is still wrong.', 409, false);
+    if (!decision.changed) return json({ data: birthdateStatus(current.data), correlationId }, 200, correlationId);
+    const now=new Date().toISOString();
+    const updates:Record<string,unknown>={date_of_birth:input.dateOfBirth,adult_eligible_at:now,adult_eligibility_method:'self_declared_dob_v2',...(decision.consumesCorrection?{birthdate_corrected_at:now}:{}),updated_at:now};
+    if(!currentBirthdate)updates.age_verified_at=now;
+    let update=db.from('together_profiles').update(updates).eq('user_id',user.id);
+    update=currentBirthdate?update.eq('date_of_birth',currentBirthdate).is('birthdate_corrected_at',null):update.is('date_of_birth',null);
+    const saved=await update.select('date_of_birth,birthdate_corrected_at').maybeSingle();
+    if(saved.error)throw new AppError('INTERNAL_ERROR','Your birthdate could not be saved.',500,true);
+    if(!saved.data)throw new AppError('CONFLICT','Your birthdate changed in another session. Refresh and try again.',409,false);
+    await track(db,user.id,'account_birthdate_updated',{correction:decision.consumesCorrection});
+    return json({data:birthdateStatus(saved.data),correlationId},200,correlationId);
+  }
 
   if (input.action === 'profile') {
     if (!isOwnedAvatarPath(input.avatarPath, user.id)) throw new AppError('VALIDATION_FAILED', 'That account photo does not belong to this account.', 400);
@@ -342,6 +371,12 @@ function countExportRecords(value: unknown): number {
 }
 
 function record(value: unknown): Record<string, unknown> { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
+
+function birthdateStatus(profile:{date_of_birth?:unknown;birthdate_corrected_at?:unknown}) {
+  const dateOfBirth=profile.date_of_birth?String(profile.date_of_birth):null;
+  const correctedAt=profile.birthdate_corrected_at?String(profile.birthdate_corrected_at):null;
+  return {dateOfBirth,canCorrect:!dateOfBirth||!correctedAt,correctedAt};
+}
 
 function aiDataSharingDisclosure() {
   return {

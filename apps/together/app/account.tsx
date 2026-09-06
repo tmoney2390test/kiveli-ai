@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Check, Eye, EyeOff, KeyRound, Mail, ShieldCheck } from 'lucide-react-native';
@@ -7,8 +7,12 @@ import { colors, radius, spacing, typography } from '../src/theme';
 import { useAuth } from '../src/hooks/useAuth';
 import { authProviderState } from '../src/lib/authProviders';
 import { passwordCheck, validAccountEmail } from '../src/lib/accountSecurity';
+import { manageAccount } from '../src/lib/api';
+import { validBirthdateEntry } from '../src/lib/pendingBirthdate';
+import { BirthdateField } from '../src/components/BirthdateField';
 
 type Notice = { kind: 'success' | 'error'; message: string } | null;
+type BirthdateStatus = { dateOfBirth: string | null; canCorrect: boolean; correctedAt: string | null };
 
 export default function Account() {
   const { session, reauthenticate, updateEmail, updatePassword, resendPendingEmailChange, signOutOthers } = useAuth();
@@ -20,12 +24,36 @@ export default function Account() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showEmailPassword, setShowEmailPassword] = useState(false);
   const [showPasswords, setShowPasswords] = useState(false);
-  const [busy, setBusy] = useState<'email' | 'password' | 'sessions' | 'resend' | null>(null);
+  const [busy, setBusy] = useState<'birthdate' | 'email' | 'password' | 'sessions' | 'resend' | null>(null);
+  const [birthdateStatus,setBirthdateStatus]=useState<BirthdateStatus|null>(null);
+  const [birthdate,setBirthdate]=useState('');
+  const [birthdateLoading,setBirthdateLoading]=useState(true);
+  const [birthdateNotice,setBirthdateNotice]=useState<Notice>(null);
   const [emailNotice, setEmailNotice] = useState<Notice>(null);
   const [passwordNotice, setPasswordNotice] = useState<Notice>(null);
   const strength = useMemo(() => passwordCheck(newPassword), [newPassword]);
   const emailReady = validAccountEmail(newEmail) && (!provider.hasPassword || emailPassword.length > 0);
   const passwordReady = strength.valid && newPassword === confirmPassword && (!provider.hasPassword || currentPassword.length > 0);
+
+  const loadBirthdate=useCallback(async()=>{
+    setBirthdateLoading(true);setBirthdateNotice(null);
+    try{const status=await manageAccount<BirthdateStatus>({action:'birthdate_status'});setBirthdateStatus(status);setBirthdate(status.dateOfBirth??'');}
+    catch(error){setBirthdateStatus(null);setBirthdateNotice({kind:'error',message:error instanceof Error?error.message:'Your birthdate could not be loaded.'});}
+    finally{setBirthdateLoading(false);}
+  },[]);
+
+  useEffect(()=>{void loadBirthdate();},[loadBirthdate]);
+
+  const changeBirthdate=async()=>{
+    if(!birthdateStatus?.canCorrect||!validBirthdateEntry(birthdate)||birthdate===birthdateStatus.dateOfBirth||busy)return;
+    setBusy('birthdate');setBirthdateNotice(null);
+    try{
+      const status=await manageAccount<BirthdateStatus>({action:'birthdate_update',dateOfBirth:birthdate});
+      setBirthdateStatus(status);setBirthdate(status.dateOfBirth??'');
+      setBirthdateNotice({kind:'success',message:'Your birthdate was updated.'});
+    }catch(error){setBirthdateNotice({kind:'error',message:error instanceof Error?error.message:'Your birthdate could not be updated.'});}
+    finally{setBusy(null);}
+  };
 
   const changeEmail = async () => {
     if (!emailReady || busy) return;
@@ -74,6 +102,19 @@ export default function Account() {
       <View style={styles.summaryIcon}><KeyRound color={colors.violet} /></View><View style={{ flex: 1 }}><Text style={styles.kicker}>{provider.label.toUpperCase()}</Text><Text style={styles.email}>{session?.user.email ?? 'Kivelle account'}</Text><View style={styles.verified}><Check size={13} color={provider.verifiedEmail ? colors.success : colors.warm} /><Text style={{ color: provider.verifiedEmail ? colors.success : colors.warm, fontSize: 12, fontWeight: '800' }}>{provider.verifiedEmail ? 'Verified email' : 'Email verification pending'}</Text></View>{provider.pendingEmail ? <Text style={styles.pending}>Pending change: {provider.pendingEmail}</Text> : null}</View>
     </View>
 
+    <Section title="Birthdate" body="Used privately to confirm that you are an adult. You can correct a saved date once." />
+    <View style={styles.card}>
+      {birthdateLoading?<Text style={styles.loadingText}>Loading birthdate…</Text>:birthdateStatus?<>
+        <Field label="Your birthdate"><BirthdateField disabled={busy!==null||!birthdateStatus.canCorrect} hasError={birthdateNotice?.kind==='error'} value={birthdate} onChange={(value)=>{setBirthdate(value);setBirthdateNotice(null);}}/></Field>
+        <Text style={styles.fieldHint}>{birthdateStatus.canCorrect?'Choose carefully. After this correction, support will need to help with another change.':'To protect age eligibility, further changes are handled by support.'}</Text>
+        {birthdateNotice?<NoticeView notice={birthdateNotice}/>:null}
+        {birthdateStatus.canCorrect?<GradientButton label={busy==='birthdate'?'Updating…':'Update birthdate'} disabled={busy!==null||!validBirthdateEntry(birthdate)||birthdate===birthdateStatus.dateOfBirth} onPress={()=>void changeBirthdate()}/>:<Pressable accessibilityRole="button" onPress={()=>router.push('/support' as never)} style={styles.textButton}><Text style={styles.textButtonText}>Contact support</Text></Pressable>}
+      </>:<>
+        {birthdateNotice?<NoticeView notice={birthdateNotice}/>:null}
+        <Pressable accessibilityRole="button" onPress={()=>void loadBirthdate()} style={styles.textButton}><Text style={styles.textButtonText}>Try again</Text></Pressable>
+      </>}
+    </View>
+
     <Section title="Email address" body="For password accounts, confirm your current password before changing the sign-in email." />
     <View style={styles.card}>
       <Field label="New email address"><TextInput accessibilityLabel="New email address" value={newEmail} onChangeText={(value) => { setNewEmail(value); setEmailNotice(null); }} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" textContentType="emailAddress" style={styles.input} placeholder="name@example.com" placeholderTextColor={colors.muted} /></Field>
@@ -108,6 +149,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background }, content: { width: '100%', maxWidth: 820, alignSelf: 'center', padding: spacing.lg, paddingBottom: 90, gap: 16 }, header: { flexDirection: 'row', gap: 12, alignItems: 'center' }, back: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, lead: { color: colors.muted, lineHeight: 21, marginBottom: 2 },
   summary: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, summaryIcon: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(154,104,255,.1)' }, kicker: { color: colors.violet, fontSize: 10, fontWeight: '900', letterSpacing: 1.1 }, email: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 3 }, verified: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 }, pending: { color: colors.warm, fontSize: 11, marginTop: 5 },
   section: { gap: 5, marginTop: 8 }, sectionTitle: { color: colors.text, fontFamily: typography.display, fontSize: 25 }, sectionBody: { color: colors.muted, fontSize: 12, lineHeight: 18 }, card: { gap: 15, padding: 18, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, field: { gap: 7 }, label: { color: colors.text, fontSize: 13, fontWeight: '800' }, input: { minHeight: 52, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.elevated, color: colors.text, paddingHorizontal: 14, paddingVertical: 12 }, passwordField: { minHeight: 52, flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.elevated, paddingRight: 14 }, passwordInput: { flex: 1, minHeight: 50, color: colors.text, paddingHorizontal: 14, paddingVertical: 12 },
+  loadingText:{color:colors.muted,fontSize:13},fieldHint:{color:colors.muted,fontSize:11,lineHeight:17},
   textButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, textButtonText: { color: colors.rose, fontWeight: '800', fontSize: 13 }, showRow: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 12 }, showText: { color: colors.violet, fontSize: 13, fontWeight: '800' }, strength: { gap: 8, padding: 12, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.025)' }, strengthHeader: { flexDirection: 'row', justifyContent: 'space-between' }, strengthTitle: { color: colors.muted, fontSize: 12, fontWeight: '800' }, strengthLabel: { color: colors.warm, fontSize: 12, fontWeight: '900' }, strengthTrack: { flexDirection: 'row', gap: 5 }, strengthBar: { flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.border }, requirements: { color: colors.muted, fontSize: 11, lineHeight: 17 }, inlineError: { color: colors.danger, fontSize: 12, fontWeight: '800' },
   notice: { padding: 12, borderRadius: radius.md, backgroundColor: 'rgba(85,194,150,.09)', borderWidth: 1, borderColor: 'rgba(85,194,150,.24)' }, noticeError: { backgroundColor: 'rgba(255,107,121,.07)', borderColor: 'rgba(255,107,121,.28)' }, noticeText: { color: colors.success, fontSize: 12, lineHeight: 18, fontWeight: '700' }, noticeErrorText: { color: colors.danger }, sessionRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, sessionTitle: { color: colors.text, fontWeight: '900' }, sessionBody: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 3 },
 });
