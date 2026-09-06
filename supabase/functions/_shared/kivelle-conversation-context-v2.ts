@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   antiRepetitionGuidance,
+  assessScenePressure,
+  type ScenePressure,
   type CharacterGoals,
   type CharacterUserView,
   type CharacterVoiceCard,
@@ -50,6 +52,7 @@ export type TieredConversationContext = BaseContext & {
   characterUserView: CharacterUserView;
   characterVoice: CharacterVoiceCard;
   responseBrief: ResponseBrief;
+  scenePressure: ScenePressure;
   interactionQuality: PromptInteractionQuality;
   antiRepetition: string[];
   director: { used: boolean; provider: string; policy: string };
@@ -290,7 +293,9 @@ export async function buildTieredKivelleConversationContext(
   const handoffsEnabled =
     String(Deno.env.get("KIVELLE_CONVERSATIONAL_HANDOFFS_ENABLED") ?? "true")
       .toLowerCase() !== "false";
+  const scenePressure=assessScenePressure({message:input.userMessage,recentTurns:recent,interactionMode:String(base.currentScene?.interactionMode??'remote')});
   const baseBrief = compileResponseBrief({
+    pressure:scenePressure,
     message: input.userMessage,
     interactionQuality,
     relationshipStance,
@@ -334,6 +339,7 @@ export async function buildTieredKivelleConversationContext(
   });
   const characterVoice = compileCharacterVoiceCard({
     bible: characterBible,
+    pressure:scenePressure,
     characterName: String(base.character?.name ?? ""),
     occupation: String(base.character?.occupation ?? ""),
     message: input.userMessage,
@@ -412,6 +418,7 @@ export async function buildTieredKivelleConversationContext(
     characterUserView,
     characterVoice,
     responseBrief: director.brief,
+    scenePressure,
     interactionQuality,
     antiRepetition,
     director: {

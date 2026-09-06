@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { creatorReadiness, imageDimensions, routineConflicts, type CreatorRoutineBlock } from '../../../packages/together-domain/src/index.ts';
+import { creatorReadiness, normalizeCharacterPerformance, imageDimensions, routineConflicts, type CreatorRoutineBlock } from '../../../packages/together-domain/src/index.ts';
 import { AppError } from './types.ts';
 import { matchesChatPhotoSignature } from './chat-photo-policy.ts';
 import { ConfiguredModerationProvider } from './together-ai.ts';
@@ -142,7 +142,7 @@ async function createDraft(db: Db, userId: string, input: StudioAction, now: str
     create_request_id: requestId, source_concept: concept, relationship_goal: relationshipGoal,
     identity_config: identity, personality_config: personality, communication_config: communication, connection_config: connection,
     appearance_config: { description: String(seed?.description ?? '').trim().length >= 20 ? String(seed?.description).trim() : proposal.appearanceDescription }, life_config: life, routine_config: routine,
-    first_meeting_config: firstMeeting, metadata: { providerMode: 'configured', contextVersion: seed ? 3 : 2 }, created_at: now, updated_at: now,
+    first_meeting_config: firstMeeting, metadata: { providerMode: 'configured', contextVersion: seed ? 3 : 2, characterPerformance: proposal.performanceProfile }, created_at: now, updated_at: now,
   }).select('*').single();
   if (inserted.error || !inserted.data) {
     const retry = await db.from('together_creator_drafts').select('*').eq('user_id', userId).eq('create_request_id', requestId).maybeSingle();
@@ -183,6 +183,10 @@ async function updateDraftSection(db: Db, userId: string, draft: Record<string, 
   } else throw new AppError('VALIDATION_ERROR', 'Choose a valid creator section.', 400);
   await moderateText(JSON.stringify(config));
   const patch: Record<string, unknown> = { [column]: config, updated_at: now, revision: expected + 1, status: 'editing' };
+  if (['identity','personality','communication'].includes(section)) {
+    const identity=section==='identity'?config:draft.identity_config;
+    patch.metadata={...draft.metadata,characterPerformance:normalizeCharacterPerformance({...identity,personality:section==='personality'?config:draft.personality_config,communicationStyle:section==='communication'?config:draft.communication_config})};
+  }
   if (input.currentStep) patch.current_step = input.currentStep;
   if (section === 'connection' && ['friendship', 'romance', 'either'].includes(String(input.relationshipGoal))) patch.relationship_goal = input.relationshipGoal;
   const updated = await db.from('together_creator_drafts').update(patch).eq('id', draft.id).eq('user_id', userId).eq('revision', expected).select('*').maybeSingle();
@@ -363,6 +367,9 @@ async function finalizeDraft(db: Db, userId: string, draft: Record<string, any>,
   await moderateText([draft.identity_config?.biography, draft.personality_config?.note, draft.appearance_config?.description, ...(draft.connection_config?.boundaries ?? [])].filter(Boolean).join('\n'));
   const access = await resolveWorldAccess({ db, userId, worldId: draft.world_id });
   if (access === 'locked') throw new AppError('FORBIDDEN', 'This character’s home world is no longer available.', 403);
+  const performance=normalizeCharacterPerformance({...draft.identity_config,performance:draft.metadata?.characterPerformance});
+  const prepared=await db.from('together_creator_drafts').update({metadata:{...draft.metadata,characterPerformance:performance}}).eq('id',draft.id).eq('user_id',userId).eq('revision',draft.revision).select('id').maybeSingle();
+  if(prepared.error||!prepared.data)throw new AppError('CONFLICT','This draft changed. Review it again before meeting this companion.',409);
   const result = await db.rpc('kivelle_finalize_creator_draft', { p_user_id: userId, p_draft_id: draft.id, p_request_id: requestId });
   if (result.error || !result.data) throw new AppError('CONFLICT', safeDatabaseMessage(result.error?.message, 'This companion could not be finalized.'), 409);
   const selectedAssetId = String(draft.appearance_config?.selectedAssetId ?? '');
@@ -551,6 +558,7 @@ function proposalFromDraft(draft: Record<string, any>): CharacterDraftProposal {
     displayName: identity.name, age: identity.age, pronouns: identity.pronouns || undefined, occupation: identity.occupation,
     biography: identity.biography, interests: identity.interests, traits: identity.traits, personality,
     communicationStyle: draft.communication_config ?? {}, relationshipStyle: draft.connection_config ?? {},
+    performanceProfile: normalizeCharacterPerformance({ ...identity, performance: draft.metadata?.characterPerformance }),
     appearanceDescription: `${identity.gender ? `${identity.gender}. ` : ''}${String(draft.appearance_config?.description ?? `An original fictional adult appearance for ${identity.name}.`)}`,
     lifestyleHints: { preferredActivities: draft.life_config?.preferredActivities ?? identity.interests, scheduleStyle: draft.life_config?.scheduleStyle },
   };

@@ -21,6 +21,7 @@ export function conversationResponseLength(input: {
   const quality = input.interactionQuality ?? 'normal';
   const message = input.message.trim();
   const tinyReaction = /^(lol|lmao|ok|okay|yeah|yep|nope|nice|cool|sure|wow)[.!?]*$/i.test(message);
+  if (input.intent === 'danger') return 'short';
   if (tinyReaction || quality === 'trivial') return 'micro';
 
   const storytelling = intent === 'storytelling' || /\b(tell me (?:a story|about)|what happened|walk me through)\b/i.test(message);

@@ -61,3 +61,5 @@ export * from './story-guidance.ts';
 export * from './world-pulse.ts';
 export * from './narrative-consequences.ts';
 export * from './character-life-state.ts';
+export * from './scene-pressure.ts';
+export * from './character-performance.ts';

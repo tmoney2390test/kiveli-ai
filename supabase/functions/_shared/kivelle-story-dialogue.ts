@@ -1,3 +1,5 @@
+import { assessScenePressure, scenePressureGuidance } from '../../../packages/together-domain/src/scene-pressure.ts';
+import { selectCharacterPerformance } from '../../../packages/together-domain/src/character-performance.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildResponsesRequestBody, executeResponsesHttp, extractResponsesText } from '../../../packages/together-domain/src/ai-provider.ts';
 import { normalizeResponsesUsage } from '../../../packages/together-domain/src/ai-usage.ts';
@@ -15,6 +17,7 @@ type CanonicalStoryIdentity = {
   interests: string[];
   personality: string;
   communicationStyle: string;
+  performanceBible: unknown;
 };
 
 const canonicalStoryIdentityCache = new Map<string, { expiresAt: number; value: CanonicalStoryIdentity | null }>();
@@ -74,6 +77,8 @@ export async function generateStoryDialogue(input: {
     }
     return `SYSTEM EVENT: ${String(message.content).slice(0, 900)}`;
   });
+  const pressure=assessScenePressure({message:input.userMessage,recentTurns:input.recentMessages.slice(-4).map((turn)=>({role:String(turn['role']),content:String(turn['content']??'')})),interactionMode:'co_present'});
+  const performance=selectCharacterPerformance({bible:canonicalIdentity?.performanceBible??{},occupation:canonicalIdentity?.occupation??character.publicRole??'Local witness',mode:pressure.phase==='immediate'||pressure.phase==='uncertain'?'danger':String(characterState?.emotionalState)==='angry'?'conflicted':'casual',pressure,recentAssistantMessages:input.recentMessages.filter((turn)=>turn['character_slug']===character.id).map((turn)=>String(turn['content']??''))});
   const prompt = [
     '<KIVELLI_STORY_DIALOGUE>',
     `STORY: ${input.definition.title}`,
@@ -109,6 +114,11 @@ export async function generateStoryDialogue(input: {
     `EMOTIONAL TELLS: ${(fingerprint?.emotionalTells ?? []).join('; ') || 'Let emotion alter rhythm rather than explaining it.'}`,
     `VOICE AVOIDS: ${(fingerprint?.avoids ?? []).join('; ') || 'Avoid assistant-like phrasing and lore lectures.'}`,
     ...(selectedExamples.length ? ['VOICE EXAMPLES — style only; never copy their content:', ...selectedExamples.map((example) => `- “${example}”`)] : []),
+    `CHARACTER UNDER PRESSURE: ${performance.behavior} ${performance.speech}`,
+    `PERSONAL STAKES: ${performance.motivation} Competing motive: ${performance.contradiction}. Habitual defense: ${performance.defense}. Express these through behavior without reciting them or disclosing a secret.`,
+    ...(selectedExamples.length?[]:[`VOICE EXAMPLES — style only, never copy content: ${JSON.stringify(performance.voiceExamples)}`]),
+    ...(pressure.phase==='none'?[]:[scenePressureGuidance(pressure)]),
+    'Ordinary sentences, incomplete thoughts, and quiet are allowed. Do not make every line an aphorism, metaphor, or clue.',
     `CURRENT EMOTIONAL STATE: ${input.before.characterStates[character.id]?.emotionalState ?? profile?.initialEmotionalState ?? 'calm'}`,
     `CURRENT CANONICAL REALITY: Loop ${input.before.currentLoop}; ${formatStoryTime(input.before.currentMinute)}; ${currentLocation.name}.`,
     ...(departure ? [
@@ -318,6 +328,7 @@ async function resolveCanonicalStoryIdentity(db: SupabaseClient, characterSlug: 
     interests: Array.isArray(interests) ? interests.map((item) => String(item)).filter(Boolean).slice(0, 8) : [],
     personality: conciseIdentityValue(version?.['personality_config'], 420),
     communicationStyle: conciseIdentityValue(version?.['communication_style'], 360),
+    performanceBible: version?.['character_bible']??{},
   };
   canonicalStoryIdentityCache.set(characterSlug, { expiresAt: Date.now() + CANONICAL_STORY_IDENTITY_TTL_MS, value });
   return value;

@@ -1,12 +1,14 @@
 import {z} from 'zod';
+import {normalizeCharacterPerformance,isValidCharacterPerformance} from '../../../packages/together-domain/src/character-performance.ts';
 
 export const characterDraftSchema=z.object({
   displayName:z.string().trim().min(1).max(50),age:z.number().int().min(18).max(99),pronouns:z.string().trim().max(40).optional(),occupation:z.string().trim().min(1).max(100),biography:z.string().trim().min(20).max(1000),
   interests:z.array(z.string().trim().min(1).max(40)).min(1).max(12),traits:z.array(z.string().trim().min(1).max(40)).min(2).max(8),
   personality:z.object({warmth:z.number().min(0).max(1),humor:z.number().min(0).max(1),directness:z.number().min(0).max(1),independence:z.number().min(0).max(1),spontaneity:z.number().min(0).max(1),socialEnergy:z.number().min(0).max(1)}),
   communicationStyle:z.record(z.string(),z.unknown()).default({}),relationshipStyle:z.record(z.string(),z.unknown()).default({}),appearanceDescription:z.string().trim().min(20).max(1000),
+  performanceProfile:z.unknown().optional(),
   lifestyleHints:z.object({preferredActivities:z.array(z.string()).max(10).optional(),scheduleStyle:z.string().max(200).optional()}).default({}),
-});
+}).transform((draft)=>({...draft,performanceProfile:normalizeCharacterPerformance({occupation:draft.occupation,traits:draft.traits,performance:draft.performanceProfile})})).refine((draft)=>isValidCharacterPerformance(draft.performanceProfile),'Character behavior and speech examples must be complete.');
 export type CharacterDraftProposal=z.infer<typeof characterDraftSchema>;
 export interface CharacterCreationProvider{propose(concept:string):Promise<CharacterDraftProposal>}
 
@@ -14,7 +16,7 @@ export class ConfiguredCharacterCreationProvider implements CharacterCreationPro
   async propose(concept:string):Promise<CharacterDraftProposal>{
     const key=Deno.env.get('OPENAI_API_KEY');if(!key)return deterministicCharacterDraft(concept);
     try{
-      const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model:Deno.env.get('KIVELLE_CREATOR_MODEL')??'gpt-5-mini',input:`Create an original fictional adult Kivelle companion from this concept. Never imitate or name a real person. Return only valid JSON with displayName, age, pronouns, occupation, biography, interests, traits, personality (warmth, humor, directness, independence, spontaneity, socialEnergy from 0 to 1), communicationStyle, relationshipStyle, appearanceDescription, lifestyleHints. Concept:\n${concept}`,max_output_tokens:1000,text:{format:{type:'json_object'}}})});
+      const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model:Deno.env.get('KIVELLE_CREATOR_MODEL')??'gpt-5-mini',input:`Create an original fictional adult Kivelle companion from this concept. Never imitate or name a real person. Return only valid JSON with displayName, age, pronouns, occupation, biography, interests, traits, personality (warmth, humor, directness, independence, spontaneity, socialEnergy from 0 to 1), communicationStyle, relationshipStyle, appearanceDescription, lifestyleHints, performanceProfile. performanceProfile must have version:1, source:"authored", a character-specific motivation, contradiction, defense, and states for relaxed, threatened, angry, vulnerable, aftermath. Each state has behavior, speech, and examples (two short distinct lines demonstrating this person's voice). Show how the same personality changes under pressure. Use concrete competing motives and an observable defense, never generic therapy language. Examples are style references, not established history or scripted outcomes. Keep this person's era and register. Do not make every sentence a metaphor or slogan. Do not specify sexual willingness or change relationship rules. Concept:\n${concept}`,max_output_tokens:2600,text:{format:{type:'json_object'}}})});
       if(!response.ok)return deterministicCharacterDraft(concept);
       const payload=await response.json();const raw=payload.output_text??payload.output?.flatMap((item:Record<string,unknown>)=>Array.isArray(item.content)?item.content:[]).find((item:Record<string,unknown>)=>item.type==='output_text')?.text;
       return characterDraftSchema.parse(JSON.parse(String(raw??'{}')));
