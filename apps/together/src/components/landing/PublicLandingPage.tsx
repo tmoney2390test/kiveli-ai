@@ -65,7 +65,10 @@ export function PublicLandingPage() {
           <LandingAction label="Sign in" onPress={signIn} />
         </View>
 
-        <KivelleLogo height={shortViewport ? 28 : desktop ? 40 : 34} style={[styles.logo, shortViewport && styles.logoShort]} />
+        <KivelleLogo
+          height={shortViewport ? 28 : desktop ? 40 : 34}
+          style={[styles.logo, desktop ? styles.logoDesktop : styles.logoMobile]}
+        />
       </View>
     </View>
   </View>;
@@ -141,6 +144,7 @@ const styles = StyleSheet.create({
   actionPressed: { opacity: 0.82, transform: [{ scale: 0.992 }] },
   actionLabel: { zIndex: 2, color: '#FFF', fontSize: 17, lineHeight: 22, fontWeight: '800' },
   actionLabelSecondary: { color: '#F8F4F8' },
-  logo: { marginTop: 20 },
-  logoShort: { marginTop: 12 },
+  logo: { alignSelf: 'center' },
+  logoDesktop: { position: 'absolute', bottom: 36 },
+  logoMobile: { marginTop: 'auto' },
 });

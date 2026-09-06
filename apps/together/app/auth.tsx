@@ -6,7 +6,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { CircleCheck, Eye, EyeOff } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BirthdateField } from '../src/components/BirthdateField';
-import { GradientButton, KivelleLogo } from '../src/components';
+import { GradientButton } from '../src/components';
 import { GoogleMark } from '../src/components/GoogleMark';
 import { colors, radius, typography } from '../src/theme';
 import { useAuth } from '../src/hooks/useAuth';
@@ -164,9 +164,6 @@ export default function Auth() {
             ? <View pointerEvents="none" style={[styles.heroFade,wide?styles.heroFadeWideWeb:styles.heroFadeCompactWeb]}/>
             : <View pointerEvents="none" style={[styles.heroFade,wide?styles.heroFadeWideNative:styles.heroFadeCompactNative]}/>
           }
-          <View style={[styles.heroLogo,wide?styles.heroLogoWide:[styles.heroLogoCompact,{top:Math.max(insets.top+14,22)}]]}>
-            <KivelleLogo height={wide?40:34}/>
-          </View>
         </View>
 
         <View style={[
@@ -266,9 +263,6 @@ const styles = StyleSheet.create({
   heroFadeCompactWeb:{left:0,right:0,bottom:0,height:118,backgroundColor:'transparent',backgroundImage:'linear-gradient(180deg, rgba(5,4,10,0) 0%, #05040A 100%)'} as never,
   heroFadeWideNative:{top:0,right:0,bottom:0,width:42,backgroundColor:'rgba(5,4,10,.66)'},
   heroFadeCompactNative:{left:0,right:0,bottom:0,height:70,backgroundColor:'rgba(5,4,10,.74)'},
-  heroLogo:{position:'absolute',zIndex:2},
-  heroLogoWide:{top:30,left:42},
-  heroLogoCompact:{left:0,right:0,alignItems:'center'},
   form: { gap: 12,backgroundColor:'#05040A' },
   formShort:{gap:8},
   formCompact:{paddingTop:10,paddingHorizontal:24},
