@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Check, Eye, EyeOff, KeyRound, Mail, ShieldCheck } from 'lucide-react-native';
+import { ArrowLeft, Check, KeyRound, Mail, ShieldCheck } from 'lucide-react-native';
 import { GradientButton, PageTitle } from '../src/components';
 import { colors, radius, spacing, typography } from '../src/theme';
 import { useAuth } from '../src/hooks/useAuth';
 import { authProviderState } from '../src/lib/authProviders';
-import { passwordCheck, validAccountEmail } from '../src/lib/accountSecurity';
+import { validAccountEmail } from '../src/lib/accountSecurity';
 import { manageAccount } from '../src/lib/api';
 import { validBirthdateEntry } from '../src/lib/pendingBirthdate';
 import { BirthdateField } from '../src/components/BirthdateField';
@@ -21,29 +21,20 @@ export default function Account() {
   const params = useLocalSearchParams<{ setup?: string }>();
   const setupPrivacy = params.setup === 'privacy';
   const refresh = useTogether((state) => state.refresh);
-  const { session, reauthenticate, updateEmail, updatePassword, resendPendingEmailChange, signOutOthers } = useAuth();
+  const { session, updateEmail, resendPendingEmailChange, signOutOthers } = useAuth();
   const provider = authProviderState(session?.user);
   const [newEmail, setNewEmail] = useState('');
-  const [emailPassword, setEmailPassword] = useState('');
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showEmailPassword, setShowEmailPassword] = useState(false);
-  const [showPasswords, setShowPasswords] = useState(false);
-  const [busy, setBusy] = useState<'privacy' | 'birthdate' | 'email' | 'password' | 'sessions' | 'resend' | null>(null);
+  const [busy, setBusy] = useState<'privacy' | 'birthdate' | 'email' | 'sessions' | 'resend' | null>(null);
   const [birthdateStatus,setBirthdateStatus]=useState<BirthdateStatus|null>(null);
   const [birthdate,setBirthdate]=useState('');
   const [birthdateLoading,setBirthdateLoading]=useState(true);
   const [birthdateNotice,setBirthdateNotice]=useState<Notice>(null);
   const [emailNotice, setEmailNotice] = useState<Notice>(null);
-  const [passwordNotice, setPasswordNotice] = useState<Notice>(null);
   const [privacyChoices, setPrivacyChoices] = useState<PrivacyChoices | null>(null);
   const [privacyPreference, setPrivacyPreference] = useState<TextPreference>('explicit');
   const [privacyNotice, setPrivacyNotice] = useState<Notice>(null);
   const [privacyLoading, setPrivacyLoading] = useState(true);
-  const strength = useMemo(() => passwordCheck(newPassword), [newPassword]);
-  const emailReady = validAccountEmail(newEmail) && (!provider.hasPassword || emailPassword.length > 0);
-  const passwordReady = strength.valid && newPassword === confirmPassword && (!provider.hasPassword || currentPassword.length > 0);
+  const emailReady = validAccountEmail(newEmail);
 
   const loadPrivacyChoices = useCallback(async () => {
     setPrivacyLoading(true); setPrivacyNotice(null);
@@ -94,25 +85,11 @@ export default function Account() {
     if (!emailReady || busy) return;
     setBusy('email'); setEmailNotice(null);
     try {
-      if (provider.hasPassword) await reauthenticate(emailPassword);
       await updateEmail(newEmail.trim().toLowerCase());
-      setNewEmail(''); setEmailPassword('');
+      setNewEmail('');
       setEmailNotice({ kind: 'success', message: 'Confirmation links were sent. Follow the email instructions to finish the change.' });
     } catch (error) {
       setEmailNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Your email could not be updated.' });
-    } finally { setBusy(null); }
-  };
-
-  const changePassword = async () => {
-    if (!passwordReady || busy) return;
-    setBusy('password'); setPasswordNotice(null);
-    try {
-      if (provider.hasPassword) await reauthenticate(currentPassword);
-      await updatePassword(newPassword);
-      setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
-      setPasswordNotice({ kind: 'success', message: provider.hasPassword ? 'Password updated. Other sessions remain signed in unless you sign them out below.' : 'Password added. You can now sign in with email and password.' });
-    } catch (error) {
-      setPasswordNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Your password could not be updated.' });
     } finally { setBusy(null); }
   };
 
@@ -130,8 +107,8 @@ export default function Account() {
   ]);
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back to settings" hitSlop={10} onPress={() => router.canGoBack() ? router.back() : router.replace('/settings?section=account')} style={styles.back}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Sign-in & security</PageTitle></View>
-    <Text style={styles.lead}>Change how you sign in and secure access to your Kivelle account. Your profile is managed separately in Settings.</Text>
+    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back to settings" hitSlop={10} onPress={() => router.canGoBack() ? router.back() : router.replace('/settings?section=account')} style={styles.back}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Account & security</PageTitle></View>
+    <Text style={styles.lead}>Manage your verified email, birthdate, conversation setting, and active sessions.</Text>
 
     <View style={styles.summary}>
       <View style={styles.summaryIcon}><KeyRound color={colors.violet} /></View><View style={{ flex: 1 }}><Text style={styles.kicker}>{provider.label.toUpperCase()}</Text><Text style={styles.email}>{session?.user.email ?? 'Kivelle account'}</Text><View style={styles.verified}><Check size={13} color={provider.verifiedEmail ? colors.success : colors.warm} /><Text style={{ color: provider.verifiedEmail ? colors.success : colors.warm, fontSize: 12, fontWeight: '800' }}>{provider.verifiedEmail ? 'Verified email' : 'Email verification pending'}</Text></View>{provider.pendingEmail ? <Text style={styles.pending}>Pending change: {provider.pendingEmail}</Text> : null}</View>
@@ -162,24 +139,12 @@ export default function Account() {
       </>}
     </View>
 
-    <Section title="Email address" body="For password accounts, confirm your current password before changing the sign-in email." />
+    <Section title="Email address" body="Kivelle sends a private code to this address when you sign in." />
     <View style={styles.card}>
       <Field label="New email address"><TextInput accessibilityLabel="New email address" value={newEmail} onChangeText={(value) => { setNewEmail(value); setEmailNotice(null); }} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" textContentType="emailAddress" style={styles.input} placeholder="name@example.com" placeholderTextColor={colors.muted} /></Field>
-      {provider.hasPassword ? <Field label="Current password"><View style={styles.passwordField}><TextInput accessibilityLabel="Current password for email change" value={emailPassword} onChangeText={setEmailPassword} secureTextEntry={!showEmailPassword} autoCapitalize="none" textContentType="password" style={styles.passwordInput} placeholder="Confirm your password" placeholderTextColor={colors.muted} /><Pressable accessibilityRole="button" accessibilityLabel={showEmailPassword ? 'Hide current password' : 'Show current password'} hitSlop={8} onPress={() => setShowEmailPassword((value) => !value)}>{showEmailPassword ? <EyeOff size={19} color={colors.muted} /> : <Eye size={19} color={colors.muted} />}</Pressable></View></Field> : null}
       {emailNotice ? <NoticeView notice={emailNotice} /> : null}
       <GradientButton label={busy === 'email' ? 'Updating…' : 'Change email'} disabled={!emailReady || busy !== null} onPress={() => void changeEmail()} />
       {provider.pendingEmail ? <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy !== null }} disabled={busy !== null} onPress={() => void resend()} style={styles.textButton}><Mail size={17} color={colors.rose} /><Text style={styles.textButtonText}>{busy === 'resend' ? 'Sending…' : 'Resend email-change confirmation'}</Text></Pressable> : null}
-    </View>
-
-    <Section title={provider.hasPassword ? 'Password' : 'Add a password'} body={provider.hasPassword ? 'Use a unique password you do not reuse on another service.' : 'Add password sign-in while keeping your connected provider available.'} />
-    <View style={styles.card}>
-      {provider.hasPassword ? <Field label="Current password"><PasswordInput label="Current password" value={currentPassword} onChange={setCurrentPassword} show={showPasswords} placeholder="Current password" /></Field> : null}
-      <Field label="New password"><PasswordInput label="New password" value={newPassword} onChange={(value) => { setNewPassword(value); setPasswordNotice(null); }} show={showPasswords} placeholder="10+ characters" /></Field>
-      <Field label="Confirm new password"><PasswordInput label="Confirm new password" value={confirmPassword} onChange={(value) => { setConfirmPassword(value); setPasswordNotice(null); }} show={showPasswords} placeholder="Enter it again" /></Field>
-      <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: showPasswords }} onPress={() => setShowPasswords((value) => !value)} style={styles.showRow}>{showPasswords ? <EyeOff size={18} color={colors.violet} /> : <Eye size={18} color={colors.violet} />}<Text style={styles.showText}>{showPasswords ? 'Hide passwords' : 'Show passwords'}</Text></Pressable>
-      {newPassword ? <View accessibilityLabel={`Password strength: ${strength.label}`} style={styles.strength}><View style={styles.strengthHeader}><Text style={styles.strengthTitle}>Password strength</Text><Text style={[styles.strengthLabel, strength.valid && { color: colors.success }]}>{strength.label}</Text></View><View style={styles.strengthTrack}>{[0,1,2,3].map((index) => <View key={index} style={[styles.strengthBar, index < strength.score && { backgroundColor: strength.valid ? colors.success : colors.warm }]} />)}</View>{strength.requirements.length ? <Text style={styles.requirements}>Still needed: {strength.requirements.join(', ')}.</Text> : null}{confirmPassword && newPassword !== confirmPassword ? <Text accessibilityRole="alert" style={styles.inlineError}>The new passwords do not match.</Text> : null}</View> : null}
-      {passwordNotice ? <NoticeView notice={passwordNotice} /> : null}
-      <GradientButton label={busy === 'password' ? 'Updating…' : provider.hasPassword ? 'Update password' : 'Add password'} disabled={!passwordReady || busy !== null} onPress={() => void changePassword()} />
     </View>
 
     <Section title="Sessions" body="Use this if you signed in on a device you no longer control." />
@@ -189,7 +154,6 @@ export default function Account() {
 
 function Section({ title, body }: { title: string; body: string }) { return <View style={styles.section}><Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text><Text style={styles.sectionBody}>{body}</Text></View>; }
 function Field({ label, children }: { label: string; children: ReactNode }) { return <View style={styles.field}><Text style={styles.label}>{label}</Text>{children}</View>; }
-function PasswordInput({ label, value, onChange, show, placeholder }: { label: string; value: string; onChange: (value: string) => void; show: boolean; placeholder: string }) { return <TextInput accessibilityLabel={label} value={value} onChangeText={onChange} secureTextEntry={!show} autoCapitalize="none" autoCorrect={false} textContentType="password" style={styles.input} placeholder={placeholder} placeholderTextColor={colors.muted} />; }
 function NoticeView({ notice }: { notice: Exclude<Notice, null> }) { return <View accessibilityRole="alert" style={[styles.notice, notice.kind === 'error' && styles.noticeError]}><Text style={[styles.noticeText, notice.kind === 'error' && styles.noticeErrorText]}>{notice.message}</Text></View>; }
 
 const styles = StyleSheet.create({

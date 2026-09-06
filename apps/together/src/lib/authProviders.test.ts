@@ -9,8 +9,8 @@ describe('auth provider presentation', () => {
     expect(authProviderState(user({ identities: [{ provider: 'google' } as never], app_metadata: {}, user_metadata: {} }))).toMatchObject({ label: 'Signed in with Google', hasPassword: false, verifiedEmail: true });
   });
 
-  it('recognizes linked Google and password identities plus pending email changes', () => {
-    expect(authProviderState(user({ identities: [{ provider: 'google' } as never, { provider: 'email' } as never], app_metadata: {}, user_metadata: {}, new_email: 'new@example.com' }))).toMatchObject({ label: 'Signed in with Google + password', hasPassword: true, pendingEmail: 'new@example.com' });
+  it('recognizes linked Google and passwordless email identities plus pending email changes', () => {
+    expect(authProviderState(user({ identities: [{ provider: 'google' } as never, { provider: 'email' } as never], app_metadata: {}, user_metadata: {}, new_email: 'new@example.com' }))).toMatchObject({ label: 'Signed in with Google + Email code', hasPassword: false, pendingEmail: 'new@example.com' });
   });
 
   it('recognizes an Apple identity as verified without implying a password', () => {

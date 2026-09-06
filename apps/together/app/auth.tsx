@@ -3,9 +3,8 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollVie
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { CircleCheck, Eye, EyeOff } from 'lucide-react-native';
+import { CircleCheck } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BirthdateField } from '../src/components/BirthdateField';
 import { GradientButton } from '../src/components';
 import { GoogleMark } from '../src/components/GoogleMark';
 import { colors, radius, typography } from '../src/theme';
@@ -15,8 +14,10 @@ import { safeAppReturnPath } from '../src/lib/sessionRouting';
 import { resolvePostAuthDestination } from '../src/lib/authRouting';
 import type { SocialAuthProvider } from '../src/lib/socialAuth';
 import { useWebHydrated } from '../src/hooks/useWebHydrated';
-import { validBirthdateEntry } from '../src/lib/pendingBirthdate';
 import { publicLandingPrimaryHeroAsset } from '../src/components/landing/publicLandingAssets';
+import { EMAIL_CODE_RESEND_SECONDS, emailCodeReady, emailCodeResendSeconds, normalizeEmailAddress, normalizeEmailCode } from '../src/lib/emailCodeAuth';
+
+type EmailAuthStage = 'email' | 'code';
 
 export default function Auth() {
   const params = useLocalSearchParams<{ mode?: string; next?: string }>();
@@ -24,20 +25,21 @@ export default function Auth() {
   const insets=useSafeAreaInsets();
   const webHydrated = useWebHydrated();
   const wide = webHydrated && width >= 900;
-  const [creating, setCreating] = useState(params.mode !== 'signin');
+  const creating = params.mode !== 'signin';
+  const [stage, setStage] = useState<EmailAuthStage>('email');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [dateOfBirth,setDateOfBirth]=useState('');
-  const [visible, setVisible] = useState(false);
+  const [code, setCode] = useState('');
+  const [submittedEmail, setSubmittedEmail] = useState('');
+  const [resendAvailableAt, setResendAvailableAt] = useState(0);
+  const [clock, setClock] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const [socialBusy,setSocialBusy]=useState<SocialAuthProvider|null>(null);
   const [error, setError] = useState('');
   const [signedIn, setSignedIn] = useState(false);
   const [openingError, setOpeningError] = useState('');
   const [notice, setNotice] = useState('');
-  const [confirmationEmail, setConfirmationEmail] = useState('');
   const [nativeAppleAvailable,setNativeAppleAvailable]=useState(Platform.OS!=='ios');
-  const { signIn, signInWithSocial, signUp, resendSignUpConfirmation, requestPasswordReset, signingOut, socialAuth } = useAuth();
+  const { requestEmailCode, verifyEmailCode, signInWithSocial, signingOut, socialAuth } = useAuth();
   const refresh = useTogether((state) => state.refresh);
 
   useEffect(()=>{
@@ -46,6 +48,12 @@ export default function Auth() {
     void AppleAuthentication.isAvailableAsync().then((available)=>{if(active)setNativeAppleAvailable(available);}).catch(()=>{if(active)setNativeAppleAvailable(false);});
     return()=>{active=false;};
   },[socialAuth.apple]);
+
+  useEffect(() => {
+    if (stage !== 'code' || resendAvailableAt <= Date.now()) return;
+    const timer = setInterval(() => setClock(Date.now()), 1_000);
+    return () => clearInterval(timer);
+  }, [resendAvailableAt, stage]);
 
   const openSignedInWorld = async () => {
     setBusy(true);
@@ -63,71 +71,66 @@ export default function Auth() {
     }
   };
 
-  const switchMode = (nextCreating: boolean) => {
-    setCreating(nextCreating);
-    setError('');
-    setNotice('');
-  };
-
   const submit = async () => {
     if (busy || signingOut) return;
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail.includes('@')) {
-      setError('Enter a valid email address.');
+    const normalizedEmail = normalizeEmailAddress(stage === 'code' ? submittedEmail : email);
+    if (!normalizedEmail) {
+      setError('Enter your email address so we can send your code.');
       return;
     }
-    if (password.length < 8) {
-      setError('Your password needs at least 8 characters.');
-      return;
-    }
-    if(creating&&!validBirthdateEntry(dateOfBirth)){
-      setError('Choose your birthdate.');
+    if (stage === 'code' && !emailCodeReady(code)) {
+      setError('Enter the six-digit code from your email.');
       return;
     }
     setBusy(true);
     setError('');
     setNotice('');
     try {
-      if (creating) {
-        const result = await signUp(normalizedEmail, password,dateOfBirth);
-        if (result.needsEmailConfirmation) {
-          setConfirmationEmail(normalizedEmail);
-          setNotice('Check your email for a secure link to finish creating your account.');
-          return;
-        }
+      if (stage === 'email') {
+        await requestEmailCode(normalizedEmail);
+        setSubmittedEmail(normalizedEmail);
+        setStage('code');
+        setResendAvailableAt(Date.now() + EMAIL_CODE_RESEND_SECONDS * 1_000);
+        setClock(Date.now());
+        setNotice('We sent a six-digit code.');
       } else {
-        await signIn(normalizedEmail, password);
+        await verifyEmailCode(normalizedEmail, normalizeEmailCode(code));
         setSignedIn(true);
         await openSignedInWorld();
       }
     } catch (caught) {
-      const message = caught instanceof Error ? caught.message : creating ? 'Account creation failed.' : 'Sign in failed.';
-      if (creating && (caught as { code?: string })?.code === 'CONFLICT') {
-        setCreating(false);
-        setError('That email already has an account. Sign in with your password.');
-      } else {
-        setError(message === 'Failed to fetch' ? 'Kivelle could not reach the server. Check your connection and try again.' : message);
-      }
+      const message = caught instanceof Error ? caught.message : stage === 'email' ? 'The code could not be sent.' : 'The code could not be verified.';
+      setError(message === 'Failed to fetch' ? 'Kivelle could not reach the server. Check your connection and try again.' : message);
     } finally {
       setBusy(false);
     }
   };
 
-  const reset = async () => {
-    if (!email.trim()) {
-      setError('Enter your email first.');
-      return;
-    }
+  const resendCode = async () => {
+    const remaining = emailCodeResendSeconds(resendAvailableAt, Date.now());
+    if (busy || signingOut || remaining > 0 || !submittedEmail) return;
     setBusy(true);
     setError('');
+    setNotice('');
     try {
-      await requestPasswordReset(email.trim().toLowerCase());
-      setNotice('Password reset email sent.');
+      await requestEmailCode(submittedEmail);
+      setResendAvailableAt(Date.now() + EMAIL_CODE_RESEND_SECONDS * 1_000);
+      setClock(Date.now());
+      setNotice('A new six-digit code is on its way.');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not send a password reset email.');
+      setError(caught instanceof Error ? caught.message : 'A new code could not be sent.');
     } finally {
       setBusy(false);
     }
+  };
+
+  const changeEmail = () => {
+    setStage('email');
+    setCode('');
+    setSubmittedEmail('');
+    setResendAvailableAt(0);
+    setError('');
+    setNotice('');
   };
 
   const socialSignIn=async(provider:SocialAuthProvider)=>{
@@ -146,8 +149,9 @@ export default function Auth() {
   const showApple=socialAuth.apple&&nativeAppleAvailable;
   const shortViewport=!wide&&height<720;
   const safeAreaReserve=Math.max(0,insets.bottom-6);
-  const mobileFormReserve=(creating?(shortViewport?478:516):(shortViewport?410:438))+safeAreaReserve;
+  const mobileFormReserve=(stage==='code'?(shortViewport?354:382):(shortViewport?388:420))+safeAreaReserve;
   const mobileHeroHeight=Math.max(80,Math.min(height*.43,height-mobileFormReserve));
+  const resendSeconds=emailCodeResendSeconds(resendAvailableAt,clock);
 
   return <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.scroll} contentContainerStyle={[styles.page,{minHeight:height}]}>
@@ -185,40 +189,28 @@ export default function Auth() {
             </View>}
           </View> : <>
           <View style={styles.intro}>
-            <Text style={[styles.title,wide?styles.titleWide:styles.titleCompact,shortViewport&&styles.titleShort]}>{signingOut ? 'Signing you out…' : creating ? 'Find your person.' : 'Welcome back.'}</Text>
+            <Text style={[styles.title,wide?styles.titleWide:styles.titleCompact,shortViewport&&styles.titleShort]}>{signingOut ? 'Signing you out…' : stage==='code' ? 'Check your email.' : creating ? 'Find your person.' : 'Welcome back.'}</Text>
+            {stage==='code'?<Text style={styles.codeLead}>Enter the six-digit code sent to {submittedEmail}.</Text>:null}
           </View>
 
-          <View style={styles.tabs}>
-            <Pressable accessibilityRole="tab" accessibilityState={{ selected: !creating, disabled: signingOut }} disabled={signingOut} onPress={() => switchMode(false)} style={[styles.tab, !creating && styles.tabActive]}>
-              <Text style={[styles.tabText, !creating && styles.tabTextActive]}>Sign in</Text>
-            </Pressable>
-            <Pressable accessibilityRole="tab" accessibilityState={{ selected: creating, disabled: signingOut }} disabled={signingOut} onPress={() => switchMode(true)} style={[styles.tab, creating && styles.tabActive]}>
-              <Text style={[styles.tabText, creating && styles.tabTextActive]}>Join free</Text>
-            </Pressable>
-          </View>
+          {stage==='email'
+            ? <TextInput accessibilityLabel="Email address" editable={!authBusy} value={email} onChangeText={(value)=>{setEmail(value);setError('');}} onSubmitEditing={()=>void submit()} returnKeyType="go" autoCapitalize="none" autoCorrect={false} autoComplete="email" keyboardType="email-address" placeholder="Email address" placeholderTextColor={colors.dimmed} style={[styles.input,error&&styles.inputError]} />
+            : <TextInput accessibilityLabel="Six-digit sign-in code" editable={!authBusy} value={code} onChangeText={(value)=>{setCode(normalizeEmailCode(value));setError('');}} onSubmitEditing={()=>{if(emailCodeReady(code))void submit();}} returnKeyType="go" autoCapitalize="none" autoCorrect={false} autoComplete="one-time-code" keyboardType="number-pad" maxLength={6} placeholder="000000" placeholderTextColor={colors.dimmed} selectTextOnFocus style={[styles.input,styles.codeInput,error&&styles.inputError]} />}
 
-          <TextInput accessibilityLabel="Email" editable={!authBusy} value={email} onChangeText={setEmail} onSubmitEditing={()=>{if(password.length)void submit();}} returnKeyType={password.length?'go':'next'} autoCapitalize="none" autoCorrect={false} autoComplete="email" keyboardType="email-address" placeholder="Email address" placeholderTextColor={colors.dimmed} style={[styles.input,error&&styles.inputError]} />
-          <View style={styles.password}>
-            <TextInput accessibilityLabel={creating ? 'Create a password' : 'Password'} editable={!authBusy} value={password} onChangeText={setPassword} onSubmitEditing={()=>void submit()} returnKeyType="go" autoCapitalize="none" autoCorrect={false} autoComplete={creating ? 'new-password' : 'current-password'} secureTextEntry={!visible} placeholder={creating ? 'Create a password' : 'Password'} placeholderTextColor={colors.dimmed} style={styles.passwordInput} />
-            <Pressable accessibilityLabel={visible ? 'Hide password' : 'Show password'} disabled={authBusy} onPress={() => setVisible(!visible)} style={styles.eye}>{visible ? <EyeOff size={20} color={colors.text} /> : <Eye size={20} color={colors.text} />}</Pressable>
-          </View>
-          {creating?<View style={styles.birthdateBlock}>
-            <BirthdateField disabled={authBusy} hasError={Boolean(error)&&!validBirthdateEntry(dateOfBirth)} value={dateOfBirth} onChange={(value)=>{setDateOfBirth(value);setError('');}} />
-            <Text style={styles.birthdateHint}>You must be 18 or older. Your birthdate is kept private.</Text>
+          {error ? <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.errorBox}><Text style={styles.errorTitle}>{stage==='email'?'We couldn’t send the code':'That code didn’t work'}</Text><Text style={styles.error}>{error}</Text></View> : null}
+          {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+
+          <GradientButton label={signingOut ? 'Finishing sign out…' : busy ? stage==='email'?'Sending code…':'Checking code…' : stage==='email'?'Email me a code':'Continue'} disabled={authBusy} onPress={() => void submit()} />
+
+          {stage==='code'?<View style={styles.codeActions}>
+            <Pressable accessibilityRole="button" disabled={authBusy} onPress={changeEmail} hitSlop={10}><Text style={styles.secondary}>Use a different email</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityState={{disabled:authBusy||resendSeconds>0}} disabled={authBusy||resendSeconds>0} onPress={()=>void resendCode()} hitSlop={10}><Text style={[styles.secondary,resendSeconds>0&&styles.secondaryDisabled]}>{resendSeconds>0?`Resend in ${resendSeconds}s`:'Resend code'}</Text></Pressable>
           </View>:null}
 
-          {error ? <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.errorBox}><Text style={styles.errorTitle}>{creating?'We couldn’t create that account':'We couldn’t sign you in'}</Text><Text style={styles.error}>{error}</Text></View> : null}
-          {notice ? <Text style={styles.notice}>{notice}</Text> : null}
-          {confirmationEmail ? <Pressable disabled={authBusy} onPress={() => void resendSignUpConfirmation(confirmationEmail).then(() => setNotice('A fresh secure sign-in link was sent.')).catch((caught) => setError(caught instanceof Error ? caught.message : 'Could not resend the link.'))}><Text style={styles.secondary}>Resend secure sign-in link</Text></Pressable> : null}
-
-          <GradientButton label={signingOut ? 'Finishing sign out…' : busy ? creating ? 'Creating your account…' : 'Signing in…' : creating ? 'Choose your world' : 'Sign in'} disabled={authBusy} onPress={() => void submit()} />
-
-          {socialAuth.google||showApple?<><View style={styles.divider}><View style={styles.dividerLine}/><Text style={styles.dividerText}>OR CONTINUE WITH</Text><View style={styles.dividerLine}/></View><View style={styles.socialRow}>
+          {stage==='email'&&(socialAuth.google||showApple)?<><View style={styles.divider}><View style={styles.dividerLine}/><Text style={styles.dividerText}>OR CONTINUE WITH</Text><View style={styles.dividerLine}/></View><View style={styles.socialRow}>
             {socialAuth.google?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Google" disabled={socialDisabled} onPress={()=>void socialSignIn('google')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><GoogleMark/><Text style={styles.socialText}>{socialBusy==='google'?'Connecting…':'Google'}</Text></Pressable>:null}
             {showApple&&Platform.OS==='ios'?<View accessibilityState={{disabled:socialDisabled}} pointerEvents={socialDisabled?'none':'auto'} style={[styles.nativeAppleSlot,socialDisabled&&styles.socialDisabled]}><AppleAuthentication.AppleAuthenticationButton buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE} buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE} cornerRadius={12} style={styles.nativeAppleButton} onPress={()=>void socialSignIn('apple')}/></View>:showApple?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Apple" disabled={socialDisabled} onPress={()=>void socialSignIn('apple')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><Text style={styles.providerMark}></Text><Text style={styles.socialText}>{socialBusy==='apple'?'Connecting…':'Apple'}</Text></Pressable>:null}
           </View></>:null}
-
-          {!creating ? <Pressable disabled={authBusy} onPress={() => void reset()}><Text style={styles.secondary}>Forgot password?</Text></Pressable> : null}
 
           <View accessibilityLabel="Account agreement" style={styles.agreement}>
             <Text style={styles.agreementText}>
@@ -269,12 +261,14 @@ const styles = StyleSheet.create({
   titleWide:{fontSize:56,lineHeight:58},
   titleCompact:{fontSize:46,lineHeight:48,textAlign:'center'},
   titleShort:{fontSize:40,lineHeight:42},
+  codeLead:{color:colors.muted,fontSize:13,lineHeight:19,textAlign:'center',marginTop:5},
   tabs: { flexDirection: 'row', padding: 4, borderRadius: radius.pill, backgroundColor: colors.background },
   tab: { flex: 1, minHeight: 38, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   tabActive: { backgroundColor: colors.elevated, borderWidth: 1, borderColor: colors.border },
   tabText: { color: colors.muted, fontWeight: '800', fontSize: 13 },
   tabTextActive: { color: colors.text },
   input: { minHeight: 50, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, color: colors.text, paddingHorizontal: 15, fontSize: 16 },
+  codeInput:{fontSize:24,fontWeight:'800',letterSpacing:8,textAlign:'center'},
   inputError:{borderColor:'rgba(255,113,129,.52)'},
   password: { minHeight: 50, flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
   passwordInput: { flex: 1, minHeight: 48, color: colors.text, paddingHorizontal: 15, fontSize: 16, outlineStyle: 'none' } as never,
@@ -304,6 +298,8 @@ const styles = StyleSheet.create({
   providerMark:{color:colors.text,fontSize:18,fontWeight:'900'},
   socialText:{color:colors.text,fontSize:12,fontWeight:'800'},
   secondary: { textAlign: 'center', color: colors.muted, fontWeight: '700', fontSize: 12 },
+  secondaryDisabled:{color:colors.dimmed},
+  codeActions:{minHeight:32,flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:4},
   agreement:{width:'100%',alignItems:'center'},
   agreementText:{maxWidth:390,color:colors.dimmed,fontSize:10,lineHeight:15,textAlign:'center'},
   agreementLink:{color:colors.muted,fontWeight:'800',textDecorationLine:'underline'},

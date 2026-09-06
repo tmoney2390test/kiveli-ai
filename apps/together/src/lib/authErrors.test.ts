@@ -6,8 +6,14 @@ describe('authErrorMessage', () => {
     expect(authErrorMessage('invalid_credentials', 'fallback')).toBe('That email or password is incorrect.');
   });
 
-  it('directs unconfirmed password users to the real ownership-verification flow', () => {
-    expect(authErrorMessage('email_not_confirmed', 'fallback')).toContain('confirm your account');
+  it('directs unconfirmed users to the email-code flow', () => {
+    expect(authErrorMessage('email_not_confirmed', 'fallback')).toContain('sign-in code');
+  });
+
+  it('maps passwordless delivery and code failures without account-enumeration copy', () => {
+    expect(authErrorMessage('email_address_invalid', 'fallback')).toContain('could not receive');
+    expect(authErrorMessage('otp_expired', 'fallback')).toContain('invalid or has expired');
+    expect(authErrorMessage('over_email_send_rate_limit', 'fallback')).toContain('Wait a minute');
   });
 
   it('preserves unexpected provider messages for diagnosis', () => {

@@ -10,6 +10,7 @@ import { useAuth } from '../src/hooks/useAuth';
 import { authProviderState } from '../src/lib/authProviders';
 import { exportStatusCopy } from '../src/lib/accountSecurity';
 import type { SocialAuthProvider } from '../src/lib/socialAuth';
+import { emailCodeReady, normalizeEmailCode } from '../src/lib/emailCodeAuth';
 
 type ExportState = { id: string; status: 'queued' | 'processing' | 'ready' | 'failed' | 'expired'; fileName: string; expiresAt: string; signedUrl?: string; sizeBytes?: number | null };
 type DeletionPreview = { canDelete: boolean; billingAction: 'none' | 'cancel_stripe' | 'external_action'; providerLabel: string | null; message: string; requiresRecentAuthentication: boolean };
@@ -18,10 +19,10 @@ type PrivacyChoices = { aiDataConsent: { decision: 'accepted' | 'declined' | 'wi
 export default function Privacy() {
   const params = useLocalSearchParams<{ delete?: string; verified?: string }>();
   const { snapshot, refresh, clear } = useTogether();
-  const { session, signOut, reauthenticate, signInWithSocial } = useAuth();
+  const { session, signOut, requestEmailCode, verifyEmailCode, signInWithSocial } = useAuth();
   const provider = authProviderState(session?.user), settings = snapshot?.profile?.privacy_settings ?? { personalization: true, analytics: true };
-  const [deleteOpen, setDeleteOpen] = useState(false), [confirmation, setConfirmation] = useState(''), [currentPassword, setCurrentPassword] = useState(''), [deleting, setDeleting] = useState(false);
-  const [deletePreview, setDeletePreview] = useState<DeletionPreview | null>(null), [deleteError, setDeleteError] = useState(''), [previewLoading, setPreviewLoading] = useState(false), [socialVerified, setSocialVerified] = useState(params.verified === '1');
+  const [deleteOpen, setDeleteOpen] = useState(false), [confirmation, setConfirmation] = useState(''), [emailCode, setEmailCode] = useState(''), [emailCodeSent, setEmailCodeSent] = useState(false), [deleting, setDeleting] = useState(false);
+  const [deletePreview, setDeletePreview] = useState<DeletionPreview | null>(null), [deleteError, setDeleteError] = useState(''), [previewLoading, setPreviewLoading] = useState(false), [identityVerified, setIdentityVerified] = useState(params.verified === '1');
   const [exportState, setExportState] = useState<ExportState | null>(null), [exportBusy, setExportBusy] = useState(false), [exportError, setExportError] = useState('');
   const [privacyChoices, setPrivacyChoices] = useState<PrivacyChoices | null>(null), [privacyChoiceBusy, setPrivacyChoiceBusy] = useState(false), [privacyChoiceError, setPrivacyChoiceError] = useState('');
 
@@ -44,7 +45,7 @@ export default function Privacy() {
     catch (error) { setDeleteError(error instanceof Error ? error.message : 'Account deletion details could not be loaded.'); }
     finally { setPreviewLoading(false); }
   };
-  const openDelete = () => { setConfirmation(''); setCurrentPassword(''); setDeletePreview(null); setDeleteError(''); setSocialVerified(params.verified === '1'); setDeleteOpen(true); void loadDeletePreview(); };
+  const openDelete = () => { setConfirmation(''); setEmailCode(''); setEmailCodeSent(false); setDeletePreview(null); setDeleteError(''); setIdentityVerified(params.verified === '1'); setDeleteOpen(true); void loadDeletePreview(); };
 
   useEffect(() => { if (params.delete === '1') openDelete(); }, [params.delete, params.verified]);
 
@@ -78,10 +79,26 @@ export default function Privacy() {
 
   const verifySocial = async () => {
     const socialProvider = provider.providers.find((item): item is SocialAuthProvider => item === 'google' || item === 'apple');
-    if (!socialProvider) { setDeleteError('Add a password from Sign-in & security, then use it to confirm deletion.'); return; }
+    if (!socialProvider) { setDeleteError('Use the email verification option to continue.'); return; }
     setDeleting(true); setDeleteError('');
-    try { await signInWithSocial(socialProvider, '/privacy?delete=1&verified=1'); setSocialVerified(true); }
+    try { await signInWithSocial(socialProvider, '/privacy?delete=1&verified=1'); setIdentityVerified(true); }
     catch (error) { setDeleteError(error instanceof Error ? error.message : 'Your sign-in could not be verified.'); }
+    finally { setDeleting(false); }
+  };
+
+  const sendDeleteCode = async () => {
+    if (!session?.user.email || deleting) return;
+    setDeleting(true); setDeleteError('');
+    try { await requestEmailCode(session.user.email); setEmailCodeSent(true); }
+    catch (error) { setDeleteError(error instanceof Error ? error.message : 'A verification code could not be sent.'); }
+    finally { setDeleting(false); }
+  };
+
+  const verifyDeleteCode = async () => {
+    if (!session?.user.email || !emailCodeReady(emailCode) || deleting) return;
+    setDeleting(true); setDeleteError('');
+    try { await verifyEmailCode(session.user.email, normalizeEmailCode(emailCode)); setIdentityVerified(true); }
+    catch (error) { setDeleteError(error instanceof Error ? error.message : 'That verification code could not be confirmed.'); }
     finally { setDeleting(false); }
   };
 
@@ -89,8 +106,7 @@ export default function Privacy() {
     if (confirmation !== 'DELETE' || !deletePreview?.canDelete || deleting) return;
     setDeleting(true); setDeleteError('');
     try {
-      if (provider.hasPassword) await reauthenticate(currentPassword);
-      else if (!socialVerified) { setDeleteError('Verify your connected sign-in before deleting the account.'); return; }
+      if (!identityVerified) { setDeleteError('Verify your sign-in before deleting the account.'); return; }
       await manageAccount({ action: 'delete', confirmation: 'DELETE' });
       await signOut().catch(() => undefined);
       clear(); setDeleteOpen(false); router.replace('/auth');
@@ -98,7 +114,7 @@ export default function Privacy() {
     finally { setDeleting(false); }
   };
 
-  const deleteReady = confirmation === 'DELETE' && Boolean(deletePreview?.canDelete) && (provider.hasPassword ? currentPassword.length > 0 : socialVerified);
+  const deleteReady = confirmation === 'DELETE' && Boolean(deletePreview?.canDelete) && identityVerified;
   return <Screen>
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Go back" hitSlop={10} onPress={() => router.canGoBack() ? router.back() : router.replace('/settings?section=privacy')}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Privacy</PageTitle></View>
     <Text style={styles.lead}>You control what Kivelle keeps and how the experience is personalized.</Text>
@@ -123,7 +139,7 @@ export default function Privacy() {
         <View style={styles.modalHeader}><Text accessibilityRole="header" style={styles.modalTitle}>Delete your account?</Text><Pressable accessibilityRole="button" accessibilityLabel="Close account deletion" hitSlop={10} disabled={deleting} onPress={() => setDeleteOpen(false)}><X color={colors.muted} /></Pressable></View>
         <Text style={styles.modalBody}>This permanently removes your Kivelle account, conversations, memories, relationships, exports, and stored media. This cannot be undone.</Text>
         <View style={styles.billingReview}>{previewLoading ? <View style={styles.loadingRow}><ActivityIndicator color={colors.violet} /><Text style={styles.billingText}>Checking subscription status…</Text></View> : deletePreview ? <><Text style={styles.billingTitle}>{deletePreview.canDelete ? 'Billing reviewed' : 'Subscription action needed'}</Text><Text style={styles.billingText}>{deletePreview.message}</Text>{deletePreview.billingAction==='external_action'||!deletePreview.canDelete ? <Pressable accessibilityRole="button" onPress={() => { setDeleteOpen(false); router.push('/subscription'); }} style={styles.billingButton}><Text style={styles.billingButtonText}>Manage renewal separately</Text></Pressable> : null}</> : <Pressable accessibilityRole="button" onPress={() => void loadDeletePreview()} style={styles.billingButton}><Text style={styles.billingButtonText}>Retry billing check</Text></Pressable>}</View>
-        {provider.hasPassword ? <><Text style={styles.confirmLabel}>Current password</Text><TextInput accessibilityLabel="Current password to delete account" value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry autoCapitalize="none" autoCorrect={false} textContentType="password" placeholder="Confirm your password" placeholderTextColor={colors.dimmed} style={styles.confirmInput} /></> : <View style={styles.socialVerify}><Text style={styles.confirmLabel}>Verify your sign-in</Text><Text style={styles.billingText}>{socialVerified ? 'Your connected sign-in was verified.' : 'Reauthenticate with your connected provider before account deletion.'}</Text>{!socialVerified ? <Pressable accessibilityRole="button" disabled={deleting} onPress={() => void verifySocial()} style={styles.billingButton}><Text style={styles.billingButtonText}>Verify with {provider.providers.includes('google') ? 'Google' : 'Apple'}</Text></Pressable> : <View style={styles.verifiedRow}><CheckCircle2 size={17} color={colors.success} /><Text style={styles.verifiedText}>Identity verified</Text></View>}</View>}
+        <View style={styles.socialVerify}><Text style={styles.confirmLabel}>Verify your sign-in</Text>{identityVerified?<View style={styles.verifiedRow}><CheckCircle2 size={17} color={colors.success} /><Text style={styles.verifiedText}>Identity verified</Text></View>:provider.providers.some((item)=>item==='google'||item==='apple')?<><Text style={styles.billingText}>Confirm with your connected sign-in before account deletion.</Text><Pressable accessibilityRole="button" disabled={deleting} onPress={() => void verifySocial()} style={styles.billingButton}><Text style={styles.billingButtonText}>Verify with {provider.providers.includes('google') ? 'Google' : 'Apple'}</Text></Pressable></>:emailCodeSent?<><Text style={styles.billingText}>Enter the six-digit code sent to {session?.user.email}.</Text><TextInput accessibilityLabel="Six-digit account deletion verification code" value={emailCode} onChangeText={(value)=>setEmailCode(normalizeEmailCode(value))} keyboardType="number-pad" autoComplete="one-time-code" maxLength={6} placeholder="000000" placeholderTextColor={colors.dimmed} style={styles.confirmInput}/><Pressable accessibilityRole="button" accessibilityState={{disabled:deleting||!emailCodeReady(emailCode)}} disabled={deleting||!emailCodeReady(emailCode)} onPress={()=>void verifyDeleteCode()} style={[styles.billingButton,(deleting||!emailCodeReady(emailCode))&&styles.disabled]}><Text style={styles.billingButtonText}>Verify code</Text></Pressable></>:<><Text style={styles.billingText}>We’ll send a private code to {session?.user.email}.</Text><Pressable accessibilityRole="button" disabled={deleting} onPress={()=>void sendDeleteCode()} style={styles.billingButton}><Text style={styles.billingButtonText}>Email a verification code</Text></Pressable></>}</View>
         <Text style={styles.confirmLabel}>Type DELETE to confirm</Text><TextInput accessibilityLabel="Type DELETE to confirm account deletion" autoCapitalize="characters" autoCorrect={false} value={confirmation} onChangeText={setConfirmation} placeholder="DELETE" placeholderTextColor={colors.dimmed} style={styles.confirmInput} />
         {deleteError ? <Text accessibilityRole="alert" style={styles.error}>{deleteError}</Text> : null}
         <View style={styles.modalActions}><Pressable accessibilityRole="button" disabled={deleting} onPress={() => setDeleteOpen(false)} style={styles.cancelButton}><Text style={styles.cancelText}>Not now</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Delete account permanently" accessibilityState={{ disabled: deleting || !deleteReady }} disabled={deleting || !deleteReady} onPress={() => void remove()} style={[styles.deleteButton, (deleting || !deleteReady) && styles.disabled]}><Text style={styles.deleteText}>{deleting ? 'Deleting…' : 'Delete permanently'}</Text></Pressable></View>

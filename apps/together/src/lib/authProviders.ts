@@ -16,12 +16,15 @@ export function authProviderState(user: User | null | undefined): AuthProviderSt
   for (const provider of metadataProviders) if (typeof provider === 'string') values.add(provider);
   if (typeof user.app_metadata?.provider === 'string') values.add(user.app_metadata.provider);
   const providers = (['google', 'apple', 'email'] as const).filter((provider) => values.has(provider));
-  const names = providers.map((provider) => provider === 'email' ? 'password' : provider === 'google' ? 'Google' : 'Apple');
+  const names = providers.map((provider) => provider === 'email' ? 'Email code' : provider === 'google' ? 'Google' : 'Apple');
   const label = names.length ? `Signed in with ${joinProviderNames(names)}` : 'Signed in';
   return {
     providers,
     label,
-    hasPassword: providers.includes('email'),
+    // Kivelle's primary email flow is passwordless. Supabase represents both
+    // password and OTP sign-in with the same `email` identity, so that identity
+    // must not be presented as proof that a usable password exists.
+    hasPassword: false,
     verifiedEmail: Boolean(user.email_confirmed_at) || providers.includes('google') || providers.includes('apple'),
     pendingEmail: typeof user.new_email === 'string' && user.new_email.trim() ? user.new_email : null,
   };

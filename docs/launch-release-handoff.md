@@ -61,7 +61,7 @@ Emergency rollback: set `KIVELLE_PRIVATE_ADULT_TEXT_MODE=off` and disable affect
 
 Run on current production-like builds, recording device/build, network, account type, correlation IDs, measured latency, and observed provider cost. Do not invent capacity or an SLA.
 
-- Auth: fresh password signup/confirmation, expired link recovery, Google, Apple web OAuth, native Apple, and password reset.
+- Auth: fresh email-code signup/sign-in, expired or incorrect code recovery, Google, Apple web OAuth, and native Apple.
 - Privacy: age confirmation, independent private-text and AI-sharing choices, decline, withdrawal, multi-device persistence, and no repeated prompt after a current valid choice.
 - Chat: first meeting; direct and private group; regeneration; edit/continue; existing mixed history; eligible explicit text on all three surfaces; uncertain participant age and prohibited content fail closed.
 - Media: SFW generation on all supported surfaces; eligible web-only adult generation; native/unknown projection and direct asset-request rejection; forged surface headers; timeout/retry/refund; no explicit cache after account switch.

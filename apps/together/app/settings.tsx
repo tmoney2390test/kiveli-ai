@@ -77,7 +77,7 @@ type SectionDefinition = {
 
 const sections: SectionDefinition[] = [
   { id: 'profile', label: 'Your profile', description: 'Your name, introduction, interests, and account photo.', searchTerms: 'avatar bio about goals', icon: <UserRound size={20} /> },
-  { id: 'account', label: 'Account & billing', description: 'Sign-in, subscription, credits, and active devices.', searchTerms: 'email password security payment plan verification', icon: <KeyRound size={20} /> },
+  { id: 'account', label: 'Account & billing', description: 'Sign-in, subscription, credits, and active devices.', searchTerms: 'email code security payment plan verification', icon: <KeyRound size={20} /> },
   { id: 'identity', label: 'Personas & Lives', description: 'Manage who companions know in each separate Life.', searchTerms: 'persona identity alternate main life', icon: <Sparkles size={20} /> },
   { id: 'experience', label: 'Chat & media', description: 'Notifications, content, photos, video, voice, and calls.', searchTerms: 'push romance upload generation autoplay audio', icon: <Heart size={20} /> },
   { id: 'relationships', label: 'Relationships', description: 'Companions, conversations, archives, and memories.', searchTerms: 'chat reset history memory moments', icon: <UsersRound size={20} /> },
@@ -421,7 +421,7 @@ function AccountPanel({ email, providerLabel, verified, pendingEmail, tier, onRo
   return <View style={styles.panel}><PanelHeading title="Account & billing" body="Manage sign-in, subscription, credits, and account security." />
     <View style={styles.summaryCard}><View style={styles.summaryIcon}><KeyRound color={colors.violet} /></View><View style={{ flex: 1 }}><Text style={styles.summaryKicker}>{providerLabel.toUpperCase()}</Text><Text style={styles.summaryTitle}>{email ?? 'Your Kivelle account'}</Text><View style={styles.verified}><Check size={12} color={verified ? colors.success : colors.warm} /><Text style={[styles.verifiedText, { color: verified ? colors.success : colors.warm }]}>{verified ? 'Verified email' : 'Email verification pending'}</Text></View>{pendingEmail ? <Text style={styles.verifiedText}>Pending change: {pendingEmail}</Text> : null}</View></View>
     <SettingsGroup>
-      <SettingsRow icon={<UserRound />} title="Sign-in & security" body="Change your email, password, or active sessions." onPress={() => onRoute('/account')} />
+      <SettingsRow icon={<UserRound />} title="Account & security" body="Change your email or manage active sessions." onPress={() => onRoute('/account')} />
       {pendingEmail ? <SettingsRow icon={<Check />} title="Resend email confirmation" body="Send another confirmation link to your new address." value="Pending" onPress={onResend} /> : null}
       <SettingsRow icon={<CreditCard />} title="Subscription & credits" body="Manage your plan, allowances, and credit balance." value={tier} onPress={() => onRoute('/subscription')} />
       <SettingsRow icon={<Shield />} title="Other sessions" body="Sign out other browser and mobile sessions." value="Sign out" onPress={onSignOutOthers} />

@@ -1,6 +1,6 @@
 # Apple authentication operations
 
-Kivelle uses Supabase Auth as the single account authority for password, Google, and Apple identities. The Expo client never receives the Apple private key or client secret.
+Kivelle uses Supabase Auth as the single account authority for passwordless email codes, Google, and Apple identities. The Expo client never receives the Apple private key or client secret.
 
 ## Fixed Kivelle identifiers
 
@@ -49,7 +49,7 @@ Test all of these before considering rollout complete:
 - Existing Apple user can sign out and return without being asked for a name again.
 - Native iOS first sign-in stores the one-time Apple name; subsequent sign-ins still work when Apple returns no name.
 - Cancellation returns to Kivelle with a calm error and no session.
-- Google and password sign-in continue to work.
+- Google and passwordless email-code sign-in continue to work.
 - Account settings show “Signed in with Apple.”
 
 ## Required maintenance

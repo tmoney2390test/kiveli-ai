@@ -24,7 +24,20 @@ enable_signup = true
 enable_signup = true
 enable_confirmations = false
 max_frequency = "1m0s"
-otp_length = 8
+otp_length = 6
+
+[auth.email.template.magic_link]
+subject = "Your Kivelli sign-in code"
+content_path = "./supabase/templates/magic-link.html"
+
+# Keep production Apple auth represented here so `supabase config push` cannot
+# silently disable it. Supply the rotating OAuth client secret at deploy time;
+# never commit it to this file.
+[auth.external.apple]
+enabled = true
+client_id = "app.kivelli.web,app.kivelli"
+secret = "env(SUPABASE_AUTH_EXTERNAL_APPLE_SECRET)"
+redirect_uri = ""
 
 [auth.mfa.totp]
 enroll_enabled = true

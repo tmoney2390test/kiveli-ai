@@ -13,6 +13,8 @@ type AuthValue = {
   loading: boolean;
   signingOut: boolean;
   socialAuth: SocialAuthCapabilities;
+  requestEmailCode(email: string): Promise<void>;
+  verifyEmailCode(email: string, code: string): Promise<void>;
   signIn(email: string, password: string): Promise<void>;
   signInWithSocial(provider: SocialAuthProvider, next?: string | null): Promise<void>;
   signUp(email: string, password: string,dateOfBirth:string): Promise<SignUpResult>;
@@ -83,6 +85,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
     loading,
     signingOut,
     socialAuth,
+    requestEmailCode: async (email) => {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: authRedirectUrl(),
+          data: { signup_app: 'together', email_auth_method: 'otp' },
+        },
+      });
+      if (error) throw readableAuthError(error);
+    },
+    verifyEmailCode: async (email, code) => {
+      const { data, error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
+      if (error) throw readableAuthError(error);
+      if (!data.session) throw new Error('That code could not be verified. Request a new one and try again.');
+    },
     signIn: async (email, password) => {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw readableAuthError(error);

@@ -30,7 +30,7 @@ Credits meter variable-cost generation rather than relationship actions. Chat, r
 
 ## Authentication providers
 
-Email/password remains available by default. Google and Apple use Supabase Auth and remain fail-closed until their provider credentials and redirect URLs are configured in the Supabase dashboard. The Expo app contains no Google client secret or Apple private key.
+Email sign-in uses a six-digit one-time code; users do not create or enter a Kivelle password. Google and Apple use Supabase Auth and remain fail-closed until their provider credentials and redirect URLs are configured in the Supabase dashboard. The Expo app contains no Google client secret or Apple private key.
 
 After configuring the providers, enable their UI at build time:
 
@@ -39,7 +39,7 @@ EXPO_PUBLIC_KIVELLE_GOOGLE_AUTH_ENABLED=true
 EXPO_PUBLIC_KIVELLE_APPLE_AUTH_ENABLED=true
 ```
 
-Web/Android OAuth uses Supabase PKCE. iOS uses native Sign in with Apple with a hashed nonce and sends the resulting identity token to Supabase. Because this shared Supabase project keeps global auto-confirm for another app, Kivelle password signup creates an unconfirmed user server-side and sends a PKCE email magic link with user creation disabled; Kivelle never administratively marks a typed email as verified. After any provider authenticates, server-owned account state routes new users through 18+ confirmation, separate private-conversation and AI-provider-sharing choices, and then companion onboarding. Authentication, a subscription, and AI consent never imply one another.
+Web/Android OAuth uses Supabase PKCE. iOS uses native Sign in with Apple with a hashed nonce and sends the resulting identity token to Supabase. Kivelle email authentication calls Supabase passwordless OTP directly, lets Supabase attempt delivery, and creates a session only after the user enters the emailed code. After any provider authenticates, server-owned account state routes profileless users through 18+ birthdate confirmation, account choices, and companion onboarding. Authentication, a subscription, and AI consent never imply one another.
 
 The production redirect allowlist is `https://kivelli.app/auth/callback`, `https://kivelli.app/reset-password`, `kivelli://auth/callback`, and `kivelli://reset-password`, plus the documented localhost, legacy `together://`, and temporary Expo preview equivalents. Native auth sessions use chunked SecureStore persistence with one-time AsyncStorage migration; web keeps browser storage. Apple only supplies a person's name on first consent, so Kivelle saves it immediately as account metadata while Persona identity remains separate.
 
