@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { ShieldCheck } from 'lucide-react-native';
 import { router } from 'expo-router';
+import { BirthdateField } from '../src/components/BirthdateField';
 import { GradientButton, KivelleLogo, Screen } from '../src/components';
 import { confirmAdultAge } from '../src/lib/api';
+import { validBirthdateEntry } from '../src/lib/pendingBirthdate';
 import { useTogether } from '../src/store/useTogether';
 import { colors, radius, spacing, typography } from '../src/theme';
 
@@ -14,8 +16,8 @@ export default function AgeConfirmation() {
   const [error, setError] = useState('');
 
   const continueToOnboarding = async () => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) {
-      setError('Enter your birthdate as YYYY-MM-DD.');
+    if (!validBirthdateEntry(dateOfBirth)) {
+      setError('Choose your birthdate.');
       return;
     }
     setBusy(true);
@@ -37,12 +39,12 @@ export default function AgeConfirmation() {
       <View style={styles.icon}><ShieldCheck size={26} color={colors.warm} /></View>
       <View style={styles.copy}>
         <Text style={styles.eyebrow}>BEFORE YOUR STORY BEGINS</Text>
-        <Text style={styles.title}>Enter your birthdate.</Text>
+        <Text style={styles.title}>Choose your birthdate.</Text>
         <Text style={styles.body}>Kivelle is for adults. Your birthdate is kept private and used to confirm eligibility.</Text>
       </View>
-      <TextInput accessibilityLabel="Birthdate" value={dateOfBirth} onChangeText={(value)=>{setDateOfBirth(value);setError('');}} autoCapitalize="none" autoCorrect={false} keyboardType="numbers-and-punctuation" placeholder="YYYY-MM-DD" placeholderTextColor={colors.dimmed} maxLength={10} style={styles.input}/>
+      <BirthdateField disabled={busy} hasError={Boolean(error)} value={dateOfBirth} onChange={(value)=>{setDateOfBirth(value);setError('');}}/>
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-      <GradientButton label={busy ? 'Checking…' : 'Continue'} disabled={busy || !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)} onPress={() => void continueToOnboarding()} />
+      <GradientButton label={busy ? 'Checking…' : 'Continue'} disabled={busy || !validBirthdateEntry(dateOfBirth)} onPress={() => void continueToOnboarding()} />
       <Text style={styles.note}>You must be 18 or older to create a Kivelle account.</Text>
     </View>
   </Screen>;
@@ -56,7 +58,6 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.warm, fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
   title: { color: colors.text, fontFamily: typography.display, fontSize: 32, lineHeight: 38, fontWeight: '600' },
   body: { color: colors.muted, fontSize: 13, lineHeight: 20 },
-  input:{minHeight:56,paddingHorizontal:15,borderRadius:radius.md,borderWidth:1,borderColor:colors.borderBright,backgroundColor:colors.background,color:colors.text,fontSize:16},
   error: { color: '#FF9BA7', fontSize: 12, lineHeight: 17 },
   note: { color: colors.dimmed, fontSize: 10, textAlign: 'center' },
 });

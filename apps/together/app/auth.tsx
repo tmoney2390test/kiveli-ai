@@ -5,6 +5,7 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CircleCheck, Eye, EyeOff, Sparkles } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BirthdateField } from '../src/components/BirthdateField';
 import { GradientButton } from '../src/components';
 import { GoogleMark } from '../src/components/GoogleMark';
 import { colors, radius, typography } from '../src/theme';
@@ -84,7 +85,7 @@ export default function Auth() {
       return;
     }
     if(creating&&!validBirthdateEntry(dateOfBirth)){
-      setError('Enter your birthdate as YYYY-MM-DD.');
+      setError('Choose your birthdate.');
       return;
     }
     setBusy(true);
@@ -136,7 +137,7 @@ export default function Auth() {
   const socialSignIn=async(provider:SocialAuthProvider)=>{
     setSocialBusy(provider);setError('');setNotice('');
     try{
-      if(creating&&!validBirthdateEntry(dateOfBirth))throw new Error('Enter your birthdate as YYYY-MM-DD.');
+      if(creating&&!validBirthdateEntry(dateOfBirth))throw new Error('Choose your birthdate.');
       if(creating&&Platform.OS==='web')rememberPendingBirthdate(dateOfBirth);
       const requestedNext=safeAppReturnPath(params.next);
       await signInWithSocial(provider,requestedNext);
@@ -200,7 +201,7 @@ export default function Auth() {
             <Pressable accessibilityLabel={visible ? 'Hide password' : 'Show password'} disabled={authBusy} onPress={() => setVisible(!visible)} style={styles.eye}>{visible ? <EyeOff size={20} color={colors.text} /> : <Eye size={20} color={colors.text} />}</Pressable>
           </View>
           {creating?<View style={styles.birthdateBlock}>
-            <TextInput accessibilityLabel="Birthdate" editable={!authBusy} value={dateOfBirth} onChangeText={setDateOfBirth} autoCapitalize="none" autoCorrect={false} keyboardType="numbers-and-punctuation" placeholder="Birthdate · YYYY-MM-DD" placeholderTextColor={colors.dimmed} maxLength={10} style={styles.input} />
+            <BirthdateField disabled={authBusy} hasError={Boolean(error)&&!validBirthdateEntry(dateOfBirth)} value={dateOfBirth} onChange={(value)=>{setDateOfBirth(value);setError('');}} />
             <Text style={styles.birthdateHint}>You must be 18 or older. Your birthdate is kept private.</Text>
           </View>:null}
 
