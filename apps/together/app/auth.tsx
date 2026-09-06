@@ -10,7 +10,7 @@ import { GoogleMark } from '../src/components/GoogleMark';
 import { colors, radius, typography } from '../src/theme';
 import { useAuth } from '../src/hooks/useAuth';
 import { useTogether } from '../src/store/useTogether';
-import { safeAppReturnPath } from '../src/lib/sessionRouting';
+import { joinPathFor, safeAppReturnPath, signInPathFor } from '../src/lib/sessionRouting';
 import { resolvePostAuthDestination } from '../src/lib/authRouting';
 import type { SocialAuthProvider } from '../src/lib/socialAuth';
 import { useWebHydrated } from '../src/hooks/useWebHydrated';
@@ -221,6 +221,16 @@ export default function Auth() {
             {showApple&&Platform.OS==='ios'?<View accessibilityState={{disabled:socialDisabled}} pointerEvents={socialDisabled?'none':'auto'} style={[styles.nativeAppleSlot,socialDisabled&&styles.socialDisabled]}><AppleAuthentication.AppleAuthenticationButton buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE} buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE} cornerRadius={12} style={styles.nativeAppleButton} onPress={()=>void socialSignIn('apple')}/></View>:showApple?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Apple" disabled={socialDisabled} onPress={()=>void socialSignIn('apple')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><Text style={styles.providerMark}></Text><Text style={styles.socialText}>{socialBusy==='apple'?'Connecting…':'Apple'}</Text></Pressable>:null}
           </View></>:null}
 
+          {stage==='email'?<Pressable
+            accessibilityRole="button"
+            accessibilityLabel={creating?'Already have an account? Sign in':"Don't have an account? Create one"}
+            disabled={authBusy||Boolean(socialBusy)}
+            onPress={()=>router.replace((creating?signInPathFor(params.next??''):joinPathFor(params.next)) as never)}
+            style={({pressed})=>[styles.createAccountAction,(authBusy||Boolean(socialBusy))&&styles.emailActionDisabled,pressed&&styles.createAccountActionPressed]}
+          >
+            <Text style={styles.createAccountText}>{creating?'Already have an account? ':"Don’t have an account? "}<Text style={styles.createAccountLink}>{creating?'Sign in':'Create one'}</Text></Text>
+          </Pressable>:null}
+
           <View accessibilityLabel="Account agreement" style={styles.agreement}>
             <Text style={styles.agreementText}>
               By continuing, you agree to the{' '}
@@ -310,6 +320,10 @@ const styles = StyleSheet.create({
   socialPressed:{opacity:.78,transform:[{scale:.99}]},
   providerMark:{color:colors.text,fontSize:18,fontWeight:'900'},
   socialText:{color:colors.text,fontSize:12,fontWeight:'800'},
+  createAccountAction:{minHeight:44,alignItems:'center',justifyContent:'center',paddingHorizontal:12,borderRadius:radius.md,borderWidth:1,borderColor:'rgba(201,91,220,.38)',backgroundColor:'rgba(166,37,189,.035)'},
+  createAccountActionPressed:{backgroundColor:'rgba(166,37,189,.10)',borderColor:'rgba(201,91,220,.62)'},
+  createAccountText:{color:colors.muted,fontSize:12,lineHeight:17,fontWeight:'700'},
+  createAccountLink:{color:'#F2D8F5',fontWeight:'900'},
   secondary: { textAlign: 'center', color: colors.muted, fontWeight: '700', fontSize: 12 },
   secondaryDisabled:{color:colors.dimmed},
   codeActions:{minHeight:32,flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:4},
