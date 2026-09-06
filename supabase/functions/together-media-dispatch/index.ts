@@ -9,6 +9,9 @@ import '../_shared/web-adult-access.ts';
 import '../_shared/web-billing-policy.ts';
 import { AppError } from '../_shared/types.ts';
 import { dispatchMediaJobs } from '../_shared/together-media-dispatcher.ts';
+// Keep this transitive dependency visible to Supabase's server-side function
+// packager, which otherwise omits it when bundling the dispatcher graph.
+import '../_shared/kivelle-ai-consent.ts';
 // Explicit deployment roots for the async provider graph. Supabase's remote
 // bundler currently omits transitive imports from the compact dispatcher
 // module, even though Deno resolves them during local typechecking.

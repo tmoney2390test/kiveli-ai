@@ -7,6 +7,9 @@ import { reconcilePushReceipts, retryPendingPushDeliveries } from '../_shared/ki
 import { evaluateOperationalAlerts } from '../_shared/kivelle-ops.ts';
 import { loadAiDataConsent } from '../_shared/kivelle-ai-consent.ts';
 import { retryAccountDeletionCleanup } from '../_shared/kivelle-account-deletion-worker.ts';
+// Keep this transitive dependency visible to Supabase's server-side function
+// packager, which otherwise omits it when bundling deletion reconciliation.
+import '../_shared/stripe.ts';
 // Keep transitive subscription/media dependencies in Supabase's API deployment bundle.
 import '../_shared/kivelle-subscription.ts';
 
