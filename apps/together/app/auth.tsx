@@ -15,8 +15,7 @@ import { safeAppReturnPath } from '../src/lib/sessionRouting';
 import { resolvePostAuthDestination } from '../src/lib/authRouting';
 import type { SocialAuthProvider } from '../src/lib/socialAuth';
 import { useWebHydrated } from '../src/hooks/useWebHydrated';
-import { confirmAdultAge } from '../src/lib/api';
-import { rememberPendingBirthdate,validBirthdateEntry } from '../src/lib/pendingBirthdate';
+import { validBirthdateEntry } from '../src/lib/pendingBirthdate';
 import { publicLandingPrimaryHeroAsset } from '../src/components/landing/publicLandingAssets';
 
 export default function Auth() {
@@ -40,7 +39,6 @@ export default function Auth() {
   const [nativeAppleAvailable,setNativeAppleAvailable]=useState(Platform.OS!=='ios');
   const { signIn, signInWithSocial, signUp, resendSignUpConfirmation, requestPasswordReset, signingOut, socialAuth } = useAuth();
   const refresh = useTogether((state) => state.refresh);
-  const setSnapshot=useTogether((state)=>state.setSnapshot);
 
   useEffect(()=>{
     if(Platform.OS!=='ios'||!socialAuth.apple)return;
@@ -135,12 +133,9 @@ export default function Auth() {
   const socialSignIn=async(provider:SocialAuthProvider)=>{
     setSocialBusy(provider);setError('');setNotice('');
     try{
-      if(creating&&!validBirthdateEntry(dateOfBirth))throw new Error('Choose your birthdate.');
-      if(creating&&Platform.OS==='web')rememberPendingBirthdate(dateOfBirth);
       const requestedNext=safeAppReturnPath(params.next);
       await signInWithSocial(provider,requestedNext);
       if(Platform.OS==='web')return;
-      if(creating)setSnapshot(await confirmAdultAge(dateOfBirth));
       await refresh();const state=useTogether.getState();if(!state.snapshot)throw new Error(state.error??'Kivelle could not open your world.');
       router.replace(resolvePostAuthDestination({authenticated:true,snapshot:state.snapshot,requestedNext}) as never);
     }catch(caught){setError(caught instanceof Error?caught.message:`${provider==='google'?'Google':'Apple'} sign-in failed.`);}finally{setSocialBusy(null);}
