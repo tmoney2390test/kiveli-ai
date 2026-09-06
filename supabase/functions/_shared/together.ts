@@ -279,8 +279,17 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
     db.from('together_generated_media').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).order('created_at', { ascending: false }).limit(60),
     db.from('together_conversation_actions').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).eq('status','pending').or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`).order('created_at',{ascending:false}).limit(20),
   ]);
-  const failed = [profile,personas,continuities, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, favorites, schedules, scheduleEvents, relationships,relationshipPlaces, milestones, dates, moments, memories, threads, conversations, sceneSessions,sceneParticipants, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions].find((result) => result.error);
-  if (failed?.error) throw new AppError('INTERNAL_ERROR', 'Kivelle could not load your world.', 500, true);
+  const snapshotResults = [profile,personas,continuities, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, favorites, schedules, scheduleEvents, relationships,relationshipPlaces, milestones, dates, moments, memories, threads, conversations, sceneSessions,sceneParticipants, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions];
+  const failedIndex=snapshotResults.findIndex((result)=>Boolean(result.error));
+  if(failedIndex>=0){
+    const snapshotResultNames=['profile','personas','continuities','worlds','locations','userWorlds','characterWorldPresence','instances','discoverable','favorites','schedules','scheduleEvents','relationships','relationshipPlaces','milestones','dates','moments','memories','threads','conversations','sceneSessions','sceneParticipants','events','sharedPlans','conversationEvents','proactive','entitlements','preferences','storyArcs','trips','photoOpportunities','generatedMedia','conversationActions'];
+    const failure=snapshotResults[failedIndex]?.error;
+    console.error('together_bootstrap_snapshot_query_failed',{
+      query:snapshotResultNames[failedIndex]??'unknown',
+      code:typeof failure==='object'&&failure!==null&&'code' in failure?String(failure.code):'unknown',
+    });
+    throw new AppError('INTERNAL_ERROR', 'Kivelle could not load your world.', 500, true);
+  }
   const publishedWorlds=worlds.data??[];
   const publishedWorldIds=new Set(publishedWorlds.map((world)=>String(world.id)));
   const publishedLocations=(locations.data??[]).filter((location)=>publishedWorldIds.has(String(location.world_id)));
