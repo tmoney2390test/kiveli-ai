@@ -23,6 +23,7 @@ const geminiKey=()=>Deno.env.get('GEMINI_API_KEY');
 const model=(name:string,fallback:string)=>Deno.env.get(name)?.trim()||fallback;
 
 export async function runKivelleDirector(input:{context:DirectorContext;baseBrief:ResponseBrief;policy:DirectorPolicy;interactionQuality:PromptInteractionQuality;pendingMilestone?:boolean;activeConflict?:boolean;usageScope?:AiUsageScope}):Promise<DirectorResult>{
+  if(input.baseBrief.mode==='danger')return{brief:input.baseBrief,directorUsed:false,provider:'deterministic'};
   const storyIsResponseRelevant=input.baseBrief.actionCandidate==='story'||Boolean(input.baseBrief.callbackCandidate&&input.context.activeStory&&input.baseBrief.callbackCandidate===String(input.context.activeStory.title??''));
   if(!shouldUseDirector(input.policy,input.interactionQuality,{pendingMilestone:input.pendingMilestone,activeConflict:input.activeConflict,activeStory:storyIsResponseRelevant}))return{brief:input.baseBrief,directorUsed:false,provider:'deterministic'};
   const key=openAIKey();if(key){try{const brief=await directOpenAI(input.context,input.baseBrief,key,input.usageScope);return{brief,directorUsed:true,provider:'openai'};}catch(error){console.warn('Kivelle Director OpenAI fallback',error instanceof Error?error.message:'unknown_error');}}

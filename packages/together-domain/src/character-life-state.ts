@@ -36,107 +36,74 @@ export function deriveCharacterLifeTransition(input: {
   participants: readonly CharacterLifeParticipant[];
   directedCharacterInstanceIds?: readonly string[];
 }): CharacterLifeTransition | null {
-  const message = normalizeText(input.message);
-  if (!message || !input.participants.length) return null;
-
-  const target = resolveTarget({
-    message,
-    participants: input.participants,
-    directedCharacterInstanceIds: input.directedCharacterInstanceIds ?? [],
-  });
-  if (!target) return null;
-
-  const current = normalizeCharacterLifeState(target.lifeState);
-  const supernatural = supernaturalReturnKind(message);
-  if (current === "dead" && supernatural) {
-    const to: CharacterVitalStatus = supernatural === "supernatural_return"
-      ? "undead"
-      : "alive";
-    return {
-      characterInstanceId: target.characterInstanceId,
-      name: target.name,
-      from: current,
-      to,
-      kind: supernatural,
-      summary: to === "undead"
-        ? `${target.name} returned through an explicit supernatural event.`
-        : `${target.name} was explicitly restored to life.`,
-      confidence: .98,
-    };
+  // A mention or selected speaker is not evidence that this person was harmed.
+  // Match the grammatical target of an explicit outcome in a single clause.
+  const clauses = input.message.normalize("NFKC")
+    .replace(/[“"][^“”"]*[”"]/gu, " ")
+    .match(/[^.!?;\n]+[.!?;]?/gu) ?? [];
+  const transitions: CharacterLifeTransition[] = [];
+  const observedOutcomes = new Map<string, Set<CharacterVitalStatus>>();
+  for (const raw of clauses) {
+    if (raw.trim().endsWith("?")) continue;
+    const clause = normalizeText(raw);
+    if (!clause || nonCanonicalClaim(clause)) continue;
+    for (const target of input.participants) {
+      const current = normalizeCharacterLifeState(target.lifeState);
+      const directed = input.directedCharacterInstanceIds ?? [];
+      const pronounsAllowed = input.participants.length === 1 ||
+        (directed.length === 1 && directed[0] === target.characterInstanceId);
+      const names = participantAliases(target.name).filter((alias) =>
+        input.participants.filter((person) => participantAliases(person.name).includes(alias)).length === 1
+      ).map(escapePattern).sort((a, b) => b.length - a.length);
+      const subject = [...names, ...(pronounsAllowed ? ["you"] : []), ...(directed.length === 1 && directed[0] === target.characterInstanceId ? ["he", "she", "they"] : [])].join("|");
+      const object = [...names, ...(pronounsAllowed ? ["you"] : []), ...(directed.length === 1 && directed[0] === target.characterInstanceId ? ["him", "her", "them"] : [])].join("|");
+      if (!subject || !object) continue;
+      const targetSubject = `(?:${subject})`;
+      const targetObject = `(?:${object})(?!\\s+(?:a|an|the|my|your|his|her|their)\\b)`;
+      const completedDeath = new RegExp(`\\b${targetSubject}\\s+(?:(?:is|are|lies|lie|was|were)\\s+(?:now\\s+)?dead(?!\\s+(?:tired|wrong|serious|set|certain|last|right|center|centre|inside|to))|(?:has|have)\\s+died|dies|died)\\b`, "iu").test(clause);
+      const fatalAction = new RegExp(`\\b(?:(?:i|we)\\s+(?:kill|slay|execute|behead|decapitate)|killed|slew|executed|beheaded|decapitated)\\s+${targetObject}(?:$|\\s+(?:now|here|with|using|by|and|in|at|on|during|before|after)\\b)`, "iu").test(clause);
+      const passiveDeath = new RegExp(`\\b${targetSubject}\\s+(?:is|are|was|were|has been|have been)\\s+(?:killed|slain|executed|beheaded|decapitated)\\b`, "iu").test(clause);
+      const restored = new RegExp(`\\b(?:resurrect|resurrected|revive|revived|restore|restored)\\s+${targetObject}\\b|\\b${targetSubject}\\s+(?:is|was|has been)\\s+(?:resurrected|revived|restored to life)\\b|\\bbring\\s+${targetObject}\\s+back to life\\b`, "iu").test(clause);
+      const supernatural = new RegExp(`\\b${targetSubject}\\s+(?:rises?|returns?|appears?)\\s+as\\s+(?:a |an )?(?:ghost|spirit|specter|spectre|undead|wraith|revenant|vampire)\\b`, "iu").test(clause);
+      const explicitlyAlive = new RegExp(`\\b${targetSubject}\\s+(?:is|are|was|were)\\s+(?:still |now )?alive\\b`, "iu").test(clause);
+      const observed = observedOutcomes.get(target.characterInstanceId) ?? new Set<CharacterVitalStatus>();
+      if (completedDeath || fatalAction || passiveDeath) observed.add('dead');
+      if (restored || explicitlyAlive) observed.add('alive');
+      if (supernatural) observed.add('undead');
+      observedOutcomes.set(target.characterInstanceId, observed);
+      // Injury, a neck strike, or strangling is not independently proof of death.
+      if (current === "alive" && (completedDeath || fatalAction || passiveDeath)) {
+        transitions.push({ characterInstanceId: target.characterInstanceId, name: target.name,
+          from: current, to: "dead", kind: "death",
+          summary: `${target.name} was killed during this continuity.`, confidence: .97 });
+        continue;
+      }
+      if (current !== "dead") continue;
+      if (restored || supernatural) transitions.push({ characterInstanceId: target.characterInstanceId,
+        name: target.name, from: current, to: supernatural ? "undead" : "alive",
+        kind: supernatural ? "supernatural_return" : "resurrection",
+        summary: supernatural ? `${target.name} returned through an explicit supernatural event.` : `${target.name} was explicitly restored to life.`,
+        confidence: .98 });
+    }
   }
-
-  if (current === "dead" || current === "undead") return null;
-  if (!completedFatalAction(message)) return null;
-  return {
-    characterInstanceId: target.characterInstanceId,
-    name: target.name,
-    from: current,
-    to: "dead",
-    kind: "death",
-    summary: `${target.name} was killed during this continuity.`,
-    confidence: .97,
-  };
+  // Contradictory or multiple outcomes need story resolution, never a guessed target.
+  const unique = [...new Map(transitions.map((item) => [`${item.characterInstanceId}:${item.to}`, item])).values()];
+  return unique.length === 1 && ![...observedOutcomes.values()].some((outcomes) => outcomes.size > 1) ? unique[0]! : null;
 }
 
-function completedFatalAction(message: string): boolean {
-  if (nonCompletedAction(message)) return false;
-  const directDeath = /\b(?:you|he|she|they|[\p{L}\p{N}'-]+)\s+(?:are|is|lies?|falls?)?\s*(?:now\s+)?dead\b/iu.test(message) ||
-    /\b(?:you|he|she|they)\s+die(?:s|d)?\s+(?:now|here|tonight|today)\b/iu.test(message) ||
-    /\b(?:killed|slew|slain|executed|beheaded|decapitated)\b/iu.test(message);
-  const completedLethalVerb = /(?:^|[*.!;]\s*|\bi\s+|\bwe\s+)(?:kill|slay|execute|behead|decapitate|strangle|snap)\w*\b/iu.test(message);
-  const lethalInjury = /\b(?:stab|slice|cut|shoot|strike|pierce)\w*\b[^.!?]{0,55}\b(?:neck|throat|heart|head|skull)\b/iu.test(message);
-  return directDeath || completedLethalVerb || lethalInjury;
+function nonCanonicalClaim(clause: string): boolean {
+  return /\b(?:not|never|no|don't|didn't|won't|wouldn't|can't|cannot|isn't|aren't|wasn't|weren't|hasn't|haven't|if|unless|whether|will|would|could|might|may|should|must|can|almost|nearly|try|tries|tried|trying|attempt|attempts|attempted|attempting|want|wanted|wish|hope|plan|planned|pretend|pretended|imagine|imagined|dream|dreamed|dreamt|joke|joking|kidding|metaphor|figuratively|remember|recall|yesterday|previously|earlier|said|says|told|claims|claimed|rumor|rumour|book|movie|film|game|chess|checkers|poker)\b|\b(?:going to|need to|used to|with kindness|years ago|days ago|hours ago|last night|last week|last time)\b/iu.test(clause);
 }
 
-function nonCompletedAction(message: string): boolean {
-  return /\b(?:will|would|could|might|may|want(?:ed)? to|plan(?:ned)? to|going to|try(?:ing|ied)? to|attempt(?:ing|ed)? to|threaten(?:ing|ed)? to)\s+(?:kill|slay|execute|behead|stab|shoot|strangle)\b/iu.test(message) ||
-    /\b(?:do not|don't|did not|didn't|never|won't|wouldn't|can't|cannot)\s+(?:kill|slay|execute|behead|stab|shoot|strangle)\b/iu.test(message) ||
-    /\b(?:if|unless|whether)\b[^.!?]{0,70}\b(?:die|dead|kill|slay|execute|behead|stab|shoot|strangle)\b/iu.test(message) ||
-    /\b(?:almost|nearly)\s+(?:die|died|kill|killed|slay|slew|execute|executed)\b/iu.test(message);
-}
-
-function supernaturalReturnKind(
-  message: string,
-): "resurrection" | "supernatural_return" | null {
-  if (/\b(?:try|attempt|wish|hope|want|might|could|if)\w*\b[^.!?]{0,45}\b(?:resurrect|revive|raise|return)\b/iu.test(message)) return null;
-  if (/\b(?:resurrect|revive|restore)\w*\b|\bbring\w*\b[^.!?]{0,35}\bback to life\b|\braise\w*\b[^.!?]{0,35}\bfrom the dead\b/iu.test(message)) {
-    return "resurrection";
-  }
-  if (/\b(?:return|rise|arise|appear|come back)\w*\b[^.!?]{0,45}\b(?:ghost|spirit|specter|spectre|undead|wraith|revenant|vampire)\b|\b(?:ghost|spirit|specter|spectre|undead|wraith|revenant|vampire)\b[^.!?]{0,45}\b(?:return|rise|arise|appear|come back)\w*\b/iu.test(message)) {
-    return "supernatural_return";
-  }
-  return null;
-}
-
-function resolveTarget(input: {
-  message: string;
-  participants: readonly CharacterLifeParticipant[];
-  directedCharacterInstanceIds: readonly string[];
-}): CharacterLifeParticipant | null {
-  const mentioned = input.participants.filter((participant) =>
-    participantAliases(participant.name).some((alias) => containsPhrase(input.message, alias))
-  );
-  if (mentioned.length === 1) return mentioned[0]!;
-  if (mentioned.length > 1) return null;
-
-  const directed = input.participants.filter((participant) =>
-    input.directedCharacterInstanceIds.includes(participant.characterInstanceId)
-  );
-  if (directed.length === 1) return directed[0]!;
-
-  // A direct conversation has exactly one possible fictional target. In a
-  // group, an unqualified pronoun is intentionally too ambiguous to persist.
-  return input.participants.length === 1 ? input.participants[0]! : null;
+function escapePattern(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function participantAliases(name: string): string[] {
   const normalized = normalizeText(name);
-  const words = normalized.split(" ").filter((word) => word.length >= 4);
-  return [...new Set([normalized, ...words])].filter(Boolean);
-}
-
-function containsPhrase(message: string, phrase: string): boolean {
-  return ` ${message} `.includes(` ${phrase} `);
+  const words = normalized.split(" ").filter((word) => word.length >= 2 && !["the","of"].includes(word));
+  const pairs=words.slice(0,-1).map((word,index)=>`${word} ${words[index+1]}`);
+  return [...new Set([normalized, ...pairs, ...words])].filter(Boolean);
 }
 
 function normalizeText(value: string): string {

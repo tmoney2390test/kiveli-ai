@@ -1,3 +1,4 @@
+import { assessScenePressure, type ScenePressure } from './scene-pressure.ts';
 import { chemistryBand, deriveFlirtExpressionStyle } from './relationship.ts';
 import { classifyDialogueContent, hasConsentWithdrawalSignal, isConsensualNonConsentFantasy, isDialogueContinuation, isDirectAdultAdvance, type DialogueContentMode } from './ai-routing.ts';
 
@@ -44,7 +45,7 @@ export type ConversationReciprocity={debt:number;consecutiveQuestionTurns:number
 export type PromptConversationTurn={role:string;content:string};
 export type PromptOpenThread={id:string;displaySubject:string;followupPrompt:string;expectedAt?:string|null;eligible:boolean;lastFollowedUpAt?:string|null;followupCount?:number};
 export type ResponseBrief={
-  mode:'casual'|'playful'|'supportive'|'vulnerable'|'conflicted'|'repair'|'practical'|'storytelling'|'affectionate';
+  mode:'danger'|'casual'|'playful'|'supportive'|'vulnerable'|'conflicted'|'repair'|'practical'|'storytelling'|'affectionate';
   emotionalPosture:string;
   initiative:'low'|'medium'|'high';
   callbackCandidate?:string;
@@ -189,7 +190,9 @@ export function messageHasConversationalHandoff(message:string):boolean{
   return /\?/.test(value)||/\b(?:your turn|you pick|your call|tell me (?:what|which|how|why|about)|give me your|what do you|how about you|say the word)\b/i.test(value);
 }
 
-export function compileResponseBrief(input:{message:string;interactionQuality:PromptInteractionQuality;relationshipStance:RelationshipStance;responseIntent?:string;openThread?:string;eligibleOpenThread?:PromptOpenThread;nextCommitment?:string;activeStory?:string;recentAssistantMessages?:string[];recentTurns?:PromptConversationTurn[];now?:Date;handoffsEnabled?:boolean}):ResponseBrief{
+export function compileResponseBrief(input:{message:string;interactionQuality:PromptInteractionQuality;relationshipStance:RelationshipStance;responseIntent?:string;openThread?:string;eligibleOpenThread?:PromptOpenThread;nextCommitment?:string;activeStory?:string;recentAssistantMessages?:string[];recentTurns?:PromptConversationTurn[];now?:Date;handoffsEnabled?:boolean;pressure?:ScenePressure}):ResponseBrief{
+  const pressure=input.pressure??assessScenePressure({message:input.message,...(input.recentTurns?{recentTurns:input.recentTurns}:{})});
+  if(pressure.phase!=='none')return{mode:pressure.phase==='aftermath'?'vulnerable':'danger',emotionalPosture:pressure.phase==='immediate'?'Attend to the immediate threat in this character’s own voice. Follow SCENE_PRESSURE.':pressure.phase==='aftermath'?'Allow a character-specific reaction after danger without forcing instant recovery. Follow SCENE_PRESSURE.':'Respond proportionately to the described pressure; preserve uncertainty. Follow SCENE_PRESSURE.',initiative:pressure.phase==='immediate'?'high':'medium',selfDisclosure:'none',shouldAskQuestion:false,handoff:{mode:'none',source:'none',reciprocityDebt:0},actionCandidate:'none',avoid:['Do not append an unrelated question, flirtation, callback, or anecdote.'],autonomy:'Respond to the present pressure in this character’s voice. A necessary question or independent decision is allowed; never decide the user’s actions or a completed world outcome.'};
   const lower=input.message.toLowerCase();const intent=String(input.responseIntent??'casual');const recent=input.recentAssistantMessages??[];
   const planRelevant=planCallbackRelevant(input.message,input.nextCommitment);
   const openThread=input.eligibleOpenThread?.displaySubject??input.openThread;
