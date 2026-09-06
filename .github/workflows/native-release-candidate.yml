@@ -1,0 +1,50 @@
+name: Kivelle Native Release Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Native platform to build
+        required: true
+        default: all
+        type: choice
+        options: [all, ios, android]
+  pull_request:
+    paths:
+      - 'apps/together/**'
+      - 'packages/together-domain/**'
+      - '.github/workflows/native-release-candidate.yml'
+
+jobs:
+  validate-native-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 11.16.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @together/app exec expo config --type public
+      - run: pnpm --filter @together/app typecheck
+
+  build-release-candidate:
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate-native-config
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ios, android]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 11.16.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Queue internal EAS release-candidate build
+        if: inputs.platform == 'all' || inputs.platform == matrix.platform
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: node scripts/run-eas-with-lean-context.mjs build --platform ${{ matrix.platform }} --profile releaseCandidate --non-interactive --no-wait

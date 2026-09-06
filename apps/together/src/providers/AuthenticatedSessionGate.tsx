@@ -6,7 +6,7 @@ import { ErrorState } from '../components/RouteState';
 import { RouteLoadingState } from '../components/RouteLoadingState';
 import { resolveKivelleAccountStage } from '../lib/authRouting';
 import { authenticatedShellEnabled } from '../lib/desktopNavigation';
-import { isAgeConfirmationPath, isCompanionOnboardingPath, isPublicAppPath } from '../lib/sessionRouting';
+import { isAgeConfirmationPath, isCompanionOnboardingPath, isPrivacyChoicePath, isPublicAppPath } from '../lib/sessionRouting';
 import { ResponsiveAppShell } from '../shell/ResponsiveAppShell';
 import { useTogether } from '../store/useTogether';
 import { useAuth } from '../hooks/useAuth';
@@ -34,6 +34,7 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   const hydrationUserId=useRef<string|null>(null);
   const publicPath = isPublicAppPath(pathname);
   const agePath = isAgeConfirmationPath(pathname);
+  const privacyChoicePath = isPrivacyChoicePath(pathname);
   const companionOnboardingPath = isCompanionOnboardingPath(pathname);
 
   useEffect(() => {
@@ -96,9 +97,11 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
     const stage = resolveKivelleAccountStage(snapshot.profile);
     const target = stage === 'age_confirmation'
       ? (agePath ? null : '/age-confirmation')
+      : stage === 'privacy_choice'
+        ? (privacyChoicePath ? null : '/privacy-choice')
       : stage === 'onboarding'
         ? (companionOnboardingPath ? null : '/choose-companion')
-        : (agePath || companionOnboardingPath ? '/home' : null);
+        : (agePath || privacyChoicePath || companionOnboardingPath ? '/home' : null);
     if (!target) {
       redirectTarget.current = null;
       return;
@@ -108,7 +111,7 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
       if (Platform.OS === 'web') consumeWebEntryHref();
       router.replace(target as never);
     }
-  }, [agePath, companionOnboardingPath, publicPath, snapshot]);
+  }, [agePath, companionOnboardingPath, privacyChoicePath, publicPath, snapshot]);
 
   let blocker = null;
   if (!snapshot && !publicPath) {
@@ -117,8 +120,8 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
       : <RouteLoadingState pathname={pathname} />;
   } else if (snapshot && !publicPath) {
     const stage = resolveKivelleAccountStage(snapshot.profile);
-    if ((stage === 'age_confirmation' && !agePath) || (stage === 'onboarding' && !companionOnboardingPath) || (stage === 'ready' && (agePath || companionOnboardingPath))) {
-      blocker = <RouteLoadingState pathname={pathname} label={stage === 'age_confirmation' ? 'Opening age confirmation…' : stage === 'onboarding' ? 'Preparing your first meeting…' : undefined} />;
+    if ((stage === 'age_confirmation' && !agePath) || (stage === 'privacy_choice' && !privacyChoicePath) || (stage === 'onboarding' && !companionOnboardingPath) || (stage === 'ready' && (agePath || privacyChoicePath || companionOnboardingPath))) {
+      blocker = <RouteLoadingState pathname={pathname} label={stage === 'age_confirmation' ? 'Opening age confirmation…' : stage === 'privacy_choice' ? 'Opening privacy choices…' : stage === 'onboarding' ? 'Preparing your first meeting…' : undefined} />;
     }
   }
 

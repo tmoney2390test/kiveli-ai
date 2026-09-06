@@ -6,6 +6,7 @@ const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
 const appDirectory = join(repositoryRoot, "apps", "together");
 const easArguments = process.argv.slice(2);
+const easCliVersion = process.env.KIVELLE_EAS_CLI_VERSION ?? "16.17.0";
 
 if (easArguments.length === 0 || easArguments.includes("--help-context")) {
   console.log(
@@ -26,16 +27,17 @@ const environment = {
 const pnpmCli = process.env.npm_execpath;
 const executable = pnpmCli
   ? process.execPath
-  : process.platform === "win32"
-    ? "pnpm.cmd"
-    : "pnpm";
+  : "pnpm";
 const commandArguments = pnpmCli
-  ? [pnpmCli, "dlx", "eas-cli@latest", ...easArguments]
-  : ["dlx", "eas-cli@latest", ...easArguments];
+  ? [pnpmCli, "dlx", `eas-cli@${easCliVersion}`, ...easArguments]
+  : ["dlx", `eas-cli@${easCliVersion}`, ...easArguments];
 
 const child = spawn(executable, commandArguments, {
   cwd: appDirectory,
   env: environment,
+  // Node 24 no longer launches .cmd shims directly on Windows. Let cmd.exe
+  // resolve the pnpm shim when this helper is invoked outside a pnpm script.
+  shell: !pnpmCli && process.platform === "win32",
   stdio: "inherit",
 });
 

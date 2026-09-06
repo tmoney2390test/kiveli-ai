@@ -23,18 +23,31 @@ export async function syncNativePurchaseIdentity(userId:string|null):Promise<voi
   else{await Purchases.logOut();identifiedUser=null;}
 }
 
-export async function purchaseNativeSubscription(userId:string,tier:Exclude<SubscriptionTier,'free'>,interval:BillingInterval):Promise<{cancelled:boolean}>{
+export async function purchaseNativeSubscription(userId:string,tier:Exclude<SubscriptionTier,'free'>,interval:BillingInterval):Promise<{cancelled:boolean;pending:boolean}>{
   await requireConfigured(userId);
   const offerings=await Purchases.getOfferings(),offeringId=process.env.EXPO_PUBLIC_KIVELLE_REVENUECAT_OFFERING_ID?.trim(),offering=offeringId?offerings.all[offeringId]??null:offerings.current;
   const selected=selectRevenueCatPackage<PurchasesPackage>(offering?.availablePackages??[],tier,interval);
   if(!selected)throw new Error('The requested RevenueCat package is not available in this app-store offering.');
-  try{await Purchases.purchasePackage(selected);return{cancelled:false};}
-  catch(error){const normalized=revenueCatPurchaseError(error);if(normalized.cancelled)return{cancelled:true};throw new Error(normalized.message);}
+  try{await Purchases.purchasePackage(selected);return{cancelled:false,pending:false};}
+  catch(error){const normalized=revenueCatPurchaseError(error);if(normalized.cancelled||normalized.pending)return{cancelled:normalized.cancelled,pending:normalized.pending};throw new Error(normalized.message);}
 }
 
-export async function restoreNativePurchases(userId:string):Promise<void>{
+export async function restoreNativePurchases(userId:string):Promise<{storeReportsActiveEntitlement:boolean}>{
   await requireConfigured(userId);
-  await Purchases.restorePurchases();
+  const customerInfo=await Purchases.restorePurchases();
+  return{storeReportsActiveEntitlement:Object.keys(customerInfo.entitlements.active).length>0};
+}
+
+export function onNativeCustomerInfoUpdated(listener:()=>void):()=>void{
+  const wrapped=()=>listener();
+  Purchases.addCustomerInfoUpdateListener(wrapped);
+  return()=>{Purchases.removeCustomerInfoUpdateListener(wrapped);};
+}
+
+export async function loadNativeProductPrices(userId:string):Promise<Record<string,string>>{
+  await requireConfigured(userId);
+  const offerings=await Purchases.getOfferings(),offeringId=process.env.EXPO_PUBLIC_KIVELLE_REVENUECAT_OFFERING_ID?.trim(),offering=offeringId?offerings.all[offeringId]??null:offerings.current;
+  return Object.fromEntries((offering?.availablePackages??[]).map((item)=>[item.identifier,item.product.priceString]));
 }
 
 async function requireConfigured(userId:string):Promise<void>{

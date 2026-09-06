@@ -54,6 +54,7 @@ export * from './group-chat.ts';
 export * from './group-media.ts';
 export * from './chat-language.ts';
 export * from './chat-generation.ts';
+export * from './chat-appearance.ts';
 export * from './stories.ts';
 export * from './story-director.ts';
 export * from './story-guidance.ts';

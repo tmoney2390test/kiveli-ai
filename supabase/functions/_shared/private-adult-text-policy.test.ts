@@ -12,6 +12,8 @@ function access(overrides: Partial<AdultAccessContext> = {}): AdultAccessContext
     authorized_web_adult: false,
     adult_eligibility: { allowed: true, reason: 'verified_adult' },
     private_adult_text_mode: 'on',
+    private_text_preference: 'explicit',
+    private_text_preference_recorded: true,
     web_session_id: null,
     ...overrides,
   };
@@ -22,6 +24,12 @@ const policy=(overrides:Record<string,unknown>={})=>resolvePrivateDialoguePolicy
 
 Deno.test('private adult text allows a free eligible native user without a web session',()=>{
   assertEquals(policy().effectiveMode,'explicit');
+});
+
+Deno.test('historical defaults do not substitute for a recorded private-text choice',()=>{
+  const result=policy({access:access({private_text_preference:null,private_text_preference_recorded:false})});
+  assertEquals(result.effectiveMode,'mature');
+  assertEquals(result.rollout.generationAllowed,false);
 });
 
 Deno.test('private adult text decision is identical for free and paid adults',()=>{

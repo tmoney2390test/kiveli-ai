@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chatMessageTypography, chatPreferencesFromConversation, isSubscribedTier, resolveChatContentMode, resolveChatDynamism, resolveChatLanguage, resolveChatResponseStyle, resolveChatSpiceLevel, resolveChatTextSize, resolveChatVoicePreset, resolveReasoningPreference, withLocalChatSettings } from './chatSettings';
+import { chatMessageTypography, chatPreferencesFromConversation, isSubscribedTier, resolveChatBubbleColors, resolveChatContentMode, resolveChatDynamism, resolveChatLanguage, resolveChatResponseStyle, resolveChatSpiceLevel, resolveChatTextSize, resolveChatVoicePreset, resolveReasoningPreference, withLocalChatSettings } from './chatSettings';
 
 describe('chat settings', () => {
   it('reads valid per-chat preferences and ignores malformed metadata', () => {
@@ -52,6 +52,14 @@ describe('chat settings', () => {
     expect(chatMessageTypography({ metadata: { chatPreferences: { textSize: 'small' } } })).toEqual({ fontSize: 13, lineHeight: 19 });
     expect(chatMessageTypography({ metadata: { chatPreferences: { textSize: 'large' } } })).toEqual({ fontSize: 18, lineHeight: 26 });
     expect(chatMessageTypography({ metadata: { chatPreferences: { textSize: 'medium' } } }, { desktop: true })).toEqual({ fontSize: 17, lineHeight: 25 });
+  });
+
+  it('keeps user and companion bubble colors scoped to the conversation', () => {
+    const conversation = { id: 'chat-1', title: null, metadata: {} } as never;
+    expect(resolveChatBubbleColors(conversation)).toEqual({ user: 'default', companion: 'default' });
+    const updated = withLocalChatSettings(conversation, { title: null, responseStyle: 'texting', textSize: 'medium', userBubbleColor: 'ember', companionBubbleColor: 'teal' });
+    expect(resolveChatBubbleColors(updated)).toEqual({ user: 'ember', companion: 'teal' });
+    expect(resolveChatBubbleColors({ metadata: { chatPreferences: { userBubbleColor: '#fff', companionBubbleColor: 'not-valid' } } } as never)).toEqual({ user: 'default', companion: 'default' });
   });
 
   it('recognizes current and legacy paid tiers', () => {

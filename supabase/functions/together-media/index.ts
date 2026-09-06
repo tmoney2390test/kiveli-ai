@@ -46,6 +46,7 @@ import{issueAdultAssetUrl,resolveAdultAccess,type AdultAccessContext}from'../_sh
 import{ConfiguredModerationProvider}from'../_shared/together-ai.ts';
 import{classifyPhotoIntent,classifyUserAuthoredMediaSafety,resolvePhotoComposition}from'../../../packages/together-domain/src/media.ts';
 import{adultVideoFeatureEnabled,configuredVideoPromptEnhancer,directVideoOpeningFrameRequest,resolveAnimatedVideoContentLevel,resolveDirectVideoContentDecision,resolveSourcePhotoVideoDecision,type DirectVideoContentDecision}from'../_shared/together-video-content.ts';
+import { requireAiDataConsent } from '../_shared/kivelle-ai-consent.ts';
 
 const videoSettingsSchema=z.object({model:z.string().trim().min(3).max(100),sound:z.boolean(),resolution:z.enum(VIDEO_RESOLUTIONS),duration:z.number().int().min(1).max(20)}).strict();
 const videoPromptEnhancementSchema=z.object({action:z.literal('enhance_video_prompt'),sourceMode:z.enum(['existing_photo','generated_first_frame']),sourceMediaId:z.string().uuid().optional(),characterInstanceId:z.string().uuid().optional(),conversationId:z.string().uuid().optional(),routeId:z.string().trim().min(3).max(100),settings:videoSettingsSchema,aspectRatio:z.enum(['9:16','16:9']).default('9:16'),locationSource:z.enum(['current','home','place']).default('current'),locationId:z.string().uuid().optional(),prompt:z.string().trim().min(2).max(400),requestId:z.string().trim().min(8).max(120)}).strict();
@@ -83,6 +84,7 @@ serve(async(request,correlationId)=>{
   const {user,db}=await authenticated(request);
   const adultAccess=await resolveAdultAccess(request,user,db);
   const input=await parseBody(request,schema);
+  if(['request','accept_offer','retry','edit','animate','video_direct_generate','enhance_video_prompt'].includes(input.action))await requireAiDataConsent(db,user.id);
   if(input.action==='request'){
     await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId);
     await enforceRateLimit(db,user.id,'together_media_request',15,86400);

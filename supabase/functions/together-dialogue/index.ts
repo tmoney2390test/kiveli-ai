@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { authenticated, enforceRateLimit } from "../_shared/context.ts";
+import { requireAiDataConsent } from "../_shared/kivelle-ai-consent.ts";
 import { parseBody } from "../_shared/body.ts";
 import { corsHeaders, errorResponse } from "../_shared/http.ts";
 import { AppError } from "../_shared/types.ts";
@@ -210,6 +211,7 @@ Deno.serve(async (request) => {
   }
   try {
     const { user, db } = await authenticated(request);
+    await requireAiDataConsent(db,user.id);
     const adultAccess=await resolveAdultAccess(request,user,db);
     const input = await parseBody(request, schema);
     return streamPreparedDialogue(correlationId, async () => {

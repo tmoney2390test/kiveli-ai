@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { AlignLeft, Check, ChevronDown, ChevronRight, Languages, MessageCircle, Pause, Play, Settings, Type, Volume2, X } from 'lucide-react-native';
+import { AlignLeft, Check, ChevronDown, ChevronRight, Languages, MessageCircle, Palette, Pause, Play, Settings, Type, Volume2, X } from 'lucide-react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { router } from 'expo-router';
 import { companionVoiceGenderFromSignals, companionVoicePresetsForGender, type CompanionVoicePreset } from '@together/domain/src/voice-presets';
 import { manageConversation, previewCompanionVoice } from '../lib/api';
-import { chatPreferencesFromConversation, chatTextSizeOptions, resolveChatContentMode, resolveChatLanguage, resolveChatResponseStyle, resolveChatTextSize, resolveChatVoicePreset, withLocalChatSettings } from '../lib/chatSettings';
+import { chatPreferencesFromConversation, chatTextSizeOptions, resolveChatBubbleColors, resolveChatContentMode, resolveChatLanguage, resolveChatResponseStyle, resolveChatTextSize, resolveChatVoicePreset, withLocalChatSettings } from '../lib/chatSettings';
 import { conversationStyleOptions } from '../lib/conversationStyle';
 import { useTogether } from '../store/useTogether';
 import { colors, radius, spacing, typography } from '../theme';
@@ -20,6 +20,8 @@ import { ChatContentModeControl } from './ChatContentModeControl';
 import { ChatGenerationSettings } from './settings/ChatGenerationSettings';
 import { type ChatDynamism, type ReasoningPreference } from '@together/domain/src/chat-generation';
 import { defaultDirectConversationTitle } from '../lib/conversation';
+import { type ChatBubbleColor } from '@together/domain/src/chat-appearance';
+import { ChatBubbleColorSettings } from './settings/ChatBubbleColorSettings';
 
 type Props = {
   visible: boolean;
@@ -35,6 +37,8 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
   const [title, setTitle] = useState('');
   const [responseStyle, setResponseStyle] = useState<ConversationStyle>('texting');
   const [textSize, setTextSize] = useState<ChatTextSize>('medium');
+  const [userBubbleColor, setUserBubbleColor] = useState<ChatBubbleColor>('default');
+  const [companionBubbleColor, setCompanionBubbleColor] = useState<ChatBubbleColor>('default');
   const [chatDynamism,setChatDynamism]=useState<ChatDynamism>(50);
   const [reasoningPreference,setReasoningPreference]=useState<ReasoningPreference>('auto');
   const [contentMode,setContentMode]=useState<DialogueContentMode>('mature');
@@ -73,6 +77,9 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     setTitle(conversation.title ?? defaultDirectConversationTitle(name));
     setResponseStyle(resolveChatResponseStyle(conversation, snapshot?.profile ?? null));
     setTextSize(resolveChatTextSize(conversation));
+    const bubbleColors = resolveChatBubbleColors(conversation);
+    setUserBubbleColor(bubbleColors.user);
+    setCompanionBubbleColor(bubbleColors.companion);
     const generationPreferences=chatPreferencesFromConversation(conversation,snapshot?.entitlements?.tier);
     setChatDynamism(generationPreferences.chatDynamism);
     setReasoningPreference(generationPreferences.reasoningPreference);
@@ -136,7 +143,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     const cleanTitle = title.trim() || defaultDirectConversationTitle(name);
     setSaving(true);
     try {
-      const input = { title: cleanTitle, responseStyle, textSize,contentMode, chatLanguage,chatDynamism,reasoningPreference, ...(voiceEntitled ? { voicePreset } : {}) };
+      const input = { title: cleanTitle, responseStyle, textSize,contentMode, chatLanguage,chatDynamism,reasoningPreference,userBubbleColor,companionBubbleColor, ...(voiceEntitled ? { voicePreset } : {}) };
       const updated = demoMode
         ? withLocalChatSettings(conversation, input)
         : await manageConversation<Conversation>({ action: 'settings', conversationId: conversation.id, ...input });
@@ -215,6 +222,10 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
                 </Pressable>;
               })}
             </View>
+          </SettingSection>
+
+          <SettingSection icon={<Palette size={16} color={colors.violet} />} label="Message colors">
+            <ChatBubbleColorSettings userColor={userBubbleColor} companionColor={companionBubbleColor} companionName={name} disabled={saving} onUserColorChange={setUserBubbleColor} onCompanionColorChange={setCompanionBubbleColor} />
           </SettingSection>
 
           <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible}/>

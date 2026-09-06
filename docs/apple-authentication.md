@@ -44,8 +44,8 @@ After the Apple provider saves successfully, set `EXPO_PUBLIC_KIVELLE_APPLE_AUTH
 
 Test all of these before considering rollout complete:
 
-- New web user with Share My Email reaches explicit age confirmation, then onboarding.
-- New web user with Hide My Email receives a private-relay account and reaches onboarding.
+- New web user with Share My Email reaches age confirmation, independent privacy choices, then onboarding.
+- New web user with Hide My Email receives a private-relay account and follows the same gates.
 - Existing Apple user can sign out and return without being asked for a name again.
 - Native iOS first sign-in stores the one-time Apple name; subsequent sign-ins still work when Apple returns no name.
 - Cancellation returns to Kivelle with a calm error and no session.
@@ -55,3 +55,9 @@ Test all of these before considering rollout complete:
 ## Required maintenance
 
 Apple OAuth client secrets expire at most every six months. Create an operations reminder well before expiry, generate a replacement from the retained `.p8` key, update Supabase, and run a web Apple sign-in smoke test. Native-only identity-token sign-in does not require this rotation, but Kivelle web and Android Apple OAuth do.
+
+## Account-deletion revocation gap
+
+The current native path gives Supabase an Apple identity token, and web/Android OAuth is completed by Supabase PKCE. Kivelle does not currently receive and durably retain an Apple refresh token that its deletion worker can revoke. Account deletion removes Kivelle access and application data, but the deletion job records Apple revocation as unavailable rather than falsely claiming success.
+
+Before public release, complete a server-side authorization-code exchange and encrypted refresh-token lifecycle using the actual Kivelle Apple client configuration, add bounded revocation retries, and validate it in Apple sandbox. The `.p8`, generated client secret, refresh token, and encryption key must remain server-only and must never enter Expo, logs, analytics, or support notes. Do not backfill or mark historical revocations complete without provider evidence.

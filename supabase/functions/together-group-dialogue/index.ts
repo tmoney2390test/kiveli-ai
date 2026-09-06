@@ -25,6 +25,7 @@ import {
 } from "../../../packages/together-domain/src/index.ts";
 import { parseBody } from "../_shared/body.ts";
 import { authenticated, enforceRateLimit } from "../_shared/context.ts";
+import { requireAiDataConsent } from "../_shared/kivelle-ai-consent.ts";
 import { corsHeaders, errorResponse } from "../_shared/http.ts";
 import { activeContinuity } from "../_shared/together-continuity.ts";
 import {
@@ -121,6 +122,7 @@ Deno.serve(async (request) => {
   }
   try {
     const { user, db } = await authenticated(request);
+    await requireAiDataConsent(db,user.id);
     const adultAccess=await resolveAdultAccess(request,user,db);
     turnDb = db;
     const input = await parseBody(request, schema);

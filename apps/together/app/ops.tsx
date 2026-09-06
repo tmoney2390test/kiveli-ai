@@ -33,6 +33,8 @@ import {
   evaluateOperationsAlerts,
   invalidateOperationsSessions,
   loadOperationsDashboard,
+  loadSafetyReport,
+  loadSafetyReports,
   loadSupportTicket,
   lookupOperationsUser,
   type OperationsAlertRule,
@@ -40,10 +42,13 @@ import {
   type OperationsIncident,
   type OperationsQueue,
   type OperationsUserLookup,
+  type SafetyReport,
+  type SafetyReportDetail,
   refundOperationsCredit,
   retryOperationsMedia,
   updateOperationsAlertRule,
   updateOperationsIncident,
+  updateSafetyReport,
   updateSupportTicket,
 } from "../src/lib/operations";
 import { useAuth } from "../src/hooks/useAuth";
@@ -53,6 +58,7 @@ type Tab =
   | "queues"
   | "incidents"
   | "support"
+  | "safety"
   | "users"
   | "alerts"
   | "releases"
@@ -62,6 +68,7 @@ const tabs: Array<{ key: Tab; label: string }> = [
   { key: "queues", label: "Queues" },
   { key: "incidents", label: "Incidents" },
   { key: "support", label: "Support" },
+  { key: "safety", label: "Safety" },
   { key: "users", label: "Users" },
   { key: "alerts", label: "Alerts" },
   { key: "releases", label: "Releases" },
@@ -346,6 +353,9 @@ export default function Operations() {
             />
           )
           : null}
+        {tab === "safety"
+          ? <SafetyReports actorId={session?.user.id ?? null} />
+          : null}
         {tab === "users"
           ? (
             <UsersPanel
@@ -381,6 +391,78 @@ export default function Operations() {
       </ScrollView>
     </View>
   );
+}
+
+function SafetyReports({ actorId }: { actorId: string | null }) {
+  const [reports, setReports] = useState<SafetyReport[]>([]),
+    [detail, setDetail] = useState<SafetyReportDetail | null>(null),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(""),
+    [note, setNote] = useState("");
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await loadSafetyReports();
+      setReports(result.reports);
+      setError("");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Safety reports could not be loaded.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => { void reload(); }, [reload]);
+  const open = async (id: string) => {
+    setBusy(id);
+    try { setDetail(await loadSafetyReport(id)); setError(""); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "That report could not be opened."); }
+    finally { setBusy(""); }
+  };
+  const update = async (patch: Parameters<typeof updateSafetyReport>[0]) => {
+    setBusy(patch.reportId);
+    try {
+      await updateSafetyReport(patch);
+      setDetail(await loadSafetyReport(patch.reportId));
+      await reload();
+      setNote("");
+      setError("");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "That report could not be updated.");
+    } finally { setBusy(""); }
+  };
+  if (detail) {
+    const report = detail.report;
+    return <>
+      <SectionHeader icon={<ShieldCheck color={colors.rose} />} title="Safety report review" body={`${report.severity} · ${report.status} · ${date(report.created_at)}`} />
+      <Pressable onPress={() => setDetail(null)}><Text style={styles.link}>← Back to safety queue</Text></Pressable>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      <Panel title={report.reason} hint="Only the reported item and the reporter's submitted context are shown.">
+        {report.detail ? <Text style={styles.ticketMessage}>{report.detail}</Text> : null}
+        {detail.message ? <View style={styles.clickRecord}><Text style={styles.ticketMessage}>{detail.message.content}</Text></View> : <Text style={styles.muted}>No message was attached to this report.</Text>}
+        <View style={styles.actionRow}>
+          <SmallAction label="Assign to me" busy={busy === report.id} disabled={!actorId} onPress={() => void update({ reportId: report.id, assignedTo: actorId, status: "reviewing" })} />
+          <SmallAction label="Reviewing" busy={busy === report.id} onPress={() => void update({ reportId: report.id, status: "reviewing" })} />
+          <SmallAction label="Resolve" busy={busy === report.id} onPress={() => void update({ reportId: report.id, status: "resolved", resolutionCode: "review_complete", ...(note.trim().length >= 2 ? { note } : {}) })} />
+          <SmallAction label="Dismiss" busy={busy === report.id} onPress={() => void update({ reportId: report.id, status: "dismissed", resolutionCode: "no_action", ...(note.trim().length >= 2 ? { note } : {}) })} />
+        </View>
+        <TextInput value={note} onChangeText={setNote} multiline placeholder="Private reviewer note…" placeholderTextColor={colors.dimmed} style={[styles.input, styles.noteInput]} />
+      </Panel>
+      <Panel title="Review history" hint="Access and changes are audited.">
+        {detail.events.map((event) => <RecordLine key={String(event.id)} title={String(event.event_type)} body={event.note_safe ? String(event.note_safe) : undefined} meta={date(event.created_at)} />)}
+      </Panel>
+    </>;
+  }
+  return <>
+    <SectionHeader icon={<ShieldCheck color={colors.rose} />} title="Safety report queue" body="Urgent reports first, with private content opened only for a selected report." />
+    {error ? <Text style={styles.errorText}>{error}</Text> : null}
+    <Panel title="Reports" hint={`${reports.filter((report) => !["resolved", "dismissed"].includes(report.status)).length} awaiting resolution`}>
+      {loading ? <ActivityIndicator color={colors.violet} /> : reports.map((report) => <Pressable key={report.id} disabled={busy === report.id} onPress={() => void open(report.id)} style={styles.clickRecord}>
+        <View style={{ flex: 1 }}><Text style={styles.recordTitle}>{report.reason}</Text><Text style={styles.recordMeta}>{report.severity} · {report.status} · {date(report.created_at)}</Text></View><StatusPill value={report.status} />
+      </Pressable>)}
+      {!loading && !reports.length ? <Text style={styles.muted}>No safety reports are waiting.</Text> : null}
+    </Panel>
+  </>;
 }
 
 function Overview(

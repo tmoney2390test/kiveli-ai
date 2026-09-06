@@ -9,6 +9,7 @@ import {normalizeStripeSubscription,retrieveStripeCharge,retrieveStripeCheckoutL
 import { track } from '../_shared/together.ts';
 import { constantTimeEqual } from '../../../packages/together-domain/src/security.ts';
 import {beginBillingEvent,finishBillingEvent} from '../_shared/kivelle-billing-events.ts';
+import {accountDeletionStarted,deletedAccountForProviderCustomer} from '../_shared/kivelle-deleted-account.ts';
 
 const legacySchema=z.object({eventId:z.string().trim().min(6).max(200),eventType:z.enum(['subscription_updated','subscription_cancelled','credit_purchase']),provider:z.string().trim().min(1).max(80).default('configured'),userId:z.string().uuid(),tier:z.enum(['free','kivelle_plus','kivelle_max','together_plus','unlimited']).optional(),productKey:z.string().trim().max(160).optional(),periodStart:z.string().datetime().optional(),periodEnd:z.string().datetime().optional(),expiresAt:z.string().datetime().nullable().optional(),creditAmount:z.number().int().positive().max(100000).optional(),metadata:z.record(z.string(),z.unknown()).default({})});
 type Db=ReturnType<typeof adminClient>;
@@ -54,6 +55,7 @@ async function handleStripeEvent(db:Db,event:StripeEvent,correlationId:string):P
 }
 
 async function applyCheckoutCompleted(db:Db,input:{event:StripeEvent;userId:string;customerId:string|null}):Promise<boolean>{
+  if(await accountDeletionStarted(db,input.userId))return false;
   const object=input.event.data.object,metadata=metadataForObject(object),kind=String(metadata.kind??'');
   if(kind==='credits'){
     if(!['paid','no_payment_required'].includes(String(object.payment_status)))return false;
@@ -70,6 +72,7 @@ async function applyCheckoutCompleted(db:Db,input:{event:StripeEvent;userId:stri
 }
 
 async function syncStripeSubscription(db:Db,userId:string,snapshot:StripeSubscriptionSnapshot,event:StripeEvent):Promise<boolean>{
+  if(await accountDeletionStarted(db,userId))return false;
   const mapping=stripeTierForPrice(snapshot.priceId);if(!mapping)return false;
   const accessEndsAt=stripeSubscriptionHasAccess(snapshot.status,snapshot.periodEnd)?snapshot.periodEnd:null,record={user_id:userId,provider:'stripe',provider_customer_id:snapshot.customerId,provider_subscription_id:snapshot.id,provider_product_id:snapshot.productId,provider_price_id:snapshot.priceId,plan_key:mapping.tier,status:snapshot.status,billing_interval:mapping.billingInterval,current_period_start:snapshot.periodStart,current_period_end:snapshot.periodEnd,trial_end:snapshot.trialEnd,cancel_at_period_end:snapshot.cancelAtPeriodEnd,canceled_at:snapshot.canceledAt,access_ends_at:accessEndsAt,last_provider_event_created_at:event.created,metadata:{lastStripeEventId:event.id,apiObject:'subscription'},updated_at:new Date().toISOString()};
   const{data,error}=await db.rpc('kivelle_sync_billing_subscription_state',{p_user_id:record.user_id,p_provider:record.provider,p_provider_customer_id:record.provider_customer_id,p_provider_subscription_id:record.provider_subscription_id,p_provider_product_id:record.provider_product_id,p_provider_price_id:record.provider_price_id,p_plan_key:record.plan_key,p_status:record.status,p_billing_interval:record.billing_interval,p_current_period_start:record.current_period_start,p_current_period_end:record.current_period_end,p_trial_end:record.trial_end,p_cancel_at_period_end:record.cancel_at_period_end,p_canceled_at:record.canceled_at,p_access_ends_at:record.access_ends_at,p_last_provider_event_created_at:record.last_provider_event_created_at,p_metadata:record.metadata});if(error)throw new AppError('INTERNAL_ERROR','Stripe subscription could not be synchronized.',500,true);
@@ -78,6 +81,7 @@ async function syncStripeSubscription(db:Db,userId:string,snapshot:StripeSubscri
 }
 
 async function grantPaidInvoiceCredits(db:Db,input:{event:StripeEvent;userId:string;invoice:Record<string,any>;snapshot:StripeSubscriptionSnapshot}):Promise<void>{
+  if(await accountDeletionStarted(db,input.userId))return;
   const mapping=stripeTierForPrice(input.snapshot.priceId),invoicePeriod=stripePeriod(input.invoice),periodStart=invoicePeriod.start??input.snapshot.periodStart;if(!mapping||!periodStart)return;
   await grantSubscriptionCreditsForPeriod(db,{userId:input.userId,tier:mapping.tier,periodStart,sourceProvider:'stripe',sourceEventId:input.event.id,invoiceId:String(input.invoice.id),subscriptionId:input.snapshot.id});
 }
@@ -85,6 +89,7 @@ async function grantPaidInvoiceCredits(db:Db,input:{event:StripeEvent;userId:str
 async function applyCreditPurchaseReversal(db:Db,input:{event:StripeEvent;userId:string|null;paymentIntentId:string;charge:Record<string,any>;disputed:boolean}):Promise<boolean>{
   const{data:purchase,error}=await db.from('together_credit_ledger').select('id,user_id,permanent_delta,metadata').eq('stripe_payment_intent_id',input.paymentIntentId).eq('event_type','purchase').maybeSingle();if(error)throw new AppError('INTERNAL_ERROR','Credit purchase history could not be reconciled.',500,true);if(!purchase)return false;
   const userId=input.userId??String(purchase.user_id),target=creditReversalTarget({grantedCredits:Number(purchase.permanent_delta),amountPaid:Number(input.charge.amount),amountReversed:Number(input.charge.amount_refunded??input.charge.amount),disputed:input.disputed});if(target<=0)return false;
+  if(await accountDeletionStarted(db,userId))return false;
   const{error:rpcError}=await db.rpc('kivelle_apply_credit_purchase_reversal',{p_user_id:userId,p_purchase_ledger_id:purchase.id,p_target_credits:target,p_provider:'stripe',p_provider_event_id:input.event.id,p_reason:input.disputed?'dispute':'refund',p_metadata:{paymentIntentId:input.paymentIntentId,chargeId:input.charge.id,cumulativeTarget:target}});if(rpcError)throw new AppError('INTERNAL_ERROR','Credit refund could not be reconciled.',500,true);
   await track(db,userId,input.disputed?'credit_purchase_disputed':'credit_purchase_refunded',{eventId:input.event.id,targetCredits:target});return true;
 }
@@ -92,6 +97,7 @@ async function applyCreditPurchaseReversal(db:Db,input:{event:StripeEvent;userId
 async function handleLegacyEvent(db:Db,input:z.infer<typeof legacySchema>,correlationId:string):Promise<Response>{
   const ledger=await beginBillingEvent(db,'configured',input.eventId,input.eventType);if(ledger.idempotent)return json({data:{applied:false,idempotent:true},correlationId},200,correlationId);
   try{
+    if(await accountDeletionStarted(db,input.userId)){await finishBillingEvent(db,'configured',input.eventId,'ignored',input.userId,{eventType:input.eventType,provider:input.provider,accountDeleted:true});return json({data:{applied:false,ignored:true},correlationId},200,correlationId);}
     if(input.eventType==='credit_purchase'){
       const amount=resolveCreditPurchaseGrant({productKey:input.productKey,reportedCreditAmount:input.creditAmount,source:input.provider});if(!amount)throw new AppError('VALIDATION_ERROR','A recognized credit product is required.',400);
       const{error}=await db.rpc('kivelle_grant_permanent_credits',{p_user_id:input.userId,p_amount:amount,p_event_type:'purchase',p_idempotency_key:`purchase:${input.provider}:${input.eventId}`,p_reference_type:'billing_event',p_reference_id:input.eventId,p_metadata:{provider:input.provider,productKey:input.productKey??null,reportedCreditAmount:input.creditAmount??null,...input.metadata}});if(error)throw new AppError('INTERNAL_ERROR','Purchased credits could not be applied.',500,true);
@@ -114,8 +120,8 @@ async function syncConfiguredSubscription(db:Db,input:z.infer<typeof legacySchem
   const{error}=await db.from('together_entitlements').update({tier:state.tier,entitlement_keys:keys,billing_provider:state.billing.provider??provider,product_key:input.productKey??null,billing_period_start:state.billing.periodStart??null,billing_period_end:state.billing.periodEnd??null,expires_at:state.billing.expiresAt??null,metadata:{...input.metadata,lastBillingEventId:input.eventId},updated_at:now.toISOString()}).eq('user_id',input.userId);if(error)throw new AppError('INTERNAL_ERROR','Subscription entitlement could not be synchronized.',500,true);
 }
 
-async function userForStripeCustomer(db:Db,customerId:string|null):Promise<string|null>{if(!customerId)return null;const{data}=await db.from('together_billing_customers').select('user_id').eq('provider','stripe').eq('customer_id',customerId).maybeSingle();return data?.user_id?String(data.user_id):null;}
-async function rememberStripeCustomer(db:Db,input:{userId:string;customerId:string;email:string|null}):Promise<void>{const{error}=await db.from('together_billing_customers').upsert({user_id:input.userId,provider:'stripe',customer_id:input.customerId,...(input.email?{email:input.email}:{}),metadata:{lastWebhookAt:new Date().toISOString()},updated_at:new Date().toISOString()},{onConflict:'user_id,provider'});if(error)throw new AppError('INTERNAL_ERROR','Stripe customer ownership could not be synchronized.',500,true);}
+async function userForStripeCustomer(db:Db,customerId:string|null):Promise<string|null>{if(!customerId)return null;const{data}=await db.from('together_billing_customers').select('user_id').eq('provider','stripe').eq('customer_id',customerId).maybeSingle();return data?.user_id?String(data.user_id):await deletedAccountForProviderCustomer(db,'stripe',customerId);}
+async function rememberStripeCustomer(db:Db,input:{userId:string;customerId:string;email:string|null}):Promise<void>{if(await accountDeletionStarted(db,input.userId))return;const{error}=await db.from('together_billing_customers').upsert({user_id:input.userId,provider:'stripe',customer_id:input.customerId,...(input.email?{email:input.email}:{}),metadata:{lastWebhookAt:new Date().toISOString()},updated_at:new Date().toISOString()},{onConflict:'user_id,provider'});if(error)throw new AppError('INTERNAL_ERROR','Stripe customer ownership could not be synchronized.',500,true);}
 function metadataForObject(object:Record<string,any>):Record<string,unknown>{const direct=isRecord(object.metadata)?object.metadata:{},subscription=isRecord(object.parent?.subscription_details?.metadata)?object.parent.subscription_details.metadata:{};return{...subscription,...direct};}
 function validUserId(value:unknown):string|null{return typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)?value:null;}
 function isRecord(value:unknown):value is Record<string,unknown>{return Boolean(value)&&typeof value==='object'&&!Array.isArray(value);}

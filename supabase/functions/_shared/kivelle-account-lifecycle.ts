@@ -24,7 +24,7 @@ export function accountDeletionBillingPlan(billing: AccountDeletionBilling): Acc
     return { action: 'cancel_stripe', canDelete: true, providerLabel: 'Stripe', message: 'Your Kivelle subscription will be canceled immediately before the account is deleted.' };
   }
   const label = providerLabel(provider) ?? 'your billing provider';
-  return { action: 'external_action', canDelete: false, providerLabel: label, message: `Cancel the active subscription through ${label} before deleting your Kivelle account so future renewals stop.` };
+  return { action: 'external_action', canDelete: true, providerLabel: label, message: `Deleting Kivelle does not cancel renewal through ${label}. Manage that subscription separately to stop future charges.` };
 }
 
 export function hasRecentAccountAuthentication(lastSignInAt: string | null | undefined, now = new Date(), maxAgeMinutes = 10): boolean {

@@ -10,7 +10,7 @@ export type SubscriptionStatus={
   capabilities:SubscriptionPlan&{recentTurnBudget?:number;directorPolicy?:string;welcomeCredits?:number};
   creditBalance:CreditBalance;
   entitlementKeys:string[];
-  billing:{provider?:string|null;status?:string|null;billingInterval?:BillingInterval;periodStart?:string|null;periodEnd?:string|null;expiresAt?:string|null;trialEnd?:string|null;cancelAtPeriodEnd?:boolean;canceledAt?:string|null;paymentIssue?:boolean;mayPurchaseCredits?:boolean};
+  billing:{provider?:string|null;store?:'app_store'|'play_store'|'unknown'|null;status?:string|null;billingInterval?:BillingInterval;periodStart?:string|null;periodEnd?:string|null;expiresAt?:string|null;trialEnd?:string|null;cancelAtPeriodEnd?:boolean;canceledAt?:string|null;paymentIssue?:boolean;mayPurchaseCredits?:boolean};
   management:BillingManagement;
   catalog:SubscriptionPlan[];
   creditCosts:Record<string,number>;

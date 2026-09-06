@@ -14,6 +14,7 @@ Use `together_ops_role` with `viewer`, `support`, or `admin`. Existing `together
 - **Queues:** active count, oldest age, failure volume, provider/model success, p95 latency, and estimated cost for dialogue, media, voice, push, and proactive work.
 - **Incidents:** acknowledge, monitor, assign, resolve, and reopen grouped operational failures.
 - **Support:** priority, status, assignment, tags, internal notes, and immutable ticket history.
+- **Safety reports:** protected severity queue, explicit assignment/status/resolution, least-context message access, and an audit event for every reviewer view or mutation.
 - **Users:** exact email or UUID lookup with entitlement, credits, version, and sanitized recent failure metadata.
 - **Alerts:** editable thresholds, cooldowns, severities, channels, delivery history, and manual evaluation.
 - **Releases:** deployed commit, web deployment, migration version, Edge versions, and observed client-version adoption.
@@ -69,7 +70,9 @@ Users create tickets in `/support`. Tickets are rate limited, private under RLS,
 
 ## Push delivery
 
-Native clients request permission only when the user enables push. Tokens remain server-side in `together_push_tokens`. Expo tickets are recorded in `together_push_deliveries`; the life dispatcher checks receipts and deactivates permanently invalid device tokens.
+Native clients request permission only when the user enables push. A SecureStore installation UUID scopes registration, account reassignment, logout, and deactivation so one device cannot disable every device on the same platform. Expo tickets are recorded in `together_push_deliveries`; provider acceptance, device-service receipt, and user open remain separate states. `DeviceNotRegistered` deactivates only that token. `InvalidCredentials` preserves tokens and opens a provider-configuration incident.
+
+Push copy is discreet and payloads are versioned. Never include conversation text, explicit captions, sensitive locations, prompts, thumbnails, signed URLs, or storage keys. Expo acceptance and receipts are operational signals, not proof that a person saw a notification; exactly-once delivery is not claimed.
 
 ## Incident checklist
 
@@ -90,4 +93,12 @@ Do not paste chat text, prompts, transcripts, image URLs, API keys, or user prof
 
 ## Recovery
 
-Use Supabase managed backups and point-in-time recovery according to the project plan. Restore into a separate project first, validate schema/version and representative user continuity, then perform a controlled cutover. Never test restores by overwriting production.
+Use Supabase managed backups and point-in-time recovery according to the project plan. Restore into a separate project first, validate schema/version and representative user continuity, then perform a controlled cutover. Never test restores by overwriting production. Record a real restore as passed only after an authorized isolated restore was actually completed.
+
+## Account deletion recovery
+
+Deletion writes a blocking marker and durable job before destructive work. New authenticated work stops while the marker exists. Storage objects and provider identifiers are captured before relational deletion, so retries do not depend on profile rows that may already be gone.
+
+The deletion worker retries legacy Stripe cancellation when one is required, app-data deletion, owned Supabase Auth-user deletion, and storage cleanup. It also reclaims a `processing` job whose lease is stale, uses the deletion request ID for provider idempotency, and applies bounded exponential retry. A database deletion pass rolls back if Kivelle-owned user rows remain instead of falsely marking the job complete. After retry exhaustion the job remains blocked in `failed` for operator review; the deletion marker must remain in place.
+
+Apple/Google store subscriptions do not block deletion and are not represented as canceled; the user receives the verified original-store management path. Late billing events are acknowledged against the retained deletion marker without recreating a profile, granting credits, or notifying a deleted account. Review `retry`/stale `processing` jobs, `failed` jobs, and `storage_cleanup_pending` failures from operations. Retry the durable job after correcting the underlying provider or database incident; never remove the marker merely to make a retry look successful.

@@ -39,31 +39,13 @@ EXPO_PUBLIC_KIVELLE_GOOGLE_AUTH_ENABLED=true
 EXPO_PUBLIC_KIVELLE_APPLE_AUTH_ENABLED=true
 ```
 
-Web/Android OAuth uses Supabase PKCE. iOS uses native Sign in with Apple with a hashed nonce and sends the resulting identity token to Supabase. Because this shared Supabase project keeps global auto-confirm for another app, Kivelle password signup creates an unconfirmed user server-side and sends a PKCE email magic link with user creation disabled; Kivelle never administratively marks a typed email as verified. After any provider authenticates, server-owned account state routes new users through explicit 18+ confirmation and then companion onboarding. Authentication itself never implies adulthood.
+Web/Android OAuth uses Supabase PKCE. iOS uses native Sign in with Apple with a hashed nonce and sends the resulting identity token to Supabase. Because this shared Supabase project keeps global auto-confirm for another app, Kivelle password signup creates an unconfirmed user server-side and sends a PKCE email magic link with user creation disabled; Kivelle never administratively marks a typed email as verified. After any provider authenticates, server-owned account state routes new users through 18+ confirmation, separate private-conversation and AI-provider-sharing choices, and then companion onboarding. Authentication, a subscription, and AI consent never imply one another.
 
 The production redirect allowlist is `https://kivelli.app/auth/callback`, `https://kivelli.app/reset-password`, `kivelli://auth/callback`, and `kivelli://reset-password`, plus the documented localhost, legacy `together://`, and temporary Expo preview equivalents. Native auth sessions use chunked SecureStore persistence with one-time AsyncStorage migration; web keeps browser storage. Apple only supplies a person's name on first consent, so Kivelle saves it immediately as account metadata while Persona identity remains separate.
 
 ## Billing provider boundary
 
-Kivelle reads subscription state from `together_entitlements`. The Stripe adapter creates short-lived hosted Checkout/Customer Portal sessions server-side and the signed webhook synchronizes that existing entitlement and credit architecture. Kivelle stores Stripe customer/subscription identifiers but never card or payment-method data. Legacy normalized-provider URLs remain available as a compatibility fallback.
-
-Configure these **Edge Function secrets** for Stripe:
-
-```text
-STRIPE_SECRET_KEY=sk_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_PRICE_KIVELLE_PLUS_MONTHLY=price_...
-STRIPE_PRICE_KIVELLE_MAX_MONTHLY=price_...
-STRIPE_PRICE_CREDITS_100=price_...
-STRIPE_PRICE_CREDITS_300=price_...
-STRIPE_PRICE_CREDITS_800=price_...
-STRIPE_PRICE_CREDITS_2000=price_...
-KIVELLE_PUBLIC_APP_URL=https://kivelli.app
-```
-
-Register `together-billing-webhook` as the Stripe webhook endpoint and subscribe to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, and `invoice.payment_failed`. Signature validation uses the raw request body and a five-minute replay window. Checkout and credit grants are idempotent. Until Stripe is configured, the plan screen still provides status and credit balances and clearly reports that checkout is unavailable.
-
-The former `x-kivelle-billing-secret` normalized event contract remains accepted for staged migration from another billing provider. Credit purchases are permanent and idempotent; subscription grants are tied to the billing-period start when available and fall back to a calendar cycle only when no billing period exists.
+Kivelle reads authoritative access from its normalized entitlement tables. RevenueCat is the signed Apple/Google lifecycle adapter for new memberships; native SDK state is provisional UX only. New web membership checkout is disabled. Legacy Stripe records and signed events remain solely for reconciliation, management, and any explicitly retained one-time credit packs. See [billing operations](docs/billing.md) for the allowlisted products, webhook authentication, environment separation, and restore behavior.
 
 ## AI provider configuration
 
@@ -78,9 +60,9 @@ KIVELLE_DIRECTOR_GEMINI_MODEL=gemini-2.5-flash
 
 The existing `OPENAI_API_KEY` / `GEMINI_API_KEY` configuration is reused. Director calls time out quickly and fall back to the deterministic response brief.
 
-Dialogue routing defaults to `KIVELLE_OPENAI_DIALOGUE_MODEL=gpt-5.6-luna` with reasoning disabled and a server-enforced non-sexual romance ceiling. Legacy explicit preferences are normalized away, and the xAI chat route is disabled even when stale chat flags are present. xAI may remain configured independently for non-sexual voice. `KIVELLE_AI_COST_TELEMETRY_ENABLED=true` records server-only normalized token, cache, latency, routing, and cost events without storing prompts. Database-backed provider semaphores default to `KIVELLE_OPENAI_MAX_CONCURRENCY=64`; exhausted capacity engages the normal retry/fallback path instead of opening unbounded upstream connections.
+Dialogue routing defaults to `KIVELLE_OPENAI_DIALOGUE_MODEL=gpt-5.6-luna`. Eligible adults who deliberately select explicit private conversation may use the separately configured xAI dialogue route on web, iOS, and Android when `KIVELLE_PRIVATE_ADULT_TEXT_MODE=on`; every participant must have confirmed adult status and prohibited content still fails closed. Public content and push previews stay safe. Voice retains its separate non-explicit ceiling. `KIVELLE_AI_COST_TELEMETRY_ENABLED=true` records server-only normalized token, cache, latency, routing, and cost events without storing prompts. Database-backed provider semaphores prevent unbounded upstream connections.
 
-Contextual image and short-video records are surfaced only when a real media provider has produced a ready asset. Media routing is provider-neutral; WaveSpeed runs through a durable asynchronous job/webhook/recovery path and never becomes a second source of character or world truth. Production media is limited to everyday and romantic imagery; legacy suggestive, mature, and explicit requests are rejected before provider selection and omitted from client snapshots.
+Contextual image and short-video records are surfaced only when a real media provider has produced a ready asset. Explicit visual generation and retrieval require the verified web-surface session and adult-media grant path. Native projections omit explicit URLs, thumbnails, captions, storage keys, and derivatives and preserve timeline order with a neutral local placeholder. A user agent or client platform string cannot grant web visual access. Previously issued signed access is short-lived; already downloaded files cannot be remotely revoked.
 
 Media dispatch uses request-time kicks plus a one-minute Supabase Cron recovery sweep. Configure the same random value as the Edge Function secret `TOGETHER_MEDIA_DISPATCH_SECRET` and the Vault secret `together_media_dispatch_secret`; Vault also needs `together_project_url`. `KIVELLE_MEDIA_MAX_INFLIGHT` defaults to `48` and provides server-side global image/video backpressure. Conversation turns, provider polling, and media finalization use expiring database leases so multiple Edge instances and devices cannot commit the same work concurrently.
 

@@ -154,11 +154,10 @@ async function confirmAdultProfile(db:SupabaseClient,user:{id:string;email?:stri
     const metadata=user.user_metadata??{};
     const candidate=[metadata.display_name,metadata.full_name,metadata.name,user.email?.split('@')[0]].find((value)=>typeof value==='string'&&value.trim());
     const displayName=typeof candidate==='string'?candidate.trim().slice(0,50):'You';
-    const created=await db.from('together_profiles').insert({user_id:user.id,display_name:displayName,date_of_birth:dateOfBirth,age_verified_at:now,adult_eligible_at:now,adult_eligibility_method:'self_declared_dob_v2',content_preferences:{contentMode:'explicit',romanceEnabled:true,matureContentEnabled:false,explicitContentEnabled:true,suggestiveMediaEnabled:false,nudityMediaEnabled:false,explicitMediaEnabled:false},onboarding_completed_at:null,updated_at:now});
+    const created=await db.from('together_profiles').insert({user_id:user.id,display_name:displayName,date_of_birth:dateOfBirth,age_verified_at:now,adult_eligible_at:now,adult_eligibility_method:'self_declared_dob_v2',content_preferences:{contentMode:'standard',romanceEnabled:true,matureContentEnabled:false,explicitContentEnabled:false,suggestiveMediaEnabled:false,nudityMediaEnabled:false,explicitMediaEnabled:false},onboarding_completed_at:null,updated_at:now});
     if(created.error&&!/duplicate|unique/i.test(created.error.message))throw new AppError('INTERNAL_ERROR','Kivelle could not confirm your age.',500,true);
   }else{
-    const contentPreferences={...((existing.data.content_preferences??{}) as Record<string,unknown>),contentMode:'explicit',explicitContentEnabled:true};
-    const updated=await db.from('together_profiles').update({date_of_birth:dateOfBirth,age_verified_at:existing.data.age_verified_at??now,adult_eligible_at:now,adult_eligibility_method:'self_declared_dob_v2',content_preferences:contentPreferences,updated_at:now}).eq('user_id',user.id);
+    const updated=await db.from('together_profiles').update({date_of_birth:dateOfBirth,age_verified_at:existing.data.age_verified_at??now,adult_eligible_at:now,adult_eligibility_method:'self_declared_dob_v2',updated_at:now}).eq('user_id',user.id);
     if(updated.error)throw new AppError('INTERNAL_ERROR','Kivelle could not confirm your age.',500,true);
   }
   // This field is analytics-only. Authorization remains tied to the authenticated

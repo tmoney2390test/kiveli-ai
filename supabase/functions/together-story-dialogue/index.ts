@@ -3,6 +3,7 @@ import { applyStoryAction, storyCharactersAtLocation, StoryRuleError } from '../
 import { applyStoryCharacterExchangeContinuity, applyStoryConversationContinuity, applyValidatedStoryReaction, selectStorySecondarySpeaker } from '../../../packages/together-domain/src/story-director.ts';
 import { parseBody } from '../_shared/body.ts';
 import { authenticated, enforceRateLimit } from '../_shared/context.ts';
+import { requireAiDataConsent } from '../_shared/kivelle-ai-consent.ts';
 import { corsHeaders, serve } from '../_shared/http.ts';
 import { generateStoryDialogue } from '../_shared/kivelle-story-dialogue.ts';
 import { storyDefinition } from '../_shared/kivelle-stories-content.ts';
@@ -32,6 +33,7 @@ const schema = z.object({
 serve(async (request, correlationId) => {
   if (request.method !== 'POST') throw new AppError('VALIDATION_FAILED', 'Story dialogue requires POST.', 405);
   const { user, db } = await authenticated(request);
+  await requireAiDataConsent(db,user.id);
   await requireStoriesAccess(db, user.id);
   await enforceRateLimit(db, user.id, 'together_story_dialogue', 40, 60);
   const input = await parseBody(request, schema);

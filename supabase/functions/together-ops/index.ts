@@ -93,6 +93,9 @@ const schema = z.discriminatedUnion("action", [
     note: z.string().trim().min(2).max(2000).optional(),
   }),
   z.object({ action: z.literal("incidents") }),
+  z.object({ action: z.literal("safety_reports"), status: z.enum(["open","reviewing","resolved","dismissed"]).optional() }),
+  z.object({ action: z.literal("safety_report_detail"), reportId: z.string().uuid() }),
+  z.object({ action: z.literal("update_safety_report"), reportId: z.string().uuid(), status: z.enum(["open","reviewing","resolved","dismissed"]).optional(), assignedTo: z.string().uuid().nullable().optional(), resolutionCode: z.string().trim().min(2).max(80).optional(), note: z.string().trim().min(2).max(1000).optional() }),
   z.object({
     action: z.literal("update_incident"),
     incidentId: z.string().uuid(),
@@ -332,6 +335,40 @@ serve(async (request, correlationId) => {
       200,
       correlationId,
     );
+  }
+  if(input.action==="safety_reports"){
+    requireMinimumRole(role,"support");
+    let query=db.from("together_safety_reports").select("id,user_id,message_id,reason,severity,status,assigned_to,resolved_at,resolution_code,created_at,updated_at").order("created_at",{ascending:false}).limit(150);
+    if(input.status)query=query.eq("status",input.status);
+    const{data,error}=await query;
+    if(error)throw new AppError("INTERNAL_ERROR","Safety reports could not be loaded.",500,true);
+    const severityRank={urgent:0,high:1,normal:2} as Record<string,number>;
+    return json({data:{reports:(data??[]).sort((left,right)=>(severityRank[String(left.severity)]??3)-(severityRank[String(right.severity)]??3)||Date.parse(String(left.created_at))-Date.parse(String(right.created_at)))},correlationId},200,correlationId);
+  }
+  if(input.action==="safety_report_detail"){
+    requireMinimumRole(role,"support");
+    const report=await db.from("together_safety_reports").select("id,user_id,message_id,reason,detail,severity,status,assigned_to,resolved_at,resolution_code,created_at,updated_at").eq("id",input.reportId).maybeSingle();
+    if(report.error)throw new AppError("INTERNAL_ERROR","The safety report could not be loaded.",500,true);
+    if(!report.data)throw new AppError("NOT_FOUND","That safety report is unavailable.",404);
+    const[message,events]=await Promise.all([report.data.message_id?db.from("together_messages").select("id,conversation_id,role,content,created_at").eq("id",report.data.message_id).maybeSingle():Promise.resolve({data:null,error:null}),db.from("together_safety_report_events").select("id,actor_user_id,actor_role,event_type,from_status,to_status,note_safe,created_at").eq("report_id",input.reportId).order("created_at",{ascending:true})]);
+    if(message.error||events.error)throw new AppError("INTERNAL_ERROR","The protected report context could not be loaded.",500,true);
+    await recordOperationsAudit(db,{actorUserId:user.id,actorRole:role,action:"safety_report_viewed",targetType:"safety_report",targetId:input.reportId,requestId:correlationId});
+    return json({data:{report:report.data,message:message.data,events:events.data??[]},correlationId},200,correlationId);
+  }
+  if(input.action==="update_safety_report"){
+    requireMinimumRole(role,"support");
+    const before=await db.from("together_safety_reports").select("id,status,assigned_to").eq("id",input.reportId).maybeSingle();
+    if(!before.data)throw new AppError("NOT_FOUND","That safety report is unavailable.",404);
+    const now=new Date().toISOString(),patch:Record<string,unknown>={updated_at:now};
+    if(input.status){patch.status=input.status;patch.resolved_at=["resolved","dismissed"].includes(input.status)?now:null;if(["open","reviewing"].includes(input.status))patch.resolution_code=null;}
+    if(input.assignedTo!==undefined)patch.assigned_to=input.assignedTo;
+    if(input.resolutionCode)patch.resolution_code=input.resolutionCode;
+    const updated=await db.from("together_safety_reports").update(patch).eq("id",input.reportId).select("id,status,assigned_to,resolved_at,resolution_code,updated_at").single();
+    if(updated.error||!updated.data)throw new AppError("INTERNAL_ERROR","The safety report could not be updated.",500,true);
+    const reopened=input.status&&["resolved","dismissed"].includes(String(before.data.status))&&["open","reviewing"].includes(input.status);
+    await db.from("together_safety_report_events").insert({report_id:input.reportId,actor_user_id:user.id,actor_role:role==="admin"?"admin":"reviewer",event_type:reopened?"reopened":input.status&&["resolved","dismissed"].includes(input.status)?"resolved":input.assignedTo!==undefined?"assigned":input.note?"note":"status",from_status:before.data.status,to_status:updated.data.status,note_safe:input.note?sanitizeOperationsText(input.note,1000):null});
+    await recordOperationsAudit(db,{actorUserId:user.id,actorRole:role,action:"safety_report_updated",targetType:"safety_report",targetId:input.reportId,requestId:correlationId,reasonSafe:input.note??null,metadata:{status:updated.data.status}});
+    return json({data:{report:updated.data},correlationId},200,correlationId);
   }
   if (input.action === "ticket_detail") {
     requireMinimumRole(role, "support");

@@ -45,7 +45,10 @@ export async function authenticated(request: Request): Promise<{ user: User; db:
   const suspensionPromise=assertedUserId
     ? db.from('account_suspensions').select('id').eq('user_id',assertedUserId).eq('active',true).or(`permanent.eq.true,ends_at.gt.${nowIso}`).maybeSingle()
     : Promise.resolve({data:null});
-  const [{data,error},preloadedSuspension]=await Promise.all([db.auth.getUser(accessToken),suspensionPromise]);
+  const deletionPromise=assertedUserId
+    ? db.from('together_account_deletion_markers').select('user_id').eq('user_id',assertedUserId).maybeSingle()
+    : Promise.resolve({data:null,error:null});
+  const [{data,error},preloadedSuspension,preloadedDeletion]=await Promise.all([db.auth.getUser(accessToken),suspensionPromise,deletionPromise]);
   if (error || !data.user) throw new AppError('AUTH_REQUIRED', 'Your session is no longer valid.', 401);
   const invalidBefore=Date.parse(String(data.user.app_metadata?.together_sessions_invalid_before??'')),issuedAt=jwtIssuedAt(accessToken);
   if(Number.isFinite(invalidBefore)&&issuedAt!==null&&issuedAt*1000<=invalidBefore)throw new AppError('AUTH_REQUIRED','Sign in again to continue.',401);
@@ -53,6 +56,10 @@ export async function authenticated(request: Request): Promise<{ user: User; db:
     ? preloadedSuspension.data
     : (await db.from('account_suspensions').select('id').eq('user_id',data.user.id).eq('active',true).or(`permanent.eq.true,ends_at.gt.${nowIso}`).maybeSingle()).data;
   if (suspension) throw new AppError('FORBIDDEN', 'This account is currently suspended.', 403);
+  const deletion=assertedUserId===data.user.id
+    ? preloadedDeletion.data
+    : (await db.from('together_account_deletion_markers').select('user_id').eq('user_id',data.user.id).maybeSingle()).data;
+  if(deletion)throw new AppError('ACCOUNT_DELETED','This Kivelle account has been deleted.',410,false);
   return { user: data.user, db };
 }
 

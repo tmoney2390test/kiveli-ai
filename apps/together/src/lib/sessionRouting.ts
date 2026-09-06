@@ -1,5 +1,5 @@
 const PUBLIC_PATHS = new Set(['/', '/auth', '/auth/callback', '/onboarding', '/reset-password', '/terms', '/privacy-policy', '/community-guidelines', '/help']);
-const ONBOARDING_PATHS = new Set(['/age-confirmation', '/choose-companion', '/quick-start']);
+const ONBOARDING_PATHS = new Set(['/age-confirmation', '/privacy-choice', '/choose-companion', '/quick-start']);
 
 export function isPublicAppPath(pathname: string) {
   return PUBLIC_PATHS.has(normalizePathname(pathname));
@@ -29,6 +29,10 @@ export function isLifeSetupPath(pathname: string) {
 
 export function isAgeConfirmationPath(pathname: string) {
   return normalizePathname(pathname) === '/age-confirmation';
+}
+
+export function isPrivacyChoicePath(pathname: string) {
+  return normalizePathname(pathname) === '/privacy-choice';
 }
 
 export function isCompanionOnboardingPath(pathname: string) {

@@ -17,10 +17,8 @@ export type PublicCompanion = {
 };
 
 export const PUBLIC_LANDING_COPY = {
-  badge: 'AI COMPANIONS. LIVING WORLDS.',
-  title: 'Step Into Worlds',
-  titleAccent: 'Made for Connection.',
-  body: "Kivelle.AI is more than chat. It’s AI companions, living worlds, and stories that evolve around you. Explore places like Juniper City and meet people who feel real.",
+  title: 'Your story starts here.',
+  body: 'Meet AI characters. Explore new worlds. Make the story yours.',
 } as const;
 
 export const PUBLIC_WORLDS: readonly PublicWorld[] = [

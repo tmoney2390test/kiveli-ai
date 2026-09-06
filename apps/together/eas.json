@@ -3,9 +3,14 @@
   "build": {
     "development": { "developmentClient": true, "distribution": "internal", "channel": "development" },
     "preview": { "distribution": "internal", "channel": "preview", "android": { "buildType": "apk" } },
+    "releaseCandidate": { "distribution": "internal", "channel": "release-candidate", "autoIncrement": true },
     "production": { "autoIncrement": true, "channel": "production" }
   },
   "submit": {
+    "releaseCandidate": {
+      "ios": { "ascAppId": "6807826072" },
+      "android": { "track": "internal" }
+    },
     "production": {
       "ios": { "ascAppId": "6807826072" },
       "android": { "track": "internal" }

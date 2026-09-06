@@ -23,7 +23,7 @@ export default function AgeConfirmation() {
     try {
       const snapshot = await confirmAdultAge(dateOfBirth);
       setSnapshot(snapshot);
-      router.replace('/choose-companion');
+      router.replace('/privacy-choice' as never);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Kivelle could not confirm your age.');
     } finally {

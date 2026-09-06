@@ -30,6 +30,7 @@ serve(async (request, correlationId) => {
     password: input.password,
     email_confirm: false,
     user_metadata: { signup_app: 'together' },
+    app_metadata: { kivelle_account_owner: true },
   });
 
   if (error && !isDuplicateUser(error.message)) {
@@ -45,7 +46,7 @@ serve(async (request, correlationId) => {
       age_verified_at:now,
       adult_eligible_at:now,
       adult_eligibility_method:'self_declared_dob_v2',
-      content_preferences:{contentMode:'explicit',romanceEnabled:true,matureContentEnabled:false,explicitContentEnabled:true,suggestiveMediaEnabled:false,nudityMediaEnabled:false,explicitMediaEnabled:false},
+      content_preferences:{contentMode:'standard',romanceEnabled:true,matureContentEnabled:false,explicitContentEnabled:false,suggestiveMediaEnabled:false,nudityMediaEnabled:false,explicitMediaEnabled:false},
       onboarding_completed_at:null,
       updated_at:now,
     });

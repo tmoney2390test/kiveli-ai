@@ -40,6 +40,7 @@ import {
 import { isAnimatedChatPhoto, matchesChatPhotoSignature } from "../_shared/chat-photo-policy.ts";
 import { chatPhotoByteBucket, chatPhotoEdgeBucket, chatPhotoFailureCode, chatPhotoLatencyBucket, chatPhotoPolicyReason, safeChatPhotoTelemetry } from "../_shared/chat-photo-observability.ts";
 import { issueAdultAssetUrl, resolveAdultAccess, type AdultAccessContext } from "../_shared/web-adult-access.ts";
+import { requireAiDataConsent } from "../_shared/kivelle-ai-consent.ts";
 
 const uuid = z.string().uuid();
 const schema = z.discriminatedUnion("action", [
@@ -88,9 +89,11 @@ const schema = z.discriminatedUnion("action", [
 serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
   if (new URL(request.url).searchParams.get("action") === "transcribe_audio") {
+    await requireAiDataConsent(db,user.id);
     return await transcribeAudio(request, correlationId, user.id, db);
   }
   const input = await parseBody(request, schema);
+  if(["confirm_user_image","request_voice_note","preview_voice"].includes(input.action))await requireAiDataConsent(db,user.id);
   const continuity = await activeContinuity(db, user.id);
   const [{ data: profile }, { data: entitlement }] = await Promise.all([
     db.from("together_profiles").select("multimodal_preferences,photo_preferences").eq(

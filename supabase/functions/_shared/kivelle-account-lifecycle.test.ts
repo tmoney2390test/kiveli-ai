@@ -6,8 +6,10 @@ Deno.test('account deletion cancels Stripe before removing a billable account', 
   assertEquals(accountDeletionBillingPlan({ provider: 'stripe', subscriptionId: 'sub_123', status: 'canceled' }).action, 'none');
 });
 
-Deno.test('account deletion blocks externally managed renewal and permits Kivelle grants', () => {
-  assertEquals(accountDeletionBillingPlan({ provider: 'revenuecat', subscriptionId: 'rc_1', status: 'trialing' }).canDelete, false);
+Deno.test('account deletion warns about externally managed renewal without blocking deletion', () => {
+  const external=accountDeletionBillingPlan({ provider: 'revenuecat', subscriptionId: 'rc_1', status: 'trialing' });
+  assertEquals(external.canDelete, true);
+  assertEquals(external.action, 'external_action');
   assertEquals(accountDeletionBillingPlan({ provider: 'configured', subscriptionId: 'grant', status: 'active', managedByKivelle: true }).canDelete, true);
 });
 

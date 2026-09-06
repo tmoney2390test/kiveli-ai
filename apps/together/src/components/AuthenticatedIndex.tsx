@@ -37,6 +37,8 @@ export default function AuthenticatedIndex() {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname !== '/') return;
     const target = stage === 'age_confirmation'
       ? '/age-confirmation'
+      : stage === 'privacy_choice'
+        ? '/privacy-choice'
       : stage === 'onboarding'
         ? '/choose-companion'
         : '/home';
@@ -51,5 +53,5 @@ export default function AuthenticatedIndex() {
 
   if (loading || (!snapshot && !error)) return <LoadingSkeleton label="Opening your world…" />;
   if (error) return <ErrorState message={error} onRetry={() => void refresh()} />;
-  return <LoadingSkeleton label={stage === 'age_confirmation' ? 'Opening age confirmation…' : stage === 'onboarding' ? 'Preparing your first meeting…' : 'Opening your world…'} />;
+  return <LoadingSkeleton label={stage === 'age_confirmation' ? 'Opening age confirmation…' : stage === 'privacy_choice' ? 'Opening privacy choices…' : stage === 'onboarding' ? 'Preparing your first meeting…' : 'Opening your world…'} />;
 }

@@ -83,3 +83,8 @@ export function resetConversationMessageWarmupForTests(): void {
   cacheByUser.clear();
   inFlightByScope.clear();
 }
+
+export function clearConversationMessageWarmup():void{
+  cacheByUser.clear();
+  inFlightByScope.clear();
+}

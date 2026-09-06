@@ -16,6 +16,8 @@ export type AdultAccessContext={
   authorized_web_adult:boolean;
   adult_eligibility:AdultEligibility;
   private_adult_text_mode:PrivateAdultTextMode;
+  private_text_preference:'standard'|'mature'|'explicit'|null;
+  private_text_preference_recorded:boolean;
   web_session_id:string|null;
 };
 
@@ -41,7 +43,7 @@ export async function resolveAdultAccess(request:Request,user:User,db:SupabaseCl
   const [verifiedWebSurface,subscription,profile,webSessionResult,latestWebSessionResult]=await Promise.all([
     verifyWebSurfaceAssertion(request,user.id),
     resolveSubscriptionAccess(db,user.id),
-    db.from('together_profiles').select('adult_eligible_at,age_verified_at,date_of_birth').eq('user_id',user.id).maybeSingle(),
+    db.from('together_profiles').select('adult_eligible_at,age_verified_at,date_of_birth,private_text_preference,private_text_preference_recorded_at').eq('user_id',user.id).maybeSingle(),
     webSessionPromise,
     latestWebSessionPromise,
   ]);
@@ -71,7 +73,9 @@ export async function resolveAdultAccess(request:Request,user:User,db:SupabaseCl
   const adult_generation_enabled=envTrue('WEB_ADULT_MODE_ENABLED')&&Boolean(Deno.env.get('OPENAI_API_KEY')?.trim());
   const authorized_web_adult=adultPipelineAuthorized({client_surface,premium_access,adult_eligible,adult_mode_enabled,global_enabled:adult_generation_enabled});
   const private_adult_text_mode=normalizePrivateAdultTextMode(Deno.env.get('KIVELLE_PRIVATE_ADULT_TEXT_MODE'));
-  return{premium_access,adult_eligible,adult_mode_enabled,client_surface,adult_generation_enabled,authorized_web_adult,adult_eligibility,private_adult_text_mode,web_session_id};
+  const private_text_preference=['standard','mature','explicit'].includes(String(profile.data?.private_text_preference))?profile.data?.private_text_preference as 'standard'|'mature'|'explicit':null;
+  const private_text_preference_recorded=Boolean(private_text_preference&&profile.data?.private_text_preference_recorded_at);
+  return{premium_access,adult_eligible,adult_mode_enabled,client_surface,adult_generation_enabled,authorized_web_adult,adult_eligibility,private_adult_text_mode,private_text_preference,private_text_preference_recorded,web_session_id};
 }
 
 export function websiteAdultRequestEnabled(verifiedWebSurface:boolean,adultEligible:boolean):boolean{

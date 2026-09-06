@@ -14,6 +14,7 @@ import { cancelStripeSubscriptionNow } from '../_shared/stripe.ts';
 import { accountDeletionBillingPlan, hasRecentAccountAuthentication, isOwnedAvatarPath } from '../_shared/kivelle-account-lifecycle.ts';
 import { validatePrivateAvatarJpeg } from '../_shared/kivelle-avatar.ts';
 import { resolveAdultAccess } from '../_shared/web-adult-access.ts';
+import { AI_DATA_CONSENT_DISCLOSURE_VERSION, AI_DATA_CONSENT_PURPOSE, loadAiDataConsent } from '../_shared/kivelle-ai-consent.ts';
 
 const goals = z.enum(['Dating', 'Friendship', 'Stories', 'Social worlds']);
 const schema = z.discriminatedUnion('action', [
@@ -21,6 +22,8 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('privacy'), settings: z.record(z.string(), z.boolean()) }),
   z.object({ action: z.literal('content'), romanceEnabled: z.boolean() }),
   z.object({ action: z.literal('conversation_style'), responseStyle: z.enum(['texting','paragraph']) }),
+  z.object({ action: z.literal('privacy_choices_status') }),
+  z.object({ action: z.literal('privacy_choices'), aiDataSharing: z.boolean(), privateTextPreference: z.enum(['standard','mature','explicit']), source: z.enum(['onboarding','privacy','account']).default('account') }),
   z.object({ action: z.literal('export_request') }),
   z.object({ action: z.literal('export_status'), exportId: z.string().uuid() }),
   z.object({ action: z.literal('delete_preview') }),
@@ -89,6 +92,32 @@ serve(async (request, correlationId) => {
     return json({ data, correlationId }, 200, correlationId);
   }
 
+  if (input.action === 'privacy_choices_status') {
+    const [consent, profile] = await Promise.all([
+      loadAiDataConsent(db, user.id),
+      db.from('together_profiles').select('private_text_preference,private_text_preference_version,private_text_preference_recorded_at').eq('user_id', user.id).maybeSingle(),
+    ]);
+    if (profile.error) throw new AppError('INTERNAL_ERROR', 'Your privacy choices could not be loaded.', 500, true);
+    return json({ data: { aiDataConsent: consent, privateTextPreference: profile.data?.private_text_preference ?? null, privateTextPreferenceVersion: profile.data?.private_text_preference_version ?? null, privateTextPreferenceRecordedAt: profile.data?.private_text_preference_recorded_at ?? null, disclosure: aiDataSharingDisclosure() }, correlationId }, 200, correlationId);
+  }
+
+  if (input.action === 'privacy_choices') {
+    const aiDecision=input.aiDataSharing?'accepted':input.source==='onboarding'?'declined':'withdrawn';
+    const { error } = await db.rpc('kivelle_record_launch_privacy_choices', {
+      p_user_id: user.id,
+      p_ai_decision: aiDecision,
+      p_private_text_preference: input.privateTextPreference,
+      p_disclosure_version: AI_DATA_CONSENT_DISCLOSURE_VERSION,
+      p_source: input.source,
+    });
+    if (error) {
+      if (String(error.message).includes('ADULT_ELIGIBILITY_REQUIRED')) throw new AppError('FORBIDDEN', 'Confirm adult eligibility before choosing private conversation settings.', 403);
+      throw new AppError('INTERNAL_ERROR', 'Your privacy choices could not be saved.', 500, true);
+    }
+    await track(db, user.id, 'launch_privacy_choices_updated', { aiDataSharing: input.aiDataSharing, aiDecision, privateTextPreference: input.privateTextPreference, source: input.source, disclosureVersion: AI_DATA_CONSENT_DISCLOSURE_VERSION });
+    return json({ data: { aiDataConsent: await loadAiDataConsent(db, user.id), privateTextPreference: input.privateTextPreference, disclosure: aiDataSharingDisclosure() }, correlationId }, 200, correlationId);
+  }
+
   if (input.action === 'export_request') {
     await expireAccountExports(db, user.id);
     const projectionScope=adultAccess.authorized_web_adult?'canonical':'safe';
@@ -129,30 +158,49 @@ serve(async (request, correlationId) => {
   if (!billingPlan.canDelete) throw new AppError('CONFLICT', billingPlan.message, 409);
   const storage = await ownedStorageManifest(db, user.id);
   const staged = await stageDeletionCleanup(db, user.id, storage);
+  const receiptId = crypto.randomUUID(), fingerprint = await accountFingerprint(user.id);
+  const authOwnedByKivelle=user.app_metadata?.kivelle_account_owner===true;
+  const appleIdentity=Array.isArray(user.identities)&&user.identities.some((identity)=>identity.provider==='apple');
+  const stagedJobIds=[...staged.existingIds,...staged.createdIds];
+  const deletionJob=await db.from('together_account_deletion_jobs').insert({user_id:user.id,status:'processing',attempt_count:1,apple_revocation_status:appleIdentity?'unavailable':'not_applicable',correlation_id:correlationId,storage_job_ids:stagedJobIds,auth_user_owned:authOwnedByKivelle,billing_cancellation_required:billingPlan.action==='cancel_stripe'}).select('id').single();
+  if(deletionJob.error||!deletionJob.data){await rollbackStagedDeletionCleanup(db,staged);throw new AppError('INTERNAL_ERROR','Your account deletion could not be prepared. Nothing was deleted.',500,true);}
+  const marker=await db.from('together_account_deletion_markers').insert({user_id:user.id,user_fingerprint:fingerprint,billing_provider:access.billing.provider??null,provider_customer_id:access.billing.customerId??null,provider_subscription_id:access.billing.subscriptionId??null,external_renewal_may_continue:billingPlan.action==='external_action'});
+  if(marker.error){await db.from('together_account_deletion_jobs').delete().eq('id',deletionJob.data.id);await rollbackStagedDeletionCleanup(db,staged);throw new AppError('INTERNAL_ERROR','Your account deletion could not be prepared. Nothing was deleted.',500,true);}
   let billingCanceled = false;
   try {
+    await Promise.all([
+      db.from('together_generated_media').update({status:'failed',failure_code:'account_deleted',failure_reason_safe:'Account deleted.',updated_at:new Date().toISOString()}).eq('user_id',user.id).in('status',['queued','generating']),
+      db.from('together_proactive_messages').update({status:'cancelled',updated_at:new Date().toISOString()}).eq('user_id',user.id).eq('status','queued'),
+      db.from('together_push_tokens').update({active:false,deactivated_at:new Date().toISOString()}).eq('user_id',user.id),
+    ]);
     if (billingPlan.action === 'cancel_stripe') {
       const subscriptionId = access.billing.subscriptionId;
       if (!subscriptionId) throw new AppError('BILLING_REJECTED', 'Your Stripe subscription could not be identified. Open Billing or contact support before deleting the account.', 409);
       await cancelStripeSubscriptionNow(subscriptionId, correlationId);
       billingCanceled = true;
       await db.from('together_billing_subscriptions').update({ status: 'canceled', cancel_at_period_end: false, canceled_at: new Date().toISOString(), access_ends_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('user_id', user.id).eq('provider', 'stripe').eq('provider_subscription_id', subscriptionId);
+      await db.from('together_account_deletion_jobs').update({billing_canceled:true,updated_at:new Date().toISOString()}).eq('id',deletionJob.data.id);
     }
-  } catch (error) {
-    await rollbackStagedDeletionCleanup(db, staged);
-    throw error;
+  } catch {
+    await db.from('together_account_deletion_jobs').update({status:'retry',failure_code:'billing_cancellation_failed',next_attempt_at:new Date(Date.now()+5*60_000).toISOString(),updated_at:new Date().toISOString()}).eq('id',deletionJob.data.id);
+    return json({data:{deleted:false,queued:true,requestId:deletionJob.data.id},correlationId},202,correlationId);
   }
-  const { error: deleteError } = await db.auth.admin.deleteUser(user.id);
+  const deleteResult=authOwnedByKivelle
+    ? await db.auth.admin.deleteUser(user.id)
+    : await db.rpc('kivelle_delete_application_user_data',{p_user_id:user.id});
+  const deleteError=deleteResult.error;
   if (deleteError) {
-    await rollbackStagedDeletionCleanup(db, staged);
-    throw new AppError('INTERNAL_ERROR', 'Your account could not be deleted. Please try again.', 500, true);
+    await db.from('together_account_deletion_jobs').update({status:'retry',failure_code:'application_data_delete_failed',next_attempt_at:new Date(Date.now()+5*60_000).toISOString(),updated_at:new Date().toISOString()}).eq('id',deletionJob.data.id);
+    return json({data:{deleted:false,queued:true,requestId:deletionJob.data.id},correlationId},202,correlationId);
   }
-  const jobIds = [...staged.existingIds, ...staged.createdIds];
+  await db.from('together_account_deletion_markers').update({auth_user_deleted:authOwnedByKivelle}).eq('user_id',user.id);
+  const jobIds = stagedJobIds;
   if (jobIds.length) {
     await db.from('together_storage_cleanup_jobs').update({ status: 'pending', updated_at: new Date().toISOString() }).in('id', jobIds);
-    waitUntil(processStorageCleanupJobs(db, jobIds));
+    waitUntil(finalizeDeletionCleanup(db,deletionJob.data.id,jobIds));
+  }else{
+    await db.from('together_account_deletion_jobs').update({status:'complete',completed_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',deletionJob.data.id);
   }
-  const receiptId = crypto.randomUUID(), fingerprint = await accountFingerprint(user.id);
   const receipt = await db.from('together_account_deletion_receipts').insert({ id: receiptId, user_fingerprint: fingerprint, billing_provider: access.billing.provider ?? null, billing_canceled: billingCanceled, storage_object_count: storage.length, correlation_id: correlationId });
   if (receipt.error) console.warn(JSON.stringify({ level: 'warn', operation: 'account_deletion_receipt', correlationId, code: 'receipt_write_failed' }));
   return json({ data: { deleted: true, receiptId }, correlationId }, 200, correlationId);
@@ -294,3 +342,19 @@ function countExportRecords(value: unknown): number {
 }
 
 function record(value: unknown): Record<string, unknown> { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
+
+function aiDataSharingDisclosure() {
+  return {
+    purpose: AI_DATA_CONSENT_PURPOSE,
+    version: AI_DATA_CONSENT_DISCLOSURE_VERSION,
+    providers: ['OpenAI', 'Google', 'xAI', 'Venice AI', 'WaveSpeed AI', 'ElevenLabs'],
+    dataCategories: ['conversation context and selected memories', 'photos you choose to share or generate from', 'audio you choose to transcribe or synthesize'],
+  };
+}
+
+async function finalizeDeletionCleanup(db:SupabaseClient,deletionJobId:string,storageJobIds:string[]){
+  await processStorageCleanupJobs(db,storageJobIds);
+  const{count}=await db.from('together_storage_cleanup_jobs').select('id',{count:'exact',head:true}).in('id',storageJobIds).neq('status','complete');
+  const now=new Date().toISOString();
+  await db.from('together_account_deletion_jobs').update(count?{status:'retry',failure_code:'storage_cleanup_pending',next_attempt_at:new Date(Date.now()+5*60_000).toISOString(),updated_at:now}:{status:'complete',failure_code:null,completed_at:now,updated_at:now}).eq('id',deletionJobId);
+}

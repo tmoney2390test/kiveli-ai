@@ -4,6 +4,7 @@ import { normalizeSpiceLevel } from './spice';
 import { normalizeCompanionVoicePreset, type CompanionVoicePreset } from '@together/domain/src/voice-presets';
 import { normalizeChatLanguage, type ChatLanguagePreference } from '@together/domain/src/chat-language';
 import { DEFAULT_CHAT_GENERATION_PREFERENCES, normalizeChatDynamism, normalizeReasoningPreference, reconcileReasoningPreferenceForTier, type ChatDynamism, type ChatGenerationPreferences, type ReasoningPreference } from '@together/domain/src/chat-generation';
+import { isChatBubbleColor, normalizeChatBubbleColor, type ChatBubbleColor } from '@together/domain/src/chat-appearance';
 
 export const chatTextSizeOptions: Array<{ value: ChatTextSize; label: string; fontSize: number; lineHeight: number }> = [
   { value: 'small', label: 'Small', fontSize: 13, lineHeight: 19 },
@@ -21,6 +22,8 @@ export function chatPreferencesFromConversation(conversation?: Pick<Conversation
     ...(normalizeCompanionVoicePreset(candidate.voicePreset) ? { voicePreset: normalizeCompanionVoicePreset(candidate.voicePreset)! } : {}),
     ...(isDialogueContentMode(candidate.contentMode) ? { contentMode: candidate.contentMode } : {}),
     ...(candidate.chatLanguage !== undefined ? { chatLanguage: normalizeChatLanguage(candidate.chatLanguage) } : {}),
+    ...(isChatBubbleColor(candidate.userBubbleColor) ? { userBubbleColor: candidate.userBubbleColor } : {}),
+    ...(isChatBubbleColor(candidate.companionBubbleColor) ? { companionBubbleColor: candidate.companionBubbleColor } : {}),
     chatDynamism: normalizeChatDynamism(candidate.chatDynamism),
     reasoningPreference: tier === undefined ? normalizeReasoningPreference(candidate.reasoningPreference) : reconcileReasoningPreferenceForTier(candidate.reasoningPreference, tier),
   };
@@ -62,6 +65,14 @@ export function resolveChatLanguage(conversation?: Pick<Conversation, 'metadata'
   return chatPreferencesFromConversation(conversation).chatLanguage ?? 'en';
 }
 
+export function resolveChatBubbleColors(conversation?: Pick<Conversation, 'metadata'> | null): { user: ChatBubbleColor; companion: ChatBubbleColor } {
+  const preferences = chatPreferencesFromConversation(conversation);
+  return {
+    user: normalizeChatBubbleColor(preferences.userBubbleColor),
+    companion: normalizeChatBubbleColor(preferences.companionBubbleColor),
+  };
+}
+
 export function chatMessageTypography(conversation?: Pick<Conversation, 'metadata'> | null, options?: { desktop?: boolean }): { fontSize: number; lineHeight: number } {
   const size = resolveChatTextSize(conversation);
   const option = chatTextSizeOptions.find((item) => item.value === size) ?? { value: 'medium' as const, label: 'Medium', fontSize: 15, lineHeight: 22 };
@@ -74,11 +85,11 @@ export function isSubscribedTier(tier?: string | null): boolean {
   return ['kivelle_plus', 'kivelle_max', 'together_plus', 'unlimited'].includes(String(tier ?? '').toLowerCase());
 }
 
-export function withLocalChatSettings(conversation: Conversation, input: { title: string | null; responseStyle: ConversationStyle; textSize: ChatTextSize; spiceLevel?: SpiceLevel; voicePreset?: CompanionVoicePreset | null; contentMode?: DialogueContentMode; chatLanguage?: ChatLanguagePreference; chatDynamism?:ChatDynamism; reasoningPreference?:ReasoningPreference }): Conversation {
+export function withLocalChatSettings(conversation: Conversation, input: { title: string | null; responseStyle: ConversationStyle; textSize: ChatTextSize; spiceLevel?: SpiceLevel; voicePreset?: CompanionVoicePreset | null; contentMode?: DialogueContentMode; chatLanguage?: ChatLanguagePreference; chatDynamism?:ChatDynamism; reasoningPreference?:ReasoningPreference; userBubbleColor?:ChatBubbleColor; companionBubbleColor?:ChatBubbleColor }): Conversation {
   const current = chatPreferencesFromConversation(conversation);
   const stored=conversation.metadata?.chatPreferences;
   const rawCurrent=stored&&typeof stored==='object'&&!Array.isArray(stored)?stored as Record<string,unknown>:{};
-  const nextPreferences = { ...rawCurrent,...current, responseStyle: input.responseStyle, textSize: input.textSize, contentMode: input.contentMode??current.contentMode??'mature', chatDynamism:normalizeChatDynamism(input.chatDynamism??current.chatDynamism), reasoningPreference:normalizeReasoningPreference(input.reasoningPreference??current.reasoningPreference), ...(input.voicePreset ? { voicePreset: input.voicePreset } : {}), ...(input.chatLanguage ? { chatLanguage: input.chatLanguage } : {}) };
+  const nextPreferences = { ...rawCurrent,...current, responseStyle: input.responseStyle, textSize: input.textSize, contentMode: input.contentMode??current.contentMode??'mature', chatDynamism:normalizeChatDynamism(input.chatDynamism??current.chatDynamism), reasoningPreference:normalizeReasoningPreference(input.reasoningPreference??current.reasoningPreference), ...(input.voicePreset ? { voicePreset: input.voicePreset } : {}), ...(input.chatLanguage ? { chatLanguage: input.chatLanguage } : {}), ...(input.userBubbleColor ? { userBubbleColor: normalizeChatBubbleColor(input.userBubbleColor) } : {}), ...(input.companionBubbleColor ? { companionBubbleColor: normalizeChatBubbleColor(input.companionBubbleColor) } : {}) };
   if (input.voicePreset === null) delete nextPreferences.voicePreset;
   return {
     ...conversation,

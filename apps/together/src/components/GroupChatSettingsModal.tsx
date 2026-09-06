@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { AlignLeft, Bell, Check, ChevronDown, Languages, MessageCircle, Settings, Sparkles, Type, UsersRound, X } from 'lucide-react-native';
+import { AlignLeft, Bell, Check, ChevronDown, Languages, MessageCircle, Palette, Settings, Sparkles, Type, UsersRound, X } from 'lucide-react-native';
 import { manageGroup } from '../lib/api';
-import { chatPreferencesFromConversation, chatTextSizeOptions, resolveChatContentMode, resolveChatLanguage, resolveChatResponseStyle, resolveChatTextSize, withLocalChatSettings } from '../lib/chatSettings';
+import { chatPreferencesFromConversation, chatTextSizeOptions, resolveChatBubbleColors, resolveChatContentMode, resolveChatLanguage, resolveChatResponseStyle, resolveChatTextSize, withLocalChatSettings } from '../lib/chatSettings';
 import { conversationStyleOptions } from '../lib/conversationStyle';
 import { useTogether } from '../store/useTogether';
 import { colors, radius } from '../theme';
@@ -15,6 +15,8 @@ import { type ChatDynamism, type ReasoningPreference } from '@together/domain/sr
 import { subscriptionHref } from '../lib/subscriptionPresentation';
 import { groupConversationWebHref,navigateLocalRouteOnWeb } from '../lib/conversationNavigation';
 import { router } from 'expo-router';
+import { type ChatBubbleColor } from '@together/domain/src/chat-appearance';
+import { ChatBubbleColorSettings } from './settings/ChatBubbleColorSettings';
 
 type Props = {
   visible: boolean;
@@ -31,6 +33,8 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
   const [title, setTitle] = useState('');
   const [responseStyle, setResponseStyle] = useState<ConversationStyle>('texting');
   const [textSize, setTextSize] = useState<ChatTextSize>('medium');
+  const [userBubbleColor, setUserBubbleColor] = useState<ChatBubbleColor>('default');
+  const [companionBubbleColor, setCompanionBubbleColor] = useState<ChatBubbleColor>('default');
   const [chatDynamism,setChatDynamism]=useState<ChatDynamism>(50);
   const [reasoningPreference,setReasoningPreference]=useState<ReasoningPreference>('auto');
   const [contentMode,setContentMode]=useState<DialogueContentMode>('mature');
@@ -48,6 +52,9 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
     setTitle(conversation.title ?? '');
     setResponseStyle(resolveChatResponseStyle(conversation, snapshot?.profile ?? null));
     setTextSize(resolveChatTextSize(conversation));
+    const bubbleColors = resolveChatBubbleColors(conversation);
+    setUserBubbleColor(bubbleColors.user);
+    setCompanionBubbleColor(bubbleColors.companion);
     const generationPreferences=chatPreferencesFromConversation(conversation,snapshot?.entitlements?.tier);
     setChatDynamism(generationPreferences.chatDynamism);
     setReasoningPreference(generationPreferences.reasoningPreference);
@@ -67,7 +74,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
   const save = async (afterSave?:()=>void) => {
     if (!conversation || saving) return;
     setSaving(true);
-    const input = { title: title.trim() || null, responseStyle, textSize,contentMode, chatLanguage,chatDynamism,reasoningPreference };
+    const input = { title: title.trim() || null, responseStyle, textSize,contentMode, chatLanguage,chatDynamism,reasoningPreference,userBubbleColor,companionBubbleColor };
     try {
       if (demoMode) {
         const updated = withLocalChatSettings(conversation, input);
@@ -128,6 +135,9 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
             <View accessibilityRole="radiogroup" style={styles.columns}>
               {chatTextSizeOptions.map((option) => <Choice key={option.value} label={option.label} selected={option.value === textSize} disabled={saving} icon={<Text style={[styles.aa, option.value === textSize && styles.selectedText]}>Aa</Text>} onPress={() => setTextSize(option.value)} />)}
             </View>
+          </Section>
+          <Section icon={<Palette size={16} color={colors.violet} />} label="Message colors">
+            <ChatBubbleColorSettings userColor={userBubbleColor} companionColor={companionBubbleColor} disabled={saving} onUserColorChange={setUserBubbleColor} onCompanionColorChange={setCompanionBubbleColor} />
           </Section>
           <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible}/>
           <View style={styles.divider} />

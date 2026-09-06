@@ -8,6 +8,7 @@ import { useWebHydrated } from '../hooks/useWebHydrated';
 import { isPublicAppPath, shouldHoldPrivateWebRouteForHydration, shouldKeepAuthTransitionMounted, signInPathFor } from '../lib/sessionRouting';
 import { consumeWebEntryHref, effectiveWebEntryHref, entryPathname, initialWebEntryHref, shouldRecoverWebEntry } from '../lib/webEntryRoute';
 import { clearSessionSnapshot } from '../lib/sessionSnapshotCache';
+import { clearPrivateClientCaches } from '../lib/privateClientCache';
 
 const AuthenticatedSessionGate = lazy(() => import('./AuthenticatedSessionGate').then((module) => ({ default: module.AuthenticatedSessionGate })));
 
@@ -48,7 +49,7 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
     if (demoMode) return;
     if (authLoading) return;
     if (!session) {
-      if(Platform.OS==='web'&&previousUserId.current)clearSessionSnapshot(previousUserId.current);
+      if(previousUserId.current){if(Platform.OS==='web')clearSessionSnapshot(previousUserId.current);void clearPrivateClientCaches();}
       previousUserId.current=null;
       // Avoid loading the authenticated world store into signed-out public pages.
       void import('../store/useTogether').then(({ useTogether }) => {
@@ -63,6 +64,7 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
       }
       return;
     }
+    if(previousUserId.current&&previousUserId.current!==session.user.id)void clearPrivateClientCaches();
     previousUserId.current=session.user.id;
     redirectTarget.current = null;
   }, [authLoading, session?.user.id, publicPath, href]);

@@ -6,6 +6,7 @@ import {beginBillingEvent,finishBillingEvent} from '../_shared/kivelle-billing-e
 import {fetchRevenueCatSubscriber,normalizeRevenueCatSubscriber,parseRevenueCatWebhook,readRevenueCatAdapterConfig,revenueCatEventUserIds,validateRevenueCatEvent,verifyRevenueCatWebhook,type NormalizedRevenueCatSubscription,type RevenueCatWebhookEvent} from '../_shared/revenuecat.ts';
 import {grantSubscriptionCreditsForPeriod,resolveSubscriptionAccess,resolveSubscriptionState} from '../_shared/kivelle-subscription.ts';
 import {track} from '../_shared/together.ts';
+import {accountDeletionStarted} from '../_shared/kivelle-deleted-account.ts';
 
 type Db=ReturnType<typeof adminClient>;
 type StoredSubscription={provider_customer_id:string|null;provider_subscription_id:string;provider_product_id:string|null;provider_price_id:string|null;plan_key:'kivelle_plus'|'kivelle_max';status:string;billing_interval:'monthly'|'annual';current_period_start:string|null;current_period_end:string|null;trial_end:string|null;cancel_at_period_end:boolean;canceled_at:string|null;access_ends_at:string|null;metadata:Record<string,unknown>|null};
@@ -42,6 +43,7 @@ serve(async(request,correlationId)=>{
 });
 
 async function syncRevenueCatUser(db:Db,userId:string,event:RevenueCatWebhookEvent,config:ReturnType<typeof readRevenueCatAdapterConfig>,secretApiKey:string):Promise<boolean>{
+  if(await accountDeletionStarted(db,userId))return false;
   // The FK-backed entitlement bootstrap proves the custom RevenueCat App User
   // ID belongs to a real Kivelle account before provider state is accepted.
   await resolveSubscriptionAccess(db,userId);

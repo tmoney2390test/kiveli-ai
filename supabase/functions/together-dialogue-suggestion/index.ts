@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { authenticated, enforceRateLimit } from '../_shared/context.ts';
+import { requireAiDataConsent } from '../_shared/kivelle-ai-consent.ts';
 import { parseBody } from '../_shared/body.ts';
 import { corsHeaders, errorResponse, json } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
@@ -23,7 +24,7 @@ Deno.serve(async(request)=>{
   const correlationId=request.headers.get('x-correlation-id')??crypto.randomUUID();
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers:corsHeaders});
   try{
-    const{user,db}=await authenticated(request),input=await parseBody(request,schema),adultAccess=await resolveAdultAccess(request,user,db);
+    const{user,db}=await authenticated(request);await requireAiDataConsent(db,user.id);const input=await parseBody(request,schema),adultAccess=await resolveAdultAccess(request,user,db);
     await enforceRateLimit(db,user.id,'together_dialogue_suggestion',80,3600);
     const continuity=await activeContinuity(db,user.id);
     const[{data:conversation},{data:pendingMilestone},{data:entitlement},{data:profile}]=await Promise.all([

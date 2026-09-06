@@ -128,7 +128,8 @@ import { subscribeToWebPageResume, waitForWebPageVisible } from "../src/lib/webP
 import { isConversationPinned, returnToMessagesInbox } from "../src/lib/messageInbox";
 import { clearChatScrollPosition, readChatScrollPosition, restoredChatOffset, saveChatScrollPosition, shouldRestoreChatScrollPosition, type ChatScrollPosition } from "../src/lib/chatNavigationState";
 import { firstUnreadMessageId } from "../src/lib/chatUnreadWindow";
-import { chatMessageTypography } from "../src/lib/chatSettings";
+import { chatMessageTypography, resolveChatBubbleColors } from "../src/lib/chatSettings";
+import { chatBubbleColorHex, chatBubbleTextColor, type ChatBubbleColor } from "@together/domain/src/chat-appearance";
 import { applyGroupDetailDelta, mergeGroupMedia, prependGroupTimelinePage } from "../src/lib/groupDetailReconciliation";
 import {
   cacheCompleteGroupDetail,
@@ -720,6 +721,7 @@ export default function GroupChatScreen() {
       participant.character_instance_id === contextParticipantId
     ) ?? detail?.participants[0],
     messageTypography = chatMessageTypography(detail?.conversation,{desktop:width>=920}),
+    bubbleColors = resolveChatBubbleColors(detail?.conversation),
     showConversationRail = width >= 1080,
     showRightRail = width >= 920;
   useEffect(() => {
@@ -2051,6 +2053,7 @@ export default function GroupChatScreen() {
                 onEditFailed={message.delivery_status==="failed"?()=>{setDetail((current)=>current?{...current,messages:current.messages.filter((item)=>item.id!==message.id)}:current);setInput(message.content);setError("");}:undefined}
                 onDiscardFailed={message.delivery_status==="failed"?()=>{setDetail((current)=>current?{...current,messages:current.messages.filter((item)=>item.id!==message.id)}:current);if(input.trim()===message.content.trim())setInput("");setError("");}:undefined}
                 textStyle={messageTypography}
+                bubbleColors={bubbleColors}
               />
             </Fragment>
           );
@@ -3149,6 +3152,7 @@ function GroupBubble({
   onEditFailed,
   onDiscardFailed,
   textStyle,
+  bubbleColors,
 }: {
   message: Message;
   replyMessage?: Message;
@@ -3182,6 +3186,7 @@ function GroupBubble({
   onEditFailed?:()=>void;
   onDiscardFailed?:()=>void;
   textStyle: { fontSize: number; lineHeight: number };
+  bubbleColors: { user: ChatBubbleColor; companion: ChatBubbleColor };
 }) {
   const opacity = useRef(new Animated.Value(0)).current,
     translate = useRef(new Animated.Value(8)).current;
@@ -3237,6 +3242,9 @@ function GroupBubble({
         }).filter(Boolean) as Array<
           Exclude<ReturnType<typeof resolveCharacterPortraitSource>, undefined>
         >;
+  const bubbleColor = user ? bubbleColors.user : bubbleColors.companion;
+  const customBubbleColor = chatBubbleColorHex(bubbleColor);
+  const bubbleTextColor = chatBubbleTextColor(bubbleColor);
   const actionItems:MessageActionDefinition[]=[
     {key:'reply',label:'Reply',icon:<MessageCircle size={23} color={colors.textSecondary}/>,onPress:onReply},
     ...(!user&&canContinue?[{key:'continue',label:'Let them talk',icon:<FastForward size={23} color={colors.textSecondary}/>,onPress:onContinue}]:[]),
@@ -3314,14 +3322,15 @@ function GroupBubble({
               style={[
                 styles.bubble,
                 user ? styles.userBubble : styles.assistantBubble,
+                customBubbleColor ? { backgroundColor: customBubbleColor } : null,
                 message.delivery_status==="failed"&&{borderColor:colors.danger,borderWidth:1},
               ]}
             >
               {replyMessage?<View style={styles.quotedReply}><Text style={styles.quotedReplyLabel}>Replying to {replyAuthor}</Text><Text numberOfLines={2} style={styles.quotedReplyText}>{replyMessage.content==="[Photo]"?"Photo":replyMessage.content}</Text></View>:null}
               {message.content !== "[Photo]"
                 ? user
-                  ? <Text style={[styles.bubbleText, textStyle]}>{message.content}</Text>
-                  : <CharacterMentionText text={message.content} characters={mentionCharacters} excludeSlug={speakerSlug} onCharacterPress={onCharacterMention} style={[styles.bubbleText,textStyle]}/>
+                  ? <Text style={[styles.bubbleText, textStyle, { color: bubbleTextColor }]}>{message.content}</Text>
+                  : <CharacterMentionText text={message.content} characters={mentionCharacters} excludeSlug={speakerSlug} onCharacterPress={onCharacterMention} style={[styles.bubbleText,textStyle,{ color: bubbleTextColor }]}/>
                 : null}
               {attachments.map((attachment) => (
                 <Pressable
@@ -3367,7 +3376,7 @@ function GroupBubble({
                 )
                 : null}
               <View style={styles.messageTimeRow}>
-                <Text style={[styles.timestamp, { opacity: .58 }]}>
+                <Text style={[styles.timestamp, { color: bubbleTextColor, opacity: .58 }]}>
                   {new Date(message.created_at).toLocaleTimeString([], {
                     hour: "numeric",
                     minute: "2-digit",

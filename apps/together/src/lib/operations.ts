@@ -53,6 +53,24 @@ export type OperationsAlertRule = {
   last_triggered_at?: string | null;
   metadata?: Record<string, unknown>;
 };
+export type SafetyReport = {
+  id: string;
+  user_id: string;
+  message_id?: string | null;
+  reason: string;
+  severity: "normal" | "high" | "urgent";
+  status: "open" | "reviewing" | "resolved" | "dismissed";
+  assigned_to?: string | null;
+  resolved_at?: string | null;
+  resolution_code?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+export type SafetyReportDetail = {
+  report: SafetyReport & { detail?: string | null };
+  message: { id: string; conversation_id: string; role: string; content: string; created_at: string } | null;
+  events: Array<Record<string, unknown>>;
+};
 export type OperationsDashboard = {
   generatedAt: string;
   access: {
@@ -232,6 +250,26 @@ export const loadSupportTicket = (ticketId: string) =>
   invoke<
     { ticket: Record<string, unknown>; events: Array<Record<string, unknown>> }
   >("together-ops", { action: "ticket_detail", ticketId });
+export const loadSafetyReports = (status?: SafetyReport["status"]) =>
+  invoke<{ reports: SafetyReport[] }>("together-ops", {
+    action: "safety_reports",
+    ...(status ? { status } : {}),
+  });
+export const loadSafetyReport = (reportId: string) =>
+  invoke<SafetyReportDetail>("together-ops", {
+    action: "safety_report_detail",
+    reportId,
+  });
+export const updateSafetyReport = (input: {
+  reportId: string;
+  status?: SafetyReport["status"];
+  assignedTo?: string | null;
+  resolutionCode?: string;
+  note?: string;
+}) => invoke<{ report: SafetyReport }>("together-ops", {
+  action: "update_safety_report",
+  ...input,
+});
 export const updateSupportTicket = (
   input: {
     ticketId: string;

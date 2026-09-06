@@ -25,6 +25,7 @@ import { conversationArchiveFields } from "../_shared/together-conversation-arch
 import { activeConversationLimitError, enforceActiveConversationLimit, isActiveConversationLimitDatabaseError } from "../_shared/kivelle-subscription.ts";
 import { normalizeChatDynamism,normalizeReasoningPreference,reasoningPreferenceAllowedForTier,reconcileReasoningPreferenceForTier } from "../../../packages/together-domain/src/chat-generation.ts";
 import { characterAdultStatusFromGroupParticipant, privateTextProjectionAuthorizedForConversation } from "../_shared/private-adult-text-policy.ts";
+import { chatBubbleColorValues, normalizeChatBubbleColor } from "../../../packages/together-domain/src/chat-appearance.ts";
 
 const schema = z.discriminatedUnion("action", [
   z.object({
@@ -77,6 +78,8 @@ const schema = z.discriminatedUnion("action", [
     chatLanguage: z.enum(chatLanguagePreferences).optional(),
     chatDynamism:z.union([z.literal(0),z.literal(25),z.literal(50),z.literal(75),z.literal(100)]).optional(),
     reasoningPreference:z.enum(['auto','none','low','medium','high']).optional(),
+    userBubbleColor:z.enum(chatBubbleColorValues).optional(),
+    companionBubbleColor:z.enum(chatBubbleColorValues).optional(),
     responseMode: z.enum(["automatic", "choose_speaker"]),
     energy: z.enum(["quiet", "balanced", "lively"]),
     notificationMode: z.enum(["all", "mentions", "muted"]).optional(),
@@ -515,6 +518,8 @@ serve(async (request, correlationId) => {
       chatLanguage,
       chatDynamism:normalizeChatDynamism(input.chatDynamism??currentPreferences.chatDynamism),
       reasoningPreference:reconcileReasoningPreferenceForTier(input.reasoningPreference??currentPreferences.reasoningPreference,subscription.tier),
+      userBubbleColor:normalizeChatBubbleColor(input.userBubbleColor??currentPreferences.userBubbleColor),
+      companionBubbleColor:normalizeChatBubbleColor(input.companionBubbleColor??currentPreferences.companionBubbleColor),
     };
     const metadata = {
       ...currentMetadata,

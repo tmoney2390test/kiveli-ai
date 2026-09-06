@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { parseBody } from "../_shared/body.ts";
 import { authenticated, enforceRateLimit } from "../_shared/context.ts";
+import { requireAiDataConsent } from "../_shared/kivelle-ai-consent.ts";
 import { json, serve } from "../_shared/http.ts";
 import { buildKivelleConversationContext } from "../_shared/kivelle-conversation-context.ts";
 import {
@@ -168,6 +169,7 @@ const terminalStatuses = new Set(["ended", "failed"]);
 serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
   const input = await parseBody(request, schema);
+  if(input.action!=="options"&&input.action!=="status"&&input.action!=="abandon")await requireAiDataConsent(db,user.id);
 
   if (input.action === "options") {
     const { data: entitlement } = await db.from("together_entitlements").select("*")

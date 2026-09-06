@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { PUBLIC_COMPANIONS, PUBLIC_LANDING_COPY, PUBLIC_WORLDS } from './publicLanding';
 
 describe('public landing content', () => {
-  it('uses the living-world headline and only the published world roster', () => {
-    expect(PUBLIC_LANDING_COPY.title).toBe('Step Into Worlds');
-    expect(PUBLIC_LANDING_COPY.titleAccent).toBe('Made for Connection.');
+  it('uses the focused launch headline and only the published world roster', () => {
+    expect(PUBLIC_LANDING_COPY.title).toBe('Your story starts here.');
+    expect(PUBLIC_LANDING_COPY.body).toBe('Meet AI characters. Explore new worlds. Make the story yours.');
     expect(PUBLIC_WORLDS.map((world) => world.slug)).toEqual([
       'juniper-city',
       'neon-kyo',

@@ -11,5 +11,6 @@ describe('RevenueCat native purchase selection',()=>{
   it('distinguishes cancellation from a retryable store failure',()=>{
     expect(revenueCatPurchaseError({userCancelled:true})).toMatchObject({cancelled:true});
     expect(revenueCatPurchaseError({message:'network timeout'})).toMatchObject({cancelled:false,message:expect.stringContaining('connection')});
+    expect(revenueCatPurchaseError({code:'PURCHASE_PENDING_ERROR',message:'Awaiting approval'})).toMatchObject({pending:true,cancelled:false});
   });
 });

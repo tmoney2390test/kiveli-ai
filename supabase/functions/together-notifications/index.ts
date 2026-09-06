@@ -9,8 +9,8 @@ import { cancelQueuedAmbientProactiveMessages } from '../_shared/kivelle-initiat
 const initiativeLevel=z.enum(['off','occasional','natural','frequent']);
 
 const schema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('register'), token: z.string().startsWith('ExponentPushToken[').max(256), platform: z.enum(['ios','android']), deviceId: z.string().max(200).optional() }),
-  z.object({ action: z.literal('deactivate'), platform: z.enum(['ios','android']).optional() }),
+  z.object({ action: z.literal('register'), token: z.string().startsWith('ExponentPushToken[').max(256), platform: z.enum(['ios','android']), deviceId: z.string().uuid() }),
+  z.object({ action: z.literal('deactivate'), deviceId: z.string().uuid() }),
   z.object({ action: z.literal('preferences'), pushEnabled: z.boolean(), characterInitiatedMessages: z.boolean(), initiativeLevel:initiativeLevel.optional(), companionInitiativeLevels:z.record(z.string().uuid(),initiativeLevel).refine((value)=>Object.keys(value).length<=100,'Too many companion initiative overrides.').optional(), dateReminders: z.boolean().default(true), worldEventUpdates: z.boolean().default(true), quietHoursStart: z.string().regex(/^\d{2}:\d{2}$/), quietHoursEnd: z.string().regex(/^\d{2}:\d{2}$/), timezone: z.string().min(1).max(80) }),
   z.object({ action: z.literal('opened'), proactiveMessageId: z.string().uuid() }),
 ]);
@@ -20,12 +20,13 @@ serve(async (request, correlationId) => {
   await enforceRateLimit(db, user.id, 'together_notifications', 60, 3600);
   const input = await parseBody(request, schema);
   if (input.action === 'register') {
-    const { error } = await db.from('together_push_tokens').upsert({ user_id: user.id, expo_push_token: input.token, platform: input.platform, device_id: input.deviceId ?? null, active: true, last_registered_at: new Date().toISOString() }, { onConflict: 'user_id,expo_push_token' });
+    const now=new Date().toISOString();
+    await db.from('together_push_tokens').update({active:false,deactivated_at:now}).eq('installation_id',input.deviceId).neq('user_id',user.id);
+    await db.from('together_push_tokens').update({active:false,deactivated_at:now}).eq('expo_push_token',input.token).neq('user_id',user.id);
+    const { error } = await db.from('together_push_tokens').upsert({ user_id: user.id, expo_push_token: input.token, platform: input.platform, device_id: input.deviceId, installation_id:input.deviceId,active: true,deactivated_at:null,last_registered_at:now }, { onConflict: 'user_id,expo_push_token' });
     if (error) throw new AppError('INTERNAL_ERROR', 'Could not register this device.', 500, true);
   } else if(input.action==='deactivate'){
-    let query=db.from('together_push_tokens').update({active:false}).eq('user_id',user.id);
-    if(input.platform)query=query.eq('platform',input.platform);
-    const{error}=await query;if(error)throw new AppError('INTERNAL_ERROR','Could not disable notifications on this device.',500,true);
+    const{error}=await db.from('together_push_tokens').update({active:false,deactivated_at:new Date().toISOString()}).eq('user_id',user.id).eq('installation_id',input.deviceId);if(error)throw new AppError('INTERNAL_ERROR','Could not disable notifications on this device.',500,true);
   } else if (input.action === 'preferences') {
     try{new Intl.DateTimeFormat('en-US',{timeZone:input.timezone}).format(new Date());}catch{throw new AppError('VALIDATION_FAILED','Choose a valid timezone.',400);}
     const level=input.initiativeLevel??(input.characterInitiatedMessages?'natural':'off'),overrides=input.companionInitiativeLevels;

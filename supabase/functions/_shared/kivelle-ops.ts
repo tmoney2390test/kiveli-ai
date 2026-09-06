@@ -13,7 +13,12 @@ export type OperationalMetricKey =
   | "auth_client_errors_15m"
   | "photo_cleanup_failures_30m"
   | "dialogue_oldest_seconds"
-  | "proactive_oldest_seconds";
+  | "proactive_oldest_seconds"
+  | "stuck_account_deletions_30m"
+  | "stuck_media_jobs_30m"
+  | "billing_sync_failures_30m"
+  | "provider_credential_failures_15m"
+  | "provider_spend_usd_60m";
 
 const roleRank: Record<OperationsRole, number> = {
   viewer: 1,
@@ -137,6 +142,7 @@ export async function collectOperationalAlertMetrics(
 ): Promise<Record<OperationalMetricKey, number>> {
   const since15 = new Date(now.getTime() - 15 * 60_000).toISOString(),
     since30 = new Date(now.getTime() - 30 * 60_000).toISOString(),
+    since60 = new Date(now.getTime() - 60 * 60_000).toISOString(),
     since24 = new Date(now.getTime() - 24 * 60 * 60_000).toISOString(),
     nowIso = now.toISOString();
   const [
@@ -150,6 +156,12 @@ export async function collectOperationalAlertMetrics(
     refunds,
     authErrors,
     photoCleanupCycles,
+    stuckDeletions,
+    stuckMedia,
+    billingFailures,
+    credentialFailures,
+    aiSpend,
+    mediaSpend,
   ] = await Promise.all([
     db.from("together_generated_media").select("created_at").in("status", [
       "queued",
@@ -189,6 +201,12 @@ export async function collectOperationalAlertMetrics(
       count: "exact",
     }).or("route.ilike.%auth%,surface.ilike.%auth%").gte("created_at", since15),
     db.from("together_analytics_events").select("properties").eq("event_name","chat_photo_cleanup_cycle").gte("created_at",since30).limit(100),
+    db.from("together_account_deletion_jobs").select("id",{head:true,count:"exact"}).in("status",["queued","processing","retry"]).lt("updated_at",since30),
+    db.from("together_generated_media").select("id",{head:true,count:"exact"}).in("status",["queued","generating"]).lt("updated_at",since30),
+    db.from("together_billing_events").select("id",{head:true,count:"exact"}).eq("status","failed").gte("updated_at",since30),
+    db.from("together_ops_incidents").select("id",{head:true,count:"exact"}).eq("dedupe_key","push:expo:invalid_credentials").gte("last_seen_at",since15),
+    db.from("together_ai_usage_events").select("provider_cost_usd,estimated_cost_usd").gte("created_at",since60).limit(5000),
+    db.from("together_media_cost_events").select("actual_provider_cost_usd,estimated_provider_cost_usd").gte("created_at",since60).limit(5000),
   ]);
   const failed = [
     mediaOldest,
@@ -201,6 +219,12 @@ export async function collectOperationalAlertMetrics(
     refunds,
     authErrors,
     photoCleanupCycles,
+    stuckDeletions,
+    stuckMedia,
+    billingFailures,
+    credentialFailures,
+    aiSpend,
+    mediaSpend,
   ].find((result) => result.error);
   if (failed?.error) {
     throw new AppError(
@@ -214,7 +238,8 @@ export async function collectOperationalAlertMetrics(
     latencies = aiRows.map((row) => Number(row.latency_ms ?? 0)).filter((
       value,
     ) => value > 0).sort((a, b) => a - b),
-    aiFailures = aiRows.filter((row) => row.success === false).length;
+    aiFailures = aiRows.filter((row) => row.success === false).length,
+    providerSpend=[...(aiSpend.data??[]).map((row)=>Number(row.provider_cost_usd??row.estimated_cost_usd??0)),...(mediaSpend.data??[]).map((row)=>Number(row.actual_provider_cost_usd??row.estimated_provider_cost_usd??0))].reduce((sum,value)=>sum+(Number.isFinite(value)&&value>0?value:0),0);
   return {
     media_oldest_seconds: ageSeconds(mediaOldest.data?.created_at, now),
     media_failures_15m: Number(mediaFailures.count ?? 0),
@@ -234,6 +259,11 @@ export async function collectOperationalAlertMetrics(
       proactiveOldest.data?.eligible_at,
       now,
     ),
+    stuck_account_deletions_30m:Number(stuckDeletions.count??0),
+    stuck_media_jobs_30m:Number(stuckMedia.count??0),
+    billing_sync_failures_30m:Number(billingFailures.count??0),
+    provider_credential_failures_15m:Number(credentialFailures.count??0),
+    provider_spend_usd_60m:providerSpend,
   };
 }
 

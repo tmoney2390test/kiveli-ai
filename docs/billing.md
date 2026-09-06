@@ -6,7 +6,9 @@ No card number, Stripe secret, webhook secret, or Supabase service-role key belo
 
 ## Native Apple/Google subscriptions through RevenueCat
 
-The Expo app uses `react-native-purchases` only on iOS and Android. It configures RevenueCat with the authenticated Supabase user UUID as the custom App User ID, disables automatic device-identifier collection, exposes a restore action, and never grants access from client `CustomerInfo`. A purchase success starts a short synchronization wait; only the authenticated server webhook can activate Kivelle benefits.
+The Expo app uses `react-native-purchases` only on iOS and Android. It configures RevenueCat with the authenticated Supabase user UUID as the custom App User ID, disables automatic device-identifier collection, exposes a restore action, and never grants authoritative access from client `CustomerInfo`. A purchase or restore starts bounded server polling; a timeout remains a recoverable “syncing” state rather than being misreported as no purchase. Only authenticated server reconciliation activates Kivelle benefits. A client-reported active entitlement is used only to avoid a false negative while signed backend state catches up.
+
+The normalized billing row preserves the original store. Subscription management opens Apple for an Apple-origin purchase and Google Play for a Play-origin purchase, regardless of the device currently viewing the account. An unknown origin produces accurate manual guidance instead of guessing from the current OS.
 
 Create one RevenueCat offering (the optional client offering ID defaults to `default`) with these custom package identifiers:
 
@@ -145,6 +147,8 @@ Rollback by disabling RevenueCat purchases in the native build and server config
 To reconcile, list Stripe subscriptions for stored `together_billing_customers`, fetch the latest provider objects, and replay/synchronize them through trusted server tooling. Compare them with `together_billing_subscriptions`; do not edit `together_entitlements` by hand. RevenueCat rows remain separate and the effective highest valid plan wins without doubling monthly credits.
 
 Support staff may inspect `together_credit_accounts`, `together_credit_ledger`, `together_billing_events`, and `together_billing_adjustments` through restricted ops access. Correct balances only through a reviewed, idempotent adjustment RPC—never an ad-hoc `UPDATE`. `pending_review` adjustments indicate refunded/disputed purchased credits that had already been consumed.
+
+Account deletion is never refused because an Apple/Google subscription is active. The UI explains that Kivelle deletion does not cancel store renewal and links to the verified original store. Kivelle data/access deletion and external renewal management are distinct. Late provider events for a deletion marker must be acknowledged and must not recreate a profile, grant credits, or send notifications.
 
 ## Account-owner checklist
 

@@ -2,7 +2,7 @@
 
 Kivelle intentionally separates private dialogue eligibility from website media authorization.
 
-Private explicit text is controlled by the shared platform-content policy and `KIVELLE_PRIVATE_ADULT_TEXT_MODE`. It can be used on web, iOS, and Android only when the authenticated profile is adult-eligible, the conversation is private, every current fictional participant is a confirmed adult, the per-conversation boundary is Explicit, and prohibited-content moderation allows the turn. Subscription tier and the website session are not inputs to this text-content decision.
+Private explicit text is controlled by the shared platform-content policy and `KIVELLE_PRIVATE_ADULT_TEXT_MODE`. It can be used on web, iOS, and Android only when the authenticated profile is adult-eligible, has a separately recorded explicit private-text choice, the conversation is private and set to Explicit, every current fictional participant is a confirmed adult, and prohibited-content moderation allows the turn. Subscription tier, AI data-sharing consent, and the website media session remain independent state; AI consent is additionally required before any provider call.
 
 Explicit image and video capabilities remain separate. Native iOS/Android or unverified direct requests may not generate or retrieve explicit media. Existing eligible website media continues to require a gateway-signed web surface, an unexpired HttpOnly website session, current media entitlement/credits, adult eligibility, character eligibility, moderation, and provider-specific flags. Voice keeps its existing non-explicit policy.
 

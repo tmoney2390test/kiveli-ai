@@ -11,6 +11,7 @@ import{completeMediaUsageAttempt,recordMediaUsageAttempt}from'./together-media-u
 import{currentAdultMediaJobAuthorized}from'./web-adult-access.ts';
 import{configuredVideoRouteCatalog,type VideoResolution}from'./kivelle-video-routes.ts';
 import{adultVideoFeatureEnabled}from'./together-video-content.ts';
+import{requireAiDataConsent}from'./kivelle-ai-consent.ts';
 
 export async function dispatchMediaJobs(db:SupabaseClient,limit:number,correlationId:string){
   const before=await mediaQueueSnapshot(db);
@@ -19,6 +20,7 @@ export async function dispatchMediaJobs(db:SupabaseClient,limit:number,correlati
   const{data:jobs,error}=await db.rpc('kivelle_claim_media_jobs_v4',{p_limit:limit,p_max_image_inflight:imageMaxInflight(),p_max_video_inflight:videoMaxInflight(),p_max_video_frame_inflight:videoFrameMaxInflight()});if(error)throw new AppError('INTERNAL_ERROR','Media jobs could not be claimed.',500,true);
   const results={recovered,recoveredSynchronous,creator,training,claimed:(jobs??[]).length,ready:0,submitted:0,deferred:0,failed:0};
   for(const job of jobs??[])try{
+    await requireAiDataConsent(db,String(job.user_id));
     await requireCurrentAdultMediaAccess(db,job);
     const canonical=await canonicalRequestForJob(db,job,await canonicalRequestForMedia(db,job)),subscription=await resolveSubscriptionState(db,String(job.user_id)),routed=canonical.mediaType==='video'?exactVideoRoute(canonical):routeCanonicalMedia(canonical,{source:String(job.metadata?.source??'user_request'),userTier:subscription.tier}),requestId=`media:${job.id}:attempt:${job.attempt_count}`;
     if(String(job.content_level??'standard')!==canonical.contentLevel){

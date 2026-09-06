@@ -4,7 +4,7 @@ import { capabilitiesForAccount, creditCost, entitlementsForTier, normalizeSubsc
 
 type CreditBalance={permanentBalance:number;subscriptionBalance:number;total:number;subscriptionExpiresAt?:string|null};
 export type KivelleSubscriptionAccess={tier:SubscriptionTier;capabilities:KivelleCapabilities;entitlementKeys:string[];billing:KivelleSubscriptionState['billing']};
-export type KivelleSubscriptionState={tier:SubscriptionTier;capabilities:KivelleCapabilities;creditBalance:CreditBalance;entitlementKeys:string[];billing:{provider?:string|null;customerId?:string|null;subscriptionId?:string|null;status?:string|null;productKey?:string|null;billingInterval?:'monthly'|'annual';periodStart?:string|null;periodEnd?:string|null;expiresAt?:string|null;trialEnd?:string|null;cancelAtPeriodEnd?:boolean;canceledAt?:string|null;paymentIssue?:boolean;mayPurchaseCredits?:boolean;managedByKivelle?:boolean}};
+export type KivelleSubscriptionState={tier:SubscriptionTier;capabilities:KivelleCapabilities;creditBalance:CreditBalance;entitlementKeys:string[];billing:{provider?:string|null;store?:'app_store'|'play_store'|'unknown'|null;customerId?:string|null;subscriptionId?:string|null;status?:string|null;productKey?:string|null;billingInterval?:'monthly'|'annual';periodStart?:string|null;periodEnd?:string|null;expiresAt?:string|null;trialEnd?:string|null;cancelAtPeriodEnd?:boolean;canceledAt?:string|null;paymentIssue?:boolean;mayPurchaseCredits?:boolean;managedByKivelle?:boolean}};
 
 type NormalizedBillingRow={provider:BillingProvider;provider_customer_id:string|null;provider_subscription_id:string;provider_price_id:string|null;plan_key:SubscriptionTier;status:NormalizedSubscriptionStatus;billing_interval:'monthly'|'annual';current_period_start:string|null;current_period_end:string|null;trial_end:string|null;cancel_at_period_end:boolean;canceled_at:string|null;access_ends_at:string|null;metadata:Record<string,unknown>|null;updated_at:string|null};
 
@@ -31,7 +31,17 @@ export async function resolveSubscriptionAccess(db:SupabaseClient,userId:string,
   const status=selected?.status??row.billing_status??null,rowMetadata=isRecord(row.metadata)?row.metadata:{},selectedMetadata=isRecord(selected?.metadata)?selected.metadata:{},interval=selected?.billing_interval??(rowMetadata.billingInterval==='annual'?'annual':'monthly');
   const productKey=selected?.provider_price_id??row.product_key??null,provider=selected?.provider??row.billing_provider??null;
   const managedByKivelle=provider==='configured'&&Boolean(rowMetadata.adminSubscriptionGrant??selectedMetadata.adminSubscriptionGrant??rowMetadata.promotionGrant??selectedMetadata.promotionGrant??(typeof productKey==='string'&&productKey.endsWith('_test')));
-  return{tier,capabilities,entitlementKeys:[...capabilities.entitlements],billing:{provider,customerId:selected?.provider_customer_id??row.billing_customer_id??null,subscriptionId:selected?.provider_subscription_id??row.billing_subscription_id??null,status,productKey,billingInterval:interval,periodStart:selected?.current_period_start??row.billing_period_start??null,periodEnd:selected?.current_period_end??row.billing_period_end??null,expiresAt:selected?.access_ends_at??row.expires_at??null,trialEnd:selected?.trial_end??null,cancelAtPeriodEnd:Boolean(selected?.cancel_at_period_end),canceledAt:selected?.canceled_at??null,paymentIssue:['past_due','unpaid','incomplete'].includes(String(status)),mayPurchaseCredits:tier!=='free'&&status==='active',managedByKivelle}};
+  return{tier,capabilities,entitlementKeys:[...capabilities.entitlements],billing:{provider,store:billingStore(provider,selectedMetadata),customerId:selected?.provider_customer_id??row.billing_customer_id??null,subscriptionId:selected?.provider_subscription_id??row.billing_subscription_id??null,status,productKey,billingInterval:interval,periodStart:selected?.current_period_start??row.billing_period_start??null,periodEnd:selected?.current_period_end??row.billing_period_end??null,expiresAt:selected?.access_ends_at??row.expires_at??null,trialEnd:selected?.trial_end??null,cancelAtPeriodEnd:Boolean(selected?.cancel_at_period_end),canceledAt:selected?.canceled_at??null,paymentIssue:['past_due','unpaid','incomplete'].includes(String(status)),mayPurchaseCredits:tier!=='free'&&status==='active',managedByKivelle}};
+}
+
+function billingStore(provider:unknown,metadata:Record<string,unknown>):'app_store'|'play_store'|'unknown'|null{
+  if(provider==='apple')return'app_store';
+  if(provider==='google_play')return'play_store';
+  if(provider!=='revenuecat')return null;
+  const value=String(metadata.store??metadata.storeName??'').toLowerCase();
+  if(value.includes('app_store')||value.includes('apple'))return'app_store';
+  if(value.includes('play_store')||value.includes('google'))return'play_store';
+  return'unknown';
 }
 
 export async function enforcePhotoSharingEntitlement(db:SupabaseClient,userId:string,now=new Date()):Promise<KivelleSubscriptionAccess>{

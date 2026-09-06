@@ -60,13 +60,14 @@ export function resolvePrivateDialoguePolicy(input: {
 }): PrivateDialoguePolicy {
   const characterStatuses = input.participants.map(input.conversationMode === 'group' ? characterAdultStatusFromGroupParticipant : characterAdultStatusFromInstance);
   const participantAdultEligibility = resolveParticipantAdultEligibility(characterStatuses);
+  const privatePreferenceAllowsExplicit=input.access.private_text_preference_recorded&&input.access.private_text_preference==='explicit';
   const policy = resolvePlatformContentPolicy({
     clientSurface: input.access.client_surface,
     capability: 'private_text',
     sexualContentLevel: input.requestedMode === 'explicit' ? 'explicit' : input.requestedMode === 'standard' ? 'general' : 'mature_nonexplicit',
     privacyScope: 'private',
     conversationMode: input.conversationMode,
-    userAdultEligibility: input.access.adult_eligibility,
+    userAdultEligibility: privatePreferenceAllowsExplicit?input.access.adult_eligibility:{allowed:false,reason:'account_restricted'},
     participantAdultEligibility,
     safetyDecision: { allowed: input.safetyAllowed },
   });
@@ -134,7 +135,7 @@ export async function privateTextProjectionAuthorizedForConversation(input: {
   conversation: Row;
   access: AdultAccessContext;
 }): Promise<boolean> {
-  if (input.access.private_adult_text_mode !== 'on' || !input.access.adult_eligibility.allowed) return false;
+  if (input.access.private_adult_text_mode !== 'on' || !input.access.adult_eligibility.allowed || !input.access.private_text_preference_recorded || input.access.private_text_preference !== 'explicit') return false;
   let participants: unknown[] = [];
   if (input.conversation.kind === 'group') {
     const { data, error } = await input.db.from('together_conversation_participants')

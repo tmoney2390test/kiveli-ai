@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { authenticated, enforceRateLimit } from '../_shared/context.ts';
+import { requireAiDataConsent } from '../_shared/kivelle-ai-consent.ts';
 import { parseBody } from '../_shared/body.ts';
 import { corsHeaders, errorResponse } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
@@ -26,7 +27,7 @@ Deno.serve(async(request)=>{
   const correlationId=request.headers.get('x-correlation-id')??crypto.randomUUID();
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers:corsHeaders});
   try{
-    const {user,db}=await authenticated(request);const adultAccess=await resolveAdultAccess(request,user,db);const input=await parseBody(request,schema);await enforceRateLimit(db,user.id,'together_scene_reaction',30,3600);
+    const {user,db}=await authenticated(request);await requireAiDataConsent(db,user.id);const adultAccess=await resolveAdultAccess(request,user,db);const input=await parseBody(request,schema);await enforceRateLimit(db,user.id,'together_scene_reaction',30,3600);
     const continuity=await activeContinuity(db,user.id);
     const [{data:conversation},{data:action}]=await Promise.all([
       db.from('together_conversations').select('*,together_character_instances!inner(*,together_character_templates(*),together_character_versions(*))').eq('id',input.conversationId).eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_instance_id',input.characterInstanceId).is('archived_at',null).maybeSingle(),

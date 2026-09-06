@@ -11,7 +11,9 @@ import { GradientButton, KivelleCreditIcon, LoadingSkeleton, Screen } from '../s
 import { subscriptionStatusQueryKey, useSubscriptionStatus } from '../src/hooks/useSubscriptionStatus';
 import { useAuth } from '../src/hooks/useAuth';
 import { ApiError, manageSubscription } from '../src/lib/api';
-import { nativePurchasesConfigured, purchaseNativeSubscription, restoreNativePurchases } from '../src/lib/nativePurchases';
+import { loadNativeProductPrices, nativePurchasesConfigured, purchaseNativeSubscription, restoreNativePurchases } from '../src/lib/nativePurchases';
+import { revenueCatPackageIdentifiers, type PurchasableTier } from '../src/lib/revenueCatPurchases';
+import { waitForAuthoritativeRestore } from '../src/lib/nativePurchaseSync';
 import type { BillingInterval, CheckoutConfirmation, CreditActivityEvent, CreditPack, SubscriptionPlan, SubscriptionStatus, SubscriptionTier } from '../src/lib/subscription';
 import { intelligenceLabel } from '../src/lib/subscription';
 import { annualSavingsPercentage, billingStatusPresentation, checkoutBackoffDelay, creditActivityPresentation, managementActionLabel, membershipBenefits, membershipMetrics, membershipPageMode, membershipPricePresentation, normalizeSubscriptionIntent, safeSubscriptionReturnTo, shouldShowSubscriptionIntentCallout, subscriptionIntentPresentation } from '../src/lib/subscriptionPresentation';
@@ -44,6 +46,9 @@ export default function Subscription() {
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState<Notice | null>(null);
   const [confirmationRetry, setConfirmationRetry] = useState(0);
+  const [nativePrices,setNativePrices]=useState<Record<string,string>>({});
+
+  useEffect(()=>{const userId=session?.user.id;if(!userId||Platform.OS==='web'||!nativePurchasesConfigured())return;let active=true;void loadNativeProductPrices(userId).then((prices)=>{if(active)setNativePrices(prices);}).catch(()=>undefined);return()=>{active=false;};},[session?.user.id]);
 
   const refresh = useCallback(async () => {
     const result = await query.refetch();
@@ -138,6 +143,7 @@ export default function Subscription() {
       const userId=session?.user.id;if(!userId)throw new Error('Sign in before purchasing a membership.');
       const purchase=await purchaseNativeSubscription(userId,tier,billingInterval);
       if(purchase.cancelled){setNotice({tone:'neutral',title:'Purchase cancelled',body:'Nothing was charged and your current membership is unchanged.'});return;}
+      if(purchase.pending){setNotice({tone:'neutral',title:'Waiting for store approval',body:'Your purchase is pending. Kivelle will securely activate the membership after the app store confirms it; you do not need to purchase again.'});return;}
       setNotice({tone:'neutral',title:'Confirming your membership',body:'The app store approved the purchase. Kivelle is securely syncing your benefits now.'});
       const synced=await waitForNativeTier(query.refetch,tier);
       setNotice(synced?{tone:'success',title:`${tier==='kivelle_max'?'Kivelle Max':'Kivelle+'} is active`,body:'Your app-store membership and benefits are ready.'}:{tone:'warning',title:'Purchase received',body:'The app store completed your purchase, but the signed confirmation is still syncing. Refresh in a moment—trying again will not charge you twice.',retry:true});
@@ -150,10 +156,10 @@ export default function Subscription() {
     const userId=session?.user.id;if(!userId)return;
     setBusy('restore');setNotice(null);
     try{
-      await restoreNativePurchases(userId);
+      const storeResult=await restoreNativePurchases(userId);
       setNotice({tone:'neutral',title:'Checking past purchases',body:'The app store finished restoring. Kivelle is syncing the signed membership status.'});
-      const result=await query.refetch();
-      setNotice(result.data?.tier&&result.data.tier!=='free'?{tone:'success',title:`${result.data.capabilities.displayName} restored`,body:'Your membership and benefits are available again.'}:{tone:'neutral',title:'Restore complete',body:'No active Kivelle membership was found for this store account.'});
+      const result=await waitForAuthoritativeRestore(query.refetch);
+      setNotice(result.state==='active'&&result.data?{tone:'success',title:`${result.data.capabilities.displayName} restored`,body:'Your membership and benefits are available again.'}:result.state==='syncing'||storeResult.storeReportsActiveEntitlement?{tone:'warning',title:'Membership is still syncing',body:'The store reported a purchase, but Kivelle is still verifying its signed entitlement. Your restore will resume automatically; trying again will not charge you.',retry:true}:{tone:'neutral',title:'Restore complete',body:'After checking the store and Kivelle’s signed entitlement, no active membership was found for this store account.'});
     }catch(caught){setNotice({tone:'danger',title:'Could not restore purchases',body:billingErrorMessage(caught),retry:true});}
     finally{setBusy('');}
   };
@@ -161,9 +167,9 @@ export default function Subscription() {
   const openManagement = async () => {
     if (!state) return;
     if (state.management.manageAction === 'app_store') {
-      if (Platform.OS === 'ios') await openUrl('https://apps.apple.com/account/subscriptions');
-      else if (Platform.OS === 'android') await openUrl('https://play.google.com/store/account/subscriptions');
-      else setNotice({ tone: 'neutral', title: 'Managed in your app store', body: 'Open the subscription settings on the Apple or Android device where you purchased Kivelli.' });
+      if (state.billing.store === 'app_store') await openUrl('https://apps.apple.com/account/subscriptions');
+      else if (state.billing.store === 'play_store') await openUrl('https://play.google.com/store/account/subscriptions');
+      else setNotice({ tone: 'neutral', title: 'Managed in the original app store', body: 'Kivelle could not verify which store originated this membership. Open subscriptions in the Apple App Store or Google Play account used for purchase.' });
       return;
     }
     setBusy('portal'); setNotice(null);
@@ -184,7 +190,7 @@ export default function Subscription() {
   if (query.isPending && !state) return <LoadingSkeleton label="Loading your membership…" />;
   if (!state) return <Screen><PageHeader returnTo={returnTo} refreshing={query.isFetching} onRefresh={() => void refresh()} /><View style={styles.errorCard}><Text style={styles.error}>{query.error instanceof Error ? query.error.message : 'Membership details are unavailable.'}</Text><GradientButton label="Try again" onPress={() => void refresh()} /></View></Screen>;
 
-  const paidPlans = (['kivelle_plus', 'kivelle_max'] as const).map((tier) => state.catalog.find((plan) => plan.tier === tier)).filter((plan): plan is SubscriptionPlan => Boolean(plan));
+  const paidPlans = (['kivelle_plus', 'kivelle_max'] as const).map((tier) => state.catalog.find((plan) => plan.tier === tier)).filter((plan): plan is SubscriptionPlan & { tier: PurchasableTier } => Boolean(plan));
   const currentPlan = state.catalog.find((plan) => plan.tier === state.tier) ?? state.capabilities;
   const mode = membershipPageMode(state.tier);
   const nativeStoreCheckout=Platform.OS!=='web'&&nativePurchasesConfigured();
@@ -210,7 +216,7 @@ export default function Subscription() {
         <View onLayout={(event) => setPlansY(event.nativeEvent.layout.y)} style={styles.sectionBlock}>
           <SectionHeading kicker="CHOOSE YOUR EXPERIENCE" title="Memberships built around your world" copy="Upgrade anytime. Your account, companions, and permanent Credits stay exactly where you left them." />
           {paidPlans[0] ? <BillingIntervalToggle value={billingInterval} plan={paidPlans[0]} onChange={setBillingInterval} /> : null}
-          <View style={[styles.planGrid, compact && styles.stack]}>{paidPlans.map((plan) => <PlanCard key={plan.tier} plan={plan} billingInterval={billingInterval} action={planActionFor(plan)} busy={busy === plan.tier} featured={plan.tier === 'kivelle_max'} />)}</View>
+          <View style={[styles.planGrid, compact && styles.stack]}>{paidPlans.map((plan) => <PlanCard key={plan.tier} plan={plan} billingInterval={billingInterval} localizedPrice={nativePrices[revenueCatPackageIdentifiers[plan.tier][billingInterval]]} action={planActionFor(plan)} busy={busy === plan.tier} featured={plan.tier === 'kivelle_max'} />)}</View>
         </View>
         <TrustStrip compact={compact} />
         <View onLayout={(event) => setCreditsY(event.nativeEvent.layout.y)}><CreditWalletCard state={state} showActivity /></View>
@@ -292,9 +298,9 @@ function BillingIntervalToggle({ value, plan, onChange }: { value: BillingInterv
   return <View accessibilityRole="radiogroup" accessibilityLabel="Billing interval" style={styles.billingToggle}><Pressable accessibilityRole="radio" accessibilityState={{ checked: value === 'monthly' }} onPress={() => onChange('monthly')} style={[styles.billingChoice, value === 'monthly' && styles.billingChoiceActive]}><Text style={[styles.billingText, value === 'monthly' && styles.billingTextActive]}>Monthly</Text></Pressable><Pressable accessibilityRole="radio" accessibilityState={{ checked: value === 'annual' }} onPress={() => onChange('annual')} style={[styles.billingChoice, value === 'annual' && styles.billingChoiceActive]}><Text style={[styles.billingText, value === 'annual' && styles.billingTextActive]}>Yearly</Text>{savings ? <View style={styles.savePill}><Text style={styles.saveText}>SAVE {savings}%</Text></View> : null}</Pressable></View>;
 }
 
-function PlanCard({ plan, billingInterval, action, busy, featured }: { plan: SubscriptionPlan; billingInterval: BillingInterval; action: PlanAction | null; busy: boolean; featured: boolean }) {
+function PlanCard({ plan, billingInterval, localizedPrice, action, busy, featured }: { plan: SubscriptionPlan; billingInterval: BillingInterval; localizedPrice?:string;action: PlanAction | null; busy: boolean; featured: boolean }) {
   const price = membershipPricePresentation(plan, billingInterval);
-  return <View style={[styles.planCard, featured ? styles.planCardFeatured : styles.planCardPlus]}>{featured ? <View style={styles.featuredBadge}><Sparkles size={12} color="#FFD1F0" /><Text style={styles.featuredBadgeText}>MOST IMMERSIVE</Text></View> : null}<Text accessibilityRole="header" style={styles.planName}>{plan.displayName}</Text><View style={styles.priceRow}><Text style={styles.planPrice}>{price.primary}</Text><Text style={styles.planPeriod}>{price.period}</Text></View><Text style={styles.planPriceDetail}>{price.detail}</Text><Text style={styles.planTagline}>{plan.tier === 'kivelle_max' ? 'The deepest Kivelli experience' : 'More connection, every day'}</Text><View style={styles.planBenefits}>{membershipBenefits(plan).map((benefit) => <View key={benefit} style={styles.planBenefit}><Check size={17} color={featured ? '#C9B6FF' : '#F48CBE'} /><Text style={styles.planBenefitText}>{benefit}</Text></View>)}</View>{action ? action.enabled ? <Pressable accessibilityRole="button" disabled={busy} onPress={action.onPress} style={({ pressed }) => [styles.primaryButton, featured ? styles.maxButton : styles.plusButton, busy && styles.disabled, pressed && styles.pressed]}><Text style={styles.primaryButtonText}>{busy ? 'Opening…' : action.label}</Text><ChevronRight size={19} color="#fff" /></Pressable> : <View style={styles.unavailableAction}><CircleAlert size={17} color={colors.warm} /><Text style={styles.unavailableText}>{action.reason}</Text></View> : <View style={styles.currentPlanStrip}><Check size={18} color={colors.success} /><Text style={styles.currentPlanStripText}>Your current membership</Text></View>}</View>;
+  return <View style={[styles.planCard, featured ? styles.planCardFeatured : styles.planCardPlus]}>{featured ? <View style={styles.featuredBadge}><Sparkles size={12} color="#FFD1F0" /><Text style={styles.featuredBadgeText}>MOST IMMERSIVE</Text></View> : null}<Text accessibilityRole="header" style={styles.planName}>{plan.displayName}</Text><View style={styles.priceRow}><Text style={styles.planPrice}>{localizedPrice??price.primary}</Text><Text style={styles.planPeriod}>{price.period}</Text></View><Text style={styles.planPriceDetail}>{localizedPrice?'Price shown by your app store; taxes may vary.':price.detail}</Text><Text style={styles.planTagline}>{plan.tier === 'kivelle_max' ? 'The deepest Kivelli experience' : 'More connection, every day'}</Text><View style={styles.planBenefits}>{membershipBenefits(plan).map((benefit) => <View key={benefit} style={styles.planBenefit}><Check size={17} color={featured ? '#C9B6FF' : '#F48CBE'} /><Text style={styles.planBenefitText}>{benefit}</Text></View>)}</View>{action ? action.enabled ? <Pressable accessibilityRole="button" disabled={busy} onPress={action.onPress} style={({ pressed }) => [styles.primaryButton, featured ? styles.maxButton : styles.plusButton, busy && styles.disabled, pressed && styles.pressed]}><Text style={styles.primaryButtonText}>{busy ? 'Opening…' : action.label}</Text><ChevronRight size={19} color="#fff" /></Pressable> : <View style={styles.unavailableAction}><CircleAlert size={17} color={colors.warm} /><Text style={styles.unavailableText}>{action.reason}</Text></View> : <View style={styles.currentPlanStrip}><Check size={18} color={colors.success} /><Text style={styles.currentPlanStripText}>Your current membership</Text></View>}</View>;
 }
 
 function TrustStrip({ compact }: { compact: boolean }) {
