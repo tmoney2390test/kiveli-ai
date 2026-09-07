@@ -17,6 +17,8 @@ export type SpeakerContextInput = {
   userMessage: string;
   correlationId?: string;
   now?: Date;
+  readOnly?:boolean;
+  contextInputCeiling?:number;
   attachments?: Row[];
   sceneSessionId?: string;
   sceneContext?: Row;
@@ -207,6 +209,8 @@ export async function buildIsolatedSpeakerContext(
   const context = await buildKivelleConversationContext({
     db: input.db,
     userId: input.userId,
+    readOnly:input.readOnly,
+    contextInputCeiling:input.contextInputCeiling,
     instance,
     conversation,
     userMessage: input.userMessage,

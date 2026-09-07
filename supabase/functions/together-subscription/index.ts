@@ -127,7 +127,7 @@ async function publicSubscriptionStatus(db:Db,userId:string,state:KivelleSubscri
     catalog:(Object.keys(subscriptionCatalog)as SubscriptionTier[]).map((tier)=>publicPlan(tier)),
     creditCosts,
     creditPacks:publicCreditPacks,
-    creditActivity:(activity??[]).map((row)=>({id:String(row.id),eventType:String(row.event_type),permanentDelta:Number(row.permanent_delta??0),subscriptionDelta:Number(row.subscription_delta??0),createdAt:String(row.created_at),adjustmentReason:safeAdjustmentReason(row.metadata)})),
+    creditActivity:(activity??[]).map((row)=>({id:String(row.id),eventType:String(row.event_type),permanentDelta:Number(row.permanent_delta??0),subscriptionDelta:Number(row.subscription_delta??0),createdAt:String(row.created_at),adjustmentReason:safeAdjustmentReason(row.metadata),...(row.metadata?.action==='expanded_context'?{contextAction:true,contextStatus:String(row.metadata?.status??''),contextChargedCredits:Number(row.metadata?.chargedCredits??0)}:{})})),
     nextCreditGrantAt:nextCreditGrantAt(state,latestGrant?.created_at),
     pricing:{currency:'USD',pricesExcludeTax:true},
     billingConfigured:configuration.configured,

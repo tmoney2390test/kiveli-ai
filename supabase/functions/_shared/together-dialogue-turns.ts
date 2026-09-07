@@ -1,3 +1,4 @@
+import { reserveStagedContext, closeContextReservation } from './kivelle-context-authorization.ts';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "./types.ts";
 
@@ -37,6 +38,10 @@ export async function beginConversationTurn(db: SupabaseClient, input: {
       500,
       true,
     );
+  }
+  if(row.acquired===true){
+    try{await reserveStagedContext(db,String(row.turn_id),input.requestId);}
+    catch(error){await db.rpc('kivelle_finish_dialogue_turn',{p_turn_id:row.turn_id,p_lease_token:row.lease_token,p_state:'failed',p_metadata:{contextQuoteRejected:true}});throw error;}
   }
   return {
     id: String(row.turn_id),
@@ -97,6 +102,7 @@ export async function finishConversationTurn(
   state: "completed" | "yielded" | "cancelled" | "failed" = "completed",
   metadata?: Record<string, unknown>,
 ): Promise<boolean> {
+  await closeContextReservation(db);
   const { data, error } = await db.rpc("kivelle_finish_dialogue_turn", {
     p_turn_id: lease.id,
     p_lease_token: lease.token,

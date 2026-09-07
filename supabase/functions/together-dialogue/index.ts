@@ -1,3 +1,4 @@
+import { stageContextAuthorization } from '../_shared/kivelle-context-authorization.ts';
 import { z } from "zod";
 import { authenticated, enforceRateLimit } from "../_shared/context.ts";
 import { requireAiDataConsent } from "../_shared/kivelle-ai-consent.ts";
@@ -143,6 +144,8 @@ import {
 } from "../_shared/kivelle-character-life-state.ts";
 
 const schema = z.object({
+  contextQuoteId:z.string().uuid().optional(),
+  contextPreference:z.literal('included').optional(),
   conversationId: z.string().uuid(),
   message: z.string().max(MESSAGE_CHARACTER_LIMIT, messageCharacterLimitError())
     .default(""),
@@ -214,6 +217,7 @@ Deno.serve(async (request) => {
     await requireAiDataConsent(db,user.id);
     const adultAccess=await resolveAdultAccess(request,user,db);
     const input = await parseBody(request, schema);
+    stageContextAuthorization(db,user.id,input);
     return streamPreparedDialogue(correlationId, async () => {
       let turnLease: ConversationTurnLease | null = null;
       try {

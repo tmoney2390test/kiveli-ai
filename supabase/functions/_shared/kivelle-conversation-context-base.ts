@@ -23,6 +23,7 @@ type Row = Record<string, any>;
 export type ContextQueryIntent = 'general'|'schedule'|'plan'|'date'|'story'|'memory_overview'|'social'|'location'|'history';
 export type CurrentSceneContext = { locationId: string|null; location: string; activity: string; activityKey?:string; mood: string; energy: string; availability: string; interruptibility?:string; scheduleEventId?:string; sceneSessionId?:string; lastInteractionKey?:string; startedAt?:string; expectedEndAt?:string; nextObligation?:{title:string;startsAt:string;location?:string|null}; entryReason?:'direct_chat'|'scheduled'|'user_drop_in'|'invited'|'continued_chat'|'shared_plan'|'active_date'; interactionMode:'remote'|'co_present'; sceneBehavior:{acknowledgeArrival:boolean;activityAwareness:boolean;departurePressure:boolean}; source: 'active_date'|'active_plan'|'active_event'|'scene'|'schedule'|'life_engine'|'character_state'; activeEvent?: { id:string; title:string; summary:string; endsAt?:string|null }; activePlan?:{id:string;title:string;activityKey:string;status?:string;originalLocationId?:string|null;endsAt?:string|null;sourceConversationId?:string|null;participantInstanceIds?:string[];sceneSessionId?:string;activityState?:Record<string,unknown>;companionAtPlan?:boolean;planAwaitingUser?:boolean;participation?:{joinedAt?:string;attendedSeconds?:number}};activeDate?:{id:string;title:string} };
 export type KivelleConversationContext = {
+  contextInputCeiling?:number;
   personalizationEnabled:boolean;
   contentMode?:string;
   photoRequest?:boolean;
@@ -82,7 +83,7 @@ export function detectContextQueryIntent(message: string): ContextQueryIntent {
 
 export async function buildKivelleConversationContext(input: {
   db: SupabaseClient; userId:string; instance:Row; conversation:Row; userMessage:string;
-  lifeRun:Row; semanticRows?:Row[]; semanticQueryEmbedding?:number[]|null; attachments?:Row[]; now?:Date; visibleHistoryFromSequence?:number; visibleSceneSessionId?:string; visibleSceneFromSequence?:number; forceRemoteInteraction?:boolean;conversationSceneResolution?:Row;authorizedWebAdult?:boolean;authorizedPrivateAdultText?:boolean;memoryCandidateLimit?:number;
+  lifeRun:Row; semanticRows?:Row[]; semanticQueryEmbedding?:number[]|null; attachments?:Row[]; now?:Date; visibleHistoryFromSequence?:number; visibleSceneSessionId?:string; visibleSceneFromSequence?:number; forceRemoteInteraction?:boolean;conversationSceneResolution?:Row;authorizedWebAdult?:boolean;authorizedPrivateAdultText?:boolean;memoryCandidateLimit?:number;readOnly?:boolean;
 }): Promise<KivelleConversationContext> {
   const { db, userId, instance, conversation, userMessage } = input;
   const now = input.now ?? new Date();
@@ -129,7 +130,7 @@ export async function buildKivelleConversationContext(input: {
   const activePlanRow=(plans.data??[]).find((plan:Row)=>['scheduled','active'].includes(String(plan.status))&&plan.starts_at&&plan.ends_at&&new Date(plan.starts_at).getTime()-30*60_000<=now.getTime()&&new Date(plan.ends_at).getTime()>now.getTime()) as Row|undefined;
   const activePlanAttendance=activePlanRow?await db.from('together_plan_attendance').select('id,joined_at').eq('plan_id',activePlanRow.id).eq('user_id',userId).eq('participant_type','user').is('left_at',null).maybeSingle():{data:null};
   const activeDateRow=(dates.data??[]).find((date:Row)=>date.status==='active') as Row|undefined;
-  const sceneResolution=input.conversationSceneResolution??await resolveActiveConversationScene({db,userId,conversation,characterInstanceId:String(instance.id),now});
+  const sceneResolution=input.conversationSceneResolution??await resolveActiveConversationScene({db,userId,conversation,characterInstanceId:String(instance.id),now,readOnly:input.readOnly});
   // Persistent group chat is remote by definition. A companion can have a live
   // one-to-one/shared scene elsewhere without pulling that physical presence into
   // this group's private speaker context.

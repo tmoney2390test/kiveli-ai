@@ -4,8 +4,8 @@ import { chatMessageTypography, chatPreferencesFromConversation, isSubscribedTie
 describe('chat settings', () => {
   it('reads valid per-chat preferences and ignores malformed metadata', () => {
     const conversation = { metadata: { chatPreferences: { responseStyle: 'paragraph', textSize: 'large', spiceLevel: 3, voicePreset: 'warm', contentMode: 'explicit', chatLanguage: 'fr', extra: true } } };
-    expect(chatPreferencesFromConversation(conversation as never)).toEqual({ responseStyle: 'paragraph', textSize: 'large', spiceLevel: 3, voicePreset: 'warm', contentMode: 'explicit', chatLanguage: 'fr',chatDynamism:50,reasoningPreference:'auto' });
-    expect(chatPreferencesFromConversation({ metadata: { chatPreferences: 'large' } })).toEqual({chatDynamism:50,reasoningPreference:'auto'});
+    expect(chatPreferencesFromConversation(conversation as never)).toEqual({ responseStyle: 'paragraph', textSize: 'large', spiceLevel: 3, voicePreset: 'warm', contentMode: 'explicit', chatLanguage: 'fr',chatDynamism:50,reasoningPreference:'auto',contextPreference:'included' });
+    expect(chatPreferencesFromConversation({ metadata: { chatPreferences: 'large' } })).toEqual({chatDynamism:50,reasoningPreference:'auto',contextPreference:'included'});
   });
 
   it('normalizes and persists chat generation controls without disturbing other preferences',()=>{
