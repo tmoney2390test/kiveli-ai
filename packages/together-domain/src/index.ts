@@ -34,6 +34,7 @@ export * from './conversation-episodes.ts';
 export * from './multimodal.ts';
 export * from './media-routing.ts';
 export * from './adult-access.ts';
+export * from './account-onboarding.ts';
 export * from './platform-content-policy.ts';
 export * from './content-projection.ts';
 export * from './media-economics.ts';
