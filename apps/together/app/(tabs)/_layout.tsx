@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { router, Tabs, usePathname } from 'expo-router';
 import { BlurView } from 'expo-blur';
-import { Compass, Crown, Home, Images, MessageCircle } from 'lucide-react-native';
+import { Image } from 'expo-image';
+import { Compass, Home, Images, MessageCircle, UserRound } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppShell } from '../../src/shell/AppShellContext';
 import { MESSAGES_INBOX_HREF, mostRecentChatHref, shouldOpenMostRecentChat, WEB_MESSAGES_INBOX_HREF } from '../../src/lib/messageInbox';
@@ -10,6 +11,8 @@ import { useTogether } from '../../src/store/useTogether';
 import { colors } from '../../src/theme';
 import { markRouteIntent, scheduleCoreRouteWarmup, warmRoute } from '../../src/lib/routeWarmup';
 import { isDesktopShellViewport } from '../../src/lib/desktopNavigation';
+import { useProfileAvatarUrl } from '../../src/hooks/useProfileAvatarUrl';
+import { privateStoredImageSource } from '../../src/lib/mediaImageSource';
 
 const web = Platform.OS === 'web';
 
@@ -20,11 +23,16 @@ export default function TabsLayout() {
   const desktopViewport=isDesktopShellViewport(Platform.OS,width);
   const pathname=usePathname();
   const snapshot=useTogether((state)=>state.snapshot);
+  const avatarPath=snapshot?.profile?.avatar_path??null;
+  const avatarUrl=useProfileAvatarUrl(avatarPath);
+  const avatarSource=privateStoredImageSource(avatarUrl,avatarPath);
+  const[avatarFailed,setAvatarFailed]=useState(false);
   const webBarWidth = Math.max(300, Math.min(720, width - 24));
   const openLatestFromCurrentPage=shouldOpenMostRecentChat(pathname);
   const latestChatHref=snapshot?mostRecentChatHref(snapshot.conversations,snapshot.characters):null;
   const messagesInboxHref=web?WEB_MESSAGES_INBOX_HREF:MESSAGES_INBOX_HREF;
   const[webInputFocused,setWebInputFocused]=useState(false);
+  useEffect(()=>setAvatarFailed(false),[avatarUrl]);
   useEffect(()=>snapshot?scheduleCoreRouteWarmup((href)=>router.prefetch(href as never)):undefined,[Boolean(snapshot)]);
   useEffect(()=>{
     if(!web)return;
@@ -77,8 +85,8 @@ export default function TabsLayout() {
       listeners={{tabPress:(event)=>{const href=latestChatHref??messagesInboxHref;prepare(href);if(!openLatestFromCurrentPage)return;event.preventDefault();router.push(href as never);}}}
     />
     <Tabs.Screen name="moments" options={{ title: 'Moments', tabBarIcon: ({ color, size, focused }) => <Images color={color} size={focused ? size + 1 : size} /> }} listeners={{tabPress:()=>prepare('/moments')}} />
-    <Tabs.Screen name="upgrade" options={{ title: 'Upgrade', tabBarIcon: ({ color, size, focused }) => <Crown color={focused?'#E8B3FF':color} size={focused ? size + 2 : size} fill={focused?'rgba(221,162,255,.16)':'transparent'} /> }} listeners={{tabPress:(event)=>{event.preventDefault();prepare('/subscription');router.push('/subscription' as never);}}} />
-    <Tabs.Screen name="profile" options={{ href: null }} />
+    <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, size, focused }) => <View style={[styles.profileIcon,focused&&styles.profileIconActive]}>{avatarSource&&!avatarFailed?<Image accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" alt="" source={avatarSource} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" transition={0} onError={()=>setAvatarFailed(true)}/>:<UserRound color={color} size={focused?size+1:size}/>}</View> }} listeners={{tabPress:()=>prepare('/profile')}} />
+    <Tabs.Screen name="upgrade" options={{ href: null }} />
     <Tabs.Screen name="dates" options={{ href: null }} />
     <Tabs.Screen name="singles" options={{ href: null }} />
     <Tabs.Screen name="market" options={{ href: null }} />
@@ -101,6 +109,21 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(37,24,44,.34)',
     ...(web ? ({ backgroundImage: 'linear-gradient(135deg, rgba(119,67,132,.18), rgba(17,13,24,.42) 48%, rgba(93,44,76,.16))' } as never) : {}),
+  },
+  profileIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,248,244,.2)',
+    backgroundColor: 'rgba(255,255,255,.05)',
+  },
+  profileIconActive: {
+    borderColor: '#FF86AB',
+    borderWidth: 2,
   },
 });
 
