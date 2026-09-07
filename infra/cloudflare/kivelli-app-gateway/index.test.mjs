@@ -18,6 +18,20 @@ test('derives the release from the generated Expo entry asset', () => {
   assert.equal(releaseFromHtml(currentHtml), currentEntry);
 });
 
+test('protects HTML against framing and MIME sniffing while retaining first-party calls', async () => {
+  for (const method of ['GET', 'HEAD']) {
+    const response = await worker.fetch(new Request('https://kivelli.app/login', { method }), environment(new Response(currentHtml, { headers: { 'content-type': 'text/html' } })));
+    assert.equal(response.headers.get('strict-transport-security'), 'max-age=31536000');
+    assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(response.headers.get('x-frame-options'), 'DENY');
+    assert.equal(response.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
+    assert.match(response.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+    assert.match(response.headers.get('content-security-policy'), /object-src 'none'/);
+    assert.match(response.headers.get('permissions-policy'), /microphone=\(self\)/);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+  }
+});
+
 test('preloads generated application scripts directly from the HTML response', () => {
   assert.equal(
     scriptPreloadHeader(`${currentHtml}<script src="/_expo/static/js/web/__common-${currentEntry}.js"></script>`),

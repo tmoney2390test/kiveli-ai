@@ -52,6 +52,9 @@ async function serveAppAsset(request, env) {
     const pathname = new URL(request.url).pathname;
     const assetResponse = await env.ASSETS.fetch(request);
     const responseHeaders = new Headers(assetResponse.headers);
+    responseHeaders.set('strict-transport-security', 'max-age=31536000');
+    responseHeaders.set('x-content-type-options', 'nosniff');
+    responseHeaders.set('referrer-policy', 'strict-origin-when-cross-origin');
     const contentType = responseHeaders.get("content-type") || "";
     if (isApplicationAssetPath(pathname) && contentType.includes("text/html")) {
       return missingApplicationAssetResponse(pathname);
@@ -61,6 +64,9 @@ async function serveAppAsset(request, env) {
       browserCacheControl(pathname, contentType),
     );
     if (contentType.includes("text/html")) {
+      responseHeaders.set('x-frame-options', 'DENY');
+      responseHeaders.set('permissions-policy', 'camera=(self), microphone=(self), geolocation=()');
+      responseHeaders.set('content-security-policy', "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests");
       const html = request.method === "HEAD" ? null : await assetResponse.text();
       const release = releaseFromHtml(html) ?? APP_RELEASE_FALLBACK;
       responseHeaders.set("x-kivelli-release", release);

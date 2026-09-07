@@ -29,6 +29,8 @@ const roleRank: Record<OperationsRole, number> = {
 export function operationsRoleForUser(
   user: Pick<User, "id" | "app_metadata">,
 ): OperationsRole | null {
+  // Explicit revocation also overrides legacy environment allowlists.
+  if (user.app_metadata?.together_operations_disabled === true) return null;
   const allowed = (Deno.env.get("TOGETHER_ADMIN_USER_IDS") ??
     Deno.env.get("TOGETHER_DEBUG_USER_IDS") ?? "").split(",").map((value) =>
       value.trim()
@@ -49,6 +51,7 @@ export function operationsRoleForUser(
 export function requireOperationsRole(
   user: Pick<User, "id" | "app_metadata">,
   minimum: OperationsRole = "viewer",
+  assuranceLevel: 'aal1' | 'aal2' = 'aal1',
 ): OperationsRole {
   const role = operationsRoleForUser(user);
   if (!role || roleRank[role] < roleRank[minimum]) {
@@ -63,6 +66,9 @@ export function requireOperationsRole(
       } access is required.`,
       403,
     );
+  }
+  if (assuranceLevel !== 'aal2') {
+    throw new AppError('FORBIDDEN', 'Verify your authenticator to access operations.', 403);
   }
   return role;
 }

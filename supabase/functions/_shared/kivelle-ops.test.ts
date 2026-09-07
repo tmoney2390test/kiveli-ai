@@ -9,6 +9,28 @@ Deno.test('operations roles preserve least privilege',()=>{
   assertThrows(()=>requireOperationsRole({id:'viewer',app_metadata:{together_ops_role:'viewer'}} as never,'support'));
 });
 
+Deno.test('operations access requires both an assigned role and verified MFA',()=>{
+  const admin={id:'admin',app_metadata:{together_admin:true}};
+  assertThrows(()=>requireOperationsRole(admin,'viewer'));
+  assertThrows(()=>requireOperationsRole(admin,'admin','aal1'));
+  assertEquals(requireOperationsRole(admin,'admin','aal2'),'admin');
+  assertThrows(()=>requireOperationsRole({id:'normal',app_metadata:{}},'viewer','aal2'));
+  assertThrows(()=>requireOperationsRole({id:'viewer',app_metadata:{together_ops_role:'viewer'}},'admin','aal2'));
+});
+
+Deno.test('explicit operations revocation overrides metadata and environment allowlists',()=>{
+  const previous=Deno.env.get('TOGETHER_ADMIN_USER_IDS');
+  try {
+    Deno.env.set('TOGETHER_ADMIN_USER_IDS','revoked');
+    const user={id:'revoked',app_metadata:{together_admin:true,together_ops_role:'admin',together_internal:true,together_operations_disabled:true}};
+    assertEquals(operationsRoleForUser(user),null);
+    assertThrows(()=>requireOperationsRole(user,'viewer','aal2'));
+  } finally {
+    if(previous===undefined)Deno.env.delete('TOGETHER_ADMIN_USER_IDS');
+    else Deno.env.set('TOGETHER_ADMIN_USER_IDS',previous);
+  }
+});
+
 Deno.test('operational alert comparisons honor configured operators',()=>{
   assertEquals(compareOperationalAlert(10,'gte',10),true);
   assertEquals(compareOperationalAlert(10,'gt',10),false);

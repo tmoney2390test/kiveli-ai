@@ -52,6 +52,7 @@ import {
   updateSupportTicket,
 } from "../src/lib/operations";
 import { useAuth } from "../src/hooks/useAuth";
+import { OperationsMfa } from "../src/components/OperationsMfa";
 
 type Tab =
   | "overview"
@@ -241,6 +242,7 @@ export default function Operations() {
       if (userQuery) void searchUser();
     });
   };
+  if (!data && error === 'Verify your authenticator to access operations.') return <OperationsMfa onVerified={load} />;
   if (!data && loading) return <Loading label="Loading private telemetry…" />;
   if (!data) {
     return (

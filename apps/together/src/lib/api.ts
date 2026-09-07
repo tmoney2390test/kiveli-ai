@@ -42,6 +42,8 @@ async function flushClientPerformance(){
 }
 
 let recentAccessToken:{value:string;expiresAt:number}|null=null;
+// MFA verification and session changes must take effect on the very next request.
+supabase.auth.onAuthStateChange(() => { recentAccessToken = null; });
 async function token(): Promise<string> {
   if(recentAccessToken&&recentAccessToken.expiresAt>Date.now())return recentAccessToken.value;
   const { data } = await supabase.auth.getSession();

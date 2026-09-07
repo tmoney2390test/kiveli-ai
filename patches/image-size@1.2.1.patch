@@ -2,6 +2,12 @@ diff --git a/dist/types/icns.js b/dist/types/icns.js
 index 2bff0bb..bdf40c7 100644
 --- a/dist/types/icns.js
 +++ b/dist/types/icns.js
+@@ -71,2 +71,5 @@
+         let imageHeader = readImageHeader(input, imageOffset);
++        if (!Number.isInteger(imageHeader[1]) || imageHeader[1] < 8) {
++            throw new TypeError('Invalid ICNS entry length');
++        }
+         let imageSize = getImageSize(imageHeader[0]);
 @@ -81,5 +81,8 @@ exports.ICNS = {
          while (imageOffset < fileLength && imageOffset < inputLength) {
              imageHeader = readImageHeader(input, imageOffset);
