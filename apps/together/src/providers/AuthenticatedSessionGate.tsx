@@ -1,4 +1,5 @@
-import { useEffect, useRef, type PropsWithChildren } from 'react';
+import { useEffect, useMemo, useRef, type PropsWithChildren } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { router, usePathname } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
@@ -29,7 +30,8 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
     capturedEntryHref,
   });
   const { session }=useAuth();
-  const { snapshot, loading, error, refresh, setSnapshot } = useTogether();
+  const { snapshot, loading, error, refresh, setSnapshot } = useTogether(useShallow((state) => ({ snapshot: state.snapshot, loading: state.loading, error: state.error, refresh: state.refresh, setSnapshot: state.setSnapshot })));
+  const recentConversationId = useMemo(() => mostRecentlyUsedConversation((snapshot?.conversations ?? []).filter((conversation) => conversation.kind !== 'group'))?.id, [snapshot?.conversations]);
   const redirectTarget = useRef<string | null>(null);
   const hydrationUserId=useRef<string|null>(null);
   const publicPath = isPublicAppPath(pathname);
@@ -60,12 +62,13 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   },[snapshot?.profile?.avatar_path]);
 
   useEffect(() => {
-    if (Platform.OS !== 'web' || !session?.user.id || !snapshot) return;
-    const recent = mostRecentlyUsedConversation(snapshot.conversations.filter((conversation) => conversation.kind !== 'group'));
-    if (!recent) return;
-    const timer = setTimeout(() => prefetchConversationMessagePage(session.user.id, recent.id, () => manageConversation({ action: 'messages', conversationId: recent.id, limit: 50 })), 150);
+    if (Platform.OS !== 'web' || !session?.user.id || !recentConversationId || pathname === '/chat' || pathname === '/group-chat') return;
+    const timer = setTimeout(() => {
+      if (document.visibilityState === 'hidden') return;
+      prefetchConversationMessagePage(session.user.id, recentConversationId, () => manageConversation({ action: 'messages', conversationId: recentConversationId, limit: 50 }));
+    }, 150);
     return () => clearTimeout(timer);
-  }, [session?.user.id, snapshot]);
+  }, [session?.user.id, recentConversationId, pathname]);
 
   useEffect(() => {
     const userId=demoMode?'demo':session?.user.id;

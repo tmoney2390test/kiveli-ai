@@ -434,6 +434,14 @@ serve(async (request, correlationId) => {
   if (input.action === 'read') {
     const now = new Date().toISOString();
     await db.from('together_conversations').update({ last_read_at: now }).eq('id', conversation.id).eq('user_id', user.id);
+    // Preserve the notification rollout's read/cancellation integration when
+    // restoring the current conversation API after an older deployment.
+    const { data: readNotifications } = await db.from('together_notification_records').update({ read_at: now, updated_at: now }).eq('user_id', user.id).eq('conversation_id', conversation.id).is('read_at', null).select('id');
+    const notificationIds = (readNotifications ?? []).map((item: Record<string, unknown>) => String(item.id));
+    if (notificationIds.length) {
+      await db.from('together_notification_outbox').update({ state: 'cancelled', terminal_at: now, cancellation_reason: 'content_read', updated_at: now }).in('notification_id', notificationIds).in('state', ['queued', 'leased', 'retry_wait', 'acceptance_unknown']);
+      await track(db, user.id, 'notification_content_read', { resourceKind: 'conversation', count: notificationIds.length });
+    }
     return json({ data: { last_read_at: now }, correlationId }, 200, correlationId);
   }
   if (input.action === 'pin') {

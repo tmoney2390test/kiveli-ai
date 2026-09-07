@@ -9,16 +9,16 @@ const appStartedAt=Date.now();
 
 export function ClientPerformanceBridge(){
   const pathname=usePathname();
-  const snapshot=useTogether((state)=>state.snapshot);
-  const analyticsEnabled=snapshot?.profile?.privacy_settings?.analytics!==false;
+  const snapshotReady=useTogether((state)=>Boolean(state.snapshot));
+  const analyticsEnabled=useTogether((state)=>state.snapshot?.profile?.privacy_settings?.analytics!==false);
   const appReadySent=useRef(false);
   useEffect(()=>{
-    if(!snapshot||!analyticsEnabled||appReadySent.current)return;
+    if(!snapshotReady||!analyticsEnabled||appReadySent.current)return;
     appReadySent.current=true;
     queueClientPerformance({surface:'client-navigation',operation:'app_ready',durationMs:Math.max(0,Date.now()-appStartedAt),success:true,metadata:{route:routePath(pathname),cache:'memory_or_network'}});
-  },[analyticsEnabled,pathname,snapshot]);
+  },[analyticsEnabled,pathname,snapshotReady]);
   useEffect(()=>{
-    if(!snapshot||!analyticsEnabled)return;
+    if(!snapshotReady||!analyticsEnabled)return;
     let first=0,second=0,timer:ReturnType<typeof setTimeout>|null=null,cancelled=false;
     const settled=()=>{
       if(cancelled)return;
@@ -28,7 +28,7 @@ export function ClientPerformanceBridge(){
     if(Platform.OS==='web'&&typeof requestAnimationFrame==='function')first=requestAnimationFrame(()=>{second=requestAnimationFrame(settled);});
     else timer=setTimeout(settled,0);
     return()=>{cancelled=true;if(first)cancelAnimationFrame(first);if(second)cancelAnimationFrame(second);if(timer)clearTimeout(timer);};
-  },[analyticsEnabled,pathname,snapshot]);
+  },[analyticsEnabled,pathname,snapshotReady]);
   return null;
 }
 

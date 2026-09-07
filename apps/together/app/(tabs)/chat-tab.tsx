@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Alert,
   Modal,
   Platform,
@@ -77,6 +78,7 @@ import { characterConversationHref } from "../../src/lib/chatRoute";
 import { prefetchConversationMessagePage } from "../../src/lib/conversationMessageWarmup";
 import { warmRoute } from "../../src/lib/routeWarmup";
 import { supabase } from "../../src/lib/supabase";
+import { ReadRequestBackoff } from "../../src/lib/readRequestBackoff";
 
 const demoMode = __DEV__ &&
   process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === "true";
@@ -114,18 +116,30 @@ export default function MessageInbox() {
   const conversationsRef = useRef<Conversation[]>([]);
   const groupsRef = useRef<InboxGroupDetail[]>([]);
   const nextOffsetRef = useRef<number | null>(0);
-  const hasMoreRef = useRef(true);
+  const hasMoreRef = useRef(false);
+  const focusedRef = useRef(false);
+  const readBackoff = useMemo(() => new ReadRequestBackoff(), [session?.user.id, snapshot?.activeContinuity?.id]);
   const requestSequence = useRef(0);
   const fetchingMoreRef = useRef(false);
   const fetchingRefreshRef = useRef(false);
   const chatHref = chatHrefFromInboxParams(params);
 
+  useFocusEffect(useCallback(() => {
+    focusedRef.current = true;
+    return () => { focusedRef.current = false; };
+  }, []));
+
   useEffect(() => {
     if (params.compose) setShowNewConversation(true);
   }, [params.compose]);
 
-  const fetchInbox = useCallback(async (mode: "refresh" | "more" | "silent") => {
-    if (chatHref || demoMode) return;
+  const fetchInbox = useCallback(async (mode: "refresh" | "focus" | "more" | "silent") => {
+    if (chatHref || demoMode || !focusedRef.current) return;
+    if (Platform.OS === "web" ? typeof document !== "undefined" && document.hidden : AppState.currentState !== "active") return;
+    if (!readBackoff.canRequest(mode === "refresh")) {
+      setLoading(false);
+      return;
+    }
     const currentSnapshot = useTogether.getState().snapshot;
     if (!currentSnapshot) return;
     if (mode === "more" && (!hasMoreRef.current || fetchingMoreRef.current || fetchingRefreshRef.current)) return;
@@ -144,7 +158,7 @@ export default function MessageInbox() {
       setLoadingMore(true);
     } else {
       fetchingRefreshRef.current = true;
-      if (mode === "refresh") {
+      if (mode === "refresh" || mode === "focus") {
         setLoading(conversationsRef.current.length === 0);
         setRefreshing(conversationsRef.current.length > 0);
         setError("");
@@ -153,6 +167,8 @@ export default function MessageInbox() {
     try {
       const page = normalizeInboxPage(await manageConversation<InboxPage | Conversation[]>({ action: "inbox_v2", limit: INBOX_PAGE_SIZE, offset }));
       if (requestSequence.current !== requestId) return;
+      readBackoff.succeeded();
+      setError("");
       const nextConversations = mode === "more" ? mergeInboxPages(conversationsRef.current, page.conversations) : page.conversations;
       const nextGroups = mode === "more" ? mergeInboxGroups(groupsRef.current, page.groups) : page.groups;
       conversationsRef.current = nextConversations;
@@ -167,7 +183,13 @@ export default function MessageInbox() {
         setCoreState({ conversations: mergeInboxConversations(latest.conversations, nextConversations) });
       }
     } catch (caught) {
-      if (requestSequence.current === requestId && mode !== "silent") setError(caught instanceof Error ? caught.message : "Messages could not be loaded.");
+      if (requestSequence.current === requestId) {
+        readBackoff.failed(caught);
+        // onEndReached can fire again when the loading footer disappears.
+        // Require a successful first-page refresh before allowing more pages.
+        hasMoreRef.current = false;
+        setError(caught instanceof Error ? caught.message : "Messages could not be loaded.");
+      }
     } finally {
       if (requestSequence.current === requestId) {
         setLoading(false);
@@ -177,9 +199,9 @@ export default function MessageInbox() {
         fetchingRefreshRef.current = false;
       }
     }
-  }, [chatHref, online, session?.user.id, setCoreState]);
+  }, [chatHref, online, readBackoff, session?.user.id, setCoreState]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     const userId = session?.user.id;
     const continuityId = snapshot?.activeContinuity?.id;
     if (chatHref || demoMode || !userId || !continuityId || !online) return;
@@ -210,14 +232,14 @@ export default function MessageInbox() {
       if (refreshTimer) clearTimeout(refreshTimer);
       void supabase.removeChannel(channel);
     };
-  }, [chatHref, fetchInbox, online, session?.user.id, snapshot?.activeContinuity?.id]);
+  }, [chatHref, fetchInbox, online, session?.user.id, snapshot?.activeContinuity?.id]));
 
   const pendingReplyKey = conversations
     .filter((conversation) => conversation.reply_pending)
     .map((conversation) => conversation.id)
     .sort()
     .join(":");
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     if (chatHref || demoMode || !online || !pendingReplyKey) return;
     // Realtime message delivery is the fast path. This short reconciliation is
     // active only while a reply is pending, covering failed turns and restricted
@@ -226,7 +248,7 @@ export default function MessageInbox() {
       if (!fetchingRefreshRef.current && !fetchingMoreRef.current) void fetchInbox("silent");
     }, 1_500);
     return () => clearInterval(timer);
-  }, [chatHref, fetchInbox, online, pendingReplyKey]);
+  }, [chatHref, fetchInbox, online, pendingReplyKey]));
 
   useFocusEffect(useCallback(() => {
     if (chatHref) return;
@@ -241,7 +263,7 @@ export default function MessageInbox() {
     conversationsRef.current = local;
     groupsRef.current = cached?.groups ?? [];
     nextOffsetRef.current = cached?.pageInfo.nextOffset ?? 0;
-    hasMoreRef.current = cached?.pageInfo.hasMore ?? true;
+    hasMoreRef.current = cached?.pageInfo.hasMore ?? false;
     setConversations(local);
     setGroups(cached?.groups ?? []);
     setLoading(local.length === 0);
@@ -249,7 +271,7 @@ export default function MessageInbox() {
       setLoading(false);
       return;
     }
-    void fetchInbox("refresh");
+    void fetchInbox("focus");
     return () => {
       requestSequence.current += 1;
       fetchingMoreRef.current = false;
