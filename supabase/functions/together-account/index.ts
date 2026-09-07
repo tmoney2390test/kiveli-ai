@@ -26,6 +26,7 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('birthdate_status') }),
   z.object({ action: z.literal('birthdate_update'), dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
   z.object({ action: z.literal('privacy_choices_status') }),
+  z.object({ action: z.literal('conversation_preference'), privateTextPreference: z.enum(['standard','mature','explicit']) }),
   z.object({ action: z.literal('privacy_choices'), aiDataSharing: z.boolean(), privateTextPreference: z.enum(['standard','mature','explicit']), source: z.enum(['onboarding','privacy','account']).default('account') }),
   z.object({ action: z.literal('export_request') }),
   z.object({ action: z.literal('export_status'), exportId: z.string().uuid() }),
@@ -128,6 +129,30 @@ serve(async (request, correlationId) => {
     ]);
     if (profile.error) throw new AppError('INTERNAL_ERROR', 'Your privacy choices could not be loaded.', 500, true);
     return json({ data: { aiDataConsent: consent, privateTextPreference: profile.data?.private_text_preference ?? null, privateTextPreferenceVersion: profile.data?.private_text_preference_version ?? null, privateTextPreferenceRecordedAt: profile.data?.private_text_preference_recorded_at ?? null, disclosure: aiDataSharingDisclosure() }, correlationId }, 200, correlationId);
+  }
+
+  if (input.action === 'conversation_preference') {
+    if (!adultAccess.adult_eligible) throw new AppError('FORBIDDEN', 'Confirm adult eligibility before choosing private conversation settings.', 403);
+    const current = await db.from('together_profiles').select('content_preferences').eq('user_id', user.id).maybeSingle();
+    if (current.error || !current.data) throw new AppError('INTERNAL_ERROR', 'Your conversation setting could not be loaded.', 500, true);
+    const preferences = current.data.content_preferences && typeof current.data.content_preferences === 'object'
+      ? current.data.content_preferences as Record<string, unknown>
+      : {};
+    const { error } = await db.from('together_profiles').update({
+      private_text_preference: input.privateTextPreference,
+      private_text_preference_version: 'private-text-choice-v1',
+      private_text_preference_recorded_at: new Date().toISOString(),
+      content_preferences: {
+        ...preferences,
+        contentMode: input.privateTextPreference,
+        explicitContentEnabled: input.privateTextPreference === 'explicit',
+        matureContentEnabled: input.privateTextPreference !== 'standard',
+      },
+      updated_at: new Date().toISOString(),
+    }).eq('user_id', user.id);
+    if (error) throw new AppError('INTERNAL_ERROR', 'Your conversation setting could not be saved.', 500, true);
+    await track(db, user.id, 'private_text_preference_updated', { privateTextPreference: input.privateTextPreference, source: 'account' });
+    return json({ data: { privateTextPreference: input.privateTextPreference }, correlationId }, 200, correlationId);
   }
 
   if (input.action === 'privacy_choices') {

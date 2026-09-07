@@ -5,7 +5,6 @@ import { runLifeSimulation } from '../_shared/together-life.ts';
 import { constantTimeEqual } from '../../../packages/together-domain/src/security.ts';
 import { reconcilePushReceipts, retryPendingPushDeliveries } from '../_shared/kivelle-push.ts';
 import { evaluateOperationalAlerts } from '../_shared/kivelle-ops.ts';
-import { loadAiDataConsent } from '../_shared/kivelle-ai-consent.ts';
 import { retryAccountDeletionCleanup } from '../_shared/kivelle-account-deletion-worker.ts';
 // Keep this transitive dependency visible to Supabase's server-side function
 // packager, which otherwise omits it when bundling deletion reconciliation.
@@ -33,8 +32,7 @@ serve(async (request, correlationId) => {
   const results = { processed: 0, events: 0, messages: 0, failures: 0, photoCleanup, pushRetry, deletionCleanup };
   for (const instance of instances ?? []) {
     try {
-      const consent=await loadAiDataConsent(db,String(instance.user_id));
-      const run = await runLifeSimulation({ db, userId: instance.user_id, characterInstanceId: instance.id, now, evaluateProactive: consent.allowsProviderCalls, trigger: 'scheduled_dispatch' });
+      const run = await runLifeSimulation({ db, userId: instance.user_id, characterInstanceId: instance.id, now, evaluateProactive: true, trigger: 'scheduled_dispatch' });
       results.processed += 1;
       results.events += Array.isArray(run.events) ? run.events.length : 0;
       results.messages += run.proactiveMessage ? 1 : 0;

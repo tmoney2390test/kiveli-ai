@@ -23,12 +23,11 @@ function safeRouteIdentifiers(route:string):{conversationId?:string;groupId?:str
 
 export async function sendCompanionPush(db:SupabaseClient,input:{userId:string;characterName:string;proactive:Row}){
   const now=new Date();
-  const[prefs,deleted,consent]=await Promise.all([
+  const[prefs,deleted]=await Promise.all([
     db.from('together_notification_preferences').select('push_enabled,quiet_hours_start,quiet_hours_end,timezone').eq('user_id',input.userId).maybeSingle(),
     db.from('together_account_deletion_markers').select('user_id').eq('user_id',input.userId).maybeSingle(),
-    db.from('together_ai_data_consents').select('decision').eq('user_id',input.userId).eq('purpose','core_ai_processing_v1').maybeSingle(),
   ]);
-  if(!prefs.data?.push_enabled||deleted.data||consent.data?.decision!=='accepted')return;
+  if(!prefs.data?.push_enabled||deleted.data)return;
   if(isQuietHours(now,String(prefs.data.quiet_hours_start??'23:00'),String(prefs.data.quiet_hours_end??'08:00'),String(prefs.data.timezone??'UTC')))return;
   const{data:tokens}=await db.from('together_push_tokens').select('id,expo_push_token').eq('user_id',input.userId).eq('active',true).limit(5);
   if(!tokens?.length)return;
@@ -51,13 +50,12 @@ export async function retryPendingPushDeliveries(db:SupabaseClient){
   for(const id of ids){
     const{data:delivery}=await db.from('together_push_deliveries').select('id,user_id,push_token_id,proactive_message_id,attempt_count,metadata,expires_at').eq('id',id).eq('lease_owner',workerId).maybeSingle();
     if(!delivery)continue;
-    const[token,prefs,deleted,consent]=await Promise.all([
+    const[token,prefs,deleted]=await Promise.all([
       db.from('together_push_tokens').select('expo_push_token,active').eq('id',delivery.push_token_id).eq('user_id',delivery.user_id).maybeSingle(),
       db.from('together_notification_preferences').select('push_enabled,quiet_hours_start,quiet_hours_end,timezone').eq('user_id',delivery.user_id).maybeSingle(),
       db.from('together_account_deletion_markers').select('user_id').eq('user_id',delivery.user_id).maybeSingle(),
-      db.from('together_ai_data_consents').select('decision').eq('user_id',delivery.user_id).eq('purpose','core_ai_processing_v1').maybeSingle(),
     ]);
-    const tokenRow=token.data,prefRow=prefs.data,disabled=!tokenRow?.active||!prefRow?.push_enabled||Boolean(deleted.data)||consent.data?.decision!=='accepted';
+    const tokenRow=token.data,prefRow=prefs.data,disabled=!tokenRow?.active||!prefRow?.push_enabled||Boolean(deleted.data);
     if(disabled){await finishPush(db,id,'expired','Push eligibility changed before delivery.');continue;}
     if(isQuietHours(now,String(prefRow!.quiet_hours_start??'23:00'),String(prefRow!.quiet_hours_end??'08:00'),String(prefRow!.timezone??'UTC'))){
       await db.from('together_push_deliveries').update({status:'retry',next_attempt_at:new Date(now.getTime()+15*60_000).toISOString(),lease_owner:null,lease_expires_at:null,updated_at:now.toISOString()}).eq('id',id).eq('lease_owner',workerId);continue;

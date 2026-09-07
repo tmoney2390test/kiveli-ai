@@ -22,7 +22,9 @@ export function aiDataConsentState(row: Record<string, unknown> | null | undefin
     disclosureVersion: typeof row?.disclosure_version === 'string' ? row.disclosure_version : null,
     decision,
     decidedAt: typeof row?.decided_at === 'string' ? row.decided_at : null,
-    allowsProviderCalls: decision === 'accepted',
+    // Provider use is part of Kivelle's core service and no longer has a
+    // separate access gate. Historical choices remain available for audit.
+    allowsProviderCalls: true,
   };
 }
 
@@ -36,12 +38,11 @@ export async function loadAiDataConsent(db: SupabaseClient, userId: string): Pro
   return aiDataConsentState(data as Record<string, unknown> | null);
 }
 
-export async function requireAiDataConsent(db: SupabaseClient, userId: string): Promise<AiDataConsentState> {
-  const state = await loadAiDataConsent(db, userId);
-  if (!state.allowsProviderCalls) {
-    throw new AppError('CONSENT_REQUIRED', 'Allow AI processing in Account settings before using this feature.', 403, false);
-  }
-  return state;
+export async function requireAiDataConsent(_db: SupabaseClient, _userId: string): Promise<AiDataConsentState> {
+  // Kept as a compatibility boundary for existing function callers. AI
+  // processing is intrinsic to the requested Kivelle feature, so access no
+  // longer depends on a separately stored consent record (or a database read).
+  return aiDataConsentState(null);
 }
 
 export async function recordAiDataConsent(db: SupabaseClient, input: {
