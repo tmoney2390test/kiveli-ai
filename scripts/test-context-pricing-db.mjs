@@ -44,5 +44,8 @@ const mixed=await quote(20);await reserve(mixed);assert.deepEqual(await balance(
 assert.equal((await db.query("select has_function_privilege('authenticated','kivelle_reserve_context(uuid,uuid,uuid,uuid,text,text)','execute') as allowed")).rows[0].allowed,false);
 assert.equal((await db.query("select has_table_privilege('authenticated','together_context_quotes','select') as allowed")).rows[0].allowed,false);
 const repeated=await quote(6);await db.query("update together_context_quotes set manifest=jsonb_set(manifest,'{maximumReplies}','2'::jsonb) where id=$1",[repeated.q]);await reserve(repeated);await reply(repeated,2);await reply(repeated,2);await assert.rejects(()=>reply(repeated,0),/CONTEXT_RECEIPT_INVALID/);await close(repeated);assert.deepEqual(await balance(),{permanent_balance:14,subscription_balance:0});
+await db.query('update together_credit_accounts set subscription_balance=5 where user_id=$1',[user]);
+const grace=await quote(4);await reserve(grace);await db.query("update together_entitlements set tier='free' where user_id=$1",[user]);await close(grace);assert.equal((await balance()).subscription_balance,5);
+const expiredHold=await quote(4);await reserve(expiredHold);await db.query("update together_context_quotes set subscription_expires_at=now()-interval '1 minute' where id=$1",[expiredHold.q]);await close(expiredHold);assert.equal((await balance()).subscription_balance,1);
 console.log('PASS: reservation idempotency, partial settlement, failure release, stale/mismatched quotes, insufficient funds, persisted-reply recovery, bucket provenance, and service-only permissions.');
 await db.close();

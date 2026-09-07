@@ -72,7 +72,7 @@ Deno.serve(async(request)=>{
       replies.push({speakerId,provider,model,inputTokens,maxOutputTokens,maximumCredits,paidExpansion});
       approximateInputTokens=Math.max(approximateInputTokens,paidExpansion?expanded.estimatedTokens:included.estimatedTokens);
     }
-    const maximumReplies=group?(input.manualSpeakerInstanceId?1:input.letThemTalk?Math.min(6,Math.max(3,replies.length+1)):Math.min(6,replies.length)):Math.min(3,replies.length);
+    const maximumReplies=group?(input.manualSpeakerInstanceId?1:input.letThemTalk?Math.min(6,Math.max(3,replies.length+1)):Math.min(3,replies.length)):Math.min(3,replies.length);
     const maximumCredits=group?maximumReplies*Math.max(0,...replies.map(row=>row.maximumCredits)):[...replies].sort((a,b)=>b.maximumCredits-a.maximumCredits).slice(0,maximumReplies).reduce((sum,row)=>sum+row.maximumCredits,0);
     const expiresAt=new Date(Date.now()+60000).toISOString();
     const {data:quote,error}=await db.from('together_context_quotes').insert({user_id:user.id,conversation_id:conversation.id,fingerprint:await contextDraftFingerprint(input),state_fingerprint:stateFingerprint,pricing_version:CONTEXT_PRICE_VERSION,manifest:{conversationId:conversation.id,preference,ceiling,maximumReplies,replies,compilerVersion:CONTEXT_COMPILER_VERSION},maximum_credits:maximumCredits,expires_at:expiresAt}).select('id').single();

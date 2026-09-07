@@ -96,7 +96,7 @@ begin
  sub_return=q.subscription_held-sub_spent;
  permanent_return=q.permanent_held-(q.charged_credits-sub_spent);
  select e.tier into tier from public.together_entitlements e where e.user_id=q.user_id;
- cap=case tier when 'kivelle_max' then 2400 when 'kivelle_plus' then 1000 else 0 end;
+ cap=case tier when 'kivelle_max' then 2400 when 'kivelle_plus' then 1000 else q.subscription_held+a.subscription_balance end;
  -- Holds retain their grant provenance. Expired credits stay expired, and a
  -- release cannot bypass the current plan's rollover cap after a cycle change.
  if q.subscription_expires_at<=now() or a.subscription_expires_at<=now() then sub_return=0;
