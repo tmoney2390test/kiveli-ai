@@ -5,6 +5,7 @@ import { MESSAGE_CHARACTER_LIMIT, messageCharacterLimitError } from '@together/d
 import { classifyPhotoIntent } from '@together/domain/src/media';
 import type { CompanionVoicePreset } from '@together/domain/src/voice-presets';
 import type { ChatLanguagePreference } from '@together/domain/src/chat-language';
+import type { AccountGender } from '@together/domain/src/account-onboarding';
 import type { AroundTownItem, WorldPulseEvent } from '@together/domain/src/world-pulse';
 import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterProfileDetails, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, ExploreCatalogSnapshot, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, MemoryCenterCategory, MemoryCenterItem, MemoryCenterResponse, MemoryCenterSort, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, ScheduleItem, Snapshot, SnapshotDelta, VideoDiagnostics, VideoResolution, VideoRouteOption, VoiceCallSession } from '../types';
 import type { RealtimeVoiceConfiguration } from './realtimeVoice';
@@ -68,7 +69,7 @@ export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POS
 }
 export const loadSnapshot = () => invoke<Snapshot>('together-bootstrap', undefined, 'GET');
 export const loadExploreCatalog = () => invoke<ExploreCatalogSnapshot>('together-bootstrap?scope=explore',undefined,'GET');
-export const confirmAdultAge = (dateOfBirth:string) => invoke<Snapshot>('together-bootstrap', {action:'confirm_age',ageConfirmed:true,dateOfBirth});
+export const confirmAdultAge = (input:{dateOfBirth:string;displayName:string;gender:AccountGender}) => invoke<Snapshot>('together-bootstrap', {action:'confirm_age',ageConfirmed:true,...input});
 export const loadCharacterPresence = (characterInstanceId:string) => invoke<CharacterPresenceSnapshot>(`together-bootstrap?scope=presence&characterInstanceId=${encodeURIComponent(characterInstanceId)}`,undefined,'GET');
 export const loadCharacterSchedule = (characterTemplateId:string) => invoke<{characterTemplateId:string;characterVersionId:string;schedules:ScheduleItem[]}>(`together-bootstrap?scope=character_schedule&characterTemplateId=${encodeURIComponent(characterTemplateId)}`,undefined,'GET');
 export const loadCharacterProfileDetails = (characterTemplateId:string,worldId?:string|null) => invoke<CharacterProfileDetails>(`together-bootstrap?scope=character_profile&characterTemplateId=${encodeURIComponent(characterTemplateId)}${worldId?`&worldId=${encodeURIComponent(worldId)}`:''}`,undefined,'GET');
