@@ -1,4 +1,15 @@
-import type{GeneratedMedia}from'../types';
+import type{GeneratedMedia,MediaOffer}from'../types';
+
+export function isMediaOfferBusy(
+  offer: Pick<MediaOffer, 'id' | 'generated_media_id'> | null | undefined,
+  busyOfferId: string | null,
+  busyMediaId: string | null,
+): boolean {
+  if (!offer) return false;
+  // New offers have no media ID. Two absent IDs never indicate an active retry.
+  return (Boolean(busyOfferId) && busyOfferId === offer.id)
+    || (Boolean(busyMediaId) && busyMediaId === offer.generated_media_id);
+}
 
 export function latestMediaOfferPreviewUri(media:GeneratedMedia[],characterInstanceId:string,conversationId:string):string|null{
   const ready=media.filter((item)=>item.media_type==='image'&&item.status==='ready'&&Boolean(item.signed_url)&&item.character_instance_id===characterInstanceId);
