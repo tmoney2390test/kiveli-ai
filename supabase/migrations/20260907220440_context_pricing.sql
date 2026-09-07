@@ -127,3 +127,24 @@ revoke all on function public.kivelle_close_context(uuid) from public,anon,authe
 revoke all on function public.kivelle_recover_context_holds() from public,anon,authenticated;
 grant execute on function public.kivelle_reserve_context(uuid,uuid,uuid,uuid,text,text),public.kivelle_close_context(uuid),public.kivelle_recover_context_holds() to service_role;
 select cron.schedule('kivelle-context-hold-recovery','* * * * *',$$select public.kivelle_recover_context_holds()$$);
+
+-- General support refunds must not restore a context hold that has already
+-- been partly returned by settlement. Context holds use their dedicated RPC.
+create or replace function public.kivelle_refund_credit_transaction(p_user_id uuid,p_transaction_id uuid,p_idempotency_key text,p_metadata jsonb default '{}'::jsonb)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare spend public.together_credit_ledger; account public.together_credit_accounts; existing uuid; permanent_refund integer; subscription_refund integer;
+begin
+  select id into existing from public.together_credit_ledger where user_id=p_user_id and idempotency_key=p_idempotency_key;
+  if existing is not null then select * into account from public.together_credit_accounts where user_id=p_user_id; return jsonb_build_object('idempotent',true,'permanentBalance',account.permanent_balance,'subscriptionBalance',account.subscription_balance,'total',account.permanent_balance+account.subscription_balance); end if;
+  select * into spend from public.together_credit_ledger where id=p_transaction_id and user_id=p_user_id and event_type='spend';
+  if spend.id is null then raise exception 'spend transaction not found'; end if;
+  if spend.reference_type='context_quote' then raise exception 'CONTEXT_REFUND_REQUIRES_SETTLEMENT'; end if;
+  permanent_refund=greatest(0,-spend.permanent_delta); subscription_refund=greatest(0,-spend.subscription_delta);
+  insert into public.together_credit_accounts(user_id) values(p_user_id) on conflict(user_id) do nothing;
+  select * into account from public.together_credit_accounts where user_id=p_user_id for update;
+  update public.together_credit_accounts set permanent_balance=permanent_balance+permanent_refund,subscription_balance=subscription_balance+subscription_refund,updated_at=now() where user_id=p_user_id returning * into account;
+  insert into public.together_credit_ledger(user_id,event_type,permanent_delta,subscription_delta,idempotency_key,reference_type,reference_id,metadata) values(p_user_id,'refund',permanent_refund,subscription_refund,p_idempotency_key,'credit_transaction',p_transaction_id::text,p_metadata);
+  return jsonb_build_object('permanentBalance',account.permanent_balance,'subscriptionBalance',account.subscription_balance,'total',account.permanent_balance+account.subscription_balance,'refunded',permanent_refund+subscription_refund);
+end $$;
+revoke all on function public.kivelle_refund_credit_transaction(uuid,uuid,text,jsonb) from public,anon,authenticated;
+grant execute on function public.kivelle_refund_credit_transaction(uuid,uuid,text,jsonb) to service_role;

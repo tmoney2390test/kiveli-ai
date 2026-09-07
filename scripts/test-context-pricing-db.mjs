@@ -32,6 +32,9 @@ await Promise.all([reserve(q),reserve(q)]);assert.deepEqual(await balance(),{per
 await assert.rejects(()=>reply(q,6),/CONTEXT_RECEIPT_INVALID/);assert.equal((await db.query('select count(*)::int as n from together_messages')).rows[0].n,0);
 await reply(q,2);await close(q);assert.deepEqual(await balance(),{permanent_balance:20,subscription_balance:18});await close(q);assert.deepEqual(await balance(),{permanent_balance:20,subscription_balance:18});
 await assert.rejects(()=>reply(q,1),/CONTEXT_RECEIPT_INVALID/);
+const hold=(await db.query('select id from together_credit_ledger where idempotency_key=$1',['context-hold:'+q.q])).rows[0].id;
+await assert.rejects(()=>db.query("select kivelle_refund_credit_transaction($1,$2,'support-refund','{}'::jsonb)",[user,hold]),/CONTEXT_REFUND_REQUIRES_SETTLEMENT/);
+assert.deepEqual(await balance(),{permanent_balance:20,subscription_balance:18});
 const failure=await quote();await reserve(failure);await close(failure);assert.deepEqual(await balance(),{permanent_balance:20,subscription_balance:18});
 const stale=await quote(5,'-1 minute');await assert.rejects(()=>reserve(stale),/CONTEXT_QUOTE_EXPIRED/);
 const wrong=await quote();await assert.rejects(()=>reserve(wrong,'different draft'),/CONTEXT_QUOTE_EXPIRED/);
