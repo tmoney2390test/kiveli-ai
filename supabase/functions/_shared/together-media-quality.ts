@@ -78,6 +78,11 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   const blockingReasons=blockingQualityReasonsForAgePolicy(verdict.reasonCodes,customAgeCheck);
   if(isCustomCharacterTerminalQualityFailure(verdict.reasonCodes,customAgeCheck))return{action:'reject',reasonCodes:verdict.reasonCodes};
   if(adultAuthorized&&hasTerminalAdultOutputSafetyFailure(verdict.reasonCodes))return{action:'reject',reasonCodes:verdict.reasonCodes};
+  if(shouldDeliverAestheticQualityWarnings(verdict)){
+    await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
+    await track(db,String(media.user_id),'media_quality_aesthetic_warnings_delivered',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
+    return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
+  }
   if(shouldDeliverOfficialAdultImageWithWarnings({verdict,adultAuthorized,customCharacter:customAgeCheck})){
     await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_official_adult_delivered_with_warnings',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
@@ -225,6 +230,19 @@ export function authorizedAdultImageSafetyRule(subjects:Array<{companion:{name:s
 }
 
 const DELIVERABLE_QUALITY_WARNINGS=new Set(['face_too_small','pose_mismatch','face_direction_mismatch','world_mismatch','location_mismatch','earth_leakage','time_mismatch']);
+const AESTHETIC_QUALITY_WARNINGS=new Set([
+  ...DELIVERABLE_QUALITY_WARNINGS,'world_unverified',
+  'face_distortion','face_blur','face_low_detail','duplicate_features',
+  'malformed_hands','digit_error','limb_distortion','joint_distortion','torso_distortion',
+  'body_proportion_error','duplicate_body_parts','anatomy_low_detail','genital_anatomy_error',
+  'non_photorealistic','requested_anatomy_missing','requested_anatomy_unverified',
+  'embedded_reference','rendered_text','multiple_subjects','subject_count_mismatch','identity_mismatch','identity_swap',
+]);
+export function shouldDeliverAestheticQualityWarnings(verdict:MediaQualityVerdict):boolean{
+  // Quality is advisory. Explicit safety findings and unknown failure codes
+  // are deliberately excluded, including when mixed with aesthetic warnings.
+  return verdict.status==='fail'&&verdict.reasonCodes.length>0&&verdict.reasonCodes.every(reason=>AESTHETIC_QUALITY_WARNINGS.has(reason));
+}
 const FINAL_SFW_DELIVERABLE_QUALITY_WARNINGS=new Set([
   ...DELIVERABLE_QUALITY_WARNINGS,
   // Once the economical route has already made its single correction, these

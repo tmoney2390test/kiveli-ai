@@ -343,6 +343,29 @@ Deno.test('Venice prompt honors intentional face concealment without weakening a
   assert(prompt.includes('five distinct naturally arranged fingers'));
 });
 
+Deno.test('long fantasy selfie prompts reserve all sections and exclude location artwork direction',()=>{
+  const request=adultRequest();
+  request.companion.name='Freya Hart';
+  request.contentLevel='standard';
+  request.composition={shotType:'selfie',aspectRatio:'4:5',framing:'Close selfie with a large recognizable face and a small background glimpse. '.repeat(8),poseDirection:'Front-facing head and shoulders.',faceDirection:'Eyes near the lens.'};
+  request.generationIntent={requestText:'Send me a selfie at The Verdant Reach inside Vharadren.',requestedContentLevel:'standard'};
+  request.visualIdentity.canonicalDescription='A fair-skinned woman with storm-gray eyes and pale blond hair. '.repeat(7);
+  request.context.place={
+    path:'Vharadren → The Verdant Reach',
+    location:{name:'The Verdant Reach',description:'A damp forest region with moss and weathered medieval buildings. '.repeat(8),lore:{summary:'Forest roads.'},visualContext:{canonicalPrompt:'Wide textless cinematic dark-fantasy establishing view. Painterly realism.',indoorOutdoor:'outdoor'}},
+    clock:{localIso:'2026-09-07T07:06',localTime:'07:06',timezone:'America/New_York',daypart:'morning'},
+  } as NonNullable<CanonicalMediaRequest['context']['place']>;
+  request.context.worldContainment={worldId:'vharadren',worldSlug:'vharadren',worldName:'Vharadren',worldDescription:'A medieval fantasy realm.',worldVisualContext:{setting:'A fractured medieval empire.',visualStyle:['cinematic painterly realism']},locationName:'The Verdant Reach',resolutionReason:'authoritative_location'};
+  request.qualityRetry={reasonCodes:['identity_mismatch','non_photorealistic']};
+  const prompt=buildVeniceImagePrompt(request);
+  assert(prompt.length<=2_000);
+  assert(prompt.includes(request.generationIntent.requestText));
+  for(const expected of ['Approved request: Send me a selfie','WORLD/SETTING LOCK: Only Vharadren','TIME/LIGHT: 2026-09-07T07:06','Close selfie: large, sharp','Capture device outside the frame','artistic medium','Wardrobe:','Pose:','Face direction:','Correct previous defects:','identity_mismatch','five distinct naturally arranged fingers'])if(!prompt.includes(expected))throw new Error(`missing ${expected}`);
+  assert(!prompt.includes('Wide textless')&&!prompt.includes('Painterly realism')&&!prompt.includes('Hair: .'));
+  assert(!prompt.endsWith('Pose:')&&!prompt.endsWith('Face direction:'));
+  assert(buildVeniceImagePrompt({...request,qualityRetry:undefined})!==prompt);
+});
+
 Deno.test('Venice standard photo edits use the selected photo as the sole edit source',async()=>{
   const bodies:Array<Record<string,unknown>>=[],png=Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,1]);
   const client=new VeniceImageClient('secret','https://venice.test/api/v1',1_000,async(_url,init)=>{bodies.push(JSON.parse(String(init?.body)));return new Response(png,{status:200,headers:{'content-type':'image/png'}});});
