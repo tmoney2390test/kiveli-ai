@@ -3,6 +3,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollVie
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
+import Head from 'expo-router/head';
 import { CircleCheck } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GradientButton } from '../src/components';
@@ -14,7 +15,7 @@ import { joinPathFor, safeAppReturnPath, signInPathFor } from '../src/lib/sessio
 import { resolvePostAuthDestination } from '../src/lib/authRouting';
 import type { SocialAuthProvider } from '../src/lib/socialAuth';
 import { useWebHydrated } from '../src/hooks/useWebHydrated';
-import { publicLandingPrimaryHeroAsset } from '../src/components/landing/publicLandingAssets';
+import { publicLandingPrimaryHeroAsset, publicLandingPrimaryHeroUri } from '../src/components/landing/publicLandingAssets';
 import { EMAIL_CODE_RESEND_SECONDS, emailCodeReady, emailCodeResendSeconds, normalizeEmailAddress, normalizeEmailCode } from '../src/lib/emailCodeAuth';
 
 type EmailAuthStage = 'email' | 'code';
@@ -92,7 +93,6 @@ export default function Auth() {
         setStage('code');
         setResendAvailableAt(Date.now() + EMAIL_CODE_RESEND_SECONDS * 1_000);
         setClock(Date.now());
-        setNotice('We sent a six-digit code.');
       } else {
         await verifyEmailCode(normalizedEmail, normalizeEmailCode(code));
         setSignedIn(true);
@@ -154,6 +154,7 @@ export default function Auth() {
   const resendSeconds=emailCodeResendSeconds(resendAvailableAt,clock);
 
   return <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <Head><link rel="preload" as="image" href={publicLandingPrimaryHeroUri} fetchPriority="high" /></Head>
     <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.scroll} contentContainerStyle={[styles.page,{minHeight:height}]}>
       <View style={[styles.shell, wide ? styles.shellWide : styles.shellCompact]}>
         <View style={[styles.hero, wide ? styles.heroWide : {height:mobileHeroHeight}]}>

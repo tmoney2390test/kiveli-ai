@@ -39,7 +39,7 @@ export function desktopShellAllowed(pathname: string) {
   return !shellFreePaths.has(normalizeDesktopPath(pathname));
 }
 
-export function authenticatedShellEnabled(pathname:string,accountStage:'age_confirmation'|'privacy_choice'|'onboarding'|'ready'|null){
+export function authenticatedShellEnabled(pathname:string,accountStage:'age_confirmation'|'onboarding'|'ready'|null){
   // Keep the authenticated shell mounted while a ready account passes through
   // the root route during auth restoration or an external callback.
   if(normalizeDesktopPath(pathname)==='/'&&accountStage==='ready')return true;

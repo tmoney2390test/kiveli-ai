@@ -6,6 +6,7 @@ import { BirthdateField } from '../src/components/BirthdateField';
 import { GradientButton, KivelleLogo, Screen } from '../src/components';
 import { confirmAdultAge } from '../src/lib/api';
 import { validBirthdateEntry } from '../src/lib/pendingBirthdate';
+import { resolvePostAuthDestination } from '../src/lib/authRouting';
 import { useTogether } from '../src/store/useTogether';
 import { colors, radius, spacing, typography } from '../src/theme';
 
@@ -25,7 +26,7 @@ export default function AgeConfirmation() {
     try {
       const snapshot = await confirmAdultAge(dateOfBirth);
       setSnapshot(snapshot);
-      router.replace('/account?setup=privacy' as never);
+      router.replace(resolvePostAuthDestination({ authenticated: true, snapshot }) as never);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Kivelle could not confirm your age.');
     } finally {

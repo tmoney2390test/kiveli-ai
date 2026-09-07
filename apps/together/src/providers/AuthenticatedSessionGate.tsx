@@ -1,4 +1,5 @@
-import { useEffect, useRef, type PropsWithChildren } from 'react';
+import { useEffect, useMemo, useRef, type PropsWithChildren } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { router, usePathname } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
@@ -6,7 +7,7 @@ import { ErrorState } from '../components/RouteState';
 import { RouteLoadingState } from '../components/RouteLoadingState';
 import { resolveKivelleAccountStage } from '../lib/authRouting';
 import { authenticatedShellEnabled } from '../lib/desktopNavigation';
-import { isAgeConfirmationPath, isCompanionOnboardingPath, isPrivacyChoicePath, isPublicAppPath } from '../lib/sessionRouting';
+import { isAgeConfirmationPath, isCompanionOnboardingPath, isPublicAppPath } from '../lib/sessionRouting';
 import { ResponsiveAppShell } from '../shell/ResponsiveAppShell';
 import { useTogether } from '../store/useTogether';
 import { useAuth } from '../hooks/useAuth';
@@ -29,13 +30,12 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
     capturedEntryHref,
   });
   const { session }=useAuth();
-  const { snapshot, loading, error, refresh, setSnapshot } = useTogether();
+  const { snapshot, loading, error, refresh, setSnapshot } = useTogether(useShallow((state) => ({ snapshot: state.snapshot, loading: state.loading, error: state.error, refresh: state.refresh, setSnapshot: state.setSnapshot })));
+  const recentConversationId = useMemo(() => mostRecentlyUsedConversation((snapshot?.conversations ?? []).filter((conversation) => conversation.kind !== 'group'))?.id, [snapshot?.conversations]);
   const redirectTarget = useRef<string | null>(null);
   const hydrationUserId=useRef<string|null>(null);
   const publicPath = isPublicAppPath(pathname);
   const agePath = isAgeConfirmationPath(pathname);
-  const privacyChoicePath = isPrivacyChoicePath(pathname);
-  const accountChoicePath = pathname === '/account';
   const companionOnboardingPath = isCompanionOnboardingPath(pathname);
 
   useEffect(() => {
@@ -60,12 +60,13 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   },[snapshot?.profile?.avatar_path]);
 
   useEffect(() => {
-    if (Platform.OS !== 'web' || !session?.user.id || !snapshot) return;
-    const recent = mostRecentlyUsedConversation(snapshot.conversations.filter((conversation) => conversation.kind !== 'group'));
-    if (!recent) return;
-    const timer = setTimeout(() => prefetchConversationMessagePage(session.user.id, recent.id, () => manageConversation({ action: 'messages', conversationId: recent.id, limit: 50 })), 150);
+    if (Platform.OS !== 'web' || !session?.user.id || !recentConversationId || pathname === '/chat' || pathname === '/group-chat') return;
+    const timer = setTimeout(() => {
+      if (document.visibilityState === 'hidden') return;
+      prefetchConversationMessagePage(session.user.id, recentConversationId, () => manageConversation({ action: 'messages', conversationId: recentConversationId, limit: 50 }));
+    }, 150);
     return () => clearTimeout(timer);
-  }, [session?.user.id, snapshot]);
+  }, [session?.user.id, recentConversationId, pathname]);
 
   useEffect(() => {
     const userId=demoMode?'demo':session?.user.id;
@@ -98,11 +99,9 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
     const stage = resolveKivelleAccountStage(snapshot.profile);
     const target = stage === 'age_confirmation'
       ? (agePath ? null : '/age-confirmation')
-      : stage === 'privacy_choice'
-        ? (privacyChoicePath || accountChoicePath ? null : '/account?setup=privacy')
       : stage === 'onboarding'
         ? (companionOnboardingPath ? null : '/choose-companion')
-        : (agePath || privacyChoicePath || companionOnboardingPath ? '/home' : null);
+        : (agePath || companionOnboardingPath ? '/home' : null);
     if (!target) {
       redirectTarget.current = null;
       return;
@@ -112,7 +111,7 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
       if (Platform.OS === 'web') consumeWebEntryHref();
       router.replace(target as never);
     }
-  }, [accountChoicePath, agePath, companionOnboardingPath, privacyChoicePath, publicPath, snapshot]);
+  }, [agePath, companionOnboardingPath, publicPath, snapshot]);
 
   let blocker = null;
   if (!snapshot && !publicPath) {
@@ -121,8 +120,8 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
       : <RouteLoadingState pathname={pathname} />;
   } else if (snapshot && !publicPath) {
     const stage = resolveKivelleAccountStage(snapshot.profile);
-    if ((stage === 'age_confirmation' && !agePath) || (stage === 'privacy_choice' && !privacyChoicePath && !accountChoicePath) || (stage === 'onboarding' && !companionOnboardingPath) || (stage === 'ready' && (agePath || privacyChoicePath || companionOnboardingPath))) {
-      blocker = <RouteLoadingState pathname={pathname} label={stage === 'age_confirmation' ? 'Opening age confirmation…' : stage === 'privacy_choice' ? 'Opening account settings…' : stage === 'onboarding' ? 'Preparing your first meeting…' : undefined} />;
+    if ((stage === 'age_confirmation' && !agePath) || (stage === 'onboarding' && !companionOnboardingPath) || (stage === 'ready' && (agePath || companionOnboardingPath))) {
+      blocker = <RouteLoadingState pathname={pathname} label={stage === 'age_confirmation' ? 'Opening age confirmation…' : stage === 'onboarding' ? 'Preparing your first meeting…' : undefined} />;
     }
   }
 
