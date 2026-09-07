@@ -19,6 +19,7 @@ export function MessageActionSheet({
   message,
   senderName,
   sentAt,
+  contextCredits,
   userMessage,
   actions,
   onClose,
@@ -27,6 +28,7 @@ export function MessageActionSheet({
   message: string;
   senderName: string;
   sentAt: string;
+  contextCredits?:number;
   userMessage: boolean;
   actions: MessageActionDefinition[];
   onClose: () => void;
@@ -63,6 +65,7 @@ export function MessageActionSheet({
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Pressable onPress={() => undefined} style={styles.frame}>
           <FrostedSurface intensity={82} style={styles.panel}>
+            {contextCredits!==undefined?<Text style={{color:colors.muted,fontSize:12,marginBottom:8}}>Context · {contextCredits} {contextCredits===1?'credit':'credits'}</Text>:null}
             <Pressable accessibilityLabel="Close message actions" onPress={onClose} hitSlop={10} style={styles.close}>
               <X size={18} color={colors.muted}/>
             </Pressable>

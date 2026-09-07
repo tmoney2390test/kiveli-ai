@@ -1,3 +1,4 @@
+import { contextPreferenceLabel, type ContextPreference } from '@together/domain/src/chat-context';
 import { forwardRef, useEffect, useMemo, useRef, useState, type ElementRef } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ChevronRight, Info, X } from 'lucide-react-native';
@@ -8,6 +9,8 @@ import { ThemedSettingPicker } from './ThemedSettingPicker';
 
 type Props={
   mode:'direct'|'group';
+  contextPreference?:ContextPreference;
+  onContextPreferenceChange?:(value:ContextPreference)=>void;
   chatDynamism:ChatDynamism;
   reasoningPreference:ReasoningPreference;
   tier:unknown;
@@ -17,15 +20,20 @@ type Props={
   onUpgrade:()=>void;
 };
 
-export function ChatGenerationSettings({mode,chatDynamism,reasoningPreference,tier,disabled=false,onChatDynamismChange,onReasoningPreferenceChange,onUpgrade}:Props){
-  const [picker,setPicker]=useState<'dynamism'|'reasoning'|null>(null);
+export function ChatGenerationSettings({mode,contextPreference='included',onContextPreferenceChange,chatDynamism,reasoningPreference,tier,disabled=false,onChatDynamismChange,onReasoningPreferenceChange,onUpgrade}:Props){
+  const [picker,setPicker]=useState<'dynamism'|'reasoning'|'context'|null>(null);
+  const contextRef=useRef<ElementRef<typeof Pressable>>(null);
+  const contextHelp='Sets how much conversation fits in each reply. More context can be slower and use credits. Your maximum price appears before sending; unused context adds no charge.';
+  const contextChoices=[{value:'included' as const,label:'Included',description:'Your plan’s context allowance. No extra credits.'},{value:'extended_32k' as const,label:'Extended · 32K',description:'Keep more recent conversation. Variable credits per message.',locked:tier!=='kivelle_plus'&&tier!=='kivelle_max'},{value:'maximum_64k' as const,label:'Maximum · 64K',description:'The most conversation history. Variable credits per message.',locked:tier!=='kivelle_plus'&&tier!=='kivelle_max'}];
   const dynamismRef=useRef<ElementRef<typeof Pressable>>(null);
   const reasoningRef=useRef<ElementRef<typeof Pressable>>(null);
   const reasoningChoices=useMemo(()=>reasoningChoicesForTier(tier),[tier]);
   const locked=()=>{setPicker(null);onUpgrade();};
   const dynamismHelp=mode==='group'?"Changes how the group expresses itself while preserving every character’s voice, memories, facts, safety, and reply length.":'Changes expression and spontaneity without changing memories, facts, safety, or reply length.';
-  const reasoningHelp=mode==='group'?'Controls how deeply Kivelli plans each group response. Fast uses a quicker model and lighter reasoning.':'Controls how deeply Kivelli thinks through each reply. Fast uses a quicker model and lighter reasoning.';
+  const reasoningHelp=mode==='group'?'Controls how deeply Kivelli plans each group response. Fast uses a quicker model and lighter reasoning.':'Controls how deeply each reply is worked through. Lower reasoning is quicker and can cost fewer credits; it does not reduce the context size.';
   return <View style={styles.wrapper}>
+    {onContextPreferenceChange?<SettingRow ref={contextRef} testID="context-size-setting" label="Context Size" value={contextPreferenceLabel(contextPreference)} tooltip={contextHelp} disabled={disabled} onPress={()=>setPicker('context')}/>:null}
+    <ThemedSettingPicker visible={picker==='context'} title="Context Size" description={contextHelp} choices={contextChoices} selected={contextPreference} disabled={disabled} onSelect={(value)=>onContextPreferenceChange?.(value)} onLockedSelect={locked} onClose={()=>setPicker(null)} returnFocusRef={contextRef} testIDPrefix="context-size-option"/>
     <SettingRow ref={dynamismRef} testID="chat-dynamism-setting" label="Chat Dynamism" value={chatDynamismLabel(chatDynamism)} tooltip={dynamismHelp} disabled={disabled} onPress={()=>setPicker('dynamism')}/>
     <SettingRow ref={reasoningRef} testID="reasoning-effort-setting" label="Reasoning Effort" value={reasoningPreferenceLabel(reasoningPreference)} tooltip={reasoningHelp} disabled={disabled} onPress={()=>setPicker('reasoning')}/>
     <ThemedSettingPicker visible={picker==='dynamism'} title="Chat Dynamism" description={dynamismHelp} choices={chatDynamismChoices} selected={chatDynamism} disabled={disabled} onSelect={onChatDynamismChange} onClose={()=>setPicker(null)} returnFocusRef={dynamismRef} testIDPrefix="chat-dynamism-option"/>

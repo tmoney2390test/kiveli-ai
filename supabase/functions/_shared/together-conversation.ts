@@ -45,7 +45,7 @@ export function shouldDeleteMediaAfterMessageRemoval(media: Record<string, unkno
   return Boolean(media.message_id) && !media.moment_id && !media.date_session_id && !media.life_event_id;
 }
 
-export async function resolveActiveConversationScene(input:{db:SupabaseClient;userId:string;conversation:Record<string,any>;characterInstanceId:string;now?:Date}):Promise<{scene:ActiveConversationScene|null;presence:CompanionPresence|null;expired:boolean}> {
+export async function resolveActiveConversationScene(input:{db:SupabaseClient;userId:string;conversation:Record<string,any>;characterInstanceId:string;now?:Date;readOnly?:boolean}):Promise<{scene:ActiveConversationScene|null;presence:CompanionPresence|null;expired:boolean}> {
   const now=input.now??new Date();
   const metadata=(input.conversation.metadata??{}) as Record<string,any>;
   const stored=(metadata.activeScene??metadata.scene) as Partial<ActiveConversationScene>|undefined;
@@ -84,8 +84,8 @@ export async function resolveActiveConversationScene(input:{db:SupabaseClient;us
       const activityLabel=explicitActivity||humanizeActivity(activityKey,'Spending time together');
       return {scene:{version:1,characterInstanceId:input.characterInstanceId,locationId:String(sceneSession.location_id),worldId:String(sceneSession.world_id),interactionMode:'co_present',entryReason:(existing.entryReason??(sceneSession.source==='date'?'active_date':sceneSession.source==='shared_plan'?'shared_plan':'continued_scene')) as Exclude<SceneEntryReason,'direct_chat'>,enteredAt:String(existing.enteredAt??sceneSession.started_at),source:(existing.source??'presence') as ActiveConversationScene['source'],...(sceneSession.expected_end_at?{validUntil:String(sceneSession.expected_end_at)}:{}),...(existing.arrivalAcknowledgedAt?{arrivalAcknowledgedAt:String(existing.arrivalAcknowledgedAt)}:{}),sceneSessionId:String(sceneSession.id),activityKey,activityLabel,updatedAt:now.toISOString()},presence,expired:false};
     }
-    await input.db.from('together_scene_sessions').update({ended_at:now.toISOString(),updated_at:now.toISOString()}).eq('id',sceneSession.id).eq('user_id',input.userId).is('ended_at',null);
-    waitUntil(finalizeSceneSession({db:input.db,userId:input.userId,sceneSessionId:String(sceneSession.id),now}));
+    if(!input.readOnly){await input.db.from('together_scene_sessions').update({ended_at:now.toISOString(),updated_at:now.toISOString()}).eq('id',sceneSession.id).eq('user_id',input.userId).is('ended_at',null);
+    waitUntil(finalizeSceneSession({db:input.db,userId:input.userId,sceneSessionId:String(sceneSession.id),now}));}
   }
   if(presence&&presence.locationId&&presence.source==='active_date'){
     return {scene:{version:1,characterInstanceId:input.characterInstanceId,locationId:presence.locationId,worldId:presence.worldId??'',interactionMode:'co_present',entryReason:'active_date',enteredAt:presence.activityStartedAt??now.toISOString(),source:'active_event',sourceEventId:presence.sourceEventId,validUntil:presence.validUntil,activityKey:presence.activityKey,activityLabel:presence.activity,updatedAt:now.toISOString()},presence,expired:false};

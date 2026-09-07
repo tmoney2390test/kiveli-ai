@@ -6,7 +6,7 @@ export type SubscriptionIntent=typeof subscriptionIntents[number];
 const intentCopy:Record<SubscriptionIntent,{eyebrow:string;title:string;body:string}>={
   plans:{eyebrow:'PLAN & CREDITS',title:'Choose what fits your Kivelle life',body:'Compare plans, understand your benefits, and manage credits in one place.'},
   photo_sharing:{eyebrow:'SHARE PHOTOS',title:'Share moments with your characters',body:'Kivelle+ lets your characters see and naturally react to photos from your life. Shared photos never use Credits.'},
-  credits:{eyebrow:'KIVELLE CREDITS',title:'Keep creating',body:'Credits are for generated photos, video, voice, and other premium media—not for sharing your own photos.'},
+  credits:{eyebrow:'KIVELLE CREDITS',title:'Keep creating',body:'Credits cover expanded chat context, generated photos, video, and voice. Sharing your own photos stays free.'},
   generated_media:{eyebrow:'GENERATED MEDIA',title:'Create more together',body:'Compare included generated photos and add Credits for custom photos, edits, video, and premium media.'},
   voice:{eyebrow:'VOICE',title:'Hear more of your connection',body:'Unlock voice features and use Credits only when a priced voice action clearly shows its cost.'},
   memory:{eyebrow:'MEMORY CENTER',title:'Go deeper with your shared history',body:'Kivelle+ unlocks memory review and controls while preserving the relationship you already built.'},
@@ -109,6 +109,7 @@ export function managementActionLabel(management:BillingManagement):string{
 
 export function creditActivityPresentation(event:CreditActivityEvent):{label:string;amount:number;detail:string}{
   const amount=event.permanentDelta+event.subscriptionDelta;
+  if(event.contextAction)return{amount,label:event.eventType==='refund'?'Unused context credits returned':event.contextStatus==='reserved'?'Context credits reserved':'Expanded context',detail:event.contextStatus==='reserved'?'Maximum held while replies finish':`Final context charge: ${event.contextChargedCredits??0} credits`};
   const label=event.adjustmentReason==='tier_cap_reduced'?'Plan limit adjustment':event.adjustmentReason==='tier_cap_restored'?'Plan Credits restored':event.adjustmentReason==='post_subscription_grace_expired'?'Plan Credits expired':['refund','dispute','chargeback'].includes(String(event.adjustmentReason))?'Payment reversal':event.eventType==='welcome_grant'?'Welcome credits':event.eventType==='subscription_grant'?'Monthly plan credits':event.eventType==='purchase'?'Credits purchased':event.eventType==='spend'?'Credits used':event.eventType==='refund'?'Automatic refund':event.eventType==='adjustment'?'Billing adjustment':'Credit activity';
   const detail=event.adjustmentReason==='tier_cap_reduced'?'Adjusted to the previous plan’s rollover limit':event.adjustmentReason==='tier_cap_restored'?'Restored after returning to a higher plan':event.adjustmentReason==='post_subscription_grace_expired'?'Unused plan Credits after the grace period':['refund','dispute','chargeback'].includes(String(event.adjustmentReason))?'Purchased Credits returned through billing':event.eventType==='subscription_grant'?'Subscription balance':event.eventType==='welcome_grant'||event.eventType==='purchase'?'Permanent balance':event.eventType==='refund'?'Returned after an unsuccessful action':'Kivelle Credits';
   return{label,amount,detail};

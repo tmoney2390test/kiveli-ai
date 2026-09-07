@@ -1,3 +1,4 @@
+import { contextPreferences, normalizeContextPreference } from '../../../packages/together-domain/src/chat-context.ts';
 import { z } from "zod";
 import {
   commonGroupWorldId,
@@ -77,7 +78,7 @@ const schema = z.discriminatedUnion("action", [
     contentMode:z.enum(["standard","romance","mature","explicit"]).optional(),
     chatLanguage: z.enum(chatLanguagePreferences).optional(),
     chatDynamism:z.union([z.literal(0),z.literal(25),z.literal(50),z.literal(75),z.literal(100)]).optional(),
-    reasoningPreference:z.enum(['auto','none','low','medium','high']).optional(),
+    reasoningPreference:z.enum(['auto','none','low','medium','high']).optional(), contextPreference:z.enum(contextPreferences).optional(),
     userBubbleColor:z.enum(chatBubbleColorValues).optional(),
     companionBubbleColor:z.enum(chatBubbleColorValues).optional(),
     responseMode: z.enum(["automatic", "choose_speaker"]),
@@ -489,6 +490,7 @@ serve(async (request, correlationId) => {
         !Array.isArray(storedPreferences)
       ? storedPreferences as Record<string, unknown>
       : {};
+    if(input.contextPreference&&input.contextPreference!=='included'&&subscription.tier==='free')throw new AppError('PLAN_LIMIT_REACHED','Expanded context is available with Kivelle+ or Max.',403);
     const requestedReasoning=normalizeReasoningPreference(input.reasoningPreference);
     if(input.reasoningPreference!==undefined&&!reasoningPreferenceAllowedForTier(requestedReasoning,subscription.tier))throw new AppError('PLAN_LIMIT_REACHED',requestedReasoning==='high'?'Deep reasoning is available with Kivelle Max.':'Thoughtful reasoning is available with Kivelle+ or Max.',403,false);
     const responseStyle = input.responseStyle ??
@@ -516,6 +518,7 @@ serve(async (request, correlationId) => {
       textSize,
       contentMode,
       chatLanguage,
+      contextPreference:normalizeContextPreference(input.contextPreference??currentPreferences.contextPreference),
       chatDynamism:normalizeChatDynamism(input.chatDynamism??currentPreferences.chatDynamism),
       reasoningPreference:reconcileReasoningPreferenceForTier(input.reasoningPreference??currentPreferences.reasoningPreference,subscription.tier),
       userBubbleColor:normalizeChatBubbleColor(input.userBubbleColor??currentPreferences.userBubbleColor),

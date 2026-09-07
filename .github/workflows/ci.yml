@@ -28,6 +28,9 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm context:test:db
+      - name: Context price regressions
+        run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-context-price_test.ts
       - run: pnpm guard:starter-content
       - run: pnpm edge:typecheck
       - name: Scheduled message regressions

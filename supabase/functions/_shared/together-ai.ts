@@ -1,3 +1,4 @@
+import { pricedCompanionPrompt, contextChargeForUsage, ContextPricingError, type ContextPayment, type ContextCharge } from './kivelle-context-charge.ts';
 import { AppError } from "./types.ts";
 import {
   extractMemories,
@@ -80,6 +81,7 @@ export type DialogueContext = KivelleConversationContext & {
   dialogueRouting?: Record<string, unknown>;
 };
 export type DialogueRunMetadata = {
+  contextCharge?:ContextCharge;
   provider: DialogueProviderName;
   model: string;
   routeReason: string;
@@ -125,6 +127,7 @@ export type DialogueStreamEvent = { type: "token"; token: string } | {
   metadata: DialogueRunMetadata;
 };
 export type DialogueRunOptions = {
+  contextPayment?:ContextPayment;
   route: DialogueRoutingDecision;
   usageScope?: AiUsageScope;
   operation?: string;
@@ -323,6 +326,7 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
         }
         return generated;
       } catch (error) {
+      if(error instanceof ContextPricingError)throw error;
         if (options.route.provider === "xai") {
           return generateAdultProviderDowngrade(context, options);
         }
@@ -442,6 +446,7 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
         }
         return;
       } catch (error) {
+      if(error instanceof ContextPricingError)throw error;
         if (!canRetryStreamFailure(emitted)) throw error;
         if (isDialogueProviderTimeout(error)) {
           const text = options.route.provider === "xai"
@@ -559,7 +564,7 @@ async function generateResponses(
         bodyLatencyMs: Math.max(0, latency - (firstByteLatencyMs ?? latency)),
         visibleOutputTokens:usage.outputTokens,
         deliveredVisibleOutputTokensEstimate:visible.estimatedTokens,
-        totalOutputTokens:usage.outputTokens+usage.reasoningTokens,
+        totalOutputTokens:usage.outputTokens,
         ...generationTelemetry(options),
       },
     });
@@ -573,6 +578,7 @@ async function generateResponses(
       },
     };
   } catch (error) {
+      if(error instanceof ContextPricingError)throw error;
     if (!recorded) {
       await recordAiUsage(options.usageScope, {
         provider,
@@ -701,6 +707,7 @@ async function* streamResponses(
       },
     };
   } catch (error) {
+      if(error instanceof ContextPricingError)throw error;
     if (!recorded) {
       await recordAiUsage(options.usageScope, {
         provider,
@@ -742,9 +749,11 @@ async function responsesBody(
     ?openAIFastServiceTier()
     :undefined;
   options.requestedServiceTier=serviceTier;
+  const prepared=pricedCompanionPrompt({context:{...context,chatGenerationControlsApplied:applied.promptDynamismApplied,chatGenerationMode:options.generationContext?.mode??'direct'},db:options.usageScope?.db,speakerId:options.usageScope?.characterInstanceId??undefined,provider,model:modelName,maxOutputTokens:applied.maxOutputTokens,payment:options.contextPayment});
+  options.contextPayment=prepared.payment;
   return buildResponsesRequestBody({
     model: modelName,
-    prompt: buildCompanionPrompt({...context,chatGenerationControlsApplied:applied.promptDynamismApplied,chatGenerationMode:options.generationContext?.mode??'direct'}),
+    prompt: prepared.prompt,
     maxOutputTokens: applied.maxOutputTokens,
     stream,
     reasoningEffort:applied.reasoningEffort,
@@ -833,6 +842,7 @@ function fallbackRunOptions(
   return {
     ...options,
     generationProfile: undefined,
+    contextPayment: undefined,
     unsupportedTemperatureFallback: false,
     visibleOutputTruncated: false,
     deliveredVisibleOutputTokensEstimate: undefined,
@@ -867,6 +877,7 @@ function metadataFor(
     reasoningTokens: usage?.reasoningTokens ?? 0,
     latencyMs,
     ...generationMetadata(options),
+    ...(options.contextPayment?{contextCharge:contextChargeForUsage(options.contextPayment,usage,fallback,options.appliedServiceTier??options.requestedServiceTier)}:{}),
     ...(fallback ? { fallback: true } : {}),
   };
 }
@@ -2205,6 +2216,8 @@ export function geminiDialogueRequestBody(
       role: 'user',
       parts: [{ text: buildCompanionPrompt({
         ...context,
+        contextInputCeiling:undefined,
+        recent:(context.recent??[]).slice(-(context.subscription?.capabilities?.recentTurnBudget??10)),
         chatGenerationControlsApplied: applied.promptDynamismApplied,
         chatGenerationMode: options.generationContext?.mode ?? 'direct',
       }) }],

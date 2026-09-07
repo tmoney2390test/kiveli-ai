@@ -1,3 +1,4 @@
+import { normalizeContextPreference, type ContextPreference } from '@together/domain/src/chat-context';
 import type { ChatPreferences, ChatTextSize, Conversation, ConversationStyle, DialogueContentMode, Snapshot, SpiceLevel } from '../types';
 import { resolveClientConversationStyle } from './conversationStyle';
 import { normalizeSpiceLevel } from './spice';
@@ -16,6 +17,7 @@ export function chatPreferencesFromConversation(conversation?: Pick<Conversation
   const value = conversation?.metadata?.chatPreferences;
   const candidate = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
   return {
+    contextPreference: normalizeContextPreference(candidate.contextPreference),
     ...(candidate.responseStyle === 'paragraph' || candidate.responseStyle === 'texting' ? { responseStyle: candidate.responseStyle } : {}),
     ...(candidate.textSize === 'small' || candidate.textSize === 'medium' || candidate.textSize === 'large' ? { textSize: candidate.textSize } : {}),
     ...(candidate.spiceLevel === 1 || candidate.spiceLevel === 2 || candidate.spiceLevel === 3 ? { spiceLevel: candidate.spiceLevel } : {}),
@@ -85,11 +87,11 @@ export function isSubscribedTier(tier?: string | null): boolean {
   return ['kivelle_plus', 'kivelle_max', 'together_plus', 'unlimited'].includes(String(tier ?? '').toLowerCase());
 }
 
-export function withLocalChatSettings(conversation: Conversation, input: { title: string | null; responseStyle: ConversationStyle; textSize: ChatTextSize; spiceLevel?: SpiceLevel; voicePreset?: CompanionVoicePreset | null; contentMode?: DialogueContentMode; chatLanguage?: ChatLanguagePreference; chatDynamism?:ChatDynamism; reasoningPreference?:ReasoningPreference; userBubbleColor?:ChatBubbleColor; companionBubbleColor?:ChatBubbleColor }): Conversation {
+export function withLocalChatSettings(conversation: Conversation, input: { contextPreference?:ContextPreference; title: string | null; responseStyle: ConversationStyle; textSize: ChatTextSize; spiceLevel?: SpiceLevel; voicePreset?: CompanionVoicePreset | null; contentMode?: DialogueContentMode; chatLanguage?: ChatLanguagePreference; chatDynamism?:ChatDynamism; reasoningPreference?:ReasoningPreference; userBubbleColor?:ChatBubbleColor; companionBubbleColor?:ChatBubbleColor }): Conversation {
   const current = chatPreferencesFromConversation(conversation);
   const stored=conversation.metadata?.chatPreferences;
   const rawCurrent=stored&&typeof stored==='object'&&!Array.isArray(stored)?stored as Record<string,unknown>:{};
-  const nextPreferences = { ...rawCurrent,...current, responseStyle: input.responseStyle, textSize: input.textSize, contentMode: input.contentMode??current.contentMode??'mature', chatDynamism:normalizeChatDynamism(input.chatDynamism??current.chatDynamism), reasoningPreference:normalizeReasoningPreference(input.reasoningPreference??current.reasoningPreference), ...(input.voicePreset ? { voicePreset: input.voicePreset } : {}), ...(input.chatLanguage ? { chatLanguage: input.chatLanguage } : {}), ...(input.userBubbleColor ? { userBubbleColor: normalizeChatBubbleColor(input.userBubbleColor) } : {}), ...(input.companionBubbleColor ? { companionBubbleColor: normalizeChatBubbleColor(input.companionBubbleColor) } : {}) };
+  const nextPreferences = { ...rawCurrent,...current,contextPreference:normalizeContextPreference(input.contextPreference??current.contextPreference), responseStyle: input.responseStyle, textSize: input.textSize, contentMode: input.contentMode??current.contentMode??'mature', chatDynamism:normalizeChatDynamism(input.chatDynamism??current.chatDynamism), reasoningPreference:normalizeReasoningPreference(input.reasoningPreference??current.reasoningPreference), ...(input.voicePreset ? { voicePreset: input.voicePreset } : {}), ...(input.chatLanguage ? { chatLanguage: input.chatLanguage } : {}), ...(input.userBubbleColor ? { userBubbleColor: normalizeChatBubbleColor(input.userBubbleColor) } : {}), ...(input.companionBubbleColor ? { companionBubbleColor: normalizeChatBubbleColor(input.companionBubbleColor) } : {}) };
   if (input.voicePreset === null) delete nextPreferences.voicePreset;
   return {
     ...conversation,

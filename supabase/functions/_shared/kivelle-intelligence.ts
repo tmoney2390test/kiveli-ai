@@ -1,3 +1,4 @@
+import { recentHistoryWithinBudget } from '../../../packages/together-domain/src/chat-context.ts';
 import { assessScenePressure, scenePressureGuidance } from '../../../packages/together-domain/src/scene-pressure.ts';
 import { selectCharacterPerformance } from '../../../packages/together-domain/src/character-performance.ts';
 import { conversationResponseLength, conversationResponseTokenBudget, conversationStyleGuidance, resolveConversationStyle, type ConversationInteractionQuality, type ConversationResponseLength, type ConversationStyle } from '../../../packages/together-domain/src/conversation-style.ts';
@@ -104,7 +105,7 @@ export function compileCompanionPrompt(context:any):ContextBudgetResult{
     const freshnessAt=sectionFreshness(key,context);
     return{key,order,required,protected:protectedPromptSection(key),priority:sectionPriority(key,context),relevance:sectionRelevance(key,String(context.queryIntent??'general') as ContextIntent,context),...(freshnessAt?{freshnessAt}:{}),reasonCodes:sectionReasonCodes(key,String(context.queryIntent??'general') as ContextIntent,context),allRecordIds:sectionRecordIds(key,context),variants:variantRows};
   });
-  return budgetContextSections(sections,{ceilingTokens:contextInputTokenCeiling(profile)});
+  return budgetContextSections(sections,{ceilingTokens:context.contextInputCeiling??contextInputTokenCeiling(profile)});
 }
 
 function highStakesStoryGuidance(context:any):string {
@@ -402,7 +403,7 @@ export function preparePromptContext(context:any,mode:'full'|'compact'|'minimal'
     ...context,
     character:{...character,selfKnowledge:character.selfKnowledge??character.character_bible?.selfKnowledge??null,character_bible:compactCharacterBible(character.character_bible,mode),communication_style:mode==='minimal'?compactRecord(character.communication_style,2,8,160):character.communication_style,boundaries:Array.isArray(character.boundaries)?character.boundaries.slice(0,mode==='minimal'?8:20):character.boundaries},
     relationshipReflection:{...reflection,recurring_dynamics:(reflection.recurring_dynamics??reflection.recurringDynamics??[]).slice(0,mode==='minimal'?2:4),unresolved_tension:(reflection.unresolved_tension??reflection.unresolvedTension??[]).slice(0,mode==='minimal'?2:4),shared_references:(reflection.shared_references??reflection.sharedReferences??[]).slice(0,mode==='minimal'?2:4)},
-    recent:recentTurnsForPrompt(context).slice(-limits.recent),
+    recent:context.contextInputCeiling?recentHistoryWithinBudget(recentTurnsForPrompt(context),Math.max(1000,context.contextInputCeiling*(mode==='full'?.78:mode==='compact'?.45:.12))):recentTurnsForPrompt(context).slice(-limits.recent),
     memoryContext:{...memory,silent:(memory.silent??[]).slice(0,limits.silent),callbacks:(memory.callbacks??[]).slice(0,1),directRecall:(memory.directRecall??[]).slice(0,directLimit)},
     commitments:ranked(context.commitments,'plan',limits.plans,(item)=>`${item.title??''} ${item.location??''} ${item.status??''}`,item=>item.startsAt,item=>Number(item.relevance??.5),item=>['active','grace','missed'].includes(String(item.temporalState??item.status))),
     sharedPlans:ranked(context.sharedPlans,'plan',limits.plans,(item)=>`${item.title??''} ${item.location??''} ${item.activityKey??''} ${item.status??''}`,item=>item.startsAt,item=>['active','scheduled'].includes(String(item.status))?.9:.5,item=>item.status==='active'),

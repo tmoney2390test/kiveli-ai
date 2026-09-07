@@ -1,3 +1,5 @@
+import { useContextQuote } from '../src/hooks/useContextQuote';
+import { ContextPricePreview } from '../src/components/settings/ContextPricePreview';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -665,6 +667,7 @@ export default function GroupChatScreen() {
     ),
     [detail?.participants],
   );
+  const contextPricing=useContextQuote({preference:(detail?.conversation.metadata?.chatPreferences as {contextPreference?:string}|undefined)?.contextPreference,draft:{conversationId:detail?.conversation.id,message:input,mentionedCharacterInstanceIds:mentionedParticipants(input,detail?.participants??[]),replyToMessageId:replyTo?.id,...groupRecipientRequest(recipientSelection,participantIds)},revision:JSON.stringify([detail?.conversation.metadata?.chatPreferences,detail?.messages.at(-1)?.id,participantIds]),paused:replyPending,hasPendingPhoto:Boolean(pendingImage)});
   const manualSpeaker = recipientSelection !== "automatic" &&
       recipientSelection !== "everyone"
     ? recipientSelection
@@ -931,17 +934,6 @@ export default function GroupChatScreen() {
     }
     if(connectionPhase!=='online')setShowSendConnectionNotice(true);
     if(!online){setError("You’re offline. Your draft is saved and ready when you reconnect.");return;}
-    const previousSend=lastSendRef.current;
-    if(previousSend?.text===message&&Date.now()-previousSend.startedAt<750)return;
-    lastSendRef.current={text:message,startedAt:Date.now()};
-    abortRef.current?.abort();
-    keepPinnedToBottom.current = true;
-    forcePinnedUntil.current = Date.now() + 800;
-    const controller = new AbortController();
-    abortRef.current = controller;
-    if (!letThemTalk) setInput("");
-    setSending(true);
-    setError("");
     const mentions = detail.participants.filter((participant) =>
       new RegExp(
         `(?:^|\\s)@?${
@@ -957,6 +949,19 @@ export default function GroupChatScreen() {
       ? { broadGroupRequest: true }
       : groupRecipientRequest(recipientSelection, participantIds);
     const reply = replyTo;
+    const contextAuthorization=await contextPricing.authorize({conversationId:detail.conversation.id,message,mentionedCharacterInstanceIds:mentions,replyToMessageId:reply?.id,...recipientRequest,letThemTalk});
+    if(!contextAuthorization)return;
+    const previousSend=lastSendRef.current;
+    if(previousSend?.text===message&&Date.now()-previousSend.startedAt<750)return;
+    lastSendRef.current={text:message,startedAt:Date.now()};
+    abortRef.current?.abort();
+    keepPinnedToBottom.current = true;
+    forcePinnedUntil.current = Date.now() + 800;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    if (!letThemTalk) setInput("");
+    setSending(true);
+    setError("");
     const clientRequestId=retryRequestId??createClientRequestId();
     const optimistic:Message={id:retryMessageId??`local-${Date.now()}`,conversation_id:detail.conversation.id,role:"user",content:message,client_request_id:clientRequestId,delivery_status:"pending",created_at:new Date().toISOString(),provider_metadata:letThemTalk?{uiHidden:true,messageAction:'let_them_talk'}:undefined,attachments:[]};
     const anchorCharacterId=detail.conversation.character_instance_id??detail.participants[0]?.character_instance_id;
@@ -967,6 +972,7 @@ export default function GroupChatScreen() {
     try {
       await sendGroupDialogue(
         {
+          ...contextAuthorization,
           conversationId: detail.conversation.id,
           message,
           clientRequestId,
@@ -1009,6 +1015,8 @@ export default function GroupChatScreen() {
     }
     if(connectionPhase!=='online')setShowSendConnectionNotice(true);
     if(!online){setError("You’re offline. Your draft is saved and ready when you reconnect.");return;}
+    const contextAuthorization=await contextPricing.authorize({conversationId:detail.conversation.id,message,mentionedCharacterInstanceIds:mentionedParticipants(message,detail.participants),replyToMessageId:replyTo?.id,...groupRecipientRequest(recipientSelection,participantIds)});
+    if(!contextAuthorization)return;
     const submissionKey=`${message}\u0000${selectedImage?.uri??""}`;
     const previousSend=lastSendRef.current;
     if(previousSend?.text===submissionKey&&Date.now()-previousSend.startedAt<750)return;
@@ -1069,6 +1077,7 @@ export default function GroupChatScreen() {
       }
       await sendGroupDialogue(
         {
+          ...contextAuthorization,
           conversationId: detail.conversation.id,
           message,
           attachmentIds: attachmentId ? [attachmentId] : [],
@@ -1220,6 +1229,7 @@ export default function GroupChatScreen() {
     try {
       await sendGroupDialogue(
         {
+          contextPreference:'included',
           conversationId: detail.conversation.id,
           message,
           clientRequestId,
@@ -2203,6 +2213,7 @@ export default function GroupChatScreen() {
         onDetails={() => navigateGroupSurface(`/plan/${joinableGroupPlan.id}`)}
       /> : null}
       {memorySavedNotice ? <MemorySavedToast key={memorySavedNotice.id} name={memorySavedNotice.name} onDismiss={() => setMemorySavedNotice(null)} /> : null}
+      <ContextPricePreview pricing={contextPricing} onCredits={()=>router.push(creditsSubscriptionHref)}/>
       <GroupComposer
         conversationId={detail.conversation.id}
         characterInstanceId={String(
@@ -2213,7 +2224,7 @@ export default function GroupChatScreen() {
         input={input}
         hasPendingImage={Boolean(pendingImage)}
         sending={replyPending}
-        ready={groupTimelineReady}
+        ready={groupTimelineReady&&!contextPricing.blocked}
         stopping={stoppingTurn}
         onChange={setInput}
         onPhoto={openPhotoMenu}
@@ -3426,7 +3437,7 @@ function GroupBubble({
           ))}
         </View>
       </View>
-      <MessageActionSheet visible={actionsOpen} message={message.content} senderName={speakerName} sentAt={message.created_at} userMessage={user} actions={actionItems} onClose={()=>setActionsOpen(false)}/>
+      <MessageActionSheet contextCredits={typeof (message.provider_metadata?.contextCharge as {credits?:number}|undefined)?.credits==='number'?(message.provider_metadata!.contextCharge as {credits:number}).credits:undefined} visible={actionsOpen} message={message.content} senderName={speakerName} sentAt={message.created_at} userMessage={user} actions={actionItems} onClose={()=>setActionsOpen(false)}/>
       <ReportMessageModal visible={reportOpen} messageId={message.id} onClose={()=>setReportOpen(false)}/>
       {sharedPhoto?.signed_url
         ? (

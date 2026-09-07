@@ -1,3 +1,4 @@
+import { normalizeContextPreference, type ContextPreference } from '@together/domain/src/chat-context';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AlignLeft, Check, ChevronDown, ChevronRight, Languages, MessageCircle, Palette, Pause, Play, Settings, Type, Volume2, X } from 'lucide-react-native';
@@ -40,6 +41,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
   const [userBubbleColor, setUserBubbleColor] = useState<ChatBubbleColor>('default');
   const [companionBubbleColor, setCompanionBubbleColor] = useState<ChatBubbleColor>('default');
   const [chatDynamism,setChatDynamism]=useState<ChatDynamism>(50);
+  const [contextPreference,setContextPreference]=useState<ContextPreference>('included');
   const [reasoningPreference,setReasoningPreference]=useState<ReasoningPreference>('auto');
   const [contentMode,setContentMode]=useState<DialogueContentMode>('mature');
   const [chatLanguage, setChatLanguage] = useState<ChatLanguagePreference>('en');
@@ -83,6 +85,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     const generationPreferences=chatPreferencesFromConversation(conversation,snapshot?.entitlements?.tier);
     setChatDynamism(generationPreferences.chatDynamism);
     setReasoningPreference(generationPreferences.reasoningPreference);
+    setContextPreference(normalizeContextPreference(generationPreferences.contextPreference));
     setContentMode(resolveChatContentMode(conversation,snapshot?.profile??null));
     setChatLanguage(resolveChatLanguage(conversation));
     setLanguageMenuOpen(false);
@@ -143,7 +146,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     const cleanTitle = title.trim() || defaultDirectConversationTitle(name);
     setSaving(true);
     try {
-      const input = { title: cleanTitle, responseStyle, textSize,contentMode, chatLanguage,chatDynamism,reasoningPreference,userBubbleColor,companionBubbleColor, ...(voiceEntitled ? { voicePreset } : {}) };
+      const input = { title: cleanTitle, responseStyle, textSize,contentMode, chatLanguage,chatDynamism,reasoningPreference,contextPreference,userBubbleColor,companionBubbleColor, ...(voiceEntitled ? { voicePreset } : {}) };
       const updated = demoMode
         ? withLocalChatSettings(conversation, input)
         : await manageConversation<Conversation>({ action: 'settings', conversationId: conversation.id, ...input });
@@ -203,7 +206,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
             </View>
           </SettingSection>
 
-          <ChatGenerationSettings mode="direct" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>void save(openPlans)}/>
+          <ChatGenerationSettings mode="direct" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} contextPreference={contextPreference} onContextPreferenceChange={setContextPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>void save(openPlans)}/>
 
           <SettingSection icon={<Type size={16} color={colors.violet} />} label="Text size">
             <View accessibilityRole="radiogroup" style={styles.textSizeOptions}>

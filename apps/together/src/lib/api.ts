@@ -1,3 +1,4 @@
+import type { DialogueContextQuote } from '@together/domain/src/chat-context';
 import { supabase, supabasePublishableKey, supabaseUrl } from './supabase';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
@@ -63,6 +64,7 @@ export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POS
     if(performanceSurfaces.has(surface))queueClientPerformance({surface,operation,durationMs:Date.now()-started,success:Boolean(response?.ok),...(response?{statusCode:response.status}:{}),metadata:{method}});
   }
 }
+export async function quoteDialogueContext(input:Record<string,unknown>,signal?:AbortSignal):Promise<DialogueContextQuote>{await ensureWebAdultSession(await token()).catch(()=>undefined);return invoke<DialogueContextQuote>('together-dialogue-quote',input,'POST',{signal});}
 export const loadSnapshot = () => invoke<Snapshot>('together-bootstrap', undefined, 'GET');
 export const loadExploreCatalog = () => invoke<ExploreCatalogSnapshot>('together-bootstrap?scope=explore',undefined,'GET');
 export const confirmAdultAge = (dateOfBirth:string) => invoke<Snapshot>('together-bootstrap', {action:'confirm_age',ageConfirmed:true,dateOfBirth});
@@ -193,7 +195,7 @@ export type GroupDialogueEvent=
   |{type:'turn_yielded';turnId:string;replyCount?:number;reactionCount?:number;replayed?:boolean}
   |{type:'turn_cancelled';turnId:string}
   |{type:'heartbeat'};
-export async function sendGroupDialogue(input:{conversationId:string;message:string;attachmentIds?:string[];clientRequestId:string;mentionedCharacterInstanceIds?:string[];photoSubjectCharacterInstanceIds?:string[];replyToMessageId?:string;manualSpeakerInstanceId?:string;broadGroupRequest?:boolean;letThemTalk?:boolean},onEvent:(event:GroupDialogueEvent)=>void,signal?:AbortSignal):Promise<void>{
+export async function sendGroupDialogue(input:{contextQuoteId?:string;contextPreference?:'included';conversationId:string;message:string;attachmentIds?:string[];clientRequestId:string;mentionedCharacterInstanceIds?:string[];photoSubjectCharacterInstanceIds?:string[];replyToMessageId?:string;manualSpeakerInstanceId?:string;broadGroupRequest?:boolean;letThemTalk?:boolean},onEvent:(event:GroupDialogueEvent)=>void,signal?:AbortSignal):Promise<void>{
   if(input.message.length>MESSAGE_CHARACTER_LIMIT)throw new ApiError(messageCharacterLimitError(),'VALIDATION_FAILED');
   const started=Date.now();let firstActivityRecorded=false,statusCode:number|undefined;
   try{
@@ -236,7 +238,7 @@ export async function createTogetherAccount(email: string, password: string,date
   if (!response.ok) throw new ApiError(payload.error?.message ?? 'Your Kivelle account could not be created.', payload.error?.code, payload.error?.retryable);
 }
 
-export async function sendDialogue(input: {conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;sceneActionId?:string;messageAction?:'continue';anchorMessageId?:string;autoDialogueSuggestionId?:string;autoDialogueSuggestionSource?:AutoDialogueSuggestion['source'];autoDialogueSuggestionEdited?:boolean;autoDialogueSuggestionIntent?:AutoDialogueSuggestion['intent'];autoDialogueSuggestionPreference?:AutoDialoguePreference;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta}> {
+export async function sendDialogue(input: {contextQuoteId?:string;contextPreference?:'included';conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;sceneActionId?:string;messageAction?:'continue';anchorMessageId?:string;autoDialogueSuggestionId?:string;autoDialogueSuggestionSource?:AutoDialogueSuggestion['source'];autoDialogueSuggestionEdited?:boolean;autoDialogueSuggestionIntent?:AutoDialogueSuggestion['intent'];autoDialogueSuggestionPreference?:AutoDialoguePreference;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta}> {
   if (input.message.length > MESSAGE_CHARACTER_LIMIT) throw new ApiError(messageCharacterLimitError(), 'VALIDATION_FAILED');
   const started=Date.now();let firstTokenRecorded=false,statusCode:number|undefined,cancelResponseTimeout:(()=>void)|undefined,responseTimedOut=false,photoRequest=false;
   try{

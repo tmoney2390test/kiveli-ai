@@ -45,6 +45,7 @@ export async function attachAuthoredDepthContext(input: {
   characterVersionId?: string | null;
   context: Row;
   now?: Date;
+  readOnly?:boolean;
 }): Promise<AuthoredDepthConversationContext> {
   const context = input.context as AuthoredDepthConversationContext;
   context.worldFacts = [];
@@ -259,7 +260,7 @@ export async function attachAuthoredDepthContext(input: {
         sceneBeatsSelected: beats.length,
       },
     };
-    waitUntil(
+    if(!input.readOnly)waitUntil(
       recordUsage(input, { facts, opportunities, beats, currentTurn, now }),
     );
   } catch (error) {

@@ -1,3 +1,4 @@
+import { stageContextAuthorization } from '../_shared/kivelle-context-authorization.ts';
 import { z } from "zod";
 import {
   boundedGroupSocialDelta,
@@ -93,6 +94,8 @@ import {
 } from "../_shared/kivelle-character-life-state.ts";
 
 const schema = z.object({
+  contextQuoteId:z.string().uuid().optional(),
+  contextPreference:z.literal('included').optional(),
   conversationId: z.string().uuid(),
   message: z.string().trim().max(4000).default(""),
   attachmentIds: z.array(z.string().uuid()).max(1).refine((ids) => new Set(ids).size === ids.length, "The same attachment cannot be sent twice.").default([]),
@@ -126,6 +129,7 @@ Deno.serve(async (request) => {
     const adultAccess=await resolveAdultAccess(request,user,db);
     turnDb = db;
     const input = await parseBody(request, schema);
+    stageContextAuthorization(db,user.id,input);
     const requestId = assertChatRequestId(input.clientRequestId);
     const normalizedMessage = normalizeChatMessage(input.message);
     const continuity = await activeContinuity(db, user.id);

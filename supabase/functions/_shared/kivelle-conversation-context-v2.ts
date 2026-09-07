@@ -1,3 +1,5 @@
+import { contextReservation } from './kivelle-context-pricing-state.ts';
+import { estimateContextTokens } from '../../../packages/together-domain/src/context-budget.ts';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   antiRepetitionGuidance,
@@ -30,7 +32,7 @@ import {
   type ConversationCommitment,
   loadConversationCommitments,
 } from "./kivelle-commitment-context.ts";
-import { resolveSubscriptionState } from "./kivelle-subscription.ts";
+import { resolveSubscriptionState, resolveSubscriptionAccess } from "./kivelle-subscription.ts";
 import { runKivelleDirector } from "./kivelle-director.ts";
 import { mergePrivateCharacterPromptContext } from "./kivelle-character-private-context.ts";
 
@@ -88,17 +90,23 @@ export async function buildTieredKivelleConversationContext(
     visibleSceneFromSequence?: number;
     forceRemoteInteraction?: boolean;
     conversationSceneResolution?: Row;
+    contextInputCeiling?: number;
+    readOnly?: boolean;
     authorizedWebAdult?: boolean;
     authorizedPrivateAdultText?: boolean;
   },
 ): Promise<TieredConversationContext> {
+  const reservation=contextReservation(input.db);
+  const quote=reservation?.replies.find((reply)=>reply.speakerId===String(input.instance.id));
+  if(quote?.paidExpansion)input={...input,contextInputCeiling:reservation!.ceiling};
   const [subscription, base] = await Promise.all([
-    resolveSubscriptionState(input.db, input.userId, input.now),
+    input.readOnly ? resolveSubscriptionAccess(input.db,input.userId,input.now,true) : resolveSubscriptionState(input.db, input.userId, input.now),
     buildBaseContext({...input,memoryCandidateLimit:20}),
   ]);
   const caps = subscription.capabilities;
+  const recentLimit=input.contextInputCeiling ? 2048 : caps.recentTurnBudget;
   let recent = base.recent.slice(-caps.recentTurnBudget);
-  if (caps.recentTurnBudget > recent.length) {
+  if (recentLimit > recent.length) {
     let query = input.db.from("together_messages").select(
       "role,content,created_at,provider_metadata,speaker_character_instance_id,character_instance_id,conversation_sequence,scene_session_id,scene_sequence,content_rating,visibility_scope",
     ).eq("conversation_id", input.conversation.id);
@@ -117,10 +125,24 @@ export async function buildTieredKivelleConversationContext(
         Number(input.visibleHistoryFromSequence),
       );
     }
-    const { data } = await query.order(
-      input.visibleSceneSessionId ? "scene_sequence" : "conversation_sequence",
-      { ascending: false, nullsFirst: false },
-    ).order("created_at", { ascending: false }).limit(caps.recentTurnBudget);
+    const sequenceKey=input.visibleSceneSessionId ? 'scene_sequence' : 'conversation_sequence';
+    const data:Row[]=[];
+    let before:number|undefined, estimated=0;
+    while(data.length<recentLimit){
+      let pageQuery=query.order(sequenceKey,{ascending:false,nullsFirst:false}).order('created_at',{ascending:false});
+      if(before!==undefined)pageQuery=pageQuery.lt(sequenceKey,before);
+      const {data:page,error}=await pageQuery.limit(Math.min(64,recentLimit-data.length));
+      if(error)throw new Error('Conversation history could not be loaded.');
+      if(!page?.length)break;
+      let full=false;
+      for(const row of page){
+        data.push(row);
+        estimated+=estimateContextTokens(String(row.content??''))+24;
+        if(input.contextInputCeiling&&estimated>=input.contextInputCeiling){full=true;break;}
+      }
+      if(full||page.length<Math.min(64,recentLimit)||!page.at(-1)?.[sequenceKey])break;
+      before=Number(page.at(-1)![sequenceKey]);
+    }
     if (data?.length) {
       recent = data.reverse().map((item: Row) => {
         const providerMetadata =
@@ -311,7 +333,7 @@ export async function buildTieredKivelleConversationContext(
     now: input.now,
     handoffsEnabled,
   });
-  const director = await runKivelleDirector({
+  const director = input.readOnly ? {brief:baseBrief,directorUsed:false,provider:'deterministic'} : await runKivelleDirector({
     context: {
       ...base,
       commitments,
@@ -381,7 +403,7 @@ export async function buildTieredKivelleConversationContext(
     (!reflection ||
       Date.now() - new Date(String(reflection.updated_at ?? 0)).getTime() >
         6 * 3600000);
-  if (shouldRefresh) {
+  if (shouldRefresh && !input.readOnly) {
     void input.db.from("together_relationship_reflections").upsert({
       character_instance_id: input.instance.id,
       user_id: input.userId,
@@ -403,6 +425,7 @@ export async function buildTieredKivelleConversationContext(
   }
   return {
     ...base,
+    ...(input.contextInputCeiling?{contextInputCeiling:input.contextInputCeiling}:{}),
     conversationStyle,
     generationPreferences,
     commitments,
