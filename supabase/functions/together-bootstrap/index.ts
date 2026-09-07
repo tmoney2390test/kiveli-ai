@@ -8,6 +8,7 @@ import { buildCharacterPresenceSnapshot, buildExploreCatalogSnapshot, buildSnaps
 import { getActiveConversation } from '../_shared/together-conversation.ts';
 import { ensureMainContinuity } from '../_shared/together-continuity.ts';
 import { isAtLeast18 } from '../../../packages/together-domain/src/adult-access.ts';
+import { accountGenderPronouns, accountGenderValues, ageFromBirthdate, normalizePersonaDisplayName, type AccountGender } from '../../../packages/together-domain/src/account-onboarding.ts';
 import { loadCharacterProfileDetails } from '../_shared/together-character-profile.ts';
 
 const onboardingSchema = z.object({
@@ -22,7 +23,7 @@ const onboardingSchema = z.object({
   experienceTimezone:z.string().trim().min(1).max(80).default('UTC'),
 });
 const schema = z.union([
-  z.object({ action: z.literal('confirm_age'), ageConfirmed: z.literal(true),dateOfBirth:z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
+  z.object({ action: z.literal('confirm_age'), ageConfirmed: z.literal(true),dateOfBirth:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),displayName:z.string().trim().min(1).max(50).optional(),gender:z.enum(accountGenderValues).optional() }),
   onboardingSchema,
 ]);
 const relationOne=(value:unknown):Record<string,unknown>|null=>{const row=Array.isArray(value)?value[0]:value;return row&&typeof row==='object'?row as Record<string,unknown>:null;};
@@ -75,7 +76,7 @@ serve(async (request, correlationId) => {
   const now = new Date().toISOString();
   if ('action' in input && input.action === 'confirm_age') {
     if(!isAtLeast18(input.dateOfBirth,new Date()))throw new AppError('FORBIDDEN','You must be 18 or older to use Kivelle.',403,false);
-    await confirmAdultProfile(db, user, now,input.dateOfBirth);
+    await confirmAdultProfile(db, user, now,input.dateOfBirth,input.displayName,input.gender);
     await track(db, user.id, 'adult_age_confirmed', { source: 'birthdate' });
     return json({data:await buildSnapshot(db,user.id),correlationId},201,correlationId);
   }
@@ -147,23 +148,43 @@ serve(async (request, correlationId) => {
   return json({ data: await buildSnapshot(db, user.id), correlationId }, 201, correlationId);
 });
 
-async function confirmAdultProfile(db:SupabaseClient,user:{id:string;email?:string|null;user_metadata?:Record<string,unknown>},now:string,dateOfBirth:string){
-  const existing=await db.from('together_profiles').select('user_id,age_verified_at,content_preferences').eq('user_id',user.id).maybeSingle();
+async function confirmAdultProfile(db:SupabaseClient,user:{id:string;email?:string|null;user_metadata?:Record<string,unknown>},now:string,dateOfBirth:string,requestedDisplayName?:string,gender?:AccountGender){
+  const existing=await db.from('together_profiles').select('user_id,age_verified_at,onboarding_completed_at,content_preferences').eq('user_id',user.id).maybeSingle();
   if(existing.error)throw new AppError('INTERNAL_ERROR','Kivelle could not confirm your age.',500,true);
+  const metadata=user.user_metadata??{};
+  const candidate=[requestedDisplayName,metadata.display_name,metadata.full_name,metadata.name,user.email?.split('@')[0]].find((value)=>typeof value==='string'&&value.trim());
+  const displayName=normalizePersonaDisplayName(typeof candidate==='string'?candidate:'You')||'You';
+  const maySetInitialIdentity=!existing.data?.onboarding_completed_at;
+  if(requestedDisplayName&&maySetInitialIdentity)await ensureInitialPersonaIdentity(db,user.id,displayName,dateOfBirth,gender,now);
   if(!existing.data){
-    const metadata=user.user_metadata??{};
-    const candidate=[metadata.display_name,metadata.full_name,metadata.name,user.email?.split('@')[0]].find((value)=>typeof value==='string'&&value.trim());
-    const displayName=typeof candidate==='string'?candidate.trim().slice(0,50):'You';
     const created=await db.from('together_profiles').insert({user_id:user.id,display_name:displayName,date_of_birth:dateOfBirth,age_verified_at:now,adult_eligible_at:now,adult_eligibility_method:'self_declared_dob_v2',content_preferences:{contentMode:'standard',romanceEnabled:true,matureContentEnabled:false,explicitContentEnabled:false,suggestiveMediaEnabled:false,nudityMediaEnabled:false,explicitMediaEnabled:false},onboarding_completed_at:null,updated_at:now});
     if(created.error&&!/duplicate|unique/i.test(created.error.message))throw new AppError('INTERNAL_ERROR','Kivelle could not confirm your age.',500,true);
   }else{
-    const updated=await db.from('together_profiles').update({date_of_birth:dateOfBirth,age_verified_at:existing.data.age_verified_at??now,adult_eligible_at:now,adult_eligibility_method:'self_declared_dob_v2',updated_at:now}).eq('user_id',user.id);
+    const updated=await db.from('together_profiles').update({...(requestedDisplayName&&maySetInitialIdentity?{display_name:displayName}:{}),date_of_birth:dateOfBirth,age_verified_at:existing.data.age_verified_at??now,adult_eligible_at:now,adult_eligibility_method:'self_declared_dob_v2',updated_at:now}).eq('user_id',user.id);
     if(updated.error)throw new AppError('INTERNAL_ERROR','Kivelle could not confirm your age.',500,true);
   }
   // This field is analytics-only. Authorization remains tied to the authenticated
   // user and server-owned Kivelle profile, never editable user metadata.
-  const metadata=user.user_metadata??{};
   if(metadata.signup_app!=='together')await db.auth.admin.updateUserById(user.id,{user_metadata:{...metadata,signup_app:'together'}});
+}
+
+async function ensureInitialPersonaIdentity(db:SupabaseClient,userId:string,displayName:string,dateOfBirth:string,gender:AccountGender|undefined,now:string){
+  const age=ageFromBirthdate(dateOfBirth,new Date(now));
+  const{data:existing,error}=await db.from('together_user_personas').select('id,metadata').eq('user_id',userId).eq('is_default',true).maybeSingle();
+  if(error)throw new AppError('INTERNAL_ERROR','Kivelle could not prepare your Persona.',500,true);
+  const personaMetadata={...(existing?.metadata&&typeof existing.metadata==='object'?existing.metadata:{}),source:'account_onboarding',contextVersion:1,...(gender?{gender}:{})};
+  const identity={name:displayName,display_name:displayName,pronouns:gender?accountGenderPronouns(gender):null,age,metadata:personaMetadata,updated_at:now};
+  if(existing){
+    const updated=await db.from('together_user_personas').update(identity).eq('id',existing.id).eq('user_id',userId);
+    if(updated.error)throw new AppError('INTERNAL_ERROR','Kivelle could not prepare your Persona.',500,true);
+    return;
+  }
+  const created=await db.from('together_user_personas').insert({user_id:userId,...identity,is_default:true});
+  if(created.error&&!/duplicate|unique/i.test(created.error.message))throw new AppError('INTERNAL_ERROR','Kivelle could not prepare your Persona.',500,true);
+  if(created.error){
+    const raced=await db.from('together_user_personas').update(identity).eq('user_id',userId).eq('is_default',true);
+    if(raced.error)throw new AppError('INTERNAL_ERROR','Kivelle could not prepare your Persona.',500,true);
+  }
 }
 
 async function unlockOnboardingWorlds(db:SupabaseClient,userId:string,visitedWorldId:string|null,now:string){
