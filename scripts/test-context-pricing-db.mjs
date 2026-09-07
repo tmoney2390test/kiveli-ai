@@ -1,6 +1,8 @@
 import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 const db=new PGlite();
 await db.exec(`create role anon;create role authenticated;create role service_role;
 create schema auth;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql as $$select null::uuid$$;
@@ -10,8 +12,8 @@ create table together_messages(id uuid primary key,user_id uuid,conversation_id 
 create table together_credit_accounts(user_id uuid primary key,permanent_balance integer not null default 0,subscription_balance integer not null default 0,subscription_expires_at timestamptz,subscription_grant_cycle text,updated_at timestamptz default now());
 create table together_credit_ledger(id uuid primary key default gen_random_uuid(),user_id uuid,event_type text,permanent_delta integer default 0,subscription_delta integer default 0,idempotency_key text,reference_type text,reference_id text,metadata jsonb,unique(user_id,idempotency_key));
 create table together_entitlements(user_id uuid,tier text);`);
-const root=new URL('..',import.meta.url).pathname;
-const migration=readFileSync(`${root}/supabase/migrations/20260907220440_context_pricing.sql`,'utf8').replace(/^select cron.schedule.*$/m,'');
+const root=fileURLToPath(new URL('..',import.meta.url));
+const migration=readFileSync(resolve(root,'supabase/migrations/20260907220440_context_pricing.sql'),'utf8').replace(/^select cron.schedule.*$/m,'');
 await db.exec(migration);
 const user=crypto.randomUUID(),conversation=crypto.randomUUID(),speaker=crypto.randomUUID();
 await db.query('insert into auth.users values($1)',[user]);await db.query('insert into together_conversations values($1)',[conversation]);
