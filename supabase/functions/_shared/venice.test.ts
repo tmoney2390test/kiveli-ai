@@ -291,7 +291,7 @@ Deno.test('Venice standard media uses the documented multi-edit FireRed contract
     const submission=await new VeniceMediaProvider(client).submit(request,standardRoute());
     assert(calls.length===2&&calls[0]!.url.endsWith('/image/multi-edit')&&calls[1]!.url.endsWith('/image/multi-edit'));
     assert(calls[0]!.body.modelId===VENICE_STANDARD_EDIT_MODEL&&calls[0]!.body.aspect_ratio==='4:5'&&calls[0]!.body.output_format==='webp'&&calls[0]!.body.resolution==='1K');
-    assert(calls[1]!.body.modelId==='firered-image-edit'&&calls[1]!.body.safe_mode===true&&calls[1]!.body.output_format==='webp'&&calls[1]!.body.resolution==='1K');
+    assert(calls[1]!.body.modelId==='firered-image-edit'&&calls[1]!.body.safe_mode===false&&calls[1]!.body.output_format==='webp'&&calls[1]!.body.resolution==='1K');
     assert(submission.model==='firered-image-edit'&&submission.result?.providerMetadata?.fallbackUsed===true);
     assert(submission.result?.providerAttempts?.length===2&&submission.result.providerAttempts[0]?.failureCode==='PROVIDER_MODEL'&&submission.result.providerAttempts[1]?.success===true);
     assert(submission.result?.estimatedCost===.09);
@@ -343,28 +343,41 @@ Deno.test('Venice prompt honors intentional face concealment without weakening a
   assert(prompt.includes('five distinct naturally arranged fingers'));
 });
 
-Deno.test('review-enabled photos retain provider-blurred pixels without a fallback charge',async()=>{
+Deno.test('provider-blurred pixels cannot be opted into as a successful photo',async()=>{
   let calls=0;
   const png=Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,1]);
   const client=new VeniceImageClient('test-only','https://venice.test/api/v1',1_000,async(_url,init)=>{
     calls++;
-    assert(JSON.parse(String(init?.body)).safe_mode===true);
+    assert(JSON.parse(String(init?.body)).safe_mode===false);
     return new Response(png,{headers:{'content-type':'image/png','x-venice-is-blurred':'true'}});
   });
-  const submission=await new VeniceMediaProvider(client).submit({...adultRequest(),contentLevel:'standard',generationIntent:undefined,reviewProviderBlurredOutput:true},standardRoute());
-  assert(calls===1&&submission.result?.providerMetadata?.providerBlurred===true);
-  assert(submission.result?.bytes?.every((byte,index)=>byte===png[index]));
-  assert(submission.result?.providerMetadata?.fallbackUsed===false);
+  await assertRejectsCode(()=>new VeniceMediaProvider(client).submit({...adultRequest(),contentLevel:'standard',generationIntent:undefined},standardRoute()),'PROVIDER_OUTPUT_BLURRED');
+  assert(calls===1);
 });
 
-Deno.test('blur review never overrides explicit provider content-policy flags',async()=>{
+Deno.test('provider content-policy flags remain hard blocks',async()=>{
   for(const header of ['x-venice-is-content-violation','x-venice-is-adult-model-content-violation']){
     let calls=0;
     const client=new VeniceImageClient('test-only','https://venice.test/api/v1',1_000,async()=>{calls++;return new Response('blocked',{headers:{'content-type':'image/png','x-venice-is-blurred':'true',[header]:'true'}});});
     const code=header==='x-venice-is-content-violation'?'PROVIDER_CONTENT_BLOCKED':'PROVIDER_ADULT_MODEL_CONTENT_BLOCKED';
-    await assertRejectsCode(()=>new VeniceMediaProvider(client).submit({...adultRequest(),contentLevel:'standard',reviewProviderBlurredOutput:true},standardRoute()),code);
+    await assertRejectsCode(()=>new VeniceMediaProvider(client).submit({...adultRequest(),contentLevel:'standard'},standardRoute()),code);
     assert(calls===1);
   }
+});
+
+Deno.test('standard photos can disable Venice safe mode while requiring Kivelle output review',async()=>{
+  const previous=Deno.env.get('KIVELLE_VENICE_STANDARD_SAFE_MODE_ENABLED');
+  Deno.env.set('KIVELLE_VENICE_STANDARD_SAFE_MODE_ENABLED','false');
+  const png=Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,1]);
+  try{
+    const client=new VeniceImageClient('test-only','https://venice.test/api/v1',1_000,async(_url,init)=>{
+      const body=JSON.parse(String(init?.body));
+      assert(body.safe_mode===false);
+      return new Response(png,{headers:{'content-type':'image/png'}});
+    });
+    const submission=await new VeniceMediaProvider(client).submit({...adultRequest(),contentLevel:'standard',generationIntent:undefined},standardRoute());
+    assert(submission.result?.providerMetadata?.providerSafeMode===false);
+  }finally{restoreEnv('KIVELLE_VENICE_STANDARD_SAFE_MODE_ENABLED',previous);}
 });
 
 Deno.test('long fantasy selfie prompts reserve all sections and exclude location artwork direction',()=>{
@@ -414,7 +427,7 @@ Deno.test('blurred Qwen output falls back with FireRed model-specific prompt bud
       return new Response(png,{headers:{'content-type':'image/png'}});
     });
     const result=await new VeniceMediaProvider(client).submit(request,standardRoute());
-    assert(calls.length===2&&calls[1]?.modelId==='firered-image-edit'&&calls[1]?.safe_mode===true);
+    assert(calls.length===2&&calls[1]?.modelId==='firered-image-edit'&&calls[1]?.safe_mode===false);
     assert(String(calls[1]?.prompt).includes(request.generationIntent.requestText));
     assert(result.status==='completed'&&result.model==='firered-image-edit');
     assert(result.result?.providerAttempts?.[0]?.failureCode==='PROVIDER_OUTPUT_BLURRED');

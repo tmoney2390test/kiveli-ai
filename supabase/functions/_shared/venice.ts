@@ -17,7 +17,6 @@ export type VeniceEditInput = {
   compactSingleEdit?: boolean;
   resolution?: string;
   outputFormat?: 'png' | 'jpeg' | 'webp';
-  allowBlurredOutput?: boolean;
 };
 
 export type VeniceEditResult = {
@@ -27,6 +26,7 @@ export type VeniceEditResult = {
   providerRequestId: string;
   estimatedCost: number;
   generationMs: number;
+  safeMode: boolean;
   safety: { blurred: boolean; contentViolation: boolean; adultModelContentViolation: boolean };
 };
 
@@ -69,10 +69,7 @@ export class VeniceImageClient {
       // collapsed or ignored: adult-model violations are still hard blocks.
       if (safety.adultModelContentViolation) throw new AppError('PROVIDER_ADULT_MODEL_CONTENT_BLOCKED', 'That photo could not be created within the current media boundaries.', 422, false);
       if (safety.contentViolation) throw new AppError('PROVIDER_CONTENT_BLOCKED', 'That photo could not be created within the current media boundaries.', 422, false);
-      // The standard photo pipeline may inspect the returned pixels before
-      // deciding delivery. This does not disable provider safe_mode or ignore
-      // either explicit policy signal above. Other callers remain fail closed.
-      if (safety.blurred && !input.allowBlurredOutput) throw new AppError('PROVIDER_OUTPUT_BLURRED', 'That photo could not be created within the current media boundaries.', 422, false);
+      if (safety.blurred) throw new AppError('PROVIDER_OUTPUT_BLURRED', 'That photo could not be created within the current media boundaries.', 422, false);
       const contentType = (response.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase();
       if (!isSupportedImageContentType(contentType)) throw new AppError('PROVIDER_SUBMISSION_UNKNOWN', 'The photo provider returned an invalid result.', 503, true);
       const bytes = new Uint8Array(await response.arrayBuffer());
@@ -84,6 +81,7 @@ export class VeniceImageClient {
         providerRequestId: safety.requestId ?? crypto.randomUUID(),
         estimatedCost: veniceModelCostUsd(input.model),
         generationMs: Math.max(0, Math.round(performance.now() - started)),
+        safeMode: input.safeMode,
         safety: {
           blurred: safety.blurred,
           contentViolation: safety.contentViolation,

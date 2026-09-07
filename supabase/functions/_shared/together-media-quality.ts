@@ -40,17 +40,18 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   const economicallyAuthorized=metadata.source==='user_request'||typeof metadata.mediaOfferId==='string';
   const providerSafetyFlag=result.providerMetadata?.providerSafetyFlag===true;
   const providerBlurred=result.providerMetadata?.providerBlurred===true;
-  if(job.job_type!=='image'||(!economicallyAuthorized&&!providerBlurred)||(!result.outputUrl&&!result.bytes))return{action:'accept',result};
+  const providerSafetyReviewRequired=result.providerMetadata?.providerSafeMode===false;
+  if(job.job_type!=='image'||(!economicallyAuthorized&&!providerBlurred&&!providerSafetyReviewRequired)||(!result.outputUrl&&!result.bytes))return{action:'accept',result};
   const adultAuthorized=metadata.adultAuthorized===true&&media.visibility_scope==='web_adult'&&['suggestive','mature','explicit'].includes(String(media.content_level??''));
   if(adultAuthorized&&!await currentAdultMediaJobAuthorized(db,media))return{action:'reject',reasonCodes:['adult_safety_unverified']};
   const gateEnabled=envEnabled('KIVELLE_MEDIA_QUALITY_GATE_ENABLED',true);
-  if(!adultAuthorized&&!providerSafetyFlag&&!providerBlurred&&!gateEnabled)return{action:'accept',result};
+  if(!adultAuthorized&&!providerSafetyFlag&&!providerBlurred&&!providerSafetyReviewRequired&&!gateEnabled)return{action:'accept',result};
   const canonical=await canonicalRequestForMedia(db,media).catch(()=>null);
   if(adultAuthorized&&!canonical)return{action:'reject',reasonCodes:['adult_safety_unverified']};
   const requestText=canonical?.generationIntent?.requestText,faceRequired=!photoRequestAllowsHiddenFace(requestText),nudityScope=resolveAdultNudityScope(requestText),specificAnatomyExposure=resolveSpecificAnatomyExposure(requestText),requestedDirection=canonical?resolvePhotoDirection({requestText,shotType:canonical.composition.shotType,seed:canonical.mediaId}):null,subjects=canonical?.subjects?.length?canonical.subjects:[canonical?{characterInstanceId:'anchor',companion:canonical.companion,visualIdentity:canonical.visualIdentity,referenceImages:canonical.referenceImages.filter((item)=>item.role==='character_identity')}:null].filter(Boolean) as NonNullable<typeof canonical>['subjects'],anonymousAdultPartner=adultAuthorized&&metadata.anonymousAdultPartner===true;
   const customAgeCheck=customCharacterAgeCheckFromMetadata(metadata)??requiresCustomCharacterAgePresentationCheck(subjects??[]);
   const customAdultSafety=adultOutputSafetyFailClosed({adultAuthorized,customCharacter:customAgeCheck});
-  if(shouldSkipGeneratedImageQualityGate({adultAuthorized,customCharacter:customAgeCheck,providerSafetyFlag:providerSafetyFlag||providerBlurred,gateEnabled}))return{action:'accept',result};
+  if(shouldSkipGeneratedImageQualityGate({adultAuthorized,customCharacter:customAgeCheck,providerSafetyFlag:providerSafetyFlag||providerBlurred||providerSafetyReviewRequired,gateEnabled}))return{action:'accept',result};
   let assessment:MediaQualityAssessment;
   if(providerSafetyFlag&&!adultAuthorized){
     // Provider safety classifications are treated as a rejected candidate,
@@ -58,13 +59,13 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     // rebuilds the already-sanitized canonical request on the standard route.
     assessment={verdict:{status:'fail',reasonCodes:['sexual_content']},providerRequestId:result.providerRequestId,providerStatus:'provider_safety_flag',errorCode:'provider_safety_flag',timedOut:false};
   }else{
-    const client=configuredVeniceClient();if(!client)return customAdultSafety||providerBlurred?{action:'reject',reasonCodes:[providerBlurred?'provider_safety_unverified':'adult_safety_unverified']}:{action:'accept',result};
-    const prepared=await prepareQualityInput(db,job,media,result);if(!prepared)return customAdultSafety||providerBlurred?{action:'reject',reasonCodes:[providerBlurred?'provider_safety_unverified':'adult_safety_unverified']}:{action:'accept',result};
+    const client=configuredVeniceClient();if(!client)return customAdultSafety||providerBlurred||providerSafetyReviewRequired?{action:'reject',reasonCodes:[providerBlurred||providerSafetyReviewRequired?'provider_safety_unverified':'adult_safety_unverified']}:{action:'accept',result};
+    const prepared=await prepareQualityInput(db,job,media,result);if(!prepared)return customAdultSafety||providerBlurred||providerSafetyReviewRequired?{action:'reject',reasonCodes:[providerBlurred||providerSafetyReviewRequired?'provider_safety_unverified':'adult_safety_unverified']}:{action:'accept',result};
     const captureLighting=canonical?mediaCaptureLightingForRequest(canonical):null;
     try{assessment=await assessImage(client,prepared.url,faceRequired,nudityScope,specificAnatomyExposure,requestText,requestedDirection?.source==='requested'?requestedDirection:null,subjects??[],canonical?.context.worldContainment,canonical?.referenceImages??[],captureLighting?.qualityInstruction,adultAuthorized,anonymousAdultPartner);}finally{if(prepared.temporary)await db.storage.from('together-user-media').remove([prepared.temporary]);}
   }
-  if(providerBlurred&&(assessment.verdict.status==='unavailable'||assessment.verdict.reasonCodes.some(reason=>['sexual_content','adult_safety_violation','adult_safety_unverified','ambiguous_age'].includes(reason))))return{action:'reject',reasonCodes:assessment.verdict.status==='unavailable'?['provider_safety_unverified']:assessment.verdict.reasonCodes};
-  if(shouldDeliverSfwWhenQualityReviewIsUnavailable({adultAuthorized,verdict:assessment.verdict})){
+  if((providerBlurred||providerSafetyReviewRequired)&&(assessment.verdict.status==='unavailable'||assessment.verdict.reasonCodes.some(reason=>['sexual_content','adult_safety_violation','adult_safety_unverified','ambiguous_age'].includes(reason))))return{action:'reject',reasonCodes:assessment.verdict.status==='unavailable'?['provider_safety_unverified']:assessment.verdict.reasonCodes};
+  if(!providerSafetyReviewRequired&&shouldDeliverSfwWhenQualityReviewIsUnavailable({adultAuthorized,verdict:assessment.verdict})){
     const qualityMetadata=assessmentMetadata(assessment),providerMetadata={...((job.provider_metadata??{}) as Record<string,unknown>),...qualityMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:['quality_review_unavailable']};
     await db.from('together_media_provider_jobs').update({provider_metadata:providerMetadata,updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_unavailable_sfw_delivered',{mediaId:media.id,qaErrorCode:assessment.errorCode,qaTimedOut:assessment.timedOut});

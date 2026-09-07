@@ -10,7 +10,7 @@ import{buildMediaEditConstraint,classifyMediaEditSemantics}from'../../../package
 import{buildMediaWorldContainmentInstruction}from'./together-media-world.ts';
 import { buildVideoProviderPayload, configuredVideoRouteCatalog, videoProviderBaselineCostUsd, type VideoAspectRatio, type VideoMotionPreset, type VideoResolution, type VideoRouteId } from './kivelle-video-routes.ts';
 
-export type CanonicalMediaRequest=CanonicalImageGenerationRequest&{mediaType:'image'|'video';reviewProviderBlurredOutput?:boolean;videoRouteId?:VideoRouteId;motionPreset?:VideoMotionPreset;videoAspectRatio?:VideoAspectRatio;durationSeconds?:number;videoResolution?:VideoResolution;videoSound?:boolean;anonymousAdultPartner?:boolean};
+export type CanonicalMediaRequest=CanonicalImageGenerationRequest&{mediaType:'image'|'video';videoRouteId?:VideoRouteId;motionPreset?:VideoMotionPreset;videoAspectRatio?:VideoAspectRatio;durationSeconds?:number;videoResolution?:VideoResolution;videoSound?:boolean;anonymousAdultPartner?:boolean};
 export type ProviderAttempt={attemptNumber:number;stage:string;provider:string;model:string;routeId:string;estimatedCost?:number;generationMs?:number;success:boolean;failureCode?:string;providerRequestId?:string};
 export type ProviderCompletedMedia={bytes?:Uint8Array;outputUrl?:string;contentType?:string;width?:number;height?:number;durationMs?:number;providerRequestId?:string;model:string;estimatedCost?:number;generationMs?:number;providerAttempts?:ProviderAttempt[];providerMetadata?:Record<string,unknown>};
 export type ProviderSubmission={provider:string;providerRequestId:string;model:string;status:'submitted'|'completed';result?:ProviderCompletedMedia};
@@ -93,13 +93,18 @@ export class VeniceMediaProvider implements MediaGenerationProvider{
     // validation. Keep the canonical identity image as the actual edit source;
     // place, activity, outfit and time remain grounded in buildImagePrompt().
     const references=veniceReferences(request,route).slice(0,1),adultRoute=route.id==='venice-adult-two-stage';
-    if(!adultRoute){
-      const attempts:ProviderAttempt[]=[],models=[route.model,env('KIVELLE_VENICE_STANDARD_FALLBACK_MODEL',VENICE_STANDARD_FALLBACK_EDIT_MODEL)].filter((model,index,all)=>Boolean(model)&&all.indexOf(model)===index);
-      let lastError:unknown;
+      if(!adultRoute){
+        const attempts:ProviderAttempt[]=[],models=[route.model,env('KIVELLE_VENICE_STANDARD_FALLBACK_MODEL',VENICE_STANDARD_FALLBACK_EDIT_MODEL)].filter((model,index,all)=>Boolean(model)&&all.indexOf(model)===index);
+        // Kivelle performs an independent, mandatory output review before a
+        // standard photo is stored. Venice safe mode is separately toggleable
+        // so provider false positives cannot turn otherwise valid photos into
+        // permanently blurred files.
+        const safeMode=envBoolean('KIVELLE_VENICE_STANDARD_SAFE_MODE_ENABLED',false);
+        let lastError:unknown;
       for(let index=0;index<models.length;index+=1){
         const model=models[index]!,fallback=index>0;
         try{
-          const result=await runVeniceSingleAttempt({client:this.client,attempts,stage:fallback?'standard_fallback':'standard_primary',routeId:route.id,model,estimatedCost:veniceModelCostUsd(model),edit:optimizedVeniceEdit({model,prompt:buildVeniceImagePrompt(request,model),images:references,aspectRatio:request.composition.aspectRatio,safeMode:true,allowBlurredOutput:request.reviewProviderBlurredOutput===true,includeAspectRatio:true,forceMultiEdit:model===VENICE_STANDARD_FALLBACK_EDIT_MODEL})});
+          const result=await runVeniceSingleAttempt({client:this.client,attempts,stage:fallback?'standard_fallback':'standard_primary',routeId:route.id,model,estimatedCost:veniceModelCostUsd(model),edit:optimizedVeniceEdit({model,prompt:buildVeniceImagePrompt(request,model),images:references,aspectRatio:request.composition.aspectRatio,safeMode,includeAspectRatio:true,forceMultiEdit:model===VENICE_STANDARD_FALLBACK_EDIT_MODEL})});
           return completedVeniceSubmission(result,route.id,attempts,fallback?'primary_then_fallback':'single_edit');
         }catch(error){lastError=error;if(!isVeniceStandardFallbackEligible(error)||index===models.length-1)break;}
       }
@@ -355,7 +360,7 @@ function predictionResult(prediction:WaveSpeedPrediction,estimatedCost?:number):
 function syncResult(result:ImageGenerationResult):ProviderCompletedMedia{return{bytes:result.bytes,contentType:result.contentType,width:result.width,height:result.height,providerRequestId:result.providerRequestId,model:result.model,estimatedCost:result.estimatedCost};}
 function completedVeniceSubmission(result:VeniceEditResult,routeId:string,attempts?:ProviderAttempt[],pipeline='single_edit'):ProviderSubmission{
   const recorded=attempts?.length?attempts:[veniceAttempt(1,'final_edit',routeId,result,true)];
-  return{provider:'venice',providerRequestId:result.providerRequestId,model:result.model,status:'completed',result:{bytes:result.bytes,contentType:result.contentType,providerRequestId:result.providerRequestId,model:result.model,estimatedCost:recorded.reduce((sum,item)=>sum+Number(item.estimatedCost??0),0),generationMs:recorded.reduce((sum,item)=>sum+Number(item.generationMs??0),0),providerAttempts:recorded,providerMetadata:{pipeline,stageCount:recorded.length,fallbackUsed:pipeline==='primary_then_fallback',providerBlurred:result.safety.blurred}}};
+  return{provider:'venice',providerRequestId:result.providerRequestId,model:result.model,status:'completed',result:{bytes:result.bytes,contentType:result.contentType,providerRequestId:result.providerRequestId,model:result.model,estimatedCost:recorded.reduce((sum,item)=>sum+Number(item.estimatedCost??0),0),generationMs:recorded.reduce((sum,item)=>sum+Number(item.generationMs??0),0),providerAttempts:recorded,providerMetadata:{pipeline,stageCount:recorded.length,fallbackUsed:pipeline==='primary_then_fallback',providerBlurred:result.safety.blurred,providerSafeMode:result.safeMode}}};
 }
 function veniceAttempt(attemptNumber:number,stage:string,routeId:string,result:VeniceEditResult,success:boolean):ProviderAttempt{return{attemptNumber,stage,routeId,provider:'venice',model:result.model,estimatedCost:result.estimatedCost,generationMs:result.generationMs,success,providerRequestId:result.providerRequestId};}
 function failedVeniceAttempt(attemptNumber:number,stage:string,routeId:string,model:string,error:unknown,estimatedCost:number):ProviderAttempt{return{attemptNumber,stage,routeId,provider:'venice',model,estimatedCost,success:false,failureCode:error instanceof AppError?error.code:'provider_failure'};}

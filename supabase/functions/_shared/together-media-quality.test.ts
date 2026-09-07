@@ -40,6 +40,12 @@ Deno.test('the quality gate returns the existing photo with warnings and no resu
     reviewContent='review unavailable';
     const unverifiedBlur=await gateGeneratedImageQuality(db,job,media,blurredResult);
     if(unverifiedBlur.action!=='reject'||!unverifiedBlur.reasonCodes.includes('provider_safety_unverified'))throw new Error('blur review cannot fail open on an unavailable reviewer');
+    const independentlyReviewedResult={...result,providerMetadata:{providerSafeMode:false}};
+    const unverifiedIndependentReview=await gateGeneratedImageQuality(db,job,media,independentlyReviewedResult);
+    if(unverifiedIndependentReview.action!=='reject'||!unverifiedIndependentReview.reasonCodes.includes('provider_safety_unverified'))throw new Error('safe-mode-disabled output cannot fail open when Kivelle review is unavailable');
+    reviewContent='PASS';
+    const verifiedIndependentReview=await gateGeneratedImageQuality(db,job,media,independentlyReviewedResult);
+    if(verifiedIndependentReview.action!=='accept'||verifiedIndependentReview.result.providerMetadata?.providerSafeMode!==false)throw new Error('safe-mode-disabled output should deliver only after Kivelle review passes');
     const blocked=await gateGeneratedImageQuality(db,job,media,{...result,providerMetadata:{providerSafetyFlag:true}});
     if(blocked.action!=='reject'||!blocked.reasonCodes.includes('sexual_content'))throw new Error('provider safety finding must not become a quality warning');
   }finally{
