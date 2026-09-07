@@ -30,6 +30,13 @@ jobs:
       - run: pnpm test
       - run: pnpm guard:starter-content
       - run: pnpm edge:typecheck
+      - name: Scheduled message regressions
+        run: >-
+          deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json
+          supabase/functions/_shared/kivelle-proactive-voice.test.ts
+          supabase/functions/_shared/kivelle-proactive-context.test.ts
+          supabase/functions/_shared/kivelle-proactive-delivery.test.ts
+          supabase/functions/_shared/kivelle-initiative.test.ts
       - run: pnpm --filter @together/app web:build
         env:
           EXPO_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
