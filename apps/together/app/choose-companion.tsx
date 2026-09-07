@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ScrollView } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Check, ChevronRight, Sparkles } from 'lucide-react-native';
@@ -59,8 +59,7 @@ export default function ChooseCompanion() {
   );
   const selectedCompanion = worldCompanions.find((person) => person.id === selectedCompanionId) ?? null;
   const visibleCompanions = filteredCompanions.slice(0, visibleCount);
-  const worldCardWidth = desktop ? 390 : Math.max(282, Math.min(width - 44, 430));
-  const worldStride = worldCardWidth + 12;
+  const otherWorlds = worlds.filter((world) => world.id !== selectedWorldId);
 
   useEffect(() => {
     setVisibleCount(12);
@@ -80,13 +79,6 @@ export default function ChooseCompanion() {
     setSelectedCompanionId('');
     setError('');
     nav.setParams({ world: world.slug });
-  };
-
-  const handleWorldScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (desktop || !worlds.length) return;
-    const index = Math.max(0, Math.min(worlds.length - 1, Math.round(event.nativeEvent.contentOffset.x / worldStride)));
-    const world = worlds[index];
-    if (world && world.id !== selectedWorldId) chooseWorld(world);
   };
 
   const continueToCharacters = () => {
@@ -135,18 +127,12 @@ export default function ChooseCompanion() {
           <Text style={styles.subtitle}>Choose a world to step into.</Text>
         </View>
 
-        {worlds.length ? <ScrollView
-          horizontal
-          bounces={false}
-          decelerationRate="fast"
-          snapToInterval={desktop ? undefined : worldStride}
-          showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={handleWorldScrollEnd}
-          contentContainerStyle={[styles.worldRail, desktop && styles.worldRailDesktop]}
-          style={styles.worldScroller}
-        >
-          {worlds.map((world) => <WorldCard key={world.id} world={world} width={worldCardWidth} selected={world.id === selectedWorldId} onPress={() => chooseWorld(world)} />)}
-        </ScrollView> : <FrostedSurface intensity={70} style={styles.emptyState}><Sparkles size={20} color={colors.violet} /><Text style={styles.emptyTitle}>Worlds are being prepared</Text></FrostedSurface>}
+        {selectedWorld ? <View accessibilityRole="radiogroup" accessibilityLabel="Choose a world" style={styles.worldPicker}>
+          <WorldCard world={selectedWorld} selected featured onPress={() => chooseWorld(selectedWorld)} />
+          {otherWorlds.length ? <View style={styles.worldGrid}>
+            {otherWorlds.map((world) => <WorldCard key={world.id} world={world} selected={false} compact desktop={desktop} onPress={() => chooseWorld(world)} />)}
+          </View> : null}
+        </View> : <FrostedSurface intensity={70} style={styles.emptyState}><Sparkles size={20} color={colors.violet} /><Text style={styles.emptyTitle}>Worlds are being prepared</Text></FrostedSurface>}
 
         <OutlinedAction
           label={selectedWorld ? `Continue to ${selectedWorld.name}` : 'Choose a world'}
@@ -188,8 +174,7 @@ export default function ChooseCompanion() {
 
 function OnboardingHeader({ step, onBack }: { step: OnboardingStep; onBack: () => void }) {
   return <View style={styles.header}>
-    <View style={styles.headerSide}>{step === 'character' ? <Pressable accessibilityRole="button" accessibilityLabel="Back to world selection" hitSlop={10} onPress={onBack} style={styles.back}><ArrowLeft size={21} color={colors.text} /></Pressable> : null}</View>
-    <KivelleLogo height={29} />
+    <View style={styles.headerSide}>{step === 'character' ? <Pressable accessibilityRole="button" accessibilityLabel="Back to world selection" hitSlop={10} onPress={onBack} style={styles.back}><ArrowLeft size={21} color={colors.text} /></Pressable> : <KivelleLogo height={34} />}</View>
     <View accessibilityLabel={`Step ${step === 'world' ? '1' : '2'} of 2`} style={styles.progress}>
       <View style={styles.progressActive} />
       <View style={step === 'character' ? styles.progressActive : styles.progressInactive} />
@@ -197,21 +182,21 @@ function OnboardingHeader({ step, onBack }: { step: OnboardingStep; onBack: () =
   </View>;
 }
 
-function WorldCard({ world, width, selected, onPress }: { world: World; width: number; selected: boolean; onPress: () => void }) {
+function WorldCard({ world, selected, featured = false, compact = false, desktop = false, onPress }: { world: World; selected: boolean; featured?: boolean; compact?: boolean; desktop?: boolean; onPress: () => void }) {
   return <Pressable
     accessibilityRole="radio"
     accessibilityState={{ checked: selected }}
     accessibilityLabel={`${world.name}. ${onboardingWorldGenre(world)}. ${onboardingWorldFantasy(world)}`}
     onPress={onPress}
-    style={({ pressed }) => [styles.worldCard, { width }, selected && styles.worldCardSelected, pressed && styles.cardPressed]}
+    style={({ pressed }) => [styles.worldCard, featured && styles.worldCardFeatured, compact && styles.worldCardCompact, compact && desktop && styles.worldCardCompactDesktop, selected && styles.worldCardSelected, pressed && styles.cardPressed]}
   >
     <Image source={worldHeroAsset(world.slug)} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" cachePolicy="memory-disk" priority={selected ? 'high' : 'normal'} />
     <View style={styles.worldShade} />
     {selected ? <View style={styles.selectionCheck}><Check size={19} strokeWidth={3} color="#fff" /></View> : null}
-    <View style={styles.worldCopy}>
-      <Text numberOfLines={1} style={styles.worldName}>{world.name}</Text>
-      <Text numberOfLines={1} style={styles.worldGenre}>{onboardingWorldGenre(world)}</Text>
-      <Text numberOfLines={2} style={styles.worldFantasy}>{onboardingWorldFantasy(world)}</Text>
+    <View style={[styles.worldCopy, compact && styles.worldCopyCompact]}>
+      <Text numberOfLines={1} style={[styles.worldName, compact && styles.worldNameCompact]}>{world.name}</Text>
+      <Text numberOfLines={1} style={[styles.worldGenre, compact && styles.worldGenreCompact]}>{onboardingWorldGenre(world)}</Text>
+      <Text numberOfLines={compact ? 1 : 2} style={[styles.worldFantasy, compact && styles.worldFantasyCompact]}>{onboardingWorldFantasy(world)}</Text>
     </View>
   </Pressable>;
 }
@@ -248,29 +233,35 @@ function firstName(name: string) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#06050B' },
-  screen: { minHeight: '100%', maxWidth: 1120, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 34, gap: spacing.lg, overflow: 'hidden' },
+  screen: { minHeight: '100%', maxWidth: 1120, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 34, gap: spacing.lg },
   screenDesktop: { paddingHorizontal: 28, paddingTop: 28, paddingBottom: 48 },
   header: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerSide: { width: 64, alignItems: 'flex-start' },
+  headerSide: { width: 78, alignItems: 'flex-start' },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: 'rgba(255,255,255,.045)', borderWidth: 1, borderColor: 'rgba(255,255,255,.08)' },
-  progress: { width: 64, flexDirection: 'row', justifyContent: 'flex-end', gap: 7 },
-  progressActive: { width: 26, height: 5, borderRadius: 3, backgroundColor: '#B65CDB' },
-  progressInactive: { width: 26, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,.10)' },
+  progress: { width: 78, flexDirection: 'row', justifyContent: 'flex-end', gap: 7 },
+  progressActive: { width: 22, height: 5, borderRadius: 3, backgroundColor: '#B65CDB' },
+  progressInactive: { width: 22, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,.10)' },
   heroCopy: { alignItems: 'center', gap: 5, paddingHorizontal: 4 },
   title: { color: '#FFF9F5', fontFamily: typography.display, fontSize: 40, lineHeight: 44, fontWeight: '500', letterSpacing: -1.1, textAlign: 'center' },
   titleDesktop: { fontSize: 50, lineHeight: 54 },
   subtitle: { color: '#B8A7BC', fontSize: 16, lineHeight: 22, textAlign: 'center' },
-  worldScroller: { width: '100%', flexGrow: 0, marginHorizontal: -18, alignSelf: 'center', overflow: 'visible' },
-  worldRail: { gap: 12, paddingHorizontal: 18, paddingVertical: 4, ...(Platform.OS === 'web' ? ({ scrollSnapType: 'x mandatory' } as never) : {}) },
-  worldRailDesktop: { paddingHorizontal: 28 },
-  worldCard: { height: 470, overflow: 'hidden', justifyContent: 'flex-end', borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,.13)', backgroundColor: colors.elevated, ...(Platform.OS === 'web' ? ({ scrollSnapAlign: 'center' } as never) : {}) },
+  worldPicker: { width: '100%', maxWidth: 720, alignSelf: 'center', gap: 12 },
+  worldGrid: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  worldCard: { width: '100%', overflow: 'hidden', justifyContent: 'flex-end', borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,.13)', backgroundColor: colors.elevated },
+  worldCardFeatured: { aspectRatio: 1.2, maxHeight: 470 },
+  worldCardCompact: { width: '48%', aspectRatio: .78, borderRadius: 17 },
+  worldCardCompactDesktop: { width: '31.9%', aspectRatio: .9 },
   worldCardSelected: { borderColor: '#B960DD', borderWidth: 2, shadowColor: '#B960DD', shadowOpacity: .28, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
   worldShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(7,5,10,.13)', ...(Platform.OS === 'web' ? ({ backgroundImage: 'linear-gradient(0deg, rgba(6,4,9,.97) 0%, rgba(6,4,9,.18) 55%, rgba(6,4,9,.03) 78%)' } as never) : {}) },
   selectionCheck: { position: 'absolute', top: 13, right: 13, width: 37, height: 37, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#A94FDC', borderWidth: 1, borderColor: 'rgba(255,255,255,.52)' },
   worldCopy: { zIndex: 1, gap: 5, padding: 22 },
+  worldCopyCompact: { gap: 3, padding: 13 },
   worldName: { color: '#fff', fontFamily: typography.display, fontSize: 36, lineHeight: 40, textShadowColor: '#000', textShadowRadius: 12 },
+  worldNameCompact: { fontSize: 23, lineHeight: 27 },
   worldGenre: { color: '#F0D9F1', fontSize: 10, lineHeight: 14, fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase' },
+  worldGenreCompact: { fontSize: 8, lineHeight: 11, letterSpacing: 1.4 },
   worldFantasy: { color: '#F4EAF2', fontSize: 14, lineHeight: 20, textShadowColor: '#000', textShadowRadius: 8 },
+  worldFantasyCompact: { fontSize: 11, lineHeight: 15 },
   tabs: { flexDirection: 'row', alignSelf: 'center', width: '100%', maxWidth: 520, minHeight: 48, padding: 4, borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(187,97,216,.22)', backgroundColor: 'rgba(255,255,255,.025)' },
   tab: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill },
   tabActive: { backgroundColor: 'rgba(178,79,210,.17)', borderWidth: 1, borderColor: 'rgba(201,110,224,.50)' },
@@ -290,8 +281,8 @@ const styles = StyleSheet.create({
   personCopy: { zIndex: 1, padding: 13 },
   personName: { color: '#fff', fontFamily: typography.display, fontSize: 23, lineHeight: 27, textShadowColor: '#000', textShadowRadius: 8 },
   personOccupation: { color: '#E6D9E5', fontSize: 10, lineHeight: 14, fontWeight: '700', marginTop: 2 },
-  action: { width: '100%', maxWidth: 620, alignSelf: 'center', minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 18, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(194,91,220,.82)', backgroundColor: 'rgba(168,58,195,.11)' },
-  actionPressed: { backgroundColor: 'rgba(168,58,195,.18)', transform: [{ scale: .994 }] },
+  action: { width: '100%', maxWidth: 720, alignSelf: 'center', minHeight: 62, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 18, borderRadius: 19, borderWidth: 1, borderColor: '#C35FE0', backgroundColor: '#A64CCE', shadowColor: '#A64CCE', shadowOpacity: .25, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 6 },
+  actionPressed: { backgroundColor: '#933DBA', transform: [{ scale: .994 }] },
   actionDisabled: { opacity: .42 },
   actionText: { maxWidth: '86%', color: '#FFF8FC', fontSize: 16, lineHeight: 21, fontWeight: '800' },
   reassurance: { color: '#8F818F', fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: -8 },
