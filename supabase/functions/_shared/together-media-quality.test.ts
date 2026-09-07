@@ -7,6 +7,7 @@ Deno.test('the quality gate returns the existing photo with warnings and no resu
   const previous=Object.fromEntries(Object.keys(settings).map(key=>[key,Deno.env.get(key)])),originalFetch=globalThis.fetch;
   const updates:Array<Record<string,any>>=[],events:string[]=[];
   let calls=0;
+  let reviewContent='FAIL face_low_detail, non_photorealistic, identity_mismatch, world_mismatch, earth_leakage, time_mismatch';
   const db={
     from(table:string){
       // Canonical enrichment is unavailable in this fixture; the completed
@@ -21,7 +22,7 @@ Deno.test('the quality gate returns the existing photo with warnings and no resu
     globalThis.fetch=async(url)=>{
       if(!String(url).endsWith('/chat/completions'))throw new Error('unexpected_generation_retry');
       calls++;
-      return new Response(JSON.stringify({id:'review-1',choices:[{message:{content:'FAIL face_low_detail, non_photorealistic, identity_mismatch, world_mismatch, earth_leakage, time_mismatch'}}]}),{headers:{'content-type':'application/json'}});
+      return new Response(JSON.stringify({id:'review-1',choices:[{message:{content:reviewContent}}]}),{headers:{'content-type':'application/json'}});
     };
     const job={id:'job-1',job_type:'image',provider:'venice',provider_request_id:'generation-1',provider_metadata:{}};
     const media={id:'media-1',user_id:'user-1',character_instance_id:'character-1',content_level:'standard',metadata:{source:'user_request',customCharacter:false}};
@@ -29,6 +30,16 @@ Deno.test('the quality gate returns the existing photo with warnings and no resu
     const decision=await gateGeneratedImageQuality(db,job,media,result);
     if(decision.action!=='accept'||decision.result.outputUrl!==result.outputUrl||decision.result.providerMetadata?.qualityAcceptedWithWarnings!==true)throw new Error('completed image was not delivered with warnings');
     if(calls!==1||!events.includes('media_quality_aesthetic_warnings_delivered')||!updates.some(update=>update.provider_metadata?.qualityAcceptedWithWarnings===true))throw new Error('warning delivery was not recorded or bought another candidate');
+    Deno.env.set('KIVELLE_MEDIA_QUALITY_GATE_ENABLED','false');
+    const blurredResult={...result,providerMetadata:{providerBlurred:true}};
+    const reviewedBlur=await gateGeneratedImageQuality(db,job,media,blurredResult);
+    if(reviewedBlur.action!=='accept'||Number(calls)!==2||reviewedBlur.result.providerMetadata?.providerBlurred!==true)throw new Error('blurred pixels must be reviewed even with aesthetic QA disabled, then delivered');
+    reviewContent='FAIL sexual_content, face_blur';
+    const unsafeBlur=await gateGeneratedImageQuality(db,job,media,blurredResult);
+    if(unsafeBlur.action!=='reject'||!unsafeBlur.reasonCodes.includes('sexual_content'))throw new Error('blur review must retain explicit safety findings');
+    reviewContent='review unavailable';
+    const unverifiedBlur=await gateGeneratedImageQuality(db,job,media,blurredResult);
+    if(unverifiedBlur.action!=='reject'||!unverifiedBlur.reasonCodes.includes('provider_safety_unverified'))throw new Error('blur review cannot fail open on an unavailable reviewer');
     const blocked=await gateGeneratedImageQuality(db,job,media,{...result,providerMetadata:{providerSafetyFlag:true}});
     if(blocked.action!=='reject'||!blocked.reasonCodes.includes('sexual_content'))throw new Error('provider safety finding must not become a quality warning');
   }finally{

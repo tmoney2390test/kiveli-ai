@@ -17,6 +17,7 @@ export type VeniceEditInput = {
   compactSingleEdit?: boolean;
   resolution?: string;
   outputFormat?: 'png' | 'jpeg' | 'webp';
+  allowBlurredOutput?: boolean;
 };
 
 export type VeniceEditResult = {
@@ -66,9 +67,12 @@ export class VeniceImageClient {
       // Preserve the provider's three distinct safety signals in operational
       // telemetry. They intentionally share user-safe copy, but must not be
       // collapsed or ignored: adult-model violations are still hard blocks.
-      if (safety.blurred) throw new AppError('PROVIDER_OUTPUT_BLURRED', 'That photo could not be created within the current media boundaries.', 422, false);
       if (safety.adultModelContentViolation) throw new AppError('PROVIDER_ADULT_MODEL_CONTENT_BLOCKED', 'That photo could not be created within the current media boundaries.', 422, false);
       if (safety.contentViolation) throw new AppError('PROVIDER_CONTENT_BLOCKED', 'That photo could not be created within the current media boundaries.', 422, false);
+      // The standard photo pipeline may inspect the returned pixels before
+      // deciding delivery. This does not disable provider safe_mode or ignore
+      // either explicit policy signal above. Other callers remain fail closed.
+      if (safety.blurred && !input.allowBlurredOutput) throw new AppError('PROVIDER_OUTPUT_BLURRED', 'That photo could not be created within the current media boundaries.', 422, false);
       const contentType = (response.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase();
       if (!isSupportedImageContentType(contentType)) throw new AppError('PROVIDER_SUBMISSION_UNKNOWN', 'The photo provider returned an invalid result.', 503, true);
       const bytes = new Uint8Array(await response.arrayBuffer());
