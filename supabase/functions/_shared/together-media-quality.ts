@@ -12,7 +12,7 @@ import{currentAdultMediaJobAuthorized}from'./web-adult-access.ts';
 import{blockingQualityReasonsForAgePolicy,customCharacterAgeCheckFromMetadata,requiresCustomCharacterAgePresentationCheck}from'./together-media-character.ts';
 
 export type MediaQualityGateResult={action:'accept';result:ProviderCompletedMedia}|{action:'deferred'}|{action:'reject';reasonCodes:string[]};
-type MediaQualityAssessment={verdict:MediaQualityVerdict;providerRequestId?:string|undefined;providerModel?:string|undefined;providerStatus?:string|undefined;providerError?:string|undefined;errorCode?:string|undefined;inferenceMs?:number|undefined;actualCostUsd?:number|undefined;timedOut:boolean};
+type MediaQualityAssessment={verdict:MediaQualityVerdict;providerRequestId?:string|undefined;providerModel?:string|undefined;providerStatus?:string|undefined;providerError?:string|undefined;errorCode?:string|undefined;inferenceMs?:number|undefined;actualCostUsd?:number|undefined;timedOut:boolean;sfwExplicitConfirmation?:'confirmed'|'cleared'|'unavailable'|undefined;sfwExplicitConfirmationProviderRequestId?:string|undefined;sfwExplicitConfirmationProviderModel?:string|undefined;sfwExplicitConfirmationInferenceMs?:number|undefined;sfwExplicitConfirmationActualCostUsd?:number|undefined};
 
 const QUALITY_MODEL='qwen3-vl-235b-a22b';
 
@@ -35,14 +35,15 @@ export function shouldAttemptPaidImageQualityRetry(input:{provider:string;venice
   return input.provider.toLowerCase()!=='venice'||input.veniceRetryEnabled;
 }
 
-const PROVIDER_SAFETY_CORRECTION_REASONS=new Set(['sexual_content','adult_safety_violation','ambiguous_age']);
+const PROVIDER_SAFETY_REJECTION_REASONS=new Set(['sexual_content','adult_safety_violation','ambiguous_age']);
 
-export function shouldCorrectUnexpectedSfwProviderSafetyFailure(input:{providerSafetyReviewRequired:boolean;adultAuthorized:boolean;verdict:MediaQualityVerdict;retryCount:number}):boolean{
-  return input.providerSafetyReviewRequired&&
-    !input.adultAuthorized&&
-    input.retryCount<1&&
-    input.verdict.status==='fail'&&
-    input.verdict.reasonCodes.some((reason)=>PROVIDER_SAFETY_CORRECTION_REASONS.has(reason));
+export function resolveSfwExplicitConfirmation(primary:MediaQualityVerdict,confirmation:MediaQualityVerdict):MediaQualityVerdict{
+  if(primary.status!=='fail'||!primary.reasonCodes.includes('sexual_content'))return primary;
+  if(confirmation.status==='unavailable')return{status:'unavailable',reasonCodes:[]};
+  if(confirmation.status==='fail'&&confirmation.reasonCodes.includes('sexual_content'))return primary;
+  if(confirmation.status!=='pass')return{status:'unavailable',reasonCodes:[]};
+  const remaining=primary.reasonCodes.filter((reason)=>reason!=='sexual_content');
+  return remaining.length?{status:'fail',reasonCodes:remaining}:{status:'pass',reasonCodes:[]};
 }
 
 export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<string,any>,media:Record<string,any>,result:ProviderCompletedMedia):Promise<MediaQualityGateResult>{
@@ -72,7 +73,10 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     const client=configuredVeniceClient();if(!client)return customAdultSafety||providerBlurred||providerSafetyReviewRequired?{action:'reject',reasonCodes:[providerBlurred||providerSafetyReviewRequired?'provider_safety_unverified':'adult_safety_unverified']}:{action:'accept',result};
     const prepared=await prepareQualityInput(db,job,media,result);if(!prepared)return customAdultSafety||providerBlurred||providerSafetyReviewRequired?{action:'reject',reasonCodes:[providerBlurred||providerSafetyReviewRequired?'provider_safety_unverified':'adult_safety_unverified']}:{action:'accept',result};
     const captureLighting=canonical?mediaCaptureLightingForRequest(canonical):null;
-    try{assessment=await assessImage(client,prepared.url,faceRequired,nudityScope,specificAnatomyExposure,requestText,requestedDirection?.source==='requested'?requestedDirection:null,subjects??[],canonical?.context.worldContainment,canonical?.referenceImages??[],captureLighting?.qualityInstruction,adultAuthorized,anonymousAdultPartner);}finally{if(prepared.temporary)await db.storage.from('together-user-media').remove([prepared.temporary]);}
+    try{
+      assessment=await assessImage(client,prepared.url,faceRequired,nudityScope,specificAnatomyExposure,requestText,requestedDirection?.source==='requested'?requestedDirection:null,subjects??[],canonical?.context.worldContainment,canonical?.referenceImages??[],captureLighting?.qualityInstruction,adultAuthorized,anonymousAdultPartner);
+      if(providerSafetyReviewRequired&&!adultAuthorized&&assessment.verdict.status==='fail'&&assessment.verdict.reasonCodes.includes('sexual_content'))assessment=await confirmClearlyExplicitSfwImage(client,prepared.url,assessment);
+    }finally{if(prepared.temporary)await db.storage.from('together-user-media').remove([prepared.temporary]);}
   }
   if(!providerSafetyReviewRequired&&!providerBlurred&&shouldDeliverSfwWhenQualityReviewIsUnavailable({adultAuthorized,verdict:assessment.verdict})){
     const qualityMetadata=assessmentMetadata(assessment),providerMetadata={...((job.provider_metadata??{}) as Record<string,unknown>),...qualityMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:['quality_review_unavailable']};
@@ -85,11 +89,10 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   await track(db,String(media.user_id),'media_quality_checked',compactRecord({mediaId:media.id,verdict:verdict.status,retryCount:Number(providerMetadata.qualityRetryCount??0),qaProviderRequestId:assessment.providerRequestId,qaProviderModel:assessment.providerModel,qaProviderStatus:assessment.providerStatus,qaErrorCode:assessment.errorCode,qaTimedOut:assessment.timedOut,qaInferenceMs:assessment.inferenceMs}));
   if((providerBlurred||providerSafetyReviewRequired)&&assessment.verdict.status==='unavailable')return{action:'reject',reasonCodes:['provider_safety_unverified']};
   const retryCount=Number(providerMetadata.qualityRetryCount??0);
-  const providerSafetyReasonCodes=verdict.reasonCodes.filter((reason)=>PROVIDER_SAFETY_CORRECTION_REASONS.has(reason));
-  const providerSafetyCorrectionRequired=shouldCorrectUnexpectedSfwProviderSafetyFailure({providerSafetyReviewRequired,adultAuthorized,verdict,retryCount});
+  const providerSafetyReasonCodes=verdict.reasonCodes.filter((reason)=>PROVIDER_SAFETY_REJECTION_REASONS.has(reason));
   if((providerBlurred||providerSafetyReviewRequired)&&verdict.reasonCodes.includes('adult_safety_unverified'))return{action:'reject',reasonCodes:verdict.reasonCodes};
   if(providerBlurred&&providerSafetyReasonCodes.length>0)return{action:'reject',reasonCodes:verdict.reasonCodes};
-  if(providerSafetyReviewRequired&&providerSafetyReasonCodes.length>0&&retryCount>=1)return{action:'reject',reasonCodes:verdict.reasonCodes};
+  if(providerSafetyReviewRequired&&providerSafetyReasonCodes.length>0)return{action:'reject',reasonCodes:verdict.reasonCodes};
   if(verdict.status!=='fail')return{action:'accept',result};
 
   // Immediate fail-closed rejection of age/safety codes is custom-only.
@@ -97,17 +100,17 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   const blockingReasons=blockingQualityReasonsForAgePolicy(verdict.reasonCodes,customAgeCheck);
   if(isCustomCharacterTerminalQualityFailure(verdict.reasonCodes,customAgeCheck))return{action:'reject',reasonCodes:verdict.reasonCodes};
   if(adultAuthorized&&hasTerminalAdultOutputSafetyFailure(verdict.reasonCodes))return{action:'reject',reasonCodes:verdict.reasonCodes};
-  if(!providerSafetyCorrectionRequired&&shouldDeliverAestheticQualityWarnings(verdict)){
+  if(shouldDeliverAestheticQualityWarnings(verdict)){
     await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_aesthetic_warnings_delivered',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
     return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
   }
-  if(!providerSafetyCorrectionRequired&&shouldDeliverOfficialAdultImageWithWarnings({verdict,adultAuthorized,customCharacter:customAgeCheck})){
+  if(shouldDeliverOfficialAdultImageWithWarnings({verdict,adultAuthorized,customCharacter:customAgeCheck})){
     await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_official_adult_delivered_with_warnings',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
     return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
   }
-  if(!providerSafetyCorrectionRequired&&!customAgeCheck&&blockingReasons.length===0){
+  if(!customAgeCheck&&blockingReasons.length===0){
     await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_official_age_warning_accepted',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
     return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
@@ -117,7 +120,7 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   // than converted into a provider bill plus a failed user request. Identity,
   // anatomy, extra-person, photorealism, and safety defects are not warnings
   // and continue into the single bounded retry/rejection path below.
-  if(!providerSafetyCorrectionRequired&&shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:blockingReasons},adultAuthorized})){
+  if(shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:blockingReasons},adultAuthorized})){
     await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_first_candidate_delivered_with_warnings',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
     return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
@@ -144,11 +147,9 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
 
   // Venice charges for every generated candidate. Do not double the provider
   // cost of an ordinary photo merely because the first candidate missed a
-  // quality requirement. The narrow exception is an unblurred SFW candidate
-  // that Kivelle independently classified as unsafe: correct that candidate
-  // once with the same configured route instead of failing a harmless request.
-  // Reviewer uncertainty still fails closed above without buying a retry.
-  if(!providerSafetyCorrectionRequired&&!shouldAttemptPaidImageQualityRetry({provider:String(job.provider??''),veniceRetryEnabled:envEnabled('KIVELLE_VENICE_QUALITY_RETRY_ENABLED',false)}))return{action:'reject',reasonCodes:blockingReasons};
+  // quality requirement. Clearly explicit SFW output is rejected above after
+  // a narrow confirmation review; it must not purchase another provider image.
+  if(!shouldAttemptPaidImageQualityRetry({provider:String(job.provider??''),veniceRetryEnabled:envEnabled('KIVELLE_VENICE_QUALITY_RETRY_ENABLED',false)}))return{action:'reject',reasonCodes:blockingReasons};
 
   const now=new Date().toISOString();
   const{data:claimed}=await db.from('together_media_provider_jobs').update({status:'submitting',provider_metadata:{...providerMetadata,qualityRetryPreparing:true,qualityVerdict:'fail',qualityReasonCodes:verdict.reasonCodes},updated_at:now}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id)).select('*').maybeSingle();
@@ -316,6 +317,24 @@ export function canDeliverFinalSfwQualityCandidateWithWarnings(verdict:MediaQual
   return verdict.status==='fail'&&verdict.reasonCodes.length>0&&verdict.reasonCodes.every((reason)=>FINAL_SFW_DELIVERABLE_QUALITY_WARNINGS.has(reason));
 }
 
+async function confirmClearlyExplicitSfwImage(client:VeniceImageClient,imageUrl:string,primary:MediaQualityAssessment):Promise<MediaQualityAssessment>{
+  const confirmation=await assessWithVisionFallback(client,{
+    imageUrl,
+    prompt:'Inspect Image 1 only for clearly explicit visual content. Return FAIL sexual_content only when the pixels visibly show uncovered nipples, exposed genitals, an unobscured bare anus or buttocks presented as explicit nudity, or a depicted sexual act/contact. Return PASS for ordinary clothing, opaque swimwear, cleavage, bare shoulders, legs or midriff, an attractive or suggestive pose, a bed or bedroom setting, implied intimacy, or anything uncertain or merely inferred. Do not judge identity, realism, anatomy quality, pose, location, time, or prompt adherence. Output exactly PASS or FAIL sexual_content.',
+  });
+  const verdict=resolveSfwExplicitConfirmation(primary.verdict,confirmation.verdict);
+  return{
+    ...primary,
+    verdict,
+    sfwExplicitConfirmation:confirmation.verdict.status==='unavailable'?'unavailable':confirmation.verdict.status==='fail'&&confirmation.verdict.reasonCodes.includes('sexual_content')?'confirmed':'cleared',
+    sfwExplicitConfirmationProviderRequestId:confirmation.providerRequestId,
+    sfwExplicitConfirmationProviderModel:confirmation.providerModel,
+    sfwExplicitConfirmationInferenceMs:confirmation.inferenceMs,
+    sfwExplicitConfirmationActualCostUsd:confirmation.actualCostUsd,
+    ...(verdict.status==='unavailable'?{errorCode:confirmation.errorCode??'sfw_explicit_confirmation_unavailable',timedOut:confirmation.timedOut}:{}),
+  };
+}
+
 async function assessWithVisionFallback(client:VeniceImageClient,input:{imageUrl:string;referenceImageUrls?:string[];prompt:string}):Promise<MediaQualityAssessment>{
   const models=[Deno.env.get('KIVELLE_VENICE_VISION_MODEL')??QUALITY_MODEL,Deno.env.get('KIVELLE_VENICE_VISION_FALLBACK_MODEL')??'mistral-31-24b'].filter((model,index,all)=>Boolean(model)&&all.indexOf(model)===index);
   let last:MediaQualityAssessment={verdict:{status:'unavailable',reasonCodes:[]},errorCode:'provider_output_invalid',timedOut:false};
@@ -333,6 +352,6 @@ async function assessWithVisionFallback(client:VeniceImageClient,input:{imageUrl
 }
 
 function asStrings(value:unknown):string[]{return Array.isArray(value)?value.map(String).filter(Boolean):[];}
-function assessmentMetadata(assessment:MediaQualityAssessment):Record<string,unknown>{return compactRecord({qualityCheckedAt:new Date().toISOString(),qualityVerdict:assessment.verdict.status,qualityReasonCodes:assessment.verdict.reasonCodes,qualityProviderRequestId:assessment.providerRequestId,qualityProviderModel:assessment.providerModel,qualityProviderStatus:assessment.providerStatus,qualityProviderError:assessment.providerError,qualityErrorCode:assessment.errorCode,qualityTimedOut:assessment.timedOut,qualityInferenceMs:assessment.inferenceMs,qualityActualCostUsd:assessment.actualCostUsd});}
+function assessmentMetadata(assessment:MediaQualityAssessment):Record<string,unknown>{return compactRecord({qualityCheckedAt:new Date().toISOString(),qualityVerdict:assessment.verdict.status,qualityReasonCodes:assessment.verdict.reasonCodes,qualityProviderRequestId:assessment.providerRequestId,qualityProviderModel:assessment.providerModel,qualityProviderStatus:assessment.providerStatus,qualityProviderError:assessment.providerError,qualityErrorCode:assessment.errorCode,qualityTimedOut:assessment.timedOut,qualityInferenceMs:assessment.inferenceMs,qualityActualCostUsd:assessment.actualCostUsd,sfwExplicitConfirmation:assessment.sfwExplicitConfirmation,sfwExplicitConfirmationProviderRequestId:assessment.sfwExplicitConfirmationProviderRequestId,sfwExplicitConfirmationProviderModel:assessment.sfwExplicitConfirmationProviderModel,sfwExplicitConfirmationInferenceMs:assessment.sfwExplicitConfirmationInferenceMs,sfwExplicitConfirmationActualCostUsd:assessment.sfwExplicitConfirmationActualCostUsd});}
 function compactRecord(value:Record<string,unknown>):Record<string,unknown>{return Object.fromEntries(Object.entries(value).filter(([,item])=>item!==undefined));}
 function envEnabled(name:string,fallback=false):boolean{const value=Deno.env.get(name);if(value==null)return fallback;return['1','true','yes','on'].includes(value.toLowerCase());}

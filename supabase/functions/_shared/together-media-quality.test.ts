@@ -8,6 +8,7 @@ Deno.test('the quality gate returns the existing photo with warnings and no resu
   const updates:Array<Record<string,any>>=[],events:string[]=[];
   let calls=0;
   let reviewContent='FAIL face_low_detail, non_photorealistic, identity_mismatch, world_mismatch, earth_leakage, time_mismatch';
+  const reviewResponses:string[]=[];
   const db={
     from(table:string){
       // Canonical enrichment is unavailable in this fixture; the completed
@@ -22,7 +23,7 @@ Deno.test('the quality gate returns the existing photo with warnings and no resu
     globalThis.fetch=async(url)=>{
       if(!String(url).endsWith('/chat/completions'))throw new Error('unexpected_generation_retry');
       calls++;
-      return new Response(JSON.stringify({id:'review-1',choices:[{message:{content:reviewContent}}]}),{headers:{'content-type':'application/json'}});
+      return new Response(JSON.stringify({id:'review-1',choices:[{message:{content:reviewResponses.shift()??reviewContent}}]}),{headers:{'content-type':'application/json'}});
     };
     const job={id:'job-1',job_type:'image',provider:'venice',provider_request_id:'generation-1',provider_metadata:{}};
     const media={id:'media-1',user_id:'user-1',character_instance_id:'character-1',content_level:'standard',metadata:{source:'user_request',customCharacter:false}};
@@ -46,6 +47,13 @@ Deno.test('the quality gate returns the existing photo with warnings and no resu
     reviewContent='PASS';
     const verifiedIndependentReview=await gateGeneratedImageQuality(db,job,media,independentlyReviewedResult);
     if(verifiedIndependentReview.action!=='accept'||verifiedIndependentReview.result.providerMetadata?.providerSafeMode!==false)throw new Error('safe-mode-disabled output should deliver only after Kivelle review passes');
+    const callsBeforeConfirmation=calls;
+    reviewResponses.push('FAIL face_low_detail, sexual_content, world_mismatch','PASS');
+    const clearedExplicitFalsePositive=await gateGeneratedImageQuality(db,job,media,independentlyReviewedResult);
+    if(clearedExplicitFalsePositive.action!=='accept'||calls!==callsBeforeConfirmation+2||!updates.some(update=>update.provider_metadata?.sfwExplicitConfirmation==='cleared'))throw new Error('a standard photo should deliver after the narrow explicit-content review clears it');
+    reviewResponses.push('FAIL sexual_content','FAIL sexual_content');
+    const confirmedExplicit=await gateGeneratedImageQuality(db,job,media,independentlyReviewedResult);
+    if(confirmedExplicit.action!=='reject'||!confirmedExplicit.reasonCodes.includes('sexual_content'))throw new Error('clearly explicit SFW output must remain rejected');
     const blocked=await gateGeneratedImageQuality(db,job,media,{...result,providerMetadata:{providerSafetyFlag:true}});
     if(blocked.action!=='reject'||!blocked.reasonCodes.includes('sexual_content'))throw new Error('provider safety finding must not become a quality warning');
   }finally{
@@ -70,7 +78,7 @@ Deno.test('aesthetic delivery does not accept mixed safety or unknown failures',
 Deno.test('composition and anatomy defects remain observable without suppressing delivery',()=>{
   if(!shouldDeliverAestheticQualityWarnings({status:'fail',reasonCodes:['face_distortion','malformed_hands','embedded_reference','subject_count_mismatch','identity_swap']}))throw new Error('known visual defects are warnings under the delivery policy');
 });
-import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverFinalSfwQualityCandidateWithWarnings, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, hasTerminalAdultOutputSafetyFailure, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, shouldAttemptPaidImageQualityRetry, shouldCorrectUnexpectedSfwProviderSafetyFailure, shouldDeliverFirstImageQualityCandidateWithWarnings, shouldDeliverOfficialAdultImageWithWarnings, shouldDeliverSfwWhenQualityReviewIsUnavailable, shouldRevalidateCompletedQualityRetry, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
+import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverFinalSfwQualityCandidateWithWarnings, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, hasTerminalAdultOutputSafetyFailure, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, resolveSfwExplicitConfirmation, shouldAttemptPaidImageQualityRetry, shouldDeliverFirstImageQualityCandidateWithWarnings, shouldDeliverOfficialAdultImageWithWarnings, shouldDeliverSfwWhenQualityReviewIsUnavailable, shouldRevalidateCompletedQualityRetry, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
 
 Deno.test('solo adult quality checks do not confuse explicit posing with non-consent',()=>{
   const rule=authorizedAdultImageSafetyRule([{companion:{name:'Elena Petrova',age:27,custom:false}}]);
@@ -167,13 +175,16 @@ Deno.test('Venice does not buy a second quality candidate by default',()=>{
   if(!shouldAttemptPaidImageQualityRetry({provider:'wavespeed',veniceRetryEnabled:false}))throw new Error('the Venice cost control must not change other providers');
 });
 
-Deno.test('an unexpected SFW safety result receives one bounded same-model correction',()=>{
-  if(!shouldCorrectUnexpectedSfwProviderSafetyFailure({providerSafetyReviewRequired:true,adultAuthorized:false,verdict:{status:'fail',reasonCodes:['sexual_content']},retryCount:0}))throw new Error('the first unintended SFW safety failure should be corrected');
-  if(shouldCorrectUnexpectedSfwProviderSafetyFailure({providerSafetyReviewRequired:true,adultAuthorized:false,verdict:{status:'fail',reasonCodes:['sexual_content']},retryCount:1}))throw new Error('the correction must never loop');
-  if(shouldCorrectUnexpectedSfwProviderSafetyFailure({providerSafetyReviewRequired:true,adultAuthorized:true,verdict:{status:'fail',reasonCodes:['sexual_content']},retryCount:0}))throw new Error('adult output must retain its existing policy path');
-  if(shouldCorrectUnexpectedSfwProviderSafetyFailure({providerSafetyReviewRequired:false,adultAuthorized:false,verdict:{status:'fail',reasonCodes:['sexual_content']},retryCount:0}))throw new Error('ordinary quality review must retain the Venice cost control');
-  if(shouldCorrectUnexpectedSfwProviderSafetyFailure({providerSafetyReviewRequired:true,adultAuthorized:false,verdict:{status:'unavailable',reasonCodes:[]},retryCount:0}))throw new Error('reviewer uncertainty must fail closed without purchasing another image');
-  if(shouldCorrectUnexpectedSfwProviderSafetyFailure({providerSafetyReviewRequired:true,adultAuthorized:false,verdict:{status:'fail',reasonCodes:['identity_mismatch']},retryCount:0}))throw new Error('ordinary quality drift must not purchase another Venice image');
+Deno.test('SFW sexual-content findings require a narrow confirmation',()=>{
+  const mixed={status:'fail' as const,reasonCodes:['face_low_detail','sexual_content','world_mismatch']};
+  const cleared=resolveSfwExplicitConfirmation(mixed,{status:'pass',reasonCodes:[]});
+  if(cleared.status!=='fail'||cleared.reasonCodes.includes('sexual_content')||!cleared.reasonCodes.includes('face_low_detail'))throw new Error('a cleared false positive should retain only advisory quality findings');
+  const confirmed=resolveSfwExplicitConfirmation(mixed,{status:'fail',reasonCodes:['sexual_content']});
+  if(confirmed.status!=='fail'||!confirmed.reasonCodes.includes('sexual_content'))throw new Error('clearly explicit output must remain rejected');
+  const unavailable=resolveSfwExplicitConfirmation(mixed,{status:'unavailable',reasonCodes:[]});
+  if(unavailable.status!=='unavailable')throw new Error('confirmation outages must not silently clear a safety finding');
+  const clean=resolveSfwExplicitConfirmation({status:'pass',reasonCodes:[]},{status:'fail',reasonCodes:['sexual_content']});
+  if(clean.status!=='pass')throw new Error('confirmation must not invent a finding the primary review never raised');
 });
 
 Deno.test('the SFW quality switch does not bypass custom adult output-safety review',()=>{
