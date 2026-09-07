@@ -11,11 +11,11 @@ import { activeContinuity } from './together-continuity.ts';
 import { ensureCharacterSchedule, resolveCharacterPresence, resolveCompanionPresence } from './together-schedule.ts';
 import { naturalizeCharacterActivity, naturalizeCharacterEventSummary, naturalizeCharacterEventTitle } from '../../../packages/together-domain/src/character-language.ts';
 import { finalizeExpiredPlanExperience } from './together-plan-experience.ts';
-import { capabilitiesForAccount, effectiveInitiativeLevel, initiativePolicy, isDurableUserMemory, lifeEventEstablishesPresentReality, normalizeChatLanguage, normalizeSubscriptionTier, selectGroupPlanReminder, shouldSendPlanWaitingCheckIn, type GroupPlanReminderCandidate, type InitiativeLevel } from '../../../packages/together-domain/src/index.ts';
+import { capabilitiesForAccount, effectiveInitiativeLevel, initiativePolicy, lifeEventEstablishesPresentReality, normalizeChatLanguage, normalizeSubscriptionTier, selectGroupPlanReminder, shouldSendPlanWaitingCheckIn, type GroupPlanReminderCandidate, type InitiativeLevel } from '../../../packages/together-domain/src/index.ts';
 import { sendCompanionPush } from './kivelle-push.ts';
-import { filterMemoriesForPreferences } from './kivelle-memory-access.ts';
 import { cancelQueuedAmbientProactiveMessages, isPlanReminderProactive } from './kivelle-initiative.ts';
-import { renderCharacterInitiative } from './kivelle-proactive-voice.ts';
+import { persistCharacterInitiative } from './kivelle-proactive-delivery.ts';
+import { eligibleInitiativeThreads, threadInitiativeSource, eventInitiativeSource, planInitiativeSource } from './kivelle-proactive-context.ts';
 import { materializeWorldPulse } from './kivelle-world-pulse.ts';
 import { groupNotificationAllowsPush } from './kivelle-group-chat.ts';
 
@@ -28,7 +28,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const simulateEvents = trigger === 'conversation_continued' || trigger === 'scheduled_dispatch';
   const fallbackContinuity=characterInstanceId?null:await activeContinuity(db,userId);const resolvedInstanceId=characterInstanceId??fallbackContinuity?.active_companion_instance_id;
   if(!resolvedInstanceId)throw new AppError('CONFLICT','Choose a companion before simulating this Kivelle Life.',409);
-  const { data: instance } = await db.from('together_character_instances').select('*,together_character_templates(name,slug),together_character_versions(character_bible,communication_style,personality_config,relationship_config)').eq('user_id', userId).eq('id', resolvedInstanceId).maybeSingle();
+  const { data: instance } = await db.from('together_character_instances').select('*,together_character_templates(name,slug,occupation),together_character_versions(character_bible,communication_style,personality_config,relationship_config)').eq('user_id', userId).eq('id', resolvedInstanceId).maybeSingle();
   if (!instance) throw new AppError('NOT_FOUND', 'That character is unavailable.', 404);
   const currentPlace=instance.current_location_id?await resolvePlaceContext({db,locationId:String(instance.current_location_id),now,userId,characterInstanceId:String(instance.id)}).catch(()=>null):null;
   let currentWorldId=currentPlace?.world.id;
@@ -40,7 +40,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const lastEventSimulation = new Date(instance.last_event_simulated_at ?? instance.created_at ?? now.toISOString());
   const eventSimulationStart = Number.isNaN(lastEventSimulation.getTime()) || lastEventSimulation > now ? now : lastEventSimulation;
   const recentCutoff = new Date(now.getTime() - 72 * 3600000).toISOString();
-  const [schedules, templates, relationship, latestConversation, preferences, profile, recentEvents, recentProactive, memories, allInstances, sharedPlans, entitlement] = await Promise.all([
+  const [schedules, templates, relationship, latestConversation, preferences, profile, recentEvents, recentProactive, allInstances, sharedPlans, entitlement] = await Promise.all([
     db.from('together_schedule_templates').select('*,together_locations(name,world_id)').eq('character_version_id', instance.character_version_id),
     db.from('together_event_templates').select('*,together_locations(world_id)').eq('active', true).contains('participant_template_ids', [instance.character_template_id]),
     db.from('together_relationship_states').select('*').eq('character_instance_id', instance.id).single(),
@@ -49,7 +49,6 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
     db.from('together_profiles').select('age_verified_at,content_preferences,experience_timezone,memory_categories').eq('user_id', userId).maybeSingle(),
     db.from('together_life_events').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).gte('starts_at', recentCutoff).order('starts_at', { ascending: false }).limit(20),
     db.from('together_proactive_messages').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).order('created_at', { ascending: false }).limit(10),
-    db.from('together_memories').select('canonical_text,memory_type,pinned,importance,sensitivity_category').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status', 'active').eq('visibility_scope','all').in('content_rating',['safe','suggestive']).neq('sensitivity_category', 'sensitive').order('pinned', { ascending: false }).order('importance', { ascending: false }).limit(8),
     db.from('together_character_instances').select('id,character_template_id').eq('user_id', userId).eq('continuity_id',instance.continuity_id),
     db.from('together_shared_plans').select('*,together_locations(name)').eq('user_id', userId).contains('participant_instance_ids', [instance.id]).order('starts_at', { ascending: true }),
     db.from('together_entitlements').select('tier,metadata,expires_at').eq('user_id',userId).maybeSingle(),
@@ -133,9 +132,8 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const memoryPreferences=(profile.data?.memory_categories??{}) as Record<string,unknown>;
   const { data: dueThreads } = memoryPreferences.open_thread===false
     ? {data:[] as EventRow[]}
-    : await db.from('together_open_threads').update({ follow_up_eligible: true, updated_at: now.toISOString() }).eq('user_id', userId).eq('character_instance_id', instance.id).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).is('resolved_at', null).lte('expected_at', now.toISOString()).select('*');
+    : await db.from('together_open_threads').update({ follow_up_eligible: true, updated_at: now.toISOString() }).eq('user_id', userId).eq('character_instance_id', instance.id).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).is('resolved_at', null).is('last_followed_up_at', null).eq('followup_count', 0).lte('expected_at', now.toISOString()).select('*');
   const prefs = preferences.data ?? { character_initiated_messages: true, push_enabled: false, quiet_hours_start: '23:00', quiet_hours_end: '08:00', timezone: 'UTC' };
-  const durableMemory=filterMemoriesForPreferences(memories.data??[],memoryPreferences).find((memory)=>isDurableUserMemory({memoryType:String(memory.memory_type??'semantic'),canonicalText:String(memory.canonical_text??'')}));
   let proactive: EventRow | null = null;
   const overrides=prefs.companion_initiative_levels&&typeof prefs.companion_initiative_levels==='object'&&!Array.isArray(prefs.companion_initiative_levels)?prefs.companion_initiative_levels as Record<string,unknown>:{};
   const entitlementExpired=Boolean(entitlement.data?.expires_at&&new Date(String(entitlement.data.expires_at)).getTime()<=now.getTime()),subscriptionTier=entitlementExpired?'free':normalizeSubscriptionTier(entitlement.data?.tier),capabilities=capabilitiesForAccount(subscriptionTier,entitlement.data?.metadata);
@@ -151,11 +149,12 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
     proactive = await deliverDueMessage(db, userId, instance, latestConversation.data, prefs, now,remindersOnly);
     if (!proactive) {
       const scheduleMessageEvent=trigger==='scheduled_dispatch'&&passivePresence?.scheduleEventId&&passivePresence.interruptibility==='open'&&!['sleep','work','travel'].includes(String(passivePresence.activityKey))?{id:passivePresence.scheduleEventId,event_type:'schedule_presence',title:passivePresence.activity,narrative_summary:String(passivePresence.activity),location_id:passivePresence.locationId,significance:.56,starts_at:passivePresence.activityStartedAt,ends_at:passivePresence.expectedEndAt,user_should_know:true,proactive_message_appropriate:true,metadata:{source:'character_schedule',scheduleEventId:passivePresence.scheduleEventId}}:null;
-      proactive = await createProactiveCandidate({ db, userId, instance:{...instance,current_activity:life.activity,current_location_id:life.locationId??instance.current_location_id}, relationship: relationship.data, conversation: latestConversation.data, prefs, now, dueThreads: dueThreads ?? [], events: [...(scheduleMessageEvent?[scheduleMessageEvent]:[]),...created, ...(recentEvents.data ?? [])], plans:canonicalPlans, recentProactive: recentProactive.data ?? [], memory: durableMemory?.canonical_text,remindersOnly,initiativeLevel,subscriptionTier });
+      proactive = await createProactiveCandidate({ db, userId, instance:{...instance,current_activity:life.activity,current_location_id:life.locationId??instance.current_location_id}, relationship: relationship.data, conversation: latestConversation.data, prefs, now, dueThreads: dueThreads ?? [], events: [...(scheduleMessageEvent?[scheduleMessageEvent]:[]),...created, ...(recentEvents.data ?? [])], plans:canonicalPlans, recentProactive: recentProactive.data ?? [], remindersOnly,initiativeLevel,subscriptionTier });
     }
   }
 
-  return { state: life, stateSource:presenceSource, presence, activeEvent: influential ?? null, events: created, proactiveMessage: proactive, eligibleThreads: dueThreads ?? [], elapsedDays: Math.max(0, Math.floor((now.getTime() - eventSimulationStart.getTime()) / 86400000)), eventsSimulated: simulateEvents, timezone };
+  // Queued content is a canonical source draft, not a user-visible message.
+  return { state: life, stateSource:presenceSource, presence, activeEvent: influential ?? null, events: created, proactiveMessage: proactive?.status === 'sent' ? proactive : null, eligibleThreads: dueThreads ?? [], elapsedDays: Math.max(0, Math.floor((now.getTime() - eventSimulationStart.getTime()) / 86400000)), eventsSimulated: simulateEvents, timezone };
 }
 
 async function materializeScheduleOutcomes(input:{db:SupabaseClient;userId:string;instance:EventRow;from:Date;now:Date;trigger:LifeRunInput['trigger']}):Promise<EventRow[]>{
@@ -189,17 +188,30 @@ async function materializeScheduleOutcomes(input:{db:SupabaseClient;userId:strin
   return[];
 }
 
-async function createProactiveCandidate(input: { db: SupabaseClient; userId: string; instance: EventRow; relationship: EventRow; conversation: EventRow | null; prefs: EventRow; now: Date; dueThreads: EventRow[]; events: EventRow[]; plans:EventRow[]; recentProactive: EventRow[]; memory?: string;remindersOnly?:boolean;initiativeLevel:InitiativeLevel;subscriptionTier:string }): Promise<EventRow | null> {
+async function createProactiveCandidate(input: { db: SupabaseClient; userId: string; instance: EventRow; relationship: EventRow; conversation: EventRow | null; prefs: EventRow; now: Date; dueThreads: EventRow[]; events: EventRow[]; plans:EventRow[]; recentProactive: EventRow[];remindersOnly?:boolean;initiativeLevel:InitiativeLevel;subscriptionTier:string }): Promise<EventRow | null> {
   const { db, userId, instance, relationship, conversation, prefs, now } = input;
   if (!instance.contact_added_at && !instance.introduced_at) return null;
-  const groupReminder=selectGroupPlanReminder({plans:input.plans as Array<EventRow&GroupPlanReminderCandidate>,characterInstanceId:String(instance.id),remindersEnabled:input.prefs.date_reminders!==false,now});
+  if (!conversation?.id || conversation.archived_at) return null;
+  const relevantPlans = input.plans.filter((plan) => plan.status === 'completed'
+    ? plan.completed_at && now.getTime() - Date.parse(plan.completed_at) <= 24 * 3600000
+    : plan.status === 'scheduled' && Date.parse(plan.starts_at) >= now.getTime() && Date.parse(plan.starts_at) <= now.getTime() + 4 * 3600000);
+  const sourceKeys = [...new Set([...input.dueThreads.map((thread) => `thread:${thread.id}`), ...input.events.map((event) => `event:${event.id}`), ...relevantPlans.flatMap((plan) => [`plan:pre:${plan.id}`, `plan:post:${plan.id}`, `group-plan:pre:${plan.id}`])])];
+  const usedKeys = new Set<string>();
+  // Keep PostgREST URLs bounded for long-lived accounts with many open topics.
+  for (let offset = 0; offset < sourceKeys.length; offset += 100) {
+    const used = await db.from('together_proactive_messages').select('dedupe_key').eq('user_id', userId)
+      .eq('character_instance_id', instance.id).in('dedupe_key', sourceKeys.slice(offset, offset + 100));
+    if (used.error) throw new Error('INITIATIVE_SOURCE_HISTORY_READ_FAILED');
+    for (const row of used.data ?? []) usedKeys.add(String(row.dedupe_key));
+  }
+  const groupReminder=selectGroupPlanReminder({plans:input.plans.filter((plan) => !usedKeys.has(`group-plan:pre:${plan.id}`)) as Array<EventRow&GroupPlanReminderCandidate>,characterInstanceId:String(instance.id),remindersEnabled:input.prefs.date_reminders!==false,now});
   const hoursSinceConversation = conversation?.last_message_at ? (now.getTime() - new Date(conversation.last_message_at).getTime()) / 3600000 : 48;
-  const upcomingPlan=input.prefs.date_reminders===false?undefined:input.plans.filter((plan)=>plan.status==='scheduled').map((plan)=>({plan,hours:(new Date(plan.starts_at).getTime()-now.getTime())/3600000})).find((item)=>item.hours>=2&&item.hours<=4);
+  const upcomingPlan=input.prefs.date_reminders===false?undefined:input.plans.filter((plan)=>plan.status==='scheduled'&&!usedKeys.has(`plan:pre:${plan.id}`)).map((plan)=>({plan,hours:(new Date(plan.starts_at).getTime()-now.getTime())/3600000})).find((item)=>item.hours>=2&&item.hours<=4);
   const lastProactive = input.recentProactive.find((item) => item.status !== 'cancelled' && item.status !== 'failed'&&!isPlanReminderProactive(item));
   const hoursSinceProactive = lastProactive ? (now.getTime() - new Date(lastProactive.created_at).getTime()) / 3600000 : Infinity;
   const policy=initiativePolicy(input.initiativeLevel);
 
-  const dueThread = input.dueThreads.sort((a, b) => Number(b.importance) - Number(a.importance))[0];
+  const dueThread = eligibleInitiativeThreads(input.dueThreads, usedKeys, now).find((thread) => threadInitiativeSource(thread));
   let source: EventRow | null = null;
   let dedupeKey = '';
   let content = '';
@@ -207,58 +219,58 @@ async function createProactiveCandidate(input: { db: SupabaseClient; userId: str
   let lifeEventId: string | null = null;
   let openThreadId: string | null = null;
   let targetConversation=conversation;
-  let sourceSummary='';
+  let planId: string | null = null;
+  let scheduleEventId: string | null = null;
   let reminder=false;
   if(groupReminder){
-    const plan=groupReminder,time=new Date(plan.starts_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:String(prefs.timezone??'UTC')});
+    const plan=groupReminder;
+    planId=String(plan.id);
     dedupeKey=`group-plan:pre:${plan.id}`;
-    content=`Quick reminder—our group plan, ${plan.title}, starts at ${time}. See you there.`;
+    content=planInitiativeSource(plan,now,String(prefs.timezone??'UTC'),false)?.draft??'';
     reason=`Group plan reminder: ${plan.title}`;
     reminder=true;
     const{data}=await db.from('together_conversations').select('*').eq('id',String(plan.source_conversation_id)).eq('user_id',userId).eq('continuity_id',String(instance.continuity_id)).eq('kind','group').is('archived_at',null).maybeSingle();
-    targetConversation=data??conversation;
+    if (!data) return null;
+    targetConversation=data;
   }else if(upcomingPlan&&hoursSinceConversation>=2&&stableHash(`${instance.simulation_seed}:plan-reminder:${upcomingPlan.plan.id}`)%100<55){
     dedupeKey=`plan:pre:${upcomingPlan.plan.id}`;
-    content=`I'm wrapping up before ${upcomingPlan.plan.title}. Still good for ${new Date(upcomingPlan.plan.starts_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:String(prefs.timezone??'UTC')})}?`;
+    planId=String(upcomingPlan.plan.id);
+    content=planInitiativeSource(upcomingPlan.plan,now,String(prefs.timezone??'UTC'),false)?.draft??'';
     reason=`Upcoming plan: ${upcomingPlan.plan.title}`;
     reminder=true;
   }else if(input.remindersOnly)return null;
   else if(relationship?.active_major_conflict||Number(relationship?.conflict??0)>60)return null;
   else if(hoursSinceProactive<policy.minimumProactiveHours)return null;
   else if (dueThread && hoursSinceConversation >= Math.max(4,policy.minimumConversationHours)) {
-    const subject = String(dueThread.metadata?.subject ?? String(dueThread.topic).match(/user's\s+([a-z]+)/i)?.[1] ?? 'event');
+    const threadSource = threadInitiativeSource(dueThread)!;
     dedupeKey = `thread:${dueThread.id}`;
-    content = composeProactiveMessage({ threadSubject: subject });
-    reason = `Follow-up: ${subject}`;
-    sourceSummary=`The user previously asked the companion to follow up about ${subject}.`;
+    content = threadSource.draft;
+    reason = 'An unresolved topic from the user';
     openThreadId = String(dueThread.id);
   } else {
-    const completedPlan=input.plans.filter((plan)=>plan.status==='completed'&&Number(plan.metadata?.significance??0)>=.65&&plan.completed_at&&now.getTime()-new Date(plan.completed_at).getTime()<=24*3600000).sort((a,b)=>new Date(b.completed_at).getTime()-new Date(a.completed_at).getTime())[0];
+    const completedPlan=input.plans.filter((plan)=>!usedKeys.has(`plan:post:${plan.id}`)&&plan.status==='completed'&&Number(plan.metadata?.significance??0)>=.65&&plan.completed_at&&now.getTime()-new Date(plan.completed_at).getTime()<=24*3600000).sort((a,b)=>new Date(b.completed_at).getTime()-new Date(a.completed_at).getTime())[0];
     if(completedPlan&&hoursSinceConversation>=policy.minimumConversationHours&&stableHash(`${instance.simulation_seed}:plan-callback:${completedPlan.id}`)%100<Math.min(80,Math.round(40*policy.probabilityMultiplier))){
-      dedupeKey=`plan:post:${completedPlan.id}`;content=`Okay, ${completedPlan.title} was a good call.`;reason=`Completed plan: ${completedPlan.title}`;sourceSummary=`The shared plan titled ${completedPlan.title} completed recently and was meaningful.`;
+      dedupeKey=`plan:post:${completedPlan.id}`;planId=String(completedPlan.id);content=planInitiativeSource(completedPlan,now,String(prefs.timezone??'UTC'),true)?.draft??'';reason=`Completed plan: ${completedPlan.title}`;
     }
     if(dedupeKey){/* plan-aware proactive selected */}
     else{
-    source = input.events.filter((event) => event.proactive_message_appropriate && Number(event.significance) >= .55 && new Date(event.starts_at).getTime() <= now.getTime() && now.getTime() - new Date(event.starts_at).getTime() <= 48 * 3600000 && event.metadata?.planStatus !== 'cancelled').sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime())[0] ?? null;
-    if (!source || hoursSinceConversation < policy.minimumConversationHours || !shouldInitiateEventMessage(source, String(instance.relationship_stage), hoursSinceConversation, String(instance.simulation_seed),input.initiativeLevel)) return null;
+    source = input.events.filter((event) => !usedKeys.has(`event:${event.id}`) && event.user_should_know && event.proactive_message_appropriate && Number(event.significance) >= .55 && new Date(event.starts_at).getTime() <= now.getTime() && now.getTime() - new Date(event.starts_at).getTime() <= 48 * 3600000 && event.metadata?.planStatus !== 'cancelled' && shouldInitiateEventMessage(event, String(instance.relationship_stage), hoursSinceConversation, String(instance.simulation_seed), input.initiativeLevel)).sort((a, b) => Number(b.significance) - Number(a.significance) || new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime())[0] ?? null;
+    if (!source || hoursSinceConversation < policy.minimumConversationHours) return null;
     dedupeKey = `event:${source.id}`;
-    content = composeProactiveMessage({ eventTitle: String(source.title), eventSummary: String(source.narrative_summary), memory: input.memory });
+    content = eventInitiativeSource(source)?.draft ?? '';
     reason = `Life event: ${source.title}`;
-    sourceSummary=String(source.narrative_summary??source.title??'');
-    lifeEventId = String(source.id);
+    if (source.event_type === 'schedule_presence') scheduleEventId = String(source.id);
+    else lifeEventId = String(source.id);
     }
   }
-  const existing = await db.from('together_proactive_messages').select('id').eq('user_id', userId).eq('character_instance_id', instance.id).eq('dedupe_key', dedupeKey).maybeSingle();
-  if (existing.data) return null;
-
   const proactiveChatLanguage=normalizeChatLanguage(targetConversation?.metadata?.chatPreferences?.chatLanguage);
-  if(!reminder||proactiveChatLanguage!=='en')content=await renderCharacterInitiative({db,userId,instance,conversation:targetConversation,relationship,draft:content,reason,sourceSummary,subscriptionTier:input.subscriptionTier,now});
+  // Queue canonical intent only. Voice generation happens after quiet hours at delivery.
   if(!content.trim())return null;
 
   const quiet = isQuietHours(now, String(prefs.quiet_hours_start ?? '23:00'), String(prefs.quiet_hours_end ?? '08:00'), String(prefs.timezone ?? 'UTC'));
   const eligibleAt = quiet ? nextDeliveryTime(now, String(prefs.quiet_hours_start ?? '23:00'), String(prefs.quiet_hours_end ?? '08:00'), String(prefs.timezone ?? 'UTC')) : now;
-  const targetRoute=targetConversation?.kind==='group'?`/group-chat?id=${targetConversation.id}`:'/chat';
-  const { data, error } = await db.from('together_proactive_messages').insert({ user_id: userId, character_instance_id: instance.id, life_event_id: lifeEventId, open_thread_id: openThreadId, dedupe_key: dedupeKey, content, reason, eligible_at: eligibleAt.toISOString(), expires_at: new Date(eligibleAt.getTime() + 30 * 3600000).toISOString(), conversation_id: targetConversation?.id ?? null, context: { relationship_stage: instance.relationship_stage, quiet_hours_deferred: quiet,route:targetRoute,groupPlanId:groupReminder?.id,messageKind:reminder?'plan_reminder':'initiative',initiativeLevel:input.initiativeLevel,chatLanguage:proactiveChatLanguage } }).select('*').single();
+  const targetRoute=targetConversation?.kind==='group'?`/group-chat?id=${targetConversation.id}`:`/chat?conversationId=${targetConversation?.id}`;
+  const { data, error } = await db.from('together_proactive_messages').insert({ user_id: userId, character_instance_id: instance.id, life_event_id: lifeEventId, open_thread_id: openThreadId, dedupe_key: dedupeKey, content, reason, eligible_at: eligibleAt.toISOString(), expires_at: new Date(eligibleAt.getTime() + 30 * 3600000).toISOString(), conversation_id: targetConversation?.id ?? null, context: { generationVersion: 2, planId, scheduleEventId, lastMessageAt: targetConversation?.last_message_at ?? now.toISOString(), relationship_stage: instance.relationship_stage, quiet_hours_deferred: quiet,route:targetRoute,groupPlanId:groupReminder?.id,messageKind:reminder?'plan_reminder':'initiative',initiativeLevel:input.initiativeLevel,chatLanguage:proactiveChatLanguage } }).select('*').single();
   if (error || !data) return null;
   await track(db, userId, 'proactive_message_created', { proactiveMessageId: data.id, source: reason.startsWith('Group plan reminder')?'group_plan_reminder':openThreadId ? 'open_thread' : reason.startsWith('Upcoming plan')?'shared_plan_pre':reason.startsWith('Completed plan')?'shared_plan_post':'life_event', deferred: quiet });
   if (quiet) return data;
@@ -268,31 +280,21 @@ async function createProactiveCandidate(input: { db: SupabaseClient; userId: str
 async function deliverDueMessage(db: SupabaseClient, userId: string, instance: EventRow, conversation: EventRow | null, prefs: EventRow, now: Date,remindersOnly=false): Promise<EventRow | null> {
   if (isQuietHours(now, String(prefs.quiet_hours_start ?? '23:00'), String(prefs.quiet_hours_end ?? '08:00'), String(prefs.timezone ?? 'UTC'))) return null;
   await db.from('together_proactive_messages').update({ status: 'cancelled', updated_at: now.toISOString() }).eq('user_id', userId).eq('character_instance_id', instance.id).eq('status', 'queued').lt('expires_at', now.toISOString());
-  const { data:dueRows } = await db.from('together_proactive_messages').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status', 'queued').lte('eligible_at', now.toISOString()).or(`expires_at.is.null,expires_at.gt.${now.toISOString()}`).order('eligible_at').limit(remindersOnly?20:1);
-  const data=(dueRows??[]).find((row)=>!remindersOnly||isPlanReminderProactive(row))??null;
-  if(!data)return null;
-  let targetConversation=conversation;
-  if(data.conversation_id&&String(data.conversation_id)!==String(conversation?.id??'')){
-    const{data:storedConversation}=await db.from('together_conversations').select('*').eq('id',String(data.conversation_id)).eq('user_id',userId).maybeSingle();
-    targetConversation=storedConversation??conversation;
+  const { data:dueRows } = await db.from('together_proactive_messages').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).eq('status', 'queued').lte('eligible_at', now.toISOString()).or(`expires_at.is.null,expires_at.gt.${now.toISOString()}`).order('eligible_at').limit(remindersOnly?20:5);
+  for (const data of dueRows ?? []) {
+    if (remindersOnly && !isPlanReminderProactive(data)) continue;
+    const delivered = await deliverMessage(db, userId, instance, conversation, prefs, data, now);
+    if (delivered) return delivered;
   }
-  return deliverMessage(db, userId, instance, targetConversation, prefs, data, now);
+  return null;
 }
 
 async function deliverMessage(db: SupabaseClient, userId: string, instance: EventRow, conversation: EventRow | null, prefs: EventRow, proactive: EventRow, now: Date): Promise<EventRow|null> {
-  if(!await proactiveMessageStillRelevant(db,userId,proactive,now)){
-    await db.from('together_proactive_messages').update({status:'cancelled',updated_at:now.toISOString()}).eq('id',proactive.id).eq('user_id',userId).eq('status','queued');
-    return null;
-  }
-  let sentMessageId: string | null = proactive.sent_message_id ?? null;
-  if (conversation?.id && !sentMessageId) {
-    const { data: message } = await db.from('together_messages').insert({ conversation_id: conversation.id, user_id: userId, character_instance_id: instance.id, speaker_character_instance_id:conversation.kind==='group'?instance.id:null, role: 'assistant', content: proactive.content, delivery_status: 'complete', provider_metadata: { provider: 'life-engine', proactive: true, proactive_message_id: proactive.id,group_plan_id:proactive.context?.groupPlanId,chatLanguage:normalizeChatLanguage(proactive.context?.chatLanguage??conversation.metadata?.chatPreferences?.chatLanguage) } }).select('id,created_at').single();
-    if (message) {
-      sentMessageId = message.id;
-      await db.from('together_conversations').update({ last_message_at: message.created_at, updated_at: message.created_at }).eq('id', conversation.id).eq('user_id', userId);
-    }
-  }
-  const { data: delivered } = await db.from('together_proactive_messages').update({ status: 'sent', sent_message_id: sentMessageId, updated_at: now.toISOString() }).eq('id', proactive.id).eq('user_id', userId).eq('status', 'queued').select('*').maybeSingle();
+  const result = await persistCharacterInitiative({ db, userId, proactive, now, timezone: String(prefs.timezone ?? 'UTC'),
+    additionalRelevance: (at) => proactiveMessageStillRelevant(db, userId, proactive, at) });
+  if (!result) return null;
+  const delivered = result.proactive, sentMessageId = result.messageId;
+  conversation = result.conversation;
   if (delivered?.life_event_id && sentMessageId && conversation?.id) {
     const { data: event } = await db.from('together_life_events').select('*').eq('id', delivered.life_event_id).eq('user_id', userId).maybeSingle();
     if (event && shouldOfferAutomaticPhoto(event)) {
@@ -306,7 +308,7 @@ async function deliverMessage(db: SupabaseClient, userId: string, instance: Even
     proactive.context?.mentionsUser === true,
   );
   if (delivered && prefs.push_enabled && pushAllowed) await sendCompanionPush(db,{userId,characterName:String((instance.together_character_templates as EventRow | undefined)?.name ?? 'Kivelle'),proactive:delivered});
-  return delivered ?? proactive;
+  return delivered;
 }
 
 async function proactiveMessageStillRelevant(db:SupabaseClient,userId:string,proactive:EventRow,now:Date):Promise<boolean>{
@@ -395,12 +397,6 @@ function shouldInitiateEventMessage(event: EventRow, stage: string, hoursSinceCo
   return event.proactive_message_appropriate && Number(event.significance) >= .55 && stableHash(`${seed}:proactive:${event.id}`) % 100 < threshold;
 }
 
-function composeProactiveMessage(input: { eventTitle?: string; eventSummary?: string; threadSubject?: string; memory?: string }): string {
-  if (input.threadSubject) return `Hey—how did your ${input.threadSubject} go? You mentioned it was important.`;
-  if (input.memory) return `Something today reminded me of ${memoryCallback(input.memory)}. Not a dramatic story—just a nice little callback.`;
-  return input.eventSummary?.trim() || 'Something happened in the city today that I think you would appreciate.';
-}
-
 function isQuietHours(now: Date, start: string, end: string, timezone: string): boolean {
   const minute = localMinute(now, timezone), startMinute = parseMinute(start), endMinute = parseMinute(end);
   return startMinute > endMinute ? minute >= startMinute || minute < endMinute : minute >= startMinute && minute < endMinute;
@@ -414,7 +410,6 @@ function nextDeliveryTime(now: Date, start: string, end: string, timezone: strin
 
 function parseMinute(value: string): number { const [hour = '0', minute = '0'] = value.split(':'); return Number(hour) * 60 + Number(minute); }
 function localMinute(now: Date, timezone: string): number { try { const parts = new Intl.DateTimeFormat('en-US', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now); return Number(parts.find((part) => part.type === 'hour')?.value ?? 0) * 60 + Number(parts.find((part) => part.type === 'minute')?.value ?? 0); } catch { return now.getUTCHours() * 60 + now.getUTCMinutes(); } }
-function memoryCallback(memory: string): string { return memory.replace(/^User's\s+/i, 'your ').replace(/^User\s+(?:likes|dislikes|feels|has|is)\s+/i, '').replace(/[.!]$/, '').slice(0, 80); }
 function stableHash(value: string): number { let hash = 2166136261; for (const char of value) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); } return hash >>> 0; }
 
 async function unlockEligibleDateSessions(db: SupabaseClient, userId: string, instance: EventRow, relationship: EventRow, now: Date): Promise<void> {

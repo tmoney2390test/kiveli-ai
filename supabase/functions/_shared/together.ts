@@ -270,7 +270,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
     db.from('together_life_events').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).order('starts_at', { ascending: false }).limit(20),
     db.from('together_shared_plans').select('*,together_plan_attendance(*),together_plan_participant_responses(*)').eq('user_id',userId).eq('continuity_id',continuity.id).order('starts_at',{ascending:false,nullsFirst:false}).limit(200),
     db.from('together_conversation_events').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).order('created_at',{ascending:true}).limit(200),
-    db.from('together_proactive_messages').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).in('status', ['queued','sent']).lte('eligible_at', new Date().toISOString()).order('eligible_at', { ascending: false }).limit(10),
+    db.from('together_proactive_messages').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).eq('status', 'sent').lte('eligible_at', new Date().toISOString()).order('eligible_at', { ascending: false }).limit(10),
     db.from('together_entitlements').select('*').eq('user_id', userId).maybeSingle(),
     db.from('together_notification_preferences').select('*').eq('user_id', userId).maybeSingle(),
     db.from('together_story_arc_instances').select('*,together_story_arc_templates(slug,title,priority,chapters,world_scope,specific_world_id)').eq('user_id', userId).eq('continuity_id',continuity.id).in('status', ['active','paused']).order('updated_at', { ascending: false }),
