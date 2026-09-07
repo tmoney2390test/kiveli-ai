@@ -35,6 +35,16 @@ export function shouldAttemptPaidImageQualityRetry(input:{provider:string;venice
   return input.provider.toLowerCase()!=='venice'||input.veniceRetryEnabled;
 }
 
+const PROVIDER_SAFETY_CORRECTION_REASONS=new Set(['sexual_content','adult_safety_violation','ambiguous_age']);
+
+export function shouldCorrectUnexpectedSfwProviderSafetyFailure(input:{providerSafetyReviewRequired:boolean;adultAuthorized:boolean;verdict:MediaQualityVerdict;retryCount:number}):boolean{
+  return input.providerSafetyReviewRequired&&
+    !input.adultAuthorized&&
+    input.retryCount<1&&
+    input.verdict.status==='fail'&&
+    input.verdict.reasonCodes.some((reason)=>PROVIDER_SAFETY_CORRECTION_REASONS.has(reason));
+}
+
 export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<string,any>,media:Record<string,any>,result:ProviderCompletedMedia):Promise<MediaQualityGateResult>{
   const metadata=(media.metadata??{}) as Record<string,unknown>;
   const economicallyAuthorized=metadata.source==='user_request'||typeof metadata.mediaOfferId==='string';
@@ -64,8 +74,7 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     const captureLighting=canonical?mediaCaptureLightingForRequest(canonical):null;
     try{assessment=await assessImage(client,prepared.url,faceRequired,nudityScope,specificAnatomyExposure,requestText,requestedDirection?.source==='requested'?requestedDirection:null,subjects??[],canonical?.context.worldContainment,canonical?.referenceImages??[],captureLighting?.qualityInstruction,adultAuthorized,anonymousAdultPartner);}finally{if(prepared.temporary)await db.storage.from('together-user-media').remove([prepared.temporary]);}
   }
-  if((providerBlurred||providerSafetyReviewRequired)&&(assessment.verdict.status==='unavailable'||assessment.verdict.reasonCodes.some(reason=>['sexual_content','adult_safety_violation','adult_safety_unverified','ambiguous_age'].includes(reason))))return{action:'reject',reasonCodes:assessment.verdict.status==='unavailable'?['provider_safety_unverified']:assessment.verdict.reasonCodes};
-  if(!providerSafetyReviewRequired&&shouldDeliverSfwWhenQualityReviewIsUnavailable({adultAuthorized,verdict:assessment.verdict})){
+  if(!providerSafetyReviewRequired&&!providerBlurred&&shouldDeliverSfwWhenQualityReviewIsUnavailable({adultAuthorized,verdict:assessment.verdict})){
     const qualityMetadata=assessmentMetadata(assessment),providerMetadata={...((job.provider_metadata??{}) as Record<string,unknown>),...qualityMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:['quality_review_unavailable']};
     await db.from('together_media_provider_jobs').update({provider_metadata:providerMetadata,updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_unavailable_sfw_delivered',{mediaId:media.id,qaErrorCode:assessment.errorCode,qaTimedOut:assessment.timedOut});
@@ -74,6 +83,13 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   const verdict=enforceMediaQualityRequirements(assessment.verdict,{requiresVisibleSpecificAnatomy:specificAnatomyExposure==='uncovered'&&(nudityScope==='specific_anatomy'||nudityScope==='full_nude'||nudityScope==='bottomless'||visibleAdultAnatomyTargetLabels(requestText).some((label)=>/genital|vulva|penis/i.test(label))),requiresWorldVerification:Boolean(canonical?.context.worldContainment)&&envEnabled('KIVELLE_MEDIA_WORLD_QA_REQUIRED',true),requiresAdultSafetyVerification:customAdultSafety}),qualityMetadata=assessmentMetadata({...assessment,verdict}),providerMetadata={...((job.provider_metadata??{}) as Record<string,unknown>),...qualityMetadata};
   await db.from('together_media_provider_jobs').update({provider_metadata:providerMetadata,updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
   await track(db,String(media.user_id),'media_quality_checked',compactRecord({mediaId:media.id,verdict:verdict.status,retryCount:Number(providerMetadata.qualityRetryCount??0),qaProviderRequestId:assessment.providerRequestId,qaProviderModel:assessment.providerModel,qaProviderStatus:assessment.providerStatus,qaErrorCode:assessment.errorCode,qaTimedOut:assessment.timedOut,qaInferenceMs:assessment.inferenceMs}));
+  if((providerBlurred||providerSafetyReviewRequired)&&assessment.verdict.status==='unavailable')return{action:'reject',reasonCodes:['provider_safety_unverified']};
+  const retryCount=Number(providerMetadata.qualityRetryCount??0);
+  const providerSafetyReasonCodes=verdict.reasonCodes.filter((reason)=>PROVIDER_SAFETY_CORRECTION_REASONS.has(reason));
+  const providerSafetyCorrectionRequired=shouldCorrectUnexpectedSfwProviderSafetyFailure({providerSafetyReviewRequired,adultAuthorized,verdict,retryCount});
+  if((providerBlurred||providerSafetyReviewRequired)&&verdict.reasonCodes.includes('adult_safety_unverified'))return{action:'reject',reasonCodes:verdict.reasonCodes};
+  if(providerBlurred&&providerSafetyReasonCodes.length>0)return{action:'reject',reasonCodes:verdict.reasonCodes};
+  if(providerSafetyReviewRequired&&providerSafetyReasonCodes.length>0&&retryCount>=1)return{action:'reject',reasonCodes:verdict.reasonCodes};
   if(verdict.status!=='fail')return{action:'accept',result};
 
   // Immediate fail-closed rejection of age/safety codes is custom-only.
@@ -81,17 +97,17 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   const blockingReasons=blockingQualityReasonsForAgePolicy(verdict.reasonCodes,customAgeCheck);
   if(isCustomCharacterTerminalQualityFailure(verdict.reasonCodes,customAgeCheck))return{action:'reject',reasonCodes:verdict.reasonCodes};
   if(adultAuthorized&&hasTerminalAdultOutputSafetyFailure(verdict.reasonCodes))return{action:'reject',reasonCodes:verdict.reasonCodes};
-  if(shouldDeliverAestheticQualityWarnings(verdict)){
+  if(!providerSafetyCorrectionRequired&&shouldDeliverAestheticQualityWarnings(verdict)){
     await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_aesthetic_warnings_delivered',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
     return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
   }
-  if(shouldDeliverOfficialAdultImageWithWarnings({verdict,adultAuthorized,customCharacter:customAgeCheck})){
+  if(!providerSafetyCorrectionRequired&&shouldDeliverOfficialAdultImageWithWarnings({verdict,adultAuthorized,customCharacter:customAgeCheck})){
     await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_official_adult_delivered_with_warnings',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
     return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
   }
-  if(!customAgeCheck&&blockingReasons.length===0){
+  if(!providerSafetyCorrectionRequired&&!customAgeCheck&&blockingReasons.length===0){
     await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_official_age_warning_accepted',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
     return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
@@ -101,13 +117,12 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   // than converted into a provider bill plus a failed user request. Identity,
   // anatomy, extra-person, photorealism, and safety defects are not warnings
   // and continue into the single bounded retry/rejection path below.
-  if(shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:blockingReasons},adultAuthorized})){
+  if(!providerSafetyCorrectionRequired&&shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:blockingReasons},adultAuthorized})){
     await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_first_candidate_delivered_with_warnings',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
     return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
   }
 
-  const retryCount=Number(providerMetadata.qualityRetryCount??0);
   if(retryCount>=1){
     // After the provider has already produced a second candidate, do not turn
     // harmless composition drift into a permanently failed user request. The
@@ -129,10 +144,11 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
 
   // Venice charges for every generated candidate. Do not double the provider
   // cost of an ordinary photo merely because the first candidate missed a
-  // quality requirement. The user-facing charge is released by the normal
-  // terminal-failure path, and operators can explicitly opt back into a paid
-  // second candidate if provider economics change.
-  if(!shouldAttemptPaidImageQualityRetry({provider:String(job.provider??''),veniceRetryEnabled:envEnabled('KIVELLE_VENICE_QUALITY_RETRY_ENABLED',false)}))return{action:'reject',reasonCodes:blockingReasons};
+  // quality requirement. The narrow exception is an unblurred SFW candidate
+  // that Kivelle independently classified as unsafe: correct that candidate
+  // once with the same configured route instead of failing a harmless request.
+  // Reviewer uncertainty still fails closed above without buying a retry.
+  if(!providerSafetyCorrectionRequired&&!shouldAttemptPaidImageQualityRetry({provider:String(job.provider??''),veniceRetryEnabled:envEnabled('KIVELLE_VENICE_QUALITY_RETRY_ENABLED',false)}))return{action:'reject',reasonCodes:blockingReasons};
 
   const now=new Date().toISOString();
   const{data:claimed}=await db.from('together_media_provider_jobs').update({status:'submitting',provider_metadata:{...providerMetadata,qualityRetryPreparing:true,qualityVerdict:'fail',qualityReasonCodes:verdict.reasonCodes},updated_at:now}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id)).select('*').maybeSingle();

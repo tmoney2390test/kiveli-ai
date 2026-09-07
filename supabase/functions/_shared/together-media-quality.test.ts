@@ -70,7 +70,7 @@ Deno.test('aesthetic delivery does not accept mixed safety or unknown failures',
 Deno.test('composition and anatomy defects remain observable without suppressing delivery',()=>{
   if(!shouldDeliverAestheticQualityWarnings({status:'fail',reasonCodes:['face_distortion','malformed_hands','embedded_reference','subject_count_mismatch','identity_swap']}))throw new Error('known visual defects are warnings under the delivery policy');
 });
-import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverFinalSfwQualityCandidateWithWarnings, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, hasTerminalAdultOutputSafetyFailure, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, shouldAttemptPaidImageQualityRetry, shouldDeliverFirstImageQualityCandidateWithWarnings, shouldDeliverOfficialAdultImageWithWarnings, shouldDeliverSfwWhenQualityReviewIsUnavailable, shouldRevalidateCompletedQualityRetry, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
+import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverFinalSfwQualityCandidateWithWarnings, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, hasTerminalAdultOutputSafetyFailure, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, shouldAttemptPaidImageQualityRetry, shouldCorrectUnexpectedSfwProviderSafetyFailure, shouldDeliverFirstImageQualityCandidateWithWarnings, shouldDeliverOfficialAdultImageWithWarnings, shouldDeliverSfwWhenQualityReviewIsUnavailable, shouldRevalidateCompletedQualityRetry, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
 
 Deno.test('solo adult quality checks do not confuse explicit posing with non-consent',()=>{
   const rule=authorizedAdultImageSafetyRule([{companion:{name:'Elena Petrova',age:27,custom:false}}]);
@@ -165,6 +165,15 @@ Deno.test('Venice does not buy a second quality candidate by default',()=>{
   if(shouldAttemptPaidImageQualityRetry({provider:'venice',veniceRetryEnabled:false}))throw new Error('a Venice quality failure must not spend on a second image by default');
   if(!shouldAttemptPaidImageQualityRetry({provider:'venice',veniceRetryEnabled:true}))throw new Error('the server override should permit a deliberate Venice quality retry');
   if(!shouldAttemptPaidImageQualityRetry({provider:'wavespeed',veniceRetryEnabled:false}))throw new Error('the Venice cost control must not change other providers');
+});
+
+Deno.test('an unexpected SFW safety result receives one bounded same-model correction',()=>{
+  if(!shouldCorrectUnexpectedSfwProviderSafetyFailure({providerSafetyReviewRequired:true,adultAuthorized:false,verdict:{status:'fail',reasonCodes:['sexual_content']},retryCount:0}))throw new Error('the first unintended SFW safety failure should be corrected');
+  if(shouldCorrectUnexpectedSfwProviderSafetyFailure({providerSafetyReviewRequired:true,adultAuthorized:false,verdict:{status:'fail',reasonCodes:['sexual_content']},retryCount:1}))throw new Error('the correction must never loop');
+  if(shouldCorrectUnexpectedSfwProviderSafetyFailure({providerSafetyReviewRequired:true,adultAuthorized:true,verdict:{status:'fail',reasonCodes:['sexual_content']},retryCount:0}))throw new Error('adult output must retain its existing policy path');
+  if(shouldCorrectUnexpectedSfwProviderSafetyFailure({providerSafetyReviewRequired:false,adultAuthorized:false,verdict:{status:'fail',reasonCodes:['sexual_content']},retryCount:0}))throw new Error('ordinary quality review must retain the Venice cost control');
+  if(shouldCorrectUnexpectedSfwProviderSafetyFailure({providerSafetyReviewRequired:true,adultAuthorized:false,verdict:{status:'unavailable',reasonCodes:[]},retryCount:0}))throw new Error('reviewer uncertainty must fail closed without purchasing another image');
+  if(shouldCorrectUnexpectedSfwProviderSafetyFailure({providerSafetyReviewRequired:true,adultAuthorized:false,verdict:{status:'fail',reasonCodes:['identity_mismatch']},retryCount:0}))throw new Error('ordinary quality drift must not purchase another Venice image');
 });
 
 Deno.test('the SFW quality switch does not bypass custom adult output-safety review',()=>{
