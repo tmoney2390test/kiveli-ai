@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { ChevronDown } from 'lucide-react-native';
 import { colors, radius } from '../theme';
@@ -8,12 +9,17 @@ type Props={value:string;onChange:(value:string)=>void;disabled?:boolean;hasErro
 export function BirthdateField({value,onChange,disabled=false,hasError=false}:Props){
   const date=birthdateDate(value);
   const parts=date?[date.toLocaleDateString(undefined,{month:'long'}),String(date.getDate()),String(date.getFullYear())]:['Month','Day','Year'];
+  const openPicker=(event:MouseEvent<HTMLInputElement>)=>{
+    if(disabled)return;
+    try{event.currentTarget.showPicker?.();}catch{/* The native input click remains the browser fallback. */}
+  };
   return <View style={[styles.shell,hasError&&styles.error,disabled&&styles.disabled]}>
     <input
       aria-label="Birthdate"
       disabled={disabled}
       max={latestAdultBirthdate()}
       min={earliestAdultBirthdate()}
+      onClick={openPicker}
       onChange={(event)=>onChange(event.currentTarget.value)}
       type="date"
       value={value}
@@ -25,7 +31,7 @@ export function BirthdateField({value,onChange,disabled=false,hasError=false}:Pr
 
 const inputStyle={
   position:'absolute' as const,inset:0,width:'100%',height:'100%',boxSizing:'border-box' as const,border:0,outline:'none',
-  padding:0,background:'transparent',color:'transparent',opacity:0,colorScheme:'dark' as const,
+  zIndex:2,padding:0,background:'transparent',color:'transparent',opacity:.01,colorScheme:'dark' as const,
 };
 
 const styles=StyleSheet.create({
