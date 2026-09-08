@@ -22,6 +22,10 @@ export function shouldHoldPrivateWebRouteForHydration(input: {
   return input.platform === 'web' && !input.hydrated && !isPublicAppPath(input.pathname);
 }
 
+export function isAuthenticatedAccountSwap(previousUserId: string | null, nextUserId: string | null) {
+  return Boolean(previousUserId && nextUserId && previousUserId !== nextUserId);
+}
+
 export function isLifeSetupPath(pathname: string) {
   const normalized = normalizePathname(pathname);
   return ONBOARDING_PATHS.has(normalized) || normalized === '/create/companion';

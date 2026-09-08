@@ -5,10 +5,12 @@ import { compileCharacterVoiceCard, normalizeCharacterDepthBible } from '../../.
 import { conversationStyleGuidance, resolveConversationStyle } from '../../../packages/together-domain/src/conversation-style.ts';
 import { waitUntil } from './background.ts';
 import { chatLanguagePromptInstruction, normalizeChatLanguage } from '../../../packages/together-domain/src/chat-language.ts';
+import { renderPersonaPromptBlock } from './kivelle-persona.ts';
 
 type Row = Record<string, any>;
 type InitiativeInput = {
   db: SupabaseClient; userId: string; instance: Row; conversation: Row | null; relationship: Row;
+  persona: unknown;
   draft: string; reason: string; sourceSummary?: string; sourceAt?: string; sourceMessageId?: string;
   allowFallback?: boolean; timezone?: string; subscriptionTier: string; now: Date;
 };
@@ -76,7 +78,7 @@ export async function renderCharacterInitiative(input: InitiativeInput): Promise
 
 export function proactiveVoicePrompt(input: {
   instance: Row; relationship: Row; draft: string; reason: string; sourceSummary?: string; recent: Row[]; chatLanguage?: unknown;
-  conversation?: Row | null; now?: Date; timezone?: string; sourceAt?: string; sourceMessage?: Row | null; recentInitiatives?: string[];
+  persona?: unknown; conversation?: Row | null; now?: Date; timezone?: string; sourceAt?: string; sourceMessage?: Row | null; recentInitiatives?: string[];
 }): string {
   const template = input.instance.together_character_templates ?? {}, version = input.instance.together_character_versions ?? {};
   const bible = version.character_bible ?? {}, depth = normalizeCharacterDepthBible(bible, version);
@@ -103,6 +105,9 @@ Selected character voice: ${JSON.stringify(voiceCard)}
 Psychology: ${JSON.stringify(depth.psychology)}
 Current concerns and ambitions: ${JSON.stringify({ concerns: depth.concerns.slice(0, 3), ambitions: depth.ambitions.slice(0, 3) })}
 Communication style: ${JSON.stringify(version.communication_style ?? {})}
+
+CANONICAL USER IDENTITY — PRIVATE TO THIS KIVELLE LIFE
+${renderPersonaPromptBlock(input.persona)}
 
 DELIVERY TIME
 Now: ${now.toISOString()}; local time: ${now.toLocaleString('en-US', { timeZone: timezone })} (${timezone}).

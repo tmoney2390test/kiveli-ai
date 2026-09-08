@@ -9,7 +9,7 @@ const yesterday = '2026-09-06T18:00:00Z';
 // In-memory PostgREST fixture: execute filters/conditional writes against shared rows,
 // so recovery and competing workers exercise the real delivery function.
 function fixture() {
-  const proactive: Row = { id: 'initiative', user_id: 'user', character_instance_id: 'character', conversation_id: 'conversation',
+  const proactive: Row = { id: 'initiative', user_id: 'user', continuity_id: 'continuity', character_instance_id: 'character', conversation_id: 'conversation',
     open_thread_id: 'thread', dedupe_key: 'thread:thread', content: 'Old queued draft.', reason: 'An unresolved topic from the user',
     status: 'queued', created_at: '2026-09-06T23:30:00Z', updated_at: '2026-09-06T23:30:00Z',
     context: { lastMessageAt: yesterday, messageKind: 'initiative' } };
@@ -29,6 +29,11 @@ function fixture() {
       together_character_templates: { name: 'Evelyn', occupation: 'Bookseller' },
       together_character_versions: { character_bible: { voice: { cadence: 'Dry and spare.' } } } }],
     together_relationship_states: [{ character_instance_id: 'character', user_id: 'user', trust: 40, familiarity: 35, comfort: 30 }],
+    together_continuities: [{ id: 'continuity', user_id: 'user', persona_id: 'persona', together_user_personas: {
+      id: 'persona', user_id: 'user', name: 'Tim', display_name: 'Tim', pronouns: 'he/him', age: 35,
+      occupation: 'Designer', biography: 'Builds intricate worlds.', interests: ['fiction'], communication_config: {},
+      appearance_config: {}, metadata: {}, is_default: true, updated_at: '2026-09-01T00:00:00Z',
+    } }],
     together_entitlements: [{ user_id: 'user', tier: 'premium', expires_at: null }],
     together_shared_plans: [], together_life_events: [], together_character_schedule_events: [],
   };
@@ -115,6 +120,8 @@ Deno.test('next-day generation uses current time and original disclosure, then r
     assert(delivered);
     assert(calls.prompt.includes('2026-09-07T12:00:00.000Z'));
     assert(calls.prompt.includes('nervous about meeting the director'));
+    assert(calls.prompt.includes('Name: Tim'));
+    assert(calls.prompt.includes('Occupation: Designer'));
     assertEquals(delivered.proactive.content, 'How did the museum interview go? You sounded nervous last night.');
     assertEquals(f.tables.together_open_threads![0]!.followup_count, 1);
     assertEquals(f.tables.together_open_threads![0]!.follow_up_eligible, true); // An answer may still resolve the thread.

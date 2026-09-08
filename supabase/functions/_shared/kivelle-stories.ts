@@ -63,9 +63,10 @@ export function campaignStateFromRow(row: Row): StoryCampaignState {
   };
 }
 
-export function campaignInsert(definition: StoryDefinition, state: StoryCampaignState, userId: string, storyDefinitionId: string, requestId: string): Row {
+export function campaignInsert(definition: StoryDefinition, state: StoryCampaignState, userId: string, continuityId: string, storyDefinitionId: string, requestId: string): Row {
   return {
     user_id: userId,
+    continuity_id: continuityId,
     story_definition_id: storyDefinitionId,
     story_slug: state.storySlug,
     content_version: definition.version ?? 1,
@@ -176,8 +177,8 @@ export async function persistStoryAction(input: {
   return { campaign: record(payload.campaign), result: payload };
 }
 
-export async function ownedStoryCampaign(db: SupabaseClient, userId: string, campaignId: string): Promise<Row> {
-  const { data, error } = await db.from('together_story_campaigns').select('*').eq('id', campaignId).eq('user_id', userId).maybeSingle();
+export async function ownedStoryCampaign(db: SupabaseClient, userId: string, continuityId: string, campaignId: string): Promise<Row> {
+  const { data, error } = await db.from('together_story_campaigns').select('*').eq('id', campaignId).eq('user_id', userId).eq('continuity_id', continuityId).maybeSingle();
   if (error) throw new AppError('INTERNAL_ERROR', 'The story could not be loaded.', 500, true);
   if (!data) throw new AppError('NOT_FOUND', 'That story campaign is unavailable.', 404);
   return data;
