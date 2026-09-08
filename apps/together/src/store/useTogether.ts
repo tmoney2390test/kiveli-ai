@@ -4,6 +4,7 @@ import type { CharacterInstance, Conversation, ConversationAction, GeneratedMedi
 import{beginPendingDialogue,finishPendingDialogue,type PendingDialogue,type PendingDialogueMap}from'../lib/pendingDialogue';
 import { mergeReconciledMedia } from '../lib/mediaReconciliation';
 import { mergeInboxConversations } from '../lib/messageInbox';
+import { currentDailyMessageAllowance } from '../lib/dailyMessageAllowance';
 
 type State={
   snapshot:Snapshot|null;
@@ -25,6 +26,8 @@ type State={
   upsertConversationAction:(action:ConversationAction)=>void;
   removeConversationAction:(actionId:string)=>void;
   upsertSceneSession:(scene:SceneSession)=>void;
+  consumeDailyMessageAllowance:()=>void;
+  exhaustDailyMessageAllowance:()=>void;
   applyServerDelta:(delta:SnapshotDelta)=>void;
   setBrowsedWorldId:(worldId:string|null)=>void;
   beginPendingDialogue:(pending:PendingDialogue)=>void;
@@ -57,6 +60,16 @@ export const useTogether=create<State>((set)=>{
     upsertConversationAction:(action)=>patchSnapshot((snapshot)=>({...snapshot,conversationActions:upsert(snapshot.conversationActions??[],action)})),
     removeConversationAction:(actionId)=>patchSnapshot((snapshot)=>({...snapshot,conversationActions:(snapshot.conversationActions??[]).filter((item)=>item.id!==actionId)})),
     upsertSceneSession:(scene)=>patchSnapshot((snapshot)=>({...snapshot,sceneSessions:upsert(snapshot.sceneSessions??[],scene)})),
+    consumeDailyMessageAllowance:()=>patchSnapshot((snapshot)=>{
+      const allowance=currentDailyMessageAllowance(snapshot.dailyMessageAllowance);
+      if(!allowance||allowance.limit===null||allowance.remaining===null)return snapshot;
+      return{...snapshot,dailyMessageAllowance:{...allowance,used:Math.min(allowance.limit,(allowance.used??0)+1),remaining:Math.max(0,allowance.remaining-1)}};
+    }),
+    exhaustDailyMessageAllowance:()=>patchSnapshot((snapshot)=>{
+      const allowance=snapshot.dailyMessageAllowance;
+      if(!allowance||allowance.limit===null)return snapshot;
+      return{...snapshot,dailyMessageAllowance:{...allowance,used:allowance.limit,remaining:0}};
+    }),
     applyServerDelta:(delta)=>patchSnapshot((snapshot)=>{
       const scope=<T extends{character_instance_id:string}>(current:T[]|undefined,next:T[]|undefined)=>next?[...(current??[]).filter((item)=>item.character_instance_id!==delta.characterInstanceId),...next]:current;
       return {...snapshot,

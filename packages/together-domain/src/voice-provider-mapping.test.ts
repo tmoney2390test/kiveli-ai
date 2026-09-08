@@ -22,4 +22,16 @@ describe('xAI voice mapping', () => {
     expect(resolveXaiVoiceId(retired)).toBe(resolveXaiVoiceId(retired));
     expect(isBuiltInXaiVoice(resolveXaiVoiceId(retired))).toBe(true);
   });
+
+  it('keeps default built-in voices aligned with authored character gender',()=>{
+    const maerra=voice({voiceKey:'vharadren-queen-maerra-vaelorian',characteristics:{gender:'woman',warmth:.58,energy:.62},providerMappings:{xai:'sal'}});
+    const lucien=voice({voiceKey:'vharadren-prince-lucien-vaelorian',characteristics:{gender:'man',warmth:.58,energy:.62},providerMappings:{xai:'eve'}});
+    expect(['eve','ara']).toContain(resolveXaiVoiceId(maerra));
+    expect(['leo','rex']).toContain(resolveXaiVoiceId(lucien));
+  });
+
+  it('preserves custom provider voices while giving neutral characters the neutral default',()=>{
+    expect(resolveXaiVoiceId(voice({characteristics:{gender:'woman'},providerMappings:{xai:'custom-voice-42'}}))).toBe('custom-voice-42');
+    expect(resolveXaiVoiceId(voice({characteristics:{pronouns:'they/them'},providerMappings:{xai:'eve'}}))).toBe('sal');
+  });
 });

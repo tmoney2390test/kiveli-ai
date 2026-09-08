@@ -74,6 +74,8 @@ import { hidePlanInteractionTray, isPlanInteractionTrayHidden, shouldShowPlanInt
 import { CHAT_PRESENCE_FALLBACK_REFRESH_MS, nextChatPresenceTickDelay } from '../src/lib/chatPresence';
 import { uploadPreparedChatPhoto } from '../src/lib/chatPhotoStorageUpload';
 import { chatErrorPresentation } from '../src/lib/chatErrorPresentation';
+import { DailyMessageAllowanceNotice } from '../src/components/DailyMessageAllowanceNotice';
+import { isDailyMessageAllowanceExhausted } from '../src/lib/dailyMessageAllowance';
 
 type Feedback = { kind: 'memory'|'moment'|'plan'; title: string; body: string; id?: string };
 type PendingImage={uri:string;mimeType:'image/jpeg';byteSize:number;width:number;height:number;fileName:string;temporary:true;requestId:string};
@@ -110,7 +112,7 @@ function ChatSession() {
   const { width } = useWindowDimensions();
   const showLeft = width >= 1080;
   const showRight = width >= 920;
-  const { snapshot, refresh, setSnapshot, setCoreState, updateCompanion, upsertConversation, upsertPlan, upsertMedia, removeMedia, upsertSceneSession, upsertConversationAction, removeConversationAction, applyServerDelta, pendingDialogues, beginPendingDialogue, finishPendingDialogue } = useTogether();
+  const { snapshot, refresh, setSnapshot, setCoreState, updateCompanion, upsertConversation, upsertPlan, upsertMedia, removeMedia, upsertSceneSession, upsertConversationAction, removeConversationAction, applyServerDelta, pendingDialogues, beginPendingDialogue, finishPendingDialogue, consumeDailyMessageAllowance, exhaustDailyMessageAllowance } = useTogether();
   const{session}=useAuth(),{online,phase:connectionPhase}=useNetworkStatus();
   const {character,conversation}=resolveChatRoute(snapshot,params);
   const activeSharedPlan=snapshot&&character?activePlanForChat(snapshot.sharedPlans??[],character.id):null;
@@ -119,6 +121,7 @@ function ChatSession() {
   const subscriptionReturnTo=characterHandle?`/chat?character=${encodeURIComponent(characterHandle)}`:'/chat';
   const creditsSubscriptionHref=subscriptionHref({intent:'credits',returnTo:subscriptionReturnTo});
   const photoSharingSubscriptionHref=subscriptionHref({intent:'photo_sharing',returnTo:`${subscriptionReturnTo}${subscriptionReturnTo.includes('?')?'&':'?'}sharePhoto=1`});
+  const dailyMessageExhausted=isDailyMessageAllowanceExhausted(snapshot?.dailyMessageAllowance);
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeVoiceNoteId,setActiveVoiceNoteId]=useState<string|null>(null);
   const [voiceNotePrompt,setVoiceNotePrompt]=useState<VoiceNotePrompt|null>(null);
@@ -883,6 +886,7 @@ function ChatSession() {
     const draft = retryMessageId&&retryText==='[Photo]'&&pendingImage ? '' : retryText ?? input;
     if (draft.length > MESSAGE_CHARACTER_LIMIT) { setError(messageCharacterLimitError()); return; }
     const text = draft.trim(); if ((!text&&!pendingImage) || replyPending || sendInFlightRef.current) return;
+    if(!retryMessageId&&dailyMessageExhausted){setError('You’ve used today’s free messages.');return;}
     if(connectionPhase!=='online')setShowSendConnectionNotice(true);
     if(!online){setError('You’re offline. Your draft is saved and ready when you reconnect.');return;}
     const contextAuthorization=await contextPricing.authorize({conversationId:conversation.id,characterInstanceId:character.id,message:text,focusPlanId:focusPlanId??undefined,...(messageAction?{messageAction:messageAction.messageAction,anchorMessageId:messageAction.anchorMessageId}:{})});
@@ -965,18 +969,19 @@ function ChatSession() {
         catch(caught){if(!result.mediaOffer&&!isTransientMediaFetchFailure(caught))setError('The photo confirmation could not be loaded. Please try again.');}
       }
       if(result.delta)applyServerDelta(result.delta);
+      if(!retryMessageId)consumeDailyMessageAllowance();
       if(!preserveComposer&&!currentInput.current.trim())await clearStoredDraft();
       showNewStoryFeedback(before, useTogether.getState().snapshot, character.id, character.together_character_templates.name, setFeedback);
     } catch (caught) {
       if(activeSendRequest.current!==clientRequestId||primaryComplete)return;
       const recovered=dialogueFailureMayHavePersisted(caught)?await recoverInterruptedDialogue(conversation.id,character.id,optimistic,clientRequestId,expectsPhotoOffer):false;
-      if(recovered){cleanupNormalizedImage(selectedImage?.uri);setPendingImage(null);setPhotoUploadPhase('idle');setStream('');setError('');await clearStoredDraft();return;}
+      if(recovered){if(!retryMessageId)consumeDailyMessageAllowance();cleanupNormalizedImage(selectedImage?.uri);setPendingImage(null);setPhotoUploadPhase('idle');setStream('');setError('');await clearStoredDraft();return;}
       if(preparedAttachmentId)void removePendingAttachment(preparedAttachmentId).catch(()=>undefined);
       if(selectedImage)setPhotoUploadPhase('failed');
       setStream(''); setError(caught instanceof Error ? caught.message : 'The reply was interrupted.');
       if(!messageAction&&!preserveComposer){setInput(draft);currentInput.current=draft;}
       if(caught instanceof ApiError&&caught.code==='CONVERSATION_ARCHIVED')await refresh();
-      if(caught instanceof ApiError&&caught.code==='PLAN_LIMIT_REACHED')setShowPhotoPaywall(true);
+      if(caught instanceof ApiError&&caught.code==='PLAN_LIMIT_REACHED'){exhaustDailyMessageAllowance();if(expectsPhotoOffer)setShowPhotoPaywall(true);}
       setMessages((current) => current.map((item) => item.id === optimistic.id ? { ...item, delivery_status: 'failed' } : item));
     } finally {
       finishPendingDialogue(conversation.id,clientRequestId);
@@ -1265,7 +1270,7 @@ function ChatSession() {
         {!activeSharedPlan&&joinableSharedPlan?<PlanJoinBar plan={joinableSharedPlan} locationName={snapshot.locations.find((item)=>item.id===joinableSharedPlan.location_id)?.name} busy={planActionBusyId===joinableSharedPlan.id||planning} onJoin={()=>void startTimelinePlan(joinableSharedPlan)} onDetails={()=>setPlanModal({planId:joinableSharedPlan.id})}/>:null}
         {focusPlanId&&focusPlanId!==activeSharedPlan?.id?<PlanFocusChip plan={(snapshot.sharedPlans??[]).find((item)=>item.id===focusPlanId)} onOpen={(id)=>navigateChatSurface(`/plan/${id}`)} onClose={()=>{setFocusPlanId(null);setFocusDismissed(true);}}/>:null}
         {memorySavedNotice?<MemorySavedToast key={memorySavedNotice.id} name={memorySavedNotice.name} onDismiss={()=>setMemorySavedNotice(null)}/>:null}
-        <ContextPricePreview pricing={contextPricing} onCredits={()=>navigateChatSurface(creditsSubscriptionHref)}/><Composer compact={width<720} desktop={desktopChat} inputRef={composerInput} conversationId={conversation.id} character={character} input={input} onChangeInput={changeComposerInput} onDictation={(text)=>stageManualInput(mergeDictationTranscript(currentInput.current,text))} onDictationError={setError} onDictationStart={()=>setActiveVoiceNoteId(null)} pendingImage={pendingImage} photoUploadPhase={photoUploadPhase} onAddPhoto={()=>void requestSharePhoto('library')} onRemovePhoto={clearPendingImage} sending={replyPending||!conversationReady||contextPricing.blocked} onSend={() => void send()} onPhoto={()=>setShowPhotoRequests((value)=>!value)} autoDialogue={autoDialogue} autoDialogueBusy={autoDialogueBusy} canSuggest={Boolean(conversationReady&&latestAssistantMessage&&!milestone&&!replyPending&&!pendingImage)} onSuggest={()=>void requestAutoDialogue()} onSuggestOptions={openAutoDialogueOptions} onClearSuggestion={clearAutoDialogue} onFocus={onMobileComposerFocus} onLayout={()=>{const requestId=activeBottomPinRequest.current;if(requestId)settleSentMessageAtBottom(requestId);}} />
+        <ContextPricePreview pricing={contextPricing} onCredits={()=>navigateChatSurface(creditsSubscriptionHref)}/><DailyMessageAllowanceNotice allowance={snapshot.dailyMessageAllowance} onUpgrade={()=>navigateChatSurface(subscriptionHref({intent:'plans',returnTo:subscriptionReturnTo}))}/><Composer compact={width<720} desktop={desktopChat} inputRef={composerInput} conversationId={conversation.id} character={character} input={input} onChangeInput={changeComposerInput} onDictation={(text)=>stageManualInput(mergeDictationTranscript(currentInput.current,text))} onDictationError={setError} onDictationStart={()=>setActiveVoiceNoteId(null)} pendingImage={pendingImage} photoUploadPhase={photoUploadPhase} onAddPhoto={()=>void requestSharePhoto('library')} onRemovePhoto={clearPendingImage} sending={replyPending||!conversationReady||contextPricing.blocked||dailyMessageExhausted} onSend={() => void send()} onPhoto={()=>setShowPhotoRequests((value)=>!value)} autoDialogue={autoDialogue} autoDialogueBusy={autoDialogueBusy} canSuggest={Boolean(conversationReady&&latestAssistantMessage&&!milestone&&!replyPending&&!pendingImage)} onSuggest={()=>void requestAutoDialogue()} onSuggestOptions={openAutoDialogueOptions} onClearSuggestion={clearAutoDialogue} onFocus={onMobileComposerFocus} onLayout={()=>{const requestId=activeBottomPinRequest.current;if(requestId)settleSentMessageAtBottom(requestId);}} />
       </View>
       {showRight ? <ContextRail snapshot={snapshot} character={character} context={chatContext} activePlan={activeSharedPlan} onPrompt={stageManualInput} onPlan={openPlanPicker} /> : null}
     </View>

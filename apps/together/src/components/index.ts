@@ -33,4 +33,5 @@ export * from './JumpToLatestButton';
 export * from './MobileChatContextCard';
 export * from './SpiceBadge';
 export * from './ChatTypingIndicator';
+export * from './DailyMessageAllowanceNotice';
 export * from './ConversationMediaGalleryModal';

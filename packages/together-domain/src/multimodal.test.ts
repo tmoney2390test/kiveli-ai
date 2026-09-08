@@ -23,9 +23,10 @@ describe('Kivelle multimodal domain', () => {
   });
 
   it('derives stable provider-neutral voice identity and normalizes speech without changing meaning', () => {
-    const profile = deriveCompanionVoiceProfile({ characterTemplateId: 'maya-id', slug: 'maya', personality: { playful: .8, empathetic: .9 } });
+    const profile = deriveCompanionVoiceProfile({ characterTemplateId: 'maya-id', slug: 'maya', pronouns: 'she/her', personality: { playful: .8, empathetic: .9 } });
     expect(profile.voiceKey).toBe('maya-default');
     expect(profile.characteristics.warmth).toBe(.9);
+    expect(profile.characteristics.pronouns).toBe('she/her');
     expect(normalizeSpeechText('Meet me at 7:00 PM.')).toBe('Meet me at 7 pm.');
   });
 

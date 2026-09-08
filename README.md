@@ -22,7 +22,7 @@ Kivelle.AI is an interactive storytelling and living-world entertainment platfor
 
 The capability catalog lives in `packages/together-domain/src/entitlements.ts` and is consumed server-side. Never gate canonical truth or basic character quality in the client only.
 
-- **Kivelle Free** — $0, up to 5 active conversations and 40 user messages per day, core continuity, 1 Life, 1 custom companion, free worlds, and 50 one-time welcome credits.
+- **Kivelle Free** — $0, up to 5 active conversations and 20 user messages per day, core continuity, 1 Life, 1 custom companion, free worlds, and 50 one-time welcome credits.
 - **Kivelle+** — $19.99/month or $199.99/year, up to 20 active conversations with unlimited messages, deeper retrieval, all published worlds, 3 Lives, 5 custom companions, 500 monthly Credits with rollover to 1,000, one included successful photo per day, and one included Date souvenir photo per month.
 - **Kivelle Max** — $39.99/month or $399.99/year, up to 50 active conversations with unlimited messages, deepest retrieval + Kivelle Director routing, 10 Lives, 20 custom companions, highest-priority media, 1,200 monthly Credits with rollover to 2,400, three included successful photos per day, three included Date souvenir photos per month, and early-access worlds.
 
