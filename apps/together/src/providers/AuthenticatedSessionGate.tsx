@@ -30,13 +30,21 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
     capturedEntryHref,
   });
   const { session }=useAuth();
-  const { snapshot, loading, error, refresh, setSnapshot } = useTogether(useShallow((state) => ({ snapshot: state.snapshot, loading: state.loading, error: state.error, refresh: state.refresh, setSnapshot: state.setSnapshot })));
+  const { snapshot, loading, error, refresh, setSnapshot, clear } = useTogether(useShallow((state) => ({ snapshot: state.snapshot, loading: state.loading, error: state.error, refresh: state.refresh, setSnapshot: state.setSnapshot, clear: state.clear })));
   const recentConversationId = useMemo(() => mostRecentlyUsedConversation((snapshot?.conversations ?? []).filter((conversation) => conversation.kind !== 'group'))?.id, [snapshot?.conversations]);
   const redirectTarget = useRef<string | null>(null);
   const hydrationUserId=useRef<string|null>(null);
   const publicPath = isPublicAppPath(pathname);
   const agePath = isAgeConfirmationPath(pathname);
   const companionOnboardingPath = isCompanionOnboardingPath(pathname);
+  const snapshotOwnerUserId=(snapshot?.profile as {user_id?:string}|null)?.user_id;
+  const snapshotOwnerMismatch=Boolean(session?.user.id&&snapshotOwnerUserId&&snapshotOwnerUserId!==session.user.id);
+
+  useEffect(()=>{
+    if(!snapshotOwnerMismatch)return;
+    hydrationUserId.current=null;
+    clear();
+  },[clear,snapshotOwnerMismatch]);
 
   useEffect(() => {
     if (pathname === '/' || pathname === '/home') router.prefetch('/home' as never);
@@ -49,6 +57,7 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   },[session?.user.id]);
 
   useEffect(()=>{
+    if(snapshotOwnerMismatch)return;
     const avatarPath=snapshot?.profile?.avatar_path;
     if(!avatarPath)return;
     let cancelled=false;
@@ -57,20 +66,20 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
       return undefined;
     });
     return()=>{cancelled=true;};
-  },[snapshot?.profile?.avatar_path]);
+  },[snapshot?.profile?.avatar_path,snapshotOwnerMismatch]);
 
   useEffect(() => {
-    if (Platform.OS !== 'web' || !session?.user.id || !recentConversationId || pathname === '/chat' || pathname === '/group-chat') return;
+    if (snapshotOwnerMismatch || Platform.OS !== 'web' || !session?.user.id || !recentConversationId || pathname === '/chat' || pathname === '/group-chat') return;
     const timer = setTimeout(() => {
       if (document.visibilityState === 'hidden') return;
       prefetchConversationMessagePage(session.user.id, recentConversationId, () => manageConversation({ action: 'messages', conversationId: recentConversationId, limit: 50 }));
     }, 150);
     return () => clearTimeout(timer);
-  }, [session?.user.id, recentConversationId, pathname]);
+  }, [session?.user.id, recentConversationId, pathname, snapshotOwnerMismatch]);
 
   useEffect(() => {
     const userId=demoMode?'demo':session?.user.id;
-    if(!userId||snapshot||loading||error||hydrationUserId.current===userId)return;
+    if(!userId||(snapshot&&!snapshotOwnerMismatch)||loading||error||hydrationUserId.current===userId)return;
     hydrationUserId.current=userId;
     let cancelled=false;
     void (async()=>{
@@ -80,22 +89,22 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
       await refresh({force:Boolean(cached)});
     })();
     return()=>{cancelled=true;};
-  }, [error,loading,refresh,session?.user.id,setSnapshot,snapshot]);
+  }, [error,loading,refresh,session?.user.id,setSnapshot,snapshot,snapshotOwnerMismatch]);
 
   useEffect(()=>{
     const userId=session?.user.id;
-    if(demoMode||Platform.OS!=='web'||!userId||!snapshot)return;
+    if(demoMode||snapshotOwnerMismatch||Platform.OS!=='web'||!userId||!snapshot)return;
     const timer=setTimeout(()=>{void writeSessionSnapshot(userId,snapshot);},500);
     return()=>clearTimeout(timer);
-  },[session?.user.id,snapshot]);
+  },[session?.user.id,snapshot,snapshotOwnerMismatch]);
 
   useEffect(()=>{
-    if(Platform.OS!=='web'||!snapshot)return;
+    if(snapshotOwnerMismatch||Platform.OS!=='web'||!snapshot)return;
     if(shouldConsumeWebEntry({entryHref:capturedEntryHref,browserPathname:pathname,routerPathname,snapshotReady:Boolean(snapshot)}))consumeWebEntryHref();
-  },[capturedEntryHref,pathname,routerPathname,snapshot]);
+  },[capturedEntryHref,pathname,routerPathname,snapshot,snapshotOwnerMismatch]);
 
   useEffect(() => {
-    if (!snapshot || publicPath) return;
+    if (!snapshot || snapshotOwnerMismatch || publicPath) return;
     const stage = resolveKivelleAccountStage(snapshot.profile);
     const target = stage === 'age_confirmation'
       ? (agePath ? null : '/age-confirmation')
@@ -111,7 +120,11 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
       if (Platform.OS === 'web') consumeWebEntryHref();
       router.replace(target as never);
     }
-  }, [agePath, companionOnboardingPath, publicPath, snapshot]);
+  }, [agePath, companionOnboardingPath, publicPath, snapshot,snapshotOwnerMismatch]);
+
+  if(snapshotOwnerMismatch){
+    return <View style={styles.blocker}><RouteLoadingState pathname={pathname} label="Switching accounts…" /></View>;
+  }
 
   let blocker = null;
   if (!snapshot && !publicPath) {

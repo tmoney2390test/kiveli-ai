@@ -8,6 +8,7 @@ import { buildStoryDialogueAuthorization, evaluateStoryDialogueQuality, parseStr
 import { recordAiUsage } from './kivelle-ai-usage.ts';
 import { acquireProviderSlot, releaseProviderSlot } from './kivelle-provider-concurrency.ts';
 import { openAIDialogueModel } from './together-ai.ts';
+import { renderPersonaPromptBlock } from './kivelle-persona.ts';
 
 type Row = Record<string, unknown>;
 
@@ -30,6 +31,7 @@ export async function generateStoryDialogue(input: {
   userId: string;
   correlationId: string;
   campaignId: string;
+  persona: unknown;
   definition: StoryDefinition;
   before: StoryCampaignState;
   result: StoryActionResult;
@@ -83,6 +85,7 @@ export async function generateStoryDialogue(input: {
     '<KIVELLI_STORY_DIALOGUE>',
     `STORY: ${input.definition.title}`,
     `SPEAKER: ${character.name}`,
+    storyPersonaPromptBlock(input.persona),
     ...(canonicalIdentity ? [
       `CANONICAL KIVELLI IDENTITY: ${canonicalIdentity.occupation || 'Vespormoor resident'}. ${canonicalIdentity.biography}`,
       `ORDINARY LIFE AND INTERESTS: ${canonicalIdentity.interests.join(', ') || 'Use the companion’s established ordinary life.'}`,
@@ -217,6 +220,10 @@ export async function generateStoryDialogue(input: {
   } finally {
     await releaseProviderSlot(scope, lease);
   }
+}
+
+export function storyPersonaPromptBlock(persona:unknown):string{
+  return `CANONICAL USER IDENTITY — PRIVATE TO THIS KIVELLE LIFE\n${renderPersonaPromptBlock(persona)}`;
 }
 
 export function validateStoryDialogue(definition: StoryDefinition, before: StoryCampaignState, result: StoryActionResult, text: string, authorization?: StoryDialogueAuthorization, characterId?: string): { valid: boolean; reason?: string } {

@@ -1,14 +1,15 @@
-import { lazy, Suspense, useEffect, useRef, type PropsWithChildren } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { router, usePathname, useUnstableGlobalHref } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 import { LoadingSkeleton } from '../components/RouteState';
 import { RouteLoadingState } from '../components/RouteLoadingState';
 import { useAuth } from '../hooks/useAuth';
 import { useWebHydrated } from '../hooks/useWebHydrated';
-import { isPublicAppPath, shouldHoldPrivateWebRouteForHydration, shouldKeepAuthTransitionMounted, signInPathFor } from '../lib/sessionRouting';
+import { isAuthenticatedAccountSwap, isPublicAppPath, shouldHoldPrivateWebRouteForHydration, shouldKeepAuthTransitionMounted, signInPathFor } from '../lib/sessionRouting';
 import { consumeWebEntryHref, effectiveWebEntryHref, entryPathname, initialWebEntryHref, shouldRecoverWebEntry } from '../lib/webEntryRoute';
 import { clearSessionSnapshot } from '../lib/sessionSnapshotCache';
 import { clearPrivateClientCaches } from '../lib/privateClientCache';
+import { useTogether } from '../store/useTogether';
 
 const AuthenticatedSessionGate = lazy(() => import('./AuthenticatedSessionGate').then((module) => ({ default: module.AuthenticatedSessionGate })));
 
@@ -24,6 +25,8 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
   const webHydrated = useWebHydrated();
   const redirectTarget = useRef<string | null>(null);
   const previousUserId=useRef<string|null>(null);
+  const sessionResetSequence=useRef(0);
+  const [sessionResetInProgress,setSessionResetInProgress]=useState(false);
   const publicPath = isPublicAppPath(pathname);
   const entryHrefRef=useRef<string|null>(Platform.OS==='web'?initialWebEntryHref():null);
   const entryHref = effectiveWebEntryHref(entryHrefRef.current);
@@ -51,10 +54,10 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
     if (!session) {
       if(previousUserId.current){if(Platform.OS==='web')clearSessionSnapshot(previousUserId.current);void clearPrivateClientCaches();}
       previousUserId.current=null;
+      sessionResetSequence.current+=1;
+      setSessionResetInProgress(false);
       // Avoid loading the authenticated world store into signed-out public pages.
-      void import('../store/useTogether').then(({ useTogether }) => {
-        if (useTogether.getState().snapshot) useTogether.getState().clear();
-      });
+      if (useTogether.getState().snapshot) useTogether.getState().clear();
       if (!publicPath) {
         const target = signInPathFor(href);
         if (redirectTarget.current !== target) {
@@ -64,13 +67,26 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
       }
       return;
     }
-    if(previousUserId.current&&previousUserId.current!==session.user.id)void clearPrivateClientCaches();
+    if(isAuthenticatedAccountSwap(previousUserId.current,session.user.id)){
+      const priorUserId=previousUserId.current!;
+      const resetSequence=++sessionResetSequence.current;
+      setSessionResetInProgress(true);
+      if(Platform.OS==='web')clearSessionSnapshot(priorUserId);
+      useTogether.getState().clear();
+      void clearPrivateClientCaches().finally(()=>{
+        if(sessionResetSequence.current===resetSequence)setSessionResetInProgress(false);
+      });
+    }
     previousUserId.current=session.user.id;
     redirectTarget.current = null;
   }, [authLoading, session?.user.id, publicPath, href]);
 
   if (shouldHoldPrivateWebRouteForHydration({ platform: Platform.OS, hydrated: webHydrated, pathname })) {
     return <View style={styles.hydration}><LoadingSkeleton label="Opening Kivelle…" /></View>;
+  }
+
+  if(session&&(sessionResetInProgress||isAuthenticatedAccountSwap(previousUserId.current,session.user.id))){
+    return <View style={styles.hydration}><RouteLoadingState pathname={pathname} label="Switching accounts…" /></View>;
   }
 
   if (session && shouldKeepAuthTransitionMounted(pathname)) {

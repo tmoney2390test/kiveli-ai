@@ -3,6 +3,7 @@ import { normalizeChatLanguage } from '../../../packages/together-domain/src/cha
 import { normalizeSubscriptionTier } from '../../../packages/together-domain/src/entitlements.ts';
 import { renderCharacterInitiative } from './kivelle-proactive-voice.ts';
 import { loadInitiativeSource, markInitiativeThreadDelivered, userResumedAfterQueue } from './kivelle-proactive-context.ts';
+import { continuityById } from './together-continuity.ts';
 
 type Row = Record<string, any>;
 type DeliveryInput = {
@@ -49,7 +50,7 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
     let message = existing;
     let content = existing?.content ?? '';
     if (!message) {
-      const [source, instanceResult, relationshipResult, entitlementResult, latestUser] = await Promise.all([
+      const [source, instanceResult, relationshipResult, entitlementResult, latestUser, continuity] = await Promise.all([
         loadInitiativeSource(db, userId, proactive, now, input.timezone),
         db.from('together_character_instances')
           .select('*,together_character_templates(name,slug,occupation),together_character_versions(character_bible,communication_style,personality_config,relationship_config)')
@@ -58,35 +59,39 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
           .eq('user_id', userId).maybeSingle(),
         db.from('together_entitlements').select('tier,expires_at').eq('user_id', userId).maybeSingle(),
         latestUserMessage(db, userId, conversation.id),
+        continuityById(db,userId,String(conversation.continuity_id)),
       ]);
       if (instanceResult.error || relationshipResult.error || entitlementResult.error) throw new Error('INITIATIVE_CONTEXT_READ_FAILED');
       const instance = instanceResult.data;
-      if (!source || !instance || !relationshipResult.data ||
+      if (!source || !instance || !relationshipResult.data || !continuity ||
+        String(proactive.continuity_id) !== String(conversation.continuity_id) ||
         String(instance.continuity_id) !== String(conversation.continuity_id) ||
         userResumedAfterQueue(proactive, latestUser) ||
         (input.additionalRelevance && !await input.additionalRelevance(now))) return await cancel('source_no_longer_relevant');
       const entitlement = entitlementResult.data;
       const tier = entitlement?.expires_at && Date.parse(entitlement.expires_at) <= now.getTime()
         ? 'free' : normalizeSubscriptionTier(entitlement?.tier);
-      content = await renderCharacterInitiative({ db, userId, instance, conversation, relationship: relationshipResult.data,
+      content = await renderCharacterInitiative({ db, userId, instance, conversation, relationship: relationshipResult.data, persona:continuity.together_user_personas,
         draft: source.draft, reason: String(proactive.reason ?? 'A grounded update'), sourceSummary: source.summary,
         sourceAt: source.occurredAt, sourceMessageId: source.sourceMessageId, allowFallback: source.allowFallback,
         timezone: input.timezone, subscriptionTier: tier, now });
       if (!content) return await cancel('no_suitable_message');
       // A user can resume or a plan/thread can change while the model is running.
       const commitTime = clock();
-      const [currentSource, currentUser, currentConversation, currentInstance, currentClaim] = await Promise.all([
+      const [currentSource, currentUser, currentConversation, currentInstance, currentClaim, currentContinuity] = await Promise.all([
         loadInitiativeSource(db, userId, proactive, commitTime, input.timezone),
         latestUserMessage(db, userId, conversation.id),
         db.from('together_conversations').select('archived_at,metadata').eq('id', conversation.id).eq('user_id', userId).maybeSingle(),
         db.from('together_character_instances').select('current_activity,current_location_id').eq('id', instance.id).eq('user_id', userId).maybeSingle(),
         db.from('together_proactive_messages').select('id').eq('id', proactive.id).eq('user_id', userId)
           .eq('status', 'queued').eq('context->>generationLeaseToken', leaseToken).maybeSingle(),
+        continuityById(db,userId,String(conversation.continuity_id)),
       ]);
       if (currentConversation.error || currentInstance.error || currentClaim.error) throw new Error('INITIATIVE_REVALIDATION_FAILED');
       if (!currentClaim.data) return null;
       if (!currentSource || JSON.stringify(currentSource) !== JSON.stringify(source) || userResumedAfterQueue(proactive, currentUser) ||
-        !currentConversation.data || currentConversation.data.archived_at ||
+        !currentConversation.data || currentConversation.data.archived_at || !currentContinuity ||
+        JSON.stringify(currentContinuity.together_user_personas) !== JSON.stringify(continuity.together_user_personas) ||
         JSON.stringify(currentConversation.data.metadata?.chatPreferences) !== JSON.stringify(conversation.metadata?.chatPreferences) ||
         currentInstance.data?.current_activity !== instance.current_activity || currentInstance.data?.current_location_id !== instance.current_location_id ||
         commitTime.getTime() >= Date.parse(leaseContext.generationLeaseUntil) ||

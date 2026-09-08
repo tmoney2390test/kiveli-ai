@@ -18,6 +18,7 @@ import {
   storyPresenceTransitionsFromResult,
 } from '../_shared/kivelle-stories.ts';
 import { track } from '../_shared/together.ts';
+import { activeContinuity } from '../_shared/together-continuity.ts';
 import { AppError } from '../_shared/types.ts';
 
 const schema = z.object({
@@ -37,7 +38,8 @@ serve(async (request, correlationId) => {
   await requireStoriesAccess(db, user.id);
   await enforceRateLimit(db, user.id, 'together_story_dialogue', 40, 60);
   const input = await parseBody(request, schema);
-  let campaign = await ownedStoryCampaign(db, user.id, input.campaignId);
+  const continuity=await activeContinuity(db,user.id);
+  let campaign = await ownedStoryCampaign(db, user.id, continuity.id, input.campaignId);
   const definition = storyDefinition(String(campaign.story_slug));
   if (!definition) throw new AppError('NOT_FOUND', 'That story definition is unavailable.', 404);
 
@@ -66,7 +68,7 @@ serve(async (request, correlationId) => {
       transitions: storyPresenceTransitionsFromResult(existingAction?.result),
       focusCharacterId: input.characterId,
     });
-    campaign = await ownedStoryCampaign(db, user.id, input.campaignId);
+    campaign = await ownedStoryCampaign(db, user.id, continuity.id, input.campaignId);
     const view = await storyCampaignView(db, definition, campaign);
     return storyDialogueStream(replayText, view, { replayed: true, evidenceDiscovered: [], deductionsCompleted: [] }, correlationId);
   }
@@ -83,7 +85,7 @@ serve(async (request, correlationId) => {
   const { data: recent, error: recentError } = await db.from('together_story_messages').select('role,character_slug,content,loop_number,story_minute,location_slug').eq('campaign_id', campaign.id).order('created_at', { ascending: false }).limit(12);
   if (recentError) throw new AppError('INTERNAL_ERROR', 'The story transcript could not be loaded.', 500, true);
   const campaignSettings = campaign.settings && typeof campaign.settings === 'object' && !Array.isArray(campaign.settings) ? campaign.settings as Record<string, unknown> : {};
-  const generated = await generateStoryDialogue({ db, userId: user.id, correlationId, campaignId: campaign.id, definition, before, result, characterId: input.characterId, userMessage: input.message, contentMode: campaignSettings.content === 'mature' ? 'mature' : 'standard', ...(input.approachId ? { approachId: input.approachId } : {}), ...(input.evidenceId ? { evidenceId: input.evidenceId } : {}), recentMessages: [...(recent ?? [])].reverse() });
+  const generated = await generateStoryDialogue({ db, userId: user.id, correlationId, campaignId: campaign.id, persona:continuity.together_user_personas, definition, before, result, characterId: input.characterId, userMessage: input.message, contentMode: campaignSettings.content === 'mature' ? 'mature' : 'standard', ...(input.approachId ? { approachId: input.approachId } : {}), ...(input.evidenceId ? { evidenceId: input.evidenceId } : {}), recentMessages: [...(recent ?? [])].reverse() });
   result = applyValidatedStoryReaction(definition, result, input.characterId, generated.structured.proposedReactionId);
   result = applyStoryConversationContinuity({ result, characterId: input.characterId, userMessage: input.message, characterReply: generated.text, intent: generated.authorization.intent, move: generated.plan.move });
   const character = definition.characters.find((item) => item.id === input.characterId)!;
@@ -92,7 +94,7 @@ serve(async (request, correlationId) => {
   const presentIds = [...new Set([...storyCharactersAtLocation(definition, before).map((item) => item.id), ...arrivedIds])].filter((id) => !departedIds.has(id));
   const secondarySelection = selectStorySecondarySpeaker({ definition, state: result.state, primaryCharacterId: input.characterId, presentCharacterIds: presentIds, newlyArrivedCharacterIds: arrivedIds, userMessage: input.message, primaryReply: generated.text, ...(input.evidenceId ? { evidenceId: input.evidenceId } : {}) });
   const secondary = secondarySelection ? await generateStoryDialogue({
-    db, userId: user.id, correlationId, campaignId: campaign.id, definition, before, result,
+    db, userId: user.id, correlationId, campaignId: campaign.id, persona:continuity.together_user_personas, definition, before, result,
     characterId: secondarySelection.characterId, userMessage: input.message,
     contentMode: campaignSettings.content === 'mature' ? 'mature' : 'standard',
     recentMessages: [...(recent ?? [])].reverse(), reactiveOnly: true,

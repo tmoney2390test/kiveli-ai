@@ -1,6 +1,13 @@
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { LAST_NIGHT_IN_VESPORMOOR } from './kivelle-stories-content.ts';
-import { storyActionEventMessageRows, storyPresenceTransitionMessageRows } from './kivelle-stories.ts';
+import { initialStoryCampaign } from '../../../packages/together-domain/src/stories.ts';
+import { campaignInsert, storyActionEventMessageRows, storyPresenceTransitionMessageRows } from './kivelle-stories.ts';
+
+Deno.test('new Story campaigns persist the selected Life boundary',()=>{
+  const row=campaignInsert(LAST_NIGHT_IN_VESPORMOOR,initialStoryCampaign(LAST_NIGHT_IN_VESPORMOOR),'user-id','continuity-id','definition-id','request-id');
+  assertEquals(row.user_id,'user-id');
+  assertEquals(row.continuity_id,'continuity-id');
+});
 
 Deno.test('story presence transcript rows are canonical and idempotently keyed', () => {
   const input = {

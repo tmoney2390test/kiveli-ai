@@ -20,6 +20,7 @@ import {
   storyPresenceTransitionsFromResult,
 } from '../_shared/kivelle-stories.ts';
 import { track } from '../_shared/together.ts';
+import { activeContinuity } from '../_shared/together-continuity.ts';
 import { AppError } from '../_shared/types.ts';
 
 const uuid = z.string().uuid();
@@ -50,13 +51,14 @@ serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
   await requireStoriesAccess(db, user.id);
   await enforceRateLimit(db, user.id, 'together_stories', 180, 60);
+  const continuity=await activeContinuity(db,user.id);
   const input = request.method === 'GET'
     ? { action: 'library' as const }
     : await parseBody(request, schema);
 
   if (input.action === 'library') {
     const [campaigns, discoveries] = await Promise.all([
-      db.from('together_story_campaigns').select('id,story_slug,status,current_loop,evidence_ids,deduction_ids,discovered_ending_ids,completed_ending_id,last_played_at,version').eq('user_id', user.id).order('last_played_at', { ascending: false }),
+      db.from('together_story_campaigns').select('id,story_slug,status,current_loop,evidence_ids,deduction_ids,discovered_ending_ids,completed_ending_id,last_played_at,version').eq('user_id', user.id).eq('continuity_id',continuity.id).order('last_played_at', { ascending: false }),
       db.from('together_story_discoveries').select('story_slug,discovery_type,discovery_key,discovered_at').eq('user_id', user.id),
     ]);
     if (campaigns.error || discoveries.error) throw new AppError('INTERNAL_ERROR', 'The Stories library could not be loaded.', 500, true);
@@ -75,17 +77,17 @@ serve(async (request, correlationId) => {
     const definition = storyDefinition(input.storySlug);
     if (!definition) throw new AppError('ACTION_NOT_AVAILABLE', 'That Kivelli Story is coming soon.', 409);
     await track(db, user.id, 'story_selected', { storySlug: definition.slug });
-    const { data: existing, error: existingError } = await db.from('together_story_campaigns').select('*').eq('user_id', user.id).eq('story_slug', input.storySlug).in('status', ['active','midnight']).maybeSingle();
+    const { data: existing, error: existingError } = await db.from('together_story_campaigns').select('*').eq('user_id', user.id).eq('continuity_id',continuity.id).eq('story_slug', input.storySlug).in('status', ['active','midnight']).maybeSingle();
     if (existingError) throw new AppError('INTERNAL_ERROR', 'The campaign could not be checked.', 500, true);
     if (existing) return json({ data: { campaign: await storyCampaignView(db, definition, existing) }, correlationId }, 200, correlationId);
     const { data: definitionRow, error: definitionError } = await db.from('together_story_definitions').select('id').eq('slug', input.storySlug).eq('status', 'playable').single();
     if (definitionError || !definitionRow) throw new AppError('NOT_FOUND', 'That story definition is unavailable.', 404);
     const state = initialStoryCampaign(definition);
-    const { data: inserted, error } = await db.from('together_story_campaigns').insert(campaignInsert(definition, state, user.id, definitionRow.id, input.requestId)).select('*').single();
+    const { data: inserted, error } = await db.from('together_story_campaigns').insert(campaignInsert(definition, state, user.id, continuity.id, definitionRow.id, input.requestId)).select('*').single();
     const created = Boolean(inserted);
     let campaign = inserted;
     if (error?.code === '23505') {
-      const active = await db.from('together_story_campaigns').select('*').eq('user_id', user.id).eq('story_slug', input.storySlug).in('status', ['active','midnight']).maybeSingle();
+      const active = await db.from('together_story_campaigns').select('*').eq('user_id', user.id).eq('continuity_id',continuity.id).eq('story_slug', input.storySlug).in('status', ['active','midnight']).maybeSingle();
       if (active.error) throw new AppError('INTERNAL_ERROR', 'The campaign could not be restored.', 500, true);
       campaign = active.data;
     }
@@ -97,7 +99,7 @@ serve(async (request, correlationId) => {
     return json({ data: { campaign: await storyCampaignView(db, definition, campaign) }, correlationId }, 201, correlationId);
   }
 
-  const campaign = await ownedStoryCampaign(db, user.id, input.campaignId);
+  const campaign = await ownedStoryCampaign(db, user.id, continuity.id, input.campaignId);
   const definition = storyDefinition(String(campaign.story_slug));
   if (!definition) throw new AppError('NOT_FOUND', 'That story definition is unavailable.', 404);
 
@@ -118,7 +120,7 @@ serve(async (request, correlationId) => {
     const { data: definitionRow } = await db.from('together_story_definitions').select('id').eq('slug', definition.slug).single();
     if (!definitionRow) throw new AppError('NOT_FOUND', 'That story definition is unavailable.', 404);
     const state = initialStoryCampaign(definition);
-    const { data: restarted, error } = await db.from('together_story_campaigns').insert(campaignInsert(definition, state, user.id, definitionRow.id, input.requestId)).select('*').single();
+    const { data: restarted, error } = await db.from('together_story_campaigns').insert(campaignInsert(definition, state, user.id, continuity.id, definitionRow.id, input.requestId)).select('*').single();
     if (error || !restarted) throw new AppError('INTERNAL_ERROR', 'The campaign could not be restarted.', 500, true);
     await db.from('together_story_messages').insert(storyOpeningMessageRows(definition, restarted.id, user.id));
     await track(db, user.id, 'story_campaign_restarted', { storySlug: definition.slug, previousCampaignId: campaign.id, campaignId: restarted.id });

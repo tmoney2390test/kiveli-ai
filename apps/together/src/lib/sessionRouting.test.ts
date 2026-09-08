@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { isLifeSetupPath, isPublicAppPath, joinPathFor, safeAppReturnPath, shouldHoldPrivateWebRouteForHydration, shouldKeepAuthTransitionMounted, signInPathFor } from './sessionRouting';
+import { isAuthenticatedAccountSwap, isLifeSetupPath, isPublicAppPath, joinPathFor, safeAppReturnPath, shouldHoldPrivateWebRouteForHydration, shouldKeepAuthTransitionMounted, signInPathFor } from './sessionRouting';
 
 describe('session routing', () => {
+  it('distinguishes a direct account swap from login, refresh, and logout',()=>{
+    expect(isAuthenticatedAccountSwap('user-a','user-b')).toBe(true);
+    expect(isAuthenticatedAccountSwap('user-a','user-a')).toBe(false);
+    expect(isAuthenticatedAccountSwap(null,'user-a')).toBe(false);
+    expect(isAuthenticatedAccountSwap('user-a',null)).toBe(false);
+  });
+
   it('keeps auth handoff routes mounted when a session appears',()=>{
     expect(shouldKeepAuthTransitionMounted('/auth')).toBe(true);
     expect(shouldKeepAuthTransitionMounted('/auth/callback/')).toBe(true);
