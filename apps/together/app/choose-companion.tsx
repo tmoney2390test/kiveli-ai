@@ -9,7 +9,7 @@ import { FrostedSurface, KivelleLogo, LoadingSkeleton, Screen, resolveCharacterP
 import { worldHeroAsset } from '../src/assets';
 import { bootstrap } from '../src/lib/api';
 import { featuredCompanionsMatchingGender, type FeaturedCompanion, type FeaturedGenderFilter } from '../src/lib/featuredCompanions';
-import { onboardingCompanionsForWorld, onboardingRecommendedWorld, onboardingWorldFantasy, onboardingWorldGenre, onboardingWorlds } from '../src/lib/onboardingCatalog';
+import { onboardingCompanionsForWorld, onboardingRecommendedWorld, onboardingWorldCompactCopy, onboardingWorldFantasy, onboardingWorldGenre, onboardingWorlds } from '../src/lib/onboardingCatalog';
 import { quickStartProfile } from '../src/lib/quickStart';
 import { resolveKivelleAccountStage } from '../src/lib/authRouting';
 import { useTogether } from '../src/store/useTogether';
@@ -185,11 +185,12 @@ function OnboardingHeader({ step, onBack }: { step: OnboardingStep; onBack: () =
 }
 
 function WorldCard({ world, selected, featured = false, compact = false, desktop = false, onPress }: { world: World; selected: boolean; featured?: boolean; compact?: boolean; desktop?: boolean; onPress: () => void }) {
+  const copy = compact ? onboardingWorldCompactCopy(world) : { genre: onboardingWorldGenre(world), description: onboardingWorldFantasy(world) };
   return <Pressable
     accessibilityRole="radio"
     accessibilityState={{ checked: selected }}
     aria-checked={selected}
-    accessibilityLabel={`${world.name}. ${onboardingWorldGenre(world)}. ${onboardingWorldFantasy(world)}`}
+    accessibilityLabel={`${world.name}. ${copy.genre}. ${copy.description}`}
     onPress={onPress}
     style={({ pressed }) => [styles.worldCard, featured && styles.worldCardFeatured, compact && styles.worldCardCompact, compact && desktop && styles.worldCardCompactDesktop, selected && styles.worldCardSelected, pressed && styles.cardPressed]}
   >
@@ -199,8 +200,8 @@ function WorldCard({ world, selected, featured = false, compact = false, desktop
     <View style={[styles.worldCopy, compact && styles.worldCopyCompact]}>
       {featured ? <Text style={styles.recommended}>Recommended</Text> : null}
       <Text numberOfLines={1} style={[styles.worldName, compact && styles.worldNameCompact]}>{world.name}</Text>
-      <Text numberOfLines={1} style={[styles.worldGenre, compact && styles.worldGenreCompact]}>{onboardingWorldGenre(world)}</Text>
-      <Text numberOfLines={compact ? 1 : 2} style={[styles.worldFantasy, compact && styles.worldFantasyCompact]}>{onboardingWorldFantasy(world)}</Text>
+      <Text numberOfLines={2} style={[styles.worldGenre, compact && styles.worldGenreCompact]}>{copy.genre}</Text>
+      <Text numberOfLines={2} style={[styles.worldFantasy, compact && styles.worldFantasyCompact]}>{copy.description}</Text>
     </View>
   </Pressable>;
 }
