@@ -56,8 +56,7 @@ async function token(): Promise<string> {
 export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POST' = 'POST',options:{signal?:AbortSignal}={}): Promise<T> {
   const started=Date.now(),surface=name.split('?')[0]!,operation=typeof body==='object'&&body&&'action'in body?String((body as Record<string,unknown>).action):method.toLowerCase();let response:Response|undefined;
   try{
-    const[accessToken,installationId]=await Promise.all([token(),installationIdentity()]);
-    response = await fetch(`${supabaseUrl}/functions/v1/${name}`, { method, headers: { Authorization: `Bearer ${accessToken}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json','x-kivelle-timezone':deviceTimezone(),'x-kivelle-installation-id':installationId }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),...(options.signal?{signal:options.signal}:{}) });
+    response = await fetch(`${supabaseUrl}/functions/v1/${name}`, { method, headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json','x-kivelle-timezone':deviceTimezone() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),...(options.signal?{signal:options.signal}:{}) });
     const payload = await response.json().catch(() => ({})) as Envelope<T> & { error?: {message?:string;code?:string;retryable?:boolean;correlationId?:string} };
     if (!response.ok) {
       await clearSessionForApiFailure(supabase.auth,response.status,payload.error?.code);
