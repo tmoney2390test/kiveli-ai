@@ -36,7 +36,7 @@ export function adminClient(): SupabaseClient {
   return sharedAdminClient;
 }
 
-export async function authenticated(request: Request): Promise<{ user: User; db: SupabaseClient }> {
+export async function authenticated(request: Request): Promise<{ user: User; db: SupabaseClient; assuranceLevel: 'aal1' | 'aal2' }> {
   const authorization = request.headers.get('authorization');
   if (!authorization?.startsWith('Bearer ')) throw new AppError('AUTH_REQUIRED', 'Sign in to continue.', 401);
   const accessToken=authorization.slice(7);
@@ -60,7 +60,19 @@ export async function authenticated(request: Request): Promise<{ user: User; db:
     ? preloadedDeletion.data
     : (await db.from('together_account_deletion_markers').select('user_id').eq('user_id',data.user.id).maybeSingle()).data;
   if(deletion)throw new AppError('ACCOUNT_DELETED','This Kivelle account has been deleted.',410,false);
-  return { user: data.user, db };
+  // Only read assurance after getUser has validated this exact bearer token.
+  return { user: data.user, db, assuranceLevel: assuranceForValidatedToken(accessToken) };
+}
+
+export function assuranceForValidatedToken(token: string): 'aal1' | 'aal2' {
+  try {
+    const encoded = token.split('.')[1];
+    if (!encoded) return 'aal1';
+    const normalized = encoded.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(encoded.length / 4) * 4, '=');
+    return JSON.parse(atob(normalized)).aal === 'aal2' ? 'aal2' : 'aal1';
+  } catch {
+    return 'aal1';
+  }
 }
 
 export async function requireStaff(userId: string, db: SupabaseClient): Promise<void> {

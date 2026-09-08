@@ -18,6 +18,7 @@ import {
   View,
 } from "react-native";
 import { shouldKeepChatPinned } from "../src/lib/chatScroll";
+import { isMediaOfferBusy } from "../src/lib/mediaOfferPresentation";
 import { useMobileChatKeyboardPin } from "../src/hooks/useMobileChatKeyboardPin";
 import { uploadPreparedChatPhoto } from "../src/lib/chatPhotoStorageUpload";
 import { shouldConsumeComposerEnter, shouldSendComposerOnEnter } from "../src/lib/composerKeyboard";
@@ -2013,7 +2014,7 @@ export default function GroupChatScreen() {
                   item.message_id === message.id
                 )}
                 offer={offer}
-                offerBusy={mediaOfferBusy === offer?.id||mediaOfferBusy === offer?.generated_media_id}
+                offerBusy={isMediaOfferBusy(offer,mediaOfferBusy,mediaOfferBusy)}
                 activeVoiceId={activeVoiceId}
                 onVoiceActive={setActiveVoiceId}
                 onOfferAccept={(item,paymentMethod) => void acceptMediaOffer(item,paymentMethod)}
@@ -2076,7 +2077,7 @@ export default function GroupChatScreen() {
             key={offer.id}
             offer={offer}
             media={photoMediaForOffer(detail.generatedMedia ?? [],offer.generated_media_id)}
-            busy={mediaOfferBusy === offer.id||mediaOfferBusy === offer.generated_media_id}
+            busy={isMediaOfferBusy(offer,mediaOfferBusy,mediaOfferBusy)}
             onAccept={(paymentMethod) => void acceptMediaOffer(offer,paymentMethod)}
             onDecline={() => void declineMediaOffer(offer)}
             onBuyCredits={() => navigateGroupSurface(creditsSubscriptionHref)}

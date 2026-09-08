@@ -1,4 +1,5 @@
 import type { Message } from '../types';
+import { ReadRequestBackoff } from './readRequestBackoff';
 
 export type ConversationMessagePage = { messages: Message[]; hasMore: boolean };
 type CachedConversationMessagePage = ConversationMessagePage & { loadedAt: number };
@@ -11,6 +12,7 @@ const MAX_CACHED_MESSAGES = 150;
 const FRESH_WARMUP_MS = 15_000;
 const cacheByUser = new Map<string, Map<string, CachedConversationMessagePage>>();
 const inFlightByScope = new Map<string, Promise<ConversationMessagePage>>();
+const backoffByScope = new Map<string, ReadRequestBackoff>();
 
 function userCache(userId: string): Map<string, CachedConversationMessagePage> {
   const existing = cacheByUser.get(userId);
@@ -56,7 +58,7 @@ export function loadConversationMessagePage(
   userId: string,
   conversationId: string,
   loader: MessagePageLoader,
-  options: { maxAgeMs?: number } = {},
+  options: { maxAgeMs?: number; background?: boolean } = {},
 ): Promise<ConversationMessagePage> {
   const maxAgeMs = options.maxAgeMs ?? FRESH_WARMUP_MS;
   const cached = readConversationMessagePage(userId, conversationId);
@@ -64,11 +66,20 @@ export function loadConversationMessagePage(
   const scope = `${userId}:${conversationId}`;
   const existing = inFlightByScope.get(scope);
   if (existing) return existing;
+  const backoff = backoffByScope.get(scope) ?? new ReadRequestBackoff();
+  if (!backoff.canRequest(!options.background)) return Promise.reject(backoff.error instanceof Error ? backoff.error : new Error('Messages could not be loaded. Please try again shortly.'));
+  backoffByScope.set(scope, backoff);
+  // Match the bounded message cache; failures must not accumulate forever.
+  while (backoffByScope.size > MAX_CACHED_CONVERSATIONS) backoffByScope.delete(backoffByScope.keys().next().value!);
   const request = loader()
-    .then((result) => writeConversationMessagePage(userId, conversationId, {
+    .then((result) => {
+      backoff.succeeded();
+      return writeConversationMessagePage(userId, conversationId, {
       messages: [...result.messages].reverse(),
       hasMore: result.hasMore,
-    }))
+      });
+    })
+    .catch((error: unknown) => { backoff.failed(error); throw error; })
     .finally(() => inFlightByScope.delete(scope));
   inFlightByScope.set(scope, request);
   return request;
@@ -76,15 +87,17 @@ export function loadConversationMessagePage(
 
 export function prefetchConversationMessagePage(userId: string | undefined, conversationId: string, loader: MessagePageLoader): void {
   if (!userId || !conversationId) return;
-  void loadConversationMessagePage(userId, conversationId, loader).catch(() => undefined);
+  void loadConversationMessagePage(userId, conversationId, loader, { background: true }).catch(() => undefined);
 }
 
 export function resetConversationMessageWarmupForTests(): void {
   cacheByUser.clear();
   inFlightByScope.clear();
+  backoffByScope.clear();
 }
 
 export function clearConversationMessageWarmup():void{
   cacheByUser.clear();
   inFlightByScope.clear();
+  backoffByScope.clear();
 }

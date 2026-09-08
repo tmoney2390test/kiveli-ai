@@ -343,6 +343,85 @@ Deno.test('Venice prompt honors intentional face concealment without weakening a
   assert(prompt.includes('five distinct naturally arranged fingers'));
 });
 
+Deno.test('review-enabled photos retain provider-blurred pixels without a fallback charge',async()=>{
+  let calls=0;
+  const png=Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,1]);
+  const client=new VeniceImageClient('test-only','https://venice.test/api/v1',1_000,async(_url,init)=>{
+    calls++;
+    assert(JSON.parse(String(init?.body)).safe_mode===true);
+    return new Response(png,{headers:{'content-type':'image/png','x-venice-is-blurred':'true'}});
+  });
+  const submission=await new VeniceMediaProvider(client).submit({...adultRequest(),contentLevel:'standard',generationIntent:undefined,reviewProviderBlurredOutput:true},standardRoute());
+  assert(calls===1&&submission.result?.providerMetadata?.providerBlurred===true);
+  assert(submission.result?.bytes?.every((byte,index)=>byte===png[index]));
+  assert(submission.result?.providerMetadata?.fallbackUsed===false);
+});
+
+Deno.test('blur review never overrides explicit provider content-policy flags',async()=>{
+  for(const header of ['x-venice-is-content-violation','x-venice-is-adult-model-content-violation']){
+    let calls=0;
+    const client=new VeniceImageClient('test-only','https://venice.test/api/v1',1_000,async()=>{calls++;return new Response('blocked',{headers:{'content-type':'image/png','x-venice-is-blurred':'true',[header]:'true'}});});
+    const code=header==='x-venice-is-content-violation'?'PROVIDER_CONTENT_BLOCKED':'PROVIDER_ADULT_MODEL_CONTENT_BLOCKED';
+    await assertRejectsCode(()=>new VeniceMediaProvider(client).submit({...adultRequest(),contentLevel:'standard',reviewProviderBlurredOutput:true},standardRoute()),code);
+    assert(calls===1);
+  }
+});
+
+Deno.test('long fantasy selfie prompts reserve all sections and exclude location artwork direction',()=>{
+  const request=adultRequest();
+  request.companion.name='Freya Hart';
+  request.contentLevel='standard';
+  request.composition={shotType:'selfie',aspectRatio:'4:5',framing:'Close selfie with a large recognizable face and a small background glimpse. '.repeat(8),poseDirection:'Front-facing head and shoulders.',faceDirection:'Eyes near the lens.'};
+  request.generationIntent={requestText:'Send me a selfie at The Verdant Reach inside Vharadren.',requestedContentLevel:'standard'};
+  request.visualIdentity.canonicalDescription='A fair-skinned woman with storm-gray eyes and pale blond hair. '.repeat(7);
+  request.context.place={
+    path:'Vharadren → The Verdant Reach',
+    location:{name:'The Verdant Reach',description:'A damp forest region with moss and weathered medieval buildings. '.repeat(8),lore:{summary:'Forest roads.'},visualContext:{canonicalPrompt:'Wide textless cinematic dark-fantasy establishing view. Painterly realism.',indoorOutdoor:'outdoor'}},
+    clock:{localIso:'2026-09-07T07:06',localTime:'07:06',timezone:'America/New_York',daypart:'morning'},
+  } as NonNullable<CanonicalMediaRequest['context']['place']>;
+  request.context.worldContainment={worldId:'vharadren',worldSlug:'vharadren',worldName:'Vharadren',worldDescription:'A medieval fantasy realm.',worldVisualContext:{setting:'A fractured medieval empire.',visualStyle:['cinematic painterly realism']},locationName:'The Verdant Reach',resolutionReason:'authoritative_location'};
+  request.qualityRetry={reasonCodes:['identity_mismatch','non_photorealistic']};
+  const prompt=buildVeniceImagePrompt(request);
+  assert(prompt.length<=2_000);
+  assert(prompt.includes(request.generationIntent.requestText));
+  for(const expected of ['Approved request: Send me a selfie','WORLD/SETTING LOCK: Only Vharadren','TIME/LIGHT: 2026-09-07T07:06','Close selfie: large, sharp','Capture device outside the frame','artistic medium','Wardrobe:','Pose:','Face direction:','Correct previous defects:','identity_mismatch','five distinct naturally arranged fingers'])if(!prompt.includes(expected))throw new Error(`missing ${expected}`);
+  assert(!prompt.includes('Wide textless')&&!prompt.includes('Painterly realism')&&!prompt.includes('Hair: .'));
+  assert(!prompt.endsWith('Pose:')&&!prompt.endsWith('Face direction:'));
+  assert(buildVeniceImagePrompt({...request,qualityRetry:undefined})!==prompt);
+  const fallbackPrompt=buildVeniceImagePrompt(request,'firered-image-edit');
+  assert(fallbackPrompt.length<=1_500&&fallbackPrompt.includes(request.generationIntent.requestText));
+  assert(fallbackPrompt.includes('Close selfie: large, sharp')&&fallbackPrompt.includes('WORLD/SETTING LOCK: Only Vharadren'));
+});
+
+Deno.test('blurred Qwen output falls back with FireRed model-specific prompt budget',async()=>{
+  const previousFallback=Deno.env.get('KIVELLE_VENICE_STANDARD_FALLBACK_MODEL');
+  Deno.env.set('KIVELLE_VENICE_STANDARD_FALLBACK_MODEL','firered-image-edit');
+  const calls:Array<Record<string,unknown>>=[],png=Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,1]);
+  const request=adultRequest();
+  request.contentLevel='standard';request.adultPipelineAuthorized=false;
+  request.composition={shotType:'selfie',aspectRatio:'4:5'};
+  request.generationIntent={requestText:'Send me a fully clothed selfie at the gallery.',requestedContentLevel:'standard'};
+  request.visualIdentity.canonicalDescription='A fictional adult with a recognizable face, pale blond hair and gray eyes. '.repeat(9);
+  request.context.location={id:'gallery',name:'Glassline Gallery',description:'A spacious art gallery with windows overlooking an urban courtyard. '.repeat(8)};
+  request.context.activity='Visiting the gallery and taking a personal photo. '.repeat(4);
+  request.context.outfitDescription='An opaque linen shirt and denim shorts with practical walking shoes. '.repeat(4);
+  assert(buildVeniceImagePrompt(request,'qwen-image-2-edit').length>1_500);
+  try{
+    const client=new VeniceImageClient('test-only','https://venice.test/api/v1',1_000,async(_url,init)=>{
+      const body=JSON.parse(String(init?.body));calls.push(body);
+      if(calls.length===1)return new Response(png,{headers:{'content-type':'image/png','x-venice-is-blurred':'true'}});
+      if(String(body.prompt).length>1_500)return new Response(JSON.stringify({error:'prompt exceeds model limit'}),{status:400});
+      return new Response(png,{headers:{'content-type':'image/png'}});
+    });
+    const result=await new VeniceMediaProvider(client).submit(request,standardRoute());
+    assert(calls.length===2&&calls[1]?.modelId==='firered-image-edit'&&calls[1]?.safe_mode===true);
+    assert(String(calls[1]?.prompt).includes(request.generationIntent.requestText));
+    assert(result.status==='completed'&&result.model==='firered-image-edit');
+    assert(result.result?.providerAttempts?.[0]?.failureCode==='PROVIDER_OUTPUT_BLURRED');
+    assert(result.result?.providerAttempts?.[1]?.success===true);
+  }finally{restoreEnv('KIVELLE_VENICE_STANDARD_FALLBACK_MODEL',previousFallback);}
+});
+
 Deno.test('Venice standard photo edits use the selected photo as the sole edit source',async()=>{
   const bodies:Array<Record<string,unknown>>=[],png=Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,1]);
   const client=new VeniceImageClient('secret','https://venice.test/api/v1',1_000,async(_url,init)=>{bodies.push(JSON.parse(String(init?.body)));return new Response(png,{status:200,headers:{'content-type':'image/png'}});});

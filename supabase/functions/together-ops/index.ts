@@ -162,7 +162,7 @@ const schema = z.discriminatedUnion("action", [
 ]);
 
 serve(async (request, correlationId) => {
-  const { user, db } = await authenticated(request),
+  const { user, db, assuranceLevel } = await authenticated(request),
     input = await parseBody(request, schema);
   if (input.action === "report_client_error") {
     await enforceRateLimit(db, user.id, "client_error_report", 30, 3600);
@@ -311,7 +311,7 @@ serve(async (request, correlationId) => {
     );
   }
 
-  const role = requireOperationsRole(user, "viewer");
+  const role = requireOperationsRole(user, "viewer", assuranceLevel);
   if (input.action === "dashboard") {
     return json(
       { data: await operationsDashboard(db, role), correlationId },

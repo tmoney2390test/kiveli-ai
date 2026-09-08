@@ -17,8 +17,9 @@ import { ensureWebAdultSession } from './webAdultSession';
 import { normalizeVideoGenerationOptions } from './videoGeneration';
 import { drainJsonSseEvents } from './sse';
 import { scheduleForegroundTimeout } from './webPageLifecycle';
+import { parseRetryAfter } from './readRequestBackoff';
 
-export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false,readonly correlationId?:string) { super(message); } }
+export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false,readonly correlationId?:string,readonly status?:number,readonly retryAfterMs?:number) { super(message); } }
 type Envelope<T> = { data: T; correlationId: string };
 function deviceTimezone():string{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';}catch{return'UTC';}}
 
@@ -43,6 +44,8 @@ async function flushClientPerformance(){
 }
 
 let recentAccessToken:{value:string;expiresAt:number}|null=null;
+// MFA verification and session changes must take effect on the very next request.
+supabase.auth.onAuthStateChange(() => { recentAccessToken = null; });
 async function token(): Promise<string> {
   if(recentAccessToken&&recentAccessToken.expiresAt>Date.now())return recentAccessToken.value;
   const { data } = await supabase.auth.getSession();
@@ -58,7 +61,7 @@ export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POS
     const payload = await response.json().catch(() => ({})) as Envelope<T> & { error?: {message?:string;code?:string;retryable?:boolean;correlationId?:string} };
     if (!response.ok) {
       await clearSessionForApiFailure(supabase.auth,response.status,payload.error?.code);
-      throw new ApiError(payload.error?.message ?? 'Something went wrong.', payload.error?.code, payload.error?.retryable ?? (response.status === 408 || response.status === 429 || response.status >= 500),payload.error?.correlationId??payload.correlationId);
+      throw new ApiError(payload.error?.message ?? 'Something went wrong.', payload.error?.code, payload.error?.retryable ?? (response.status === 408 || response.status === 429 || response.status >= 500),payload.error?.correlationId??payload.correlationId,response.status,parseRetryAfter(response.headers.get('Retry-After')));
     }
     return payload.data;
   }finally{

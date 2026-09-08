@@ -43,6 +43,28 @@ describe('conversation message warmup', () => {
     expect(readConversationMessagePage('user-2', 'conversation-1')).toBeNull();
   });
 
+  it('suppresses failed background warmups while allowing a deliberate reopen', async () => {
+    const failure = Object.assign(new Error('Invalid request'), { retryable: false });
+    const loader = vi.fn().mockRejectedValue(failure);
+    await expect(loadConversationMessagePage('user-1', 'conversation-1', loader, { background: true })).rejects.toBe(failure);
+    for (let index = 0; index < 20; index++) {
+      await expect(loadConversationMessagePage('user-1', 'conversation-1', loader, { background: true })).rejects.toBe(failure);
+    }
+    expect(loader).toHaveBeenCalledTimes(1);
+    loader.mockResolvedValue({ messages: [message('1')], hasMore: false });
+    await expect(loadConversationMessagePage('user-1', 'conversation-1', loader)).resolves.toMatchObject({ messages: [{ id: '1' }] });
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not let navigation bypass a rate limit and isolates the failure by account', async () => {
+    const failure = Object.assign(new Error('Wait'), { status: 429, retryable: true, retryAfterMs: 60_000 });
+    const loader = vi.fn().mockRejectedValueOnce(failure).mockResolvedValue({ messages: [], hasMore: false });
+    await expect(loadConversationMessagePage('user-1', 'conversation-1', loader)).rejects.toBe(failure);
+    await expect(loadConversationMessagePage('user-1', 'conversation-1', loader)).rejects.toBe(failure);
+    await expect(loadConversationMessagePage('user-2', 'conversation-1', loader)).resolves.toMatchObject({ messages: [] });
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps a normal rail-sized set of conversations warm', () => {
     for(let index=1;index<=20;index+=1){
       const conversationId=`conversation-${index}`;

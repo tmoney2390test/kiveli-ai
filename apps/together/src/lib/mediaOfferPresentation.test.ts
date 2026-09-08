@@ -1,6 +1,30 @@
 import{describe,expect,it}from'vitest';
 import type{GeneratedMedia}from'../types';
-import{latestMediaOfferPreviewUri}from'./mediaOfferPresentation';
+import{isMediaOfferBusy,latestMediaOfferPreviewUri}from'./mediaOfferPresentation';
+
+describe('photo confirmation busy state',()=>{
+  it('keeps a new offer actionable when no acceptance or retry is running',()=>{
+    expect(isMediaOfferBusy({id:'freya-selfie',generated_media_id:null},null,null)).toBe(false);
+    expect(isMediaOfferBusy({id:'freya-selfie'},null,null)).toBe(false);
+  });
+  it('marks only the offer whose acceptance is in flight as busy',()=>{
+    const offer={id:'freya-selfie',generated_media_id:null};
+    expect(isMediaOfferBusy(offer,'freya-selfie',null)).toBe(true);
+    expect(isMediaOfferBusy(offer,'other-offer',null)).toBe(false);
+  });
+  it('marks a retry busy only for its actual generated media',()=>{
+    const offer={id:'freya-selfie',generated_media_id:'failed-image'};
+    expect(isMediaOfferBusy(offer,null,'failed-image')).toBe(true);
+    expect(isMediaOfferBusy(offer,null,'other-image')).toBe(false);
+    expect(isMediaOfferBusy(offer,null,null)).toBe(false);
+    // Group chat shares one busy ID for acceptance and retry actions.
+    expect(isMediaOfferBusy(offer,'failed-image','failed-image')).toBe(true);
+  });
+  it('does not invent a busy photo card without an offer',()=>{
+    expect(isMediaOfferBusy(undefined,null,null)).toBe(false);
+    expect(isMediaOfferBusy(null,'offer','image')).toBe(false);
+  });
+});
 
 const image=(id:string,conversationId:string,createdAt:string,signedUrl?:string):GeneratedMedia=>({id,character_instance_id:'brooke',conversation_id:conversationId,media_type:'image',content_level:'standard',status:signedUrl?'ready':'generating',signed_url:signedUrl,created_at:createdAt});
 

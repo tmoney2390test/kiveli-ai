@@ -66,7 +66,7 @@ async function finalizeProviderMediaClaimed(db:SupabaseClient,input:{jobId:strin
   const quality=await gateGeneratedImageQuality(db,job,media,input.result);
   if(quality.action==='deferred')return media as Record<string,unknown>;
   if(quality.action==='reject'){
-    const verificationUnavailable=quality.reasonCodes.includes('adult_safety_unverified')||quality.reasonCodes.includes('world_unverified')||quality.reasonCodes.includes('requested_anatomy_unverified');
+    const verificationUnavailable=quality.reasonCodes.includes('adult_safety_unverified')||quality.reasonCodes.includes('provider_safety_unverified')||quality.reasonCodes.includes('world_unverified')||quality.reasonCodes.includes('requested_anatomy_unverified');
     await failProviderMedia(db,{jobId:input.jobId,failureCode:'image_quality_failed',failureReasonSafe:verificationUnavailable?'The photo could not be safely verified. Any included photo or credits used were returned.':'The photo did not pass Kivelle’s quality check. Any included photo or credits used were returned.',providerMetadata:{qualityReasonCodes:quality.reasonCodes}});
     const{data:failed}=await db.from('together_generated_media').select('*').eq('id',media.id).maybeSingle();
     return(failed??media) as Record<string,unknown>;

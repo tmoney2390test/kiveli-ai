@@ -1,0 +1,13 @@
+# Security hardening — 7 September 2026
+
+Conversation deletion, companion reset, conversation restoration, and new-conversation RPCs are backend-only. The migration revokes PUBLIC, anon, and authenticated execution while retaining service_role. Edge Functions continue to authorize ownership and application access before calling them. The targeted pgTAP checks prevent accidental reopening.
+
+Every privileged together-ops action requires both an assigned operations role and an aal2 session. The request's exact bearer token is validated with Supabase Auth before reading its assurance claim. Ordinary diagnostics and personal support remain available without an operations role. A server-managed together_operations_disabled flag overrides both metadata roles and legacy environment allowlists. The operations screen supports TOTP enrollment and verification; administrators must add their own authenticator. Revoked users are not automatically re-enrolled or promoted.
+
+HTML responses now set HSTS, nosniff, referrer and permissions policies, framing denial, and a baseline CSP covering frame ancestors, objects, base URLs, and insecure requests. The CSP does not yet restrict all script or connection sources.
+
+decode-uri-component is overridden to 0.5.0 and xmldom to the patched 0.8.15/0.9.12 release lines. image-size 1.2.1 remains patched because the advisory's suggested 2.0.3 is not published in the package registry. The patch rejects undersized ICNS entries and image-container boxes. A bounded subprocess regression checks malformed ICNS/JXL/HEIF inputs and valid PNG dimensions against Metro's resolved package. The raw audit still reports GHSA-w3rx-r6r6-pgpr and GHSA-5p2g-fcmc-qvqq by version; these are not suppressed. Replace the patch with a compatible upstream fix when available.
+
+Production remediation also removed the shared test account's operations privileges, invalidated its existing sessions, and enabled Supabase leaked-password protection. These account/configuration changes are intentionally separate from reusable schema migrations. A small follow-up migration fixes the timezone helper's search_path.
+
+Validated locally: app/domain suites, gateway checks, security-focused Edge tests, lint, typecheck, all Edge Function typechecks, production export, malformed-image regressions. Validated live: anonymous/authenticated direct RPC denial; normal login, bootstrap, inbox and personal support; test-account operations denial; HTML headers. The existing 2.56 MiB character PNG exceeds the optional 2.25 MiB asset budget, while initial JavaScript remains below its budget.

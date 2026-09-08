@@ -10,7 +10,7 @@ import{buildMediaEditConstraint,classifyMediaEditSemantics}from'../../../package
 import{buildMediaWorldContainmentInstruction}from'./together-media-world.ts';
 import { buildVideoProviderPayload, configuredVideoRouteCatalog, videoProviderBaselineCostUsd, type VideoAspectRatio, type VideoMotionPreset, type VideoResolution, type VideoRouteId } from './kivelle-video-routes.ts';
 
-export type CanonicalMediaRequest=CanonicalImageGenerationRequest&{mediaType:'image'|'video';videoRouteId?:VideoRouteId;motionPreset?:VideoMotionPreset;videoAspectRatio?:VideoAspectRatio;durationSeconds?:number;videoResolution?:VideoResolution;videoSound?:boolean;anonymousAdultPartner?:boolean};
+export type CanonicalMediaRequest=CanonicalImageGenerationRequest&{mediaType:'image'|'video';reviewProviderBlurredOutput?:boolean;videoRouteId?:VideoRouteId;motionPreset?:VideoMotionPreset;videoAspectRatio?:VideoAspectRatio;durationSeconds?:number;videoResolution?:VideoResolution;videoSound?:boolean;anonymousAdultPartner?:boolean};
 export type ProviderAttempt={attemptNumber:number;stage:string;provider:string;model:string;routeId:string;estimatedCost?:number;generationMs?:number;success:boolean;failureCode?:string;providerRequestId?:string};
 export type ProviderCompletedMedia={bytes?:Uint8Array;outputUrl?:string;contentType?:string;width?:number;height?:number;durationMs?:number;providerRequestId?:string;model:string;estimatedCost?:number;generationMs?:number;providerAttempts?:ProviderAttempt[];providerMetadata?:Record<string,unknown>};
 export type ProviderSubmission={provider:string;providerRequestId:string;model:string;status:'submitted'|'completed';result?:ProviderCompletedMedia};
@@ -99,7 +99,7 @@ export class VeniceMediaProvider implements MediaGenerationProvider{
       for(let index=0;index<models.length;index+=1){
         const model=models[index]!,fallback=index>0;
         try{
-          const result=await runVeniceSingleAttempt({client:this.client,attempts,stage:fallback?'standard_fallback':'standard_primary',routeId:route.id,model,estimatedCost:veniceModelCostUsd(model),edit:optimizedVeniceEdit({model,prompt:buildVeniceImagePrompt(request),images:references,aspectRatio:request.composition.aspectRatio,safeMode:true,includeAspectRatio:true,forceMultiEdit:model===VENICE_STANDARD_FALLBACK_EDIT_MODEL})});
+          const result=await runVeniceSingleAttempt({client:this.client,attempts,stage:fallback?'standard_fallback':'standard_primary',routeId:route.id,model,estimatedCost:veniceModelCostUsd(model),edit:optimizedVeniceEdit({model,prompt:buildVeniceImagePrompt(request,model),images:references,aspectRatio:request.composition.aspectRatio,safeMode:true,allowBlurredOutput:request.reviewProviderBlurredOutput===true,includeAspectRatio:true,forceMultiEdit:model===VENICE_STANDARD_FALLBACK_EDIT_MODEL})});
           return completedVeniceSubmission(result,route.id,attempts,fallback?'primary_then_fallback':'single_edit');
         }catch(error){lastError=error;if(!isVeniceStandardFallbackEligible(error)||index===models.length-1)break;}
       }
@@ -355,7 +355,7 @@ function predictionResult(prediction:WaveSpeedPrediction,estimatedCost?:number):
 function syncResult(result:ImageGenerationResult):ProviderCompletedMedia{return{bytes:result.bytes,contentType:result.contentType,width:result.width,height:result.height,providerRequestId:result.providerRequestId,model:result.model,estimatedCost:result.estimatedCost};}
 function completedVeniceSubmission(result:VeniceEditResult,routeId:string,attempts?:ProviderAttempt[],pipeline='single_edit'):ProviderSubmission{
   const recorded=attempts?.length?attempts:[veniceAttempt(1,'final_edit',routeId,result,true)];
-  return{provider:'venice',providerRequestId:result.providerRequestId,model:result.model,status:'completed',result:{bytes:result.bytes,contentType:result.contentType,providerRequestId:result.providerRequestId,model:result.model,estimatedCost:recorded.reduce((sum,item)=>sum+Number(item.estimatedCost??0),0),generationMs:recorded.reduce((sum,item)=>sum+Number(item.generationMs??0),0),providerAttempts:recorded,providerMetadata:{pipeline,stageCount:recorded.length,fallbackUsed:pipeline==='primary_then_fallback'}}};
+  return{provider:'venice',providerRequestId:result.providerRequestId,model:result.model,status:'completed',result:{bytes:result.bytes,contentType:result.contentType,providerRequestId:result.providerRequestId,model:result.model,estimatedCost:recorded.reduce((sum,item)=>sum+Number(item.estimatedCost??0),0),generationMs:recorded.reduce((sum,item)=>sum+Number(item.generationMs??0),0),providerAttempts:recorded,providerMetadata:{pipeline,stageCount:recorded.length,fallbackUsed:pipeline==='primary_then_fallback',providerBlurred:result.safety.blurred}}};
 }
 function veniceAttempt(attemptNumber:number,stage:string,routeId:string,result:VeniceEditResult,success:boolean):ProviderAttempt{return{attemptNumber,stage,routeId,provider:'venice',model:result.model,estimatedCost:result.estimatedCost,generationMs:result.generationMs,success,providerRequestId:result.providerRequestId};}
 function failedVeniceAttempt(attemptNumber:number,stage:string,routeId:string,model:string,error:unknown,estimatedCost:number):ProviderAttempt{return{attemptNumber,stage,routeId,provider:'venice',model,estimatedCost,success:false,failureCode:error instanceof AppError?error.code:'provider_failure'};}
@@ -456,31 +456,56 @@ function adultNudityGuidance(scope:ReturnType<typeof resolveAdultNudityScope>,in
   if(scope==='topless')return'Approved scope: upper-body nudity only. Preserve lower-body clothing exactly and do not expose unrequested lower anatomy. Render visible requested upper anatomy naturally and completely.';
   return'Approved scope: do not add nudity or expose anatomy beyond the exact user wording.';
 }
-export function buildVeniceImagePrompt(request:CanonicalMediaRequest):string{
-  if((request.subjects?.length??1)>1)return buildImagePrompt(request).slice(0,2_000);
-  if(request.generationKind==='photo_edit')return buildImagePrompt(request).slice(0,2_000);
-  const identity=request.visualIdentity,place=request.context.place,location=request.context.location,captureLighting=mediaCaptureLightingForRequest(request);
-  const wardrobe=request.context.outfitDescription?.trim()||`natural ${String(identity.fashionStyle??'contemporary')} clothing appropriate to the place and activity`;
-  const locationDescription=place?.location.visualContext.canonicalPrompt??place?.location.lore.summary??place?.location.description??location?.description??location?.name??'the canonical current location';
-  const resolvedDirection=resolvePhotoDirection({requestText:request.generationIntent?.requestText,shotType:request.composition.shotType,seed:request.mediaId}),direction={poseDirection:request.composition.poseDirection??resolvedDirection.poseDirection,faceDirection:request.composition.faceDirection??resolvedDirection.faceDirection,faceMayBeHidden:request.composition.faceMayBeHidden??resolvedDirection.faceMayBeHidden},faceGuidance=direction.faceMayBeHidden?`${direction.faceDirection} The requested composition intentionally permits the face to be covered, turned away, cropped out, or outside the frame. Do not force a face into view. Preserve identity through body, hair, and visible identifying features; any visible face must remain natural and identity-consistent.`:`Keep the same face recognizable and identity-consistent whenever visible. ${direction.faceDirection}`;
-  const prompt=[
-    `Create one new photorealistic personal photograph of ${request.companion.name}, one fictional adult age ${request.companion.age}.`,
-    'Use the input image only to preserve the exact same adult face, hair, eyes, skin tone, body identity, age, and identifying features. Do not copy its clothing, pose, crop, background, or lighting.',
-    `Identity: ${clipVenicePrompt(identity.canonicalDescription,260)} Hair: ${clipVenicePrompt(identity.hair,100)}. Eyes: ${clipVenicePrompt(identity.eyes,70)}. Build: ${clipVenicePrompt(identity.build,100)}.`,
-    `Scene: ${clipVenicePrompt(place?.path??location?.name??'the canonical current place',120)}. ${clipVenicePrompt(locationDescription,360)}`,
-    `WORLD/SETTING LOCK: ${clipVenicePrompt(buildMediaWorldContainmentInstruction(request.context.worldContainment),380)}`,
-    `Activity: ${clipVenicePrompt(request.context.activity,180)}. Mood: ${clipVenicePrompt(request.context.mood,100)}.`,
-    `TIME/LIGHT: ${clipVenicePrompt(captureLighting.instruction,420)}`,
-    `Wardrobe: ${clipVenicePrompt(wardrobe,240)}.`,
-    `Composition: ${request.composition.shotType.replace('_',' ')} photo; ${clipVenicePrompt(request.composition.framing,180)}. Pose: ${direction.poseDirection}.`,
-    ...(request.generationIntent?.requestText?[`Approved request: ${clipVenicePrompt(request.generationIntent.requestText,300)}`]:[]),
-    `${faceGuidance} The input reference defines identity only; never copy its pose, straight-on head alignment, gaze, expression, crop, or camera angle.`,
-    'Natural skin detail, realistic adult body proportions, coherent torso and limbs, plausible joints, and realistic lighting. Every visible hand has one palm, five distinct naturally arranged fingers, correct thumb placement, and believable nails. One person only. No fused or duplicated body parts, malformed hands, extra or missing digits, stretched limbs, melted anatomy, vague featureless skin regions, collage, inset reference, profile card, text, caption, watermark, illustration, CGI, duplicate face, or identity drift.',
-  ].join('\n');
-  // Venice edit models publish model-specific prompt limits and recommend short
-  // edit instructions. Keep canonical facts while avoiding a provider-level
-  // 400 from the much larger general Kivelle media prompt.
-  return prompt.slice(0,2_000);
+export function buildVeniceImagePrompt(request:CanonicalMediaRequest,model=VENICE_STANDARD_EDIT_MODEL):string{
+  // Venice's live inpaint catalog lists FireRed at 1,500 characters and
+  // Qwen Image 2 at 10,000. Keep our concise 2,000 ceiling for other routes,
+  // but rebuild for FireRed's smaller contract instead of reusing Qwen text.
+  const maxLength=model.toLowerCase()==='firered-image-edit'?1_500:2_000;
+  if((request.subjects?.length??1)>1)return buildImagePrompt(request).slice(0,maxLength);
+  if(request.generationKind==='photo_edit')return buildImagePrompt(request).slice(0,maxLength);
+  const identity=request.visualIdentity,place=request.context.place,location=request.context.location,world=request.context.worldContainment;
+  const lighting=mediaCaptureLightingForRequest(request),resolved=resolvePhotoDirection({requestText:request.generationIntent?.requestText,shotType:request.composition.shotType,seed:request.mediaId});
+  const hidden=request.composition.faceMayBeHidden??resolved.faceMayBeHidden;
+  const fixed=[
+    `Create one photorealistic personal photograph of ${clipVenicePrompt(request.companion.name,60)}, exactly one fictional adult age ${request.companion.age}.`,
+    'Use the input image only to preserve the exact same adult face, hair, skin, age and body identity. Render a real camera photograph; do not copy its artistic medium, pose, crop, background or lighting.',
+    hidden?'Do not force a face into view. Preserve identity through visible features.':request.composition.shotType==='selfie'?'Close selfie: large, sharp, recognizable face; a small background glimpse. No wide establishing shot. Capture device outside the frame.':'Keep the visible face recognizable and identity-consistent.',
+    'Natural skin detail and coherent anatomy; five distinct naturally arranged fingers per visible hand. No fused or duplicated body parts, extra people, illustration, CGI, text, collage or identity drift.',
+  ];
+  // Location canonicalPrompt describes artwork, including its camera and medium.
+  // A companion photo uses location facts, with its own composition and medium.
+  const facts=place?.location.description||place?.location.lore.summary||location?.description;
+  const wardrobe=request.context.outfitDescription?.trim()||'Keep established reference clothing unless the approved request changes it; use materials native to the setting.';
+  const sections:Array<[string,unknown,number]>=[
+    ['Approved request',request.generationIntent?.requestText,400],
+    ['Identity',identity.canonicalDescription,260],
+    ['WORLD/SETTING LOCK',world?`Only ${world.worldName}, at ${world.locationName??place?.location.name??location?.name??'the canonical location'}. Never substitute another world or non-canonical modern scenery.`:place?.path??location?.name??'The canonical current location',210],
+    ['World facts',world?.worldVisualContext.setting,110],
+    ['Scene facts',facts,180],
+    ['TIME/LIGHT',[place?.clock.localIso,place?.clock.timezone,lighting.instruction.split('AUTHORITATIVE CAPTURE TIME:')[0]].filter(Boolean).join(' '),240],
+    ['Wardrobe',wardrobe,130],
+    ['Composition',request.composition.shotType==='selfie'?undefined:request.composition.framing??request.composition.shotType,140],
+    ['Pose',request.composition.poseDirection??(resolved.source==='requested'?resolved.poseDirection:undefined),180],
+    ['Face direction',request.composition.faceDirection??(resolved.source==='requested'?resolved.faceDirection:undefined),180],
+    ['Activity',request.context.activity,90],
+    ['Correct previous defects',request.qualityRetry?.reasonCodes.join(', '),160],
+  ];
+  return budgetVenicePhotoPrompt(fixed,sections,maxLength);
+}
+function budgetVenicePhotoPrompt(fixed:string[],sections:Array<[string,unknown,number]>,maxLength:number):string{
+  const active=sections.map(([label,value,max])=>({label,value:String(value??'').replace(/\s+/g,' ').trim(),max})).filter(section=>section.value);
+  const prefix=fixed.join('\n');
+  const available=maxLength-prefix.length-active.reduce((sum,section)=>sum+section.label.length+3,0);
+  const requested=active.find(section=>section.label==='Approved request');
+  const requestBudget=requested?Math.min(requested.max,requested.value.length):0;
+  const total=active.reduce((sum,section)=>sum+Math.min(section.max,section.value.length),0)-requestBudget;
+  // Reserve space for every section before writing any of them. Never chop
+  // the assembled prompt and silently lose the request or final constraints.
+  return[prefix,...active.map(section=>{
+    const cap=section===requested?requestBudget:Math.floor(Math.min(section.max,section.value.length)*Math.min(1,(available-requestBudget)/total));
+    const value=section.value.length<=cap?section.value:section.value.slice(0,Math.max(0,cap-1)).replace(/\s+\S*$/,'').trimEnd()+'…';
+    return`${section.label}: ${value}`;
+  })].join('\n');
 }
 function clipVenicePrompt(value:unknown,max:number):string{const text=String(value??'').replace(/\s+/g,' ').trim();return text.length<=max?text:`${text.slice(0,Math.max(0,max-1)).trimEnd()}…`;}
 function uint8ToBase64(bytes:Uint8Array):string{let binary='';for(let index=0;index<bytes.length;index+=32768)binary+=String.fromCharCode(...bytes.subarray(index,index+32768));return btoa(binary);}

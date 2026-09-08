@@ -1,4 +1,69 @@
 import { assertStringIncludes } from 'jsr:@std/assert@1';
+import { gateGeneratedImageQuality, shouldDeliverAestheticQualityWarnings } from './together-media-quality.ts';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+Deno.test('the quality gate returns the existing photo with warnings and no resubmission',async()=>{
+  const settings={KIVELLE_VENICE_ENABLED:'true',VENICE_API_KEY:'test-only',KIVELLE_MEDIA_QUALITY_GATE_ENABLED:'true',KIVELLE_VENICE_QUALITY_RETRY_ENABLED:'false'};
+  const previous=Object.fromEntries(Object.keys(settings).map(key=>[key,Deno.env.get(key)])),originalFetch=globalThis.fetch;
+  const updates:Array<Record<string,any>>=[],events:string[]=[];
+  let calls=0;
+  let reviewContent='FAIL face_low_detail, non_photorealistic, identity_mismatch, world_mismatch, earth_leakage, time_mismatch';
+  const db={
+    from(table:string){
+      // Canonical enrichment is unavailable in this fixture; the completed
+      // provider image still goes through the real reviewer and delivery gate.
+      if(table!=='together_media_provider_jobs')throw new Error('fixture_no_canonical_enrichment');
+      return{update(value:Record<string,any>){updates.push(value);const query={eq(){return query;}};return query;}};
+    },
+    rpc(_name:string,input:Record<string,unknown>){events.push(String(input.p_event_name));return Promise.resolve({error:null});},
+  } as unknown as SupabaseClient;
+  try{
+    for(const[key,value]of Object.entries(settings))Deno.env.set(key,value);
+    globalThis.fetch=async(url)=>{
+      if(!String(url).endsWith('/chat/completions'))throw new Error('unexpected_generation_retry');
+      calls++;
+      return new Response(JSON.stringify({id:'review-1',choices:[{message:{content:reviewContent}}]}),{headers:{'content-type':'application/json'}});
+    };
+    const job={id:'job-1',job_type:'image',provider:'venice',provider_request_id:'generation-1',provider_metadata:{}};
+    const media={id:'media-1',user_id:'user-1',character_instance_id:'character-1',content_level:'standard',metadata:{source:'user_request',customCharacter:false}};
+    const result={model:'qwen-image-2-edit',providerRequestId:'generation-1',outputUrl:'https://fixture.test/photo.png'};
+    const decision=await gateGeneratedImageQuality(db,job,media,result);
+    if(decision.action!=='accept'||decision.result.outputUrl!==result.outputUrl||decision.result.providerMetadata?.qualityAcceptedWithWarnings!==true)throw new Error('completed image was not delivered with warnings');
+    if(calls!==1||!events.includes('media_quality_aesthetic_warnings_delivered')||!updates.some(update=>update.provider_metadata?.qualityAcceptedWithWarnings===true))throw new Error('warning delivery was not recorded or bought another candidate');
+    Deno.env.set('KIVELLE_MEDIA_QUALITY_GATE_ENABLED','false');
+    const blurredResult={...result,providerMetadata:{providerBlurred:true}};
+    const reviewedBlur=await gateGeneratedImageQuality(db,job,media,blurredResult);
+    if(reviewedBlur.action!=='accept'||Number(calls)!==2||reviewedBlur.result.providerMetadata?.providerBlurred!==true)throw new Error('blurred pixels must be reviewed even with aesthetic QA disabled, then delivered');
+    reviewContent='FAIL sexual_content, face_blur';
+    const unsafeBlur=await gateGeneratedImageQuality(db,job,media,blurredResult);
+    if(unsafeBlur.action!=='reject'||!unsafeBlur.reasonCodes.includes('sexual_content'))throw new Error('blur review must retain explicit safety findings');
+    reviewContent='review unavailable';
+    const unverifiedBlur=await gateGeneratedImageQuality(db,job,media,blurredResult);
+    if(unverifiedBlur.action!=='reject'||!unverifiedBlur.reasonCodes.includes('provider_safety_unverified'))throw new Error('blur review cannot fail open on an unavailable reviewer');
+    const blocked=await gateGeneratedImageQuality(db,job,media,{...result,providerMetadata:{providerSafetyFlag:true}});
+    if(blocked.action!=='reject'||!blocked.reasonCodes.includes('sexual_content'))throw new Error('provider safety finding must not become a quality warning');
+  }finally{
+    globalThis.fetch=originalFetch;
+    for(const key of Object.keys(settings)){const value=previous[key];if(value===undefined)Deno.env.delete(key);else Deno.env.set(key,value);}
+  }
+});
+
+Deno.test('Freya first-candidate quality findings are delivered without buying a retry',()=>{
+  const reasonCodes=['face_low_detail','non_photorealistic','identity_mismatch','world_mismatch','earth_leakage','time_mismatch'];
+  if(!shouldDeliverAestheticQualityWarnings({status:'fail',reasonCodes}))throw new Error('the reported Freya verdict must be advisory on the first candidate');
+});
+
+Deno.test('aesthetic delivery does not accept mixed safety or unknown failures',()=>{
+  for(const reason of ['sexual_content','adult_safety_violation','adult_safety_unverified','ambiguous_age','unknown_failure']){
+    if(shouldDeliverAestheticQualityWarnings({status:'fail',reasonCodes:['non_photorealistic',reason]}))throw new Error(`${reason} must not become an aesthetic warning`);
+  }
+  if(shouldDeliverAestheticQualityWarnings({status:'unavailable',reasonCodes:[]}))throw new Error('review availability retains its own safety policy');
+  if(shouldDeliverAestheticQualityWarnings({status:'fail',reasonCodes:[]}))throw new Error('empty verdicts must not be treated as reviewed candidates');
+});
+
+Deno.test('composition and anatomy defects remain observable without suppressing delivery',()=>{
+  if(!shouldDeliverAestheticQualityWarnings({status:'fail',reasonCodes:['face_distortion','malformed_hands','embedded_reference','subject_count_mismatch','identity_swap']}))throw new Error('known visual defects are warnings under the delivery policy');
+});
 import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverFinalSfwQualityCandidateWithWarnings, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, hasTerminalAdultOutputSafetyFailure, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, shouldAttemptPaidImageQualityRetry, shouldDeliverFirstImageQualityCandidateWithWarnings, shouldDeliverOfficialAdultImageWithWarnings, shouldDeliverSfwWhenQualityReviewIsUnavailable, shouldRevalidateCompletedQualityRetry, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
 
 Deno.test('solo adult quality checks do not confuse explicit posing with non-consent',()=>{
