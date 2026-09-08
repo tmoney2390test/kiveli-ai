@@ -34,7 +34,7 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('rename'), conversationId: z.string().uuid(), title: z.string().trim().min(1).max(80) }),
   z.object({ action: z.literal('settings'), conversationId: z.string().uuid(), title: z.string().trim().max(80).nullable(), responseStyle: z.enum(['texting','paragraph']), textSize: z.enum(['small','medium','large']), contentMode: z.enum(['standard','romance','mature','explicit']).optional(), spiceLevel: z.union([z.literal(1),z.literal(2),z.literal(3)]).optional(), voicePreset: z.enum(['warm','bright','clear','strong','balanced']).nullable().optional(), chatLanguage: z.enum(chatLanguagePreferences).optional(), chatDynamism:z.union([z.literal(0),z.literal(25),z.literal(50),z.literal(75),z.literal(100)]).optional(), reasoningPreference:z.enum(['auto','none','low','medium','high']).optional(), contextPreference:z.enum(contextPreferences).optional(), userBubbleColor:z.enum(chatBubbleColorValues).optional(), companionBubbleColor:z.enum(chatBubbleColorValues).optional() }),
   z.object({ action: z.literal('history'), characterInstanceId: z.string().uuid() }),
-  z.object({ action: z.literal('messages'), conversationId: z.string().uuid(), before: z.string().datetime().optional(), beforeSequence: z.number().int().positive().optional(), anchorMessageId: z.string().uuid().optional(), limit: z.number().int().min(1).max(60).default(50) }),
+  z.object({ action: z.literal('messages'), conversationId: z.string().uuid(), before: z.string().datetime().optional(), beforeSequence: z.number().int().positive().optional(), anchorMessageId: z.string().uuid().optional(), includeReplyStatus: z.boolean().optional(), limit: z.number().int().min(1).max(60).default(50) }),
   z.object({ action: z.literal('search'), characterInstanceId: z.string().uuid(), query: z.string().trim().min(2).max(100), conversationId: z.string().uuid().optional() }),
   z.object({ action: z.literal('read'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('pin'), conversationId: z.string().uuid(), pinned: z.boolean() }),
@@ -325,6 +325,7 @@ serve(async (request, correlationId) => {
   if (input.action === 'messages') {
     const owned=await ownedConversation(db,user.id,continuity.id,input.conversationId);
     const adultTextAuthorized=await privateTextProjectionAuthorizedForConversation({db,userId:user.id,continuityId:continuity.id,conversation:owned,access:adultAccess});
+    const replyStatus=input.includeReplyStatus?await currentDialogueReplyStatus(db,user.id,input.conversationId):undefined;
     if (input.anchorMessageId && !input.before && input.beforeSequence === undefined) {
       let anchorQuery=db.from('together_messages').select('id,created_at,conversation_sequence').eq('id', input.anchorMessageId).eq('conversation_id', input.conversationId).eq('user_id', user.id);
       if(!adultTextAuthorized)anchorQuery=anchorQuery.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
@@ -346,7 +347,7 @@ serve(async (request, correlationId) => {
       const raw=[...(newerPage.data ?? []).reverse(), ...(olderPage.data ?? [])] as Record<string,unknown>[];
       const projected=projectConversationRows(raw,{authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText:adultTextAuthorized});
       const messages=await signProjectedAttachments(db,projected,adultAccess.authorized_web_adult,{request,access:adultAccess,userId:user.id});
-      return json({ data: { messages, hasMore: (olderPage.data?.length ?? 0) === half + 1, conversation: projectConversation(owned,adultTextAuthorized), anchorMessageId: anchor.id }, correlationId }, 200, correlationId);
+      return json({ data: { messages, hasMore: (olderPage.data?.length ?? 0) === half + 1, conversation: projectConversation(owned,adultTextAuthorized), anchorMessageId: anchor.id, ...(replyStatus?{replyStatus}:{}) }, correlationId }, 200, correlationId);
     }
     const fetchLimit=adultTextAuthorized?input.limit+1:Math.min(241,Math.max(input.limit+1,input.limit*4));
     let query = db.from('together_messages').select('*,together_conversation_attachments(*),together_message_reactions(*)').eq('user_id', user.id).eq('conversation_id', input.conversationId).order('conversation_sequence', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(fetchLimit);
@@ -358,7 +359,7 @@ serve(async (request, correlationId) => {
     const readAt=performance.now(),raw=(data??[]) as Record<string,unknown>[];
     const projected=projectConversationRows(raw,{authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText:adultTextAuthorized});
     const messages=await signProjectedAttachments(db,projected.slice(0,input.limit),adultAccess.authorized_web_adult,{request,access:adultAccess,userId:user.id});
-    return timedJson({ data: { messages, hasMore: raw.length===fetchLimit||projected.length>input.limit, conversation: projectConversation(owned,adultTextAuthorized) }, correlationId },correlationId,{requestStarted,authenticatedAt,preparedAt,readAt});
+    return timedJson({ data: { messages, hasMore: raw.length===fetchLimit||projected.length>input.limit, conversation: projectConversation(owned,adultTextAuthorized), ...(replyStatus?{replyStatus}:{}) }, correlationId },correlationId,{requestStarted,authenticatedAt,preparedAt,readAt});
   }
 
   if (input.action === 'search') {
@@ -511,6 +512,20 @@ async function ownedConversation(db: any, userId: string,continuityId:string, co
   const { data } = await db.from('together_conversations').select('*').eq('id', conversationId).eq('user_id', userId).eq('continuity_id',continuityId).maybeSingle();
   if (!data) throw new AppError('NOT_FOUND', 'That conversation is unavailable.', 404);
   return data;
+}
+
+async function currentDialogueReplyStatus(db:any,userId:string,conversationId:string):Promise<{pending:boolean;requestId:string|null}>{
+  const{data,error}=await db.from('together_dialogue_turns')
+    .select('request_id')
+    .eq('user_id',userId)
+    .eq('conversation_id',conversationId)
+    .in('state',['planning','generating'])
+    .gt('lease_expires_at',new Date().toISOString())
+    .order('created_at',{ascending:false})
+    .limit(1)
+    .maybeSingle();
+  if(error)throw new AppError('INTERNAL_ERROR','The current reply status could not be loaded.',500,true);
+  return{pending:Boolean(data),requestId:data?.request_id?String(data.request_id):null};
 }
 
 async function removeStoragePaths(db: any, userId: string, paths: string[]): Promise<void> {
