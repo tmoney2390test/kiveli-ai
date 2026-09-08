@@ -5,7 +5,10 @@ import { MESSAGE_CHARACTER_LIMIT } from "../../../packages/together-domain/src/m
 const requestIdPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const forbiddenControlCharacters = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u;
-const invisibleFormattingCharacters = /[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/u;
+// Keep U+200C/U+200D: they are valid shaping characters in several writing
+// systems and in joined emoji. Reject only characters routinely used to hide
+// or reorder payloads invisibly.
+const invisibleFormattingCharacters = /[\u200b\u200e\u200f\u202a-\u202e\u2060-\u206f\ufeff]/u;
 const encoder = new TextEncoder();
 
 export type ClaimedChatMessage = {

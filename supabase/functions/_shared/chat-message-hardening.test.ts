@@ -14,6 +14,7 @@ const requestId = "34c78ae8-8712-4bd5-91c8-5ef8393b93e8";
 
 Deno.test("chat messages normalize line endings without rewriting prose", () => {
   assertEquals(normalizeChatMessage("  café\r\nsecond line  "), "café\nsecond line");
+  assertEquals(normalizeChatMessage("Family 👨‍👩‍👧‍👦 and می‌روم"), "Family 👨‍👩‍👧‍👦 and می‌روم");
   assertThrows(() => normalizeChatMessage("hello\u0000there"));
   assertThrows(() => normalizeChatMessage(`hello\u200bthere`));
   assertThrows(() => normalizeChatMessage("x".repeat(300)));
