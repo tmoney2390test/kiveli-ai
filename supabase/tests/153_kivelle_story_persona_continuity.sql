@@ -1,11 +1,12 @@
 begin;
-select plan(11);
+select plan(12);
 
 select has_column('public','together_story_campaigns','continuity_id','Story campaigns belong to one Kivelle Life');
 select col_not_null('public','together_story_campaigns','continuity_id','Every Story campaign has a Life boundary');
 select has_index('public','together_story_campaigns','together_story_campaigns_one_active_idx','Active Stories are unique per Life');
 select has_index('public','together_story_campaigns','together_story_campaigns_user_recent_idx','Story libraries are indexed per account and Life');
 select has_index('public','together_story_campaigns','together_story_campaigns_definition_idx','Story definition deletes have a covering campaign index');
+select has_index('public','together_story_campaigns','together_story_campaigns_continuity_owner_idx','Story Life ownership checks and cascades have a covering index');
 select has_trigger('public','together_story_campaigns','together_story_campaigns_assign_continuity','Legacy Story callers receive an owned Life automatically');
 select ok(
   exists(
