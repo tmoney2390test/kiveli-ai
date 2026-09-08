@@ -20,7 +20,7 @@ test('serves the creator loading document for direct draft links without redirec
     const response = await worker.fetch(new Request('https://kivelli.app/create/companion/23dd65e4-9f85-49ab-be2d-184987ef5283?from=creations', { method }), {
       ASSETS: { fetch: async (request) => { requested = new URL(request.url); return new Response(currentHtml, { headers: { 'content-type': 'text/html' } }); } },
     });
-    assert.equal(requested.pathname, '/create/companion/[draftId]');
+    assert.equal(requested.pathname, '/create/companion/%5BdraftId%5D');
     assert.equal(requested.search, '?from=creations');
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('location'), null);
