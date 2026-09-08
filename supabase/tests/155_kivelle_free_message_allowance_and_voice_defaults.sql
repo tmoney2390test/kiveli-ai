@@ -10,8 +10,7 @@ select is(
   (
     select count(*)
     from public.together_character_voice_profiles profile
-    where profile.active
-      and lower(coalesce(profile.characteristics->>'gender','')) in('female','woman','women','girl','she/her')
+    where lower(coalesce(profile.characteristics->>'gender','')) in('female','woman','women','girl','she/her')
       and lower(coalesce(profile.provider_mappings->>'xai','')) in('sal','leo','rex')
   ),
   0::bigint,
@@ -52,8 +51,7 @@ select is(
   (
     select count(*)
     from public.together_character_voice_profiles profile
-    where profile.active
-      and lower(coalesce(profile.characteristics->>'gender','')) in('male','man','men','boy','he/him')
+    where lower(coalesce(profile.characteristics->>'gender','')) in('male','man','men','boy','he/him')
       and lower(coalesce(profile.provider_mappings->>'xai','')) in('sal','eve','ara')
   ),
   0::bigint,

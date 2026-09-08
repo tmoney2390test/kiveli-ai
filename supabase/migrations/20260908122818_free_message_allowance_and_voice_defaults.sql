@@ -64,14 +64,13 @@ revoke all on function public.kivelle_normalize_companion_voice_profile() from p
 
 drop trigger if exists together_character_voice_profiles_normalize_default on public.together_character_voice_profiles;
 create trigger together_character_voice_profiles_normalize_default
-before insert or update of voice_key,characteristics,provider_mappings
+before insert or update of voice_key,characteristics,provider_mappings,active
 on public.together_character_voice_profiles
 for each row execute function public.kivelle_normalize_companion_voice_profile();
 
 -- Fire the new invariant for the current catalog without touching authored
 -- custom voice IDs or any user conversation setting.
 update public.together_character_voice_profiles
-set provider_mappings=provider_mappings
-where active;
+set provider_mappings=provider_mappings;
 
 commit;
