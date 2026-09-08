@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { ArrowLeft, Brain, Check, MessageCircle } from 'lucide-react-native';
+import { ArrowLeft, Brain, Check, MessageCircle, Plus } from 'lucide-react-native';
 import { EmptyState, LoadingSkeleton, PageTitle, Screen, resolveCharacterPortraitSource } from '../src/components';
 import { setActiveCompanion } from '../src/lib/api';
 import { responsiveCompanionGrid } from '../src/lib/responsiveCompanionGrid';
@@ -21,12 +21,12 @@ export default function Companions() {
   if (!snapshot) return <LoadingSkeleton />;
   const discoveryHref = recentCompanionDiscoveryHref(snapshot);
   const companions = snapshot.characters.filter((item) => item.together_character_templates.can_be_selected && (item.contact_added_at || item.introduced_at));
-  if (!companions.length) return <EmptyState title="No established companions yet" body="Meet someone in Discover to begin a relationship." action="Open Discover" onAction={() => router.replace(discoveryHref as never)} />;
   const { cardWidth } = responsiveCompanionGrid({ viewportWidth: width, desktop, sidebarWidth });
   const activeCompanionId = snapshot.activeContinuity?.active_companion_instance_id ?? snapshot.profile?.active_companion_instance_id;
 
   return <Screen>
-    <View style={styles.header}><Pressable accessibilityLabel="Go back" onPress={() => router.canGoBack() ? router.back() : router.replace('/home')}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Your companions</PageTitle></View>
+    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => router.canGoBack() ? router.back() : router.replace('/home')}><ArrowLeft color={colors.text} /></Pressable><View style={styles.heading}>{width < 600 ? <Text accessibilityRole="header" style={styles.mobileTitle}>Your companions</Text> : <PageTitle>Your companions</PageTitle>}</View><Pressable accessibilityRole="button" accessibilityLabel="Create a companion" onPress={() => router.push('/create/companion')} style={({ pressed }) => [styles.create, pressed && styles.pressed]}><Text style={styles.createText}>Create</Text><Plus size={16} color={colors.rose} /></Pressable></View>
+    {!companions.length ? <EmptyState title="No established companions yet" body="Create a companion or meet someone in Discover to begin a relationship." action="Open Discover" onAction={() => router.replace(discoveryHref as never)} /> : <>
     <Text style={styles.lead}>Switch the relationship in focus, revisit memories, or continue a conversation.</Text>
     <View style={styles.grid}>{companions.map((item) => {
       const template = item.together_character_templates;
@@ -61,6 +61,7 @@ export default function Companions() {
       </View>;
     })}</View>
     <Pressable onPress={() => router.push(discoveryHref as never)} style={styles.discover}><Text style={styles.discoverText}>Discover someone new</Text></Pressable>
+    </>}
   </Screen>;
 }
 
@@ -69,7 +70,11 @@ function CompactAction({ icon, label, onPress, active = false, disabled = false 
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', gap: 14, alignItems: 'center' },
+  header: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  heading: { flex: 1, minWidth: 0 },
+  mobileTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 22, lineHeight: 28, fontWeight: '700' },
+  create: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(216,62,234,.3)', backgroundColor: 'rgba(216,62,234,.09)' },
+  createText: { color: colors.rose, fontSize: 12, fontWeight: '800' },
   lead: { color: colors.muted, lineHeight: 19 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' },
   card: { overflow: 'hidden', borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
