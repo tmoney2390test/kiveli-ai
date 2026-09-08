@@ -10,6 +10,7 @@ import {
   Home,
   Images,
   MessageCircle,
+  Plus,
   Settings,
   UsersRound,
 } from 'lucide-react-native';
@@ -98,7 +99,8 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.navGroup}>
-          {mainItems.map((item) => <SidebarAction key={item.key} expanded={expanded} label={item.label} icon={item.icon(activeKey === item.key ? '#E3A4F2' : colors.muted)} active={activeKey === item.key} count={item.count} onWarm={()=>warmRoute(item.href,(value)=>router.prefetch(value as never))} onPress={() => navigate(item.href)} />)}
+          {mainItems.map((item) => <SidebarAction key={item.key} expanded={expanded} label={item.label} icon={item.icon(activeKey === item.key ? '#E3A4F2' : colors.muted)} active={activeKey === item.key && !pathname.startsWith('/create/companion')} count={item.count} onWarm={()=>warmRoute(item.href,(value)=>router.prefetch(value as never))} onPress={() => navigate(item.href)} />)}
+          <SidebarAction expanded={expanded} label="Create +" icon={<Plus size={24} color={colors.rose} />} active={pathname.startsWith('/create/companion')} onWarm={() => warmRoute('/create/companion', (value) => router.prefetch(value as never))} onPress={() => navigate('/create/companion')} />
         </View>
 
       {expanded && currentWorld ? <View style={styles.section}>
