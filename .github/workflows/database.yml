@@ -34,10 +34,7 @@ jobs:
           cp "$fixture" supabase/migrations/20260904001250_ci_vharadren_reference_assets.sql
           cp "$fixture" supabase/migrations/20260904002850_ci_vharadren_reference_assets.sql
           cp "$fixture" supabase/migrations/20260904003450_ci_vharadren_reference_assets.sql
-          location_fixture=supabase/tests/fixtures/vharadren_location_assets_ci.sql.fixture
-          for version in 20260904002050 20260904002150 20260904002250 20260904002350 20260904002450 20260904002550 20260904002650; do
-            cp "$location_fixture" "supabase/migrations/${version}_ci_vharadren_location_assets.sql"
-          done
+          cp supabase/tests/fixtures/vharadren_location_assets_ci.sql.fixture supabase/migrations/20260904002050_ci_vharadren_location_assets.sql
           cp supabase/tests/fixtures/nightlife_reference_assets_ci.sql.fixture supabase/migrations/20260904003050_ci_nightlife_reference_assets.sql
           cp supabase/tests/fixtures/red_hour_storage_object_ci.sql.fixture supabase/migrations/20260904003150_ci_red_hour_storage_object.sql
       - name: Start isolated Supabase stack
