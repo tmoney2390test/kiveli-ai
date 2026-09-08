@@ -89,12 +89,7 @@ export function deadCharacterSceneNarration(input: {
   summary?: unknown;
 }): string {
   const name = input.name.replace(/[<>\r\n]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "The companion";
-  const summary = typeof input.summary === "string"
-    ? input.summary.replace(/[<>\r\n]/g, " ").replace(/\s+/g, " ").trim()
-    : "";
-  return summary
-    ? `${summary} ${name} cannot answer unless this continuity explicitly brings them back through a supernatural event.`
-    : `${name} is dead in this continuity and cannot answer. The scene remains, but there is no dialogue from them.`;
+  return `${name} is dead.`;
 }
 
 export function lifeStatePromptLabel(instance: Row): string {

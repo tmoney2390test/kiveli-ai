@@ -584,7 +584,7 @@ function groupStream(input: any): Response {
           );
           if (deadParticipants.length === input.roster.length && deadParticipants.length) {
             const first = deadParticipants[0]?.together_character_instances ?? {};
-            const names = deadParticipants.map((row: any) =>
+            const names: string[] = deadParticipants.map((row: any) =>
               String(row.together_character_instances?.together_character_templates?.name ?? "Companion")
             );
             const narration = names.length === 1
@@ -592,7 +592,7 @@ function groupStream(input: any): Response {
                 name: names[0]!,
                 summary: first.life_state_summary,
               })
-              : `${names.join(", ")} are dead in this continuity. The scene can continue, but none of them can speak unless an explicit supernatural event brings them back.`;
+              : names.map((name) => deadCharacterSceneNarration({ name })).join(" ");
             const committed = await commitGroupSystemMessage(input.db, {
               turnId: input.turn.id,
               version: Number(input.turn.version),
