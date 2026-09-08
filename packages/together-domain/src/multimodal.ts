@@ -160,6 +160,8 @@ export function deriveCompanionVoiceProfile(input: {
   characterTemplateId: string;
   publicHandle?: string | null;
   slug?: string | null;
+  gender?: string | null;
+  pronouns?: string | null;
   personality?: Record<string, unknown>;
   communicationStyle?: Record<string, unknown>;
 }): CompanionVoiceProfile {
@@ -175,6 +177,8 @@ export function deriveCompanionVoiceProfile(input: {
       pace: number(communication['pace'], .5),
       expressiveness: number(personality['expressiveness'] ?? personality['playful'], .55),
       softness: number(personality['softness'] ?? personality['reserved'], .45),
+      ...(input.gender ? { gender: input.gender } : {}),
+      ...(input.pronouns ? { pronouns: input.pronouns } : {}),
     },
   };
 }

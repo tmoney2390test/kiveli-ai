@@ -386,10 +386,11 @@ export async function resolveCompanionVoiceProfile(
     }, voicePreset);
   }
   const { data: version } = await db.from("together_character_versions").select(
-    "personality_config,communication_style",
+    "pronouns,personality_config,communication_style",
   ).eq("id", String(instance?.character_version_id ?? "")).maybeSingle();
   return applyCompanionVoicePreset(deriveCompanionVoiceProfile({
     characterTemplateId: templateId,
+    pronouns: typeof version?.pronouns === "string" ? version.pronouns : null,
     personality: (version?.personality_config ?? {}) as Record<string, unknown>,
     communicationStyle: (version?.communication_style ?? {}) as Record<
       string,
