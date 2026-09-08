@@ -70,7 +70,7 @@ export const subscriptionCatalog:Record<SubscriptionTier,KivelleCapabilities>={
   kivelle_max:{tier:'kivelle_max',displayName:'Kivelle Max',monthlyPriceUsd:39.99,annualPriceUsd:399.99,maxActiveConversations:50,dailyMessageLimit:null,userRequestedPhotoDailyLimit:12,includedCompanionPhotoDailyLimit:3,includedDatePhotoMonthlyLimit:3,intelligenceProfile:'director',reasoningEffortMax:'high',memoryRetrievalBudget:20,recentTurnBudget:28,historyRetrievalBudget:6,directorPolicy:'normal_and_up',maxLives:10,maxCustomCompanions:20,worldAccess:'all_standard',earlyWorldAccess:true,monthlyCreditGrant:1200,subscriptionCreditRolloverCap:2400,welcomeCredits:50,mediaQueue:'highest',entitlements:maxEntitlements},
 };
 
-export const creditCosts:Record<CreditAction,number>={companion_photo:10,photo_edit:10,photo_variant:10,premium_photo:20,creator_appearance_set:40,short_video:125,voice_note:2,voice_minute:8,voice_standard_minute:3};
+export const creditCosts:Record<CreditAction,number>={companion_photo:10,photo_edit:10,photo_variant:10,premium_photo:20,creator_appearance_set:20,short_video:125,voice_note:2,voice_minute:8,voice_standard_minute:3};
 export const VOICE_NOTE_FULL_SYNTHESIS_CHARACTER_LIMIT=2_000;
 export type VoiceNotePricing={creditCost:2|3|4;characterCount:number;shortened:boolean};
 export function voiceNotePricing(characterCount:unknown):VoiceNotePricing{
