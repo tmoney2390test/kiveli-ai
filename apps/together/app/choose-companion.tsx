@@ -3,6 +3,7 @@ import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type 
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Check, ChevronRight, Sparkles } from 'lucide-react-native';
+import { SpiceBadge } from '../src/components/SpiceBadge';
 import { CompanionGenderToggle } from '../src/components/CompanionGenderToggle';
 import { FrostedSurface, KivelleLogo, LoadingSkeleton, Screen, resolveCharacterPortraitSource } from '../src/components';
 import { worldHeroAsset } from '../src/assets';
@@ -212,6 +213,7 @@ function CompanionCard({ person, desktop, selected, busy, onPress }: { person: F
   >
     {portrait ? <Image source={portrait} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" cachePolicy="memory-disk" /> : <View style={[StyleSheet.absoluteFill, styles.personFallback]}><Text style={styles.personInitial}>{person.name[0]}</Text></View>}
     <View style={styles.personShade} />
+    <SpiceBadge level={person.spice_level} overlay />
     {selected ? <View style={styles.personCheck}><Check size={15} strokeWidth={3} color="#fff" /></View> : null}
     <View style={styles.personCopy}>
       <Text numberOfLines={1} style={styles.personName}>{person.name}</Text>
@@ -277,7 +279,7 @@ const styles = StyleSheet.create({
   personFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.plum },
   personInitial: { color: 'rgba(255,255,255,.18)', fontFamily: typography.display, fontSize: 90 },
   personShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(8,6,12,.15)', ...(Platform.OS === 'web' ? ({ backgroundImage: 'linear-gradient(0deg, rgba(6,4,9,.95), rgba(6,4,9,.03) 68%)' } as never) : {}) },
-  personCheck: { position: 'absolute', top: 10, right: 10, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#A94FDC', borderWidth: 1, borderColor: 'rgba(255,255,255,.48)' },
+  personCheck: { position: 'absolute', top: 10, left: 10, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#A94FDC', borderWidth: 1, borderColor: 'rgba(255,255,255,.48)' },
   personCopy: { zIndex: 1, padding: 13 },
   personName: { color: '#fff', fontFamily: typography.display, fontSize: 23, lineHeight: 27, textShadowColor: '#000', textShadowRadius: 8 },
   personOccupation: { color: '#E6D9E5', fontSize: 10, lineHeight: 14, fontWeight: '700', marginTop: 2 },
