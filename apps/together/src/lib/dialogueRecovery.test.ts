@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DIALOGUE_RECOVERY_DELAYS_MS, STALE_DIALOGUE_REPLAY_AFTER_MS, dialogueFailureMayHavePersisted, latestUnansweredDialogueRequest, persistedDialogueResponseForRequest, staleDialogueReplayDelay } from './dialogueRecovery';
+import { DIALOGUE_RECOVERY_DELAYS_MS, STALE_DIALOGUE_REPLAY_AFTER_MS, dialogueFailureMayHavePersisted, dialogueRecoveryShouldContinue, latestUnansweredDialogueRequest, persistedDialogueResponseForRequest, staleDialogueReplayDelay } from './dialogueRecovery';
 
 describe('dialogue failure recovery',()=>{
   it('keeps checking beyond a slow fifteen-second first token',()=>{
@@ -20,6 +20,13 @@ describe('dialogue failure recovery',()=>{
   it('does not poll after deterministic client errors',()=>{
     expect(dialogueFailureMayHavePersisted({code:'VALIDATION_FAILED',message:'Write a message.'})).toBe(false);
     expect(dialogueFailureMayHavePersisted(new Error('Write a message.'))).toBe(false);
+  });
+
+  it('stops recovery as soon as the server confirms that request is no longer active',()=>{
+    expect(dialogueRecoveryShouldContinue({pending:false,requestId:null},'request-1')).toBe(false);
+    expect(dialogueRecoveryShouldContinue({pending:true,requestId:'newer-request'},'request-1')).toBe(false);
+    expect(dialogueRecoveryShouldContinue({pending:true,requestId:'request-1'},'request-1')).toBe(true);
+    expect(dialogueRecoveryShouldContinue(undefined,'request-1')).toBe(true);
   });
 
   it('recovers a persisted photo-only response after the terminal stream event is lost',()=>{

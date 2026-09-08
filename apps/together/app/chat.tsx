@@ -39,7 +39,7 @@ import { presentMemoryText } from '../src/lib/memoryPresentation';
 import { mediaWithoutActivePhotoOffer, photoMediaForOffer, photoOfferForMessage, photoOffersAtTimelineTail, shouldShowPhotoGenerationPending, visibleChatPhotoMedia } from '../src/lib/photoRequestPresentation';
 import { latestMediaOfferPreviewUri } from '../src/lib/mediaOfferPresentation';
 import { proposalHeading, sceneActionDividerLabel, sceneActionTimelineEntryFromAction, sceneActionTimelineEntryFromMessage, type SceneActionTimelineEntry } from '../src/lib/interactionPresentation';
-import { DIALOGUE_RECOVERY_DELAYS_MS, dialogueFailureMayHavePersisted, latestUnansweredDialogueRequest, persistedDialogueResponseForRequest, staleDialogueReplayDelay } from '../src/lib/dialogueRecovery';
+import { DIALOGUE_RECOVERY_DELAYS_MS, dialogueFailureMayHavePersisted, dialogueRecoveryShouldContinue, latestUnansweredDialogueRequest, persistedDialogueResponseForRequest, staleDialogueReplayDelay } from '../src/lib/dialogueRecovery';
 import { subscribeToWebPageResume, waitForWebPageVisible } from '../src/lib/webPageLifecycle';
 import { reconcileMessages } from '../src/lib/messageReconciliation';
 import { endPlanExperience, getPlanExperience, joinCommitment, switchPlanExperience } from '../src/lib/commitments';
@@ -87,6 +87,7 @@ type VoiceNotePrompt={messageId:string;name:string;creditCost:number;creditBalan
 type MemorySavedNotice={id:number;name:string};
 type DirectMessageAction={messageAction:'continue';anchorMessageId:string};
 type QueuedPhotoOfferDecision={requestId:string;action:'accept'|'decline';paymentMethod?:'credits'|'daily_included'};
+type ConversationMessagePage={messages:Message[];hasMore:boolean;replyStatus?:{pending:boolean;requestId:string|null}};
 const GroupChatScreen=lazy(()=>import('./group-chat'));
 const PAGE_SIZE = 50;
 
@@ -449,7 +450,7 @@ function ChatSession() {
       }
     }finally{setLoadingOlder(false);}
   };
-  const recoverInterruptedDialogue=async(conversationId:string,characterInstanceId:string,optimistic:Message,clientRequestId:string,expectsPhotoOffer=false):Promise<boolean>=>{let latestCanonical:Message[]|null=null;await waitForWebPageVisible();for(const delay of DIALOGUE_RECOVERY_DELAYS_MS){await new Promise((resolve)=>setTimeout(resolve,delay));try{const result=await manageConversation<{messages:Message[];hasMore:boolean}>({action:'messages',conversationId,limit:PAGE_SIZE}),canonical=[...result.messages].reverse(),response=persistedDialogueResponseForRequest(canonical,clientRequestId);latestCanonical=canonical;if(!response)continue;if(expectsPhotoOffer){const offers=await fetchPendingMediaOffers(characterInstanceId,conversationId),matchingOffer=offers.find((offer)=>offer.message_id===response.id);if(!matchingOffer)continue;setMediaOffers(offers);setAwaitingPhotoOffer(false);}setMessages((current)=>reconcileMessages(current,canonical,[optimistic.id]));void refresh().catch(()=>undefined);return true;}catch{continue;}}if(latestCanonical)setMessages((current)=>reconcileMessages(current,latestCanonical!,[optimistic.id]));return false;};
+  const recoverInterruptedDialogue=async(conversationId:string,characterInstanceId:string,optimistic:Message,clientRequestId:string,expectsPhotoOffer=false):Promise<boolean>=>{let latestCanonical:Message[]|null=null;await waitForWebPageVisible();for(const delay of DIALOGUE_RECOVERY_DELAYS_MS){await new Promise((resolve)=>setTimeout(resolve,delay));try{const result=await manageConversation<ConversationMessagePage>({action:'messages',conversationId,limit:PAGE_SIZE,includeReplyStatus:true}),canonical=[...result.messages].reverse(),response=persistedDialogueResponseForRequest(canonical,clientRequestId);latestCanonical=canonical;if(!response){if(!dialogueRecoveryShouldContinue(result.replyStatus,clientRequestId))break;continue;}if(expectsPhotoOffer){const offers=await fetchPendingMediaOffers(characterInstanceId,conversationId),matchingOffer=offers.find((offer)=>offer.message_id===response.id);if(!matchingOffer)continue;setMediaOffers(offers);setAwaitingPhotoOffer(false);}setMessages((current)=>reconcileMessages(current,canonical,[optimistic.id]));void refresh().catch(()=>undefined);return true;}catch{continue;}}if(latestCanonical)setMessages((current)=>reconcileMessages(current,latestCanonical!,[optimistic.id]));return false;};
   useEffect(() => {
     if(!conversation){setLoading(false);setLoadedConversationId(null);return;}
     const conversationId=conversation.id,userId=session?.user.id,cached=userId?readConversationMessagePage(userId,conversationId):null;

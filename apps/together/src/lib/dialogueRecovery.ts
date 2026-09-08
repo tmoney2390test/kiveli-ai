@@ -17,6 +17,13 @@ type RecoverableMessage={
   provider_metadata?:Record<string,unknown>|null;
 };
 
+export type DialogueReplyStatus={pending:boolean;requestId:string|null};
+
+export function dialogueRecoveryShouldContinue(status:DialogueReplyStatus|undefined,clientRequestId:string):boolean{
+  if(!status)return true;
+  return status.pending&&status.requestId===clientRequestId;
+}
+
 export function dialogueFailureMayHavePersisted(error:unknown):boolean{
   if(error instanceof TypeError)return true;
   if(!error||typeof error!=='object')return false;
