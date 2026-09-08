@@ -1,0 +1,18 @@
+-- CI-only metadata for portrait bytes imported out of band in production.
+with nightlife_slugs(slug) as(values
+  ('lila-quinn'),('sienna-cruz'),('giada-morelli'),('paloma-vargas')
+)
+insert into public.together_media_reference_assets(
+  asset_role,character_version_id,source_key,storage_bucket,storage_path,
+  content_type,revision,active,metadata
+)
+select
+  'character_identity',version.id,'character:'||template.slug||':identity',
+  'kivelle-character-reference','ci/nightlife/'||template.slug||'/identity.png',
+  'image/png',1,true,'{"ciFixture":true}'::jsonb
+from nightlife_slugs expected
+join public.together_character_templates template on template.slug=expected.slug
+join public.together_character_versions version
+  on version.character_template_id=template.id
+ and version.version=template.current_published_version
+on conflict(asset_role,source_key,revision) do nothing;

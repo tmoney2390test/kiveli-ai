@@ -1,0 +1,45 @@
+-- CI-only staged metadata for location images imported out of band in
+-- production. Reusing this fixture before each historical art batch inserts
+-- only the batch expected at the database's current asset count.
+with staged(required_before,slug) as(values
+  (0,'ashlands'),(0,'black-march'),(0,'crownspire'),(0,'dragonbone-citadel'),
+  (0,'ember-isles'),(0,'ember-throne-hall'),(0,'shattered-coast'),(0,'verdant-reach'),
+  (8,'basilica-seven-flames'),(8,'blackglass-baths'),(8,'gilded-steps-market'),
+  (8,'house-of-velvet-oaths'),(8,'lantern-gallows'),(8,'red-ledger-exchange'),
+  (14,'broken-spur-tavern'),(14,'chapel-iron-saint'),(14,'deepnail-mines'),
+  (14,'house-red-reeds'),(14,'ironwake-foundry'),(14,'red-mare-camp-market'),
+  (14,'thornwall-keep'),(14,'wolfgate-barracks'),
+  (22,'ashen-docks'),(22,'caldera-hatchery'),(22,'crimson-veil'),
+  (22,'pyrehold-castle'),(22,'saltfire-bazaar'),(22,'widows-vineyard'),(22,'wyrmglass-arena'),
+  (29,'briar-and-cup'),(29,'green-hart-lodge'),(29,'hartwood-hall'),
+  (29,'hollow-crown-grove'),(29,'motherleaf-sanctuary'),(29,'rootmarket'),(29,'weeping-archive'),
+  (36,'drowned-crown-palace'),(36,'greymere-shipyard'),(36,'knifeharbor-market'),
+  (36,'lantern-rooms'),(36,'saint-orlas-lighthouse'),(36,'salt-widow-tavern'),(36,'tidevault-prison'),
+  (43,'ash-mother-infirmary'),(43,'chainbreakers-market'),(43,'cinder-camp'),
+  (43,'glass-battlefield'),(43,'old-imperial-waystation'),(43,'saintless-house'),
+  (43,'unshackled-cup'),(43,'vault-nameless-kings')
+), current_state(asset_count) as(
+  select count(*)::integer
+  from public.together_media_reference_assets asset
+  join public.together_locations location on location.id=asset.location_id
+  where location.world_id='10000000-0000-4000-8000-000000000013'::uuid
+    and asset.asset_role='location_canonical' and asset.active=true
+), resolved as(
+  select location.id,location.slug
+  from staged
+  cross join current_state
+  join public.together_locations location
+    on location.world_id='10000000-0000-4000-8000-000000000013'::uuid
+   and location.slug=staged.slug
+  where staged.required_before=current_state.asset_count
+)
+insert into public.together_media_reference_assets(
+  asset_role,location_id,source_key,storage_bucket,storage_path,
+  content_type,revision,active,metadata
+)
+select
+  'location_canonical',resolved.id,'location:vharadren:'||resolved.slug||':canonical',
+  'kivelle-reference-media','ci/vharadren/locations/'||resolved.slug||'.png',
+  'image/png',1,true,'{"ciFixture":true}'::jsonb
+from resolved
+on conflict(asset_role,source_key,revision) do nothing;
