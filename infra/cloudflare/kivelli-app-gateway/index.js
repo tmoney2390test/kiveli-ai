@@ -50,7 +50,15 @@ function isRetiredStoryPath(pathname) {
 async function serveAppAsset(request, env) {
   try {
     const pathname = new URL(request.url).pathname;
-    const assetResponse = await env.ASSETS.fetch(request);
+    let assetRequest = request;
+    if ((request.method === "GET" || request.method === "HEAD") && /^\/create\/companion\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/?$/i.test(pathname)) {
+      // Expo exports one loading document for this dynamic route. The root
+      // SPA fallback has different markup and causes hydration recovery.
+      const assetUrl = new URL(request.url);
+      assetUrl.pathname = "/create/companion/[draftId]";
+      assetRequest = new Request(assetUrl, request);
+    }
+    const assetResponse = await env.ASSETS.fetch(assetRequest);
     const responseHeaders = new Headers(assetResponse.headers);
     const contentType = responseHeaders.get("content-type") || "";
     if (isApplicationAssetPath(pathname) && contentType.includes("text/html")) {

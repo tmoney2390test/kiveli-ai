@@ -14,6 +14,28 @@ function unsignedJwt(subject) {
   return `header.${encoded}.signature`;
 }
 
+test('serves the creator loading document for direct draft links without redirecting the UUID', async () => {
+  for (const method of ['GET', 'HEAD']) {
+    let requested;
+    const response = await worker.fetch(new Request('https://kivelli.app/create/companion/23dd65e4-9f85-49ab-be2d-184987ef5283?from=creations', { method }), {
+      ASSETS: { fetch: async (request) => { requested = new URL(request.url); return new Response(currentHtml, { headers: { 'content-type': 'text/html' } }); } },
+    });
+    assert.equal(requested.pathname, '/create/companion/[draftId]');
+    assert.equal(requested.search, '?from=creations');
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('location'), null);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+  }
+});
+
+test('leaves the creator entry and static asset paths unchanged', async () => {
+  for (const pathname of ['/create/companion', '/create/companion/avatar.png']) {
+    let requested;
+    await worker.fetch(new Request('https://kivelli.app' + pathname), { ASSETS: { fetch: async (request) => { requested = new URL(request.url); return new Response('asset'); } } });
+    assert.equal(requested.pathname, pathname);
+  }
+});
+
 test('derives the release from the generated Expo entry asset', () => {
   assert.equal(releaseFromHtml(currentHtml), currentEntry);
 });
