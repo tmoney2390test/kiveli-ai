@@ -35,6 +35,7 @@ jobs:
           cp supabase/tests/fixtures/vharadren_location_assets_ci.sql.fixture supabase/migrations/20260904002050_ci_vharadren_location_assets.sql
           cp supabase/tests/fixtures/nightlife_reference_assets_ci.sql.fixture supabase/migrations/20260904003050_ci_nightlife_reference_assets.sql
           cp supabase/tests/fixtures/red_hour_storage_object_ci.sql.fixture supabase/migrations/20260904003150_ci_red_hour_storage_object.sql
+          cp supabase/tests/fixtures/production_asset_fixture_cleanup_ci.sql.fixture supabase/migrations/20260904999999_ci_production_asset_fixture_cleanup.sql
       - name: Start isolated Supabase stack
         run: pnpm exec supabase start
       - name: Run database tests
