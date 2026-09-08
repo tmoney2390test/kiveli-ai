@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, CalendarDays, LockKeyhole, Palmtree, Plus, Sparkles, UserRound } from 'lucide-react-native';
+import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, CalendarDays, LockKeyhole, Palmtree, UserRound } from 'lucide-react-native';
 import { EmptyState, LoadingSkeleton, PageTitle, Screen, SectionHeader } from '../../src/components';
 import { CompanionGenderToggle, useCompanionGenderPreference } from '../../src/components/CompanionGenderToggle';
 import { CompanionPortraitCard } from '../../src/components/CompanionPortraitCard';
+import { CompanionSpicePicker, type CompanionSpiceFilter } from '../../src/components/CompanionSpicePicker';
+import { normalizeSpiceLevel } from '../../src/lib/spice';
 import { CompanionWorldToggle } from '../../src/components/CompanionWorldToggle';
 import { listCreatorDrafts, setCharacterFavorite } from '../../src/lib/api';
 import { companionGenderFromSignals, featuredCompanionGender, type FeaturedGenderFilter } from '../../src/lib/featuredCompanions';
@@ -25,6 +27,8 @@ export default function Discover() {
   const { snapshot, browsedWorldId, setBrowsedWorldId } = useTogether();
   const { world: worldSlug } = useLocalSearchParams<{world?: string}>();
   const [tab, setTab] = useState<Tab>('People');
+  const [spice, setSpice] = useState<CompanionSpiceFilter>('any');
+  const [sortMode, setSortMode] = useState<CompanionSortMode>('recommended');
   const [gender, setGender] = useCompanionGenderPreference();
   const [drafts, setDrafts] = useState<CreatorDraft[]>([]);
   const [draftsLoading, setDraftsLoading] = useState(true);
@@ -65,43 +69,34 @@ export default function Discover() {
       <PageTitle>Discover</PageTitle>
       <Text style={styles.subtitle}>{selectedWorld ? `Meet every available character who calls ${selectedWorld.name} home.` : 'Meet someone new, or find something meaningful to do together.'}</Text>
     </View>
-    <Pressable accessibilityRole="button" accessibilityLabel="Create someone" onPress={() => router.push('/create/companion')} style={styles.create}>
-      <Sparkles size={19} color="#fff" />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.createTitle}>Create someone</Text>
-        <Text style={styles.createCopy}>Create a person with a real identity, routine, home, and first meeting.</Text>
-      </View>
-      <Plus size={19} color="#fff" />
-    </Pressable>
     <View style={styles.tabs}>
       {(['People', 'Experiences'] as const).map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} onPress={() => setTab(item)} style={[styles.tab, tab === item && styles.tabSelected]}><Text style={[styles.tabText, tab === item && styles.tabTextSelected]}>{item}</Text></Pressable>)}
     </View>
     {tab === 'People'
-      ? <><View style={styles.filters}><CompanionGenderToggle value={gender} onChange={setGender} /><CompanionWorldToggle worlds={publishedWorlds} value={selectedWorld.id} onChange={chooseWorld} /></View><People snapshot={snapshot} drafts={drafts} draftsLoading={draftsLoading} worldId={selectedWorld.id} gender={gender} /></>
+      ? <><View style={styles.filters}><CompanionGenderToggle value={gender} onChange={setGender} /><CompanionWorldToggle worlds={publishedWorlds} value={selectedWorld.id} onChange={chooseWorld} /><CompanionSpicePicker value={spice} onChange={setSpice} /><CompanionSortControls value={sortMode} onChange={setSortMode} /></View><People snapshot={snapshot} drafts={drafts} draftsLoading={draftsLoading} worldId={selectedWorld.id} gender={gender} spice={spice} sortMode={sortMode} /></>
       : <Experiences snapshot={snapshot} />}
   </Screen>;
 }
 
-function People({ snapshot, drafts, draftsLoading, worldId, gender }: { snapshot: Snapshot; drafts: CreatorDraft[]; draftsLoading: boolean; worldId?: string; gender: FeaturedGenderFilter }) {
+function People({ snapshot, drafts, draftsLoading, worldId, gender, spice, sortMode }: { snapshot: Snapshot; drafts: CreatorDraft[]; draftsLoading: boolean; worldId?: string; gender: FeaturedGenderFilter; spice: CompanionSpiceFilter; sortMode: CompanionSortMode }) {
   const { width } = useWindowDimensions();
   const { desktop, sidebarWidth } = useAppShell();
   const [visibleOfficialCount,setVisibleOfficialCount]=useState(12);
-  const [sortMode, setSortMode] = useState<CompanionSortMode>('recommended');
   const legacyDraftIds = useMemo(() => new Set(drafts.map((draft) => draft.legacy_template_id).filter(Boolean)), [drafts]);
   const worldCharacterIds = useMemo(() => worldId ? new Set(characterCatalogForWorld(snapshot, worldId).map((entry) => entry.template.id)) : null, [snapshot, worldId]);
   const worldDrafts = worldId ? drafts.filter((draft) => draft.world_id === worldId) : drafts;
-  const visibleDrafts = sortCompanionResults(worldDrafts.filter((draft) => gender === 'any' || companionGenderFromSignals(draft.identity_config.pronouns, draft.identity_config.biography, draft.appearance_config) === gender), sortMode, (draft) => ({ age: draft.identity_config.age, spiceLevel: draft.connection_config.spiceLevel }));
-  const creations = sortCompanionResults((snapshot.discoverableCharacters ?? []).filter((item) => Boolean(item.creator_id) && !legacyDraftIds.has(item.id) && (!worldCharacterIds || worldCharacterIds.has(item.id))).filter((item) => gender === 'any' || featuredCompanionGender(item) === gender), sortMode, (item) => ({ age: item.age, spiceLevel: item.spice_level }));
-  const official = sortCompanionResults((snapshot.discoverableCharacters ?? []).filter((item) => !item.creator_id && (!worldCharacterIds || worldCharacterIds.has(item.id))).filter((item) => gender === 'any' || featuredCompanionGender(item) === gender), sortMode, (item) => ({ age: item.age, spiceLevel: item.spice_level }));
-  useEffect(()=>setVisibleOfficialCount(12),[gender,worldId,sortMode]);
+  const visibleDrafts = sortCompanionResults(worldDrafts.filter((draft) => spice === 'any' || normalizeSpiceLevel(draft.connection_config.spiceLevel) === spice).filter((draft) => gender === 'any' || companionGenderFromSignals(draft.identity_config.pronouns, draft.identity_config.biography, draft.appearance_config) === gender), sortMode, (draft) => ({ age: draft.identity_config.age, spiceLevel: draft.connection_config.spiceLevel }));
+  const creations = sortCompanionResults((snapshot.discoverableCharacters ?? []).filter((item) => spice === 'any' || normalizeSpiceLevel(item.spice_level) === spice).filter((item) => Boolean(item.creator_id) && !legacyDraftIds.has(item.id) && (!worldCharacterIds || worldCharacterIds.has(item.id))).filter((item) => gender === 'any' || featuredCompanionGender(item) === gender), sortMode, (item) => ({ age: item.age, spiceLevel: item.spice_level }));
+  const official = sortCompanionResults((snapshot.discoverableCharacters ?? []).filter((item) => spice === 'any' || normalizeSpiceLevel(item.spice_level) === spice).filter((item) => !item.creator_id && (!worldCharacterIds || worldCharacterIds.has(item.id))).filter((item) => gender === 'any' || featuredCompanionGender(item) === gender), sortMode, (item) => ({ age: item.age, spiceLevel: item.spice_level }));
+  useEffect(()=>setVisibleOfficialCount(12),[gender,worldId,sortMode,spice]);
   const visibleOfficial=official.slice(0,visibleOfficialCount);
   const { cardWidth, cardHeight } = responsiveCompanionGrid({ viewportWidth: width, desktop, sidebarWidth });
   if (!official.length && !creations.length && !visibleDrafts.length && !draftsLoading) {
     const worldName = snapshot.worlds.find((world) => world.id === worldId)?.name;
-    return <EmptyState title={gender === 'any' ? 'New people are on the way' : `No ${gender} companions here yet`} body={gender === 'any' ? 'Your current relationships are still waiting on Home.' : `Try Any to see everyone${worldName ? ` available in ${worldName}` : ''}.`} />;
+    return <EmptyState title={spice !== 'any' ? 'No companions match these filters' : gender === 'any' ? 'New people are on the way' : `No ${gender} companions here yet`} body={spice !== 'any' ? 'Try Any spiciness or choose another world.' : gender === 'any' ? 'Your current relationships are still waiting on Home.' : `Try Any to see everyone${worldName ? ` available in ${worldName}` : ''}.`} />;
   }
   return <>
-    <CompanionSortControls value={sortMode} onChange={setSortMode} />
+
     {visibleDrafts.length || creations.length || draftsLoading ? <>
       <SectionHeader title="Your creations" action={`${visibleDrafts.length + creations.length}`} />
       <View style={styles.stack}>
@@ -219,7 +214,7 @@ const styles = StyleSheet.create({
   create: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: radius.lg, backgroundColor: colors.violet },
   createTitle: { color: '#fff', fontFamily: 'Georgia', fontSize: 20 }, createCopy: { color: 'rgba(255,255,255,.78)', fontSize: 11, marginTop: 2 },
   tabs: { flexDirection: 'row', gap: 7, padding: 4, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
-  filters: { flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, zIndex: 30 },
+  filters: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, zIndex: 30 },
   sortBar: { minHeight: 48, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, paddingVertical: 2 },
   sortLabel: { color: colors.dimmed, fontSize: 9, fontWeight: '900', letterSpacing: 1.1, marginRight: 2 },
   sortControl: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 11, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
