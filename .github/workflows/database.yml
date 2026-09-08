@@ -13,7 +13,10 @@ concurrency:
 jobs:
   verify-database:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Replaying the full historical world/content migration ledger currently
+    # takes more than 25 minutes on a fresh hosted runner. Leave enough time for
+    # pgTAP to run instead of timing out during setup.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
