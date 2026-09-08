@@ -1,3 +1,4 @@
+import { requestRead } from './request-context.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { capabilitiesForTier, hasOpenBuildWorldAccess, normalizeSubscriptionTier } from '../../../packages/together-domain/src/index.ts';
 import { AppError } from './types.ts';
@@ -32,20 +33,21 @@ export function isHomePresenceActivity(activity?:string|null,activityKey?:string
 
 export async function resolvePlaceContext(input:{db:SupabaseClient;locationId:string;now?:Date;userId?:string;characterInstanceId?:string}):Promise<PlaceContext>{
   const now=input.now??new Date();
-  const {data:location,error}=await input.db.from('together_locations').select('*').eq('id',input.locationId).maybeSingle();
+  const {data:location,error}=await requestRead(input.db,['authored-location',input.locationId],()=>input.db.from('together_locations').select('*').eq('id',input.locationId).maybeSingle());
   if(error||!location)throw new AppError('NOT_FOUND','That place is unavailable.',404);
-  const {data:world,error:worldError}=await input.db.from('together_worlds').select('*').eq('id',location.world_id).maybeSingle();
+  const aiLorePromise=resolveEligibleLocationAiLore({...input,locationId:String(location.id)});
+  const {data:world,error:worldError}=await requestRead(input.db,['authored-world',location.world_id],()=>input.db.from('together_worlds').select('*').eq('id',location.world_id).maybeSingle());
   if(worldError||!world)throw new AppError('INTERNAL_ERROR','This place is missing its world.',500,true);
   const ancestry:Row[]=[];const visited=new Set<string>([String(location.id)]);let parentId=location.parent_location_id?String(location.parent_location_id):null;
   while(parentId){
     if(visited.has(parentId)||visited.size>16)throw new AppError('INTERNAL_ERROR','This place has an invalid hierarchy.',500,true);
     visited.add(parentId);
-    const {data:parent}=await input.db.from('together_locations').select('id,world_id,parent_location_id,slug,name,location_type,description,canonical_visual_context,canonical_lore').eq('id',parentId).maybeSingle();
+    const {data:parent}=await requestRead(input.db,['authored-parent',parentId],()=>input.db.from('together_locations').select('id,world_id,parent_location_id,slug,name,location_type,description,canonical_visual_context,canonical_lore').eq('id',parentId).maybeSingle());
     if(!parent||String(parent.world_id)!==String(location.world_id))throw new AppError('INTERNAL_ERROR','This place crosses world boundaries.',500,true);
     ancestry.unshift(parent);parentId=parent.parent_location_id?String(parent.parent_location_id):null;
   }
   const lore=(location.canonical_lore??{}) as LocationLore;
-  const aiLore=await resolveEligibleLocationAiLore({...input,locationId:String(location.id)});
+  const timezonePromise=resolveUserExperienceTimezone(input.db,input.userId,safeTimezone(world.timezone));
   const nearbySlugs=Array.isArray(lore.nearbyLocationSlugs)?lore.nearbyLocationSlugs.map(String).filter(Boolean).slice(0,8):[];
   let nearbyRows:Row[]=[];
   if(nearbySlugs.length){const{data}=await input.db.from('together_locations').select('id,slug,name,location_type,category,description,possible_activities,sort_order').eq('world_id',location.world_id).in('slug',nearbySlugs).limit(8);nearbyRows=data??[];}
@@ -60,14 +62,14 @@ export async function resolvePlaceContext(input:{db:SupabaseClient;locationId:st
   }
   const toDistrict=(item:Row):PlaceDistrict=>({id:String(item.id),slug:String(item.slug),name:String(item.name),type:'district',description:item.description?String(item.description):undefined,visualContext:(item.canonical_visual_context??{}) as LocationVisualContext,lore:(item.canonical_lore??{}) as LocationLore});
   const worldTimezone=safeTimezone(world.timezone);
-  const timezone=await resolveUserExperienceTimezone(input.db,input.userId,worldTimezone);
+  const [timezone,aiLore]=await Promise.all([timezonePromise,aiLorePromise]);
   const clock=experienceClock(timezone,now);
   return {contextVersion:1,world:{id:String(world.id),slug:String(world.slug),name:String(world.name),description:String(world.description),timezone:worldTimezone,accessType:String(world.access_type??'free'),visualContext:(world.visual_context??{}) as WorldVisualContext},location:{id:String(location.id),slug:String(location.slug),name:String(location.name),type:String(location.location_type??'venue') as LocationType,description:String(location.description),category:String(location.category),hours:location.hours??null,possibleActivities:(location.possible_activities??[]).map(String),visualContext:(location.canonical_visual_context??{}) as LocationVisualContext,lore,...(aiLore?{aiLore}:{})},ancestry:ancestry.map((item)=>({id:String(item.id),slug:String(item.slug),name:String(item.name),type:String(item.location_type??'venue') as LocationType,description:item.description?String(item.description):undefined,visualContext:(item.canonical_visual_context??{}) as LocationVisualContext,lore:(item.canonical_lore??{}) as LocationLore})),...(districtRow?{district:toDistrict(districtRow)}:{}),adjacentDistricts:adjacentRows.sort((left,right)=>adjacentSlugs.indexOf(String(left.slug))-adjacentSlugs.indexOf(String(right.slug))).map(toDistrict),nearby:nearbyRows.sort((left,right)=>nearbySlugs.length?nearbySlugs.indexOf(String(left.slug))-nearbySlugs.indexOf(String(right.slug)):Number(left.sort_order??0)-Number(right.sort_order??0)).map((item)=>({id:String(item.id),slug:String(item.slug),name:String(item.name),type:String(item.location_type??'venue') as LocationType,category:String(item.category??''),description:String(item.description??''),possibleActivities:(item.possible_activities??[]).map(String)})),path:[String(world.name),...ancestry.map((item)=>String(item.name)),String(location.name)].join(' → '),clock:{timezone,localIso:`${clock.localDate}T${clock.localTime}`,weekday:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][clock.weekday]??'',localTime:clock.localTime,daypart:clock.daypart}};
 }
 
 async function resolveEligibleLocationAiLore(input:{db:SupabaseClient;locationId:string;userId?:string;characterInstanceId?:string}):Promise<LocationAiLore|undefined>{
   if(!input.userId||!input.characterInstanceId)return undefined;
-  const{data:layers,error}=await input.db.from('together_location_lore_layers').select('layer_key,disclosure_scope,min_relationship_stage,required_character_slugs,required_story_keys,lore').eq('location_id',input.locationId).eq('active',true);
+  const{data:layers,error}=await requestRead(input.db,['authored-lore',input.locationId],()=>input.db.from('together_location_lore_layers').select('layer_key,disclosure_scope,min_relationship_stage,required_character_slugs,required_story_keys,lore').eq('location_id',input.locationId).eq('active',true));
   if(error||!layers?.length)return undefined;
   const[{data:instance},{data:stories}]=await Promise.all([
     input.db.from('together_character_instances').select('relationship_stage,together_character_templates(slug)').eq('id',input.characterInstanceId).eq('user_id',input.userId).maybeSingle(),
@@ -94,7 +96,7 @@ function unique(values:string[]){return[...new Set(values)];}
 
 export async function resolveCharacterHomeContext(input:{db:SupabaseClient;characterVersionId:string;now?:Date;userId?:string}):Promise<PlaceContext|null>{
   const now=input.now??new Date();
-  const{data:home,error}=await input.db.from('together_character_homes').select('*').eq('character_version_id',input.characterVersionId).eq('active',true).maybeSingle();
+  const{data:home,error}=await requestRead(input.db,['authored-home',input.characterVersionId],()=>input.db.from('together_character_homes').select('*').eq('character_version_id',input.characterVersionId).eq('active',true).maybeSingle());
   if(error||!home)return null;
   const[{data:world},{data:district}]=await Promise.all([
     input.db.from('together_worlds').select('*').eq('id',home.world_id).eq('published',true).maybeSingle(),

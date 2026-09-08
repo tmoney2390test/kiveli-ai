@@ -1,3 +1,5 @@
+import { chatSpeedEnabled, isFastChat } from './kivelle-chat-latency.ts';
+import { estimateContextTokens } from '../../../packages/together-domain/src/context-budget.ts';
 import { recentHistoryWithinBudget } from '../../../packages/together-domain/src/chat-context.ts';
 import { assessScenePressure, scenePressureGuidance } from '../../../packages/together-domain/src/scene-pressure.ts';
 import { selectCharacterPerformance } from '../../../packages/together-domain/src/character-performance.ts';
@@ -93,19 +95,24 @@ export function buildCompanionPrompt(context:any):string{return compileCompanion
 
 export function compileCompanionPrompt(context:any):ContextBudgetResult{
   const profile=context.subscription?.intelligenceProfile==='deep'||context.subscription?.intelligenceProfile==='director'?context.subscription.intelligenceProfile:'core';
-  const variants=['full','compact','minimal'] as const;
+  const fast=chatSpeedEnabled('FAST_PROMPT')&&isFastChat(context)&&!context.contextInputCeiling&&String(context.queryIntent??'general')==='general'&&!['major_relationship_event','shared_experience'].includes(String(context.interactionQuality??''))&&!['danger','conflicted','repair','storytelling'].includes(String(context.responseBrief?.mode??''));
+  const variants:readonly ('full'|'compact'|'minimal')[]=fast?['compact','minimal']:['full','compact','minimal'];
   const pressure=context.scenePressure??assessScenePressure({message:String(context.userMessage??''),recentTurns:context.recent??[],interactionMode:context.currentScene?.interactionMode});
   const performance=context.characterVoice?.performance??selectCharacterPerformance({bible:context.character?.character_bible,occupation:context.character?.occupation,mode:context.responseBrief?.mode??resolveResponseDirection(context).intent,pressure,recentAssistantMessages:(context.recent??[]).filter((turn:any)=>turn.role==='assistant').map((turn:any)=>turn.content)});
-  const prepared=variants.map((mode)=>preparePromptContext({...context,scenePressure:pressure,characterVoice:{...context.characterVoice,performance}},mode));
+  const prepared=variants.map((mode)=>preparePromptContext({...context,fastContext:fast,scenePressure:pressure,characterVoice:{...context.characterVoice,performance}},mode));
   const rendered=prepared.map((item)=>extractPromptSections(buildUnbudgetedCompanionPrompt(item)));
   const keys=rendered[0]?.map((section)=>section.key)??[];
   const sections:ContextSectionInput[]=keys.map((key,order)=>{
-    const required=requiredPromptSection(key,context);
+    const required=requiredPromptSection(key,context)||(fast&&(['DIRECT_RECALL_MEMORIES','CALLBACK_MEMORIES'].includes(key)||key==='SILENT_MEMORY_CONTEXT'&&(context.memoryContext?.silent??context.memories??[]).some((memory:any)=>memory.pinned)));
     const variantRows=rendered.map((rows,index)=>({label:variants[index],content:rows.find((row)=>row.key===key)?.content??'',recordIds:sectionRecordIds(key,prepared[index])})).filter((item)=>item.content&&promptSectionHasContext(key,context)&&(required||meaningfulPromptSection(item.content))) as ContextSectionInput['variants'];
     const freshnessAt=sectionFreshness(key,context);
     return{key,order,required,protected:protectedPromptSection(key),priority:sectionPriority(key,context),relevance:sectionRelevance(key,String(context.queryIntent??'general') as ContextIntent,context),...(freshnessAt?{freshnessAt}:{}),reasonCodes:sectionReasonCodes(key,String(context.queryIntent??'general') as ContextIntent,context),allRecordIds:sectionRecordIds(key,context),variants:variantRows};
   });
-  return budgetContextSections(sections,{ceilingTokens:context.contextInputCeiling??contextInputTokenCeiling(profile)});
+  const ceiling=context.contextInputCeiling??contextInputTokenCeiling(profile);
+  // Never force required identity/state into a smaller budget than its actual minimum.
+  const requiredFloor=sections.filter((section)=>section.required).reduce((tokens,section)=>tokens+estimateContextTokens(section.variants.at(-1)?.content??''),0)+512;
+  const fastCeiling=fast?Math.min(ceiling,Math.max(5000,requiredFloor)):ceiling;
+  return budgetContextSections(sections,{ceilingTokens:fastCeiling});
 }
 
 function highStakesStoryGuidance(context:any):string {
@@ -397,14 +404,14 @@ export function preparePromptContext(context:any,mode:'full'|'compact'|'minimal'
   const limits=mode==='full'?{recent:28,silent:20,history:8,conversationEpisodes:6,patterns:8,episodes:6,threads:7,social:8,events:6,media:6,places:2,perspectives:3,plans:8,worldFacts:4,opportunities:2,beats:1,pulse:2,temporal:2}:mode==='compact'?{recent:14,silent:8,history:4,conversationEpisodes:3,patterns:4,episodes:3,threads:3,social:4,events:3,media:3,places:1,perspectives:2,plans:4,worldFacts:2,opportunities:1,beats:1,pulse:1,temporal:1}:{recent:8,silent:2,history:1,conversationEpisodes:['history','memory_overview','story'].includes(intent)?1:0,patterns:1,episodes:1,threads:1,social:1,events:1,media:0,places:0,perspectives:1,plans:2,worldFacts:['history','location','story'].includes(intent)?1:0,opportunities:0,beats:0,pulse:0,temporal:0};
   const ranked=(items:any[],category:ContextRecordCategory,limit:number,text:(item:any)=>string,date?:(item:any)=>string|undefined,importance?:(item:any)=>number,active?:(item:any)=>boolean)=>rankContextRecords(items??[],{category,intent,query,limit,text,id:recordId,...(date?{occurredAt:date}:{}),...(importance?{importance}:{}),...(active?{active}:{})}).map((item)=>item.record);
   const memory=context.memoryContext??{silent:context.memories??[],callbacks:[],directRecall:[],callbackAllowance:0};
-  const directLimit=intent==='memory_overview'||intent==='history'?5:Math.min(2,memory.directRecall?.length??0);
+  const directLimit=context.fastContext?(memory.directRecall?.length??0):intent==='memory_overview'||intent==='history'?5:Math.min(2,memory.directRecall?.length??0);
   const character=context.character??{},reflection=context.relationshipReflection??{};
   const prepared={
     ...context,
     character:{...character,selfKnowledge:character.selfKnowledge??character.character_bible?.selfKnowledge??null,character_bible:compactCharacterBible(character.character_bible,mode),communication_style:mode==='minimal'?compactRecord(character.communication_style,2,8,160):character.communication_style,boundaries:Array.isArray(character.boundaries)?character.boundaries.slice(0,mode==='minimal'?8:20):character.boundaries},
     relationshipReflection:{...reflection,recurring_dynamics:(reflection.recurring_dynamics??reflection.recurringDynamics??[]).slice(0,mode==='minimal'?2:4),unresolved_tension:(reflection.unresolved_tension??reflection.unresolvedTension??[]).slice(0,mode==='minimal'?2:4),shared_references:(reflection.shared_references??reflection.sharedReferences??[]).slice(0,mode==='minimal'?2:4)},
     recent:context.contextInputCeiling?recentHistoryWithinBudget(recentTurnsForPrompt(context),Math.max(1000,context.contextInputCeiling*(mode==='full'?.78:mode==='compact'?.45:.12))):recentTurnsForPrompt(context).slice(-limits.recent),
-    memoryContext:{...memory,silent:(memory.silent??[]).slice(0,limits.silent),callbacks:(memory.callbacks??[]).slice(0,1),directRecall:(memory.directRecall??[]).slice(0,directLimit)},
+    memoryContext:{...memory,silent:context.fastContext?[...(memory.silent??[]).filter((item:any)=>item.pinned),...(memory.silent??[]).filter((item:any)=>!item.pinned).slice(0,limits.silent)]:(memory.silent??[]).slice(0,limits.silent),callbacks:(memory.callbacks??[]).slice(0,1),directRecall:(memory.directRecall??[]).slice(0,directLimit)},
     commitments:ranked(context.commitments,'plan',limits.plans,(item)=>`${item.title??''} ${item.location??''} ${item.status??''}`,item=>item.startsAt,item=>Number(item.relevance??.5),item=>['active','grace','missed'].includes(String(item.temporalState??item.status))),
     sharedPlans:ranked(context.sharedPlans,'plan',limits.plans,(item)=>`${item.title??''} ${item.location??''} ${item.activityKey??''} ${item.status??''}`,item=>item.startsAt,item=>['active','scheduled'].includes(String(item.status))?.9:.5,item=>item.status==='active'),
     sharedHistory:ranked(context.sharedHistory,'history',limits.history,(item)=>`${item.title??''} ${item.summary??''}`,item=>item.occurredAt,item=>Number(item.significance??.55)),

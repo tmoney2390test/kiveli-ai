@@ -1,3 +1,5 @@
+import { chatSpeedEnabled, ChatTimings } from '../_shared/kivelle-chat-latency.ts';
+import { collectApprovedReply } from '../_shared/group-reply-stream.ts';
 import { stageContextAuthorization } from '../_shared/kivelle-context-authorization.ts';
 import { z } from "zod";
 import {
@@ -94,6 +96,7 @@ import {
 } from "../_shared/kivelle-character-life-state.ts";
 
 const schema = z.object({
+  streamProtocol: z.literal(2).optional(),
   contextQuoteId:z.string().uuid().optional(),
   contextPreference:z.literal('included').optional(),
   conversationId: z.string().uuid(),
@@ -119,6 +122,7 @@ const dialogue = new ConfiguredDialogueProvider(),
 Deno.serve(async (request) => {
   const correlationId = request.headers.get("x-correlation-id") ??
     crypto.randomUUID();
+  const timings=new ChatTimings(correlationId);
   let turnLease: ConversationTurnLease | null = null, turnDb: any = null;
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -284,6 +288,7 @@ Deno.serve(async (request) => {
       conversationId: conversation.id,
       requestId,
       kind: "group",
+      streamV2: input.streamProtocol===2&&chatSpeedEnabled("STREAM_V2"),
       supersedeGenerating: true,
       leaseSeconds: 240,
     });
@@ -494,7 +499,9 @@ Deno.serve(async (request) => {
         energy: settings.energy,
       });
     }
+    timings.mark("preflightMs");
     return groupStream({
+      timings,
       db,
       userId: user.id,
       continuityId: continuity.id,
@@ -528,6 +535,9 @@ Deno.serve(async (request) => {
 });
 
 function groupStream(input: any): Response {
+  const progressive=input.input.streamProtocol===2&&chatSpeedEnabled("STREAM_V2");
+  const timings:ChatTimings=input.timings;
+  const turnAbort=new AbortController();
   let open = true;
   const stream = new ReadableStream({
     async start(controller) {
@@ -541,7 +551,14 @@ function groupStream(input: any): Response {
           open = false;
         }
       };
-      const heartbeat = setInterval(() => emit({ type: "heartbeat" }), 4000);
+      let checkingTurn=false;
+      const heartbeat = setInterval(() => {
+        emit({ type: "heartbeat" });
+        if(progressive&&!checkingTurn&&!turnAbort.signal.aborted){
+          checkingTurn=true;
+          void touchConversationTurn(input.db,input.turnLease,240).then((active)=>{if(!active)turnAbort.abort();}).catch(()=>turnAbort.abort()).finally(()=>{checkingTurn=false;});
+        }
+      }, 4000);
       const turnStartedAt = Date.now();
       let firstActivityAt: number | null = null;
       let replyCount = 0;
@@ -923,6 +940,7 @@ function groupStream(input: any): Response {
             metadata: { groupChat: true, turnId: input.turn.id },
           };
           const options: DialogueRunOptions = {
+            ...(progressive?{signal:turnAbort.signal}:{}),
             route,
             usageScope,
             generationContext:{mode:'group',speakerRole:replyCount===0?'primary':'secondary',activeSpeakerCount:Math.max(1,input.plan.actions.length)},
@@ -930,13 +948,24 @@ function groupStream(input: any): Response {
               ? "group_dialogue_xai"
               : "group_dialogue",
           };
-          const generated = await dialogue.generate(context, options);
+          const generated = progressive
+            ? await collectApprovedReply({
+                events:dialogue.stream(context,options),signal:turnAbort.signal,
+                approve:async(text)=>{
+                  if(!route.explicit&&hasExplicitSexualOutputLanguage(text))return false;
+                  return (await moderation.check(text,{...usageScope,metadata:{direction:'output_segment',groupChat:true}})).allowed;
+                },
+                onDelta:(text,sequence)=>{
+                  timings.markOnce('firstReadableMs');
+                  emit({type:'message_delta',turnId:input.turn.id,replyKey:`group:${input.turn.id}:${action!.id}`,characterInstanceId:action!.characterInstanceId,speakerName,text,sequence});
+                },
+              })
+            : await dialogue.generate(context, options);
           generationProfiles.push({speakerRole:generated.metadata.speakerRole??(replyCount===0?'primary':'secondary'),requestedReasoning:generated.metadata.requestedReasoning??'auto',effectiveReasoning:generated.metadata.effectiveReasoning??'none',chatDynamism:generated.metadata.chatDynamism??50,reasoningReasonCodes:generated.metadata.reasoningReasonCodes??[],profileVersion:generated.metadata.chatGenerationProfileVersion??generated.metadata.generationProfileVersion??'legacy'});
           if (!generated.text.trim()) break;
-          const outputSafety = await moderation.check(generated.text, {
-            ...usageScope,
-            metadata: { direction: "output", groupChat: true },
-          });
+          const outputSafety = 'approved' in generated
+            ? {allowed:generated.approved}
+            : await moderation.check(generated.text,{...usageScope,metadata:{direction:'output',groupChat:true}});
           const text = outputSafety.allowed && (route.explicit||!hasExplicitSexualOutputLanguage(generated.text))
             ? generated.text
             : chatLanguageChangeSubject(context.chatLanguage,canonicalUserText);
@@ -1030,6 +1059,10 @@ function groupStream(input: any): Response {
             characterInstanceId: action.characterInstanceId,
             reasonCode: action.reasonCodes[0],
           });
+          if(progressive&&replyCount===1){
+            timings.mark('primaryCompletedMs');
+            emit({type:'primary_completed',turnId:input.turn.id,clientRequestId:input.input.clientRequestId,message:saved});
+          }
           if (continuationIndex >= Number(input.plan.continuationBudget ?? 0)) {
             break;
           }
@@ -1154,6 +1187,7 @@ function groupStream(input: any): Response {
           reactionCount,
         });
       } catch (error) {
+        if(turnAbort.signal.aborted){await finishConversationTurn(input.db,input.turnLease,"cancelled");await cancelTurn("superseded");return;}
         await track(input.db, input.userId, "group_turn_failed", {
           conversationId: input.conversation.id,
           latencyMs: Date.now() - turnStartedAt,
@@ -1183,6 +1217,7 @@ function groupStream(input: any): Response {
         });
       } finally {
         clearInterval(heartbeat);
+        timings.report({mode:"group",streamProtocol:progressive?2:1});
         if (open) {
           controller.close();
           open = false;

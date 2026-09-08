@@ -1,3 +1,4 @@
+import { chatSpeedEnabled, ChatTimings } from '../_shared/kivelle-chat-latency.ts';
 import { stageContextAuthorization } from '../_shared/kivelle-context-authorization.ts';
 import { z } from "zod";
 import { authenticated, enforceRateLimit } from "../_shared/context.ts";
@@ -113,6 +114,7 @@ import {
 import {
   activateConversationTurn,
   beginConversationTurn,
+  markDirectPrimaryComplete,
   type ConversationTurnLease,
   finishConversationTurn,
   finishTurnWithResponse,
@@ -144,6 +146,7 @@ import {
 } from "../_shared/kivelle-character-life-state.ts";
 
 const schema = z.object({
+  streamProtocol: z.literal(2).optional(),
   contextQuoteId:z.string().uuid().optional(),
   contextPreference:z.literal('included').optional(),
   conversationId: z.string().uuid(),
@@ -212,10 +215,10 @@ Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
+  const timings = new ChatTimings(correlationId);
   try {
     const { user, db } = await authenticated(request);
-    await requireAiDataConsent(db,user.id);
-    const adultAccess=await resolveAdultAccess(request,user,db);
+    const [, adultAccess] = await Promise.all([requireAiDataConsent(db,user.id),resolveAdultAccess(request,user,db)]);
     const input = await parseBody(request, schema);
     stageContextAuthorization(db,user.id,input);
     return streamPreparedDialogue(correlationId, async () => {
@@ -356,6 +359,7 @@ Deno.serve(async (request) => {
           conversationId: input.conversationId,
           requestId,
           kind: "direct",
+          streamV2: input.streamProtocol===2&&chatSpeedEnabled("STREAM_V2"),
         });
         if (!turnLease.acquired) {
           if (existingUserMessage && turnLease.requestId === requestId) {
@@ -1203,7 +1207,9 @@ Deno.serve(async (request) => {
           contentMode: route.resolvedMode,
         }, undefined, sceneCandidates.length > 1, sceneCandidates.length > 1 ? sharedSceneGenerationContext('primary',sceneCandidates.length) : undefined);
         if (route.provider !== "deterministic") {
+          timings.mark("preflightMs");
           return leased(streamDialogue({
+            timings,
             db,
             user,
             input,
@@ -1337,6 +1343,7 @@ Deno.serve(async (request) => {
             characterInstanceId: input.characterInstanceId,
           });
           if(!route.explicit)additional = await generateAdditionalSceneReplies(db, {
+            turnLease,
             userId: user.id,
             continuityId: continuity.id,
             conversationId: input.conversationId,
@@ -1965,6 +1972,7 @@ async function photoOnlyResponse(input: {
 }
 
 function streamDialogue({
+  timings,
   db,
   user,
   input,
@@ -1983,6 +1991,7 @@ function streamDialogue({
   requestedMode,
   turnLease,
 }: {
+  timings: ChatTimings;
   db: any;
   user: { id: string };
   input: z.infer<typeof schema>;
@@ -2002,11 +2011,17 @@ function streamDialogue({
   turnLease: ConversationTurnLease;
 }): Response {
   let connectionOpen = true;
+  const progressive=input.streamProtocol===2&&chatSpeedEnabled("STREAM_V2");
+  const turnAbort=new AbortController();
+  let primaryMessage: Record<string,unknown>|undefined;
+  let checkingTurn=false;
+  let firstText=false;
   const stream = new ReadableStream({
     async start(controller) {
       const emit = (data: Record<string, unknown>): boolean => {
         if (!connectionOpen) return false;
         try {
+          if(data.type==="token"&&!firstText&&String(data.token??"").trim()){firstText=true;timings.mark("firstReadableMs");}
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify(data)}\n\n`),
           );
@@ -2016,10 +2031,13 @@ function streamDialogue({
           return false;
         }
       };
-      const heartbeat = setInterval(
-        () => void emit({ type: "heartbeat" }),
-        4_000,
-      );
+      const heartbeat = setInterval(() => {
+        emit({type:"heartbeat"});
+        if(primaryMessage&&!checkingTurn&&!turnAbort.signal.aborted){
+          checkingTurn=true;
+          void touchConversationTurn(db,turnLease).then(active=>{if(!active)turnAbort.abort();}).catch(()=>turnAbort.abort()).finally(()=>{checkingTurn=false;});
+        }
+      },4_000);
       try {
         emit({ type: "start", messageId: crypto.randomUUID() });
         let content = "";
@@ -2186,6 +2204,8 @@ function streamDialogue({
           },
         });
         const assistantMessage = assistantCommit.message;
+        primaryMessage=assistantMessage;
+        timings.mark("primaryCommitMs");
         let additional: {
           messages: Record<string, unknown>[];
           reactions: Record<string, unknown>[];
@@ -2243,13 +2263,21 @@ function streamDialogue({
             conversation,
             String(assistantMessage.created_at),
           );
-          await track(db, user.id, "message_sent", {
+          scheduleConversationEffects(async()=>{await track(db, user.id, "message_sent", {
             characterInstanceId: input.characterInstanceId,
           });
           await track(db, user.id, "character_response_received", {
             characterInstanceId: input.characterInstanceId,
           });
+          },correlationId);
+          if(progressive&&await markDirectPrimaryComplete(db,turnLease,String(assistantMessage.id))){
+            timings.mark("primaryCompletedMs");
+            emit({type:"primary_completed",message:assistantMessage,hasAdditional:!runOptions.route.explicit&&remainingSpeakerActions.length>0&&continuationBudget>0});
+          }
           if(!runOptions.route.explicit)additional = await generateAdditionalSceneReplies(db, {
+            turnLease,
+            signal:turnAbort.signal,
+            onMessage:progressive?(message)=>emit({type:"message_completed",message}):undefined,
             userId: user.id,
             continuityId: String(instance.continuity_id),
             conversationId: input.conversationId,
@@ -2276,6 +2304,7 @@ function streamDialogue({
           additionalMessages: additional.messages,
         });
       } catch (error) {
+        if(primaryMessage){emit({type:"done",message:primaryMessage});return;}
         console.error(
           JSON.stringify({
             level: "error",
@@ -2301,6 +2330,7 @@ function streamDialogue({
         });
       } finally {
         clearInterval(heartbeat);
+        timings.report({mode:"direct",streamProtocol:progressive?2:1,reasoning:String(context.generationPreferences?.reasoningPreference??"auto")});
         if (connectionOpen) {
           try {
             controller.close();
@@ -2472,6 +2502,9 @@ function intimacyProviderMetadata(context: any): Record<string, unknown> {
 async function generateAdditionalSceneReplies(
   db: any,
   input: {
+    turnLease: ConversationTurnLease;
+    signal?: AbortSignal;
+    onMessage?: (message: Record<string,unknown>)=>void;
     userId: string;
     continuityId: string;
     conversationId: string;
@@ -2497,6 +2530,7 @@ async function generateAdditionalSceneReplies(
     !input.sceneId || input.continuationBudget < 1 ||
     !input.remainingSpeakerActions.length
   ) return { messages: replies, reactions };
+  if(input.signal?.aborted||!await touchConversationTurn(db,input.turnLease))return {messages:replies,reactions};
   const primarySpeakerId = String(
     input.baseContext.sceneSpeakerDirective?.characterInstanceId ?? "",
   );
@@ -2611,22 +2645,22 @@ async function generateAdditionalSceneReplies(
         true,
         sharedSceneGenerationContext('secondary',input.sceneCandidates.length),
       );
-      const generated = await dialogue.generate(selected.context, options);
+      input.signal?.throwIfAborted();
+      const generated = await dialogue.generate(selected.context, {...options,signal:input.signal});
       if (!generated.text.trim()) continue;
       const safety = await moderation.check(generated.text, {
         ...options.usageScope,
         metadata: { direction: "output", sharedSceneParticipant: true },
       });
       if (!safety.allowed) continue;
-      const { data: message } = await db.from("together_messages").insert({
-        conversation_id: input.conversationId,
-        user_id: input.userId,
-        character_instance_id: speakerId,
-        speaker_character_instance_id: speakerId,
-        role: "assistant",
-        content: generated.text,
-        delivery_status: "complete",
-        provider_metadata: {
+      input.signal?.throwIfAborted();
+      const committed = await commitDirectAssistantMessage(db, {
+        turnId:input.turnLease.id,
+        leaseToken:input.turnLease.token,
+        speakerCharacterInstanceId:speakerId,
+        content:generated.text,
+        responseKey:directResponseKey(input.turnLease.requestId,`secondary:${speakerId}`),
+        providerMetadata: {
           ...generated.metadata,
           ...intimacyProviderMetadata(selected.context),
           ...handoffProviderMetadata(selected.context),
@@ -2636,8 +2670,11 @@ async function generateAdditionalSceneReplies(
           speakerSlug: selected.context.character?.slug,
           directorUsed: selected.context.director?.used === true,
         },
-      }).select("*").single();
-      if (!message) continue;
+      });
+      const message=committed.message;
+      replies.push(message);
+      input.onMessage?.(message);
+      if(!committed.created)continue;
       await recordSceneMessage(db, {
         userId: input.userId,
         continuityId: input.continuityId,
@@ -2674,7 +2711,6 @@ async function generateAdditionalSceneReplies(
         sceneId: input.sceneId,
         characterInstanceId: speakerId,
       });
-      replies.push(message);
     } catch (error) {
       console.warn(
         "Shared-scene participant stayed silent",

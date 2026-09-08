@@ -1,5 +1,5 @@
 import{describe,expect,it}from'vitest';
-import{buildCompanionPrompt,preparePromptContext,responseLength,responseTokenBudget,stripGeneratedMediaMarkup}from'../../../supabase/functions/_shared/kivelle-intelligence.ts';
+import{compileCompanionPrompt,buildCompanionPrompt,preparePromptContext,responseLength,responseTokenBudget,stripGeneratedMediaMarkup}from'../../../supabase/functions/_shared/kivelle-intelligence.ts';
 
 const baseContext={
   character:{name:'Maya',age:29,pronouns:'she/her',occupation:'Photographer',biography:'A perceptive gallery photographer with dry humor.',interests:['street photography','jazz']},
@@ -61,4 +61,29 @@ describe('Kivelle continuity prompt salience',()=>{
   it('renders authored world depth as optional, classified, agency-preserving context',()=>{const prompt=buildCompanionPrompt({...baseContext,currentScene:{...baseContext.currentScene,interactionMode:'co_present'},userMessage:'What have you heard about the old platform?',queryIntent:'history',worldFacts:[{id:'fact-1',slug:'platform',title:'The old platform',factText:'Invitation-only gatherings may occur there.',category:'rumor',truthMode:'rumor',knowledgeScope:'local'}],dialogueOpportunities:[{id:'op-1',slug:'privacy',topic:'Privacy at the old platform',angle:'Whether anonymity protects people or hides accountability.',framing:'Allow the companion to decide their view.',requiredFactSlug:'platform'}],sceneInteractionBeats:[{id:'beat-1',slug:'opening',title:'A sealed entrance',seed:'A canonical sealed entrance leaves room to investigate or walk away.',affordances:['notice','ask','leave']} ]});expect(prompt).toContain('<RELEVANT_WORLD_FACTS>');expect(prompt).toContain('RUMOR — UNVERIFIED');expect(prompt).toContain('Never turn rumor or dispute into settled truth');expect(prompt).toContain('<DIALOGUE_OPPORTUNITIES>');expect(prompt).toContain('never authored lines');expect(prompt).toContain('<SCENE_INTERACTION_BEAT>');expect(prompt).toContain('The user and companion retain agency');});
   it('renders bounded World Pulse and elapsed-time continuity without forcing a recap',()=>{const context={...baseContext,userMessage:'Anything happening tonight?',queryIntent:'location',worldPulse:[{id:'pulse',title:'Harbor steps sunset',summary:'Musicians and harbor crews are lingering.',status:'active',startsAt:'2026-08-29T22:00:00Z',endsAt:'2026-08-30T00:00:00Z',locationName:'Harbor Steps',characterIsParticipant:false,relevance:90,significance:.7}],temporalContinuity:{elapsedHours:20,events:[{title:'Morning shift',summary:'Maya finished a demanding client shoot.',startsAt:'2026-08-29T14:00:00Z'}]}};const prompt=buildCompanionPrompt(context);expect(prompt).toContain('<WORLD_PULSE>');expect(prompt).toContain('Never claim the companion attended unless marked as a participant');expect(prompt).toContain('<SINCE_LAST_CONVERSATION>');expect(prompt).toContain('Never deliver a recap merely because time passed');const minimal=preparePromptContext(context,'minimal') as {worldPulse?:unknown[];temporalContinuity?:{events?:unknown[]}};expect(minimal.worldPulse).toEqual([]);expect(minimal.temporalContinuity?.events).toEqual([]);});
   it('trims authored depth across full, compact, and minimal prompt variants',()=>{const facts=Array.from({length:6},(_,index)=>({id:`fact-${index}`,slug:`fact-${index}`,title:`Fact ${index}`,factText:`Canonical detail ${index}.`,category:'history',truthMode:'canonical',knowledgeScope:'public'})),opportunities=Array.from({length:3},(_,index)=>({id:`op-${index}`,slug:`op-${index}`,topic:`Topic ${index}`,angle:`Angle ${index}`})),beats=Array.from({length:2},(_,index)=>({id:`beat-${index}`,slug:`beat-${index}`,title:`Beat ${index}`,seed:`Opening ${index}.`,affordances:[]}));const context={...baseContext,userMessage:'What happened here?',queryIntent:'history',worldFacts:facts,dialogueOpportunities:opportunities,sceneInteractionBeats:beats};const full=authoredDepthCounts(preparePromptContext(context,'full')),compact=authoredDepthCounts(preparePromptContext(context,'compact')),minimal=authoredDepthCounts(preparePromptContext(context,'minimal')),generalMinimal=authoredDepthCounts(preparePromptContext({...context,queryIntent:'general'},'minimal'));expect(full).toEqual({facts:4,opportunities:2,beats:1});expect(compact).toEqual({facts:2,opportunities:1,beats:1});expect(minimal).toEqual({facts:1,opportunities:0,beats:0});expect(generalMinimal.facts).toBe(0);});
+});
+
+
+describe('Fast prompt budget and independent user settings',()=>{
+  const context={...baseContext,userMessage:'How was your afternoon?',queryIntent:'general',generationPreferences:{reasoningPreference:'none'},memoryContext:{silent:[...Array.from({length:12},(_,i)=>({id:`silent-${i}`,text:`Unrelated fact ${i}`,pinned:false})),{id:'pinned',text:'PINNED_IDENTITY_FACT',pinned:true}],callbacks:[{id:'callback',text:'AUTHORIZED_CALLBACK'}],directRecall:[{id:'recall',text:'DIRECT_RECALL_FACT'}]},recent:Array.from({length:28},(_,i)=>({role:i%2?'assistant':'user',content:`Conversation line ${i}. `+'Useful context. '.repeat(50)}))};
+  it('compacts ordinary Included Fast while retaining voice, style, pins and authorized recall',()=>{
+    const fast=compileCompanionPrompt({...context,conversationStyle:'paragraph'});
+    expect(fast.prompt).toContain('PINNED_IDENTITY_FACT');expect(fast.prompt).toContain('DIRECT_RECALL_FACT');expect(fast.prompt).toContain('AUTHORIZED_CALLBACK');
+    expect(fast.prompt).toContain('Name: Maya');expect(fast.prompt).toContain('Selected expression style: paragraph');
+    const standard=compileCompanionPrompt({...context,generationPreferences:{reasoningPreference:'low'},conversationStyle:'paragraph'});
+    expect(fast.estimatedTokens).toBeLessThan(standard.estimatedTokens);
+  });
+  it('preserves the selected 32k and 64k context budgets regardless of reasoning',()=>{
+    for(const contextInputCeiling of [32000,64000]){
+      const fast=compileCompanionPrompt({...context,contextInputCeiling});
+      const balanced=compileCompanionPrompt({...context,contextInputCeiling,generationPreferences:{reasoningPreference:'low'}});
+      expect(fast.prompt).toBe(balanced.prompt);
+      expect(fast.ceilingTokens).toBe(contextInputCeiling);
+    }
+  });
+  it('keeps complex and repair turns on the existing context compiler',()=>{
+    for(const overrides of [{queryIntent:'history'},{responseBrief:{...baseContext.responseBrief,mode:'repair'}}]){
+      expect(compileCompanionPrompt({...context,...overrides}).prompt).toBe(compileCompanionPrompt({...context,...overrides,generationPreferences:{reasoningPreference:'low'}}).prompt);
+    }
+  });
 });

@@ -3,7 +3,7 @@ import { AppError } from './types.ts';
 // Rates are microdollars per million tokens. Reviewed 2026-09-07.
 // Price the entire response when expanded context is useful. This conservative
 // launch budget leaves room for included plan benefits, payment fees and retries.
-export const CONTEXT_PRICE_VERSION='context-2026-09-07-v1';
+export const CONTEXT_PRICE_VERSION='context-2026-09-08-v2';
 export const CONTEXT_COMPILER_VERSION='context-v1';
 export const COST_BUDGET_MICRODOLLARS=10_000;
 export const SUPPORT_ALLOWANCE_MICRODOLLARS=4_000;

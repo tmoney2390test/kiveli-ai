@@ -1,3 +1,4 @@
+import { batchReplyText, type ReplyDelta } from './replyStreaming';
 import type { DialogueContextQuote } from '@together/domain/src/chat-context';
 import { supabase, supabasePublishableKey, supabaseUrl } from './supabase';
 import Constants from 'expo-constants';
@@ -187,6 +188,9 @@ export async function loadGroupDetail(conversationId:string,options:{messageLimi
   }
 }
 export type GroupDialogueEvent=
+  |ReplyDelta
+  |{type:'primary_completed';turnId:string;clientRequestId:string;message:Message}
+  |{type:'turn_completed';turnId:string}
   |{type:'turn_started';turnId:string;sourceMessage?:Message;actions?:number;replayed?:boolean}
   |{type:'speaker_typing';characterInstanceId:string;speakerName:string}
     |{type:'message_started';characterInstanceId:string;speakerName:string}
@@ -198,24 +202,27 @@ export type GroupDialogueEvent=
   |{type:'heartbeat'};
 export async function sendGroupDialogue(input:{contextQuoteId?:string;contextPreference?:'included';conversationId:string;message:string;attachmentIds?:string[];clientRequestId:string;mentionedCharacterInstanceIds?:string[];photoSubjectCharacterInstanceIds?:string[];replyToMessageId?:string;manualSpeakerInstanceId?:string;broadGroupRequest?:boolean;letThemTalk?:boolean},onEvent:(event:GroupDialogueEvent)=>void,signal?:AbortSignal):Promise<void>{
   if(input.message.length>MESSAGE_CHARACTER_LIMIT)throw new ApiError(messageCharacterLimitError(),'VALIDATION_FAILED');
-  const started=Date.now();let firstActivityRecorded=false,statusCode:number|undefined;
+  const started=Date.now();let firstTextRecorded=false,firstActivityRecorded=false,statusCode:number|undefined;
   try{
   const accessToken=await token();
   // A website-session outage must fail closed to the server's SFW projection,
   // not prevent an otherwise safe group conversation from loading or replying.
   await ensureWebAdultSession(accessToken).catch(()=>undefined);
-  const response=await fetch(`${supabaseUrl}/functions/v1/together-group-dialogue`,{method:'POST',headers:{Authorization:`Bearer ${accessToken}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify(input),signal});
+  const response=await fetch(`${supabaseUrl}/functions/v1/together-group-dialogue`,{method:'POST',headers:{Authorization:`Bearer ${accessToken}`,apikey:supabasePublishableKey,'Content-Type':'application/json','x-correlation-id':input.clientRequestId},body:JSON.stringify({...input,streamProtocol:2}),signal});
   statusCode=response.status;
   if(!response.ok){const payload=await response.json().catch(()=>({})) as{error?:{message?:string;code?:string;retryable?:boolean}};await clearSessionForApiFailure(supabase.auth,response.status,payload.error?.code);throw new ApiError(payload.error?.message??'The group could not reply.',payload.error?.code,payload.error?.retryable);}
   if(!response.body)throw new ApiError('The group response ended early.','STREAM_INTERRUPTED',true);
   const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';
   type GroupStreamEvent=GroupDialogueEvent|{type:'error';error?:{message?:string;code?:string;retryable?:boolean}};
-  const process=(event:GroupStreamEvent)=>{if(event.type==='error')throw new ApiError(event.error?.message??'The group could not finish replying.',event.error?.code??'STREAM_INTERRUPTED',Boolean(event.error?.retryable));if(!firstActivityRecorded&&(event.type==='speaker_typing'||event.type==='message_started'||event.type==='message_completed')){firstActivityRecorded=true;queueClientPerformance({surface:'together-group-dialogue',operation:'first_activity',durationMs:Date.now()-started,success:true,metadata:{event:event.type}});}onEvent(event);};
+  const process=(event:GroupStreamEvent)=>{if(signal?.aborted)return;
+    if(!firstTextRecorded&&((event.type==='message_delta'&&event.text.trim())||(event.type==='message_completed'&&event.message.content.trim()))){firstTextRecorded=true;queueClientPerformance({surface:'together-group-dialogue',operation:'first_text',durationMs:Date.now()-started,success:true,metadata:{correlationId:input.clientRequestId}});}
+    if(event.type==='primary_completed')queueClientPerformance({surface:'together-group-dialogue',operation:'primary_complete',durationMs:Date.now()-started,success:true,metadata:{correlationId:input.clientRequestId}});
+    if(event.type==='error')throw new ApiError(event.error?.message??'The group could not finish replying.',event.error?.code??'STREAM_INTERRUPTED',Boolean(event.error?.retryable));if(!firstActivityRecorded&&(event.type==='speaker_typing'||event.type==='message_started'||event.type==='message_completed')){firstActivityRecorded=true;queueClientPerformance({surface:'together-group-dialogue',operation:'first_activity',durationMs:Date.now()-started,success:true,metadata:{event:event.type,correlationId:input.clientRequestId}});}onEvent(event);};
   const drain=(flush=false)=>{const drained=drainJsonSseEvents<GroupStreamEvent>(buffer,flush);buffer=drained.remainder;for(const event of drained.events)process(event);};
   while(true){const{value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});drain();}
   buffer+=decoder.decode();drain(true);
-  queueClientPerformance({surface:'together-group-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:true,metadata:{firstActivity:firstActivityRecorded}});
-  }catch(caught){queueClientPerformance({surface:'together-group-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:false,...(statusCode?{statusCode}:{}),metadata:{firstActivity:firstActivityRecorded}});throw caught;}
+  queueClientPerformance({surface:'together-group-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:true,metadata:{firstActivity:firstActivityRecorded,firstText:firstTextRecorded,correlationId:input.clientRequestId}});
+  }catch(caught){queueClientPerformance({surface:'together-group-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:false,...(statusCode?{statusCode}:{}),metadata:{firstActivity:firstActivityRecorded,firstText:firstTextRecorded,correlationId:input.clientRequestId}});throw caught;}
 }
 export const managePersona = <T>(input:Record<string,unknown>) => invoke<T>('together-persona',input);
 export const manageCreator = <T>(input:Record<string,unknown>) => invoke<T>('together-creator',input);
@@ -239,8 +246,11 @@ export async function createTogetherAccount(email: string, password: string,date
   if (!response.ok) throw new ApiError(payload.error?.message ?? 'Your Kivelle account could not be created.', payload.error?.code, payload.error?.retryable);
 }
 
-export async function sendDialogue(input: {contextQuoteId?:string;contextPreference?:'included';conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;sceneActionId?:string;messageAction?:'continue';anchorMessageId?:string;autoDialogueSuggestionId?:string;autoDialogueSuggestionSource?:AutoDialogueSuggestion['source'];autoDialogueSuggestionEdited?:boolean;autoDialogueSuggestionIntent?:AutoDialogueSuggestion['intent'];autoDialogueSuggestionPreference?:AutoDialoguePreference;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta}> {
+export async function sendDialogue(input: {contextQuoteId?:string;contextPreference?:'included';conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;sceneActionId?:string;messageAction?:'continue';anchorMessageId?:string;autoDialogueSuggestionId?:string;autoDialogueSuggestionSource?:AutoDialogueSuggestion['source'];autoDialogueSuggestionEdited?:boolean;autoDialogueSuggestionIntent?:AutoDialogueSuggestion['intent'];autoDialogueSuggestionPreference?:AutoDialoguePreference;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void, callbacks?: {onPrimary?:(message:Message,hasAdditional:boolean)=>void;onMessage?:(message:Message)=>void}): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta}> {
   if (input.message.length > MESSAGE_CHARACTER_LIMIT) throw new ApiError(messageCharacterLimitError(), 'VALIDATION_FAILED');
+  const tokens=batchReplyText(onToken);
+  let primary:Message|undefined;
+  const receivedAdditional:Message[]=[];
   const started=Date.now();let firstTokenRecorded=false,statusCode:number|undefined,cancelResponseTimeout:(()=>void)|undefined,responseTimedOut=false,photoRequest=false;
   try{
   const accessToken=await token();
@@ -264,21 +274,23 @@ export async function sendDialogue(input: {contextQuoteId?:string;contextPrefere
   }
   const responseController=new AbortController();
   cancelResponseTimeout=scheduleForegroundTimeout(()=>{responseTimedOut=true;responseController.abort();},photoRequest?18_000:120_000);
-  const response = await fetch(`${supabaseUrl}/functions/v1/together-dialogue`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json' }, body: JSON.stringify(input),signal:responseController.signal });
+  const response = await fetch(`${supabaseUrl}/functions/v1/together-dialogue`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json', 'x-correlation-id':input.clientRequestId }, body: JSON.stringify({...input,streamProtocol:2}),signal:responseController.signal });
   statusCode=response.status;
   if (!response.ok) { const error = await response.json().catch(() => ({})); await clearSessionForApiFailure(supabase.auth,response.status,error.error?.code); throw new ApiError(error.error?.message ?? 'Your companion could not reply.', error.error?.code, error.error?.retryable); }
   if (!response.body) throw new ApiError('The response stream ended early.', 'STREAM_INTERRUPTED', true);
   const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''; let final: Message | null = null; let additionalMessages:Message[]|undefined;let generatedMedia:GeneratedMedia|undefined;let mediaOffer:MediaOffer|undefined;let photoRequestError:{code:string;message:string;retryable:boolean}|undefined;let delta:SnapshotDelta|undefined;
-  type DialogueStreamEvent={type:string;token?:string;message?:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta;error?:{message?:string;code?:string;retryable?:boolean}};
-  const processEvents=(events:DialogueStreamEvent[])=>{for(const data of events){if(data.type==='token'&&typeof data.token==='string'){if(!firstTokenRecorded){firstTokenRecorded=true;queueClientPerformance({surface:'together-dialogue',operation:'first_token',durationMs:Date.now()-started,success:true,metadata:{stream:true}});}onToken(data.token);}if(data.type==='done'&&data.message){final=data.message;additionalMessages=data.additionalMessages;generatedMedia=data.generatedMedia;mediaOffer=data.mediaOffer;photoRequestError=data.photoRequestError;delta=data.delta;}if(data.type==='error')throw new ApiError(data.error?.message??'Your companion could not finish the reply.',data.error?.code??'STREAM_INTERRUPTED',Boolean(data.error?.retryable));}};
+  type DialogueStreamEvent={type:string;hasAdditional?:boolean;token?:string;message?:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta;error?:{message?:string;code?:string;retryable?:boolean}};
+  const processEvents=(events:DialogueStreamEvent[])=>{for(const data of events){if(data.type==='token'&&typeof data.token==='string'){if(!firstTokenRecorded){firstTokenRecorded=true;queueClientPerformance({surface:'together-dialogue',operation:'first_token',durationMs:Date.now()-started,success:true,metadata:{stream:true,correlationId:input.clientRequestId}});}tokens.push(data.token);}if(data.type==='primary_completed'&&data.message&&!primary){tokens.flush();primary=data.message;final=data.message;callbacks?.onPrimary?.(data.message,Boolean(data.hasAdditional));queueClientPerformance({surface:'together-dialogue',operation:'primary_complete',durationMs:Date.now()-started,success:true,metadata:{correlationId:input.clientRequestId}});}
+    if(data.type==='message_completed'&&data.message&&!receivedAdditional.some(message=>message.id===data.message!.id)){receivedAdditional.push(data.message);callbacks?.onMessage?.(data.message);}
+    if(data.type==='done'&&data.message){tokens.flush();final=data.message;additionalMessages=data.additionalMessages;generatedMedia=data.generatedMedia;mediaOffer=data.mediaOffer;photoRequestError=data.photoRequestError;delta=data.delta;}if(data.type==='error')throw new ApiError(data.error?.message??'Your companion could not finish the reply.',data.error?.code??'STREAM_INTERRUPTED',Boolean(data.error?.retryable));}};
   const drain=(flush=false)=>{const drained=drainJsonSseEvents<DialogueStreamEvent>(buffer,flush);buffer=drained.remainder;processEvents(drained.events);};
   while(true){const{value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});drain();}
   buffer+=decoder.decode();drain(true);
   if (!final) throw new ApiError('The reply was interrupted. Try again.', 'STREAM_INTERRUPTED', true);
-  queueClientPerformance({surface:'together-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:true,metadata:{firstToken:firstTokenRecorded}});
+  queueClientPerformance({surface:'together-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:true,metadata:{firstToken:firstTokenRecorded,correlationId:input.clientRequestId}});
   return {message:final,...(additionalMessages?.length?{additionalMessages}:{}),...(generatedMedia?{generatedMedia}:{}),...(mediaOffer?{mediaOffer}:{}),...(photoRequestError?{photoRequestError}:{}),...(delta?{delta}:{})};
-  }catch(caught){const failure=responseTimedOut?new ApiError(photoRequest?'The photo request took too long to confirm. Recovering it now…':'The reply took too long. Please try again.','PROVIDER_TIMEOUT',true):caught;queueClientPerformance({surface:'together-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:false,...(statusCode?{statusCode}:{}),metadata:{firstToken:firstTokenRecorded}});throw failure;}
-  finally{cancelResponseTimeout?.();}
+  }catch(caught){if(primary)return {message:primary,additionalMessages:receivedAdditional};const failure=responseTimedOut?new ApiError(photoRequest?'The photo request took too long to confirm. Recovering it now…':'The reply took too long. Please try again.','PROVIDER_TIMEOUT',true):caught;queueClientPerformance({surface:'together-dialogue',operation:'stream_complete',durationMs:Date.now()-started,success:false,...(statusCode?{statusCode}:{}),metadata:{firstToken:firstTokenRecorded,correlationId:input.clientRequestId}});throw failure;}
+  finally{tokens.dispose();cancelResponseTimeout?.();}
 }
 
 export async function suggestDialogue(input:{conversationId:string;characterInstanceId:string;anchorMessageId:string;clientRequestId:string;preference?:AutoDialoguePreference},signal?:AbortSignal):Promise<AutoDialogueSuggestion>{

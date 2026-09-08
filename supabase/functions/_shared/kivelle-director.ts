@@ -1,3 +1,6 @@
+import { chatSpeedEnabled } from './kivelle-chat-latency.ts';
+import { extractResponsesText } from '../../../packages/together-domain/src/ai-provider.ts';
+import { directorRequest } from './kivelle-director-request.ts';
 import { shouldUseDirector, type DirectorPolicy, type PromptInteractionQuality, type ResponseBrief } from '../../../packages/together-domain/src/index.ts';
 import { normalizeResponsesUsage } from '../../../packages/together-domain/src/ai-usage.ts';
 import { recordAiUsage, type AiUsageScope } from './kivelle-ai-usage.ts';
@@ -22,31 +25,66 @@ const openAIKey=()=>Deno.env.get('OPENAI_API_KEY');
 const geminiKey=()=>Deno.env.get('GEMINI_API_KEY');
 const model=(name:string,fallback:string)=>Deno.env.get(name)?.trim()||fallback;
 
-export async function runKivelleDirector(input:{context:DirectorContext;baseBrief:ResponseBrief;policy:DirectorPolicy;interactionQuality:PromptInteractionQuality;pendingMilestone?:boolean;activeConflict?:boolean;usageScope?:AiUsageScope}):Promise<DirectorResult>{
-  if(input.baseBrief.mode==='danger')return{brief:input.baseBrief,directorUsed:false,provider:'deterministic'};
+const failures = new Map<string, { count: number; retryAt: number }>();
+
+export async function runKivelleDirector(input:{context:DirectorContext;baseBrief:ResponseBrief;policy:DirectorPolicy;interactionQuality:PromptInteractionQuality;pendingMilestone?:boolean;activeConflict?:boolean;reasoningPreference?:string;usageScope?:AiUsageScope}):Promise<DirectorResult>{
+  const fallback:DirectorResult={brief:input.baseBrief,directorUsed:false,provider:'deterministic'};
+  if(input.reasoningPreference==='none'&&chatSpeedEnabled('DIRECTOR_BYPASS'))return fallback;
+  if(input.baseBrief.mode==='danger')return fallback;
   const storyIsResponseRelevant=input.baseBrief.actionCandidate==='story'||Boolean(input.baseBrief.callbackCandidate&&input.context.activeStory&&input.baseBrief.callbackCandidate===String(input.context.activeStory.title??''));
-  if(!shouldUseDirector(input.policy,input.interactionQuality,{pendingMilestone:input.pendingMilestone,activeConflict:input.activeConflict,activeStory:storyIsResponseRelevant}))return{brief:input.baseBrief,directorUsed:false,provider:'deterministic'};
-  const key=openAIKey();if(key){try{const brief=await directOpenAI(input.context,input.baseBrief,key,input.usageScope);return{brief,directorUsed:true,provider:'openai'};}catch(error){console.warn('Kivelle Director OpenAI fallback',error instanceof Error?error.message:'unknown_error');}}
-  const google=geminiKey();if(google){try{const brief=await directGemini(input.context,input.baseBrief,google,input.usageScope);return{brief,directorUsed:true,provider:'gemini'};}catch(error){console.warn('Kivelle Director Gemini fallback',error instanceof Error?error.message:'unknown_error');}}
-  return{brief:input.baseBrief,directorUsed:false,provider:'deterministic'};
+  if(!shouldUseDirector(input.policy,input.interactionQuality,{pendingMilestone:input.pendingMilestone,activeConflict:input.activeConflict,activeStory:storyIsResponseRelevant}))return fallback;
+  const deadline=Date.now()+3000;
+  for(const provider of ['openai','gemini'] as const){
+    const key=provider==='openai'?openAIKey():geminiKey();
+    const remaining=deadline-Date.now();
+    if(!key||remaining<100||(failures.get(provider)?.retryAt??0)>Date.now())continue;
+    try{
+      const brief=await (provider==='openai'?directOpenAI:directGemini)(input.context,input.baseBrief,key,input.usageScope,remaining);
+      failures.delete(provider);
+      return{brief,directorUsed:true,provider};
+    }catch{
+      const count=(failures.get(provider)?.count??0)+1;
+      failures.set(provider,{count,retryAt:count>=3?Date.now()+60_000:0});
+    }
+  }
+  return fallback;
 }
 
-async function directOpenAI(context:DirectorContext,base:ResponseBrief,key:string,scope?:AiUsageScope):Promise<ResponseBrief>{
-  const started=Date.now(),modelName=model('KIVELLE_DIRECTOR_MODEL','gpt-5-mini');let response:Response|undefined;
-  try{response=await Promise.race([
-    fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model:modelName,input:directorPrompt(context,base),max_output_tokens:450,...(Deno.env.get('KIVELLE_DIRECTOR_REASONING_EFFORT')?{reasoning:{effort:Deno.env.get('KIVELLE_DIRECTOR_REASONING_EFFORT')}}:{})})}),
-    timeout(3000),
-  ]);
-  if(!response.ok){await recordAiUsage(scope,{provider:'openai',model:modelName,operation:'director_openai',latencyMs:Date.now()-started,success:false,httpStatus:response.status,errorCode:`HTTP_${response.status}`});throw new Error(`director_openai_${response.status}`);}const data=await response.json(),usage=normalizeResponsesUsage('openai',data.usage);await recordAiUsage(scope,{provider:'openai',model:modelName,operation:'director_openai',usage,latencyMs:Date.now()-started,success:true,httpStatus:response.status});const raw=String(data.output_text??'').trim();return validateBrief(parseJson(raw),base);
-  }catch(error){if(!response)await recordAiUsage(scope,{provider:'openai',model:modelName,operation:'director_openai',latencyMs:Date.now()-started,success:false,errorCode:'NETWORK_OR_TIMEOUT'});throw error;}
+async function directOpenAI(context:DirectorContext,base:ResponseBrief,key:string,scope:AiUsageScope|undefined,timeoutMs:number):Promise<ResponseBrief>{
+  const started=Date.now(),modelName=model('KIVELLE_DIRECTOR_MODEL','gpt-5-mini');
+  try{
+    const {response,data}=await directorRequest('https://api.openai.com/v1/responses',{
+      method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},
+      body:JSON.stringify({model:modelName,input:directorPrompt(context,base),max_output_tokens:450,...(Deno.env.get('KIVELLE_DIRECTOR_REASONING_EFFORT')?{reasoning:{effort:Deno.env.get('KIVELLE_DIRECTOR_REASONING_EFFORT')}}:{})}),
+    },timeoutMs);
+    if(!response.ok)throw new Error(`HTTP_${response.status}`);
+    const raw=extractResponsesText(data);
+    if(!raw)throw new Error('EMPTY_DIRECTOR_RESPONSE');
+    const brief=validateBrief(parseJson(raw),base);
+    await recordAiUsage(scope,{provider:'openai',model:modelName,operation:'director_openai',usage:normalizeResponsesUsage('openai',data.usage),latencyMs:Date.now()-started,success:true,httpStatus:response.status});
+    return brief;
+  }catch(error){
+    await recordAiUsage(scope,{provider:'openai',model:modelName,operation:'director_openai',latencyMs:Date.now()-started,success:false,errorCode:error instanceof Error&&error.message.startsWith('HTTP_')?error.message:'NETWORK_OR_TIMEOUT'});
+    throw error;
+  }
 }
-async function directGemini(context:DirectorContext,base:ResponseBrief,key:string,scope?:AiUsageScope):Promise<ResponseBrief>{
-  const modelName=model('KIVELLE_DIRECTOR_GEMINI_MODEL','gemini-2.5-flash'),started=Date.now();let response:Response;
-  try{response=await Promise.race([
-    fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(key)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{role:'user',parts:[{text:directorPrompt(context,base)}]}],generationConfig:{temperature:.15,maxOutputTokens:450,responseMimeType:'application/json'}})}),
-    timeout(3000),
-  ]);}catch(error){await recordAiUsage(scope,{provider:'gemini',model:modelName,operation:'director_gemini',latencyMs:Date.now()-started,success:false,errorCode:'NETWORK_OR_TIMEOUT'});throw error;}
-  if(!response.ok){await recordAiUsage(scope,{provider:'gemini',model:modelName,operation:'director_gemini',latencyMs:Date.now()-started,success:false,httpStatus:response.status,errorCode:`HTTP_${response.status}`});throw new Error(`director_gemini_${response.status}`);}const data=await response.json(),usageMetadata=data.usageMetadata??{},usage={inputTokens:Number(usageMetadata.promptTokenCount??0),cachedInputTokens:Number(usageMetadata.cachedContentTokenCount??0),outputTokens:Number(usageMetadata.candidatesTokenCount??0),reasoningTokens:Number(usageMetadata.thoughtsTokenCount??0),totalTokens:Number(usageMetadata.totalTokenCount??0)};await recordAiUsage(scope,{provider:'gemini',model:modelName,operation:'director_gemini',usage,latencyMs:Date.now()-started,success:true,httpStatus:response.status});const raw=data.candidates?.[0]?.content?.parts?.map((part:Record<string,unknown>)=>part.text).filter(Boolean).join('')??'';return validateBrief(parseJson(String(raw)),base);
+async function directGemini(context:DirectorContext,base:ResponseBrief,key:string,scope:AiUsageScope|undefined,timeoutMs:number):Promise<ResponseBrief>{
+  const modelName=model('KIVELLE_DIRECTOR_GEMINI_MODEL','gemini-2.5-flash'),started=Date.now();
+  try{
+    const {response,data}=await directorRequest(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(key)}`,{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{role:'user',parts:[{text:directorPrompt(context,base)}]}],generationConfig:{temperature:.15,maxOutputTokens:450,responseMimeType:'application/json'}}),
+    },timeoutMs);
+    if(!response.ok)throw new Error(`HTTP_${response.status}`);
+    const usageMetadata=data.usageMetadata??{},usage={inputTokens:Number(usageMetadata.promptTokenCount??0),cachedInputTokens:Number(usageMetadata.cachedContentTokenCount??0),outputTokens:Number(usageMetadata.candidatesTokenCount??0),reasoningTokens:Number(usageMetadata.thoughtsTokenCount??0),totalTokens:Number(usageMetadata.totalTokenCount??0)};
+    const raw=data.candidates?.[0]?.content?.parts?.map((part:Record<string,unknown>)=>part.text).filter(Boolean).join('')??'';
+    if(!raw)throw new Error('EMPTY_DIRECTOR_RESPONSE');
+    const brief=validateBrief(parseJson(String(raw)),base);
+    await recordAiUsage(scope,{provider:'gemini',model:modelName,operation:'director_gemini',usage,latencyMs:Date.now()-started,success:true,httpStatus:response.status});
+    return brief;
+  }catch(error){
+    await recordAiUsage(scope,{provider:'gemini',model:modelName,operation:'director_gemini',latencyMs:Date.now()-started,success:false,errorCode:error instanceof Error&&error.message.startsWith('HTTP_')?error.message:'NETWORK_OR_TIMEOUT'});
+    throw error;
+  }
 }
 
 function directorPrompt(context:DirectorContext,base:ResponseBrief):string{return `You are Kivelle Director. Return JSON only. You control expression strategy, never canonical reality. Do not add facts, events, memories, plans, locations, relationship changes, or future story outcomes.
@@ -112,6 +150,5 @@ function validateDirectedHandoff(value:unknown,base:ResponseBrief['handoff']):Re
   const target=text(row.target,180)??base.target;
   return{mode,source:base.source,...(target?{target}:{}),reciprocityDebt:base.reciprocityDebt};
 }
-function parseJson(raw:string):unknown{try{return JSON.parse(raw);}catch{const match=raw.match(/\{[\s\S]*\}/);if(!match)return{};try{return JSON.parse(match[0]);}catch{return{};}}}
+function parseJson(raw:string):unknown{try{return JSON.parse(raw);}catch{const match=raw.match(/\{[\s\S]*\}/);if(!match)throw new Error('INVALID_DIRECTOR_RESPONSE');return JSON.parse(match[0]);}}
 function text(value:unknown,max:number):string|null{if(typeof value!=='string'||!value.trim())return null;return value.trim().slice(0,max);}
-function timeout(ms:number):Promise<Response>{return new Promise((_,reject)=>setTimeout(()=>reject(new Error('director_timeout')),ms));}

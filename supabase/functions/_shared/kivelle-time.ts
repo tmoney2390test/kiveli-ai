@@ -1,3 +1,4 @@
+import { requestRead } from './request-context.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type ExperienceClock = {
@@ -28,8 +29,8 @@ export async function resolveUserExperienceTimezone(
 ): Promise<string> {
   if (!userId) return safeTimezone(fallback);
   const [profile, preferences] = await Promise.all([
-    db.from('together_profiles').select('experience_timezone').eq('user_id', userId).maybeSingle(),
-    db.from('together_notification_preferences').select('timezone').eq('user_id', userId).maybeSingle(),
+    requestRead(db,['timezone','together_profiles',userId],()=>db.from('together_profiles').select('experience_timezone').eq('user_id', userId).maybeSingle()),
+    requestRead(db,['timezone','together_notification_preferences',userId],()=>db.from('together_notification_preferences').select('timezone').eq('user_id', userId).maybeSingle()),
   ]);
   return safeTimezone(profile.data?.experience_timezone ?? preferences.data?.timezone ?? fallback);
 }

@@ -1,3 +1,5 @@
+import { chatSpeedEnabled } from './kivelle-chat-latency.ts';
+import { requestRead } from './request-context.ts';
 import { contextReservation } from './kivelle-context-pricing-state.ts';
 import { estimateContextTokens } from '../../../packages/together-domain/src/context-budget.ts';
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -100,13 +102,13 @@ export async function buildTieredKivelleConversationContext(
   const quote=reservation?.replies.find((reply)=>reply.speakerId===String(input.instance.id));
   if(quote?.paidExpansion)input={...input,contextInputCeiling:reservation!.ceiling};
   const [subscription, base] = await Promise.all([
-    input.readOnly ? resolveSubscriptionAccess(input.db,input.userId,input.now,true) : resolveSubscriptionState(input.db, input.userId, input.now),
+    requestRead(input.db, ['dialogue-subscription', input.userId, Boolean(input.readOnly)], () => input.readOnly ? resolveSubscriptionAccess(input.db,input.userId,input.now,true) : resolveSubscriptionState(input.db, input.userId, input.now)),
     buildBaseContext({...input,memoryCandidateLimit:20}),
   ]);
   const caps = subscription.capabilities;
   const recentLimit=input.contextInputCeiling ? 2048 : caps.recentTurnBudget;
   let recent = base.recent.slice(-caps.recentTurnBudget);
-  if (recentLimit > recent.length) {
+  if (recentLimit > recent.length && (!chatSpeedEnabled('CONTEXT_REUSE') || input.contextInputCeiling || Number(base.debug?.limits?.recentMessages??18) >= 18)) {
     let query = input.db.from("together_messages").select(
       "role,content,created_at,provider_metadata,speaker_character_instance_id,character_instance_id,conversation_sequence,scene_session_id,scene_sequence,content_rating,visibility_scope",
     ).eq("conversation_id", input.conversation.id);
@@ -334,6 +336,7 @@ export async function buildTieredKivelleConversationContext(
     handoffsEnabled,
   });
   const director = input.readOnly ? {brief:baseBrief,directorUsed:false,provider:'deterministic'} : await runKivelleDirector({
+    reasoningPreference: generationPreferences.reasoningPreference,
     context: {
       ...base,
       commitments,

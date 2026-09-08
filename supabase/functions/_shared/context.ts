@@ -1,3 +1,4 @@
+import { requestClient } from './request-context.ts';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
 import { resolveSubscriptionAccess } from './kivelle-subscription.ts';
@@ -60,7 +61,7 @@ export async function authenticated(request: Request): Promise<{ user: User; db:
     ? preloadedDeletion.data
     : (await db.from('together_account_deletion_markers').select('user_id').eq('user_id',data.user.id).maybeSingle()).data;
   if(deletion)throw new AppError('ACCOUNT_DELETED','This Kivelle account has been deleted.',410,false);
-  return { user: data.user, db };
+  return { user: data.user, db: requestClient(db) };
 }
 
 export async function requireStaff(userId: string, db: SupabaseClient): Promise<void> {

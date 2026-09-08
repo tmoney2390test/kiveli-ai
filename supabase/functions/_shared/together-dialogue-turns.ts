@@ -19,15 +19,15 @@ export async function beginConversationTurn(db: SupabaseClient, input: {
   requestId: string;
   kind: ConversationTurnKind;
   supersedeGenerating?: boolean;
+  streamV2?: boolean;
   leaseSeconds?: number;
 }): Promise<ConversationTurnLease> {
-  const { data, error } = await db.rpc("kivelle_begin_dialogue_turn", {
+  const { data, error } = await db.rpc(input.streamV2&&input.kind!=="shared_scene"?`kivelle_begin_${input.kind}_dialogue_turn_v2`:"kivelle_begin_dialogue_turn", {
     p_user_id: input.userId,
     p_continuity_id: input.continuityId,
     p_conversation_id: input.conversationId,
     p_request_id: input.requestId,
-    p_turn_kind: input.kind,
-    p_supersede_generating: input.supersedeGenerating === true,
+    ...(input.streamV2&&input.kind!=="shared_scene"?{}:{p_turn_kind: input.kind,p_supersede_generating: input.supersedeGenerating === true}),
     p_lease_seconds: input.leaseSeconds ?? 180,
   });
   const row = Array.isArray(data) ? data[0] : data;
@@ -51,6 +51,11 @@ export async function beginConversationTurn(db: SupabaseClient, input: {
     requestId: String(row.active_request_id ?? input.requestId),
     interruptedCount: Number(row.interrupted_count ?? 0),
   };
+}
+
+export async function markDirectPrimaryComplete(db:SupabaseClient,lease:ConversationTurnLease,messageId:string):Promise<boolean>{
+  const {data,error}=await db.rpc('kivelle_mark_direct_primary_complete',{p_turn_id:lease.id,p_lease_token:lease.token,p_message_id:messageId});
+  return !error&&data===true;
 }
 
 export async function activateConversationTurn(
