@@ -1,7 +1,7 @@
 diff --git a/supabase/migrations/202609040034_kivelle_vharadren_maris_and_celia.sql b/supabase/migrations/202609040034_kivelle_vharadren_maris_and_celia.sql
 --- a/supabase/migrations/202609040034_kivelle_vharadren_maris_and_celia.sql
 +++ b/supabase/migrations/202609040034_kivelle_vharadren_maris_and_celia.sql
-@@ -343,6 +343,6 @@ begin
+@@ -343,5 +343,5 @@ begin
      raise exception 'Maris/Celia integration failed: templates %, adult %, schedules %, activities %, edges %, opportunities %',template_count,adult_count,schedule_count,activity_count,edge_count,opportunity_count;
    end if;
 -end $$
@@ -11,7 +11,7 @@ diff --git a/supabase/migrations/202609040034_kivelle_vharadren_maris_and_celia.
 diff --git a/supabase/migrations/202609040035_kivelle_vharadren_maris_celia_portraits.sql b/supabase/migrations/202609040035_kivelle_vharadren_maris_celia_portraits.sql
 --- a/supabase/migrations/202609040035_kivelle_vharadren_maris_celia_portraits.sql
 +++ b/supabase/migrations/202609040035_kivelle_vharadren_maris_celia_portraits.sql
-@@ -114,6 +114,6 @@ begin
+@@ -114,5 +114,5 @@ begin
      raise exception 'Vharadren portrait v8 integration failed: linked %, primaries %, ready %, world primaries %',linked_count,primary_count,ready_count,world_primary_count;
    end if;
 -end $$
