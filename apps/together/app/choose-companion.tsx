@@ -9,7 +9,7 @@ import { FrostedSurface, KivelleLogo, LoadingSkeleton, Screen, resolveCharacterP
 import { worldHeroAsset } from '../src/assets';
 import { bootstrap } from '../src/lib/api';
 import { featuredCompanionsMatchingGender, type FeaturedCompanion, type FeaturedGenderFilter } from '../src/lib/featuredCompanions';
-import { onboardingCompanionsForWorld, onboardingWorldFantasy, onboardingWorldGenre, onboardingWorlds } from '../src/lib/onboardingCatalog';
+import { onboardingCompanionsForWorld, onboardingRecommendedWorld, onboardingWorldFantasy, onboardingWorldGenre, onboardingWorlds } from '../src/lib/onboardingCatalog';
 import { quickStartProfile } from '../src/lib/quickStart';
 import { resolveKivelleAccountStage } from '../src/lib/authRouting';
 import { useTogether } from '../src/store/useTogether';
@@ -43,11 +43,12 @@ export default function ChooseCompanion() {
   }, [loading, refresh, snapshot]);
 
   const worlds = useMemo(() => snapshot ? onboardingWorlds(snapshot) : [], [snapshot]);
+  const recommendedWorld = useMemo(() => snapshot ? onboardingRecommendedWorld(snapshot, worlds) : null, [snapshot, worlds]);
   useEffect(() => {
     if (selectedWorldId || !worlds.length) return;
     const requested = params.world ? worlds.find((world) => world.slug === params.world) : null;
-    setSelectedWorldId((requested ?? worlds[0]!).id);
-  }, [params.world, selectedWorldId, worlds]);
+    setSelectedWorldId((requested ?? recommendedWorld!).id);
+  }, [params.world, recommendedWorld, selectedWorldId, worlds]);
 
   const selectedWorld = worlds.find((world) => world.id === selectedWorldId) ?? null;
   const worldCompanions = useMemo(
@@ -60,7 +61,7 @@ export default function ChooseCompanion() {
   );
   const selectedCompanion = worldCompanions.find((person) => person.id === selectedCompanionId) ?? null;
   const visibleCompanions = filteredCompanions.slice(0, visibleCount);
-  const otherWorlds = worlds.filter((world) => world.id !== selectedWorldId);
+  const otherWorlds = worlds.filter((world) => world.id !== recommendedWorld?.id);
 
   useEffect(() => {
     setVisibleCount(12);
@@ -128,10 +129,10 @@ export default function ChooseCompanion() {
           <Text style={styles.subtitle}>Choose a world to step into.</Text>
         </View>
 
-        {selectedWorld ? <View accessibilityRole="radiogroup" accessibilityLabel="Choose a world" style={styles.worldPicker}>
-          <WorldCard world={selectedWorld} selected featured onPress={() => chooseWorld(selectedWorld)} />
+        {recommendedWorld ? <View accessibilityRole="radiogroup" accessibilityLabel="Choose a world" style={styles.worldPicker}>
+          <WorldCard world={recommendedWorld} selected={recommendedWorld.id === selectedWorldId} featured onPress={() => chooseWorld(recommendedWorld)} />
           {otherWorlds.length ? <View style={styles.worldGrid}>
-            {otherWorlds.map((world) => <WorldCard key={world.id} world={world} selected={false} compact desktop={desktop} onPress={() => chooseWorld(world)} />)}
+            {otherWorlds.map((world) => <WorldCard key={world.id} world={world} selected={world.id === selectedWorldId} compact desktop={desktop} onPress={() => chooseWorld(world)} />)}
           </View> : null}
         </View> : <FrostedSurface intensity={70} style={styles.emptyState}><Sparkles size={20} color={colors.violet} /><Text style={styles.emptyTitle}>Worlds are being prepared</Text></FrostedSurface>}
 
@@ -187,6 +188,7 @@ function WorldCard({ world, selected, featured = false, compact = false, desktop
   return <Pressable
     accessibilityRole="radio"
     accessibilityState={{ checked: selected }}
+    aria-checked={selected}
     accessibilityLabel={`${world.name}. ${onboardingWorldGenre(world)}. ${onboardingWorldFantasy(world)}`}
     onPress={onPress}
     style={({ pressed }) => [styles.worldCard, featured && styles.worldCardFeatured, compact && styles.worldCardCompact, compact && desktop && styles.worldCardCompactDesktop, selected && styles.worldCardSelected, pressed && styles.cardPressed]}
@@ -195,6 +197,7 @@ function WorldCard({ world, selected, featured = false, compact = false, desktop
     <View style={styles.worldShade} />
     {selected ? <View style={styles.selectionCheck}><Check size={19} strokeWidth={3} color="#fff" /></View> : null}
     <View style={[styles.worldCopy, compact && styles.worldCopyCompact]}>
+      {featured ? <Text style={styles.recommended}>Recommended</Text> : null}
       <Text numberOfLines={1} style={[styles.worldName, compact && styles.worldNameCompact]}>{world.name}</Text>
       <Text numberOfLines={1} style={[styles.worldGenre, compact && styles.worldGenreCompact]}>{onboardingWorldGenre(world)}</Text>
       <Text numberOfLines={compact ? 1 : 2} style={[styles.worldFantasy, compact && styles.worldFantasyCompact]}>{onboardingWorldFantasy(world)}</Text>
@@ -258,6 +261,7 @@ const styles = StyleSheet.create({
   selectionCheck: { position: 'absolute', top: 13, right: 13, width: 37, height: 37, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#A94FDC', borderWidth: 1, borderColor: 'rgba(255,255,255,.52)' },
   worldCopy: { zIndex: 1, gap: 5, padding: 22 },
   worldCopyCompact: { gap: 3, padding: 13 },
+  recommended: { color: '#F0D9F1', fontSize: 12, lineHeight: 17, fontWeight: '700', marginBottom: 3 },
   worldName: { color: '#fff', fontFamily: typography.display, fontSize: 36, lineHeight: 40, textShadowColor: '#000', textShadowRadius: 12 },
   worldNameCompact: { fontSize: 23, lineHeight: 27 },
   worldGenre: { color: '#F0D9F1', fontSize: 10, lineHeight: 14, fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase' },

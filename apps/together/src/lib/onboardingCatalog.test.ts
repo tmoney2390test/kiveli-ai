@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Snapshot } from '../types';
-import { onboardingCompanionsForWorld, onboardingWorldFantasy, onboardingWorldGenre, onboardingWorlds } from './onboardingCatalog';
+import { onboardingCompanionsForWorld, onboardingRecommendedWorld, onboardingWorldFantasy, onboardingWorldGenre, onboardingWorlds } from './onboardingCatalog';
 
 const world = (id: string, sortOrder: number, published = true) => ({
   id, slug: id, name: id, description: `${id} description`, access_type: 'free' as const,
@@ -46,5 +46,18 @@ describe('first-login catalog', () => {
     const value = { ...world('first', 0), metadata: { genreTags: ['dark fantasy', 'court intrigue', 'romance'] } };
     expect(onboardingWorldGenre(value)).toBe('Dark Fantasy · Court Intrigue');
     expect(onboardingWorldGenre(world('fallback', 0))).toBe('Characters · Stories');
+  });
+});
+
+ describe('world recommendations', () => {
+  it('uses signup gender and preserves catalog order', () => {
+    const worlds = [world('juniper-city', 0), world('port-vervelle', 1), world('vharadren', 2)];
+    for (const [gender, expected] of [['woman', 'port-vervelle'], ['man', 'vharadren'], ['nonbinary', 'juniper-city'], ['prefer_not_to_say', 'juniper-city']]) {
+      const value = { ...snapshot, worlds, personas: [{ is_default: true, metadata: { gender } }], activePersona: { metadata: { gender: 'man' } } } as unknown as Snapshot;
+      expect(onboardingRecommendedWorld(value)?.slug).toBe(expected);
+      expect(worlds.map(item => item.slug)).toEqual(['juniper-city', 'port-vervelle', 'vharadren']);
+    }
+    expect(onboardingRecommendedWorld(snapshot)?.slug).toBe('first');
+    expect(onboardingRecommendedWorld({ ...snapshot, worlds: [] })).toBeNull();
   });
 });

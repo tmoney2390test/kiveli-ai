@@ -7,6 +7,13 @@ export function onboardingWorlds(snapshot: Snapshot): World[] {
     .sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name));
 }
 
+export function onboardingRecommendedWorld(snapshot: Snapshot, worlds = onboardingWorlds(snapshot)): World | null {
+  const persona = snapshot.personas?.find((item) => item.is_default) ?? snapshot.activePersona;
+  const gender = persona?.metadata?.gender;
+  const slug = gender === 'woman' ? 'port-vervelle' : gender === 'man' ? 'vharadren' : null;
+  return worlds.find((world) => world.slug === slug) ?? worlds[0] ?? null;
+}
+
 /** Only show companions whose authored first meeting can be created in this world. */
 export function onboardingCompanionsForWorld(snapshot: Snapshot, worldId: string): FeaturedCompanion[] {
   return featuredCompanionsForWorld(snapshot, worldId).filter((companion) => {
