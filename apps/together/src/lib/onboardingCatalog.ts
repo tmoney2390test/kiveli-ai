@@ -28,6 +28,20 @@ export function onboardingWorldFantasy(world: World): string {
   return typeof fantasy === 'string' && fantasy.trim() ? fantasy.trim() : world.description;
 }
 
+const compactWorldCopy: Record<string, { genre: string; description: string }> = {
+  'juniper-city': { genre: 'City life', description: 'Everyday sparks, new stories' },
+  'port-vervelle': { genre: 'Slow romance', description: 'Slow love by the sea' },
+  'neon-kyo': { genre: 'Cyberpunk', description: 'Real love in a synthetic city' },
+  vespormoor: { genre: 'Gothic romance', description: 'Dark secrets, dangerous love' },
+  northvale: { genre: 'Mountain romance', description: 'Winter sparks, lasting love' },
+  'eos-meridian': { genre: 'Space frontier', description: 'Build a life among the stars' },
+  vharadren: { genre: 'Dark fantasy', description: 'Desire, power, warring crowns' },
+};
+
+export function onboardingWorldCompactCopy(world: World): { genre: string; description: string } {
+  return compactWorldCopy[world.slug] ?? { genre: 'Stories & romance', description: 'New encounters, new stories' };
+}
+
 export function onboardingWorldGenre(world: World): string {
   const tags = Array.isArray(world.metadata?.genreTags)
     ? world.metadata.genreTags.filter((tag): tag is string => typeof tag === 'string' && Boolean(tag.trim())).slice(0, 2)
