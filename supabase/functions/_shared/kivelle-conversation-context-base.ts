@@ -1,3 +1,4 @@
+import { requestRead } from './request-context.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { eventIsActive, experienceClock, formatExperienceTime, type ExperienceClock } from './kivelle-time.ts';
 import { resolveCharacterPlaceContext, resolvePlaceContext, type PlaceContext } from './together-place.ts';
@@ -108,8 +109,8 @@ export async function buildKivelleConversationContext(input: {
     db.from('together_date_sessions').select('*,together_date_templates(*)').eq('user_id', userId).eq('character_instance_id', instance.id).order('updated_at', { ascending:false }).limit(20),
     db.from('together_story_arc_instances').select('*,together_story_arc_templates(slug,title,priority,chapters)').eq('user_id', userId).eq('character_instance_id', instance.id).in('status',['active','paused']).order('updated_at', { ascending:false }).limit(3),
     sceneSocialIntent?db.from('together_character_relationship_edges').select('*').or(`source_template_id.eq.${instance.character_template_id},target_template_id.eq.${instance.character_template_id}`):emptyRows(),
-    planningIntent?db.from('together_worlds').select('id,slug,name,access_type,entitlement_key').eq('published',true):emptyRows(),
-    planningIntent?db.from('together_locations').select('*'):emptyRows(),
+    planningIntent?requestRead(db,['planning-worlds'],()=>db.from('together_worlds').select('id,slug,name,access_type,entitlement_key').eq('published',true)):emptyRows(),
+    planningIntent?requestRead(db,['planning-locations'],()=>db.from('together_locations').select('*')):emptyRows(),
     historyIntent?policyQuery(db.from('together_generated_media').select('id,location_id,metadata,created_at,content_rating,visibility_scope').eq('user_id', userId).eq('character_instance_id', instance.id),input.authorizedWebAdult).eq('status','ready').order('created_at', { ascending:false }).limit(6):emptyRows(),
     historyIntent?db.from('together_moments').select('*').eq('user_id', userId).eq('character_instance_id', instance.id).order('occurred_at', { ascending:false }).limit(intent === 'history' ? 20 : 6):emptyRows(),
     historyIntent?db.from('together_scene_episodes').select('*').eq('user_id',userId).eq('character_instance_id',instance.id).order('ended_at',{ascending:false}).limit(intent==='history'?12:5):emptyRows(),
@@ -150,8 +151,10 @@ export async function buildKivelleConversationContext(input: {
   const mentionText=normalizePlaceText(userMessage);
   const referencedLocationRows=(locations.data??[]).filter((item:Row)=>String(item.id)!==locationId&&placeMentioned(mentionText,String(item.name??''),String(item.slug??''))).sort((left:Row,right:Row)=>Number(String(right.world_id)===place?.world.id)-Number(String(left.world_id)===place?.world.id)).slice(0,2);
   const referencedPlaces=(await Promise.all(referencedLocationRows.map((item:Row)=>resolvePlaceContext({db,locationId:String(item.id),now,userId,characterInstanceId:String(instance.id)}).catch(()=>null)))).filter((item):item is PlaceContext=>Boolean(item));
-  const placePerspectives=await loadPlacePerspectives({db,userId,characterInstanceId:String(instance.id),characterVersionId:String(instance.character_version_id),places:[place,...referencedPlaces].filter((item):item is PlaceContext=>Boolean(item))});
-  const worldPulse=place?.world.id?await resolveRelevantWorldPulse({db,userId,continuityId:String(instance.continuity_id),worldId:String(place.world.id),userMessage,currentLocationId:locationId,districtLocationId:place.district?.id??null,characterInstanceId:String(instance.id),characterIsLocal:true,now,maximumResults:historyIntent||planningIntent?3:2}).catch(()=>[]):[];
+  const [placePerspectives,worldPulse]=await Promise.all([
+    loadPlacePerspectives({db,userId,characterInstanceId:String(instance.id),characterVersionId:String(instance.character_version_id),places:[place,...referencedPlaces].filter((item):item is PlaceContext=>Boolean(item))}),
+    place?.world.id?resolveRelevantWorldPulse({db,userId,continuityId:String(instance.continuity_id),worldId:String(place.world.id),userMessage,currentLocationId:locationId,districtLocationId:place.district?.id??null,characterInstanceId:String(instance.id),characterIsLocal:true,now,maximumResults:historyIntent||planningIntent?3:2}).catch(()=>[]):[],
+  ]);
   const visibleLifeEvents=(events.data??[]).filter((item:Row)=>item.user_should_know!==false).map((item:Row)=>({id:String(item.id),title:naturalizeCharacterEventTitle(item.title,item.event_type),summary:naturalizeCharacterEventSummary(item.narrative_summary),startsAt:String(item.starts_at),significance:Number(item.significance??.5)}));
   const temporalContinuity=temporalContinuitySummary({lastMessageAt:conversation.last_message_at??conversation.updated_at,now,events:[...visibleLifeEvents,...worldPulse.map(item=>({title:item.title,summary:item.summary,startsAt:item.startsAt,significance:item.significance}))]});
   const requestedWorld=(worlds.data??[]).find((world:Row)=>userMessage.toLowerCase().includes(String(world.name).toLowerCase())||userMessage.toLowerCase().includes(String(world.slug).replace(/-/g,' ')));

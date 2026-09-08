@@ -1,3 +1,4 @@
+import { emptyReplyDrafts, reduceReplyDrafts } from '../src/lib/replyStreaming';
 import { useContextQuote } from '../src/hooks/useContextQuote';
 import { ContextPricePreview } from '../src/components/settings/ContextPricePreview';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -243,6 +244,9 @@ export default function GroupChatScreen() {
     destination.searchParams.set("group", "1");
     window.history.replaceState({}, "", `${destination.pathname}${destination.search}${destination.hash}`);
   }, [params.id]);
+  const [replyDrafts,setReplyDrafts]=useState(emptyReplyDrafts);
+  const currentComposer=useRef('');
+  const completedPrimaryRequests=useRef(new Set<string>());
   const groupCacheScope = `${session?.user.id??"anonymous"}:${snapshot?.activeContinuity?.id??"default"}`;
   const initialGroupCache = useRef(
     params.id ? readCachedGroupDetail(groupCacheScope, params.id) : undefined,
@@ -305,6 +309,7 @@ export default function GroupChatScreen() {
   const creditsSubscriptionHref=subscriptionHref({intent:"credits",returnTo:subscriptionReturnTo});
   const photoSharingSubscriptionHref=subscriptionHref({intent:"photo_sharing",returnTo:`${subscriptionReturnTo}${subscriptionReturnTo.includes("?")?"&":"?"}sharePhoto=1`});
   const clearStoredDraft=usePersistentMessageDraft({userId:session?.user.id,conversationId:params.id,kind:"group",value:input,setValue:setInput});
+  currentComposer.current=input;
   const abortRef = useRef<AbortController | null>(null),
     recipientConversationRef = useRef<string | null>(null),
     lastSendRef = useRef<{ text: string; startedAt: number } | null>(null),
@@ -881,7 +886,20 @@ export default function GroupChatScreen() {
         }
         : current
     );
+  useEffect(()=>{
+    setReplyDrafts(emptyReplyDrafts());
+    completedPrimaryRequests.current.clear();
+    return()=>{abortRef.current?.abort();};
+  },[params.id]);
   const handleEvent = (event: GroupDialogueEvent) => {
+    if(event.type==='turn_started'||event.type==='message_delta'||event.type==='message_completed'||event.type==='turn_yielded'||event.type==='turn_cancelled'||event.type==='turn_completed')setReplyDrafts(current=>reduceReplyDrafts(current,event));
+    if(event.type==='primary_completed'){
+      appendMessage(event.message);
+      completedPrimaryRequests.current.add(event.clientRequestId);
+      finishPendingDialogue(event.message.conversation_id,event.clientRequestId);
+      setSending(false);
+      if(pendingImage){cleanupNormalizedImage(pendingImage.uri);setPendingImage(null);setPhotoUploadPhase('idle');pendingPhotoMessageRequestRef.current=null;pendingPhotoOptimisticMessageIdRef.current=null;}
+    }
     if (event.type === "turn_started" && event.sourceMessage) {
       appendMessage(event.sourceMessage);
     }
@@ -955,6 +973,7 @@ export default function GroupChatScreen() {
     if(previousSend?.text===message&&Date.now()-previousSend.startedAt<750)return;
     lastSendRef.current={text:message,startedAt:Date.now()};
     abortRef.current?.abort();
+    setReplyDrafts(emptyReplyDrafts());
     keepPinnedToBottom.current = true;
     forcePinnedUntil.current = Date.now() + 800;
     const controller = new AbortController();
@@ -981,12 +1000,13 @@ export default function GroupChatScreen() {
           ...recipientRequest,
           letThemTalk,
         },
-        handleEvent,
+        (event)=>{if(abortRef.current===controller&&!controller.signal.aborted)handleEvent(event);},
         controller.signal,
       );
-      if(!letThemTalk)await clearStoredDraft();
+      if(abortRef.current!==controller)return;
+      if(!letThemTalk&&!currentComposer.current.trim())await clearStoredDraft();
     } catch (caught) {
-      if (!controller.signal.aborted) {
+      if (!controller.signal.aborted&&!completedPrimaryRequests.current.has(clientRequestId)) {
         const recovered=dialogueFailureMayHavePersisted(caught)?await recoverInterruptedGroupDialogue(clientRequestId,optimistic.id):false;
         if(recovered){if(!letThemTalk)await clearStoredDraft();return;}
         setError(
@@ -1002,6 +1022,7 @@ export default function GroupChatScreen() {
       if (abortRef.current === controller) {
         abortRef.current = null;
         setTyping([]);
+        setReplyDrafts(emptyReplyDrafts());
         setSending(false);
       }
     }
@@ -1022,6 +1043,7 @@ export default function GroupChatScreen() {
     if(previousSend?.text===submissionKey&&Date.now()-previousSend.startedAt<750)return;
     lastSendRef.current={text:submissionKey,startedAt:Date.now()};
     abortRef.current?.abort();
+    setReplyDrafts(emptyReplyDrafts());
     keepPinnedToBottom.current = true;
     forcePinnedUntil.current = Date.now() + 800;
     const controller = new AbortController();
@@ -1086,19 +1108,20 @@ export default function GroupChatScreen() {
           replyToMessageId: reply?.id,
           ...recipientRequest,
         },
-        handleEvent,
+        (event)=>{if(abortRef.current===controller&&!controller.signal.aborted)handleEvent(event);},
         controller.signal,
       );
-      if (selectedImage) {
+      if(abortRef.current!==controller)return;
+      if (selectedImage&&!completedPrimaryRequests.current.has(clientRequestId)) {
         cleanupNormalizedImage(selectedImage.uri);
         setPendingImage(null);
         setPhotoUploadPhase("idle");
         pendingPhotoMessageRequestRef.current=null;
         pendingPhotoOptimisticMessageIdRef.current=null;
       }
-      await clearStoredDraft();
+      if(!currentComposer.current.trim())await clearStoredDraft();
     } catch (caught) {
-      if (!controller.signal.aborted) {
+      if (!controller.signal.aborted&&!completedPrimaryRequests.current.has(clientRequestId)) {
         const recovered=dialogueFailureMayHavePersisted(caught)?await recoverInterruptedGroupDialogue(clientRequestId,optimistic.id):false;
         if(recovered){
           if(selectedImage){cleanupNormalizedImage(selectedImage.uri);setPendingImage(null);setPhotoUploadPhase("idle");pendingPhotoMessageRequestRef.current=null;pendingPhotoOptimisticMessageIdRef.current=null;}
@@ -1121,6 +1144,7 @@ export default function GroupChatScreen() {
       if (abortRef.current === controller) {
         abortRef.current = null;
         setTyping([]);
+        setReplyDrafts(emptyReplyDrafts());
         setSending(false);
       }
     }
@@ -1237,7 +1261,7 @@ export default function GroupChatScreen() {
           photoSubjectCharacterInstanceIds: photoSubjects,
           manualSpeakerInstanceId: photoSubjects[0],
         },
-        handleEvent,
+        (event)=>{if(abortRef.current===controller&&!controller.signal.aborted)handleEvent(event);},
         controller.signal,
       );
     } catch (caught) {
@@ -2084,7 +2108,8 @@ export default function GroupChatScreen() {
             onRetry={offer.generated_media_id&&(detail.generatedMedia??[]).find((item)=>item.id===offer.generated_media_id)?.status==='failed'?()=>{const failed=(detail.generatedMedia??[]).find((item)=>item.id===offer.generated_media_id);if(failed)void retryGeneratedMedia(failed);}:undefined}
           />
         ))}
-        {typing.map((person) => <ChatTypingIndicator key={person.id} name={person.name}/>) }
+        {replyDrafts.drafts.map(draft=><View key={draft.replyKey} style={{marginVertical:8,marginHorizontal:16,padding:14,borderRadius:18,backgroundColor:colors.surface}}><Text style={{color:colors.rose,fontWeight:'600',marginBottom:6}}>{draft.speakerName}</Text><Text style={[messageTypography,{color:colors.text}]}>{draft.text}</Text></View>)}
+        {typing.filter(person=>!replyDrafts.drafts.some(draft=>draft.characterInstanceId===person.id)).map((person) => <ChatTypingIndicator key={person.id} name={person.name}/>) }
         {replyPending&&!typing.length?<ChatTypingIndicator name={detail.conversation.title??"Group"}/>:null}
         </>:null}
         initialNumToRender={18}

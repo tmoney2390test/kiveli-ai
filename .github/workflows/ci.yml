@@ -29,6 +29,9 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm context:test:db
+      - run: pnpm chat-speed:test:db
+      - name: Chat speed regressions
+        run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-chat-speed_test.ts
       - name: Context price regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-context-price_test.ts
       - run: pnpm guard:starter-content

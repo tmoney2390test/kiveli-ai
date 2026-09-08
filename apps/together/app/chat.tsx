@@ -214,6 +214,8 @@ function ChatSession() {
   const scroll = useRef<FlatList<ReactElement>>(null);
   const latestConversationScroller=useRef<((animated:boolean)=>void)|null>(null);
   const sendInFlightRef = useRef(false);
+  const activeSendRequest = useRef<string|null>(null);
+  useEffect(()=>()=>{activeSendRequest.current=null;sendInFlightRef.current=false;},[conversation?.id]);
   const composerInput = useRef<TextInput>(null);
   const contentHeight = useRef(0);
   const previousHeight = useRef(0);
@@ -897,6 +899,8 @@ function ChatSession() {
     const selectedImage=messageAction?null:pendingImage;if(!preserveComposer)setInput(''); setError(''); setSending(true); setStream(''); setFeedback(null);
     let preparedAttachmentId:string|undefined;let sentAttachment:ConversationAttachment|undefined;let sceneActionId:string|undefined;
     const clientRequestId=retryRequestId??createClientRequestId();
+    activeSendRequest.current=clientRequestId;
+    let primaryComplete=false;
     if(expectsPhotoOffer){
       const knownDailyRemaining=mediaOffers
         .filter((offer)=>offer.source==='user_request')
@@ -931,9 +935,21 @@ function ChatSession() {
           if(sceneResult.intentMatch){const sceneAction=await executeInteraction(sceneResult.intentMatch,'defer_to_current_message');sceneActionId=sceneAction?.id;}
         }catch{/* The sent message is still valid if the scene changed. */}
       }
-      const result = await sendDialogue({ ...contextAuthorization, conversationId: conversation.id, characterInstanceId: character.id, message: text,attachmentIds:preparedAttachmentId?[preparedAttachmentId]:retryAttachmentIds, clientRequestId,focusPlanId:focusPlanId??undefined,...(sceneActionId?{sceneActionId}:{}),...(messageAction?{messageAction:messageAction.messageAction,anchorMessageId:messageAction.anchorMessageId}:{}),...(sentAutoDialogue?{autoDialogueSuggestionId:sentAutoDialogue.suggestionId,autoDialogueSuggestionSource:sentAutoDialogue.source,autoDialogueSuggestionEdited:text!==sentAutoDialogue.text.trim(),autoDialogueSuggestionIntent:sentAutoDialogue.intent,autoDialogueSuggestionPreference:sentAutoDialogue.preference}:{}) }, (token) => {if(activeBottomPinRequest.current===clientRequestId)forcePinnedUntil.current=Date.now()+1_200;setStream((current) => current + token);});
+      const result = await sendDialogue({ ...contextAuthorization, conversationId: conversation.id, characterInstanceId: character.id, message: text,attachmentIds:preparedAttachmentId?[preparedAttachmentId]:retryAttachmentIds, clientRequestId,focusPlanId:focusPlanId??undefined,...(sceneActionId?{sceneActionId}:{}),...(messageAction?{messageAction:messageAction.messageAction,anchorMessageId:messageAction.anchorMessageId}:{}),...(sentAutoDialogue?{autoDialogueSuggestionId:sentAutoDialogue.suggestionId,autoDialogueSuggestionSource:sentAutoDialogue.source,autoDialogueSuggestionEdited:text!==sentAutoDialogue.text.trim(),autoDialogueSuggestionIntent:sentAutoDialogue.intent,autoDialogueSuggestionPreference:sentAutoDialogue.preference}:{}) }, (token) => {if(activeSendRequest.current!==clientRequestId)return;if(activeBottomPinRequest.current===clientRequestId)forcePinnedUntil.current=Date.now()+1_200;setStream((current) => current + token);}, {
+        onPrimary:(message)=>{
+          if(activeSendRequest.current!==clientRequestId)return;
+          primaryComplete=true;
+          seamlessCompletionIds.current.add(message.id);
+          setMessages(current=>reconcileMessages(current,[{...optimistic,delivery_status:'complete',attachments:sentAttachment?[sentAttachment]:optimistic.attachments},message]));
+          cleanupNormalizedImage(selectedImage?.uri);setPendingImage(null);setPhotoUploadPhase('idle');setStream('');
+          sendInFlightRef.current=false;setSending(false);finishPendingDialogue(conversation.id,clientRequestId);
+          settleSentMessageAtBottom(clientRequestId);
+        },
+        onMessage:(message)=>{if(activeSendRequest.current===clientRequestId)setMessages(current=>reconcileMessages(current,[message]));},
+      });
+      if(activeSendRequest.current!==clientRequestId)return;
       seamlessCompletionIds.current.add(result.message.id);
-      cleanupNormalizedImage(selectedImage?.uri);setPendingImage(null);setPhotoUploadPhase('idle');setStream(''); setMessages((current) => reconcileMessages(current,[{...optimistic,delivery_status:'complete',attachments:sentAttachment?[sentAttachment]:optimistic.attachments},result.message,...(result.additionalMessages??[])]));settleSentMessageAtBottom(clientRequestId);
+      if(!primaryComplete){cleanupNormalizedImage(selectedImage?.uri);setPendingImage(null);setPhotoUploadPhase('idle');}setStream(''); setMessages((current) => reconcileMessages(current,[{...optimistic,delivery_status:'complete',attachments:sentAttachment?[sentAttachment]:optimistic.attachments},result.message,...(result.additionalMessages??[])]));settleSentMessageAtBottom(clientRequestId);
       void markConversationRead(conversation.id).catch(()=>undefined);
       if(result.generatedMedia){upsertMedia(result.generatedMedia);setReconcilingMediaId(result.generatedMedia.id);}
       if(result.mediaOffer){
@@ -949,9 +965,10 @@ function ChatSession() {
         catch(caught){if(!result.mediaOffer&&!isTransientMediaFetchFailure(caught))setError('The photo confirmation could not be loaded. Please try again.');}
       }
       if(result.delta)applyServerDelta(result.delta);
-      if(!preserveComposer)await clearStoredDraft();
+      if(!preserveComposer&&!currentInput.current.trim())await clearStoredDraft();
       showNewStoryFeedback(before, useTogether.getState().snapshot, character.id, character.together_character_templates.name, setFeedback);
     } catch (caught) {
+      if(activeSendRequest.current!==clientRequestId||primaryComplete)return;
       const recovered=dialogueFailureMayHavePersisted(caught)?await recoverInterruptedDialogue(conversation.id,character.id,optimistic,clientRequestId,expectsPhotoOffer):false;
       if(recovered){cleanupNormalizedImage(selectedImage?.uri);setPendingImage(null);setPhotoUploadPhase('idle');setStream('');setError('');await clearStoredDraft();return;}
       if(preparedAttachmentId)void removePendingAttachment(preparedAttachmentId).catch(()=>undefined);
@@ -962,8 +979,9 @@ function ChatSession() {
       if(caught instanceof ApiError&&caught.code==='PLAN_LIMIT_REACHED')setShowPhotoPaywall(true);
       setMessages((current) => current.map((item) => item.id === optimistic.id ? { ...item, delivery_status: 'failed' } : item));
     } finally {
-      sendInFlightRef.current=false;finishPendingDialogue(conversation.id,clientRequestId);setSending(false);
-      if(expectsPhotoOffer&&!optimisticPhotoRequestRef.current)setAwaitingPhotoOffer(false);
+      finishPendingDialogue(conversation.id,clientRequestId);
+      if(activeSendRequest.current===clientRequestId){sendInFlightRef.current=false;setSending(false);}
+      if(activeSendRequest.current===clientRequestId&&expectsPhotoOffer&&!optimisticPhotoRequestRef.current)setAwaitingPhotoOffer(false);
       if(activeBottomPinRequest.current===clientRequestId){
         forcePinnedUntil.current=Date.now()+1_000;
         bottomPinReleaseTimer.current=setTimeout(()=>{if(activeBottomPinRequest.current!==clientRequestId)return;scrollToLatest(false);activeBottomPinRequest.current=null;forcePinnedUntil.current=Date.now()+500;},1_200);

@@ -127,6 +127,7 @@ export type DialogueStreamEvent = { type: "token"; token: string } | {
   metadata: DialogueRunMetadata;
 };
 export type DialogueRunOptions = {
+  signal?: AbortSignal;
   contextPayment?:ContextPayment;
   route: DialogueRoutingDecision;
   usageScope?: AiUsageScope;
@@ -326,7 +327,7 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
         }
         return generated;
       } catch (error) {
-      if(error instanceof ContextPricingError)throw error;
+      if(error instanceof ContextPricingError||options.signal?.aborted)throw error;
         if (options.route.provider === "xai") {
           return generateAdultProviderDowngrade(context, options);
         }
@@ -446,7 +447,7 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
         }
         return;
       } catch (error) {
-      if(error instanceof ContextPricingError)throw error;
+      if(error instanceof ContextPricingError||options.signal?.aborted)throw error;
         if (!canRetryStreamFailure(emitted)) throw error;
         if (isDialogueProviderTimeout(error)) {
           const text = options.route.provider === "xai"
@@ -507,6 +508,8 @@ async function generateResponses(
     recorded = false,
     firstByteLatencyMs: number | undefined;
   const controller = new AbortController();
+  const cancel=()=>controller.abort(options.signal?.reason);
+  if(options.signal?.aborted)cancel();else options.signal?.addEventListener("abort",cancel,{once:true});
   try {
     const body=await responsesBody(context, options, modelName, false);
     response = await withDialogueProviderDeadline(
@@ -578,7 +581,7 @@ async function generateResponses(
       },
     };
   } catch (error) {
-      if(error instanceof ContextPricingError)throw error;
+      if(error instanceof ContextPricingError||options.signal?.aborted)throw error;
     if (!recorded) {
       await recordAiUsage(options.usageScope, {
         provider,
@@ -601,6 +604,7 @@ async function generateResponses(
     }
     throw error;
   } finally {
+    options.signal?.removeEventListener("abort",cancel);
     await releaseProviderSlot(options.usageScope, slot);
   }
 }
@@ -626,6 +630,8 @@ async function* streamResponses(
     firstByteLatencyMs: number | undefined,
     firstTokenLatencyMs: number | undefined;
   const controller = new AbortController();
+  const cancel=()=>controller.abort(options.signal?.reason);
+  if(options.signal?.aborted)cancel();else options.signal?.addEventListener("abort",cancel,{once:true});
   try {
     const body=await responsesBody(context, options, modelName, true);
     response = await withDialogueProviderDeadline(
@@ -707,7 +713,7 @@ async function* streamResponses(
       },
     };
   } catch (error) {
-      if(error instanceof ContextPricingError)throw error;
+      if(error instanceof ContextPricingError||options.signal?.aborted)throw error;
     if (!recorded) {
       await recordAiUsage(options.usageScope, {
         provider,
@@ -731,6 +737,7 @@ async function* streamResponses(
     }
     throw error;
   } finally {
+    options.signal?.removeEventListener("abort",cancel);
     await releaseProviderSlot(options.usageScope, slot);
   }
 }
