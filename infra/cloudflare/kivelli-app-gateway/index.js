@@ -55,7 +55,7 @@ async function serveAppAsset(request, env) {
       // Expo exports one loading document for this dynamic route. The root
       // SPA fallback has different markup and causes hydration recovery.
       const assetUrl = new URL(request.url);
-      assetUrl.pathname = "/create/companion/[draftId]";
+      assetUrl.pathname = "/create/companion/%5BdraftId%5D";
       assetRequest = new Request(assetUrl, request);
     }
     const assetResponse = await env.ASSETS.fetch(assetRequest);
