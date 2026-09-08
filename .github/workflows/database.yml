@@ -35,6 +35,8 @@ jobs:
           # repair only the disposable checkout and never rewrite the ledger.
           git apply --check supabase/tests/fixtures/202609040033_supabase_cli_ci.patch
           git apply supabase/tests/fixtures/202609040033_supabase_cli_ci.patch
+          git apply --check supabase/tests/fixtures/202609040034_035_supabase_cli_ci.patch
+          git apply supabase/tests/fixtures/202609040034_035_supabase_cli_ci.patch
           fixture=supabase/tests/fixtures/vharadren_reference_assets_ci.sql.fixture
           cp "$fixture" supabase/migrations/20260904001250_ci_vharadren_reference_assets.sql
           cp supabase/tests/fixtures/vharadren_location_assets_ci.sql.fixture supabase/migrations/20260904002050_ci_vharadren_location_assets.sql
