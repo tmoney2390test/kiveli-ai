@@ -32,8 +32,6 @@ jobs:
         run: |
           fixture=supabase/tests/fixtures/vharadren_reference_assets_ci.sql.fixture
           cp "$fixture" supabase/migrations/20260904001250_ci_vharadren_reference_assets.sql
-          cp "$fixture" supabase/migrations/20260904002850_ci_vharadren_reference_assets.sql
-          cp "$fixture" supabase/migrations/20260904003450_ci_vharadren_reference_assets.sql
           cp supabase/tests/fixtures/vharadren_location_assets_ci.sql.fixture supabase/migrations/20260904002050_ci_vharadren_location_assets.sql
           cp supabase/tests/fixtures/nightlife_reference_assets_ci.sql.fixture supabase/migrations/20260904003050_ci_nightlife_reference_assets.sql
           cp supabase/tests/fixtures/red_hour_storage_object_ci.sql.fixture supabase/migrations/20260904003150_ci_red_hour_storage_object.sql
