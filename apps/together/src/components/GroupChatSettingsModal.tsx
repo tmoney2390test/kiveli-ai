@@ -1,7 +1,7 @@
 import { normalizeContextPreference, type ContextPreference } from '@together/domain/src/chat-context';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { AlignLeft, Bell, Check, ChevronDown, Languages, MessageCircle, Palette, Settings, Sparkles, Type, UsersRound, X } from 'lucide-react-native';
+import { AlignLeft, Bell, Check, ChevronDown, Languages, MessageCircle, Palette, Sparkles, Type, UsersRound, X } from 'lucide-react-native';
 import { manageGroup } from '../lib/api';
 import { chatPreferencesFromConversation, chatTextSizeOptions, resolveChatBubbleColors, resolveChatContentMode, resolveChatLanguage, resolveChatResponseStyle, resolveChatTextSize, withLocalChatSettings } from '../lib/chatSettings';
 import { conversationStyleOptions } from '../lib/conversationStyle';
@@ -18,6 +18,7 @@ import { groupConversationWebHref,navigateLocalRouteOnWeb } from '../lib/convers
 import { router } from 'expo-router';
 import { type ChatBubbleColor } from '@together/domain/src/chat-appearance';
 import { ChatBubbleColorSettings } from './settings/ChatBubbleColorSettings';
+import { ChatSettingsTabs, type ChatSettingsTab } from './settings/ChatSettingsTabs';
 
 type Props = {
   visible: boolean;
@@ -46,6 +47,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
   const [energy, setEnergy] = useState<GroupSettings['energy']>('balanced');
   const [notificationMode, setNotificationMode] = useState<GroupSettings['notificationMode']>('all');
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<ChatSettingsTab>('chat');
   const selectedLanguage = chatLanguageOptions.find((option) => option.value === chatLanguage) ?? chatLanguageOptions[1]!;
   const adultEligible=Boolean((snapshot?.profile as {adult_content_eligible?:boolean}|null|undefined)?.adult_content_eligible);
 
@@ -64,6 +66,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
     setContentMode(resolveChatContentMode(conversation,snapshot?.profile??null));
     setChatLanguage(resolveChatLanguage(conversation));
     setLanguageOpen(false);
+    setActiveTab('chat');
     setResponseMode(settings.responseMode);
     setEnergy(settings.energy);
     setNotificationMode(settings.notificationMode);
@@ -103,14 +106,51 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
       <Pressable accessibilityLabel="Close group chat settings" onPress={onClose} style={StyleSheet.absoluteFill} />
       <FrostedSurface intensity={94} style={styles.card}>
         <View style={styles.header}>
-          <View style={styles.headerIcon}><Settings size={23} color={colors.violet} /></View>
-          <View style={styles.headerCopy}><Text style={styles.title}>Edit Group Chat Settings</Text><Text style={styles.subtitle}>Customize this conversation’s style and group behavior.</Text></View>
+          <Text style={styles.title}>Chat settings</Text>
           <Pressable accessibilityLabel="Close" disabled={saving} onPress={onClose} style={styles.close}><X size={20} color={colors.muted} /></Pressable>
         </View>
+        <ChatSettingsTabs value={activeTab} disabled={saving} onChange={(tab) => { setLanguageOpen(false); setActiveTab(tab); }} />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          {activeTab === 'chat' ? <>
           <Section icon={<UsersRound size={16} color={colors.violet} />} label="Group name">
             <TextInput accessibilityLabel="Group name" value={title} onChangeText={setTitle} editable={!saving} maxLength={80} placeholder="Name this group" placeholderTextColor={colors.dimmed} style={styles.input} />
           </Section>
+          <Section icon={<AlignLeft size={16} color={colors.violet} />} label="Response style">
+            <View accessibilityRole="radiogroup" style={styles.columns}>
+              {conversationStyleOptions.map((option) => {
+                const selected = option.value === responseStyle;
+                const Icon = option.value === 'texting' ? MessageCircle : AlignLeft;
+                return <Choice key={option.value} label={option.value === 'texting' ? 'SMS' : 'Paragraph'} selected={selected} disabled={saving} icon={<Icon size={18} color={selected ? colors.violet : colors.muted} />} onPress={() => setResponseStyle(option.value)} />;
+              })}
+            </View>
+          </Section>
+          <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible}/>
+          <Section icon={<Languages size={16} color={colors.violet} />} label="Chat language">
+            <Pressable accessibilityRole="button" accessibilityLabel={`Chat language: ${selectedLanguage.label}`} accessibilityState={{ expanded: languageOpen, disabled: saving }} disabled={saving} onPress={() => setLanguageOpen(true)} style={styles.languageSelect}>
+              <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.languageValue}>{selectedLanguage.nativeLabel}</Text>{selectedLanguage.nativeLabel !== selectedLanguage.label ? <Text style={styles.languageDetail}>{selectedLanguage.label}</Text> : null}</View><ChevronDown size={17} color={colors.muted} />
+            </Pressable>
+            <Text style={styles.languageHint}>All companions in this group reply and speak in this language.</Text>
+          </Section>
+          <Section icon={<Bell size={16} color={colors.violet} />} label="Notifications">
+            <Text style={styles.sectionHint}>Choose which group activity can send a push notification. Messages still appear here when notifications are quiet.</Text>
+            <View accessibilityRole="radiogroup" style={styles.columns}>
+              {(['all', 'mentions', 'muted'] as const).map((value) => <Choice key={value} label={value === 'all' ? 'All' : value === 'mentions' ? 'Mentions only' : 'Muted'} selected={notificationMode === value} disabled={saving} onPress={() => setNotificationMode(value)} />)}
+            </View>
+          </Section>
+          </> : null}
+
+          {activeTab === 'appearance' ? <>
+          <Section icon={<Type size={16} color={colors.violet} />} label="Text size">
+            <View accessibilityRole="radiogroup" style={styles.columns}>
+              {chatTextSizeOptions.map((option) => <Choice key={option.value} label={option.label} selected={option.value === textSize} disabled={saving} icon={<Text style={[styles.aa, option.value === textSize && styles.selectedText]}>Aa</Text>} onPress={() => setTextSize(option.value)} />)}
+            </View>
+          </Section>
+          <Section icon={<Palette size={16} color={colors.violet} />} label="Message colors">
+            <ChatBubbleColorSettings userColor={userBubbleColor} companionColor={companionBubbleColor} disabled={saving} onUserColorChange={setUserBubbleColor} onCompanionColorChange={setCompanionBubbleColor} />
+          </Section>
+          </> : null}
+
+          {activeTab === 'ai' ? <>
           <Section icon={<UsersRound size={16} color={colors.violet} />} label="Who responds">
             <Text style={styles.sectionHint}>Automatic lets the conversation choose naturally. Choose speaker makes one companion your default; you can still override it beside the composer.</Text>
             <View accessibilityRole="radiogroup" style={styles.columns}>
@@ -124,38 +164,8 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
               {(['quiet', 'balanced', 'lively'] as const).map((value) => <Choice key={value} label={value[0]!.toUpperCase() + value.slice(1)} selected={energy === value} disabled={saving} onPress={() => setEnergy(value)} />)}
             </View>
           </Section>
-          <Section icon={<AlignLeft size={16} color={colors.violet} />} label="Response style">
-            <View accessibilityRole="radiogroup" style={styles.columns}>
-              {conversationStyleOptions.map((option) => {
-                const selected = option.value === responseStyle;
-                const Icon = option.value === 'texting' ? MessageCircle : AlignLeft;
-                return <Choice key={option.value} label={option.value === 'texting' ? 'SMS' : 'Paragraph'} selected={selected} disabled={saving} icon={<Icon size={18} color={selected ? colors.violet : colors.muted} />} onPress={() => setResponseStyle(option.value)} />;
-              })}
-            </View>
-          </Section>
           <ChatGenerationSettings mode="group" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} contextPreference={contextPreference} onContextPreferenceChange={setContextPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>void save(openPlans)}/>
-          <Section icon={<Type size={16} color={colors.violet} />} label="Text size">
-            <View accessibilityRole="radiogroup" style={styles.columns}>
-              {chatTextSizeOptions.map((option) => <Choice key={option.value} label={option.label} selected={option.value === textSize} disabled={saving} icon={<Text style={[styles.aa, option.value === textSize && styles.selectedText]}>Aa</Text>} onPress={() => setTextSize(option.value)} />)}
-            </View>
-          </Section>
-          <Section icon={<Palette size={16} color={colors.violet} />} label="Message colors">
-            <ChatBubbleColorSettings userColor={userBubbleColor} companionColor={companionBubbleColor} disabled={saving} onUserColorChange={setUserBubbleColor} onCompanionColorChange={setCompanionBubbleColor} />
-          </Section>
-          <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible}/>
-          <View style={styles.divider} />
-          <Section icon={<Languages size={16} color={colors.violet} />} label="Chat language">
-            <Pressable accessibilityRole="button" accessibilityLabel={`Chat language: ${selectedLanguage.label}`} accessibilityState={{ expanded: languageOpen, disabled: saving }} disabled={saving} onPress={() => setLanguageOpen(true)} style={styles.languageSelect}>
-              <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.languageValue}>{selectedLanguage.nativeLabel}</Text>{selectedLanguage.nativeLabel !== selectedLanguage.label ? <Text style={styles.languageDetail}>{selectedLanguage.label}</Text> : null}</View><ChevronDown size={17} color={colors.muted} />
-            </Pressable>
-            <Text style={styles.languageHint}>All companions in this group reply and speak in this language.</Text>
-          </Section>
-          <Section icon={<Bell size={16} color={colors.violet} />} label="Notifications">
-            <Text style={styles.sectionHint}>Choose which group activity can send a push notification. Messages still appear here when notifications are quiet.</Text>
-            <View accessibilityRole="radiogroup" style={styles.columns}>
-              {(['all', 'mentions', 'muted'] as const).map((value) => <Choice key={value} label={value === 'all' ? 'All' : value === 'mentions' ? 'Mentions only' : 'Muted'} selected={notificationMode === value} disabled={saving} onPress={() => setNotificationMode(value)} />)}
-            </View>
-          </Section>
+          </> : null}
         </ScrollView>
         <View style={styles.footer}>
           <Pressable disabled={saving} onPress={onClose} style={styles.cancel}><Text style={styles.cancelText}>Cancel</Text></Pressable>
@@ -184,11 +194,8 @@ function Choice({ label, selected, disabled, icon, onPress }: { label: string; s
 const styles = StyleSheet.create({
   modalRoot: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 18, backgroundColor: 'rgba(5,4,10,.72)' },
   card: { width: '100%', maxWidth: 620, maxHeight: '92%', overflow: 'hidden', borderRadius: 24, backgroundColor: 'rgba(28,22,39,.97)', borderWidth: 1, borderColor: 'rgba(203,168,255,.2)' },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
-  headerIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(164,80,238,.12)' },
-  headerCopy: { flex: 1 },
-  title: { color: colors.text, fontSize: 23, fontWeight: '900' },
-  subtitle: { color: colors.muted, fontSize: 12, marginTop: 3 },
+  header: { minHeight: 67, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
+  title: { flex: 1, color: colors.text, fontSize: 23, fontWeight: '900' },
   close: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   content: { padding: 20, gap: 22 },
   section: { gap: 10 },

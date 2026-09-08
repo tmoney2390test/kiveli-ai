@@ -1,7 +1,7 @@
 import { normalizeContextPreference, type ContextPreference } from '@together/domain/src/chat-context';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { AlignLeft, Check, ChevronDown, ChevronRight, Languages, MessageCircle, Palette, Pause, Play, Settings, Type, Volume2, X } from 'lucide-react-native';
+import { AlignLeft, Check, ChevronDown, ChevronRight, Languages, MessageCircle, Palette, Pause, Play, Type, Volume2, X } from 'lucide-react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { router } from 'expo-router';
 import { companionVoiceGenderFromSignals, companionVoicePresetsForGender, type CompanionVoicePreset } from '@together/domain/src/voice-presets';
@@ -23,6 +23,7 @@ import { type ChatDynamism, type ReasoningPreference } from '@together/domain/sr
 import { defaultDirectConversationTitle } from '../lib/conversation';
 import { type ChatBubbleColor } from '@together/domain/src/chat-appearance';
 import { ChatBubbleColorSettings } from './settings/ChatBubbleColorSettings';
+import { ChatSettingsTabs, type ChatSettingsTab } from './settings/ChatSettingsTabs';
 
 type Props = {
   visible: boolean;
@@ -51,6 +52,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
   const [voicePreviewBusy, setVoicePreviewBusy] = useState(false);
   const [voiceMenuOpen, setVoiceMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<ChatSettingsTab>('chat');
   const voicePlayer = useAudioPlayer(null, { updateInterval: 200 });
   const voicePlayerStatus = useAudioPlayerStatus(voicePlayer);
   const voiceEntitled = snapshot?.experienceCapabilities?.voiceNotes === true || snapshot?.entitlements?.entitlement_keys?.includes('voice_notes') === true;
@@ -95,6 +97,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     setVoicePreset(selectedVoice);
     setVoicePreview(cachedPreview);
     setVoiceMenuOpen(false);
+    setActiveTab('chat');
     if (cachedPreview) voicePlayer.replace(cachedPreview.signedUrl);
     voicePlayer.pause();
   }, [visible, conversation?.id, character?.id, snapshot?.profile, snapshot?.entitlements?.tier]);
@@ -166,12 +169,14 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
       <Pressable accessibilityLabel="Close chat settings" onPress={onClose} style={StyleSheet.absoluteFill} />
       <FrostedSurface intensity={92} style={styles.modalCard}>
         <View style={styles.header}>
-          <View style={styles.headerIcon}><Settings size={25} color="#C778FF" /></View>
-          <View style={styles.headerCopy}><Text style={styles.title}>Edit Chat Settings</Text><Text style={styles.subtitle}>Customize this conversation with {name}.</Text></View>
+          <Text style={styles.title}>Chat settings</Text>
           <Pressable accessibilityLabel="Close" disabled={saving} onPress={onClose} style={({ pressed }) => [styles.close, pressed && styles.pressed]}><X size={21} color={colors.muted} /></Pressable>
         </View>
 
+        <ChatSettingsTabs value={activeTab} disabled={saving} onChange={(tab) => { voicePlayer.pause(); setLanguageMenuOpen(false); setVoiceMenuOpen(false); setActiveTab(tab); }} />
+
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          {activeTab === 'chat' ? <>
           <SettingSection icon={<MessageCircle size={16} color={colors.violet} />} label="Chat name" optional>
             <TextInput
               accessibilityLabel="Chat name"
@@ -206,8 +211,18 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
             </View>
           </SettingSection>
 
-          <ChatGenerationSettings mode="direct" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} contextPreference={contextPreference} onContextPreferenceChange={setContextPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>void save(openPlans)}/>
+          <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible}/>
 
+          <SettingSection icon={<Languages size={16} color={colors.violet} />} label="Chat language">
+            <Pressable accessibilityRole="button" accessibilityLabel={`Chat language: ${selectedLanguage.label}`} accessibilityState={{ expanded: languageMenuOpen, disabled: saving }} disabled={saving} onPress={() => { setVoiceMenuOpen(false); setLanguageMenuOpen(true); }} style={({ pressed }) => [styles.intensitySelect, pressed && styles.pressed]}>
+              <View style={styles.intensityIcon}><Languages size={16} color="#fff" /></View>
+              <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.intensityValue}>{selectedLanguage.nativeLabel}</Text>{selectedLanguage.nativeLabel !== selectedLanguage.label ? <Text numberOfLines={1} style={styles.languageDetail}>{selectedLanguage.label}</Text> : null}</View>
+              <ChevronDown size={17} color={colors.muted} />
+            </Pressable>
+          </SettingSection>
+          </> : null}
+
+          {activeTab === 'appearance' ? <>
           <SettingSection icon={<Type size={16} color={colors.violet} />} label="Text size">
             <View accessibilityRole="radiogroup" style={styles.textSizeOptions}>
               {chatTextSizeOptions.map((option) => {
@@ -231,17 +246,6 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
             <ChatBubbleColorSettings userColor={userBubbleColor} companionColor={companionBubbleColor} companionName={name} disabled={saving} onUserColorChange={setUserBubbleColor} onCompanionColorChange={setCompanionBubbleColor} />
           </SettingSection>
 
-          <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible}/>
-
-          <SettingSection icon={<Languages size={16} color={colors.violet} />} label="Chat language">
-            <Pressable accessibilityRole="button" accessibilityLabel={`Chat language: ${selectedLanguage.label}`} accessibilityState={{ expanded: languageMenuOpen, disabled: saving }} disabled={saving} onPress={() => { setVoiceMenuOpen(false); setLanguageMenuOpen(true); }} style={({ pressed }) => [styles.intensitySelect, pressed && styles.pressed]}>
-              <View style={styles.intensityIcon}><Languages size={16} color="#fff" /></View>
-              <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.intensityValue}>{selectedLanguage.nativeLabel}</Text>{selectedLanguage.nativeLabel !== selectedLanguage.label ? <Text numberOfLines={1} style={styles.languageDetail}>{selectedLanguage.label}</Text> : null}</View>
-              <ChevronDown size={17} color={colors.muted} />
-            </Pressable>
-            <Text style={styles.languageHint}>Companion replies, suggestions, and voice use this language.</Text>
-          </SettingSection>
-
           <SettingSection icon={<Volume2 size={16} color={colors.violet} />} label="Companion voice">
             {voiceEntitled ? <>
               <View style={styles.voiceControlRow}>
@@ -258,7 +262,9 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
               {voicePreview && !voicePlayerStatus.isLoaded && voicePlayerStatus.error ? <Text accessibilityLiveRegion="polite" style={styles.voiceLoadingText}>The sample could not load. Try it again.</Text> : null}
             </> : <Pressable accessibilityRole="button" onPress={() => { onClose(); const href=subscriptionHref({intent:'voice'}); if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never); }} style={styles.voiceLocked}><Volume2 size={18} color={colors.muted} /><View style={{ flex: 1 }}><Text style={styles.voiceLockedTitle}>Custom voices are available with Kivelle+</Text><Text style={styles.voiceLockedCopy}>Your companion’s authored voice is still used by default.</Text></View><ChevronRight size={16} color={colors.dimmed} /></Pressable>}
           </SettingSection>
+          </> : null}
 
+          {activeTab === 'ai' ? <ChatGenerationSettings mode="direct" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} contextPreference={contextPreference} onContextPreferenceChange={setContextPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>void save(openPlans)}/> : null}
         </ScrollView>
 
         <View style={styles.footer}>
@@ -297,11 +303,8 @@ function SettingSection({ icon, label, optional = false, children }: { icon: Rea
 const styles = StyleSheet.create({
   modalRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.md, backgroundColor: 'rgba(3,2,7,.74)' },
   modalCard: { width: '100%', maxWidth: 650, maxHeight: '92%', overflow: 'hidden', borderRadius: radius.xl, backgroundColor: 'rgba(31,24,42,.985)', borderColor: 'rgba(190,115,255,.30)', shadowColor: '#000', shadowOpacity: .56, shadowRadius: 32, shadowOffset: { width: 0, height: 18 } },
-  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
-  headerIcon: { width: 37, height: 37, alignItems: 'center', justifyContent: 'center' },
-  headerCopy: { minWidth: 0, flex: 1 },
-  title: { color: colors.text, fontFamily: typography.display, fontSize: 27, fontWeight: '700' },
-  subtitle: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
+  header: { minHeight: 67, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
+  title: { flex: 1, color: colors.text, fontFamily: typography.display, fontSize: 27, fontWeight: '700' },
   close: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.045)' },
   content: { gap: 24, padding: spacing.lg, paddingBottom: 26 },
   section: { gap: 11 },
