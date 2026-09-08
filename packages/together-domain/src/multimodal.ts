@@ -40,6 +40,8 @@ export type CompanionVoiceProfile = {
     pace?: number;
     expressiveness?: number;
     softness?: number;
+    gender?: string;
+    pronouns?: string;
   };
   providerMappings?: Record<string, string>;
 };

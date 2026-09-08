@@ -1,4 +1,5 @@
 import type { CompanionVoiceProfile } from './multimodal.ts';
+import { companionVoiceGenderFromSignals } from './voice-presets.ts';
 
 export const XAI_BUILT_IN_VOICES = ['eve', 'ara', 'sal', 'leo', 'rex'] as const;
 
@@ -23,12 +24,21 @@ const retiredSeedVoices = new Set([
  * resolutions cannot silently change a companion's voice.
  */
 export function resolveXaiVoiceId(voice: CompanionVoiceProfile): string {
+  const hasGenderSignal=Boolean(voice.characteristics.gender?.trim()||voice.characteristics.pronouns?.trim());
+  const gender=companionVoiceGenderFromSignals(voice.characteristics.gender,voice.characteristics.pronouns);
   const explicit = voice.providerMappings?.['xai']?.trim();
   if (explicit) {
     const normalized = explicit.toLowerCase();
-    if ((XAI_BUILT_IN_VOICES as readonly string[]).includes(normalized)) return normalized;
+    if ((XAI_BUILT_IN_VOICES as readonly string[]).includes(normalized)) {
+      if(hasGenderSignal&&gender==='female'&&!['eve','ara'].includes(normalized))return genderedVoice(voice,'female');
+      if(hasGenderSignal&&gender==='male'&&!['leo','rex'].includes(normalized))return genderedVoice(voice,'male');
+      if(hasGenderSignal&&gender==='neutral'&&normalized!=='sal')return'sal';
+      return normalized;
+    }
     if (!retiredSeedVoices.has(normalized)) return explicit;
   }
+  if(gender!=='neutral')return genderedVoice(voice,gender);
+  if(hasGenderSignal)return'sal';
   const warmth = unit(voice.characteristics.warmth, .6);
   const energy = unit(voice.characteristics.energy, .55);
   const softness = unit(voice.characteristics.softness, .45);
@@ -41,6 +51,11 @@ export function resolveXaiVoiceId(voice: CompanionVoiceProfile): string {
   return preferred[stableHash(voice.voiceKey) % preferred.length] ??
     XAI_BUILT_IN_VOICES[stableHash(voice.characterTemplateId) % XAI_BUILT_IN_VOICES.length] ??
     'eve';
+}
+
+function genderedVoice(voice:CompanionVoiceProfile,gender:'female'|'male'):string{
+  const choices=gender==='female'?['eve','ara']:['leo','rex'];
+  return choices[stableHash(voice.voiceKey)%choices.length]??(gender==='female'?'eve':'leo');
 }
 
 export function isBuiltInXaiVoice(value: string): boolean {

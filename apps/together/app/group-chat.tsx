@@ -188,6 +188,8 @@ import {
   useChatDictation,
 } from "../src/hooks/useChatDictation";
 import { colors, radius, typography } from "../src/theme";
+import { DailyMessageAllowanceNotice } from "../src/components/DailyMessageAllowanceNotice";
+import { isDailyMessageAllowanceExhausted } from "../src/lib/dailyMessageAllowance";
 import type {
   ConversationAttachment,
   GeneratedMedia,
@@ -234,7 +236,9 @@ export default function GroupChatScreen() {
     upsertConversation = useTogether((state) => state.upsertConversation),
     pendingDialogues = useTogether((state) => state.pendingDialogues),
     beginPendingDialogue = useTogether((state) => state.beginPendingDialogue),
-    finishPendingDialogue = useTogether((state) => state.finishPendingDialogue);
+    finishPendingDialogue = useTogether((state) => state.finishPendingDialogue),
+    consumeDailyMessageAllowance = useTogether((state) => state.consumeDailyMessageAllowance),
+    exhaustDailyMessageAllowance = useTogether((state) => state.exhaustDailyMessageAllowance);
   const screenInsets=useSafeAreaInsets();
   const{session,loading:authLoading}=useAuth(),{online,phase:connectionPhase}=useNetworkStatus();
   useEffect(() => {
@@ -305,6 +309,7 @@ export default function GroupChatScreen() {
   const pendingDialogue=params.id?pendingDialogues[params.id]:undefined;
   const replyPending=sending||Boolean(pendingDialogue);
   const photoSharingEntitled=snapshot?.entitlements?.entitlement_keys?.includes("photo_sharing")===true;
+  const dailyMessageExhausted=isDailyMessageAllowanceExhausted(snapshot?.dailyMessageAllowance);
   const subscriptionReturnTo=params.id?`/group-chat?id=${encodeURIComponent(params.id)}`:"/messages";
   const creditsSubscriptionHref=subscriptionHref({intent:"credits",returnTo:subscriptionReturnTo});
   const photoSharingSubscriptionHref=subscriptionHref({intent:"photo_sharing",returnTo:`${subscriptionReturnTo}${subscriptionReturnTo.includes("?")?"&":"?"}sharePhoto=1`});
@@ -950,6 +955,7 @@ export default function GroupChatScreen() {
       setError(messageCharacterLimitError());
       return;
     }
+    if(!retryMessageId&&dailyMessageExhausted){setError("You’ve used today’s free messages.");return;}
     if(connectionPhase!=='online')setShowSendConnectionNotice(true);
     if(!online){setError("You’re offline. Your draft is saved and ready when you reconnect.");return;}
     const mentions = detail.participants.filter((participant) =>
@@ -1004,11 +1010,13 @@ export default function GroupChatScreen() {
         controller.signal,
       );
       if(abortRef.current!==controller)return;
+      if(!retryMessageId)consumeDailyMessageAllowance();
       if(!letThemTalk&&!currentComposer.current.trim())await clearStoredDraft();
     } catch (caught) {
       if (!controller.signal.aborted&&!completedPrimaryRequests.current.has(clientRequestId)) {
         const recovered=dialogueFailureMayHavePersisted(caught)?await recoverInterruptedGroupDialogue(clientRequestId,optimistic.id):false;
-        if(recovered){if(!letThemTalk)await clearStoredDraft();return;}
+        if(recovered){if(!retryMessageId)consumeDailyMessageAllowance();if(!letThemTalk)await clearStoredDraft();return;}
+        if(caught instanceof ApiError&&caught.code==="PLAN_LIMIT_REACHED")exhaustDailyMessageAllowance();
         setError(
           caught instanceof Error
             ? caught.message
@@ -1034,6 +1042,7 @@ export default function GroupChatScreen() {
       setError(messageCharacterLimitError());
       return;
     }
+    if(dailyMessageExhausted){setError("You’ve used today’s free messages.");return;}
     if(connectionPhase!=='online')setShowSendConnectionNotice(true);
     if(!online){setError("You’re offline. Your draft is saved and ready when you reconnect.");return;}
     const contextAuthorization=await contextPricing.authorize({conversationId:detail.conversation.id,message,mentionedCharacterInstanceIds:mentionedParticipants(message,detail.participants),replyToMessageId:replyTo?.id,...groupRecipientRequest(recipientSelection,participantIds)});
@@ -1112,6 +1121,7 @@ export default function GroupChatScreen() {
         controller.signal,
       );
       if(abortRef.current!==controller)return;
+      consumeDailyMessageAllowance();
       if (selectedImage&&!completedPrimaryRequests.current.has(clientRequestId)) {
         cleanupNormalizedImage(selectedImage.uri);
         setPendingImage(null);
@@ -1124,13 +1134,14 @@ export default function GroupChatScreen() {
       if (!controller.signal.aborted&&!completedPrimaryRequests.current.has(clientRequestId)) {
         const recovered=dialogueFailureMayHavePersisted(caught)?await recoverInterruptedGroupDialogue(clientRequestId,optimistic.id):false;
         if(recovered){
+          consumeDailyMessageAllowance();
           if(selectedImage){cleanupNormalizedImage(selectedImage.uri);setPendingImage(null);setPhotoUploadPhase("idle");pendingPhotoMessageRequestRef.current=null;pendingPhotoOptimisticMessageIdRef.current=null;}
           await clearStoredDraft();
           return;
         }
         if(attachmentId)void removePendingAttachment(attachmentId).catch(()=>undefined);
         if(selectedImage)setPhotoUploadPhase("failed");
-        if(caught instanceof ApiError&&caught.code==="PLAN_LIMIT_REACHED")setShowPhotoPaywall(true);
+        if(caught instanceof ApiError&&caught.code==="PLAN_LIMIT_REACHED"){exhaustDailyMessageAllowance();if(selectedImage)setShowPhotoPaywall(true);}
         setError(
           caught instanceof Error
             ? caught.message
@@ -1230,6 +1241,7 @@ export default function GroupChatScreen() {
   };
   const requestGroupPhoto = async () => {
     if (!detail || !photoSubjects.length || photoRequestBusy || replyPending) return;
+    if(dailyMessageExhausted){setShowPhotoMenu(false);setError("You’ve used today’s free messages.");return;}
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -1264,10 +1276,12 @@ export default function GroupChatScreen() {
         (event)=>{if(abortRef.current===controller&&!controller.signal.aborted)handleEvent(event);},
         controller.signal,
       );
+      consumeDailyMessageAllowance();
     } catch (caught) {
       if (!controller.signal.aborted) {
         const recovered=dialogueFailureMayHavePersisted(caught)?await recoverInterruptedGroupDialogue(clientRequestId,''):false;
-        if(recovered)return;
+        if(recovered){consumeDailyMessageAllowance();return;}
+        if(caught instanceof ApiError&&caught.code==="PLAN_LIMIT_REACHED")exhaustDailyMessageAllowance();
         setError(
           caught instanceof Error
             ? caught.message
@@ -2239,6 +2253,7 @@ export default function GroupChatScreen() {
       /> : null}
       {memorySavedNotice ? <MemorySavedToast key={memorySavedNotice.id} name={memorySavedNotice.name} onDismiss={() => setMemorySavedNotice(null)} /> : null}
       <ContextPricePreview pricing={contextPricing} onCredits={()=>router.push(creditsSubscriptionHref)}/>
+      <DailyMessageAllowanceNotice allowance={snapshot?.dailyMessageAllowance} onUpgrade={()=>navigateGroupSurface(subscriptionHref({intent:"plans",returnTo:subscriptionReturnTo}))}/>
       <GroupComposer
         conversationId={detail.conversation.id}
         characterInstanceId={String(
@@ -2249,7 +2264,7 @@ export default function GroupChatScreen() {
         input={input}
         hasPendingImage={Boolean(pendingImage)}
         sending={replyPending}
-        ready={groupTimelineReady&&!contextPricing.blocked}
+        ready={groupTimelineReady&&!contextPricing.blocked&&!dailyMessageExhausted}
         stopping={stoppingTurn}
         onChange={setInput}
         onPhoto={openPhotoMenu}
