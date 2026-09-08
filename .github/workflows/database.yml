@@ -27,6 +27,13 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Prepare isolated production-asset fixtures
+        shell: bash
+        run: |
+          fixture=supabase/tests/fixtures/vharadren_reference_assets_ci.sql.fixture
+          cp "$fixture" supabase/migrations/20260904001250_ci_vharadren_reference_assets.sql
+          cp "$fixture" supabase/migrations/20260904002850_ci_vharadren_reference_assets.sql
+          cp "$fixture" supabase/migrations/20260904003450_ci_vharadren_reference_assets.sql
       - name: Start isolated Supabase stack
         run: pnpm exec supabase start
       - name: Run database tests

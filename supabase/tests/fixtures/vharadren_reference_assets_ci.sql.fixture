@@ -1,0 +1,41 @@
+-- CI-only migration fixture. Production portrait assets were imported through
+-- the media sync process before the corresponding linking migrations ran.
+-- A fresh isolated database has no Storage objects, so create private metadata
+-- placeholders there while retaining every historical migration assertion.
+insert into public.together_media_reference_assets(
+  asset_role,character_version_id,source_key,storage_bucket,storage_path,
+  content_type,revision,active,metadata
+)
+select distinct
+  'character_identity',version.id,'character:'||template.slug||':identity',
+  'kivelle-character-reference','ci/vharadren/'||template.slug||'/identity.png',
+  'image/png',1,true,'{"ciFixture":true}'::jsonb
+from public.together_character_templates template
+join public.together_character_versions version
+  on version.character_template_id=template.id
+ and version.version=template.current_published_version
+join public.together_character_world_presence presence
+  on presence.character_version_id=version.id
+where presence.world_id='10000000-0000-4000-8000-000000000013'::uuid
+on conflict(asset_role,source_key,revision) do nothing;
+
+with secondary_slugs(slug) as(values
+  ('dame-ysabet-rooke'),
+  ('high-flame-elowen-orison'),
+  ('lady-isolde-morcant')
+)
+insert into public.together_media_reference_assets(
+  asset_role,character_version_id,source_key,storage_bucket,storage_path,
+  content_type,revision,active,metadata
+)
+select
+  'character_identity',version.id,
+  'character:'||template.slug||':identity:secondary-1',
+  'kivelle-character-reference','ci/vharadren/'||template.slug||'/secondary-1.png',
+  'image/png',1,true,'{"ciFixture":true}'::jsonb
+from secondary_slugs expected
+join public.together_character_templates template on template.slug=expected.slug
+join public.together_character_versions version
+  on version.character_template_id=template.id
+ and version.version=template.current_published_version
+on conflict(asset_role,source_key,revision) do nothing;
