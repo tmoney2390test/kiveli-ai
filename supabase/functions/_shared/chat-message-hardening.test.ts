@@ -2,6 +2,7 @@ import { assertEquals, assertRejects, assertThrows } from "jsr:@std/assert@1";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   assertChatRequestId,
+  canonicalizeReconnectRequestId,
   chatRequestFingerprint,
   claimChatUserMessage,
   directResponseKey,
@@ -14,6 +15,15 @@ const requestId = "34c78ae8-8712-4bd5-91c8-5ef8393b93e8";
 Deno.test("chat messages normalize line endings without rewriting prose", () => {
   assertEquals(normalizeChatMessage("  café\r\nsecond line  "), "café\nsecond line");
   assertThrows(() => normalizeChatMessage("hello\u0000there"));
+  assertThrows(() => normalizeChatMessage(`hello\u200bthere`));
+  assertThrows(() => normalizeChatMessage("x".repeat(300)));
+  assertThrows(() => normalizeChatMessage("word ".repeat(100)));
+  assertThrows(() => normalizeChatMessage("a".repeat(2_001)));
+});
+
+Deno.test("rapid reconnects reuse the server-selected canonical request id",async()=>{
+  const db={rpc:async(name:string)=>({data:name==="kivelle_claim_generation_request_anchor"?requestId:null,error:null})} as unknown as SupabaseClient;
+  assertEquals(await canonicalizeReconnectRequestId(db,{userId:"user",conversationId:"conversation",fingerprint:"fingerprint",requestId:crypto.randomUUID()}),requestId);
 });
 
 Deno.test("chat request ids and direct response keys are deterministic", () => {

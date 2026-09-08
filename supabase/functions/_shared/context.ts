@@ -81,6 +81,34 @@ export async function enforceRateLimit(db: SupabaseClient, subject: string, acti
   if (!data) throw new AppError('RATE_LIMITED', message, 429, true);
 }
 
+/** Server-wide abuse admission. Unlike plan allowances, this applies to every
+ * tier and uses rolling windows plus the account provider-cost circuit. */
+export async function enforceGenerationGuardrails(
+  db: SupabaseClient,
+  userId: string,
+  action: 'dialogue' | 'auxiliary_ai' | 'provider_cost_only',
+): Promise<void> {
+  if(action==='dialogue')await enforceDailyMessageLimit(db,userId);
+  const {data,error}=await db.rpc('kivelle_check_generation_guardrails',{
+    p_user_id:userId,
+    p_action:action,
+  });
+  if(error)throw new AppError('INTERNAL_ERROR','Generation safeguards could not be checked.',500,true);
+  const result=(data&&typeof data==='object'?data:{}) as Record<string,unknown>;
+  if(result.allowed===true)return;
+  const costCooldown=result.reason==='cost_cooldown';
+  throw new AppError(
+    'RATE_LIMITED',
+    costCooldown
+      ? 'Generation is cooling down briefly. Try again in a little while.'
+      : action==='auxiliary_ai'
+        ? 'That helper is being used too quickly. Wait a moment and try again.'
+        : 'Messages are arriving too quickly. Wait a moment and try again.',
+    429,
+    true,
+  );
+}
+
 export function serverSecretLooksUsable(value:string):boolean{
   return Boolean(value)
     && /^[\x21-\x7e]+$/.test(value)

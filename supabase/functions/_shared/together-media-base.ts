@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { adminClient } from "./context.ts";
+import { adminClient, enforceGenerationGuardrails } from "./context.ts";
 import { AppError } from "./types.ts";
 import { track } from "./together.ts";
 import {
@@ -1202,6 +1202,7 @@ export async function queueMediaRequest(
     "*",
   ).eq("user_id", input.userId).eq("request_key", key).maybeSingle();
   if (duplicate) return duplicate;
+  await enforceGenerationGuardrails(db, input.userId, "provider_cost_only");
   const now = new Date();
   const recentSince = new Date(now.getTime() - 24 * 3600000).toISOString();
   const { data: recent } = await db.from("together_generated_media").select(

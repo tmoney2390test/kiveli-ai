@@ -32,6 +32,14 @@ export async function beginConversationTurn(db: SupabaseClient, input: {
   });
   const row = Array.isArray(data) ? data[0] : data;
   if (error || !row) {
+    if(String(error?.message??'').includes('DIALOGUE_ACCOUNT_CAPACITY')){
+      throw new AppError(
+        "RATE_LIMITED",
+        "Two replies are already being prepared for this account. Let one finish before starting another.",
+        429,
+        true,
+      );
+    }
     throw new AppError(
       "INTERNAL_ERROR",
       "The conversational floor could not be prepared.",

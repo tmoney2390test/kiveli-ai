@@ -3,7 +3,7 @@ import { normalizeCorrelationId } from '../../../packages/together-domain/src/se
 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, idempotency-key, x-kivelle-timezone',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, idempotency-key, x-kivelle-timezone, x-kivelle-installation-id',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
   'Cache-Control': 'no-store',
   'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
