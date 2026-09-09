@@ -465,7 +465,7 @@ export default function GroupChatScreen() {
     setShowJumpToLatest(false);
     scrollRef.current?.scrollToEnd({animated:false});
   },[params.id,width]);
-  const onMobileComposerFocus=useMobileChatKeyboardPin(width<720,pinLatestForMobileKeyboard);
+  const {onComposerFocus:onMobileComposerFocus,viewportStyle:mobileViewportStyle}=useMobileChatKeyboardPin(width<720,pinLatestForMobileKeyboard);
   const refreshGroupDelta=useCallback(async function refreshGroupDeltaTask(){
     const current=detailRef.current;if(!params.id||!current?.syncedAt)return;
     if(deltaRefreshRunning.current){deltaRefreshQueued.current=true;return;}
@@ -1800,7 +1800,7 @@ export default function GroupChatScreen() {
   };
   return (
     <KeyboardAvoidingView
-      style={styles.screen}
+      style={[styles.screen,mobileViewportStyle]}
       behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined}
     >
       <View style={styles.shell}>
@@ -2499,6 +2499,7 @@ function GroupComposer({
   onFocus?: () => void;
 }) {
   const insets=useSafeAreaInsets();
+  const {width}=useWindowDimensions();
   const [composerFocused, setComposerFocused] = useState(false);
   const dictation = useChatDictation({
       conversationId,
@@ -2557,7 +2558,7 @@ function GroupComposer({
             placeholderTextColor={colors.dimmed}
             multiline
             textAlignVertical="top"
-            style={styles.composerInput}
+            style={[styles.composerInput,width<720&&styles.composerInputMobile]}
           />
           <GroupDictationButton
             phase={dictation.phase}
@@ -4440,6 +4441,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(220,196,255,.28)",
   },
+  composerInputMobile: { fontSize: 16 },
   composerInput: {
     minWidth: 0,
     flex: 1,
