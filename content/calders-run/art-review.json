@@ -1363,11 +1363,12 @@
     {
       "key": "world:calders-run-hero",
       "file": "apps/together/assets/worlds/calders-run/calders-run-hero.jpg",
-      "sha256": "a944dbc05d598e76c3b3c2e7ce1edc23d804dad02fca79265b71718d8c2d3f75",
+      "sha256": "cb48d3a1f08e1e22fe932557b64b17f4bed1960a28dd3d722f736642c58ec1d7",
       "bridgeVisible": true,
-      "reviewedAt": "2026-09-08T17:23:30.061Z",
-      "sourcePngSha256": "30dd9e672d87430f58bc13bee930cfbd53a7eb1b989ce3550e3c1a35645108ef",
-      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+      "reviewedAt": "2026-09-09T17:53:00.717501+00:00",
+      "sourcePngSha256": "660634a880468b49d71018b84035698e08bd44dc29cf145f0481d30c0bfb7acb",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved",
+      "source": "User-supplied cover edited with built-in imagegen to remove train and exhaust, 2026-09-09"
     }
   ]
 }

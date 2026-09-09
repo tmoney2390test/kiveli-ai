@@ -4,9 +4,11 @@ Updated 2026-09-09. Calder's Run is published and live on kivelli.app.
 
 ## Artwork
 
+The cover uses the user-supplied replacement, corrected with imagegen to remove the train and exhaust approaching the unfinished bridge. The corrected 1672 x 941 image preserves the frontier town scene and is bound as world reference revision 3.
+
 All 152 release images have been generated and visually reviewed: one cover, 49 portraits, 53 locations, and 49 private homes. Exactly six images show the railway bridge: the cover, River Ward, The Railhead, Pike's Ferry, Bridge Works, and Tom Archer's portrait. The release maximum is ten across all asset categories.
 
-The reviewed manifest records each file's SHA-256 and actual bridge visibility. Run `node scripts/calders-art-review.mjs check --release` before upload or publication. Changed files need renewed visual review. Artwork uses JPEG quality 90 with 4:4:4 chroma and original dimensions. The complete set is 72,151,316 bytes, down from 409,526,667 PNG bytes. Original PNGs remain outside the application asset bundle.
+The reviewed manifest records each file's SHA-256 and actual bridge visibility. Run `node scripts/calders-art-review.mjs check --release` before upload or publication. Changed files need renewed visual review. Artwork uses JPEG quality 90 with 4:4:4 chroma and original dimensions. The complete set is 72,103,528 bytes, down from 409,526,667 PNG bytes. Original PNGs remain outside the application asset bundle.
 
 Location and home prompts remove the cover panorama. Only four location prompts intentionally allow the unfinished bridge. Home prompts focus inward. The client registers 49 portraits and 52 initially public location images; Crowcut and home interiors are not public map assets.
 
