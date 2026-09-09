@@ -4,6 +4,7 @@ import{shouldLoadDirectVideoOptions}from'./mediaRequestLoading';
 describe('media request loading',()=>{
   it('does not load video configuration while the default photo composer is open',()=>{
     expect(shouldLoadDirectVideoOptions({visible:true,mode:'photo',characterId:'iris',loadedCharacterId:null})).toBe(false);
+    expect(shouldLoadDirectVideoOptions({visible:true,mode:'share',characterId:'iris',loadedCharacterId:null})).toBe(false);
   });
 
   it('loads video configuration only after Video is selected and reuses it for the same companion',()=>{
