@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   worldCardCompact: { width: '48%', aspectRatio: .78, borderRadius: 17 },
   worldCardCompactDesktop: { width: '31.9%', aspectRatio: .9 },
   worldCardSelected: { borderColor: '#B960DD', borderWidth: 2, shadowColor: '#B960DD', shadowOpacity: .28, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
-  worldShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(7,5,10,.13)', ...(Platform.OS === 'web' ? ({ backgroundImage: 'linear-gradient(0deg, rgba(6,4,9,.97) 0%, rgba(6,4,9,.18) 55%, rgba(6,4,9,.03) 78%)' } as never) : {}) },
+  worldShade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '60%', backgroundColor: Platform.OS === 'web' ? 'transparent' : 'rgba(6,4,9,.48)', ...(Platform.OS === 'web' ? ({ backgroundImage: 'linear-gradient(0deg, rgba(6,4,9,.82) 0%, rgba(6,4,9,.32) 45%, transparent 100%)' } as never) : {}) },
   selectionCheck: { position: 'absolute', top: 13, right: 13, width: 37, height: 37, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#A94FDC', borderWidth: 1, borderColor: 'rgba(255,255,255,.52)' },
   worldCopy: { zIndex: 1, gap: 5, padding: 22 },
   worldCopyCompact: { gap: 3, padding: 13 },
