@@ -15,6 +15,7 @@
     "Frame each location around its own authored architecture, activity, landscape and furnishings.",
     "Private home images focus inward on their distinct rooms. Window views use courtyards, neighboring walls, vegetation or sky.",
     "An allowed bridge view must show the bridge unfinished, with a visible incomplete span.",
+    "Never show a train approaching, crossing or running over the unfinished bridge. Locomotives may appear only at a safe stationary railhead with no route suggesting passage across the missing span.",
     "Count actual visible bridges during image review; prompt compliance alone is not proof."
   ]
 }

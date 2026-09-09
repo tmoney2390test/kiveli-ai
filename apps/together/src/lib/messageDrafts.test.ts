@@ -16,7 +16,8 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
   },
 }));
 
-import { loadMessageDrafts, messageDraftKey, saveMessageDraft } from "./messageDrafts";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { clearMessageDraft, loadMessageDraft, loadMessageDrafts, messageDraftKey, saveMessageDraft } from "./messageDrafts";
 
 describe("message draft inbox hydration", () => {
   beforeEach(() => storage.clear());
@@ -31,4 +32,23 @@ describe("message draft inbox hydration", () => {
     ])).toEqual({ "direct-1": "Hi there", "group-1": "Everyone free?" });
     expect(storage.has(messageDraftKey("user-1", "empty", "direct"))).toBe(false);
   });
+});
+
+it("finishes an older write before clearing a sent draft", async () => {
+  let release!: () => void;
+  let started!: () => void;
+  const began = new Promise<void>(resolve => { started = resolve; });
+  vi.mocked(AsyncStorage.setItem).mockImplementationOnce(async (key, value) => {
+    started(); await new Promise<void>(resolve => { release = resolve; }); storage.set(key, value);
+  });
+  const old = saveMessageDraft("race-user", "chat", "direct", "Sent text");
+  await began;
+  const cleared = clearMessageDraft("race-user", "chat", "direct");
+  release(); await Promise.all([old, cleared]);
+  expect(await loadMessageDraft("race-user", "chat", "direct")).toBe("");
+});
+it("makes the inbox wait for the latest draft save", async () => {
+  const saved = saveMessageDraft("fresh-user", "chat", "direct", "Latest keystrokes");
+  expect(await loadMessageDrafts("fresh-user", [{ id: "chat", kind: "direct" }])).toEqual({ chat: "Latest keystrokes" });
+  await saved;
 });

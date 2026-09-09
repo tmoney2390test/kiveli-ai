@@ -20,5 +20,5 @@ export function CompanionSpicePicker({ value, onChange }: { value: CompanionSpic
 }
 
 const styles = StyleSheet.create({
-  trigger: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(255,225,244,.26)', backgroundColor: colors.surface }, label: { color: colors.text, fontSize: 11, fontWeight: '800' }, option: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 15, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border }, selected: { borderColor: colors.rose }, optionText: { flex: 1, color: colors.text, fontSize: 15 },
+  trigger: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(255,225,244,.26)', backgroundColor: colors.surface }, label: { color: colors.text, fontSize: 11, fontWeight: '800' }, option: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 15, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border }, selected: { borderColor: colors.rose }, optionText: { flex: 1, color: colors.text, fontSize: 15 },
 });

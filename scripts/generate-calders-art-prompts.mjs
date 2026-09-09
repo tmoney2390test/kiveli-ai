@@ -13,7 +13,7 @@ function environmentPrompt(kind,slug,source){
   let prompt=source.replace(pack.world.visualContext.hero,'');
   if(districtViews[slug])prompt+=` ${districtViews[slug]}`;
   prompt+=' Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering.';
-  if(bridge)prompt+=' The railway bridge may appear here, visibly unfinished with a missing central span and construction work. It is not yet usable.';
+  if(bridge)prompt+=' The railway bridge may appear here, visibly unfinished with a missing central span and construction work. It is not yet usable. No train may approach or cross the unfinished bridge; no locomotive or rail cars beside its missing span.';
   else prompt+=kind==='home'?' Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas.':' Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture.';
   return prompt.replace(/\s+/g,' ').trim();
 }

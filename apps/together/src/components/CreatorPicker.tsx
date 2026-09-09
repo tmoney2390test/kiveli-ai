@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Image, type ImageSource } from 'expo-image';
 import { ArrowLeft, Check, ChevronDown, X } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useModalAccessibility, useReducedMotion } from '../hooks/useModalAccessibility';
+import { WorldChoiceCard } from './WorldChoiceCard';
 import { colors } from '../theme';
 
 export const creatorGenders = [{ value: 'woman', label: 'Woman' }, { value: 'man', label: 'Man' }, { value: 'nonbinary', label: 'Nonbinary' }];
@@ -9,19 +12,13 @@ export const creatorPronouns = ['she/her', 'he/him', 'they/them', 'she/they', 'h
 
 export function CreatorModal({ visible, title, onClose, children, large = false }: { visible: boolean; title: string; onClose: () => void; children: ReactNode; large?: boolean }) {
   const { width, height } = useWindowDimensions();
-  const close = useRef(onClose); close.current = onClose;
-  useEffect(() => {
-    if (!visible || Platform.OS !== 'web') return;
-    const previous = document.activeElement as HTMLElement | null;
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); close.current(); } };
-    document.addEventListener('keydown', escape);
-    return () => { document.removeEventListener('keydown', escape); previous?.focus?.(); };
-  }, [visible]);
+  const id = useId(), insets = useSafeAreaInsets(), reducedMotion = useReducedMotion();
+  useModalAccessibility(visible, id, onClose);
   if (!visible) return null;
-  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+  return <Modal visible={visible} transparent animationType={reducedMotion ? 'none' : 'fade'} onRequestClose={onClose}>
     <View style={styles.backdrop}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={StyleSheet.absoluteFill} />
-      <View accessibilityViewIsModal style={[styles.modal, { width: Math.min(width - 24, large ? 1200 : 640), maxHeight: height - 32 }, width < 600 && styles.mobile]}>
+      <View nativeID={id} accessibilityViewIsModal accessibilityLabel={title} style={[styles.modal, { width: Math.min(width - 24, large ? 1200 : 640), maxHeight: height - insets.top - insets.bottom - 32 }, width < 600 && styles.mobile]}>
         <View style={styles.header}>{large ? <Pressable accessibilityRole="button" accessibilityLabel="Back to portrait" onPress={onClose} style={styles.close}><ArrowLeft size={23} color={colors.text} /></Pressable> : null}<Text accessibilityRole="header" style={[styles.title, large && { textAlign: 'center' }]}>{title}</Text><Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={styles.close}><X size={23} color={colors.text} /></Pressable></View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>{children}</ScrollView>
       </View>
@@ -41,7 +38,7 @@ export function CreatorPicker({ label, title, value, options, onChange, custom =
       {selected?.image ? <Image source={selected.image} style={styles.thumbnail} contentFit="cover" /> : null}<Text style={styles.value}>{selected?.label || value || 'Choose'}</Text><ChevronDown size={18} color={colors.muted} />
     </Pressable>
     <CreatorModal visible={open} title={title || `Choose ${label.toLowerCase().replace(' *', '')}`} onClose={() => setOpen(false)}>
-      <View style={visual ? styles.grid : styles.list}>{options.map((option) => <Pressable key={option.value} accessibilityRole="radio" accessibilityLabel={option.label} accessibilityState={{ checked: value === option.value }} aria-checked={value === option.value} onPress={() => choose(option.value)} style={[styles.option, visual && styles.world, value === option.value && styles.selected]}>
+      <View style={visual ? styles.grid : styles.list}>{options.map((option) => option.image ? <WorldChoiceCard key={option.value} name={option.label} image={option.image} selected={value === option.value} onPress={() => choose(option.value)} /> : <Pressable key={option.value} accessibilityRole="radio" accessibilityLabel={option.label} accessibilityState={{ checked: value === option.value }} aria-checked={value === option.value} onPress={() => choose(option.value)} style={[styles.option, visual && styles.world, value === option.value && styles.selected]}>
         {option.image ? <><Image source={option.image} style={StyleSheet.absoluteFill} contentFit="cover" /><View pointerEvents="none" style={styles.worldShade} /></> : null}<Text style={[styles.value, visual && styles.worldName]}>{option.label}</Text>{value === option.value ? <Check size={20} color={visual ? '#fff' : colors.rose} /> : null}
       </Pressable>)}</View>
       {custom ? <View style={styles.custom}><Text style={styles.label}>Or use your own</Text><TextInput accessibilityLabel={`Custom ${label.toLowerCase().replace(' *', '')}`} value={customValue} onChangeText={setCustomValue} maxLength={40} placeholder="Type here" placeholderTextColor={colors.muted} style={styles.input} onSubmitEditing={() => { if (customValue.trim()) choose(customValue.trim()); }} /><Pressable accessibilityRole="button" disabled={!customValue.trim()} onPress={() => choose(customValue.trim())} style={[styles.apply, !customValue.trim() && { opacity: .4 }]}><Text style={styles.applyText}>Use this</Text></Pressable></View> : null}

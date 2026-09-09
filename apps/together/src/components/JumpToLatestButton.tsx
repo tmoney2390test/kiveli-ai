@@ -6,21 +6,23 @@ export function JumpToLatestButton({
   visible,
   onPress,
   bottom = 92,
+  hasNewMessages = false,
 }: {
   visible: boolean;
   onPress: () => void;
   bottom?: number;
+  hasNewMessages?: boolean;
 }) {
   if (!visible) return null;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Jump to latest message"
+      accessibilityLabel={hasNewMessages ? "New messages. Jump to latest" : "Jump to latest message"}
       onPress={onPress}
       style={({ pressed }) => [styles.button, { bottom }, pressed && styles.pressed]}
     >
       <ArrowDown size={16} color="#fff" />
-      <Text style={styles.label}>Latest</Text>
+      <Text style={styles.label}>{hasNewMessages ? "New messages" : "Latest"}</Text>
     </Pressable>
   );
 }
