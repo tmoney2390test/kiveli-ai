@@ -1,0 +1,15 @@
+import {existsSync,mkdirSync,readFileSync,writeFileSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
+import {adaptCaldersRun} from './lib/calders-run-adapter.mjs';
+execFileSync(process.execPath,['scripts/calders-art-review.mjs','check'],{stdio:'inherit'});
+const reviewed=new Set(JSON.parse(readFileSync('content/calders-run/art-review.json','utf8')).assets.map(a=>a.key));
+const pack=JSON.parse(readFileSync('content/calders-run/calders_run_content_pack.json','utf8')),adapted=adaptCaldersRun(pack);
+const world={...adapted.records.together_worlds[0],default_arrival_location_id:adapted.arrivalId};
+const locations=adapted.publicLocations.map(({canonical_visual_context,canonical_lore,...location})=>location);
+writeFileSync('apps/together/src/worlds/calders-run.ts',`// Generated public projection. Private canon stays on the server.\nimport type {World,Location} from '../types';\nexport const caldersRunWorld=${JSON.stringify(world,null,2)} as unknown as World;\nexport const caldersRunLocations=${JSON.stringify(locations,null,2)} as unknown as Location[];\n`);
+const portraits=pack.characters.filter(c=>reviewed.has(`portrait:${c.slug}`)&&existsSync(`apps/together/assets/characters/calders-run/${c.slug}.jpg`));
+writeFileSync('apps/together/src/calders-portraits.ts',`export const caldersPortraits:Record<string,number>={\n${portraits.map(c=>`  '${c.slug}':require('../assets/characters/calders-run/${c.slug}.jpg'),`).join('\n')}\n};\n`);
+const art=adapted.publicLocations.filter(p=>reviewed.has(`location:${p.slug}`)&&existsSync(`apps/together/assets/locations/calders-run/${p.slug}.jpg`));
+mkdirSync('apps/together/assets/locations/calders-run',{recursive:true});
+writeFileSync('apps/together/src/location-assets/calders-run.ts',`import type {ImageSource} from 'expo-image';\nexport const caldersLocationAssets:Record<string,ImageSource>={\n${art.map(p=>`  '${p.slug}':require('../../assets/locations/calders-run/${p.slug}.jpg'),`).join('\n')}\n};\n`);
+console.log(JSON.stringify({portraits:portraits.length,locations:art.length,publicPlaces:locations.length}));

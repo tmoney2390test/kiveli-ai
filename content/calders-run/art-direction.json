@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "maximumPhotosWithRailwayBridge": 10,
+  "bridgeAllowedAssets": [
+    "world:calders-run-hero",
+    "location:river-ward",
+    "location:the-railhead",
+    "location:pikes-ferry",
+    "location:bridge-works"
+  ],
+  "rules": [
+    "The maximum counts the whole release: world cover, portraits, districts, places and homes together.",
+    "Only listed assets may intentionally show the railway bridge. Additional incidental appearances require visual review and still count against the maximum of 10.",
+    "Never append the world-cover panorama to district, place, home or portrait prompts.",
+    "Frame each location around its own authored architecture, activity, landscape and furnishings.",
+    "Private home images focus inward on their distinct rooms. Window views use courtyards, neighboring walls, vegetation or sky.",
+    "An allowed bridge view must show the bridge unfinished, with a visible incomplete span.",
+    "Count actual visible bridges during image review; prompt compliance alone is not proof."
+  ]
+}

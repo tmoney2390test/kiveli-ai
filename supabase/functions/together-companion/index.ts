@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import { assertLocationAccess } from '../_shared/kivelle-world-progress.ts';
 import {authenticated,enforceRateLimit} from '../_shared/context.ts';
 import {parseBody} from '../_shared/body.ts';
 import {json,serve} from '../_shared/http.ts';
@@ -73,7 +74,7 @@ serve(async(request,correlationId)=>{
   if(!instance){
     const meeting=(template.first_meeting??{}) as Record<string,unknown>;
     let locationId=typeof meeting.location_id==='string'?meeting.location_id:null;
-    if(locationId){const{data:valid}=await db.from('together_locations').select('id').eq('id',locationId).maybeSingle();if(!valid)locationId=null;}
+    if(locationId){const{data:valid}=await db.from('together_locations').select('id,world_id,access_metadata').eq('id',locationId).maybeSingle();if(!valid)locationId=null;else await assertLocationAccess(db,user.id,valid);}
     if(!locationId){const{data:presence}=await db.from('together_character_world_presence').select('home_location_id,together_worlds(default_arrival_location_id)').eq('character_version_id',version.id).neq('presence_type','unavailable').order('presence_type',{ascending:true}).limit(1).maybeSingle();locationId=presence?.home_location_id??relationOne(presence?.together_worlds)?.default_arrival_location_id??null;}
     if(!locationId)throw new AppError('CONFLICT','This companion does not have a published first-meeting place yet.',409);
     const created=await db.from('together_character_instances').insert({user_id:user.id,continuity_id:continuity.id,character_template_id:template.id,character_version_id:version.id,relationship_stage:'stranger',current_mood:String(meeting.mood??'curious'),current_location_id:locationId,current_activity:String(meeting.companion_activity??'meeting someone new'),current_energy:'medium',introduced_at:now,contact_added_at:now,metadata:{first_meeting_title:meeting.title??null},updated_at:now}).select('*').single();

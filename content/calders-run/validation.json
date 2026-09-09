@@ -1,0 +1,414 @@
+{
+  "status": "passed",
+  "checksPassed": 70,
+  "checksTotal": 70,
+  "errors": [],
+  "counts": {
+    "characters": 49,
+    "women": 32,
+    "men": 17,
+    "publicFrontagePlaces": 46,
+    "storyGatedPlaces": 1,
+    "visitablePlaces": 47,
+    "districts": 6,
+    "locationRecords": 53,
+    "privateHomes": 49,
+    "weeklyScheduleRows": 2058,
+    "directedSocialConnections": 334,
+    "uniqueSocialPairs": 167,
+    "worldFacts": 185,
+    "dialogueOpportunities": 147,
+    "interactionBeats": 141,
+    "storyArcs": 14,
+    "recurringEvents": 14,
+    "dateBlueprints": 20,
+    "factions": 7
+  },
+  "ageAllocation": {
+    "23-50": 20,
+    "18-22": 29
+  },
+  "genderAllocation": {
+    "woman": 32,
+    "man": 17
+  },
+  "spiceAllocation": {
+    "3": 24,
+    "2": 15,
+    "1": 10
+  },
+  "minimumSocialDegree": 5,
+  "bibleWordCount": 80649,
+  "checks": [
+    {
+      "name": "49 unique companions",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Gender allocation",
+      "passed": true,
+      "detail": "{'woman': 32, 'man': 17}"
+    },
+    {
+      "name": "Age allocation",
+      "passed": true,
+      "detail": "{'23-50': 20, '18-22': 29}"
+    },
+    {
+      "name": "Adult range covers 18 through 50",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Younger women and men",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Spice allocation 3 / 2 / 1",
+      "passed": true,
+      "detail": "{3: 24, 2: 15, 1: 10}"
+    },
+    {
+      "name": "Largest-remainder rounding",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "47 places and six district nodes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "46 public-frontage places and one gated hideout",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Core 45 each matched to a distinct place",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Two male bandits at Crowcut Hollow",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Two female workers at the Red Sash",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Bess and Sabine are unrelated",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Private rooms counted separately",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Every character has one own room",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Every primary place exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Every place has valid district and companions",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Every place has a primary companion",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Primary place mapping agrees in both directions",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Home district and parent exist",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Detailed profiles complete",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Four unique voice examples per companion",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Distinct character biographies and openings",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Place history, layout, social texture, and story material present",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "All entity IDs unique across types",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Stable slugs unique within character and place types",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "334 distinct directed social connections",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Social endpoints exist and are distinct",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Social reciprocity preserves shared facts",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "At least five authored connections per character",
+      "passed": true,
+      "detail": "Minimum degree: 5"
+    },
+    {
+      "name": "Family bonds excluded from NPC romance",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Kinship arrays agree with bond records",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "2,058 baseline schedule rows",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Six intervals for every character on all seven days",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Schedule covers each full day without overlap or gap",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Valid schedule references and intervals",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "One time convention everywhere",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Private home schedule access stays private",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Public leisure fits visitor hours",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Bandit baseline reveals no public hideout access",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Crowcut hidden on initial public map",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "14 recurring events",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Event references and visitor hours",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Every event participant has matching overlay references",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "No stray event overlays",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "No simultaneous fixed events for a participant",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "Event travel is explicitly reserved by runtime contract",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "185 world facts",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Fact references valid",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Private character facts belong only to their owners",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Crowcut prior knowledge distinguished between bandits",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "147 dialogue opportunities, three per character",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Dialogue disclosures and affection are gated",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "141 beats, three per place",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Beat participants and access references valid",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "14 arcs with three stages and three endings",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "All companions have a substantial story route",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Arc participant, location, and clue references valid",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Three sequential stages and exclusive ending group",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "20 date blueprints cover all six districts",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Date location and character references valid",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Seven factions with valid participants and seats",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Travel matrix is symmetric and covers districts",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "No image slot falsely marked ready",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Adapter requirement stated",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Final identity consistently Calder’s Run",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "No placeholder draft markers",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Declared counts match actual tables",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "All full profiles and place entries in the bible",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Readable bible has substantial narrative depth",
+      "passed": true,
+      "detail": "80,649 whitespace-delimited words including tables and prompts"
+    }
+  ],
+  "files": {
+    "CALDERS_RUN_WORLD_BIBLE.md": {
+      "bytes": 557321,
+      "sha256": "d897bda11fc1771db1b29acf7c0abc99ec38cf8364fee5837fa8f3b875404630"
+    },
+    "calders_run_content_pack.json": {
+      "bytes": 3408432,
+      "sha256": "423c07daedfb56b56b6533a406e0c2f7b2a831dc7849c1c0508678b21cd06161"
+    },
+    "CALDERS_RUN_IMPLEMENTATION_HANDOFF.md": {
+      "bytes": 6173,
+      "sha256": "2593820ec9a5febe42d394ac51076a4ea0bf847e6f3231561c64714a94583c23"
+    }
+  },
+  "limitations": [
+    "Authoring consistency verified; no production importer or runtime has been executed.",
+    "Event overlays specify travel reservation semantics; the production resolver must implement and test that contract.",
+    "Images are prompts only and are correctly marked not_generated.",
+    "This is fictional worldbuilding; sources inform period texture, not certification of every invented detail."
+  ]
+}

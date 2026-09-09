@@ -29,6 +29,7 @@ export function onboardingWorldFantasy(world: World): string {
 }
 
 const compactWorldCopy: Record<string, { genre: string; description: string }> = {
+  'calders-run': { genre: 'Frontier romance', description: 'Love, loyalty, frontier life' },
   'juniper-city': { genre: 'City life', description: 'Everyday sparks, new stories' },
   'port-vervelle': { genre: 'Slow romance', description: 'Slow love by the sea' },
   'neon-kyo': { genre: 'Cyberpunk', description: 'Real love in a synthetic city' },

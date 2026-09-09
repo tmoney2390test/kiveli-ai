@@ -7,7 +7,7 @@ import{locations as eosMeridianLocations}from'./eos-meridian-content.mjs';
 
 const root=process.cwd(),apply=process.argv.includes('--apply'),charactersOnly=process.argv.includes('--characters-only'),locationsOnly=process.argv.includes('--locations-only'),worldSlugFilter=process.argv.find((argument)=>argument.startsWith('--world='))?.slice('--world='.length),bucket='kivelle-reference-media';
 export const CHARACTER_REFERENCE_BUCKET='kivelle-character-reference';
-export const DIRECT_LOCATION_ARTWORK_WORLDS=['juniper-city','port-vervelle','neon-kyo','northvale','vespormoor','vharadren'] as const;
+export const DIRECT_LOCATION_ARTWORK_WORLDS=['juniper-city','port-vervelle','neon-kyo','northvale','vespormoor','vharadren','calders-run'] as const;
 
 type Asset={sourceKey:string;role:'character_identity'|'location_canonical'|'world_canonical';path:string;worldSlug?:string;locationSlug?:string;characterSlug?:string;variant?:'primary'|`secondary-${number}`};
 
@@ -61,7 +61,8 @@ export async function discoverAssets():Promise<Asset[]>{
   output.push({sourceKey:'world:neon-kyo:canonical',role:'world_canonical',path:join(root,'apps','together','assets','worlds','neon-kyo','neon-kyo-hero.png'),worldSlug:'neon-kyo'});
   output.push({sourceKey:'world:northvale:canonical',role:'world_canonical',path:join(root,'apps','together','assets','worlds','northvale','northvale-hero.png'),worldSlug:'northvale'});
   output.push({sourceKey:'world:eos-meridian:canonical',role:'world_canonical',path:join(root,'apps','together','assets','worlds','eos-meridian','eos-meridian-hero.jpg'),worldSlug:'eos-meridian'});
-  for(const worldSlug of['juniper-city','port-vervelle','neon-kyo','vespormoor','northvale','eos-meridian','vharadren']){const characterDirectory=join(root,'apps','together','assets','characters',worldSlug);for(const name of(await readdir(characterDirectory)).filter((item)=>/\.(jpe?g|png|webp)$/i.test(item))){const identity=parseCharacterAssetName(name);output.push({sourceKey:`character:${identity.characterSlug}:identity${identity.variant==='primary'?'':`:${identity.variant}`}`,role:'character_identity',path:join(characterDirectory,name),worldSlug,characterSlug:identity.characterSlug,variant:identity.variant});}}
+  output.push({sourceKey:'world:calders-run:canonical',role:'world_canonical',path:join(root,'apps','together','assets','worlds','calders-run','calders-run-hero.jpg'),worldSlug:'calders-run'});
+  for(const worldSlug of['juniper-city','port-vervelle','neon-kyo','vespormoor','northvale','eos-meridian','vharadren','calders-run']){const characterDirectory=join(root,'apps','together','assets','characters',worldSlug);for(const name of(await readdir(characterDirectory)).filter((item)=>/\.(jpe?g|png|webp)$/i.test(item))){const identity=parseCharacterAssetName(name);output.push({sourceKey:`character:${identity.characterSlug}:identity${identity.variant==='primary'?'':`:${identity.variant}`}`,role:'character_identity',path:join(characterDirectory,name),worldSlug,characterSlug:identity.characterSlug,variant:identity.variant});}}
   output.push({sourceKey:'character:avery:identity',role:'character_identity',path:join(root,'apps','together','assets','characters','juniper-city','avery-ellis.jpg'),worldSlug:'juniper-city',characterSlug:'avery'});
   for(const characterSlug of['maya','chloe','alex']){const path=join(root,'apps','together','assets',`${characterSlug}-portrait.png`);output.push({sourceKey:`character:${characterSlug}:identity`,role:'character_identity',path,characterSlug});}
   return output;

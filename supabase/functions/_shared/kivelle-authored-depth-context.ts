@@ -23,6 +23,8 @@ import {
   BoundedTtlCache,
 } from "./kivelle-authored-depth-cache.ts";
 import { waitUntil } from "./background.ts";
+import { CALDERS_WORLD_ID, loadWorldProgress } from './kivelle-world-progress.ts';
+import { calderStoryContext, type CalderArc } from '../../../packages/together-domain/src/calders-stories.ts';
 
 type Row = Record<string, any>;
 type StaticCandidates = { facts: Row[]; opportunities: Row[]; beats: Row[] };
@@ -63,6 +65,17 @@ export async function attachAuthoredDepthContext(input: {
       String(context.queryIntent ?? "general"),
     );
   const modes = interactionModes(context), now = input.now ?? new Date();
+  const worldProgress=worldId===CALDERS_WORLD_ID?(await loadWorldProgress(input.db,input.userId,worldId,input.continuityId)).state:{};
+  const characterSlug=String(context.character?.slug??'');
+  if(worldId===CALDERS_WORLD_ID){
+    const {data:identity}=await input.db.from('together_character_versions').select('character_template_id').eq('id',String(input.characterVersionId)).maybeSingle();
+    context.savedWorldState=(worldProgress.transitions??[]).filter((item:Row)=>(item.characterIds??[]).includes(identity?.character_template_id)).map((item:Row)=>({summary:item.summary,recordedAt:item.recordedAt,kind:item.kind,...(item.departingCharacterId===identity?.character_template_id?{returnAt:item.returnAt??null,newBaseLocationId:item.locationId??null}:{} )}));
+    if(identity?.character_template_id&&Object.values(worldProgress.arcs??{}).some((arc:any)=>arc.status==='active')){
+      const {data:arcs,error}=await input.db.from('together_world_canon_sources').select('payload').eq('world_id',worldId).eq('content_type','story_arc').contains('payload',{characterIds:[identity.character_template_id]});
+      if(error)throw error;
+      context.activeWorldStory=calderStoryContext((arcs??[]).map(row=>row.payload as CalderArc),worldProgress,identity.character_template_id);
+    }
+  }
   const beatTerms = [
     ...terms,
     ...authoredSearchTerms(String(context.currentScene?.activity ?? "")),
@@ -169,6 +182,7 @@ export async function attachAuthoredDepthContext(input: {
           context.relationship?.stage ?? "stranger",
       );
     const facts = resolveRelevantWorldFacts({
+      disclosedFactIds:worldProgress.disclosures?.[characterSlug]??[],
       candidates: staticCandidates.facts,
       worldId,
       currentLocationId: locationId,
@@ -190,6 +204,8 @@ export async function attachAuthoredDepthContext(input: {
     });
     const selectedFactSlugs = facts.map((fact) => fact.slug);
     const opportunities = resolveDialogueOpportunities({
+      characterSlug,
+      personalInvitation:worldProgress.flags?.includes(`personal.invited:${characterSlug}`)??false,
       candidates: staticCandidates.opportunities,
       worldId,
       currentLocationId: locationId,
@@ -220,6 +236,8 @@ export async function attachAuthoredDepthContext(input: {
       row: Row,
     ) => String(row.relationshipType ?? "")).filter(Boolean);
     const beats = resolveSceneInteractionBeats({
+      participantSlugs:[characterSlug,...(context.sceneParticipants??[]).map((row:Row)=>String(row.slug??row.characterSlug??''))],
+      worldFlags:worldProgress.flags??[],
       candidates: staticCandidates.beats,
       worldId,
       currentLocationId: locationId,

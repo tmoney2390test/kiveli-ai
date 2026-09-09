@@ -6,7 +6,7 @@ export type SceneBeatResolverInput={
   candidates:SceneBeatCandidate[];worldId:string;currentLocationId?:string|null;districtLocationId?:string|null;userMessage:string;
   contentMode:string;relationshipStage?:string;spiceLevel:number;activeStorySlug?:string|null;selectedFactSlugs?:string[];
   daypart?:string;interactionModes:string[];interactionMode:string;activity?:string;participantCount:number;maxSocialTension?:number;
-  participantRelationshipTypes?:string[];
+  participantRelationshipTypes?:string[];participantSlugs?:string[];worldFlags?:string[];
   characterTags?:string[];characterBoundaries?:unknown;intimacyStance?:Record<string,unknown>|null;recentUsage?:Map<string,AuthoredContentUsage>;now?:Date;maximumResults?:number;
 };
 
@@ -56,6 +56,9 @@ function declaresCanonicalOutcome(row:SceneBeatCandidate){const metadata=row.met
 function declaresUserAction(seed:string){const normalized=normalizeAuthoredText(seed);return /\b(?:the )?user (?:kisses|agrees|consents|arrives|enters|drinks|confesses|has sex|commits|becomes jealous|touches|undresses)\b/.test(normalized);}
 function metadataPreconditionsEligible(row:SceneBeatCandidate,input:SceneBeatResolverInput){
   const metadata=row.metadata&&typeof row.metadata==='object'?row.metadata as Record<string,unknown>:{};
+  const requiredSlugs=Array.isArray(metadata.requiredParticipantSlugs)?metadata.requiredParticipantSlugs.map(String):[];
+  if(requiredSlugs.length&&!requiredSlugs.some(slug=>input.participantSlugs?.includes(slug)))return false;
+  if(typeof metadata.accessGate==='string'&&!metadata.accessGate.startsWith('public')&&!input.worldFlags?.includes(metadata.accessGate))return false;
   const requiredTypes=Array.isArray(metadata.requiredParticipantRelationshipTypes)?metadata.requiredParticipantRelationshipTypes.map(normalizeAuthoredText):[];
   const actualTypes=(input.participantRelationshipTypes??[]).map(normalizeAuthoredText);
   if(requiredTypes.length&&!requiredTypes.some((type)=>actualTypes.includes(type)))return false;

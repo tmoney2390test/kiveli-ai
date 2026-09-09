@@ -1,5 +1,5 @@
 export type PublicWorld = {
-  slug: 'juniper-city' | 'port-vervelle' | 'neon-kyo' | 'vespormoor' | 'northvale' | 'eos-meridian' | 'vharadren';
+  slug: 'juniper-city' | 'port-vervelle' | 'neon-kyo' | 'vespormoor' | 'northvale' | 'eos-meridian' | 'vharadren' | 'calders-run';
   name: string;
   eyebrow: string;
   description: string;
@@ -21,6 +21,7 @@ export const PUBLIC_LANDING_COPY = {
 } as const;
 
 export const PUBLIC_WORLDS: readonly PublicWorld[] = [
+  {slug:'calders-run',name:'Calder’s Run',eyebrow:'FRONTIER ROMANCE · 1888',description:'A river town of lamplit rooms, independent lives, and loyalties worth choosing.',new:true},
   {
     slug: 'juniper-city',
     name: 'Juniper City',

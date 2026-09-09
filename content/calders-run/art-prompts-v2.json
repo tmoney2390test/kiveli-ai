@@ -1,0 +1,618 @@
+{
+  "generator": "built-in image_gen",
+  "directionVersion": 2,
+  "jobs": [
+    {
+      "kind": "location",
+      "slug": "main-street",
+      "bridgeAllowed": false,
+      "prompt": "Historical Western town, fictional territorial Southwest, 1888. The west-bank commercial terrace, where the town puts on its public face and conducts the business everyone eventually needs. Visible details: warm brick after sunset, horse tack and fresh bread, press machinery behind an open window. One coherent scene focused on this district; no labels or text. Eye-level view along the brick commercial terrace, with boardwalks, hotel balconies, a print-shop window and shoppers. Frame inward along the street with buildings closing the distant view. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "lantern-row",
+      "bridgeAllowed": false,
+      "prompt": "Historical Western town, fictional territorial Southwest, 1888. The evening district, with music, good food, paid companionship, bathing, cards, and people whose labor lets others relax. Visible details: piano heard through two different walls, lamp oil and kitchen onions, washed linen in an upstairs corridor. One coherent scene focused on this district; no labels or text. Intimate evening view of painted entertainment-house facades, a lamplit theater entrance and a planted courtyard. Frame the near buildings and courtyard rather than a town panorama. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "river-ward",
+      "bridgeAllowed": true,
+      "prompt": "Historical Western town, fictional territorial Southwest, 1888. The old working slope to the river, full of shared services, boarding rooms, small trades, and accumulated memory. Visible details: damp rope, soap and sun-dried cloth, food carried down a boardinghouse stair. One coherent scene focused on this district; no labels or text. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. The railway bridge may appear here, visibly unfinished with a missing central span and construction work. It is not yet usable."
+    },
+    {
+      "kind": "location",
+      "slug": "the-railhead",
+      "bridgeAllowed": true,
+      "prompt": "Historical Western town, fictional territorial Southwest, 1888. The east-bank terminus, where temporary structures, demanding work, and speculative confidence compete to define the future. Visible details: coal smoke, fresh-cut timber, telegraph clicks through a thin wall. One coherent scene focused on this district; no labels or text. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. The railway bridge may appear here, visibly unfinished with a missing central span and construction work. It is not yet usable."
+    },
+    {
+      "kind": "location",
+      "slug": "cottonwood-valley",
+      "bridgeAllowed": false,
+      "prompt": "Historical Western town, fictional territorial Southwest, 1888. The cultivated river corridor, with orchards, grazing, workshops, family homes, and disagreements that travel through irrigation channels. Visible details: cut grass beside dry earth, milk pails and shade cloth, moving water behind a locked gate. One coherent scene focused on this district; no labels or text. A pastoral view through cottonwood trees toward irrigated orchards, ranch fencing and cultivated fields, with red bluffs in the distance. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "cinder-bluffs",
+      "bridgeAllowed": false,
+      "prompt": "Historical Western town, fictional territorial Southwest, 1888. The southern mining country and old road, with small claims, industrial workings, relay stations, and communities beyond easy supervision. Visible details: ore dust on cuffs, mules shifting under shade, wind through an abandoned loading frame. One coherent scene focused on this district; no labels or text. An upland view among red rocky bluffs, mule paths and small mining structures. Compose toward the high desert, with the town and river outside the frame. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "calder-house-hotel",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Calder House Hotel: A three-story brick hotel with a shaded balcony, dependable meals, and a lobby where visitors learn how quickly an arrival becomes public news. Show brick balcony, green shutters, worn register, courtyard washstand. The front desk faces the street doors. A public dining room opens to a side courtyard; a narrow service stair reaches staff rooms. Guest corridors and the register behind the desk are private. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "keenes-print-shop",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Keene’s Print Shop: A working print shop publishing The Run Ledger, selling stationery, and turning private grievances into carefully chosen public words. Show ink-black fingertips, lead type cases, drying sheets, patched press belt. A customer counter separates the shopfront from type cases, a hand-fed press, and a drying room. A rear desk holds drafts and correspondence; proofs may be pinned publicly only when marked for release. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "county-courthouse",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. County Courthouse: The county’s modest record office and hearing rooms, where property, inheritance, and public promises acquire forms that outlast the people arguing over them. Show sunlit copy desk, uneven brick addition, locked iron cage, crowded notice board. A public counter and notice board lead to a hearing room. Copy desks occupy a bright side room. The archive cage, evidence cupboard, and officials’ offices require specific access. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "dempsey-livery",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Dempsey Livery: A busy livery and training yard where the town hires transport, boards animals, swaps practical news, and learns whether a newcomer can be trusted with a horse. Show dusty training rail, labeled tack hooks, hay loft, water trough. The hire counter faces a covered yard. Training pens, tack room, feed loft, and staff cottage sit beyond. Visitors wait at the rail until invited into an animal’s space. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "crown-and-cotton",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Crown & Cotton Mercantile: The mercantile supplies everything from nails and lamp wicks to fabric, with a stockroom whose contents reveal the town’s changing ambitions. Show fabric bolts, brass scale, hanging lanterns, scuffed freight counter. Public aisles lead past hardware and dry goods to a fabric counter. A scale and invoice desk mark the boundary of the stockroom. The upstairs rooms are private storage and household space. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "hearthstone-bakery",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Hearthstone Bakery: A warm bakery serving ordinary bread, occasional elaborate pastries, and a few tables whose regulars know the rhythms of the oven. Show flour-dusted counter, brick oven, window cooling rack, blue enamel pitcher. A front counter and two small tables overlook the boardwalk. The oven room, mixing bench, and ingredient store sit behind a half door. Work space is tight and hot. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "marshals-office",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Marshal’s Office: The marshal’s small office combines public service, uncomfortable waiting, local records, and the persistent problem of deciding which trouble cannot wait. Show scarred desk, repair tools by a window, holding-room door, pinned notices. A desk and benches occupy the front. A record cupboard, small interview room, and separate holding area are restricted. The back yard is used for maintenance and authorized transfers. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "soto-forge",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Soto Forge: A forge and wagon yard where hot metal, measured workmanship, and friendly argument keep the town’s animals and vehicles moving. Show forge glow, hanging horseshoes, half-repaired wagon, shared outdoor table. The public yard contains a waiting rail and repair wagons. A forge bay, tool wall, and small office sit under a broad roof. Hot work zones are kept clear. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "copper-mare-saloon",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Copper Mare Saloon: The Copper Mare is a generous, noisy saloon with good music, ordinary food, and a back room where people who dislike one another sometimes manage to talk. Show copper horse above the bar, worn piano, courtyard lanterns, polished but repaired tables. The main bar opens to tables and a small music platform. A courtyard catches evening air. The back meeting room and upstairs lodgings require invitation; the office contains private business records. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "marigold-house",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Marigold House: Marigold House is an adult companionship business with a gracious public parlor, experienced management, and workers whose private lives extend well beyond the building. Show marigold-painted door, upright piano, embroidered lamp shades, well-tended courtyard. A reception parlor and music room are public during service hours. Separate consultation rooms and private suites require a specific booking and the worker’s agreement. Staff rooms have no public access. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "bellflower-theater",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Bellflower Theater: A small theater where professional ambition and community entertainment share costumes, limited money, and the hope of a full room. Show painted stage flats, patched velvet curtain, gasless oil footlights, crowded costume loft. A box office leads into a modest auditorium and stage. Rehearsal space, dressing rooms, and the costume loft are backstage and private unless invited. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "night-kitchen",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Night Kitchen: The Night Kitchen feeds the town when its evening workers finally have time to sit down, with a long table that becomes a second living room. Show long communal table, steaming pots, chalkless handwritten menu, open back step. A street counter opens to a compact dining room and shared table. The kitchen and stores are staff areas. A back step provides a brief place to cool down. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "junebug-dance-hall",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Junebug Dance Hall: A music hall where callers, musicians, and dancers negotiate crowded floors, uneven skill, and the pleasure of being seen enjoying themselves. Show scuffed dance floor, bright cloth bunting, fiddle corner, wall benches. The floor is open beneath a high timber roof. Musicians use a raised corner; benches and a refreshment counter line the walls. A staff room holds personal belongings. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "blue-glass-baths",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Blue Glass Baths: A bathhouse providing washing, quiet recovery, and a rare interval when residents can be comfortable without performing competence for their employers. Show blue glass transoms, copper pipes, linen shelves, screened resting alcoves. Reception leads to separate bookable washing areas and screened resting spaces. Staff control the boiler, linen store, and maintenance access. Privacy boundaries are physical and explicit. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "argosy-cardroom",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Argosy Cardroom: A gaming room known for controlled manners, attentive dealers, and the distinction between enjoying a risk and pretending consequences do not exist. Show green cloth tables, well-used cards, brass cashier grille, low hanging lamps. A public lounge leads to staffed card tables. A cashier’s desk and secure store are restricted. A rear room is used for booked private games under house rules. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "ribbon-room",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Ribbon Room: An intimate adult salon where Pearl hosts private company, small dinners, and occasional readings for people who prefer a quieter social room. Show ribbon-trimmed curtains, small polished dining table, flower bowl, separate private door. A reception room leads to a dining salon and individually private rooms. Pearl’s living quarters and business correspondence remain separate from booked space. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "pikes-ferry",
+      "bridgeAllowed": true,
+      "prompt": "Fictional territorial Southwest, 1888. Pike’s Ferry: The working ferry joins the town’s banks and makes a journey into a brief shared experience of waiting, weather, and other people’s business. Show worn loading ramps, rope drums, ticket shed, cottonwood reflection. West and east landings share a scheduled service. Waiting rails, a ticket shed, rope gear, and loading ramps organize access. The boat and working gear require crew direction. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. The railway bridge may appear here, visibly unfinished with a missing central span and construction work. It is not yet usable."
+    },
+    {
+      "kind": "location",
+      "slug": "salcedo-clinic",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Salcedo Clinic: A small clinic where dependable care, crowded hours, and household realities turn abstract town disputes into specific human needs. Show shaded waiting benches, wash basin, labeled cupboards, planted courtyard. A waiting room opens to consultation rooms and a private courtyard. Records, medicine stores, and treatment rooms require appropriate permission. The nearby dispensary is a separate workplace. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "public-washhouse",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Public Washhouse: A cooperative washhouse where heavy physical work, exact bookkeeping, and conversation keep half the town present without any one person knowing every secret. Show steaming tubs, long drying lines, collection shelves, communal accounts book. Public receiving counters lead to staffed washing and drying areas. Private collection shelves are labeled; a meeting corner doubles as a place for workers to rest. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "boatmens-boardinghouse",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Boatmen’s Boardinghouse: A boardinghouse offering solid meals, modest rooms, and a household rhythm that gives working residents somewhere to return to. Show long supper table, repaired stair rail, porch rocking chair, numbered room keys. A common dining room and sitting porch are public to guests and invited visitors. Bedrooms are private; kitchen and account desk are work spaces. Separate rooms are individually assigned. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "river-market",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. River Market: A riverside market where local growers, household cooks, and travelers negotiate prices alongside recipes, favors, and news. Show striped shade cloth, wooden produce crates, river steps, hanging scales. A central aisle runs between produce stalls and covered service counters. River steps and loading space stay clear. Individual stalls have storage that remains private. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "riverside-chapel",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Riverside Chapel: A small riverside chapel and relief hall where worship, music, practical aid, and disagreements about deservingness share the same benches. Show plain wooden benches, small harmonium, relief kitchen, river-facing windows. The nave opens to a multipurpose hall and shaded yard. Jonah’s office, donation records, and stored relief goods are restricted. The building is modest rather than monumental. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "pike-boatworks",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Pike Boatworks: A repair yard building and mending small river craft, with room for practical invention and the argument over what work will survive the bridge. Show upturned hull, wood shavings, launching slip, hand-drawn boat plan. A public waiting rail overlooks covered benches and hauled-out hulls. The timber store, launching slip, and private cottage beyond have separate access. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "cottonwood-dispensary",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Cottonwood Dispensary: A modest dispensary whose careful stock work and supervised service provide a young apprentice with meaningful responsibility. Show labeled drawers, balance scale, clean counter, delivery ledger. A customer counter separates public space from labeled stores and a record desk. Controlled supplies and preparation areas are restricted; the back door opens to a service yard. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "temporary-passenger-depot",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Temporary Passenger Depot: The temporary station makes Calder’s Run’s new connection to distant places tangible through tickets, freight, delays, and people saying goodbye. Show timber platform, temporary station sign shape, ticket window, locomotive steam. A public platform leads to a ticket counter and waiting room. Dispatch, freight handling, and the track area require staff direction. The rail line ends on the east bank until later story milestones. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "telegraph-office",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Telegraph Office: A telegraph office where a few precise words can move money, change a plan, or reach someone far away, while privacy depends on the people handling them. Show telegraph instruments, message slots, writing shelf, thin timber walls. A public counter fronts the writing shelf and waiting bench. Instruments, message storage, and the duty desk are staff-only. A small rear room handles maintenance. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "survey-camp",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Survey Camp: A working survey base where drawings, measurements, practical experience, and corporate instructions do not always agree. Show weighted maps, surveying instruments, striped equipment tent, dusty sample boots. A visitor table stands outside the main drawing tent. Equipment racks, survey records, and crew sleeping areas are restricted. Field routes are scheduled separately from the base. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "bridge-works",
+      "bridgeAllowed": true,
+      "prompt": "Fictional territorial Southwest, 1888. Bridge Works: The unfinished bridge is a visible argument about the future, made from demanding work rather than the confident language of a prospectus. Show unfinished span, stacked stone, timber staging, crew water barrels. A public observation rail sits away from active construction. Material yards, masonry, rigging, and the unfinished span are restricted. The bridge is not a usable crossing at baseline. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. The railway bridge may appear here, visibly unfinished with a missing central span and construction work. It is not yet usable."
+    },
+    {
+      "kind": "location",
+      "slug": "railroad-freight-office",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Railroad Freight Office: The railway’s local office combines ordinary freight service with land negotiations whose consequences extend well beyond the building. Show large route map, new oak desk, freight scales, locked correspondence cabinet. A public counter handles freight business. Appointments lead to a meeting room. Contracts, investor correspondence, and staff records remain private in locked offices. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "calder-portrait-studio",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Calder Portrait Studio: A photographic studio where people decide how they want to be remembered and discover how uncomfortable it can be to sit still under someone’s attention. Show large daylight window, folding camera, painted backdrops, drying prints. A daylight portrait room fronts a customer counter. Backdrops and prop chairs are available by agreement. The darkroom, stored negatives, and private correspondence are restricted. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "eastbank-provisioners",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Eastbank Provisioners: An east-bank supply business built around hungry workers, small deliveries, and the determination to make the railhead a neighborhood. Show crowded provision shelves, canvas porch shade, delivery baskets, rail-facing bench. The public shop and porch face the depot road. A packed store room, loading bay, and workers’ lodging behind have separate access. Personal rooms remain private. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "whitcomb-ranch",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Whitcomb Ranch: A substantial working ranch whose comfortable house and productive land make independence look effortless to people who do not see its accounts. Show broad shaded porch, irrigated pasture, working corrals, well-used ranch office. A visitor gate leads to the office, work yard, and an agreed meeting porch. Grazing land, irrigation equipment, staff housing, and the family house have distinct access. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "orchard-schoolhouse",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Orchard Schoolhouse: A small schoolhouse whose adult evening classes and community meetings provide a place to ask a question without performing confidence. Show plain desks, slate board, shaded schoolyard, crowded book cupboard. The classroom opens to a shaded yard and a small staff room. Adult companion encounters occur in staff areas or scheduled adult sessions; children’s teaching is background world activity. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "cottonwood-swimming-bend",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Cottonwood Swimming Bend: A shaded river bend for guided fishing, picnics, swimming when conditions permit, and the feeling of being briefly beyond the town’s demands. Show cottonwood shade, green shallows, small gear shelter, worn bank path. A public bank and small outfitting shelter lead to designated access points. Private holdings, sensitive banks, and deep-water routes require separate permission and appropriate conditions. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "irrigation-meeting-house",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Irrigation Meeting House: A practical meeting house beside the headworks, where the flow of water becomes a schedule, a household argument, and occasionally a workable compromise. Show water-turn board, heavy register, shaded meeting yard, headworks channel. A public meeting room and notice board face a shaded yard. The register desk is supervised; gates, measuring points, and equipment require authorized access. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "valley-creamery",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Valley Creamery: A small dairy and creamery whose demanding early work produces ordinary comforts the town notices most when they are missing. Show milk churns, whitewashed workroom, cool storage shelves, early sun in the yard. A public collection counter stands apart from animal areas, processing rooms, and cold storage. Staff movement follows cleanliness and work needs. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "orchard-glasshouse",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Orchard Glasshouse: A nursery and modest glasshouse where patience becomes visible through cuttings, orchard stock, and flowers residents buy for reasons they may not explain. Show patched glass panes, labeled saplings, shaded propagation bench, flower rows. Public rows and a sales bench sit outside the glasshouse. Propagation beds, tools, and experimental stock are staff-only. Paths lead to agreed orchard sections rather than unrestricted valley access. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "cattle-sale-yard",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Cattle Sale Yard: The livestock yard mixes practical judgment, competitive display, and the pleasure of knowing an animal well enough to see beyond a sales pitch. Show timber pens, auction rail, dusty weighing area, sale ledger. A public viewing rail and office surround controlled pens. Working lanes and loading areas require staff direction. The auction platform is used only during scheduled sales. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "saint-agnes-mine",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Saint Agnes Mine: A productive silver mine whose public office and surface yard reveal the gap between a profitable enterprise and the households waiting for wages. Show ore wagons, checkweighing window, timber headframe, crew shade shelter. The accessible area contains the checkweighing office, meeting shelter, and designated surface paths. Shafts, hoists, and active workings require specific authorized access. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "assay-office",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Assay Office: An independent assay office where patient measurement can determine whether someone has found a livelihood, made a mistake, or been deceived. Show sample trays, precise scale, sealed packets, bright laboratory window. The customer counter and sample intake are public. The laboratory, records, and retained samples are restricted. Each accepted sample has an identified chain of custody. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "widows-cut-coach-station",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Widow’s Cut Coach Station: An isolated coach station offering rest, repairs, food, and the unusual intimacy of strangers waiting for the same road to become passable. Show long water trough, coach yard, worn meal counter, road disappearing between bluffs. A public waiting room and meal counter face the yard. Stables, stores, route records, and private rooms have separate access. The surrounding road is a travel route, not another room. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "mule-camp-trading-post",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Mule Camp Trading Post: A trading post where remote work becomes possible through credit, information, practical supplies, and a broker who remembers who kept a promise. Show mule shade pens, loaded shelves, large business table, canvas-covered freight. Public shelves and a business table open to a shaded freight yard. Cargo storage, private correspondence, and living rooms are restricted. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "red-wells-prospect",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Red Wells Prospect: A small independent claim where hope, discipline, and borrowed resources meet a landscape that offers no guarantee of rewarding hard work. Show red earth, sample table, patched shade shelter, carefully repaired tools. A visitor shelter and sample table stand beside approved surface workings. Excavations, stored tools, and the private camp require permission. Hazardous areas are not public exploration shortcuts. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "canyon-rest-cemetery",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Canyon Rest Cemetery: A quiet cemetery and small service office where remembrance is practical work and the town’s history is attached to particular names. Show red-stone boundary wall, simple markers, shade tree, carefully kept register. Public paths and memorial plots lead to a service room. Records, tools, and preparation areas are restricted. Family reservations and active ceremonies govern access. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "old-calder-relay",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Old Calder Relay: An old relay station that gives independent carriers a place to change animals, leave agreed consignments, and weigh how much they need to know. Show old freight timbers, numbered cargo bays, water barrel, faded route board. A public receiving bench faces the yard. Assigned cargo bays, animal areas, route records, and Eve’s living room are separately controlled. A private cache is never automatically visible. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "red-sash-brothel",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. The Red Sash: The Red Sash is a working brothel with a lively downstairs parlor, adult resident workers, and a practical struggle over how its profits and rules should be shared. Show red sash above the entry, warm plaster parlor, upright music stand, separate residential stair. A public adult parlor and small music area lead to a staffed reception point. Private service rooms require a particular worker’s agreement. Resident bedrooms, the accounts desk, and the back kitchen are not public extensions of the parlor. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "location",
+      "slug": "crowcut-hollow",
+      "bridgeAllowed": false,
+      "prompt": "Fictional territorial Southwest, 1888. Crowcut Hollow: Crowcut Hollow is a remote bandit hideout in a side canyon, built around an abandoned freight shelter and the uneasy domestic life of people living beyond ordinary protection. Show weathered freight shelter, red canyon walls, patched blankets, small stable enclosure. The authored location contains a rough communal shelter, a stable enclosure, separate sleeping spaces, and a meeting area. Its precise discovery route is story-gated. No public map reveals entry merely because the player has heard the name. A single coherent, inhabited architectural scene; period materials, natural light, no text or logo. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Keep the view local to this specific place. Any window or doorway opens onto a nearby wall, vegetation or local street. The railway bridge is completely outside the picture."
+    },
+    {
+      "kind": "home",
+      "slug": "virginia-gin-maddox",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A warm upstairs apartment with repaired furniture, a private piano practice book, a strong lock, and a breakfast table she rarely uses with company. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "dr-lucia-salcedo",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A quiet courtyard room with medical books closed on a shelf, flowering pots, a small card table, and a personal writing desk. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "tess-corbett",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. An east-bank room with rolled maps, a camp stool, pressed wildflowers in a field book, and one carefully framed drawing. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "iris-keene",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A rented hotel room with books stacked by a writing table, discarded drafts in a basket, and a well-used travel bag she keeps promising to use. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "rosalie-quinn",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A small room above Lantern Row with a traveling trunk, a mirror patched at one corner, song sheets, and flowers drying between pages. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "adelaide-whitcomb",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A comfortable ranch bedroom with a writing desk facing the valley, practical boots beneath a fine chair, and family photographs kept away from business visitors. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "june-dempsey",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A livery cottage room with repaired tack on a peg, race notices, a neatly kept savings envelope, and a window onto the quiet yard. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "mabel-arnett",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A private flat with a piano, architectural sketches, a comfortable reading chair, flowering plants, and a door separated from guest corridors. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "alma-baptiste",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A compact Lantern Court room with a recipe notebook, a brightly stitched coverlet, a dance card kept as a joke, and cooking books put away on her free days. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "cora-dunleavy",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A bright upstairs room with good shoes carefully stored, ribbons on a peg, a notebook of calls, and space cleared for practicing steps. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "edith-kovac",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A carefully ordered room with blue curtains, a wardrobe of a few excellent garments, small architectural sketches, and a chair reserved for reading. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "pearl-merritt",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A private room separate from the salon, with letters in a closed box, a small plant collection, informal clothes, and an unadorned breakfast table. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "lottie-fenwick",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A modest room with fashion plates, fabric remnants, a ledger beside a mirror, and a trunk of clothes altered several times. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "ruth-freeman",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A private boardinghouse room with carefully sewn curtains, a songbook, clean shelves, and a small ledger kept away from her bed. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "ines-salcedo",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A courtyard room with woven cloth, a market notebook, music sheets borrowed from friends, and flowers in a repurposed jar. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "beatrice-bell",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A valley room with botanical drawings, a mended quilt, a small stack of novels, and a window box she waters carefully. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "nell-hewitt",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A quiet courtyard room with a small writing desk, neatly bound study notes, a mechanical puzzle, and a plant on the sill. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "agnes-reed",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A private downstairs suite with old photographs, a comfortable reading chair, gardening tools by the door, and a writing desk kept separate from rent accounts. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "clara-chen",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. An east-bank room with a few carefully hung prints, a sketchbook, repaired camera cloth, and private images stored face down in a box. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "esther-wynn",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A quiet hotel room with correspondence carefully stored, study books, a small lamp, and a shawl over a chair beside the window. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "hazel-whitcomb",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A small east-bank room with a folding desk, a hand-drawn business sign, a riding coat, and family photographs she has chosen to keep visible. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "eliza-morrow",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A valley cottage room with books, field notes, a small writing table, and maps of places she has not yet visited. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "lena-velarde",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A valley room with a practical gear rack, route drawings, ordinary family keepsakes kept private, and a window opening toward the cottonwoods. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "daisy-cartwright",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A valley room with travel letters, a notebook of experiments, pressed flowers, and a small savings tin beneath a stack of books. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "florence-flora-vale",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A cottage room with botanical sketches, dry seed envelopes, a few excellent books, and flowers arranged for pleasure rather than display. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "vera-sutter",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A bluff lodging room with orderly books, a small game board, a music booklet tucked among technical notes, and a view of the evening ridge. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "sadie-rusk",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A private station room with maps, a good traveling coat, postcards and letters, and a supper table that folds away when she needs space. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "marisol-duarte",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A private trading-post room with woven textiles, a compact garden view, family letters, and business records kept in a separate locked cupboard. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "kit-calloway",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A private claim cabin with a good blanket, carefully sorted samples, a battered songbook, and a chair placed to catch the evening view. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "evelyn-eve-mercer",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A spare relay room with books, neatly maintained riding gear, a lamp, and a chair someone repaired for her without being asked. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "marshal-elias-reddick",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A hotel room with repair tools stored safely, a few history books, clean spare clothes, and a chair he keeps meaning to improve. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "gabriel-soto",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A private room beside the livery cottage with carefully kept tools separate from living space, cookbooks, a good table, and music sheets. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "daniel-chen",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A boardinghouse room with technical books, a few family photographs, a tidy correspondence box, and a comfortable chair for unhurried reading. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "samuel-pike",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A river cottage room with old crossing records, a favorite music book, carefully maintained boots, and a small boat plan kept in a drawer. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "felix-avery",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A hotel room with excellent clothes, a mending kit he hides badly, music sheets, and personal accounts kept separate from house records. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "reverend-jonah-bell",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A modest valley room with books, music, a well-used writing desk, and gardening boots by the door. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "caleb-pike",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A private room in the Pike cottage with boat sketches, music, a carefully made chair, and tools stored away from ordinary living space. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "nathaniel-nate-brooks",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A modest east-bank room with travel letters, a carefully kept watch, a borrowed camera print, and a table cleared when friends visit. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "thomas-tom-archer",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. An east-bank room with architectural sketches, a carefully mended work jacket, music notices, and a clean place to sit with company. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "victor-halden",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A well-appointed hotel room with investor letters locked away, architectural books, excellent stationery, and personal objects so few they reveal his habit of moving on. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "mateo-varela",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A valley cottage with music, a small garden, work notebooks stored separately, and a shaded step used for visiting friends. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "isaac-booker",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A valley room with a few carefully kept books, sale notes, a simple garden plan, and good clothes ready for an invitation he has not yet made. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "benjamin-ben-crowell",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A boardinghouse room with a few books, a game board, family letters, and mine records kept in a closed case rather than spread over his bed. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "august-renn",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A private bluff lodging room with books, a borrowed practice instrument, a small plant, and drawings of places unrelated to his work. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "rafael-ortiz",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A staff room at Calder House with a small travel map, well-kept clothes, a music booklet, and a private savings account recorded separately from hotel money. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "cole-hensley",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A separate canvas sleeping space at Crowcut Hollow with a patched blanket, two borrowed books, a harmonica, and the small wooden box holding his private papers. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "silas-quade",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A private canvas-and-board room inside the old loading shelter, with a sturdy writing surface, an old songbook, a battered chess set, and correspondence kept in a locked chest. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "bess-kincaid",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A private Red Sash resident room with a red-ribbon hat stand, a small desk for lyrics, bright mended cushions, and a lock whose key she controls; appointments use a separate agreed house room. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    },
+    {
+      "kind": "home",
+      "slug": "sabine-roche",
+      "bridgeAllowed": false,
+      "prompt": "A lived-in private adult room in a fictional Southwest frontier town in 1888. A private resident room at the Red Sash with a teal coverlet, novels in French and English, potted herbs, and separate locked boxes for personal papers and the shared accounts she is authorized to hold. Period materials, warm natural or lamplit light, no person, no text. Private papers closed rather than legible. Single landscape 3:2 cinematic photographic image, realistic materials and clear fine detail, historically consistent 1888 clothing and objects. No modern objects, watermarks or lettering. Camera faces inward into the room. Any window shows only soft sky, foliage or an adjacent courtyard wall. Exclude railway bridges and distant town panoramas."
+    }
+  ]
+}

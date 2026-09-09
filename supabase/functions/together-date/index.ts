@@ -1,4 +1,7 @@
 import { z } from 'zod';
+import { validateCalderOuting } from '../_shared/kivelle-calders-schedule.ts';
+import { CALDERS_WORLD_ID } from '../_shared/kivelle-world-progress.ts';
+import { resolvePlaceContext } from '../_shared/together-place.ts';
 import {acceptMediaOffer} from '../_shared/together-media-offer-acceptance.ts';
 import { createMediaOffer } from '../_shared/together-media-offers.ts';
 import { authenticated, enforceRateLimit } from '../_shared/context.ts';
@@ -44,7 +47,12 @@ serve(async (request, correlationId) => {
   if (input.action === 'start') {
     if (!['unlocked','upcoming','deferred'].includes(session.status)) throw new AppError('CONFLICT', 'This date is not ready to begin.', 409);
     const now = new Date().toISOString();
-    const { data, error } = await db.from('together_date_sessions').update({ status: 'active', current_phase: 'arrival', phase_index: 0, started_at: now, updated_at: now }).eq('id', session.id).select('*,together_date_templates(*)').single();
+    let travelReservation:Record<string,unknown>={};
+    if(session.together_date_templates.world_id===CALDERS_WORLD_ID){
+      const place=await resolvePlaceContext({db,userId:user.id,locationId:session.together_date_templates.location_id});
+      travelReservation=await validateCalderOuting({db,userId:user.id,characterInstanceId:session.character_instance_id,locationId:place.location.id,startsAt:new Date(now),endsAt:new Date(Date.now()+90*60_000),timezone:place.clock.timezone,excludeDateId:session.id,immediate:true});
+    }
+    const { data, error } = await db.from('together_date_sessions').update({ status: 'active', current_phase: 'arrival', phase_index: 0, started_at: now, state:{...(session.state??{}),...travelReservation}, updated_at: now }).eq('id', session.id).select('*,together_date_templates(*)').single();
     if (error) throw new AppError('INTERNAL_ERROR', 'Could not begin the date.', 500, true);
     await track(db, user.id, 'date_started', { dateSessionId: session.id });
     return json({ data, correlationId }, 200, correlationId);

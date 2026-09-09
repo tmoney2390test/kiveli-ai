@@ -1,3 +1,5 @@
+import { validateCalderOuting } from './kivelle-calders-schedule.ts';
+import { CALDERS_WORLD_ID } from './kivelle-world-progress.ts';
 import { AppError } from './types.ts';
 import { experienceClock, safeTimezone } from './kivelle-time.ts';
 import { track } from './together.ts';
@@ -78,7 +80,7 @@ export async function createSharedPlan(db:any, input:CreatePlanInput) {
   const groupPlan=roster.participantInstanceIds.length>1;
   const participantLabel=roster.participantNames.length?joinPlanNames(roster.participantNames):'their companions';
   const effectiveDurationMinutes=Math.max(1,Math.ceil((end.getTime()-start.getTime())/60000));
-  const metadata={requestId:input.requestId,durationMinutes:effectiveDurationMinutes,significance:resolved.significance,completionSummary:groupPlan?`User and ${participantLabel} spent time together for ${resolved.title}.`:`User and their companion spent time together for ${resolved.title}.`,locationSlug:resolved.location.slug,immediate:input.immediate===true,participantInstanceIds:roster.participantInstanceIds,...(availability.shortenedForClosingTime?{requestedDurationMinutes:resolved.durationMinutes,shortenedForClosingTime:true,locationClosesAt:availability.closesAt}:{}),...(groupPlan?{groupPlan:true,groupConversationId:roster.groupConversationId,groupTitle:roster.groupTitle,participantNames:roster.participantNames}:{}),...(input.replacementPlanId?{replacesPlanId:input.replacementPlanId,switchState:'staged'}:{})};
+  const metadata={...availability.travelReservation,requestId:input.requestId,durationMinutes:effectiveDurationMinutes,significance:resolved.significance,completionSummary:groupPlan?`User and ${participantLabel} spent time together for ${resolved.title}.`:`User and their companion spent time together for ${resolved.title}.`,locationSlug:resolved.location.slug,immediate:input.immediate===true,participantInstanceIds:roster.participantInstanceIds,...(availability.shortenedForClosingTime?{requestedDurationMinutes:resolved.durationMinutes,shortenedForClosingTime:true,locationClosesAt:availability.closesAt}:{}),...(groupPlan?{groupPlan:true,groupConversationId:roster.groupConversationId,groupTitle:roster.groupTitle,participantNames:roster.participantNames}:{}),...(input.replacementPlanId?{replacesPlanId:input.replacementPlanId,switchState:'staged'}:{})};
   // Send every required commitment field explicitly. PostgREST can materialize
   // omitted JSON properties as NULL rather than applying the SQL default, which
   // would reject an otherwise valid plan after the commitment migrations added
@@ -227,7 +229,8 @@ async function validateAvailability(db:any,input:{userId:string;characterInstanc
   // the companions whose lives are currently active.
   const busy=input.immediate?undefined:(schedules??[]).find((item:any)=>Number(item.day_of_week)===clock.weekday&&item.availability==='busy'&&clock.minuteOfDay<Number(item.end_minute)&&endClock.minuteOfDay>Number(item.start_minute));
   if(busy)throw new AppError('COMPANION_BUSY',`Your companion is busy with ${busy.activity} until ${minuteLabel(Number(busy.end_minute))}. Try ${minuteLabel(Number(busy.end_minute)+30)} or ${minuteLabel(Number(busy.end_minute)+60)}.`,409,true);
-  return{worldTimezone:safeTimezone(place.world.timezone),userTimezone:timezone,end,shortenedForClosingTime,closesAt};
+  const travelReservation=String(input.location.world_id)===CALDERS_WORLD_ID?await validateCalderOuting({db,userId:input.userId,characterInstanceId:input.characterInstanceId,locationId:input.location.id,startsAt:input.start,endsAt:end,timezone,excludePlanId:input.excludePlanId,immediate:input.immediate}):{};
+  return{worldTimezone:safeTimezone(place.world.timezone),userTimezone:timezone,end,shortenedForClosingTime,closesAt,travelReservation};
 }
 
 async function validateAdditionalPlanParticipants(db:any,input:{userId:string;continuityId:string;plan:any;location:any;activityKey:string;start:Date;end:Date;excludePlanId?:string}){

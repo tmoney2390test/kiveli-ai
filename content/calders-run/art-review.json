@@ -1,0 +1,1373 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "key": "home:adelaide-whitcomb",
+      "file": "apps/together/assets/homes/calders-run/adelaide-whitcomb.jpg",
+      "sha256": "1e95a3a3ab37f0e4682a28b7c778884e7541102085d4e0d5cd2bc6c259cd2118",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:08.783Z",
+      "sourcePngSha256": "ea9006ac6dda2473c81c659b7b5c76ce1bc76bf4fd74e3be8fa57891013a5e0e",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:agnes-reed",
+      "file": "apps/together/assets/homes/calders-run/agnes-reed.jpg",
+      "sha256": "fd607ead6cc33039eead4a2ea16bce18bc689460cd3877ef6337904f44e2c296",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:25:14.809Z",
+      "sourcePngSha256": "11898533b83c8229a48b1021f1cbb976d03fbf5f7f7370c3a3e5bc2ec8715023",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:alma-baptiste",
+      "file": "apps/together/assets/homes/calders-run/alma-baptiste.jpg",
+      "sha256": "10e3e271b85cdd57b6bd5309081c50a6e44dce7940297d914eafe19b60790079",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:09.013Z",
+      "sourcePngSha256": "89a10b8fc10b18ec381a503d6c7ae5664d414f3c152ecbccb82bf6b290b01aea",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:august-renn",
+      "file": "apps/together/assets/homes/calders-run/august-renn.jpg",
+      "sha256": "7052eeaa81fd351adb26ee11c62bec15ef6c6080e30cff96eba217e2e6a7cd53",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:36:56.915Z",
+      "sourcePngSha256": "2fe8df89a67ba1500bf9f51b33d7852d3005e98deb4c0a57ed94fb30be7e14a8",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:beatrice-bell",
+      "file": "apps/together/assets/homes/calders-run/beatrice-bell.jpg",
+      "sha256": "65c970f3baab0284fa266a576f798b5b1c36b35801e7ce9dc0aaa48bebaaaaab",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:25:14.666Z",
+      "sourcePngSha256": "3e3af3195c57767cdcca835631e4b865328dd897ffcb40063a81cc5e6d51d70e",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:benjamin-ben-crowell",
+      "file": "apps/together/assets/homes/calders-run/benjamin-ben-crowell.jpg",
+      "sha256": "fdf94bc8853269a223696b3486e5d9d0e595f0b95a4c98afd259f2a7324a0b77",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:36:56.849Z",
+      "sourcePngSha256": "e877590c9e80fc1525dfad5eefed9886ec5e8b987c580c6940c61ada3e9f54a0",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:bess-kincaid",
+      "file": "apps/together/assets/homes/calders-run/bess-kincaid.jpg",
+      "sha256": "9972c3e6d26d91feb07e81dac5f81cac7a5b5e02c257b38ec81f1c4f50ee5db2",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:36:57.172Z",
+      "sourcePngSha256": "28035ff6826929b119bdaa712ef04130a29057b8925d6a340a82d3e877911338",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:caleb-pike",
+      "file": "apps/together/assets/homes/calders-run/caleb-pike.jpg",
+      "sha256": "5c4a06541efbce493c5018f83a4445aa54ac41794d6781e9876923b170dab106",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:36:56.444Z",
+      "sourcePngSha256": "bfbd6ee3c2000c6ea3452cbeba4cd8c0ce800b4f77f6b09482b138685ce4a745",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:clara-chen",
+      "file": "apps/together/assets/homes/calders-run/clara-chen.jpg",
+      "sha256": "004820ead6a60ce9abb9b25d8489e0624bca3d2e7908a9b423a878e853349779",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:25:14.880Z",
+      "sourcePngSha256": "ad450fa67e2c4a5fec3701830cf9284fc6a32b667d052c6af4d8089bacd9a710",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:cole-hensley",
+      "file": "apps/together/assets/homes/calders-run/cole-hensley.jpg",
+      "sha256": "00246f702340c06a3b59ff769ca59c5f04cb52e7221e668bf2d6a826ad74d109",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:36:57.041Z",
+      "sourcePngSha256": "fe22da175af4a1e3fc4647ca525495e5e5683c2c9a5d04fbb37d8a3fe89f8f4c",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:cora-dunleavy",
+      "file": "apps/together/assets/homes/calders-run/cora-dunleavy.jpg",
+      "sha256": "a186159219a58ce3b1c61d3a837f5c958c98ce149bc1d4fe5556579da27cc6b3",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:09.087Z",
+      "sourcePngSha256": "437f308aa26a5579afceced0dea41fc83f402afdc929d770a2202585146dab31",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:daisy-cartwright",
+      "file": "apps/together/assets/homes/calders-run/daisy-cartwright.jpg",
+      "sha256": "95b9e41630e352f4127e974b6042e7003ac839259442c340ee7e45b87d171448",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:25:15.217Z",
+      "sourcePngSha256": "439d1654d5a78b9e9d45c4341a310bac137804c7b7623adadcb41ad2c1c6c6fe",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:daniel-chen",
+      "file": "apps/together/assets/homes/calders-run/daniel-chen.jpg",
+      "sha256": "6d9237fe9014cea8c81ca72528b81b76f8a9a0452345066b63e53bdc98a74b9e",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:31:24.585Z",
+      "sourcePngSha256": "21b7a354d51eb13c506d427eec320a4a4c0d3e0ad4b396823059d41a669e6c2c",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:dr-lucia-salcedo",
+      "file": "apps/together/assets/homes/calders-run/dr-lucia-salcedo.jpg",
+      "sha256": "2caba51661bf71f5a6e5f08006249a35fbd7de6d5c392c08a64f09b394da2c7b",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:08.482Z",
+      "sourcePngSha256": "68481d2ab4bda470faa916c4c8863c61e245156024f5aeceb6aa831a3c47202d",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:edith-kovac",
+      "file": "apps/together/assets/homes/calders-run/edith-kovac.jpg",
+      "sha256": "60d9ea49e77d6852076b2d03f88fce9dc672bc301f12b5fdedb332d90d62f187",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:09.164Z",
+      "sourcePngSha256": "7c7328536cfd1d56da24cb57e10ad489b4141c74faeb8958e80c80eb4552fefc",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:eliza-morrow",
+      "file": "apps/together/assets/homes/calders-run/eliza-morrow.jpg",
+      "sha256": "6d921bef9080958506d2a0bed685858bde2c17ffc4241fe261a1115f6485ae01",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:25:15.082Z",
+      "sourcePngSha256": "b2f40bf418bfc00316abcd135d842103d57140e3de69c2c2098887e4594ea192",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:esther-wynn",
+      "file": "apps/together/assets/homes/calders-run/esther-wynn.jpg",
+      "sha256": "215b441d56b9e7038e0ad22ccb5791b7f70a6a4ebd35c09729d6619f169f749b",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:25:14.946Z",
+      "sourcePngSha256": "870e766700e22e0a9c4e97727b31386b55b3a4d8db20225782b287fb85a43998",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:evelyn-eve-mercer",
+      "file": "apps/together/assets/homes/calders-run/evelyn-eve-mercer.jpg",
+      "sha256": "b433fc92fcd4b809fc0ba3f98f673e66a79d0e2b1a9cf87699bf5cea342ef152",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:31:24.375Z",
+      "sourcePngSha256": "653abcb8c4b9b808c0b4c1c68bf0c3ce5d8d998944be6a79abc138b08dcf53f7",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:felix-avery",
+      "file": "apps/together/assets/homes/calders-run/felix-avery.jpg",
+      "sha256": "b80db1d87e2d1076cf358e3b4f71f0886d8bfd2803cedbf06d177b552dc9bc20",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:31:24.723Z",
+      "sourcePngSha256": "c55e74766770d431011d96c2400e09956fc8467667ef69e21855829e40a9276a",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:florence-flora-vale",
+      "file": "apps/together/assets/homes/calders-run/florence-flora-vale.jpg",
+      "sha256": "eabdf88d186edcc6bfe3661d22e70d875a8f454d8b6051865cb126c5f3e11216",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:31:23.964Z",
+      "sourcePngSha256": "7743ffb5a3ec756437abe1f1f56894acafefd20490f064711e8c06ce39225587",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:gabriel-soto",
+      "file": "apps/together/assets/homes/calders-run/gabriel-soto.jpg",
+      "sha256": "e103658a4b00e11e20f0252df6b3bd6ba02a91ce1a34f1ee7b845d5f9dbdc2ac",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:31:24.516Z",
+      "sourcePngSha256": "92364de496a41df85add755e533b4ddd2a66699097a38ddbff19b0a17c15bdf6",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:hazel-whitcomb",
+      "file": "apps/together/assets/homes/calders-run/hazel-whitcomb.jpg",
+      "sha256": "a30cf97901087f69abf00f58dd426915ba15622ae3d01a0112b2f566b67b3dcc",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:25:15.015Z",
+      "sourcePngSha256": "8a8cc9ce90e33637f62752846fe8b76383434e1109c71a7702c444aee74d4640",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:ines-salcedo",
+      "file": "apps/together/assets/homes/calders-run/ines-salcedo.jpg",
+      "sha256": "ef03d4ecf2953038c3335cb4e2ea888cd5f95cd966436feacb1f54ee1118e44d",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:25:14.599Z",
+      "sourcePngSha256": "12e6c392eb8b12636720eacd68a3777619712c9be79e70953a44c7974c32edb9",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:iris-keene",
+      "file": "apps/together/assets/homes/calders-run/iris-keene.jpg",
+      "sha256": "ca77a2333f8a366fae11a119c657217c0a3f5b5f528db2a8c1fd05124347a0b4",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:08.640Z",
+      "sourcePngSha256": "7ea675fa7fba41150b7e5d08596c3e4c0e52aff877ce3dbd42028d2fea4afe46",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:isaac-booker",
+      "file": "apps/together/assets/homes/calders-run/isaac-booker.jpg",
+      "sha256": "b4bc3642bc931c575738aa715f868fd18488f3d59397207cbb9132541a9179c2",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:36:56.784Z",
+      "sourcePngSha256": "88001bc6568a1319ff01cc75d9e882dd639da8d4d12a4a8bb393e9cfdab6b832",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:june-dempsey",
+      "file": "apps/together/assets/homes/calders-run/june-dempsey.jpg",
+      "sha256": "a5ef881d3f7a9e6ce5072921375f889b2ffa56a34d3d43f98fde8378ab9c7630",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:08.855Z",
+      "sourcePngSha256": "e7b65a3b6af3025da0bc522c2151b25a17f898812595cc95dcc648fa727fe170",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:kit-calloway",
+      "file": "apps/together/assets/homes/calders-run/kit-calloway.jpg",
+      "sha256": "fc7d221e5fc7aeffd0d6fae758048c234058949ad5905a06f5a46fe7873152c5",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:31:24.291Z",
+      "sourcePngSha256": "ec937c4c26744bc1541d9affb1070ce975f724884079b59301e0f0ab71c9ad2e",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:lena-velarde",
+      "file": "apps/together/assets/homes/calders-run/lena-velarde.jpg",
+      "sha256": "e839b74fdbf53f980884a5bfc1d06bf63564510aa5ea480dde3c19d457fc130d",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:25:15.149Z",
+      "sourcePngSha256": "7b355dba89d79efe9f1e14db7c45dd962cf2ada4245a3ff8c4b9ac630d696356",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:lottie-fenwick",
+      "file": "apps/together/assets/homes/calders-run/lottie-fenwick.jpg",
+      "sha256": "43a6abed65aa4be417849a5382a5d3f87273f26adf8275cadb570565426d7dca",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:25:14.452Z",
+      "sourcePngSha256": "5871181aa5bc780ac45bee9f2b19c7ab3c7cb72265b169ef976c319197d35758",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:mabel-arnett",
+      "file": "apps/together/assets/homes/calders-run/mabel-arnett.jpg",
+      "sha256": "2746a984844d51c8ac6726646ee93cf25d09f774528dfba0e80db49efb2bb0a3",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:08.930Z",
+      "sourcePngSha256": "c23afa706e45275834cfafa2fb4e4486ee9148b367b3dff74c934dddd3ecc8ad",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:marisol-duarte",
+      "file": "apps/together/assets/homes/calders-run/marisol-duarte.jpg",
+      "sha256": "d94bb87f19e9da2decd79f1f9b3a39d7f3f39ed8327627a6cd1f362b3af714f4",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:31:24.212Z",
+      "sourcePngSha256": "cabcf9f6febe5f1257f76de2b85a17731cbdd1ea3faa514a1f59fe65089c1313",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:marshal-elias-reddick",
+      "file": "apps/together/assets/homes/calders-run/marshal-elias-reddick.jpg",
+      "sha256": "482ada56d35e4c09b903944827ed54fb1d731ef97898626dc3fd15afea6109f5",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:31:24.445Z",
+      "sourcePngSha256": "ae58b2bda19e734932c6e336e5544aeeb3d84f7a8eef73a652a6b864b637cbb9",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:mateo-varela",
+      "file": "apps/together/assets/homes/calders-run/mateo-varela.jpg",
+      "sha256": "9080a37152b2b9a1c1ae10887ecfd78805b7223b7241bbba1a6d13d5a063a03f",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:36:56.716Z",
+      "sourcePngSha256": "37551b6e0325de9029c914ac35b45e6622da23127ed0ddfefb93586412288440",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:nathaniel-nate-brooks",
+      "file": "apps/together/assets/homes/calders-run/nathaniel-nate-brooks.jpg",
+      "sha256": "a35d0158751b6dab965b3f4b35a1b30c3f100b0197cff17bf9c4703c9f5679c3",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:36:56.513Z",
+      "sourcePngSha256": "8e2e4cfbad1c231f80eeb57e3e464188306bea9bb35579f6343c7126dd9431ce",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:nell-hewitt",
+      "file": "apps/together/assets/homes/calders-run/nell-hewitt.jpg",
+      "sha256": "9c320735f1f8baf280fd736fee1494614a76de8a5f5fb30a76998564b6933043",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:25:14.738Z",
+      "sourcePngSha256": "eba397081922930887b2e9cd4bb65d010c45bf050062d79c0f14ba0330363f28",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:pearl-merritt",
+      "file": "apps/together/assets/homes/calders-run/pearl-merritt.jpg",
+      "sha256": "8c58ab64c312e0ce8df2a691b4436977cd3a18652865c65c00ad7a4ee62ad10e",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:09.240Z",
+      "sourcePngSha256": "14316d55a6ad89769d40833e3fc0287c2ec43d7cca360b7f1ccdc7d2cfa2dd2b",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:rafael-ortiz",
+      "file": "apps/together/assets/homes/calders-run/rafael-ortiz.jpg",
+      "sha256": "5b0c9629be6bd03a9c8b81ee43d113f64a7af92be022410b3f2d8c35ce9d830f",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:36:56.979Z",
+      "sourcePngSha256": "a126114fa904f79c3edc5304b2e949f57aed2308a499e5dd4a411ca994fd1c02",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:reverend-jonah-bell",
+      "file": "apps/together/assets/homes/calders-run/reverend-jonah-bell.jpg",
+      "sha256": "5bd746f9f934ca2e151f49ff68c296320b9d4ce9f15bb31fa5efbd78fde5b0ed",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:31:24.792Z",
+      "sourcePngSha256": "59ac90df151d0f3b7d8844804146de432a6a244dc1b3e128c806101080b7313a",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:rosalie-quinn",
+      "file": "apps/together/assets/homes/calders-run/rosalie-quinn.jpg",
+      "sha256": "56e5d2f1b4cba22e6fa3202346158ac66a12558f0d77890d5d11f3e6b7fd3e1b",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:08.712Z",
+      "sourcePngSha256": "651620862b602698d73243bb40549beed64e994d9499ef24bbf6025c5663b149",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:ruth-freeman",
+      "file": "apps/together/assets/homes/calders-run/ruth-freeman.jpg",
+      "sha256": "0a6a3f84d28f30ce269bc57874420622de11981970d901b9689ef86a0f1f75f3",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:25:14.526Z",
+      "sourcePngSha256": "6bdc44417307901ecf5b36c2b2ff8391f60d7808168c67afbda87b891148e3e8",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:sabine-roche",
+      "file": "apps/together/assets/homes/calders-run/sabine-roche.jpg",
+      "sha256": "c32d7745698461c9801d6da2eab34cb3e118303b34e078aca49a4080c1e32fe0",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:36:57.241Z",
+      "sourcePngSha256": "02907c3cf1dcf9db3e42ea1a91c482369e8f6d2af15034ddcc37f16aebcca8a1",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:sadie-rusk",
+      "file": "apps/together/assets/homes/calders-run/sadie-rusk.jpg",
+      "sha256": "475402292885b01c7e331b83f893a46575edb993c68ca2166de9d1635ec93f19",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:31:24.137Z",
+      "sourcePngSha256": "fe69b95b60e18b7f15c61098427602919e1994f8f11376fbea6db99a02443385",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:samuel-pike",
+      "file": "apps/together/assets/homes/calders-run/samuel-pike.jpg",
+      "sha256": "b49dd8c3f670828bedb5d97ac66d593284e80bb94045f288ab39684438938eb2",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:31:24.654Z",
+      "sourcePngSha256": "b5455ca0c6b87ab1293d2cf780405e0d145a5ac07de7ec4ddaf75aeb572c33bb",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:silas-quade",
+      "file": "apps/together/assets/homes/calders-run/silas-quade.jpg",
+      "sha256": "b4248864a4cdc9fe9d0cc68267d820418bcb01fd9898c8481903d194ced152d6",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:36:57.106Z",
+      "sourcePngSha256": "eca46af71e5db9248bd26340194ede237b08f9df8b23c0f152da5dd5633764ab",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:tess-corbett",
+      "file": "apps/together/assets/homes/calders-run/tess-corbett.jpg",
+      "sha256": "9487d48a37349b2a137597b143bb6704698eced0e536a3b5d09e18b2b04988ca",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:08.556Z",
+      "sourcePngSha256": "0ed8093d65e59f5b23ce8c91ada73888199b9076e28b0b3435d25f2c08e1f862",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:thomas-tom-archer",
+      "file": "apps/together/assets/homes/calders-run/thomas-tom-archer.jpg",
+      "sha256": "b45a58bfef4e77f17f8ca2d8bf09be624f50a4969a857260ff21c3e288c3dbeb",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:36:56.579Z",
+      "sourcePngSha256": "dd561daa4e6335dab91dfd1bf29cb1e5d750d412057bf69999585d33845ce06d",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:vera-sutter",
+      "file": "apps/together/assets/homes/calders-run/vera-sutter.jpg",
+      "sha256": "a6423b806cee137b03de1aecec3dc060f8d49a7be5b7e9c2075774c380197ca2",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:31:24.055Z",
+      "sourcePngSha256": "83f963dc5533216a1f340d97faa6cdca2a67128491ab3681369b06c168b7a5ac",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:victor-halden",
+      "file": "apps/together/assets/homes/calders-run/victor-halden.jpg",
+      "sha256": "bad64685bd775346388e884f71b8fa10ebfb1e31830be85539f9504deec3ba2c",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:36:56.647Z",
+      "sourcePngSha256": "9af8dec0643953d66ac6dad723db6db11d06a8488abbd94e878acda121c7de1e",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "home:virginia-gin-maddox",
+      "file": "apps/together/assets/homes/calders-run/virginia-gin-maddox.jpg",
+      "sha256": "c0d3839a5f1955273e3617e2036d40c65726f974cc3a05cb1931dbf7bd538ee0",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:08.405Z",
+      "sourcePngSha256": "6b6ad90128a90e6068ffbd557a9e67602f9e20c93337847ee15184ecb4ccef03",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:argosy-cardroom",
+      "file": "apps/together/assets/locations/calders-run/argosy-cardroom.jpg",
+      "sha256": "b968017b362266ca06c126126571f587316ac502b9a38cce50569201a1d9bc8b",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T21:39:21.311Z",
+      "sourcePngSha256": "6c3ca8d0d2ed06c9ae1488b8de32398d4591ae35504d5b5bd1232660d56440e8",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:assay-office",
+      "file": "apps/together/assets/locations/calders-run/assay-office.jpg",
+      "sha256": "b60809227788d3d2d9815ea7e736e5db46a39a85c1016d8c396ce9ca944d98b0",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:07.751Z",
+      "sourcePngSha256": "d42e91363d3f156a76422f6e94b89ba30609ed3aeb81e4801c74f76f08066946",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:bellflower-theater",
+      "file": "apps/together/assets/locations/calders-run/bellflower-theater.jpg",
+      "sha256": "787803415fc82ac59cc50a2df0182adaa1c6e1a18aef1b1ff6abfce598c71f42",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:35:13.750Z",
+      "sourcePngSha256": "31682d2fb276ef450c1333df0795dd6bcf3a5a660146400d53a96041158d43c1",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:blue-glass-baths",
+      "file": "apps/together/assets/locations/calders-run/blue-glass-baths.jpg",
+      "sha256": "3b0a86c731f6cccd6e3b15b56ce6fa2df736f96ffee6883681f3c3150c2e8549",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T21:39:21.249Z",
+      "sourcePngSha256": "cba755b5808a7cb9749094638aef15e75c394de7c4ec8d1bb222a9af911f96ee",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:boatmens-boardinghouse",
+      "file": "apps/together/assets/locations/calders-run/boatmens-boardinghouse.jpg",
+      "sha256": "72287701c49be6524863860ae1d9d91b86f0c4152fe90528fef847b9c86382cd",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T21:39:21.632Z",
+      "sourcePngSha256": "25c2bbe113a0d97c6f4fc3eaf43104d6da3ef6f9a400d536578434f7dc6fc8a0",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:bridge-works",
+      "file": "apps/together/assets/locations/calders-run/bridge-works.jpg",
+      "sha256": "81c0b0822a00f6800a69b17bee63b4bfd8d7260b265aa60586f35149d4d2e434",
+      "bridgeVisible": true,
+      "reviewedAt": "2026-09-09T16:19:06.685Z",
+      "sourcePngSha256": "ffbe8ede7fc91e5d962b6acbbbac4a4057f61bdea4a492190f1ccbee5d186678",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:calder-house-hotel",
+      "file": "apps/together/assets/locations/calders-run/calder-house-hotel.jpg",
+      "sha256": "41ed9b0429daa3b38075c8ba6d6e09d991a1c0f39d533efa86ebebe7aaa69693",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:32:54.500Z",
+      "sourcePngSha256": "90e5d53033465ee423572c1db448db335cfc77103b27562c15f81d9f0c66503e",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:calder-portrait-studio",
+      "file": "apps/together/assets/locations/calders-run/calder-portrait-studio.jpg",
+      "sha256": "022d66f4f1e6adfdbcc41e9adad844533dcbd075cba22a404e75a2fbdf26b807",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:06.865Z",
+      "sourcePngSha256": "f6d66640e72e339f3713a1875041e7d24f8b0159b13732b08ceb937c61b7ced2",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:canyon-rest-cemetery",
+      "file": "apps/together/assets/locations/calders-run/canyon-rest-cemetery.jpg",
+      "sha256": "dfcf0cdbbb5b990ae5084fe56c48d18e895b82042775bad3a843757cdf4b6d26",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:08.094Z",
+      "sourcePngSha256": "ba91515f38edb0477e75c77504599935a28b5783e5d5a926ff71bbfdcdde43ea",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:cattle-sale-yard",
+      "file": "apps/together/assets/locations/calders-run/cattle-sale-yard.jpg",
+      "sha256": "37466a2969899d7dbdd08aff41e1aa7cc96ba8e648e6fe3bf0f552e21bbbe84d",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:07.564Z",
+      "sourcePngSha256": "aef03faf7b4407574d3e4e9ba154367a382badd86a9eb20baead2fbd14c20bb7",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:cinder-bluffs",
+      "file": "apps/together/assets/locations/calders-run/cinder-bluffs.jpg",
+      "sha256": "1698a70abe4202a2c81f2a32b5f0ddf7612acdb7e5e659a8abc4bd45d1fba56a",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:32:54.442Z",
+      "sourcePngSha256": "500e777fd6aaa1336aa8b9d6ecf181813c6f655a3f1b87303388990958a9278e",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:copper-mare-saloon",
+      "file": "apps/together/assets/locations/calders-run/copper-mare-saloon.jpg",
+      "sha256": "205570f89bb43f091035f6d214aad34bb271e22ed2e9e2459da64110ce2b7ddc",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:35:13.640Z",
+      "sourcePngSha256": "c14dcf42b872e72bf2dfde40b9908c7e4be13e4ef88fb11a5ebacde33cde56a3",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:cottonwood-dispensary",
+      "file": "apps/together/assets/locations/calders-run/cottonwood-dispensary.jpg",
+      "sha256": "8b8cfdf3d7b619025796fc9d66ad1b85df4eed87dad4be56f3915bc12ea98854",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T21:39:21.883Z",
+      "sourcePngSha256": "da80161ffd759e08016f53bf8ca9dfdff1d9eee52218e4cc6033d58c7b5d341f",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:cottonwood-swimming-bend",
+      "file": "apps/together/assets/locations/calders-run/cottonwood-swimming-bend.jpg",
+      "sha256": "ca50a621984a82e960408e7ae75ff13e78a57be8ff4067089fb12488399aa740",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:07.217Z",
+      "sourcePngSha256": "a0da0154c0108f0b931879158088297b646c11fbf372844bfbed77a943b5fc8d",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:cottonwood-valley",
+      "file": "apps/together/assets/locations/calders-run/cottonwood-valley.jpg",
+      "sha256": "e694f49436ba2c3a312631d553b79d2875109931987da9ce21dc60a8bb670315",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:32:54.386Z",
+      "sourcePngSha256": "582f1b7b7cd77f2e7f6dc34e79479d79f90f4baf6baebc99964a5a99da5796e7",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:county-courthouse",
+      "file": "apps/together/assets/locations/calders-run/county-courthouse.jpg",
+      "sha256": "3a458ae7c2ce372780b56293fad0d8faff712ab12178ffd15b7ce8ba4f935779",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:32:54.615Z",
+      "sourcePngSha256": "eb462087a01f916ebb7c05fb2fad43fcffd027fe8547867b093fa0420b6b849f",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:crowcut-hollow",
+      "file": "apps/together/assets/locations/calders-run/crowcut-hollow.jpg",
+      "sha256": "54f7734cc13cbbdb8f5cc7a4f215a9ccfa1ebb79ba565069533bd80c204688c1",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:08.328Z",
+      "sourcePngSha256": "b0a24623a156eba21e3516b372e31fa783f4ce76757611233305f517554e44dd",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:crown-and-cotton",
+      "file": "apps/together/assets/locations/calders-run/crown-and-cotton.jpg",
+      "sha256": "4d52aa852a8871a4efc252ab0662d7e9a1a6b367b50c4c3db47396311dc3d458",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:32:54.729Z",
+      "sourcePngSha256": "8697622cce82f4d87b74a4b22103d37561a383eae4562d684f8f330a0bacdcf0",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:dempsey-livery",
+      "file": "apps/together/assets/locations/calders-run/dempsey-livery.jpg",
+      "sha256": "9bd53507d878f10ae143d4d9af79ba3ed4c3ec7f252a37372aa0965e71f5f00e",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:32:54.672Z",
+      "sourcePngSha256": "83af6e4f04bad5757ab6f7038685271fa59b1c08fbbe168586dff93c8c273542",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:eastbank-provisioners",
+      "file": "apps/together/assets/locations/calders-run/eastbank-provisioners.jpg",
+      "sha256": "c1a77b51ce4b3763aae658c48dbe3f73a6ed09334da021339d21902306075144",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:06.958Z",
+      "sourcePngSha256": "1c00030f6ce961173895416d411e8767f64107f38531ea08a8f3cfe177b3d2cf",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:hearthstone-bakery",
+      "file": "apps/together/assets/locations/calders-run/hearthstone-bakery.jpg",
+      "sha256": "0162102097a182a014a44a94f176ec4b9749c854dfb7a829d08092dbaa8d0150",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:32:54.785Z",
+      "sourcePngSha256": "676b923c0ce5abaf439859fb958188b2026ac6f1bd7efacdce67f5c07ed785de",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:irrigation-meeting-house",
+      "file": "apps/together/assets/locations/calders-run/irrigation-meeting-house.jpg",
+      "sha256": "11f7a96e15363c6b921c51e69fbf1323a9d146862aadf1c9bf0f20871de9e3cf",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:07.304Z",
+      "sourcePngSha256": "28c9251223827964e34d479d0f9932015050ce56249d23c871fd4e34a5e2f22d",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:junebug-dance-hall",
+      "file": "apps/together/assets/locations/calders-run/junebug-dance-hall.jpg",
+      "sha256": "885350855ff0ead86dc3a8f303ecaa6b42e1cea99e111dc764bc4120ad22e38b",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T21:39:21.183Z",
+      "sourcePngSha256": "aa92fe1c25764bfd1d1889be10c5596e73bfa58868da3e7d9a6a4b5bcca38b87",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:keenes-print-shop",
+      "file": "apps/together/assets/locations/calders-run/keenes-print-shop.jpg",
+      "sha256": "b042eaba42bca7c210e45a0ca1e8415f40e129b8345e0a4b2151f8bd4adf36f9",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:32:54.559Z",
+      "sourcePngSha256": "9a1f0ea617a02c3860ac49f5cae0795add38373b32b2892903cec58665298655",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:lantern-row",
+      "file": "apps/together/assets/locations/calders-run/lantern-row.jpg",
+      "sha256": "05281b04b71dfd602e674801e0aad444d02312b94b7bd96bcdbad5e190829438",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:32:54.221Z",
+      "sourcePngSha256": "8261cfacf6b2119c9c64ad1deb8396a9cb8870bc1e350e42ea67781954ecc1f7",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:main-street",
+      "file": "apps/together/assets/locations/calders-run/main-street.jpg",
+      "sha256": "436c2408dc20cbd0066ce6f7a649125718b1eec09c015e1cc1c3cb1d5e4e9f3b",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:32:54.165Z",
+      "sourcePngSha256": "36101eb46561184e600a9483ad0eccc098c915da7557e30f45dfe13a07370c18",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:marigold-house",
+      "file": "apps/together/assets/locations/calders-run/marigold-house.jpg",
+      "sha256": "855578aa009580e005abce7223a9a07005cf01f5785297a5278272d42279daa4",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:35:13.695Z",
+      "sourcePngSha256": "88631d4ce661d734fa686718501e9dbb884638b09f7cd09f0f579d42988a8d1c",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:marshals-office",
+      "file": "apps/together/assets/locations/calders-run/marshals-office.jpg",
+      "sha256": "24bb5d79ac2f31b909caec15c3aa8f763984666a90de4f9edf36252cdfcfefa3",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:35:13.530Z",
+      "sourcePngSha256": "c25795e6af619e007c4b91d97bb091c4649be307bc0f0fbca8335b881e5aec67",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:mule-camp-trading-post",
+      "file": "apps/together/assets/locations/calders-run/mule-camp-trading-post.jpg",
+      "sha256": "9c70eb5155e888ef3240c3bb42383401097ced61dc2b94afeda682687ef8c19e",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:07.924Z",
+      "sourcePngSha256": "8295fc775e3c55473822b06c46a1977ca79b06ef584377d95e5b61abee4e28f2",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:night-kitchen",
+      "file": "apps/together/assets/locations/calders-run/night-kitchen.jpg",
+      "sha256": "3009225e84698a65a646598b7775c3f1a2ccd4cd74eae220ba20b552ba81076e",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:35:13.807Z",
+      "sourcePngSha256": "d3431c44bc591ba8e7c925b497984bc00fa319cc5a3693af886ee237c18bc04f",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:old-calder-relay",
+      "file": "apps/together/assets/locations/calders-run/old-calder-relay.jpg",
+      "sha256": "393e8535a07e885b1af0f0aedc86a881180d9630542a37152e1094bc061475c3",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:08.168Z",
+      "sourcePngSha256": "8f3269d5c679f6f5bd468d21a2645e8351d1da6f4ace210eaa1a9e401f31d07f",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:orchard-glasshouse",
+      "file": "apps/together/assets/locations/calders-run/orchard-glasshouse.jpg",
+      "sha256": "d4f1db4a1dd9fae269a5386706ed2827b8453bab95ae9b57fb515ed620830d0a",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:07.478Z",
+      "sourcePngSha256": "291c7b0ce651b46f8a25a2f8a9d1c728ebc5b903fcc734f7ed2160c5eb1633b0",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:orchard-schoolhouse",
+      "file": "apps/together/assets/locations/calders-run/orchard-schoolhouse.jpg",
+      "sha256": "0200ef79658b585dd915c5c81364d852c40797bdbf806e87d55f990166825ee3",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:07.127Z",
+      "sourcePngSha256": "caea72d1061c384852054d13861a2890fe6c622e3086be90fe36115451c60f4d",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:pike-boatworks",
+      "file": "apps/together/assets/locations/calders-run/pike-boatworks.jpg",
+      "sha256": "c531e8d03abb7388255ea2a886b912509f09c08b6e98d56265507ab846460916",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T21:39:21.821Z",
+      "sourcePngSha256": "512ae937883ac0dae17ad8edc31bf0ce33d611222c85783a7c100c2695477383",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:pikes-ferry",
+      "file": "apps/together/assets/locations/calders-run/pikes-ferry.jpg",
+      "sha256": "4f1d82b86d822f2b037082493f2a5f2749c8f339dfc5cee80a61ed890ee22bd6",
+      "bridgeVisible": true,
+      "reviewedAt": "2026-09-08T21:39:21.443Z",
+      "sourcePngSha256": "089b1a78f1a5936fd821b0488a17f78ca6b6075153a5a44003f92b625dada1f6",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:public-washhouse",
+      "file": "apps/together/assets/locations/calders-run/public-washhouse.jpg",
+      "sha256": "037ea78b55d222249b0a81f8eaf9c7ca5e627df511c5c6c7ddca0ba035c0c528",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T21:39:21.570Z",
+      "sourcePngSha256": "2a86d8015eafce47547ede42aa840389897ab211f521061d3a95505f22fdfc4d",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:railroad-freight-office",
+      "file": "apps/together/assets/locations/calders-run/railroad-freight-office.jpg",
+      "sha256": "afb9a5e920a30d1c1e0b31be716ea93b3bb45bd0a00b67d4067024a43a08da3d",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:06.778Z",
+      "sourcePngSha256": "cf1f3a6ad1818d3c07fa660dabe5c8af958029e5b98cdcf109c73ad31fdcd34e",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:red-sash-brothel",
+      "file": "apps/together/assets/locations/calders-run/red-sash-brothel.jpg",
+      "sha256": "06e6b2340c872156c2b23b8591d650a2acb9a35b5752131d8c957121988ac0d0",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:08.249Z",
+      "sourcePngSha256": "3a385c56d3fe778209a7133a57e2b5780fdb1a3439dc6df805d98ff5b59d7651",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:red-wells-prospect",
+      "file": "apps/together/assets/locations/calders-run/red-wells-prospect.jpg",
+      "sha256": "4c333aa439b040dba01408b88016ff876e6f718fb56b573ba8aab9a3de97fe9d",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:08.001Z",
+      "sourcePngSha256": "face75df3ab8fa0d6937edfda2dcc44e16c18cf486c7b9589639ef085ffd0794",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:ribbon-room",
+      "file": "apps/together/assets/locations/calders-run/ribbon-room.jpg",
+      "sha256": "92d30c64a9237a5e17a83d3d9f0b7c7e0298630bf65c6f1562faf7b0a1390979",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T21:39:21.378Z",
+      "sourcePngSha256": "a33afbf9899e98088e7de48b7f368eaefb5039acfd7c47ea2cd5d4931e120307",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:river-market",
+      "file": "apps/together/assets/locations/calders-run/river-market.jpg",
+      "sha256": "74c749daec9dd5a5c6c23cc0debb0df9ac38da70f6692658fac689a3ec2f0d7d",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T21:39:21.697Z",
+      "sourcePngSha256": "a48bf95e2ded134ab255f2107827cf049f120fa2af278424f837cd62ece2bba1",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:river-ward",
+      "file": "apps/together/assets/locations/calders-run/river-ward.jpg",
+      "sha256": "1816c4a22422a13b4b209b30adba5de9954718ef508c333dd42c371957182834",
+      "bridgeVisible": true,
+      "reviewedAt": "2026-09-08T17:32:54.278Z",
+      "sourcePngSha256": "4b7cfac1a4abc4d202dd995533c5dfa91d49f104c495bcf12ca67a06d7904a5f",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:riverside-chapel",
+      "file": "apps/together/assets/locations/calders-run/riverside-chapel.jpg",
+      "sha256": "ff59b294dca62632f1514e4da6d7208ea2b86d12796b68e691fa373234748c9c",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T21:39:21.759Z",
+      "sourcePngSha256": "40b2aa99877f1f7f0d91b745d4b377b1fd25798cafd276dc2d890393a30949f9",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:saint-agnes-mine",
+      "file": "apps/together/assets/locations/calders-run/saint-agnes-mine.jpg",
+      "sha256": "218cf7932069635fa90c329fb5df61ab4b6c873b8cb6f7d69ece3c471abc43f1",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:07.655Z",
+      "sourcePngSha256": "d4b167855b5e61606837632a8f41d2ac0ffd13e610f92b4a518894ec06c19c5c",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:salcedo-clinic",
+      "file": "apps/together/assets/locations/calders-run/salcedo-clinic.jpg",
+      "sha256": "3b3cca7b949da1b750187133d98540170671126fb62de2df58ae08d2fbcc41ca",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T21:39:21.507Z",
+      "sourcePngSha256": "4625869874da21697dc29dda850875573f61e245552b814082351c810c49a697",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:soto-forge",
+      "file": "apps/together/assets/locations/calders-run/soto-forge.jpg",
+      "sha256": "e7b9f946382459bea1d9dcd5281ddf97c5510eb4aed5bee4b6f4ee6444c6b9c5",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:35:13.586Z",
+      "sourcePngSha256": "a4bceb7704691ed18ba0a2b0af186917ca8fd526af9a38da0d5e2fdc7ff84323",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:survey-camp",
+      "file": "apps/together/assets/locations/calders-run/survey-camp.jpg",
+      "sha256": "607eba6b602faabf320967a4a2de0f8b0d703ff66c9d7d5111b1b6b309d02b48",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:06.592Z",
+      "sourcePngSha256": "d97a5751e6276deb5bd48aa954a8749bdd6a4ff59a83b1b0d8b5e8aefa48e514",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:telegraph-office",
+      "file": "apps/together/assets/locations/calders-run/telegraph-office.jpg",
+      "sha256": "b2bda0cc7d845e94f6165b5545cd0abb5c7dc037736b37a5f0e6391cdc7c42e7",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:06.498Z",
+      "sourcePngSha256": "671e53e7a1ec66dafb7c80a8f35ba791b4f5d156693af944a34e2e38e600b4e1",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:temporary-passenger-depot",
+      "file": "apps/together/assets/locations/calders-run/temporary-passenger-depot.jpg",
+      "sha256": "301275e7c019f91d3cc8c1a695aad0b0841fa77cde66018110b1c9dfe7513b95",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:06.408Z",
+      "sourcePngSha256": "2167fbe676786d588c7f11f6655e4ea778e12176e8ec7f45ac8f3a58e57359e2",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:the-railhead",
+      "file": "apps/together/assets/locations/calders-run/the-railhead.jpg",
+      "sha256": "bd3617d32ac218106e5b6e5c61c6d6ecd31569d03ecb87d66126adff183fd4fe",
+      "bridgeVisible": true,
+      "reviewedAt": "2026-09-08T17:32:54.331Z",
+      "sourcePngSha256": "33ebb1672feaf6b514f9d0db183295472f493b8dba87637e363f79b30675a289",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:valley-creamery",
+      "file": "apps/together/assets/locations/calders-run/valley-creamery.jpg",
+      "sha256": "206805d8e54d0866e958940499f2acaf2fa22b290a8fdc97c1d405f1f5a1bf0a",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:07.390Z",
+      "sourcePngSha256": "1a908bf5ea56f08a893cbeef2c41dd32945ac5fdc95294f2a33822a309d5302f",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:whitcomb-ranch",
+      "file": "apps/together/assets/locations/calders-run/whitcomb-ranch.jpg",
+      "sha256": "f1f59c593b4fb1ba07c5d55fe737c956207b5fc4384c957209d84bfb6f80063d",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:07.042Z",
+      "sourcePngSha256": "d9e1a97feee1d4dce408f2264114eacc67a7934f46c292824e98af4bf9480429",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "location:widows-cut-coach-station",
+      "file": "apps/together/assets/locations/calders-run/widows-cut-coach-station.jpg",
+      "sha256": "7432358bda547966cacf05b5a92e6c74f4b5787602540f5151199542e362f44e",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-09T16:19:07.838Z",
+      "sourcePngSha256": "1ea4200d1677803106604c6ebcd5cfc3e789b582370d41d302cf4a7744d97806",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:adelaide-whitcomb",
+      "file": "apps/together/assets/characters/calders-run/adelaide-whitcomb.jpg",
+      "sha256": "66bd235eefff08fef082faa80bd7d02a8763f7975d6e32e2740e7bc1fda0fae1",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:27.692Z",
+      "sourcePngSha256": "ed9d64f801dd823ec8a36397d2145c27a05b55027cf57ccb9fabbd86f816cb61",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:agnes-reed",
+      "file": "apps/together/assets/characters/calders-run/agnes-reed.jpg",
+      "sha256": "ed8ab5a67f94f6c278a53d4b6866886a2ce7cab0eefd6fc156324b80f28fff83",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.365Z",
+      "sourcePngSha256": "08523ccc256f8bf6e2a0216d3ce38db2c4d8092d3e28511b94ebd78d6e3e0f0a",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:alma-baptiste",
+      "file": "apps/together/assets/characters/calders-run/alma-baptiste.jpg",
+      "sha256": "5f7d720b2be971d2d250cf190e8c19cfaaa14b59f1a6302320c8e5d1f6fc9f6c",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:27.855Z",
+      "sourcePngSha256": "3c7c31ff3475a8efcd1da7a3d36e21ad653d14990167b073109cd65e6f820ae5",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:august-renn",
+      "file": "apps/together/assets/characters/calders-run/august-renn.jpg",
+      "sha256": "3393e109dec4e0b38381b0655feec470c4c4e992e69bbaaf471db3d7e3de77f3",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:29.693Z",
+      "sourcePngSha256": "1c9036c931d23e15f0e0a8e0b124ffa44c789730f9c239a454f976eb6d674178",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:beatrice-bell",
+      "file": "apps/together/assets/characters/calders-run/beatrice-bell.jpg",
+      "sha256": "4b51f34e47978be6d204a0cd00f588e1071613029eac1ccbfd703c8278cae9f5",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.255Z",
+      "sourcePngSha256": "05c4cf06fac7b859dce7385278053b7f2f233cef6dea4b6f94f2718591b1820b",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:benjamin-ben-crowell",
+      "file": "apps/together/assets/characters/calders-run/benjamin-ben-crowell.jpg",
+      "sha256": "dccd9a8ee1a815f8a340e8a5aaec64f857507a7a5f6ceaaa2d8e3450d92bba87",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:29.638Z",
+      "sourcePngSha256": "5be89c0528ea66817358824e0515d960292f02ade8d9753f4b4443bf8b7c8098",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:bess-kincaid",
+      "file": "apps/together/assets/characters/calders-run/bess-kincaid.jpg",
+      "sha256": "157acaee552838223aa9b482350dbfb8b4a268855e15706a26c35c4eb08e2c04",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:29.934Z",
+      "sourcePngSha256": "c9b2ca3f92f8c5afcc796680502f9efbfa4a7dc0bcb2dab37fcd51a158ab897c",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:caleb-pike",
+      "file": "apps/together/assets/characters/calders-run/caleb-pike.jpg",
+      "sha256": "1a6964fed58e50cd9b0c14da2b427fa897d78f2d0cf7d4f6b99562d4dd3e0664",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:29.288Z",
+      "sourcePngSha256": "9244e06cc9eff4109237b35c475fa87fb784cb0b57a2bc3870136baf5bbd696f",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:clara-chen",
+      "file": "apps/together/assets/characters/calders-run/clara-chen.jpg",
+      "sha256": "b2c6c0d52b94884404b76656c4264a66f1c685d49f5cb2762f1df537d6d496a9",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.423Z",
+      "sourcePngSha256": "63574c395a29c0948815dfe1a08db63e52f6e0039a40f79a06f2553186db5a1e",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:cole-hensley",
+      "file": "apps/together/assets/characters/calders-run/cole-hensley.jpg",
+      "sha256": "09b78d2c455f4fc1a8bc43f92ce131d94bd68ceaf50738df89b64f78ef9b514e",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:29.813Z",
+      "sourcePngSha256": "04cc660e113164729d9592e98aabdd6b346ec67b62ec98015b8e51c14a623441",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:cora-dunleavy",
+      "file": "apps/together/assets/characters/calders-run/cora-dunleavy.jpg",
+      "sha256": "ccd136ac500946e4890fd0404429006352c751f40aed70fc3def090346199b0e",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:27.912Z",
+      "sourcePngSha256": "a77fda5240349bd321cdb55c06591d80af3c640ee0dde213b8509eeb81ab72b1",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:daisy-cartwright",
+      "file": "apps/together/assets/characters/calders-run/daisy-cartwright.jpg",
+      "sha256": "892ab01d10f9abd137e2307d870f10222e3c54e6a2df1739bbc4e460f81f75bf",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.655Z",
+      "sourcePngSha256": "955257ba2e93c6babc64537c6a094e853c95d26ac6742f15e75b67d36eff03c8",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:daniel-chen",
+      "file": "apps/together/assets/characters/calders-run/daniel-chen.jpg",
+      "sha256": "ea5b0fc059d884ab969f8ffecc169b068377df1a57c06ad4d595fdce1383fa0c",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:29.054Z",
+      "sourcePngSha256": "b9c9b35edc78ab0e8d913431c4f8e7613c3d670be6849b280e8cc41956ebf29d",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:dr-lucia-salcedo",
+      "file": "apps/together/assets/characters/calders-run/dr-lucia-salcedo.jpg",
+      "sha256": "07048798f8e9545c767fe3b93d35dc453e8e938aa9d52b415ebca3390d8eda04",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:27.451Z",
+      "sourcePngSha256": "a657d70409a44487dd9f080970fe5deee13da2bc8077190414521b850a0e99c6",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:edith-kovac",
+      "file": "apps/together/assets/characters/calders-run/edith-kovac.jpg",
+      "sha256": "3b8f3454b4b52b41e36ebe08135c3854cb9ae011c9591c6bcdaddbde0c32d985",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:27.976Z",
+      "sourcePngSha256": "ed2db56bb34f791e1e225a6900f33dcac89587a10de7871604b13367f95ea33a",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:eliza-morrow",
+      "file": "apps/together/assets/characters/calders-run/eliza-morrow.jpg",
+      "sha256": "2906d5d6d52a08070fd0bc9a8cdd8a577ab8d0f2ec336067f1ade46c751a467a",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:35:13.362Z",
+      "sourcePngSha256": "f896528de67b78370baf442a0d9523d7adf274cd3f2084a839c9b8920c1ab750",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:esther-wynn",
+      "file": "apps/together/assets/characters/calders-run/esther-wynn.jpg",
+      "sha256": "a9b70eaea1ff0e22166867afc57255c04b390b89b4887bc38856f85369de8c73",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.483Z",
+      "sourcePngSha256": "6e4122aa459c1a138fca3e35d8e5dfca72a849c20437f268a023e44602564bf2",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:evelyn-eve-mercer",
+      "file": "apps/together/assets/characters/calders-run/evelyn-eve-mercer.jpg",
+      "sha256": "f653688a784ab9d8a087327ddecd81045464015b7a4b6514f07fcdfd1bc8ce07",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.885Z",
+      "sourcePngSha256": "2c5ed496a33b7e036c5db25deb008acf7a2128fdadb53e4a4e9e3b0e721f8341",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:felix-avery",
+      "file": "apps/together/assets/characters/calders-run/felix-avery.jpg",
+      "sha256": "8e67785e413f594d7fcd85e4f50bd66fe9af0e79d7d7d8bd3960447a1ce706bc",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:29.172Z",
+      "sourcePngSha256": "9cde197b51327d37225c88850e4a9daa2f6845f18bfe4758a927d0593f2a951d",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:florence-flora-vale",
+      "file": "apps/together/assets/characters/calders-run/florence-flora-vale.jpg",
+      "sha256": "b3a8463577108c2cc24b37fda0b33d5a3620890d0f8d19cfee17f480ab37c8e0",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.714Z",
+      "sourcePngSha256": "650a1dc161ae6fd823dac6b6620501daded38c96f7429ae3a2ab1c936cb98ac3",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:gabriel-soto",
+      "file": "apps/together/assets/characters/calders-run/gabriel-soto.jpg",
+      "sha256": "a705765a766dfdb8e790fd210c856e51e4a0b8a71ecc50e7af1540e9f0fb3cab",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.997Z",
+      "sourcePngSha256": "f48c7324d9dc9b71fabe8c03fc8d5c862f2370f79bb0d1a9e8459e2f3bdbbc27",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:hazel-whitcomb",
+      "file": "apps/together/assets/characters/calders-run/hazel-whitcomb.jpg",
+      "sha256": "1c5550c6ea32373b42109c12d2da52560f75d77e7fb71f000794113b2ca81564",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.538Z",
+      "sourcePngSha256": "09f944f9a63a1056e79bc5b3cbf308de7cb8af0b964db927bfc3473fce51202f",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:ines-salcedo",
+      "file": "apps/together/assets/characters/calders-run/ines-salcedo.jpg",
+      "sha256": "559bc4b8efbe7e9c8271a74f97c82228e1ba00a7ec1479d83651bc96bbe2384e",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.198Z",
+      "sourcePngSha256": "efad583fd84057dc0c2f67e920cd49182cede23da16ede6c34d3db69047980f4",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:iris-keene",
+      "file": "apps/together/assets/characters/calders-run/iris-keene.jpg",
+      "sha256": "cf62a5bd0b9650fea762e3f88acbbc80018c23d05ffe8eee3a8905884edb926f",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:27.571Z",
+      "sourcePngSha256": "c37fe072e76819759dfa08828339fa926db6847bc500eab164d73efe17447edd",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:isaac-booker",
+      "file": "apps/together/assets/characters/calders-run/isaac-booker.jpg",
+      "sha256": "65026231fc23d4496b7eb699d404ef63e131feae61d7daab1076e50050c720c7",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:29.579Z",
+      "sourcePngSha256": "00f19b6089cc201fe8daf37a0ec47caadfe1ce1866e5b811cc4410914374c759",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:june-dempsey",
+      "file": "apps/together/assets/characters/calders-run/june-dempsey.jpg",
+      "sha256": "eba80b89c8d3d8104823af3075e681088d4cf68ba1f18c4934049583b22b0b8b",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:27.746Z",
+      "sourcePngSha256": "576e7639797d8ce5f8b239561b95d356798b7a33f2b5d8119eeeaba8409f13b2",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:kit-calloway",
+      "file": "apps/together/assets/characters/calders-run/kit-calloway.jpg",
+      "sha256": "8aa139d807fa3ceba7113e8a5f0592447c4c7d25859a7c1b1a96b358a6e5c213",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.828Z",
+      "sourcePngSha256": "3f80accccd18c91a39750b1c6d8729e3e7109334e37b78cb4835b313b2c18f8a",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:lena-velarde",
+      "file": "apps/together/assets/characters/calders-run/lena-velarde.jpg",
+      "sha256": "5eff5201bf7b4d91bc0b4a60f87b4885b2f46088b1f25d56acd7c5b761c38bf9",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.598Z",
+      "sourcePngSha256": "139dec697c027d2bb4e148d61648ea6578a9c69552a3074202752119de3407ef",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:lottie-fenwick",
+      "file": "apps/together/assets/characters/calders-run/lottie-fenwick.jpg",
+      "sha256": "1b0fe8e9f02b1e9046dccda3333efc22ada861a9a3af9658e4c8fff6a2f73a2b",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.088Z",
+      "sourcePngSha256": "35befa953c1e9e99183d6c3c03e134affdd2fba9bc9a33dc8cc485598268f005",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:mabel-arnett",
+      "file": "apps/together/assets/characters/calders-run/mabel-arnett.jpg",
+      "sha256": "cba06464840f877f6749e91be84de9323110f4875c78ebcf9f57196e1cec573e",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:27.801Z",
+      "sourcePngSha256": "52603e7f3596e1cb0a106037d0e5d30003a6c23735d594a45259b21c854d0ad1",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:marisol-duarte",
+      "file": "apps/together/assets/characters/calders-run/marisol-duarte.jpg",
+      "sha256": "3cfd681ee0e755d0c9079242cf591275e41526065c8e0161b75cc2884ac76a60",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:35:13.472Z",
+      "sourcePngSha256": "12f305f90da15158f1c9e3abfaed337c47fe51bd4f7e4a934feb2c74dea5ecb9",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:marshal-elias-reddick",
+      "file": "apps/together/assets/characters/calders-run/marshal-elias-reddick.jpg",
+      "sha256": "084b88efbe186ff7512f451efff1f796a65a28a5e6b7fc1e806ec59be6448c7c",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.941Z",
+      "sourcePngSha256": "1b194fe12d97d490f7ecdc53e09ec482f9ff97ace8bfc35faf3d8f41dd7e42a8",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:mateo-varela",
+      "file": "apps/together/assets/characters/calders-run/mateo-varela.jpg",
+      "sha256": "61ba852c7179479b1a7eef44d1459bdc447d4c80e0f0b5a5420a7a752fb79108",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:29.523Z",
+      "sourcePngSha256": "46361c36aa1b72a549ded49bfa17743751236f0c4ed39295e42c2323837bc34f",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:nathaniel-nate-brooks",
+      "file": "apps/together/assets/characters/calders-run/nathaniel-nate-brooks.jpg",
+      "sha256": "b9b2d0185d20af0dd8c64a1868803923115721de08169a2842559dcd45942951",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:29.344Z",
+      "sourcePngSha256": "a95eb4d7f8a6841eacf52b3502ca79e61464657205e4a23cbb17951f6b63da93",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:nell-hewitt",
+      "file": "apps/together/assets/characters/calders-run/nell-hewitt.jpg",
+      "sha256": "5f27fbf768e7b92b12933aa351629d637b6f6940cc36e360adb4cfcb76564269",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.310Z",
+      "sourcePngSha256": "6badc33335ecd26151eac1b7f87a282768cd9ea370456ee26a83dbd99c387d51",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:pearl-merritt",
+      "file": "apps/together/assets/characters/calders-run/pearl-merritt.jpg",
+      "sha256": "1c0b4f78506ddd04aa3d5b568a32be0c5bb0c190b914d3f6d7caa8f34b2dc8f9",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.033Z",
+      "sourcePngSha256": "a667fcb8fb747e2a982a23bc9bcebd35bb66630961ed4ef373f79a9a9587a711",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:rafael-ortiz",
+      "file": "apps/together/assets/characters/calders-run/rafael-ortiz.jpg",
+      "sha256": "87a8f026d3a7e5a78d24645f43fddaca6a5d1c6384a176ede9b2f731e8ea87ca",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:29.753Z",
+      "sourcePngSha256": "24edfde57b05080fbcb48733e2a241d568756d724ecfae182afec8f1fff2bcc5",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:reverend-jonah-bell",
+      "file": "apps/together/assets/characters/calders-run/reverend-jonah-bell.jpg",
+      "sha256": "ae93aed5f102268cab1616b4096d976cd797349e0e95e42bc28fbee038631d88",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:29.229Z",
+      "sourcePngSha256": "2090d63062c0342f65d77074ce287f5e0729547014df83047d38c2ca2f0f2138",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:rosalie-quinn",
+      "file": "apps/together/assets/characters/calders-run/rosalie-quinn.jpg",
+      "sha256": "d8383fddee23ecd84b64e70ef1c7914aecc5881e4f3104f894e056c72b3eac81",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:27.634Z",
+      "sourcePngSha256": "7ec87ce51fe7c993ab7be4491d98e7afe5295a09a29d69b30cd86d0639653a02",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:ruth-freeman",
+      "file": "apps/together/assets/characters/calders-run/ruth-freeman.jpg",
+      "sha256": "95ae446b3448ce2f6a236199c4fc685edb1e452da9e4dec8a052412129bf1dd6",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.143Z",
+      "sourcePngSha256": "283e1b4c3d58564c81857f997a242281d50aba59b64b92f9a7d6686ec204d5b6",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:sabine-roche",
+      "file": "apps/together/assets/characters/calders-run/sabine-roche.jpg",
+      "sha256": "82ee22aeae489952c869fa50f9ef78f22e7db802c50d29a018cd96c9ce1c8654",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:29.990Z",
+      "sourcePngSha256": "f7cf7fb876fbd52b8274963fb55c453731d252a82f69f6501387aa0dc295ac12",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:sadie-rusk",
+      "file": "apps/together/assets/characters/calders-run/sadie-rusk.jpg",
+      "sha256": "901248e3b8870b6da65668b658a77bce329ac0b515049eac273a0f6a2f0933dd",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:35:13.418Z",
+      "sourcePngSha256": "92d521a43eaa6dcddbcd1ef13ee2201c3632c33d4d143239db4ca1b193a6c804",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:samuel-pike",
+      "file": "apps/together/assets/characters/calders-run/samuel-pike.jpg",
+      "sha256": "071675b11f8d78da9c98467b98ac2dd78be87bf54801d55e83a8370f13f7701d",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:29.113Z",
+      "sourcePngSha256": "d5e463a72633fcd9fed65bb4b4e054b9961ee616bd2a161f667f3484e43bdf6e",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:silas-quade",
+      "file": "apps/together/assets/characters/calders-run/silas-quade.jpg",
+      "sha256": "ad1a4aee2caff1541d5082deaaa679e0bca5e8bb41aceb84296295ac457bb025",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:29.876Z",
+      "sourcePngSha256": "c554bfaa5b16f44cc5b1f3e9b86f43718ccd632b48760e6e023dbed6d2c9fee2",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:tess-corbett",
+      "file": "apps/together/assets/characters/calders-run/tess-corbett.jpg",
+      "sha256": "cb03f4e13c905b1a61a2cb78a82a1c2da0d4480ed6692f021589132172f712b4",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:27.510Z",
+      "sourcePngSha256": "5768f3b30df0daeea84ca2947a193f0e38a76c853b37be86e166de201f0bc4c3",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:thomas-tom-archer",
+      "file": "apps/together/assets/characters/calders-run/thomas-tom-archer.jpg",
+      "sha256": "dc6bcd3eef98694d2a0ec1bc60536f168ffb82ad2f021c25c6ddbaa2221d39f3",
+      "bridgeVisible": true,
+      "reviewedAt": "2026-09-08T17:23:29.406Z",
+      "sourcePngSha256": "d775b7c20d87f44c9d490a7b5e78d35cbafbe3273a5d826da8b8ecffee0f3727",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:vera-sutter",
+      "file": "apps/together/assets/characters/calders-run/vera-sutter.jpg",
+      "sha256": "48edfa6ab33e53e101fe48c91a9aeb2a23e00745abffdea81516e4eba57679a2",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:28.773Z",
+      "sourcePngSha256": "2c9893b2b388402541bad1f33e0724bb12f7cbcb9f834072d222f5b6c40413ad",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:victor-halden",
+      "file": "apps/together/assets/characters/calders-run/victor-halden.jpg",
+      "sha256": "1ad5549ccb3dd8fa795ad6bcd5c3e082b4a99bc15df9706368a90a0679429e86",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:29.467Z",
+      "sourcePngSha256": "f8cfa5ffa0c567e9404148c473ad38e47be78da38f54b9630cf6ca8c95a770e4",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "portrait:virginia-gin-maddox",
+      "file": "apps/together/assets/characters/calders-run/virginia-gin-maddox.jpg",
+      "sha256": "0a4751f4d8cb55196fe344230dd29820a26a9f701511dc4b24b6d41851563c5f",
+      "bridgeVisible": false,
+      "reviewedAt": "2026-09-08T17:23:27.397Z",
+      "sourcePngSha256": "11e3e8bdd75a9b16d1301dda8c8eee8ca7e10a0bb29d0a418404d45d083e017f",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    },
+    {
+      "key": "world:calders-run-hero",
+      "file": "apps/together/assets/worlds/calders-run/calders-run-hero.jpg",
+      "sha256": "a944dbc05d598e76c3b3c2e7ce1edc23d804dad02fca79265b71718d8c2d3f75",
+      "bridgeVisible": true,
+      "reviewedAt": "2026-09-08T17:23:30.061Z",
+      "sourcePngSha256": "30dd9e672d87430f58bc13bee930cfbd53a7eb1b989ce3550e3c1a35645108ef",
+      "encoding": "JPEG quality 90, 4:4:4; original dimensions preserved"
+    }
+  ]
+}

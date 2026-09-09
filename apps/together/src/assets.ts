@@ -1,8 +1,10 @@
 import type { ImageSource } from 'expo-image';
 import { worldHeroAssets } from './world-assets';
 import { mappedLocationAsset } from './location-assets';
+import {caldersPortraits} from './calders-portraits';
 
 export const characterAssets:Record<string,number>={
+  ...caldersPortraits,
   maya:require('../assets/maya-portrait.jpg'),
   chloe:require('../assets/chloe-portrait.jpg'),
   alex:require('../assets/alex-portrait.jpg'),

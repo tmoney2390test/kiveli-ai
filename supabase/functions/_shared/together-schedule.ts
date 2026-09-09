@@ -1,3 +1,5 @@
+import { ensureCalderSchedule } from './kivelle-calders-schedule.ts';
+import { CALDERS_WORLD_ID } from './kivelle-world-progress.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { generateScheduleWindow, lifeEventEstablishesPresentReality, localToUtc, naturalizeCharacterActivity, naturalizeCharacterEventSummary, resolvePresence, type ActivityTemplate, type CharacterLifeProfile, type LifeLocation, type ScheduleBlock } from '../../../packages/together-domain/src/index.ts';
 import { resolveUserExperienceTimezone } from './kivelle-time.ts';
@@ -43,6 +45,7 @@ export async function ensureCharacterSchedule(input:{db:SupabaseClient;userId:st
   if(!worldId){const{data:presence}=await db.from('together_character_world_presence').select('world_id').eq('character_version_id',instance.character_version_id).neq('presence_type','unavailable').order('presence_type').limit(1).maybeSingle();worldId=presence?.world_id??null;}
   if(!worldId)return[];
   const timezone=await resolveUserExperienceTimezone(db,userId);
+  if(worldId===CALDERS_WORLD_ID&&instance.together_character_versions?.life_config?.source==='calders_run_authoring_v1')return ensureCalderSchedule({db,userId,instance,timezone,now,days});
   // Include the timezone in the materialization version so changing the
   // user's configured timezone automatically rebuilds future routines.
   const generationVersion=`${ENGINE_VERSION}:${timezone}`;

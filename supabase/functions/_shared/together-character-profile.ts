@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
+import { assertLocationAccess } from './kivelle-world-progress.ts';
+import { compactSnapshotSchedule } from './together.ts';
 
 type Row = Record<string, any>;
 
@@ -110,6 +112,10 @@ export async function loadCharacterProfileDetails(db: SupabaseClient, viewerUser
   if (templateError || !template || !characterTemplateVisibleToViewer(template, viewerUserId)) {
     throw new AppError('NOT_FOUND', 'That companion profile is unavailable.', 404);
   }
+  if(template.first_meeting?.location_id){
+    const {data:meeting}=await db.from('together_locations').select('id,world_id,access_metadata').eq('id',template.first_meeting.location_id).maybeSingle();
+    if(meeting)await assertLocationAccess(db,viewerUserId,meeting);
+  }
 
   const { data: version, error: versionError } = await db.from('together_character_versions').select('id')
     .eq('character_template_id', template.id).eq('version', template.current_published_version).maybeSingle();
@@ -129,7 +135,7 @@ export async function loadCharacterProfileDetails(db: SupabaseClient, viewerUser
       .eq('character_version_id', version.id).neq('presence_type', 'unavailable').eq('together_worlds.published', true).limit(1).maybeSingle();
     worldId = presence?.world_id ? String(presence.world_id) : null;
   }
-  if (!worldId) return { characterTemplateId: template.id, characterVersionId: version.id, worldId: null, schedules: schedules ?? [], connections: [] };
+  if (!worldId) return { characterTemplateId: template.id, characterVersionId: version.id, worldId: null, schedules: (schedules ?? []).map(compactSnapshotSchedule), connections: [] };
 
   const [outgoing, incoming] = await Promise.all([
     db.from('together_character_relationship_edges').select('world_id,source_template_id,target_template_id,relationship_type,affinity,trust,history')
@@ -149,7 +155,7 @@ export async function loadCharacterProfileDetails(db: SupabaseClient, viewerUser
     characterTemplateId: String(template.id),
     characterVersionId: String(version.id),
     worldId,
-    schedules: schedules ?? [],
+    schedules: (schedules ?? []).map(compactSnapshotSchedule),
     connections: projectPublicCharacterConnections({ sourceTemplateId: String(template.id), worldId, viewerUserId, edges, targets: targetsResult.data ?? [] }),
   };
 }
