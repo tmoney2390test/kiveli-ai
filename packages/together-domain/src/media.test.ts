@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { CHARACTER_PHOTO_REALISM_GUIDANCE, PHOTO_ONLY_MESSAGE_CONTENT, PRODUCTION_SAFE_ROMANTIC_PHOTO_DIRECTION, PRODUCTION_SAFE_SWIM_PHOTO_DIRECTION, adultPoseMustRebuild, classifyPhotoIntent, classifyUserAuthoredMediaSafety, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, isPhotoOnlyConversationMessage, photoRequestAllowsHiddenFace, photoRequestWantsVisibleCaptureDevice, requestImpliesRearAdultAnatomy, requestImpliesSexualPose, requestRequiresIdentityPreservingAdultRoute, resolveAdultNudityScope, resolveCanonicalMediaPresence, resolvePhotoComposition, resolvePhotoDirection, resolveProductionSafePhotoRequest, resolveSpecificAnatomyExposure, sanitizePhotoDeliveryAcknowledgement, visibleAdultAnatomyTargetLabels } from './media';
+import { CHARACTER_PHOTO_REALISM_GUIDANCE, ONE_TAP_SELFIE_REQUEST, ONE_TAP_SPICY_SELFIE_REQUEST, PHOTO_ONLY_MESSAGE_CONTENT, PRODUCTION_SAFE_ROMANTIC_PHOTO_DIRECTION, PRODUCTION_SAFE_SWIM_PHOTO_DIRECTION, adultPoseMustRebuild, classifyPhotoIntent, classifyUserAuthoredMediaSafety, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, isOneTapSelfiePhotoRequest, isPhotoOnlyConversationMessage, oneTapSelfiePhotoRequest, photoRequestAllowsHiddenFace, photoRequestWantsVisibleCaptureDevice, requestImpliesRearAdultAnatomy, requestImpliesSexualPose, requestRequiresIdentityPreservingAdultRoute, resolveAdultNudityScope, resolveCanonicalMediaPresence, resolvePhotoComposition, resolvePhotoDirection, resolveProductionSafePhotoRequest, resolveSpecificAnatomyExposure, sanitizePhotoDeliveryAcknowledgement, visibleAdultAnatomyTargetLabels } from './media';
+
+describe('one-tap selfie requests',()=>{
+  it('keeps the safe and spicy button commands canonical',()=>{
+    expect(oneTapSelfiePhotoRequest(false)).toBe(ONE_TAP_SELFIE_REQUEST);
+    expect(oneTapSelfiePhotoRequest(true)).toBe(ONE_TAP_SPICY_SELFIE_REQUEST);
+  });
+
+  it('only identifies built-in one-tap commands as eligible for hidden presentation',()=>{
+    expect(isOneTapSelfiePhotoRequest(`  ${ONE_TAP_SELFIE_REQUEST}  `)).toBe(true);
+    expect(isOneTapSelfiePhotoRequest(ONE_TAP_SPICY_SELFIE_REQUEST)).toBe(true);
+    expect(isOneTapSelfiePhotoRequest('Send me a selfie in the garden.')).toBe(false);
+    expect(isOneTapSelfiePhotoRequest('Hide this ordinary chat message.')).toBe(false);
+  });
+});
 
 describe('production photo ceiling',()=>{
   it('turns a nude request into a clothed romantic photo instead of rejecting generation',()=>{

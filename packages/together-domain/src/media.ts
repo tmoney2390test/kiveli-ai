@@ -12,6 +12,20 @@ export type MediaSceneBoundary={setting:'indoor'|'outdoor'|'mixed';instruction:s
 export type MediaPresenceState={locationId?:string|null;activity?:string|null;activityKey?:string|null;mood?:string|null;source?:string|null;resolvedAt?:string|null};
 export type ResolvedMediaPresence={locationId:string|null;activity:string;activityKey?:string;mood:string;source:string;resolvedAt?:string};
 
+export const ONE_TAP_SELFIE_REQUEST='Send me a selfie from where you are.';
+export const ONE_TAP_SPICY_SELFIE_REQUEST='Send me an explicit nude selfie from where you are, framed as either a close-up pose or a full-body pose.';
+export const ONE_TAP_SELFIE_MESSAGE_PRESENTATION='hidden_one_tap_selfie' as const;
+export type OneTapSelfieMessagePresentation=typeof ONE_TAP_SELFIE_MESSAGE_PRESENTATION;
+
+export function oneTapSelfiePhotoRequest(spicyUnlocked:boolean):string{
+  return spicyUnlocked?ONE_TAP_SPICY_SELFIE_REQUEST:ONE_TAP_SELFIE_REQUEST;
+}
+
+export function isOneTapSelfiePhotoRequest(value:string):boolean{
+  const normalized=value.normalize('NFKC').replace(/\s+/g,' ').trim();
+  return normalized===ONE_TAP_SELFIE_REQUEST||normalized===ONE_TAP_SPICY_SELFIE_REQUEST;
+}
+
 export type ProductionSafePhotoRequest={
   contentLevel:MediaLevel;
   requestText?:string;
