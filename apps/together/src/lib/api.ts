@@ -315,3 +315,5 @@ export async function sendSceneReaction(input:{conversationId:string;characterIn
     if(!final)throw new ApiError('The reaction was interrupted. Try again.','STREAM_INTERRUPTED',true);return{message:final};
   },{attempts:2,delayMs:220,onRetry:()=>onRetry?.()});
 }
+
+export const manageScenario = <T>(input:Record<string,unknown>) => invoke<T>('together-scenario',input);

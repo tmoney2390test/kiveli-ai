@@ -1,3 +1,4 @@
+import {activeScenarioContext} from './kivelle-scenarios.ts';
 import { chatSpeedEnabled } from './kivelle-chat-latency.ts';
 import { requestRead } from './request-context.ts';
 import { contextReservation } from './kivelle-context-pricing-state.ts';
@@ -40,6 +41,7 @@ import { mergePrivateCharacterPromptContext } from "./kivelle-character-private-
 
 type Row = Record<string, any>;
 export type TieredConversationContext = BaseContext & {
+  activeScenario?: Awaited<ReturnType<typeof activeScenarioContext>>;
   speakerPrivateContextOwnerId?: string;
   characterVoiceOwnerId?: string;
   sceneSpeakerDirective?: { characterInstanceId: string; name: string };
@@ -101,9 +103,10 @@ export async function buildTieredKivelleConversationContext(
   const reservation=contextReservation(input.db);
   const quote=reservation?.replies.find((reply)=>reply.speakerId===String(input.instance.id));
   if(quote?.paidExpansion)input={...input,contextInputCeiling:reservation!.ceiling};
-  const [subscription, base] = await Promise.all([
+  const [subscription, base, activeScenario] = await Promise.all([
     requestRead(input.db, ['dialogue-subscription', input.userId, Boolean(input.readOnly)], () => input.readOnly ? resolveSubscriptionAccess(input.db,input.userId,input.now,true) : resolveSubscriptionState(input.db, input.userId, input.now)),
     buildBaseContext({...input,memoryCandidateLimit:20}),
+    requestRead(input.db,['scenario-context',input.userId,input.conversation.id,input.instance.id],()=>activeScenarioContext(input.db,input.userId,String(input.conversation.id),String(input.instance.id))),
   ]);
   const caps = subscription.capabilities;
   const recentLimit=input.contextInputCeiling ? 2048 : caps.recentTurnBudget;
@@ -339,6 +342,7 @@ export async function buildTieredKivelleConversationContext(
     reasoningPreference: generationPreferences.reasoningPreference,
     context: {
       ...base,
+      activeScenario,
       commitments,
       character: effectiveCharacter,
       relationshipStance,
@@ -428,6 +432,7 @@ export async function buildTieredKivelleConversationContext(
   }
   return {
     ...base,
+    activeScenario,
     ...(input.contextInputCeiling?{contextInputCeiling:input.contextInputCeiling}:{}),
     conversationStyle,
     generationPreferences,

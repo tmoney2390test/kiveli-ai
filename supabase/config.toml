@@ -132,3 +132,6 @@ verify_jwt = false
 
 [functions.together-dialogue-quote]
 verify_jwt = false
+
+[functions.together-scenario]
+verify_jwt = false

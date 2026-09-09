@@ -1,0 +1,1574 @@
+[
+  {
+    "id": "jun-01",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/miranda-serrano.jpg",
+        "sha256": "854f1481b3e43a096f562aaba8d8cfe6e274f7c5e194701c624f964951fa97c1"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/skyline-rooftop.jpg",
+        "sha256": "73d0c04fdf98792d79d83f2d5d7eca441ab4836bb0b0d5a350c7c22565026363"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/jun-01.jpg",
+    "sha256": "151ff7777a18741ff2d43c8f964e478213615b188151de3f41a30118fef3e8d8",
+    "bytes": 333984,
+    "dimensions": [
+      1536,
+      1024
+    ]
+  },
+  {
+    "id": "jun-02",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/nia-brooks.jpg",
+        "sha256": "5b9b1a54e070852f9bc92416d82fce47964b613dca67a7a9544335474a327d30"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/juniper-civic-arena.jpg",
+        "sha256": "0bbe9a3c9f850c2265aefcef2e98e6c8972685037d116953ce2a1235579dda2c"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/jun-02.jpg",
+    "sha256": "f8cf6cc4b33b5b66d3b2b0f9ec5b202c18b486b6a16efcfdc5faec0cdb061abb",
+    "bytes": 214818,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "jun-03",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/sophie-laurent.jpg",
+        "sha256": "bcb60659d5c3963ac6374668b248aafc2acfd6a31cb8341116e86e3863ce0875"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/moss-and-crumb.jpg",
+        "sha256": "1b4353354b06462171acf53219bde48dbfdeba3221b87036bc63c14fa40f9dbe"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/jun-03.jpg",
+    "sha256": "17405c71ab07e11bca9473bede4e399a758cda5972551329da8b4ebc6c1b48d2",
+    "bytes": 251456,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "jun-04",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/priya-kapoor.jpg",
+        "sha256": "7b9ebbb205a6404a4235e6304e6348c0ed5f3af873a20dbf6ae27384879eaec3"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/jun-04.jpg",
+    "sha256": "e5a5b65c50a84b5710fe03e8dc6d0cf4553871566584d4cd98b182cba929928e",
+    "bytes": 185999,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "jun-05",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/amara-okafor.jpg",
+        "sha256": "98ff7c130c85558780ebb3673777083fa76593190394a76128f2eb739002d27e"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/jun-05.jpg",
+    "sha256": "ed1e2147472275afc6c8fa33adce0548096c9763c9f587eaa5dd25941701e669",
+    "bytes": 158279,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "jun-06",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/elena-markovic.jpg",
+        "sha256": "6370a65c54d7fc0c5941a2ae934020cab9bdf632ddcf37cc78f7ea758dd7acd1"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/marquee-cinema.jpg",
+        "sha256": "dc4c83ebddb4977681b54e2b74b02abd10ba9591958e0a9aad68097801e5d14a"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/jun-06.jpg",
+    "sha256": "5d9dbad8cf896bd9d443116521bc89de54cb655eb67e772bd031e0419fb7bbfd",
+    "bytes": 239371,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "jun-07",
+    "focus": "place",
+    "references": [
+      {
+        "path": "apps/together/assets/locations/juniper-city/riverwalk.jpg",
+        "sha256": "0076ca7ab229fc0ff406eb1605ad8f8d3824840cee8683abe07213aba77632f8"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/jun-07.jpg",
+    "sha256": "cfdfc1cb4f94a61ef036e92e4ba2ce899441aec7e4b6e71141f294416d210fa2",
+    "bytes": 339603,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "jun-08",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/darius-king.jpg",
+        "sha256": "a717ca02448035ac5dda6fa5b14bada419e5541cbbce64f24417b7f0c26239ba"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/jun-08.jpg",
+    "sha256": "6289337dbbd60705621928702f13ef439d0e396a984742af0067444eae509f8c",
+    "bytes": 168739,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "jun-09",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/mateo-alvarez.jpg",
+        "sha256": "b46becd6aeb5b04a97ff2d3b108870e212984ccee926ec2790d730c7c3b83be4"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/static-house.jpg",
+        "sha256": "e90f35d9e7a2fbe39236c1c8e26de780596224ede04429fd8d5c0808b740ee2d"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/jun-09.jpg",
+    "sha256": "1c937f8952b9339c0fb821733363880084d9418ec2295e45e61dd2515154a2b2",
+    "bytes": 219791,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "jun-10",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/kenji-sato.jpg",
+        "sha256": "7ecccce1b5f0341fef5a47766f3464b8de86fee9ff7df5d8c2a1624b490c95a9"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/juniper-cafe.jpg",
+        "sha256": "dc18ea8b900114b761ad8684b6c45aaa814d63469509aa2058f55d4f2f58e99e"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/jun-10.jpg",
+    "sha256": "df1b9ddfc533f37cfa0624ff123b3ec550fa48eefbc37d7a12ddd7558aee60be",
+    "bytes": 201301,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "por-01",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/port-vervelle/camille-laurent.jpg",
+        "sha256": "b026d090c17eb378d0e6eec06453f806b0a1a3afbbdb66d2e920c58443ae37ef"
+      },
+      {
+        "path": "apps/together/assets/locations/port-vervelle/porto-marina.jpg",
+        "sha256": "106bfa6f4dd89ba3881078f1f17a40e87fde60d972b03602a86c5f28fa0d24f2"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/por-01.jpg",
+    "sha256": "e1a1dab11b080026d2c07b788ed7909f3461e85d5e45813ea7804236a1374ccb",
+    "bytes": 230742,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "por-02",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/port-vervelle/isabella-conti.jpg",
+        "sha256": "fcc8311ba9752b16e3209ee192cd4226495a2e162253e52c4cdd543928d4b6c6"
+      },
+      {
+        "path": "apps/together/assets/locations/port-vervelle/libreria-vervelle.jpg",
+        "sha256": "286b945324e68f610ff15bddd669cf263c975e515a09303db03f425a4d9521b6"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/por-02.jpg",
+    "sha256": "1615351526dae003562f1a2cdf2d091fd0ad84846ae54d3328e87c058d00f292",
+    "bytes": 227112,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "por-03",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/port-vervelle/amelie-rousseau.jpg",
+        "sha256": "060ac09358ab9fb121b46d7bf4b4e34f755d371d7d5a53006dc2ecec8aacfb30"
+      },
+      {
+        "path": "apps/together/assets/locations/port-vervelle/atelier-amelie.jpg",
+        "sha256": "dd873744d48277465b2797b4fdc87cdb9fa81abefe706cc6b119ff8154029ea9"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/por-03.jpg",
+    "sha256": "d88374432980f4d7fb712277793306c5d4a41f811f270d34c90406e8623a49eb",
+    "bytes": 226725,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "por-04",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/port-vervelle/bianca-de-luca.jpg",
+        "sha256": "20f9d9570129fff276a309d31d248d2952cb5cafa3901af3126bfc75ea4ff262"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/por-04.jpg",
+    "sha256": "055f475d87175365ad78b8b18aae38de19c4c9eb36b59675203bf357554366bf",
+    "bytes": 200346,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "por-05",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/port-vervelle/sara-moretti.jpg",
+        "sha256": "1358a2ce12d142d529d0e9f6e8e6caa9a7843f99bb798cf5f840b9102b297d52"
+      },
+      {
+        "path": "apps/together/assets/locations/port-vervelle/officina-moretti.jpg",
+        "sha256": "9f696d73f0e109caada4259fdc983ff7ea196634d6b73815c50fd0c6718a81be"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/por-05.jpg",
+    "sha256": "7bba706ac01247024fbfbfd02db54faf44c67d3e817cf2c408e38f3e35648f63",
+    "bytes": 261242,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "por-06",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/port-vervelle/celine-haddad.jpg",
+        "sha256": "38f0697aa776f21a28b534b7335866d424b2a6d35d25a6e657c2370d9dcdbdeb"
+      },
+      {
+        "path": "apps/together/assets/locations/port-vervelle/domaine-vervelle.jpg",
+        "sha256": "6d0eb5dc485106ec4838914fb37ee6bcbfaac99da6c41d4618b795e8f6f91e60"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/por-06.jpg",
+    "sha256": "cd24fa9c95494fc36fdff9f8060541d9292e399b585405b8ac87b19de19d1ca6",
+    "bytes": 245607,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "por-07",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/port-vervelle/adriana-vega.jpg",
+        "sha256": "2fd151fa488468e2810077b9fe24bcb3d43dfd9ff7cb852846bc09227b6a2b2c"
+      },
+      {
+        "path": "apps/together/assets/locations/port-vervelle/hotel-celeste.jpg",
+        "sha256": "daffbe97fda4af1ac45b946e68c494d008018408483adf7acd58f23506df0401"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/por-07.jpg",
+    "sha256": "cac9f98bd5502f2cf3faf32b8b6d859da2dd0da2def97b53aca34abe5e9e5cf2",
+    "bytes": 206602,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "por-08",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/port-vervelle/matteo-bellandi.jpg",
+        "sha256": "491dcb9f2373fcb1c1523fecd3bd928e040e69f6ea3a2347fc96b7acc11144e0"
+      },
+      {
+        "path": "apps/together/assets/locations/port-vervelle/porto-marina.jpg",
+        "sha256": "106bfa6f4dd89ba3881078f1f17a40e87fde60d972b03602a86c5f28fa0d24f2"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/por-08.jpg",
+    "sha256": "853776c51f2cc4ee3094d45aff8c560bf3efc1179df1672d1ac936ff78fa576d",
+    "bytes": 267854,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "por-09",
+    "focus": "place",
+    "references": [
+      {
+        "path": "apps/together/assets/locations/port-vervelle/porto-marina.jpg",
+        "sha256": "106bfa6f4dd89ba3881078f1f17a40e87fde60d972b03602a86c5f28fa0d24f2"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/por-09.jpg",
+    "sha256": "04ad70ab24382df86233ce6e684ea09f6aee61ac6a8e093a1656d98206561d39",
+    "bytes": 348191,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "por-10",
+    "focus": "place",
+    "references": [
+      {
+        "path": "apps/together/assets/locations/port-vervelle/porto-vecchio.jpg",
+        "sha256": "6ecd5c412d2927c580cbb6515a1f7929401215f2f00062654d644b0fb022cee6"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/por-10.jpg",
+    "sha256": "7285d7f7342a5401c3ea267d192009932272fbd5190493d8721f34a56e68ef58",
+    "bytes": 345846,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "neo-01",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/neon-kyo/aya-mori.jpg",
+        "sha256": "f42b6ca29783fe92f73086672c544bf3401d97fd5e0f266e61d79a3343dd3214"
+      },
+      {
+        "path": "apps/together/assets/locations/neon-kyo/maison-vice.jpg",
+        "sha256": "aeb0f4def7faa87d88d7f70e790448ca8a82e5421dfcf38a57d49c6b88de207e"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/neo-01.jpg",
+    "sha256": "ed61450f953616fd8c88a1f6df1854a3c526ee09fa5f99f80f2fa575f745da74",
+    "bytes": 235699,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "neo-02",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/neon-kyo/rika-senzaki.jpg",
+        "sha256": "48e1ba42a905a1a6a3fe91bce99a6ab231abdcf5c99b6a15a0a20d79ac499c7d"
+      },
+      {
+        "path": "apps/together/assets/locations/neon-kyo/hikari-crossing.jpg",
+        "sha256": "dba88a679290729cb17162c5e3e26073288729ba3e467b134affc404085773ff"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/neo-02.jpg",
+    "sha256": "53d38c4ae5720d38245bf7849dfccdcb815dded48f911bf5568562ad69223ba5",
+    "bytes": 288532,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "neo-03",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/neon-kyo/noa-7.jpg",
+        "sha256": "dbeb89afa43ab1ccd51b0f1f311c5707c2d7d2af70a4819dc6742e35d5cc20f7"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/neo-03.jpg",
+    "sha256": "1e5fa91a7c1e8b3728aaada96564d499958ebd97055aac803b1c00684b9b07df",
+    "bytes": 213015,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "neo-04",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/neon-kyo/mina-seo.jpg",
+        "sha256": "6a781f82956ca2e487fd19cc44cc81c1a4a6075412d3477fb6feb313b50c8efe"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/neo-04.jpg",
+    "sha256": "f3c4db7e28e976cdedee87087ae1d86a1da246e6e293682947a82c58e03beac0",
+    "bytes": 193820,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "neo-05",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/neon-kyo/yuna-park.jpg",
+        "sha256": "be601ba64a7748e8d32be92845e4e9869815199b14bf0deadc4b3e3d64676a1d"
+      },
+      {
+        "path": "apps/together/assets/locations/neon-kyo/dollhouse-robotics.jpg",
+        "sha256": "ae318f4f1112fcf45fb6578b62cab1ee669b9e2b368ddb7f3f24d73cf08d956e"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/neo-05.jpg",
+    "sha256": "ab87126dcaae71eeea60a48dd7cfb18b9bcd15263921e45a3ee1a4c28e17dee5",
+    "bytes": 233465,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "neo-06",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/neon-kyo/rin-akiyama.jpg",
+        "sha256": "f721e121d46d878bb5c50ef7a62e3d2d254f3e55bcba7e5352394c7852eb4abc"
+      },
+      {
+        "path": "apps/together/assets/locations/neon-kyo/zeroday.jpg",
+        "sha256": "fa65f5b787fb85d3c1d8b85dfa8a21578b494dd6afe12d077373b3094702ba9a"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/neo-06.jpg",
+    "sha256": "e1d35bb5c7db1023d99f26f45ad3ae3e82f6f124fbd10df40195904fbe44da9e",
+    "bytes": 227350,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "neo-07",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/neon-kyo/mei-watanabe.jpg",
+        "sha256": "0da158b9e2708a028d72254b6dc98468aac630cb2d168ecf4cc70cb1ab80f151"
+      },
+      {
+        "path": "apps/together/assets/locations/neon-kyo/laundry-nine.jpg",
+        "sha256": "02bad9e2ec6646b582cd4d9611fa9d7e22548e2717c70a9529ba2d059d1368e0"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/neo-07.jpg",
+    "sha256": "e9a807da8d342a0253a9fb24ac3f585c8f7d6313679bb4d88f8192a1cafe3614",
+    "bytes": 228048,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "neo-08",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/neon-kyo/ren-ishikawa.jpg",
+        "sha256": "8415fbc3468823a64e6be9b36ed808402d757d8398cfaebc245b4b3e12d89b5d"
+      },
+      {
+        "path": "apps/together/assets/locations/neon-kyo/hikari-crossing.jpg",
+        "sha256": "dba88a679290729cb17162c5e3e26073288729ba3e467b134affc404085773ff"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/neo-08.jpg",
+    "sha256": "1732c9a4e153128acc7885be4616efdfc8d75a2e2a9f85fe5e4301a0130391c6",
+    "bytes": 245489,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "neo-09",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/neon-kyo/theo-laurent.jpg",
+        "sha256": "5a69b08ffffa8933785dc7c500ec3d7db675c180b294479301b5019132112948"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/neo-09.jpg",
+    "sha256": "14ac1955ef170f6b335440b19289edf5eae19d2848777320f41e6c25b36f1585",
+    "bytes": 201365,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "neo-10",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/neon-kyo/sol-9.jpg",
+        "sha256": "663e20319a0fb3e6536eb677c0b5d323e9e46aa681586a0d68d7fa2ae6ab1900"
+      },
+      {
+        "path": "apps/together/assets/locations/neon-kyo/nova-arena.jpg",
+        "sha256": "2972a5ad8feb97b9845ad69a3e798c05eaab3f3d9669537c55f5c5fdb24613de"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/neo-10.jpg",
+    "sha256": "57073adcc831b620529e91c10e2e3448bb0591ac7a8e3b7f0332233986d36be1",
+    "bytes": 235995,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "ves-01",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vespormoor/evelyn-harrow.jpg",
+        "sha256": "efd31bd46218996a0ea92c0aa86a7402bc197683b7d8768c9c757d21365ca99e"
+      },
+      {
+        "path": "apps/together/assets/locations/vespormoor/morrow-and-quill.jpg",
+        "sha256": "9b5580285d4f77941211fd4ed617967bcaf011aca8020e97f251a8928852c69b"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/ves-01.jpg",
+    "sha256": "fb6d0a8921f949f69a746ce69fd4da055d5f6170daef0949f2621f255b6df90a",
+    "bytes": 223671,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "ves-02",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vespormoor/mirelle-voss.jpg",
+        "sha256": "0ad7e41b9d62b71abd5c3b9d9b4b11bbcae29f24f77a57b10ad0fba88a86e215"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/ves-02.jpg",
+    "sha256": "d98ad68939b00004b491ed49c98d42e118f7bae6182a428e84ba16a81f3b7ebd",
+    "bytes": 186199,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "ves-03",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vespormoor/vivienne-blackwood.jpg",
+        "sha256": "a95752c2bea224b38b8e3c18ee456b1dfbb2291f8e1832eec7e5050847f5fd54"
+      },
+      {
+        "path": "apps/together/assets/locations/vespormoor/blackwood-estate.jpg",
+        "sha256": "a1afa11ea83d2fdd5ffedff58a48e15cf65ce76f945c8665c2b3ca00016430bb"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/ves-03.jpg",
+    "sha256": "730e6a99231ad1bc3aa5f5a4dd520841305ae5deba3f6614812a9d8b0eab6d1c",
+    "bytes": 192115,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "ves-04",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vespormoor/elara-vale.jpg",
+        "sha256": "7151111689ad247bf2c84137d21797378df8c339c0317ea74d96269d1fc8afe4"
+      },
+      {
+        "path": "apps/together/assets/locations/vespormoor/vale-house.jpg",
+        "sha256": "94f90b0c4cec62d30c4b929cc031c3422f64fd0d9c1b73550478e4492ffb79f6"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/ves-04.jpg",
+    "sha256": "13fbb594828623964399405222c33ec75b69fddd83ea8f4b037442a415162718",
+    "bytes": 193385,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "ves-05",
+    "focus": "place",
+    "references": [
+      {
+        "path": "apps/together/assets/locations/vespormoor/vesper-boatworks.jpg",
+        "sha256": "8db24c8957843a8234efdb0eabf74fdbbf5abcb1473da290d933c5e92835bae3"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/ves-05.jpg",
+    "sha256": "e1b2661caca3c49b6351ffe60fac264bc385883efbd078973dfd0820ea4547cc",
+    "bytes": 274126,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "ves-06",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vespormoor/seraphine-orison.jpg",
+        "sha256": "069e15d932f0e06e820fa1c3168aa8675d4f7d179be22b934387f1400ca5cfee"
+      },
+      {
+        "path": "apps/together/assets/locations/vespormoor/saint-orison-chapel.jpg",
+        "sha256": "d14f0ce22913e95c79d34d3541bbb9b0871bf32bc97ec31b7243bb33ac88c790"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/ves-06.jpg",
+    "sha256": "21fd597f546efbc81ff9c7ac8ec9708a255e9385d3164827b8cc1b435bf2d68d",
+    "bytes": 213295,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "ves-07",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vespormoor/dahlia-kane.jpg",
+        "sha256": "416286bebe3b98d5d6301d02b25930d41df85207dd7b7d4fb6571d006c78aff6"
+      },
+      {
+        "path": "apps/together/assets/locations/vespormoor/nocturne.jpg",
+        "sha256": "13cdb5957eb4dfd8dda53406be3a512bbf0e9e1f566f13af62d9e3454f9cc360"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/ves-07.jpg",
+    "sha256": "8dd5e924881a27680ca92fc94d8a4586efc4d6bb51a07eea6434f7fb8cb68fa5",
+    "bytes": 199641,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "ves-08",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vespormoor/adrian-bell.jpg",
+        "sha256": "07c21e73d37bfa481e0b043485b6bbf7cd9c7e95f0cb206325daee8a007534cb"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/ves-08.jpg",
+    "sha256": "f537a0d55065cd360bbf41bf76f8cc980d1a803b264200779853358475a4bac9",
+    "bytes": 193632,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "ves-09",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vespormoor/tomas-ferreira.jpg",
+        "sha256": "a8f44a037bfb7cc0f2612cf7e492b2352f31c5aa5835d891ea0e4e6d1b61855c"
+      },
+      {
+        "path": "apps/together/assets/locations/vespormoor/vesper-boatworks.jpg",
+        "sha256": "8db24c8957843a8234efdb0eabf74fdbbf5abcb1473da290d933c5e92835bae3"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/ves-09.jpg",
+    "sha256": "f592fbca7a8d1eae68f1c952998fed106830a0e3a393ff4fcd5a58d70b992a49",
+    "bytes": 248375,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "ves-10",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vespormoor/julian-ashcroft.jpg",
+        "sha256": "a0f5e60b7af6a84bd7645b47f24af5e75d3cdb89414e011a8609fc3f89624459"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/ves-10.jpg",
+    "sha256": "f061bee38729e21eb4324f0606fc77d8da47eb03bb254000270a37f232159e24",
+    "bytes": 159732,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "nor-01",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/northvale/mara-ellison.jpg",
+        "sha256": "66aa1409a383ff0fd28cd954246e9088bd9ca6ca2450383655511beb95e26acf"
+      },
+      {
+        "path": "apps/together/assets/locations/northvale/north-fork-coffee.jpg",
+        "sha256": "c7b7affcc1fca392af683014b29d3c57fb43692910868dce13556e4146fb98ed"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/nor-01.jpg",
+    "sha256": "812f88e25ca912d268c426f94fd46c1e3ad4d55d16b8bb8db164f6b9133a83b8",
+    "bytes": 220756,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "nor-02",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/northvale/celeste-park.jpg",
+        "sha256": "3e0cffdd3de8629b4095d519dfa18410fb10be5fbbd8425bd61c05f80fbcd099"
+      },
+      {
+        "path": "apps/together/assets/locations/northvale/northvale-lodge.jpg",
+        "sha256": "e76fee22ce93730a77bbd7c23115cafbbc6c0e1f870d42a2bb3152379ac8b1e8"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/nor-02.jpg",
+    "sha256": "4272214a2ff1be63ebda3750aef8de5c0f82056f10fc09b01e3c136b02abdc3d",
+    "bytes": 211677,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "nor-03",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/northvale/elena-petrova.jpg",
+        "sha256": "611b51b74aed75398be62ea1bfc1acfcdc027a64b4a55d6a0a0f1031d7234ac3"
+      },
+      {
+        "path": "apps/together/assets/locations/northvale/aurora-spa.jpg",
+        "sha256": "71ff418d646acee720cb5bd08c514334135a4eb7b95308aa8c584e95b1d1e1aa"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/nor-03.jpg",
+    "sha256": "29d450aa6721664965f25094905a32510550fbc86bf216ac7d507252df17b131",
+    "bytes": 213180,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "nor-04",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/northvale/avery-callahan.jpg",
+        "sha256": "dc85c31341f3084f8c7d6a3841d3d82b2cdef669e94350beae3e036a3fcce7ac"
+      },
+      {
+        "path": "apps/together/assets/locations/northvale/ski-patrol-headquarters.jpg",
+        "sha256": "4be5e3a45372dc72a0147b31cc58902170f391c20dfa3d879464f213a675ee0d"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/nor-04.jpg",
+    "sha256": "6e6c640010bc375bd074e94294a9e0b4f481d8293ba2c2492da8cfc0455b1ba5",
+    "bytes": 238434,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "nor-05",
+    "focus": "place",
+    "references": [
+      {
+        "path": "apps/together/assets/locations/northvale/avalanche-forecast-center.jpg",
+        "sha256": "162b492bbde88be4b17529f7e8804ae5db93f8d5e3cb321a4dbdc4a0b9cbd616"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/nor-05.jpg",
+    "sha256": "952fcb99033fb48cd206061a534f78e8fc14785e514e3fea481057606d19870e",
+    "bytes": 265247,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "nor-06",
+    "focus": "place",
+    "references": [
+      {
+        "path": "apps/together/assets/locations/northvale/miners-hall.jpg",
+        "sha256": "f7c3b3826c2a674003f354a8b7ddc3bf2700e80467629d3606b93b485a449b16"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/nor-06.jpg",
+    "sha256": "0574daeefda22405f6054b73e4cff6e409f0379f67e8d5158549657b73a0235b",
+    "bytes": 241937,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "nor-07",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/northvale/cassidy-reed.jpg",
+        "sha256": "93e8ca07c16e1103a021c20ec579073d4a07776cc45e89bfb7bb6e15b844c6c7"
+      },
+      {
+        "path": "apps/together/assets/locations/northvale/snowcat-garage.jpg",
+        "sha256": "d1377e47e21a266a829e39b09f13cc14a8a9b86be86c774ba797ceb12a7f7a64"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/nor-07.jpg",
+    "sha256": "f48fd3abe9e816bd365849aa8ae2d73f2e0e3e4736634b47e51883d4306155a3",
+    "bytes": 224240,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "nor-08",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/northvale/theo-marchand.jpg",
+        "sha256": "c0c7d9e10a1d81fc6a8e490fe87f7146d56785485dbe3bf61a8f196fe26c939b"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/nor-08.jpg",
+    "sha256": "099be81dc016256baefb2f62d5f4877fe2b5d1950a3270b267d5e164b2b12625",
+    "bytes": 170921,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "nor-09",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/northvale/yusuf-demir.jpg",
+        "sha256": "8b45f9fe36c889f3af5c42a109bb80c5119139b8fc1ed8b127fa25212725f7b3"
+      },
+      {
+        "path": "apps/together/assets/locations/northvale/high-country-guides.jpg",
+        "sha256": "13a764e038436e9e2b31e14cf3e0f4a50d5ee38fea63cfa7ddda3e78ab12eed9"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/nor-09.jpg",
+    "sha256": "155037467f349506cf18a4ab030fdfcdd7a0eee671cfa701724f1b1b56cbf117",
+    "bytes": 233647,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "nor-10",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/northvale/graham-pike.jpg",
+        "sha256": "9c1409aa26b2cc5107339120cc2254c3bfe36b8d7b1dc388589d3edb4c88640a"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/nor-10.jpg",
+    "sha256": "d4553ef8a057030f6e86c479d71bb6c739fb8db92b4f96b6e6d547e583a65647",
+    "bytes": 197006,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "eos-01",
+    "focus": "place",
+    "references": [
+      {
+        "path": "apps/together/assets/locations/eos-meridian/listening-station-seven.jpg",
+        "sha256": "a683608a62c2ec32912a19ae597ecda68b867984bc2df2d25bfae3dfd44016c2"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/eos-01.jpg",
+    "sha256": "a8e759cd6aef0eee89cee6da4aae9de4391420f68e55b15e3dab040256b9d28f",
+    "bytes": 243289,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "eos-02",
+    "focus": "place",
+    "references": [
+      {
+        "path": "apps/together/assets/locations/eos-meridian/pollinator-house.jpg",
+        "sha256": "fb0a067c093edc983928ebc80aa7cd615a4b912d037c3e45b6460e683f1db8b4"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/eos-02.jpg",
+    "sha256": "4ba8930a29e5176a56d6426559220c1914e6716234472d63664f44e6954e8028",
+    "bytes": 361599,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "eos-03",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/eos-meridian/commander-rhea-navarro.jpg",
+        "sha256": "48c8d4a1be3452753bfc51275cff5892bffbb00d781558531e91281c68c474bb"
+      },
+      {
+        "path": "apps/together/assets/locations/eos-meridian/ascension-terminal.jpg",
+        "sha256": "357bdaf6f5802267a9db8fab3363a185609634f1ad5b31b1265e4d6d2be281a4"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/eos-03.jpg",
+    "sha256": "ffcb727c07e71bffdd42f263c75b0d5841f95fe162cb31be113fc14b4e486498",
+    "bytes": 209045,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "eos-04",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/eos-meridian/mara-venn.jpg",
+        "sha256": "1f42bd6ad4d39c8f3f5b36b5c43efc0ec125c0eacbbff2f9818985245d221966"
+      },
+      {
+        "path": "apps/together/assets/locations/eos-meridian/meridian-concourse.jpg",
+        "sha256": "f16e9b44db42675bf1278db33d032e83c6d6c2ddbdddd83832bb691ee9764f74"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/eos-04.jpg",
+    "sha256": "d46d2eab1e25e5933091acffa26515a44081c3ab33aa7fd0766ae0fd2ab89985",
+    "bytes": 241242,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "eos-05",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/eos-meridian/nia-calder.jpg",
+        "sha256": "1fd2f557c22712b7c1f932dc5c4815de3bca68e04357541e94b3f0864178d287"
+      },
+      {
+        "path": "apps/together/assets/locations/eos-meridian/redline-garage.jpg",
+        "sha256": "17e7e33b36017d435a2531b050e749f04cc6932170c2849774f796f7b14ff672"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/eos-05.jpg",
+    "sha256": "fc003f1781b7ec310e9a10653cd3cf82966b730f68ca0eefb0c78bb1f958d9c4",
+    "bytes": 241728,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "eos-06",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/eos-meridian/camille-arden.jpg",
+        "sha256": "6bb863017168f64a98290ca0285fa9ed1daeb14f4c9f1a738fe4eb4177451543"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/eos-06.jpg",
+    "sha256": "a65845e31240f999a8f2f269daa82de7e75aa919a26a566fcc55e6250282c1e2",
+    "bytes": 153675,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "eos-07",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/eos-meridian/sora-bell.jpg",
+        "sha256": "e3c173bc10756cce6080df4a1abb025256a6453c314e4aeff047e05a6c626fa9"
+      },
+      {
+        "path": "apps/together/assets/locations/eos-meridian/hearth-kitchens.jpg",
+        "sha256": "e4abfafbed7549b84e656f138c85ebd1adaa35aa2aabc8c85ae5f188f6fb6be9"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/eos-07.jpg",
+    "sha256": "4378efce3964d91c28a70466599217d0d4f7644959c05f46fa85dec5e8558d18",
+    "bytes": 267675,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "eos-08",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/eos-meridian/kellan-ro.jpg",
+        "sha256": "932b8c05c659f4d00917e732c42ff78573d8f7a51fd9c061ac933fd37abc5b4c"
+      },
+      {
+        "path": "apps/together/assets/locations/eos-meridian/hangar-twelve.jpg",
+        "sha256": "b42aac2e64de57c61a738ec9ff7c0d24b16037ad98852bf8cbad137cbfcc50b9"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/eos-08.jpg",
+    "sha256": "0a271ba31327e5131bcd2ec9c05af3887b776f31c689cd3586cb2e7915a5343a",
+    "bytes": 237502,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "eos-09",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/eos-meridian/cassian-vale.jpg",
+        "sha256": "b7e7b0fec877b87cb0309c64a195d78386f0244ca3a4507b990854d5f52d6553"
+      },
+      {
+        "path": "apps/together/assets/locations/eos-meridian/charter-hall.jpg",
+        "sha256": "fca323b689dfe1687dc04d38aaaf1bb43ebe78db0a9b78b33338ce6b095799d4"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/eos-09.jpg",
+    "sha256": "1e0a21b4dbaee521cdf136ef37b675ecac9508b750e0ba7fcae05cb34a393e43",
+    "bytes": 182934,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "eos-10",
+    "focus": "place",
+    "references": [
+      {
+        "path": "apps/together/assets/locations/eos-meridian/kepler-iceworks.jpg",
+        "sha256": "b23e190eebc10b3e4999f4efbcc7b8767653980b3e4acc9acfea8ff1eca24612"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/eos-10.jpg",
+    "sha256": "ef74bc8d0fbdb44ce4dddd6f44635550ccfe7dccc4c0febd9cac0e2d6e4e8854",
+    "bytes": 272778,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "vha-01",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vharadren/queen-maerra-vaelorian.png",
+        "sha256": "f120edc717ed43f13a2b2c9bfc7af46f996a288e1a97e1fb94fefa8fa9d9f2fe"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/vha-01.jpg",
+    "sha256": "9a1f0f5aef64e15211a53942090cd5ffdaee1d97f23aabf0244bce1a1c1cde3c",
+    "bytes": 216042,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "vha-02",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vharadren/lady-isolde-morcant.png",
+        "sha256": "6a730c83fdbf92e2219ef17846dabe8a89170ae963d03b9a3b4fc6d2155d8635"
+      },
+      {
+        "path": "apps/together/assets/locations/vharadren/red-ledger-exchange.jpg",
+        "sha256": "1d669968579805b513b89b5f334f7f607bd53b1f41f67e1984f03a73af5ea552"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/vha-02.jpg",
+    "sha256": "10032eb68f2985b2dfa0822246f241ccd19bc9f6e3197469568907ac2ca30846",
+    "bytes": 246549,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "vha-03",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vharadren/dame-ysabet-rooke.png",
+        "sha256": "b302f020daa006b8632eed6807f054f4484a85d7ea586e7a238d04c0a6588b70"
+      },
+      {
+        "path": "apps/together/assets/locations/vharadren/dragonbone-citadel.jpg",
+        "sha256": "a0839464eebbe105cf4963641597ae128c0e7e606f6bf99a5ea07cba4d513e3e"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/vha-03.jpg",
+    "sha256": "b404141b0cdfc65b82623de815712054dd4104ea00587d777cc1866557173242",
+    "bytes": 264050,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "vha-04",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vharadren/high-flame-elowen-orison.png",
+        "sha256": "c48865082095c804254301b329f25caf1b1bb4e27f57934a8ffb02616b66ddc0"
+      },
+      {
+        "path": "apps/together/assets/locations/vharadren/basilica-seven-flames.jpg",
+        "sha256": "b46d960b261eeeed77aa42942514ddce579ee9d7d11f0f63720fc230c534bbbf"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/vha-04.jpg",
+    "sha256": "6aecc3ef3d5fecc5ee1c47f40b114b9c2dfbe7485bd22e767d7b738fca13b029",
+    "bytes": 238410,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "vha-05",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vharadren/ilyra-ashscale.png",
+        "sha256": "d74ef3945cb13e131952245c271b79b84c6e26998663139753dfe640b1907f70"
+      },
+      {
+        "path": "apps/together/assets/locations/vharadren/caldera-hatchery.jpg",
+        "sha256": "062791098cb0d11a24f29536f34731d28a22f472d5d4daacca8866a45b296ff2"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/vha-05.jpg",
+    "sha256": "05eae856da074f4d0c824c5913bc7c844a64ee345c7d61e00b91602ba34bde5f",
+    "bytes": 268558,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "vha-06",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vharadren/celessa-vane.png",
+        "sha256": "599d768b5fc0be2650a50c9df701fe657f8b622861380dbeb76c572734e6a25c"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/vha-06.jpg",
+    "sha256": "82f8bf6658ea37f3f030dfeb381c44ea50e671138f65a1fcf74566debffa4b7c",
+    "bytes": 187872,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "vha-07",
+    "focus": "place",
+    "references": [
+      {
+        "path": "apps/together/assets/locations/vharadren/glass-battlefield.jpg",
+        "sha256": "f741c45e846e8af714a86aaa39102b2296e5bd89eb679eb6551ed5cfefc0443b"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/vha-07.jpg",
+    "sha256": "32d8219c82b7cc76633e1fc35beadbb78b0e858a4612d79c0a5f0db0b40b58a7",
+    "bytes": 285544,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "vha-08",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vharadren/prince-lucien-vaelorian.png",
+        "sha256": "26566ea4ab31088a821cb3ab6723e483c867e0d3ae92dee190a17982d186f183"
+      },
+      {
+        "path": "apps/together/assets/locations/vharadren/ember-throne-hall.jpg",
+        "sha256": "23de2e7ed357a1dcec27529ada164a5c94007076d8ec5fb58d890c0e40358df3"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/vha-08.jpg",
+    "sha256": "765efc9f027c4ee57e5e62df0d2ea2d16d2c7a12c7eb490555fa2e5d720a039a",
+    "bytes": 234580,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "vha-09",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vharadren/lord-rowan-edevane.png",
+        "sha256": "81ec9ed23fadb2ab10496c7e239ef686f422fc18237594ba97ddbc117ff6b08f"
+      },
+      {
+        "path": "apps/together/assets/locations/vharadren/green-hart-lodge.jpg",
+        "sha256": "7894fc1b79d3987fc4826ba4d2bbc31f5c9cedcc73eab85f738331ddbc685240"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/vha-09.jpg",
+    "sha256": "8431e7f6c3fa775e2479131aa1d0cd0dc4aaa7cbab42c5a53d35d1e818c18807",
+    "bytes": 256747,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "vha-10",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vharadren/rhevan-crownsbane.png",
+        "sha256": "646b95552e28b5b21e3af0afa809de74fb04b02f592caed286477c785af7b0fa"
+      },
+      {
+        "path": "apps/together/assets/locations/vharadren/old-imperial-waystation.jpg",
+        "sha256": "3ee4f10939535b4f3ee95cc25c52f1821cc784a1ab68095e439ca2894a17b391"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/vha-10.jpg",
+    "sha256": "75d5319eb2b10398f4cb26ecce6d1ff86db077b419cc777a0e5628a8f343ef8e",
+    "bytes": 220555,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "cal-01",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/calders-run/virginia-gin-maddox.jpg",
+        "sha256": "0a4751f4d8cb55196fe344230dd29820a26a9f701511dc4b24b6d41851563c5f"
+      },
+      {
+        "path": "apps/together/assets/locations/calders-run/copper-mare-saloon.jpg",
+        "sha256": "205570f89bb43f091035f6d214aad34bb271e22ed2e9e2459da64110ce2b7ddc"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/cal-01.jpg",
+    "sha256": "be67eb25c14d39ff3053a07413c9be5e0f8372cae033b9a65069381e812fec21",
+    "bytes": 237355,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "cal-02",
+    "focus": "place",
+    "references": [
+      {
+        "path": "apps/together/assets/locations/calders-run/survey-camp.jpg",
+        "sha256": "607eba6b602faabf320967a4a2de0f8b0d703ff66c9d7d5111b1b6b309d02b48"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/cal-02.jpg",
+    "sha256": "abc10d3eb397cd2110f44ee25ef354f9c2de39862f542b8144d37b486b36467b",
+    "bytes": 311026,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "cal-03",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/calders-run/iris-keene.jpg",
+        "sha256": "cf62a5bd0b9650fea762e3f88acbbc80018c23d05ffe8eee3a8905884edb926f"
+      },
+      {
+        "path": "apps/together/assets/locations/calders-run/keenes-print-shop.jpg",
+        "sha256": "b042eaba42bca7c210e45a0ca1e8415f40e129b8345e0a4b2151f8bd4adf36f9"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/cal-03.jpg",
+    "sha256": "6b232bedd199133d369b36092dd612893cbc0ec85bc9930fff6d6d8e81eb9eca",
+    "bytes": 254041,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "cal-04",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/calders-run/rosalie-quinn.jpg",
+        "sha256": "d8383fddee23ecd84b64e70ef1c7914aecc5881e4f3104f894e056c72b3eac81"
+      },
+      {
+        "path": "apps/together/assets/locations/calders-run/bellflower-theater.jpg",
+        "sha256": "787803415fc82ac59cc50a2df0182adaa1c6e1a18aef1b1ff6abfce598c71f42"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/cal-04.jpg",
+    "sha256": "76b9a6d2b7ff0f43532d02b3a2f580c68ac89bc1551c609cf28fb938a0e05946",
+    "bytes": 209814,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "cal-05",
+    "focus": "place",
+    "references": [
+      {
+        "path": "apps/together/assets/locations/calders-run/assay-office.jpg",
+        "sha256": "b60809227788d3d2d9815ea7e736e5db46a39a85c1016d8c396ce9ca944d98b0"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/cal-05.jpg",
+    "sha256": "0d46449cbbed9073df25601fe4dc307d349bab86e6e23eef8e202677af56132f",
+    "bytes": 273750,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "cal-06",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/calders-run/bess-kincaid.jpg",
+        "sha256": "157acaee552838223aa9b482350dbfb8b4a268855e15706a26c35c4eb08e2c04"
+      },
+      {
+        "path": "apps/together/assets/locations/calders-run/red-sash-brothel.jpg",
+        "sha256": "06e6b2340c872156c2b23b8591d650a2acb9a35b5752131d8c957121988ac0d0"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/cal-06.jpg",
+    "sha256": "352ee2263a0cb070030db8064f9084154a5a304af9a2425f5bd4ee05b85edeef",
+    "bytes": 213215,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "cal-07",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/calders-run/june-dempsey.jpg",
+        "sha256": "eba80b89c8d3d8104823af3075e681088d4cf68ba1f18c4934049583b22b0b8b"
+      },
+      {
+        "path": "apps/together/assets/locations/calders-run/dempsey-livery.jpg",
+        "sha256": "9bd53507d878f10ae143d4d9af79ba3ed4c3ec7f252a37372aa0965e71f5f00e"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/cal-07.jpg",
+    "sha256": "87d45a80f14072b58c39ecc433c5b520e60e97c9054e3cf8f77020cc22989288",
+    "bytes": 268047,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "cal-08",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/calders-run/marshal-elias-reddick.jpg",
+        "sha256": "084b88efbe186ff7512f451efff1f796a65a28a5e6b7fc1e806ec59be6448c7c"
+      },
+      {
+        "path": "apps/together/assets/locations/calders-run/marshals-office.jpg",
+        "sha256": "24bb5d79ac2f31b909caec15c3aa8f763984666a90de4f9edf36252cdfcfefa3"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/cal-08.jpg",
+    "sha256": "c70458345069651d7a0205374d6d3701ac79ee26143f428275c35d8bc2aa94e9",
+    "bytes": 222448,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "cal-09",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/calders-run/daniel-chen.jpg",
+        "sha256": "ea5b0fc059d884ab969f8ffecc169b068377df1a57c06ad4d595fdce1383fa0c"
+      },
+      {
+        "path": "apps/together/assets/locations/calders-run/telegraph-office.jpg",
+        "sha256": "b2bda0cc7d845e94f6165b5545cd0abb5c7dc037736b37a5f0e6391cdc7c42e7"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/cal-09.jpg",
+    "sha256": "55b913fc6a74cf3d2029238f8b3aa247724db9937f8450a567a32ca8fff65add",
+    "bytes": 204428,
+    "dimensions": [
+      1200,
+      800
+    ]
+  },
+  {
+    "id": "cal-10",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/calders-run/cole-hensley.jpg",
+        "sha256": "09b78d2c455f4fc1a8bc43f92ce131d94bd68ceaf50738df89b64f78ef9b514e"
+      },
+      {
+        "path": "apps/together/assets/locations/calders-run/main-street.jpg",
+        "sha256": "436c2408dc20cbd0066ce6f7a649125718b1eec09c015e1cc1c3cb1d5e4e9f3b"
+      }
+    ],
+    "asset": "apps/together/assets/scenarios/cal-10.jpg",
+    "sha256": "eabc2b90302d3ffd227b2d6c5fc6c4cceac20e2462890e172c94c8a9cb8ce69b",
+    "bytes": 198891,
+    "dimensions": [
+      1200,
+      800
+    ]
+  }
+]
