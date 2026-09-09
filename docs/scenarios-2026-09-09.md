@@ -17,7 +17,7 @@ Assets: apps/together/assets/scenarios (80 JPEGs, about 17.8 MiB total; only vis
 References, hashes and review notes: content/scenarios/art-manifest.json.
 Prompts: content/scenarios/image-prompts.jsonl. The original user catalogue and mapped runtime catalogue are retained alongside them.
 The maritime museum scenario uses its canonical parent Porto Vecchio as a visual reference because the museum has no authored reference image. Calder's Run covers add no train bridges. Four first attempts were rejected by image generation; fully clothed public compositions succeeded on regeneration.
-Newer portrait/artwork/chat changes from origin/main through 72cbda9 were incorporated. ReferenceRevision records the exact earlier artwork used by generation. One existing oversized PNG portrait is served as a high-quality JPEG to satisfy the web asset budget; its original PNG remains in the repository.
+Newer portrait/artwork/chat changes from origin/main through 72cbda9 were incorporated. ReferenceRevision records the exact earlier artwork used by generation. Existing oversized PNG portraits and the Vharadren hero are served as high-quality JPEGs to satisfy the web asset budget; their original PNGs remain in the repository.
 
 ## Validation
 - 729 app tests, application TypeScript check, targeted lint.
