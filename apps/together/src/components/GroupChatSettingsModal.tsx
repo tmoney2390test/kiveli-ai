@@ -125,12 +125,6 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
             </View>
           </Section>
           <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible}/>
-          <Section icon={<Languages size={16} color={colors.violet} />} label="Chat language">
-            <Pressable accessibilityRole="button" accessibilityLabel={`Chat language: ${selectedLanguage.label}`} accessibilityState={{ expanded: languageOpen, disabled: saving }} disabled={saving} onPress={() => setLanguageOpen(true)} style={styles.languageSelect}>
-              <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.languageValue}>{selectedLanguage.nativeLabel}</Text>{selectedLanguage.nativeLabel !== selectedLanguage.label ? <Text style={styles.languageDetail}>{selectedLanguage.label}</Text> : null}</View><ChevronDown size={17} color={colors.muted} />
-            </Pressable>
-            <Text style={styles.languageHint}>All companions in this group reply and speak in this language.</Text>
-          </Section>
           <Section icon={<Bell size={16} color={colors.violet} />} label="Notifications">
             <Text style={styles.sectionHint}>Choose which group activity can send a push notification. Messages still appear here when notifications are quiet.</Text>
             <View accessibilityRole="radiogroup" style={styles.columns}>
@@ -147,6 +141,12 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
           </Section>
           <Section icon={<Palette size={16} color={colors.violet} />} label="Message colors">
             <ChatBubbleColorSettings userColor={userBubbleColor} companionColor={companionBubbleColor} disabled={saving} onUserColorChange={setUserBubbleColor} onCompanionColorChange={setCompanionBubbleColor} />
+          </Section>
+          <Section icon={<Languages size={16} color={colors.violet} />} label="Chat language">
+            <Pressable accessibilityRole="button" accessibilityLabel={`Chat language: ${selectedLanguage.label}`} accessibilityState={{ expanded: languageOpen, disabled: saving }} disabled={saving} onPress={() => setLanguageOpen(true)} style={styles.languageSelect}>
+              <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.languageValue}>{selectedLanguage.nativeLabel}</Text>{selectedLanguage.nativeLabel !== selectedLanguage.label ? <Text style={styles.languageDetail}>{selectedLanguage.label}</Text> : null}</View><ChevronDown size={17} color={colors.muted} />
+            </Pressable>
+            <Text style={styles.languageHint}>All companions in this group reply and speak in this language.</Text>
           </Section>
           </> : null}
 
