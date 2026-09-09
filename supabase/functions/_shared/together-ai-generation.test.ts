@@ -1,4 +1,4 @@
-import { assertEquals } from 'jsr:@std/assert';
+import { assertEquals,assertRejects } from 'jsr:@std/assert';
 import { executeResponsesWithTemperatureFallback,geminiDialogueRequestBody,isUnsupportedServiceTierResponse,openAIDialogueModel,openAIFastServiceTier,xaiDialogueModel } from './together-ai.ts';
 
 Deno.test('temperature compatibility retry removes only temperature and runs once',async()=>{
@@ -24,6 +24,18 @@ Deno.test('other provider validation failures are not retried',async()=>{
   const response=await executeResponsesWithTemperatureFallback(fetchImpl,'xai','secret',{temperature:1},{} as never);
   assertEquals(response.status,400);
   assertEquals(calls,1);
+});
+
+Deno.test('compatibility retries cannot exceed the shared provider-attempt budget',async()=>{
+  let calls=0;
+  const fetchImpl=(async()=>{
+    calls+=1;
+    return calls===1
+      ?new Response(JSON.stringify({error:{message:'service_tier fast is unavailable'}}),{status:403})
+      :new Response(JSON.stringify({error:{message:'temperature is not supported'}}),{status:400});
+  }) as typeof fetch;
+  await assertRejects(()=>executeResponsesWithTemperatureFallback(fetchImpl,'openai','secret',{service_tier:'fast',temperature:.8},{route:{provider:'openai'},providerAttemptBudget:{max:2,used:0}} as never));
+  assertEquals(calls,2);
 });
 
 Deno.test('premium delivery stays opt-in and falls back safely when unavailable',async()=>{

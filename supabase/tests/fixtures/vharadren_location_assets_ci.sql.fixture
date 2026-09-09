@@ -1,0 +1,33 @@
+-- CI-only metadata for location images imported out of band in production.
+-- Historical location-art migrations mark each reviewed batch ready and then
+-- assert exact cumulative asset counts. Mirror the importer at that boundary
+-- so each batch appears only when its own migration marks it ready.
+create or replace function public.kivelle_ci_seed_vharadren_location_asset()
+returns trigger
+language plpgsql
+set search_path=public
+as $$
+begin
+  if new.world_id='10000000-0000-4000-8000-000000000013'::uuid
+     and new.metadata->>'photoStatus'='ready'
+     and coalesce(old.metadata->>'photoStatus','')<>'ready' then
+    insert into public.together_media_reference_assets(
+      asset_role,location_id,source_key,storage_bucket,storage_path,
+      content_type,revision,active,metadata
+    ) values(
+      'location_canonical',new.id,
+      'location:vharadren:'||new.slug||':canonical',
+      'kivelle-reference-media','ci/vharadren/locations/'||new.slug||'.png',
+      'image/png',1,true,'{"ciFixture":true}'::jsonb
+    )
+    on conflict(asset_role,source_key,revision) do nothing;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists kivelle_ci_seed_vharadren_location_asset
+  on public.together_locations;
+create trigger kivelle_ci_seed_vharadren_location_asset
+after update of metadata on public.together_locations
+for each row execute function public.kivelle_ci_seed_vharadren_location_asset();

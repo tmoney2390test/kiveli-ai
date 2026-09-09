@@ -142,6 +142,8 @@ export type DialogueRunOptions = {
   requestedServiceTier?:ResponsesServiceTier;
   appliedServiceTier?:string;
   serviceTierFallback?:boolean;
+  /** One mutable budget is shared by retries and cross-provider fallbacks. */
+  providerAttemptBudget?:{max:number;used:number};
 };
 export interface DialogueProvider {
   generate(
@@ -219,6 +221,14 @@ class DialogueProviderTimeoutError extends Error {
     super("dialogue_provider_timeout");
     this.name = "DialogueProviderTimeoutError";
   }
+}
+class DialogueProviderAttemptLimitError extends Error{
+  constructor(){super("dialogue_provider_attempt_limit");this.name="DialogueProviderAttemptLimitError";}
+}
+function consumeDialogueProviderAttempt(options:DialogueRunOptions):void{
+  const budget=options.providerAttemptBudget??={max:2,used:0};
+  if(budget.used>=budget.max)throw new DialogueProviderAttemptLimitError();
+  budget.used+=1;
 }
 function dialogueProviderInactivityMs(): number {
   const configured = Number(
@@ -777,11 +787,13 @@ async function responsesBody(
 
 export async function executeResponsesWithTemperatureFallback(fetchImpl:typeof fetch,provider:'openai'|'xai',key:string,body:Record<string,unknown>,options:DialogueRunOptions):Promise<Response>{
   const compatibleBody={...body};
+  consumeDialogueProviderAttempt(options);
   let response=await executeResponsesHttp(fetchImpl,provider,key,compatibleBody);
   let errorBody=response.ok?'':await response.clone().text().catch(()=>"");
   if(!response.ok&&typeof compatibleBody.service_tier==='string'&&isUnsupportedServiceTierResponse(response.status,errorBody)){
     delete compatibleBody.service_tier;
     options.serviceTierFallback=true;
+    consumeDialogueProviderAttempt(options);
     response=await executeResponsesHttp(fetchImpl,provider,key,compatibleBody);
     errorBody=response.ok?'':await response.clone().text().catch(()=>"");
   }
@@ -789,6 +801,7 @@ export async function executeResponsesWithTemperatureFallback(fetchImpl:typeof f
   if(!isUnsupportedTemperatureResponse(response.status,errorBody))return response;
   const withoutTemperature={...compatibleBody};delete withoutTemperature.temperature;
   options.unsupportedTemperatureFallback=true;
+  consumeDialogueProviderAttempt(options);
   return executeResponsesHttp(fetchImpl,provider,key,withoutTemperature);
 }
 
@@ -2253,6 +2266,7 @@ async function generateGemini(
     "TOGETHER_GEMINI_MODEL",
     Deno.env.get("GEMINI_EXPLANATION_MODEL") ?? "gemini-2.5-flash",
   );
+  consumeDialogueProviderAttempt(options);
   const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${
         encodeURIComponent(geminiModel)
@@ -2284,6 +2298,7 @@ async function* streamGemini(
     "TOGETHER_GEMINI_MODEL",
     Deno.env.get("GEMINI_EXPLANATION_MODEL") ?? "gemini-2.5-flash",
   );
+  consumeDialogueProviderAttempt(options);
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${
       encodeURIComponent(geminiModel)

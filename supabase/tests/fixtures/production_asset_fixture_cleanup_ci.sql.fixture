@@ -1,0 +1,14 @@
+-- Remove CI-only importer behavior after the historical migrations that relied
+-- on production assets have completed. Synthetic metadata rows remain so the
+-- final database state can be exercised by pgTAP like production.
+drop trigger if exists kivelle_ci_seed_vharadren_location_asset
+  on public.together_locations;
+drop function if exists public.kivelle_ci_seed_vharadren_location_asset();
+
+drop trigger if exists kivelle_ci_seed_vharadren_character_asset
+  on public.together_character_world_presence;
+drop function if exists public.kivelle_ci_seed_vharadren_character_asset();
+
+drop trigger if exists kivelle_ci_seed_nightlife_character_asset
+  on public.together_character_world_presence;
+drop function if exists public.kivelle_ci_seed_nightlife_character_asset();

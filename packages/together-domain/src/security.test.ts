@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { constantTimeEqual, isSafeExternalHttpsUrl, matchesDeclaredMediaSignature, normalizeCorrelationId, sniffImageContentType } from './security.ts';
+import { constantTimeEqual, containsSecretLikeValue, isSafeExternalHttpsUrl, matchesDeclaredMediaSignature, normalizeCorrelationId, sniffImageContentType } from './security.ts';
 
 describe('security helpers', () => {
   it('compares secrets without accepting prefixes or different lengths', () => {
@@ -38,5 +38,11 @@ describe('security helpers', () => {
     expect(matchesDeclaredMediaSignature(new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]), 'video/webm')).toBe(true);
     expect(sniffImageContentType(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toBe('image/png');
     expect(sniffImageContentType(new TextEncoder().encode('Unavailable'))).toBe(null);
+  });
+
+  it('detects credential-shaped generated output without keyword-filtering normal stories',()=>{
+    expect(containsSecretLikeValue('sk-abcdefghijklmnopqrstuvwxyz1234')).toBe(true);
+    expect(containsSecretLikeValue('https://cdn.example.com/file?X-Amz-Signature=abcdefghijklmnopqrstuvwxyz123456')).toBe(true);
+    expect(containsSecretLikeValue('The queen ordered a dangerous midnight march; no one revealed another person’s memories.')).toBe(false);
   });
 });

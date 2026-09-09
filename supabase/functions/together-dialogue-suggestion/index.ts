@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { authenticated, enforceRateLimit } from '../_shared/context.ts';
+import { authenticated, enforceGenerationGuardrails } from '../_shared/context.ts';
 import { requireAiDataConsent } from '../_shared/kivelle-ai-consent.ts';
 import { parseBody } from '../_shared/body.ts';
 import { corsHeaders, errorResponse, json } from '../_shared/http.ts';
@@ -25,7 +25,6 @@ Deno.serve(async(request)=>{
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers:corsHeaders});
   try{
     const{user,db}=await authenticated(request);await requireAiDataConsent(db,user.id);const input=await parseBody(request,schema),adultAccess=await resolveAdultAccess(request,user,db);
-    await enforceRateLimit(db,user.id,'together_dialogue_suggestion',80,3600);
     const continuity=await activeContinuity(db,user.id);
     const[{data:conversation},{data:pendingMilestone},{data:entitlement},{data:profile}]=await Promise.all([
       db.from('together_conversations').select('*,together_character_instances!inner(*,together_character_templates(*),together_character_versions(*))').eq('id',input.conversationId).eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_instance_id',input.characterInstanceId).is('archived_at',null).is('user_archived_at',null).maybeSingle(),
@@ -44,6 +43,18 @@ Deno.serve(async(request)=>{
     const latest=(latestRows??[]).find((row)=>row.provider_metadata?.uiHidden!==true&&['user','assistant'].includes(String(row.role)));
     if(!latest||latest.id!==input.anchorMessageId||latest.role!=='assistant')throw new AppError('STALE_SUGGESTION','The conversation moved forward. Try again for a fresh suggestion.',409,true);
     if(pendingMilestone)throw new AppError('CANONICAL_CHOICE_REQUIRED','Choose how you want to respond to this relationship moment.',409);
+
+    const contentMode=dialoguePolicy.effectiveMode;
+    const{data:cached}=await db.from('together_dialogue_suggestion_cache')
+      .select('suggestion_text,source,intent,expires_at')
+      .eq('user_id',user.id).eq('conversation_id',input.conversationId)
+      .eq('anchor_message_id',input.anchorMessageId)
+      .eq('preference',input.preference).eq('content_mode',contentMode)
+      .gt('expires_at',new Date().toISOString()).maybeSingle();
+    if(cached){
+      return json({data:{suggestionId:crypto.randomUUID(),text:cached.suggestion_text,source:cached.source,intent:cached.intent,preference:input.preference,anchorMessageId:latest.id,expiresAt:cached.expires_at,cached:true},correlationId},200,correlationId);
+    }
+    await enforceGenerationGuardrails(db,user.id,'auxiliary_ai');
 
     const now=new Date();
     const lifeRun={state:{locationId:instance.current_location_id,location:'Current place',activity:instance.current_activity,mood:instance.current_mood,energy:instance.current_energy,availability:instance.current_interruptibility==='unavailable'?'unavailable':'available',interruptibility:instance.current_interruptibility,source:instance.current_presence_source??'character_state'},stateSource:instance.current_presence_source??'character_state',presence:{},activeEvent:null};
@@ -64,6 +75,13 @@ Deno.serve(async(request)=>{
     const fallback=deterministicAutoDialogue(generationInput),generated=await suggestions.generate(generationInput,{usageScope}),safety=await moderation.check(generated.text,usageScope);
     const text=safety.allowed?generated.text:fallback,source=safety.allowed?generated.source:'deterministic';
     const expiresAt=new Date(now.getTime()+10*60_000).toISOString();
+    const{error:cacheError}=await db.from('together_dialogue_suggestion_cache').upsert({
+      user_id:user.id,conversation_id:input.conversationId,
+      anchor_message_id:input.anchorMessageId,character_instance_id:input.characterInstanceId,
+      preference:input.preference,content_mode:contentMode,suggestion_text:text,
+      source,intent:generated.intent,expires_at:expiresAt,
+    },{onConflict:'user_id,conversation_id,anchor_message_id,preference,content_mode'});
+    if(cacheError)console.warn(JSON.stringify({level:'warn',operation:'dialogue_suggestion_cache_write',correlationId,errorCode:cacheError.code??'cache_failed'}));
     await track(db,user.id,'auto_dialogue_suggestion_generated',{characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,anchorMessageId:latest.id,source,intent:generated.intent,preference:generated.preference,clientRequestId:input.clientRequestId,latestContentRating,spicyAnchor});
     return json({data:{suggestionId:crypto.randomUUID(),text,source,intent:generated.intent,preference:generated.preference,anchorMessageId:latest.id,expiresAt},correlationId},200,correlationId);
   }catch(error){return errorResponse(error,correlationId);}

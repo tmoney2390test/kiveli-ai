@@ -18,6 +18,7 @@ import { ensureWebAdultSession } from './webAdultSession';
 import { normalizeVideoGenerationOptions } from './videoGeneration';
 import { drainJsonSseEvents } from './sse';
 import { scheduleForegroundTimeout } from './webPageLifecycle';
+import { installationIdentity } from './installationIdentity';
 
 export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false,readonly correlationId?:string) { super(message); } }
 type Envelope<T> = { data: T; correlationId: string };
@@ -241,7 +242,7 @@ export const finalizeCreatorDraft = (draftId:string,requestId:string) => manageC
 export const archiveCreatorDraft = (draftId:string) => manageCreator<{archived:boolean;draftId:string}>({action:'archive_draft',draftId});
 export const manageSubscription = <T>(input?:Record<string,unknown>) => input?invoke<T>('together-subscription',input):invoke<T>('together-subscription',undefined,'GET');
 export async function createTogetherAccount(email: string, password: string,dateOfBirth:string): Promise<void> {
-  const response = await fetch(`${supabaseUrl}/functions/v1/together-signup`, { method: 'POST', headers: { apikey: supabasePublishableKey, Authorization: `Bearer ${supabasePublishableKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password,dateOfBirth }) });
+  const response = await fetch(`${supabaseUrl}/functions/v1/together-signup`, { method: 'POST', headers: { apikey: supabasePublishableKey, Authorization: `Bearer ${supabasePublishableKey}`, 'Content-Type': 'application/json','x-kivelle-installation-id':await installationIdentity() }, body: JSON.stringify({ email, password,dateOfBirth }) });
   const payload = await response.json().catch(() => ({})) as { error?: { message?: string; code?: string; retryable?: boolean } };
   if (!response.ok) throw new ApiError(payload.error?.message ?? 'Your Kivelle account could not be created.', payload.error?.code, payload.error?.retryable);
 }

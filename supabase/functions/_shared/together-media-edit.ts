@@ -6,6 +6,7 @@ import{configuredImageProvider,snapshotReferenceAssets}from'./together-media-bas
 import{configuredGroupImageRouteAvailable}from'./together-media-providers.ts';
 import{track}from'./together.ts';
 import{AppError}from'./types.ts';
+import{enforceGenerationGuardrails}from'./context.ts';
 import{isAdultMediaReferenceEligible,isFictionalCompanion}from'./together-media-character.ts';
 import{loadValidatedMediaSubjects,normalizeMediaSubjectIds}from'./together-media-subjects.ts';
 import{resolveCanonicalMediaWorld}from'./together-media-world.ts';
@@ -26,6 +27,7 @@ export async function queueMediaEdit(db:SupabaseClient,input:{userId:string;cont
   const requestKey=`edit:${source.id}:${input.requestId}`;
   const{data:existing}=await db.from('together_generated_media').select('*').eq('user_id',input.userId).eq('continuity_id',input.continuityId).eq('request_key',requestKey).maybeSingle();
   if(existing)return{media:existing,creditCost:Number((existing.metadata as Record<string,unknown>|null)?.creditCost??0),creditBalance:{}};
+  await enforceGenerationGuardrails(db,input.userId,'provider_cost_only');
   const subjectIds=normalizeMediaSubjectIds(String(source.character_instance_id),source.subject_character_instance_ids),[{data:profile},subjects]=await Promise.all([
     db.from('together_profiles').select('age_verified_at,adult_eligible_at,content_preferences').eq('user_id',input.userId).maybeSingle(),
     loadValidatedMediaSubjects(db,{userId:input.userId,characterInstanceId:String(source.character_instance_id),subjectCharacterInstanceIds:subjectIds,conversationId:typeof source.conversation_id==='string'?source.conversation_id:undefined}),

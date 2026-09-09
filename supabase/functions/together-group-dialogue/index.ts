@@ -10,15 +10,19 @@ import {
   classifyDeterministicTrustRepair,
   classifyGroupSocialEvent,
   compileIntimacyStance,
+  containsSecretLikeValue,
   hasExplicitSexualOutputLanguage,
   hasSexualDialogueLanguage,
   isDialogueHardBlocked,
   isLocationPlanDismissalCoolingDown,
   LOCATION_PLAN_DISMISSAL_COOLDOWN_MS,
   matchAssistantLocationPlan,
+  MESSAGE_CHARACTER_LIMIT,
   normalizeChatLanguage,
   type DialogueContentMode,
   extractMemoryCandidates,
+  fitGroupVisibleOutput,
+  groupTurnBudget,
   resolveGroupPhotoSubjects,
   type GroupSpeakerCandidate,
   type GroupTurnAction,
@@ -27,7 +31,7 @@ import {
   planGroupTurn,
 } from "../../../packages/together-domain/src/index.ts";
 import { parseBody } from "../_shared/body.ts";
-import { authenticated, enforceRateLimit } from "../_shared/context.ts";
+import { authenticated, enforceGenerationGuardrails, enforceRateLimit } from "../_shared/context.ts";
 import { requireAiDataConsent } from "../_shared/kivelle-ai-consent.ts";
 import { corsHeaders, errorResponse } from "../_shared/http.ts";
 import { activeContinuity } from "../_shared/together-continuity.ts";
@@ -79,6 +83,7 @@ import { projectConversationRows } from "../_shared/content-projection.ts";
 import { resolveAdultAccess } from "../_shared/web-adult-access.ts";
 import {
   assertChatRequestId,
+  canonicalizeReconnectRequestId,
   chatRequestFingerprint,
   claimChatUserMessage,
   commitGroupSystemMessage,
@@ -100,7 +105,7 @@ const schema = z.object({
   contextQuoteId:z.string().uuid().optional(),
   contextPreference:z.literal('included').optional(),
   conversationId: z.string().uuid(),
-  message: z.string().trim().max(4000).default(""),
+  message: z.string().trim().max(MESSAGE_CHARACTER_LIMIT).default(""),
   attachmentIds: z.array(z.string().uuid()).max(1).refine((ids) => new Set(ids).size === ids.length, "The same attachment cannot be sent twice.").default([]),
   clientRequestId: z.string().uuid(),
   mentionedCharacterInstanceIds: z.array(z.string().uuid()).max(5).refine((ids) => new Set(ids).size === ids.length, "A companion can only be mentioned once.").default([]),
@@ -134,7 +139,7 @@ Deno.serve(async (request) => {
     turnDb = db;
     const input = await parseBody(request, schema);
     stageContextAuthorization(db,user.id,input);
-    const requestId = assertChatRequestId(input.clientRequestId);
+    let requestId = assertChatRequestId(input.clientRequestId);
     const normalizedMessage = normalizeChatMessage(input.message);
     const continuity = await activeContinuity(db, user.id);
     const subscription = await requireGroupChatAccess(db, user.id);
@@ -198,6 +203,12 @@ Deno.serve(async (request) => {
       broadGroupRequest: input.broadGroupRequest,
       letThemTalk: input.letThemTalk,
     });
+    requestId=await canonicalizeReconnectRequestId(db,{
+      userId:user.id,
+      conversationId:conversation.id,
+      fingerprint:requestFingerprint,
+      requestId,
+    });
     const existingUserMessage = await findExistingChatRequest(db, {
       userId: user.id,
       conversationId: conversation.id,
@@ -241,7 +252,36 @@ Deno.serve(async (request) => {
         throw new AppError("VALIDATION_FAILED", "One of those photos is no longer available to send.", 422);
       }
     }
-    if (!existingUserMessage) await enforceRateLimit(db, user.id, "together_dialogue", 80, 3600);
+    if (!existingUserMessage) await enforceGenerationGuardrails(db,user.id,"dialogue");
+    turnLease = await beginConversationTurn(db, {
+      userId: user.id,
+      continuityId: continuity.id,
+      conversationId: conversation.id,
+      requestId,
+      kind: "group",
+      streamV2: input.streamProtocol===2&&chatSpeedEnabled("STREAM_V2"),
+      supersedeGenerating: true,
+      leaseSeconds: 240,
+    });
+    if (!turnLease.acquired) {
+      throw new AppError(
+        "CONFLICT",
+        turnLease.requestId === requestId
+          ? "That group turn is still finishing."
+          : "The group is preparing another message. Try again in a moment.",
+        409,
+        true,
+      );
+    }
+    if (existingUserMessage) {
+      await enforceRateLimit(db, user.id, "together_dialogue_retry", 12, 3600);
+    }
+    if (turnLease.interruptedCount) {
+      await track(db, user.id, "group_turn_interrupted", {
+        conversationId: conversation.id,
+        interruptedTurnCount: turnLease.interruptedCount,
+      });
+    }
     // Classify the canonical user message once, before persistence. This makes
     // its visibility policy independent from surface-forgeable client hints
     // and avoids storing an obfuscated adult request as an app-safe message.
@@ -281,35 +321,6 @@ Deno.serve(async (request) => {
       if (replyTargetId && !rosterIds.has(replyTargetId)) {
         replyTargetId = undefined;
       }
-    }
-    turnLease = await beginConversationTurn(db, {
-      userId: user.id,
-      continuityId: continuity.id,
-      conversationId: conversation.id,
-      requestId,
-      kind: "group",
-      streamV2: input.streamProtocol===2&&chatSpeedEnabled("STREAM_V2"),
-      supersedeGenerating: true,
-      leaseSeconds: 240,
-    });
-    if (!turnLease.acquired) {
-      throw new AppError(
-        "CONFLICT",
-        turnLease.requestId === requestId
-          ? "That group turn is still finishing."
-          : "The group is preparing another message. Try again in a moment.",
-        409,
-        true,
-      );
-    }
-    if (existingUserMessage) {
-      await enforceRateLimit(db, user.id, "together_dialogue_retry", 12, 3600);
-    }
-    if (turnLease.interruptedCount) {
-      await track(db, user.id, "group_turn_interrupted", {
-        conversationId: conversation.id,
-        interruptedTurnCount: turnLease.interruptedCount,
-      });
     }
     const userClaim = existingUserMessage
       ? { message: existingUserMessage, created: false }
@@ -394,7 +405,7 @@ Deno.serve(async (request) => {
         energy: settings.energy,
         letThemTalk: input.letThemTalk,
       });
-    const directed = await refineAmbiguousGroupPlan({
+    const directedResult = await refineAmbiguousGroupPlan({
       plan: basePlan,
       message: messageText,
       candidates,
@@ -408,6 +419,15 @@ Deno.serve(async (request) => {
         metadata: { groupChat: true },
       },
     });
+    const aggregateBudget=groupTurnBudget(input.letThemTalk);
+    const directed={
+      ...directedResult,
+      plan:{
+        ...directedResult.plan,
+        actions:directedResult.plan.actions.slice(0,aggregateBudget.maxReplies),
+        continuationBudget:Math.min(directedResult.plan.continuationBudget,aggregateBudget.maxReplies-1),
+      },
+    };
     if (input.photoSubjectCharacterInstanceIds.length && !photoIntent.requested) {
       throw new AppError(
         "VALIDATION_FAILED",
@@ -463,6 +483,7 @@ Deno.serve(async (request) => {
         broadGroupRequest: input.broadGroupRequest,
         letThemTalk: input.letThemTalk,
         reasonCodes: plan.reasonCodes,
+        aggregateBudget,
       },
       leaseSeconds: 240,
     });
@@ -563,6 +584,9 @@ function groupStream(input: any): Response {
       let firstActivityAt: number | null = null;
       let replyCount = 0;
       let reactionCount = 0;
+      const aggregateBudget=groupTurnBudget(Boolean(input.input.letThemTalk));
+      let visibleOutputCharacters=0;
+      let providerOperations=1+(input.plan.directorUsed?1:0);
       const generationProfiles:Array<Record<string,unknown>>=[];
       let restrictedTurn=false;
       const speakerCounts = new Map<string, number>();
@@ -640,6 +664,7 @@ function groupStream(input: any): Response {
           }
         }
         while (action) {
+          if(replyCount>=aggregateBudget.maxReplies||providerOperations>=aggregateBudget.maxProviderOperations)break;
           if (!await touchConversationTurn(input.db, input.turnLease, 240)) {
             await cancelTurn("lease_lost");
             return;
@@ -948,10 +973,13 @@ function groupStream(input: any): Response {
               ? "group_dialogue_xai"
               : "group_dialogue",
           };
+          providerOperations+=1;
           const generated = progressive
             ? await collectApprovedReply({
                 events:dialogue.stream(context,options),signal:turnAbort.signal,
                 approve:async(text)=>{
+                  providerOperations+=1;
+                  if(providerOperations>aggregateBudget.maxProviderOperations)return false;
                   if(!route.explicit&&hasExplicitSexualOutputLanguage(text))return false;
                   return (await moderation.check(text,{...usageScope,metadata:{direction:'output_segment',groupChat:true}})).allowed;
                 },
@@ -965,10 +993,15 @@ function groupStream(input: any): Response {
           if (!generated.text.trim()) break;
           const outputSafety = 'approved' in generated
             ? {allowed:generated.approved}
-            : await moderation.check(generated.text,{...usageScope,metadata:{direction:'output',groupChat:true}});
-          const text = outputSafety.allowed && (route.explicit||!hasExplicitSexualOutputLanguage(generated.text))
+            : (providerOperations+=1,providerOperations>aggregateBudget.maxProviderOperations
+              ?{allowed:false}
+              :await moderation.check(generated.text,{...usageScope,metadata:{direction:'output',groupChat:true}}));
+          const rawText = outputSafety.allowed && !containsSecretLikeValue(generated.text) && (route.explicit||!hasExplicitSexualOutputLanguage(generated.text))
             ? generated.text
             : chatLanguageChangeSubject(context.chatLanguage,canonicalUserText);
+          const text=fitGroupVisibleOutput(rawText,aggregateBudget.maxVisibleOutputCharacters-visibleOutputCharacters);
+          if(!text)break;
+          visibleOutputCharacters+=text.length;
           const committed = await commitMessage(input, action, text, {
             ...generated.metadata,
             speakerName,
@@ -1066,6 +1099,7 @@ function groupStream(input: any): Response {
           if (continuationIndex >= Number(input.plan.continuationBudget ?? 0)) {
             break;
           }
+          if(replyCount>=aggregateBudget.maxReplies||visibleOutputCharacters>=aggregateBudget.maxVisibleOutputCharacters||providerOperations>=aggregateBudget.maxProviderOperations)break;
           const [recent, signals] = await Promise.all([
             input.db.from("together_messages").select(
               "speaker_character_instance_id,character_instance_id",
@@ -1145,10 +1179,13 @@ function groupStream(input: any): Response {
           input.conversation.id,
           input.userId,
         );
-        if(!restrictedTurn)waitUntil(consolidateConversationEpisodes({
+        if(!restrictedTurn&&providerOperations<aggregateBudget.maxProviderOperations){
+          providerOperations+=1;
+          waitUntil(consolidateConversationEpisodes({
           db:input.db,userId:input.userId,conversationId:input.conversation.id,
           embed:(text)=>episodeEmbeddings.embed(text,{db:input.db,userId:input.userId,continuityId:input.continuityId,conversationId:input.conversation.id,purpose:"group_conversation_episode"}),
-        }).catch((error)=>console.warn(JSON.stringify({level:"warn",operation:"group_episode_consolidation",conversationId:input.conversation.id,message:error instanceof Error?error.message:"unknown_error"}))));
+          }).catch((error)=>console.warn(JSON.stringify({level:"warn",operation:"group_episode_consolidation",conversationId:input.conversation.id,message:error instanceof Error?error.message:"unknown_error"}))));
+        }
         if(restrictedTurn)await recordAdultGroupSafeContext(input.db,input.userId,input.conversation.id,new Date().toISOString(),String(input.turn.id));
         const latencyMs = Date.now() - turnStartedAt;
         const counts = [...speakerCounts.values()];
@@ -1165,6 +1202,8 @@ function groupStream(input: any): Response {
           maxSpeakerShare,
           generationMode:'per_speaker',
           generationProfiles,
+          providerOperations,
+          visibleOutputCharacters,
         });
         if (replyCount === 0 && reactionCount === 0) {
           await track(input.db, input.userId, "group_turn_silent", {

@@ -15,6 +15,16 @@ export function normalizeCorrelationId(value: string | null | undefined, fallbac
   return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(candidate) ? candidate : fallback;
 }
 
+/** Detect credential-shaped output without treating ordinary roleplay, URLs,
+ * profanity, or mature dialogue as suspicious. This is defense in depth; data
+ * ownership and prompt construction remain the real isolation boundary. */
+export function containsSecretLikeValue(value:string):boolean{
+  return /\b(?:sk-|xai-|sb_secret_|ghp_|github_pat_)[A-Za-z0-9_-]{20,}\b/u.test(value)||
+    /\bAKIA[0-9A-Z]{16}\b/u.test(value)||
+    /\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{16,}\b/u.test(value)||
+    /https:\/\/[^\s]+[?&](?:X-Amz-Signature|signature|token|access_token)=[A-Za-z0-9%._~-]{20,}/iu.test(value);
+}
+
 /**
  * Defense-in-depth for URLs returned by external media providers. This blocks
  * obvious loopback, private, link-local and reserved network targets. Callers

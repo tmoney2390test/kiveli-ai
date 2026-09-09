@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { authenticated, enforceRateLimit } from '../_shared/context.ts';
+import { authenticated, enforceGenerationGuardrails, enforceRateLimit } from '../_shared/context.ts';
 import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
@@ -156,6 +156,7 @@ serve(async(request,correlationId)=>{
   if(input.action==='video_direct_generate'){
     const continuity=await activeContinuity(db,user.id);await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId);
     const requestKey=`direct-video:${input.characterInstanceId}:${input.requestId}`,{data:existing}=await db.from('together_generated_media').select('*').eq('user_id',user.id).eq('request_key',requestKey).maybeSingle();if(existing){const visible=(await signMediaRows(request,db,user.id,adultAccess,[existing]))[0];return json({data:{media:visible,creditCost:Number((existing.metadata as Record<string,unknown>|null)?.creditCost??0),creditBalance:null,route:null},correlationId},existing.status==='ready'?200:202,correlationId);}
+    await enforceGenerationGuardrails(db,user.id,'provider_cost_only');
     await enforceVideoSubmissionAbuseLimit(db,user.id);
     const contentDecision=resolveDirectVideoContentDecision({requestText:input.requestText,authorizedWebAdult:adultAccess.authorized_web_adult,adultVideoFeatureEnabled:adultVideoFeatureEnabled()});
     if(!contentDecision.allowed)throw new AppError('FORBIDDEN',contentDecision.reasonCode==='adult_video_disabled'?'That kind of video is not available right now.':'That video request is unavailable for this session.',403,false);
@@ -255,6 +256,7 @@ serve(async(request,correlationId)=>{
   if(input.action==='animate'){
     const sourceDecision=await validateVideoSource(db,user.id,String(continuity.id),media,adultAccess);
     const requestKey=`animate:${media.id}:${input.requestId}`,{data:existing}=await db.from('together_generated_media').select('*').eq('user_id',user.id).eq('request_key',requestKey).maybeSingle();if(existing){const visible=(await signMediaRows(request,db,user.id,adultAccess,[existing]))[0];return json({data:{media:visible,creditCost:Number((existing.metadata as Record<string,unknown>|null)?.creditCost??125),creditBalance:null,route:null},correlationId},existing.status==='ready'?200:202,correlationId);}
+    await enforceGenerationGuardrails(db,user.id,'provider_cost_only');
     await enforceVideoSubmissionAbuseLimit(db,user.id);
     const promptDecision=resolveDirectVideoContentDecision({requestText:input.prompt,authorizedWebAdult:adultAccess.authorized_web_adult,adultVideoFeatureEnabled:adultVideoFeatureEnabled()});
     if(!promptDecision.allowed)throw new AppError('FORBIDDEN',promptDecision.reasonCode==='adult_video_disabled'?'That kind of video is not available right now.':'That video request is unavailable for this session.',403,false);
@@ -314,6 +316,7 @@ serve(async(request,correlationId)=>{
   if(input.action==='retry'){
     if(media.status!=='failed')throw new AppError('CONFLICT','Only a failed photo can be retried.',409);
     if(Number(media.attempt_count)>=3)throw new AppError('RATE_LIMITED','That photo has already been retried. Ask for a new one instead.',429);
+    await enforceGenerationGuardrails(db,user.id,'provider_cost_only');
     const retrySubjectIds=normalizeMediaSubjectIds(String(media.character_instance_id),media.subject_character_instance_ids);
     if(retrySubjectIds.length>1&&!configuredGroupImageRouteAvailable(String(media.content_level)))throw new AppError('PROVIDER_NOT_CONFIGURED',"Two-person photos are not connected for this content level yet.",503);
     await loadValidatedMediaSubjects(db,{userId:user.id,characterInstanceId:String(media.character_instance_id),subjectCharacterInstanceIds:retrySubjectIds,conversationId:media.conversation_id??undefined});
@@ -459,6 +462,7 @@ async function directVideoLocations(db:any,userId:string,instance:Record<string,
 
 async function enhanceVideoPromptDraft(db:any,user:{id:string;email?:string|null},access:AdultAccessContext,input:z.infer<typeof videoPromptEnhancementSchema>,correlationId:string){
   if(!videoPromptEnhancer)throw new AppError('PROVIDER_NOT_CONFIGURED','Prompt enhancement is not available right now. Your original is unchanged.',503,true);
+  await enforceGenerationGuardrails(db,user.id,'auxiliary_ai');
   await enforceRateLimit(db,user.id,'together_video_prompt_enhance',30,3600,'Prompt enhancement is busy. Try again in a moment.');
   const continuity=await activeContinuity(db,user.id),route=resolveVideoRoute(input.routeId,user.id,user.email),settings=validateVideoSettings(route,{resolution:input.settings.resolution,duration:input.settings.duration,sound:input.settings.sound});
   if(route.contentClass==='adult_capable'&&!access.authorized_web_adult)throw new AppError('FORBIDDEN','That video model is unavailable for this session.',403,false);

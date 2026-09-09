@@ -1,0 +1,8 @@
+-- CI-only object metadata for a production R2/Storage upload verified by the
+-- following historical migration.
+insert into storage.objects(bucket_id,name,metadata)
+values(
+  'kivelle-reference-media',
+  'location_canonical/location:juniper-city:red-hour:canonical/ed68961af6c499fb29e8.jpg',
+  '{"mimetype":"image/jpeg","ciFixture":true}'::jsonb
+);
