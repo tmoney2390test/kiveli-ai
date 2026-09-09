@@ -1,7 +1,8 @@
+import { ensureCalderSchedule } from './kivelle-calders-schedule.ts';
 import { filterAccessibleLocations } from './kivelle-world-progress.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
-import { experienceClock } from './kivelle-time.ts';
+import { resolveUserExperienceTimezone, experienceClock, safeTimezone } from './kivelle-time.ts';
 import { resolveCharacterPlaceContext, resolvePlaceContext } from './together-place.ts';
 import { activeContinuity } from './together-continuity.ts';
 import { normalizeMultimodalPreferences, resolveServerExperienceCapabilities } from './kivelle-multimodal.ts';
@@ -305,6 +306,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
   const publishedLifeEvents=(events.data??[]).filter((event)=>!event.location_id||publishedLocationIds.has(String(event.location_id)));
   const publishedSharedPlans=(sharedPlans.data??[]).filter((plan)=>!plan.world_id||publishedWorldIds.has(String(plan.world_id))||plan.status==='completed').map(decorateSnapshotSharedPlan);
   const now=Date.now(),nowDate=new Date(now);
+  scheduleEvents.data=await refreshCalderSnapshotSchedules(db,userId,instances.data??[],safeTimezone(profile.data?.experience_timezone),nowDate,scheduleEvents.data??[]);
   const activeScenes=(sceneSessions.data??[]).filter((scene:Record<string,unknown>)=>{
     if(!publishedWorldIds.has(String(scene.world_id)))return false;
     const expected=scene.expected_end_at?new Date(String(scene.expected_end_at)).getTime():new Date(String(scene.started_at)).getTime()+3*60*60*1000;
@@ -380,6 +382,7 @@ export async function buildCharacterPresenceSnapshot(
   const failed=[schedules,scheduleEvents,worlds,locations,presence,scenes,dates,plans,lifeEvents].find((result)=>result.error);
   if(failed?.error)throw new AppError('INTERNAL_ERROR','Companion presence could not be refreshed.',500,true);
   const publishedWorlds=worlds.data??[],worldIds=new Set(publishedWorlds.map((world)=>String(world.id))),publishedLocations=await filterAccessibleLocations(db,userId,(locations.data??[]).filter((location)=>worldIds.has(String(location.world_id)))),locationIds=new Set(publishedLocations.map((location)=>String(location.id)));
+  scheduleEvents.data=await refreshCalderSnapshotSchedules(db,userId,[instance],await resolveUserExperienceTimezone(db,userId),nowDate,scheduleEvents.data??[]);
   const activeScene=(scenes.data??[]).find((scene)=>{const expected=scene.expected_end_at?new Date(String(scene.expected_end_at)).getTime():new Date(String(scene.started_at)).getTime()+3*60*60*1000;return Number.isFinite(expected)&&expected>now&&worldIds.has(String(scene.world_id));});
   const visible=activeScene
     ? {...instance,current_location_id:activeScene.location_id,current_activity:sceneSnapshotActivity(activeScene),current_interruptibility:'open',current_presence_source:'scene'}
@@ -472,6 +475,17 @@ async function fetchScheduleTemplates(db:SupabaseClient,characterVersionIds:stri
     rows.push(...(page.data??[]));
   }
   return{data:rows,error:null};
+}
+
+async function refreshCalderSnapshotSchedules(db:SupabaseClient,userId:string,instances:Array<Record<string,any>>,timezone:string,now:Date,events:Array<Record<string,any>>) {
+  const calder=instances.filter(instance=>instance.together_character_versions?.life_config?.source==='calders_run_authoring_v1');
+  if(!calder.length)return events;
+  const ids=new Set(calder.map(instance=>String(instance.id))),fresh:Array<Record<string,any>>=[];
+  for(const instance of calder){
+    const blocks=await ensureCalderSchedule({db,userId,instance,timezone,now,days:1,persist:false});
+    for(const block of blocks)fresh.push({character_instance_id:instance.id,location_id:block.locationId,title:block.title,activity_key:block.activityKey,starts_at:block.startsAt,ends_at:block.endsAt,visibility:block.visibility,interruptibility:block.interruptibility,priority:block.priority,source:block.source,metadata:block.metadata});
+  }
+  return [...events.filter(event=>!ids.has(String(event.character_instance_id))||event.metadata?.source!=='calders_run_authoring_v1'),...fresh];
 }
 
 function resolveAuthoredSnapshotPresence(instance:Record<string,unknown>,now:Date,schedules:Array<Record<string,any>>,locations:Array<Record<string,any>>,worlds:Array<Record<string,any>>,presences:Array<Record<string,any>>,events:Array<Record<string,any>>=[]){

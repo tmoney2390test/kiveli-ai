@@ -1,7 +1,8 @@
+import { calderDateMatchesCharacter } from '../../../packages/together-domain/src/calders-reservations.ts';
 import { z } from 'zod';
 import { validateCalderOuting } from '../_shared/kivelle-calders-schedule.ts';
 import { CALDERS_WORLD_ID } from '../_shared/kivelle-world-progress.ts';
-import { resolvePlaceContext } from '../_shared/together-place.ts';
+import { resolvePlaceContext, assertCharacterResidentInWorld } from '../_shared/together-place.ts';
 import {acceptMediaOffer} from '../_shared/together-media-offer-acceptance.ts';
 import { createMediaOffer } from '../_shared/together-media-offers.ts';
 import { authenticated, enforceRateLimit } from '../_shared/context.ts';
@@ -27,18 +28,24 @@ serve(async (request, correlationId) => {
   const continuity=await activeContinuity(db,user.id);
   if(input.action==='availability'){
     const[{data:instance},{data:relationship},{data:templates},{data:sessions}]=await Promise.all([
-      db.from('together_character_instances').select('id,relationship_stage').eq('id',input.characterInstanceId).eq('user_id',user.id).eq('continuity_id',continuity.id).maybeSingle(),
+      db.from('together_character_instances').select('id,relationship_stage,character_template_id,character_version_id').eq('id',input.characterInstanceId).eq('user_id',user.id).eq('continuity_id',continuity.id).maybeSingle(),
       db.from('together_relationship_states').select('*').eq('character_instance_id',input.characterInstanceId).eq('user_id',user.id).maybeSingle(),
       db.from('together_date_templates').select('*').eq('world_id',input.worldId).eq('active',true).order('created_at'),
       db.from('together_date_sessions').select('*').eq('character_instance_id',input.characterInstanceId).eq('user_id',user.id).eq('continuity_id',continuity.id),
     ]);
     if(!instance)throw new AppError('NOT_FOUND','That companion is unavailable.',404);
+    if(input.worldId===CALDERS_WORLD_ID)await assertCharacterResidentInWorld({db,characterVersionId:instance.character_version_id,worldId:input.worldId});
     const byTemplate=new Map((sessions??[]).map((session:Record<string,unknown>)=>[String(session.date_template_id),session]));
-    const availability=(templates??[]).map((template:Record<string,unknown>)=>{const session=byTemplate.get(String(template.id));const available=dateRulesPass(template.unlock_rules as Record<string,unknown>|undefined,{...relationship,relationship_stage:instance.relationship_stage});return{template,sessionId:session?.id??null,status:session?.status??(available?'available':'locked')};});
+    const availability=(templates??[]).filter(template=>input.worldId!==CALDERS_WORLD_ID||calderDateMatchesCharacter(template.metadata,instance.character_template_id)).map((template:Record<string,unknown>)=>{const session=byTemplate.get(String(template.id));const available=dateRulesPass(template.unlock_rules as Record<string,unknown>|undefined,{...relationship,relationship_stage:instance.relationship_stage});return{template,sessionId:session?.id??null,status:session?.status??(available?'available':'locked')};});
     return json({data:availability,correlationId},200,correlationId);
   }
   const { data: session } = await db.from('together_date_sessions').select('*,together_date_templates(*)').eq('id', input.sessionId).eq('user_id', user.id).eq('continuity_id',continuity.id).maybeSingle();
   if (!session) throw new AppError('NOT_FOUND', 'That date is unavailable.', 404);
+  if(session.together_date_templates.world_id===CALDERS_WORLD_ID){
+    const {data:actor}=await db.from('together_character_instances').select('character_template_id,character_version_id').eq('id',session.character_instance_id).eq('user_id',user.id).eq('continuity_id',continuity.id).single();
+    if(!actor||!calderDateMatchesCharacter(session.together_date_templates.metadata,actor.character_template_id))throw new AppError('NOT_FOUND','That outing is not available with this companion.',404);
+    await assertCharacterResidentInWorld({db,characterVersionId:actor.character_version_id,worldId:CALDERS_WORLD_ID});
+  }
   if (input.action === 'defer') {
     if (!['unlocked','upcoming'].includes(session.status)) throw new AppError('CONFLICT', 'This date cannot be deferred now.', 409);
     await db.from('together_date_sessions').update({ status: 'deferred', updated_at: new Date().toISOString() }).eq('id', session.id);
@@ -52,7 +59,8 @@ serve(async (request, correlationId) => {
       const place=await resolvePlaceContext({db,userId:user.id,locationId:session.together_date_templates.location_id});
       travelReservation=await validateCalderOuting({db,userId:user.id,characterInstanceId:session.character_instance_id,locationId:place.location.id,startsAt:new Date(now),endsAt:new Date(Date.now()+90*60_000),timezone:place.clock.timezone,excludeDateId:session.id,immediate:true});
     }
-    const { data, error } = await db.from('together_date_sessions').update({ status: 'active', current_phase: 'arrival', phase_index: 0, started_at: now, state:{...(session.state??{}),...travelReservation}, updated_at: now }).eq('id', session.id).select('*,together_date_templates(*)').single();
+    const { data, error } = await db.from('together_date_sessions').update({ status: 'active', current_phase: 'arrival', phase_index: 0, started_at: now, ...(session.together_date_templates.world_id===CALDERS_WORLD_ID&&session.status!=='upcoming'?{scheduled_for:now}:{}),state:{...(session.state??{}),...travelReservation}, updated_at: now }).eq('id', session.id).select('*,together_date_templates(*)').single();
+    if (error?.code==='23P01')throw new AppError('PLAN_CONFLICT','Another commitment or its travel now occupies that time.',409,true);
     if (error) throw new AppError('INTERNAL_ERROR', 'Could not begin the date.', 500, true);
     await track(db, user.id, 'date_started', { dateSessionId: session.id });
     return json({ data, correlationId }, 200, correlationId);

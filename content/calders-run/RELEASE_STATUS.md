@@ -23,15 +23,14 @@ Location and home prompts remove the cover panorama. Only four location prompts 
 - Desktop/mobile onboarding against a staged catalog fixture: 47 initially available companions, spice badges, zero missing images/page errors/production writes.
 - Earlier read-only production schedule simulation: 49 characters across seven days, zero gaps or overlaps.
 
-## Before release
+## Launch checks
 
-The Supabase CLI returned Unauthorized on 2026-09-09. Reauthenticate it before uploading reference media. The database connector remains available. No Calder frontend or Edge Function deployment has been made.
+Supabase authentication was restored through the existing browser sign-in on 2026-09-09. All 103 world/location/character references have been uploaded and verified against reviewed file hashes and accessible image responses. The final canonical import has completed while the world remains hidden.
 
-1. Finish reservation coverage for edited/rescheduled/group plans, concurrent travel reservations, and late scheduled-date starts.
-2. Verify saved absences/relocations across presence, home context and correspondence; verify invitation/disclosure transitions against the authoring rules.
-3. Reimport the final canonical visual contexts while the world remains unpublished.
-4. Upload the reviewed references, bind character reference paths and update media readiness only after storage checks.
-5. Run authenticated end-to-end chat, photos, voice, dates, stories, map and discovery checks against the final runtime.
-6. Publish only after the remaining checks pass and deployment matches the reviewed commit.
+Reservation coverage now includes edited/rescheduled/group plans, synchronized dates, database serialization, late starts, and character-specific date eligibility. The database guard migration is applied as `20260909170718_calders_reservation_guards.sql`. Full app/domain/gateway tests, 24 content/database tests, and 18 focused Edge Function tests pass. Production-canon simulations cover all 49 characters across seven days with no gaps or overlaps, plus saved relocations, absences and severe-weather travel chains without production writes.
+
+Saved relocations retain private sleep and daily routines at the new base, and home grounding drops the former home. Snapshot presence resolves current Calder schedules on first load and after saved changes. Home and private-event access remain subject to specific saved invitations; private records remain gated.
+
+Before publication: deploy the reviewed frontend and Edge Functions, run authenticated smoke checks, then execute `content/calders-run/publish.sql` and verify discovery, chat, media, voice, places and story controls on the live release. The publication SQL checks catalog counts and private storage bindings atomically.
 
 Home interiors retain the existing private text-grounding policy. Their reviewed artwork is retained as authored assets and must not be exposed as public places.

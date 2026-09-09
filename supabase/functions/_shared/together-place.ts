@@ -1,4 +1,4 @@
-import { assertLocationAccess, filterAccessibleLocations } from './kivelle-world-progress.ts';
+import { assertLocationAccess, filterAccessibleLocations, CALDERS_WORLD_ID, loadWorldProgress } from './kivelle-world-progress.ts';
 import { requestRead } from './request-context.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { capabilitiesForTier, hasOpenBuildWorldAccess, normalizeSubscriptionTier } from '../../../packages/together-domain/src/index.ts';
@@ -100,8 +100,22 @@ function unique(values:string[]){return[...new Set(values)];}
 
 export async function resolveCharacterHomeContext(input:{db:SupabaseClient;characterVersionId:string;now?:Date;userId?:string}):Promise<PlaceContext|null>{
   const now=input.now??new Date();
-  const{data:home,error}=await requestRead(input.db,['authored-home',input.characterVersionId],()=>input.db.from('together_character_homes').select('*').eq('character_version_id',input.characterVersionId).eq('active',true).maybeSingle());
-  if(error||!home)return null;
+  const{data:authoredHome,error}=await requestRead(input.db,['authored-home',input.characterVersionId],()=>input.db.from('together_character_homes').select('*').eq('character_version_id',input.characterVersionId).eq('active',true).maybeSingle());
+  if(error||!authoredHome)return null;
+  const home=structuredClone(authoredHome);
+  if(home.world_id===CALDERS_WORLD_ID&&input.userId){
+    const {state}=await loadWorldProgress(input.db,input.userId,CALDERS_WORLD_ID);
+    const owner=home.canonical_lore?.ownerCharacterId;
+    const move=(state.transitions??[]).filter((t:Row)=>t.kind==='relocation'&&t.departingCharacterId===owner&&t.locationId&&Date.parse(t.recordedAt)<=now.getTime()).at(-1);
+    if(move){
+      home.district_anchor_location_id=move.locationId;
+      home.name='Private lodgings at the agreed new base';
+      home.description='A private room at the saved new base. Its precise furnishings and ownership have not been established.';
+      home.prompt_text='A modest private room in Calder’s Run, 1888, at the agreed new base. Period materials and closed personal papers. Do not reuse the former hideout or claim a purchased home.';
+      home.canonical_visual_context={canonicalPrompt:home.prompt_text,indoorOutdoor:'indoor'};
+      home.canonical_lore={version:2,authored:true,summary:home.description,ownerCharacterId:owner,access:'specific_invitation_only',stableFacts:['The old residence no longer establishes the current home. A separate invitation is required.']};
+    }
+  }
   const[{data:world},{data:district}]=await Promise.all([
     input.db.from('together_worlds').select('*').eq('id',home.world_id).eq('published',true).maybeSingle(),
     home.district_anchor_location_id?input.db.from('together_locations').select('id,world_id,slug,name,location_type,description,canonical_visual_context,canonical_lore').eq('id',home.district_anchor_location_id).maybeSingle():Promise.resolve({data:null}),
