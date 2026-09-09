@@ -2365,7 +2365,7 @@ export default function GroupChatScreen() {
               </Text>
             </Pressable>
             <View style={styles.photoMenuDivider} />
-            <Text style={styles.photoMenuLabel}>SHARE A PHOTO {photoSharingEntitled?'':'· KIVELLE+'}</Text>
+            <Text style={styles.photoMenuLabel}>SHARE A PHOTO</Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Choose a photo from your library"
@@ -2374,7 +2374,7 @@ export default function GroupChatScreen() {
             >
               <Upload size={18} color={colors.rose} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.photoUploadTitle}>Share a photo</Text>
+                <Text style={styles.photoUploadTitle}>Upload photo</Text>
                 <Text style={styles.photoUploadCopy}>
                   Share one private photo and an optional caption with the group. No credits.
                 </Text>
