@@ -36,3 +36,4 @@ export * from './SpiceBadge';
 export * from './ChatTypingIndicator';
 export * from './DailyMessageAllowanceNotice';
 export * from './ConversationMediaGalleryModal';
+export * from './CreatorWizardShell';
