@@ -1,0 +1,84 @@
+-- CI-only migration fixture. Production portrait assets were imported through
+-- the media sync process before the corresponding linking migrations ran.
+-- A fresh isolated database has no Storage objects, so create private metadata
+-- placeholders there while retaining every historical migration assertion.
+insert into public.together_media_reference_assets(
+  asset_role,character_version_id,source_key,storage_bucket,storage_path,
+  content_type,revision,active,metadata
+)
+select distinct
+  'character_identity',version.id,'character:'||template.slug||':identity',
+  'kivelle-character-reference','ci/vharadren/'||template.slug||'/identity.png',
+  'image/png',1,true,'{"ciFixture":true}'::jsonb
+from public.together_character_templates template
+join public.together_character_versions version
+  on version.character_template_id=template.id
+ and version.version=template.current_published_version
+join public.together_character_world_presence presence
+  on presence.character_version_id=version.id
+where presence.world_id='10000000-0000-4000-8000-000000000013'::uuid
+on conflict(asset_role,source_key,revision) do nothing;
+
+-- Later historical migrations add a small number of Vharadren characters and
+-- then immediately link their already-imported portraits. Mirror that external
+-- importer when their world-presence row is written so clean CI replays retain
+-- the same ordering as production without modifying applied migrations.
+create or replace function public.kivelle_ci_seed_vharadren_character_asset()
+returns trigger
+language plpgsql
+set search_path=public
+as $$
+declare
+  v_slug text;
+begin
+  if new.world_id='10000000-0000-4000-8000-000000000013'::uuid then
+    select template.slug into v_slug
+    from public.together_character_versions version
+    join public.together_character_templates template
+      on template.id=version.character_template_id
+    where version.id=new.character_version_id;
+
+    if v_slug is not null then
+      insert into public.together_media_reference_assets(
+        asset_role,character_version_id,source_key,storage_bucket,storage_path,
+        content_type,revision,active,metadata
+      ) values(
+        'character_identity',new.character_version_id,
+        'character:'||v_slug||':identity',
+        'kivelle-character-reference','ci/vharadren/'||v_slug||'/identity.png',
+        'image/png',1,true,'{"ciFixture":true}'::jsonb
+      )
+      on conflict(asset_role,source_key,revision) do nothing;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists kivelle_ci_seed_vharadren_character_asset
+  on public.together_character_world_presence;
+create trigger kivelle_ci_seed_vharadren_character_asset
+after insert or update of character_version_id,world_id
+on public.together_character_world_presence
+for each row execute function public.kivelle_ci_seed_vharadren_character_asset();
+
+with secondary_slugs(slug) as(values
+  ('dame-ysabet-rooke'),
+  ('high-flame-elowen-orison'),
+  ('lady-isolde-morcant')
+)
+insert into public.together_media_reference_assets(
+  asset_role,character_version_id,source_key,storage_bucket,storage_path,
+  content_type,revision,active,metadata
+)
+select
+  'character_identity',version.id,
+  'character:'||template.slug||':identity:secondary-1',
+  'kivelle-character-reference','ci/vharadren/'||template.slug||'/secondary-1.png',
+  'image/png',1,true,'{"ciFixture":true}'::jsonb
+from secondary_slugs expected
+join public.together_character_templates template on template.slug=expected.slug
+join public.together_character_versions version
+  on version.character_template_id=template.id
+ and version.version=template.current_published_version
+on conflict(asset_role,source_key,revision) do nothing;

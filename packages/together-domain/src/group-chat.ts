@@ -5,6 +5,34 @@ export type GroupResponseMode = typeof groupResponseModes[number];
 export const groupReactions = ["❤️", "😂", "😮", "😏", "👍", "👀"] as const;
 export type GroupReaction = typeof groupReactions[number];
 
+export const GROUP_STANDARD_MAX_REPLIES=3;
+export const GROUP_LET_TALK_MAX_REPLIES=5;
+export const GROUP_STANDARD_VISIBLE_OUTPUT_CHARACTERS=6_000;
+export const GROUP_LET_TALK_VISIBLE_OUTPUT_CHARACTERS=10_000;
+export const GROUP_STANDARD_PROVIDER_OPERATIONS=10;
+export const GROUP_LET_TALK_PROVIDER_OPERATIONS=16;
+
+export type GroupTurnBudget={
+  maxReplies:number;
+  maxVisibleOutputCharacters:number;
+  maxProviderOperations:number;
+};
+
+export function groupTurnBudget(letThemTalk:boolean):GroupTurnBudget{
+  return letThemTalk
+    ?{maxReplies:GROUP_LET_TALK_MAX_REPLIES,maxVisibleOutputCharacters:GROUP_LET_TALK_VISIBLE_OUTPUT_CHARACTERS,maxProviderOperations:GROUP_LET_TALK_PROVIDER_OPERATIONS}
+    :{maxReplies:GROUP_STANDARD_MAX_REPLIES,maxVisibleOutputCharacters:GROUP_STANDARD_VISIBLE_OUTPUT_CHARACTERS,maxProviderOperations:GROUP_STANDARD_PROVIDER_OPERATIONS};
+}
+
+export function fitGroupVisibleOutput(text:string,remainingCharacters:number):string{
+  const clean=text.trim();
+  if(remainingCharacters<=0)return"";
+  if(clean.length<=remainingCharacters)return clean;
+  const slice=clean.slice(0,remainingCharacters);
+  const sentence=Math.max(slice.lastIndexOf(". "),slice.lastIndexOf("! "),slice.lastIndexOf("? "));
+  return(sentence>=Math.floor(remainingCharacters*.55)?slice.slice(0,sentence+1):slice).trimEnd();
+}
+
 export type GroupPlanRosterSummary={
   id:string;
   title:string;
@@ -206,7 +234,7 @@ export function planGroupTurn(input: GroupTurnInput): GroupTurnPlan {
     );
   const energy = input.energy ?? "balanced";
   const maxMessages = input.letThemTalk
-    ? Math.min(6, available.length + 2)
+    ? Math.min(GROUP_LET_TALK_MAX_REPLIES, available.length + 2)
     : broad
     ? (energy === "quiet" ? 1 : energy === "balanced" ? 2 : 3)
     : crossAddressedExchange && energy !== "quiet"
@@ -325,9 +353,10 @@ export function planGroupTurn(input: GroupTurnInput): GroupTurnPlan {
       });
     }
   }
+  const replyLimit=groupTurnBudget(input.letThemTalk===true).maxReplies;
   const continuationBudget = input.letThemTalk
-    ? Math.min(5, Math.max(2, available.length))
-    : Math.max(0, actions.length - 1);
+    ? Math.min(replyLimit-1, Math.max(2, available.length))
+    : Math.min(replyLimit-1,Math.max(0, actions.length - 1));
   return {
     actions,
     yieldToUserAfter: true,

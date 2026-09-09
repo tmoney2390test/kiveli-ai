@@ -1,0 +1,12 @@
+diff --git a/supabase/migrations/202609040033_kivelle_high_stakes_story_consequences.sql b/supabase/migrations/202609040033_kivelle_high_stakes_story_consequences.sql
+--- a/supabase/migrations/202609040033_kivelle_high_stakes_story_consequences.sql
++++ b/supabase/migrations/202609040033_kivelle_high_stakes_story_consequences.sql
+@@ -40,7 +40,7 @@ begin
+   end if;
+   return new;
+ end;
+-$$
++$$;
+ 
+ -- High-stakes decisions use the existing continuity-scoped World Pulse event
+ -- ledger. This inactive template is a foreign-key anchor only; the recurring

@@ -1,4 +1,5 @@
 import { buildSnapshot } from './together.ts';
+import { CONVERSATION_WITH_MESSAGE_COUNT_SELECT } from './together-selects.ts';
 
 function assert(condition:unknown,message:string){if(!condition)throw new Error(message);}
 
@@ -39,4 +40,8 @@ Deno.test('newly created accounts receive a companion-selection snapshot before 
   assert(snapshot.discoverableCharacters[0].slug==='brooke','the selectable companion should be hydrated');
   assert(snapshot.characters.length===0&&snapshot.conversations.length===0,'relationship state should start empty');
   assert(!queried.includes('together_continuities'),'the snapshot must not require a continuity before onboarding');
+});
+
+Deno.test('post-onboarding snapshots count messages through the direct conversation foreign key',()=>{
+  assert(CONVERSATION_WITH_MESSAGE_COUNT_SELECT==='*,together_messages!together_messages_conversation_id_fkey(count)','message counts must not use an ambiguous PostgREST relationship');
 });

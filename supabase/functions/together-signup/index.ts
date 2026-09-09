@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { adminClient, enforceRateLimit } from '../_shared/context.ts';
+import { adminClient, enforceRateLimit, resolveServerSecret } from '../_shared/context.ts';
 import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
@@ -16,8 +16,10 @@ serve(async (request, correlationId) => {
   const input = await parseBody(request, schema);
   if(!isAtLeast18(input.dateOfBirth,new Date()))throw new AppError('FORBIDDEN','You must be 18 or older to create a Kivelle account.',403,false);
   const db = adminClient();
-  const forwarded = request.headers.get('cf-connecting-ip') ?? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  await enforceRateLimit(db, await fingerprint(`ip:${forwarded}`), 'together_public_signup', 20, 3600);
+  const network = normalizedNetworkPrefix(request.headers.get('cf-connecting-ip') ?? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim());
+  const installation=request.headers.get('x-kivelle-installation-id');
+  await enforceRateLimit(db, await fingerprint(`network:${network}`), 'together_public_signup', 20, 3600);
+  if(installation&&/^[0-9a-f-]{36}$/i.test(installation))await enforceRateLimit(db,await fingerprint(`installation:${installation}`),'together_public_signup_installation',5,86400,'Too many accounts were created from this installation. Try again tomorrow.');
   await enforceRateLimit(db, await fingerprint(`email:${input.email}`), 'together_public_signup_email', 5, 3600);
 
   // This Supabase project has a global auto-confirm policy for another app.
@@ -65,6 +67,17 @@ function isDuplicateUser(message: string) {
 }
 
 async function fingerprint(value: string) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  const secret=resolveServerSecret();
+  if(!secret)throw new AppError('INTERNAL_ERROR','Account protection is not configured.',500);
+  const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);
+  const digest=await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function normalizedNetworkPrefix(value:string|null|undefined):string{
+  const candidate=(value??'unknown').trim().toLocaleLowerCase();
+  const ipv4=candidate.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.\d{1,3}$/);
+  if(ipv4)return`${ipv4[1]}.${ipv4[2]}.${ipv4[3]}.0/24`;
+  if(candidate.includes(':'))return`${candidate.split(':').slice(0,4).join(':')}::/64`;
+  return'unknown';
 }

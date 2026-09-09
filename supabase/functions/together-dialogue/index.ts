@@ -1,7 +1,7 @@
 import { chatSpeedEnabled, ChatTimings } from '../_shared/kivelle-chat-latency.ts';
 import { stageContextAuthorization } from '../_shared/kivelle-context-authorization.ts';
 import { z } from "zod";
-import { authenticated, enforceRateLimit } from "../_shared/context.ts";
+import { authenticated, enforceGenerationGuardrails, enforceRateLimit } from "../_shared/context.ts";
 import { requireAiDataConsent } from "../_shared/kivelle-ai-consent.ts";
 import { parseBody } from "../_shared/body.ts";
 import { corsHeaders, errorResponse } from "../_shared/http.ts";
@@ -34,6 +34,7 @@ import {
   type ChemistrySignal,
   classifyGroupSocialEvent,
   compileIntimacyStance,
+  containsSecretLikeValue,
   detectFlirtSignal,
   hasExplicitSexualOutputLanguage,
   hasSexualDialogueLanguage,
@@ -123,6 +124,7 @@ import {
 import { attachAuthoredDepthContext } from "../_shared/kivelle-authored-depth-context.ts";
 import {
   assertChatRequestId,
+  canonicalizeReconnectRequestId,
   chatRequestFingerprint,
   claimChatUserMessage,
   commitDirectAssistantMessage,
@@ -256,7 +258,7 @@ Deno.serve(async (request) => {
           if(!latestVisible||latestVisible.id!==input.anchorMessageId||latestVisible.role!=='assistant'||latestVisible.delivery_status!=='complete')throw new AppError('CONFLICT','That reply is no longer the latest message. Continue from the newest reply instead.',409);
           continuationAnchor=latestVisible;
         }
-        const requestId = assertChatRequestId(input.clientRequestId);
+        let requestId = assertChatRequestId(input.clientRequestId);
         const contextText = (isContinuation?String(continuationAnchor?.content??''):userText) ||
           "The user shared an image without a caption.";
         const photoIntent = classifyPhotoRequest(isContinuation?'':contextText);
@@ -285,6 +287,12 @@ Deno.serve(async (request) => {
           entryContext: input.entryContext ?? null,
           messageAction: input.messageAction ?? null,
           anchorMessageId: input.anchorMessageId ?? null,
+        });
+        requestId=await canonicalizeReconnectRequestId(db,{
+          userId:user.id,
+          conversationId:input.conversationId,
+          fingerprint:requestFingerprint,
+          requestId,
         });
         const persistedContent = userText || "[Photo]";
         const existingUserMessage = await findExistingChatRequest(db, {
@@ -351,7 +359,7 @@ Deno.serve(async (request) => {
         }
 
         if (!existingUserMessage) {
-          await enforceRateLimit(db, user.id, "together_dialogue", 80, 3600);
+          await enforceGenerationGuardrails(db,user.id,"dialogue");
         }
         turnLease = await beginConversationTurn(db, {
           userId: user.id,
@@ -1235,19 +1243,20 @@ Deno.serve(async (request) => {
           characterInstanceId: primarySpeakerId,
           metadata: { direction: "output" },
         });
-        const safeText = outputSafety.allowed
+        const secretLikeOutput=containsSecretLikeValue(generated.text);
+        const safeText = outputSafety.allowed&&!secretLikeOutput
           ? generated.text
           : outputBoundaryResponse(
             String(characterTemplate.name ?? "Companion"),
             dialogueContext.chatLanguage,
             dialogueContext.userMessage,
           );
-        if (!outputSafety.allowed) {
+        if (!outputSafety.allowed||secretLikeOutput) {
           await db.from("together_safety_events").insert({
             user_id: user.id,
             character_instance_id: input.characterInstanceId,
             direction: "output",
-            categories: outputSafety.categories,
+            categories: secretLikeOutput?["credential_shaped_output"]:outputSafety.categories,
             action: "replaced",
           });
         }
@@ -2052,6 +2061,10 @@ function streamDialogue({
             needsRepair = false;
           const approveAndEmit = async (segment: string): Promise<boolean> => {
             const candidate = approved + segment;
+            if(containsSecretLikeValue(candidate)){
+              blockedCategories=["credential_shaped_output"];
+              return false;
+            }
             if (!runOptions.route.explicit&&hasExplicitSexualOutputLanguage(candidate)) {
               blockedCategories = ["production_sexual_content_ceiling"];
               return false;
@@ -2126,7 +2139,8 @@ function streamDialogue({
             runMetadata = { ...repaired.metadata, fallback: true };
             if (
               repairSafety.allowed &&
-              !isContradictoryAcceptedIntimacyRefusal(repaired.text)
+              !isContradictoryAcceptedIntimacyRefusal(repaired.text) &&
+              !containsSecretLikeValue(repaired.text)
             ) {
               content = approved + repaired.text;
               emit({ type: "token", token: repaired.text });
@@ -2158,7 +2172,13 @@ function streamDialogue({
               runMetadata = event.metadata;
               continue;
             }
-            content += event.token;
+            const candidate=content+event.token;
+            if(containsSecretLikeValue(candidate)){
+              content=outputBoundaryResponse(String(context.character?.name??"Companion"),context.chatLanguage,context.userMessage);
+              emit({type:"token",token:content});
+              break;
+            }
+            content=candidate;
             emit({ type: "token", token: event.token });
           }
         }
@@ -2169,6 +2189,9 @@ function streamDialogue({
             503,
             true,
           );
+        }
+        if(containsSecretLikeValue(content)){
+          content=outputBoundaryResponse(String(context.character?.name??"Companion"),context.chatLanguage,context.userMessage);
         }
         if (!await touchConversationTurn(db, turnLease)) {
           throw new AppError(

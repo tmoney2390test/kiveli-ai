@@ -1,9 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "./types.ts";
+import { MESSAGE_CHARACTER_LIMIT } from "../../../packages/together-domain/src/message-limits.ts";
 
 const requestIdPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const forbiddenControlCharacters = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u;
+// Keep U+200C/U+200D: they are valid shaping characters in several writing
+// systems and in joined emoji. Reject only characters routinely used to hide
+// or reorder payloads invisibly.
+const invisibleFormattingCharacters = /[\u200b\u200e\u200f\u202a-\u202e\u2060-\u206f\ufeff]/u;
 const encoder = new TextEncoder();
 
 export type ClaimedChatMessage = {
@@ -12,11 +17,18 @@ export type ClaimedChatMessage = {
 };
 
 export function normalizeChatMessage(value: string, maximumBytes = 24_000): string {
-  const normalized = value.replace(/\r\n?/g, "\n").normalize("NFC").trim();
+  const normalized = value.replace(/\r\n?/g, "\n").replace(/[\t\v\f]+/g," ").normalize("NFC").trim();
   if (forbiddenControlCharacters.test(normalized)) {
     throw new AppError(
       "VALIDATION_FAILED",
       "That message contains unsupported control characters.",
+      422,
+    );
+  }
+  if (invisibleFormattingCharacters.test(normalized)) {
+    throw new AppError(
+      "VALIDATION_FAILED",
+      "That message contains unsupported invisible formatting.",
       422,
     );
   }
@@ -27,7 +39,58 @@ export function normalizeChatMessage(value: string, maximumBytes = 24_000): stri
       422,
     );
   }
+  if (normalized.length > MESSAGE_CHARACTER_LIMIT) {
+    throw new AppError(
+      "VALIDATION_FAILED",
+      `Messages can be up to ${MESSAGE_CHARACTER_LIMIT.toLocaleString("en-US")} characters.`,
+      422,
+    );
+  }
+  assertNonPathologicalMessage(normalized);
   return normalized;
+}
+
+export function assertNonPathologicalMessage(value:string):void{
+  if(value.length<120)return;
+  const nonWhitespace=Array.from(value).filter((char)=>!/[\s\p{P}\p{S}]/u.test(char));
+  const whitespaceCount=Array.from(value).filter((char)=>/\s/u.test(char)).length;
+  if(whitespaceCount/value.length>.82){
+    throw new AppError("VALIDATION_FAILED","That message contains too much empty space.",422);
+  }
+  if(nonWhitespace.length>=120){
+    const frequencies=new Map<string,number>();
+    for(const char of nonWhitespace)frequencies.set(char,(frequencies.get(char)??0)+1);
+    const dominant=Math.max(...frequencies.values())/nonWhitespace.length;
+    if(dominant>.88){
+      throw new AppError("VALIDATION_FAILED","That message is mostly repeated content.",422);
+    }
+  }
+  const words=value.normalize("NFKC").toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu)??[];
+  if(words.length>=40){
+    const frequencies=new Map<string,number>();
+    for(const word of words)frequencies.set(word,(frequencies.get(word)??0)+1);
+    if(Math.max(...frequencies.values())/words.length>.82){
+      throw new AppError("VALIDATION_FAILED","That message is mostly repeated content.",422);
+    }
+  }
+  if(/(?:[A-Za-z0-9+/]{700,}={0,2}|[A-Fa-f0-9]{900,})/u.test(value)){
+    throw new AppError("VALIDATION_FAILED","That encoded payload is not a supported chat message.",422);
+  }
+}
+
+export async function canonicalizeReconnectRequestId(
+  db:SupabaseClient,
+  input:{userId:string;conversationId:string;fingerprint:string;requestId:string},
+):Promise<string>{
+  const{data,error}=await db.rpc("kivelle_claim_generation_request_anchor",{
+    p_user_id:input.userId,
+    p_conversation_id:input.conversationId,
+    p_request_fingerprint:input.fingerprint,
+    p_request_id:input.requestId,
+    p_ttl_seconds:20,
+  });
+  if(error||typeof data!=="string")throw new AppError("INTERNAL_ERROR","That message could not be reconciled safely.",500,true);
+  return assertChatRequestId(data);
 }
 
 export function assertChatRequestId(value: string): string {
@@ -148,6 +211,9 @@ export async function claimChatUserMessage(
         "Part of that message is no longer available. Review it and try again.",
         422,
       );
+    }
+    if(providerCode.includes("INVALID_CHAT_MESSAGE")){
+      throw new AppError("VALIDATION_FAILED",`Messages can be up to ${MESSAGE_CHARACTER_LIMIT.toLocaleString("en-US")} characters.`,422);
     }
     throw new AppError(
       "INTERNAL_ERROR",

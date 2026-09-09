@@ -158,7 +158,7 @@ export default function Auth() {
     <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.scroll} contentContainerStyle={[styles.page,{minHeight:height}]}>
       <View style={[styles.shell, wide ? styles.shellWide : styles.shellCompact]}>
         <View style={[styles.hero, wide ? styles.heroWide : {height:mobileHeroHeight}]}>
-          <Image accessibilityLabel="Evelyn Harrow in her Vespormoor study" source={publicLandingPrimaryHeroAsset} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={wide?'center':'top'} loading="eager" priority="high" transition={0}/>
+          <Image accessibilityLabel="Evelyn Harrow in her Vespormoor study" source={publicLandingPrimaryHeroAsset} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top center" loading="eager" priority="high" transition={0}/>
           <View pointerEvents="none" style={styles.heroShade}/>
           {Platform.OS==='web'
             ? <View pointerEvents="none" style={[styles.heroFade,wide?styles.heroFadeWideWeb:styles.heroFadeCompactWeb]}/>
