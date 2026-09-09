@@ -213,12 +213,21 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
 
           <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible}/>
 
-          <SettingSection icon={<Languages size={16} color={colors.violet} />} label="Chat language">
-            <Pressable accessibilityRole="button" accessibilityLabel={`Chat language: ${selectedLanguage.label}`} accessibilityState={{ expanded: languageMenuOpen, disabled: saving }} disabled={saving} onPress={() => { setVoiceMenuOpen(false); setLanguageMenuOpen(true); }} style={({ pressed }) => [styles.intensitySelect, pressed && styles.pressed]}>
-              <View style={styles.intensityIcon}><Languages size={16} color="#fff" /></View>
-              <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.intensityValue}>{selectedLanguage.nativeLabel}</Text>{selectedLanguage.nativeLabel !== selectedLanguage.label ? <Text numberOfLines={1} style={styles.languageDetail}>{selectedLanguage.label}</Text> : null}</View>
-              <ChevronDown size={17} color={colors.muted} />
-            </Pressable>
+          <SettingSection icon={<Volume2 size={16} color={colors.violet} />} label="Companion voice">
+            {voiceEntitled ? <>
+              <View style={styles.voiceControlRow}>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Companion voice: ${selectedVoice.label}`} accessibilityState={{ expanded: voiceMenuOpen, disabled: saving || voicePreviewBusy }} disabled={saving || voicePreviewBusy} onPress={() => { setLanguageMenuOpen(false); setVoiceMenuOpen(true); }} style={({ pressed }) => [styles.voiceSelect, voiceMenuOpen && styles.voiceSelectOpen, pressed && styles.pressed]}>
+                  <View style={styles.voiceSelectIcon}><Volume2 size={15} color="#fff" /></View>
+                  <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.voiceSelectLabel}>{selectedVoice.label}</Text><Text numberOfLines={1} style={styles.voiceSelectDetail}>{selectedVoice.detail}</Text></View>
+                  <ChevronDown size={17} color={colors.muted} style={{ transform: [{ rotate: voiceMenuOpen ? '180deg' : '0deg' }] }} />
+                </Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel={voicePreview ? voicePlayerStatus.playing ? 'Pause voice sample' : 'Play voice sample' : 'Prepare voice sample'} disabled={saving || voicePreviewBusy} onPress={() => void testVoice()} style={({ pressed }) => [styles.voicePreviewButton, (saving || voicePreviewBusy) && styles.disabled, pressed && styles.pressed]}>
+                  {voicePreviewBusy ? <ActivityIndicator size="small" color="#fff" /> : voicePreview ? voicePlayerStatus.playing ? <Pause size={14} color="#fff" fill="#fff" /> : <Play size={14} color="#fff" fill="#fff" /> : <Volume2 size={14} color="#fff" />}
+                  <Text style={styles.voicePreviewButtonText}>{voicePreviewBusy ? 'Loading…' : voicePreview && voicePlayerStatus.playing ? 'Pause' : 'Play'}</Text>
+                </Pressable>
+              </View>
+              {voicePreview && !voicePlayerStatus.isLoaded && voicePlayerStatus.error ? <Text accessibilityLiveRegion="polite" style={styles.voiceLoadingText}>The sample could not load. Try it again.</Text> : null}
+            </> : <Pressable accessibilityRole="button" onPress={() => { onClose(); const href=subscriptionHref({intent:'voice'}); if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never); }} style={styles.voiceLocked}><Volume2 size={18} color={colors.muted} /><View style={{ flex: 1 }}><Text style={styles.voiceLockedTitle}>Custom voices are available with Kivelle+</Text><Text style={styles.voiceLockedCopy}>Your companion’s authored voice is still used by default.</Text></View><ChevronRight size={16} color={colors.dimmed} /></Pressable>}
           </SettingSection>
           </> : null}
 
@@ -246,21 +255,12 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
             <ChatBubbleColorSettings userColor={userBubbleColor} companionColor={companionBubbleColor} companionName={name} disabled={saving} onUserColorChange={setUserBubbleColor} onCompanionColorChange={setCompanionBubbleColor} />
           </SettingSection>
 
-          <SettingSection icon={<Volume2 size={16} color={colors.violet} />} label="Companion voice">
-            {voiceEntitled ? <>
-              <View style={styles.voiceControlRow}>
-                <Pressable accessibilityRole="button" accessibilityLabel={`Companion voice: ${selectedVoice.label}`} accessibilityState={{ expanded: voiceMenuOpen, disabled: saving || voicePreviewBusy }} disabled={saving || voicePreviewBusy} onPress={() => { setLanguageMenuOpen(false); setVoiceMenuOpen(true); }} style={({ pressed }) => [styles.voiceSelect, voiceMenuOpen && styles.voiceSelectOpen, pressed && styles.pressed]}>
-                  <View style={styles.voiceSelectIcon}><Volume2 size={15} color="#fff" /></View>
-                  <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.voiceSelectLabel}>{selectedVoice.label}</Text><Text numberOfLines={1} style={styles.voiceSelectDetail}>{selectedVoice.detail}</Text></View>
-                  <ChevronDown size={17} color={colors.muted} style={{ transform: [{ rotate: voiceMenuOpen ? '180deg' : '0deg' }] }} />
-                </Pressable>
-                <Pressable accessibilityRole="button" accessibilityLabel={voicePreview ? voicePlayerStatus.playing ? 'Pause voice sample' : 'Play voice sample' : 'Prepare voice sample'} disabled={saving || voicePreviewBusy} onPress={() => void testVoice()} style={({ pressed }) => [styles.voicePreviewButton, (saving || voicePreviewBusy) && styles.disabled, pressed && styles.pressed]}>
-                  {voicePreviewBusy ? <ActivityIndicator size="small" color="#fff" /> : voicePreview ? voicePlayerStatus.playing ? <Pause size={14} color="#fff" fill="#fff" /> : <Play size={14} color="#fff" fill="#fff" /> : <Volume2 size={14} color="#fff" />}
-                  <Text style={styles.voicePreviewButtonText}>{voicePreviewBusy ? 'Loading…' : voicePreview && voicePlayerStatus.playing ? 'Pause' : 'Play'}</Text>
-                </Pressable>
-              </View>
-              {voicePreview && !voicePlayerStatus.isLoaded && voicePlayerStatus.error ? <Text accessibilityLiveRegion="polite" style={styles.voiceLoadingText}>The sample could not load. Try it again.</Text> : null}
-            </> : <Pressable accessibilityRole="button" onPress={() => { onClose(); const href=subscriptionHref({intent:'voice'}); if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never); }} style={styles.voiceLocked}><Volume2 size={18} color={colors.muted} /><View style={{ flex: 1 }}><Text style={styles.voiceLockedTitle}>Custom voices are available with Kivelle+</Text><Text style={styles.voiceLockedCopy}>Your companion’s authored voice is still used by default.</Text></View><ChevronRight size={16} color={colors.dimmed} /></Pressable>}
+          <SettingSection icon={<Languages size={16} color={colors.violet} />} label="Chat language">
+            <Pressable accessibilityRole="button" accessibilityLabel={`Chat language: ${selectedLanguage.label}`} accessibilityState={{ expanded: languageMenuOpen, disabled: saving }} disabled={saving} onPress={() => { setVoiceMenuOpen(false); setLanguageMenuOpen(true); }} style={({ pressed }) => [styles.intensitySelect, pressed && styles.pressed]}>
+              <View style={styles.intensityIcon}><Languages size={16} color="#fff" /></View>
+              <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.intensityValue}>{selectedLanguage.nativeLabel}</Text>{selectedLanguage.nativeLabel !== selectedLanguage.label ? <Text numberOfLines={1} style={styles.languageDetail}>{selectedLanguage.label}</Text> : null}</View>
+              <ChevronDown size={17} color={colors.muted} />
+            </Pressable>
           </SettingSection>
           </> : null}
 
