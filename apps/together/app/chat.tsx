@@ -11,6 +11,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MESSAGE_CHARACTER_LIMIT, messageCharacterLimitError } from '@together/domain/src/message-limits';
+import { ONE_TAP_SELFIE_MESSAGE_PRESENTATION, type OneTapSelfieMessagePresentation } from '@together/domain/src/media';
 import { isPhotoOnlyConversationMessage } from '../src/lib/chatMediaPresentation';
 import { shouldGroupChatMessages } from '@together/domain/src/group-chat';
 import { preservedPrependOffset, shouldKeepChatPinned, shouldLoadOlderChatMessages } from '../src/lib/chatScroll';
@@ -902,7 +903,7 @@ function ChatSession() {
   useEffect(()=>{pendingImageRef.current=pendingImage;},[pendingImage]);
   useEffect(()=>()=>cleanupNormalizedImage(pendingImageRef.current?.uri),[]);
 
-  const send = async (retryText?: string,retryRequestId?:string,retryMessageId?:string,messageAction?:DirectMessageAction,preserveComposer=false) => {
+  const send = async (retryText?: string,retryRequestId?:string,retryMessageId?:string,messageAction?:DirectMessageAction,preserveComposer=false,messagePresentation?:OneTapSelfieMessagePresentation) => {
     const draft = retryMessageId&&retryText==='[Photo]'&&pendingImage ? '' : retryText ?? input;
     if (draft.length > MESSAGE_CHARACTER_LIMIT) { setError(messageCharacterLimitError()); return; }
     const text = draft.trim(); if ((!text&&!pendingImage) || replyPending || sendInFlightRef.current) return;
@@ -914,6 +915,7 @@ function ChatSession() {
     sendInFlightRef.current=true;
     const sentAutoDialogue=!retryText&&!messageAction?autoDialogue:null;
     const retrySource=retryMessageId?messages.find((message)=>message.id===retryMessageId):undefined;
+    const effectiveMessagePresentation=messagePresentation??(retrySource?.provider_metadata?.messagePresentation===ONE_TAP_SELFIE_MESSAGE_PRESENTATION?ONE_TAP_SELFIE_MESSAGE_PRESENTATION:undefined);
     const retryAttachments=retrySource?.attachments??retrySource?.together_conversation_attachments??[];
     const retryAttachmentIds=retryAttachments.map((attachment)=>attachment.id).filter(Boolean);
     keepPinnedToBottom.current=true;
@@ -939,7 +941,7 @@ function ChatSession() {
     if(bottomPinReleaseTimer.current)clearTimeout(bottomPinReleaseTimer.current);
     activeBottomPinRequest.current=clientRequestId;
     forcePinnedUntil.current=Date.now()+1_200;
-    const optimistic: Message = { id: retryMessageId??`local-${Date.now()}`, conversation_id: conversation.id, role: 'user', content: text||'[Photo]', client_request_id:clientRequestId,delivery_status: 'pending', created_at: retrySource?.created_at??new Date().toISOString(),provider_metadata:retrySource?.provider_metadata??(messageAction?{uiHidden:true,messageAction:messageAction.messageAction,anchorMessageId:messageAction.anchorMessageId}:undefined),attachments:selectedImage?[pendingImageAttachment(selectedImage,conversation.id)]:retryAttachments };
+    const optimistic: Message = { id: retryMessageId??`local-${Date.now()}`, conversation_id: conversation.id, role: 'user', content: text||'[Photo]', client_request_id:clientRequestId,delivery_status: 'pending', created_at: retrySource?.created_at??new Date().toISOString(),provider_metadata:retrySource?.provider_metadata??(messageAction?{uiHidden:true,messageAction:messageAction.messageAction,anchorMessageId:messageAction.anchorMessageId}:effectiveMessagePresentation?{uiHidden:true,messagePresentation:effectiveMessagePresentation}:undefined),attachments:selectedImage?[pendingImageAttachment(selectedImage,conversation.id)]:retryAttachments };
     beginPendingDialogue({conversationId:conversation.id,characterInstanceId:character.id,clientRequestId,startedAt:new Date().toISOString(),showTyping:!expectsPhotoOffer});
     setMessages((current) => retryMessageId?current.map((item)=>item.id===retryMessageId?optimistic:item):[...current, optimistic]);
     settleSentMessageAtBottom(clientRequestId);
@@ -959,7 +961,7 @@ function ChatSession() {
           if(sceneResult.intentMatch){const sceneAction=await executeInteraction(sceneResult.intentMatch,'defer_to_current_message');sceneActionId=sceneAction?.id;}
         }catch{/* The sent message is still valid if the scene changed. */}
       }
-      const result = await sendDialogue({ ...contextAuthorization, conversationId: conversation.id, characterInstanceId: character.id, message: text,attachmentIds:preparedAttachmentId?[preparedAttachmentId]:retryAttachmentIds, clientRequestId,focusPlanId:focusPlanId??undefined,...(sceneActionId?{sceneActionId}:{}),...(messageAction?{messageAction:messageAction.messageAction,anchorMessageId:messageAction.anchorMessageId}:{}),...(sentAutoDialogue?{autoDialogueSuggestionId:sentAutoDialogue.suggestionId,autoDialogueSuggestionSource:sentAutoDialogue.source,autoDialogueSuggestionEdited:text!==sentAutoDialogue.text.trim(),autoDialogueSuggestionIntent:sentAutoDialogue.intent,autoDialogueSuggestionPreference:sentAutoDialogue.preference}:{}) }, (token) => {if(activeSendRequest.current!==clientRequestId)return;if(activeBottomPinRequest.current===clientRequestId)forcePinnedUntil.current=Date.now()+1_200;setStream((current) => current + token);}, {
+      const result = await sendDialogue({ ...contextAuthorization, conversationId: conversation.id, characterInstanceId: character.id, message: text,attachmentIds:preparedAttachmentId?[preparedAttachmentId]:retryAttachmentIds, clientRequestId,focusPlanId:focusPlanId??undefined,...(sceneActionId?{sceneActionId}:{}),...(messageAction?{messageAction:messageAction.messageAction,anchorMessageId:messageAction.anchorMessageId}:{}),...(effectiveMessagePresentation?{messagePresentation:effectiveMessagePresentation}:{}),...(sentAutoDialogue?{autoDialogueSuggestionId:sentAutoDialogue.suggestionId,autoDialogueSuggestionSource:sentAutoDialogue.source,autoDialogueSuggestionEdited:text!==sentAutoDialogue.text.trim(),autoDialogueSuggestionIntent:sentAutoDialogue.intent,autoDialogueSuggestionPreference:sentAutoDialogue.preference}:{}) }, (token) => {if(activeSendRequest.current!==clientRequestId)return;if(activeBottomPinRequest.current===clientRequestId)forcePinnedUntil.current=Date.now()+1_200;setStream((current) => current + token);}, {
         onPrimary:(message)=>{
           if(activeSendRequest.current!==clientRequestId)return;
           primaryComplete=true;
@@ -999,7 +1001,7 @@ function ChatSession() {
       if(preparedAttachmentId)void removePendingAttachment(preparedAttachmentId).catch(()=>undefined);
       if(selectedImage)setPhotoUploadPhase('failed');
       setStream(''); setError(caught instanceof Error ? caught.message : 'The reply was interrupted.');
-      if(!messageAction&&!preserveComposer){setInput(draft);currentInput.current=draft;}
+      if(!messageAction&&!preserveComposer&&!effectiveMessagePresentation){setInput(draft);currentInput.current=draft;}
       if(caught instanceof ApiError&&caught.code==='CONVERSATION_ARCHIVED')await refresh();
       if(caught instanceof ApiError&&caught.code==='PLAN_LIMIT_REACHED'){exhaustDailyMessageAllowance();if(expectsPhotoOffer)setShowPhotoPaywall(true);}
       setMessages((current) => current.map((item) => item.id === optimistic.id ? { ...item, delivery_status: 'failed' } : item));
@@ -1015,7 +1017,8 @@ function ChatSession() {
   };
   replayPersistedDialogueRef.current=(message)=>{
     if(!message.client_request_id)return;
-    void send(message.content,message.client_request_id,message.id,undefined,true);
+    const messagePresentation=message.provider_metadata?.messagePresentation===ONE_TAP_SELFIE_MESSAGE_PRESENTATION?ONE_TAP_SELFIE_MESSAGE_PRESENTATION:undefined;
+    void send(message.content,message.client_request_id,message.id,undefined,true,messagePresentation);
   };
 
   const openCreatedPlan=async(result:PlanMutationResult|undefined,timing:PlanTimingSelection)=>{
@@ -1218,7 +1221,7 @@ function ChatSession() {
         />
         <CharacterProfilePreviewModal companion={characterPreview} onClose={()=>setCharacterPreview(null)} onViewProfile={(person)=>{setCharacterPreview(null);navigateChatSurface(`/character/${person.slug}`);}} onInviteToGroup={invitePreviewToGroup} />
         <VoiceNotePurchaseModal visible={Boolean(voiceNotePrompt)} name={voiceNotePrompt?.name??character.together_character_templates.name} creditCost={voiceNotePrompt?.creditCost??0} creditBalance={voiceNotePrompt?.creditBalance??0} shortened={voiceNotePrompt?.shortened} busy={voiceNotePromptBusy} onClose={()=>finishVoiceNotePrompt(null)} onConfirm={(hideFuture)=>finishVoiceNotePrompt({hideFuture})} onBuyCredits={()=>{finishVoiceNotePrompt(null);navigateChatSurface(creditsSubscriptionHref);}}/>
-        <MediaRequestModal visible={showPhotoRequests} mode={mediaRequestMode} character={character} conversationId={conversation.id} onPhotoRequest={(request)=>{setShowPhotoRequests(false);void send(request);}} photoSharingEntitled={photoSharingEntitled} onShareLibrary={()=>void requestSharePhoto('library')} onTakePhoto={Platform.OS==='web'?undefined:()=>void requestSharePhoto('camera')} onPhotoSharingUpgrade={()=>{setShowPhotoRequests(false);setShowPhotoPaywall(true);}} onVideoCreated={(media)=>{upsertMedia(media);setReconcilingMediaId(media.id);setShowPhotoRequests(false);navigateChatSurface(mediaViewerHref(media.id,subscriptionReturnTo));}} onBuyCredits={()=>{setShowPhotoRequests(false);navigateChatSurface(creditsSubscriptionHref);}} onClose={()=>setShowPhotoRequests(false)}/>
+        <MediaRequestModal visible={showPhotoRequests} mode={mediaRequestMode} character={character} conversationId={conversation.id} onPhotoRequest={(request,options)=>{setShowPhotoRequests(false);void send(request,undefined,undefined,undefined,false,options?.messagePresentation);}} photoSharingEntitled={photoSharingEntitled} onShareLibrary={()=>void requestSharePhoto('library')} onTakePhoto={Platform.OS==='web'?undefined:()=>void requestSharePhoto('camera')} onPhotoSharingUpgrade={()=>{setShowPhotoRequests(false);setShowPhotoPaywall(true);}} onVideoCreated={(media)=>{upsertMedia(media);setReconcilingMediaId(media.id);setShowPhotoRequests(false);navigateChatSurface(mediaViewerHref(media.id,subscriptionReturnTo));}} onBuyCredits={()=>{setShowPhotoRequests(false);navigateChatSurface(creditsSubscriptionHref);}} onClose={()=>setShowPhotoRequests(false)}/>
         <PhotoSharingPaywallModal visible={showPhotoPaywall} onClose={()=>setShowPhotoPaywall(false)} onUpgrade={()=>{setShowPhotoPaywall(false);navigateChatSurface(photoSharingSubscriptionHref);}}/>
         <AutoDialogueOptionsModal visible={showAutoDialogueOptions} name={character.together_character_templates.name} hasSuggestion={Boolean(autoDialogue)} onChoose={(preference)=>void requestAutoDialogue(preference)} onClose={()=>setShowAutoDialogueOptions(false)}/>
         <PlanDetailsModal visible={Boolean(planModal)} planId={planModal?.planId??null} confirmCancel={planModal?.confirmCancel} onStarted={applyStartedPlan} onClose={()=>setPlanModal(null)}/>

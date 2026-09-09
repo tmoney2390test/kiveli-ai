@@ -38,6 +38,7 @@ import {
   detectFlirtSignal,
   hasExplicitSexualOutputLanguage,
   hasSexualDialogueLanguage,
+  isOneTapSelfiePhotoRequest,
   isDialogueHardBlocked,
   evolveCharacterUserView,
   type GroupSpeakerCandidate,
@@ -51,6 +52,7 @@ import {
   MESSAGE_CHARACTER_LIMIT,
   messageCharacterLimitError,
   normalizeChatLanguage,
+  ONE_TAP_SELFIE_MESSAGE_PRESENTATION,
   PHOTO_ONLY_MESSAGE_CONTENT,
   resolveProductionSafePhotoRequest,
   planGroupContinuation,
@@ -164,6 +166,7 @@ const schema = z.object({
   sceneActionId: z.string().uuid().optional(),
   messageAction: z.enum(["continue"]).optional(),
   anchorMessageId: z.string().uuid().optional(),
+  messagePresentation: z.literal(ONE_TAP_SELFIE_MESSAGE_PRESENTATION).optional(),
   autoDialogueSuggestionId: z.string().min(8).max(120).optional(),
   autoDialogueSuggestionSource: z.enum([
     "openai",
@@ -204,6 +207,8 @@ const schema = z.object({
 ).superRefine((value,ctx)=>{
   if(value.messageAction==='continue'&&!value.anchorMessageId)ctx.addIssue({code:z.ZodIssueCode.custom,path:['anchorMessageId'],message:'Choose the companion message to continue.'});
   if(!value.messageAction&&value.anchorMessageId)ctx.addIssue({code:z.ZodIssueCode.custom,path:['messageAction'],message:'That message action is invalid.'});
+  if(value.messagePresentation&&!isOneTapSelfiePhotoRequest(value.message))ctx.addIssue({code:z.ZodIssueCode.custom,path:['messagePresentation'],message:'That message presentation is invalid.'});
+  if(value.messagePresentation&&value.messageAction)ctx.addIssue({code:z.ZodIssueCode.custom,path:['messagePresentation'],message:'That message presentation cannot be combined with another action.'});
 });
 const dialogue = new ConfiguredDialogueProvider();
 const moderation = new ConfiguredModerationProvider();
@@ -247,6 +252,7 @@ Deno.serve(async (request) => {
         const authorizedPrivateAdultText=projectionPolicy.rollout.generationAllowed;
         const chatLanguage=normalizeChatLanguage(conversation.metadata?.chatPreferences?.chatLanguage);
         const userText = normalizeChatMessage(input.message);
+        const hideOneTapSelfie=input.messagePresentation===ONE_TAP_SELFIE_MESSAGE_PRESENTATION&&isOneTapSelfiePhotoRequest(userText);
         const isContinuation=input.messageAction==='continue';
         let continuationAnchor:Record<string,any>|null=null;
         if(isContinuation){
@@ -287,6 +293,7 @@ Deno.serve(async (request) => {
           entryContext: input.entryContext ?? null,
           messageAction: input.messageAction ?? null,
           anchorMessageId: input.anchorMessageId ?? null,
+          messagePresentation: input.messagePresentation ?? null,
         });
         requestId=await canonicalizeReconnectRequestId(db,{
           userId:user.id,
@@ -530,6 +537,7 @@ Deno.serve(async (request) => {
                 requestAttachmentIds: [...input.attachmentIds].sort(),
                 safety_redirected: true,
                 ...safeMessagePolicy('safe'),
+                ...(hideOneTapSelfie?{uiHidden:true,messagePresentation:ONE_TAP_SELFIE_MESSAGE_PRESENTATION}:{}),
                 ...(input.autoDialogueSuggestionId
                   ? {
                     autoDialogueSuggestionId: input.autoDialogueSuggestionId,
@@ -617,6 +625,7 @@ Deno.serve(async (request) => {
               ...userMessagePolicy(route,adultAttachment),
               ...privateDialoguePolicyMetadata({policy:dialoguePolicy,access:adultAccess,conversationMode:'direct',providerRoute:route.provider}),
               ...(isContinuation?{messageAction:'continue',anchorMessageId:input.anchorMessageId,uiHidden:true}:{}),
+              ...(hideOneTapSelfie?{uiHidden:true,messagePresentation:ONE_TAP_SELFIE_MESSAGE_PRESENTATION}:{}),
               ...(input.autoDialogueSuggestionId
                 ? {
                   autoDialogueSuggestionId: input.autoDialogueSuggestionId,

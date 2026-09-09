@@ -4,7 +4,7 @@ import { supabase, supabasePublishableKey, supabaseUrl } from './supabase';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { MESSAGE_CHARACTER_LIMIT, messageCharacterLimitError } from '@together/domain/src/message-limits';
-import { classifyPhotoIntent } from '@together/domain/src/media';
+import { classifyPhotoIntent, type OneTapSelfieMessagePresentation } from '@together/domain/src/media';
 import type { CompanionVoicePreset } from '@together/domain/src/voice-presets';
 import type { ChatLanguagePreference } from '@together/domain/src/chat-language';
 import type { AccountGender } from '@together/domain/src/account-onboarding';
@@ -248,7 +248,7 @@ export async function createTogetherAccount(email: string, password: string,date
   if (!response.ok) throw new ApiError(payload.error?.message ?? 'Your Kivelle account could not be created.', payload.error?.code, payload.error?.retryable);
 }
 
-export async function sendDialogue(input: {contextQuoteId?:string;contextPreference?:'included';conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;sceneActionId?:string;messageAction?:'continue';anchorMessageId?:string;autoDialogueSuggestionId?:string;autoDialogueSuggestionSource?:AutoDialogueSuggestion['source'];autoDialogueSuggestionEdited?:boolean;autoDialogueSuggestionIntent?:AutoDialogueSuggestion['intent'];autoDialogueSuggestionPreference?:AutoDialoguePreference;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void, callbacks?: {onPrimary?:(message:Message,hasAdditional:boolean)=>void;onMessage?:(message:Message)=>void}): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta}> {
+export async function sendDialogue(input: {contextQuoteId?:string;contextPreference?:'included';conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;sceneActionId?:string;messageAction?:'continue';anchorMessageId?:string;messagePresentation?:OneTapSelfieMessagePresentation;autoDialogueSuggestionId?:string;autoDialogueSuggestionSource?:AutoDialogueSuggestion['source'];autoDialogueSuggestionEdited?:boolean;autoDialogueSuggestionIntent?:AutoDialogueSuggestion['intent'];autoDialogueSuggestionPreference?:AutoDialoguePreference;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void, callbacks?: {onPrimary?:(message:Message,hasAdditional:boolean)=>void;onMessage?:(message:Message)=>void}): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta}> {
   if (input.message.length > MESSAGE_CHARACTER_LIMIT) throw new ApiError(messageCharacterLimitError(), 'VALIDATION_FAILED');
   const tokens=batchReplyText(onToken);
   let primary:Message|undefined;

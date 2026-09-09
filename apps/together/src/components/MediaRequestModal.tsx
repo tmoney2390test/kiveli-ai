@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Camera, Check, Film, Home, ImagePlus, MapPin, Send, Sparkles, Volume2, VolumeX, X } from 'lucide-react-native';
+import { ONE_TAP_SELFIE_MESSAGE_PRESENTATION, type OneTapSelfieMessagePresentation } from '@together/domain/src/media';
 import { createDirectVideo, enhanceVideoPrompt, getDirectVideoGenerationOptions } from '../lib/api';
 import { customPhotoRequestText } from '../lib/photoRequestPresentation';
 import { shouldLoadDirectVideoOptions } from '../lib/mediaRequestLoading';
@@ -22,7 +23,7 @@ type Props={
   mode:MediaMomentMode;
   character:CharacterInstance;
   conversationId:string;
-  onPhotoRequest:(request:string)=>void;
+  onPhotoRequest:(request:string,options?:PhotoRequestOptions)=>void;
   photoSharingEntitled:boolean;
   onShareLibrary:()=>void;
   onTakePhoto?:()=>void;
@@ -31,6 +32,8 @@ type Props={
   onBuyCredits:()=>void;
   onClose:()=>void;
 };
+
+type PhotoRequestOptions={messagePresentation?:OneTapSelfieMessagePresentation};
 
 const VIDEO_PROMPTS=['Look toward the camera and smile','Walk naturally through the scene','A quiet cinematic moment'];
 const ADULT_VIDEO_PROMPTS=['Look toward the camera and smile','Nude pose with natural motion','Consenting fictional adults in an intimate scene'];
@@ -119,10 +122,10 @@ function ShareMoment({photoSharingEntitled,onShareLibrary,onTakePhoto,onPhotoSha
     <Text style={styles.privateCopy}>One photo per message · Private · Originals expire after 30 days</Text>
   </View>;
 }
-function PhotoComposer({name,description,setDescription,onRequest,onSubmit,spicyUnlocked,onToggleSpicy}:{name:string;description:string;setDescription:(value:string)=>void;onRequest:(request:string)=>void;onSubmit:()=>void;spicyUnlocked:boolean;onToggleSpicy:()=>void}){
+function PhotoComposer({name,description,setDescription,onRequest,onSubmit,spicyUnlocked,onToggleSpicy}:{name:string;description:string;setDescription:(value:string)=>void;onRequest:(request:string,options?:PhotoRequestOptions)=>void;onSubmit:()=>void;spicyUnlocked:boolean;onToggleSpicy:()=>void}){
   return <>
   <View style={styles.selfieRow}>
-    <Pressable accessibilityLabel={`Ask ${name} for a selfie${spicyUnlocked?' with adult generation unlocked':''}`} onPress={()=>onRequest(selfiePhotoRequest(spicyUnlocked))} style={[styles.primary,styles.selfieButton]}><Sparkles size={17} color="#C7A6FF"/><Text style={styles.primaryText}>Send me a selfie</Text></Pressable>
+    <Pressable accessibilityLabel={`Ask ${name} for a selfie${spicyUnlocked?' with adult generation unlocked':''}`} onPress={()=>onRequest(selfiePhotoRequest(spicyUnlocked),{messagePresentation:ONE_TAP_SELFIE_MESSAGE_PRESENTATION})} style={[styles.primary,styles.selfieButton]}><Sparkles size={17} color="#C7A6FF"/><Text style={styles.primaryText}>Send me a selfie</Text></Pressable>
     <Pressable testID="photo-spicy-toggle" accessibilityRole="switch" accessibilityLabel={Platform.OS==='web'?'Unlock adult selfie generation':`Adult selfie generation unavailable on ${Platform.OS==='ios'?'iOS':'Android'}`} accessibilityHint={Platform.OS==='web'?'Changes only the one-tap selfie request.':'Adult photo generation is available on Kivelli.app.'} accessibilityState={{checked:spicyUnlocked}} onPress={onToggleSpicy} style={[styles.spicyToggle,spicyUnlocked&&styles.spicyToggleActive,Platform.OS!=='web'&&styles.spicyToggleLocked]}><Text style={styles.spicyEmoji}>🌶️</Text></Pressable>
   </View>
   <Text style={styles.label}>CUSTOM PROMPT</Text>
