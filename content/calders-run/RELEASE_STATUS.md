@@ -40,3 +40,9 @@ Authenticated production smoke checks passed for account bootstrap, discovery, m
 Voice verification covered session setup and closure, not an audible two-way call. Date verification covered live availability plus database/runtime reservation tests, not a complete live date. The general and native CI checks passed on the deployed code; the isolated database workflow was still running when this release record was written.
 
 Home interiors retain the existing private text-grounding policy. Their reviewed artwork is retained as authored assets and must not be exposed as public places.
+
+## Subsequent artwork and experience release
+
+The corrected cover removes the train approaching the unfinished bridge and is the active canonical world reference at revision 3. World picker images use lighter shading. The reviewed set still contains six bridge appearances.
+
+Frontend polish source `18565c3` is deployed as Cloudflare version `9d050d06-78cd-496a-849d-9a950b2d7193`. It adds shared visual world pickers, restored Discover state, clearer profiles, durable chat drafts, story controls, and responsive accessible dialogs. Edge Functions remain at the launch release above. See `docs/experience-polish-2026-09-09.md` for validation and the remaining photo consistency limitation found during this pass.

@@ -21,4 +21,10 @@ Implemented the approved browsing, profile, chat, Calder's Run, and mobile pass.
 - Headless browser checks use the local production build with the authorized test account and read-only APIs. Verified world selection/focus restoration, Discover return state, profiles at 360/390/430/768px, story filters, creator picker, immediate draft navigation/reload and a 390x500 short chat viewport. No page errors.
 - Full production export validates public auth configuration. The existing corrected cover and lighter artwork are retained.
 
-The browser checks do not emulate a physical iOS/Android keyboard or a two-way voice call. No complete story ending or relationship state was changed for this pass. Live media smoke results and deployment verification are recorded in the task.
+The browser checks do not emulate a physical iOS/Android keyboard or a two-way voice call. No complete story ending or relationship state was changed for this pass.
+
+## Release and media checks
+
+Frontend source `18565c3` was published to kivelli.app and www.kivelli.app as Cloudflare version `9d050d06-78cd-496a-849d-9a950b2d7193`. The exact live bundle was verified, authenticated bootstrap/discovery passed, and the browser flow checks were repeated against live assets with no page errors. No Edge Function deployment was needed for this pass. The world visual exclusion was also applied to production canon.
+
+The live Salcedo Clinic photo completed in 56 seconds and its signed image was accessible. Visual inspection found an unwanted red mouth artifact and a modern-looking sink/faucet, so delivery is not a visual quality pass. The Calder House Hotel request reached the provider but failed image review with face distortion, identity, world, location, and time mismatch codes. Its 10 credits were automatically refunded. These establish remaining image consistency and review limitations; the polish release does not claim to eliminate generation failures.
