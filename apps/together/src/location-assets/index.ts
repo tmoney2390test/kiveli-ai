@@ -1,4 +1,5 @@
 import type { ImageSource } from 'expo-image';
+import { caldersRunLocationAssets } from './calders-run';
 import { juniperCityLocationAssets } from './juniper-city';
 import { neonKyoLocationAssets } from './neon-kyo';
 import { northvaleLocationAssets } from './northvale';
@@ -8,6 +9,7 @@ import { eosMeridianLocationAssets } from './eos-meridian';
 import { vharadrenLocationAssets } from './vharadren';
 
 export const locationAssetsByWorld:Record<string,Record<string,ImageSource>>={
+  'calders-run':caldersRunLocationAssets,
   'juniper-city':juniperCityLocationAssets,
   'neon-kyo':neonKyoLocationAssets,
   'northvale':northvaleLocationAssets,

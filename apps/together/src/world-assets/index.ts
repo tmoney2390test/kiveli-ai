@@ -7,6 +7,7 @@ import { eosMeridianHero } from './eos-meridian';
 import { vharadrenHero } from './vharadren';
 
 export const worldHeroAssets: Record<string, ImageSource> = {
+  'calders-run':require('../../assets/worlds/calders-run/calders-run-hero.jpg'),
   'port-vervelle': port_vervelleHero,
   'neon-kyo':neonKyoHero,
   vespormoor:vespormoorHero,
