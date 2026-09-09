@@ -10,7 +10,7 @@ import { colors } from '../theme';
 export const creatorGenders = [{ value: 'woman', label: 'Woman' }, { value: 'man', label: 'Man' }, { value: 'nonbinary', label: 'Nonbinary' }];
 export const creatorPronouns = ['she/her', 'he/him', 'they/them', 'she/they', 'he/they'].map((value) => ({ value, label: value }));
 
-export function CreatorModal({ visible, title, onClose, children, large = false }: { visible: boolean; title: string; onClose: () => void; children: ReactNode; large?: boolean }) {
+export function CreatorModal({ visible, title, onClose, children, large = false, footer }: { visible: boolean; title: string; onClose: () => void; children: ReactNode; large?: boolean; footer?: ReactNode }) {
   const { width, height } = useWindowDimensions();
   const id = useId(), insets = useSafeAreaInsets(), reducedMotion = useReducedMotion();
   useModalAccessibility(visible, id, onClose);
@@ -21,6 +21,7 @@ export function CreatorModal({ visible, title, onClose, children, large = false 
       <View nativeID={id} accessibilityViewIsModal accessibilityLabel={title} style={[styles.modal, { width: Math.min(width - 24, large ? 1200 : 640), maxHeight: height - insets.top - insets.bottom - 32 }, width < 600 && styles.mobile]}>
         <View style={styles.header}>{large ? <Pressable accessibilityRole="button" accessibilityLabel="Back to portrait" onPress={onClose} style={styles.close}><ArrowLeft size={23} color={colors.text} /></Pressable> : null}<Text accessibilityRole="header" style={[styles.title, large && { textAlign: 'center' }]}>{title}</Text><Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={styles.close}><X size={23} color={colors.text} /></Pressable></View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>{children}</ScrollView>
+        {footer ? <View style={styles.footer}>{footer}</View> : null}
       </View>
     </View>
   </Modal>;
@@ -47,6 +48,7 @@ export function CreatorPicker({ label, title, value, options, onChange, custom =
 }
 
 const styles = StyleSheet.create({
+  footer: { paddingTop: 16, marginTop: 16, borderTopWidth: 1, borderTopColor: colors.border, gap: 10 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,.72)', alignItems: 'center', justifyContent: 'center', padding: 12 },
   modal: { backgroundColor: '#191919', borderRadius: 32, padding: 24, flexShrink: 1 }, mobile: { padding: 16, borderRadius: 24 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 }, title: { flex: 1, color: colors.text, fontSize: 23, fontWeight: '700' }, close: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#282828', alignItems: 'center', justifyContent: 'center' }, content: { gap: 20, paddingBottom: 4 },

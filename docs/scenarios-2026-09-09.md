@@ -33,3 +33,14 @@ Two migrations use the production-applied version identifiers, keeping the repos
 ## Release verification
 
 Published Cloudflare version af68ea39-743d-4e25-af22-04d36a39189f. Live browser checks passed for all 80 images/previews, 79 immediately available starts plus Cole's gated scenario, Explore and chat controls. The onboarding start path passed with mocked writes. An actual follow-up reply remained co-present in the selected awards-reception scene.
+
+## Scenario polish
+
+- Cards keep equal widths on incomplete rows; the three Explore cards fill their row. Artwork has loading and failure states, while scene previews remain available if an image fails.
+- All stories, To continue and Completed filters expose saved progress. Badges preserve location information, search has a clear action, and empty results explain how to recover.
+- Progress refreshes on screen focus. Failed progress loads offer retry instead of silently hiding saved state.
+- Previews and chat controls have fixed action footers, so their actions remain visible on short mobile screens. Completed scenarios explicitly reopen their existing conversation.
+- Scenario navigation uses the existing URL-preserving web helper. A browser regression reproduced the imperative router dropping conversation parameters after a failed start; retry now preserves the correct character and conversation.
+- Chat controls show pending save feedback, reject duplicate taps, recover from failed saves and ignore delayed responses after conversation/scope changes.
+
+Validation: application TypeScript and targeted lint; all 729 app tests; production export and asset budget; browser checks at 360/390/768px for fixed actions and overflow, equal desktop card widths, progress filters, completed reopening, failed load/start/pause recovery, and mocked onboarding start. Browser mutations are mocked for the polish pass.
