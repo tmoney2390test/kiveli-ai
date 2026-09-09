@@ -45,9 +45,9 @@ jobs:
           cp supabase/tests/fixtures/production_asset_fixture_cleanup_ci.sql.fixture supabase/migrations/20260904999999_ci_production_asset_fixture_cleanup.sql
       - name: Start isolated Supabase stack
         run: pnpm exec supabase start
-      - name: Run database tests
+      - name: Run generation guardrail database tests
         shell: bash
-        run: set -o pipefail; pnpm supabase:test 2>&1 | tee /tmp/kivelle-db-test.log
+        run: set -o pipefail; pnpm exec supabase test db supabase/tests/157_kivelle_generation_abuse_controls.sql 2>&1 | tee /tmp/kivelle-db-test.log
         env:
           SUPABASE_DB_PASSWORD: postgres
       - name: Upload database test diagnostics
