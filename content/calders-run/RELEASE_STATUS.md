@@ -1,6 +1,6 @@
 # Calder's Run integration status
 
-Updated 2026-09-09. This world is staged and unpublished.
+Updated 2026-09-09. Calder's Run is published and live on kivelli.app.
 
 ## Artwork
 
@@ -25,12 +25,16 @@ Location and home prompts remove the cover panorama. Only four location prompts 
 
 ## Launch checks
 
-Supabase authentication was restored through the existing browser sign-in on 2026-09-09. All 103 world/location/character references have been uploaded and verified against reviewed file hashes and accessible image responses. The final canonical import has completed while the world remains hidden.
+All 103 world/location/character references have been uploaded and verified against reviewed file hashes and accessible image responses. The final canonical import completed while the world was hidden, followed by the atomic publication checks and publication transaction.
 
 Reservation coverage now includes edited/rescheduled/group plans, synchronized dates, database serialization, late starts, and character-specific date eligibility. The database guard migration is applied as `20260909170718_calders_reservation_guards.sql`. Full app/domain/gateway tests, 24 content/database tests, and 18 focused Edge Function tests pass. Production-canon simulations cover all 49 characters across seven days with no gaps or overlaps, plus saved relocations, absences and severe-weather travel chains without production writes.
 
 Saved relocations retain private sleep and daily routines at the new base, and home grounding drops the former home. Snapshot presence resolves current Calder schedules on first load and after saved changes. Home and private-event access remain subject to specific saved invitations; private records remain gated.
 
-Before publication: deploy the reviewed frontend and Edge Functions, run authenticated smoke checks, then execute `content/calders-run/publish.sql` and verify discovery, chat, media, voice, places and story controls on the live release. The publication SQL checks catalog counts and private storage bindings atomically.
+The production frontend and Edge Functions are deployed from release code `cd22beb64d390c1c8b46213f2db284a0ca1ed2f6`. Cloudflare gateway version: `0fdf1446-0bd2-4886-8830-4bdee3b2e627`. The publication SQL checked catalog counts and private storage bindings atomically before publishing all 49 companions and the world. Initially, 47 companions are discoverable; Cole and Silas remain gated by story progress.
+
+Authenticated production smoke checks passed for account bootstrap, discovery, meeting Dr. Lucia Salcedo, fresh presence, place lookup, Crowcut access denial, 14 stories, saved start/pause choices, 18 character-appropriate date options, a real chat response, and voice-session initialization/closure. The test portrait completed in approximately 33 seconds; its signed image returned HTTP 200 and the rendered 1824 x 2288 image was visually inspected. The account's previous active companion was restored.
+
+Voice verification covered session setup and closure, not an audible two-way call. Date verification covered live availability plus database/runtime reservation tests, not a complete live date. The general and native CI checks passed on the deployed code; the isolated database workflow was still running when this release record was written.
 
 Home interiors retain the existing private text-grounding policy. Their reviewed artwork is retained as authored assets and must not be exposed as public places.
