@@ -233,7 +233,7 @@ export const characterAssets:Record<string,number>={
   'vespera-saan':require('../assets/characters/vharadren/vespera-saan.png'),
   'rorik-pell':require('../assets/characters/vharadren/rorik-pell.png'),
   'sable-wren':require('../assets/characters/vharadren/sable-wren.png'),
-  'princess-maris-vaelorian':require('../assets/characters/vharadren/princess-maris-vaelorian.png'),
+  'princess-maris-vaelorian':require('../assets/characters/vharadren/princess-maris-vaelorian.jpg'),
   'celia-thatch':require('../assets/characters/vharadren/celia-thatch.png'),
   'mara-ellison':require('../assets/characters/northvale/mara-ellison.jpg'),
   'leila-haddad':require('../assets/characters/northvale/leila-haddad.jpg'),

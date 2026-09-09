@@ -147,7 +147,7 @@ export default function ChooseCompanion() {
       </> : <>
         <View style={styles.heroCopy}>
           <Text accessibilityRole="header" style={[styles.title, desktop && styles.titleDesktop]}>{choiceTab==='scenarios'?'How will your story begin?':'Who will you meet?'}</Text>
-          <Text style={styles.subtitle}>{selectedWorld ? `Choose someone already living in ${selectedWorld.name}.` : 'Choose someone to begin your story.'}</Text>
+          <Text style={styles.subtitle}>{choiceTab==='scenarios'?`Choose a starting scene in ${selectedWorld?.name??'your world'}.`:selectedWorld ? `Choose someone already living in ${selectedWorld.name}.` : 'Choose someone to begin your story.'}</Text>
         </View>
 
         <View accessibilityRole="tablist" style={styles.tabs}>

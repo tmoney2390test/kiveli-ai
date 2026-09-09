@@ -20,9 +20,10 @@ test('scenario start is atomic, idempotent, scoped to a Life and inaccessible to
    create table auth.users(id uuid primary key);
    create table together_continuities(id uuid primary key,user_id uuid);
    create table together_character_instances(id uuid primary key,user_id uuid,continuity_id uuid,character_template_id uuid);
-   create table together_conversations(id uuid primary key,user_id uuid,character_instance_id uuid,continuity_id uuid,user_archived_at timestamptz);
+   create table together_conversations(id uuid primary key,user_id uuid,character_instance_id uuid,continuity_id uuid,user_archived_at timestamptz,archived_at timestamptz,kind text default 'direct',updated_at timestamptz default now());
    create table together_messages(id uuid default gen_random_uuid(),user_id uuid,conversation_id uuid,character_instance_id uuid,role text,content text,delivery_status text,provider_metadata jsonb,content_rating text,visibility_scope text,moderation_version text);`);
-  await db.exec(readFileSync('supabase/migrations/20260909200807_kivelle_scenarios.sql','utf8'));
+  await db.exec(readFileSync('supabase/migrations/20260909205155_kivelle_scenarios.sql','utf8'));
+  await db.exec(readFileSync('supabase/migrations/20260909210553_scenario_context_revision.sql','utf8'));
   const ids=Array.from({length:8},(_,i)=>`00000000-0000-4000-8000-${String(i+1).padStart(12,'0')}`),[user,other,life,otherLife,character,otherCharacter,conversation,template]=ids;
   await db.query('insert into auth.users values($1),($2)',[user,other]);
   await db.query('insert into together_continuities values($1,$2),($3,$2)',[life,user,otherLife]);
@@ -36,6 +37,12 @@ test('scenario start is atomic, idempotent, scoped to a Life and inaccessible to
   await start();assert.equal((await db.query('select count(*)::int n from together_messages')).rows[0].n,2);
   await assert.rejects(()=>start('jun-03',other),/unavailable/);
   await assert.rejects(()=>start('jun-03',user,otherLife),/unavailable/);
+  await db.query('update together_conversations set archived_at=now() where id=$1',[conversation]);
+  await assert.rejects(()=>start(),/unavailable/);
+  await db.query('update together_conversations set archived_at=null where id=$1',[conversation]);
+  const before=(await db.query('select updated_at from together_conversations')).rows[0].updated_at;
+  await db.query("update together_scenario_sessions set status='paused' where id=$1",[first.id]);
+  assert.notEqual((await db.query('select updated_at from together_conversations')).rows[0].updated_at,before);
   await db.query("select set_config('request.jwt.claim.sub',$1,false)",[other]);await db.exec('set role authenticated');
   assert.equal((await db.query('select * from together_scenario_sessions')).rows.length,0);
   await assert.rejects(()=>start(),/permission denied/);
