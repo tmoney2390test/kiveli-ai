@@ -27,6 +27,7 @@ export * from './MemorySavedToast';
 export * from './ChatConversationRail';
 export * from './VideoGenerationSheet';
 export * from './MediaRequestModal';
+export * from './MomentQuickMenuButton';
 export * from './PhotoSharingPaywallModal';
 export * from './RouteLoadingState';
 export * from './JumpToLatestButton';
