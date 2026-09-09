@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
 import { usePathname } from 'expo-router';
+import { AppState } from 'react-native';
 import type { GeneratedMedia } from '../types';
-import { manageMedia } from '../lib/api';
+import { loadMediaLibrary, manageMedia } from '../lib/api';
 import { missingMediaIds, pendingMediaIds } from '../lib/mediaReconciliation';
+import { subscribeToWebPageResume } from '../lib/webPageLifecycle';
 import { useTogether } from '../store/useTogether';
 import { useNetworkStatus } from './NetworkStatusProvider';
 
@@ -18,7 +20,25 @@ export function PendingMediaRecovery(){
   const pathname=usePathname(),{online,phase}=useNetworkStatus();
   const snapshot=useTogether((state)=>state.snapshot),upsertMedia=useTogether((state)=>state.upsertMedia),removeMedia=useTogether((state)=>state.removeMedia);
   const ids=pendingMediaIds(snapshot?.generatedMedia),scope=ids.join(',');
-  const chatOwnsPolling=pathname==='/chat'||pathname==='/group-chat';
+  const chatOwnsPolling=pathname==='/chat'||pathname==='/group-chat',snapshotReady=Boolean(snapshot);
+
+  useEffect(()=>{
+    if(!online||!snapshotReady||chatOwnsPolling||pathname==='/moments')return;
+    let stopped=false,running=false;
+    const reconcile=async()=>{
+      if(stopped||running)return;running=true;
+      try{
+        const result=await loadMediaLibrary({limit:40});
+        if(stopped)return;
+        for(const media of result.media??[])upsertMedia(media);
+      }catch{/* A pending-ID poll or the next foreground pass can recover it. */}
+      finally{running=false;}
+    };
+    void reconcile();
+    const appState=AppState.addEventListener('change',(state)=>{if(state==='active')void reconcile();});
+    const unsubscribeWeb=subscribeToWebPageResume(()=>void reconcile());
+    return()=>{stopped=true;appState.remove();unsubscribeWeb();};
+  },[chatOwnsPolling,online,pathname,snapshotReady,upsertMedia]);
 
   useEffect(()=>{
     if(!online||chatOwnsPolling||!scope)return;

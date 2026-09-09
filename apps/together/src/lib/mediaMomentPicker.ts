@@ -1,3 +1,5 @@
+import { oneTapSelfiePhotoRequest } from '@together/domain/src/media';
+
 export type MediaMomentMode = 'share' | 'photo' | 'video';
 
 export const MEDIA_MOMENT_OPTIONS: ReadonlyArray<{
@@ -14,9 +16,7 @@ export function mediaMomentTitle(mode: MediaMomentMode): string {
 }
 
 export function selfiePhotoRequest(spicyUnlocked: boolean): string {
-  return spicyUnlocked
-    ? 'Send me an explicit nude selfie from where you are, framed as either a close-up pose or a full-body pose.'
-    : 'Send me a selfie from where you are.';
+  return oneTapSelfiePhotoRequest(spicyUnlocked);
 }
 
 export function spicyUnavailableCopy(platform: string): { title: string; message: string } | null {

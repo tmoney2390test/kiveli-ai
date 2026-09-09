@@ -54,6 +54,7 @@ const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('request'),characterInstanceId:z.string().uuid(),source:z.literal('user_request').default('user_request'),conversationId:z.string().uuid().optional(),messageId:z.string().uuid().optional(),requestText:z.string().trim().max(400).optional(),idempotencyKey:z.string().trim().min(8).max(120).optional()}),
   z.object({action:z.literal('list_pending_offers'),characterInstanceId:z.string().uuid().optional()}),
   z.object({action:z.literal('accept_offer'),offerId:z.string().uuid(),requestId:z.string().trim().min(8).max(120),paymentMethod:z.enum(['credits','daily_included']).default('credits')}),
+  z.object({action:z.literal('offer_status'),offerId:z.string().uuid()}),
   z.object({action:z.literal('decline_offer'),offerId:z.string().uuid()}),
   z.object({action:z.literal('dismiss_offer'),offerId:z.string().uuid()}),
   z.object({action:z.literal('retry'),mediaId:z.string().uuid()}),
@@ -117,6 +118,24 @@ serve(async(request,correlationId)=>{
     const result=await acceptMediaOffer(db,{userId:user.id,offerId:input.offerId,requestId:input.requestId,paymentMethod:input.paymentMethod,adultPipelineAuthorized:adultAccess.authorized_web_adult,adultWebSessionId:adultAccess.web_session_id});
     if(result.media)result.media=(await signMediaRows(request,db,user.id,adultAccess,[result.media as Record<string,any>]))[0];
     return json({data:result,correlationId},result.state==='accepted'?202:200,correlationId);
+  }
+  if(input.action==='offer_status'){
+    const continuity=await activeContinuity(db,user.id),{data:offer,error:offerError}=await db.from('together_media_offers').select('*').eq('id',input.offerId).eq('user_id',user.id).eq('continuity_id',continuity.id).maybeSingle();
+    if(offerError)throw new AppError('INTERNAL_ERROR','That photo request could not be refreshed.',500,true);
+    if(!offer)throw new AppError('NOT_FOUND','That photo request is unavailable.',404);
+    const restricted=['suggestive','mature','explicit'].includes(String(offer.content_level));
+    if(restricted&&!adultAccess.authorized_web_adult)throw new AppError('NOT_FOUND','That photo request is unavailable.',404);
+    let media:Record<string,unknown>|null=null;
+    if(typeof offer.generated_media_id==='string'&&offer.generated_media_id){
+      let mediaQuery=db.from('together_generated_media').select('*').eq('id',offer.generated_media_id).eq('user_id',user.id).eq('continuity_id',continuity.id);
+      if(!adultAccess.authorized_web_adult)mediaQuery=mediaQuery.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
+      const mediaResult=await mediaQuery.maybeSingle();
+      if(mediaResult.error)throw new AppError('INTERNAL_ERROR','That photo status could not be refreshed.',500,true);
+      media=mediaResult.data??null;
+      if(media&&(media.status==='queued'||media.status==='generating'))waitUntil(kickMediaDispatcher());
+    }
+    const visibleMedia=media?(await signMediaRows(request,db,user.id,adultAccess,[media]))[0]??null:null;
+    return json({data:{offer,media:visibleMedia},correlationId},200,correlationId);
   }
   if(input.action==='decline_offer'){
     const continuity=await activeContinuity(db,user.id),{data:offer}=await db.from('together_media_offers').select('continuity_id').eq('id',input.offerId).eq('user_id',user.id).maybeSingle();
