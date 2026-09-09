@@ -7,6 +7,7 @@ import { AppError } from '../_shared/types.ts';
 import { track } from '../_shared/together.ts';
 import {activeContinuity,requireInstanceInActiveContinuity}from'../_shared/together-continuity.ts';
 import { getActiveConversation, mergeConversationSceneMetadata, type ActiveConversationScene } from '../_shared/together-conversation.ts';
+import { CONVERSATION_WITH_MESSAGE_COUNT_SELECT } from '../_shared/together-selects.ts';
 import { resolveCompanionPresence } from '../_shared/together-schedule.ts';
 import { resolvePlaceContext, resolveWorldAccess } from '../_shared/together-place.ts';
 import { activeConversationLimitError, isActiveConversationLimitDatabaseError, resolveSubscriptionAccess } from '../_shared/kivelle-subscription.ts';
@@ -180,7 +181,7 @@ serve(async (request, correlationId) => {
     }
 
     const { data, error } = await db.from('together_conversations')
-      .select('*,together_messages(count)')
+      .select(CONVERSATION_WITH_MESSAGE_COUNT_SELECT)
       .eq('user_id', user.id)
       .eq('continuity_id', continuity.id)
       .not('user_archived_at', 'is', null)
@@ -314,7 +315,7 @@ serve(async (request, correlationId) => {
   }
 
   if (input.action === 'history') {
-    const { data, error } = await db.from('together_conversations').select('*,together_messages(count)').eq('user_id', user.id).eq('character_instance_id', input.characterInstanceId).is('user_archived_at', null).order('created_at', { ascending: false }).limit(100);
+    const { data, error } = await db.from('together_conversations').select(CONVERSATION_WITH_MESSAGE_COUNT_SELECT).eq('user_id', user.id).eq('character_instance_id', input.characterInstanceId).is('user_archived_at', null).order('created_at', { ascending: false }).limit(100);
     if (error) throw new AppError('INTERNAL_ERROR', 'Conversation history could not be loaded.', 500, true);
     const adultTextAuthorized=(data?.[0])?await privateTextProjectionAuthorizedForConversation({db,userId:user.id,continuityId:continuity.id,conversation:data[0],access:adultAccess}):false;
     const enriched = (data ?? []).map((conversation) => ({ ...projectConversation(conversation,false), message_count: Number(conversation.together_messages?.[0]?.count ?? 0) }));

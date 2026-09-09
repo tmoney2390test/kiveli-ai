@@ -8,6 +8,7 @@ import { applyRelationshipProposal, capabilitiesForAccount, extractMemoryCandida
 import { compactLocationLoreForDirectory } from '../../../packages/together-domain/src/location-depth.ts';
 import { projectSnapshotMemories } from './kivelle-memory-access.ts';
 import { waitUntil } from './background.ts';
+import { CONVERSATION_WITH_MESSAGE_COUNT_SELECT } from './together-selects.ts';
 
 export const TOGETHER_IDS = {
   world: '10000000-0000-4000-8000-000000000001',
@@ -266,7 +267,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
     db.from('together_moments').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).order('occurred_at', { ascending: false }).limit(30),
     db.from('together_memories').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).eq('status', 'active').eq('visibility_scope','all').in('content_rating',['safe','suggestive']).order('pinned', { ascending: false }).order('importance', { ascending: false }).limit(100),
     db.from('together_open_threads').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).is('resolved_at', null),
-    db.from('together_conversations').select('*,together_messages(count)').eq('user_id', userId).eq('continuity_id',continuity.id).order('last_message_at', { ascending: false, nullsFirst: false }),
+    db.from('together_conversations').select(CONVERSATION_WITH_MESSAGE_COUNT_SELECT).eq('user_id', userId).eq('continuity_id',continuity.id).order('last_message_at', { ascending: false, nullsFirst: false }),
     db.from('together_scene_sessions').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).is('ended_at',null).order('started_at',{ascending:false}).limit(24),
     db.from('together_scene_participants').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).is('left_at',null).order('joined_at'),
     db.from('together_life_events').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).order('starts_at', { ascending: false }).limit(20),
