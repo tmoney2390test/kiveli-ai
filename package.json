@@ -16,7 +16,7 @@
     "audit:production-routes": "node scripts/audit-production-routes.mjs",
     "audit:vharadren-events": "node scripts/audit-vharadren-events.mjs",
     "typecheck": "pnpm --filter @together/app typecheck && pnpm --filter @together/domain typecheck",
-    "test": "pnpm --filter @together/app test && pnpm --filter @together/domain test && pnpm gateway:test && pnpm audit:production-routes:test && pnpm audit:vharadren-events:test",
+    "test": "pnpm --filter @together/app test && pnpm --filter @together/domain test && pnpm gateway:test && pnpm audit:production-routes:test && pnpm audit:vharadren-events:test && pnpm scenarios:test",
     "gateway:test": "node --test infra/cloudflare/kivelli-app-gateway/index.test.mjs",
     "audit:production-routes:test": "node --test scripts/audit-production-routes.test.mjs",
     "audit:vharadren-events:test": "node --test scripts/vharadren-event-language.test.mjs",
@@ -35,7 +35,8 @@
     "media:normalize-video-faststart": "node --experimental-strip-types scripts/normalize-kivelli-video-faststart.ts",
     "stories:validate": "node --experimental-strip-types scripts/validate-kivelli-stories.mjs",
     "context:test:db": "node scripts/test-context-pricing-db.mjs",
-    "chat-speed:test:db": "node scripts/test-chat-speed-db.mjs"
+    "chat-speed:test:db": "node scripts/test-chat-speed-db.mjs",
+    "scenarios:test": "node --test scripts/scenarios.test.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

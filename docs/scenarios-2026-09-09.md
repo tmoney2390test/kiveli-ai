@@ -29,3 +29,7 @@ Newer portrait/artwork/chat changes from origin/main through 72cbda9 were incorp
 - Production scenario table has RLS, no anonymous read or authenticated write access; start RPC is service-only. Supabase security advisors reported no scenario-specific findings.
 
 Two migrations use the production-applied version identifiers, keeping the repository aligned with the migration ledger.
+
+## Release verification
+
+Published Cloudflare version af68ea39-743d-4e25-af22-04d36a39189f. Live browser checks passed for all 80 images/previews, 79 immediately available starts plus Cole's gated scenario, Explore and chat controls. The onboarding start path passed with mocked writes. An actual follow-up reply remained co-present in the selected awards-reception scene.

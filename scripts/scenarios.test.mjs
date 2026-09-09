@@ -40,9 +40,10 @@ test('scenario start is atomic, idempotent, scoped to a Life and inaccessible to
   await db.query('update together_conversations set archived_at=now() where id=$1',[conversation]);
   await assert.rejects(()=>start(),/unavailable/);
   await db.query('update together_conversations set archived_at=null where id=$1',[conversation]);
-  const before=(await db.query('select updated_at from together_conversations')).rows[0].updated_at;
+  await db.query("update together_conversations set updated_at='2020-01-01T00:00:00Z'");
+  const before=new Date((await db.query('select updated_at from together_conversations')).rows[0].updated_at).getTime();
   await db.query("update together_scenario_sessions set status='paused' where id=$1",[first.id]);
-  assert.notEqual((await db.query('select updated_at from together_conversations')).rows[0].updated_at,before);
+  assert.ok(new Date((await db.query('select updated_at from together_conversations')).rows[0].updated_at).getTime()>before);
   await db.query("select set_config('request.jwt.claim.sub',$1,false)",[other]);await db.exec('set role authenticated');
   assert.equal((await db.query('select * from together_scenario_sessions')).rows.length,0);
   await assert.rejects(()=>start(),/permission denied/);

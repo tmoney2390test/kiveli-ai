@@ -1,4 +1,4 @@
-export const scenarioCatalog = [
+[
   {
     "id": "jun-01",
     "title": "The Plus-One Agreement",
@@ -1758,4 +1758,4 @@ export const scenarioCatalog = [
     "opening": "I have proof of what we took. Before you offer me kindness, you ought to know I was there when we took it.",
     "requiredState": "crowcut.access_granted"
   }
-];
+]

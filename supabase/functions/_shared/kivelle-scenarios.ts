@@ -1,5 +1,5 @@
 import type {SupabaseClient} from '@supabase/supabase-js';
-import {scenarioCatalog} from './scenario-catalog.ts';
+import scenarioCatalog from '../../../content/scenarios/runtime-catalog.json' with {type:'json'};
 import {AppError} from './types.ts';
 
 export async function activeScenarioContext(db:SupabaseClient,userId:string,conversationId:string,characterInstanceId:string){

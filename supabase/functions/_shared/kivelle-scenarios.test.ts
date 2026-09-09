@@ -1,6 +1,6 @@
 import {assert,assertEquals} from 'jsr:@std/assert';
 import {buildCompanionPrompt} from './kivelle-intelligence.ts';
-import {scenarioCatalog} from './scenario-catalog.ts';
+import scenarioCatalog from '../../../content/scenarios/runtime-catalog.json' with {type:'json'};
 import {activeScenarioContext,scenarioPrompt} from './kivelle-scenarios.ts';
 
 const context={userMessage:'Let us examine the design together.',character:{name:'Miranda Serrano',age:27,occupation:'Architectural designer',character_bible:{}},currentScene:{location:'Home',activity:'resting',interactionMode:'remote'},relationship:{relationship_stage:'friend'},recent:[],subscription:{intelligenceProfile:'core'}};

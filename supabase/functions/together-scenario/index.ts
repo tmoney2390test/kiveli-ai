@@ -4,7 +4,7 @@ import {parseBody} from '../_shared/body.ts';
 import {json,serve} from '../_shared/http.ts';
 import {AppError} from '../_shared/types.ts';
 import {activeContinuity} from '../_shared/together-continuity.ts';
-import {scenarioCatalog} from '../_shared/scenario-catalog.ts';
+import scenarioCatalog from '../../../content/scenarios/runtime-catalog.json' with {type:'json'};
 import {assertLocationAccess,loadWorldProgress} from '../_shared/kivelle-world-progress.ts';
 import {requireAiDataConsent} from '../_shared/kivelle-ai-consent.ts';
 
