@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MediaOffer } from '../types';
-import { createOptimisticPhotoRequest, matchingServerPhotoOffer, queueOptimisticPhotoOfferAcceptance, queueServerPhotoOfferAcceptance, waitForMatchingServerPhotoOffer } from './photoOfferOptimism';
+import { createOptimisticPhotoRequest, matchingServerPhotoOffer, photoOfferStatusSettled, queueOptimisticPhotoOfferAcceptance, queueServerPhotoOfferAcceptance, waitForMatchingServerPhotoOffer, waitForPhotoOfferStatus } from './photoOfferOptimism';
 
 function serverOffer(overrides: Partial<MediaOffer> = {}): MediaOffer {
   return {
@@ -128,5 +128,25 @@ describe('photo offer optimism', () => {
       wait: () => Promise.resolve(),
     });
     expect(result.offer?.id).toBe('current-after-error');
+  });
+
+  it('does not treat an accepted offer as settled until its media link is readable', () => {
+    const accepted=serverOffer({status:'accepted'});
+    expect(photoOfferStatusSettled({offer:accepted,media:null})).toBe(false);
+    expect(photoOfferStatusSettled({offer:accepted,media:{id:'media-1'} as never})).toBe(true);
+    expect(photoOfferStatusSettled({offer:serverOffer({status:'failed'}),media:null})).toBe(true);
+  });
+
+  it('recovers an accepted photo after an interrupted acceptance response', async () => {
+    const pending={offer:serverOffer({status:'pending'}),media:null};
+    const accepted={offer:serverOffer({status:'accepted',generated_media_id:'media-1'}),media:{id:'media-1'} as never};
+    let attempt=0;
+    const result=await waitForPhotoOfferStatus({
+      loadStatus:()=>Promise.resolve(++attempt===1?pending:accepted),
+      delays:[0,1],
+      wait:()=>Promise.resolve(),
+    });
+    expect(attempt).toBe(2);
+    expect(result).toBe(accepted);
   });
 });

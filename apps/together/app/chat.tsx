@@ -18,7 +18,7 @@ import { CharacterAvatar, CharacterMentionText, CharacterProfilePreviewModal, Ch
 import { characterAssets, cityLifeAsset, locationHeroAsset, worldHeroAsset } from '../src/assets';
 import { colors, radius, spacing } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
-import { ApiError, confirmConversationAction, confirmUserImage, createSharedPlan, deleteConversationAttachment, dismissConversationAction, loadConversationMediaGallery, manageConversation, manageInteraction, manageMedia, manageSharedScene, meetCompanion, mutateMemory, openConversation, prepareUserImage, quoteVoiceNote, refreshVoiceNote, rememberMessage, removePendingAttachment, requestVoiceNote, resolveRelationshipMilestone, sendDialogue, sendSceneReaction, setCharacterFavorite, setConversationPinned, setMessageFavorite, simulate, suggestDialogue } from '../src/lib/api';
+import { ApiError, confirmConversationAction, confirmUserImage, createSharedPlan, deleteConversationAttachment, dismissConversationAction, loadConversationMediaGallery, loadPhotoOfferStatus, manageConversation, manageInteraction, manageMedia, manageSharedScene, meetCompanion, mutateMemory, openConversation, prepareUserImage, quoteVoiceNote, refreshVoiceNote, rememberMessage, removePendingAttachment, requestVoiceNote, resolveRelationshipMilestone, sendDialogue, sendSceneReaction, setCharacterFavorite, setConversationPinned, setMessageFavorite, simulate, suggestDialogue } from '../src/lib/api';
 import { supabase } from '../src/lib/supabase';
 import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInstance, CharacterInteractionProposal, ConversationAction, ConversationAttachment, ConversationEvent, GeneratedMedia, InteractionCandidate, MediaOffer,Message, MessageReaction, PlanExperience, RelationshipMilestone, SceneAction, SceneParticipant, SceneSession, SharedPlan, Snapshot } from '../src/types';
 import { mergeOlderMessages, scopedConversationMessages } from '../src/lib/conversation';
@@ -47,7 +47,7 @@ import { activePlanForChat, attendedPlansForLifecycleReconciliation, collapsePla
 import { hideVoiceNoteConfirmation, isVoiceNoteConfirmationHidden } from '../src/lib/voiceNoteConfirmation';
 import { chatSessionRouteKey, conversationWithLastMessage, isConversationPinned, returnToMessagesInbox } from '../src/lib/messageInbox';
 import { clearChatScrollPosition, readChatScrollPosition, restoredChatOffset, saveChatScrollPosition, shouldRestoreChatScrollPosition, type ChatScrollPosition } from '../src/lib/chatNavigationState';
-import { createOptimisticPhotoRequest, matchingServerPhotoOffer, queueOptimisticPhotoOfferAcceptance, queueServerPhotoOfferAcceptance, waitForMatchingServerPhotoOffer, type OptimisticPhotoRequest } from '../src/lib/photoOfferOptimism';
+import { createOptimisticPhotoRequest, matchingServerPhotoOffer, queueOptimisticPhotoOfferAcceptance, queueServerPhotoOfferAcceptance, waitForMatchingServerPhotoOffer, waitForPhotoOfferStatus, type OptimisticPhotoRequest } from '../src/lib/photoOfferOptimism';
 import { mergeDictationTranscript } from '../src/lib/dictation';
 import { useChatDictation, type ChatDictationPhase } from '../src/hooks/useChatDictation';
 import { cleanupNormalizedImage, normalizeUserImage, userImagePickerOptions } from '../src/lib/imageUploads';
@@ -622,9 +622,18 @@ function ChatSession() {
   useFocusEffect(useCallback(()=>{
     if(!character?.id||!conversation?.id){setMediaOffers([]);return;}
     let cancelled=false,retryTimer:ReturnType<typeof setTimeout>|undefined;
-    const loadOffers=(attempt=0)=>fetchPendingMediaOffers(character.id,conversation.id).then((offers)=>{if(!cancelled){setMediaOffers(offers);resolveOptimisticPhotoOfferRef.current(offers);}}).catch(()=>{if(!cancelled&&attempt<3)retryTimer=setTimeout(()=>void loadOffers(attempt+1),Math.min(8_000,1_500*2**attempt));});
+    const loadOffers=async(attempt=0)=>{try{
+      const offers=await fetchPendingMediaOffers(character.id,conversation.id);if(cancelled)return;
+      setMediaOffers(offers);resolveOptimisticPhotoOfferRef.current(offers);
+      const mediaIds=[...new Set(offers.map((offer)=>offer.generated_media_id).filter((id):id is string=>Boolean(id)))].slice(0,20);
+      if(mediaIds.length){
+        const result=await manageMedia<{media:GeneratedMedia[]}>({action:'batch_status',mediaIds});if(cancelled)return;
+        for(const media of result.media??[]){upsertMedia(media);if(!mediaReconciliationComplete(media))setReconcilingMediaId(media.id);}
+        for(const id of missingMediaIds(mediaIds,result.media??[]))removeMedia(id);
+      }
+    }catch{if(!cancelled&&attempt<3)retryTimer=setTimeout(()=>void loadOffers(attempt+1),Math.min(8_000,1_500*2**attempt));}};
     void loadOffers();const channel=supabase.channel(`kivelle-media-offers-${character.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'*',schema:'public',table:'together_media_offers',filter:`character_instance_id=eq.${character.id}`},()=>void loadOffers()).subscribe();return()=>{cancelled=true;if(retryTimer)clearTimeout(retryTimer);void supabase.removeChannel(channel);};
-  },[character?.id,conversation?.id,fetchPendingMediaOffers]));
+  },[character?.id,conversation?.id,fetchPendingMediaOffers,removeMedia,upsertMedia]));
   useEffect(()=>{
     if(!reconcilingMediaId||!character?.id||!conversation?.id)return;
     let cancelled=false,timer:ReturnType<typeof setTimeout>|undefined,failedAttempts=0;
@@ -765,8 +774,9 @@ function ChatSession() {
     // client-only tap as accepted can strand the card in a false generating
     // state when the request never reaches the server.
     setMediaOffers((current)=>current.map((item)=>item.id===offer.id?queueServerPhotoOfferAcceptance(item):item));
+    const acceptanceRequestId=createClientRequestId();
     try{
-      const result=await manageMedia<{state:'accepted'|'needs_credits'|'daily_unavailable'|'expired';offer:MediaOffer;media?:GeneratedMedia;creditBalance:number;required?:number;dailyPhotoAllowanceRemaining?:number}>({action:'accept_offer',offerId:offer.id,requestId:createClientRequestId(),paymentMethod});
+      const result=await manageMedia<{state:'accepted'|'needs_credits'|'daily_unavailable'|'expired';offer:MediaOffer;media?:GeneratedMedia;creditBalance:number;required?:number;dailyPhotoAllowanceRemaining?:number}>({action:'accept_offer',offerId:offer.id,requestId:acceptanceRequestId,paymentMethod});
       if(result.state==='daily_unavailable'){
         setMediaOffers((current)=>current.map((item)=>item.id===offer.id?{...result.offer,status:'pending',preview_metadata:{...result.offer.preview_metadata,dailyPhotoAllowanceRemaining:0}}:item.source==='user_request'&&item.status==='pending'?{...item,preview_metadata:{...item.preview_metadata,dailyPhotoAllowanceRemaining:0}}:item));
         Alert.alert('Included photos used','You have used today’s included photos. You can still create this one with Credits.');return;
@@ -780,10 +790,17 @@ function ChatSession() {
       setMediaOffers((current)=>current.map((item)=>item.id===offer.id?{...result.offer,preview_metadata:{...result.offer.preview_metadata,dailyPhotoAllowanceRemaining:dailyRemaining}}:paymentMethod==='daily_included'&&item.source==='user_request'&&item.status==='pending'?{...item,preview_metadata:{...item.preview_metadata,dailyPhotoAllowanceRemaining:dailyRemaining}}:item));
       if(result.media){upsertMedia(result.media);setReconcilingMediaId(result.media.id);}
     }catch(caught){
-      // Restore the actionable card before attempting network reconciliation.
-      // A second slow request must never keep a failed first tap saying
-      // "Starting…" indefinitely. The background read can still discover an
-      // acceptance that reached the server after the browser disconnected.
+      // An interrupted response may still have accepted, charged, and queued
+      // the request. Reconcile the server-owned offer/media link before making
+      // the card actionable again so a successful request cannot remain on
+      // "Starting…" or be submitted twice.
+      const recovered=await waitForPhotoOfferStatus({loadStatus:()=>loadPhotoOfferStatus(offer.id)});
+      if(recovered){
+        setMediaOffers((current)=>current.map((item)=>item.id===offer.id?recovered.offer:item));
+        if(recovered.media){upsertMedia(recovered.media);if(!mediaReconciliationComplete(recovered.media))setReconcilingMediaId(recovered.media.id);}
+        if(recovered.offer.status==='accepted'&&recovered.media){setError('');return;}
+        if(recovered.offer.status==='failed'){setError(recovered.offer.failure_reason_safe??recovered.media?.failure_reason_safe??'The photo could not be created.');return;}
+      }
       setMediaOffers((current)=>current.map((item)=>item.id===offer.id?offer:item));
       setError(caught instanceof Error?caught.message:'The photo could not be prepared.');
       void fetchPendingMediaOffers(character.id,conversation.id).then(setMediaOffers).catch(()=>undefined);
