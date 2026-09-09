@@ -1,5 +1,5 @@
 import { capabilitiesForTier, creditCosts } from '@together/domain/src/entitlements';
-import type { MediaOffer } from '../types';
+import type { GeneratedMedia, MediaOffer } from '../types';
 
 export type OptimisticPhotoRequest = {
   requestId: string;
@@ -128,4 +128,35 @@ export async function waitForMatchingServerPhotoOffer(input: {
   }
   if (!loaded && lastError) throw lastError instanceof Error ? lastError : new Error('The photo confirmation could not be loaded.');
   return { offers };
+}
+
+export type PhotoOfferStatus={offer:MediaOffer;media:GeneratedMedia|null};
+
+export function photoOfferStatusSettled(result:PhotoOfferStatus):boolean{
+  return result.offer.status!=='pending'&&(
+    result.offer.status!=='accepted'||Boolean(result.media)
+  );
+}
+
+/**
+ * Reconciles an acceptance whose response was interrupted. The server owns the
+ * accepted state and generated-media link, so this never invents a successful
+ * generation from the user's tap alone.
+ */
+export async function waitForPhotoOfferStatus(input:{
+  loadStatus:()=>Promise<PhotoOfferStatus>;
+  delays?:number[];
+  wait?:(delayMs:number)=>Promise<void>;
+}):Promise<PhotoOfferStatus|null>{
+  const delays=input.delays??[0,500,1_500,3_000];
+  const wait=input.wait??((delayMs:number)=>new Promise<void>((resolve)=>setTimeout(resolve,delayMs)));
+  let latest:PhotoOfferStatus|null=null;
+  for(const delay of delays){
+    if(delay>0)await wait(delay);
+    try{
+      latest=await input.loadStatus();
+      if(photoOfferStatusSettled(latest))return latest;
+    }catch{/* A later authenticated read may succeed after the connection settles. */}
+  }
+  return latest;
 }

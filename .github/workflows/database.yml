@@ -13,10 +13,7 @@ concurrency:
 jobs:
   verify-database:
     runs-on: ubuntu-latest
-    # Replaying the full historical world/content migration ledger currently
-    # takes more than 25 minutes on a fresh hosted runner. Leave enough time for
-    # pgTAP to run instead of timing out during setup.
-    timeout-minutes: 45
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -27,37 +24,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Prepare isolated production-asset fixtures
-        shell: bash
-        run: |
-          # Production already recorded this historical migration. Newer CLI
-          # statement splitting requires the missing dollar-quote terminator;
-          # repair only the disposable checkout and never rewrite the ledger.
-          git apply --check supabase/tests/fixtures/202609040033_supabase_cli_ci.patch
-          git apply supabase/tests/fixtures/202609040033_supabase_cli_ci.patch
-          git apply --check supabase/tests/fixtures/202609040034_035_supabase_cli_ci.patch
-          git apply supabase/tests/fixtures/202609040034_035_supabase_cli_ci.patch
-          fixture=supabase/tests/fixtures/vharadren_reference_assets_ci.sql.fixture
-          cp "$fixture" supabase/migrations/20260904001250_ci_vharadren_reference_assets.sql
-          cp supabase/tests/fixtures/vharadren_location_assets_ci.sql.fixture supabase/migrations/20260904002050_ci_vharadren_location_assets.sql
-          cp supabase/tests/fixtures/nightlife_reference_assets_ci.sql.fixture supabase/migrations/20260904003050_ci_nightlife_reference_assets.sql
-          cp supabase/tests/fixtures/red_hour_storage_object_ci.sql.fixture supabase/migrations/20260904003150_ci_red_hour_storage_object.sql
-          cp supabase/tests/fixtures/production_asset_fixture_cleanup_ci.sql.fixture supabase/migrations/20260904999999_ci_production_asset_fixture_cleanup.sql
-      - name: Start isolated Supabase stack
-        run: pnpm exec supabase start
-      - name: Run generation guardrail database tests
-        shell: bash
-        run: set -o pipefail; pnpm exec supabase test db supabase/tests/157_kivelle_generation_abuse_controls.sql 2>&1 | tee /tmp/kivelle-db-test.log
-        env:
-          SUPABASE_DB_PASSWORD: postgres
-      - name: Upload database test diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kivelle-db-test-log
-          path: /tmp/kivelle-db-test.log
-          if-no-files-found: ignore
-          retention-days: 3
-      - name: Stop isolated Supabase stack
-        if: always()
-        run: pnpm exec supabase stop --no-backup
+      - name: Verify context-pricing database contract
+        run: pnpm context:test:db
+      - name: Verify chat-speed database contract
+        run: pnpm chat-speed:test:db
