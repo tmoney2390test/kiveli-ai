@@ -32,46 +32,29 @@ Deno.test('video attempt limiter stays separate from successful-video allowance'
   assertEquals(VIDEO_SUBMISSION_ATTEMPT_RATE_LIMIT.windowSeconds,15*60);
 });
 
-Deno.test('exact model registry exposes every enabled testing endpoint and capability quote',()=>{
-  const state=catalog();try{
-    assertEquals([...state.routes.map((route)=>route.id)].sort(),[...VIDEO_ROUTE_IDS].sort());
-    const options=publicVideoRoutes(state.routes,{includeAdultCapable:true});
-    assertEquals(options.length,VIDEO_ROUTE_IDS.length);
-    for(const option of options){
-      assert(option.modelEndpoint?.includes('/'));
-      assert(option.rawModelNamesExposed);
-      assert(['sfw','adult_capable'].includes(option.contentClass));
-      assert(option.allowedDurations.length>0);
-      assert(option.supportedResolutions.length>0);
-      for(const resolution of option.supportedResolutions)for(const duration of option.allowedDurations){
-        assert(Number.isFinite(option.creditQuotes[`${resolution}:${duration}:silent`]));
-        assert(Number.isFinite(option.providerCostQuotes[`${resolution}:${duration}:silent`]));
-        if(!['none','reference_only'].includes(option.audioMode))assert(Number.isFinite(option.creditQuotes[`${resolution}:${duration}:sound`]));
-        if(!['none','reference_only'].includes(option.audioMode))assert(Number.isFinite(option.providerCostQuotes[`${resolution}:${duration}:sound`]));
-      }
-    }
-  }finally{state.restore();}
+Deno.test('two anonymous choices retain all historical completion routes',()=>{
+ const state=catalog();try{
+  assertEquals(state.routes.length,VIDEO_ROUTE_IDS.length);
+  assertEquals(state.routes.filter(r=>r.selectable).length,4);
+  for(const routes of [state.routes,state.routes.filter(r=>r.contentClass==='adult_capable')]){
+   const options=publicVideoRoutes(routes,{includeAdultCapable:true});
+   assertEquals(options.map(o=>o.id),['tier:standard','tier:premium']);
+   assertEquals(options.map(o=>o.displayName),['Standard','Cinematic']);
+   assert(options.every(o=>!o.modelEndpoint&&!o.modelKey&&!o.rawModelNamesExposed));
+   assert(options.every(o=>Object.keys(o.providerCostQuotes).length===0));
+   for(const o of options)for(const r of o.supportedResolutions)for(const d of o.allowedDurations)assert(Number.isFinite(o.creditQuotes[r+':'+d+':sound']));
+  }
+ }finally{state.restore();}
 });
-
-Deno.test('standard sessions receive only explicit Safe for work video options',()=>{
-  const state=catalog();try{
-    const options=publicVideoRoutes(state.routes);
-    assertEquals(options.length,VIDEO_ROUTE_IDS.length/2);
-    assert(options.every((option)=>option.contentClass==='sfw'&&option.contentLabel==='Safe for work'));
-    assert(options.every((option)=>!option.displayName.includes('Spicy')&&!option.modelEndpoint?.includes('-spicy')));
-    const adultOptions=publicVideoRoutes(state.routes,{includeAdultCapable:true});
-    assert(adultOptions.some((option)=>option.contentClass==='adult_capable'&&option.modelEndpoint?.includes('-spicy')));
-  }finally{state.restore();}
-});
-
-Deno.test('adult bring-to-life exposes every enabled spicy image-to-video model',()=>{
-  const state=catalog();try{
-    const routes=publicVideoRoutes(state.routes.filter((route)=>route.contentClass==='adult_capable'&&route.sourceModes.includes('existing_photo')),{includeAdultCapable:true});
-    assertEquals(routes.length,VIDEO_ROUTE_IDS.filter((id)=>id.endsWith('-spicy')).length);
-    assert(routes.every((route)=>route.contentClass==='adult_capable'));
-    assert(routes.every((route)=>route.modelEndpoint?.includes('spicy')));
-    assertEquals(new Set(routes.map((route)=>route.modelFamily)).size,routes.length);
-  }finally{state.restore();}
+Deno.test('retired models cannot accept new jobs and both public tiers route by content',async()=>{
+ const state=catalog();try{
+  for(const tier of ['tier:standard','tier:premium'])for(const contentClass of ['sfw','adult_capable'] as const){
+   const resolved=resolveVideoRoute(tier,'user',null,{preferredContentClass:contentClass});
+   assertEquals(resolved.contentClass,contentClass);
+   assertEquals(resolved.modelFamily,tier==='tier:standard'?'seedance-1-5-pro':'minimax-h3');
+  }
+  await assertRejects(async()=>resolveVideoRoute('ltx-2-3-spicy','user'));
+ }finally{state.restore();}
 });
 
 Deno.test('model payload builders preserve exact endpoint-specific audio fields',()=>{
@@ -159,15 +142,6 @@ Deno.test('selector flag and tester allowlist are enforced server-side',()=>{
   }finally{previousUsers===undefined?Deno.env.delete('KIVELLE_VIDEO_TESTER_USER_IDS'):Deno.env.set('KIVELLE_VIDEO_TESTER_USER_IDS',previousUsers);state.restore();}
 });
 
-Deno.test('hidden model names resolve through future consumer tiers without changing backend registry',()=>{
-  const state=catalog(false);try{
-    const options=publicVideoRoutes(state.routes);
-    assert(options.length>=3);
-    assert(options.every((option)=>!option.modelEndpoint&&!option.modelKey&&!option.rawModelNamesExposed));
-    assert(options.some((option)=>option.id==='tier:standard'));
-    assertEquals(resolveVideoRoute('tier:standard','user').futureConsumerTier,'standard');
-  }finally{state.restore();}
-});
 
 Deno.test('Seedance 1.5 remains the safe-cost default and source orientation is normalized',()=>{
   const state=catalog();try{

@@ -1,3 +1,4 @@
+import { consumerVideoCreditQuotes } from '../../../packages/together-domain/src/video-consumer.ts';
 import { z } from 'zod';
 import { AppError } from './types.ts';
 import { envBoolean, envNumber } from './wavespeed.ts';
@@ -162,7 +163,7 @@ const ADULT_CAPABLE_CATALOG: CatalogSeed[] = [
   {
     id: 'minimax-h3-spicy', model: 'wavespeed-ai/minimax-h3/image-to-video-spicy', displayName: 'MiniMax H3 Spicy', description: 'New native-audio model', badge: 'Native stereo', badges: ['Native stereo', 'Last-frame support'], uiGroup: 'recommended',
     allowedDurations: allDurations(3, 15), defaultDuration: 5, supportedResolutions: ['480p', '768p'], defaultResolution: '768p', supportedAspectRatios: ['9:16', '16:9'], aspectRatioBehavior: 'source', audioMode: 'always', lastFrameSupport: true,
-    pricing: { kind: 'per_second', byResolution: { '480p': .04, '768p': .08 } }, estimatedWaitSeconds: { min: 50, max: 600, median: 180 }, timeoutSeconds: 3600, experimental: false, futureConsumerTier: 'sound',
+    pricing: { kind: 'per_second', byResolution: { '480p': .04, '768p': .08 } }, estimatedWaitSeconds: { min: 50, max: 600, median: 180 }, timeoutSeconds: 3600, experimental: false, futureConsumerTier: 'premium',
   },
   {
     id: 'seedance-2-5-spicy', model: 'bytedance/seedance-2.5/image-to-video-spicy', displayName: 'Seedance 2.5 Spicy', description: 'Premium quality', badge: 'Premium', badges: ['Premium', 'Sound', '4K', 'Last-frame support'], uiGroup: 'recommended',
@@ -254,14 +255,14 @@ export function configuredVideoRouteCatalog(): VideoRouteDefinition[] {
     ...seed, id: seed.id, internalModelKey: seed.id, provider: 'wavespeed' as const, mediaMode: 'image_to_video' as const,
     sourceModes: ['existing_photo', 'generated_first_frame'] as const,
     referenceImageRequirements: { source: 1 as const, canonicalCharacterMin: 0 as const, canonicalCharacterMax: 0 },
-    enabled: available && enabled(seed.id), selectable: true, testingOnly: true as const, payloadBuilderId: seed.payloadBuilderId, concurrencyLimit: concurrency(seed.id),
+    enabled: available && enabled(seed.id), selectable: ['seedance-1-5-pro', 'minimax-h3'].includes(seed.modelFamily), testingOnly: true as const, payloadBuilderId: seed.payloadBuilderId, concurrencyLimit: concurrency(seed.id),
   }));
 }
 
-export function videoModelPickerExposed(): boolean { return envBoolean('EXPOSE_VIDEO_MODEL_PICKER', false); }
+export function videoModelPickerExposed(): boolean { return false; }
 export function videoSelectorMode(): VideoSelectorMode {
-  if (videoModelPickerExposed()) return 'all';
-  const value = String(Deno.env.get('KIVELLE_VIDEO_MODEL_SELECTOR_MODE') ?? 'off').trim().toLowerCase();
+  if (envBoolean('EXPOSE_VIDEO_MODEL_PICKER', false)) return 'all';
+  const value = String(Deno.env.get('KIVELLE_VIDEO_MODEL_SELECTOR_MODE') ?? 'all').trim().toLowerCase();
   return value === 'testers' || value === 'all' ? value : 'off';
 }
 export function videoTesterUserIds(): Set<string> { return new Set(String(Deno.env.get('KIVELLE_VIDEO_TESTER_USER_IDS') ?? '').split(/[\s,;]+/).map((value) => value.trim().toLowerCase()).filter(Boolean)); }
@@ -272,16 +273,16 @@ export function canSelectVideoRoute(userId: string, email?: string | null): bool
 
 const consumerTierAliases: Record<VideoConsumerTier, string> = { standard: 'tier:standard', premium: 'tier:premium', sound: 'tier:sound', silent: 'tier:silent' };
 function consumerTierCopy(tier: VideoConsumerTier) {
-  if (tier === 'premium') return { displayName: 'Premium', description: 'Highest-quality video', badge: 'Premium' };
+  if (tier === 'premium') return { displayName: 'Cinematic', description: 'Premium video generation', badge: 'Premium' };
   if (tier === 'sound') return { displayName: 'Sound', description: 'Video with generated sound', badge: 'Sound' };
   if (tier === 'silent') return { displayName: 'No Sound', description: 'Efficient silent video', badge: 'Silent' };
-  return { displayName: 'Standard', description: 'Balanced quality and cost', badge: 'Recommended' };
+  return { displayName: 'Standard', description: 'Everyday moments, fewer credits', badge: 'Recommended' };
 }
 export function publicVideoRoutes(routes = configuredVideoRouteCatalog(), options: { includeAdultCapable?: boolean } = {}): SafeVideoRouteOption[] {
   const selectable = routes.filter((route) => route.enabled && route.selectable && (route.contentClass === 'sfw' || options.includeAdultCapable === true));
   if (videoModelPickerExposed()) return selectable.map((route) => safeVideoRouteOption(route));
   const selected = new Map<VideoConsumerTier, VideoRouteDefinition>();
-  for (const tier of ['standard', 'sound', 'silent', 'premium'] as const) { const route = selectable.find((item) => item.futureConsumerTier === tier); if (route) selected.set(tier, route); }
+  for (const tier of ['standard', 'premium'] as const) { const route = selectable.find((item) => item.futureConsumerTier === tier); if (route) selected.set(tier, route); }
   return [...selected].map(([tier, route]) => safeVideoRouteOption(route, tier));
 }
 export function resolveVideoRoute(routeId: string, userId: string, email?: string | null, options: { preferredContentClass?: VideoContentClass } = {}): VideoRouteDefinition {
@@ -297,18 +298,20 @@ export function resolveVideoRoute(routeId: string, userId: string, email?: strin
   if (preferred && route.contentClass !== preferred) {
     const twin = videoRouteForContentClass(route, preferred, catalog);
     if (twin) return twin;
+    throw new AppError('PROVIDER_NOT_CONFIGURED', 'This video option is temporarily unavailable.', 503);
   }
   return route;
 }
 export function safeVideoRouteOption(route: VideoRouteDefinition, consumerTier?: VideoConsumerTier): SafeVideoRouteOption {
-  const exposed = videoModelPickerExposed() && !consumerTier;
+  consumerTier = route.modelFamily === 'minimax-h3' ? 'premium' : 'standard';
+  const exposed = false;
   const copy = consumerTier ? consumerTierCopy(consumerTier) : { displayName: route.displayName, description: route.description, badge: route.badge };
   return {
     id: consumerTier ? consumerTierAliases[consumerTier] : route.id, ...(exposed ? { modelKey: route.internalModelKey, modelEndpoint: route.model } : {}), provider: route.provider,
-    displayName: copy.displayName, description: copy.description, contentClass: route.contentClass, contentLabel: route.contentLabel, modelFamily: route.modelFamily, badge: copy.badge, badges: exposed ? route.badges : [copy.badge], uiGroup: exposed ? route.uiGroup : consumerTier === 'premium' ? 'recommended' : 'alternatives',
+    displayName: copy.displayName, description: copy.description, contentClass: 'sfw', contentLabel: 'Automatic', modelFamily: consumerTier, badge: copy.badge, badges: exposed ? route.badges : [copy.badge], uiGroup: exposed ? route.uiGroup : consumerTier === 'premium' ? 'recommended' : 'alternatives',
     mediaMode: route.mediaMode, sourceModes: route.sourceModes, durationSeconds: route.defaultDuration, allowedDurations: route.allowedDurations, resolution: route.defaultResolution, supportedResolutions: route.supportedResolutions,
     supportedAspectRatios: route.supportedAspectRatios, aspectRatioBehavior: route.aspectRatioBehavior, referenceImageRequirements: route.referenceImageRequirements, audioMode: route.audioMode, audioLabel: videoAudioLabel(route.audioMode),
-    lastFrameSupport: route.lastFrameSupport, estimatedWaitSeconds: route.estimatedWaitSeconds, creditQuotes: videoCreditQuotes(route), providerCostQuotes: videoProviderCostQuotes(route), rawModelNamesExposed: exposed, experimental: exposed && route.experimental, testingOnly: true, futureConsumerTier: route.futureConsumerTier,
+    lastFrameSupport: route.lastFrameSupport, estimatedWaitSeconds: route.estimatedWaitSeconds, creditQuotes: consumerVideoCreditQuotes(consumerTierAliases[consumerTier]), providerCostQuotes: {}, rawModelNamesExposed: exposed, experimental: exposed && route.experimental, testingOnly: true, futureConsumerTier: route.futureConsumerTier,
   };
 }
 
