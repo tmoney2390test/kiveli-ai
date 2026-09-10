@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { consumerVideoCreditQuotes } from '../../../packages/together-domain/src/video-consumer.ts';
+import { consumerVideoCreditQuotes, VIDEO_CREDIT_DEFAULTS } from '../../../packages/together-domain/src/video-consumer.ts';
 import { configuredVideoRouteCatalog, type SafeVideoRouteOption, type VideoRouteDefinition, type VideoSettings } from './kivelle-video-routes.ts';
 import { configuredWaveSpeedClient, type WaveSpeedQuote } from './wavespeed.ts';
 import { AppError } from './types.ts';
@@ -18,7 +18,8 @@ export async function publishedVideoCreditCost(db: SupabaseClient, route: VideoR
   const quotes = consumerVideoCreditQuotes(route.modelFamily === 'minimax-h3' ? 'tier:premium' : 'tier:standard', Number(publication.credits_per_unit), Number(publication.minimum_credits));
   const cost = quotes[`${settings.resolution}:${settings.duration}:${settings.sound ? 'sound' : 'silent'}`];
   if (!Number.isFinite(cost)) throw new AppError('VALIDATION_ERROR', 'Choose supported video settings.', 422);
-  if ((expected === undefined && Number(publication.id) !== 1) || (expected !== undefined && expected !== cost)) throw new AppError('CONFLICT', 'Video prices have updated. Reopen video settings to review the current price. You have not been charged.', 409, true);
+  const legacyPriceUnchanged = Number(publication.credits_per_unit) === VIDEO_CREDIT_DEFAULTS.creditsPerUnit && Number(publication.minimum_credits) === VIDEO_CREDIT_DEFAULTS.minimumCredits;
+  if ((expected === undefined && !legacyPriceUnchanged) || (expected !== undefined && expected !== cost)) throw new AppError('CONFLICT', 'Video prices have updated. Reopen video settings to review the current price. You have not been charged.', 409, true);
   return cost;
 }
 export function newVideoSettings(route: VideoRouteDefinition, settings: VideoSettings): VideoSettings {
@@ -60,10 +61,22 @@ export async function monitorVideoPrices(db: SupabaseClient) {
 }
 export async function videoCostsDashboard(db: SupabaseClient) {
   const [history, runs, summary, publication] = await Promise.all([
-    db.from('together_video_price_observations').select('*').gte('observed_at', new Date(Date.now() - 30 * 86400000).toISOString()).order('observed_at', { ascending: false }).limit(5000),
+    videoPriceHistory(db),
     db.from('together_video_price_runs').select('*').order('started_at', { ascending: false }).limit(20),
     db.rpc('kivelle_video_cost_summary'), videoPricePublication(db),
   ]);
   if (history.error || runs.error || summary.error) throw new AppError('INTERNAL_ERROR', 'Video costs could not be loaded.', 500, true);
   return { history: history.data, runs: runs.data, summary: summary.data, publication, routes: configuredVideoRouteCatalog().filter(r => r.selectable).map(r => ({ id: r.id, model: r.model, name: r.modelFamily === 'minimax-h3' ? 'Cinematic' : 'Standard', contentClass: r.contentClass })) };
+}
+
+async function videoPriceHistory(db: SupabaseClient) {
+  const before = new Date().toISOString(), after = new Date(Date.now() - 30 * 86400000).toISOString();
+  const rows: Record<string, unknown>[] = [];
+  for (let offset = 0; offset < 5000; offset += 1000) {
+    const { data, error } = await db.from('together_video_price_observations').select('*').gte('observed_at', after).lte('observed_at', before).order('observed_at', { ascending: false }).order('id', { ascending: false }).range(offset, offset + 999);
+    if (error) return { data: [], error };
+    rows.push(...data);
+    if (data.length < 1000) break;
+  }
+  return { data: rows, error: null };
 }

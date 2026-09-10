@@ -306,6 +306,9 @@ export default function Operations() {
           {visibleTabs.map((item) => (
             <Pressable
               key={item.key}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: tab === item.key }}
+              aria-selected={tab === item.key}
               onPress={() => setTab(item.key)}
               style={[styles.tab, tab === item.key && styles.tabActive]}
             >

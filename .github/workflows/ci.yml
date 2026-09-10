@@ -63,6 +63,10 @@ jobs:
           supabase/functions/_shared/together-media-finalization-retry.test.ts
           supabase/functions/_shared/together-video-inspection.test.ts
           supabase/functions/_shared/together-video-faststart.test.ts
+          supabase/functions/_shared/kivelle-video-routes.test.ts
+          supabase/functions/_shared/kivelle-video-prices.test.ts
+          supabase/functions/_shared/kivelle-video-admission.test.ts
+      - run: node scripts/test-video-prices-db.mjs
       - run: pnpm --filter @together/app web:build
         env:
           EXPO_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co

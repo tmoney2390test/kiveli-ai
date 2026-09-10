@@ -121,6 +121,9 @@ verify_jwt = false
 [functions.together-ops]
 verify_jwt = false
 
+[functions.together-video-prices]
+verify_jwt = false
+
 [functions.together-stories]
 verify_jwt = false
 
