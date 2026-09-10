@@ -16,7 +16,7 @@ The accompanying audit is a historical baseline, not the result of this implemen
 - Release ATS configuration no longer permits arbitrary insecure network loads. SDK privacy manifests still require inspection in the final archive.
 
 ## Database and rollout
-New additive migration: `20260910181917_apple_review_recovery.sql`.
+New additive migration: `20260910185509_apple_review_recovery.sql`.
 Regression: `supabase/tests/160_kivelle_apple_review_recovery.sql`; isolated fixture: `node scripts/test-apple-review-db.mjs`.
 The isolated fixture exercises the actual migration using a minimal schema; it is not a historical full migration rebuild.
 
@@ -67,3 +67,45 @@ App Store Connect session, actual product approval/agreements/privacy declaratio
 [Supabase Apple integration](https://supabase.com/docs/guides/auth/social-login/auth-apple),
 [Expo environment use](https://docs.expo.dev/eas/environment-variables/usage/).
 Store precedent is not an exception or approval guarantee. Provider contract, retention and legal-entity declarations remain owner inputs.
+
+
+## Actual release result
+
+- PR [#72](https://github.com/tmoney2390test/kiveli-ai/pull/72) merged as `5ba7e46fe6760aa7127aa0ce86c6b1de9823887f` after CI, database and native-configuration checks passed.
+- Production migration applied once through Supabase's migration API as `20260910185509_apple_review_recovery`. This release's new file was renamed to the returned version; SQL is unchanged. No historical migrations were replayed or repaired.
+- Gateway deployed as `86793d5f-45a2-4617-ab4a-9e29412e4ca6`; previous version above remains the rollback reference. Production environment-injected export and compiled authentication-configuration verification passed.
+- All 18 transitive function consumers are ACTIVE, with existing `verify_jwt=false` configuration preserved. Handler authentication was not disabled.
+- Live read-only checks: both new tables have RLS and deny anon/authenticated reads; all five server RPCs deny authenticated execution; all four deletion/billing triggers exist; shared-Auth cleanup preserves the revocation queue. All 3 previously valid consent records remain valid. No new acceptance was fabricated.
+- Supabase advisor reports INFO “RLS enabled, no policy” on the two server-only tables. This is intentional deny-all client access, not an invitation to add client policies. [Advisor explanation](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy)
+- Production route smoke: **421 routes and 61 critical assets passed**. Anonymous account, subscription, direct-dialogue and group-dialogue requests return **401**. This does not substitute for authenticated/device behavioral testing.
+- Local verification: lint, app/domain typechecks, all 42 Edge Function typechecks, **742 app tests**, **1,029 domain tests**, focused Deno regressions, isolated migration contracts, preflight tests and production web build passed. GitHub repeated the required checks successfully.
+- No live deletion, revocation, purchase, paid AI generation, backup restore, or external alert delivery test was performed.
+
+| Function | Previous version | Deployed version |
+| --- | ---: | ---: |
+| together-dialogue | 291 | 292 |
+| together-simulate | 155 | 156 |
+| together-debug | 167 | 168 |
+| together-life-dispatch | 165 | 166 |
+| together-account | 147 | 148 |
+| together-media-dispatch | 253 | 254 |
+| together-media | 243 | 244 |
+| together-creator | 148 | 149 |
+| together-subscription | 135 | 136 |
+| together-scene-reaction | 166 | 167 |
+| together-call | 164 | 165 |
+| together-multimodal | 151 | 152 |
+| together-wavespeed-webhook | 193 | 194 |
+| together-dialogue-suggestion | 110 | 111 |
+| together-group-dialogue | 147 | 148 |
+| together-story-dialogue | 81 | 82 |
+| together-revenuecat-webhook | 51 | 52 |
+| together-dialogue-quote | 12 | 13 |
+
+### Native build attempt
+
+Android internal release candidate `6fbdee45-91d9-45c4-ba61-6248dba7a32c`, version 1.0.0 / code 5, was queued from the merged source with message `apple-review-5ba7e46`. EAS no-VCS archive mode does not populate a Git hash; this release record and build message identify the source. The build was not submitted to Google Play. [Build status](https://expo.dev/accounts/ttutten/projects/together/builds/6fbdee45-91d9-45c4-ba61-6248dba7a32c)
+
+iOS environment preflight passed, but EAS stopped before queuing: **no credentials suitable for internal distribution**. A Kivelli ad-hoc provisioning profile with the intended registered test devices is missing. The remote iOS build counter advanced from 8 to 9 during preparation; this is not a completed build. Existing store-distribution credentials were not repurposed and no public submission occurred.
+
+Automatic Apple revocation remains unconfigured until the server secrets listed above are installed. Isolated purchase testing, an authenticated App Store Connect session, a current iOS candidate, and physical-device acceptance remain outstanding. Web/backend deployment does not establish store-review approval.
