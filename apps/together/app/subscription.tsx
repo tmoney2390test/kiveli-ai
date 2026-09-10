@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, AppState, Linking, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { ScrollView as ScrollViewType } from 'react-native';
-import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Brain, Camera, Check, ChevronDown, ChevronRight, CircleAlert, CreditCard, ExternalLink, Gift, Globe2, Heart, History, LockKeyhole, RefreshCw, ShieldCheck, Sparkles, UserRound, Zap } from 'lucide-react-native';
+import { ArrowLeft, Brain, Camera, Check, ChevronDown, ChevronRight, CircleAlert, ExternalLink, Gift, Globe2, Heart, History, LockKeyhole, RefreshCw, ShieldCheck, Sparkles, UserRound, Zap } from 'lucide-react-native';
 import { GradientButton, KivelleCreditIcon, LoadingSkeleton, Screen } from '../src/components';
 import { subscriptionStatusQueryKey, useSubscriptionStatus } from '../src/hooks/useSubscriptionStatus';
 import { useAuth } from '../src/hooks/useAuth';
@@ -14,7 +13,7 @@ import { ApiError, manageSubscription } from '../src/lib/api';
 import { loadNativeProductPrices, nativePurchasesConfigured, purchaseNativeSubscription, restoreNativePurchases } from '../src/lib/nativePurchases';
 import { revenueCatPackageIdentifiers, type PurchasableTier } from '../src/lib/revenueCatPurchases';
 import { waitForAuthoritativeRestore } from '../src/lib/nativePurchaseSync';
-import type { BillingInterval, CheckoutConfirmation, CreditActivityEvent, CreditPack, SubscriptionPlan, SubscriptionStatus, SubscriptionTier } from '../src/lib/subscription';
+import type { BillingInterval, CheckoutConfirmation, CreditActivityEvent, SubscriptionPlan, SubscriptionStatus, SubscriptionTier } from '../src/lib/subscription';
 import { intelligenceLabel } from '../src/lib/subscription';
 import { annualSavingsPercentage, billingStatusPresentation, checkoutBackoffDelay, creditActivityPresentation, managementActionLabel, membershipBenefits, membershipMetrics, membershipPageMode, membershipPricePresentation, normalizeSubscriptionIntent, safeSubscriptionReturnTo, shouldShowSubscriptionIntentCallout, subscriptionIntentPresentation } from '../src/lib/subscriptionPresentation';
 import { colors, radius, spacing } from '../src/theme';
@@ -35,13 +34,11 @@ export default function Subscription() {
   const compact = width < 760;
   const scrollRef = useRef<ScrollViewType>(null);
   const [plansY, setPlansY] = useState(0);
-  const [creditsY, setCreditsY] = useState(0);
   const [compareY, setCompareY] = useState(0);
   const intent = normalizeSubscriptionIntent(params.intent, params.source);
   const intro = subscriptionIntentPresentation(intent);
   const returnTo = safeSubscriptionReturnTo(params.returnTo);
   const [billingInterval, setBillingInterval] = useState<BillingInterval>('annual');
-  const [selectedCreditPack, setSelectedCreditPack] = useState<CreditPack['key'] | ''>('');
   const [compareOpen, setCompareOpen] = useState(false);
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -54,12 +51,6 @@ export default function Subscription() {
     const result = await query.refetch();
     if (result.error) setNotice({ tone: 'danger', title: 'Could not refresh billing', body: result.error instanceof Error ? result.error.message : 'Try again in a moment.', retry: true });
   }, [query.refetch]);
-
-  useEffect(() => {
-    const packs = (state?.creditPacks ?? []).filter((pack) => pack.active && pack.checkoutConfigured);
-    const preferred = packs.find((pack) => pack.popular) ?? packs[0];
-    if (preferred && !packs.some((pack) => pack.key === selectedCreditPack)) setSelectedCreditPack(preferred.key);
-  }, [selectedCreditPack, state?.creditPacks]);
 
   useEffect(() => {
     if (params.checkout === 'cancelled') {
@@ -172,17 +163,7 @@ export default function Subscription() {
       else setNotice({ tone: 'neutral', title: 'Managed in the original app store', body: 'Kivelle could not verify which store originated this membership. Open subscriptions in the Apple App Store or Google Play account used for purchase.' });
       return;
     }
-    setBusy('portal'); setNotice(null);
-    try { const result = await manageSubscription<{ url: string }>({ action: 'portal', requestId: Crypto.randomUUID() }); await openUrl(result.url); }
-    catch (caught) { setNotice({ tone: 'danger', title: 'Could not open subscription management', body: billingErrorMessage(caught) }); }
-    finally { setBusy(''); }
-  };
-
-  const buyCredits = async (pack: CreditPack) => {
-    setBusy(pack.key); setNotice(null);
-    try { const result = await manageSubscription<{ url: string }>({ action: 'credits_checkout', productKey: pack.key, requestId: Crypto.randomUUID() }); await openUrl(result.url); }
-    catch (caught) { setNotice({ tone: 'danger', title: 'Could not open credit checkout', body: billingErrorMessage(caught) }); }
-    finally { setBusy(''); }
+    setNotice({ tone: 'neutral', title: 'Legacy subscription support', body: 'Contact Kivelli Support to manage or cancel a legacy subscription. New purchases use the Apple App Store or Google Play.' });
   };
 
   const scrollTo = (offset: number) => scrollRef.current?.scrollTo({ y: Math.max(0, offset - 20), animated: true });
@@ -196,7 +177,7 @@ export default function Subscription() {
   const nativeStoreCheckout=Platform.OS!=='web'&&nativePurchasesConfigured();
   const planActionFor = (plan: SubscriptionPlan): PlanAction | null => {
     if (plan.tier === state.tier) return null;
-    if (state.tier !== 'free') return { label: managementActionLabel(state.management) || 'Change plan', enabled: state.management.canManageSubscription, reason: state.management.managementReason, onPress: () => void openManagement() };
+    if (state.tier !== 'free') return { label: managementActionLabel(state.management) || 'Change plan', enabled: state.management.canManageSubscription && state.management.manageAction === 'app_store', reason: state.management.managementReason, onPress: () => void openManagement() };
     const webStoreOnly=Platform.OS==='web';
     return { label: webStoreOnly?'Available in the Kivelli app':`Choose ${plan.displayName}`, enabled:nativeStoreCheckout, reason:webStoreOnly?'New memberships are available in Kivelli for iOS and Android. Existing App Store and Google Play memberships still work here.':'App-store billing is not configured in this build.', onPress: () => void checkout(plan.tier as Exclude<SubscriptionTier, 'free'>) };
   };
@@ -219,12 +200,12 @@ export default function Subscription() {
           <View style={[styles.planGrid, compact && styles.stack]}>{paidPlans.map((plan) => <PlanCard key={plan.tier} plan={plan} billingInterval={billingInterval} localizedPrice={nativePrices[revenueCatPackageIdentifiers[plan.tier][billingInterval]]} action={planActionFor(plan)} busy={busy === plan.tier} featured={plan.tier === 'kivelle_max'} />)}</View>
         </View>
         <TrustStrip compact={compact} />
-        <View onLayout={(event) => setCreditsY(event.nativeEvent.layout.y)}><CreditWalletCard state={state} showActivity /></View>
+        <View><CreditWalletCard state={state} showActivity /></View>
       </> : <>
-        <MemberHero state={state} plan={currentPlan} compact={compact} busy={busy === 'portal'} onManage={state.management.canManageSubscription ? () => void openManagement() : undefined} onBuyCredits={state.management.canPurchaseCredits ? () => scrollTo(creditsY) : undefined} />
+        <MemberHero state={state} plan={currentPlan} compact={compact} busy={busy === 'portal'} onManage={state.management.canManageSubscription && state.management.manageAction === 'app_store' ? () => void openManagement() : undefined} onBuyCredits={undefined} />
         <MembershipMetrics plan={currentPlan} compact={compact} />
         <View style={[styles.dashboardGrid, compact && styles.stack]}><BenefitsCard plan={currentPlan} /><CreditWalletCard state={state} /></View>
-        <View onLayout={(event) => setCreditsY(event.nativeEvent.layout.y)}><CreditShop state={state} selectedKey={selectedCreditPack} busy={busy} onSelect={setSelectedCreditPack} onBuy={(pack) => void buyCredits(pack)} /></View>
+        <View><CreditShop /></View>
         <RecentActivityCard activity={state.creditActivity} />
         {state.tier === 'kivelle_plus' && maxPlan ? <View onLayout={(event) => setPlansY(event.nativeEvent.layout.y)} style={styles.sectionBlock}><SectionHeading kicker="GO DEEPER" title="See what Max adds" copy="Compare your current membership with Kivelli Max before changing anything." /><BillingIntervalToggle value={billingInterval} plan={maxPlan} onChange={setBillingInterval} /><PlanCard plan={maxPlan} billingInterval={billingInterval} action={planActionFor(maxPlan)} busy={busy === 'portal'} featured /></View> : null}
       </>}
@@ -308,10 +289,8 @@ function TrustStrip({ compact }: { compact: boolean }) {
   return <View style={[styles.trustStrip, compact && styles.stack]}>{items.map(({ icon: Icon, title, copy }) => <View key={title} style={styles.trustItem}><View style={styles.trustIcon}><Icon size={23} color="#E7D7FF" /></View><View><Text style={styles.trustTitle}>{title}</Text><Text style={styles.trustCopy}>{copy}</Text></View></View>)}</View>;
 }
 
-function CreditShop({ state, selectedKey, busy, onSelect, onBuy }: { state: SubscriptionStatus; selectedKey: CreditPack['key'] | ''; busy: string; onSelect: (key: CreditPack['key']) => void; onBuy: (pack: CreditPack) => void }) {
-  const packs = state.creditPacks.filter((pack) => pack.active);
-  const selected = packs.find((pack) => pack.key === selectedKey);
-  return <View style={styles.creditShop}><View style={styles.cardHeading}><View><Text style={styles.eyebrow}>ADD KIVELLI CREDITS</Text><Text style={styles.dashboardTitle}>Keep creating</Text><Text style={styles.cardCopy}>Use Credits for generated photos, video, voice, and other priced media actions.</Text></View><KivelleCreditIcon size={40} /></View>{state.management.canPurchaseCredits && packs.length ? <><View accessibilityRole="radiogroup" accessibilityLabel="Credit packs" style={styles.packGrid}>{packs.map((pack) => <Pressable key={pack.key} accessibilityRole="radio" accessibilityState={{ checked: selectedKey === pack.key }} onPress={() => onSelect(pack.key)} style={[styles.packCard, selectedKey === pack.key && styles.packSelected]}>{pack.popular ? <Text style={styles.packBadge}>POPULAR</Text> : null}<View style={styles.packCreditRow}><KivelleCreditIcon size={20} /><Text style={styles.packCredits}>{pack.credits.toLocaleString()}</Text></View><Text style={styles.packPrice}>{pack.displayPrice || formatCurrency(pack.priceUsd)}</Text></Pressable>)}</View>{selected ? <Pressable accessibilityRole="button" disabled={Boolean(busy)} onPress={() => onBuy(selected)} style={({ pressed }) => [styles.primaryButton, styles.buyButton, Boolean(busy) && styles.disabled, pressed && styles.pressed]}><CreditCard size={18} color="#fff" /><Text style={styles.primaryButtonText}>{busy === selected.key ? 'Opening secure checkout…' : `Buy ${selected.credits.toLocaleString()} Credits · ${selected.displayPrice || formatCurrency(selected.priceUsd)}`}</Text></Pressable> : null}</> : <View style={styles.unavailableAction}><ShieldCheck size={18} color={colors.success} /><Text style={styles.unavailableText}>{state.management.creditPurchaseReason ?? 'Credit purchases are not available for this account.'}</Text></View>}</View>;
+function CreditShop() {
+  return <View style={styles.creditShop}><View style={styles.cardHeading}><View><Text style={styles.eyebrow}>KIVELLI CREDITS</Text><Text style={styles.dashboardTitle}>Your credits stay with you</Text><Text style={styles.cardCopy}>Use your available Credits for photos, video, voice, and other media.</Text></View><KivelleCreditIcon size={40} /></View><View style={styles.unavailableAction}><ShieldCheck size={18} color={colors.success} /><Text style={styles.unavailableText}>Credit packs are temporarily unavailable. Purchases will be available through the Apple App Store and Google Play.</Text></View></View>;
 }
 
 function RecentActivityCard({ activity }: { activity: CreditActivityEvent[] }) { return <View style={styles.dashboardCard}><View style={styles.cardHeading}><Text style={styles.dashboardTitle}>Recent credit activity</Text><History size={21} color={colors.rose} /></View><RecentActivity activity={activity} /></View>; }
@@ -331,7 +310,6 @@ function CompareRow({ label, value }: { label: string; value: string }) { return
 function PolicyLink({ label, route }: { label: string; route: string }) { return <Text accessibilityRole="link" onPress={() => router.push(route as never)} style={styles.policyLink}>{label}</Text>; }
 function formatDate(value: string | null): string { if (!value) return 'Not scheduled'; const date = new Date(value); return Number.isNaN(date.getTime()) ? 'Not scheduled' : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
 function formatShortDate(value: string): string { const date = new Date(value); return Number.isNaN(date.getTime()) ? 'your next renewal' : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
-function formatCurrency(value: number): string { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(value); } catch { return `$${value.toFixed(2)}`; } }
 function billingErrorMessage(caught: unknown): string { if (caught instanceof ApiError) return `${caught.message}${caught.correlationId ? ` Support reference: ${caught.correlationId}.` : ''}`; return caught instanceof Error ? caught.message : 'Please try again.'; }
 
 const styles = StyleSheet.create({
