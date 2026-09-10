@@ -1,5 +1,5 @@
 import { DarkTheme, router, Stack, ThemeProvider } from 'expo-router';
-import Head from 'expo-router/head';
+import { BrowserPageTitle } from '../src/components/BrowserPageTitle';
 import { StatusBar } from 'expo-status-bar';
 import { AppProviders } from '../src/providers/AppProviders';
 import { colors } from '../src/theme';
@@ -10,4 +10,4 @@ import { installWebNavigationCompatibility } from '../src/lib/appNavigation';
 const navigationTheme=createKivelliNavigationTheme(DarkTheme);
 installWebNavigationCompatibility(router);
 
-export default function RootLayout(){return <ThemeProvider value={navigationTheme}><Head><title>Kivelle.AI</title></Head><AppProviders><StatusBar style="light"/><Stack screenOptions={{headerShown:false,contentStyle:{backgroundColor:colors.background},animation:'fade'}}/><RouteTransitionVeil/></AppProviders></ThemeProvider>;}
+export default function RootLayout(){return <ThemeProvider value={navigationTheme}><BrowserPageTitle/><AppProviders><StatusBar style="light"/><Stack screenOptions={{headerShown:false,contentStyle:{backgroundColor:colors.background},animation:'fade'}}/><RouteTransitionVeil/></AppProviders></ThemeProvider>;}
