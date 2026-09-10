@@ -17,6 +17,7 @@ import {
   supportUserLookup,
 } from "../_shared/kivelle-ops-dashboard.ts";
 import { sendSupportTicketEmail } from "../_shared/kivelle-support-email.ts";
+import { worldCatalogStatus, worldCatalogStatusPatch } from "../../../packages/together-domain/src/world-access.ts";
 
 const ticketStatus = z.enum([
     "open",
@@ -145,6 +146,11 @@ const schema = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("evaluate_alerts") }),
   z.object({ action: z.literal("audit_log") }),
+  z.object({
+    action: z.literal("update_world_status"),
+    worldId: z.string().uuid(),
+    status: z.enum(["released", "early_access", "hidden"]),
+  }),
   z.object({
     action: z.literal("record_release"),
     environment: z.enum(["development", "preview", "production"]).default(
@@ -877,6 +883,31 @@ serve(async (request, correlationId) => {
       200,
       correlationId,
     );
+  }
+  if (input.action === "update_world_status") {
+    requireMinimumRole(role, "admin");
+    const before = await db.from("together_worlds").select("id,slug,name,published,access_type,entitlement_key,metadata").eq("id", input.worldId).maybeSingle();
+    if (before.error) throw new AppError("INTERNAL_ERROR", "That world could not be loaded.", 500, true);
+    if (!before.data) throw new AppError("NOT_FOUND", "That world is unavailable.", 404);
+    const previousStatus = worldCatalogStatus(before.data);
+    const patch = worldCatalogStatusPatch({
+      published: Boolean(before.data.published),
+      accessType: String(before.data.access_type ?? "free"),
+      entitlementKey: before.data.entitlement_key ? String(before.data.entitlement_key) : null,
+      metadata: before.data.metadata,
+    }, input.status);
+    const { data, error } = await db.from("together_worlds").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", input.worldId).select("id,slug,name,published,access_type,entitlement_key,updated_at,metadata").single();
+    if (error || !data) throw new AppError("INTERNAL_ERROR", "That world status could not be saved.", 500, true);
+    await recordOperationsAudit(db, {
+      actorUserId: user.id,
+      actorRole: role,
+      action: "world_catalog_status_updated",
+      targetType: "world",
+      targetId: input.worldId,
+      requestId: correlationId,
+      metadata: { slug: String(before.data.slug), previousStatus, status: input.status },
+    });
+    return json({ data: { world: { ...data, status: worldCatalogStatus(data) } }, correlationId }, 200, correlationId);
   }
   requireMinimumRole(role, "admin");
   const { data, error } = await db.from("together_ops_release_records").upsert({

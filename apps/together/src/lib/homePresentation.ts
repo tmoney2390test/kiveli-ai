@@ -4,6 +4,7 @@ import { getInterruptibilityPresentation } from './lifePresentation';
 import { presentMemoryText } from './memoryPresentation';
 import { generatedMediaCacheKey } from './mediaImageSource';
 import { naturalizeCharacterActivity, naturalizeCharacterEventTitle } from '@together/domain/src/character-language';
+import { isWorldCatalogVisible } from '@together/domain/src/world-access';
 
 export type CompanionMediaItem = {
   id: string;
@@ -27,7 +28,7 @@ export type CurrentScenePresentation = {
 };
 
 export function getHomeWorldScopes(model: Pick<HomeViewModel, 'currentWorld'>, worlds: Snapshot['worlds'], browsedWorldId?: string | null) {
-  const publishedWorlds = worlds.filter((world) => world.published);
+  const publishedWorlds = worlds.filter(isWorldCatalogVisible);
   return {
     pulseWorld: model.currentWorld,
     selectedWorld: publishedWorlds.find((world) => world.id === browsedWorldId) ?? model.currentWorld ?? publishedWorlds[0],

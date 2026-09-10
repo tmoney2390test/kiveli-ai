@@ -48,6 +48,12 @@ Deno.test('build access keeps unpublished worlds locked', async () => {
   assertEquals(access, 'locked', 'unpublished worlds must remain inaccessible');
 });
 
+Deno.test('ops-hidden worlds stay locked even when their authored row remains published', async () => {
+  const db = worldOnlyDb({ published: true, access_type: 'free', entitlement_key: null, metadata: { catalog_status: 'hidden' } });
+  const access = await resolveWorldAccess({ db: db as never, userId: 'user', worldId: 'preproduction' });
+  assertEquals(access, 'locked', 'hidden worlds must not leak through direct access checks');
+});
+
 Deno.test('subscriber early access ignores a legacy free-account unlock', async () => {
   const db = accessDb({
     world: { published: true, access_type: 'subscription', entitlement_key: 'worlds.standard', metadata: { subscriber_early_access: true } },

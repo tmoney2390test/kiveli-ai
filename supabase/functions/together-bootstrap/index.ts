@@ -11,6 +11,7 @@ import { isAtLeast18 } from '../../../packages/together-domain/src/adult-access.
 import { accountGenderPronouns, accountGenderValues, ageFromBirthdate, normalizePersonaDisplayName, type AccountGender } from '../../../packages/together-domain/src/account-onboarding.ts';
 import { loadCharacterProfileDetails } from '../_shared/together-character-profile.ts';
 import { resolveWorldAccess } from '../_shared/together-place.ts';
+import { isWorldCatalogVisible } from '../../../packages/together-domain/src/world-access.ts';
 
 const onboardingSchema = z.object({
   action: z.literal('complete_onboarding').optional(),
@@ -112,6 +113,8 @@ serve(async (request, correlationId) => {
     const locationResult=await db.from('together_locations').select('id,world_id').eq('id',meetingLocationId).maybeSingle();
     if(locationResult.error||!locationResult.data)throw new AppError('CONFLICT','That first-meeting place is unavailable.',409);
     meetingLocation=locationResult.data;
+    const meetingWorldAccess=await resolveWorldAccess({db,userId:user.id,worldId:String(meetingLocation.world_id)});
+    if(meetingWorldAccess==='locked'||meetingWorldAccess==='available')throw new AppError('NOT_FOUND','That companion is not available yet.',404);
     if(input.worldId&&String(meetingLocation.world_id)!==input.worldId)throw new AppError('VALIDATION_ERROR','Choose a companion who can meet you in that world.',400);
   }
 
@@ -195,8 +198,8 @@ async function ensureInitialPersonaIdentity(db:SupabaseClient,userId:string,disp
 }
 
 async function unlockOnboardingWorlds(db:SupabaseClient,userId:string,visitedWorldId:string|null,now:string){
-  const{data:freeWorlds}=await db.from('together_worlds').select('id').eq('published',true).eq('access_type','free');
-  const worldIds=new Set((freeWorlds??[]).map((world:Record<string,unknown>)=>String(world.id)));
+  const{data:freeWorlds}=await db.from('together_worlds').select('id,published,metadata').eq('published',true).eq('access_type','free');
+  const worldIds=new Set((freeWorlds??[]).filter((world:Record<string,unknown>)=>isWorldCatalogVisible({published:Boolean(world.published),metadata:world.metadata})).map((world:Record<string,unknown>)=>String(world.id)));
   if(visitedWorldId){const access=await resolveWorldAccess({db,userId,worldId:visitedWorldId});if(access==='included'||access==='owned')worldIds.add(visitedWorldId);}
   for(const worldId of worldIds)await db.from('together_user_worlds').upsert({user_id:userId,world_id:worldId,access_status:'unlocked',first_visited_at:worldId===visitedWorldId?now:null,last_visited_at:worldId===visitedWorldId?now:null,updated_at:now},{onConflict:'user_id,world_id',ignoreDuplicates:true});
 }

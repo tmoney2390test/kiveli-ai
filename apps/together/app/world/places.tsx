@@ -16,6 +16,7 @@ import{useAppShell}from'../../src/shell/AppShellContext';
 import{useTogether}from'../../src/store/useTogether';
 import{colors,radius,typography}from'../../src/theme';
 import type{Location,World}from'../../src/types';
+import{isWorldCatalogVisible}from'../../../../packages/together-domain/src/world-access';
 
 export default function Places(){
   const{world:worldSlug,character:characterKey,planning,group,switchPlanId,openNow:openNowParam}=useLocalSearchParams<{world?:string;character?:string;planning?:string;group?:string;switchPlanId?:string;openNow?:string}>();
@@ -29,7 +30,8 @@ export default function Places(){
   const[now,setNow]=useState(()=>new Date());
   const[expanded,setExpanded]=useState<Set<string>>(new Set());
 
-  const world=snapshot?.worlds.find((item)=>item.slug===(worldSlug??''))??snapshot?.worlds.find((item)=>item.published);
+  const visibleWorlds=snapshot?.worlds.filter(isWorldCatalogVisible)??[];
+  const world=visibleWorlds.find((item)=>item.slug===(worldSlug??''))??visibleWorlds[0];
   const requestedPlanningCharacter=snapshot?characterByRouteKey(snapshot,characterKey):undefined;
   const planningCharacter=snapshot&&world&&requestedPlanningCharacter&&characterCanPlanInWorld(snapshot,requestedPlanningCharacter,world.id)?requestedPlanningCharacter:undefined;
   const planningGroup=snapshot?.conversations.find((conversation)=>

@@ -19,6 +19,7 @@ import { useAppShell } from '../../src/shell/AppShellContext';
 import { useTogether } from '../../src/store/useTogether';
 import { colors, radius } from '../../src/theme';
 import type { CreatorDraft, Snapshot } from '../../src/types';
+import { isWorldCatalogVisible } from '@together/domain/src/world-access';
 
 type Tab = 'People' | 'Experiences';
 const stageOrder = ['stranger', 'acquaintance', 'friend', 'flirting', 'dating', 'exclusive', 'long_term'];
@@ -48,7 +49,7 @@ export default function Discover() {
 
   useEffect(() => { void loadDrafts(); }, [loadDrafts]);
 
-  const publishedWorlds = snapshot?.worlds.filter((world) => world.published) ?? [];
+  const publishedWorlds = snapshot?.worlds.filter(isWorldCatalogVisible) ?? [];
   const requestedWorld = worldSlug ? publishedWorlds.find((world) => world.slug === worldSlug) : undefined;
   const accessibleWorlds = snapshot ? publishedWorlds.filter((world) => canAccessWorld(snapshot,world)) : [];
   const selectedWorld = requestedWorld ?? accessibleWorlds.find((world) => world.id === browsedWorldId) ?? accessibleWorlds[0];

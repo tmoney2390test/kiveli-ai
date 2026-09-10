@@ -18,6 +18,7 @@ import {
   Clock3,
   DollarSign,
   FileClock,
+  Globe2,
   ImageIcon,
   MessageSquareWarning,
   Phone,
@@ -42,12 +43,15 @@ import {
   type OperationsIncident,
   type OperationsQueue,
   type OperationsUserLookup,
+  type OperationsWorld,
+  type OperationsWorldStatus,
   type SafetyReport,
   type SafetyReportDetail,
   refundOperationsCredit,
   retryOperationsMedia,
   updateOperationsAlertRule,
   updateOperationsIncident,
+  updateOperationsWorldStatus,
   updateSafetyReport,
   updateSupportTicket,
 } from "../src/lib/operations";
@@ -61,6 +65,7 @@ type Tab =
   | "safety"
   | "users"
   | "alerts"
+  | "worlds"
   | "releases"
   | "audit";
 const tabs: Array<{ key: Tab; label: string }> = [
@@ -71,6 +76,7 @@ const tabs: Array<{ key: Tab; label: string }> = [
   { key: "safety", label: "Safety" },
   { key: "users", label: "Users" },
   { key: "alerts", label: "Alerts" },
+  { key: "worlds", label: "Worlds" },
   { key: "releases", label: "Releases" },
   { key: "audit", label: "Audit" },
 ];
@@ -251,7 +257,7 @@ export default function Operations() {
     );
   }
   const visibleTabs = tabs.filter((item) =>
-      item.key !== "audit" || data.access.permissions.admin
+      !["audit", "worlds"].includes(item.key) || data.access.permissions.admin
     ),
     compact = width < 840;
   return (
@@ -384,6 +390,9 @@ export default function Operations() {
               mutate={mutate}
             />
           )
+          : null}
+        {tab === "worlds"
+          ? <Worlds worlds={data.worlds} busyKey={busyKey} mutate={mutate} />
           : null}
         {tab === "releases" ? <Releases data={data} /> : null}
         {tab === "audit" ? <Audit rows={data.audit} /> : null}
@@ -1309,6 +1318,71 @@ function Releases({ data }: { data: OperationsDashboard }) {
     </>
   );
 }
+
+const worldStatusOptions: Array<{ value: OperationsWorldStatus; label: string; detail: string }> = [
+  { value: "released", label: "Released", detail: "Available to every user." },
+  { value: "early_access", label: "Early Access", detail: "Available to Kivelli+ and Max subscribers." },
+  { value: "hidden", label: "Hidden", detail: "Removed from discovery; existing conversations keep working." },
+];
+
+function Worlds({ worlds, busyKey, mutate }: {
+  worlds: OperationsWorld[];
+  busyKey: string;
+  mutate: (key: string, run: () => Promise<unknown>) => Promise<void>;
+}) {
+  const [pending, setPending] = useState<{ world: OperationsWorld; status: OperationsWorldStatus } | null>(null);
+  const apply = () => {
+    if (!pending) return;
+    const current = pending;
+    setPending(null);
+    void mutate(`world:${current.world.id}`, () => updateOperationsWorldStatus(current.world.id, current.status));
+  };
+  return <>
+    <SectionHeader
+      icon={<Globe2 color={colors.violet} />}
+      title="World catalog"
+      body="Review every world and control when it appears to users. Changes are audited."
+    />
+    <Panel title="World status" hint="Released is open to everyone. Early Access requires a subscription. Hidden is for preproduction only.">
+      {worlds.map((world) => {
+        const busy = busyKey === `world:${world.id}`;
+        return <View key={world.id} style={styles.worldControl}>
+          <View style={styles.rowBetween}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.recordTitle}>{world.name}</Text>
+              <Text style={styles.recordMeta}>{world.slug} · updated {date(world.updatedAt)}</Text>
+            </View>
+            <StatusPill value={world.status.replace("_", " ")} />
+          </View>
+          <View style={styles.worldStatusRow} accessibilityRole="radiogroup" accessibilityLabel={`${world.name} status`}>
+            {worldStatusOptions.map((option) => <Pressable
+              key={option.value}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: world.status === option.value, disabled: busy }}
+              disabled={busy || world.status === option.value}
+              onPress={() => setPending({ world, status: option.value })}
+              style={[styles.worldStatusChoice, world.status === option.value && styles.worldStatusChoiceActive, busy && styles.disabled]}
+            >
+              <Text style={[styles.worldStatusChoiceText, world.status === option.value && styles.worldStatusChoiceTextActive]}>{option.label}</Text>
+            </Pressable>)}
+          </View>
+          {busy ? <Text style={styles.muted}>Updating world…</Text> : null}
+          {pending?.world.id === world.id ? <View style={styles.worldConfirmation}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.recordTitle}>Set {pending.world.name} to {worldStatusOptions.find((item) => item.value === pending.status)?.label}?</Text>
+              <Text style={styles.recordBody}>{worldStatusOptions.find((item) => item.value === pending.status)?.detail}</Text>
+            </View>
+            <View style={styles.actionRow}>
+              <SmallAction label="Cancel" onPress={() => setPending(null)} />
+              <Pressable accessibilityRole="button" onPress={apply} style={styles.primary}><Text style={styles.primaryText}>Apply status</Text></Pressable>
+            </View>
+          </View> : null}
+        </View>;
+      })}
+      {!worlds.length ? <Text style={styles.muted}>No worlds are configured.</Text> : null}
+    </Panel>
+  </>;
+}
 function Audit({ rows }: { rows: Array<Record<string, unknown>> }) {
   return (
     <>
@@ -1691,6 +1765,36 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     alignItems: "center",
     gap: 7,
+  },
+  worldControl: {
+    gap: 10,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,.07)",
+  },
+  worldStatusRow: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  worldStatusChoice: {
+    minHeight: 40,
+    justifyContent: "center",
+    paddingHorizontal: 13,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "rgba(255,255,255,.025)",
+  },
+  worldStatusChoiceActive: { borderColor: "rgba(154,104,255,.55)", backgroundColor: "rgba(154,104,255,.16)" },
+  worldStatusChoiceText: { color: colors.muted, fontSize: 12, fontWeight: "800" },
+  worldStatusChoiceTextActive: { color: colors.text },
+  worldConfirmation: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 16,
+    padding: 17,
+    borderWidth: 1,
+    borderColor: "rgba(255,171,105,.32)",
+    borderRadius: radius.lg,
+    backgroundColor: "rgba(255,171,105,.06)",
   },
   smallAction: {
     paddingHorizontal: 11,

@@ -77,7 +77,7 @@ serve(async (request, correlationId) => {
     const destinationPlace = await resolvePlaceContext({ db, locationId: input.destinationLocationId, now, userId: user.id, characterInstanceId: input.characterInstanceId });
     if (destinationPlace.world.id !== context.place.world.id) throw new AppError('ACTION_NOT_AVAILABLE', 'You can only move around this world from here.', 409);
     const access = await resolveWorldAccess({ db, userId: user.id, worldId: destinationPlace.world.id });
-    if (access === 'locked') throw new AppError('WORLD_LOCKED', 'That world is not available for this life yet.', 403);
+    if (access === 'locked' || access === 'available') throw new AppError('WORLD_LOCKED', 'That world is not available for this life yet.', 403);
     const movedState = { ...(scene.state ?? {}), recentActionKeys: [...(scene.state?.recentActionKeys ?? []), destination.interactionKey].slice(-10), focus: 'moving', currentActivityKey: 'walking_together' };
     const action = await insertAction(db, { userId: user.id, continuityId: continuity.id, sceneId: scene.id, characterInstanceId: input.characterInstanceId, interactionKey: destination.interactionKey, family: 'move', requestId: input.requestId, payload: { fromLocationId: context.location.id, destinationLocationId: input.destinationLocationId } });
     const { data: updated, error } = await db.from('together_scene_sessions').update({ world_id: destinationPlace.world.id, location_id: input.destinationLocationId, activity_key: 'walking_together', state: movedState, updated_at: now.toISOString() }).eq('id', scene.id).eq('user_id', user.id).select('*').single();
@@ -161,7 +161,7 @@ async function loadContext(input: { db: any; userId: string; continuityId: strin
   const locationId = String(currentScene?.location_id ?? active.scene.locationId);
   const place = await resolvePlaceContext({ db: input.db, locationId, now: input.now, userId: input.userId, characterInstanceId: input.characterInstanceId });
   const access = await resolveWorldAccess({ db: input.db, userId: input.userId, worldId: place.world.id });
-  if (access === 'locked') throw new AppError('WORLD_LOCKED', 'That world is not available for this life yet.', 403);
+  if (access === 'locked' || access === 'available') throw new AppError('WORLD_LOCKED', 'That world is not available for this life yet.', 403);
   const [locationResult, nearbyResult, worldResult, presence, memoryResult, episodeResult, patternResult] = await Promise.all([
     input.db.from('together_locations').select('*').eq('id', locationId).maybeSingle(),
     input.db.from('together_locations').select('*').eq('world_id', place.world.id).neq('id', locationId).limit(120),

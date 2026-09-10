@@ -16,6 +16,11 @@ describe('home world discovery',()=>{
     expect(homeWorldDiscoveryOptions([world('juniper',1),world('port',7),world('neon',8),world('vespormoor',9,false)],'juniper').map((item)=>item.id)).toEqual(['neon','port']);
   });
 
+  it('keeps an ops-hidden world out of Home discovery while its published row supports existing chats',()=>{
+    const hidden={...world('hidden',10),metadata:{releaseWave:10,catalog_status:'hidden'}} as World;
+    expect(homeWorldDiscoveryOptions([world('juniper',1),hidden],'juniper')).toEqual([]);
+  });
+
   it('wraps forward and backward rotation',()=>{
     expect(advanceHomeWorldIndex(2,3)).toBe(0);
     expect(advanceHomeWorldIndex(0,3,-1)).toBe(2);

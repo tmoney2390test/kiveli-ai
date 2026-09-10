@@ -1,5 +1,5 @@
 import { capabilitiesForTier } from '@together/domain/src/entitlements';
-import { hasOpenBuildWorldAccess, isSubscriberEarlyAccessWorld } from '@together/domain/src/world-access';
+import { hasOpenBuildWorldAccess, isSubscriberEarlyAccessWorld, isWorldCatalogVisible } from '@together/domain/src/world-access';
 import type { CharacterInstance, CharacterTemplate, CharacterVersion, CharacterWorldPresence, Location, PlaceContext, Snapshot, World } from '../types';
 import { userExperienceTimezone } from './experienceTimezone';
 
@@ -126,7 +126,7 @@ export function plansForWorld(snapshot:Snapshot,worldId:string){return(snapshot.
 export function datesForWorld(snapshot:Snapshot,worldId:string){return snapshot.dates.filter((date)=>date.together_date_templates.world_id===worldId);}
 export function mediaForWorld(snapshot:Snapshot,worldId:string){return(snapshot.generatedMedia??[]).filter((media)=>(media.world_id??worldForLocation(snapshot,media.location_id)?.id)===worldId);}
 export function canAccessWorld(snapshot:Snapshot,world:World):boolean{
-  if(!world.published)return false;
+  if(!isWorldCatalogVisible(world))return false;
   if(hasOpenBuildWorldAccess(world.published,world.metadata))return true;
   const capabilities=capabilitiesForTier(snapshot.entitlements?.tier??'free');
   if(isSubscriberEarlyAccessWorld(world.metadata))return capabilities.worldAccess==='all_standard';

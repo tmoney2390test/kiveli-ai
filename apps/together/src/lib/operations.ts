@@ -10,6 +10,17 @@ export type SupportCategory =
   | "feedback"
   | "other";
 export type OperationsRole = "viewer" | "support" | "admin";
+export type OperationsWorldStatus = "released" | "early_access" | "hidden";
+export type OperationsWorld = {
+  id: string;
+  slug: string;
+  name: string;
+  status: OperationsWorldStatus;
+  published: boolean;
+  accessType: string;
+  entitlementKey: string | null;
+  updatedAt: string;
+};
 export type OperationsQueue = {
   key: string;
   label: string;
@@ -127,6 +138,7 @@ export type OperationsDashboard = {
     >;
   };
   audit: Array<Record<string, unknown>>;
+  worlds: OperationsWorld[];
   note: string;
 };
 export type OperationsUserLookup = {
@@ -250,6 +262,12 @@ export const loadMySupportTickets = () =>
   >("together-ops", { action: "my_tickets" });
 export const loadOperationsDashboard = () =>
   invoke<OperationsDashboard>("together-ops", { action: "dashboard" });
+export const updateOperationsWorldStatus = (worldId: string, status: OperationsWorldStatus) =>
+  invoke<{ world: Record<string, unknown> }>("together-ops", {
+    action: "update_world_status",
+    worldId,
+    status,
+  });
 export const loadSupportTicket = (ticketId: string) =>
   invoke<
     { ticket: Record<string, unknown>; events: Array<Record<string, unknown>> }

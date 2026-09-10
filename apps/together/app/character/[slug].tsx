@@ -24,6 +24,7 @@ import { relationshipDaysKnown } from '../../src/lib/companionLife';
 import { activeConversationFor } from '../../src/lib/conversation';
 import { characterConversationHref } from '../../src/lib/chatRoute';
 import { naturalizeCharacterActivity, naturalizeCharacterBiography } from '@together/domain/src/character-language';
+import { isWorldCatalogVisible } from '@together/domain/src/world-access';
 import { presentMemoryText } from '../../src/lib/memoryPresentation';
 import { worldForLocation } from '../../src/lib/place';
 import { cycleProfilePhotoIndex } from '../../src/lib/profilePhotoCarousel';
@@ -55,7 +56,12 @@ export default function CharacterProfile() {
   const profileRequest = useMemo(() => {
     if (!snapshot) return { templateId: null as string|null, worldId: null as string|null };
     const targetInstance = snapshot.characters.find((item) => item.together_character_templates.slug === slug || item.together_character_templates.public_handle === slug || item.character_template_id === slug);
-    const discoverableTarget = snapshot.discoverableCharacters?.find((item) => item.slug === slug || item.public_handle === slug || item.id === slug);
+    const discoverableCandidate = snapshot.discoverableCharacters?.find((item) => item.slug === slug || item.public_handle === slug || item.id === slug);
+    const discoverableVersion = discoverableCandidate?.together_character_versions;
+    const discoverablePresence = snapshot.characterWorldPresence?.find((item) => item.character_version_id === discoverableVersion?.id && item.presence_type !== 'unavailable');
+    const discoverableWorldId = discoverableCandidate?.first_meeting?.world_id ?? discoverablePresence?.world_id;
+    const discoverableWorld = snapshot.worlds.find((item) => item.id === discoverableWorldId);
+    const discoverableTarget = discoverableCandidate && (!discoverableWorld || isWorldCatalogVisible(discoverableWorld)) ? discoverableCandidate : undefined;
     const targetTemplate = targetInstance?.together_character_templates ?? discoverableTarget;
     if (!targetTemplate) return { templateId: null as string|null, worldId: null as string|null };
     const targetVersion = targetInstance?.together_character_versions ?? discoverableTarget?.together_character_versions;
@@ -83,7 +89,7 @@ export default function CharacterProfile() {
     || item.character_template_id === slug
   );
   const discoverable = snapshot.discoverableCharacters?.find((item) =>
-    item.slug === slug || item.public_handle === slug || item.id === slug
+    item.id === profileRequest.templateId && (item.slug === slug || item.public_handle === slug || item.id === slug)
   );
   const template = instance?.together_character_templates ?? discoverable;
   const baseVersion = instance?.together_character_versions ?? discoverable?.together_character_versions;

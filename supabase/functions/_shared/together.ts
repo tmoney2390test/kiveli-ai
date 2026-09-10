@@ -4,7 +4,7 @@ import { experienceClock } from './kivelle-time.ts';
 import { resolveCharacterPlaceContext, resolvePlaceContext } from './together-place.ts';
 import { activeContinuity } from './together-continuity.ts';
 import { normalizeMultimodalPreferences, resolveServerExperienceCapabilities } from './kivelle-multimodal.ts';
-import { applyRelationshipProposal, capabilitiesForAccount, extractMemoryCandidates as extractDomainMemoryCandidates, firstDateEligibility, hasSexualDialogueLanguage, isDurableUserMemory, lifeEventHasExplicitPresenceAuthority, mergeRollingConversationState, nextRelationshipMilestone as selectRelationshipMilestone, relationshipCue, type RelationshipState } from '../../../packages/together-domain/src/index.ts';
+import { applyRelationshipProposal, capabilitiesForAccount, extractMemoryCandidates as extractDomainMemoryCandidates, firstDateEligibility, hasSexualDialogueLanguage, isDurableUserMemory, isWorldCatalogVisible, lifeEventHasExplicitPresenceAuthority, mergeRollingConversationState, nextRelationshipMilestone as selectRelationshipMilestone, relationshipCue, type RelationshipState } from '../../../packages/together-domain/src/index.ts';
 import { compactLocationLoreForDirectory } from '../../../packages/together-domain/src/location-depth.ts';
 import { projectSnapshotMemories } from './kivelle-memory-access.ts';
 import { waitUntil } from './background.ts';
@@ -208,14 +208,16 @@ export async function buildExploreCatalogSnapshot(db:SupabaseClient,userId:strin
   ]);
   const failed=[worlds,locations,characterWorldPresence,discoverable,favorites,events].find((result)=>result.error);
   if(failed?.error)throw new AppError('INTERNAL_ERROR','Explore could not refresh right now.',500,true);
-  const publishedWorlds=worlds.data??[],worldIds=new Set(publishedWorlds.map((world)=>String(world.id)));
+  const publishedWorlds=(worlds.data??[]).filter((world)=>isWorldCatalogVisible({published:Boolean(world.published),metadata:world.metadata})),worldIds=new Set(publishedWorlds.map((world)=>String(world.id)));
   const publishedLocations=(locations.data??[]).filter((location)=>worldIds.has(String(location.world_id)));
   const locationIds=new Set(publishedLocations.map((location)=>String(location.id)));
+  const publishedCharacterPresence=(characterWorldPresence.data??[]).filter((presence)=>worldIds.has(String(presence.world_id)));
+  const publishedDiscoverable=discoverableForWorlds(discoverable.data??[],publishedCharacterPresence);
   return{
     worlds:publishedWorlds,
     locations:publishedLocations.map(compactSnapshotLocation),
-    characterWorldPresence:(characterWorldPresence.data??[]).filter((presence)=>worldIds.has(String(presence.world_id))),
-    discoverableCharacters:await hydrateDiscoverableCharacters(db,discoverable.data??[]),
+    characterWorldPresence:publishedCharacterPresence,
+    discoverableCharacters:await hydrateDiscoverableCharacters(db,publishedDiscoverable),
     favoriteCharacterTemplateIds:(favorites.data??[]).map((item)=>String(item.character_template_id)),
     lifeEvents:(events.data??[]).filter((event)=>!event.location_id||locationIds.has(String(event.location_id))),
     refreshedAt:new Date().toISOString(),
@@ -404,13 +406,14 @@ async function buildOnboardingSnapshot(db:SupabaseClient,userId:string,profile:R
   ]);
   const failed=[worlds,locations,characterWorldPresence,discoverable,entitlements,preferences].find((result)=>result.error);
   if(failed?.error)throw new AppError('INTERNAL_ERROR','Kivelle could not prepare your first meeting.',500,true);
-  const publishedWorlds=worlds.data??[],publishedWorldIds=new Set(publishedWorlds.map((world)=>String(world.id)));
+  const publishedWorlds=(worlds.data??[]).filter(isWorldCatalogVisible),publishedWorldIds=new Set(publishedWorlds.map((world)=>String(world.id)));
   const publishedLocations=(locations.data??[]).filter((location)=>publishedWorldIds.has(String(location.world_id))).map(compactSnapshotLocation);
-  const discoverableCharacters=await hydrateDiscoverableCharacters(db,discoverable.data??[]);
+  const publishedCharacterPresence=(characterWorldPresence.data??[]).filter((presence)=>publishedWorldIds.has(String(presence.world_id)));
+  const discoverableCharacters=await hydrateDiscoverableCharacters(db,discoverableForWorlds(discoverable.data??[],publishedCharacterPresence));
   const entitlementKeys=(entitlements.data?.entitlement_keys??[]).map(String);
   return{
     profile:profile?projectClientProfile(profile):null,activePersona:null,activeContinuity:null,personas:[],continuities:[],
-    worlds:publishedWorlds,userWorlds:[],characterWorldPresence:(characterWorldPresence.data??[]).filter((presence)=>publishedWorldIds.has(String(presence.world_id))),currentPlaceContext:null,locations:publishedLocations,relationshipPlaces:[],characterPlaceProfiles:[],
+    worlds:publishedWorlds,userWorlds:[],characterWorldPresence:publishedCharacterPresence,currentPlaceContext:null,locations:publishedLocations,relationshipPlaces:[],characterPlaceProfiles:[],
     characters:[],discoverableCharacters,favoriteCharacterTemplateIds:[],schedules:[],scheduleEvents:[],relationships:[],relationshipMilestones:[],relationshipMilestoneHistory:[],relationshipCues:{},dates:[],moments:[],memories:[],openThreads:[],conversations:[],sceneSessions:[],sceneParticipants:[],sharedPlans:[],conversationEvents:[],lifeEvents:[],proactiveMessages:[],storyArcs:[],trips:[],photoOpportunities:[],generatedMedia:[],conversationActions:[],
     entitlements:entitlements.data??null,experienceCapabilities:resolveServerExperienceCapabilities(normalizeMultimodalPreferences(undefined),entitlementKeys).experience,notificationPreferences:preferences.data??null,
   };
@@ -431,6 +434,14 @@ async function hydrateDiscoverableCharacters(db:SupabaseClient,templates:Array<R
   const referenceSigned=referencePaths.length?await db.storage.from('kivelle-character-reference').createSignedUrls(referencePaths,3600):{data:[]};
   const referenceUrlByPath=new Map((referenceSigned.data??[]).map((item)=>[item.path,item.signedUrl]));
   return templates.map((template)=>{const selected=(template.together_character_versions??[]).find((version:Record<string,unknown>)=>Number(version.version)===Number(template.current_published_version))??template.together_character_versions?.[0]??null;if(!selected)return{...template,together_character_versions:null};const candidates=(Array.isArray(selected.appearance_candidates)?selected.appearance_candidates:[]).map((candidate:Record<string,unknown>)=>({...candidate,signedUrl:typeof candidate.storagePath==='string'?referenceUrlByPath.get(candidate.storagePath)??null:null}));const selectedId=String(selected.appearance_config?.selectedCandidateId??''),portraitPath=String(candidates.find((candidate:Record<string,unknown>)=>candidate.id===selectedId)?.storagePath??selected.visual_identity?.referenceStoragePaths?.[0]??'');return{...template,together_character_versions:{...selected,appearance_candidates:candidates,portrait_url:portraitPath?referenceUrlByPath.get(portraitPath)??null:null}};});
+}
+
+function discoverableForWorlds(templates:Array<Record<string,any>>,presence:Array<Record<string,any>>){
+  const visibleVersionIds=new Set(presence.map((item)=>String(item.character_version_id)));
+  return templates.filter((template)=>{
+    const versions=Array.isArray(template.together_character_versions)?template.together_character_versions:template.together_character_versions?[template.together_character_versions]:[];
+    return versions.some((version:Record<string,unknown>)=>visibleVersionIds.has(String(version.id)));
+  });
 }
 
 function compactSnapshotLocation(location:Record<string,any>){

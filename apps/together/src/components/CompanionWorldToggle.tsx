@@ -4,6 +4,7 @@ import { Check, ChevronDown, Globe2 } from 'lucide-react-native';
 import { radius } from '../theme';
 import type { World } from '../types';
 import { FrostedSurface } from './FrostedGlass';
+import { isWorldCatalogVisible } from '@together/domain/src/world-access';
 
 export function CompanionWorldToggle({ worlds, value, onChange }: {
   worlds: World[];
@@ -11,7 +12,7 @@ export function CompanionWorldToggle({ worlds, value, onChange }: {
   onChange: (worldId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const options = worlds.filter((world) => world.published).sort((left, right) => left.sort_order - right.sort_order);
+  const options = worlds.filter(isWorldCatalogVisible).sort((left, right) => left.sort_order - right.sort_order);
   const selected = options.find((world) => world.id === value) ?? options[0];
 
   if (!selected || options.length < 2) return null;

@@ -1,7 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
+import { isWorldCatalogVisible } from '../../../packages/together-domain/src/world-access.ts';
 
 type Row = Record<string, any>;
+const relationOne = (value: unknown): Row | null => {
+  const row = Array.isArray(value) ? value[0] : value;
+  return row && typeof row === 'object' ? row as Row : null;
+};
 
 export type PublicCharacterConnection = {
   id: string;
@@ -121,13 +126,20 @@ export async function loadCharacterProfileDetails(db: SupabaseClient, viewerUser
 
   let worldId = (requestedWorldId ?? String((template.first_meeting as Row | null)?.world_id ?? '')) || null;
   if (worldId) {
-    const { data: world, error: worldError } = await db.from('together_worlds').select('id').eq('id', worldId).eq('published', true).maybeSingle();
-    if (worldError || !world) throw new AppError('NOT_FOUND', 'That world is unavailable.', 404);
+    const { data: world, error: worldError } = await db.from('together_worlds').select('id,published,metadata').eq('id', worldId).maybeSingle();
+    if (worldError || !world || !isWorldCatalogVisible(world)) {
+      if (requestedWorldId) throw new AppError('NOT_FOUND', 'That world is unavailable.', 404);
+      worldId = null;
+    }
   }
   if (!worldId) {
-    const { data: presence } = await db.from('together_character_world_presence').select('world_id,together_worlds!inner(published)')
-      .eq('character_version_id', version.id).neq('presence_type', 'unavailable').eq('together_worlds.published', true).limit(1).maybeSingle();
-    worldId = presence?.world_id ? String(presence.world_id) : null;
+    const { data: presence } = await db.from('together_character_world_presence').select('world_id,together_worlds!inner(published,metadata)')
+      .eq('character_version_id', version.id).neq('presence_type', 'unavailable').eq('together_worlds.published', true).limit(20);
+    const visiblePresence = (presence ?? []).find((item: Row) => {
+      const world = relationOne(item.together_worlds);
+      return isWorldCatalogVisible({ published: Boolean(world?.published), metadata: world?.metadata });
+    });
+    worldId = visiblePresence?.world_id ? String(visiblePresence.world_id) : null;
   }
   if (!worldId) return { characterTemplateId: template.id, characterVersionId: version.id, worldId: null, schedules: schedules ?? [], connections: [] };
 

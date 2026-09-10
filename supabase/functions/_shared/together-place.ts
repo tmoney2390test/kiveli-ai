@@ -1,6 +1,6 @@
 import { requestRead } from './request-context.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { capabilitiesForTier, hasOpenBuildWorldAccess, isSubscriberEarlyAccessWorld, normalizeSubscriptionTier } from '../../../packages/together-domain/src/index.ts';
+import { capabilitiesForTier, hasOpenBuildWorldAccess, isSubscriberEarlyAccessWorld, isWorldCatalogVisible, normalizeSubscriptionTier } from '../../../packages/together-domain/src/index.ts';
 import { AppError } from './types.ts';
 import { experienceClock, resolveUserExperienceTimezone, safeTimezone } from './kivelle-time.ts';
 import type { LocationLoreV2, LocationVisualContextV2 } from '../../../packages/together-domain/src/location-depth.ts';
@@ -152,7 +152,7 @@ export async function assertCharacterResidentInWorld(input:{db:SupabaseClient;ch
 
 export async function resolveWorldAccess(input:{db:SupabaseClient;userId:string;worldId:string}):Promise<'available'|'locked'|'included'|'owned'>{
   const {data:world}=await input.db.from('together_worlds').select('access_type,entitlement_key,published,metadata').eq('id',input.worldId).maybeSingle();
-  if(!world?.published)return'locked';
+  if(!world||!isWorldCatalogVisible(world))return'locked';
   if(hasOpenBuildWorldAccess(Boolean(world.published),world.metadata))return'included';
   const [{data:userWorld},{data:entitlements}]=await Promise.all([
     input.db.from('together_user_worlds').select('access_status').eq('user_id',input.userId).eq('world_id',input.worldId).maybeSingle(),

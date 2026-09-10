@@ -1,9 +1,10 @@
 import type { Snapshot, World } from '../types';
 import { featuredCompanionsForWorld, type FeaturedCompanion } from './featuredCompanions';
+import { isWorldCatalogVisible } from '@together/domain/src/world-access';
 
 export function onboardingWorlds(snapshot: Snapshot): World[] {
   return snapshot.worlds
-    .filter((world) => world.published)
+    .filter(isWorldCatalogVisible)
     .sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name));
 }
 

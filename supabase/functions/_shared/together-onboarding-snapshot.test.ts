@@ -9,7 +9,7 @@ function onboardingDb(){
     together_profiles:{data:null,error:null},
     together_worlds:{data:[{id:'world-1',slug:'juniper-city',published:true}],error:null},
     together_locations:{data:[{id:'location-1',world_id:'world-1',name:'Glassline Gallery',canonical_visual_context:{}}],error:null},
-    together_character_world_presence:{data:[],error:null},
+    together_character_world_presence:{data:[{id:'presence-1',character_version_id:'version-1',world_id:'world-1',presence_type:'resident'}],error:null},
     together_character_templates:{data:[{id:'character-1',name:'Brooke',slug:'brooke',published:true,can_be_selected:true,current_published_version:1,together_character_versions:[{id:'version-1',version:1,appearance_config:{},appearance_candidates:[],visual_identity:{referenceStoragePaths:[]}}]}],error:null},
     together_entitlements:{data:null,error:null},
     together_notification_preferences:{data:null,error:null},

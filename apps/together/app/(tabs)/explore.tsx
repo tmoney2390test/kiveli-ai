@@ -24,7 +24,7 @@ import{useSurfaceReadyTiming}from'../../src/components/ClientPerformanceBridge';
 import{naturalizeCharacterEventSummary,naturalizeCharacterEventTitle}from'@together/domain/src/character-language';
 import{updateLocalRouteParamsOnWeb}from'../../src/lib/appNavigation';
 import{EXPLORE_VISIBLE_INTENTS,exploreResponsiveLayout,normalizeVisibleExploreIntent}from'../../src/lib/exploreLayout';
-import{isSubscriberEarlyAccessWorld}from'@together/domain/src/world-access';
+import{isSubscriberEarlyAccessWorld,isWorldCatalogVisible}from'@together/domain/src/world-access';
 import{subscriptionHref}from'../../src/lib/subscriptionPresentation';
 
 const nav={
@@ -64,7 +64,7 @@ export default function Explore(){
   const restoredScroll=useRef(false);
   const persistenceTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const preferenceScope=snapshot?.activeContinuity?.id??'default';
-  const worlds=useMemo(()=>snapshot?.worlds.filter((item)=>item.published).sort((a,b)=>a.sort_order-b.sort_order)??[],[snapshot?.worlds]);
+  const worlds=useMemo(()=>snapshot?.worlds.filter(isWorldCatalogVisible).sort((a,b)=>a.sort_order-b.sort_order)??[],[snapshot?.worlds]);
   const accessibleWorlds=useMemo(()=>snapshot?worlds.filter((world)=>canAccessWorld(snapshot,world)):[],[snapshot,worlds]);
   const accessibleWorldIds=useMemo(()=>new Set(accessibleWorlds.map((world)=>world.id)),[accessibleWorlds]);
   const companion=snapshot?activeCompanion(snapshot):undefined;
@@ -92,7 +92,15 @@ export default function Explore(){
     setRefreshing(true);setRefreshError('');
     try{
       const result=await loadExploreCatalog();
-      setCoreState({worlds:result.worlds,locations:result.locations,characterWorldPresence:result.characterWorldPresence,discoverableCharacters:result.discoverableCharacters,favoriteCharacterTemplateIds:result.favoriteCharacterTemplateIds,lifeEvents:result.lifeEvents});
+      const hiddenWorldIds=new Set(snapshot.worlds.filter((world)=>!isWorldCatalogVisible(world)).map((world)=>world.id));
+      setCoreState({
+        worlds:[...result.worlds,...snapshot.worlds.filter((world)=>hiddenWorldIds.has(world.id))],
+        locations:[...result.locations,...snapshot.locations.filter((location)=>hiddenWorldIds.has(location.world_id))],
+        characterWorldPresence:[...(result.characterWorldPresence??[]),...(snapshot.characterWorldPresence??[]).filter((presence)=>hiddenWorldIds.has(presence.world_id))],
+        discoverableCharacters:result.discoverableCharacters,
+        favoriteCharacterTemplateIds:result.favoriteCharacterTemplateIds,
+        lifeEvents:result.lifeEvents,
+      });
       lastExploreCatalogRefreshAt=Date.now();
     }catch{setRefreshError('Explore could not refresh. Showing your saved people and places.');}
     finally{setRefreshing(false);}

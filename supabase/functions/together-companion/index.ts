@@ -7,6 +7,7 @@ import {buildSnapshot,track} from '../_shared/together.ts';
 import {getActiveConversation} from '../_shared/together-conversation.ts';
 import {activeContinuity} from '../_shared/together-continuity.ts';
 import {enforceActiveConversationLimit} from '../_shared/kivelle-subscription.ts';
+import {resolveWorldAccess} from '../_shared/together-place.ts';
 
 const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('set_active'),characterInstanceId:z.string().uuid(),source:z.enum(['home_switcher','discover_profile','companion_manager']).default('home_switcher')}),
@@ -73,9 +74,11 @@ serve(async(request,correlationId)=>{
   if(!instance){
     const meeting=(template.first_meeting??{}) as Record<string,unknown>;
     let locationId=typeof meeting.location_id==='string'?meeting.location_id:null;
-    if(locationId){const{data:valid}=await db.from('together_locations').select('id').eq('id',locationId).maybeSingle();if(!valid)locationId=null;}
-    if(!locationId){const{data:presence}=await db.from('together_character_world_presence').select('home_location_id,together_worlds(default_arrival_location_id)').eq('character_version_id',version.id).neq('presence_type','unavailable').order('presence_type',{ascending:true}).limit(1).maybeSingle();locationId=presence?.home_location_id??relationOne(presence?.together_worlds)?.default_arrival_location_id??null;}
+    let worldId:string|null=null;
+    if(locationId){const{data:valid}=await db.from('together_locations').select('id,world_id').eq('id',locationId).maybeSingle();if(!valid)locationId=null;else worldId=String(valid.world_id);}
+    if(!locationId){const{data:presences}=await db.from('together_character_world_presence').select('world_id,home_location_id,together_worlds(default_arrival_location_id)').eq('character_version_id',version.id).neq('presence_type','unavailable').order('presence_type',{ascending:true}).limit(20);for(const presence of presences??[]){const access=await resolveWorldAccess({db,userId:user.id,worldId:String(presence.world_id)});if(access==='locked'||access==='available')continue;locationId=presence.home_location_id??relationOne(presence.together_worlds)?.default_arrival_location_id??null;if(locationId){worldId=String(presence.world_id);break;}}}
     if(!locationId)throw new AppError('CONFLICT','This companion does not have a published first-meeting place yet.',409);
+    if(worldId){const access=await resolveWorldAccess({db,userId:user.id,worldId});if(access==='locked'||access==='available')throw new AppError('NOT_FOUND','That companion is not available yet.',404);}
     const created=await db.from('together_character_instances').insert({user_id:user.id,continuity_id:continuity.id,character_template_id:template.id,character_version_id:version.id,relationship_stage:'stranger',current_mood:String(meeting.mood??'curious'),current_location_id:locationId,current_activity:String(meeting.companion_activity??'meeting someone new'),current_energy:'medium',introduced_at:now,contact_added_at:now,metadata:{first_meeting_title:meeting.title??null},updated_at:now}).select('*').single();
     if(created.error||!created.data)throw new AppError('INTERNAL_ERROR','Your first meeting could not begin.',500,true);
     instance=created.data;

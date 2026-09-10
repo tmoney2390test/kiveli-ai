@@ -1,8 +1,9 @@
 import type { World } from '../types';
+import { isWorldCatalogVisible } from '@together/domain/src/world-access';
 
 export function homeWorldDiscoveryOptions(worlds:World[],currentWorldId?:string|null):World[]{
   return worlds
-    .filter((world)=>world.published&&world.id!==currentWorldId)
+    .filter((world)=>isWorldCatalogVisible(world)&&world.id!==currentWorldId)
     .sort((left,right)=>releaseOrder(right)-releaseOrder(left)||Number(right.featured)-Number(left.featured)||right.sort_order-left.sort_order||left.name.localeCompare(right.name));
 }
 

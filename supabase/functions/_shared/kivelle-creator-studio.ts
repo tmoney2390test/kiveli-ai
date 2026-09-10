@@ -110,7 +110,7 @@ async function createDraft(db: Db, userId: string, input: StudioAction, now: str
   await moderateText(concept);
   const worldId = String(input.worldId ?? '');
   const access = await resolveWorldAccess({ db, userId, worldId });
-  if (access === 'locked') throw new AppError('FORBIDDEN', 'That world is not available for character creation.', 403);
+  if (access === 'locked' || access === 'available') throw new AppError('FORBIDDEN', 'That world is not available for character creation.', 403);
   const { data: world } = await db.from('together_worlds').select('id,name,default_arrival_location_id').eq('id', worldId).eq('published', true).maybeSingle();
   if (!world) throw new AppError('NOT_FOUND', 'Choose an available world.', 404);
   const seed = input.identitySeed && typeof input.identitySeed === 'object' ? input.identitySeed as Record<string, unknown> : null;
@@ -369,7 +369,7 @@ async function finalizeDraft(db: Db, userId: string, draft: Record<string, any>,
   if (!ready.ready) throw new AppError('CONFLICT', `Finish ${ready.missing.join(', ').replace('first_meeting', 'first meeting')} before meeting this companion.`, 409);
   await moderateText([draft.identity_config?.biography, draft.personality_config?.note, draft.appearance_config?.description, ...(draft.connection_config?.boundaries ?? [])].filter(Boolean).join('\n'));
   const access = await resolveWorldAccess({ db, userId, worldId: draft.world_id });
-  if (access === 'locked') throw new AppError('FORBIDDEN', 'This character’s home world is no longer available.', 403);
+  if (access === 'locked' || access === 'available') throw new AppError('FORBIDDEN', 'This character’s home world is no longer available.', 403);
   const performance=normalizeCharacterPerformance({...draft.identity_config,performance:draft.metadata?.characterPerformance});
   const prepared=await db.from('together_creator_drafts').update({metadata:{...draft.metadata,characterPerformance:performance}}).eq('id',draft.id).eq('user_id',userId).eq('revision',draft.revision).select('id').maybeSingle();
   if(prepared.error||!prepared.data)throw new AppError('CONFLICT','This draft changed. Review it again before meeting this companion.',409);

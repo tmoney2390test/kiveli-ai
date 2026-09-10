@@ -268,7 +268,7 @@ serve(async (request, correlationId) => {
     const now = new Date();
     const place = await resolvePlaceContext({ db, locationId: input.locationId, now, userId: user.id, characterInstanceId: input.characterInstanceId });
     const access = await resolveWorldAccess({ db, userId: user.id, worldId: place.world.id });
-    if (access === 'locked') throw new AppError('WORLD_LOCKED', 'That world is not available for this life yet.', 403);
+    if (access === 'locked' || access === 'available') throw new AppError('WORLD_LOCKED', 'That world is not available for this life yet.', 403);
     const presence = await resolveCompanionPresence({ db, userId: user.id, characterInstanceId: input.characterInstanceId, now, ensure: false });
     if (!presence || presence.locationId !== place.location.id || presence.interruptibility === 'busy' || presence.interruptibility === 'unavailable') {
       await track(db, user.id, 'scene_entry_conflict', { characterInstanceId: input.characterInstanceId, locationId: input.locationId });

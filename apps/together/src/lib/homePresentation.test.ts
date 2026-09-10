@@ -44,4 +44,11 @@ describe('home presentation', () => {
     expect(scopes.pulseWorld?.id).toBe(eon.id);
     expect(scopes.selectedWorld?.id).toBe(juniper.id);
   });
+
+  it('does not select an ops-hidden world as a browseable Home world', () => {
+    const current = { id: 'current', slug: 'current', name: 'Current', published: true } as Snapshot['worlds'][number];
+    const hidden = { id: 'hidden', slug: 'hidden', name: 'Hidden', published: true, metadata: { catalog_status: 'hidden' } } as unknown as Snapshot['worlds'][number];
+    const scopes = getHomeWorldScopes({ currentWorld: current }, [current, hidden], hidden.id);
+    expect(scopes.selectedWorld?.id).toBe(current.id);
+  });
 });

@@ -32,6 +32,11 @@ describe('first-login catalog', () => {
     expect(onboardingWorlds(snapshot).map((item) => item.id)).toEqual(['first', 'later']);
   });
 
+  it('omits an ops-hidden world even when its row stays published for established conversations', () => {
+    const hidden = { ...world('prepared', 3), metadata: { catalog_status: 'hidden' } };
+    expect(onboardingWorlds({ ...snapshot, worlds: [...snapshot.worlds, hidden] }).map((item) => item.id)).not.toContain('prepared');
+  });
+
   it('only includes companions with a valid first meeting in the selected world', () => {
     expect(onboardingCompanionsForWorld(snapshot, 'first').map((item) => item.id)).toEqual(['first-person']);
     expect(onboardingCompanionsForWorld(snapshot, 'later').map((item) => item.id)).toEqual(['later-person']);

@@ -28,6 +28,7 @@ import { subscriptionHref } from '../lib/subscriptionPresentation';
 import { conversationRouteTarget, navigateLocalRouteOnWeb, webConversationHref } from '../lib/conversationNavigation';
 import { characterConversationHref } from '../lib/chatRoute';
 import { privateStoredImageSource } from '../lib/mediaImageSource';
+import { isWorldCatalogVisible } from '@together/domain/src/world-access';
 
 type Props = { expanded: boolean; onHoverChange: (hovered: boolean) => void };
 type NavItem = { key: DesktopNavigationKey; label: string; href: string; icon: (color: string) => ReactNode; count?: number };
@@ -55,7 +56,7 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
   const messagesHref=shouldOpenMostRecentChat(pathname)?latestChatHref??inboxHref:inboxHref;
   const currentWorld = snapshot?.worlds.find((world) => world.id === browsedWorldId)
     ?? (snapshot?.currentPlaceContext ? snapshot.worlds.find((world) => world.id === snapshot.currentPlaceContext?.world.id) : undefined)
-    ?? snapshot?.worlds.find((world) => world.published);
+    ?? snapshot?.worlds.find(isWorldCatalogVisible);
   const personaName = snapshot?.activePersona?.display_name ?? snapshot?.profile?.display_name ?? 'You';
   const showProfileAvatar = Boolean(profileAvatarSource && !profileAvatarFailed);
   const navigate = (href: string) => {

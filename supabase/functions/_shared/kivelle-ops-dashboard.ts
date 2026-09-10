@@ -4,6 +4,7 @@ import {
   operationalAlertConfiguration,
   type OperationsRole,
 } from "./kivelle-ops.ts";
+import { worldCatalogStatus } from "../../../packages/together-domain/src/world-access.ts";
 
 export async function operationsDashboard(
   db: SupabaseClient,
@@ -27,6 +28,7 @@ export async function operationsDashboard(
     migration,
     queueRollup,
     audit,
+    worlds,
   ] = await Promise.all([
     count(
       db,
@@ -70,6 +72,9 @@ export async function operationsDashboard(
         ascending: false,
       }).limit(50)
       : Promise.resolve({ data: [], error: null }),
+    role === "admin"
+      ? db.from("together_worlds").select("id,slug,name,published,access_type,entitlement_key,sort_order,updated_at,metadata").order("sort_order").order("name")
+      : Promise.resolve({ data: [], error: null }),
   ]);
   const queried = [
       runtimeRollup,
@@ -82,6 +87,7 @@ export async function operationsDashboard(
       migration,
       queueRollup,
       audit,
+      worlds,
     ],
     failed = queried.find((item) => item.error);
   if (failed?.error) {
@@ -155,6 +161,16 @@ export async function operationsDashboard(
       clientVersions: Array.isArray(runtime.clientVersions) ? runtime.clientVersions : [],
     },
     audit: audit.data ?? [],
+    worlds: (worlds.data ?? []).map((world) => ({
+      id: String(world.id),
+      slug: String(world.slug),
+      name: String(world.name),
+      status: worldCatalogStatus(world),
+      published: Boolean(world.published),
+      accessType: String(world.access_type ?? "free"),
+      entitlementKey: world.entitlement_key ? String(world.entitlement_key) : null,
+      updatedAt: String(world.updated_at),
+    })),
     note:
       "No prompts, chat messages, transcripts, media URLs, provider payloads, user Persona, memories, or content preferences are included.",
   };

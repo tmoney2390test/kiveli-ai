@@ -32,6 +32,7 @@ import { subscriptionHref } from '../../src/lib/subscriptionPresentation';
 import { useSurfaceReadyTiming } from '../../src/components/ClientPerformanceBridge';
 import { useAuth } from '../../src/hooks/useAuth';
 import { writeSessionHeroUri } from '../../src/lib/sessionSnapshotCache';
+import { isWorldCatalogVisible } from '../../../../packages/together-domain/src/world-access';
 
 const router = expoRouter as unknown as { push: (href: string) => void };
 
@@ -84,7 +85,7 @@ export default function Home() {
   if (error && !snapshot) return <HomeError message={error} onRetry={() => void refresh()} />;
   if (!snapshot) return <EmptyState title="Opening your world" body="Your companion and first conversation are being prepared automatically." />;
 
-  const publishedWorlds=snapshot.worlds.filter((world)=>world.published);
+  const publishedWorlds=snapshot.worlds.filter(isWorldCatalogVisible);
   const fallbackWorld=publishedWorlds.find((world)=>world.id===browsedWorldId)??publishedWorlds[0];
   const toggleFavorite = async (item: FeaturedCompanion, favorite: boolean) => {
     const previous = snapshot.favoriteCharacterTemplateIds ?? [];
