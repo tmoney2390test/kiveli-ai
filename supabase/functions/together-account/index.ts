@@ -44,7 +44,7 @@ serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
   const adultAccess = await resolveAdultAccess(request, user, db);
   const input = await parseBody(request, schema);
-  const actionLimit = input.action === 'export_request' ? 4 : input.action === 'export_status' ? 120 : input.action === 'delete' ? 3 : input.action === 'birthdate_update' ? 5 : 20;
+  const actionLimit = input.action === 'export_request' ? 4 : input.action === 'export_status' || input.action === 'privacy_choices_status' ? 120 : input.action === 'delete' ? 3 : input.action === 'birthdate_update' ? 5 : 20;
   await enforceRateLimit(db, user.id, `together_account_${input.action}`, actionLimit, 3600);
 
   if(input.action==='apple_credential'){

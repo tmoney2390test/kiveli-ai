@@ -33,7 +33,7 @@ type BillingConfiguration=ReturnType<typeof billingConfiguration>;
 serve(async(request,correlationId)=>{
   const{user,db}=await authenticated(request);
   const input=request.method==='GET'?{action:'status' as const}:await parseBody(request,schema);
-  await enforceRateLimit(db,user.id,`together_subscription_${input.action}`,input.action==='status'||input.action==='checkout_confirmation'?120:12,3600);
+  await enforceRateLimit(db,user.id,`together_subscription_${input.action}`,input.action==='status'||input.action==='checkout_confirmation'?120:input.action==='reconcile'?60:12,3600);
 
   let state=await resolveSubscriptionState(db,user.id);
   const clientSurface=await verifyWebSurfaceAssertion(request,user.id)?'web':'native_or_unknown';
