@@ -24,6 +24,7 @@ import { defaultDirectConversationTitle } from '../lib/conversation';
 import { type ChatBubbleColor } from '@together/domain/src/chat-appearance';
 import { ChatBubbleColorSettings } from './settings/ChatBubbleColorSettings';
 import { ChatSettingsTabs, type ChatSettingsTab } from './settings/ChatSettingsTabs';
+import { QuietHoursSettingLink } from './settings/QuietHoursSettingLink';
 
 type Props = {
   visible: boolean;
@@ -144,6 +145,11 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never);
   };
 
+  const openQuietHours = () => {
+    onClose();
+    if (Platform.OS !== 'web' || !navigateLocalRouteOnWeb('/notifications')) router.push('/notifications' as never);
+  };
+
   const save = async (afterSave?:()=>void) => {
     if (!conversation || saving) return;
     const cleanTitle = title.trim() || defaultDirectConversationTitle(name);
@@ -229,6 +235,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
               {voicePreview && !voicePlayerStatus.isLoaded && voicePlayerStatus.error ? <Text accessibilityLiveRegion="polite" style={styles.voiceLoadingText}>The sample could not load. Try it again.</Text> : null}
             </> : <Pressable accessibilityRole="button" onPress={() => { onClose(); const href=subscriptionHref({intent:'voice'}); if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never); }} style={styles.voiceLocked}><Volume2 size={18} color={colors.muted} /><View style={{ flex: 1 }}><Text style={styles.voiceLockedTitle}>Custom voices are available with Kivelle+</Text><Text style={styles.voiceLockedCopy}>Your companion’s authored voice is still used by default.</Text></View><ChevronRight size={16} color={colors.dimmed} /></Pressable>}
           </SettingSection>
+          <QuietHoursSettingLink start={snapshot?.notificationPreferences?.quiet_hours_start} end={snapshot?.notificationPreferences?.quiet_hours_end} disabled={saving} onPress={openQuietHours} />
           </> : null}
 
           {activeTab === 'appearance' ? <>

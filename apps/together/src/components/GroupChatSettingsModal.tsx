@@ -19,6 +19,7 @@ import { router } from 'expo-router';
 import { type ChatBubbleColor } from '@together/domain/src/chat-appearance';
 import { ChatBubbleColorSettings } from './settings/ChatBubbleColorSettings';
 import { ChatSettingsTabs, type ChatSettingsTab } from './settings/ChatSettingsTabs';
+import { QuietHoursSettingLink } from './settings/QuietHoursSettingLink';
 
 type Props = {
   visible: boolean;
@@ -77,6 +78,11 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
     if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never);
   };
 
+  const openQuietHours = () => {
+    onClose();
+    if (Platform.OS !== 'web' || !navigateLocalRouteOnWeb('/notifications')) router.push('/notifications' as never);
+  };
+
   const save = async (afterSave?:()=>void) => {
     if (!conversation || saving) return;
     setSaving(true);
@@ -131,6 +137,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
               {(['all', 'mentions', 'muted'] as const).map((value) => <Choice key={value} label={value === 'all' ? 'All' : value === 'mentions' ? 'Mentions only' : 'Muted'} selected={notificationMode === value} disabled={saving} onPress={() => setNotificationMode(value)} />)}
             </View>
           </Section>
+          <QuietHoursSettingLink start={snapshot?.notificationPreferences?.quiet_hours_start} end={snapshot?.notificationPreferences?.quiet_hours_end} disabled={saving} onPress={openQuietHours} />
           </> : null}
 
           {activeTab === 'appearance' ? <>
