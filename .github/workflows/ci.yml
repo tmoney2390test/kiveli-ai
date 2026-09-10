@@ -56,6 +56,13 @@ jobs:
           supabase/functions/_shared/kivelle-proactive-context.test.ts
           supabase/functions/_shared/kivelle-proactive-delivery.test.ts
           supabase/functions/_shared/kivelle-initiative.test.ts
+      - name: Video quality and finalization regressions
+        run: >-
+          deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json
+          supabase/functions/_shared/together-video-quality.test.ts
+          supabase/functions/_shared/together-media-finalization-retry.test.ts
+          supabase/functions/_shared/together-video-inspection.test.ts
+          supabase/functions/_shared/together-video-faststart.test.ts
       - run: pnpm --filter @together/app web:build
         env:
           EXPO_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co

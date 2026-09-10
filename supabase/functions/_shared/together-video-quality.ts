@@ -55,6 +55,15 @@ const VIDEO_QUALITY_REASONS = [
 const DEFAULT_MODEL = "gemini-2.5-flash";
 const MAX_ASSESSMENT_ATTEMPTS = 2;
 
+// Retain the inspector's findings for Ops, but these animation defects alone
+// must not discard an otherwise deliverable video. All other decisions retain
+// their existing handling, including safety checks and verifier availability.
+const NON_BLOCKING_VIDEO_QUALITY_REASONS = new Set([
+  "malformed_anatomy",
+  "temporal_anatomy_inconsistency",
+]);
+const VIDEO_QUALITY_DELIVERY_POLICY = "visual-advisories-v1";
+
 export function buildVideoQualityPrompt(
   adultAuthorized = false,
   anonymousAdultPartner = false,
@@ -97,7 +106,9 @@ export function parseVideoQualityVerdict(output: unknown): VideoQualityVerdict {
     reasons = VIDEO_QUALITY_REASONS.filter((reason) =>
       lower.includes(reason) || lower.includes(reason.replaceAll("_", " "))
     );
-  if (/^PASS\b/i.test(text)) return { status: "pass", reasonCodes: [...reasons] };
+  if (/^PASS\b/i.test(text)) {
+    return { status: "pass", reasonCodes: [...reasons] };
+  }
   if (!/^FAIL\b/i.test(text)) return { status: "unavailable", reasonCodes: [] };
   return {
     status: "fail",
@@ -152,7 +163,7 @@ export function resolveVideoQualityDecision(
     const reasonCodes = blockingQualityReasonsForAgePolicy(
       verdict.reasonCodes,
       customCharacterAgeCheck,
-    );
+    ).filter((reason) => !NON_BLOCKING_VIDEO_QUALITY_REASONS.has(reason));
     if (!reasonCodes.length) {
       return {
         action: "accept",
@@ -469,8 +480,10 @@ export async function gateGeneratedVideoQuality(
       ),
     anonymousAdultPartner = adultAuthorized &&
       mediaMetadata.anonymousAdultPartner === true,
-    customCharacterAgeCheck =
-      await mediaRequiresCustomCharacterAgeCheck(db, media);
+    customCharacterAgeCheck = await mediaRequiresCustomCharacterAgeCheck(
+      db,
+      media,
+    );
   if (
     adultAuthorized &&
     (!adultVideoFeatureEnabled() ||
@@ -537,14 +550,27 @@ export async function gateGeneratedVideoQuality(
       inferenceMs: 0,
     };
   const decision = resolveVideoQualityDecision(
-    assessment.verdict,
-    failClosed && (!adultAuthorized || customCharacterAgeCheck),
-    customCharacterAgeCheck,
-  ),
+      assessment.verdict,
+      failClosed && (!adultAuthorized || customCharacterAgeCheck),
+      customCharacterAgeCheck,
+    ),
+    reasonCodes = [
+      ...new Set([...assessment.verdict.reasonCodes, ...decision.reasonCodes]),
+    ],
+    blockingReasonCodes = decision.action === "reject"
+      ? decision.reasonCodes
+      : [],
+    advisoryReasonCodes = reasonCodes.filter((reason) =>
+      !blockingReasonCodes.includes(reason)
+    ),
     metadata = compact({
       videoQualityCheckedAt: new Date().toISOString(),
       videoQualityVerdict: assessment.verdict.status,
-      videoQualityReasonCodes: decision.reasonCodes,
+      videoQualityReasonCodes: reasonCodes,
+      videoQualityDeliveryDecision: decision.action,
+      videoQualityDeliveryPolicy: VIDEO_QUALITY_DELIVERY_POLICY,
+      videoQualityBlockingReasonCodes: blockingReasonCodes,
+      videoQualityAdvisoryReasonCodes: advisoryReasonCodes,
       videoQualityProvider: "gemini",
       videoQualityModel: assessment.model,
       videoQualityProviderStatus: assessment.providerStatus,
@@ -561,7 +587,11 @@ export async function gateGeneratedVideoQuality(
   await track(db, String(media.user_id), "video_quality_checked", {
     mediaId: media.id,
     verdict: assessment.verdict.status,
-    reasonCodes: decision.reasonCodes,
+    reasonCodes,
+    deliveryDecision: decision.action,
+    deliveryPolicy: VIDEO_QUALITY_DELIVERY_POLICY,
+    blockingReasonCodes,
+    advisoryReasonCodes,
     verificationUnavailable: decision.verificationUnavailable,
     qaProvider: "gemini",
     qaModel: assessment.model,
