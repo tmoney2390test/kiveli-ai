@@ -124,6 +124,33 @@ Deno.test("adult video defaults on for website sessions when the video secret is
   }), false);
 });
 
+Deno.test("the same account can have adult video on web and SFW-only video on native", () => {
+  const values: Record<string, string> = {
+    WEB_ADULT_MODE_ENABLED: "true",
+    KIVELLE_ADULT_MEDIA_ENABLED: "true",
+    KIVELLE_ADULT_VIDEO_ENABLED: "true",
+  };
+  const read = (name: string) => values[name];
+  const web = adultVideoEnabledForSurface({
+    clientSurface: "web",
+    authorizedWebAdult: true,
+    read,
+  });
+  const ios = adultVideoEnabledForSurface({
+    clientSurface: "native_or_unknown",
+    authorizedWebAdult: true,
+    read,
+  });
+  const android = adultVideoEnabledForSurface({
+    clientSurface: "native_or_unknown",
+    authorizedWebAdult: true,
+    read,
+  });
+  assert(web);
+  assertEquals(ios, false);
+  assertEquals(android, false);
+});
+
 Deno.test("adult video is on for authorized website sessions and off on native", () => {
   const values: Record<string, string> = {
     WEB_ADULT_MODE_ENABLED: "true",

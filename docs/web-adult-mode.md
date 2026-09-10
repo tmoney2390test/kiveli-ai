@@ -26,6 +26,8 @@ Client builds keep separate origins:
 
 The server records direct native traffic as `native_or_unknown` because the current architecture cryptographically proves web but does not distinguish iOS from Android. This is sufficient for the current capability matrix: both native platforms receive the same private-text rule and the same explicit-media denial. Add platform attestation before introducing a capability that differs between iOS and Android.
 
+One account can stay signed in on both surfaces at once. Adult stills and adult video stay on the verified website session (`visibility_scope=web_adult`). The iOS/Android apps keep generating and showing SFW video for that same account and do not inherit the website adult catalog, adult video models, or adult asset URLs.
+
 ## Deployment and rollback
 
 1. Deploy migrations, Edge Functions, and clients while `KIVELLE_PRIVATE_ADULT_TEXT_MODE=off`.

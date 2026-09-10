@@ -156,7 +156,15 @@ serve(async(request,correlationId)=>{
     const{data:profile}=await db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id',user.id).maybeSingle();
     const requestedAdult=input.suggestiveMediaEnabled||input.matureMediaEnabled||input.explicitMediaEnabled||input.adultVideoEnabled;
     if(requestedAdult&&!adultAccess.authorized_web_adult)throw new AppError('FORBIDDEN','Those media preferences are unavailable for this session.',403,false);
-    const next={...((profile?.content_preferences??{}) as Record<string,unknown>),suggestiveMediaEnabled:adultAccess.authorized_web_adult&&input.suggestiveMediaEnabled,matureMediaEnabled:adultAccess.authorized_web_adult&&input.matureMediaEnabled,explicitMediaEnabled:adultAccess.authorized_web_adult&&input.explicitMediaEnabled,adultVideoEnabled:adultVideoOn(adultAccess)};
+    const stored=((profile?.content_preferences??{}) as Record<string,unknown>);
+    const webAdult=adultAccess.client_surface==='web'&&adultAccess.authorized_web_adult;
+    const next={
+      ...stored,
+      suggestiveMediaEnabled:webAdult?input.suggestiveMediaEnabled:stored.suggestiveMediaEnabled===true,
+      matureMediaEnabled:webAdult?input.matureMediaEnabled:stored.matureMediaEnabled===true,
+      explicitMediaEnabled:webAdult?input.explicitMediaEnabled:stored.explicitMediaEnabled===true,
+      adultVideoEnabled:webAdult?adultVideoOn(adultAccess):stored.adultVideoEnabled===true,
+    };
     const{error}=await db.from('together_profiles').update({content_preferences:next,updated_at:new Date().toISOString()}).eq('user_id',user.id);if(error)throw new AppError('INTERNAL_ERROR','Media preferences could not be saved.',500,true);
     return json({data:{saved:true,preferences:next},correlationId},200,correlationId);
   }

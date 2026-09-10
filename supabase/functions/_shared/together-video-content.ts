@@ -201,9 +201,10 @@ export function adultVideoFeatureEnabled(
 }
 
 /**
- * Request-time adult video: every authorized website session, never iOS/Android.
- * Background workers keep using adultVideoFeatureEnabled() so already-queued
- * website jobs can finish after a native caller is denied.
+ * Request-time adult video for one device surface. The same account can use
+ * Kivelli.app and the iOS/Android apps together: website sessions get adult
+ * video, native sessions stay SFW-only. Background workers keep using
+ * adultVideoFeatureEnabled() so already-queued website jobs can finish.
  */
 export function adultVideoEnabledForSurface(input: {
   clientSurface?: string | null;

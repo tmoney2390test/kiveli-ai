@@ -66,5 +66,7 @@ describe('video generation confirmation helpers',()=>{
     const native=videoOptionsForPlatform(options,'ios');
     expect(native.routes.map((item)=>item.id)).toEqual([route.id]);
     expect(native.defaultRouteId).toBe(route.id);
+    expect(native.available).toBe(true);
+    expect(videoOptionsForPlatform(options,'android').routes.map((item)=>item.id)).toEqual([route.id]);
   });
 });

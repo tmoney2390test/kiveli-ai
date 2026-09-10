@@ -52,6 +52,7 @@ export function videoOptionsForPlatform(options:VideoGenerationOptions,platform:
   const routes=options.routes.filter((route)=>route.contentClass!=='adult_capable');
   return{
     ...options,
+    available:routes.length>0,
     routes,
     defaultRouteId:routes.some((route)=>route.id===options.defaultRouteId)?options.defaultRouteId:routes[0]?.id??null,
   };
