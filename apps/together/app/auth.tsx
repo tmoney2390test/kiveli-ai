@@ -24,9 +24,10 @@ type EmailAuthStage = 'email' | 'code';
 
 export default function Auth() {
   const params = useLocalSearchParams<{ mode?: string; next?: string }>();
-  const { width,height } = useWindowDimensions();
+  const { width,height:viewportHeight } = useWindowDimensions();
   const insets=useSafeAreaInsets();
   const webHydrated = useWebHydrated();
+  const height = webHydrated ? viewportHeight : 0;
   const wide = webHydrated && width >= 900;
   const creating = params.mode !== 'signin';
   const [stage, setStage] = useState<EmailAuthStage>('email');

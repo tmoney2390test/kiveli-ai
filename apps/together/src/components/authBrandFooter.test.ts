@@ -25,4 +25,9 @@ describe('authentication brand footer', () => {
     expect(auth).toContain('+safeAreaReserve+brandFooterReserve;');
     expect(auth).toContain('<KivelleLogo height={shortViewport?28:wide?40:34}/>');
   });
+
+  it('keeps initial web dimensions consistent with SSR before measuring the viewport', () => {
+    expect(auth).toContain('const height = webHydrated ? viewportHeight : 0;');
+    expect(auth).toContain('contentContainerStyle={[styles.page,{minHeight:height}]}');
+  });
 });
