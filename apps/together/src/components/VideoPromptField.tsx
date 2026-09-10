@@ -1,23 +1,54 @@
-import{useRef,useState}from'react';
-import{ActivityIndicator,Pressable,StyleSheet,Text,TextInput,View}from'react-native';
-import{RotateCcw,Sparkles}from'lucide-react-native';
-import{colors,radius}from'../theme';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { RotateCcw, Sparkles } from 'lucide-react-native';
+import { colors } from '../theme';
+import { VIDEO_ACCENT, VIDEO_ACCENT_FILL, type VideoPromptIdea } from '../lib/videoCreator';
 
-type Props={value:string;onChange:(value:string)=>void;onEnhance:(prompt:string)=>Promise<string>;placeholder:string;helper:string;suggestions:string[];testID:string;disabled?:boolean};
+type Props = { value: string; onChange: (value: string) => void; onEnhance: (prompt: string) => Promise<string>; placeholder: string; helper?: string; suggestions: VideoPromptIdea[]; testID: string; disabled?: boolean };
 
-export function VideoPromptField({value,onChange,onEnhance,placeholder,helper,suggestions,testID,disabled=false}:Props){
-  const[enhancing,setEnhancing]=useState(false),[enhancedValue,setEnhancedValue]=useState<string|null>(null),[error,setError]=useState<string|null>(null),original=useRef<string|null>(null);
-  const update=(next:string)=>{onChange(next);setError(null);if(next!==enhancedValue){setEnhancedValue(null);original.current=null;}};
-  const enhance=async()=>{if(disabled||enhancing||value.trim().length<2)return;setEnhancing(true);setError(null);const before=value;try{const next=await onEnhance(before.trim());original.current=before;setEnhancedValue(next);onChange(next);}catch(cause){setError(cause instanceof Error?cause.message:'The prompt could not be enhanced. Your original is unchanged.');}finally{setEnhancing(false);}};
-  const revert=()=>{if(original.current===null)return;const previous=original.current;original.current=null;setEnhancedValue(null);setError(null);onChange(previous);};
-  const enhanced=enhancedValue!==null&&value===enhancedValue;
-  return <View style={styles.root}>
-    <TextInput testID={testID} accessibilityLabel="Describe the video you want" value={value} onChangeText={update} placeholder={placeholder} placeholderTextColor={colors.dimmed} maxLength={400} multiline style={styles.input}/>
-    <View style={styles.promptMeta}><Text accessibilityLiveRegion="polite" style={styles.count}>{value.length}/400 · {helper}</Text><Pressable testID={`${testID}-enhance`} accessibilityRole="button" accessibilityLabel={enhanced?'Restore original video prompt':'Enhance video prompt'} accessibilityState={{disabled:disabled||enhancing||value.trim().length<2,busy:enhancing}} disabled={disabled||enhancing||value.trim().length<2} onPress={()=>void(enhanced?revert():enhance())} style={[styles.enhance,(disabled||value.trim().length<2)&&styles.disabled]}>{enhancing?<ActivityIndicator size="small" color="#FFBBD2"/>:enhanced?<RotateCcw size={14} color="#FFBBD2"/>:<Sparkles size={14} color="#FFBBD2"/>}<Text style={styles.enhanceText}>{enhancing?'Enhancing…':enhanced?'Undo':'Enhance'}</Text></Pressable></View>
-    {enhanced?<Text accessibilityLiveRegion="polite" style={styles.enhanced}>Enhanced for the selected model. You can still edit it.</Text>:null}
-    {error?<Text accessibilityRole="alert" style={styles.error}>{error}</Text>:null}
-    <View style={styles.suggestions}>{suggestions.map((suggestion)=><Pressable key={suggestion} accessibilityRole="button" onPress={()=>update(suggestion)} style={styles.suggestion}><Text style={styles.suggestionText}>{suggestion}</Text></Pressable>)}</View>
+export function VideoPromptField({ value, onChange, onEnhance, placeholder, helper, suggestions, testID, disabled = false }: Props) {
+  const [polishing, setPolishing] = useState(false), [preview, setPreview] = useState<{ original: string; polished: string } | null>(null), [undo, setUndo] = useState<{ original: string; polished: string } | null>(null), [error, setError] = useState<string | null>(null);
+  const latest = useRef(value), mounted = useRef(true), revision = useRef(0);
+  latest.current = value;
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; revision.current++; }; }, []);
+  useEffect(() => { if (preview && value !== preview.original) setPreview(null); if (undo && value !== undo.polished) setUndo(null); }, [value, preview, undo]);
+  const update = (next: string) => { revision.current++; onChange(next); setPreview(null); setUndo(null); setError(null); };
+  const polish = async () => {
+    if (disabled || polishing || value.trim().length < 2) return;
+    const before = value, ticket = ++revision.current;
+    setPolishing(true); setError(null); setPreview(null);
+    try {
+      const next = (await onEnhance(before.trim())).trim();
+      if (!mounted.current || ticket !== revision.current || latest.current !== before) return;
+      if (next.length < 2 || next.length > 400) throw new Error('The polished prompt could not be used. Your original is unchanged.');
+      setPreview({ original: before, polished: next });
+    } catch (cause) { if (mounted.current && ticket === revision.current) setError(cause instanceof Error ? cause.message : 'Could not polish the prompt. Your original is unchanged.'); }
+    finally { if (mounted.current) setPolishing(false); }
+  };
+  const apply = () => { if (!preview || latest.current !== preview.original) return; onChange(preview.polished); setUndo(preview); setPreview(null); };
+  return <View style={s.root}>
+    <View style={s.editor}>
+      <TextInput testID={testID} accessibilityLabel="Describe the video you want" value={value} onChangeText={update} editable={!disabled} placeholder={placeholder} placeholderTextColor={colors.muted} maxLength={400} multiline style={s.input}/>
+      <View style={s.meta}><Text style={s.count}>{value.length} / 400</Text>
+        <Pressable testID={`${testID}-enhance`} accessibilityRole="button" accessibilityLabel={undo ? 'Undo prompt polish' : 'Polish prompt'} disabled={disabled || polishing || value.trim().length < 2} onPress={() => { if (undo) { onChange(undo.original); setUndo(null); } else void polish(); }} style={[s.polish, (disabled || value.trim().length < 2) && s.disabled]}>
+          {polishing ? <ActivityIndicator size="small" color={VIDEO_ACCENT}/> : undo ? <RotateCcw size={15} color={VIDEO_ACCENT}/> : <Sparkles size={15} color={VIDEO_ACCENT}/>}<Text style={s.polishText}>{polishing ? 'Polishing…' : undo ? 'Undo polish' : 'Polish prompt'}</Text>
+        </Pressable>
+      </View>
+    </View>
+    {helper ? <Text style={s.helper}>{helper}</Text> : null}
+    {preview ? <View testID={`${testID}-review`} style={s.review}>
+      <Text accessibilityRole="header" style={s.reviewTitle}>Review polished prompt</Text><Text style={s.preview}>{preview.polished}</Text>
+      <View style={s.actions}><Pressable accessibilityRole="button" disabled={disabled} onPress={apply} style={s.apply}><Text style={s.polishText}>Use polished prompt</Text></Pressable><Pressable accessibilityRole="button" disabled={disabled} onPress={() => setPreview(null)} style={s.polish}><Text style={s.helper}>Keep original</Text></Pressable></View>
+    </View> : null}
+    {error ? <Text accessibilityRole="alert" style={s.error}>{error}</Text> : null}
+    <View style={s.ideas}><Text style={s.helper}>Try an idea</Text>{suggestions.map(idea => <Pressable key={idea.label} accessibilityRole="button" disabled={disabled} onPress={() => update(idea.prompt)} style={[s.idea, disabled && s.disabled]}><Text style={s.ideaText}>{idea.label}</Text></Pressable>)}</View>
   </View>;
 }
-
-const styles=StyleSheet.create({root:{width:'100%'},input:{width:'100%',minHeight:106,maxHeight:180,borderRadius:radius.lg,borderWidth:1,borderColor:'rgba(203,168,255,.24)',backgroundColor:'rgba(4,5,10,.58)',padding:14,color:colors.text,fontSize:15,textAlignVertical:'top'},promptMeta:{marginTop:7,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10},count:{flex:1,color:colors.muted,fontSize:10,lineHeight:15},enhance:{minHeight:40,paddingHorizontal:12,borderRadius:radius.pill,borderWidth:1,borderColor:'rgba(239,82,137,.36)',backgroundColor:'rgba(239,82,137,.10)',flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6},enhanceText:{color:'#FFBBD2',fontSize:11,fontWeight:'900'},disabled:{opacity:.42},enhanced:{color:'#A7F2CF',fontSize:10,marginTop:5},error:{color:colors.danger,fontSize:11,lineHeight:16,marginTop:7},suggestions:{marginTop:10,flexDirection:'row',flexWrap:'wrap',gap:8},suggestion:{minHeight:38,paddingHorizontal:10,paddingVertical:7,borderRadius:radius.pill,borderWidth:1,borderColor:'rgba(203,168,255,.16)',backgroundColor:'rgba(255,255,255,.035)',justifyContent:'center'},suggestionText:{color:colors.textSecondary,fontSize:10,fontWeight:'700'}});
+const s = StyleSheet.create({
+  root: { width: '100%', gap: 9 }, editor: { borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: 'rgba(5,4,10,.36)', overflow: 'hidden' },
+  input: { width: '100%', minHeight: 90, maxHeight: 150, padding: 14, color: colors.text, fontSize: 14, lineHeight: 21, textAlignVertical: 'top' },
+  meta: { paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, count: { color: colors.muted, fontSize: 11 },
+  polish: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 }, polishText: { color: VIDEO_ACCENT, fontSize: 12, fontWeight: '600' }, disabled: { opacity: .42 },
+  helper: { color: colors.textSecondary, fontSize: 11, lineHeight: 17 }, ideas: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 7 }, idea: { minHeight: 36, paddingHorizontal: 10, justifyContent: 'center', borderRadius: 9, borderWidth: 1, borderColor: colors.border, backgroundColor: 'rgba(255,255,255,.035)' }, ideaText: { color: colors.textSecondary, fontSize: 12 },
+  review: { padding: 12, gap: 8, borderWidth: 1, borderColor: VIDEO_ACCENT, borderRadius: 12, backgroundColor: VIDEO_ACCENT_FILL }, reviewTitle: { color: colors.text, fontSize: 13, fontWeight: '600' }, preview: { color: colors.text, fontSize: 13, lineHeight: 20 }, actions: { flexDirection: 'row', gap: 14, flexWrap: 'wrap' }, apply: { paddingHorizontal: 10, minHeight: 38, justifyContent: 'center', backgroundColor: VIDEO_ACCENT_FILL, borderRadius: 8 }, error: { color: colors.danger, fontSize: 12, lineHeight: 18 },
+});

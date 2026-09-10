@@ -66,7 +66,7 @@ export async function videoCostsDashboard(db: SupabaseClient) {
     db.rpc('kivelle_video_cost_summary'), videoPricePublication(db),
   ]);
   if (history.error || runs.error || summary.error) throw new AppError('INTERNAL_ERROR', 'Video costs could not be loaded.', 500, true);
-  return { history: history.data, runs: runs.data, summary: summary.data, publication, routes: configuredVideoRouteCatalog().filter(r => r.selectable).map(r => ({ id: r.id, model: r.model, name: r.modelFamily === 'minimax-h3' ? 'Cinematic' : 'Standard', contentClass: r.contentClass })) };
+  return { history: history.data, runs: runs.data, summary: summary.data, publication, routes: configuredVideoRouteCatalog().filter(r => r.selectable).map(r => ({ id: r.id, model: r.model, name: r.modelFamily === 'minimax-h3' ? 'Premium' : 'Standard', contentClass: r.contentClass })) };
 }
 
 async function videoPriceHistory(db: SupabaseClient) {
