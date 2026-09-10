@@ -30,3 +30,18 @@ export function chatMediaGalleryItems(
 
   return [...generated, ...attachments].sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
 }
+
+
+/** Only use assets already authorized and projected into this conversation's gallery. */
+export function chatMediaVideoPreview(item: ChatMediaGalleryItem, generatedById: ReadonlyMap<string, GeneratedMedia>) {
+  const media = item.kind === 'generated' ? item.media : null;
+  const attachment = item.kind === 'attachment' ? item.attachment : null;
+  const isVideo = media?.media_type === 'video' || attachment?.kind === 'video';
+  const parent = media?.parent_media_id ? generatedById.get(media.parent_media_id) : undefined;
+  const poster = isVideo && parent?.media_type === 'image' && parent.status === 'ready'
+    && parent.conversation_id === media?.conversation_id && parent.signed_url ? parent : null;
+  const uri = isVideo
+    ? media?.status === 'ready' ? media.signed_url : attachment?.upload_status === 'uploaded' ? attachment.signed_url : null
+    : null;
+  return {uri: uri ?? null, poster};
+}

@@ -2,7 +2,8 @@ import { ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView, Sty
 import { Image } from "expo-image";
 import { Images, Play, X } from "lucide-react-native";
 import { colors, radius } from "../theme";
-import type { ChatMediaGalleryItem } from "../lib/chatMediaGallery";
+import { chatMediaVideoPreview, type ChatMediaGalleryItem } from "../lib/chatMediaGallery";
+import { VideoMomentThumbnail } from "./VideoMomentThumbnail";
 import { privateStoredImageSource } from "../lib/mediaImageSource";
 import type { GeneratedMedia } from "../types";
 import { FrostedBackdrop, FrostedSurface } from "./FrostedGlass";
@@ -64,7 +65,8 @@ export function ConversationMediaGalleryModal({
             const generated = item.kind === "generated" ? item.media : null;
             const attachment = item.kind === "attachment" ? item.attachment : null;
             const isVideo = generated?.media_type === "video" || attachment?.kind === "video";
-            const poster = generated?.parent_media_id ? generatedById.get(generated.parent_media_id) : undefined;
+            const videoPreview = chatMediaVideoPreview(item, generatedById);
+            const poster = videoPreview.poster;
             const posterUri = poster?.signed_url ?? null;
             const uri = generated?.signed_url ?? attachment?.signed_url ?? null;
             const pending = generated?.status === "queued" || generated?.status === "generating";
@@ -76,8 +78,9 @@ export function ConversationMediaGalleryModal({
               style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
             >
               {isVideo ? <>
-                <View style={styles.videoFallback}/>
-                {posterUri ? <Image source={privateStoredImageSource(posterUri, poster?.storage_path)} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" cachePolicy="memory-disk"/> : null}
+                <View style={styles.videoFallback}><Play size={32} color={colors.dimmed}/></View>
+                {posterUri ? <GalleryPhoto uri={posterUri} storagePath={poster?.storage_path}/> : null}
+                {visible && videoPreview.uri ? <VideoMomentThumbnail uri={videoPreview.uri} posterUri={posterUri} contentFit="contain"/> : null}
                 <View style={styles.play}>{pending ? <ActivityIndicator size="small" color="#fff"/> : <Play size={16} color="#fff" fill="#fff"/>}</View>
               </> : uri ? <GalleryPhoto uri={uri} storagePath={generated?.storage_path ?? attachment?.storage_path}/> : <View style={styles.videoFallback}>{pending ? <ActivityIndicator color={colors.rose}/> : null}</View>}
               <View style={styles.shade}/>
