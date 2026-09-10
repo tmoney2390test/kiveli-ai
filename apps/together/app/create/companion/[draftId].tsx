@@ -42,7 +42,6 @@ export default function CreatorStudioRoute() {
   const [routine, setRoutine] = useState<CreatorRoutineBlock[]>([]);
   const [appearanceDescription, setAppearanceDescription] = useState('');
   const [stepIndex, setStepIndex] = useState(0);
-  const [maxStepIndex, setMaxStepIndex] = useState(0);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
 
@@ -51,7 +50,7 @@ export default function CreatorStudioRoute() {
     setDraft({ ...next, connection_config: normalizedConnection }); setIdentity(next.identity_config); setPersonality(next.personality_config); setCommunication(next.communication_config);
     setConnection(normalizedConnection); setLife(next.life_config); setRoutine(next.routine_config?.blocks ?? []);
     setAppearanceDescription(next.appearance_config?.description ?? '');
-    if (initializeStep) { const index = Math.max(0, steps.findIndex((step) => step.key === next.current_step)); setStepIndex(index); setMaxStepIndex(index); }
+    if (initializeStep) { const index = Math.max(0, steps.findIndex((step) => step.key === next.current_step)); setStepIndex(index); }
   }, []);
 
   const load = useCallback(async () => {
@@ -92,7 +91,7 @@ export default function CreatorStudioRoute() {
     const issues = creatorSectionIssues({ step: active, identity: identity!, appearanceDescription, hasAppearance: Boolean(draft.portraitUrl || draft.appearance_config.referenceStoragePaths?.length), life: life!, routine, selectedMeeting: Boolean(draft.first_meeting_config.selectedId) });
     if (issues.length) { Alert.alert('Finish this section', issues.join('\n')); return; }
     setBusy('save');
-    try { await saveSection(steps[stepIndex + 1]!.key); const next = stepIndex + 1; setStepIndex(next); setMaxStepIndex((maximum) => Math.max(maximum, next)); }
+    try { await saveSection(steps[stepIndex + 1]!.key); setStepIndex(stepIndex + 1); }
     catch (caught) { Alert.alert('Check this section', caught instanceof Error ? caught.message : 'These changes could not be saved.'); }
     finally { setBusy(''); }
   };
@@ -187,8 +186,6 @@ export default function CreatorStudioRoute() {
       headerAction={draft.status !== 'finalized' ? <Pressable accessibilityRole="button" accessibilityLabel="Archive character draft" disabled={Boolean(busy)} onPress={archive} style={[styles.headerAction, Boolean(busy) && styles.disabled]}><Trash2 size={18} color={colors.muted} /></Pressable> : null}
     >
       <View style={[styles.workspace, desktop && styles.workspaceDesktop]}>
-      {desktop ? <View style={styles.stepRail}><View style={styles.step}><View style={[styles.stepDot, styles.stepDone]}><Check size={12} color="#fff" /></View><View><Text style={styles.stepLabel}>Basics</Text><Text style={styles.stepShort}>Name and world</Text></View></View>{steps.map((step, index) => <Pressable key={step.key} accessibilityRole="button" accessibilityState={{ selected: stepIndex === index, disabled: index > stepIndex }} disabled={index > stepIndex} onPress={() => setStepIndex(index)} style={[styles.step, stepIndex === index && styles.stepActive, index > stepIndex && styles.disabled]}><View style={[styles.stepDot, index < maxStepIndex && styles.stepDone, index === stepIndex && styles.stepCurrent]}>{index < maxStepIndex ? <Check size={12} color="#fff" /> : <Text style={styles.stepNumber}>{index + 2}</Text>}</View><View style={{ flex: 1 }}><Text style={[styles.stepLabel, stepIndex === index && styles.stepLabelActive]}>{step.label}</Text><Text style={styles.stepShort}>{step.short}</Text></View></Pressable>)}</View> : null}
-
       <View style={styles.editor}>
         {activeStep.key === 'appearance' ? <AppearanceEditor draft={draft} description={appearanceDescription} onDescription={setAppearanceDescription} busy={busy} onBusy={setBusy} onDraft={applyDraft} onGenerate={() => void generateLooks()} onChoose={(id) => void chooseLook(id)} /> : null}
         {activeStep.key === 'personality' ? <PersonalityEditor identity={identity} onIdentity={setIdentity} personality={personality} communication={communication} onPersonality={setPersonality} onCommunication={setCommunication} name={identity.name} /> : null}
