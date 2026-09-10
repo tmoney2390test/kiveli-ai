@@ -1,3 +1,5 @@
+import { resolveCompanionQuietHours } from '@together/domain/src/proactive-preferences';
+import { ProactiveSettings, initialProactiveDraft, proactivePatch } from './settings/ProactiveSettings';
 import { normalizeContextPreference, type ContextPreference } from '@together/domain/src/chat-context';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -5,12 +7,12 @@ import { AlignLeft, Check, ChevronDown, ChevronRight, Languages, MessageCircle, 
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { router } from 'expo-router';
 import { companionVoiceGenderFromSignals, companionVoicePresetsForGender, type CompanionVoicePreset } from '@together/domain/src/voice-presets';
-import { manageConversation, previewCompanionVoice } from '../lib/api';
+import { invoke, manageConversation, previewCompanionVoice } from '../lib/api';
 import { chatPreferencesFromConversation, chatTextSizeOptions, resolveChatBubbleColors, resolveChatContentMode, resolveChatLanguage, resolveChatResponseStyle, resolveChatTextSize, resolveChatVoicePreset, withLocalChatSettings } from '../lib/chatSettings';
 import { conversationStyleOptions } from '../lib/conversationStyle';
 import { useTogether } from '../store/useTogether';
 import { colors, radius, spacing, typography } from '../theme';
-import type { CharacterInstance, ChatTextSize, Conversation, ConversationStyle, DialogueContentMode } from '../types';
+import type { Snapshot, CharacterInstance, ChatTextSize, Conversation, ConversationStyle, DialogueContentMode } from '../types';
 import { FrostedSurface } from './FrostedGlass';
 import { createClientRequestId } from '../lib/requestId';
 import { cachedVoicePreview, rememberVoicePreview, type VoicePreview } from '../lib/voicePreviewCache';
@@ -24,7 +26,6 @@ import { defaultDirectConversationTitle } from '../lib/conversation';
 import { type ChatBubbleColor } from '@together/domain/src/chat-appearance';
 import { ChatBubbleColorSettings } from './settings/ChatBubbleColorSettings';
 import { ChatSettingsTabs, type ChatSettingsTab } from './settings/ChatSettingsTabs';
-import { QuietHoursSettingLink } from './settings/QuietHoursSettingLink';
 
 type Props = {
   visible: boolean;
@@ -36,7 +37,9 @@ type Props = {
 
 const demoMode = __DEV__ && process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === 'true';
 export function ChatSettingsModal({ visible, conversation, character, onClose, onSaved }: Props) {
-  const { snapshot, upsertConversation } = useTogether();
+  const { snapshot, upsertConversation, setCoreState } = useTogether();
+  const [proactive,setProactive]=useState(()=>initialProactiveDraft(snapshot?.notificationPreferences??null,character));
+  const proactiveEntitled=Boolean(snapshot?.entitlements?.tier&&snapshot.entitlements.tier!=='free'&&snapshot.entitlements.entitlement_keys?.includes('proactive_messages'));
   const [title, setTitle] = useState('');
   const [responseStyle, setResponseStyle] = useState<ConversationStyle>('texting');
   const [textSize, setTextSize] = useState<ChatTextSize>('medium');
@@ -79,6 +82,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
 
   useEffect(() => {
     if (!visible || !conversation) return;
+    setProactive(initialProactiveDraft(snapshot?.notificationPreferences??null,character));
     setTitle(conversation.title ?? defaultDirectConversationTitle(name));
     setResponseStyle(resolveChatResponseStyle(conversation, snapshot?.profile ?? null));
     setTextSize(resolveChatTextSize(conversation));
@@ -145,16 +149,15 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never);
   };
 
-  const openQuietHours = () => {
-    onClose();
-    if (Platform.OS !== 'web' || !navigateLocalRouteOnWeb('/notifications')) router.push('/notifications' as never);
-  };
-
   const save = async (afterSave?:()=>void) => {
     if (!conversation || saving) return;
     const cleanTitle = title.trim() || defaultDirectConversationTitle(name);
     setSaving(true);
     try {
+      if(proactiveEntitled&&character&&(proactive.frequencyDirty||proactive.quietDirty)){
+        if(!demoMode){const result=await invoke<{preferences:Snapshot['notificationPreferences']}>('together-notifications',{action:'companion_preferences',characterInstanceId:character.id,continuityId:character.continuity_id,...proactivePatch(proactive)});if(result.preferences)setCoreState({notificationPreferences:result.preferences});}
+        setProactive(current=>({...current,frequencyDirty:false,quietDirty:false,applyAll:false}));
+      }
       const input = { title: cleanTitle, responseStyle, textSize,contentMode, chatLanguage,chatDynamism,reasoningPreference,contextPreference,userBubbleColor,companionBubbleColor, ...(voiceEntitled ? { voicePreset } : {}) };
       const updated = demoMode
         ? withLocalChatSettings(conversation, input)
@@ -179,7 +182,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
           <Pressable accessibilityLabel="Close" disabled={saving} onPress={onClose} style={({ pressed }) => [styles.close, pressed && styles.pressed]}><X size={21} color={colors.muted} /></Pressable>
         </View>
 
-        <ChatSettingsTabs value={activeTab} disabled={saving} onChange={(tab) => { voicePlayer.pause(); setLanguageMenuOpen(false); setVoiceMenuOpen(false); setActiveTab(tab); }} />
+        <ChatSettingsTabs includeProactive value={activeTab} disabled={saving} onChange={(tab) => { voicePlayer.pause(); setLanguageMenuOpen(false); setVoiceMenuOpen(false); setActiveTab(tab); }} />
 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {activeTab === 'chat' ? <>
@@ -235,7 +238,6 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
               {voicePreview && !voicePlayerStatus.isLoaded && voicePlayerStatus.error ? <Text accessibilityLiveRegion="polite" style={styles.voiceLoadingText}>The sample could not load. Try it again.</Text> : null}
             </> : <Pressable accessibilityRole="button" onPress={() => { onClose(); const href=subscriptionHref({intent:'voice'}); if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never); }} style={styles.voiceLocked}><Volume2 size={18} color={colors.muted} /><View style={{ flex: 1 }}><Text style={styles.voiceLockedTitle}>Custom voices are available with Kivelle+</Text><Text style={styles.voiceLockedCopy}>Your companion’s authored voice is still used by default.</Text></View><ChevronRight size={16} color={colors.dimmed} /></Pressable>}
           </SettingSection>
-          <QuietHoursSettingLink start={snapshot?.notificationPreferences?.quiet_hours_start} end={snapshot?.notificationPreferences?.quiet_hours_end} disabled={saving} onPress={openQuietHours} />
           </> : null}
 
           {activeTab === 'appearance' ? <>
@@ -271,6 +273,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
           </SettingSection>
           </> : null}
 
+          {activeTab === 'proactive' ? <ProactiveSettings accountFrequency={snapshot?.notificationPreferences?.initiative_level??(snapshot?.notificationPreferences?.character_initiated_messages===false?'off':'natural')} accountQuiet={resolveCompanionQuietHours(snapshot?.notificationPreferences,'','')} defaultQuiet={resolveCompanionQuietHours(snapshot?.notificationPreferences,'',character?.continuity_id??'')} value={proactive} onChange={setProactive} entitled={proactiveEntitled} disabled={saving} name={name} scenarioActive={Boolean(character?.scenario_state)} onUpgrade={()=>{onClose();const href=subscriptionHref({intent:'initiative'});if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never);}}/> : null}
           {activeTab === 'ai' ? <ChatGenerationSettings mode="direct" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} contextPreference={contextPreference} onContextPreferenceChange={setContextPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>void save(openPlans)}/> : null}
         </ScrollView>
 

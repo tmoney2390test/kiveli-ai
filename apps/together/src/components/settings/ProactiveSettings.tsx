@@ -1,0 +1,38 @@
+import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Check, LockKeyhole, Moon, Sparkles } from 'lucide-react-native';
+import { proactiveFrequencyOptions, resolveCompanionQuietHours, type ProactiveFrequency, type QuietHours } from '@together/domain/src/proactive-preferences';
+import type { Snapshot, CharacterInstance } from '../../types';
+import { colors, radius } from '../../theme';
+
+export type ProactiveDraft = { frequency: ProactiveFrequency; useDefault: boolean; quiet: QuietHours; applyAll: boolean; frequencyDirty: boolean; quietDirty: boolean };
+export function initialProactiveDraft(preferences: Snapshot['notificationPreferences'], character: CharacterInstance | null): ProactiveDraft {
+  const id=character?.id??'', life=character?.continuity_id??'';
+  return { frequency: preferences?.companion_initiative_levels?.[id]??'default', useDefault: !preferences?.companion_quiet_hours?.[id], quiet: resolveCompanionQuietHours(preferences,id,life), applyAll:false, frequencyDirty:false, quietDirty:false };
+}
+export function proactivePatch(value: ProactiveDraft) {
+  return { ...(value.frequencyDirty?{frequency:value.frequency}:{}), ...(value.quietDirty?{quietHours:value.useDefault?null:value.quiet,applyAllQuietHours:value.applyAll}:{}) };
+}
+
+export function ProactiveSettings({value,onChange,entitled,disabled,name,scenarioActive,onUpgrade,defaultQuiet,accountQuiet,accountFrequency}:{value:ProactiveDraft;onChange:(value:ProactiveDraft)=>void;entitled:boolean;disabled:boolean;name:string;scenarioActive:boolean;onUpgrade:()=>void;defaultQuiet:QuietHours;accountQuiet:QuietHours;accountFrequency:ProactiveFrequency}) {
+  const locked=disabled||!entitled;
+  const quiet=(patch:Partial<QuietHours>)=>onChange({...value,quiet:{...value.quiet,...patch},quietDirty:true});
+  return <View style={styles.root}>
+    <View style={styles.heading}><Sparkles size={19} color={colors.violet}/><Text style={styles.title}>When {name} reaches out</Text></View>
+    <Text style={styles.copy}>These settings follow {name} across your conversations in this Life.</Text>
+    {!entitled?<Pressable accessibilityRole="button" onPress={onUpgrade} style={styles.notice}><LockKeyhole size={19} color={colors.violet}/><View style={styles.grow}><Text style={styles.label}>Unlock proactive messages with Kivelle+</Text><Text style={styles.copy}>Proactive messages are off on Free. You can still chat whenever you like.</Text></View></Pressable>:null}
+    {scenarioActive?<Text style={styles.noticeText}>Proactive check-ins are paused during your active scenario. Your preferences take effect when it ends.</Text>:null}
+    <View accessibilityRole="radiogroup" accessibilityLabel="Proactive message frequency" style={styles.options}>
+      {proactiveFrequencyOptions.map(option=><Pressable key={option.value} accessibilityRole="radio" aria-checked={entitled?value.frequency===option.value:option.value==='off'} accessibilityLabel={option.label} accessibilityState={{checked:(entitled?value.frequency===option.value:option.value==='off'),disabled:locked}} disabled={locked} onPress={()=>onChange({...value,frequency:option.value,frequencyDirty:true})} style={[styles.option,(entitled?value.frequency===option.value:option.value==='off')&&styles.selected,locked&&styles.disabled]}><View style={styles.grow}><Text style={styles.label}>{option.label}</Text><Text style={styles.copy}>{option.value==='default'?`Your account is set to ${proactiveFrequencyOptions.find(item=>item.value===accountFrequency)?.label??'Natural'}.`:option.detail}</Text></View>{(entitled?value.frequency===option.value:option.value==='off')?<Check size={18} color={colors.violet}/>:null}</Pressable>)}
+    </View>
+    <View style={styles.heading}><Moon size={18} color={colors.violet}/><Text style={styles.title}>Quiet hours</Text></View>
+    <View style={styles.row}><Text style={[styles.label,styles.grow]}>Use default quiet hours</Text><Switch accessibilityLabel="Use default quiet hours" disabled={locked} value={value.useDefault} onValueChange={useDefault=>onChange({...value,useDefault,quiet:useDefault?(value.applyAll?accountQuiet:defaultQuiet):value.quiet,quietDirty:true})}/></View>
+    {value.useDefault?<Text style={styles.copy}>{value.quiet.enabled?`${value.quiet.start}–${value.quiet.end} · ${value.quiet.timezone}`:'No quiet hours'} · {value.applyAll?'Account default for every conversation in this Life.':'Default for this Life, otherwise your account.'}</Text>:<>
+      <View style={styles.row}><Text style={[styles.label,styles.grow]}>Enable quiet hours</Text><Switch accessibilityLabel="Enable quiet hours" disabled={locked} value={value.quiet.enabled} onValueChange={enabled=>quiet({enabled})}/></View>
+      {value.quiet.enabled?<><View style={styles.row}>{(['start','end'] as const).map(key=><View key={key} style={styles.grow}><Text style={styles.copy}>{key==='start'?'From':'Until'} (24-hour)</Text><TextInput accessibilityLabel={key==='start'?'Quiet hours start':'Quiet hours end'} value={value.quiet[key]} editable={!locked} onChangeText={text=>quiet({[key]:text})} placeholder="23:00" maxLength={5} style={styles.input}/></View>)}</View><Text style={styles.copy}>Timezone</Text><TextInput accessibilityLabel="Quiet hours timezone" editable={!locked} value={value.quiet.timezone} onChangeText={timezone=>quiet({timezone})} autoCapitalize="none" placeholder="America/New_York" style={styles.input}/></>:null}
+    </>}
+    <Pressable accessibilityRole="checkbox" aria-checked={value.applyAll} accessibilityLabel="Apply these quiet hours to all my conversations" accessibilityState={{checked:value.applyAll,disabled:locked}} disabled={locked} onPress={()=>onChange({...value,applyAll:!value.applyAll,quiet:value.useDefault?(!value.applyAll?accountQuiet:defaultQuiet):value.quiet,quietDirty:true})} style={[styles.row,locked&&styles.disabled]}><View style={[styles.checkbox,value.applyAll&&styles.selected]}>{value.applyAll?<Check size={16} color={colors.violet}/>:null}</View><Text style={[styles.label,styles.grow]}>Apply these quiet hours to all my conversations</Text></Pressable>
+    <Text style={styles.copy}>{value.applyAll?'Saving replaces quiet-hour overrides for every companion in this Life. Their message frequencies stay the same.':'Quiet hours hold proactive messages and plan reminders until you are available.'}</Text>
+    <Text style={styles.copy}>Plan reminders stay independent of frequency. These are minimum gaps, not a promise of a message on a schedule.</Text>
+  </View>;
+}
+const styles=StyleSheet.create({root:{gap:12},heading:{flexDirection:'row',alignItems:'center',gap:8},title:{color:colors.text,fontSize:17,fontWeight:'800',flexShrink:1},label:{color:colors.text,fontSize:13,fontWeight:'700'},copy:{color:colors.muted,fontSize:12,lineHeight:18},grow:{flex:1,minWidth:0},options:{gap:6},option:{flexDirection:'row',alignItems:'center',gap:10,padding:12,minHeight:56,borderRadius:radius.md,borderWidth:1,borderColor:colors.border},selected:{borderColor:colors.violet,backgroundColor:'rgba(157,66,228,.15)'},disabled:{opacity:.45},row:{flexDirection:'row',alignItems:'center',gap:12,minHeight:44},notice:{flexDirection:'row',alignItems:'center',gap:10,padding:12,borderRadius:radius.md,backgroundColor:'rgba(157,66,228,.12)'},noticeText:{color:colors.muted,fontSize:12,lineHeight:18,padding:12,backgroundColor:'rgba(157,66,228,.12)',borderRadius:radius.md},input:{color:colors.text,minHeight:44,padding:12,borderWidth:1,borderColor:colors.border,borderRadius:radius.sm},checkbox:{width:23,height:23,borderWidth:1,borderColor:colors.muted,borderRadius:5,alignItems:'center',justifyContent:'center'}});
