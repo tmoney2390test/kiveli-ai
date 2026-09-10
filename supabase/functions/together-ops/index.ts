@@ -16,6 +16,7 @@ import {
   operationsDashboard,
   supportUserLookup,
 } from "../_shared/kivelle-ops-dashboard.ts";
+import { sendSupportTicketEmail } from "../_shared/kivelle-support-email.ts";
 
 const ticketStatus = z.enum([
     "open",
@@ -266,14 +267,15 @@ serve(async (request, correlationId) => {
         );
       }
     }
+    const ticketCorrelationId = input.correlationId ?? correlationId;
     const { data, error } = await db.from("together_support_tickets").insert({
       user_id: user.id,
       category: input.category,
       subject: input.subject,
       message: input.message,
-      correlation_id: input.correlationId ?? correlationId,
+      correlation_id: ticketCorrelationId,
       conversation_id: input.conversationId ?? null,
-    }).select("id,status,created_at").single();
+    }).select("id,ticket_number,status,created_at").single();
     if (error || !data) {
       throw new AppError(
         "INTERNAL_ERROR",
@@ -286,13 +288,48 @@ serve(async (request, correlationId) => {
       ticket_id: data.id,
       actor_user_id: user.id,
       event_type: "created",
-      next_state: { status: data.status },
+      next_state: { status: data.status, ticketNumber: data.ticket_number },
     });
-    return json({ data: { ticket: data }, correlationId }, 201, correlationId);
+    const emailDelivery = await sendSupportTicketEmail({
+      ticketId: data.id,
+      ticketNumber: Number(data.ticket_number),
+      category: input.category,
+      subject: input.subject,
+      message: input.message,
+      userId: user.id,
+      userEmail: user.email,
+      correlationId: ticketCorrelationId,
+      createdAt: data.created_at,
+    });
+    const deliveryMetadata = {
+      support_email_status: emailDelivery.status,
+      ...(emailDelivery.providerId
+        ? { support_email_provider_id: emailDelivery.providerId }
+        : {}),
+      ...(emailDelivery.errorCode
+        ? { support_email_error_code: emailDelivery.errorCode }
+        : {}),
+      support_email_attempted_at: new Date().toISOString(),
+    };
+    const { error: deliveryUpdateError } = await db.from("together_support_tickets")
+      .update({ metadata: deliveryMetadata }).eq("id", data.id).eq("user_id", user.id);
+    if (deliveryUpdateError) {
+      console.warn(JSON.stringify({
+        level: "warning",
+        operation: "support_email_status_update",
+        ticketId: data.id,
+        correlationId,
+      }));
+    }
+    return json(
+      { data: { ticket: data, emailDelivery: emailDelivery.status }, correlationId },
+      201,
+      correlationId,
+    );
   }
   if (input.action === "my_tickets") {
     const { data, error } = await db.from("together_support_tickets").select(
-      "id,category,subject,status,priority,created_at,updated_at",
+      "id,ticket_number,category,subject,status,priority,created_at,updated_at",
     ).eq("user_id", user.id).order("created_at", { ascending: false }).limit(
       30,
     );

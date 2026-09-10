@@ -64,6 +64,7 @@ import {
   type SettingsSection,
 } from '../src/lib/settingsExperience';
 import { FrostedBackdrop, FrostedSurface, GradientButton, LoadingSkeleton } from '../src/components';
+import { ContactSupportModal } from '../src/components/ContactSupportModal';
 
 type SaveNotice = { kind: 'success' | 'error'; message: string } | null;
 type Snapshot = NonNullable<ReturnType<typeof useTogether.getState>['snapshot']>;
@@ -112,6 +113,7 @@ export default function Settings() {
   const [saveNotice, setSaveNotice] = useState<SaveNotice>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [signingOut, setSigningOut] = useState(false);
+  const [supportVisible, setSupportVisible] = useState(false);
   const hydratedProfileSignature = useRef<string | null>(null);
   const avatar = useProfileAvatarUrl(avatarPath);
   const draft = useMemo(() => ({ name, about, interests, goals }), [about, goals, interests, name]);
@@ -346,7 +348,7 @@ export default function Settings() {
               {activeSection === 'experience' ? <ExperiencePanel snapshot={snapshot} onRoute={openRoute} /> : null}
               {activeSection === 'relationships' ? <RelationshipsPanel snapshot={snapshot} onRoute={openRoute} /> : null}
               {activeSection === 'privacy' ? <PrivacyPanel onRoute={openRoute} onDisclosure={() => Alert.alert('About Kivelle characters', 'Kivelle companions are fictional AI characters. They can remember shared context and simulate a life, but they are not real people and do not have human consciousness.')} /> : null}
-              {activeSection === 'support' ? <SupportPanel onRoute={openRoute} /> : null}
+              {activeSection === 'support' ? <SupportPanel onRoute={openRoute} onContact={() => setSupportVisible(true)} /> : null}
             </> : <SettingsOverview snapshot={snapshot} name={name} verified={providerState.verifiedEmail} tier={subscriptionLabel(snapshot.entitlements?.tier)} query={searchQuery} onQuery={setSearchQuery} onSelect={selectSection} signingOut={signingOut} onLogout={logout} />}
           </ScrollView>
 
@@ -358,9 +360,13 @@ export default function Settings() {
       </KeyboardAvoidingView>
     </FrostedSurface>
   </View>;
-  return desktop
+  const settingsModal = desktop
     ? settingsSurface
     : <Modal visible transparent animationType="fade" onRequestClose={close}>{settingsSurface}</Modal>;
+  return <>
+    {settingsModal}
+    <ContactSupportModal visible={supportVisible} email={session?.user.email} onClose={() => setSupportVisible(false)} />
+  </>;
 }
 
 function SectionTab({ item, active, onPress }: { item: SectionDefinition; active: boolean; onPress: () => void }) {
@@ -468,8 +474,8 @@ function PrivacyPanel({ onRoute, onDisclosure }: { onRoute: (route: string) => v
   </View>;
 }
 
-function SupportPanel({ onRoute }: { onRoute: (route: string) => void }) {
-  return <View style={styles.panel}><PanelHeading title="Help & support" body="Find answers, contact the support team, or review an existing request." /><SettingsGroup><SettingsRow icon={<LifeBuoy />} title="Help center" body="Answers for accounts, conversations, media, billing, privacy, and safety." onPress={() => onRoute('/help')} /><SettingsRow icon={<MessageCircle />} title="Contact support" body="Send a private request and review its status." onPress={() => onRoute('/support')} /></SettingsGroup><InfoCard title="For a specific chat message">Use the message menu in chat to report a generated response. Support requests never attach unrelated conversation history.</InfoCard></View>;
+function SupportPanel({ onRoute, onContact }: { onRoute: (route: string) => void; onContact: () => void }) {
+  return <View style={styles.panel}><PanelHeading title="Help & support" body="Find answers, contact the support team, or review an existing request." /><SettingsGroup><SettingsRow icon={<LifeBuoy />} title="Help center" body="Answers for accounts, conversations, media, billing, privacy, and safety." onPress={() => onRoute('/help')} /><SettingsRow icon={<MessageCircle />} title="Contact support" body="Send a private request to the support team." onPress={onContact} /></SettingsGroup><InfoCard title="For a specific chat message">Use the message menu in chat to report a generated response. Support requests never attach unrelated conversation history.</InfoCard></View>;
 }
 
 function LogoutButton({ signingOut, onPress, mobile = false }: { signingOut: boolean; onPress: () => void; mobile?: boolean }) {

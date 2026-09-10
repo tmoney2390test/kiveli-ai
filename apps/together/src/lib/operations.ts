@@ -224,7 +224,10 @@ export const createSupportTicket = (
     conversationId?: string;
   },
 ) =>
-  invoke<{ ticket: { id: string; status: string; created_at: string } }>(
+  invoke<{
+    ticket: { id: string; ticket_number: number; status: string; created_at: string };
+    emailDelivery: "sent" | "not_configured" | "failed";
+  }>(
     "together-ops",
     { action: "create_support_ticket", ...input },
   );
@@ -234,6 +237,7 @@ export const loadMySupportTickets = () =>
       tickets: Array<
         {
           id: string;
+          ticket_number: number;
           category: SupportCategory;
           subject: string;
           status: string;

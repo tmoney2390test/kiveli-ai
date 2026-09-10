@@ -45,6 +45,8 @@ KIVELLE_OPS_ALERT_WEBHOOK_URL=
 RESEND_API_KEY=
 KIVELLE_OPS_ALERT_EMAIL=
 KIVELLE_OPS_ALERT_FROM=Kivelle Ops <ops@example.com>
+KIVELLE_SUPPORT_EMAIL=support@kivelli.app
+KIVELLE_SUPPORT_EMAIL_FROM=Kivelli Support <notifications@your-verified-sending-domain.example>
 ```
 
 Rules are seeded for stalled media/dialogue/proactive queues, media/voice/push failures, AI failure rate and p95 latency, refund volume, and authentication client errors. Delivery payloads contain only incident IDs, metric values, thresholds, and sanitized labels.
@@ -66,7 +68,7 @@ Record a release after the database, Edge functions, and web app are live. Clien
 
 ## Support
 
-Users create tickets in `/support`. Tickets are rate limited, private under RLS, and do not automatically copy chat history. Users can see their own ticket metadata; support and admin operators work the ticket through the server-only operations API.
+Users create tickets from the Settings contact sheet or `/support`. Tickets are rate limited, private under RLS, and do not automatically copy chat history. Every ticket receives a stable `Support-#####` reference. When Resend is configured, the server sends the private request to `KIVELLE_SUPPORT_EMAIL` with `[Support-#####]` at the beginning of the subject and the authenticated account email as `reply_to`. Ticket creation remains authoritative if notification delivery is temporarily unavailable. Users can see their own ticket metadata; support and admin operators work the ticket through the server-only operations API.
 
 ## Push delivery
 
