@@ -38,6 +38,7 @@ function fixture() {
     together_shared_plans: [], together_life_events: [], together_character_schedule_events: [],
   };
   const failures = { messageInsert: false, threadWrite: false };
+  const policy={allowed:true,reason:null as string|null,quietHours:{start:'23:00',end:'08:00',timezone:'America/New_York',enabled:true}};
   const field = (row: Row, key: string): any => key.split(/->>?/).reduce((value, part) => value?.[part], row);
   class Query {
     predicates: Array<(row: Row) => boolean> = [];
@@ -92,8 +93,8 @@ function fixture() {
       }).then(resolve, reject);
     }
   }
-  const db = { from: (table: string) => new Query(table) } as unknown as SupabaseClient;
-  return { db, proactive, tables, failures, run: () => persistCharacterInitiative({ db, proactive: structuredClone(tables.together_proactive_messages![0]!), userId: 'user', now, timezone: 'America/New_York' }) };
+  const db = { from: (table: string) => new Query(table), rpc:async(name:string)=>name==='kivelle_proactive_delivery_policy'?{data:structuredClone(policy),error:null}:{data:null,error:null} } as unknown as SupabaseClient;
+  return { db, proactive, tables, failures, policy, run: () => persistCharacterInitiative({ db, proactive: structuredClone(tables.together_proactive_messages![0]!), userId: 'user', now, timezone: 'America/New_York' }) };
 }
 
 async function withModel(action: (calls: { count: number; prompt: string }) => Promise<void>, onGenerate?: () => void, output?: string) {
@@ -244,4 +245,16 @@ Deno.test('disabling initiative during generation prevents insertion', async () 
 Deno.test('disabling open-thread memory suppresses an already queued follow-up', async () => {
   const f = fixture(); f.tables.together_profiles = [{ user_id: 'user', memory_categories: { open_thread: false } }];
   await withModel(async (calls) => { assertEquals(await f.run(), null); assertEquals(calls.count, 0); });
+});
+
+Deno.test('Off and free gates skip model generation; changed preferences stop a generated response',async()=>{
+ for(const reason of ['initiative_off','paid_required','frequency_cooldown']){
+  const f=fixture();f.policy.allowed=false;f.policy.reason=reason;
+  await withModel(async calls=>{assertEquals(await f.run(),null);assertEquals(calls.count,0);assertEquals(f.tables.together_proactive_messages![0]!.status,'cancelled');});
+ }
+ const f=fixture();await withModel(async calls=>{assertEquals(await f.run(),null);assertEquals(calls.count,1);assertEquals(f.tables.together_messages!.filter(x=>x.role==='assistant').length,0);},()=>{f.policy.allowed=false;f.policy.reason='paid_required';});
+});
+Deno.test('quiet hours defer without generating or cancelling the queued reminder',async()=>{
+ const f=fixture();f.policy.allowed=false;f.policy.reason='quiet_hours';f.policy.quietHours={start:'08:00',end:'09:00',timezone:'America/New_York',enabled:true};
+ await withModel(async calls=>{assertEquals(await f.run(),null);assertEquals(calls.count,0);const q=f.tables.together_proactive_messages![0]!;assertEquals(q.status,'queued');assertEquals(q.eligible_at,'2026-09-07T13:00:00.000Z');assertEquals(q.context.generationLeaseUntil,null);});
 });

@@ -1,3 +1,6 @@
+import { proactiveDeliveryPolicy } from './kivelle-proactive-policy.ts';
+import { isPlanReminderProactive } from './kivelle-initiative.ts';
+import { nextQuietHoursEnd } from '../../../packages/together-domain/src/proactive-preferences.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeChatLanguage } from '../../../packages/together-domain/src/chat-language.ts';
 import { normalizeSubscriptionTier } from '../../../packages/together-domain/src/entitlements.ts';
@@ -16,7 +19,7 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
   proactive: Row; conversation: Row; messageId: string;
 } | null> {
   const { db, userId, proactive, now } = input;
-  const reminder=proactive.context?.messageKind==='plan_reminder';
+  const reminder=isPlanReminderProactive(proactive);
   if(!reminder){const {data:hold,error}=await db.from('together_scenario_sessions').select('id').eq('user_id',userId).eq('character_instance_id',proactive.character_instance_id).eq('status','active').maybeSingle();if(error)throw error;if(hold)return null;}
   if (!proactive.conversation_id || (proactive.context?.generationLeaseUntil &&
     Date.parse(proactive.context.generationLeaseUntil) > now.getTime())) return null;
@@ -40,6 +43,15 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
     if (error) throw new Error('INITIATIVE_CANCEL_FAILED');
     return null;
   };
+  const checkPolicy = async () => {
+    const at=clock(), policy=await proactiveDeliveryPolicy(db,userId,String(proactive.id),at);
+    if(policy.allowed)return true;
+    if(policy.reason==='quiet_hours'&&policy.quietHours){
+      const q=policy.quietHours;
+      await ownedUpdate({eligible_at:nextQuietHoursEnd(at,q).toISOString(),context:{...leaseContext,generationLeaseUntil:null},updated_at:at.toISOString()});
+    }else await cancel(policy.reason??'policy_changed');
+    return false;
+  };
   try {
     const { data: conversation, error: conversationError } = await db.from('together_conversations').select('*')
       .eq('id', proactive.conversation_id).eq('user_id', userId).maybeSingle();
@@ -52,6 +64,7 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
     let message = existing;
     let content = existing?.content ?? '';
     if (!message) {
+      if(!await checkPolicy())return null;
       const [source, instanceResult, relationshipResult, entitlementResult, latestUser, continuity] = await Promise.all([
         loadInitiativeSource(db, userId, proactive, now, input.timezone),
         db.from('together_character_instances')
@@ -98,16 +111,18 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
         currentInstance.data?.current_activity !== instance.current_activity || currentInstance.data?.current_location_id !== instance.current_location_id ||
         commitTime.getTime() >= Date.parse(leaseContext.generationLeaseUntil) ||
         (input.additionalRelevance && !await input.additionalRelevance(commitTime))) return await cancel('changed_during_generation');
+      if(!await checkPolicy())return null;
       const { data: inserted, error: insertError } = await db.from('together_messages').insert({
         conversation_id: conversation.id, user_id: userId, character_instance_id: instance.id,
         speaker_character_instance_id: conversation.kind === 'group' ? instance.id : null,
         role: 'assistant', content, delivery_status: 'complete', response_key: responseKey,
         provider_metadata: { provider: 'life-engine', proactive: true, proactive_message_id: proactive.id,
-          group_plan_id: proactive.context?.groupPlanId, chatLanguage: normalizeChatLanguage(conversation.metadata?.chatPreferences?.chatLanguage),
+          messageKind: reminder?'plan_reminder':'initiative', group_plan_id: proactive.context?.groupPlanId, chatLanguage: normalizeChatLanguage(conversation.metadata?.chatPreferences?.chatLanguage),
           initiativeGenerationVersion: 2, ...(proactive.open_thread_id ? { conversationalHandoff: {
             mode: 'earned_followup', source: 'open_thread', openThreadId: proactive.open_thread_id,
           } } : {}) },
       }).select('id,content,created_at').single();
+      if(insertError?.message?.includes('PROACTIVE_DELIVERY_BLOCKED')){if(!await checkPolicy())return null;return await cancel('policy_changed_at_commit');}
       if (insertError || !inserted) throw new Error('INITIATIVE_MESSAGE_INSERT_FAILED');
       message = inserted;
     }

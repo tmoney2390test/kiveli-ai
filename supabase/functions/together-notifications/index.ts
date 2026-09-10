@@ -4,14 +4,15 @@ import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { track } from '../_shared/together.ts';
-import { cancelQueuedAmbientProactiveMessages } from '../_shared/kivelle-initiative.ts';
 
+const quietTime=z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const initiativeLevel=z.enum(['off','occasional','natural','frequent']);
 
 const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('register'), token: z.string().startsWith('ExponentPushToken[').max(256), platform: z.enum(['ios','android']), deviceId: z.string().uuid() }),
   z.object({ action: z.literal('deactivate'), deviceId: z.string().uuid() }),
-  z.object({ action: z.literal('preferences'), pushEnabled: z.boolean(), characterInitiatedMessages: z.boolean(), initiativeLevel:initiativeLevel.optional(), companionInitiativeLevels:z.record(z.string().uuid(),initiativeLevel).refine((value)=>Object.keys(value).length<=100,'Too many companion initiative overrides.').optional(), dateReminders: z.boolean().default(true), worldEventUpdates: z.boolean().default(true), quietHoursStart: z.string().regex(/^\d{2}:\d{2}$/), quietHoursEnd: z.string().regex(/^\d{2}:\d{2}$/), timezone: z.string().min(1).max(80) }),
+  z.object({ action: z.literal('preferences'), pushEnabled: z.boolean(), characterInitiatedMessages: z.boolean(), initiativeLevel:initiativeLevel.optional(), companionInitiativePatches:z.record(z.string().uuid(),initiativeLevel.nullable()).refine(value=>Object.keys(value).length<=100).optional(), companionInitiativeLevels:z.record(z.string().uuid(),initiativeLevel).refine((value)=>Object.keys(value).length<=100,'Too many companion initiative overrides.').optional(), dateReminders: z.boolean().default(true), worldEventUpdates: z.boolean().default(true), quietHoursStart: quietTime, quietHoursEnd: quietTime, timezone: z.string().min(1).max(80) }),
+  z.object({ action:z.literal('companion_preferences'), characterInstanceId:z.string().uuid(), continuityId:z.string().uuid(), frequency:z.enum(['default','off','occasional','natural','frequent']).optional(), quietHours:z.object({start:quietTime,end:quietTime,timezone:z.string().min(1).max(80),enabled:z.boolean()}).nullable().optional(), applyAllQuietHours:z.boolean().default(false) }),
   z.object({ action: z.literal('opened'), proactiveMessageId: z.string().uuid() }),
 ]);
 
@@ -27,6 +28,11 @@ serve(async (request, correlationId) => {
     if (error) throw new AppError('INTERNAL_ERROR', 'Could not register this device.', 500, true);
   } else if(input.action==='deactivate'){
     const{error}=await db.from('together_push_tokens').update({active:false,deactivated_at:new Date().toISOString()}).eq('user_id',user.id).eq('installation_id',input.deviceId);if(error)throw new AppError('INTERNAL_ERROR','Could not disable notifications on this device.',500,true);
+  } else if (input.action === 'companion_preferences') {
+    if(input.quietHours){try{new Intl.DateTimeFormat('en-US',{timeZone:input.quietHours.timezone}).format(new Date());}catch{throw new AppError('VALIDATION_FAILED','Choose a valid timezone.',400);}}
+    const {data,error}=await db.rpc('kivelle_patch_companion_preferences',{p_user_id:user.id,p_character_id:input.characterInstanceId,p_life_id:input.continuityId,p_patch:{...(input.frequency!==undefined?{frequency:input.frequency}:{}),...(input.quietHours!==undefined?{quietHours:input.quietHours}:{}),applyAllQuietHours:input.applyAllQuietHours}});
+    if(error){const paid=error.message.includes('PAID_REQUIRED'),unavailable=error.message.includes('COMPANION_UNAVAILABLE'),invalid=/INVALID_|NEED_DIFFERENT/.test(error.message);throw new AppError(paid||unavailable?'FORBIDDEN':invalid?'VALIDATION_FAILED':'INTERNAL_ERROR',paid?'Proactive messages require Kivelle+.':unavailable?'That companion is unavailable in this Life.':invalid?'Choose valid quiet hours with different start and end times.':'Could not save companion preferences.',paid||unavailable?403:invalid?400:500);}
+    return json({data:{ok:true,preferences:data},correlationId},200,correlationId);
   } else if (input.action === 'preferences') {
     try{new Intl.DateTimeFormat('en-US',{timeZone:input.timezone}).format(new Date());}catch{throw new AppError('VALIDATION_FAILED','Choose a valid timezone.',400);}
     const level=input.initiativeLevel??(input.characterInitiatedMessages?'natural':'off'),overrides=input.companionInitiativeLevels;
@@ -37,11 +43,9 @@ serve(async (request, correlationId) => {
         if(error||(data?.length??0)!==ids.length)throw new AppError('FORBIDDEN','One of those companion preferences is unavailable.',403);
       }
     }
-    const { error } = await db.from('together_notification_preferences').upsert({ user_id: user.id, push_enabled: input.pushEnabled, character_initiated_messages: level!=='off',initiative_level:level,...(overrides?{companion_initiative_levels:overrides}:{}), date_reminders: input.dateReminders, world_event_updates: input.worldEventUpdates, quiet_hours_start: input.quietHoursStart, quiet_hours_end: input.quietHoursEnd, timezone: input.timezone, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+    const { error } = await db.rpc('kivelle_patch_notification_defaults',{p_user_id:user.id,p_patch:{...input,initiativeLevel:level},p_companion_patch:input.companionInitiativePatches??overrides??{}});
     if (error) throw new AppError('INTERNAL_ERROR', 'Could not save notification settings.', 500, true);
     await db.from('together_profiles').update({experience_timezone:input.timezone,updated_at:new Date().toISOString()}).eq('user_id',user.id);
-    if(level==='off')await cancelQueuedAmbientProactiveMessages(db,{userId:user.id,keepCharacterInstanceIds:Object.entries(overrides??{}).filter(([,override])=>override!=='off').map(([id])=>id)});
-    else if(overrides){for(const[characterInstanceId,override]of Object.entries(overrides)){if(override==='off')await cancelQueuedAmbientProactiveMessages(db,{userId:user.id,characterInstanceId});}}
     await track(db,user.id,'initiative_preferences_updated',{initiativeLevel:level,companionOverrideCount:Object.keys(overrides??{}).length,dateReminders:input.dateReminders});
   } else {
     const { data } = await db.from('together_proactive_messages').update({ status: 'opened', updated_at: new Date().toISOString() }).eq('id', input.proactiveMessageId).eq('user_id', user.id).select('id').maybeSingle();
