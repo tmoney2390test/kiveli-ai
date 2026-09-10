@@ -1,10 +1,11 @@
+import { assertLocationAccess } from '../_shared/kivelle-world-progress.ts';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { authenticated, enforceRateLimit } from '../_shared/context.ts';
 import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
-import { buildCharacterPresenceSnapshot, buildExploreCatalogSnapshot, buildSnapshot, resolveLifeState, track } from '../_shared/together.ts';
+import { buildCharacterPresenceSnapshot, buildExploreCatalogSnapshot, buildSnapshot, compactSnapshotSchedule, resolveLifeState, track } from '../_shared/together.ts';
 import { getActiveConversation } from '../_shared/together-conversation.ts';
 import { ensureMainContinuity } from '../_shared/together-continuity.ts';
 import { isAtLeast18 } from '../../../packages/together-domain/src/adult-access.ts';
@@ -63,7 +64,7 @@ serve(async (request, correlationId) => {
       const{data:schedules,error:scheduleError}=await db.from('together_schedule_templates').select('*')
         .eq('character_version_id',version.id).order('day_of_week').order('start_minute').limit(100);
       if(scheduleError)throw new AppError('INTERNAL_ERROR','That routine could not be loaded right now.',500,true);
-      return json({data:{characterTemplateId:template.id,characterVersionId:version.id,schedules:schedules??[]},correlationId},200,correlationId);
+      return json({data:{characterTemplateId:template.id,characterVersionId:version.id,schedules:(schedules??[]).map(compactSnapshotSchedule)},correlationId},200,correlationId);
     }
     const timezoneHeader=request.headers.get('x-kivelle-timezone');
     let requestedTimezone:string|null=null;
@@ -102,8 +103,9 @@ serve(async (request, correlationId) => {
     if(!meetingLocationId)throw new AppError('CONFLICT','That companion does not have a published first-meeting place yet.',409);
     // Query the canonical location directly. Embedding together_worlds here is
     // ambiguous because worlds also point back to their default arrival place.
-    const locationResult=await db.from('together_locations').select('id,world_id').eq('id',meetingLocationId).maybeSingle();
+    const locationResult=await db.from('together_locations').select('id,world_id,access_metadata').eq('id',meetingLocationId).maybeSingle();
     if(locationResult.error||!locationResult.data)throw new AppError('CONFLICT','That first-meeting place is unavailable.',409);
+    await assertLocationAccess(db,user.id,locationResult.data);
     meetingLocation=locationResult.data;
     if(input.worldId&&String(meetingLocation.world_id)!==input.worldId)throw new AppError('VALIDATION_ERROR','Choose a companion who can meet you in that world.',400);
   }

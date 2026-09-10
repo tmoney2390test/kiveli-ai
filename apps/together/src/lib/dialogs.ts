@@ -1,12 +1,12 @@
 import { Alert, Platform } from 'react-native';
 
-export function confirmAction(options: { title: string; message: string; confirmLabel: string; destructive?: boolean; onConfirm: () => void | Promise<void> }): void {
+export function confirmAction(options: { title: string; message: string; confirmLabel: string; destructive?: boolean; onConfirm: () => void | Promise<void>; onCancel?: () => void }): void {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    if (window.confirm(`${options.title}\n\n${options.message}`)) void options.onConfirm();
+    if (window.confirm(`${options.title}\n\n${options.message}`)) void options.onConfirm(); else options.onCancel?.();
     return;
   }
   Alert.alert(options.title, options.message, [
-    { text: 'Cancel', style: 'cancel' },
+    { text: 'Cancel', style: 'cancel', onPress: options.onCancel },
     { text: options.confirmLabel, style: options.destructive ? 'destructive' : 'default', onPress: () => void options.onConfirm() },
   ]);
 }

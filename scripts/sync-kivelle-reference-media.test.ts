@@ -3,6 +3,15 @@ import {readFile} from 'node:fs/promises';
 import test from 'node:test';
 import {CHARACTER_REFERENCE_BUCKET,DIRECT_LOCATION_ARTWORK_WORLDS,defaultStorageTarget,discoverAssets,parseCharacterAssetName} from './sync-kivelle-reference-media.ts';
 
+test('discovers all Calder portraits and places exactly once without exposing homes as public places',async()=>{
+  const assets=(await discoverAssets()).filter(asset=>asset.worldSlug==='calders-run');
+  assert.equal(assets.filter(a=>a.role==='character_identity').length,49);
+  assert.equal(assets.filter(a=>a.role==='location_canonical').length,53);
+  assert.equal(assets.filter(a=>a.role==='world_canonical').length,1);
+  assert.equal(new Set(assets.map(a=>a.sourceKey)).size,103);
+  assert.ok(assets.every(a=>a.path.endsWith('.jpg')));
+});
+
 test('discovers canonical NorthVale location artwork used for media grounding',async()=>{
   assert.ok(DIRECT_LOCATION_ARTWORK_WORLDS.includes('northvale'));
   const assets=await discoverAssets();

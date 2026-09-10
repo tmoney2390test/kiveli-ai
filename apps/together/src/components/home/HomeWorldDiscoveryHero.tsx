@@ -3,11 +3,12 @@ import{AccessibilityInfo,AppState,Platform,Pressable,StyleSheet,Text,View,useWin
 import{Image}from'expo-image';
 import{ArrowRight,Globe2}from'lucide-react-native';
 import{worldHeroAsset}from'../../assets';
+import{onboardingWorldCompactCopy}from'../../lib/onboardingCatalog';
 import{advanceHomeWorldIndex,shouldAutoRotateHomeWorlds}from'../../lib/homeWorldDiscovery';
 import{colors,radius,typography}from'../../theme';
 import type{World}from'../../types';
 
-export function HomeWorldDiscoveryHero({worlds,onExplore,fill=false}:{worlds:World[];onExplore:(world:World)=>void;fill?:boolean}){
+export function HomeWorldDiscoveryHero({worlds,onExplore,fill=false,compact=false}:{worlds:World[];onExplore:(world:World)=>void;fill?:boolean;compact?:boolean}){
   const{width}=useWindowDimensions();
   const[index,setIndex]=useState(0);
   const[reducedMotion,setReducedMotion]=useState(false);
@@ -48,6 +49,14 @@ export function HomeWorldDiscoveryHero({worlds,onExplore,fill=false}:{worlds:Wor
   const relationshipFantasy=world.metadata?.relationshipFantasy;
   const copy=typeof relationshipFantasy==='string'&&relationshipFantasy.trim()?relationshipFantasy:world.description;
 
+  if(compact)return <View style={styles.compactSection}>
+    <View style={styles.compactHeading}><Text accessibilityRole="header" style={styles.compactSectionTitle}>A little further afield</Text><Pressable accessibilityRole="button" accessibilityLabel="Explore worlds" onPress={()=>onExplore(world)} style={styles.compactLink}><Text style={styles.compactLinkText}>Explore</Text><ArrowRight size={14} color="#EDB1CB"/></Pressable></View>
+    <Pressable accessibilityRole="button" accessibilityLabel={`Explore ${world.name}`} onPress={()=>onExplore(world)} style={({pressed})=>[styles.compactCard,pressed&&styles.pressed]}>
+      <Image accessible={false} alt="" source={worldHeroAsset(world.slug)} style={styles.compactImage} contentFit="cover" cachePolicy="memory-disk" loading="lazy" priority="low"/>
+      <View style={styles.compactCopy}><Text style={styles.compactEyebrow}>DISCOVER A WORLD · {index+1} / {worlds.length}</Text><Text numberOfLines={2} style={styles.compactTitle}>{world.name}</Text><Text numberOfLines={2} style={styles.compactMeta}>{onboardingWorldCompactCopy(world).description}</Text></View><ArrowRight size={16} color="#E3C3AD"/>
+    </Pressable>
+  </View>;
+
   return <View accessibilityLabel={`Discover ${world.name}`} style={[styles.hero,desktop&&styles.heroDesktop,fill&&styles.fill]}>
     <Image accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" alt="" source={worldHeroAsset(world.slug)} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" cachePolicy="memory-disk" loading="lazy" priority="low" transition={180}/>
     <View pointerEvents="none" style={[styles.scrim,Platform.OS==='web'?styles.webScrim:styles.nativeScrim]}/>
@@ -65,6 +74,17 @@ export function HomeWorldDiscoveryHero({worlds,onExplore,fill=false}:{worlds:Wor
 }
 
 const styles=StyleSheet.create({
+  compactSection:{gap:10},
+  compactHeading:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8},
+  compactSectionTitle:{flex:1,fontFamily:typography.display,fontSize:24,lineHeight:30,color:colors.text,fontWeight:'600'},
+  compactLink:{minHeight:44,flexDirection:'row',alignItems:'center',gap:7},
+  compactLinkText:{color:'#EDB1CB',fontSize:12,fontWeight:'700'},
+  compactCard:{minHeight:118,flexDirection:'row',alignItems:'center',gap:14,paddingRight:14,borderWidth:1,borderColor:'#493832',borderRadius:18,overflow:'hidden',backgroundColor:'#201B1B'},
+  compactImage:{width:'28%',height:'100%',minHeight:118,alignSelf:'stretch'},
+  compactCopy:{flex:1,minWidth:0,gap:5,paddingVertical:14},
+  compactEyebrow:{color:'#E4BD8F',fontSize:8,fontWeight:'800',letterSpacing:.8},
+  compactTitle:{color:colors.text,fontFamily:typography.display,fontSize:25,lineHeight:29,fontWeight:'600'},
+  compactMeta:{fontSize:11,lineHeight:16,color:'#CFBEB4'},
   hero:{width:'100%',minHeight:218,overflow:'hidden',borderRadius:25,backgroundColor:colors.elevated,borderWidth:1,borderColor:'rgba(240,198,125,.23)',shadowColor:'#C58C45',shadowOpacity:.15,shadowRadius:28,shadowOffset:{width:0,height:16},elevation:8},
   heroDesktop:{borderRadius:34},
   fill:{height:'100%'},

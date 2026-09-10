@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions, type ScrollView } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, CalendarDays, LockKeyhole, Palmtree, UserRound } from 'lucide-react-native';
@@ -19,19 +19,34 @@ import { useTogether } from '../../src/store/useTogether';
 import { colors, radius } from '../../src/theme';
 import type { CreatorDraft, Snapshot } from '../../src/types';
 
+import { readDiscoverSession, saveDiscoverSession } from '../../src/lib/discoverSession';
+
 type Tab = 'People' | 'Experiences';
 const stageOrder = ['stranger', 'acquaintance', 'friend', 'flirting', 'dating', 'exclusive', 'long_term'];
 const creatorSteps = ['identity', 'appearance', 'personality', 'life', 'connection', 'meeting', 'review'] as const;
 
 export default function Discover() {
+  const { snapshot } = useTogether();
+  if (!snapshot) return <LoadingSkeleton label="Curating people and experiences…" />;
+  return <DiscoverSession key={`${snapshot.activeContinuity?.id}`} />;
+}
+function DiscoverSession() {
   const { snapshot, browsedWorldId, setBrowsedWorldId } = useTogether();
   const { world: worldSlug } = useLocalSearchParams<{world?: string}>();
-  const [tab, setTab] = useState<Tab>('People');
-  const [spice, setSpice] = useState<CompanionSpiceFilter>('any');
-  const [sortMode, setSortMode] = useState<CompanionSortMode>('recommended');
+  const scope = `${snapshot?.activeContinuity?.id}`;
+  const saved = useRef(readDiscoverSession(scope)).current;
+  const scrollRef = useRef<ScrollView>(null), restored = useRef(false);
+  const [visibleCount, setVisibleCount] = useState(saved.visibleCount);
+  const [tab, setTab] = useState<Tab>(saved.tab);
+  const [spice, setSpice] = useState<CompanionSpiceFilter>(saved.spice);
+  const [sortMode, setSortMode] = useState<CompanionSortMode>(saved.sortMode);
   const [gender, setGender] = useCompanionGenderPreference();
   const [drafts, setDrafts] = useState<CreatorDraft[]>([]);
   const [draftsLoading, setDraftsLoading] = useState(true);
+
+  const sessionState = useRef({...saved});
+  Object.assign(sessionState.current, {tab, spice, sortMode, visibleCount});
+  useEffect(() => () => saveDiscoverSession(scope, sessionState.current), [scope]);
 
   const loadDrafts = useCallback(async () => {
     setDraftsLoading(true);
@@ -63,7 +78,8 @@ export default function Discover() {
     setBrowsedWorldId(world.id);
     router.setParams({ world: world.slug });
   };
-  return <Screen contentStyle={styles.content}>
+  const filterChanged = () => { restored.current = true; setVisibleCount(12); sessionState.current.scrollY = 0; scrollRef.current?.scrollTo({y:0,animated:false}); };
+  return <Screen contentStyle={styles.content} scrollRef={scrollRef} onScroll={event=>{sessionState.current.scrollY=Math.max(0,event.nativeEvent.contentOffset.y);}} onContentSizeChange={(_,height)=>{if(!restored.current&&height>saved.scrollY+120){restored.current=true;scrollRef.current?.scrollTo({y:saved.scrollY,animated:false});}}}>
     {selectedWorld ? <Pressable accessibilityRole="button" accessibilityLabel={`Back to Explore in ${selectedWorld.name}`} onPress={() => router.replace(`/(tabs)/explore?world=${selectedWorld.slug}` as never)} style={({ pressed }) => [styles.backToExplore, pressed && styles.backToExplorePressed]}><ArrowLeft size={17} color={colors.rose} /><Text style={styles.backToExploreText}>Back to Explore</Text></Pressable> : null}
     <View>
       <PageTitle>Discover</PageTitle>
@@ -73,22 +89,20 @@ export default function Discover() {
       {(['People', 'Experiences'] as const).map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} onPress={() => setTab(item)} style={[styles.tab, tab === item && styles.tabSelected]}><Text style={[styles.tabText, tab === item && styles.tabTextSelected]}>{item}</Text></Pressable>)}
     </View>
     {tab === 'People'
-      ? <><View style={styles.filters}><CompanionGenderToggle value={gender} onChange={setGender} /><CompanionWorldToggle worlds={publishedWorlds} value={selectedWorld.id} onChange={chooseWorld} /><CompanionSpicePicker value={spice} onChange={setSpice} /><CompanionSortControls value={sortMode} onChange={setSortMode} /></View><People snapshot={snapshot} drafts={drafts} draftsLoading={draftsLoading} worldId={selectedWorld.id} gender={gender} spice={spice} sortMode={sortMode} /></>
+      ? <><View style={styles.filters}><CompanionGenderToggle value={gender} onChange={value=>{filterChanged();setGender(value);}} /><CompanionWorldToggle worlds={publishedWorlds} value={selectedWorld.id} onChange={value=>{filterChanged();chooseWorld(value);}} /><CompanionSpicePicker value={spice} onChange={value=>{filterChanged();setSpice(value);}} /><CompanionSortControls value={sortMode} onChange={value=>{filterChanged();setSortMode(value);}} /></View><People snapshot={snapshot} drafts={drafts} draftsLoading={draftsLoading} worldId={selectedWorld.id} gender={gender} spice={spice} sortMode={sortMode} visibleOfficialCount={visibleCount} onShowMore={()=>setVisibleCount(value=>value+12)} /></>
       : <Experiences snapshot={snapshot} />}
   </Screen>;
 }
 
-function People({ snapshot, drafts, draftsLoading, worldId, gender, spice, sortMode }: { snapshot: Snapshot; drafts: CreatorDraft[]; draftsLoading: boolean; worldId?: string; gender: FeaturedGenderFilter; spice: CompanionSpiceFilter; sortMode: CompanionSortMode }) {
+function People({ snapshot, drafts, draftsLoading, worldId, gender, spice, sortMode, visibleOfficialCount, onShowMore }: { visibleOfficialCount:number; onShowMore:()=>void; snapshot: Snapshot; drafts: CreatorDraft[]; draftsLoading: boolean; worldId?: string; gender: FeaturedGenderFilter; spice: CompanionSpiceFilter; sortMode: CompanionSortMode }) {
   const { width } = useWindowDimensions();
   const { desktop, sidebarWidth } = useAppShell();
-  const [visibleOfficialCount,setVisibleOfficialCount]=useState(12);
   const legacyDraftIds = useMemo(() => new Set(drafts.map((draft) => draft.legacy_template_id).filter(Boolean)), [drafts]);
   const worldCharacterIds = useMemo(() => worldId ? new Set(characterCatalogForWorld(snapshot, worldId).map((entry) => entry.template.id)) : null, [snapshot, worldId]);
   const worldDrafts = worldId ? drafts.filter((draft) => draft.world_id === worldId) : drafts;
   const visibleDrafts = sortCompanionResults(worldDrafts.filter((draft) => spice === 'any' || normalizeSpiceLevel(draft.connection_config.spiceLevel) === spice).filter((draft) => gender === 'any' || companionGenderFromSignals(draft.identity_config.pronouns, draft.identity_config.biography, draft.appearance_config) === gender), sortMode, (draft) => ({ age: draft.identity_config.age, spiceLevel: draft.connection_config.spiceLevel }));
   const creations = sortCompanionResults((snapshot.discoverableCharacters ?? []).filter((item) => spice === 'any' || normalizeSpiceLevel(item.spice_level) === spice).filter((item) => Boolean(item.creator_id) && !legacyDraftIds.has(item.id) && (!worldCharacterIds || worldCharacterIds.has(item.id))).filter((item) => gender === 'any' || featuredCompanionGender(item) === gender), sortMode, (item) => ({ age: item.age, spiceLevel: item.spice_level }));
   const official = sortCompanionResults((snapshot.discoverableCharacters ?? []).filter((item) => spice === 'any' || normalizeSpiceLevel(item.spice_level) === spice).filter((item) => !item.creator_id && (!worldCharacterIds || worldCharacterIds.has(item.id))).filter((item) => gender === 'any' || featuredCompanionGender(item) === gender), sortMode, (item) => ({ age: item.age, spiceLevel: item.spice_level }));
-  useEffect(()=>setVisibleOfficialCount(12),[gender,worldId,sortMode,spice]);
   const visibleOfficial=official.slice(0,visibleOfficialCount);
   const { cardWidth, cardHeight } = responsiveCompanionGrid({ viewportWidth: width, desktop, sidebarWidth });
   if (!official.length && !creations.length && !visibleDrafts.length && !draftsLoading) {
@@ -107,7 +121,7 @@ function People({ snapshot, drafts, draftsLoading, worldId, gender, spice, sortM
     </> : null}
     <SectionHeader title="People you might connect with" />
     <View style={styles.peopleGrid}>{visibleOfficial.map((template) => <Person key={template.id} template={template} snapshot={snapshot} width={cardWidth} height={cardHeight} />)}</View>
-    {visibleOfficialCount<official.length?<Pressable accessibilityRole="button" onPress={()=>setVisibleOfficialCount((value)=>Math.min(official.length,value+12))} style={styles.loadMore}><Text style={styles.loadMoreText}>Show more people</Text></Pressable>:null}
+    {visibleOfficialCount<official.length?<Pressable accessibilityRole="button" onPress={onShowMore} style={styles.loadMore}><Text style={styles.loadMoreText}>Show more people</Text></Pressable>:null}
   </>;
 }
 
@@ -207,7 +221,7 @@ function Experiences({ snapshot }: { snapshot: Snapshot }) {
 
 const styles = StyleSheet.create({
   content: { paddingTop: 22 },
-  backToExplore: { alignSelf: 'flex-start', minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.borderBright, backgroundColor: colors.surface },
+  backToExplore: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.borderBright, backgroundColor: colors.surface },
   backToExplorePressed: { opacity: .72, transform: [{ scale: .98 }] },
   backToExploreText: { color: colors.rose, fontSize: 11, fontWeight: '900' },
   subtitle: { color: colors.muted, marginTop: 5, lineHeight: 19 },
@@ -217,17 +231,17 @@ const styles = StyleSheet.create({
   filters: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, zIndex: 30 },
   sortBar: { minHeight: 48, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, paddingVertical: 2 },
   sortLabel: { color: colors.dimmed, fontSize: 9, fontWeight: '900', letterSpacing: 1.1, marginRight: 2 },
-  sortControl: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 11, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  sortControl: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 11, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   sortControlActive: { borderColor: 'rgba(216,62,234,.48)', backgroundColor: 'rgba(216,62,234,.11)' },
   sortControlPressed: { opacity: .72, transform: [{ scale: .98 }] },
   sortControlTitle: { color: colors.muted, fontSize: 11, fontWeight: '900' },
   sortControlTitleActive: { color: colors.text },
   sortDirection: { color: colors.rose, fontSize: 8, fontWeight: '800', marginTop: 1 },
-  sortReset: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 7 }, sortResetText: { color: colors.muted, fontSize: 10, fontWeight: '800', textDecorationLine: 'underline' },
-  tab: { flex: 1, minHeight: 40, justifyContent: 'center', alignItems: 'center', borderRadius: radius.sm }, tabSelected: { backgroundColor: colors.rose }, tabText: { color: colors.muted, fontSize: 12, fontWeight: '800' }, tabTextSelected: { color: '#fff' },
+  sortReset: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 7 }, sortResetText: { color: colors.muted, fontSize: 10, fontWeight: '800', textDecorationLine: 'underline' },
+  tab: { flex: 1, minHeight: 44, justifyContent: 'center', alignItems: 'center', borderRadius: radius.sm }, tabSelected: { backgroundColor: colors.rose }, tabText: { color: colors.muted, fontSize: 12, fontWeight: '800' }, tabTextSelected: { color: '#fff' },
   stack: { gap: 10 }, person: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 13, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   peopleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }, personName: { flex:1,fontFamily: 'Georgia', fontSize: 21, color: colors.text }, personMeta: { color: colors.rose, fontSize: 11, fontWeight: '700', marginTop: 2 }, summary: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 5 }, action: { color: colors.rose, fontSize: 11, fontWeight: '900', marginTop: 7 },
-  loadMore:{alignSelf:'center',minHeight:42,justifyContent:'center',paddingHorizontal:18,borderRadius:radius.pill,backgroundColor:'rgba(216,62,234,.08)',borderWidth:1,borderColor:colors.border},loadMoreText:{color:colors.rose,fontSize:11,fontWeight:'900'},
+  loadMore:{alignSelf:'center',minHeight:44,justifyContent:'center',paddingHorizontal:18,borderRadius:radius.pill,backgroundColor:'rgba(216,62,234,.08)',borderWidth:1,borderColor:colors.border},loadMoreText:{color:colors.rose,fontSize:11,fontWeight:'900'},
   draftPortrait: { width: 76, height: 90, borderRadius: radius.md, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.elevated }, draftBadge: { position: 'absolute', left: 5, bottom: 5, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8, backgroundColor: 'rgba(8,11,19,.82)' }, draftBadgeText: { color: '#fff', fontSize: 7, fontWeight: '900', letterSpacing: .7 },
   progressTrack: { height: 3, marginTop: 9, borderRadius: 2, overflow: 'hidden', backgroundColor: colors.border }, progressFill: { height: 3, backgroundColor: colors.rose }, progressMeta: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }, stepCopy: { color: colors.dimmed, fontSize: 8, textTransform: 'capitalize' },
   skeleton: { opacity: .65 }, skeletonLine: { height: 9, borderRadius: 5, backgroundColor: colors.elevated },

@@ -12,7 +12,7 @@ export type WorldFactResolverInput={
   userMessage:string;queryIntent?:string;contentMode:string;relationshipStage?:string;worldFamiliarity:number;
   characterWorldFamiliarity?:number;characterPresenceType?:string;characterSlug?:string;characterOccupation?:string;
   characterTags?:string[];activeStorySlug?:string|null;recentUsage?:Map<string,AuthoredContentUsage>;
-  currentTurn?:number|null;daypart?:string;maximumResults?:number;
+  currentTurn?:number|null;daypart?:string;maximumResults?:number;disclosedFactIds?:string[];
 };
 
 export function resolveRelevantWorldFacts(input:WorldFactResolverInput):RelevantWorldFact[]{
@@ -50,13 +50,14 @@ export function resolveRelevantWorldFacts(input:WorldFactResolverInput):Relevant
     if(input.worldFamiliarity>=Number(row.min_world_familiarity??0))score+=15;
     if(row.knowledge_scope==='public')score+=10;
     if(score<(directQuery?35:55))continue;
-    results.push({id:String(row.id),slug:String(row.slug),title:String(row.title),factText:String(row.fact_text),category:String(row.category),truthMode:String(row.truth_mode) as RelevantWorldFact['truthMode'],knowledgeScope:String(row.knowledge_scope),contentLevel:String(row.content_level??'standard'),locationId:row.location_id?String(row.location_id):null,districtLocationId:row.district_location_id?String(row.district_location_id):null,eventTemplateSlug:row.event_template_slug?String(row.event_template_slug):null,interactive:Boolean(row.interactive),score});
+    results.push({id:String(row.id),slug:String(row.slug),title:String(row.title),factText:String((row.metadata?.partialKnowledge??[]).find((part:Record<string,unknown>)=>part.characterSlug===input.characterSlug)?.text??row.fact_text),category:String(row.category),truthMode:String(row.truth_mode) as RelevantWorldFact['truthMode'],knowledgeScope:String(row.knowledge_scope),contentLevel:String(row.content_level??'standard'),locationId:row.location_id?String(row.location_id):null,districtLocationId:row.district_location_id?String(row.district_location_id):null,eventTemplateSlug:row.event_template_slug?String(row.event_template_slug):null,interactive:Boolean(row.interactive),score});
   }
   const cap=Math.min(input.maximumResults??(directQuery?5:2),directQuery?5:2);
   return results.sort((left,right)=>right.score-left.score||left.slug.localeCompare(right.slug)).slice(0,cap);
 }
 
 function knowledgeEligible(row:WorldFactCandidate,input:WorldFactResolverInput):boolean{
+  if(row.metadata?.requiresSavedDisclosure===true&&!input.disclosedFactIds?.includes(String(row.id)))return false;
   const minimum=Number(row.min_world_familiarity??0);if(input.worldFamiliarity<minimum)return false;
   const scope=String(row.knowledge_scope??'public'),characterFamiliarity=Number(input.characterWorldFamiliarity??0),resident=['resident','native'].includes(String(input.characterPresenceType??''));
   if(scope==='public')return true;

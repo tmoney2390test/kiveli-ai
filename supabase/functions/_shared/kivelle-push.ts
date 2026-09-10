@@ -1,3 +1,4 @@
+import { proactiveDeliveryPolicy } from './kivelle-proactive-policy.ts';
 import type{SupabaseClient}from'@supabase/supabase-js';
 
 type Row=Record<string,any>;
@@ -28,7 +29,7 @@ export async function sendCompanionPush(db:SupabaseClient,input:{userId:string;c
     db.from('together_account_deletion_markers').select('user_id').eq('user_id',input.userId).maybeSingle(),
   ]);
   if(!prefs.data?.push_enabled||deleted.data)return;
-  if(isQuietHours(now,String(prefs.data.quiet_hours_start??'23:00'),String(prefs.data.quiet_hours_end??'08:00'),String(prefs.data.timezone??'UTC')))return;
+  if(!(await proactiveDeliveryPolicy(db,input.userId,String(input.proactive.id),now,false)).allowed)return;
   const{data:tokens}=await db.from('together_push_tokens').select('id,expo_push_token').eq('user_id',input.userId).eq('active',true).limit(5);
   if(!tokens?.length)return;
   const route=String(input.proactive.context?.route??'/chat'),expiresAt=validDate(input.proactive.expires_at)??new Date(Date.now()+6*3600_000).toISOString();
@@ -57,7 +58,9 @@ export async function retryPendingPushDeliveries(db:SupabaseClient){
     ]);
     const tokenRow=token.data,prefRow=prefs.data,disabled=!tokenRow?.active||!prefRow?.push_enabled||Boolean(deleted.data);
     if(disabled){await finishPush(db,id,'expired','Push eligibility changed before delivery.');continue;}
-    if(isQuietHours(now,String(prefRow!.quiet_hours_start??'23:00'),String(prefRow!.quiet_hours_end??'08:00'),String(prefRow!.timezone??'UTC'))){
+    const policy=await proactiveDeliveryPolicy(db,String(delivery.user_id),String(delivery.proactive_message_id),now,false);
+    if(!policy.allowed&&policy.reason!=='quiet_hours'){await finishPush(db,id,'expired','Companion message preferences changed.');continue;}
+    if(policy.reason==='quiet_hours'){
       await db.from('together_push_deliveries').update({status:'retry',next_attempt_at:new Date(now.getTime()+15*60_000).toISOString(),lease_owner:null,lease_expires_at:null,updated_at:now.toISOString()}).eq('id',id).eq('lease_owner',workerId);continue;
     }
     work.push({...delivery,expoPushToken:String(tokenRow!.expo_push_token)} as PushWork);
@@ -112,9 +115,6 @@ export async function reconcilePushReceipts(db:SupabaseClient){
 }
 
 function validDate(value:unknown):string|null{const parsed=Date.parse(String(value??''));return Number.isFinite(parsed)?new Date(parsed).toISOString():null;}
-function isQuietHours(now:Date,start:string,end:string,timezone:string):boolean{const minute=localMinute(now,timezone),startMinute=parseMinute(start),endMinute=parseMinute(end);return startMinute>endMinute?minute>=startMinute||minute<endMinute:minute>=startMinute&&minute<endMinute;}
-function parseMinute(value:string):number{const[hour='0',minute='0']=value.split(':');return Number(hour)*60+Number(minute);}
-function localMinute(now:Date,timezone:string):number{try{const parts=new Intl.DateTimeFormat('en-US',{timeZone:timezone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now);return Number(parts.find((part)=>part.type==='hour')?.value??0)*60+Number(parts.find((part)=>part.type==='minute')?.value??0);}catch{return now.getUTCHours()*60+now.getUTCMinutes();}}
 
 async function applyProviderError(db:SupabaseClient,input:{code:string;tokenId?:string|null;userId:string|null}){
   const disposition=pushProviderErrorDisposition(input.code);

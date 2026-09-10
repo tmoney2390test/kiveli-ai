@@ -1,3 +1,5 @@
+import { ensureCalderSchedule } from './kivelle-calders-schedule.ts';
+import { CALDERS_WORLD_ID } from './kivelle-world-progress.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { generateScheduleWindow, lifeEventEstablishesPresentReality, localToUtc, naturalizeCharacterActivity, naturalizeCharacterEventSummary, resolvePresence, type ActivityTemplate, type CharacterLifeProfile, type LifeLocation, type ScheduleBlock } from '../../../packages/together-domain/src/index.ts';
 import { resolveUserExperienceTimezone } from './kivelle-time.ts';
@@ -9,7 +11,7 @@ const ENGINE_VERSION='life_engine_v4_natural_language';
 export type ResolvedCharacterPresence={
   characterInstanceId:string; locationId:string|null; activityKey:string; activity:string; scheduleEventId?:string;
   activityStartedAt:string; expectedEndAt?:string; state:'active'|'working'|'relaxing'|'sleeping'|'traveling'|'busy';
-  interruptibility:'open'|'limited'|'busy'|'unavailable'; nextEvent?:ScheduleBlock; source:'plan'|'life_event'|'schedule'|'fallback';
+  interruptibility:'open'|'limited'|'busy'|'unavailable'; nextEvent?:ScheduleBlock; source:'plan'|'life_event'|'schedule'|'fallback'|'scenario';
   placeContext:PlaceContext|null; entryReason?:'scheduled'|'user_drop_in'|'invited'|'continued_chat';
 };
 
@@ -23,7 +25,7 @@ export type CompanionPresence = {
   energy:string;
   availability:string;
   interruptibility:'open'|'limited'|'busy'|'unavailable';
-  source:'active_date'|'active_plan'|'active_event'|'scene'|'life_engine'|'schedule'|'character_state';
+  source:'active_date'|'active_plan'|'active_event'|'scene'|'life_engine'|'schedule'|'character_state'|'scenario';
   sourceEventId?:string;
   validUntil?:string;
   placeContext:PlaceContext|null;
@@ -37,12 +39,13 @@ export type CompanionPresence = {
 export async function ensureCharacterSchedule(input:{db:SupabaseClient;userId:string;characterInstanceId:string;now?:Date;days?:number}){
   const{db,userId,characterInstanceId}=input,now=input.now??new Date(),days=input.days??7;
   const{data:instance,error}=await db.from('together_character_instances').select('*,together_character_versions(life_config,interests,personality_config),together_character_templates(name,slug,occupation)').eq('id',characterInstanceId).eq('user_id',userId).maybeSingle();
-  if(error||!instance)return[];
+  if(error||!instance||instance.scenario_state)return[];
   const currentPlace=instance.current_location_id?await resolvePlaceContext({db,locationId:String(instance.current_location_id),now,userId,characterInstanceId}).catch(()=>null):null;
   let worldId=currentPlace?.world.id??null;
   if(!worldId){const{data:presence}=await db.from('together_character_world_presence').select('world_id').eq('character_version_id',instance.character_version_id).neq('presence_type','unavailable').order('presence_type').limit(1).maybeSingle();worldId=presence?.world_id??null;}
   if(!worldId)return[];
   const timezone=await resolveUserExperienceTimezone(db,userId);
+  if(worldId===CALDERS_WORLD_ID&&instance.together_character_versions?.life_config?.source==='calders_run_authoring_v1')return ensureCalderSchedule({db,userId,instance,timezone,now,days});
   // Include the timezone in the materialization version so changing the
   // user's configured timezone automatically rebuilds future routines.
   const generationVersion=`${ENGINE_VERSION}:${timezone}`;
@@ -98,7 +101,12 @@ export async function ensureCharacterSchedule(input:{db:SupabaseClient;userId:st
 export async function resolveCharacterPresence(input:{db:SupabaseClient;userId:string;characterInstanceId:string;now?:Date;ensure?:boolean}):Promise<ResolvedCharacterPresence|null>{
   const{db,userId,characterInstanceId}=input,now=input.now??new Date();
   if(input.ensure!==false)await ensureCharacterSchedule({db,userId,characterInstanceId,now});
-  const{data:instance}=await db.from('together_character_instances').select('character_version_id,current_location_id,current_activity,current_presence_source').eq('id',characterInstanceId).eq('user_id',userId).maybeSingle();if(!instance)return null;
+  const{data:instance}=await db.from('together_character_instances').select('character_version_id,current_location_id,current_activity,current_presence_source,scenario_state').eq('id',characterInstanceId).eq('user_id',userId).maybeSingle();if(!instance)return null;
+  if(instance.scenario_state){
+    const scenario=instance.scenario_state as Row;
+    const place=await resolvePlaceContext({db,locationId:String(scenario.locationId),now,userId,characterInstanceId});
+    return {characterInstanceId,locationId:String(scenario.locationId),activityKey:'scenario',activity:String(scenario.title),activityStartedAt:String(scenario.startedAt),state:'active',interruptibility:'open',source:'scenario',placeContext:place};
+  }
   const currentPlace=instance.current_location_id?await resolvePlaceContext({db,locationId:String(instance.current_location_id),now,userId,characterInstanceId}).catch(()=>null):null;
   let worldId=currentPlace?.world.id??null;
   if(!worldId){
@@ -138,6 +146,7 @@ export async function resolveCompanionPresence(input:{db:SupabaseClient;userId:s
   const now=input.now??new Date();
   const base=await resolveCharacterPresence(input);
   if(!base)return null;
+  if(base.source==='scenario')return {...base,worldId:base.placeContext?.world.id??null,mood:'present',energy:'medium',availability:'In a scenario',source:'scenario'};
   const[{data:activeDate},{data:activeScene}]=await Promise.all([
     input.db.from('together_date_sessions').select('id,started_at,scheduled_for,updated_at,together_date_templates(location_id,name,metadata)').eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).eq('status','active').order('started_at',{ascending:false}).limit(1).maybeSingle(),
     input.db.from('together_scene_sessions').select('id,world_id,location_id,activity_key,started_at,expected_end_at,state').eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).is('ended_at',null).order('started_at',{ascending:false}).limit(1).maybeSingle(),

@@ -1,3 +1,4 @@
+import scenarioCatalog from '../../../content/scenarios/runtime-catalog.json' with {type:'json'};
 import { contextPreferences, normalizeContextPreference } from '../../../packages/together-domain/src/chat-context.ts';
 import { z } from 'zod';
 import { authenticated, enforceRateLimit } from '../_shared/context.ts';
@@ -41,6 +42,7 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('pin'), conversationId: z.string().uuid(), pinned: z.boolean() }),
   z.object({ action: z.literal('message_favorite'), conversationId: z.string().uuid(), messageId: z.string().uuid(), favorite: z.boolean() }),
   z.object({ action: z.literal('reset'), characterInstanceId: z.string().uuid(), mode: z.enum(['memory','relationship','full']), requestId: z.string().uuid().optional() }),
+  z.object({ action: z.literal('reset_chat'), conversationId:z.string().uuid(), mode:z.enum(['conversation','scenario']), requestId:z.string().uuid(), scenarioSessionId:z.string().uuid().optional() }),
   z.object({ action: z.literal('reset_preview'), characterInstanceId: z.string().uuid() }),
   z.object({ action: z.literal('start_over'), characterInstanceId: z.string().uuid(), requestId: z.string().uuid() }),
   z.object({ action: z.literal('enter_scene'), characterInstanceId: z.string().uuid(), locationId: z.string().uuid(), conversationId: z.string().uuid().optional() }),
@@ -246,6 +248,23 @@ serve(async (request, correlationId) => {
     };
     await track(db,user.id,'character_reset_previewed',{characterInstanceId:input.characterInstanceId});
     return json({data:preview,correlationId},200,correlationId);
+  }
+
+  if(input.action==='reset_chat'){
+    let opening:string|null=null;
+    if(input.mode==='scenario'){
+      if(!input.scenarioSessionId)throw new AppError('VALIDATION_ERROR','Choose the scenario in this conversation.',400);
+      const{data:scenarioSession}=await db.from('together_scenario_sessions').select('scenario_id').eq('id',input.scenarioSessionId).eq('user_id',user.id).eq('continuity_id',continuity.id).maybeSingle();
+      const scenario=scenarioCatalog.find(item=>item.id===scenarioSession?.scenario_id);
+      if(!scenario)throw new AppError('NOT_FOUND','That scenario is unavailable.',404);
+      opening=`${scenario.title}\n\n${scenario.setup}\n\n“${scenario.opening}”`;
+    }
+    const{data,error}=await db.rpc('kivelli_reset_chat',{p_user:user.id,p_continuity:continuity.id,p_conversation:input.conversationId,p_mode:input.mode,p_request:input.requestId,p_scenario_session:input.scenarioSessionId??null,p_opening:opening});
+    if(error||!data){const busy=error?.message?.includes('Wait for the current reply');throw new AppError('CONFLICT',busy?'Wait for the current reply or media request to finish, then try again.':'This chat could not be reset. Reopen the conversation and try again. Your relationship has not changed.',409,true);}
+    await removeStoragePaths(db,user.id,Array.isArray(data.storagePaths)?data.storagePaths:[]);
+    const safeData={...data};delete safeData.storagePaths;
+    await track(db,user.id,'conversation_reset_completed',{mode:input.mode,previousConversationId:input.conversationId,conversationId:data.conversationId});
+    return json({data:safeData,correlationId},200,correlationId);
   }
 
   if (input.action === 'start_over') {

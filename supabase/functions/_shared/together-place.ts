@@ -1,3 +1,4 @@
+import { assertLocationAccess, filterAccessibleLocations, CALDERS_WORLD_ID, loadWorldProgress } from './kivelle-world-progress.ts';
 import { requestRead } from './request-context.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { capabilitiesForTier, hasOpenBuildWorldAccess, normalizeSubscriptionTier } from '../../../packages/together-domain/src/index.ts';
@@ -35,9 +36,11 @@ export async function resolvePlaceContext(input:{db:SupabaseClient;locationId:st
   const now=input.now??new Date();
   const {data:location,error}=await requestRead(input.db,['authored-location',input.locationId],()=>input.db.from('together_locations').select('*').eq('id',input.locationId).maybeSingle());
   if(error||!location)throw new AppError('NOT_FOUND','That place is unavailable.',404);
+  await assertLocationAccess(input.db,input.userId,location);
   const aiLorePromise=resolveEligibleLocationAiLore({...input,locationId:String(location.id)});
   const {data:world,error:worldError}=await requestRead(input.db,['authored-world',location.world_id],()=>input.db.from('together_worlds').select('*').eq('id',location.world_id).maybeSingle());
   if(worldError||!world)throw new AppError('INTERNAL_ERROR','This place is missing its world.',500,true);
+  if(world.published===false)throw new AppError('NOT_FOUND','This world is not available yet.',404);
   const ancestry:Row[]=[];const visited=new Set<string>([String(location.id)]);let parentId=location.parent_location_id?String(location.parent_location_id):null;
   while(parentId){
     if(visited.has(parentId)||visited.size>16)throw new AppError('INTERNAL_ERROR','This place has an invalid hierarchy.',500,true);
@@ -50,8 +53,9 @@ export async function resolvePlaceContext(input:{db:SupabaseClient;locationId:st
   const timezonePromise=resolveUserExperienceTimezone(input.db,input.userId,safeTimezone(world.timezone));
   const nearbySlugs=Array.isArray(lore.nearbyLocationSlugs)?lore.nearbyLocationSlugs.map(String).filter(Boolean).slice(0,8):[];
   let nearbyRows:Row[]=[];
-  if(nearbySlugs.length){const{data}=await input.db.from('together_locations').select('id,slug,name,location_type,category,description,possible_activities,sort_order').eq('world_id',location.world_id).in('slug',nearbySlugs).limit(8);nearbyRows=data??[];}
-  else if(location.parent_location_id){const{data}=await input.db.from('together_locations').select('id,slug,name,location_type,category,description,possible_activities,sort_order').eq('world_id',location.world_id).eq('parent_location_id',location.parent_location_id).neq('id',location.id).order('sort_order').limit(6);nearbyRows=data??[];}
+  if(nearbySlugs.length){const{data}=await input.db.from('together_locations').select('id,slug,name,location_type,category,description,possible_activities,sort_order,world_id,access_metadata').eq('world_id',location.world_id).in('slug',nearbySlugs).limit(8);nearbyRows=data??[];}
+  else if(location.parent_location_id){const{data}=await input.db.from('together_locations').select('id,slug,name,location_type,category,description,possible_activities,sort_order,world_id,access_metadata').eq('world_id',location.world_id).eq('parent_location_id',location.parent_location_id).neq('id',location.id).order('sort_order').limit(6);nearbyRows=data??[];}
+  nearbyRows=input.userId?await filterAccessibleLocations(input.db,input.userId,nearbyRows):nearbyRows.filter(row=>row.access_metadata?.publicMapVisible!==false);
   const districtRow=String(location.location_type??'venue')==='district'?location:[...ancestry].reverse().find((item)=>String(item.location_type)==='district');
   const districtLore=(districtRow?.canonical_lore??{}) as LocationLore;
   const adjacentSlugs=Array.isArray(districtLore.nearbyLocationSlugs)?districtLore.nearbyLocationSlugs.map(String).filter(Boolean).slice(0,8):[];
@@ -96,8 +100,22 @@ function unique(values:string[]){return[...new Set(values)];}
 
 export async function resolveCharacterHomeContext(input:{db:SupabaseClient;characterVersionId:string;now?:Date;userId?:string}):Promise<PlaceContext|null>{
   const now=input.now??new Date();
-  const{data:home,error}=await requestRead(input.db,['authored-home',input.characterVersionId],()=>input.db.from('together_character_homes').select('*').eq('character_version_id',input.characterVersionId).eq('active',true).maybeSingle());
-  if(error||!home)return null;
+  const{data:authoredHome,error}=await requestRead(input.db,['authored-home',input.characterVersionId],()=>input.db.from('together_character_homes').select('*').eq('character_version_id',input.characterVersionId).eq('active',true).maybeSingle());
+  if(error||!authoredHome)return null;
+  const home=structuredClone(authoredHome);
+  if(home.world_id===CALDERS_WORLD_ID&&input.userId){
+    const {state}=await loadWorldProgress(input.db,input.userId,CALDERS_WORLD_ID);
+    const owner=home.canonical_lore?.ownerCharacterId;
+    const move=(state.transitions??[]).filter((t:Row)=>t.kind==='relocation'&&t.departingCharacterId===owner&&t.locationId&&Date.parse(t.recordedAt)<=now.getTime()).at(-1);
+    if(move){
+      home.district_anchor_location_id=move.locationId;
+      home.name='Private lodgings at the agreed new base';
+      home.description='A private room at the saved new base. Its precise furnishings and ownership have not been established.';
+      home.prompt_text='A modest private room in Calder’s Run, 1888, at the agreed new base. Period materials and closed personal papers. Do not reuse the former hideout or claim a purchased home.';
+      home.canonical_visual_context={canonicalPrompt:home.prompt_text,indoorOutdoor:'indoor'};
+      home.canonical_lore={version:2,authored:true,summary:home.description,ownerCharacterId:owner,access:'specific_invitation_only',stableFacts:['The old residence no longer establishes the current home. A separate invitation is required.']};
+    }
+  }
   const[{data:world},{data:district}]=await Promise.all([
     input.db.from('together_worlds').select('*').eq('id',home.world_id).eq('published',true).maybeSingle(),
     home.district_anchor_location_id?input.db.from('together_locations').select('id,world_id,slug,name,location_type,description,canonical_visual_context,canonical_lore').eq('id',home.district_anchor_location_id).maybeSingle():Promise.resolve({data:null}),

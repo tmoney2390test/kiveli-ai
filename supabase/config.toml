@@ -124,8 +124,14 @@ verify_jwt = false
 [functions.together-stories]
 verify_jwt = false
 
+[functions.together-world-story]
+verify_jwt = false
+
 [functions.together-story-dialogue]
 verify_jwt = false
 
 [functions.together-dialogue-quote]
+verify_jwt = false
+
+[functions.together-scenario]
 verify_jwt = false

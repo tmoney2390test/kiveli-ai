@@ -1,6 +1,8 @@
+import { ensureCalderSchedule } from './kivelle-calders-schedule.ts';
+import { filterAccessibleLocations } from './kivelle-world-progress.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
-import { experienceClock } from './kivelle-time.ts';
+import { resolveUserExperienceTimezone, experienceClock, safeTimezone } from './kivelle-time.ts';
 import { resolveCharacterPlaceContext, resolvePlaceContext } from './together-place.ts';
 import { activeContinuity } from './together-continuity.ts';
 import { normalizeMultimodalPreferences, resolveServerExperienceCapabilities } from './kivelle-multimodal.ts';
@@ -209,13 +211,13 @@ export async function buildExploreCatalogSnapshot(db:SupabaseClient,userId:strin
   const failed=[worlds,locations,characterWorldPresence,discoverable,favorites,events].find((result)=>result.error);
   if(failed?.error)throw new AppError('INTERNAL_ERROR','Explore could not refresh right now.',500,true);
   const publishedWorlds=worlds.data??[],worldIds=new Set(publishedWorlds.map((world)=>String(world.id)));
-  const publishedLocations=(locations.data??[]).filter((location)=>worldIds.has(String(location.world_id)));
+  const publishedLocations=await filterAccessibleLocations(db,userId,(locations.data??[]).filter((location)=>worldIds.has(String(location.world_id))));
   const locationIds=new Set(publishedLocations.map((location)=>String(location.id)));
   return{
     worlds:publishedWorlds,
     locations:publishedLocations.map(compactSnapshotLocation),
     characterWorldPresence:(characterWorldPresence.data??[]).filter((presence)=>worldIds.has(String(presence.world_id))),
-    discoverableCharacters:await hydrateDiscoverableCharacters(db,discoverable.data??[]),
+    discoverableCharacters:await hydrateDiscoverableCharacters(db,(discoverable.data??[]).filter((row:Record<string,any>)=>!row.discovery_metadata?.requiredLocationState||publishedLocations.some((location:Record<string,any>)=>location.id===row.first_meeting?.location_id))),
     favoriteCharacterTemplateIds:(favorites.data??[]).map((item)=>String(item.character_template_id)),
     lifeEvents:(events.data??[]).filter((event)=>!event.location_id||locationIds.has(String(event.location_id))),
     refreshedAt:new Date().toISOString(),
@@ -296,7 +298,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
   }
   const publishedWorlds=worlds.data??[];
   const publishedWorldIds=new Set(publishedWorlds.map((world)=>String(world.id)));
-  const publishedLocations=(locations.data??[]).filter((location)=>publishedWorldIds.has(String(location.world_id)));
+  const publishedLocations=await filterAccessibleLocations(db,userId,(locations.data??[]).filter((location)=>publishedWorldIds.has(String(location.world_id))));
   const publishedLocationIds=new Set(publishedLocations.map((location)=>String(location.id)));
   const publishedWorldAccess=(userWorlds.data??[]).filter((access)=>publishedWorldIds.has(String(access.world_id)));
   const publishedCharacterPresence=(characterWorldPresence.data??[]).filter((presence)=>publishedWorldIds.has(String(presence.world_id)));
@@ -304,6 +306,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
   const publishedLifeEvents=(events.data??[]).filter((event)=>!event.location_id||publishedLocationIds.has(String(event.location_id)));
   const publishedSharedPlans=(sharedPlans.data??[]).filter((plan)=>!plan.world_id||publishedWorldIds.has(String(plan.world_id))||plan.status==='completed').map(decorateSnapshotSharedPlan);
   const now=Date.now(),nowDate=new Date(now);
+  scheduleEvents.data=await refreshCalderSnapshotSchedules(db,userId,instances.data??[],safeTimezone(profile.data?.experience_timezone),nowDate,scheduleEvents.data??[]);
   const activeScenes=(sceneSessions.data??[]).filter((scene:Record<string,unknown>)=>{
     if(!publishedWorldIds.has(String(scene.world_id)))return false;
     const expected=scene.expected_end_at?new Date(String(scene.expected_end_at)).getTime():new Date(String(scene.started_at)).getTime()+3*60*60*1000;
@@ -314,12 +317,13 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
   // The persisted character row stays schedule-owned; snapshot consumers see
   // the shared scene without mutating the character just to render a screen.
   const visibleInstances:Array<Record<string,any>>=(instances.data??[]).map((instance:Record<string,any>):Record<string,any>=>{
+    if(instance.scenario_state)return instance;
     const scene=sceneByInstance.get(String(instance.id));
     if(scene)return {...instance,current_location_id:scene.location_id,current_activity:sceneSnapshotActivity(scene),current_interruptibility:'open',current_presence_source:'scene'};
     if(hasActiveSnapshotCommitment(String(instance.id),nowDate,publishedDates,publishedSharedPlans))return instance;
     const authoritativeEvent=activeAuthoritativeLifeEvent(String(instance.id),nowDate,publishedLifeEvents);
     if(authoritativeEvent)return {...instance,current_location_id:authoritativeEvent.location_id??instance.current_location_id,current_activity:authoritativeEvent.narrative_summary??authoritativeEvent.title??instance.current_activity,current_presence_source:'life_event'};
-    const authored=resolveAuthoredSnapshotPresence(instance,nowDate,schedules.data??[],publishedLocations,publishedWorlds,publishedCharacterPresence);
+    const authored=resolveAuthoredSnapshotPresence(instance,nowDate,schedules.data??[],publishedLocations,publishedWorlds,publishedCharacterPresence,scheduleEvents.data??[]);
     if(!authored)return instance;
     return {...instance,current_location_id:authored.locationId,current_activity:authored.activity,current_energy:authored.energy,current_interruptibility:authored.interruptibility,current_presence_source:'schedule',current_schedule_event_id:null};
   });
@@ -341,7 +345,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
   const currentLocationId=String(activeInstance?.current_location_id??'');
   const [signed,discoverableCharacters,characterPlaceProfilesResult,currentPlaceContext]=await Promise.all([
     readyPaths.length?db.storage.from('together-user-media').createSignedUrls(readyPaths,3600):Promise.resolve({data:[]}),
-    hydrateDiscoverableCharacters(db,discoverable.data??[]),
+    hydrateDiscoverableCharacters(db,(discoverable.data??[]).filter((row:Record<string,any>)=>!row.discovery_metadata?.requiredLocationState||publishedLocations.some((location:Record<string,any>)=>location.id===row.first_meeting?.location_id))),
     versionIds.length?db.from('together_character_place_profiles').select('*').in('character_version_id',versionIds):Promise.resolve({data:[],error:null}),
     activeInstance?resolveCharacterPlaceContext({db,characterVersionId:String(activeInstance.character_version_id),locationId:publishedLocationIds.has(currentLocationId)?currentLocationId:null,activity:String(activeInstance.current_activity??''),userId,characterInstanceId:String(activeInstance.id)}):Promise.resolve(null),
   ]);
@@ -378,38 +382,40 @@ export async function buildCharacterPresenceSnapshot(
   ]);
   const failed=[schedules,scheduleEvents,worlds,locations,presence,scenes,dates,plans,lifeEvents].find((result)=>result.error);
   if(failed?.error)throw new AppError('INTERNAL_ERROR','Companion presence could not be refreshed.',500,true);
-  const publishedWorlds=worlds.data??[],worldIds=new Set(publishedWorlds.map((world)=>String(world.id))),publishedLocations=(locations.data??[]).filter((location)=>worldIds.has(String(location.world_id))),locationIds=new Set(publishedLocations.map((location)=>String(location.id)));
+  const publishedWorlds=worlds.data??[],worldIds=new Set(publishedWorlds.map((world)=>String(world.id))),publishedLocations=await filterAccessibleLocations(db,userId,(locations.data??[]).filter((location)=>worldIds.has(String(location.world_id)))),locationIds=new Set(publishedLocations.map((location)=>String(location.id)));
+  scheduleEvents.data=await refreshCalderSnapshotSchedules(db,userId,[instance],await resolveUserExperienceTimezone(db,userId),nowDate,scheduleEvents.data??[]);
   const activeScene=(scenes.data??[]).find((scene)=>{const expected=scene.expected_end_at?new Date(String(scene.expected_end_at)).getTime():new Date(String(scene.started_at)).getTime()+3*60*60*1000;return Number.isFinite(expected)&&expected>now&&worldIds.has(String(scene.world_id));});
-  const visible=activeScene
+  const visible=instance.scenario_state?instance:activeScene
     ? {...instance,current_location_id:activeScene.location_id,current_activity:sceneSnapshotActivity(activeScene),current_interruptibility:'open',current_presence_source:'scene'}
     : hasActiveSnapshotCommitment(characterInstanceId,nowDate,dates.data??[],(plans.data??[]).map(decorateSnapshotSharedPlan))
     ? instance
-    : (()=>{const event=activeAuthoritativeLifeEvent(characterInstanceId,nowDate,lifeEvents.data??[]);if(event)return{...instance,current_location_id:event.location_id??instance.current_location_id,current_activity:event.narrative_summary??event.title??instance.current_activity,current_presence_source:'life_event'};const authored=resolveAuthoredSnapshotPresence(instance,nowDate,schedules.data??[],publishedLocations,publishedWorlds,presence.data??[]);return authored?{...instance,current_location_id:authored.locationId,current_activity:authored.activity,current_energy:authored.energy,current_interruptibility:authored.interruptibility,current_presence_source:'schedule',current_schedule_event_id:null}:instance;})();
+    : (()=>{const event=activeAuthoritativeLifeEvent(characterInstanceId,nowDate,lifeEvents.data??[]);if(event)return{...instance,current_location_id:event.location_id??instance.current_location_id,current_activity:event.narrative_summary??event.title??instance.current_activity,current_presence_source:'life_event'};const authored=resolveAuthoredSnapshotPresence(instance,nowDate,schedules.data??[],publishedLocations,publishedWorlds,presence.data??[],scheduleEvents.data??[]);return authored?{...instance,current_location_id:authored.locationId,current_activity:authored.activity,current_energy:authored.energy,current_interruptibility:authored.interruptibility,current_presence_source:'schedule',current_schedule_event_id:null}:instance;})();
   return{
     character:visible,
-    scheduleEvents:(scheduleEvents.data??[]).filter((event)=>!event.metadata?.suppressedByPlanId&&(!event.location_id||locationIds.has(String(event.location_id)))),
+    scheduleEvents:(scheduleEvents.data??[]).filter((event)=>!event.metadata?.suppressedByPlanId&&(!event.location_id||locationIds.has(String(event.location_id)))).map(compactSnapshotScheduleEvent),
     sceneSessions:activeScene?[activeScene]:[],
     refreshedAt:new Date().toISOString(),
   };
 }
 
 async function buildOnboardingSnapshot(db:SupabaseClient,userId:string,profile:Record<string,unknown>|null):Promise<Record<string,unknown>>{
-  const[worlds,locations,characterWorldPresence,discoverable,entitlements,preferences]=await Promise.all([
+  const[worlds,locations,characterWorldPresence,discoverable,entitlements,preferences,personas]=await Promise.all([
     db.from('together_worlds').select('*').eq('published',true),
     db.from('together_locations').select('*'),
     db.from('together_character_world_presence').select('*'),
     db.from('together_character_templates').select(SNAPSHOT_DISCOVERABLE_CHARACTER_SELECT).eq('published',true).eq('can_be_selected',true).neq('lifecycle_status','archived').order('name'),
     db.from('together_entitlements').select('*').eq('user_id',userId).maybeSingle(),
     db.from('together_notification_preferences').select('*').eq('user_id',userId).maybeSingle(),
+    db.from('together_user_personas').select('*').eq('user_id',userId).order('is_default',{ascending:false}).order('created_at'),
   ]);
-  const failed=[worlds,locations,characterWorldPresence,discoverable,entitlements,preferences].find((result)=>result.error);
+  const failed=[worlds,locations,characterWorldPresence,discoverable,entitlements,preferences,personas].find((result)=>result.error);
   if(failed?.error)throw new AppError('INTERNAL_ERROR','Kivelle could not prepare your first meeting.',500,true);
   const publishedWorlds=worlds.data??[],publishedWorldIds=new Set(publishedWorlds.map((world)=>String(world.id)));
-  const publishedLocations=(locations.data??[]).filter((location)=>publishedWorldIds.has(String(location.world_id))).map(compactSnapshotLocation);
-  const discoverableCharacters=await hydrateDiscoverableCharacters(db,discoverable.data??[]);
+  const publishedLocations=(await filterAccessibleLocations(db,userId,(locations.data??[]).filter((location)=>publishedWorldIds.has(String(location.world_id))))).map(compactSnapshotLocation);
+  const discoverableCharacters=await hydrateDiscoverableCharacters(db,(discoverable.data??[]).filter((row:Record<string,any>)=>!row.discovery_metadata?.requiredLocationState||publishedLocations.some((location:Record<string,any>)=>location.id===row.first_meeting?.location_id)));
   const entitlementKeys=(entitlements.data?.entitlement_keys??[]).map(String);
   return{
-    profile:profile?projectClientProfile(profile):null,activePersona:null,activeContinuity:null,personas:[],continuities:[],
+    profile:profile?projectClientProfile(profile):null,activePersona:personas.data?.[0]??null,activeContinuity:null,personas:personas.data??[],continuities:[],
     worlds:publishedWorlds,userWorlds:[],characterWorldPresence:(characterWorldPresence.data??[]).filter((presence)=>publishedWorldIds.has(String(presence.world_id))),currentPlaceContext:null,locations:publishedLocations,relationshipPlaces:[],characterPlaceProfiles:[],
     characters:[],discoverableCharacters,favoriteCharacterTemplateIds:[],schedules:[],scheduleEvents:[],relationships:[],relationshipMilestones:[],relationshipMilestoneHistory:[],relationshipCues:{},dates:[],moments:[],memories:[],openThreads:[],conversations:[],sceneSessions:[],sceneParticipants:[],sharedPlans:[],conversationEvents:[],lifeEvents:[],proactiveMessages:[],storyArcs:[],trips:[],photoOpportunities:[],generatedMedia:[],conversationActions:[],
     entitlements:entitlements.data??null,experienceCapabilities:resolveServerExperienceCapabilities(normalizeMultimodalPreferences(undefined),entitlementKeys).experience,notificationPreferences:preferences.data??null,
@@ -449,8 +455,8 @@ function snapshotMetadata(metadata:unknown,keys:readonly string[]){
   return result;
 }
 
-function compactSnapshotSchedule(row:Record<string,any>){return{...row,metadata:snapshotMetadata(row.metadata,SNAPSHOT_SCHEDULE_METADATA_KEYS)};}
-function compactSnapshotScheduleEvent(row:Record<string,any>){return{...row,metadata:snapshotMetadata(row.metadata,SNAPSHOT_SCHEDULE_EVENT_METADATA_KEYS)};}
+export function compactSnapshotSchedule(row:Record<string,any>){const hidden=row.metadata?.source==='calders_run_authoring_v1'&&row.metadata?.profileVisibility==='hidden';return{...row,...(hidden?{location_id:null,activity:'Private time'}:{}),metadata:snapshotMetadata(row.metadata,SNAPSHOT_SCHEDULE_METADATA_KEYS)};}
+function compactSnapshotScheduleEvent(row:Record<string,any>){const hidden=row.metadata?.source==='calders_run_authoring_v1'&&row.visibility==='hidden';return{...row,...(hidden?{location_id:null,title:row.activity_key==='travel'?'On the way':'Private time'}:{}),metadata:hidden?{}:snapshotMetadata(row.metadata,SNAPSHOT_SCHEDULE_EVENT_METADATA_KEYS)};}
 function compactSnapshotMediaMetadata(metadata:unknown){
   const result=snapshotMetadata(metadata,SNAPSHOT_MEDIA_METADATA_KEYS),source=metadata&&typeof metadata==='object'&&!Array.isArray(metadata)?metadata as Record<string,unknown>:{};
   const place=source.placeContext&&typeof source.placeContext==='object'&&!Array.isArray(source.placeContext)?source.placeContext as Record<string,unknown>:null;
@@ -472,9 +478,24 @@ async function fetchScheduleTemplates(db:SupabaseClient,characterVersionIds:stri
   return{data:rows,error:null};
 }
 
-function resolveAuthoredSnapshotPresence(instance:Record<string,unknown>,now:Date,schedules:Array<Record<string,any>>,locations:Array<Record<string,any>>,worlds:Array<Record<string,any>>,presences:Array<Record<string,any>>){
+async function refreshCalderSnapshotSchedules(db:SupabaseClient,userId:string,instances:Array<Record<string,any>>,timezone:string,now:Date,events:Array<Record<string,any>>) {
+  const calder=instances.filter(instance=>instance.together_character_versions?.life_config?.source==='calders_run_authoring_v1');
+  if(!calder.length)return events;
+  const ids=new Set(calder.map(instance=>String(instance.id))),fresh:Array<Record<string,any>>=[];
+  for(const instance of calder){
+    const blocks=await ensureCalderSchedule({db,userId,instance,timezone,now,days:1,persist:false});
+    for(const block of blocks)fresh.push({character_instance_id:instance.id,location_id:block.locationId,title:block.title,activity_key:block.activityKey,starts_at:block.startsAt,ends_at:block.endsAt,visibility:block.visibility,interruptibility:block.interruptibility,priority:block.priority,source:block.source,metadata:block.metadata});
+  }
+  return [...events.filter(event=>!ids.has(String(event.character_instance_id))||event.metadata?.source!=='calders_run_authoring_v1'),...fresh];
+}
+
+function resolveAuthoredSnapshotPresence(instance:Record<string,unknown>,now:Date,schedules:Array<Record<string,any>>,locations:Array<Record<string,any>>,worlds:Array<Record<string,any>>,presences:Array<Record<string,any>>,events:Array<Record<string,any>>=[]){
   const versionId=String(instance.character_version_id??''),authored=schedules.filter((row)=>String(row.character_version_id)===versionId&&row.metadata?.scheduleMode==='authored');
   if(!authored.length)return null;
+  if(authored[0]?.metadata?.source==='calders_run_authoring_v1'){
+    const event=events.filter(row=>row.character_instance_id===instance.id&&row.metadata?.source==='calders_run_authoring_v1'&&!row.metadata?.suppressedByPlanId&&new Date(row.starts_at)<=now&&new Date(row.ends_at)>now).sort((a,b)=>Number(b.metadata?.worldProgressVersion??0)-Number(a.metadata?.worldProgressVersion??0))[0];
+    return event?{locationId:event.visibility==='hidden'?null:event.location_id,activity:event.visibility==='hidden'?'Taking some private time':event.title,energy:'medium',interruptibility:event.interruptibility}:null;
+  }
   const worldPresence=presences.filter((row)=>String(row.character_version_id)===versionId&&row.presence_type!=='unavailable').sort((left,right)=>Number(right.presence_type==='resident')-Number(left.presence_type==='resident'))[0];
   const locationById=new Map(locations.map((location)=>[String(location.id),location]));
   const authoredLocation=authored.map((row)=>locationById.get(String(row.location_id??''))).find(Boolean);

@@ -10,6 +10,7 @@ Use `together_ops_role` with `viewer`, `support`, or `admin`. Existing `together
 
 ## Control-room views
 
+- **Engagement (default):** UTC date presets/custom range, current free/paid segments, internal-account exclusion, activity trends, new-account milestones, exact-day retention cohorts, companion/world/scenario performance, media outcomes, provider costs, proactive outcomes, feature adoption, aggregate CSV export, and a copyable owner briefing. Optional foreground-only refresh runs every minute.
 - **Overview:** health scorecard and unresolved incidents.
 - **Queues:** active count, oldest age, failure volume, provider/model success, p95 latency, and estimated cost for dialogue, media, voice, push, and proactive work.
 - **Incidents:** acknowledge, monitor, assign, resolve, and reopen grouped operational failures.
@@ -21,6 +22,20 @@ Use `together_ops_role` with `viewer`, `support`, or `admin`. Existing `together
 - **Audit:** admin-only append-only record of operator reads and mutations.
 
 The control room intentionally excludes prompts, messages, transcripts, Persona, memories, content preferences, signed media URLs, access tokens, provider payloads, IP addresses, device fingerprints, and credentials.
+
+## Engagement access and data quality
+
+Open `https://kivelli.app/ops`, or **Settings → Admin console** on an authorized account. The settings link asks the authenticated server for access; hiding the link never substitutes for server authorization. A missing role returns 403 for both dashboards. Only an explicitly identified owner account should receive an admin role; the shared QA login is not automatically elevated.
+
+Engagement reports use only Kivelle `together_profiles`, respect current analytics opt-outs, and exclude labeled test/staff accounts and configured operations accounts by default. The existing test7 QA account is labeled test. Admins can classify another exact account ID under Engagement → Data with a written reason. Classification and audit insertion are atomic and do not change permissions. Role-bearing accounts remain internal even if labeled customer.
+
+`together_engagement_events` records only a random event/session ID, account ID, allowlisted surface, onboarding step, capped foreground seconds, platform, and server timestamp. Auth/debug/ops routes, URL parameters, chat bodies, prompts, and media URLs are not collected. Recording is authenticated, rate-limited, idempotent, server consent-checked, and best effort. Tables use RLS with service-only access and account-delete cascades. Foreground time is approximate across tabs and visits, not proof of attention; browser shutdown, throttling, and failed requests may undercount. A 30-minute inactivity gap renews the session.
+
+Historical activity derives from retained completed human messages; new page/onboarding instrumentation begins at deployment. Dates and exact day-1/7/30 retention use UTC. Only fully elapsed return days are eligible; the report shows denominators and flags samples below 20. New-account milestones are independent, not a strict drop-off funnel. Current entitlement records and companion locations are not historical snapshots. Scenario rows show current statuses for sessions started in the window. Deletion and resets can reduce historical metrics.
+
+Media success uses canonical requests created in the window and excludes pending requests from its denominator. Provider rows count attempts, including retries; price coverage is explicit, and known costs are neither profit nor revenue. Proactive reply counts are associations within 24 hours, with recent deliveries only partially observed, and exclude identified plan reminders. Operational tabs retain their existing broader scopes. Do not compare their totals directly against customer-only engagement reports.
+
+New service-only RPCs: `kivelle_engagement_dashboard`, `kivelle_record_engagement`, and `kivelle_label_engagement_account`. The report limits windows to 93 days; previous-period comparison matches the selected duration. Client refreshes suppress stale responses and label retained data after errors. CSV exports include applied filters, coverage, and metric definitions and escape spreadsheet formula cells.
 
 ## Guarded support actions
 

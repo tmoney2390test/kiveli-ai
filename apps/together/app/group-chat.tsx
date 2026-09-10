@@ -465,7 +465,7 @@ export default function GroupChatScreen() {
     setShowJumpToLatest(false);
     scrollRef.current?.scrollToEnd({animated:false});
   },[params.id,width]);
-  const onMobileComposerFocus=useMobileChatKeyboardPin(width<720,pinLatestForMobileKeyboard);
+  const {onComposerFocus:onMobileComposerFocus,viewportStyle:mobileViewportStyle}=useMobileChatKeyboardPin(width<720,pinLatestForMobileKeyboard);
   const refreshGroupDelta=useCallback(async function refreshGroupDeltaTask(){
     const current=detailRef.current;if(!params.id||!current?.syncedAt)return;
     if(deltaRefreshRunning.current){deltaRefreshQueued.current=true;return;}
@@ -1800,7 +1800,7 @@ export default function GroupChatScreen() {
   };
   return (
     <KeyboardAvoidingView
-      style={styles.screen}
+      style={[styles.screen,mobileViewportStyle]}
       behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined}
     >
       <View style={styles.shell}>
@@ -2122,7 +2122,7 @@ export default function GroupChatScreen() {
             onRetry={offer.generated_media_id&&(detail.generatedMedia??[]).find((item)=>item.id===offer.generated_media_id)?.status==='failed'?()=>{const failed=(detail.generatedMedia??[]).find((item)=>item.id===offer.generated_media_id);if(failed)void retryGeneratedMedia(failed);}:undefined}
           />
         ))}
-        {replyDrafts.drafts.map(draft=><View key={draft.replyKey} style={{marginVertical:8,marginHorizontal:16,padding:14,borderRadius:18,backgroundColor:colors.surface}}><Text style={{color:colors.rose,fontWeight:'600',marginBottom:6}}>{draft.speakerName}</Text><Text style={[messageTypography,{color:colors.text}]}>{draft.text}</Text></View>)}
+        {replyDrafts.drafts.map(draft=><View key={draft.replyKey} style={{marginVertical:8,marginHorizontal:16,padding:14,borderRadius:18,backgroundColor:colors.surface}}><Text style={{color:colors.rose,fontWeight:'600',marginBottom:6}}>{draft.speakerName}</Text><CharacterMentionText text={draft.text} streaming speakerName={draft.speakerName} characters={[]} onCharacterPress={()=>{}} style={[messageTypography,{color:colors.text}]}/></View>)}
         {typing.filter(person=>!replyDrafts.drafts.some(draft=>draft.characterInstanceId===person.id)).map((person) => <ChatTypingIndicator key={person.id} name={person.name}/>) }
         {replyPending&&!typing.length?<ChatTypingIndicator name={detail.conversation.title??"Group"}/>:null}
         </>:null}
@@ -2499,6 +2499,7 @@ function GroupComposer({
   onFocus?: () => void;
 }) {
   const insets=useSafeAreaInsets();
+  const {width}=useWindowDimensions();
   const [composerFocused, setComposerFocused] = useState(false);
   const dictation = useChatDictation({
       conversationId,
@@ -2557,7 +2558,7 @@ function GroupComposer({
             placeholderTextColor={colors.dimmed}
             multiline
             textAlignVertical="top"
-            style={styles.composerInput}
+            style={[styles.composerInput,width<720&&styles.composerInputMobile]}
           />
           <GroupDictationButton
             phase={dictation.phase}
@@ -3381,7 +3382,7 @@ function GroupBubble({
               {message.content !== "[Photo]"
                 ? user
                   ? <Text style={[styles.bubbleText, textStyle, { color: bubbleTextColor }]}>{message.content}</Text>
-                  : <CharacterMentionText text={message.content} characters={mentionCharacters} excludeSlug={speakerSlug} onCharacterPress={onCharacterMention} style={[styles.bubbleText,textStyle,{ color: bubbleTextColor }]}/>
+                  : <CharacterMentionText speakerName={speakerName} text={message.content} characters={mentionCharacters} excludeSlug={speakerSlug} onCharacterPress={onCharacterMention} style={[styles.bubbleText,textStyle,{ color: bubbleTextColor }]}/>
                 : null}
               {attachments.map((attachment) => (
                 <Pressable
@@ -4440,6 +4441,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(220,196,255,.28)",
   },
+  composerInputMobile: { fontSize: 16 },
   composerInput: {
     minWidth: 0,
     flex: 1,

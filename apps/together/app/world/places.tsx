@@ -80,6 +80,7 @@ export default function Places(){
       <View style={styles.heroCopy}><Text style={styles.heroKicker}>PLACE DIRECTORY</Text><Text style={styles.heroTitle}>Find your corner of {world.name}</Text><Text numberOfLines={2} style={styles.heroSubtitle}>Browse by mood, then open a district to see the places that actually belong there.</Text></View>
     </View>
 
+    {world.slug==='calders-run'?<Pressable accessibilityRole="button" onPress={()=>router.push('/world/stories')} style={{paddingVertical:12}}><Text style={styles.clear}>Stories of Calder’s Run →</Text></Pressable>:null}
     <View style={styles.controls}>
       <View style={styles.search}><Search size={17} color={colors.muted}/><TextInput accessibilityLabel={`Search places in ${world.name}`} value={query} onChangeText={setQuery} placeholder={`Search ${world.name}`} placeholderTextColor={colors.muted} style={styles.searchInput}/>{query?<Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={()=>setQuery('')}><Text style={styles.clear}>Clear</Text></Pressable>:null}</View>
       <PlaceCategoryFilters categories={baseDirectory.categories} value={category} onChange={setCategory}/>

@@ -1,3 +1,5 @@
+import {ScenarioBrowser} from '../src/components/ScenarioBrowser';
+import {useOnboardingEngagement} from '../src/providers/EngagementBridge';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ScrollView } from 'react-native';
 import { Image } from 'expo-image';
@@ -31,6 +33,8 @@ export default function ChooseCompanion() {
   const screenRef = useRef<ScrollView | null>(null);
   const { snapshot, setSnapshot, setBrowsedWorldId, refresh, loading } = useTogether();
   const [step, setStep] = useState<OnboardingStep>('world');
+  const [choiceTab,setChoiceTab]=useState<'characters'|'scenarios'>('characters');
+  useOnboardingEngagement(step==='world'?'world':choiceTab==='scenarios'?'scenario':'companion');
   const [selectedWorldId, setSelectedWorldId] = useState('');
   const [selectedCompanionId, setSelectedCompanionId] = useState('');
   const [visibleCount, setVisibleCount] = useState(12);
@@ -144,13 +148,13 @@ export default function ChooseCompanion() {
         <Text style={styles.reassurance}>You can explore other worlds anytime.</Text>
       </> : <>
         <View style={styles.heroCopy}>
-          <Text accessibilityRole="header" style={[styles.title, desktop && styles.titleDesktop]}>Who will you meet?</Text>
-          <Text style={styles.subtitle}>{selectedWorld ? `Choose someone already living in ${selectedWorld.name}.` : 'Choose someone to begin your story.'}</Text>
+          <Text accessibilityRole="header" style={[styles.title, desktop && styles.titleDesktop]}>{choiceTab==='scenarios'?'How will your story begin?':'Who will you meet?'}</Text>
+          <Text style={styles.subtitle}>{choiceTab==='scenarios'?`Choose a starting scene in ${selectedWorld?.name??'your world'}.`:selectedWorld ? `Choose someone already living in ${selectedWorld.name}.` : 'Choose someone to begin your story.'}</Text>
         </View>
 
         <View accessibilityRole="tablist" style={styles.tabs}>
-          <Pressable accessibilityRole="tab" accessibilityState={{ selected: true }} style={[styles.tab, styles.tabActive]}><Text style={[styles.tabText, styles.tabTextActive]}>Characters</Text></Pressable>
-          <Pressable accessibilityRole="tab" accessibilityLabel="Scenarios. Not available yet." accessibilityState={{ disabled: true, selected: false }} disabled style={[styles.tab, styles.tabDisabled]}><Text style={styles.tabText}>Scenarios</Text></Pressable>
+          <Pressable accessibilityRole="tab" accessibilityState={{ selected: choiceTab==='characters' }} onPress={()=>setChoiceTab('characters')} style={[styles.tab,choiceTab==='characters'&&styles.tabActive]}><Text style={[styles.tabText,choiceTab==='characters'&&styles.tabTextActive]}>Characters</Text></Pressable>
+          <Pressable accessibilityRole="tab" accessibilityState={{selected:choiceTab==='scenarios'}} onPress={()=>setChoiceTab('scenarios')} style={[styles.tab,choiceTab==='scenarios'&&styles.tabActive]}><Text style={[styles.tabText,choiceTab==='scenarios'&&styles.tabTextActive]}>Scenarios</Text></Pressable>
         </View>
 
         <View style={styles.peopleHeading}>
@@ -158,7 +162,7 @@ export default function ChooseCompanion() {
           <CompanionGenderToggle value={gender} onChange={setGender} />
         </View>
 
-        {visibleCompanions.length ? <View style={styles.peopleGrid} accessibilityRole="radiogroup" accessibilityLabel={`Characters in ${selectedWorld?.name ?? 'this world'}`}>
+        {choiceTab==='scenarios'?<ScenarioBrowser key={selectedWorldId} worldId={selectedWorldId} gender={gender} onboarding/>:<>{visibleCompanions.length ? <View style={styles.peopleGrid} accessibilityRole="radiogroup" accessibilityLabel={`Characters in ${selectedWorld?.name ?? 'this world'}`}>
           {visibleCompanions.map((person) => <CompanionCard key={person.id} person={person} desktop={desktop} selected={person.id === selectedCompanionId} busy={busy && person.id === selectedCompanionId} onPress={() => { if (!busy) { setSelectedCompanionId(person.id); setError(''); } }} />)}
         </View> : <FrostedSurface intensity={70} style={styles.emptyState}><Sparkles size={20} color={colors.violet} /><Text style={styles.emptyTitle}>No characters match this filter</Text><Text style={styles.emptyBody}>Choose All or try another gender.</Text></FrostedSurface>}
 
@@ -169,6 +173,7 @@ export default function ChooseCompanion() {
           disabled={!selectedCompanion || busy}
           onPress={() => void startMeeting()}
         />
+        </>}
       </>}
     </Screen>
   </View>;
@@ -258,7 +263,7 @@ const styles = StyleSheet.create({
   worldCardCompact: { width: '48%', aspectRatio: .78, borderRadius: 17 },
   worldCardCompactDesktop: { width: '31.9%', aspectRatio: .9 },
   worldCardSelected: { borderColor: '#B960DD', borderWidth: 2, shadowColor: '#B960DD', shadowOpacity: .28, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
-  worldShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(7,5,10,.13)', ...(Platform.OS === 'web' ? ({ backgroundImage: 'linear-gradient(0deg, rgba(6,4,9,.97) 0%, rgba(6,4,9,.18) 55%, rgba(6,4,9,.03) 78%)' } as never) : {}) },
+  worldShade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '60%', backgroundColor: Platform.OS === 'web' ? 'transparent' : 'rgba(6,4,9,.48)', ...(Platform.OS === 'web' ? ({ backgroundImage: 'linear-gradient(0deg, rgba(6,4,9,.82) 0%, rgba(6,4,9,.32) 45%, transparent 100%)' } as never) : {}) },
   selectionCheck: { position: 'absolute', top: 13, right: 13, width: 37, height: 37, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#A94FDC', borderWidth: 1, borderColor: 'rgba(255,255,255,.52)' },
   worldCopy: { zIndex: 1, gap: 5, padding: 22 },
   worldCopyCompact: { gap: 3, padding: 13 },

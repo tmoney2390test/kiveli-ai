@@ -5,6 +5,7 @@ describe('public landing content', () => {
   it('uses the focused launch headline and only the published world roster', () => {
     expect(PUBLIC_LANDING_COPY).toEqual({ title: 'Your story starts here.' });
     expect(PUBLIC_WORLDS.map((world) => world.slug)).toEqual([
+      'calders-run',
       'juniper-city',
       'neon-kyo',
       'port-vervelle',

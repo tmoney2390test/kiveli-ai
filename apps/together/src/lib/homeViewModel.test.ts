@@ -156,5 +156,16 @@ describe('buildHomeViewModel', () => {
     expect(model?.hero.statusLine.startsWith('At home')).toBe(false);
     expect(model?.hero.statusLine).toContain('Skyline Rooftop');
   });
+  it('does not preview a different conversation message when a scenario owns the companion', () => {
+    const active = {
+      ...snapshot,
+      characters: snapshot.characters.map(character => ({ ...character, scenario_state: { sessionId: 'session', scenarioId: 'story', title: 'The Invitation', conversationId: 'scenario-chat', locationId: 'chloe-home', worldId: 'city', startedAt: now.toISOString() } })),
+      conversations: [...snapshot.conversations, { ...snapshot.conversations[0], id: 'scenario-chat', unread: false, last_message_at: '2026-08-16T10:00:00.000Z' }],
+    } as Snapshot;
+    const result = buildHomeViewModel(active, now);
+    expect(result?.companion.id).toBe('chloe-instance');
+    expect(result?.message).toBeUndefined();
+    expect(result?.hero.prompt).toBe('Your story is waiting where you left it.');
+  });
 });
 

@@ -18,6 +18,7 @@ import {
 import { DetailPreservingArtwork } from '../../src/components/DetailPreservingArtwork';
 import { characterProfilePhotos } from '../../src/character-profile-assets';
 import { loadCharacterProfileDetails, manageConversation, meetCompanion, openConversation } from '../../src/lib/api';
+import { ScenarioScheduleNotice } from '../../src/components/ScenarioScheduleNotice';
 import { buildCharacterDaySchedule, type CharacterDayScheduleEntry } from '../../src/lib/characterDaySchedule';
 import { characterRelationshipPresentation, characterTrustPresentation, characterUpcomingCommitments, compactCharacterSchedule, type CharacterUpcomingCommitment } from '../../src/lib/characterProfilePresentation';
 import { relationshipDaysKnown } from '../../src/lib/companionLife';
@@ -158,7 +159,7 @@ export default function CharacterProfile() {
   const daySchedule = buildCharacterDaySchedule({ snapshot: profileSnapshot, instance, characterVersionId: version.id, timezone: snapshot.profile?.experience_timezone });
   const authoredScheduleOwnsPresence = Boolean(instance
     && daySchedule.source === 'authored'
-    && !['scene', 'active_date', 'active_plan', 'active_event', 'plan', 'life_event'].includes(String(instance.current_presence_source)));
+    && !['scenario', 'scene', 'active_date', 'active_plan', 'active_event', 'plan', 'life_event'].includes(String(instance.current_presence_source)));
   const currentActivity = naturalizeCharacterActivity(authoredScheduleOwnsPresence
     ? daySchedule.currentStatus?.activity ?? 'Having some unstructured time at home'
     : instance?.current_activity,{occupation:template.occupation});
@@ -230,6 +231,25 @@ export default function CharacterProfile() {
           </View>
         </View> : null}
 
+        {world ? <Text style={styles.profileWorld}>{world.name}</Text> : null}
+        {error ? <Text accessibilityLiveRegion="assertive" style={styles.error}>{error}</Text> : null}
+        {busy ? <Text accessibilityLiveRegion="polite" style={styles.openingStatus}>{openingStage==='meeting'?`Introducing you to ${template.name}…`:`Preparing your conversation with ${template.name}…`}</Text> : null}
+        {canTalk ? <GradientButton
+          disabled={busy}
+          label={busy ? openingStage==='meeting'?`Meeting ${template.name}…`:'Opening conversation…' : instance ? `Talk to ${template.name}` : `Meet ${template.name}`}
+          onPress={() => void act()}
+        /> : <View style={styles.notMet}>
+          <MapPin size={18} color={colors.muted} />
+          <Text style={styles.notMetText}>You haven’t been introduced yet. Their story will unfold through people, places, and events in their world.</Text>
+        </View>}
+
+        {instance ? <View style={styles.nowSummary} accessibilityLabel="Right now">
+          <Text style={styles.aboutLabel}>RIGHT NOW</Text>
+          <Text style={styles.nowActivity}>{currentActivity}</Text>
+          <Pressable accessibilityRole="link" disabled={!locationHref} onPress={()=>locationHref&&router.push(locationHref as never)} style={styles.nowLocation}><MapPin size={15} color={colors.rose}/><Text style={styles.nowLocationText}>{currentLocation}</Text></Pressable>
+          {nextUpcoming ? <UpcomingStat commitment={nextUpcoming} count={upcomingCommitments.length} timezone={snapshot.profile?.experience_timezone} onPress={()=>setUpcomingOpen(true)}/> : null}
+        </View> : null}
+
         {instance ? <View style={styles.badges}>
           <MoodBadge mood={instance.current_mood} />
           {known ? <RelationshipBadge stage={instance.relationship_stage} /> : null}
@@ -281,6 +301,13 @@ export default function CharacterProfile() {
           </Modal>
         </View> : null}
 
+        <View style={styles.interests}>
+          <Text style={styles.label}>Interests</Text>
+          <View style={styles.interestChips}>
+            {(version.interests?.length ? version.interests : ['Still discovering']).map((interest) => <View key={interest} style={styles.interestChip}><Text style={styles.interestChipText}>{interest}</Text></View>)}
+          </View>
+        </View>
+
         <View style={styles.about}>
           <Text style={styles.aboutLabel}>ABOUT {template.name.toUpperCase()}</Text>
           <Body muted>{naturalizeCharacterBiography(template.biography)}</Body>
@@ -305,10 +332,6 @@ export default function CharacterProfile() {
         <Text style={styles.detailsLabel}>CHARACTER DETAILS</Text>
         <View style={styles.facts}>
           <Info label="Age" value={String(template.age)} />
-          {instance ? <>
-            <Info label="Right now" value={currentActivity} />
-            <Info label="Location" value={currentLocation} onPress={locationHref ? () => router.push(locationHref as never) : undefined} />
-          </> : null}
           {world ? <Info label={instance ? 'World' : 'Lives in'} value={world.name} onPress={() => router.push(`/(tabs)/explore?world=${encodeURIComponent(world.slug)}` as never)} /> : null}
           {!instance && meetingLocation ? <Info label="Where you could meet" value={meetingLocation.name} onPress={() => router.push(`/location/${meetingLocation.slug}?world=${encodeURIComponent(world?.slug ?? '')}` as never)} /> : null}
           <Info label="Occupation" value={template.occupation} />
@@ -324,25 +347,7 @@ export default function CharacterProfile() {
           onRetry={() => { void profileDetailsQuery.refetch(); }}
         />
 
-        <View style={styles.interests}>
-          <Text style={styles.label}>Interests</Text>
-          <View style={styles.interestChips}>
-            {(version.interests?.length ? version.interests : ['Still discovering']).map((interest) => <View key={interest} style={styles.interestChip}><Text style={styles.interestChipText}>{interest}</Text></View>)}
-          </View>
-        </View>
-
         <CharacterScheduleCard snapshot={profileSnapshot} instance={instance} characterVersionId={version.id} characterName={template.name} loading={profileDetailsQuery.isLoading} loadError={profileDetailsQuery.isError} onRetry={() => { void profileDetailsQuery.refetch(); }}/>
-
-        {error ? <Text accessibilityLiveRegion="assertive" style={styles.error}>{error}</Text> : null}
-        {busy ? <Text accessibilityLiveRegion="polite" style={styles.openingStatus}>{openingStage==='meeting'?`Introducing you to ${template.name}…`:`Preparing your conversation with ${template.name}…`}</Text> : null}
-        {canTalk ? <GradientButton
-          disabled={busy}
-          label={busy ? openingStage==='meeting'?`Meeting ${template.name}…`:'Opening conversation…' : instance ? `Talk to ${template.name}` : `Meet ${template.name}`}
-          onPress={() => void act()}
-        /> : <View style={styles.notMet}>
-          <MapPin size={18} color={colors.muted} />
-          <Text style={styles.notMetText}>You haven’t been introduced yet. Their story will unfold through people, places, and events in their world.</Text>
-        </View>}
 
         {known && instance ? <View style={styles.sharedHistory}>
           <Text accessibilityRole="header" style={styles.sharedHistoryTitle}>Your shared history</Text>
@@ -552,6 +557,7 @@ function CharacterScheduleCard({snapshot,instance,characterVersionId,characterNa
   const hasSchedule=snapshot.schedules.some((item)=>item.character_version_id===characterVersionId);
   const[expanded,setExpanded]=useState(false);
   useEffect(()=>setExpanded(false),[characterVersionId]);
+  if(instance?.scenario_state)return <ScenarioScheduleNotice character={instance} locationName={snapshot.locations.find(place=>place.id===instance.scenario_state?.locationId)?.name}/>;
   const daySchedule=buildCharacterDaySchedule({snapshot,instance,characterVersionId,timezone:snapshot.profile?.experience_timezone});
   const compact=compactCharacterSchedule(daySchedule.entries);
   const visibleEntries=expanded?daySchedule.entries:compact.entries;
@@ -578,6 +584,11 @@ function ScheduleRow({entry,summary,onLocation}:{entry:CharacterDayScheduleEntry
 }
 
 const styles = StyleSheet.create({
+  profileWorld: { color: colors.rose, fontSize: 12, fontWeight: '800', letterSpacing: .6 },
+  nowSummary: { padding: 16, gap: 9, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  nowActivity: { color: colors.text, fontSize: 17, lineHeight: 24, fontWeight: '600' },
+  nowLocation: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  nowLocationText: { flex: 1, color: colors.muted, fontSize: 13, lineHeight: 19 },
   pageMobile: { padding: spacing.md, paddingBottom: 120, gap: 0 },
   pageDesktop: { padding: spacing.xl, paddingBottom: 120, gap: 0, maxWidth: 1040 },
   profile: { width: '100%', gap: spacing.md },

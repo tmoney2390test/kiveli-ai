@@ -5,7 +5,7 @@ export type RelevantDialogueOpportunity={id:string;slug:string;topic:string;angl
 export type DialogueOpportunityResolverInput={
   candidates:DialogueOpportunityCandidate[];worldId:string;currentLocationId?:string|null;districtLocationId?:string|null;
   userMessage:string;queryIntent?:string;currentTopic?:string;contentMode:string;relationshipStage?:string;spiceLevel:number;
-  characterTags?:string[];occupationTags?:string[];activeStorySlug?:string|null;selectedFactSlugs?:string[];
+  characterTags?:string[];occupationTags?:string[];activeStorySlug?:string|null;selectedFactSlugs?:string[];characterSlug?:string;personalInvitation?:boolean;
   daypart?:string;interactionModes:string[];recentUsage?:Map<string,AuthoredContentUsage>;currentTurn?:number|null;maximumResults?:number;
 };
 
@@ -16,6 +16,8 @@ export function resolveDialogueOpportunities(input:DialogueOpportunityResolverIn
   const facts=new Set((input.selectedFactSlugs??[]).map(normalizeAuthoredText));
   const results:RelevantDialogueOpportunity[]=[];
   for(const row of input.candidates.slice(0,15)){
+    if(row.metadata?.requiresPersonalInvitation===true&&!input.personalInvitation)continue;
+    if(Array.isArray(row.metadata?.characterSlugs)&&row.metadata.characterSlugs.length&&!row.metadata.characterSlugs.includes(input.characterSlug))continue;
     if(String(row.world_id)!==input.worldId||row.active===false)continue;
     if(!contentLevelEligible(row.content_level,input.contentMode)||Number(row.min_spice_level??1)>input.spiceLevel)continue;
     if(!relationshipStageEligible(input.relationshipStage,row.min_relationship_stage,row.max_relationship_stage)||!storyEligible(row.required_story_slug,input.activeStorySlug))continue;

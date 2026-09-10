@@ -117,7 +117,7 @@ export const manageMedia = async<T>(input: Record<string, unknown>) => {
   catch(caught){if(controller.signal.aborted)throw new ApiError('The media request took too long. Please try again.','REQUEST_TIMEOUT',true);throw caught;}
   finally{cancelTimeout();}
 };
-export const loadMediaLibrary = (options:{characterInstanceId?:string;before?:string;limit?:number}={}) => manageMedia<{media:GeneratedMedia[];hasMore:boolean;nextBefore:string|null}>({action:'list_library',...options});
+export const loadMediaLibrary = (options:{ids?:string[];characterInstanceId?:string;before?:string;limit?:number}={}) => manageMedia<{media:GeneratedMedia[];hasMore:boolean;nextBefore:string|null}>({action:'list_library',...options});
 export const loadConversationMediaGallery = (conversationId:string,limit=120) => manageMedia<{media:GeneratedMedia[];attachments:ConversationAttachment[];hasMore:boolean}>({action:'list_conversation_gallery',conversationId,limit});
 export const loadPhotoOfferStatus = (offerId:string) => manageMedia<{offer:MediaOffer;media:GeneratedMedia|null}>({action:'offer_status',offerId});
 export const rateGeneratedMedia = (mediaId:string,feedback:'positive'|'negative') => manageMedia<{mediaId:string;userFeedback:'positive'|'negative';userFeedbackAt:string}>({action:'feedback',mediaId,feedback});
@@ -316,3 +316,5 @@ export async function sendSceneReaction(input:{conversationId:string;characterIn
     if(!final)throw new ApiError('The reaction was interrupted. Try again.','STREAM_INTERRUPTED',true);return{message:final};
   },{attempts:2,delayMs:220,onRetry:()=>onRetry?.()});
 }
+
+export const manageScenario = <T>(input:Record<string,unknown>) => invoke<T>('together-scenario',input);

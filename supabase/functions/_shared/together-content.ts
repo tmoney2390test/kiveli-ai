@@ -30,6 +30,7 @@ export async function progressStoryArcs(input: { db: SupabaseClient; userId: str
   for (const arc of active) {
     if (arc.next_eligible_at && new Date(arc.next_eligible_at) > now) continue;
     const template = arc.together_story_arc_templates as Row;
+    if(template.prerequisites?.requiresAuthoredDecision)continue;
     if(template.world_scope==='specific'&&String(template.specific_world_id)!==String(currentWorldId))continue;
     const chapters = Array.isArray(template?.chapters) ? template.chapters as Row[] : [];
     const index = chapters.findIndex((chapter) => String(chapter.id) === String(arc.current_chapter_id));
@@ -73,7 +74,7 @@ function contentEligible(template: Row, relationship: Row, now: Date, contentMod
   return { eligible: true, reasons: ['Eligible.'] };
 }
 
-function arcEligible(template: Row, relationship: Row): boolean { return !template.min_relationship_stage || stageIndex(String(relationship.relationship_stage ?? 'stranger')) >= stageIndex(String(template.min_relationship_stage)); }
+function arcEligible(template: Row, relationship: Row): boolean { if(template.prerequisites?.requiresAuthoredDecision)return false; return !template.min_relationship_stage || stageIndex(String(relationship.relationship_stage ?? 'stranger')) >= stageIndex(String(template.min_relationship_stage)); }
 function stageIndex(value: string): number { return Math.max(0, stageOrder.indexOf(value)); }
 function scaleScore(scale: string): number { return scale === 'major' ? .9 : scale === 'meaningful' ? .7 : scale === 'normal' ? .42 : .2; }
 function stableUnit(value: string): number { let hash = 2166136261; for (const char of value) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); } return (hash >>> 0) / 4294967295; }

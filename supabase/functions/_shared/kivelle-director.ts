@@ -11,6 +11,7 @@ type DirectorContext={
   relationshipStance?:Record<string,unknown>;
   characterGoals?:Record<string,unknown>;
   currentScene?:Record<string,unknown>;
+  activeScenario?:Record<string,unknown>|null;
   activeStory?:Record<string,unknown>|null;
   openThreads?:Array<Record<string,unknown>>;
   upcomingCommitments?:Array<Record<string,unknown>>;
@@ -102,7 +103,10 @@ ${JSON.stringify(context.relationshipStance??{})}
 CURRENT SELF / GOALS
 ${JSON.stringify(context.characterGoals??{})}
 
-CURRENT SCENE
+SELECTED SCENARIO (the user chose this scene; adapt to later conversation choices, preserve agency, and keep private guidance private)
+${JSON.stringify(context.activeScenario??null)}
+
+ORDINARY SCHEDULE (background when a selected scenario is active)
 ${JSON.stringify(context.currentScene??{})}
 
 ACTIVE STORY

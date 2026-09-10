@@ -1,3 +1,5 @@
+import {CALDERS_WORLD_ID,loadWorldProgress} from './kivelle-world-progress.ts';
+import {ensureCalderSchedule} from './kivelle-calders-schedule.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildAroundTownFeed, selectWorldPulseForContext, stableWorldPulseHash, type AroundTownItem, type WorldPulseContextEvent, type WorldPulseEvent } from '../../../packages/together-domain/src/world-pulse.ts';
 import { localToUtc } from '../../../packages/together-domain/src/life-engine.ts';
@@ -10,16 +12,25 @@ export async function materializeWorldPulse(input:{db:SupabaseClient;userId:stri
   const now=input.now??new Date(),days=Math.max(1,Math.min(8,input.days??7));
   const [{data:templates,error:templateError},{data:characters,error:characterError}]=await Promise.all([
     input.db.from('together_world_event_templates').select('*').eq('world_id',input.worldId).eq('active',true).limit(72),
-    input.db.from('together_character_instances').select('id,character_template_id,together_character_templates(slug,name),together_locations(world_id)').eq('user_id',input.userId).eq('continuity_id',input.continuityId).not('introduced_at','is',null),
+    input.db.from('together_character_instances').select('id,character_template_id,character_version_id,continuity_id,together_character_versions(life_config),together_character_templates(slug,name,first_meeting),together_locations(world_id)').eq('user_id',input.userId).eq('continuity_id',input.continuityId).not('introduced_at','is',null),
   ]);
   if(templateError)throw templateError;if(characterError)throw characterError;
   const clock=experienceClock(input.timezone,now),charactersBySlug=worldPulseCharactersBySlug(characters??[],input.worldId);
+  const calder=input.worldId===CALDERS_WORLD_ID;
+  const calderFlags=calder?(await loadWorldProgress(input.db,input.userId,input.worldId,input.continuityId)).state.flags??[]:[];
+  const calderReservations=new Map<string,Set<string>>();
+  if(calder)for(const character of charactersBySlug.values()){
+    if(character.together_character_versions?.life_config?.source!=='calders_run_authoring_v1')continue;
+    const blocks=await ensureCalderSchedule({db:input.db,userId:input.userId,instance:character,timezone:input.timezone,now,days,persist:false});
+    calderReservations.set(String(character.id),new Set(blocks.filter(b=>b.metadata?.reservationKind==='event').map(b=>String(b.metadata?.reservationId))));
+  }
   const candidates:Array<{template:Row;row:Row}>=[];
   // Materialize a short look-back as well as the next week so returning users
   // can receive real temporal continuity instead of a world that began today.
   for(let offset=-3;offset<days;offset++){
     const localDate=addLocalDays(clock.localDate,offset),weekday=new Date(`${localDate}T12:00:00Z`).getUTCDay();
     for(const template of templates??[]){
+      if(calder&&!String(template.metadata?.accessGate??'public').startsWith('public')&&!calderFlags.includes(`event.invited:${template.metadata?.authoringEventId}`))continue;
       const weekdays=Array.isArray(template.weekdays)?template.weekdays.map(Number):[];if(!weekdays.includes(weekday))continue;
       const probability=Math.max(0,Math.min(1,Number(template.probability??1))),roll=(stableWorldPulseHash(`${input.continuityId}:${template.id}:${localDate}`)%10000)/10000;if(roll>probability)continue;
       const startsAt=localToUtc(localDate,Number(template.start_minute??720),input.timezone),endsAt=new Date(startsAt.getTime()+Number(template.duration_minutes??120)*60000),simulationKey=`world-pulse-v1:${template.id}:${localDate}`;
@@ -32,7 +43,8 @@ export async function materializeWorldPulse(input:{db:SupabaseClient;userId:stri
   if(instanceError)throw instanceError;
   const candidateByKey=new Map(candidates.map(item=>[String(item.row.simulation_key),item]));
   const participantRows:Row[]=[];
-  for(const event of instances??[]){const candidate=candidateByKey.get(String(event.simulation_key));if(!candidate)continue;const selector=candidate.template.participant_selector&&typeof candidate.template.participant_selector==='object'?candidate.template.participant_selector:{};const selected=(Array.isArray(selector.characterSlugs)?selector.characterSlugs:[]).map((slug:unknown)=>charactersBySlug.get(String(slug))).filter(Boolean).slice(0,Math.max(0,Math.min(5,Number(selector.maximum??5))));for(const character of selected)participantRows.push({user_id:input.userId,continuity_id:input.continuityId,world_event_instance_id:event.id,character_instance_id:character.id,role:'participant',attendance_state:event.status==='completed'?'attended':event.status==='active'?'arrived':'expected',knowledge_detail:'full',...(event.status!=='scheduled'?{joined_at:event.starts_at}:{}),...(event.status==='completed'?{left_at:event.ends_at}:{}),metadata:{source:'template_selector'}});}
+  for(const event of instances??[]){const candidate=candidateByKey.get(String(event.simulation_key));if(!candidate)continue;const selector=candidate.template.participant_selector&&typeof candidate.template.participant_selector==='object'?candidate.template.participant_selector:{};const selected=(Array.isArray(selector.characterSlugs)?selector.characterSlugs:[]).map((slug:unknown)=>charactersBySlug.get(String(slug))).filter(Boolean).slice(0,Math.max(0,Math.min(calder?49:5,Number(selector.maximum??5))));for(const character of selected){if(calder&&!calderReservations.get(String(character.id))?.has(`${candidate.template.metadata.authoringEventId}:${candidate.row.local_date}`))continue;participantRows.push({user_id:input.userId,continuity_id:input.continuityId,world_event_instance_id:event.id,character_instance_id:character.id,role:'participant',attendance_state:event.status==='completed'?'attended':event.status==='active'?'arrived':'expected',knowledge_detail:'full',...(event.status!=='scheduled'?{joined_at:event.starts_at}:{}),...(event.status==='completed'?{left_at:event.ends_at}:{}),metadata:{source:calder?'reserved_calders_event':'template_selector'}});}}
+  if(calder&&(instances??[]).length){const removed=await input.db.from('together_world_event_participants').delete().eq('user_id',input.userId).eq('continuity_id',input.continuityId).in('world_event_instance_id',(instances??[]).map(e=>e.id));if(removed.error)throw removed.error;}
   if(participantRows.length){const{error:participantError}=await input.db.from('together_world_event_participants').upsert(participantRows,{onConflict:'world_event_instance_id,character_instance_id'});if(participantError)throw participantError;}
   return{templates:Number(templates?.length??0),materialized:Number(instances?.length??0)};
 }
@@ -42,7 +54,7 @@ export function worldPulseCharactersBySlug(characters:Row[],worldId:string):Map<
   for(const character of characters){
     const template=Array.isArray(character.together_character_templates)?character.together_character_templates[0]:character.together_character_templates;
     const location=Array.isArray(character.together_locations)?character.together_locations[0]:character.together_locations;
-    if(template?.slug&&String(location?.world_id??'')===worldId)result.set(String(template.slug),{...character,template});
+    if(template?.slug&&String(location?.world_id??template?.first_meeting?.world_id??'')===worldId)result.set(String(template.slug),{...character,template});
   }
   return result;
 }

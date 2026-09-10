@@ -7,6 +7,7 @@ import { kickMediaDispatcher } from "../_shared/together-media-base.ts";
 import { refundCredits } from "../_shared/kivelle-subscription.ts";
 import {
   evaluateOperationalAlerts,
+  operationsRoleForUser,
   type OperationsRole,
   recordOperationsAudit,
   requireOperationsRole,
@@ -28,6 +29,10 @@ const ticketStatus = z.enum([
   incidentStatus = z.enum(["open", "acknowledged", "monitoring", "resolved"]),
   incidentSeverity = z.enum(["info", "warning", "critical"]);
 const schema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("access") }),
+  z.object({ action: z.literal("engagement"), from: z.string().datetime(), to: z.string().datetime(), tier: z.enum(["all","free","paid"]).default("all"), includeInternal: z.boolean().default(false) }),
+  z.object({ action: z.literal("engagement_event"), id: z.string().uuid(), sessionId: z.string().uuid(), event: z.enum(["page_view","onboarding_step","foreground_ping"]), surface: z.enum(["home","chat","group_chat","explore","companions","scenarios","creator","call","world","moments","settings","onboarding","other"]), step: z.enum(["world","companion","scenario"]).nullable().default(null), seconds: z.number().int().min(0).max(60).default(0), platform: z.enum(["web","ios","android","other"]) }).strict(),
+  z.object({ action: z.literal("label_account"), userId: z.string().uuid(), segment: z.enum(["customer","test","staff"]), reason: z.string().trim().min(8).max(500) }),
   z.object({
     action: z.literal("report_client_error"),
     route: z.string().max(200).default("unknown"),
@@ -164,6 +169,13 @@ const schema = z.discriminatedUnion("action", [
 serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request),
     input = await parseBody(request, schema);
+  if(input.action === "access") return json({data:{role:operationsRoleForUser(user)},correlationId},200,correlationId);
+  if(input.action === "engagement_event") {
+    await enforceRateLimit(db,user.id,"engagement_event",240,3600);
+    const {error}=await db.rpc("kivelle_record_engagement",{p_user:user.id,p_id:input.id,p_session:input.sessionId,p_event:input.event,p_surface:input.surface,p_step:input.step,p_seconds:input.seconds,p_platform:input.platform});
+    if(error) throw new AppError("INTERNAL_ERROR","Activity could not be recorded.",500,true);
+    return json({data:{ok:true},correlationId},200,correlationId);
+  }
   if (input.action === "report_client_error") {
     await enforceRateLimit(db, user.id, "client_error_report", 30, 3600);
     const messageSafe = sanitizeOperationsText(input.messageSafe, 600),
@@ -312,6 +324,24 @@ serve(async (request, correlationId) => {
   }
 
   const role = requireOperationsRole(user, "viewer");
+  if(input.action === "engagement") {
+    const end=Math.min(Date.parse(input.to),Date.now()),start=Date.parse(input.from);
+    if(start>=end || end-start>93*86400000) throw new AppError("VALIDATION_ERROR","Choose a date range of up to 93 days ending today or earlier.",400);
+    await enforceRateLimit(db,user.id,"engagement_report",120,3600);
+    const internalIds=(Deno.env.get("TOGETHER_ADMIN_USER_IDS")??Deno.env.get("TOGETHER_DEBUG_USER_IDS")??"").split(",").map(v=>v.trim()).filter(v=>z.string().uuid().safeParse(v).success);
+    const {data,error}=await db.rpc("kivelle_engagement_dashboard",{p_from:input.from,p_to:new Date(end).toISOString(),p_tier:input.tier,p_include_internal:input.includeInternal,p_internal_ids:internalIds});
+    if(error) throw new AppError("INTERNAL_ERROR","Engagement report could not be loaded. Try a shorter range.",500,true);
+    return json({data,correlationId},200,correlationId);
+  }
+  if(input.action === "label_account") {
+    requireMinimumRole(role,"admin");
+    const {data:profile}=await db.from("together_profiles").select("user_id").eq("user_id",input.userId).maybeSingle();
+    if(!profile) throw new AppError("NOT_FOUND","Kivelle account not found.",404);
+    // The label and its audit entry commit together inside the database.
+    const {error}=await db.rpc("kivelle_label_engagement_account",{p_actor:user.id,p_target:input.userId,p_segment:input.segment,p_reason:sanitizeOperationsText(input.reason,500),p_request:correlationId});
+    if(error) throw new AppError("INTERNAL_ERROR","Account label could not be saved.",500,true);
+    return json({data:{ok:true},correlationId},200,correlationId);
+  }
   if (input.action === "dashboard") {
     return json(
       { data: await operationsDashboard(db, role), correlationId },

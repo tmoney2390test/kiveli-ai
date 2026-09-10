@@ -27,7 +27,7 @@ export default function CreateCompanionEntry() {
   const dirty = Boolean(name || gender || pronouns || description || worldId || ageText !== '28');
   const [busy, setBusy] = useState(false);
   const [recovering, setRecovering] = useState(Boolean(params.template));
-  const worlds = useMemo(() => snapshot?.worlds.filter((world) => world.published && (hasOpenBuildWorldAccess(world.published) || world.access_type === 'free' || snapshot.userWorlds?.some((item) => item.world_id === world.id && item.access_status === 'unlocked'))) ?? [], [snapshot]);
+  const worlds = useMemo(() => snapshot?.worlds.filter((world) => world.published && (hasOpenBuildWorldAccess(world.published) || world.access_type === 'free' || snapshot.userWorlds?.some((item) => item.world_id === world.id && item.access_status === 'unlocked'))).sort((a,b)=>a.sort_order-b.sort_order) ?? [], [snapshot]);
   const selectedWorldId = worldId || worlds[0]?.id || '';
   const age = Number(ageText);
   const issues = companionBasicsIssues({ name, age, gender, pronouns, worldId: selectedWorldId, description });

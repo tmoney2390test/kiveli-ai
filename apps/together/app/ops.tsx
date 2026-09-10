@@ -52,8 +52,10 @@ import {
   updateSupportTicket,
 } from "../src/lib/operations";
 import { useAuth } from "../src/hooks/useAuth";
+import { OperationsEngagement } from "../src/components/OperationsEngagement";
 
 type Tab =
+  | "engagement"
   | "overview"
   | "queues"
   | "incidents"
@@ -64,6 +66,7 @@ type Tab =
   | "releases"
   | "audit";
 const tabs: Array<{ key: Tab; label: string }> = [
+  { key: "engagement", label: "Engagement" },
   { key: "overview", label: "Overview" },
   { key: "queues", label: "Queues" },
   { key: "incidents", label: "Incidents" },
@@ -143,7 +146,7 @@ export default function Operations() {
     [data, setData] = useState<OperationsDashboard | null>(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
-    [tab, setTab] = useState<Tab>("overview"),
+    [tab, setTab] = useState<Tab>("engagement"),
     [userResult, setUserResult] = useState<OperationsUserLookup | null>(null),
     [userQuery, setUserQuery] = useState(""),
     [reason, setReason] = useState(""),
@@ -273,8 +276,7 @@ export default function Operations() {
             Kivelle control room
           </Text>
           <Text style={styles.subtitle}>
-            Reliability, incidents, support, and safe recovery—without
-            conversation content.
+            Engagement, reliability, support, and recovery in one place.
           </Text>
         </View>
         <Pressable
@@ -297,6 +299,8 @@ export default function Operations() {
           {visibleTabs.map((item) => (
             <Pressable
               key={item.key}
+              accessibilityRole="tab"
+              accessibilityState={{selected:tab===item.key}}
               onPress={() => setTab(item.key)}
               style={[styles.tab, tab === item.key && styles.tabActive]}
             >
@@ -324,6 +328,7 @@ export default function Operations() {
             </View>
           )
           : null}
+        {tab === "engagement" ? <OperationsEngagement admin={data.access.permissions.admin} refreshKey={data.generatedAt} /> : null}
         {tab === "overview" ? <Overview data={data} compact={compact} /> : null}
         {tab === "queues"
           ? <Queues queues={data.queues} providers={data.providerHealth} />
