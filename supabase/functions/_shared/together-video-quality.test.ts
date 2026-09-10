@@ -98,7 +98,9 @@ Deno.test("official catalog videos can deliver a youthful-adult ambiguous_age wa
     client: {
       assess: async (input: { customCharacterAgeCheck?: boolean }) => {
         if (input.customCharacterAgeCheck !== false) {
-          throw new Error("official catalog video QA must use the catalog age rule");
+          throw new Error(
+            "official catalog video QA must use the catalog age rule",
+          );
         }
         return {
           verdict: { status: "fail", reasonCodes: ["ambiguous_age"] },
@@ -155,8 +157,14 @@ Deno.test("video quality prompt explicitly rejects doll anatomy and temporal bod
     ]
   ) assertStringIncludes(standard, code);
   assertStringIncludes(standard, "Fail unexpected_nudity_or_sexual_content");
-  assertStringIncludes(adult, "Authorized fictional-adult nudity and consensual sexual activity may pass");
-  assertStringIncludes(adult, "should not be failed as unexpected_nudity_or_sexual_content");
+  assertStringIncludes(
+    adult,
+    "Authorized fictional-adult nudity and consensual sexual activity may pass",
+  );
+  assertStringIncludes(
+    adult,
+    "should not be failed as unexpected_nudity_or_sexual_content",
+  );
   assertStringIncludes(adult, "Fail unexpected_censoring if clothing");
   assertStringIncludes(standard, "brief isolated generation glitch");
   assertStringIncludes(standard, "should PASS with duplicate_body_parts");
@@ -168,10 +176,18 @@ Deno.test("video quality prompt explicitly rejects doll anatomy and temporal bod
   assertStringIncludes(partnered, "age 25 or older");
   assertStringIncludes(partnered, "must not resemble the user");
   const official = buildVideoQualityPrompt(true, false, false);
-  assertStringIncludes(official, "Fail ambiguous_age only for a clearly underage or child presentation");
-  assertStringIncludes(official, "Do not fail ambiguous_age or adult_safety_violation because an official catalog adult looks youthful");
+  assertStringIncludes(
+    official,
+    "Fail ambiguous_age only for a clearly underage or child presentation",
+  );
+  assertStringIncludes(
+    official,
+    "Do not fail ambiguous_age or adult_safety_violation because an official catalog adult looks youthful",
+  );
   if (official.includes("underage or age-ambiguous presentation")) {
-    throw new Error("official catalog video QA must not treat youthful adults as age-ambiguous");
+    throw new Error(
+      "official catalog video QA must not treat youthful adults as age-ambiguous",
+    );
   }
 });
 
@@ -268,10 +284,14 @@ Deno.test("video delivery fails closed when quality cannot be verified", () => {
     },
   );
   assertEquals(
-    resolveVideoQualityDecision({
-      status: "fail",
-      reasonCodes: ["ambiguous_age"],
-    }, true, true),
+    resolveVideoQualityDecision(
+      {
+        status: "fail",
+        reasonCodes: ["ambiguous_age"],
+      },
+      true,
+      true,
+    ),
     {
       action: "reject",
       reasonCodes: ["ambiguous_age"],
@@ -279,10 +299,14 @@ Deno.test("video delivery fails closed when quality cannot be verified", () => {
     },
   );
   assertEquals(
-    resolveVideoQualityDecision({
-      status: "fail",
-      reasonCodes: ["ambiguous_age"],
-    }, true, false),
+    resolveVideoQualityDecision(
+      {
+        status: "fail",
+        reasonCodes: ["ambiguous_age"],
+      },
+      true,
+      false,
+    ),
     {
       action: "accept",
       reasonCodes: ["ambiguous_age"],
@@ -290,10 +314,14 @@ Deno.test("video delivery fails closed when quality cannot be verified", () => {
     },
   );
   assertEquals(
-    resolveVideoQualityDecision({
-      status: "fail",
-      reasonCodes: ["ambiguous_age", "doll_like_anatomy"],
-    }, true, false),
+    resolveVideoQualityDecision(
+      {
+        status: "fail",
+        reasonCodes: ["ambiguous_age", "doll_like_anatomy"],
+      },
+      true,
+      false,
+    ),
     {
       action: "reject",
       reasonCodes: ["doll_like_anatomy"],
@@ -301,10 +329,14 @@ Deno.test("video delivery fails closed when quality cannot be verified", () => {
     },
   );
   assertEquals(
-    resolveVideoQualityDecision({
-      status: "fail",
-      reasonCodes: ["ambiguous_age", "adult_safety_violation"],
-    }, true, false),
+    resolveVideoQualityDecision(
+      {
+        status: "fail",
+        reasonCodes: ["ambiguous_age", "adult_safety_violation"],
+      },
+      true,
+      false,
+    ),
     {
       action: "accept",
       reasonCodes: ["ambiguous_age", "adult_safety_violation"],
@@ -312,10 +344,14 @@ Deno.test("video delivery fails closed when quality cannot be verified", () => {
     },
   );
   assertEquals(
-    resolveVideoQualityDecision({
-      status: "fail",
-      reasonCodes: ["adult_safety_violation"],
-    }, true, false),
+    resolveVideoQualityDecision(
+      {
+        status: "fail",
+        reasonCodes: ["adult_safety_violation"],
+      },
+      true,
+      false,
+    ),
     {
       action: "reject",
       reasonCodes: ["adult_safety_violation"],
@@ -323,16 +359,165 @@ Deno.test("video delivery fails closed when quality cannot be verified", () => {
     },
   );
   assertEquals(
-    resolveVideoQualityDecision({
-      status: "unavailable",
-      reasonCodes: [],
-    }, false, false),
+    resolveVideoQualityDecision(
+      {
+        status: "unavailable",
+        reasonCodes: [],
+      },
+      false,
+      false,
+    ),
     {
       action: "accept",
       reasonCodes: [],
       verificationUnavailable: true,
     },
   );
+});
+
+Deno.test("anatomy distortion and temporal animation flags alone allow video delivery", () => {
+  for (const custom of [false, true]) {
+    for (
+      const reasonCodes of [
+        ["malformed_anatomy"],
+        ["temporal_anatomy_inconsistency"],
+        ["malformed_anatomy", "temporal_anatomy_inconsistency"],
+      ]
+    ) {
+      assertEquals(
+        resolveVideoQualityDecision(
+          { status: "fail", reasonCodes },
+          true,
+          custom,
+        ),
+        {
+          action: "accept",
+          reasonCodes,
+          verificationUnavailable: false,
+        },
+      );
+    }
+  }
+});
+
+Deno.test("visual advisories do not suppress safety or other blocking findings", () => {
+  for (
+    const blockingReason of [
+      "adult_safety_violation",
+      "unexpected_nudity_or_sexual_content",
+      "ambiguous_age",
+      "identity_drift",
+      "video_quality_failed",
+    ]
+  ) {
+    const decision = resolveVideoQualityDecision(
+      {
+        status: "fail",
+        reasonCodes: [
+          "malformed_anatomy",
+          blockingReason,
+          "temporal_anatomy_inconsistency",
+        ],
+      },
+      true,
+      true,
+    );
+    assertEquals(decision.action, "reject");
+    assertEquals(decision.reasonCodes, [blockingReason]);
+    assertEquals(decision.verificationUnavailable, false);
+  }
+});
+
+Deno.test("delivered video keeps the original failed verdict and all advisories in backend diagnostics", async () => {
+  const { db, writes } = videoQualityDb();
+  const reasons = ["malformed_anatomy", "temporal_anatomy_inconsistency"];
+  const result = await gateGeneratedVideoQuality(db, {
+    id: "job-advisory",
+    status: "processing",
+    provider_metadata: { existingDiagnostic: "preserved" },
+  }, {
+    id: "media-advisory",
+    user_id: "user-1",
+    media_type: "video",
+    content_level: "standard",
+    visibility_scope: "all",
+    metadata: { customCharacter: false },
+  }, {
+    bytes: new Uint8Array([1, 2, 3]),
+    contentType: "video/mp4",
+    client: {
+      assess: async () => ({
+        verdict: { status: "fail", reasonCodes: reasons },
+        model: "gemini-test",
+        inferenceMs: 12,
+        providerStatus: "completed",
+      }),
+    } as never,
+  });
+  assertEquals(result.action, "accept");
+  assertEquals(result.metadata.videoQualityVerdict, "fail");
+  assertEquals(result.metadata.videoQualityReasonCodes, reasons);
+  assertEquals(result.metadata.videoQualityAdvisoryReasonCodes, reasons);
+  assertEquals(result.metadata.videoQualityBlockingReasonCodes, []);
+  assertEquals(result.metadata.videoQualityDeliveryDecision, "accept");
+  assertEquals(
+    result.metadata.videoQualityDeliveryPolicy,
+    "visual-advisories-v1",
+  );
+  const write = writes.find((value) =>
+    (value as Record<string, unknown>).provider_metadata
+  ) as {
+    provider_metadata: Record<string, unknown>;
+  };
+  assertEquals(write.provider_metadata, {
+    existingDiagnostic: "preserved",
+    ...result.metadata,
+  });
+  const event = writes.find((value) =>
+    (value as Record<string, unknown>).p_event_name === "video_quality_checked"
+  ) as {
+    p_properties: Record<string, unknown>;
+  };
+  assertEquals(event.p_properties.verdict, "fail");
+  assertEquals(event.p_properties.deliveryDecision, "accept");
+  assertEquals(event.p_properties.advisoryReasonCodes, reasons);
+});
+
+Deno.test("rejected videos retain both advisory and blocking diagnostic codes", async () => {
+  const { db } = videoQualityDb();
+  const reasons = ["malformed_anatomy", "adult_safety_violation"];
+  const result = await gateGeneratedVideoQuality(db, {
+    id: "job-blocked",
+    status: "processing",
+    provider_metadata: {},
+  }, {
+    id: "media-blocked",
+    user_id: "user-1",
+    media_type: "video",
+    content_level: "standard",
+    visibility_scope: "all",
+    metadata: { customCharacter: true },
+  }, {
+    bytes: new Uint8Array([1, 2, 3]),
+    contentType: "video/mp4",
+    client: {
+      assess: async () => ({
+        verdict: { status: "fail", reasonCodes: reasons },
+        model: "gemini-test",
+        inferenceMs: 12,
+        providerStatus: "completed",
+      }),
+    } as never,
+  });
+  assertEquals(result.action, "reject");
+  assertEquals(result.reasonCodes, ["adult_safety_violation"]);
+  assertEquals(result.metadata.videoQualityReasonCodes, reasons);
+  assertEquals(result.metadata.videoQualityAdvisoryReasonCodes, [
+    "malformed_anatomy",
+  ]);
+  assertEquals(result.metadata.videoQualityBlockingReasonCodes, [
+    "adult_safety_violation",
+  ]);
 });
 
 Deno.test("Gemini video inspection uploads, evaluates, and deletes the private candidate", async () => {
