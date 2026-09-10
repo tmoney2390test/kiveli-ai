@@ -150,6 +150,46 @@ Image jobs older than 45 minutes and video jobs older than 60 minutes fail safel
 
 ## Deployment
 
+### Video quality advisories
+
+The `visual-advisories-v1` delivery policy treats `malformed_anatomy` and
+`temporal_anatomy_inconsistency` as diagnostic advisories. Either or both may be
+present on a delivered video even when the inspector returned `fail`. Other
+blocking findings, safety checks, platform authorization, provider-output
+validation, and unavailable-verifier handling retain their existing behavior.
+
+Provider-job metadata keeps the original `videoQualityVerdict`, all
+`videoQualityReasonCodes`, the reviewer/model/timing, and separate
+`videoQualityDeliveryDecision`, `videoQualityBlockingReasonCodes`, and
+`videoQualityAdvisoryReasonCodes`. Successful delivery also persists these fields
+on the generated-media record. The original verdict is never rewritten to pass.
+These operational records persist independently of optional analytics; the
+`video_quality_checked` event includes the same decision and reason breakdown
+when analytics is permitted. Inspector acceptance is not itself proof of storage
+or chat delivery; use the media and provider-job status for delivery outcomes.
+
+Ops can review advisory outcomes without reading prompts or private media:
+
+```sql
+select id, generated_media_id, status, model, updated_at,
+  provider_metadata->>'videoQualityVerdict' as reviewer_verdict,
+  provider_metadata->>'videoQualityDeliveryDecision' as delivery_decision,
+  provider_metadata->'videoQualityAdvisoryReasonCodes' as advisory_codes,
+  provider_metadata->'videoQualityBlockingReasonCodes' as blocking_codes
+from together_media_provider_jobs
+where job_type = 'video'
+  and provider_metadata->>'videoQualityDeliveryPolicy' = 'visual-advisories-v1'
+order by updated_at desc
+limit 100;
+```
+
+Deploy both `together-media-dispatch` and `together-wavespeed-webhook` when this
+policy changes so polling and webhook completion use the same decision. Historical
+failed/refunded jobs remain terminal unless explicitly recovered through the
+existing completion path; never create another paid generation just to rerun QA.
+
+### Function deployment
+
 ```sh
 pnpm exec supabase db push --linked
 pnpm exec supabase functions deploy together-media --no-verify-jwt
