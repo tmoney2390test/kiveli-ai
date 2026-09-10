@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GradientButton } from '../src/components';
 import { GoogleMark } from '../src/components/GoogleMark';
 import { AppleMark } from '../src/components/AppleMark';
+import { KivelleLogo } from '../src/components/KivelleLogo';
 import { colors, radius, typography } from '../src/theme';
 import { useAuth } from '../src/hooks/useAuth';
 import { useTogether } from '../src/store/useTogether';
@@ -150,7 +151,8 @@ export default function Auth() {
   const showApple=socialAuth.apple&&nativeAppleAvailable;
   const shortViewport=!wide&&height<720;
   const safeAreaReserve=Math.max(0,insets.bottom-6);
-  const mobileFormReserve=(stage==='code'?(shortViewport?354:382):(shortViewport?388:420))+safeAreaReserve;
+  const brandFooterReserve=shortViewport?44:58;
+  const mobileFormReserve=(stage==='code'?(shortViewport?354:382):(shortViewport?388:420))+safeAreaReserve+brandFooterReserve;
   const mobileHeroHeight=Math.max(80,Math.min(height*.43,height-mobileFormReserve));
   const resendSeconds=emailCodeResendSeconds(resendAvailableAt,clock);
 
@@ -168,13 +170,12 @@ export default function Auth() {
         </View>
 
         <View style={[
-          styles.form,
-          shortViewport&&styles.formShort,
-          wide ? styles.formWide : styles.formCompact,
-          !wide&&shortViewport&&styles.formCompactShort,
+          styles.formPanel,
+          wide ? styles.formPanelWide : styles.formPanelCompact,
+          !wide&&shortViewport&&styles.formPanelCompactShort,
           !wide&&{paddingBottom:Math.max(insets.bottom+(shortViewport?8:18),shortViewport?14:24)},
-          signedIn && styles.formSuccess,
         ]}>
+          <View style={[styles.form,shortViewport&&styles.formShort,wide&&styles.formWide,signedIn&&styles.formSuccess]}>
           {signedIn ? <View accessibilityRole={openingError ? 'alert' : undefined} accessibilityLiveRegion="assertive" accessibilityLabel={openingError ? `Signed in successfully. ${openingError}` : 'Signed in successfully. Opening your world.'} style={styles.successState}>
             <View style={styles.successIcon}><CircleCheck size={34} strokeWidth={1.8} color={colors.success} /></View>
             <View style={styles.successCopy}>
@@ -242,6 +243,10 @@ export default function Auth() {
             </Text>
           </View>
           </>}
+          </View>
+          <View style={[styles.brandFooter,shortViewport&&styles.brandFooterShort]}>
+            <KivelleLogo height={shortViewport?28:wide?40:34}/>
+          </View>
         </View>
       </View>
     </ScrollView>
@@ -265,9 +270,13 @@ const styles = StyleSheet.create({
   heroFadeCompactNative:{left:0,right:0,bottom:0,height:70,backgroundColor:'rgba(5,4,10,.74)'},
   form: { gap: 12,backgroundColor:'#05040A' },
   formShort:{gap:8},
-  formCompact:{paddingTop:10,paddingHorizontal:24},
-  formCompactShort:{paddingTop:6},
-  formWide: { flex: 1,minWidth:390,justifyContent: 'center', paddingHorizontal:'6%',paddingVertical:48 },
+  formWide: { flexGrow:1,justifyContent:'center' },
+  formPanel:{flexGrow:1,backgroundColor:'#05040A'},
+  formPanelCompact:{paddingTop:10,paddingHorizontal:24},
+  formPanelCompactShort:{paddingTop:6},
+  formPanelWide:{flex:1,minWidth:390,paddingHorizontal:'6%',paddingTop:48,paddingBottom:36},
+  brandFooter:{flexShrink:0,alignItems:'center',marginTop:'auto',paddingTop:24},
+  brandFooterShort:{paddingTop:16},
   formSuccess: { minHeight: 340 },
   successState: { width: '100%', alignItems: 'center', justifyContent: 'center', gap: 16 },
   successIcon: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(82,211,155,.1)', borderWidth: 1, borderColor: 'rgba(82,211,155,.32)', shadowColor: colors.success, shadowOpacity: .2, shadowRadius: 18, shadowOffset: { width: 0, height: 8 } },
