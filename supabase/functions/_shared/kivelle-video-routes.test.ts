@@ -39,7 +39,7 @@ Deno.test('two anonymous choices retain all historical completion routes',()=>{
   for(const routes of [state.routes,state.routes.filter(r=>r.contentClass==='adult_capable')]){
    const options=publicVideoRoutes(routes,{includeAdultCapable:true});
    assertEquals(options.map(o=>o.id),['tier:standard','tier:premium']);
-   assertEquals(options.map(o=>o.displayName),['Standard','Cinematic']);
+   assertEquals(options.map(o=>o.displayName),['Standard','Premium']);
    assert(options.every(o=>!o.modelEndpoint&&!o.modelKey&&!o.rawModelNamesExposed));
    assert(options.every(o=>Object.keys(o.providerCostQuotes).length===0));
    for(const o of options)for(const r of o.supportedResolutions)for(const d of o.allowedDurations)assert(Number.isFinite(o.creditQuotes[r+':'+d+':sound']));

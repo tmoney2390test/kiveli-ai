@@ -1,8 +1,8 @@
-# Standard and Cinematic videos
+# Standard and Premium videos
 
-Customers choose Standard (Seedance 1.5 Pro) or Cinematic (MiniMax H3). Each family has separate SFW and adult provider routes. Route names and provider costs are available only in Operations. The backend selects the content variant from the prompt and source photo, and rejects adult submissions on native/unknown surfaces.
+Customers choose Standard (Seedance 1.5 Pro) or Premium (MiniMax H3). Each family has separate SFW and adult provider routes. Route names and provider costs are available only in Operations. The backend selects the content variant from the prompt and source photo, and rejects adult submissions on native/unknown surfaces.
 
-Only these four routes accept new jobs. Historical route definitions remain available to the dispatcher and finalizer, including delivery retries. Cinematic includes audio; Standard exposes Sound only when turning it off reduces the displayed credit price. Existing silent requests retain their original audio-removal behavior.
+Only these four routes accept new jobs. Historical route definitions remain available to the dispatcher and finalizer, including delivery retries. Premium includes audio; Standard exposes Sound only when turning it off reduces the displayed credit price. Existing silent requests retain their original audio-removal behavior.
 
 The public catalog comes from `packages/together-domain/src/video-consumer.ts`. A bundled catalog renders immediately, and a persisted public catalog supplies the last valid prices. Account eligibility, balance, source-image authorization, and locations are fetched separately. Customer credit publications are append-only and independent of provider price observations. New clients submit their displayed credit total for server comparison before reservation. Older clients without this field are accepted only while the original credit rate and minimum remain unchanged; after a price change they must update/reopen with a supported client.
 

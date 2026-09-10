@@ -273,10 +273,10 @@ export function canSelectVideoRoute(userId: string, email?: string | null): bool
 
 const consumerTierAliases: Record<VideoConsumerTier, string> = { standard: 'tier:standard', premium: 'tier:premium', sound: 'tier:sound', silent: 'tier:silent' };
 function consumerTierCopy(tier: VideoConsumerTier) {
-  if (tier === 'premium') return { displayName: 'Cinematic', description: 'Premium video generation', badge: 'Premium' };
+  if (tier === 'premium') return { displayName: 'Premium', description: 'Longer scenes with stereo sound', badge: 'Premium' };
   if (tier === 'sound') return { displayName: 'Sound', description: 'Video with generated sound', badge: 'Sound' };
   if (tier === 'silent') return { displayName: 'No Sound', description: 'Efficient silent video', badge: 'Silent' };
-  return { displayName: 'Standard', description: 'Everyday moments, fewer credits', badge: 'Recommended' };
+  return { displayName: 'Standard', description: 'Everyday moments with optional sound', badge: 'Recommended' };
 }
 export function publicVideoRoutes(routes = configuredVideoRouteCatalog(), options: { includeAdultCapable?: boolean } = {}): SafeVideoRouteOption[] {
   const selectable = routes.filter((route) => route.enabled && route.selectable && (route.contentClass === 'sfw' || options.includeAdultCapable === true));
