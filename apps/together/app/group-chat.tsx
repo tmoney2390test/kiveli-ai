@@ -2122,7 +2122,7 @@ export default function GroupChatScreen() {
             onRetry={offer.generated_media_id&&(detail.generatedMedia??[]).find((item)=>item.id===offer.generated_media_id)?.status==='failed'?()=>{const failed=(detail.generatedMedia??[]).find((item)=>item.id===offer.generated_media_id);if(failed)void retryGeneratedMedia(failed);}:undefined}
           />
         ))}
-        {replyDrafts.drafts.map(draft=><View key={draft.replyKey} style={{marginVertical:8,marginHorizontal:16,padding:14,borderRadius:18,backgroundColor:colors.surface}}><Text style={{color:colors.rose,fontWeight:'600',marginBottom:6}}>{draft.speakerName}</Text><Text style={[messageTypography,{color:colors.text}]}>{draft.text}</Text></View>)}
+        {replyDrafts.drafts.map(draft=><View key={draft.replyKey} style={{marginVertical:8,marginHorizontal:16,padding:14,borderRadius:18,backgroundColor:colors.surface}}><Text style={{color:colors.rose,fontWeight:'600',marginBottom:6}}>{draft.speakerName}</Text><CharacterMentionText text={draft.text} streaming speakerName={draft.speakerName} characters={[]} onCharacterPress={()=>{}} style={[messageTypography,{color:colors.text}]}/></View>)}
         {typing.filter(person=>!replyDrafts.drafts.some(draft=>draft.characterInstanceId===person.id)).map((person) => <ChatTypingIndicator key={person.id} name={person.name}/>) }
         {replyPending&&!typing.length?<ChatTypingIndicator name={detail.conversation.title??"Group"}/>:null}
         </>:null}
@@ -3382,7 +3382,7 @@ function GroupBubble({
               {message.content !== "[Photo]"
                 ? user
                   ? <Text style={[styles.bubbleText, textStyle, { color: bubbleTextColor }]}>{message.content}</Text>
-                  : <CharacterMentionText text={message.content} characters={mentionCharacters} excludeSlug={speakerSlug} onCharacterPress={onCharacterMention} style={[styles.bubbleText,textStyle,{ color: bubbleTextColor }]}/>
+                  : <CharacterMentionText speakerName={speakerName} text={message.content} characters={mentionCharacters} excludeSlug={speakerSlug} onCharacterPress={onCharacterMention} style={[styles.bubbleText,textStyle,{ color: bubbleTextColor }]}/>
                 : null}
               {attachments.map((attachment) => (
                 <Pressable

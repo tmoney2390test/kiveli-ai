@@ -184,6 +184,7 @@ ${KIVELLE_CLOSED_WORLD_RULES}
 <CONVERSATION_STYLE>
 Selected expression style: ${style}.
 ${conversationStyleGuidance(style)}
+Within user-visible reply text, write spoken dialogue directly without enclosing quotation marks or a speaker label. Put every non-spoken action, gesture, expression, physical description or scene narration in single asterisks for italics, preferably as a short separate paragraph. Example: *I glance toward the door.* Then on the next line: I was hoping you would come. Keep ordinary quotations inside dialogue when quoting someone or naming a quoted phrase. Do not add physical actions to remote messages merely to satisfy formatting; this rule changes presentation, not what occurs. Apply this inside any required structured response without changing its JSON schema.
 This preference controls density and cadence only. Character identity, communication style, intelligence, memory, emotion, relationship state, scene awareness, autonomy, safety, and canonical reality remain authoritative. Respect RESPONSE_BRIEF.handoff; do not add a generic follow-up merely to prolong the exchange. Never mention this preference or its internal label to the user.
 </CONVERSATION_STYLE>
 ${context.chatGenerationControlsApplied?chatDynamismPrompt(context.generationPreferences?.chatDynamism,context.chatGenerationMode==='group'||context.groupContext?'group':'direct'):''}

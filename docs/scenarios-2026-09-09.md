@@ -66,3 +66,11 @@ Scenario reset replaces only this transcript and restarts the saved scenario at 
 Validated with 732 app tests, TypeScript, lint, Edge Function typechecks, scenario/database suites including ownership and retry checks, and production rollback transactions comparing relationship state, memory counts, other conversations and both reset outcomes. Browser checks at 360/390/768/1440px verified the live popup, four options, confirmation screens and full-reset lock. No production reset was committed during testing. Production route audit passed all 423 pages and 63 critical assets; asset budget passed.
 
 Applied migrations: 20260910004000_conversation_scoped_resets.sql and 20260910004232_chat_reset_preserve_progress.sql. Frontend release: 72959cc4-46ce-4db2-97f1-136ca3ffe8ee.
+
+## Companion dialogue presentation
+
+Direct and group chat use the same formatter for saved and streaming companion replies. Explicit action markup renders in italics; speech wrappers are removed while ordinary inline quotations, contractions, measurements, links and code are preserved. A conservative legacy parser recognizes narration alongside quoted dialogue in older replies. User messages and stored transcripts are unchanged. Character profile links remain available inside formatted text.
+
+The shared reply prompt requests unquoted speech and asterisk-marked actions or narration, with no added physical stage directions in remote messages. This applies inside structured reply text without changing response schemas.
+
+Validation: 742 app tests, application/domain and Edge Function TypeScript checks, lint, prompt regressions, production export and asset budget. A read-only 390px browser check of an existing conversation verified italic narration and normal unquoted speech without sending messages or changing history.
