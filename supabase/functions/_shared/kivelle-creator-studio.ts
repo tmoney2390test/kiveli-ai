@@ -3,7 +3,7 @@ import { creatorReadiness, normalizeCharacterPerformance, imageDimensions, routi
 import { AppError } from './types.ts';
 import { matchesChatPhotoSignature } from './chat-photo-policy.ts';
 import { ConfiguredModerationProvider } from './together-ai.ts';
-import { ConfiguredCharacterCreationProvider, appearanceCandidates, type CharacterDraftProposal } from './together-creator.ts';
+import { ConfiguredCharacterCreationProvider, appearanceCandidates, initialCharacterDraftProposal, type CharacterDraftProposal } from './together-creator.ts';
 import { activeContinuity } from './together-continuity.ts';
 import { resolvePlaceContext, resolveWorldAccess } from './together-place.ts';
 import { kickMediaDispatcher, routeImageProvider, type CanonicalImageGenerationRequest } from './together-media.ts';
@@ -113,8 +113,11 @@ async function createDraft(db: Db, userId: string, input: StudioAction, now: str
   if (access === 'locked') throw new AppError('FORBIDDEN', 'That world is not available for character creation.', 403);
   const { data: world } = await db.from('together_worlds').select('id,name,default_arrival_location_id').eq('id', worldId).eq('published', true).maybeSingle();
   if (!world) throw new AppError('NOT_FOUND', 'Choose an available world.', 404);
-  const proposal = await provider.propose(concept);
   const seed = input.identitySeed && typeof input.identitySeed === 'object' ? input.identitySeed as Record<string, unknown> : null;
+  // The guided first step already supplies canonical identity facts. Build the
+  // editable foundation locally so opening Portrait is not blocked on a model
+  // round trip; concept-only and legacy creation still receive AI enrichment.
+  const proposal = await initialCharacterDraftProposal(concept, Boolean(seed), provider);
   const locations = await worldLocations(db, worldId);
   const home = chooseHomeArea(locations, world.default_arrival_location_id);
   if (!home) throw new AppError('CONFLICT', 'That world needs an authored district or neighborhood before someone can live there.', 409);

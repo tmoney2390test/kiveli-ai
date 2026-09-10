@@ -12,6 +12,10 @@ export const characterDraftSchema=z.object({
 export type CharacterDraftProposal=z.infer<typeof characterDraftSchema>;
 export interface CharacterCreationProvider{propose(concept:string):Promise<CharacterDraftProposal>}
 
+export function initialCharacterDraftProposal(concept:string,structuredIdentity:boolean,creationProvider:CharacterCreationProvider):Promise<CharacterDraftProposal>{
+  return structuredIdentity?Promise.resolve(deterministicCharacterDraft(concept)):creationProvider.propose(concept);
+}
+
 export class ConfiguredCharacterCreationProvider implements CharacterCreationProvider{
   async propose(concept:string):Promise<CharacterDraftProposal>{
     const key=Deno.env.get('OPENAI_API_KEY');if(!key)return deterministicCharacterDraft(concept);
