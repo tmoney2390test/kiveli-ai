@@ -1,3 +1,4 @@
+import {loadAiDataConsent} from './kivelle-ai-consent.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { extractResponsesText } from '../../../packages/together-domain/src/ai-provider.ts';
 import { estimateAiCost, normalizeResponsesUsage, type NormalizedAiUsage } from '../../../packages/together-domain/src/ai-usage.ts';
@@ -41,6 +42,7 @@ export async function renderCharacterInitiative(input: InitiativeInput): Promise
   if (!key || Deno.env.get('KIVELLE_PROACTIVE_VOICE_ENABLED') === 'false') return safeFallback;
   const speakerRows = (history.data ?? []).filter((row) => row.role === 'user' ||
     String(row.speaker_character_instance_id ?? row.character_instance_id ?? '') === String(input.instance.id)).slice(0, 16);
+  if(!(await loadAiDataConsent(input.db,input.userId)).allowsProviderCalls)return '';
   const model = Deno.env.get('KIVELLE_PROACTIVE_MODEL')?.trim() || Deno.env.get('KIVELLE_OPENAI_DIALOGUE_MODEL')?.trim() || 'gpt-5.6-luna';
   const started = Date.now();
   let response: Response | undefined;

@@ -1,3 +1,4 @@
+import {requireScopedAiConsent} from './kivelle-ai-consent.ts';
 import {
   groupFloorDebt,
   type GroupSpeakerCandidate,
@@ -21,6 +22,7 @@ export async function refineAmbiguousGroupPlan(
     usageScope: AiUsageScope;
   },
 ): Promise<Result> {
+  await requireScopedAiConsent(input.usageScope);
   const first = input.plan.actions[0];
   if (
     !first || first.type !== "message" ||

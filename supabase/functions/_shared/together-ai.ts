@@ -1,3 +1,4 @@
+import {requireScopedAiConsent} from './kivelle-ai-consent.ts';
 import { pricedCompanionPrompt, contextChargeForUsage, ContextPricingError, type ContextPayment, type ContextCharge } from './kivelle-context-charge.ts';
 import { AppError } from "./types.ts";
 import {
@@ -296,6 +297,7 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
     context: DialogueContext,
     options: DialogueRunOptions,
   ): Promise<DialogueGenerationResult> {
+    await requireScopedAiConsent(options.usageScope);
     if (
       options.route.provider === "openai" || options.route.provider === "xai"
     ) {
@@ -446,6 +448,7 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
     context: DialogueContext,
     options: DialogueRunOptions,
   ): AsyncIterable<DialogueStreamEvent> {
+    await requireScopedAiConsent(options.usageScope);
     if (
       options.route.provider === "openai" || options.route.provider === "xai"
     ) {
@@ -1046,6 +1049,7 @@ export class ConfiguredEmbeddingProvider implements EmbeddingProvider {
     text: string,
     scope?: AiUsageScope & { purpose?: string },
   ): Promise<number[] | null> {
+    await requireScopedAiConsent(scope);
     const key = apiKey();
     if (!key) {
       const googleKey = geminiKey();
@@ -1115,6 +1119,7 @@ export class ConfiguredModerationProvider implements ModerationProvider {
     text: string,
     scope?: AiUsageScope,
   ): Promise<NormalizedModerationResult> {
+    await requireScopedAiConsent(scope);
     const key = apiKey();
     if (!key) {
       return {
@@ -1215,6 +1220,7 @@ export class ConfiguredConversationAnalysisProvider
   async analyze(
     input: ConversationAnalysisInput,
   ): Promise<ConversationAnalysisProposal> {
+    await requireScopedAiConsent(input.usageScope);
     const deterministic = deterministicAnalysis(input);
     const key = geminiKey();
     const enabled = Deno.env.get("TOGETHER_AI_ANALYSIS_ENABLED") !== "false";

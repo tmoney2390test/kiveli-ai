@@ -14,6 +14,7 @@ function fixture() {
     status: 'queued', created_at: '2026-09-06T23:30:00Z', updated_at: '2026-09-06T23:30:00Z',
     context: { lastMessageAt: yesterday, messageKind: 'initiative' } };
   const tables: Record<string, Row[]> = {
+    together_ai_data_consents:[{user_id:'user',purpose:'core_ai_processing_v1',decision:'accepted',disclosure_version:'2026-09-06',decided_at:yesterday}],
     together_proactive_messages: [structuredClone(proactive)],
     together_messages: [{ id: 'original', user_id: 'user', character_instance_id: 'character', conversation_id: 'conversation',
       role: 'user', content: 'My museum interview is tomorrow. I am nervous about meeting the director.', created_at: yesterday,
@@ -244,4 +245,9 @@ Deno.test('disabling initiative during generation prevents insertion', async () 
 Deno.test('disabling open-thread memory suppresses an already queued follow-up', async () => {
   const f = fixture(); f.tables.together_profiles = [{ user_id: 'user', memory_categories: { open_thread: false } }];
   await withModel(async (calls) => { assertEquals(await f.run(), null); assertEquals(calls.count, 0); });
+});
+
+Deno.test('withdrawn AI sharing prevents queued context from reaching the provider',async()=>{
+  const f=fixture();f.tables.together_ai_data_consents![0]!.decision='withdrawn';
+  await withModel(async calls=>{assertEquals(await f.run(),null);assertEquals(calls.count,0);});
 });

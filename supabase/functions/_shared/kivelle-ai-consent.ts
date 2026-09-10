@@ -22,9 +22,7 @@ export function aiDataConsentState(row: Record<string, unknown> | null | undefin
     disclosureVersion: typeof row?.disclosure_version === 'string' ? row.disclosure_version : null,
     decision,
     decidedAt: typeof row?.decided_at === 'string' ? row.decided_at : null,
-    // Provider use is part of Kivelle's core service and no longer has a
-    // separate access gate. Historical choices remain available for audit.
-    allowsProviderCalls: true,
+    allowsProviderCalls: decision === 'accepted' && row?.disclosure_version === AI_DATA_CONSENT_DISCLOSURE_VERSION && typeof row?.decided_at === 'string' && Number.isFinite(Date.parse(row.decided_at)),
   };
 }
 
@@ -38,11 +36,10 @@ export async function loadAiDataConsent(db: SupabaseClient, userId: string): Pro
   return aiDataConsentState(data as Record<string, unknown> | null);
 }
 
-export async function requireAiDataConsent(_db: SupabaseClient, _userId: string): Promise<AiDataConsentState> {
-  // Kept as a compatibility boundary for existing function callers. AI
-  // processing is intrinsic to the requested Kivelle feature, so access no
-  // longer depends on a separately stored consent record (or a database read).
-  return aiDataConsentState(null);
+export async function requireAiDataConsent(db: SupabaseClient, userId: string): Promise<AiDataConsentState> {
+  const state = await loadAiDataConsent(db, userId);
+  if (!state.allowsProviderCalls) throw new AppError('CONSENT_REQUIRED', 'Allow AI data sharing to use this feature. Open Privacy settings to review your choice. Older apps may need an update.', 403, false);
+  return state;
 }
 
 export async function recordAiDataConsent(db: SupabaseClient, input: {
@@ -50,24 +47,13 @@ export async function recordAiDataConsent(db: SupabaseClient, input: {
   decision: AiDataConsentDecision;
   source: 'onboarding' | 'privacy' | 'account';
 }): Promise<AiDataConsentState> {
-  const now = new Date().toISOString();
-  const current = {
-    user_id: input.userId,
-    purpose: AI_DATA_CONSENT_PURPOSE,
-    disclosure_version: AI_DATA_CONSENT_DISCLOSURE_VERSION,
-    decision: input.decision,
-    decided_at: now,
-    updated_at: now,
-  };
-  const { error } = await db.from('together_ai_data_consents').upsert(current, { onConflict: 'user_id,purpose' });
+  const { error } = await db.rpc('kivelle_record_ai_consent', {p_user_id:input.userId,p_decision:input.decision,p_version:AI_DATA_CONSENT_DISCLOSURE_VERSION,p_source:input.source});
   if (error) throw new AppError('INTERNAL_ERROR', 'Your AI privacy choice could not be saved.', 500, true);
-  const event = await db.from('together_ai_data_consent_events').insert({
-    user_id: input.userId,
-    purpose: AI_DATA_CONSENT_PURPOSE,
-    disclosure_version: AI_DATA_CONSENT_DISCLOSURE_VERSION,
-    decision: input.decision,
-    source: input.source,
-  });
-  if (event.error) throw new AppError('INTERNAL_ERROR', 'Your AI privacy choice could not be recorded.', 500, true);
-  return aiDataConsentState(current);
+  return loadAiDataConsent(db,input.userId);
+}
+
+
+/** Call immediately before a user-scoped provider operation, including post-turn work. */
+export async function requireScopedAiConsent(scope:{db?:SupabaseClient;userId?:string}|undefined):Promise<void>{
+  if(scope?.db&&scope.userId)await requireAiDataConsent(scope.db,scope.userId);
 }

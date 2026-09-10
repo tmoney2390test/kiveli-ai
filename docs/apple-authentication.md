@@ -44,7 +44,7 @@ After the Apple provider saves successfully, set `EXPO_PUBLIC_KIVELLE_APPLE_AUTH
 
 Test all of these before considering rollout complete:
 
-- New web user with Share My Email reaches age confirmation, independent privacy choices, then onboarding.
+- New web user with Share My Email reaches account details and adult birthdate confirmation, then world/companion onboarding; AI sharing is requested at first applicable AI use.
 - New web user with Hide My Email receives a private-relay account and follows the same gates.
 - Existing Apple user can sign out and return without being asked for a name again.
 - Native iOS first sign-in stores the one-time Apple name; subsequent sign-ins still work when Apple returns no name.
@@ -58,6 +58,6 @@ Apple OAuth client secrets expire at most every six months. Create an operations
 
 ## Account-deletion revocation gap
 
-The current native path gives Supabase an Apple identity token, and web/Android OAuth is completed by Supabase PKCE. Kivelle does not currently receive and durably retain an Apple refresh token that its deletion worker can revoke. Account deletion removes Kivelle access and application data, but the deletion job records Apple revocation as unavailable rather than falsely claiming success.
+The native path gives Supabase the identity token and sends the unused authorization code to the authenticated account endpoint for server-side exchange. Web/Android OAuth remains Supabase PKCE; an Apple provider refresh token, when Supabase returns one, is sent to the same endpoint and validated against the authenticated linked Apple subject. AES-GCM encryption binds each credential to its user and allowlisted Apple client. Deletion queues revocation before removing data. Missing historical tokens remain explicitly unavailable and the deletion UI links to Apple's manual revocation instructions.
 
-Before public release, complete a server-side authorization-code exchange and encrypted refresh-token lifecycle using the actual Kivelle Apple client configuration, add bounded revocation retries, and validate it in Apple sandbox. The `.p8`, generated client secret, refresh token, and encryption key must remain server-only and must never enter Expo, logs, analytics, or support notes. Do not backfill or mark historical revocations complete without provider evidence.
+Before public release, configure and validate the implemented token exchange and revocation against the actual Apple clients. See apple-review-recovery-release.md for the exact missing secrets and remaining device tests. The `.p8`, generated client secret, refresh token, and encryption key must remain server-only and must never enter Expo, logs, analytics, or support notes. Do not backfill or mark historical revocations complete without provider evidence.

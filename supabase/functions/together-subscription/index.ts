@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { authenticated, enforceRateLimit } from '../_shared/context.ts';
+import { authenticated, enforceRateLimit, serverEnv } from '../_shared/context.ts';
 import { parseBody } from '../_shared/body.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
@@ -15,8 +15,12 @@ import { resolveSubscriptionState, type KivelleSubscriptionState } from '../_sha
 import { verifyWebSurfaceAssertion } from '../_shared/web-adult-access.ts';
 import { resolveBillingSurfacePolicy, storeOnlyBillingManagement, type BillingSurfacePolicy } from '../_shared/web-billing-policy.ts';
 
+import {syncRevenueCatUser} from '../_shared/kivelle-revenuecat-sync.ts';
+import {readRevenueCatAdapterConfig,type RevenueCatWebhookEvent} from '../_shared/revenuecat.ts';
+
 const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('status')}),
+  z.object({action:z.literal('reconcile')}),
   z.object({action:z.literal('checkout'),tier:z.enum(['kivelle_plus','kivelle_max']),billingInterval:z.enum(['monthly','annual']).default('monthly'),requestId:z.string().uuid().optional()}),
   z.object({action:z.literal('credits_checkout'),productKey:z.enum(['credits_100','credits_300','credits_800','credits_2000']),requestId:z.string().uuid().optional()}),
   z.object({action:z.literal('portal'),requestId:z.string().uuid().optional()}),
@@ -29,13 +33,21 @@ type BillingConfiguration=ReturnType<typeof billingConfiguration>;
 serve(async(request,correlationId)=>{
   const{user,db}=await authenticated(request);
   const input=request.method==='GET'?{action:'status' as const}:await parseBody(request,schema);
-  await enforceRateLimit(db,user.id,`together_subscription_${input.action}`,input.action==='status'||input.action==='checkout_confirmation'?120:12,3600);
+  await enforceRateLimit(db,user.id,`together_subscription_${input.action}`,input.action==='status'||input.action==='checkout_confirmation'?120:input.action==='reconcile'?60:12,3600);
 
   let state=await resolveSubscriptionState(db,user.id);
   const clientSurface=await verifyWebSurfaceAssertion(request,user.id)?'web':'native_or_unknown';
   const billingPolicy=resolveBillingSurfacePolicy(clientSurface);
   const configuration=billingConfiguration(billingPolicy);
 
+  if(input.action==='reconcile'){
+    const config=readRevenueCatAdapterConfig();
+    if(!config.enabled)throw new AppError('BILLING_NOT_CONFIGURED','App-store verification is unavailable. Try again shortly.',503,true);
+    const event:RevenueCatWebhookEvent={id:crypto.randomUUID(),type:'RECONCILE',event_timestamp_ms:Date.now(),app_user_id:user.id,aliases:[],transferred_from:[],transferred_to:[]};
+    const result=await syncRevenueCatUser(db,user.id,event,config,serverEnv('KIVELLE_REVENUECAT_SECRET_API_KEY'));
+    state=await resolveSubscriptionState(db,user.id);
+    return json({data:{state:await publicSubscriptionStatus(db,user.id,state,configuration),verification:state.tier!=='free'?'active':result.verifiedNoPurchase?'verified_none':'syncing'},correlationId},200,correlationId);
+  }
   if(input.action==='status')return json({data:await publicSubscriptionStatus(db,user.id,state,configuration),correlationId},200,correlationId);
 
   if(input.action==='checkout_confirmation'){

@@ -23,6 +23,7 @@ import { RevenueCatSessionBridge } from "./RevenueCatSessionBridge";
 import { WebAdultSessionBridge } from "./WebAdultSessionBridge";
 import { useTogether } from "../store/useTogether";
 import { PendingMediaRecovery } from "./PendingMediaRecovery";
+import { AiConsentBridge } from "./AiConsentBridge";
 import { WebDocumentAccessibilityBridge } from "./WebDocumentAccessibilityBridge";
 
 function OperationsHeartbeat() {
@@ -69,6 +70,7 @@ export function AppProviders({ children }: PropsWithChildren) {
         <NetworkStatusProvider>
           <QueryClientProvider client={client}>
             <AuthProvider>
+              <AiConsentBridge />
               <PushNotificationBridge />
               <RevenueCatSessionBridge />
               <WebAdultSessionBridge />

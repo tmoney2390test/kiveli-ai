@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import type { AuthError, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { authErrorMessage } from '../lib/authErrors';
-import { createTogetherAccount } from '../lib/api';
+import { createTogetherAccount, manageAccount } from '../lib/api';
 import { getValidatedPersistedSession } from '../lib/authSession';
 import { appleUserMetadata, parseOAuthCallbackUrl, resolveSocialAuthCapabilities, socialAuthErrorMessage, type SocialAuthCapabilities, type SocialAuthProvider } from '../lib/socialAuth';
 
@@ -53,11 +53,29 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
+  useEffect(()=>{
+    if(Platform.OS!=='ios'||!session?.user.identities?.some(identity=>identity.provider==='apple'))return;
+    const owner=session.user.id;let cancelled=false,remove:(()=>void)|undefined;
+    void import('expo-apple-authentication').then(apple=>{
+      if(cancelled)return;
+      const subscription=apple.addRevokeListener(()=>{void supabase.auth.getSession().then(({data})=>{
+        if(data.session?.user.id===owner)return supabase.auth.signOut({scope:'local'});
+      }).catch(()=>undefined);});remove=()=>subscription.remove();
+    });
+    return()=>{cancelled=true;remove?.();};
+  },[session?.user.id]);
 
   useEffect(() => {
     let mounted = true;
     let bootstrapped = false;
     const { data } = supabase.auth.onAuthStateChange((_event, next) => {
+      if(next?.provider_refresh_token&&next.user.app_metadata?.provider==='apple'){
+        // Never await Auth or API calls within the auth event lock.
+        const token=next.provider_refresh_token,owner=next.user.id;
+        setTimeout(()=>{void supabase.auth.getSession().then(({data})=>{
+          if(data.session?.user.id===owner)return manageAccount({action:'apple_credential',kind:'web',refreshToken:token});
+        }).catch(()=>undefined);},0);
+      }
       if (mounted && bootstrapped) {
         setSession(next);
         setLoading(false);
@@ -126,6 +144,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
           const { data, error } = await supabase.auth.signInWithIdToken({ provider: 'apple', token: credential.identityToken, nonce: rawNonce });
           if (error) throw error;
           if (!data.session) throw new Error('Apple sign-in did not create a Kivelle session.');
+          if(credential.authorizationCode){
+            // Auth succeeded; do not invalidate it if recovery storage is temporarily unavailable.
+            await manageAccount({action:'apple_credential',kind:'native',authorizationCode:credential.authorizationCode}).catch(()=>undefined);
+          }
           let formattedName='';
           if(credential.fullName){
             try{formattedName=AppleAuthentication.formatFullName(credential.fullName);}

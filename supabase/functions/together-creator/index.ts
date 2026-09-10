@@ -38,7 +38,7 @@ const schema=z.discriminatedUnion('action',[
 const provider=new ConfiguredCharacterCreationProvider(),moderation=new ConfiguredModerationProvider();
 
 serve(async(request,correlationId)=>{
-  const{user,db}=await authenticated(request);const input=await parseBody(request,schema);if(['create_draft','regenerate_draft_section','generate_draft_appearance','quick_create','generate_appearance'].includes(input.action))await requireAiDataConsent(db,user.id);await enforceRateLimit(db,user.id,`together_creator_${input.action}`,['generate_appearance','generate_draft_appearance'].includes(input.action)?8:30,3600);const now=new Date().toISOString();
+  const{user,db}=await authenticated(request);const input=await parseBody(request,schema);if(['create_draft','regenerate_draft_section','generate_draft_appearance','quick_create','generate_appearance','update_draft_section','complete_draft_appearance_upload','finalize_draft','update'].includes(input.action))await requireAiDataConsent(db,user.id);await enforceRateLimit(db,user.id,`together_creator_${input.action}`,['generate_appearance','generate_draft_appearance'].includes(input.action)?8:30,3600);const now=new Date().toISOString();
   if(isCreatorStudioAction(input.action)){
     const data=await handleCreatorStudioAction({db,userId:user.id,action:input,now});
     return json({data,correlationId},input.action==='create_draft'?201:200,correlationId);
@@ -46,7 +46,7 @@ serve(async(request,correlationId)=>{
   if(input.action==='quick_create'){
     const subscription=await resolveSubscriptionState(db,user.id);await enforceCustomCompanionLimit(db,user.id,subscription.capabilities);
     if(/\b(exactly like|identical to|clone of|look like)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/i.test(input.concept))throw new AppError('VALIDATION_ERROR','Create an original fictional person rather than copying a real person.',400);
-    const safety=await moderation.check(input.concept);if(!safety.allowed)throw new AppError('VALIDATION_ERROR','That companion concept cannot be created. Try an original fictional adult.',400);
+    const safety=await moderation.check(input.concept,{db,userId:user.id});if(!safety.allowed)throw new AppError('VALIDATION_ERROR','That companion concept cannot be created. Try an original fictional adult.',400);
     const access=await resolveWorldAccess({db,userId:user.id,worldId:input.worldId});if(access==='locked'||access==='available')throw new AppError('FORBIDDEN','That world is not available for character creation.',403);
     const{data:world}=await db.from('together_worlds').select('id,name,default_arrival_location_id').eq('id',input.worldId).eq('published',true).maybeSingle();if(!world)throw new AppError('NOT_FOUND','Choose an available world.',404);
     const proposal=await provider.propose(input.concept);const locations=await worldLocations(db,input.worldId);const home=pickHome(locations,world.default_arrival_location_id),meeting=pickMeeting(locations,world.default_arrival_location_id,proposal.interests);if(!home||!meeting)throw new AppError('CONFLICT','That world needs a home and meeting place before someone can live there.',409);

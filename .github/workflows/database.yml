@@ -28,3 +28,6 @@ jobs:
         run: pnpm context:test:db
       - name: Verify chat-speed database contract
         run: pnpm chat-speed:test:db
+
+      - name: Verify Apple review recovery database contract
+        run: node scripts/test-apple-review-db.mjs

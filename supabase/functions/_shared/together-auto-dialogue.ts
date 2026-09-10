@@ -1,3 +1,4 @@
+import {requireScopedAiConsent} from './kivelle-ai-consent.ts';
 import { buildAutoDialoguePrompt, deterministicAutoDialogue, inferAutoDialogueIntents, parseAutoDialogueSuggestion, buildResponsesRequestBody, executeResponsesHttp, extractResponsesText, normalizeResponsesUsage, shouldUseSpicyAutoDialogue, type AutoDialogueInput, type AutoDialogueIntent, type AutoDialoguePreference, type NormalizedAiUsage } from '../../../packages/together-domain/src/index.ts';
 import { recordAiUsage, type AiUsageScope } from './kivelle-ai-usage.ts';
 
@@ -13,6 +14,7 @@ export class ConfiguredAutoDialogueProvider{
   constructor(private readonly fetchImpl:typeof fetch=fetch){}
 
   async generate(input:AutoDialogueInput,options?:{usageScope?:AiUsageScope}):Promise<AutoDialogueResult>{
+    await requireScopedAiConsent(options?.usageScope);
     const fallback=deterministicAutoDialogue(input),prompt=buildAutoDialoguePrompt(input),intent=inferAutoDialogueIntents(input)[0]??'curious',preference=input.preference??'natural';
     if(shouldUseSpicyAutoDialogue(input)){
       const xai=xaiSpicyRouteEnabled()?xaiKey():undefined;

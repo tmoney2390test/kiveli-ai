@@ -120,7 +120,7 @@ export function revenueCatEventUserIds(event:RevenueCatWebhookEvent):string[]{
 }
 
 export async function fetchRevenueCatSubscriber(appUserId:string,secretApiKey:string,fetcher:typeof fetch=fetch):Promise<RevenueCatSubscriber>{
-  const response=await fetcher(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(appUserId)}`,{headers:{Authorization:`Bearer ${secretApiKey}`,Accept:'application/json'}});
+  const response=await fetcher(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(appUserId)}`,{headers:{Authorization:`Bearer ${secretApiKey}`,Accept:'application/json'},signal:AbortSignal.timeout(8000)});
   if(!response.ok)throw new AppError('PROVIDER_UNAVAILABLE','RevenueCat subscriber status could not be verified.',502,true);
   const parsed=subscriberSchema.safeParse(await response.json());
   if(!parsed.success)throw new AppError('PROVIDER_UNAVAILABLE','RevenueCat returned an invalid subscriber status.',502,true);
@@ -142,7 +142,7 @@ export function normalizeRevenueCatSubscriber(snapshot:RevenueCatSubscriber,conf
     const product=config.products[productId];
     if(!entitlementTier||!product||product.tier!==entitlementTier)return[];
     const subscription=snapshot.subscriber.subscriptions[productId];
-    if(!subscription)return[];
+    if(!subscription||(!config.acceptSandbox&&subscription.is_sandbox===true))return[];
     const periodEnd=latestIso(entitlement.expires_date,subscription.expires_date),graceEnd=latestIso(entitlement.grace_period_expires_date,subscription.grace_period_expires_date),accessEndsAt=latestIso(periodEnd,graceEnd);
     const accessEndTime=dateTime(accessEndsAt),active=accessEndsAt===null||accessEndTime>now.getTime();
     if(!active)return[];

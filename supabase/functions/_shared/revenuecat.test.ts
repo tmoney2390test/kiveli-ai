@@ -43,3 +43,9 @@ Deno.test('RevenueCat billing grace stays bounded and cancellation keeps paid ac
 
 function subscriber(entitlements:Record<string,Record<string,unknown>>,subscriptions:Record<string,Record<string,unknown>>):RevenueCatSubscriber{return{request_date:'2026-09-01T00:00:00Z',subscriber:{entitlements,subscriptions}} as RevenueCatSubscriber;}
 async function hmac(secret:string,value:string):Promise<string>{const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']),result=await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(value));return[...new Uint8Array(result)].map((byte)=>byte.toString(16).padStart(2,'0')).join('');}
+
+Deno.test('sandbox snapshot cannot grant production benefits even after a production webhook',()=>{
+  const snapshot=subscriber({plus:{product_identifier:'plus_monthly',expires_date:'2027-01-01T00:00:00Z'}},{plus_monthly:{is_sandbox:true,expires_date:'2027-01-01T00:00:00Z'}});
+  assertEquals(normalizeRevenueCatSubscriber(snapshot,config,new Date('2026-09-01')),null);
+  assertEquals(normalizeRevenueCatSubscriber(snapshot,{...config,acceptSandbox:true},new Date('2026-09-01'))?.sandbox,true);
+});
