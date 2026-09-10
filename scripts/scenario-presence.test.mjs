@@ -17,7 +17,7 @@ test('scenario location, routine hold, movement, lifecycle and atomic event hand
  create table together_plan_attendance(id uuid default gen_random_uuid(),plan_id uuid,user_id uuid,participant_type text,left_at timestamptz);
  create table together_date_templates(id uuid primary key,location_id uuid);create table together_date_sessions(id uuid,user_id uuid,continuity_id uuid,character_instance_id uuid,status text,date_template_id uuid,current_phase text,phase_index int,started_at timestamptz,scheduled_for timestamptz,state jsonb,updated_at timestamptz);
  create table together_scene_sessions(id uuid primary key,user_id uuid,continuity_id uuid,character_instance_id uuid,conversation_id uuid,location_id uuid,shared_plan_id uuid,started_at timestamptz default now(),ended_at timestamptz,updated_at timestamptz,state jsonb default '{}');
- create function kivelle_begin_plan_experience(uuid,uuid,uuid,uuid,text,timestamptz default now(),text default 'app') returns jsonb language plpgsql as $$begin if $5='fail' then raise exception 'event cannot be joined';end if;update together_shared_plans set status='active' where id=$4;return jsonb_build_object('planId',$4);end $$;
+ create function kivelle_begin_plan_experience(uuid,uuid,uuid,uuid,text,timestamptz default now(),text default 'app') returns jsonb language plpgsql as $$begin if $7 not in('app','chat','push','date') then raise exception 'attendance source constraint';end if;if $5='fail' then raise exception 'event cannot be joined';end if;update together_shared_plans set status='active' where id=$4;return jsonb_build_object('planId',$4);end $$;
  `);
  for(const id of new Set(catalogue.map(x=>x.characterTemplateId)))await db.query('insert into together_character_templates values($1)',[id]);
  for(const id of new Set(catalogue.map(x=>x.worldId)))await db.query('insert into together_worlds values($1)',[id]);
@@ -25,6 +25,7 @@ test('scenario location, routine hold, movement, lifecycle and atomic event hand
  await db.exec(readFileSync('supabase/migrations/20260909205155_kivelle_scenarios.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20260909210553_scenario_context_revision.sql','utf8'));
  await db.exec(migration);
+ await db.exec(readFileSync('supabase/migrations/20260910002531_scenario_join_attendance_source.sql','utf8'));
  const ids=Array.from({length:7},(_,i)=>`00000000-0000-4000-8000-${String(i+1).padStart(12,'0')}`),[user,other,life,character,conversation,secondChat,plan]=ids;
  const s=catalogue[0],next=catalogue.find(x=>x.worldId===s.worldId&&x.locationId!==s.locationId);
  await db.query('insert into auth.users values($1),($2)',[user,other]);await db.query('insert into together_continuities values($1,$2)',[life,user]);
