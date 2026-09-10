@@ -58,6 +58,12 @@ async function serveAppAsset(request, env) {
       assetUrl.pathname = "/create/companion/%5BdraftId%5D";
       assetRequest = new Request(assetUrl, request);
     }
+    if ((request.method === "GET" || request.method === "HEAD") && /^\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/?$/i.test(pathname)) {
+      // Photo and video links need their own exported loading document too.
+      const assetUrl = new URL(request.url);
+      assetUrl.pathname = "/media/%5Bid%5D";
+      assetRequest = new Request(assetUrl, request);
+    }
     const assetResponse = await env.ASSETS.fetch(assetRequest);
     const responseHeaders = new Headers(assetResponse.headers);
     const contentType = responseHeaders.get("content-type") || "";
