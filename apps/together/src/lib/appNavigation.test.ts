@@ -286,4 +286,40 @@ describe("app navigation", () => {
     expect(browser.location.href).toBe("https://kivelli.app/explore?world=eos-meridian");
     expect(history.replaceState).toHaveBeenCalledOnce();
   });
+
+  it.each(["/settings", "/profile"])("updates %s sections without dispatching a navigation event or resetting history", (pathname) => {
+    const { browser, history, routeEvents, classes } = browserAt(`https://kivelli.app${pathname}?section=profile`);
+    const routeState = { key: 'settings-entry', index: 2 };
+    history.replaceState(routeState, '', `${pathname}?section=profile`);
+    history.replaceState.mockClear();
+    const setParams = vi.fn();
+    const router = { push: vi.fn(), navigate: vi.fn(), replace: vi.fn(), setParams };
+    installWebNavigationCompatibility(router);
+
+    router.setParams({ section: 'identity' } as never);
+    router.setParams({ section: 'relationships' } as never);
+    router.setParams({ section: undefined } as never);
+
+    expect(setParams.mock.calls).toEqual([[{ section: 'identity' }], [{ section: 'relationships' }], [{ section: undefined }]]);
+    expect(history.state).toBe(routeState);
+    expect(history.replaceState).not.toHaveBeenCalled();
+    expect(history.pushState).not.toHaveBeenCalled();
+    expect(browser.location.assign).not.toHaveBeenCalled();
+    expect(browser.location.replace).not.toHaveBeenCalled();
+    expect(routeEvents).toEqual([]);
+    expect(classes.has(WEB_ROUTE_TRANSITION_CLASS)).toBe(false);
+  });
+
+  it('keeps route-parameter recovery for selectors outside Settings', () => {
+    const { browser, routeEvents } = browserAt('https://kivelli.app/explore?world=juniper-city');
+    const setParams = vi.fn();
+    const router = { push: vi.fn(), navigate: vi.fn(), replace: vi.fn(), setParams };
+    installWebNavigationCompatibility(router);
+
+    router.setParams({ world: 'eos-meridian' } as never);
+
+    expect(setParams).not.toHaveBeenCalled();
+    expect(browser.location.search).toBe('?world=eos-meridian');
+    expect(routeEvents).toEqual(['popstate']);
+  });
 });
