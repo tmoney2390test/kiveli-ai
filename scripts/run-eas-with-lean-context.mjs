@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
 const appDirectory = join(repositoryRoot, "apps", "together");
-const easArguments = process.argv.slice(2);
+const preflightOnly=process.argv.includes('--preflight-only');
+const easArguments = process.argv.slice(2).filter(arg=>arg!=='--preflight-only');
 const easCliVersion = process.env.KIVELLE_EAS_CLI_VERSION ?? "16.17.0";
 
 if (easArguments.length === 0 || easArguments.includes("--help-context")) {
@@ -44,13 +45,14 @@ if(easArguments[0]==='build'&&!easArguments.includes('--help')){
     for(const target of platform==='all'?['ios','android']:[platform]){
       const args=[...(pnpmCli?[pnpmCli]:[]),'dlx',`eas-cli@${easCliVersion}`,'env:exec',profile.environment,`node ../../scripts/verify-native-release-config.mjs --platform ${target}`,'--non-interactive'];
       const code=await new Promise(resolveCode=>{
-        const preflight=spawn(executable,args,{cwd:appDirectory,env:environment,shell:!pnpmCli&&process.platform==='win32',stdio:'inherit'});
+        const preflight=spawn(executable,!pnpmCli&&process.platform==='win32'?args.map(arg=>arg.includes(' ')?JSON.stringify(arg):arg):args,{cwd:appDirectory,env:environment,shell:!pnpmCli&&process.platform==='win32',stdio:'inherit'});
         preflight.once('error',()=>resolveCode(1));preflight.once('exit',value=>resolveCode(value??1));
       });
       if(code!==0)process.exit(1);
     }
   }
 }
+if(preflightOnly)process.exit(0);
 const child = spawn(executable, commandArguments, {
   cwd: appDirectory,
   env: environment,
