@@ -1,22 +1,41 @@
 import { createElement, useEffect, useRef, useState, type SyntheticEvent } from 'react';
+import { prepareVideoThumbnail, videoThumbnailAttributes, videoThumbnailHasFrame } from '../lib/videoThumbnail';
 
-export function VideoMomentThumbnail({uri,posterUri,onReady}:{uri:string;posterUri?:string|null;onReady?:()=>void}){
-  const rootRef=useRef<HTMLDivElement|null>(null),readyReported=useRef(false);
-  const[visible,setVisible]=useState(false),[ready,setReady]=useState(false);
-  useEffect(()=>{
-    setReady(false);readyReported.current=false;
-    const root=rootRef.current;
-    if(!root||typeof IntersectionObserver==='undefined'){setVisible(true);return;}
-    const observer=new IntersectionObserver((entries)=>{if(entries.some((entry)=>entry.isIntersecting)){setVisible(true);observer.disconnect();}},{rootMargin:'180px'});
-    observer.observe(root);return()=>observer.disconnect();
-  },[uri]);
-  const markReady=()=>{setReady(true);if(!readyReported.current){readyReported.current=true;onReady?.();}};
-  return createElement('div',{ref:rootRef,style:rootStyle},createElement('video',{
-    src:visible?uri:undefined,poster:posterUri??undefined,muted:true,defaultMuted:true,controls:false,playsInline:true,preload:'metadata','webkit-playsinline':'true','aria-hidden':true,tabIndex:-1,
-    onLoadedData:(event:SyntheticEvent<HTMLVideoElement>)=>{event.currentTarget.pause();event.currentTarget.currentTime=0;markReady();},onCanPlay:markReady,onError:()=>setReady(false),
-    style:{...videoStyle,opacity:ready?1:0},
-  }));
+type Props = {uri: string; posterUri?: string | null; contentFit?: 'cover' | 'contain'; onReady?: () => void};
+
+export function VideoMomentThumbnail({uri, posterUri, contentFit = 'cover', onReady}: Props) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const readyReported = useRef<string | null>(null);
+  const [visibleUri, setVisibleUri] = useState<string | null>(null);
+  const [readyUri, setReadyUri] = useState<string | null>(null);
+  useEffect(() => {
+    readyReported.current = null;
+    const root = rootRef.current;
+    if (!root || typeof IntersectionObserver === 'undefined') {setVisibleUri(uri); return;}
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {setVisibleUri(uri); observer.disconnect();}
+    }, {rootMargin: '180px'});
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [uri]);
+  const markReady = (event: SyntheticEvent<HTMLVideoElement>) => {
+    if (!videoThumbnailHasFrame(event.currentTarget)) return;
+    setReadyUri(uri);
+    if (readyReported.current !== uri) {readyReported.current = uri; onReady?.();}
+  };
+  return createElement('div', {ref: rootRef, style: rootStyle},
+    createElement('video', {
+      key: uri, ...videoThumbnailAttributes(visibleUri === uri ? uri : undefined, posterUri),
+      onLoadedMetadata: (event: SyntheticEvent<HTMLVideoElement>) => {
+        try {prepareVideoThumbnail(event.currentTarget);} catch {/* A poster remains usable if seeking is unavailable. */}
+      },
+      onLoadedData: markReady, onSeeked: markReady, onCanPlay: markReady,
+      onError: () => setReadyUri(null),
+      // Metadata alone cannot paint a video frame. Never hide a usable poster while waiting.
+      style: {...videoStyle, objectFit: contentFit, opacity: readyUri === uri || posterUri ? 1 : 0},
+    }),
+  );
 }
 
-const rootStyle={position:'absolute' as const,inset:0,overflow:'hidden',pointerEvents:'none' as const};
-const videoStyle={position:'absolute' as const,inset:0,width:'100%',height:'100%',display:'block',objectFit:'cover' as const,objectPosition:'center top',backgroundColor:'transparent',transition:'opacity 160ms ease'};
+const rootStyle = {position: 'absolute' as const, inset: 0, overflow: 'hidden', pointerEvents: 'none' as const};
+const videoStyle = {position: 'absolute' as const, inset: 0, width: '100%', height: '100%', display: 'block', objectPosition: 'center', backgroundColor: 'transparent'};
