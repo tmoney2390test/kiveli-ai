@@ -56,3 +56,13 @@ Validation: 732 app tests; all application/Edge Function TypeScript and lint che
 Migration: 20260910001505_scenario_presence_pause.sql. The migration ledger and repository version are aligned.
 
 The production transaction check also exercises the existing attendance-source constraint. Scenario confirmation remains internal to the transition wrapper; attendance retains the existing app source. Migration 20260910002531_scenario_join_attendance_source.sql records this compatibility fix.
+
+## Relationship controls and scoped resets
+
+Relationship controls opens as a matching frosted popup in chat. The standalone settings entry point uses the same component. It has exactly four actions: Reset relationship progress, Start over with the companion, Reset scenario, and Reset current conversation. Memory and conversation management links were removed from these controls. Confirmation screens explain scope; full start-over retains the removal preview and typed START OVER confirmation. Scenario reset is available only when this conversation has a saved scenario.
+
+Scenario reset replaces only this transcript and restarts the saved scenario at its authored opening/location. Conversation reset replaces only this transcript, with empty context, preserving any scenario's current location and status. Both preserve relationship progression and session counters, shared memories, plans, Moments, generated gallery media, other conversations, and chat preferences. Transcript attachments are removed through existing storage cleanup. Old conversation references cannot accept stale replies into the replacement. Active replies/media must finish before reset. Reset receipts make retries idempotent and are private to the service role.
+
+Validated with 732 app tests, TypeScript, lint, Edge Function typechecks, scenario/database suites including ownership and retry checks, and production rollback transactions comparing relationship state, memory counts, other conversations and both reset outcomes. Browser checks at 360/390/768/1440px verified the live popup, four options, confirmation screens and full-reset lock. No production reset was committed during testing. Production route audit passed all 423 pages and 63 critical assets; asset budget passed.
+
+Applied migrations: 20260910004000_conversation_scoped_resets.sql and 20260910004232_chat_reset_preserve_progress.sql. Frontend release: 72959cc4-46ce-4db2-97f1-136ca3ffe8ee.

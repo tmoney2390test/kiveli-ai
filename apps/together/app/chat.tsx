@@ -1,3 +1,4 @@
+import {RelationshipControlsModal} from '../src/components/RelationshipControlsModal';
 import type {Scenario} from '../src/lib/scenarioCatalog';
 import {scenarioAssets} from '../src/scenario-assets';
 import {ScenarioConversationBanner} from '../src/components/ScenarioConversationBanner';
@@ -167,6 +168,7 @@ function ChatSession() {
   const [characterProposal,setCharacterProposal]=useState<CharacterInteractionProposal|null>(null);
   const [showConversationMenu, setShowConversationMenu] = useState(false);
   const [showChatSettings, setShowChatSettings] = useState(false);
+  const [showRelationshipControls,setShowRelationshipControls]=useState(false);
   const [showPlaceInfo,setShowPlaceInfo]=useState(false);
   const [showChatMedia,setShowChatMedia]=useState(false);
   const [loadedGalleryMedia,setLoadedGalleryMedia]=useState<GeneratedMedia[]>([]),[loadedGalleryAttachments,setLoadedGalleryAttachments]=useState<ConversationAttachment[]>([]),[galleryLoading,setGalleryLoading]=useState(false),[galleryError,setGalleryError]=useState('');
@@ -1217,9 +1219,10 @@ function ChatSession() {
           onEndPlan={()=>{setShowConversationMenu(false);if(activeSharedPlan)requestEndPlan(activeSharedPlan);}}
           onSettings={()=>{setShowConversationMenu(false);setShowChatSettings(true);}}
           onFresh={startNewConversation}
-          onAdvanced={()=>{setShowConversationMenu(false);navigateChatSurface(`/conversation-controls?character=${encodeURIComponent(character.id)}`);}}
+          onAdvanced={()=>{setShowConversationMenu(false);setShowRelationshipControls(true);}}
           onDelete={deleteConversation}
         /> : null}
+        <RelationshipControlsModal visible={showRelationshipControls} conversation={conversation} character={character} onClose={()=>setShowRelationshipControls(false)} onReset={(href)=>{setShowRelationshipControls(false);if(href)navigateChatSurface(href,'replace');}} />
         <ChatSettingsModal visible={showChatSettings} conversation={conversation} character={character} onClose={()=>setShowChatSettings(false)} />
         <ChatMediaGalleryModal visible={showChatMedia} items={chatGalleryItems} generatedMedia={galleryGeneratedMedia} companionName={character.together_character_templates.name} returnTo={subscriptionReturnTo} loading={galleryLoading} error={galleryError} onRetry={()=>void loadChatGallery()} onClose={()=>setShowChatMedia(false)}/>
         <ChatPlaceInfoModal

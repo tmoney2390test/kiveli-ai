@@ -72,6 +72,42 @@ test('scenario location, routine hold, movement, lifecycle and atomic event hand
  assert.equal((await db.query('select current_location_id from together_character_instances where id=$1',[c])).rows[0].current_location_id,item.locationId,item.id);
  }
  await assert.rejects(()=>db.query('select together_start_scenario($1,$2,$3,$4,$5,$6,$7)',[other,life,conversation,character,catalogue[0].characterTemplateId,catalogue[0].id,'Opening']),/unavailable/);
+
+ // Scoped resets replace just this transcript while retaining relationship state.
+ await db.exec(`alter table together_conversations alter column id set default gen_random_uuid();alter table together_conversations add column title text,add column metadata jsonb default '{}',add column last_read_at timestamptz,add column summary text,add column canonical_context jsonb default '{}';
+ alter table together_messages add constraint messages_conversation_fk foreign key(conversation_id) references together_conversations(id) on delete cascade;
+ alter table together_proactive_messages add column conversation_id uuid,add column status text,add column updated_at timestamptz;
+ create table together_conversation_attachments(id uuid,user_id uuid,conversation_id uuid references together_conversations(id) on delete cascade,storage_path text);
+ create table together_dialogue_turns(id uuid,conversation_id uuid references together_conversations(id) on delete cascade,state text,lease_expires_at timestamptz);
+ create table together_relationship_states(character_instance_id uuid,user_id uuid,conversation_session_count integer default 0,state jsonb);create table together_generated_media(user_id uuid,conversation_id uuid,status text);`);
+ await db.exec(readFileSync('supabase/migrations/20260910004000_conversation_scoped_resets.sql','utf8'));
+ await db.exec(readFileSync('supabase/migrations/20260910004232_chat_reset_preserve_progress.sql','utf8'));
+ await db.query('delete from together_scenario_sessions where scenario_id=$1 and user_id=$2',[s.id,user]);
+ const resetSession=(await start()).rows[0];
+ await db.query("insert into together_relationship_states(character_instance_id,state) values($1,'{\"trust\":85,\"stage\":\"dating\"}')",[character]);
+ await db.query("update together_conversations set metadata='{\"chatPreferences\":{\"textSize\":\"large\"},\"focus\":{\"old\":true}}',summary='Old summary',canonical_context='{\"old\":true}' where id=$1",[conversation]);
+ await db.query("insert into together_messages(user_id,conversation_id,character_instance_id,content) values($1,$2,$3,'Other chat stays')",[user,secondChat,character]);
+ await db.query('update together_relationship_states set user_id=$1 where character_instance_id=$2',[user,character]);
+ await db.exec(`create function mock_session_counter() returns trigger language plpgsql as $$begin update together_relationship_states set conversation_session_count=conversation_session_count+1 where character_instance_id=new.character_instance_id;return new;end $$;create trigger mock_session_counter after insert on together_conversations for each row execute function mock_session_counter();`);
+ const resetRequest=crypto.randomUUID(),reset=(chat,mode,request=crypto.randomUUID(),sid=resetSession.id)=>db.query('select kivelli_reset_chat($1,$2,$3,$4,$5,$6,$7) result',[user,life,chat,mode,request,sid,'New opening']);
+ await assert.rejects(()=>reset(conversation,'scenario',crypto.randomUUID(),crypto.randomUUID()),/Scenario unavailable/);
+ assert.ok((await db.query('select id from together_conversations where id=$1',[conversation])).rows.length);
+ const resetResult=(await reset(conversation,'scenario',resetRequest)).rows[0].result;
+ assert.deepEqual((await reset(conversation,'scenario',resetRequest)).rows[0].result,resetResult,'Retry is idempotent');
+ assert.equal((await db.query('select content from together_messages where conversation_id=$1',[resetResult.conversationId])).rows[0].content,'New opening');
+ assert.equal((await actor()).scenario_state.conversationId,resetResult.conversationId);
+ assert.equal((await actor()).current_location_id,s.locationId);
+ const fresh=(await db.query('select * from together_conversations where id=$1',[resetResult.conversationId])).rows[0];assert.equal(fresh.summary,null);assert.deepEqual(fresh.canonical_context,{});assert.deepEqual(fresh.metadata,{chatPreferences:{textSize:'large'}});
+ await db.query("insert into together_dialogue_turns values(gen_random_uuid(),$1,'planning',now()+interval '1 minute')",[resetResult.conversationId]);
+ await assert.rejects(()=>reset(resetResult.conversationId,'conversation'),/Wait for the current reply/);
+ await db.query('delete from together_dialogue_turns where conversation_id=$1',[resetResult.conversationId]);
+ const plain=(await reset(resetResult.conversationId,'conversation')).rows[0].result;
+ assert.equal((await db.query('select count(*)::int n from together_messages where conversation_id=$1',[plain.conversationId])).rows[0].n,0);
+ assert.equal((await actor()).scenario_state.conversationId,plain.conversationId);
+ assert.equal((await db.query('select content from together_messages where conversation_id=$1',[secondChat])).rows[0].content,'Other chat stays');
+ assert.equal((await db.query('select conversation_session_count from together_relationship_states where character_instance_id=$1',[character])).rows[0].conversation_session_count,0,'Chat resets preserve relationship counters');
+ assert.deepEqual((await db.query('select state from together_relationship_states where character_instance_id=$1',[character])).rows[0].state,{trust:85,stage:'dating'});
+ await assert.rejects(()=>db.query("select kivelli_reset_chat($1,$2,$3,'conversation',$4,null,null)",[other,life,plain.conversationId,crypto.randomUUID()]),/Conversation unavailable/);
  await db.exec('set role authenticated');await assert.rejects(()=>db.query('select * from together_scenario_definitions'),/permission denied/);
  }finally{await db.close();}
 });
