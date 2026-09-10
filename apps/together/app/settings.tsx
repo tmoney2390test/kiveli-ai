@@ -1,4 +1,5 @@
-import { cloneElement, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { cloneElement, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import {AccountProfilePanel} from '../src/components/AccountProfilePanel';
 import {AdminConsoleLink} from '../src/components/AdminConsoleLink';
 import {
   Alert,
@@ -13,7 +14,6 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -54,17 +54,13 @@ import { shouldRenderSettingsRoute, shouldUseDesktopSettingsLayout } from '../sr
 import { DESKTOP_SIDEBAR_EXPANDED_WIDTH } from '../src/lib/desktopNavigation';
 import { startSignOutTransition } from '../src/lib/signOutTransition';
 import { createClientRequestId } from '../src/lib/requestId';
-import { privateStoredImageSource } from '../src/lib/mediaImageSource';
 import {
-  normalizeProfileDraft,
-  profileDraftChanged,
   settingsCloseTarget,
   settingsSearchMatches,
   settingsSectionFromParam,
-  type ProfileDraft,
   type SettingsSection,
 } from '../src/lib/settingsExperience';
-import { FrostedBackdrop, FrostedSurface, GradientButton, LoadingSkeleton } from '../src/components';
+import { FrostedBackdrop, FrostedSurface, LoadingSkeleton } from '../src/components';
 
 type SaveNotice = { kind: 'success' | 'error'; message: string } | null;
 type Snapshot = NonNullable<ReturnType<typeof useTogether.getState>['snapshot']>;
@@ -77,9 +73,9 @@ type SectionDefinition = {
 };
 
 const sections: SectionDefinition[] = [
-  { id: 'profile', label: 'Your profile', description: 'Your name, introduction, interests, and account photo.', searchTerms: 'avatar bio about goals', icon: <UserRound size={20} /> },
+  { id: 'profile', label: 'Your profile', description: 'Your account photo, highlights, companions, and media.', searchTerms: 'avatar email highlights images videos', icon: <UserRound size={20} /> },
   { id: 'account', label: 'Account & billing', description: 'Sign-in, subscription, credits, and active devices.', searchTerms: 'email code security payment plan verification', icon: <KeyRound size={20} /> },
-  { id: 'identity', label: 'Personas & Lives', description: 'Manage who companions know in each separate Life.', searchTerms: 'persona identity alternate main life', icon: <Sparkles size={20} /> },
+  { id: 'identity', label: 'Personas & Lives', description: 'Manage who companions know in each separate Life.', searchTerms: 'persona identity alternate main life name bio about interests goals', icon: <Sparkles size={20} /> },
   { id: 'experience', label: 'Chat & media', description: 'Notifications, content, photos, video, voice, and calls.', searchTerms: 'push romance upload generation autoplay audio', icon: <Heart size={20} /> },
   { id: 'relationships', label: 'Relationships', description: 'Companions, conversations, archives, and memories.', searchTerms: 'chat reset history memory moments', icon: <UsersRound size={20} /> },
   { id: 'privacy', label: 'Privacy & safety', description: 'Personalization, analytics, data, policies, and deletion.', searchTerms: 'export delete account terms refund community ai disclosure', icon: <Shield size={20} /> },
@@ -102,22 +98,13 @@ export default function Settings() {
   const { session, signOut, resendPendingEmailChange, signOutOthers } = useAuth();
   const providerState = authProviderState(session?.user);
   const profile = snapshot?.profile;
-  const [name, setName] = useState(profile?.display_name ?? '');
-  const [about, setAbout] = useState(profile?.about_me ?? '');
-  const [interests, setInterests] = useState((profile?.interests ?? []).join(', '));
-  const [goals, setGoals] = useState((profile?.experience_goals ?? []).join(', '));
-  const [savedDraft, setSavedDraft] = useState<ProfileDraft | null>(null);
+  const name = profile?.display_name ?? '';
   const [avatarPath, setAvatarPath] = useState<string | null>(profile?.avatar_path ?? null);
   const [busy, setBusy] = useState(false);
-  const [syncMainPersona, setSyncMainPersona] = useState(true);
   const [saveNotice, setSaveNotice] = useState<SaveNotice>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [signingOut, setSigningOut] = useState(false);
-  const hydratedProfileSignature = useRef<string | null>(null);
   const avatar = useProfileAvatarUrl(avatarPath);
-  const draft = useMemo(() => ({ name, about, interests, goals }), [about, goals, interests, name]);
-  const dirty = profileDraftChanged(savedDraft, draft);
-
   useEffect(() => { setWebHydrated(true); }, []);
 
   useEffect(() => {
@@ -127,94 +114,27 @@ export default function Settings() {
   }, [desktop, params.section]);
 
   useEffect(() => {
-    if (!profile) return;
-    const signature = JSON.stringify([profile.display_name, profile.about_me, profile.interests, profile.experience_goals]);
-    if (signature === hydratedProfileSignature.current || dirty) return;
-    const next = normalizeProfileDraft({
-      name: profile.display_name ?? '',
-      about: profile.about_me ?? '',
-      interests: (profile.interests ?? []).join(', '),
-      goals: (profile.experience_goals ?? []).join(', '),
-    });
-    setName(next.name);
-    setAbout(next.about);
-    setInterests(next.interests);
-    setGoals(next.goals);
-    setSavedDraft(next);
-    hydratedProfileSignature.current = signature;
-  }, [dirty, profile]);
-
-  useEffect(() => {
     setAvatarPath(profile?.avatar_path ?? null);
   }, [profile?.avatar_path]);
 
-  useEffect(() => {
-    if (Platform.OS !== 'web' || !dirty || typeof window === 'undefined') return;
-    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = '';
-    };
-    window.addEventListener('beforeunload', warnBeforeUnload);
-    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
-  }, [dirty]);
-
-  const afterDiscardCheck = (action: () => void) => {
-    if (!dirty) { action(); return; }
-    confirmAction({
-      title: 'Discard profile changes?',
-      message: 'Your unsaved profile edits will be lost.',
-      confirmLabel: 'Discard changes',
-      destructive: true,
-      onConfirm: action,
-    });
-  };
-  const close = () => afterDiscardCheck(() => settingsCloseTarget(router.canGoBack()) === 'back' ? router.back() : router.replace('/home' as never));
+  const close = () => settingsCloseTarget(router.canGoBack()) === 'back' ? router.back() : router.replace('/home' as never);
   const selectSection = (next: SettingsSection) => {
     if (next === activeSection) return;
-    afterDiscardCheck(() => {
-      setSection(next);
-      router.setParams({ section: next });
-      scroll.current?.scrollTo({ y: 0, animated: false });
-    });
+    setSection(next);
+    router.setParams({ section: next });
+    scroll.current?.scrollTo({ y: 0, animated: false });
   };
-  const showOverview = () => afterDiscardCheck(() => {
+  const showOverview = () => {
     setSection(null);
     router.setParams({ section: undefined });
     scroll.current?.scrollTo({ y: 0, animated: false });
-  });
-  const openRoute = (route: string) => afterDiscardCheck(() => {
+  };
+  const openRoute = (route: string) => {
     // React Navigation hides the outgoing screen immediately. Release focus
     // first so assistive technology never sees a focused control inside an
     // aria-hidden Settings surface.
     if (Platform.OS === 'web' && typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) document.activeElement.blur();
     router.push(route as never);
-  });
-
-  const saveProfile = async () => {
-    const next = normalizeProfileDraft(draft);
-    if (!next.name || !dirty) return;
-    setBusy(true);
-    setSaveNotice(null);
-    try {
-      await manageAccount({
-        action: 'profile',
-        displayName: next.name,
-        aboutMe: next.about,
-        interests: splitList(next.interests, 10),
-        goals: splitList(next.goals, 4),
-        avatarPath: profile?.avatar_path ?? null,
-        syncMainPersona,
-      });
-      setName(next.name);
-      setAbout(next.about);
-      setInterests(next.interests);
-      setGoals(next.goals);
-      setSavedDraft(next);
-      setSaveNotice({ kind: 'success', message: 'Profile saved.' });
-      await refresh();
-    } catch (error) {
-      setSaveNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Your profile could not be saved. Please try again.' });
-    } finally { setBusy(false); }
   };
 
   const chooseAvatarSource = () => {
@@ -248,19 +168,9 @@ export default function Settings() {
       const { error } = await supabase.storage.from('together-user-media').upload(path, blob, { contentType: normalized.mimeType, upsert: false, cacheControl: '31536000' });
       if (error) throw error;
       uploadedPath = path;
-      // Avatar changes save immediately, but never smuggle unsaved form edits
-      // into the account update.
-      await manageAccount({
-        action: 'profile',
-        displayName: profile?.display_name || 'You',
-        aboutMe: profile?.about_me?.trim() ?? '',
-        interests: profile?.interests ?? [],
-        goals: profile?.experience_goals ?? [],
-        avatarPath: path,
-        syncMainPersona,
-      });
+      await manageAccount({ action: 'avatar', avatarPath: path });
       setAvatarPath(path);
-      setSaveNotice({ kind: 'success', message: dirty ? 'Avatar updated. Your other profile edits are still unsaved.' : 'Avatar updated.' });
+      setSaveNotice({ kind: 'success', message: 'Account photo updated.' });
       await refresh();
     } catch (error) {
       if (uploadedPath) await supabase.storage.from('together-user-media').remove([uploadedPath]);
@@ -272,9 +182,9 @@ export default function Settings() {
     if (!profile?.avatar_path || busy) return;
     setBusy(true); setSaveNotice(null);
     try {
-      await manageAccount({ action: 'profile', displayName: profile.display_name || 'You', aboutMe: profile.about_me?.trim() ?? '', interests: profile.interests ?? [], goals: profile.experience_goals ?? [], avatarPath: null, syncMainPersona });
+      await manageAccount({ action: 'avatar', avatarPath: null });
       setAvatarPath(null);
-      setSaveNotice({ kind: 'success', message: dirty ? 'Avatar removed. Your other profile edits are still unsaved.' : 'Avatar removed.' });
+      setSaveNotice({ kind: 'success', message: 'Account photo removed.' });
       await refresh();
     } catch (error) { setSaveNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Your avatar could not be removed. Please try again.' }); }
     finally { setBusy(false); }
@@ -293,13 +203,13 @@ export default function Settings() {
       Alert.alert('Could not sign out', error instanceof Error ? error.message : 'Please try again.');
     } finally { setSigningOut(false); }
   };
-  const logout = () => afterDiscardCheck(() => confirmAction({
+  const logout = () => confirmAction({
     title: 'Sign out?',
     message: 'Your relationships and memories will still be here when you return.',
     confirmLabel: 'Sign out',
     destructive: true,
     onConfirm: performLogout,
-  }));
+  });
 
   const modalHeight = desktop ? Math.max(520, height - 36) : height;
   const browserPath = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.pathname : null;
@@ -336,13 +246,13 @@ export default function Settings() {
           <ScrollView
             ref={scroll}
             style={styles.main}
-            contentContainerStyle={[styles.mainContent, desktop && styles.mainContentDesktop, !desktop && { paddingBottom: activeSection === 'profile' ? 120 : Math.max(54, insets.bottom + 34) }]}
+            contentContainerStyle={[styles.mainContent, desktop && styles.mainContentDesktop, !desktop && { paddingBottom: Math.max(54, insets.bottom + 34) }]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
             <AdminConsoleLink />
             {!snapshot ? <LoadingSkeleton label="Loading your settings…" /> : activeSection ? <>
-              {activeSection === 'profile' ? <ProfilePanel avatar={avatar} avatarPath={avatarPath} hasAvatar={Boolean(avatarPath)} name={name} setName={(value) => { setSaveNotice(null); setName(value); }} about={about} setAbout={(value) => { setSaveNotice(null); setAbout(value); }} interests={interests} setInterests={(value) => { setSaveNotice(null); setInterests(value); }} goals={goals} setGoals={(value) => { setSaveNotice(null); setGoals(value); }} syncMainPersona={syncMainPersona} setSyncMainPersona={setSyncMainPersona} busy={busy} dirty={dirty} notice={saveNotice} email={session?.user.email} onAvatar={chooseAvatarSource} onRemoveAvatar={() => void removeAvatar()} onSave={() => void saveProfile()} showInlineSave={desktop} /> : null}
+              {activeSection === 'profile' ? <AccountProfilePanel key={snapshot.activeContinuity?.id ?? 'main'} snapshot={snapshot} avatar={avatar} avatarPath={avatarPath} name={name} busy={busy} notice={saveNotice} email={session?.user.email} onAvatar={chooseAvatarSource} onRemoveAvatar={() => void removeAvatar()} onRoute={openRoute} /> : null}
               {activeSection === 'account' ? <AccountPanel email={session?.user.email} providerLabel={providerState.label} verified={providerState.verifiedEmail} pendingEmail={providerState.pendingEmail} tier={subscriptionLabel(snapshot.entitlements?.tier)} onRoute={openRoute} onResend={() => void resendPendingEmailChange().then(() => Alert.alert('Confirmation sent', 'Check the new email address.')).catch((error) => Alert.alert('Could not send email', error.message))} onSignOutOthers={() => Alert.alert('Sign out everywhere else?', 'This device will remain signed in.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out others', style: 'destructive', onPress: () => void signOutOthers().then(() => Alert.alert('Other sessions signed out.')).catch((error) => Alert.alert('Could not update sessions', error.message)) }])} /> : null}
               {activeSection === 'identity' ? <IdentityPanel snapshot={snapshot} onRoute={openRoute} /> : null}
               {activeSection === 'experience' ? <ExperiencePanel snapshot={snapshot} onRoute={openRoute} /> : null}
@@ -352,10 +262,7 @@ export default function Settings() {
             </> : <SettingsOverview snapshot={snapshot} name={name} verified={providerState.verifiedEmail} tier={subscriptionLabel(snapshot.entitlements?.tier)} query={searchQuery} onQuery={setSearchQuery} onSelect={selectSection} signingOut={signingOut} onLogout={logout} />}
           </ScrollView>
 
-          {!desktop && activeSection === 'profile' && snapshot ? <View style={[styles.mobileSaveBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-            <View style={styles.mobileSaveCopy}><Text style={styles.mobileSaveTitle}>{dirty ? 'Unsaved changes' : 'Profile up to date'}</Text><Text numberOfLines={1} style={styles.mobileSaveMeta}>{saveNotice?.message ?? (dirty ? 'Save when you’re ready.' : 'Changes will appear across Kivelle.')}</Text></View>
-            <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy || !dirty || !name.trim() }} disabled={busy || !dirty || !name.trim()} onPress={() => void saveProfile()} style={({ pressed }) => [styles.mobileSaveButton, (busy || !dirty || !name.trim()) && styles.mobileSaveButtonDisabled, pressed && styles.pressed]}><Text style={styles.mobileSaveButtonText}>{busy ? 'Saving…' : 'Save'}</Text></Pressable>
-          </View> : null}
+
         </View>
       </KeyboardAvoidingView>
     </FrostedSurface>
@@ -386,36 +293,6 @@ function SettingsOverview({ snapshot, name, verified, tier, query, onQuery, onSe
     <View style={styles.searchBox}><Search size={19} color={colors.muted} /><TextInput accessibilityLabel="Search settings" value={query} onChangeText={onQuery} placeholder="Search settings" placeholderTextColor={colors.dimmed} returnKeyType="search" style={styles.searchInput} />{query ? <Pressable accessibilityRole="button" accessibilityLabel="Clear settings search" onPress={() => onQuery('')} hitSlop={8}><X size={18} color={colors.muted} /></Pressable> : null}</View>
     {filtered.length ? <SettingsGroup>{filtered.map((item) => <SettingsRow key={item.id} icon={item.icon} title={item.label} body={item.description} value={statuses[item.id]} onPress={() => onSelect(item.id)} />)}</SettingsGroup> : <View style={styles.emptySearch}><Search size={24} color={colors.muted} /><Text style={styles.emptySearchTitle}>No settings found</Text><Text style={styles.emptySearchBody}>Try a broader word such as “photo,” “privacy,” or “password.”</Text></View>}
     <LogoutButton signingOut={signingOut} onPress={onLogout} mobile />
-  </View>;
-}
-
-function ProfilePanel(props: {
-  avatar: string | null; avatarPath: string | null; hasAvatar: boolean; name: string; setName: (value: string) => void; about: string; setAbout: (value: string) => void;
-  interests: string; setInterests: (value: string) => void; goals: string; setGoals: (value: string) => void;
-  syncMainPersona: boolean; setSyncMainPersona: (value: boolean) => void; busy: boolean; dirty: boolean; notice: SaveNotice;
-  email?: string; onAvatar: () => void; onRemoveAvatar: () => void; onSave: () => void; showInlineSave: boolean;
-}) {
-  const avatarSource = privateStoredImageSource(props.avatar, props.avatarPath);
-  return <View style={styles.panel}>
-    <PanelHeading title="Your profile" body="This is you—not your active companion. Relationship memories and alternate-Life identities remain separate." />
-    <View style={styles.profileHero}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Change account avatar" accessibilityHint="Your avatar saves immediately" onPress={props.onAvatar} style={styles.avatar}>
-        {avatarSource ? <Image source={avatarSource} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" priority="high" transition={0} recyclingKey={props.avatarPath ?? undefined} /> : <Text style={styles.avatarInitial}>{(props.name || 'Y')[0]?.toUpperCase()}</Text>}
-        <View style={styles.camera}><Camera size={14} color="#fff" /></View>
-      </Pressable>
-      <View style={styles.profileHeroCopy}><Text style={styles.profileName}>{props.name || 'You'}</Text><Text style={styles.profileEmail}>{props.email ?? 'Signed-in Kivelle account'}</Text><Text style={styles.avatarHelper}>Your account photo saves immediately.</Text><View style={styles.avatarActions}><Pressable accessibilityRole="button" accessibilityLabel={props.hasAvatar ? 'Replace photo' : 'Add photo'} disabled={props.busy} onPress={props.onAvatar} style={styles.avatarAction}><Text style={styles.avatarActionText}>{props.hasAvatar ? 'Replace photo' : 'Add photo'}</Text></Pressable>{props.hasAvatar ? <Pressable accessibilityRole="button" accessibilityLabel="Remove account photo" disabled={props.busy} onPress={props.onRemoveAvatar} style={styles.avatarAction}><Text style={styles.avatarRemoveText}>Remove</Text></Pressable> : null}</View></View>
-    </View>
-    {props.notice ? <View accessibilityRole="alert" style={[styles.saveNotice, props.notice.kind === 'error' && styles.saveNoticeError]}><Text style={[styles.saveNoticeText, props.notice.kind === 'error' && styles.saveNoticeErrorText]}>{props.notice.message}</Text></View> : null}
-    <View style={styles.formCard}>
-      <Field label="Display name" helper="What companions call you"><TextInput accessibilityLabel="Display name" value={props.name} onChangeText={props.setName} maxLength={50} placeholder="Your name" placeholderTextColor={colors.dimmed} style={styles.input} /></Field>
-      <Field label="About you" helper="Up to 280 characters"><TextInput accessibilityLabel="About you" value={props.about} onChangeText={props.setAbout} maxLength={280} multiline textAlignVertical="top" placeholder="A little context about you…" placeholderTextColor={colors.dimmed} style={[styles.input, styles.multiline]} /><Text style={styles.counter}>{props.about.length}/280</Text></Field>
-      <View style={styles.twoColumns}>
-        <View style={styles.column}><Field label="Interests" helper="Separate with commas"><TextInput accessibilityLabel="Interests" value={props.interests} onChangeText={props.setInterests} placeholder="Music, travel, games" placeholderTextColor={colors.dimmed} style={styles.input} /></Field></View>
-        <View style={styles.column}><Field label="What you're here for" helper="Separate with commas"><TextInput accessibilityLabel="What you're here for" value={props.goals} onChangeText={props.setGoals} placeholder="Dating, friendship, stories" placeholderTextColor={colors.dimmed} style={styles.input} /></Field></View>
-      </View>
-    </View>
-    <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: props.syncMainPersona }} aria-checked={props.syncMainPersona} onPress={() => props.setSyncMainPersona(!props.syncMainPersona)} style={styles.personaNotice}><View style={[styles.noticeIcon, props.syncMainPersona && styles.noticeIconSelected]}>{props.syncMainPersona ? <Check size={17} color="#fff" /> : <Sparkles size={18} color={colors.violet} />}</View><View style={{ flex: 1 }}><Text style={styles.noticeTitle}>Also update my Main Persona</Text><Text style={styles.noticeCopy}>Syncs these saved profile fields to Main Life. Alternate Lives remain separate.</Text></View></Pressable>
-    {props.showInlineSave ? <View style={styles.desktopSaveRow}><View><Text style={styles.desktopSaveTitle}>{props.dirty ? 'Unsaved changes' : 'Everything is up to date'}</Text><Text style={styles.desktopSaveMeta}>{props.dirty ? 'Review and save your profile edits.' : 'The save button activates after a change.'}</Text></View><View style={styles.desktopSaveButton}><GradientButton label={props.busy ? 'Saving…' : 'Save profile'} disabled={props.busy || !props.dirty || !props.name.trim()} onPress={props.onSave} /></View></View> : null}
   </View>;
 }
 
@@ -479,13 +356,11 @@ function LogoutButton({ signingOut, onPress, mobile = false }: { signingOut: boo
 }
 
 function PanelHeading({ title, body }: { title: string; body: string }) { return <View style={styles.panelHeading}><Text accessibilityRole="header" style={styles.panelTitle}>{title}</Text><Text style={styles.panelBody}>{body}</Text></View>; }
-function Field({ label, helper, children }: { label: string; helper?: string; children: ReactNode }) { return <View style={styles.field}><View style={styles.labelRow}><Text style={styles.label}>{label}</Text>{helper ? <Text style={styles.helper}>{helper}</Text> : null}</View>{children}</View>; }
 function SettingsGroup({ children }: { children: ReactNode }) { return <View style={styles.group}>{children}</View>; }
 function SettingsRow({ icon, title, body, value, onPress, danger = false, disabled = false }: { icon: ReactElement<{ color?: string; size?: number }>; title: string; body?: string; value?: string; onPress: () => void; danger?: boolean; disabled?: boolean }) { return <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.settingRow, disabled && styles.disabledRow, pressed && styles.rowPressed]}><View style={styles.rowIcon}>{cloneElement(icon, { color: danger ? colors.danger : colors.muted, size: 20 })}</View><View style={styles.rowCopy}><Text style={[styles.rowTitle, danger && styles.rowTitleDanger]}>{title}</Text>{body ? <Text style={styles.rowBody}>{body}</Text> : null}</View>{value ? <Text numberOfLines={1} style={[styles.rowValue, danger && styles.rowValueDanger]}>{value}</Text> : null}<ChevronRight size={18} color={danger ? colors.danger : colors.textSecondary} /></Pressable>; }
 function Metric({ value, label }: { value: number; label: string }) { return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>; }
 function InfoCard({ title, children }: { title: string; children: ReactNode }) { return <View style={styles.infoCard}><Text style={styles.infoTitle}>{title}</Text><Text style={styles.infoBody}>{children}</Text></View>; }
 
-function splitList(value: string, limit: number) { return value.split(',').map((item) => item.trim()).filter(Boolean).slice(0, limit); }
 function subscriptionLabel(tier?: string | null) { if (tier === 'kivelle_max' || tier === 'unlimited') return 'Kivelle Max'; if (tier === 'kivelle_plus' || tier === 'together_plus') return 'Kivelle+'; return 'Kivelle Free'; }
 
 const styles = StyleSheet.create({
@@ -520,18 +395,6 @@ const styles = StyleSheet.create({
   panelHeading: { gap: 8, marginBottom: 4 }, panelTitle: { color: colors.text, fontFamily: typography.display, fontSize: 37, fontWeight: '600' }, panelBody: { color: colors.textSecondary, fontSize: 14, lineHeight: 21, maxWidth: 760 },
   searchBox: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 15, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(255,255,255,.11)', backgroundColor: 'rgba(8,7,11,.35)' }, searchInput: { flex: 1, minHeight: 50, color: colors.text, fontSize: 15, outlineStyle: 'none' } as never,
   emptySearch: { minHeight: 210, alignItems: 'center', justifyContent: 'center', padding: 28, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: 'rgba(255,255,255,.018)' }, emptySearchTitle: { color: colors.text, fontSize: 17, fontWeight: '900', marginTop: 12 }, emptySearchBody: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 6 },
-  profileHero: { minHeight: 130, flexDirection: 'row', alignItems: 'center', gap: 18, padding: 20, borderRadius: radius.lg, backgroundColor: 'rgba(104,82,116,.09)', borderWidth: 1, borderColor: 'rgba(217,192,228,.12)' },
-  avatar: { width: 90, height: 90, borderRadius: 45, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15,14,18,.74)', borderWidth: 1, borderColor: 'rgba(218,188,230,.26)' },
-  avatarInitial: { color: '#C7A8D5', fontFamily: typography.display, fontSize: 38 }, camera: { position: 'absolute', right: 2, bottom: 2, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(125,92,145,.88)' },
-  profileHeroCopy: { flex: 1, alignItems: 'flex-start' }, profileName: { color: colors.text, fontFamily: typography.display, fontSize: 27 }, profileEmail: { color: colors.textSecondary, fontSize: 13, marginTop: 3 }, avatarHelper: { color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 8 }, avatarActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }, avatarAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 11, backgroundColor: 'rgba(151,116,171,.1)', borderWidth: 1, borderColor: 'rgba(204,176,221,.18)' }, avatarActionText: { color: '#D8B5F5', fontSize: 12, fontWeight: '900' }, avatarRemoveText: { color: colors.danger, fontSize: 12, fontWeight: '900' },
-  saveNotice: { paddingHorizontal: 15, paddingVertical: 12, borderRadius: radius.md, backgroundColor: 'rgba(85,194,150,.09)', borderWidth: 1, borderColor: 'rgba(85,194,150,.24)' }, saveNoticeError: { backgroundColor: 'rgba(255,113,129,.07)', borderColor: 'rgba(255,113,129,.24)' }, saveNoticeText: { color: colors.success, fontSize: 12, fontWeight: '800' }, saveNoticeErrorText: { color: colors.danger },
-  formCard: { gap: 16, padding: 20, borderRadius: radius.lg, backgroundColor: 'rgba(255,255,255,.018)', borderWidth: 1, borderColor: 'rgba(255,255,255,.085)' },
-  field: { gap: 8 }, labelRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }, label: { color: colors.text, fontSize: 14, fontWeight: '800' }, helper: { color: colors.textSecondary, fontSize: 11 },
-  input: { minHeight: 50, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 12, color: colors.text, fontSize: 15, backgroundColor: 'rgba(10,9,13,.32)', borderWidth: 1, borderColor: 'rgba(255,255,255,.095)' }, multiline: { minHeight: 104 }, counter: { alignSelf: 'flex-end', color: colors.textSecondary, fontSize: 11, marginTop: -2 },
-  twoColumns: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 }, column: { flex: 1, minWidth: 230 },
-  personaNotice: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: radius.md, backgroundColor: 'rgba(106,88,119,.07)', borderWidth: 1, borderColor: 'rgba(204,181,217,.12)' }, noticeIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(155,126,172,.085)' }, noticeIconSelected: { backgroundColor: 'rgba(125,92,145,.88)' }, noticeTitle: { color: colors.text, fontSize: 14, fontWeight: '800' }, noticeCopy: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 4 },
-  desktopSaveRow: { minHeight: 82, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 18, padding: 16, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: 'rgba(255,255,255,.018)' }, desktopSaveTitle: { color: colors.text, fontSize: 14, fontWeight: '900' }, desktopSaveMeta: { color: colors.textSecondary, fontSize: 11, marginTop: 4 }, desktopSaveButton: { width: 190 },
-  mobileSaveBar: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 12, paddingHorizontal: spacing.md, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,.1)', backgroundColor: 'rgba(16,13,20,.97)' }, mobileSaveCopy: { flex: 1, minWidth: 0 }, mobileSaveTitle: { color: colors.text, fontSize: 13, fontWeight: '900' }, mobileSaveMeta: { color: colors.textSecondary, fontSize: 10.5, marginTop: 3 }, mobileSaveButton: { minWidth: 92, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, borderRadius: 14, backgroundColor: colors.rose }, mobileSaveButtonDisabled: { opacity: .38 }, mobileSaveButtonText: { color: '#fff', fontSize: 14, fontWeight: '900' },
   summaryCard: { minHeight: 110, flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: radius.lg, backgroundColor: 'rgba(104,82,116,.075)', borderWidth: 1, borderColor: 'rgba(217,192,228,.11)' }, summaryIcon: { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(155,126,172,.075)' }, summaryKicker: { color: '#CCB5D7', fontSize: 10.5, fontWeight: '900', letterSpacing: 1.1 }, summaryTitle: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 3 }, verified: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 }, verifiedText: { fontSize: 11, fontWeight: '800' },
   groupLabel: { color: colors.textSecondary, fontSize: 10, fontWeight: '900', letterSpacing: 1.3, marginBottom: -14, paddingLeft: 4 },
   group: { overflow: 'hidden', borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,.085)', backgroundColor: 'rgba(255,255,255,.014)' },

@@ -36,6 +36,8 @@ jobs:
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-context-price_test.ts
       - name: Scenario prompt regressions
         run: deno test --allow-env --no-lock --config supabase/functions/deno.json supabase/functions/_shared/kivelle-scenarios.test.ts
+      - name: Private profile highlight regressions
+        run: deno test --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-profile-showcase.test.ts
       - run: pnpm guard:starter-content
       - run: pnpm edge:typecheck
       - name: Scheduled message regressions
