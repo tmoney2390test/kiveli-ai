@@ -1,6 +1,6 @@
 import { requestRead } from './request-context.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { capabilitiesForTier, hasOpenBuildWorldAccess, normalizeSubscriptionTier } from '../../../packages/together-domain/src/index.ts';
+import { capabilitiesForTier, hasOpenBuildWorldAccess, isSubscriberEarlyAccessWorld, normalizeSubscriptionTier } from '../../../packages/together-domain/src/index.ts';
 import { AppError } from './types.ts';
 import { experienceClock, resolveUserExperienceTimezone, safeTimezone } from './kivelle-time.ts';
 import type { LocationLoreV2, LocationVisualContextV2 } from '../../../packages/together-domain/src/location-depth.ts';
@@ -153,14 +153,18 @@ export async function assertCharacterResidentInWorld(input:{db:SupabaseClient;ch
 export async function resolveWorldAccess(input:{db:SupabaseClient;userId:string;worldId:string}):Promise<'available'|'locked'|'included'|'owned'>{
   const {data:world}=await input.db.from('together_worlds').select('access_type,entitlement_key,published,metadata').eq('id',input.worldId).maybeSingle();
   if(!world?.published)return'locked';
-  if(hasOpenBuildWorldAccess(Boolean(world.published)))return'included';
+  if(hasOpenBuildWorldAccess(Boolean(world.published),world.metadata))return'included';
   const [{data:userWorld},{data:entitlements}]=await Promise.all([
     input.db.from('together_user_worlds').select('access_status').eq('user_id',input.userId).eq('world_id',input.worldId).maybeSingle(),
     input.db.from('together_entitlements').select('tier,entitlement_keys').eq('user_id',input.userId).maybeSingle(),
   ]);
+  const capabilities=capabilitiesForTier(normalizeSubscriptionTier(entitlements?.tier));
+  if(isSubscriberEarlyAccessWorld(world.metadata)){
+    if(capabilities.worldAccess==='all_standard')return'included';
+    return userWorld?.access_status==='available'?'available':'locked';
+  }
   if(userWorld?.access_status==='unlocked')return world.access_type==='free'?'included':'owned';
   if(world.access_type==='free')return'included';
-  const capabilities=capabilitiesForTier(normalizeSubscriptionTier(entitlements?.tier));
   if(world.entitlement_key&&(entitlements?.entitlement_keys??[]).includes(world.entitlement_key))return'owned';
   if(world.access_type==='subscription'&&capabilities.worldAccess==='all_standard')return'included';
   if(world.access_type==='premium'&&capabilities.earlyWorldAccess&&Boolean((world.metadata as Record<string,unknown>|null)?.early_access))return'included';

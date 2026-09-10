@@ -12,7 +12,8 @@ import { CompanionWorldToggle } from '../../src/components/CompanionWorldToggle'
 import { listCreatorDrafts, setCharacterFavorite } from '../../src/lib/api';
 import { companionGenderFromSignals, featuredCompanionGender, type FeaturedGenderFilter } from '../../src/lib/featuredCompanions';
 import { nextAgeSort, sortCompanionResults, type CompanionSortMode } from '../../src/lib/companionSort';
-import { characterCatalogForWorld } from '../../src/lib/place';
+import { canAccessWorld, characterCatalogForWorld } from '../../src/lib/place';
+import { subscriptionHref } from '../../src/lib/subscriptionPresentation';
 import { responsiveCompanionGrid } from '../../src/lib/responsiveCompanionGrid';
 import { useAppShell } from '../../src/shell/AppShellContext';
 import { useTogether } from '../../src/store/useTogether';
@@ -49,7 +50,8 @@ export default function Discover() {
 
   const publishedWorlds = snapshot?.worlds.filter((world) => world.published) ?? [];
   const requestedWorld = worldSlug ? publishedWorlds.find((world) => world.slug === worldSlug) : undefined;
-  const selectedWorld = requestedWorld ?? publishedWorlds.find((world) => world.id === browsedWorldId) ?? publishedWorlds[0];
+  const accessibleWorlds = snapshot ? publishedWorlds.filter((world) => canAccessWorld(snapshot,world)) : [];
+  const selectedWorld = requestedWorld ?? accessibleWorlds.find((world) => world.id === browsedWorldId) ?? accessibleWorlds[0];
   useEffect(() => {
     if (selectedWorld && selectedWorld.id !== browsedWorldId) setBrowsedWorldId(selectedWorld.id);
   }, [browsedWorldId, selectedWorld?.id, setBrowsedWorldId]);
@@ -57,9 +59,11 @@ export default function Discover() {
   if (!snapshot) return <LoadingSkeleton label="Curating people and experiences…" />;
   if (worldSlug && !requestedWorld) return <EmptyState title="That world is unavailable" body="Choose a published world from Explore to meet its residents." />;
   if (!selectedWorld) return <EmptyState title="No worlds are available" body="Published worlds will appear here as soon as they are ready." />;
+  if (!canAccessWorld(snapshot,selectedWorld)) return <EmptyState title={`${selectedWorld.name} is in early access`} body="Kivelle+ and Max members can enter this world now." action="View memberships" onAction={()=>router.replace(subscriptionHref({intent:'worlds',returnTo:`/(tabs)/singles?world=${encodeURIComponent(selectedWorld.slug)}`}) as never)} />;
   const chooseWorld = (worldId: string) => {
     const world = publishedWorlds.find((item) => item.id === worldId);
     if (!world) return;
+    if(!canAccessWorld(snapshot,world)){router.push(subscriptionHref({intent:'worlds',returnTo:`/(tabs)/singles?world=${encodeURIComponent(world.slug)}`}) as never);return;}
     setBrowsedWorldId(world.id);
     router.setParams({ world: world.slug });
   };

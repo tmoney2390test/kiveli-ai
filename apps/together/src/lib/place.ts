@@ -1,4 +1,5 @@
-import { hasOpenBuildWorldAccess } from '@together/domain/src/world-access';
+import { capabilitiesForTier } from '@together/domain/src/entitlements';
+import { hasOpenBuildWorldAccess, isSubscriberEarlyAccessWorld } from '@together/domain/src/world-access';
 import type { CharacterInstance, CharacterTemplate, CharacterVersion, CharacterWorldPresence, Location, PlaceContext, Snapshot, World } from '../types';
 import { userExperienceTimezone } from './experienceTimezone';
 
@@ -124,5 +125,24 @@ export function charactersForWorld(snapshot:Snapshot,worldId:string){return char
 export function plansForWorld(snapshot:Snapshot,worldId:string){return(snapshot.sharedPlans??[]).filter((plan)=>(plan.world_id??worldForLocation(snapshot,plan.location_id)?.id)===worldId);}
 export function datesForWorld(snapshot:Snapshot,worldId:string){return snapshot.dates.filter((date)=>date.together_date_templates.world_id===worldId);}
 export function mediaForWorld(snapshot:Snapshot,worldId:string){return(snapshot.generatedMedia??[]).filter((media)=>(media.world_id??worldForLocation(snapshot,media.location_id)?.id)===worldId);}
-export function worldAccessLabel(snapshot:Snapshot,world:World):'FREE'|'INCLUDED'|'OWNED'|'KIVELLE+'|'PREMIUM'{if(hasOpenBuildWorldAccess(world.published))return'INCLUDED';const row=(snapshot.userWorlds??[]).find((item)=>item.world_id===world.id);if(world.access_type==='free')return'FREE';if(row?.access_status==='unlocked')return'OWNED';if(world.access_type==='subscription')return'KIVELLE+';return'PREMIUM';}
+export function canAccessWorld(snapshot:Snapshot,world:World):boolean{
+  if(!world.published)return false;
+  if(hasOpenBuildWorldAccess(world.published,world.metadata))return true;
+  const capabilities=capabilitiesForTier(snapshot.entitlements?.tier??'free');
+  if(isSubscriberEarlyAccessWorld(world.metadata))return capabilities.worldAccess==='all_standard';
+  const row=(snapshot.userWorlds??[]).find((item)=>item.world_id===world.id);
+  if(world.access_type==='free'||row?.access_status==='unlocked')return true;
+  if(world.entitlement_key&&(snapshot.entitlements?.entitlement_keys??[]).includes(world.entitlement_key))return true;
+  if(world.access_type==='subscription')return capabilities.worldAccess==='all_standard';
+  return world.access_type==='premium'&&capabilities.earlyWorldAccess&&Boolean(world.metadata?.early_access);
+}
+export function worldAccessLabel(snapshot:Snapshot,world:World):'FREE'|'INCLUDED'|'OWNED'|'EARLY ACCESS'|'KIVELLE+'|'PREMIUM'{
+  if(isSubscriberEarlyAccessWorld(world.metadata))return canAccessWorld(snapshot,world)?'INCLUDED':'EARLY ACCESS';
+  if(hasOpenBuildWorldAccess(world.published,world.metadata))return'INCLUDED';
+  const row=(snapshot.userWorlds??[]).find((item)=>item.world_id===world.id);
+  if(world.access_type==='free')return'FREE';
+  if(row?.access_status==='unlocked')return'OWNED';
+  if(world.access_type==='subscription')return'KIVELLE+';
+  return'PREMIUM';
+}
 export function characterCurrentWorld(snapshot:Snapshot,character?:CharacterInstance){return character?worldForLocation(snapshot,character.current_location_id):undefined;}

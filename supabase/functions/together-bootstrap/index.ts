@@ -10,6 +10,7 @@ import { ensureMainContinuity } from '../_shared/together-continuity.ts';
 import { isAtLeast18 } from '../../../packages/together-domain/src/adult-access.ts';
 import { accountGenderPronouns, accountGenderValues, ageFromBirthdate, normalizePersonaDisplayName, type AccountGender } from '../../../packages/together-domain/src/account-onboarding.ts';
 import { loadCharacterProfileDetails } from '../_shared/together-character-profile.ts';
+import { resolveWorldAccess } from '../_shared/together-place.ts';
 
 const onboardingSchema = z.object({
   action: z.literal('complete_onboarding').optional(),
@@ -86,7 +87,13 @@ serve(async (request, correlationId) => {
   if(!existingProfile.data?.age_verified_at)throw new AppError('CONFLICT','Confirm that you are 18 or older before choosing a companion.',409);
   const skip=input.onboardingChoice==='skip';
   let selectedWorld:Record<string,unknown>|null=null;
-  if(input.worldId){const{data,error}=await db.from('together_worlds').select('id,slug,name').eq('id',input.worldId).eq('published',true).maybeSingle();if(error||!data)throw new AppError('VALIDATION_ERROR','Choose an available world to continue.',400);selectedWorld=data;}
+  if(input.worldId){
+    const{data,error}=await db.from('together_worlds').select('id,slug,name').eq('id',input.worldId).eq('published',true).maybeSingle();
+    if(error||!data)throw new AppError('VALIDATION_ERROR','Choose an available world to continue.',400);
+    const access=await resolveWorldAccess({db,userId:user.id,worldId:input.worldId});
+    if(access==='locked'||access==='available')throw new AppError('WORLD_LOCKED','This world is in subscriber early access. Choose a membership to enter.',403);
+    selectedWorld=data;
+  }
 
   let selectedTemplate:BootstrapTemplate|null=null,selectedVersion:BootstrapVersion|null=null,meeting:Record<string,unknown>={},meetingLocation:BootstrapLocation|null=null;
   if(!skip){
@@ -190,6 +197,6 @@ async function ensureInitialPersonaIdentity(db:SupabaseClient,userId:string,disp
 async function unlockOnboardingWorlds(db:SupabaseClient,userId:string,visitedWorldId:string|null,now:string){
   const{data:freeWorlds}=await db.from('together_worlds').select('id').eq('published',true).eq('access_type','free');
   const worldIds=new Set((freeWorlds??[]).map((world:Record<string,unknown>)=>String(world.id)));
-  if(visitedWorldId)worldIds.add(visitedWorldId);
+  if(visitedWorldId){const access=await resolveWorldAccess({db,userId,worldId:visitedWorldId});if(access==='included'||access==='owned')worldIds.add(visitedWorldId);}
   for(const worldId of worldIds)await db.from('together_user_worlds').upsert({user_id:userId,world_id:worldId,access_status:'unlocked',first_visited_at:worldId===visitedWorldId?now:null,last_visited_at:worldId===visitedWorldId?now:null,updated_at:now},{onConflict:'user_id,world_id',ignoreDuplicates:true});
 }

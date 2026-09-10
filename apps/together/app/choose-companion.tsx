@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ScrollView } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Check, ChevronRight, Sparkles } from 'lucide-react-native';
+import { ArrowLeft, Check, ChevronRight, LockKeyhole, Sparkles } from 'lucide-react-native';
+import { isSubscriberEarlyAccessWorld } from '@together/domain/src/world-access';
 import { SpiceBadge } from '../src/components/SpiceBadge';
 import { CompanionGenderToggle } from '../src/components/CompanionGenderToggle';
 import { FrostedSurface, KivelleLogo, LoadingSkeleton, Screen, resolveCharacterPortraitSource } from '../src/components';
@@ -16,6 +17,8 @@ import { useTogether } from '../src/store/useTogether';
 import type { World } from '../src/types';
 import { colors, radius, spacing, typography } from '../src/theme';
 import { updateLocalRouteParamsOnWeb } from '../src/lib/appNavigation';
+import { canAccessWorld } from '../src/lib/place';
+import { subscriptionHref } from '../src/lib/subscriptionPresentation';
 
 type OnboardingStep = 'world' | 'character';
 
@@ -51,6 +54,7 @@ export default function ChooseCompanion() {
   }, [params.world, recommendedWorld, selectedWorldId, worlds]);
 
   const selectedWorld = worlds.find((world) => world.id === selectedWorldId) ?? null;
+  const selectedWorldAccessible = Boolean(selectedWorld && canAccessWorld(snapshot!, selectedWorld));
   const worldCompanions = useMemo(
     () => snapshot && selectedWorldId ? onboardingCompanionsForWorld(snapshot, selectedWorldId) : [],
     [selectedWorldId, snapshot],
@@ -85,6 +89,10 @@ export default function ChooseCompanion() {
 
   const continueToCharacters = () => {
     if (!selectedWorld) return;
+    if (!selectedWorldAccessible) {
+      router.push(subscriptionHref({ intent: 'worlds', returnTo: `/choose-companion?world=${encodeURIComponent(selectedWorld.slug)}` }) as never);
+      return;
+    }
     setStep('character');
     setGender('any');
     setSelectedCompanionId('');
@@ -103,6 +111,10 @@ export default function ChooseCompanion() {
   const startMeeting = async () => {
     if (!selectedWorld || !selectedCompanion || busy) {
       if (!selectedCompanion) setError('Choose someone to begin your first conversation.');
+      return;
+    }
+    if (!selectedWorldAccessible) {
+      router.push(subscriptionHref({ intent: 'worlds', returnTo: `/choose-companion?world=${encodeURIComponent(selectedWorld.slug)}` }) as never);
       return;
     }
     setBusy(true);
@@ -130,14 +142,14 @@ export default function ChooseCompanion() {
         </View>
 
         {recommendedWorld ? <View accessibilityRole="radiogroup" accessibilityLabel="Choose a world" style={styles.worldPicker}>
-          <WorldCard world={recommendedWorld} selected={recommendedWorld.id === selectedWorldId} featured onPress={() => chooseWorld(recommendedWorld)} />
+          <WorldCard world={recommendedWorld} selected={recommendedWorld.id === selectedWorldId} accessible={canAccessWorld(snapshot,recommendedWorld)} featured onPress={() => chooseWorld(recommendedWorld)} />
           {otherWorlds.length ? <View style={styles.worldGrid}>
-            {otherWorlds.map((world) => <WorldCard key={world.id} world={world} selected={world.id === selectedWorldId} compact desktop={desktop} onPress={() => chooseWorld(world)} />)}
+            {otherWorlds.map((world) => <WorldCard key={world.id} world={world} selected={world.id === selectedWorldId} accessible={canAccessWorld(snapshot,world)} compact desktop={desktop} onPress={() => chooseWorld(world)} />)}
           </View> : null}
         </View> : <FrostedSurface intensity={70} style={styles.emptyState}><Sparkles size={20} color={colors.violet} /><Text style={styles.emptyTitle}>Worlds are being prepared</Text></FrostedSurface>}
 
         <OutlinedAction
-          label={selectedWorld ? `Continue to ${selectedWorld.name}` : 'Choose a world'}
+          label={selectedWorld ? selectedWorldAccessible ? `Continue to ${selectedWorld.name}` : `Unlock early access to ${selectedWorld.name}` : 'Choose a world'}
           disabled={!selectedWorld || busy}
           onPress={continueToCharacters}
         />
@@ -184,18 +196,20 @@ function OnboardingHeader({ step, onBack }: { step: OnboardingStep; onBack: () =
   </View>;
 }
 
-function WorldCard({ world, selected, featured = false, compact = false, desktop = false, onPress }: { world: World; selected: boolean; featured?: boolean; compact?: boolean; desktop?: boolean; onPress: () => void }) {
+function WorldCard({ world, selected, accessible, featured = false, compact = false, desktop = false, onPress }: { world: World; selected: boolean; accessible: boolean; featured?: boolean; compact?: boolean; desktop?: boolean; onPress: () => void }) {
   const copy = compact ? onboardingWorldCompactCopy(world) : { genre: onboardingWorldGenre(world), description: onboardingWorldFantasy(world) };
+  const earlyAccess = isSubscriberEarlyAccessWorld(world.metadata);
   return <Pressable
     accessibilityRole="radio"
     accessibilityState={{ checked: selected }}
     aria-checked={selected}
-    accessibilityLabel={`${world.name}. ${copy.genre}. ${copy.description}`}
+    accessibilityLabel={`${world.name}. ${earlyAccess ? accessible ? 'Subscriber early access included. ' : 'Subscriber early access. ' : ''}${copy.genre}. ${copy.description}`}
     onPress={onPress}
     style={({ pressed }) => [styles.worldCard, featured && styles.worldCardFeatured, compact && styles.worldCardCompact, compact && desktop && styles.worldCardCompactDesktop, selected && styles.worldCardSelected, pressed && styles.cardPressed]}
   >
     <Image source={worldHeroAsset(world.slug)} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" cachePolicy="memory-disk" priority={selected ? 'high' : 'normal'} />
     <View style={styles.worldShade} />
+    {earlyAccess ? <View style={styles.earlyAccessBadge}><LockKeyhole size={11} color="#FFF4FD" /><Text style={styles.earlyAccessText}>EARLY ACCESS</Text></View> : null}
     {selected ? <View style={styles.selectionCheck}><Check size={19} strokeWidth={3} color="#fff" /></View> : null}
     <View style={[styles.worldCopy, compact && styles.worldCopyCompact]}>
       {featured ? <Text style={styles.recommended}>Recommended</Text> : null}
@@ -258,6 +272,8 @@ const styles = StyleSheet.create({
   worldCardCompact: { width: '48%', aspectRatio: .78, borderRadius: 17 },
   worldCardCompactDesktop: { width: '31.9%', aspectRatio: .9 },
   worldCardSelected: { borderColor: '#B960DD', borderWidth: 2, shadowColor: '#B960DD', shadowOpacity: .28, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
+  earlyAccessBadge: { position: 'absolute', zIndex: 2, top: 10, left: 10, minHeight: 27, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, borderRadius: 14, backgroundColor: 'rgba(12,8,17,.82)', borderWidth: 1, borderColor: 'rgba(235,137,255,.48)' },
+  earlyAccessText: { color: '#FFF4FD', fontSize: 8, fontWeight: '900', letterSpacing: .75 },
   worldShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(7,5,10,.13)', ...(Platform.OS === 'web' ? ({ backgroundImage: 'linear-gradient(0deg, rgba(6,4,9,.97) 0%, rgba(6,4,9,.18) 55%, rgba(6,4,9,.03) 78%)' } as never) : {}) },
   selectionCheck: { position: 'absolute', top: 13, right: 13, width: 37, height: 37, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#A94FDC', borderWidth: 1, borderColor: 'rgba(255,255,255,.52)' },
   worldCopy: { zIndex: 1, gap: 5, padding: 22 },

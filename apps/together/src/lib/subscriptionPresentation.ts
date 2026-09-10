@@ -11,7 +11,7 @@ const intentCopy:Record<SubscriptionIntent,{eyebrow:string;title:string;body:str
   voice:{eyebrow:'VOICE',title:'Hear more of your connection',body:'Unlock voice features and use Credits only when a priced voice action clearly shows its cost.'},
   memory:{eyebrow:'MEMORY CENTER',title:'Go deeper with your shared history',body:'Kivelle+ unlocks memory review and controls while preserving the relationship you already built.'},
   initiative:{eyebrow:'COMPANION INITIATIVE',title:'Let companions reach out naturally',body:'Kivelle+ lets companions begin meaningful conversations around their lives and your shared plans.'},
-  worlds:{eyebrow:'KIVELLE WORLDS',title:'Open more places to connect',body:'Kivelle+ includes every standard world and the people and places living inside them.'},
+  worlds:{eyebrow:'KIVELLE WORLDS',title:'Open more places to connect',body:'Kivelle+ and Max include early access to new worlds, plus the people and places living inside them.'},
   group_chat:{eyebrow:'GROUP CHATS',title:'Bring your connections together',body:'Kivelle+ unlocks group conversations with the same continuity and personality as direct chats.'},
 };
 
@@ -62,7 +62,7 @@ export function membershipMetrics(plan:SubscriptionPlan):MembershipMetric[]{
 }
 
 export function membershipBenefits(plan:SubscriptionPlan):string[]{
-  if(plan.tier==='free')return[`${plan.maxActiveConversations} active conversations`,`${plan.dailyMessageLimit} messages per day`,'A full relationship in any published world','Core continuity','One Life and one custom companion'];
+  if(plan.tier==='free')return[`${plan.maxActiveConversations} active conversations`,`${plan.dailyMessageLimit} messages per day`,'Access to released free worlds','Core continuity','One Life and one custom companion'];
   const benefits=[
     `${plan.maxActiveConversations} active conversations and group chats`,
     'Unlimited messages',
@@ -71,8 +71,9 @@ export function membershipBenefits(plan:SubscriptionPlan):string[]{
     `${plan.monthlyCreditGrant.toLocaleString()} monthly Kivelle Credits`,
     `${plan.maxLives} Lives and ${plan.maxCustomCompanions} custom companions`,
   ];
-  if(plan.tier==='kivelle_max')benefits.push('Highest media priority and early world access');
-  else benefits.push('Deeper continuity and access to every standard world');
+  if(plan.tier==='kivelle_max')benefits.push('Highest media priority');
+  else benefits.push('Deeper continuity');
+  benefits.push('Early access to new worlds');
   return benefits;
 }
 

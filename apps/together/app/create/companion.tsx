@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { hasOpenBuildWorldAccess } from '@together/domain/src/world-access';
 import { Alert, BackHandler, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { ArrowRight } from 'lucide-react-native';
@@ -8,6 +7,7 @@ import { createCreatorDraft, listCreatorDrafts } from '../../src/lib/api';
 import { companionBasicsIssues } from '../../src/lib/creatorWizard';
 import { createClientRequestId } from '../../src/lib/requestId';
 import { useTogether } from '../../src/store/useTogether';
+import { canAccessWorld } from '../../src/lib/place';
 import { CreatorPicker, creatorGenders, creatorPronouns } from '../../src/components/CreatorPicker';
 import { worldHeroAsset } from '../../src/assets';
 import { confirmAction } from '../../src/lib/dialogs';
@@ -27,7 +27,7 @@ export default function CreateCompanionEntry() {
   const dirty = Boolean(name || gender || pronouns || description || worldId || ageText !== '28');
   const [busy, setBusy] = useState(false);
   const [recovering, setRecovering] = useState(Boolean(params.template));
-  const worlds = useMemo(() => snapshot?.worlds.filter((world) => world.published && (hasOpenBuildWorldAccess(world.published) || world.access_type === 'free' || snapshot.userWorlds?.some((item) => item.world_id === world.id && item.access_status === 'unlocked'))) ?? [], [snapshot]);
+  const worlds = useMemo(() => snapshot?.worlds.filter((world) => world.published && canAccessWorld(snapshot,world)) ?? [], [snapshot]);
   const selectedWorldId = worldId || worlds[0]?.id || '';
   const age = Number(ageText);
   const issues = companionBasicsIssues({ name, age, gender, pronouns, worldId: selectedWorldId, description });

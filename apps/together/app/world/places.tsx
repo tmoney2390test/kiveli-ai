@@ -8,7 +8,8 @@ import{EmptyState,LoadingSkeleton,PlaceCategoryFilters,PlanningCompanionPicker,S
 import{type ExploreCategoryId}from'../../src/lib/explore';
 import{userExperienceTimezone}from'../../src/lib/experienceTimezone';
 import{hasPublishedPlaceHours,placeHoursStatus}from'../../src/lib/placeHours';
-import{characterByRouteKey,characterCanPlanInWorld}from'../../src/lib/place';
+import{canAccessWorld,characterByRouteKey,characterCanPlanInWorld}from'../../src/lib/place';
+import{subscriptionHref}from'../../src/lib/subscriptionPresentation';
 import{buildWorldPlaceDirectory,type WorldPlaceDirectorySection}from'../../src/lib/worldPlaceDirectory';
 import{responsivePlaceGrid}from'../../src/lib/responsivePlaceGrid';
 import{useAppShell}from'../../src/shell/AppShellContext';
@@ -54,6 +55,7 @@ export default function Places(){
 
   if(!snapshot)return <LoadingSkeleton label="Mapping places…"/>;
   if(!world||!directory||!baseDirectory)return <EmptyState title="World unavailable" body="No published world is available yet." action="Back" onAction={()=>router.canGoBack()?router.back():router.replace('/explore')}/>;
+  if(!canAccessWorld(snapshot,world))return <EmptyState title={`${world.name} is in early access`} body="Kivelle+ and Max members can explore its places now." action="View memberships" onAction={()=>router.replace(subscriptionHref({intent:'worlds',returnTo:`/world/places?world=${encodeURIComponent(world.slug)}`}) as never)}/>;
 
   const placeGrid=responsivePlaceGrid({viewportWidth:width,sidebarWidth:desktop?sidebarWidth:0,outerPadding:desktop?64:40,innerPadding:26,gap:12});
   const cardWidth=placeGrid.cardWidth;

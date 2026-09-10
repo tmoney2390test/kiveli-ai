@@ -8,7 +8,7 @@ import { EmptyState, GlassCard, GradientButton, LoadingSkeleton, MediaGallery, P
 import { colors, radius } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import type { Conversation, PlaceContext } from '../../src/types';
-import { characterByRouteKey, characterCanPlanInWorld, locationAncestry, worldById, charactersCurrentlyAtLocation } from '../../src/lib/place';
+import { canAccessWorld, characterByRouteKey, characterCanPlanInWorld, locationAncestry, worldById, charactersCurrentlyAtLocation } from '../../src/lib/place';
 import { currentScheduleEvent, getInterruptibilityPresentation, getScheduleEventPresentation } from '../../src/lib/lifePresentation';
 import { ApiError, enterScene, loadPlaceDetail, manageSharedScene } from '../../src/lib/api';
 import { selectCharacterPlacePerspective } from '../../src/lib/placePerspective';
@@ -18,6 +18,7 @@ import { userExperienceTimezone } from '../../src/lib/experienceTimezone';
 import { placeHoursStatus } from '../../src/lib/placeHours';
 import { buildPlaceNarrative } from '../../src/lib/placeNarrative';
 import { naturalizeCharacterActivity, naturalizeCharacterEventTitle } from '@together/domain/src/character-language';
+import { subscriptionHref } from '../../src/lib/subscriptionPresentation';
 
 export default function LocationDetail() {
   const { slug, world: worldSlug, character: characterKey, group, switchPlanId } = useLocalSearchParams<{slug:string;world?:string;character?:string;planning?:string;group?:string;switchPlanId?:string}>();
@@ -38,6 +39,7 @@ export default function LocationDetail() {
   if (!snapshot) return <LoadingSkeleton />;
   if (!location) return <EmptyState title="Place unavailable" body="This place is not available in the selected world." action="Back to Explore" onAction={() => router.replace('/(tabs)/explore')} />;
   const locationWorld = worldById(snapshot, location.world_id);
+  if (locationWorld && !canAccessWorld(snapshot,locationWorld)) return <EmptyState title={`${locationWorld.name} is in early access`} body="Kivelle+ and Max members can explore its places now." action="View memberships" onAction={()=>router.replace(subscriptionHref({intent:'worlds',returnTo:`/location/${encodeURIComponent(location.slug)}?world=${encodeURIComponent(locationWorld.slug)}`}) as never)} />;
   const ancestry = locationAncestry(snapshot, location.id);
   const breadcrumb = [locationWorld?.name, ...ancestry.map((item) => item.name), location.name].filter(Boolean).join('  ›  ');
   const now = new Date();

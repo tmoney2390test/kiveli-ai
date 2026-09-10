@@ -40,6 +40,7 @@ export const vespormoorWorld:World={
   metadata:{
     releaseWave:9,
     early_access:true,
+    subscriber_early_access:true,
     releaseStatus:'playable',
     contentStatus:'complete_world_v1',
     locationCatalogStatus:'ready',
