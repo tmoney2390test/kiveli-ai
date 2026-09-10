@@ -162,8 +162,8 @@ const ADULT_CAPABLE_CATALOG: CatalogSeed[] = [
   },
   {
     id: 'minimax-h3-spicy', model: 'wavespeed-ai/minimax-h3/image-to-video-spicy', displayName: 'MiniMax H3 Spicy', description: 'New native-audio model', badge: 'Native stereo', badges: ['Native stereo', 'Last-frame support'], uiGroup: 'recommended',
-    allowedDurations: allDurations(3, 15), defaultDuration: 5, supportedResolutions: ['480p', '768p'], defaultResolution: '768p', supportedAspectRatios: ['9:16', '16:9'], aspectRatioBehavior: 'source', audioMode: 'always', lastFrameSupport: true,
-    pricing: { kind: 'per_second', byResolution: { '480p': .04, '768p': .08 } }, estimatedWaitSeconds: { min: 50, max: 600, median: 180 }, timeoutSeconds: 3600, experimental: false, futureConsumerTier: 'premium',
+    allowedDurations: allDurations(3, 15), defaultDuration: 5, supportedResolutions: ['480p', '768p', '1080p'], defaultResolution: '768p', supportedAspectRatios: ['9:16', '16:9'], aspectRatioBehavior: 'source', audioMode: 'always', lastFrameSupport: true,
+    pricing: { kind: 'per_second', byResolution: { '480p': .04, '768p': .08, '1080p': .16 } }, estimatedWaitSeconds: { min: 50, max: 600, median: 180 }, timeoutSeconds: 3600, experimental: false, futureConsumerTier: 'premium',
   },
   {
     id: 'seedance-2-5-spicy', model: 'bytedance/seedance-2.5/image-to-video-spicy', displayName: 'Seedance 2.5 Spicy', description: 'Premium quality', badge: 'Premium', badges: ['Premium', 'Sound', '4K', 'Last-frame support'], uiGroup: 'recommended',

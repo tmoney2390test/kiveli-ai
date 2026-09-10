@@ -66,8 +66,8 @@ export default function TabsLayout() {
       overflow: 'hidden',
       ...(web ? { position: 'fixed' as never, width: webBarWidth, left: '50%', right: undefined, marginLeft: -webBarWidth / 2, bottom: 'max(8px, env(safe-area-inset-bottom))' as never, backdropFilter: 'blur(30px) saturate(145%)' } : {}),
     },
-    tabBarItemStyle: { minHeight:44,borderRadius: 14, marginHorizontal: 5, marginVertical: 7, overflow: 'hidden' },
-    tabBarLabelStyle: { fontSize: 9, fontWeight: '800', letterSpacing: .12 },
+    tabBarItemStyle: { minHeight: 52, borderRadius: 14, marginHorizontal: 5, marginVertical: 3 },
+    tabBarLabelStyle: { fontSize: 9, lineHeight: 14, flexShrink: 0, fontWeight: '800', letterSpacing: .12 },
   }}>
     <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: ({ color, size, focused }) => <Home color={color} size={focused ? size + 1 : size} fill={focused ? 'rgba(239,82,137,.13)' : 'transparent'} /> }} listeners={{tabPress:()=>prepare('/home')}} />
     <Tabs.Screen name="explore" options={{ title: 'Explore', tabBarIcon: ({ color, size, focused }) => <Compass color={color} size={focused ? size + 2 : size} /> }} listeners={{tabPress:()=>prepare('/explore')}} />

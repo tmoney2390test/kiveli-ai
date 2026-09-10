@@ -69,6 +69,26 @@ Deno.test('model payload builders preserve exact endpoint-specific audio fields'
   }finally{state.restore();}
 });
 
+Deno.test('Premium 1080p validates, prices and builds payloads for both content variants',()=>{
+ const state=catalog();try{
+  for(const id of ['minimax-h3-sfw','minimax-h3-spicy']){
+   const route=state.routes.find(r=>r.id===id)!;
+   const settings=validateVideoSettings(route,{resolution:'1080p',duration:10,sound:true});
+   assertEquals(videoProviderBaselineCostUsd(route,settings),1.6);
+   assertEquals(videoCreditCost(route,settings),400);
+   const payload=buildVideoProviderPayload(route,{sourceImageUrl:'https://example.test/source.jpg',sourceAspectRatio:'9:16',motionPreset:'subtle',...settings});
+   assertEquals(payload.resolution,'1080p');
+   assertEquals(payload.duration,10);
+   assertEquals('generate_audio' in payload,false);
+  }
+  const premium=publicVideoRoutes(state.routes).find(r=>r.id==='tier:premium')!;
+  assert(premium.supportedResolutions.includes('1080p'));
+  assertEquals(premium.creditQuotes['1080p:10:sound'],400);
+  assertEquals(premium.creditQuotes['1080p:10:silent'],400);
+  assertEquals(premium.creditQuotes['768p:10:sound'],200);
+ }finally{state.restore();}
+});
+
 Deno.test('video prompts preserve coverage and reject doll-like or unstable anatomy',()=>{
   const prompt=buildVideoMotionPrompt('playful','Give a small wave',{locationName:'Aurora Spa'});
   assert(prompt.includes('Keep every originally covered body area covered'));
