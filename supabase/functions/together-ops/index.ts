@@ -1,3 +1,5 @@
+import { monitorVideoPrices, videoCostsDashboard } from '../_shared/kivelle-video-prices.ts';
+import { waitUntil } from '../_shared/background.ts';
 import { z } from "zod";
 import { authenticated, enforceRateLimit } from "../_shared/context.ts";
 import { parseBody } from "../_shared/body.ts";
@@ -84,6 +86,9 @@ const schema = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("my_tickets") }),
   z.object({ action: z.literal("dashboard") }),
+  z.object({action:z.literal("video_costs")}),
+  z.object({action:z.literal("refresh_video_prices")}),
+  z.object({action:z.literal("publish_video_prices"),creditsPerUnit:z.number().min(1).max(10000),minimumCredits:z.number().int().min(1).max(10000),reason:z.string().trim().min(8).max(500)}),
   z.object({ action: z.literal("ticket_detail"), ticketId: z.string().uuid() }),
   z.object({
     action: z.literal("update_ticket"),
@@ -355,6 +360,20 @@ serve(async (request, correlationId) => {
   }
 
   const role = requireOperationsRole(user, "viewer");
+  if(input.action==='video_costs')return json({data:await videoCostsDashboard(db),correlationId},200,correlationId);
+  if(input.action==='refresh_video_prices'){
+    requireMinimumRole(role,'admin');
+    await enforceRateLimit(db,user.id,'video_price_refresh',3,3600,'Please wait before refreshing prices again.');
+    waitUntil(monitorVideoPrices(db));
+    return json({data:{queued:true},correlationId},202,correlationId);
+  }
+  if(input.action==='publish_video_prices'){
+    requireMinimumRole(role,'admin');
+    const {data,error}=await db.from('together_video_price_publications').insert({credits_per_unit:input.creditsPerUnit,minimum_credits:input.minimumCredits,reason:input.reason,published_by:user.id}).select('id').single();
+    if(error)throw new AppError('INTERNAL_ERROR','Prices could not be published.',500,true);
+    return json({data,correlationId},200,correlationId);
+  }
+
   if (input.action === "dashboard") {
     return json(
       { data: await operationsDashboard(db, role), correlationId },

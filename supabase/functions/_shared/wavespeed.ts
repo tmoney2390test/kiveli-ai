@@ -33,7 +33,7 @@ export type WaveSpeedPrediction={id:string;model:string;status:WaveSpeedStatus;o
 export type WaveSpeedSubmission={provider:'wavespeed';providerRequestId:string;model:string;status:'submitted'|'completed';result?:WaveSpeedPrediction};
 export type WaveSpeedRunResult={prediction:WaveSpeedPrediction|null;providerRequestId:string;model:string;timedOut:boolean};
 export type WaveSpeedSubmitOptions={webhook?:boolean|undefined}&WaveSpeedRequestOptions;
-export type WaveSpeedQuote={amountUsd:number;currency:'USD';rawUnit?:string};
+export type WaveSpeedQuote={amountUsd:number;currency:'USD';rawUnit?:string;listPriceUsd?:number;discountRate?:number|null};
 
 export type WaveSpeedEnvelope={code?:number;message?:string;data?:{id?:string;model?:string;status?:string;outputs?:unknown;error?:unknown;created_at?:string;urls?:{get?:string};timings?:{inference?:number};has_nsfw_contents?:unknown}};
 
@@ -80,9 +80,9 @@ export class WaveSpeedClient{
       const response=await fetch(`${API_BASE}/model/price`,{method:'POST',headers:{Authorization:`Bearer ${this.apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model_id:model,inputs:input}),signal:controller.signal});
       const text=await response.text();let payload:unknown;try{payload=JSON.parse(text);}catch{payload=null;}
       if(!response.ok)throw providerError(response.status,safeProviderError(payload));
-      const amount=findQuoteAmount(payload);
+      const details=parseWaveSpeedPrice(payload),amount=details.amountUsd;
       if(!Number.isFinite(amount)||amount<0)throw new AppError('PROVIDER_UNAVAILABLE','The video model could not be priced safely.',503,true);
-      return{amountUsd:amount,currency:'USD',rawUnit:'provider_quote'};
+      return{...details,amountUsd:amount,currency:'USD',rawUnit:'provider_quote'};
     }catch(error){if(error instanceof AppError)throw error;throw new AppError('PROVIDER_TIMEOUT','The video model price could not be checked right now.',503,true);}finally{clearTimeout(timeout);}
   }
 
@@ -163,3 +163,12 @@ export function configuredWaveSpeedClient():WaveSpeedClient|null{
 
 export function envBoolean(name:string,defaultValue=false):boolean{const value=Deno.env.get(name);if(value===undefined)return defaultValue;return['1','true','yes','on'].includes(value.toLowerCase());}
 export function envNumber(name:string,defaultValue:number):number{const value=Number(Deno.env.get(name));return Number.isFinite(value)?value:defaultValue;}
+
+export function parseWaveSpeedPrice(payload:unknown):{amountUsd:number;listPriceUsd:number;discountRate:number|null}{
+ const outer=payload as Record<string,unknown>|null, data=(outer?.data??outer) as Record<string,unknown>|null;
+ const listPriceUsd=findQuoteAmount(payload);
+ const hasDiscount=data!=null&&Object.prototype.hasOwnProperty.call(data,'discounted_price');
+ const discounted=data?.discounted_price;
+ const amountUsd=hasDiscount?(typeof discounted==='number'&&Number.isFinite(discounted)&&discounted>=0?discounted:Number.NaN):listPriceUsd;
+ return{amountUsd,listPriceUsd,discountRate:typeof data?.discount_rate==='number'?data.discount_rate:null};
+}

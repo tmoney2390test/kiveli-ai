@@ -1,3 +1,4 @@
+import { recordVideoPrice } from './kivelle-video-prices.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { VideoRouteDefinition, VideoSourceMode } from './kivelle-video-routes.ts';
 import type { WaveSpeedQuote } from './wavespeed.ts';
@@ -64,6 +65,7 @@ export async function quoteVideoWithAdmission(
             p_ttl_seconds: 90,
           });
           if (completeError || completed !== true) throw new AppError('INTERNAL_ERROR', 'Video pricing could not be committed safely.', 500, true);
+          await recordVideoPrice(db, input.route.id, {resolution: input.resolution as VideoRouteDefinition['defaultResolution'],duration:input.durationSeconds,sound:input.sound}, quote, 'request');
           return { ...quote, cacheHit: false };
         } catch (error) {
           lastError = error;

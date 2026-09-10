@@ -1,3 +1,4 @@
+import { rememberVideoCatalog } from './videoCatalog';
 import { batchReplyText, type ReplyDelta } from './replyStreaming';
 import type { DialogueContextQuote } from '@together/domain/src/chat-context';
 import { supabase, supabasePublishableKey, supabaseUrl } from './supabase';
@@ -128,10 +129,10 @@ export const loadMediaLibrary = (options:{characterInstanceId?:string;before?:st
 export const loadConversationMediaGallery = (conversationId:string,limit=120) => manageMedia<{media:GeneratedMedia[];attachments:ConversationAttachment[];hasMore:boolean}>({action:'list_conversation_gallery',conversationId,limit});
 export const loadPhotoOfferStatus = (offerId:string) => manageMedia<{offer:MediaOffer;media:GeneratedMedia|null}>({action:'offer_status',offerId});
 export const rateGeneratedMedia = (mediaId:string,feedback:'positive'|'negative') => manageMedia<{mediaId:string;userFeedback:'positive'|'negative';userFeedbackAt:string}>({action:'feedback',mediaId,feedback});
-export const getVideoGenerationOptions = async(sourceMediaId:string) => videoOptionsForPlatform(normalizeVideoGenerationOptions(await manageMedia<unknown>({action:'video_options',sourceMediaId})),Platform.OS);
-export const getDirectVideoGenerationOptions = async(characterInstanceId:string) => videoOptionsForPlatform(normalizeVideoGenerationOptions(await manageMedia<unknown>({action:'video_direct_options',characterInstanceId})),Platform.OS);
+export const getVideoGenerationOptions = async(sourceMediaId:string) => rememberVideoCatalog(videoOptionsForPlatform(normalizeVideoGenerationOptions(await manageMedia<unknown>({action:'video_options',sourceMediaId})),Platform.OS));
+export const getDirectVideoGenerationOptions = async(characterInstanceId:string) => rememberVideoCatalog(videoOptionsForPlatform(normalizeVideoGenerationOptions(await manageMedia<unknown>({action:'video_direct_options',characterInstanceId})),Platform.OS));
 export const trackVideoSelectorEvent = (sourceMediaId:string,event:'option_sheet_opened'|'model_selected',videoRouteId?:string) => manageMedia<{recorded:boolean}>({action:'video_event',sourceMediaId,event,videoRouteId});
-export type VideoRequestSettings={model:string;sound:boolean;resolution:VideoResolution;duration:number};
+export type VideoRequestSettings={model:string;sound:boolean;resolution:VideoResolution;duration:number;expectedCredits?:number};
 export const animateMedia = (sourceMediaId:string,settings:VideoRequestSettings,prompt:string,requestId:string) => manageMedia<{media:GeneratedMedia;creditCost:number;creditBalance:number;route:VideoRouteOption}>({action:'animate',sourceMediaId,settings,prompt,requestId});
 export const createDirectVideo = (input:{characterInstanceId:string;conversationId?:string;settings:VideoRequestSettings;aspectRatio:'9:16'|'16:9';locationSource:'current'|'home'|'place';locationId?:string;requestText:string;requestId:string}) => manageMedia<{media:GeneratedMedia;creditCost:number;creditBalance:number;route:VideoRouteOption}>({action:'video_direct_generate',...input});
 export type VideoPromptEnhancementRequest={sourceMode:'existing_photo'|'generated_first_frame';sourceMediaId?:string;characterInstanceId?:string;conversationId?:string;routeId:string;settings:VideoRequestSettings;aspectRatio:'9:16'|'16:9';locationSource:'current'|'home'|'place';locationId?:string;prompt:string;requestId:string};

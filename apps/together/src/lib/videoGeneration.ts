@@ -1,7 +1,8 @@
+import { consumerVideoTierId } from '@together/domain/src/video-consumer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { DirectVideoLocationOption, VideoAudioMode, VideoDurationSeconds, VideoGenerationOptions, VideoResolution, VideoRouteOption, VideoUiGroup } from '../types';
 
-export type VideoSelection={routeId:string;resolution:VideoResolution;duration:number;sound:boolean};
+export type VideoSelection={routeId:string;resolution:VideoResolution;duration:number;sound:boolean;standardSound?:boolean};
 const STORAGE_KEY='kivelle:video-generation-settings:v2';
 const RESOLUTIONS:ReadonlySet<string>=new Set(['480p','540p','720p','768p','1080p','4k']);
 const AUDIO_MODES:ReadonlySet<string>=new Set(['toggleable','always','none','reference_only']);
@@ -28,7 +29,7 @@ export function normalizeVideoRouteOption(value:unknown):VideoRouteOption|null{
   const audioMode=stringValue(item.audioMode),quotes=record(item.creditQuotes),providerQuotes=record(item.providerCostQuotes),uiGroup=stringValue(item.uiGroup),futureConsumerTier=stringValue(item.futureConsumerTier),contentClass=stringValue(item.contentClass),contentLabel=stringValue(item.contentLabel),modelFamily=stringValue(item.modelFamily);
   if(!id||!displayName||!badge||!description||!contentClass||!CONTENT_CLASSES.has(contentClass)||!contentLabel||!modelFamily||!allowedDurations.length||!supportedResolutions.length||!audioMode||!AUDIO_MODES.has(audioMode)||!quotes||!providerQuotes||!uiGroup||!UI_GROUPS.has(uiGroup)||!futureConsumerTier||!TIERS.has(futureConsumerTier))return null;
   const soundChoices=['none','reference_only'].includes(audioMode)?[false]:[false,true];
-  for(const resolution of supportedResolutions)for(const duration of allowedDurations)for(const sound of soundChoices){const key=videoQuoteKey(resolution,duration,sound),quote=Number(quotes[key]),providerQuote=Number(providerQuotes[key]);if(!Number.isFinite(quote)||quote<0||!Number.isFinite(providerQuote)||providerQuote<0)return null;}
+  for(const resolution of supportedResolutions)for(const duration of allowedDurations)for(const sound of soundChoices){const key=videoQuoteKey(resolution,duration,sound),quote=Number(quotes[key]);if(!Number.isFinite(quote)||quote<0)return null;}
   const durationCandidate=Number(item.durationSeconds),durationSeconds=allowedDurations.includes(durationCandidate)?durationCandidate:allowedDurations[0]!;
   const resolutionCandidate=stringValue(item.resolution),resolution=supportedResolutions.includes(resolutionCandidate as VideoResolution)?resolutionCandidate as VideoResolution:supportedResolutions[0]!;
   const sourceModes=stringList(item.sourceModes).filter((entry)=>SOURCE_MODES.has(entry)) as VideoRouteOption['sourceModes'];
@@ -94,7 +95,7 @@ export function videoProviderCostLabel(value:number):string{return Number.isFini
 export function videoComparisonQuote(route:VideoRouteOption,current:Partial<Pick<VideoSelection,'resolution'|'duration'|'sound'>>={}){
   const resolution=current.resolution&&route.supportedResolutions.includes(current.resolution)?current.resolution:route.resolution;
   const duration=current.duration&&route.allowedDurations.includes(current.duration)?current.duration:route.durationSeconds;
-  const sound=Boolean(current.sound)&&!['none','reference_only'].includes(route.audioMode);
+  const sound=route.audioMode==='always'||Boolean(current.sound)&&!['none','reference_only'].includes(route.audioMode);
   const credits=videoCreditCost(route,duration,resolution,sound),providerCostUsd=videoProviderCostUsd(route,duration,resolution,sound);
   return{resolution,duration,sound,credits,providerCostUsd};
 }
@@ -113,6 +114,7 @@ export function validVideoFeedback(verdict:'looks_good'|'needs_work',reasonCodes
 
 export function preferredVideoRouteId(options:Pick<VideoGenerationOptions,'routes'|'defaultRouteId'>,current=''):string{
   if(options.routes.some((route)=>route.id===current))return current;
+  const migrated=consumerVideoTierId(current);if(current&&options.routes.some(route=>route.id===migrated))return migrated;
   return options.routes.find((route)=>route.id===options.defaultRouteId)?.id??options.routes.find((route)=>route.badge.toLowerCase()==='recommended')?.id??options.routes[0]?.id??'';
 }
 
@@ -125,8 +127,8 @@ export function normalizedVideoSelection(options:VideoGenerationOptions,stored?:
   const routeId=preferredVideoRouteId(options,stored?.routeId??currentRouteId),route=options.routes.find((item)=>item.id===routeId);if(!route)return null;
   const resolution=stored?.resolution&&route.supportedResolutions.includes(stored.resolution)?stored.resolution:route.resolution;
   const duration=stored?.duration&&route.allowedDurations.includes(stored.duration)?stored.duration:route.durationSeconds;
-  const sound=Boolean(stored?.sound)&&!['none','reference_only'].includes(route.audioMode);
-  return{routeId,resolution,duration,sound};
+  const sound=route.audioMode==='always'||Boolean(stored?.standardSound??stored?.sound)&&!['none','reference_only'].includes(route.audioMode);
+  return{routeId,resolution,duration,sound,standardSound:stored?.standardSound??(stored?.routeId==='tier:premium'?false:Boolean(stored?.sound))};
 }
 
 export async function loadVideoSelection():Promise<Partial<VideoSelection>|null>{try{const raw=await AsyncStorage.getItem(STORAGE_KEY);return raw?JSON.parse(raw) as Partial<VideoSelection>:null;}catch{return null;}}

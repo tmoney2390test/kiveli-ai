@@ -1,3 +1,4 @@
+import { VideoCostsPanel } from '../src/components/VideoCostsPanel';
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -58,6 +59,7 @@ import {
 import { useAuth } from "../src/hooks/useAuth";
 
 type Tab =
+  | "video_costs"
   | "overview"
   | "queues"
   | "incidents"
@@ -70,6 +72,7 @@ type Tab =
   | "audit";
 const tabs: Array<{ key: Tab; label: string }> = [
   { key: "overview", label: "Overview" },
+  { key: "video_costs", label: "Video costs" },
   { key: "queues", label: "Queues" },
   { key: "incidents", label: "Incidents" },
   { key: "support", label: "Support" },
@@ -330,6 +333,7 @@ export default function Operations() {
             </View>
           )
           : null}
+        {tab === "video_costs" ? <VideoCostsPanel admin={data.access.role === "admin"}/> : null}
         {tab === "overview" ? <Overview data={data} compact={compact} /> : null}
         {tab === "queues"
           ? <Queues queues={data.queues} providers={data.providerHealth} />
