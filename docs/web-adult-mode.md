@@ -16,7 +16,7 @@ Keep every item server-side. Do not create an `EXPO_PUBLIC_` adult flag.
 - `WEB_ADULT_MODE_ENABLED=false`: separate website explicit-media kill switch.
 - `KIVELLE_SURFACE_SIGNING_SECRET`: same random value of at least 32 bytes in Cloudflare and Supabase Edge secrets; used only to prove a website request for web-only capabilities.
 - `KIVELLE_ADULT_MEDIA_ENABLED=false`: independent website adult still-image switch.
-- `KIVELLE_ADULT_VIDEO_ENABLED=false`: independent website adult-video switch. It is effective only while `WEB_ADULT_MODE_ENABLED` and `KIVELLE_ADULT_MEDIA_ENABLED` are also enabled. Disabling it stops new adult video submission and prevents queued adult video from being delivered; credits follow the normal failure/refund path.
+- `KIVELLE_ADULT_VIDEO_ENABLED`: independent website adult-video switch, on by default when unset. It is effective only while `WEB_ADULT_MODE_ENABLED` and `KIVELLE_ADULT_MEDIA_ENABLED` are also enabled, and only for verified website sessions. iOS and Android never receive adult-capable video models or generation. Set it to `false` to stop new website adult video submission and prevent queued adult video from being delivered; credits follow the normal failure/refund path.
 - Venice/WaveSpeed validation flags and provider keys: existing website-media controls documented in `.env.example`.
 
 Client builds keep separate origins:

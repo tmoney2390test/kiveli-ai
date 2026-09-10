@@ -43,6 +43,20 @@ export function normalizeVideoRouteOption(value:unknown):VideoRouteOption|null{
   };
 }
 
+export function adultVideoAvailableOnPlatform(platform:string):boolean{
+  return platform==='web';
+}
+
+export function videoOptionsForPlatform(options:VideoGenerationOptions,platform:string):VideoGenerationOptions{
+  if(adultVideoAvailableOnPlatform(platform))return options;
+  const routes=options.routes.filter((route)=>route.contentClass!=='adult_capable');
+  return{
+    ...options,
+    routes,
+    defaultRouteId:routes.some((route)=>route.id===options.defaultRouteId)?options.defaultRouteId:routes[0]?.id??null,
+  };
+}
+
 export function normalizeVideoGenerationOptions(value:unknown):VideoGenerationOptions{
   const item=record(value);if(!item)throw new Error('Video models could not be loaded. Try again.');
   const suppliedRoutes=Array.isArray(item.routes)?item.routes:[],routes=suppliedRoutes.flatMap((route)=>{const normalized=normalizeVideoRouteOption(route);return normalized?[normalized]:[];});

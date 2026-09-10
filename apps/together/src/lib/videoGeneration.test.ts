@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VideoRouteOption } from '../types';
-import { canSubmitVideoSelection, normalizeVideoGenerationOptions, preferredVideoRouteId, validVideoFeedback, videoComparisonQuote, videoDurationRangeLabel, videoOutputLabel, videoProviderCostLabel, videoWaitLabel } from './videoGeneration';
+import { adultVideoAvailableOnPlatform, canSubmitVideoSelection, normalizeVideoGenerationOptions, preferredVideoRouteId, validVideoFeedback, videoComparisonQuote, videoDurationRangeLabel, videoOptionsForPlatform, videoOutputLabel, videoProviderCostLabel, videoWaitLabel } from './videoGeneration';
 
 const creditQuotes=Object.fromEntries(['480p','720p','1080p'].flatMap((resolution)=>[5,10].flatMap((duration)=>[false,true].map((sound)=>[`${resolution}:${duration}:${sound?'sound':'silent'}`,resolution==='720p'&&duration===5?sound?65:33:resolution==='720p'&&duration===10?sound?130:65:100]))));
 const providerCostQuotes=Object.fromEntries(['480p','720p','1080p'].flatMap((resolution)=>[5,10].flatMap((duration)=>[false,true].map((sound)=>[`${resolution}:${duration}:${sound?'sound':'silent'}`,resolution==='720p'&&duration===5?(sound ? .26 : .13):resolution==='720p'&&duration===10?(sound ? .52 : .26):.4]))));
@@ -54,5 +54,17 @@ describe('video generation confirmation helpers',()=>{
     expect(options.routes[0]?.badges).toEqual(['SFW']);
     expect(options.routes[0]?.supportedAspectRatios).toEqual(['9:16','16:9']);
     expect(options.creditBalance).toBe(4652);
+  });
+
+  it('keeps adult-capable video models on web and strips them on native',()=>{
+    const adult={...route,id:'seedance-1-5-pro-spicy',contentClass:'adult_capable' as const,contentLabel:'Adult-capable',displayName:'Seedance 1.5 Pro Spicy'};
+    const options=normalizeVideoGenerationOptions({available:true,selectorMode:'all',defaultRouteId:adult.id,routes:[adult,route],motionPresets:[],creditBalance:1000});
+    expect(adultVideoAvailableOnPlatform('web')).toBe(true);
+    expect(adultVideoAvailableOnPlatform('ios')).toBe(false);
+    expect(adultVideoAvailableOnPlatform('android')).toBe(false);
+    expect(videoOptionsForPlatform(options,'web').routes.map((item)=>item.id)).toEqual([adult.id,route.id]);
+    const native=videoOptionsForPlatform(options,'ios');
+    expect(native.routes.map((item)=>item.id)).toEqual([route.id]);
+    expect(native.defaultRouteId).toBe(route.id);
   });
 });

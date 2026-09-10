@@ -190,13 +190,29 @@ export function directVideoOpeningFrameRequest(input: {
 export function adultVideoFeatureEnabled(
   read: (name: string) => string | undefined = (name) => Deno.env.get(name),
 ): boolean {
-  const enabled = (name: string) =>
-    ["1", "true", "yes", "on"].includes(
-      String(read(name) ?? "false").trim().toLowerCase(),
-    );
+  const enabled = (name: string, defaultValue = false) => {
+    const raw = read(name);
+    if (raw == null || String(raw).trim() === "") return defaultValue;
+    return ["1", "true", "yes", "on"].includes(String(raw).trim().toLowerCase());
+  };
   return enabled("WEB_ADULT_MODE_ENABLED") &&
     enabled("KIVELLE_ADULT_MEDIA_ENABLED") &&
-    enabled("KIVELLE_ADULT_VIDEO_ENABLED");
+    enabled("KIVELLE_ADULT_VIDEO_ENABLED", true);
+}
+
+/**
+ * Request-time adult video: every authorized website session, never iOS/Android.
+ * Background workers keep using adultVideoFeatureEnabled() so already-queued
+ * website jobs can finish after a native caller is denied.
+ */
+export function adultVideoEnabledForSurface(input: {
+  clientSurface?: string | null;
+  authorizedWebAdult?: boolean;
+  read?: (name: string) => string | undefined;
+}): boolean {
+  if (input.clientSurface !== "web") return false;
+  if (input.authorizedWebAdult === false) return false;
+  return adultVideoFeatureEnabled(input.read);
 }
 
 export type VideoPromptEnhancementInput = {

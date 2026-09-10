@@ -1,5 +1,6 @@
 import { assert, assertEquals, assertStringIncludes } from "jsr:@std/assert";
 import {
+  adultVideoEnabledForSurface,
   adultVideoFeatureEnabled,
   directVideoOpeningFrameRequest,
   resolveAnimatedVideoContentLevel,
@@ -102,6 +103,55 @@ Deno.test("adult video requires all three server kill switches", () => {
   assert(adultVideoFeatureEnabled((name) => values[name]));
   values.KIVELLE_ADULT_VIDEO_ENABLED = "false";
   assertEquals(adultVideoFeatureEnabled((name) => values[name]), false);
+});
+
+Deno.test("adult video defaults on for website sessions when the video secret is unset", () => {
+  const values: Record<string, string> = {
+    WEB_ADULT_MODE_ENABLED: "true",
+    KIVELLE_ADULT_MEDIA_ENABLED: "true",
+  };
+  const read = (name: string) => values[name];
+  assert(adultVideoFeatureEnabled(read));
+  assert(adultVideoEnabledForSurface({
+    clientSurface: "web",
+    authorizedWebAdult: true,
+    read,
+  }));
+  assertEquals(adultVideoEnabledForSurface({
+    clientSurface: "native_or_unknown",
+    authorizedWebAdult: true,
+    read,
+  }), false);
+});
+
+Deno.test("adult video is on for authorized website sessions and off on native", () => {
+  const values: Record<string, string> = {
+    WEB_ADULT_MODE_ENABLED: "true",
+    KIVELLE_ADULT_MEDIA_ENABLED: "true",
+    KIVELLE_ADULT_VIDEO_ENABLED: "true",
+  };
+  const read = (name: string) => values[name];
+  assert(adultVideoEnabledForSurface({
+    clientSurface: "web",
+    authorizedWebAdult: true,
+    read,
+  }));
+  assertEquals(adultVideoEnabledForSurface({
+    clientSurface: "native_or_unknown",
+    authorizedWebAdult: true,
+    read,
+  }), false);
+  assertEquals(adultVideoEnabledForSurface({
+    clientSurface: "web",
+    authorizedWebAdult: false,
+    read,
+  }), false);
+  values.KIVELLE_ADULT_VIDEO_ENABLED = "false";
+  assertEquals(adultVideoEnabledForSurface({
+    clientSurface: "web",
+    authorizedWebAdult: true,
+    read,
+  }), false);
 });
 
 Deno.test("bring to life exposes the matching model class for its source photo", () => {
