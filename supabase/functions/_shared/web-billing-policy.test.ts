@@ -1,13 +1,14 @@
+import{billingManagementCapabilities}from'../../../packages/together-domain/src/billing.ts';
 import{assertEquals}from'jsr:@std/assert@1';
-import{paidEntitlementAccepted,resolveBillingSurfacePolicy}from'./web-billing-policy.ts';
+import{paidEntitlementAccepted,resolveBillingSurfacePolicy,storeOnlyBillingManagement}from'./web-billing-policy.ts';
 
 Deno.test('hosted subscription checkout is disabled on every surface',()=>{
   const read=()=>undefined;
   assertEquals(resolveBillingSurfacePolicy('web',read),{
-    clientSurface:'web',subscriptionCheckoutEnabled:false,appStoreEntitlementsRecognized:true,nativeExternalCheckoutEnabled:false,
+    clientSurface:'web',subscriptionCheckoutEnabled:false,creditCheckoutEnabled:false,hostedBillingPortalEnabled:false,appStoreEntitlementsRecognized:true,nativeExternalCheckoutEnabled:false,
   });
   assertEquals(resolveBillingSurfacePolicy('native_or_unknown',read),{
-    clientSurface:'native_or_unknown',subscriptionCheckoutEnabled:false,appStoreEntitlementsRecognized:true,nativeExternalCheckoutEnabled:false,
+    clientSurface:'native_or_unknown',subscriptionCheckoutEnabled:false,creditCheckoutEnabled:false,hostedBillingPortalEnabled:false,appStoreEntitlementsRecognized:true,nativeExternalCheckoutEnabled:false,
   });
 });
 
@@ -33,4 +34,22 @@ Deno.test('native entitlement recognition is unaffected by the website entitleme
   assertEquals(policy.appStoreEntitlementsRecognized,true);
   assertEquals(paidEntitlementAccepted(policy,'kivelle_plus','revenuecat'),true);
   assertEquals(paidEntitlementAccepted(policy,'kivelle_plus','apple'),true);
+});
+
+Deno.test('Stripe keys and legacy URLs cannot advertise hosted purchases or portal access',()=>{
+  for(const provider of ['stripe','configured','revenuecat','apple','google_play',null]){
+    const management=storeOnlyBillingManagement(billingManagementCapabilities({
+      tier:'kivelle_plus',provider,status:'active',subscriptionId:'sub_legacy',
+      stripePortalConfigured:true,configuredPortalConfigured:true,creditCheckoutConfigured:true,
+    }));
+    assertEquals(management.canPurchaseCredits,false);
+    const appStore=['revenuecat','apple','google_play'].includes(provider??'');
+    assertEquals(management.canManageSubscription,appStore);
+    assertEquals(management.manageAction,appStore?'app_store':'none');
+  }
+  for(const surface of ['web','native_or_unknown'] as const){
+    const policy=resolveBillingSurfacePolicy(surface,()=> 'true');
+    assertEquals(policy.creditCheckoutEnabled,false);
+    assertEquals(policy.hostedBillingPortalEnabled,false);
+  }
 });
