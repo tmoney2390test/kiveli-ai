@@ -9,19 +9,11 @@ import {
   creditCosts,
   creditPacks,
   subscriptionCatalog,
-  type CreditPackKey,
   type SubscriptionTier,
 } from '../../../packages/together-domain/src/index.ts';
 import { resolveSubscriptionState, type KivelleSubscriptionState } from '../_shared/kivelle-subscription.ts';
-import {
-  createStripeCheckoutSession,
-  createStripePortalSession,
-  stripeBillingConfiguration,
-  stripePriceForCreditPack,
-} from '../_shared/stripe.ts';
-import { track } from '../_shared/together.ts';
 import { verifyWebSurfaceAssertion } from '../_shared/web-adult-access.ts';
-import { resolveBillingSurfacePolicy, type BillingSurfacePolicy } from '../_shared/web-billing-policy.ts';
+import { resolveBillingSurfacePolicy, storeOnlyBillingManagement, type BillingSurfacePolicy } from '../_shared/web-billing-policy.ts';
 
 const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('status')}),
@@ -32,7 +24,7 @@ const schema=z.discriminatedUnion('action',[
 ]);
 
 type Db=Awaited<ReturnType<typeof authenticated>>['db'];
-type BillingConfiguration=ReturnType<typeof configurationForUser>;
+type BillingConfiguration=ReturnType<typeof billingConfiguration>;
 
 serve(async(request,correlationId)=>{
   const{user,db}=await authenticated(request);
@@ -42,7 +34,7 @@ serve(async(request,correlationId)=>{
   let state=await resolveSubscriptionState(db,user.id);
   const clientSurface=await verifyWebSurfaceAssertion(request,user.id)?'web':'native_or_unknown';
   const billingPolicy=resolveBillingSurfacePolicy(clientSurface);
-  const configuration=configurationForUser(user.id,user.email,billingPolicy);
+  const configuration=billingConfiguration(billingPolicy);
 
   if(input.action==='status')return json({data:await publicSubscriptionStatus(db,user.id,state,configuration),correlationId},200,correlationId);
 
@@ -52,65 +44,34 @@ serve(async(request,correlationId)=>{
     return json({data:{...confirmation,state:await publicSubscriptionStatus(db,user.id,state,configuration)},correlationId},200,correlationId);
   }
 
-  const requestId=input.requestId??crypto.randomUUID();
-  const management=managementFor(state,configuration);
-
-  if(input.action==='checkout'){
-    throw new AppError(
-      'BILLING_NOT_CONFIGURED',
-      billingPolicy.clientSurface==='web'
-        ?'New memberships are available in the Kivelli iOS and Android apps. Existing App Store and Google Play memberships still work here.'
-        :'Memberships are purchased through the Apple App Store or Google Play in a store-enabled build.',
-      503,
-    );
+  if(input.action==='checkout'||input.action==='credits_checkout'){
+    throw new AppError('BILLING_NOT_CONFIGURED',input.action==='credits_checkout'
+      ?'Credit packs are temporarily unavailable. Purchases will be available through the Apple App Store and Google Play.'
+      :'Memberships are purchased through the Apple App Store or Google Play in the Kivelli app.',403);
   }
-
-  if(input.action==='credits_checkout'){
-    if(!management.canPurchaseCredits)throw new AppError('PLAN_LIMIT_REACHED',management.creditPurchaseReason??'Credit packs are not available for this account right now.',403);
-    if(stripePriceForCreditPack(input.productKey as CreditPackKey)){
-      await track(db,user.id,'credit_checkout_started',{productKey:input.productKey,currentTier:state.tier});
-      const session=await createStripeCheckoutSession(db,{userId:user.id,email:user.email,credits:true,creditPackKey:input.productKey as CreditPackKey,requestId});
-      return json({data:{url:session.url,sessionId:session.id,provider:'stripe'},correlationId},200,correlationId);
-    }
-    const url=configuredUrl('KIVELLE_CREDITS_CHECKOUT_URL',user.id,user.email,input.productKey);
-    if(!url)throw new AppError('BILLING_NOT_CONFIGURED','Credit checkout is not available right now.',503);
-    return json({data:{url,provider:'configured'},correlationId},200,correlationId);
-  }
-
   if(input.action==='portal'){
-    if(management.manageAction!=='portal')throw new AppError('CONFLICT',management.managementReason,409);
-    return portalResponse(db,user,requestId,state,configuration,correlationId);
+    throw new AppError('BILLING_NOT_CONFIGURED','Hosted billing is disabled. Manage app-store memberships in the original store, or contact Kivelli Support for help with legacy billing.',403);
   }
 
   throw new AppError('NOT_FOUND','That billing action is unavailable.',404);
 });
 
-function configurationForUser(userId:string,email:string|null|undefined,billingPolicy:BillingSurfacePolicy){
-  const stripe=stripeBillingConfiguration();
-  const legacy={
-    credits:Boolean(configuredUrl('KIVELLE_CREDITS_CHECKOUT_URL',userId,email)),
-    portal:Boolean(configuredUrl('KIVELLE_BILLING_PORTAL_URL',userId,email)),
-  };
+function billingConfiguration(billingPolicy:BillingSurfacePolicy){
   return{
-    stripe,
-    legacy,
-    configured:{kivelle_plus:false,kivelle_max:false,credits:stripe.credits||legacy.credits,portal:stripe.portal||legacy.portal},
+    configured:{kivelle_plus:false,kivelle_max:false,credits:false,portal:false},
     configuredAnnual:{kivelle_plus:false,kivelle_max:false},
     billingPolicy,
   };
 }
 
-function managementFor(state:KivelleSubscriptionState,configuration:BillingConfiguration){
-  return billingManagementCapabilities({
+function managementFor(state:KivelleSubscriptionState){
+  return storeOnlyBillingManagement(billingManagementCapabilities({
     tier:state.tier,
     provider:state.billing.provider,
     status:state.billing.status,
     subscriptionId:state.billing.subscriptionId,
     managedByKivelle:state.billing.managedByKivelle,
-    stripePortalConfigured:configuration.stripe.portal,
-    configuredPortalConfigured:configuration.legacy.portal,
-    creditCheckoutConfigured:configuration.configured.credits,
-  });
+  }));
 }
 
 async function publicSubscriptionStatus(db:Db,userId:string,state:KivelleSubscriptionState,configuration:BillingConfiguration){
@@ -119,11 +80,11 @@ async function publicSubscriptionStatus(db:Db,userId:string,state:KivelleSubscri
     db.from('together_credit_ledger').select('created_at').eq('user_id',userId).eq('event_type','subscription_grant').order('created_at',{ascending:false}).limit(1).maybeSingle(),
   ]);
   if(activityError||grantError)throw new AppError('INTERNAL_ERROR','Credit activity could not be loaded.',500,true);
-  const publicCreditPacks=creditPacks.map((pack)=>({...pack,checkoutConfigured:Boolean(stripePriceForCreditPack(pack.key)||configuration.legacy.credits)}));
+  const publicCreditPacks=creditPacks.map((pack)=>({...pack,checkoutConfigured:false}));
   return{
     ...state,
     billing:publicBillingSummary(state.billing),
-    management:managementFor(state,configuration),
+    management:managementFor(state),
     catalog:(Object.keys(subscriptionCatalog)as SubscriptionTier[]).map((tier)=>publicPlan(tier)),
     creditCosts,
     creditPacks:publicCreditPacks,
@@ -133,7 +94,7 @@ async function publicSubscriptionStatus(db:Db,userId:string,state:KivelleSubscri
     billingConfigured:configuration.configured,
     billingConfiguredAnnual:configuration.configuredAnnual,
     billingPolicy:configuration.billingPolicy,
-    billingProvider:configuration.stripe.secretKey?'stripe':Object.values(configuration.legacy).some(Boolean)?'configured':null,
+    billingProvider:null,
   };
 }
 
@@ -152,16 +113,6 @@ async function checkoutConfirmation(db:Db,userId:string,sessionId:string){
   return checkoutConfirmationOutcome((events??[]).map((event)=>({status:event.status,eventType:event.event_type})),purchase?.permanent_delta);
 }
 
-async function portalResponse(db:Db,user:{id:string;email?:string|null},requestId:string,state:KivelleSubscriptionState,configuration:BillingConfiguration,correlationId:string){
-  if(state.billing.provider==='stripe'&&configuration.stripe.portal){
-    const session=await createStripePortalSession(db,{userId:user.id,email:user.email,requestId});
-    return json({data:{url:session.url,sessionId:session.id,provider:'stripe'},correlationId},200,correlationId);
-  }
-  const url=configuredUrl('KIVELLE_BILLING_PORTAL_URL',user.id,user.email);
-  if(!url)throw new AppError('BILLING_NOT_CONFIGURED','Subscription management is temporarily unavailable. Contact Kivelle Support for help.',503);
-  return json({data:{url,provider:'configured'},correlationId},200,correlationId);
-}
-
 function nextCreditGrantAt(state:KivelleSubscriptionState,latestGrant?:string|null):string|null{
   if(state.tier==='free'||state.capabilities.monthlyCreditGrant<=0||!['active','trialing','past_due'].includes(String(state.billing.status)))return null;
   if(state.billing.billingInterval==='monthly'&&futureDate(state.billing.periodEnd))return state.billing.periodEnd??null;
@@ -175,5 +126,4 @@ function nextCreditGrantAt(state:KivelleSubscriptionState,latestGrant?:string|nu
 
 function futureDate(value?:string|null):boolean{if(!value)return false;const time=new Date(value).getTime();return Number.isFinite(time)&&time>Date.now();}
 function publicPlan(tier:SubscriptionTier){const plan=subscriptionCatalog[tier];return{tier:plan.tier,displayName:plan.displayName,monthlyPriceUsd:plan.monthlyPriceUsd,annualPriceUsd:plan.annualPriceUsd,maxActiveConversations:plan.maxActiveConversations,dailyMessageLimit:plan.dailyMessageLimit,includedCompanionPhotoDailyLimit:plan.includedCompanionPhotoDailyLimit,includedDatePhotoMonthlyLimit:plan.includedDatePhotoMonthlyLimit,intelligenceProfile:plan.intelligenceProfile,memoryRetrievalBudget:plan.memoryRetrievalBudget,historyRetrievalBudget:plan.historyRetrievalBudget,maxLives:plan.maxLives,maxCustomCompanions:plan.maxCustomCompanions,worldAccess:plan.worldAccess,earlyWorldAccess:plan.earlyWorldAccess,monthlyCreditGrant:plan.monthlyCreditGrant,subscriptionCreditRolloverCap:plan.subscriptionCreditRolloverCap,mediaQueue:plan.mediaQueue};}
-function publicBillingSummary(billing:KivelleSubscriptionState['billing']){return{provider:billing.provider??null,store:billing.store??null,status:billing.status??null,billingInterval:billing.billingInterval,periodStart:billing.periodStart??null,periodEnd:billing.periodEnd??null,expiresAt:billing.expiresAt??null,trialEnd:billing.trialEnd??null,cancelAtPeriodEnd:Boolean(billing.cancelAtPeriodEnd),canceledAt:billing.canceledAt??null,paymentIssue:Boolean(billing.paymentIssue),mayPurchaseCredits:Boolean(billing.mayPurchaseCredits)};}
-function configuredUrl(name:string,userId:string,email?:string|null,productKey?:string):string|null{const template=Deno.env.get(name)?.trim();if(!template)return null;const value=template.replaceAll('{user_id}',encodeURIComponent(userId)).replaceAll('{email}',encodeURIComponent(email??'')).replaceAll('{product_key}',encodeURIComponent(productKey??''));try{const url=new URL(value);return url.protocol==='https:'?url.toString():null;}catch{return null;}}
+function publicBillingSummary(billing:KivelleSubscriptionState['billing']){return{provider:billing.provider??null,store:billing.store??null,status:billing.status??null,billingInterval:billing.billingInterval,periodStart:billing.periodStart??null,periodEnd:billing.periodEnd??null,expiresAt:billing.expiresAt??null,trialEnd:billing.trialEnd??null,cancelAtPeriodEnd:Boolean(billing.cancelAtPeriodEnd),canceledAt:billing.canceledAt??null,paymentIssue:Boolean(billing.paymentIssue),mayPurchaseCredits:false};}

@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius } from '../../theme';
 
-export type ChatSettingsTab = 'chat' | 'appearance' | 'ai';
+export type ChatSettingsTab = 'chat' | 'appearance' | 'ai' | 'proactive';
 
 const tabs: ReadonlyArray<{ id: ChatSettingsTab; label: string }> = [
   { id: 'chat', label: 'Chat' },
@@ -9,14 +9,15 @@ const tabs: ReadonlyArray<{ id: ChatSettingsTab; label: string }> = [
   { id: 'ai', label: 'AI' },
 ];
 
-export function ChatSettingsTabs({ value, disabled = false, onChange }: { value: ChatSettingsTab; disabled?: boolean; onChange: (tab: ChatSettingsTab) => void }) {
+export function ChatSettingsTabs({ value, disabled = false, includeProactive = false, onChange }: { value: ChatSettingsTab; disabled?: boolean; includeProactive?: boolean; onChange: (tab: ChatSettingsTab) => void }) {
   return <View accessibilityRole="tablist" accessibilityLabel="Chat settings sections" style={styles.tabs}>
-    {tabs.map((tab) => {
+    {(includeProactive ? [...tabs, { id: 'proactive' as const, label: 'Proactive' }] : tabs).map((tab) => {
       const selected = tab.id === value;
       return <Pressable
         key={tab.id}
         testID={`chat-settings-tab-${tab.id}`}
         accessibilityRole="tab"
+        aria-selected={selected}
         accessibilityState={{ selected, disabled }}
         disabled={disabled}
         onPress={() => onChange(tab.id)}

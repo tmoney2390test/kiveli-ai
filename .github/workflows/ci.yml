@@ -34,6 +34,8 @@ jobs:
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-chat-speed_test.ts
       - name: Context price regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-context-price_test.ts
+      - name: Store-only billing policy regressions
+        run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/web-billing-policy.test.ts
       - run: pnpm guard:starter-content
       - run: pnpm edge:typecheck
       - name: Scheduled message regressions
