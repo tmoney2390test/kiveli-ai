@@ -1,3 +1,4 @@
+import {requireScopedAiConsent} from './kivelle-ai-consent.ts';
 import { chatSpeedEnabled } from './kivelle-chat-latency.ts';
 import { extractResponsesText } from '../../../packages/together-domain/src/ai-provider.ts';
 import { directorRequest } from './kivelle-director-request.ts';
@@ -33,6 +34,7 @@ export async function runKivelleDirector(input:{context:DirectorContext;baseBrie
   if(input.baseBrief.mode==='danger')return fallback;
   const storyIsResponseRelevant=input.baseBrief.actionCandidate==='story'||Boolean(input.baseBrief.callbackCandidate&&input.context.activeStory&&input.baseBrief.callbackCandidate===String(input.context.activeStory.title??''));
   if(!shouldUseDirector(input.policy,input.interactionQuality,{pendingMilestone:input.pendingMilestone,activeConflict:input.activeConflict,activeStory:storyIsResponseRelevant}))return fallback;
+  await requireScopedAiConsent(input.usageScope);
   const deadline=Date.now()+3000;
   for(const provider of ['openai','gemini'] as const){
     const key=provider==='openai'?openAIKey():geminiKey();

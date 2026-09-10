@@ -4,6 +4,7 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
+    "eas-build-post-install": "node ../../scripts/verify-native-release-config.mjs",
     "start": "expo start --dev-client --port 8084",
     "android": "expo run:android",
     "web": "expo start --web --port 8082",

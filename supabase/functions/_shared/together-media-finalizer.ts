@@ -1,3 +1,4 @@
+import {requireAiDataConsent} from './kivelle-ai-consent.ts';
 import type{SupabaseClient}from'@supabase/supabase-js';
 import{AppError}from'./types.ts';
 import{refundCredits}from'./kivelle-subscription.ts';
@@ -46,6 +47,7 @@ async function finalizeProviderMediaClaimed(db:SupabaseClient,input:{jobId:strin
   if(!media)throw new AppError('NOT_FOUND','That media request is unavailable.',404);
   if(job.finalized_at&&media.status==='ready')return media as Record<string,unknown>;
   if(job.status==='failed'||job.status==='cancelled')throw new AppError('CONFLICT','That media job has already ended.',409);
+  await requireAiDataConsent(db,String(media.user_id));
   const mediaMetadata=(media.metadata??{}) as Record<string,unknown>,privateAdultRouteVideo=String(media.media_type)==='video'&&media.visibility_scope==='web_adult'&&mediaMetadata.adultAuthorized===true,adultVideo=privateAdultRouteVideo&&['suggestive','mature','explicit'].includes(String(media.content_level??''));
   if(privateAdultRouteVideo&&(!adultVideoFeatureEnabled()||!await currentAdultMediaJobAuthorized(db,media))){
     await failProviderMedia(db,{jobId:input.jobId,failureCode:'adult_authorization_expired',failureReasonSafe:'The authorized website session is no longer available. Your credits were returned.'});

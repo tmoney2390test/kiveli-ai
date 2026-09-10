@@ -1,3 +1,4 @@
+import {captureAppleCredential,retryAppleRevocations} from '../_shared/kivelle-apple-auth.ts';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { strToU8, zipSync } from 'npm:fflate@0.8.2';
@@ -14,11 +15,12 @@ import { cancelStripeSubscriptionNow } from '../_shared/stripe.ts';
 import { accountDeletionBillingPlan, birthdateCorrectionDecision, hasRecentAccountAuthentication, isOwnedAvatarPath } from '../_shared/kivelle-account-lifecycle.ts';
 import { validatePrivateAvatarJpeg } from '../_shared/kivelle-avatar.ts';
 import { resolveAdultAccess } from '../_shared/web-adult-access.ts';
-import { AI_DATA_CONSENT_DISCLOSURE_VERSION, AI_DATA_CONSENT_PURPOSE, loadAiDataConsent } from '../_shared/kivelle-ai-consent.ts';
+import { AI_DATA_CONSENT_DISCLOSURE_VERSION, AI_DATA_CONSENT_PURPOSE, loadAiDataConsent, recordAiDataConsent } from '../_shared/kivelle-ai-consent.ts';
 import { isAtLeast18 } from '../../../packages/together-domain/src/adult-access.ts';
 
 const goals = z.enum(['Dating', 'Friendship', 'Stories', 'Social worlds']);
 const schema = z.discriminatedUnion('action', [
+  z.object({ action:z.literal('apple_credential'),kind:z.enum(['native','web']),authorizationCode:z.string().min(1).max(4096).optional(),refreshToken:z.string().min(1).max(8192).optional() }),
   z.object({ action: z.literal('profile'), displayName: z.string().trim().min(1).max(50), aboutMe: z.string().trim().max(280), interests: z.array(z.string().trim().min(1).max(40)).max(10), goals: z.array(goals).max(4), avatarPath: z.string().max(500).nullable(), syncMainPersona: z.boolean().default(true) }),
   z.object({ action: z.literal('privacy'), settings: z.record(z.string(), z.boolean()) }),
   z.object({ action: z.literal('content'), romanceEnabled: z.boolean() }),
@@ -26,6 +28,7 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('birthdate_status') }),
   z.object({ action: z.literal('birthdate_update'), dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
   z.object({ action: z.literal('privacy_choices_status') }),
+  z.object({ action: z.literal('ai_consent'), decision: z.enum(['accepted','declined','withdrawn']), disclosureVersion: z.string(), source: z.enum(['onboarding','privacy','account']).default('account') }),
   z.object({ action: z.literal('conversation_preference'), privateTextPreference: z.enum(['standard','mature','explicit']) }),
   z.object({ action: z.literal('privacy_choices'), aiDataSharing: z.boolean(), privateTextPreference: z.enum(['standard','mature','explicit']), source: z.enum(['onboarding','privacy','account']).default('account') }),
   z.object({ action: z.literal('export_request') }),
@@ -44,6 +47,10 @@ serve(async (request, correlationId) => {
   const actionLimit = input.action === 'export_request' ? 4 : input.action === 'export_status' ? 120 : input.action === 'delete' ? 3 : input.action === 'birthdate_update' ? 5 : 20;
   await enforceRateLimit(db, user.id, `together_account_${input.action}`, actionLimit, 3600);
 
+  if(input.action==='apple_credential'){
+    await captureAppleCredential(db,user,input);
+    return json({data:{saved:true},correlationId},200,correlationId);
+  }
   if (input.action === 'birthdate_status') {
     const { data, error } = await db.from('together_profiles').select('date_of_birth,birthdate_corrected_at').eq('user_id', user.id).maybeSingle();
     if (error || !data) throw new AppError('INTERNAL_ERROR', 'Your birthdate could not be loaded.', 500, true);
@@ -122,6 +129,11 @@ serve(async (request, correlationId) => {
     return json({ data, correlationId }, 200, correlationId);
   }
 
+  if (input.action === 'ai_consent') {
+    if(input.disclosureVersion!==AI_DATA_CONSENT_DISCLOSURE_VERSION)throw new AppError('CONFLICT','Review the current AI sharing disclosure before continuing.',409);
+    const aiDataConsent=await recordAiDataConsent(db,{userId:user.id,decision:input.decision,source:input.source});
+    return json({data:{aiDataConsent},correlationId},200,correlationId);
+  }
   if (input.action === 'privacy_choices_status') {
     const [consent, profile] = await Promise.all([
       loadAiDataConsent(db, user.id),
@@ -206,7 +218,7 @@ serve(async (request, correlationId) => {
 
   const access = await resolveSubscriptionAccess(db, user.id);
   const billingPlan = accountDeletionBillingPlan(access.billing);
-  if (input.action === 'delete_preview') return json({ data: { canDelete: billingPlan.canDelete, billingAction: billingPlan.action, providerLabel: billingPlan.providerLabel, message: billingPlan.message, requiresRecentAuthentication: true }, correlationId }, 200, correlationId);
+  if (input.action === 'delete_preview') return json({ data: { canDelete: billingPlan.canDelete, billingAction: billingPlan.action, providerLabel: billingPlan.providerLabel, message: billingPlan.message, requiresRecentAuthentication: true,appleManualRevocation:user.identities?.some(identity=>identity.provider==='apple')? 'https://support.apple.com/en-us/102571':null }, correlationId }, 200, correlationId);
 
   if (!hasRecentAccountAuthentication(user.last_sign_in_at)) throw new AppError('AUTH_REQUIRED', 'For your security, sign in again before deleting your account.', 401);
   if (!billingPlan.canDelete) throw new AppError('CONFLICT', billingPlan.message, 409);
@@ -220,6 +232,7 @@ serve(async (request, correlationId) => {
   if(deletionJob.error||!deletionJob.data){await rollbackStagedDeletionCleanup(db,staged);throw new AppError('INTERNAL_ERROR','Your account deletion could not be prepared. Nothing was deleted.',500,true);}
   const marker=await db.from('together_account_deletion_markers').insert({user_id:user.id,user_fingerprint:fingerprint,billing_provider:access.billing.provider??null,provider_customer_id:access.billing.customerId??null,provider_subscription_id:access.billing.subscriptionId??null,external_renewal_may_continue:billingPlan.action==='external_action'});
   if(marker.error){await db.from('together_account_deletion_jobs').delete().eq('id',deletionJob.data.id);await rollbackStagedDeletionCleanup(db,staged);throw new AppError('INTERNAL_ERROR','Your account deletion could not be prepared. Nothing was deleted.',500,true);}
+  waitUntil(retryAppleRevocations(db).catch(()=>undefined));
   let billingCanceled = false;
   try {
     await Promise.all([

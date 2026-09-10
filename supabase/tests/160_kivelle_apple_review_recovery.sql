@@ -1,0 +1,12 @@
+begin;
+select plan(8);
+select ok((select relrowsecurity from pg_class where oid='public.together_apple_credentials'::regclass),'Apple credentials enforce RLS');
+select ok(not has_table_privilege('authenticated','public.together_apple_credentials','SELECT'),'Clients cannot read Apple tokens');
+select ok(not has_table_privilege('anon','public.together_apple_credentials','SELECT'),'Anonymous callers cannot read Apple tokens');
+select ok(not has_function_privilege('authenticated','public.kivelle_store_apple_credential(uuid,text,text,text)','EXECUTE'),'Client cannot store another account credential');
+select ok(not has_function_privilege('authenticated','public.kivelle_record_ai_consent(uuid,text,text,text)','EXECUTE'),'Consent is written only by authenticated server endpoint');
+select ok(not has_function_privilege('authenticated','public.kivelle_claim_apple_revocations(timestamptz)','EXECUTE'),'Revocation worker is service-only');
+select ok(not has_function_privilege('authenticated','public.kivelle_claim_billing_reconciliation(uuid,uuid)','EXECUTE'),'Billing lease is service-only');
+select ok((select relrowsecurity from pg_class where oid='public.together_billing_reconciliation_leases'::regclass),'Billing leases enforce RLS');
+select * from finish();
+rollback;

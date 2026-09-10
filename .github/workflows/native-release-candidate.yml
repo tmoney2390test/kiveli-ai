@@ -13,6 +13,8 @@ on:
     paths:
       - 'apps/together/**'
       - 'packages/together-domain/**'
+      - 'scripts/verify-native-release-config*'
+      - 'scripts/run-eas-with-lean-context.mjs'
       - '.github/workflows/native-release-candidate.yml'
 
 jobs:
@@ -25,6 +27,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      - run: node scripts/verify-native-release-config.mjs --profiles-only
+      - run: node --test scripts/verify-native-release-config.test.mjs
       - run: pnpm --filter @together/app exec expo config --type public
       - run: pnpm --filter @together/app typecheck
 

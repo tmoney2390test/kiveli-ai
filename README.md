@@ -104,3 +104,5 @@ supabase functions deploy together-billing-grants
 The CI workflow verifies linting, TypeScript, unit tests, starter-content isolation, Edge Function type checks, the web build, and database pgTAP integration tests.
 
 See [apps/together/README.md](apps/together/README.md) for client setup and provider details.
+
+AI data sharing is requested at first applicable AI use, not silently enrolled during signup. Its versioned server record is separate from conversation content preferences. Users may review or withdraw it in Privacy settings. Release implementation and unresolved native verification: [Apple review recovery handoff](docs/apple-review-recovery-release.md).

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,6 +33,24 @@ const commandArguments = pnpmCli
   ? [pnpmCli, "dlx", `eas-cli@${easCliVersion}`, ...easArguments]
   : ["dlx", `eas-cli@${easCliVersion}`, ...easArguments];
 
+if(easArguments[0]==='build'&&!easArguments.includes('--help')){
+  const profileName=easArguments[easArguments.indexOf('--profile')+1];
+  const config=JSON.parse(readFileSync(join(appDirectory,'eas.json'),'utf8'));
+  const profile=config.build[profileName];
+  if(!profile?.environment){console.error('Select a build profile with an explicit EAS environment.');process.exit(1);}
+  if(!profile.developmentClient){
+    const platform=easArguments[easArguments.indexOf('--platform')+1];
+    if(!['ios','android','all'].includes(platform)){console.error('Select --platform ios, android, or all.');process.exit(1);}
+    for(const target of platform==='all'?['ios','android']:[platform]){
+      const args=[...(pnpmCli?[pnpmCli]:[]),'dlx',`eas-cli@${easCliVersion}`,'env:exec',profile.environment,`node ../../scripts/verify-native-release-config.mjs --platform ${target}`,'--non-interactive'];
+      const code=await new Promise(resolveCode=>{
+        const preflight=spawn(executable,args,{cwd:appDirectory,env:environment,shell:!pnpmCli&&process.platform==='win32',stdio:'inherit'});
+        preflight.once('error',()=>resolveCode(1));preflight.once('exit',value=>resolveCode(value??1));
+      });
+      if(code!==0)process.exit(1);
+    }
+  }
+}
 const child = spawn(executable, commandArguments, {
   cwd: appDirectory,
   env: environment,

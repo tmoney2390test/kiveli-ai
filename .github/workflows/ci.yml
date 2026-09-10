@@ -34,6 +34,17 @@ jobs:
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-chat-speed_test.ts
       - name: Context price regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-context-price_test.ts
+      - name: Apple review recovery regressions
+        run: >-
+          deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json
+          supabase/functions/_shared/kivelle-ai-consent.test.ts
+          supabase/functions/_shared/kivelle-apple-auth.test.ts
+          supabase/functions/_shared/revenuecat.test.ts
+          supabase/functions/_shared/kivelle-account-lifecycle.test.ts
+          supabase/functions/_shared/private-adult-text-policy.test.ts
+          supabase/functions/_shared/web-adult-access.test.ts
+      - run: node scripts/test-apple-review-db.mjs
+      - run: node --test scripts/verify-native-release-config.test.mjs
       - name: Store-only billing policy regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/web-billing-policy.test.ts
       - run: pnpm guard:starter-content

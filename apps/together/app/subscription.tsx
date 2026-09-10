@@ -12,11 +12,13 @@ import { useAuth } from '../src/hooks/useAuth';
 import { ApiError, manageSubscription } from '../src/lib/api';
 import { loadNativeProductPrices, nativePurchasesConfigured, purchaseNativeSubscription, restoreNativePurchases } from '../src/lib/nativePurchases';
 import { revenueCatPackageIdentifiers, type PurchasableTier } from '../src/lib/revenueCatPurchases';
-import { waitForAuthoritativeRestore } from '../src/lib/nativePurchaseSync';
+import { resumeNativePurchase, currentPurchaseAccount } from '../src/lib/nativePurchaseRecovery';
 import type { BillingInterval, CheckoutConfirmation, CreditActivityEvent, SubscriptionPlan, SubscriptionStatus, SubscriptionTier } from '../src/lib/subscription';
 import { intelligenceLabel } from '../src/lib/subscription';
 import { annualSavingsPercentage, billingStatusPresentation, checkoutBackoffDelay, creditActivityPresentation, managementActionLabel, membershipBenefits, membershipMetrics, membershipPageMode, membershipPricePresentation, normalizeSubscriptionIntent, safeSubscriptionReturnTo, shouldShowSubscriptionIntentCallout, subscriptionIntentPresentation } from '../src/lib/subscriptionPresentation';
 import { colors, radius, spacing } from '../src/theme';
+
+import type { NativeProductPrice } from '../src/lib/nativeProductPrice';
 
 type Notice = { tone: 'neutral' | 'success' | 'warning' | 'danger'; title: string; body: string; retry?: boolean };
 type PlanAction = { label: string; enabled: boolean; reason?: string | null; onPress: () => void };
@@ -41,11 +43,12 @@ export default function Subscription() {
   const [billingInterval, setBillingInterval] = useState<BillingInterval>('annual');
   const [compareOpen, setCompareOpen] = useState(false);
   const [busy, setBusy] = useState('');
+  const operationLock=useRef(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [confirmationRetry, setConfirmationRetry] = useState(0);
-  const [nativePrices,setNativePrices]=useState<Record<string,string>>({});
+  const [nativePrices,setNativePrices]=useState<Record<string,NativeProductPrice>>({});
 
-  useEffect(()=>{const userId=session?.user.id;if(!userId||Platform.OS==='web'||!nativePurchasesConfigured())return;let active=true;void loadNativeProductPrices(userId).then((prices)=>{if(active)setNativePrices(prices);}).catch(()=>undefined);return()=>{active=false;};},[session?.user.id]);
+  useEffect(()=>{const userId=session?.user.id;if(!userId||Platform.OS==='web'||!nativePurchasesConfigured())return;setNativePrices({});let active=true;void loadNativeProductPrices(userId).then((prices)=>{if(active)setNativePrices(prices);}).catch(()=>undefined);return()=>{active=false;};},[session?.user.id]);
 
   const refresh = useCallback(async () => {
     const result = await query.refetch();
@@ -126,33 +129,42 @@ export default function Subscription() {
   };
 
   const checkout = async (tier: Exclude<SubscriptionTier, 'free'>) => {
-    if (!state) return;
+    if (!state||operationLock.current) return;
+    operationLock.current=true;
     setBusy(tier); setNotice(null);
     try {
       if (Platform.OS === 'web') throw new Error('New memberships are available in the Kivelli iOS and Android apps. Existing App Store and Google Play memberships still work here.');
       if (!nativePurchasesConfigured()) throw new Error('App-store billing is not configured in this build.');
       const userId=session?.user.id;if(!userId)throw new Error('Sign in before purchasing a membership.');
       const purchase=await purchaseNativeSubscription(userId,tier,billingInterval);
+      await currentPurchaseAccount(userId);
       if(purchase.cancelled){setNotice({tone:'neutral',title:'Purchase cancelled',body:'Nothing was charged and your current membership is unchanged.'});return;}
       if(purchase.pending){setNotice({tone:'neutral',title:'Waiting for store approval',body:'Your purchase is pending. Kivelle will securely activate the membership after the app store confirms it; you do not need to purchase again.'});return;}
       setNotice({tone:'neutral',title:'Confirming your membership',body:'The app store approved the purchase. Kivelle is securely syncing your benefits now.'});
-      const synced=await waitForNativeTier(query.refetch,tier);
+      const result=await resumeNativePurchase(userId);
+      await currentPurchaseAccount(userId);
+      const synced=result.state==='active';
+      await query.refetch();
       setNotice(synced?{tone:'success',title:`${tier==='kivelle_max'?'Kivelle Max':'Kivelle+'} is active`,body:'Your app-store membership and benefits are ready.'}:{tone:'warning',title:'Purchase received',body:'The app store completed your purchase, but the signed confirmation is still syncing. Refresh in a moment—trying again will not charge you twice.',retry:true});
     }
     catch (caught) { setNotice({ tone: 'danger', title: 'Could not open checkout', body: billingErrorMessage(caught) }); }
-    finally { setBusy(''); }
+    finally { operationLock.current=false;setBusy(''); }
   };
 
   const restorePurchases = async () => {
-    const userId=session?.user.id;if(!userId)return;
+    const userId=session?.user.id;if(!userId||operationLock.current)return;
+    operationLock.current=true;
     setBusy('restore');setNotice(null);
     try{
       const storeResult=await restoreNativePurchases(userId);
+      await currentPurchaseAccount(userId);
       setNotice({tone:'neutral',title:'Checking past purchases',body:'The app store finished restoring. Kivelle is syncing the signed membership status.'});
-      const result=await waitForAuthoritativeRestore(query.refetch);
+      const result=await resumeNativePurchase(userId);
+      await currentPurchaseAccount(userId);
+      await query.refetch();
       setNotice(result.state==='active'&&result.data?{tone:'success',title:`${result.data.capabilities.displayName} restored`,body:'Your membership and benefits are available again.'}:result.state==='syncing'||storeResult.storeReportsActiveEntitlement?{tone:'warning',title:'Membership is still syncing',body:'The store reported a purchase, but Kivelle is still verifying its signed entitlement. Your restore will resume automatically; trying again will not charge you.',retry:true}:{tone:'neutral',title:'Restore complete',body:'After checking the store and Kivelle’s signed entitlement, no active membership was found for this store account.'});
     }catch(caught){setNotice({tone:'danger',title:'Could not restore purchases',body:billingErrorMessage(caught),retry:true});}
-    finally{setBusy('');}
+    finally{operationLock.current=false;setBusy('');}
   };
 
   const openManagement = async () => {
@@ -179,7 +191,7 @@ export default function Subscription() {
     if (plan.tier === state.tier) return null;
     if (state.tier !== 'free') return { label: managementActionLabel(state.management) || 'Change plan', enabled: state.management.canManageSubscription && state.management.manageAction === 'app_store', reason: state.management.managementReason, onPress: () => void openManagement() };
     const webStoreOnly=Platform.OS==='web';
-    return { label: webStoreOnly?'Available in the Kivelli app':`Choose ${plan.displayName}`, enabled:nativeStoreCheckout, reason:webStoreOnly?'New memberships are available in Kivelli for iOS and Android. Existing App Store and Google Play memberships still work here.':'App-store billing is not configured in this build.', onPress: () => void checkout(plan.tier as Exclude<SubscriptionTier, 'free'>) };
+    return { label: webStoreOnly?'Available in the Kivelli app':`Choose ${plan.displayName}`, enabled:nativeStoreCheckout&&Boolean(nativePrices[revenueCatPackageIdentifiers[plan.tier as PurchasableTier][billingInterval]]), reason:webStoreOnly?'New memberships are available in Kivelli for iOS and Android. Existing App Store and Google Play memberships still work here.':'Store prices are unavailable. Refresh to try again.', onPress: () => void checkout(plan.tier as Exclude<SubscriptionTier, 'free'>) };
   };
   const maxPlan = paidPlans.find((plan) => plan.tier === 'kivelle_max');
 
@@ -202,19 +214,19 @@ export default function Subscription() {
         <TrustStrip compact={compact} />
         <View><CreditWalletCard state={state} showActivity /></View>
       </> : <>
-        <MemberHero state={state} plan={currentPlan} compact={compact} busy={busy === 'portal'} onManage={state.management.canManageSubscription && state.management.manageAction === 'app_store' ? () => void openManagement() : undefined} onBuyCredits={undefined} />
+        <MemberHero localizedPrice={nativePrices[revenueCatPackageIdentifiers[currentPlan.tier as PurchasableTier]?.[state.billing.billingInterval??'monthly']??'']} state={state} plan={currentPlan} compact={compact} busy={busy === 'portal'} onManage={state.management.canManageSubscription && state.management.manageAction === 'app_store' ? () => void openManagement() : undefined} onBuyCredits={undefined} />
         <MembershipMetrics plan={currentPlan} compact={compact} />
         <View style={[styles.dashboardGrid, compact && styles.stack]}><BenefitsCard plan={currentPlan} /><CreditWalletCard state={state} /></View>
         <View><CreditShop /></View>
         <RecentActivityCard activity={state.creditActivity} />
-        {state.tier === 'kivelle_plus' && maxPlan ? <View onLayout={(event) => setPlansY(event.nativeEvent.layout.y)} style={styles.sectionBlock}><SectionHeading kicker="GO DEEPER" title="See what Max adds" copy="Compare your current membership with Kivelli Max before changing anything." /><BillingIntervalToggle value={billingInterval} plan={maxPlan} onChange={setBillingInterval} /><PlanCard plan={maxPlan} billingInterval={billingInterval} action={planActionFor(maxPlan)} busy={busy === 'portal'} featured /></View> : null}
+        {state.tier === 'kivelle_plus' && maxPlan ? <View onLayout={(event) => setPlansY(event.nativeEvent.layout.y)} style={styles.sectionBlock}><SectionHeading kicker="GO DEEPER" title="See what Max adds" copy="Compare your current membership with Kivelli Max before changing anything." /><BillingIntervalToggle value={billingInterval} plan={maxPlan} onChange={setBillingInterval} /><PlanCard plan={maxPlan} billingInterval={billingInterval} localizedPrice={nativePrices[revenueCatPackageIdentifiers[maxPlan.tier as PurchasableTier][billingInterval]]} action={planActionFor(maxPlan)} busy={busy === 'portal'} featured /></View> : null}
       </>}
 
       <View onLayout={(event) => setCompareY(event.nativeEvent.layout.y)}>
         <Pressable accessibilityRole="button" accessibilityState={{ expanded: compareOpen }} accessibilityLabel={`${compareOpen ? 'Hide' : 'Show'} membership comparison`} onPress={() => setCompareOpen((value) => !value)} style={({ pressed }) => [styles.compareToggle, pressed && styles.pressed]}><View style={{ flex: 1 }}><Text style={styles.compareTitle}>Compare all memberships</Text><Text style={styles.compareCopy}>See Kivelli Free, Kivelli+, and Max side by side.</Text></View><View style={{ transform: [{ rotate: compareOpen ? '180deg' : '0deg' }] }}><ChevronDown size={20} color={colors.muted} /></View></Pressable>
         {compareOpen ? <Comparison plans={state.catalog} currentTier={state.tier} compact={compact} /> : null}
       </View>
-      {nativeStoreCheckout?<Pressable accessibilityRole="button" accessibilityLabel="Restore app-store purchases" accessibilityState={{disabled:busy==='restore'}} disabled={busy==='restore'} onPress={()=>void restorePurchases()} style={({pressed})=>[styles.restoreButton,pressed&&styles.pressed,busy==='restore'&&styles.disabled]}><RefreshCw size={16} color={colors.violet}/><Text style={styles.restoreText}>{busy==='restore'?'Restoring purchases…':'Restore purchases'}</Text></Pressable>:null}
+      {nativeStoreCheckout?<Pressable accessibilityRole="button" accessibilityLabel="Restore app-store purchases" accessibilityState={{disabled:Boolean(busy)}} disabled={Boolean(busy)} onPress={()=>void restorePurchases()} style={({pressed})=>[styles.restoreButton,pressed&&styles.pressed,Boolean(busy)&&styles.disabled]}><RefreshCw size={16} color={colors.violet}/><Text style={styles.restoreText}>{busy==='restore'?'Restoring purchases…':'Restore purchases'}</Text></Pressable>:null}
       <View style={styles.policyLinks}><PolicyLink label="Terms" route="/terms" /><Text style={styles.policyDot}>•</Text><PolicyLink label="Privacy" route="/privacy-policy" /><Text style={styles.policyDot}>•</Text><PolicyLink label="Refunds & cancellation" route="/refund-policy" /><Text style={styles.policyDot}>•</Text><PolicyLink label="Support" route="/support" /></View>
     </Screen>
   );
@@ -236,11 +248,11 @@ function DiscoveryHero({ compact, onExplore, onCompare }: { compact: boolean; on
   return <View style={[styles.heroCard, compact && styles.heroCardCompact]}><Image source={discoveryPortalBackground} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" cachePolicy="memory-disk" /><View pointerEvents="none" style={[styles.heroImageScrim, compact && styles.heroImageScrimCompact]} /><View style={[styles.heroContent, compact && styles.heroContentCompact]}><StatusPill label="NO ACTIVE MEMBERSHIP" tone="neutral" /><Text accessibilityRole="header" style={[styles.heroTitle, compact && styles.heroTitleCompact]}>Your next world is waiting.</Text><Text style={styles.heroCopy}>Restore deeper memories, receive daily images, meet more companions, and get priority access across every world.</Text><View style={styles.heroActions}><Pressable accessibilityRole="button" onPress={onExplore} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}><Text style={styles.primaryButtonText}>Explore memberships</Text><ChevronRight size={19} color="#fff" /></Pressable><Pressable accessibilityRole="button" onPress={onCompare} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}><Text style={styles.secondaryButtonText}>Compare benefits</Text><ChevronRight size={17} color={colors.rose} /></Pressable></View><View style={styles.safetyLine}><ShieldCheck size={18} color={colors.success} /><Text style={styles.safetyText}>Your permanent Credits, companions, and memories stay safe.</Text></View></View></View>;
 }
 
-function MemberHero({ state, plan, compact, busy, onManage, onBuyCredits }: { state: SubscriptionStatus; plan: SubscriptionPlan; compact: boolean; busy: boolean; onManage?: () => void; onBuyCredits?: () => void }) {
+function MemberHero({ state, plan, compact, busy, onManage, onBuyCredits, localizedPrice }: { state: SubscriptionStatus; plan: SubscriptionPlan; localizedPrice?:NativeProductPrice; compact: boolean; busy: boolean; onManage?: () => void; onBuyCredits?: () => void }) {
   const status = billingStatusPresentation(state);
   const interval = state.billing.billingInterval ?? 'monthly';
   const price = membershipPricePresentation(plan, interval);
-  return <View style={[styles.memberHero, compact && styles.memberHeroCompact]}><Image source={memberPortalBackground} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" cachePolicy="memory-disk" /><View pointerEvents="none" style={[styles.memberHeroScrim, compact && styles.memberHeroScrimCompact]} /><View style={[styles.memberHeroLayout, compact && styles.memberHeroLayoutCompact]}><View style={styles.memberPlanColumn}><StatusPill label={status.label.toUpperCase()} tone={status.tone} /><Text accessibilityRole="header" style={styles.memberPlanName}>{plan.displayName}</Text><View style={styles.priceRow}><Text style={styles.memberPrice}>{price.primary}</Text><Text style={styles.memberPeriod}>{price.period}</Text></View><Text style={styles.memberBilling}>{state.management.mode === 'kivelle' ? status.detail : `${price.detail} · ${state.management.label}`}</Text>{status.date && status.dateLabel ? <Text style={styles.renewalLine}>{status.dateLabel} {formatDate(status.date)}</Text> : null}<View style={styles.memberActions}>{onBuyCredits ? <Pressable accessibilityRole="button" onPress={onBuyCredits} style={({ pressed }) => [styles.primaryButton, styles.memberActionButton, pressed && styles.pressed]}><KivelleCreditIcon size={19} /><Text style={styles.primaryButtonText}>Buy more Credits</Text></Pressable> : null}{onManage ? <Pressable accessibilityRole="button" disabled={busy} onPress={onManage} style={({ pressed }) => [styles.secondaryButton, styles.memberActionButton, busy && styles.disabled, pressed && styles.pressed]}><Text style={styles.secondaryButtonText}>{busy ? 'Opening billing…' : managementActionLabel(state.management)}</Text><ExternalLink size={16} color={colors.text} /></Pressable> : null}</View></View><MemberCreditSummary state={state} plan={plan} /></View></View>;
+  return <View style={[styles.memberHero, compact && styles.memberHeroCompact]}><Image source={memberPortalBackground} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" cachePolicy="memory-disk" /><View pointerEvents="none" style={[styles.memberHeroScrim, compact && styles.memberHeroScrimCompact]} /><View style={[styles.memberHeroLayout, compact && styles.memberHeroLayoutCompact]}><View style={styles.memberPlanColumn}><StatusPill label={status.label.toUpperCase()} tone={status.tone} /><Text accessibilityRole="header" style={styles.memberPlanName}>{plan.displayName}</Text><View style={styles.priceRow}><Text style={styles.memberPrice}>{localizedPrice?.price??(Platform.OS==='web'?price.primary:plan.displayName)}</Text><Text style={styles.memberPeriod}>{localizedPrice?.period??(Platform.OS==='web'?price.period:'')}</Text></View><Text style={styles.memberBilling}>{state.management.mode === 'kivelle' ? status.detail : `${localizedPrice?.detail??(Platform.OS==='web'?price.detail:'Managed by your app store')} · ${state.management.label}`}</Text>{status.date && status.dateLabel ? <Text style={styles.renewalLine}>{status.dateLabel} {formatDate(status.date)}</Text> : null}<View style={styles.memberActions}>{onBuyCredits ? <Pressable accessibilityRole="button" onPress={onBuyCredits} style={({ pressed }) => [styles.primaryButton, styles.memberActionButton, pressed && styles.pressed]}><KivelleCreditIcon size={19} /><Text style={styles.primaryButtonText}>Buy more Credits</Text></Pressable> : null}{onManage ? <Pressable accessibilityRole="button" disabled={busy} onPress={onManage} style={({ pressed }) => [styles.secondaryButton, styles.memberActionButton, busy && styles.disabled, pressed && styles.pressed]}><Text style={styles.secondaryButtonText}>{busy ? 'Opening billing…' : managementActionLabel(state.management)}</Text><ExternalLink size={16} color={colors.text} /></Pressable> : null}</View></View><MemberCreditSummary state={state} plan={plan} /></View></View>;
 }
 
 function MemberCreditSummary({ state, plan }: { state: SubscriptionStatus; plan: SubscriptionPlan }) {
@@ -279,9 +291,9 @@ function BillingIntervalToggle({ value, plan, onChange }: { value: BillingInterv
   return <View accessibilityRole="radiogroup" accessibilityLabel="Billing interval" style={styles.billingToggle}><Pressable accessibilityRole="radio" accessibilityState={{ checked: value === 'monthly' }} onPress={() => onChange('monthly')} style={[styles.billingChoice, value === 'monthly' && styles.billingChoiceActive]}><Text style={[styles.billingText, value === 'monthly' && styles.billingTextActive]}>Monthly</Text></Pressable><Pressable accessibilityRole="radio" accessibilityState={{ checked: value === 'annual' }} onPress={() => onChange('annual')} style={[styles.billingChoice, value === 'annual' && styles.billingChoiceActive]}><Text style={[styles.billingText, value === 'annual' && styles.billingTextActive]}>Yearly</Text>{savings ? <View style={styles.savePill}><Text style={styles.saveText}>SAVE {savings}%</Text></View> : null}</Pressable></View>;
 }
 
-function PlanCard({ plan, billingInterval, localizedPrice, action, busy, featured }: { plan: SubscriptionPlan; billingInterval: BillingInterval; localizedPrice?:string;action: PlanAction | null; busy: boolean; featured: boolean }) {
+function PlanCard({ plan, billingInterval, localizedPrice, action, busy, featured }: { plan: SubscriptionPlan; billingInterval: BillingInterval; localizedPrice?:NativeProductPrice;action: PlanAction | null; busy: boolean; featured: boolean }) {
   const price = membershipPricePresentation(plan, billingInterval);
-  return <View style={[styles.planCard, featured ? styles.planCardFeatured : styles.planCardPlus]}>{featured ? <View style={styles.featuredBadge}><Sparkles size={12} color="#FFD1F0" /><Text style={styles.featuredBadgeText}>MOST IMMERSIVE</Text></View> : null}<Text accessibilityRole="header" style={styles.planName}>{plan.displayName}</Text><View style={styles.priceRow}><Text style={styles.planPrice}>{localizedPrice??price.primary}</Text><Text style={styles.planPeriod}>{price.period}</Text></View><Text style={styles.planPriceDetail}>{localizedPrice?'Price shown by your app store; taxes may vary.':price.detail}</Text><Text style={styles.planTagline}>{plan.tier === 'kivelle_max' ? 'The deepest Kivelli experience' : 'More connection, every day'}</Text><View style={styles.planBenefits}>{membershipBenefits(plan).map((benefit) => <View key={benefit} style={styles.planBenefit}><Check size={17} color={featured ? '#C9B6FF' : '#F48CBE'} /><Text style={styles.planBenefitText}>{benefit}</Text></View>)}</View>{action ? action.enabled ? <Pressable accessibilityRole="button" disabled={busy} onPress={action.onPress} style={({ pressed }) => [styles.primaryButton, featured ? styles.maxButton : styles.plusButton, busy && styles.disabled, pressed && styles.pressed]}><Text style={styles.primaryButtonText}>{busy ? 'Opening…' : action.label}</Text><ChevronRight size={19} color="#fff" /></Pressable> : <View style={styles.unavailableAction}><CircleAlert size={17} color={colors.warm} /><Text style={styles.unavailableText}>{action.reason}</Text></View> : <View style={styles.currentPlanStrip}><Check size={18} color={colors.success} /><Text style={styles.currentPlanStripText}>Your current membership</Text></View>}</View>;
+  return <View style={[styles.planCard, featured ? styles.planCardFeatured : styles.planCardPlus]}>{featured ? <View style={styles.featuredBadge}><Sparkles size={12} color="#FFD1F0" /><Text style={styles.featuredBadgeText}>MOST IMMERSIVE</Text></View> : null}<Text accessibilityRole="header" style={styles.planName}>{plan.displayName}</Text><View style={styles.priceRow}><Text style={styles.planPrice}>{localizedPrice?.price??(Platform.OS==='web'?price.primary:'—')}</Text><Text style={styles.planPeriod}>{localizedPrice?.period??(Platform.OS==='web'?price.period:'')}</Text></View><Text style={styles.planPriceDetail}>{localizedPrice?.detail??(Platform.OS==='web'?price.detail:'Store price unavailable')}</Text><Text style={styles.planTagline}>{plan.tier === 'kivelle_max' ? 'The deepest Kivelli experience' : 'More connection, every day'}</Text><View style={styles.planBenefits}>{membershipBenefits(plan).map((benefit) => <View key={benefit} style={styles.planBenefit}><Check size={17} color={featured ? '#C9B6FF' : '#F48CBE'} /><Text style={styles.planBenefitText}>{benefit}</Text></View>)}</View>{action ? action.enabled ? <Pressable accessibilityRole="button" disabled={busy} onPress={action.onPress} style={({ pressed }) => [styles.primaryButton, featured ? styles.maxButton : styles.plusButton, busy && styles.disabled, pressed && styles.pressed]}><Text style={styles.primaryButtonText}>{busy ? 'Opening…' : action.label}</Text><ChevronRight size={19} color="#fff" /></Pressable> : <View style={styles.unavailableAction}><CircleAlert size={17} color={colors.warm} /><Text style={styles.unavailableText}>{action.reason}</Text></View> : <View style={styles.currentPlanStrip}><Check size={18} color={colors.success} /><Text style={styles.currentPlanStripText}>Your current membership</Text></View>}</View>;
 }
 
 function TrustStrip({ compact }: { compact: boolean }) {
@@ -331,12 +343,3 @@ const styles = StyleSheet.create({
   restoreButton:{alignSelf:'center',minHeight:48,paddingHorizontal:18,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,borderRadius:24,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface},restoreText:{color:colors.text,fontSize:11,fontWeight:'900'},
   policyLinks: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 6 }, policyLink: { minHeight: 44, textAlignVertical: 'center', color: colors.muted, fontSize: 10, fontWeight: '800', textDecorationLine: 'underline' }, policyDot: { color: colors.dimmed, fontSize: 9 }, errorCard: { gap: 14, padding: 18, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, error: { color: colors.danger, fontSize: 11, textAlign: 'center' },
 });
-
-async function waitForNativeTier(refetch:()=>Promise<{data?:SubscriptionStatus}>,tier:Exclude<SubscriptionTier,'free'>):Promise<boolean>{
-  for(const delay of[0,700,1400,2400,4000]){
-    if(delay)await new Promise((resolve)=>setTimeout(resolve,delay));
-    const result=await refetch();
-    if(result.data&&(result.data.tier===tier||tier==='kivelle_plus'&&result.data.tier==='kivelle_max'))return true;
-  }
-  return false;
-}

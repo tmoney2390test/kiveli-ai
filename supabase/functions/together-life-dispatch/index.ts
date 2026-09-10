@@ -1,3 +1,4 @@
+import {retryAppleRevocations} from '../_shared/kivelle-apple-auth.ts';
 import { adminClient, serverEnv } from '../_shared/context.ts';
 import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
@@ -22,6 +23,7 @@ serve(async (request, correlationId) => {
   await reconcilePushReceipts(db);
   const pushRetry=await retryPendingPushDeliveries(db);
   const deletionCleanup=await retryAccountDeletionCleanup(db,now);
+  const appleRevocation=await retryAppleRevocations(db,now);
   const photoCleanup = await cleanupPrivateChatPhotos(db, now);
   const{error:photoCleanupAuditError}=await db.from('together_analytics_events').insert({user_id:null,event_name:'chat_photo_cleanup_cycle',properties:{expired:photoCleanup.expired,orphans:photoCleanup.orphans,retried:photoCleanup.retried,failures:photoCleanup.failures}});
   if(photoCleanupAuditError)console.error(JSON.stringify({level:'error',operation:'chat_photo_cleanup_audit',message:'aggregate_record_failed'}));
@@ -29,7 +31,7 @@ serve(async (request, correlationId) => {
   const cutoff = new Date(now.getTime() - 20 * 60000).toISOString();
   const { data: instances, error } = await db.from('together_character_instances').select('id,user_id').or(`last_simulated_at.lt.${cutoff},last_simulated_at.is.null`).order('last_simulated_at', { ascending: true, nullsFirst: true }).limit(25);
   if (error) throw new AppError('INTERNAL_ERROR', 'Life dispatch could not load characters.', 500, true);
-  const results = { processed: 0, events: 0, messages: 0, failures: 0, photoCleanup, pushRetry, deletionCleanup };
+  const results = { processed: 0, events: 0, messages: 0, failures: 0, photoCleanup, pushRetry, deletionCleanup, appleRevocation };
   for (const instance of instances ?? []) {
     try {
       const run = await runLifeSimulation({ db, userId: instance.user_id, characterInstanceId: instance.id, now, evaluateProactive: true, trigger: 'scheduled_dispatch' });

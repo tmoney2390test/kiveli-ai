@@ -1,3 +1,4 @@
+import {requireAiDataConsent} from './kivelle-ai-consent.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
 import { resolvePlaceContext } from './together-place.ts';
@@ -17,6 +18,7 @@ export async function dispatchCreatorAppearanceJobs(db: SupabaseClient, limit: n
   for (const asset of claimed.data ?? []) {
     let providerJob: Record<string, unknown> | null = null;
     try {
+      await requireAiDataConsent(db,String(asset.user_id));
       const draftResult = await db.from('together_creator_drafts').select('*').eq('id', String(asset.draft_id)).eq('user_id', String(asset.user_id)).maybeSingle();
       const draft = draftResult.data;
       if (!draft) throw new AppError('NOT_FOUND', 'That Creator draft is unavailable.', 404);
@@ -92,6 +94,7 @@ export async function dispatchLoraTrainingJobs(db: SupabaseClient, limit: number
       const signed = await db.storage.from(bucket).createSignedUrl(path, 3600);
       if (!signed.data?.signedUrl) throw new AppError('INTERNAL_ERROR', 'The character training set could not be prepared.', 500, true);
       const owner = await characterVersionOwner(db, String(profile.character_version_id));
+      if(owner.userId)await requireAiDataConsent(db,owner.userId);
       const model = Deno.env.get('WAVESPEED_MODEL_ZIMAGE_TRAINER') ?? Deno.env.get('WAVESPEED_MODEL_LORA_TRAINER') ?? 'wavespeed-ai/z-image/base-lora-trainer';
       const requestId = `lora:${profile.id}:revision:${profile.source_revision}`;
       const created = await db.from('together_media_provider_jobs').insert({ user_id: owner.userId, character_media_profile_id: profile.id, job_type: 'lora', provider: 'wavespeed', model, route_id: 'wavespeed-zimage-trainer', request_id: requestId, status: 'submitting', attempt_count: 1, provider_metadata: { sourceRevision: profile.source_revision, referenceCount: stringArray(profile.source_reference_asset_ids).length } }).select('*').single();
