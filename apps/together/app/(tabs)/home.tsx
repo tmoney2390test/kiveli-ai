@@ -10,10 +10,10 @@ import { HomeNextRow, HomeRecentSection } from '../../src/components/home/HomeCo
 import { homeChatHref, homeNextItem, homeSharedItems, type HomeSharedItem } from '../../src/lib/compactHome';
 import { navigateLocalRouteOnWeb } from '../../src/lib/appNavigation';
 import { HomeFeaturedRail } from '../../src/components/home/HomeFeaturedRail';
-import { CompanionWorldToggle } from '../../src/components/CompanionWorldToggle';
-import { homeSnapshotForWorld } from '../../src/lib/homeFeatured';
 import { characterResidentWorld } from '../../src/lib/place';
 import { HomeHeader } from '../../src/components/home/HomeHeader';
+import { HomeWorldDiscoveryHero } from '../../src/components/home/HomeWorldDiscoveryHero';
+import { homeWorldDiscoveryOptions } from '../../src/lib/homeWorldDiscovery';
 import { colors, spacing, typography } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { markProactiveOpened, setCharacterFavorite, simulate } from '../../src/lib/api';
@@ -46,11 +46,8 @@ export default function Home() {
     const timer=setTimeout(()=>void Image.prefetch(urls,'memory-disk').catch(()=>undefined),1_600);
     return()=>clearTimeout(timer);
   },[snapshot]);
-  const [chosenWorldId,setChosenWorldId]=useState<string|null>(null);
-  const recentCompanion=snapshot?mostRecentHomeCompanion(snapshot):undefined;
-  const selectedWorld=snapshot?.worlds.find(w=>w.published&&w.id===chosenWorldId)??snapshot?.worlds.find(w=>w.published&&w.id===recentCompanion?.scenario_state?.worldId)??(snapshot?characterResidentWorld(snapshot,recentCompanion):undefined)??snapshot?.worlds.find(w=>w.published);
-  const homeSnapshot=snapshot?homeSnapshotForWorld(snapshot,selectedWorld?.id):undefined;
-  const homeCompanion=homeSnapshot?mostRecentHomeCompanion(homeSnapshot):undefined;
+  const homeCompanion=snapshot?mostRecentHomeCompanion(snapshot):undefined;
+  const selectedWorld=(snapshot?characterResidentWorld(snapshot,homeCompanion):undefined)??snapshot?.worlds.find(w=>w.published);
   const startupPortraitVersion=snapshot&&homeCompanion?selectPortraitVersion(snapshot,homeCompanion):undefined;
   const startupPortraitSource=homeCompanion&&startupPortraitVersion?resolveCharacterPortraitSource(homeCompanion.together_character_templates,startupPortraitVersion,homeCompanion.together_character_templates.slug):undefined;
   useEffect(()=>{
@@ -63,7 +60,7 @@ export default function Home() {
     if(uri)writeSessionHeroUri(session.user.id,uri);
   },[session?.user.id,startupPortraitSource]);
   const homeCompanionId=homeCompanion?.id;
-  const homeModel=homeSnapshot?buildHomeViewModel(homeSnapshot):undefined;
+  const homeModel=snapshot?buildHomeViewModel(snapshot):undefined;
   useFocusEffect(useCallback(() => { if(homeCompanionId) void refresh({scope:'presence',characterInstanceId:homeCompanionId}).catch(() => undefined); }, [homeCompanionId, refresh]));
   const simulationStale=!homeCompanion||Date.now()-new Date(homeCompanion.last_simulated_at).getTime()>2*60000||!(snapshot?.scheduleEvents??[]).some((item)=>item.character_instance_id===homeCompanionId&&new Date(item.ends_at)>new Date());
   useEffect(()=>{if(!secondaryWorkReady||!homeCompanionId||!simulationStale||homeCompanion?.scenario_state)return;let cancelled=false;void simulate(homeCompanionId).then(()=>cancelled?undefined:refresh({scope:'presence',characterInstanceId:homeCompanionId})).catch(()=>undefined);return()=>{cancelled=true;};},[homeCompanionId,homeCompanion?.scenario_state,refresh,secondaryWorkReady,simulationStale]);
@@ -72,9 +69,7 @@ export default function Home() {
   if (error && !snapshot) return <HomeError message={error} onRetry={() => void refresh()} />;
   if (!snapshot) return <EmptyState title="Opening your world" body="Your companion and first conversation are being prepared automatically." />;
 
-  const publishedWorlds=snapshot.worlds.filter((world)=>world.published);
-  const chooseWorld=(id:string)=>{setChosenWorldId(id);setBrowsedWorldId(id);};
-  const continuationHeading=<View style={styles.continueHeading}><Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={.75} style={[styles.continueTitle,!desktop&&{fontSize:16}]}>Continue conversation</Text>{selectedWorld?<View style={styles.worldPicker}><CompanionWorldToggle worlds={publishedWorlds} value={selectedWorld.id} onChange={chooseWorld}/></View>:null}</View>;
+  const continuationHeading=<Text accessibilityRole="header" style={styles.continueTitle}>Continue conversation</Text>;
   const toggleFavorite = async (item: FeaturedCompanion, favorite: boolean) => {
     const previous = snapshot.favoriteCharacterTemplateIds ?? [];
     const optimistic = favorite ? [...new Set([...previous, item.id])] : previous.filter((id) => id !== item.id);
@@ -103,12 +98,14 @@ export default function Home() {
   const handle = template.public_handle ?? template.slug;
   const portraitVersion = startupPortraitVersion??selectPortraitVersion(snapshot, companion);
   const portraitSource = startupPortraitSource??resolveCharacterPortraitSource(template, portraitVersion, template.slug);
+  const discoveryWorlds=homeWorldDiscoveryOptions(snapshot.worlds,model.currentWorld?.id);
+  const exploreWorld=(world:typeof snapshot.worlds[number])=>{setBrowsedWorldId(world.id);navigate(`/(tabs)/explore?world=${world.slug}`);};
   const next = homeNextItem(model);
   const shared = homeSharedItems(snapshot, model);
   const navigate = (href: string) => { if (!navigateLocalRouteOnWeb(href)) router.push(href); };
   const openCompanion = (planning = false) => {
     if (!planning && model.message?.id) void markProactiveOpened(model.message.id).catch(() => undefined);
-    navigate(homeChatHref(homeSnapshot!, model, planning));
+    navigate(homeChatHref(snapshot, model, planning));
   };
   const runAction = (action: HomeTargetAction) => {
     if (action.kind === 'plan') return navigate(`/plan/${action.id}`);
@@ -123,8 +120,12 @@ export default function Home() {
     <View pointerEvents="none" style={styles.ambientGlow} />
     {!desktop?<HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push(subscriptionHref({intent:'credits'}))} onProfile={() => router.push('/settings')} />:null}
     {continuationHeading}
-    <HomeCompanionCard companion={companion} portraitVersion={portraitVersion} source={portraitSource} location={model.currentLocation?.name} world={model.currentWorld?.name} prompt={model.message?.content || model.hero.prompt} notice={model.message ? 'NEW MESSAGE' : undefined} relationship={snapshot.relationshipCues?.[companion.id]?.tone === 'tense' ? 'Needs attention' : model.hero.stage} onContinue={() => void openCompanion()} onProfile={() => navigate(`/character/${handle}`)} onVisualReady={heroReady} />
+    <View style={styles.topStage}>
+      <View style={styles.companionPane}><HomeCompanionCard companion={companion} portraitVersion={portraitVersion} source={portraitSource} location={model.currentLocation?.name} world={model.currentWorld?.name} prompt={model.message?.content || model.hero.prompt} notice={model.message ? 'NEW MESSAGE' : undefined} relationship={snapshot.relationshipCues?.[companion.id]?.tone === 'tense' ? 'Needs attention' : model.hero.stage} onContinue={() => void openCompanion()} onProfile={() => navigate(`/character/${handle}`)} onVisualReady={heroReady} /></View>
+      {desktop&&discoveryWorlds.length?<View style={styles.worldPane}><HomeWorldDiscoveryHero fill worlds={discoveryWorlds} onExplore={exploreWorld}/></View>:null}
+    </View>
     <HomeNextRow next={next} onOpen={() => next.kind === 'scenario' ? void openCompanion() : next.kind === 'planning' ? void openCompanion(true) : runAction(model.upcoming.action)} onPlan={() => void openCompanion(true)} />
+    {!desktop&&discoveryWorlds.length?<HomeWorldDiscoveryHero compact worlds={discoveryWorlds} onExplore={exploreWorld}/>:null}
     {secondaryWorkReady ? <>
       <HomeFeaturedRail snapshot={snapshot} worldId={selectedWorld?.id} activeTemplateId={template.id} onOpen={item=>navigate(`/character/${item.public_handle??item.slug}`)} onViewAll={()=>navigate('/(tabs)/singles')} onToggleFavorite={toggleFavorite}/>
       <HomeRecentSection items={shared} onOpen={openShared} onViewAll={() => navigate('/(tabs)/moments')} />
@@ -151,9 +152,10 @@ function HomeSecondaryLoading(){return <View accessibilityLabel="Loading more fr
 const styles = StyleSheet.create({
   content: { position: 'relative', maxWidth: 1100, gap: 18, paddingTop: 14, paddingBottom: 120 },
   contentDesktop: { position: 'relative', maxWidth: 1100, gap: 18, paddingTop: 24, paddingBottom: 48 },
-  continueHeading:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10,minHeight:48},
-  continueTitle:{flex:1,minWidth:0,color:colors.text,fontFamily:typography.display,fontSize:25,fontWeight:'600'},
-  worldPicker:{maxWidth:'45%',flexShrink:1},
+  continueTitle:{color:colors.text,fontFamily:typography.display,fontSize:25,fontWeight:'600'},
+  topStage:{flexDirection:'row',alignItems:'stretch',gap:16},
+  companionPane:{flex:1.55,minWidth:0},
+  worldPane:{flex:1,minWidth:290},
   ambientGlow: { position: 'absolute', top: 80, left: '22%', width: '70%', height: 700, borderRadius: 500, backgroundColor: 'rgba(122,34,86,.045)', ...(Platform.OS === 'web' ? ({ backgroundImage: 'radial-gradient(circle, rgba(191,55,119,.09), transparent 68%)' } as never) : {}) },
   emptyLife: { gap: spacing.md, paddingVertical: spacing.lg },
   emptyLifeTitle: { color: colors.text, fontFamily: typography.display, fontSize: 36, lineHeight: 42, fontWeight: '600' },
