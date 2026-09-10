@@ -16,7 +16,7 @@ create table together_billing_subscriptions(user_id uuid);
 create table together_credit_ledger(user_id uuid);
 create table together_entitlements(user_id uuid);
 `);
-await db.exec(readFileSync(new URL('../supabase/migrations/20260910181917_apple_review_recovery.sql',import.meta.url),'utf8'));
+await db.exec(readFileSync(new URL('../supabase/migrations/20260910185509_apple_review_recovery.sql',import.meta.url),'utf8'));
 const a=crypto.randomUUID(),b=crypto.randomUUID(),lease=crypto.randomUUID();
 await db.query('insert into auth.users values($1),($2)',[a,b]);
 await db.query("insert into together_profiles(user_id,private_text_preference) values($1,'mature'),($2,'standard')",[a,b]);
