@@ -32,7 +32,7 @@ export function VideoMomentThumbnail({uri, posterUri, contentFit = 'cover', onRe
       onLoadedData: markReady, onSeeked: markReady, onCanPlay: markReady,
       onError: () => setReadyUri(null),
       // Metadata alone cannot paint a video frame. Never hide a usable poster while waiting.
-      style: {...videoStyle, objectFit: contentFit, opacity: readyUri === uri || posterUri ? 1 : 0},
+      style: {...videoStyle, objectFit: contentFit, objectPosition: contentFit === 'contain' ? 'center' : 'center top', opacity: readyUri === uri || posterUri ? 1 : 0},
     }),
   );
 }
