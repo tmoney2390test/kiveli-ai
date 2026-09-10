@@ -24,6 +24,7 @@ import { WebAdultSessionBridge } from "./WebAdultSessionBridge";
 import { useTogether } from "../store/useTogether";
 import { PendingMediaRecovery } from "./PendingMediaRecovery";
 import { WebDocumentAccessibilityBridge } from "./WebDocumentAccessibilityBridge";
+import { EngagementBridge } from './EngagementBridge';
 
 function OperationsHeartbeat() {
   const { session } = useAuth();
@@ -75,6 +76,7 @@ export function AppProviders({ children }: PropsWithChildren) {
               <PendingMediaRecovery />
               <WebDocumentAccessibilityBridge />
               <OperationsHeartbeat />
+              <EngagementBridge />
               <ClientPerformanceBridge />
               <GlobalErrorReporter />
               <AppErrorBoundary>

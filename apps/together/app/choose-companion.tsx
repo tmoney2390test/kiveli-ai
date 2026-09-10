@@ -1,4 +1,5 @@
 import {ScenarioBrowser} from '../src/components/ScenarioBrowser';
+import {useOnboardingEngagement} from '../src/providers/EngagementBridge';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ScrollView } from 'react-native';
 import { Image } from 'expo-image';
@@ -33,6 +34,7 @@ export default function ChooseCompanion() {
   const { snapshot, setSnapshot, setBrowsedWorldId, refresh, loading } = useTogether();
   const [step, setStep] = useState<OnboardingStep>('world');
   const [choiceTab,setChoiceTab]=useState<'characters'|'scenarios'>('characters');
+  useOnboardingEngagement(step==='world'?'world':choiceTab==='scenarios'?'scenario':'companion');
   const [selectedWorldId, setSelectedWorldId] = useState('');
   const [selectedCompanionId, setSelectedCompanionId] = useState('');
   const [visibleCount, setVisibleCount] = useState(12);

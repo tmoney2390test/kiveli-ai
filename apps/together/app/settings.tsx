@@ -1,4 +1,5 @@
 import { cloneElement, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import {AdminConsoleLink} from '../src/components/AdminConsoleLink';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -339,6 +340,7 @@ export default function Settings() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
+            <AdminConsoleLink />
             {!snapshot ? <LoadingSkeleton label="Loading your settings…" /> : activeSection ? <>
               {activeSection === 'profile' ? <ProfilePanel avatar={avatar} avatarPath={avatarPath} hasAvatar={Boolean(avatarPath)} name={name} setName={(value) => { setSaveNotice(null); setName(value); }} about={about} setAbout={(value) => { setSaveNotice(null); setAbout(value); }} interests={interests} setInterests={(value) => { setSaveNotice(null); setInterests(value); }} goals={goals} setGoals={(value) => { setSaveNotice(null); setGoals(value); }} syncMainPersona={syncMainPersona} setSyncMainPersona={setSyncMainPersona} busy={busy} dirty={dirty} notice={saveNotice} email={session?.user.email} onAvatar={chooseAvatarSource} onRemoveAvatar={() => void removeAvatar()} onSave={() => void saveProfile()} showInlineSave={desktop} /> : null}
               {activeSection === 'account' ? <AccountPanel email={session?.user.email} providerLabel={providerState.label} verified={providerState.verifiedEmail} pendingEmail={providerState.pendingEmail} tier={subscriptionLabel(snapshot.entitlements?.tier)} onRoute={openRoute} onResend={() => void resendPendingEmailChange().then(() => Alert.alert('Confirmation sent', 'Check the new email address.')).catch((error) => Alert.alert('Could not send email', error.message))} onSignOutOthers={() => Alert.alert('Sign out everywhere else?', 'This device will remain signed in.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out others', style: 'destructive', onPress: () => void signOutOthers().then(() => Alert.alert('Other sessions signed out.')).catch((error) => Alert.alert('Could not update sessions', error.message)) }])} /> : null}
