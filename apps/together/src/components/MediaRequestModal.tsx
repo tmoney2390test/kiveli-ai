@@ -1,3 +1,4 @@
+import { createVideoSubmissionIdentity } from '../lib/mediaRequestTransport';
 import { cachedVideoOptions } from '../lib/videoCatalog';
 import { VideoSettingsControls, VideoLocationPicker } from './VideoSettingsControls';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -44,6 +45,8 @@ export function MediaRequestModal({visible,mode,character,conversationId,onPhoto
   const {width}=useWindowDimensions(),insets=useSafeAreaInsets(),compact=width<620;
   const name=character.together_character_templates.name;
   const touched=useRef(false),standardSound=useRef(false);
+  const videoSubmission=useRef(createVideoSubmissionIdentity(createClientRequestId));
+  const videoSubmitting=useRef(false);
   const loadedVideoOptionsFor=useRef<string|null>(null);
   const[description,setDescription]=useState(''),[spicyUnlocked,setSpicyUnlocked]=useState(false),[options,setOptions]=useState<VideoGenerationOptions|null>(cachedVideoOptions),[loading,setLoading]=useState(false),[submitting,setSubmitting]=useState(false),[error,setError]=useState<string|null>(null),[retryKey,setRetryKey]=useState(0),[routeId,setRouteId]=useState('tier:standard'),[durationSeconds,setDurationSeconds]=useState<VideoDurationSeconds>(5),[resolution,setResolution]=useState<VideoResolution>('720p'),[sound,setSound]=useState(false),[aspectRatio,setAspectRatio]=useState<'9:16'|'16:9'>('9:16'),[locationSource,setLocationSource]=useState<DirectVideoLocationSource>('current'),[locationId,setLocationId]=useState('');
   useEffect(()=>{
@@ -65,7 +68,7 @@ export function MediaRequestModal({visible,mode,character,conversationId,onPhoto
   const locationReady=directVideoLocationReady(options,locationSource,locationId);
   const balance=Number(options?.creditBalance??0),creditCost=route?videoCreditCost(route,durationSeconds,resolution,sound):0,insufficient=Boolean(options?.available&&route&&balance<creditCost),canCreate=Boolean(route&&description.trim()&&route.allowedDurations.includes(durationSeconds)&&route.supportedResolutions.includes(resolution)&&(!sound||!['none','reference_only'].includes(route.audioMode))&&Number.isFinite(creditCost)&&locationReady&&options?.available&&!loading&&!submitting&&!options?.activeVideo&&!insufficient);
   const submitPhoto=()=>{const request=customPhotoRequestText(description);if(!request)return;setDescription('');onPhotoRequest(request);};
-  const submitVideo=async()=>{if(!canCreate||!route)return;setSubmitting(true);setError(null);try{const result=await createDirectVideo({characterInstanceId:character.id,conversationId,settings:{model:route.id,sound,resolution,duration:durationSeconds,expectedCredits:creditCost},aspectRatio,locationSource,...(locationSource==='place'&&locationId?{locationId}:{}),requestText:description.trim(),requestId:createClientRequestId()});onVideoCreated(result.media);}catch(cause){setError(cause instanceof Error?cause.message:'The video could not be started.');}finally{setSubmitting(false);}};
+  const submitVideo=async()=>{if(!canCreate||!route||videoSubmitting.current)return;videoSubmitting.current=true;setSubmitting(true);setError(null);const input={characterInstanceId:character.id,conversationId,settings:{model:route.id,sound,resolution,duration:durationSeconds,expectedCredits:creditCost},aspectRatio,locationSource,...(locationSource==='place'&&locationId?{locationId}:{}),requestText:description.trim()};try{const result=await createDirectVideo({...input,requestId:videoSubmission.current.requestId(input)});videoSubmission.current.clear();onVideoCreated(result.media);}catch(cause){setError(cause instanceof Error?cause.message:'The video could not be started.');}finally{videoSubmitting.current=false;setSubmitting(false);}};
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
     <View accessibilityViewIsModal style={[styles.backdrop,compact&&styles.backdropCompact,{paddingBottom:compact?Math.max(8,insets.bottom):20}]}>
       <FrostedBackdrop intensity={34}/><Pressable accessibilityRole="button" accessibilityLabel="Close media options" style={StyleSheet.absoluteFill} onPress={onClose}/>
