@@ -290,7 +290,7 @@ function TrustStrip({ compact }: { compact: boolean }) {
 }
 
 function CreditShop() {
-  return <View style={styles.creditShop}><View style={styles.cardHeading}><View><Text style={styles.eyebrow}>KIVELLI CREDITS</Text><Text style={styles.dashboardTitle}>Your credits stay with you</Text><Text style={styles.cardCopy}>Use your available Credits for photos, video, voice, and other media.</Text></View><KivelleCreditIcon size={40} /></View><View style={styles.unavailableAction}><ShieldCheck size={18} color={colors.success} /><Text style={styles.unavailableText}>Credit packs are temporarily unavailable. Purchases will be available through the Apple App Store and Google Play.</Text></View></View>;
+  return <View style={styles.creditShop}><View style={styles.cardHeading}><View style={{flex:1,minWidth:0}}><Text style={styles.eyebrow}>KIVELLI CREDITS</Text><Text style={styles.dashboardTitle}>Your credits stay with you</Text><Text style={styles.cardCopy}>Use your available Credits for photos, video, voice, and other media.</Text></View><KivelleCreditIcon size={40} /></View><View style={styles.unavailableAction}><ShieldCheck size={18} color={colors.success} /><Text style={styles.unavailableText}>Credit packs are temporarily unavailable. Purchases will be available through the Apple App Store and Google Play.</Text></View></View>;
 }
 
 function RecentActivityCard({ activity }: { activity: CreditActivityEvent[] }) { return <View style={styles.dashboardCard}><View style={styles.cardHeading}><Text style={styles.dashboardTitle}>Recent credit activity</Text><History size={21} color={colors.rose} /></View><RecentActivity activity={activity} /></View>; }
