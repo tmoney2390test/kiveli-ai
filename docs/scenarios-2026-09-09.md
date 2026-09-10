@@ -74,3 +74,11 @@ Direct and group chat use the same formatter for saved and streaming companion r
 The shared reply prompt requests unquoted speech and asterisk-marked actions or narration, with no added physical stage directions in remote messages. This applies inside structured reply text without changing response schemas.
 
 Validation: 742 app tests, application/domain and Edge Function TypeScript checks, lint, prompt regressions, production export and asset budget. A read-only 390px browser check of an existing conversation verified italic narration and normal unquoted speech without sending messages or changing history.
+
+## Compact Home
+
+The approved Home mockup is connected to saved companion data. One portrait card has a short reply preview, Continue chat, and a small relationship link. Up next shows the active scenario first, otherwise a scheduled/active plan or date, with a compact planning action when nothing is booked. Unlocked date suggestions are not presented as appointments. Scenario chat and planning use the original conversation ID; unrelated conversation previews are excluded while that scenario owns the companion.
+
+Photos, videos and recent moments share a maximum-four-item section, ordered newest first and deduplicated when media illustrates a moment. Empty sharing is hidden; locked media retains its upgrade flow. Relationship details, memories and the daily timeline remain on the companion profile. World discovery moves below personal content in a short illustrated card, using the existing compact world descriptions. Broader companion discovery and world pulse remain in Explore, and Home no longer fetches their full catalogues. Existing account credits, navigation, empty-Life onboarding, media access and high-priority portrait loading are retained.
+
+Validation: 748 app tests, application/domain TypeScript, lint, production build and asset budget. Read-only browser checks at 360/390/768/1440px verified the compact layout, empty sharing, saved chat IDs and event-planner navigation. Browser-only scenario/media/moment fixtures verified active-scenario priority, locked media, populated sharing and conversation routing without changing account data.

@@ -76,7 +76,8 @@ export function mostRecentHomeCompanion(snapshot:Snapshot):CharacterInstance|und
 export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeViewModel | undefined {
   const homeConversation=mostRecentHomeConversation(snapshot);
   if(!homeConversation)return undefined;
-  const life = buildCompanionLife(snapshot, now, homeConversation.character_instance_id, homeConversation.id);
+  const scenario = snapshot.characters.find(character => character.id === homeConversation.character_instance_id)?.scenario_state;
+  const life = buildCompanionLife(snapshot, now, homeConversation.character_instance_id, scenario?.conversationId ?? homeConversation.id);
   if (!life) return undefined;
 
   const { companion, relationshipDay, recentEvents, dates } = life;
@@ -180,7 +181,7 @@ export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeVi
     hero: {
       stage: labelStage(companion.relationship_stage),
       statusLine: `${locationLabel} · ${activityLabel}`,
-      prompt: heroPrompt,
+      prompt: scenario && !unreadMessage ? 'Your story is waiting where you left it.' : heroPrompt,
       notice: heroNotice,
       action: heroAction,
     },

@@ -1,31 +1,26 @@
-import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Asset } from 'expo-asset';
-import { router as expoRouter } from 'expo-router';
+import { router as expoRouter, useFocusEffect } from 'expo-router';
 import { Sparkles } from 'lucide-react-native';
-import { EmptyState, GradientButton, MomentCarousel, Screen, resolveCharacterPortraitSource } from '../../src/components';
-import { CinematicCompanionHero } from '../../src/components/home/CinematicCompanionHero';
-import { FromCompanionSection } from '../../src/components/home/FromCompanionSection';
+import { EmptyState, GradientButton, Screen, resolveCharacterPortraitSource } from '../../src/components';
+import { HomeCompanionCard } from '../../src/components/home/HomeCompanionCard';
+import { HomeNextRow, HomeRecentSection } from '../../src/components/home/HomeCompactSections';
+import { homeChatHref, homeNextItem, homeSharedItems, type HomeSharedItem } from '../../src/lib/compactHome';
+import { navigateLocalRouteOnWeb } from '../../src/lib/appNavigation';
 import { FeaturedCompanionsSection } from '../../src/components/home/FeaturedCompanionsSection';
 import { HomeHeader } from '../../src/components/home/HomeHeader';
-import { HomeTimeline } from '../../src/components/home/HomeTimeline';
-import { HomeWorldSection } from '../../src/components/home/HomeWorldSection';
 import { HomeWorldDiscoveryHero } from '../../src/components/home/HomeWorldDiscoveryHero';
-import { AroundTownSection } from '../../src/components/home/AroundTownSection';
 import { colors, spacing, typography } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
-import { loadExploreCatalog, markProactiveOpened, setCharacterFavorite, simulate } from '../../src/lib/api';
-import { buildHomeViewModel, mostRecentHomeCompanion, type HomeTargetAction, type HomeTimelineItem } from '../../src/lib/homeViewModel';
-import { getCompanionMedia, getHomeWorldScopes, getMemoryPresentation, getRelationshipPresentation, getWorldHook, selectFeaturedMemory } from '../../src/lib/homePresentation';
-import { locationHeroAsset } from '../../src/assets';
+import { markProactiveOpened, setCharacterFavorite, simulate } from '../../src/lib/api';
+import { buildHomeViewModel, mostRecentHomeCompanion, type HomeTargetAction } from '../../src/lib/homeViewModel';
 import { selectPortraitVersion } from '../../src/lib/selectors';
 import { featuredCompanionsForWorld, type FeaturedCompanion } from '../../src/lib/featuredCompanions';
 import { homeWorldDiscoveryOptions } from '../../src/lib/homeWorldDiscovery';
-import type { Snapshot } from '../../src/types';
 import { useSubscriptionStatus } from '../../src/hooks/useSubscriptionStatus';
 import { useAppShell } from '../../src/shell/AppShellContext';
-import { useWorldPulse } from '../../src/hooks/useWorldPulse';
 import { scheduleDeferredHomeWork } from '../../src/lib/homeDeferredWork';
 import { uniqueHttpsImageUris } from '../../src/lib/imageWarmup';
 import { subscriptionHref } from '../../src/lib/subscriptionPresentation';
@@ -41,7 +36,6 @@ export default function Home() {
   const { desktop } = useAppShell();
   const secondaryWorkReady=useDeferredHomeWork();
   const { data: subscription = null } = useSubscriptionStatus(Boolean(snapshot)&&secondaryWorkReady);
-  const { width } = useWindowDimensions();
   const analyticsEnabled=snapshot?.profile?.privacy_settings?.analytics!==false;
   const heroReady=useSurfaceReadyTiming('home','hero_image_ready',Boolean(snapshot&&analyticsEnabled));
   useEffect(()=>{
@@ -51,15 +45,6 @@ export default function Home() {
     const timer=setTimeout(()=>void Image.prefetch(urls,'memory-disk').catch(()=>undefined),1_600);
     return()=>clearTimeout(timer);
   },[snapshot]);
-  useEffect(()=>{
-    if(!snapshot||snapshot.discoverableCharacters.length>=100)return;
-    let cancelled=false;
-    const timer=setTimeout(()=>{void loadExploreCatalog().then((catalog)=>{
-      if(cancelled)return;
-      setCoreState({worlds:catalog.worlds,locations:catalog.locations,characterWorldPresence:catalog.characterWorldPresence,discoverableCharacters:catalog.discoverableCharacters,favoriteCharacterTemplateIds:catalog.favoriteCharacterTemplateIds,lifeEvents:catalog.lifeEvents});
-    }).catch(()=>undefined);},1_600);
-    return()=>{cancelled=true;clearTimeout(timer);};
-  },[setCoreState,snapshot]);
   const homeCompanion=snapshot?mostRecentHomeCompanion(snapshot):undefined;
   const startupPortraitVersion=snapshot&&homeCompanion?selectPortraitVersion(snapshot,homeCompanion):undefined;
   const startupPortraitSource=homeCompanion&&startupPortraitVersion?resolveCharacterPortraitSource(homeCompanion.together_character_templates,startupPortraitVersion,homeCompanion.together_character_templates.slug):undefined;
@@ -74,11 +59,9 @@ export default function Home() {
   },[session?.user.id,startupPortraitSource]);
   const homeCompanionId=homeCompanion?.id;
   const homeModel=snapshot?buildHomeViewModel(snapshot):undefined;
-  const pulseWorldId=homeModel?.currentWorld?.id??null;
-  const {data:worldPulse}=useWorldPulse(pulseWorldId,Boolean(snapshot&&pulseWorldId&&secondaryWorkReady));
-
+  useFocusEffect(useCallback(() => { if(homeCompanionId) void refresh({scope:'presence',characterInstanceId:homeCompanionId}).catch(() => undefined); }, [homeCompanionId, refresh]));
   const simulationStale=!homeCompanion||Date.now()-new Date(homeCompanion.last_simulated_at).getTime()>2*60000||!(snapshot?.scheduleEvents??[]).some((item)=>item.character_instance_id===homeCompanionId&&new Date(item.ends_at)>new Date());
-  useEffect(()=>{if(!secondaryWorkReady||!homeCompanionId||!simulationStale)return;let cancelled=false;void simulate(homeCompanionId).then(()=>cancelled?undefined:refresh({scope:'presence',characterInstanceId:homeCompanionId})).catch(()=>undefined);return()=>{cancelled=true;};},[homeCompanionId,refresh,secondaryWorkReady,simulationStale]);
+  useEffect(()=>{if(!secondaryWorkReady||!homeCompanionId||!simulationStale||homeCompanion?.scenario_state)return;let cancelled=false;void simulate(homeCompanionId).then(()=>cancelled?undefined:refresh({scope:'presence',characterInstanceId:homeCompanionId})).catch(()=>undefined);return()=>{cancelled=true;};},[homeCompanionId,homeCompanion?.scenario_state,refresh,secondaryWorkReady,simulationStale]);
 
   if (loading && !snapshot) return <CinematicHomeLoading />;
   if (error && !snapshot) return <HomeError message={error} onRetry={() => void refresh()} />;
@@ -114,73 +97,32 @@ export default function Home() {
   const handle = template.public_handle ?? template.slug;
   const portraitVersion = startupPortraitVersion??selectPortraitVersion(snapshot, companion);
   const portraitSource = startupPortraitSource??resolveCharacterPortraitSource(template, portraitVersion, template.slug);
-  const { pulseWorld, selectedWorld } = getHomeWorldScopes(model, publishedWorlds, browsedWorldId);
-  const featuredCompanions = selectedWorld ? featuredCompanionsForWorld(snapshot, selectedWorld.id, template.id) : [];
-  const discoveryWorlds=homeWorldDiscoveryOptions(snapshot.worlds,model.currentWorld?.id);
-  const relationship = getRelationshipPresentation(snapshot, companion, model.relationshipDay);
-  const memoryInspector=snapshot.entitlements?.entitlement_keys?.includes('memory_inspector')===true;
-  const rememberedCount=snapshot.memoryCounts?.[companion.id]??snapshot.memories.filter((item)=>item.character_instance_id===companion.id).length;
-  const memory = !memoryInspector&&rememberedCount>0
-    ? {eyebrow:`${template.name.toUpperCase()} REMEMBERS`,text:`${rememberedCount} saved ${rememberedCount===1?'detail':'details'} · unlock the Memory Center with Kivelle+`}
-    : getMemoryPresentation(selectFeaturedMemory(snapshot, companion.id), template.name);
-  const media = getCompanionMedia(snapshot, companion.id);
-  const upcomingLocation = resolveUpcomingLocation(snapshot, model.upcoming.action) ?? model.currentLocation;
-  const upcomingWorld = upcomingLocation ? snapshot.worlds.find((item) => item.id === upcomingLocation.world_id) : model.currentWorld;
-  const nearbyMedia = media.find((item) => {
-    const record = snapshot.generatedMedia?.find((entry) => entry.id === item.id);
-    return record?.location_id === upcomingLocation?.id;
-  });
-  const upcomingSource = nearbyMedia?.thumbnailUrl ? { uri: nearbyMedia.thumbnailUrl } : locationHeroAsset(upcomingWorld?.slug, upcomingLocation?.slug);
-  const companionFirstName = template.name.trim().split(/\s+/)[0] || template.name;
-  const timelineTitle = `${companionFirstName}'s Day`;
-  const wideCards = width >= 760;
-  const topStageWide=width>=900;
-  const hubWide=width>=1020;
-  const hubHeaderStacked=width<520;
-
-  const openCompanion = async (proactiveMessageId?: string) => {
-    if (proactiveMessageId) await markProactiveOpened(proactiveMessageId).catch(() => undefined);
-    router.push(`/(tabs)/chat-tab?character=${encodeURIComponent(handle)}`);
+  const discoveryWorlds = homeWorldDiscoveryOptions(snapshot.worlds, model.currentWorld?.id);
+  const next = homeNextItem(model);
+  const shared = homeSharedItems(snapshot, model);
+  const navigate = (href: string) => { if (!navigateLocalRouteOnWeb(href)) router.push(href); };
+  const openCompanion = (planning = false) => {
+    if (!planning && model.message?.id) void markProactiveOpened(model.message.id).catch(() => undefined);
+    navigate(homeChatHref(snapshot, model, planning));
   };
-  const runAction = async (action: HomeTargetAction) => {
-    if (action.kind === 'chat') return openCompanion(action.proactiveMessageId);
-    if (action.kind === 'plan') return router.push(`/plan/${action.id}`);
-    if (action.kind === 'date') return router.push(`/date/${action.id}`);
-    router.push(`/(tabs)/chat-tab?character=${encodeURIComponent(handle)}&plan=1`);
+  const runAction = (action: HomeTargetAction) => {
+    if (action.kind === 'plan') return navigate(`/plan/${action.id}`);
+    if (action.kind === 'date') return navigate(`/date/${action.id}`);
+    void openCompanion(action.kind === 'plan-create');
   };
-  const openTimelineItem = (item: HomeTimelineItem) => {
-    if (item.kind === 'plan') return router.push(`/plan/${item.id.replace(/^plan:/, '')}`);
-    if (item.kind === 'date') return router.push(`/date/${item.id.replace(/^date:/, '')}`);
-    if (item.locationId) {
-      const location = snapshot.locations.find((place) => place.id === item.locationId);
-      const world = location ? snapshot.worlds.find((entry) => entry.id === location.world_id) : undefined;
-      if (location && world) return router.push(`/location/${location.slug}?world=${world.slug}`);
-    }
-    if (item.kind === 'event') router.push(`/(tabs)/chat-tab?character=${encodeURIComponent(handle)}`);
+  const openShared = (entry: HomeSharedItem) => {
+    if (entry.kind === 'moment') return navigate(`/moment/${entry.item.id}`);
+    navigate(entry.item.locked ? subscriptionHref({intent:'generated_media'}) : `/media/${entry.item.id}`);
   };
   return <Screen contentStyle={desktop ? styles.contentDesktop : styles.content}>
     <View pointerEvents="none" style={styles.ambientGlow} />
-    {!desktop ? <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push(subscriptionHref({intent:'credits'}) as never)} onProfile={() => router.push('/settings')} /> : null}
-    <View style={[styles.topStage,!topStageWide&&styles.topStageStack]}>
-      <View style={styles.companionHeroPane}><CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} location={model.currentLocation?.name} world={model.currentWorld?.name} actionLabel={model.hero.action.label} notice={model.hero.notice} prompt={model.message?.content ? `“${model.message.content}”` : model.hero.prompt} onContinue={() => void runAction(model.hero.action)} onProfile={() => router.push(`/character/${handle}`)} onVisualReady={heroReady}/></View>
-      {discoveryWorlds.length?<View style={[styles.worldDiscoveryPane,!topStageWide&&styles.worldDiscoveryPaneStack]}><HomeWorldDiscoveryHero fill={topStageWide} worlds={discoveryWorlds} onExplore={(world)=>{setBrowsedWorldId(world.id);router.push(`/(tabs)/explore?world=${world.slug}`);}}/></View>:null}
-    </View>
-    {secondaryWorkReady?<>
-      <View style={styles.companionHub}>
-        <View style={[styles.companionHubHeader,hubHeaderStacked&&styles.companionHubHeaderStack]}>
-          <View style={styles.companionHubHeading}><Text style={styles.companionHubKicker}>YOUR CONNECTION</Text><Text accessibilityRole="header" style={styles.companionHubTitle}>You + {template.name}</Text></View>
-          <Pressable accessibilityRole="button" accessibilityLabel={`View profile: ${template.name}`} onPress={()=>router.push(`/character/${handle}`)} style={({pressed})=>[styles.companionHubAction,hubHeaderStacked&&styles.companionHubActionStack,pressed&&styles.sectionActionPressed]}><Text style={styles.companionHubActionText}>View profile →</Text></Pressable>
-        </View>
-        <FromCompanionSection compact name={template.name} items={media} fallbackSource={portraitSource} onViewAll={() => router.push('/(tabs)/moments')} onOpen={(item) => router.push(item.locked ? subscriptionHref({intent:'generated_media'}) as never : `/media/${item.id}`)} onAsk={() => router.push(`/(tabs)/chat-tab?character=${encodeURIComponent(handle)}&draft=${encodeURIComponent('Send me a photo from where you are.')}`)} />
-        <View style={[styles.companionHubLower,!hubWide&&styles.companionHubLowerStack]}>
-          <View style={styles.companionHubWorld}><HomeWorldSection embedded compact wide={wideCards} upcoming={{ eyebrow: model.upcoming.eyebrow, title: model.upcoming.title, meta: model.upcoming.meta }} relationship={{ eyebrow: `YOU + ${template.name.toUpperCase()}`, title: relationship.headline, meta: relationship.detail }} hook={getWorldHook(model)} memory={memory} upcomingSource={upcomingSource} relationshipSource={portraitSource} onUpcoming={() => void runAction(model.upcoming.action)} onRelationship={() => router.push(`/character/${handle}`)} /></View>
-          <View style={styles.companionHubTimeline}><HomeTimeline compact title={timelineTitle} items={model.timeline} onViewWorld={() => router.push('/(tabs)/explore')} onOpen={openTimelineItem} /></View>
-        </View>
-      </View>
-      {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Pressable accessibilityRole="button" accessibilityLabel="View all recently shared moments" hitSlop={6} onPress={() => router.push('/(tabs)/moments')} style={({pressed})=>[styles.sectionActionButton,pressed&&styles.sectionActionPressed]}><Text style={styles.sectionAction}>View all →</Text></Pressable></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} preserveImageDetails onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}
-      {pulseWorld&&worldPulse?.worldId===pulseWorld.id?<AroundTownSection worldName={pulseWorld.name} items={worldPulse.items.slice(0,5)} onOpen={(item)=>{if(item.locationSlug)return router.push(`/location/${item.locationSlug}?world=${pulseWorld.slug}`);router.push(`/(tabs)/explore?world=${pulseWorld.slug}`);}}/>:null}
-      {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions} world={selectedWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onViewAll={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/singles?world=${selectedWorld.slug}`); }} onToggleFavorite={toggleFavorite} /> : null}
-    </>:<HomeSecondaryLoading/>}
+    <HomeHeader title="Home" status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push(subscriptionHref({intent:'credits'}))} onProfile={() => router.push('/settings')} />
+    <HomeCompanionCard companion={companion} portraitVersion={portraitVersion} source={portraitSource} location={model.currentLocation?.name} world={model.currentWorld?.name} prompt={model.message?.content || model.hero.prompt} notice={model.message ? 'NEW MESSAGE' : undefined} relationship={snapshot.relationshipCues?.[companion.id]?.tone === 'tense' ? 'Needs attention' : model.hero.stage} onContinue={() => void openCompanion()} onProfile={() => navigate(`/character/${handle}`)} onVisualReady={heroReady} />
+    <HomeNextRow next={next} onOpen={() => next.kind === 'scenario' ? void openCompanion() : next.kind === 'planning' ? void openCompanion(true) : runAction(model.upcoming.action)} onPlan={() => void openCompanion(true)} />
+    {secondaryWorkReady ? <>
+      <HomeRecentSection items={shared} onOpen={openShared} onViewAll={() => navigate('/(tabs)/moments')} />
+      {discoveryWorlds.length ? <HomeWorldDiscoveryHero compact worlds={discoveryWorlds} onExplore={(world) => { setBrowsedWorldId(world.id); navigate(`/(tabs)/explore?world=${world.slug}`); }} /> : null}
+    </> : <HomeSecondaryLoading />}
   </Screen>;
 }
 
@@ -188,12 +130,6 @@ function useDeferredHomeWork(){
   const[ready,setReady]=useState(false);
   useEffect(()=>scheduleDeferredHomeWork(()=>setReady(true)),[]);
   return ready;
-}
-
-function resolveUpcomingLocation(snapshot: Snapshot, action: HomeTargetAction) {
-  if (action.kind === 'plan') return snapshot.locations.find((item) => item.id === snapshot.sharedPlans.find((plan) => plan.id === action.id)?.location_id);
-  if (action.kind === 'date') return snapshot.locations.find((item) => item.id === snapshot.dates.find((date) => date.id === action.id)?.together_date_templates.location_id);
-  return undefined;
 }
 
 function CinematicHomeLoading() {
@@ -207,35 +143,11 @@ function HomeError({ message, onRetry }: { message: string; onRetry: () => void 
 function HomeSecondaryLoading(){return <View accessibilityLabel="Loading more from your world" style={styles.secondaryLoading}><View style={styles.loadingSectionTitle}/><View style={styles.loadingRail}>{[0,1,2].map((item)=><View key={item} style={styles.loadingMedia}/>)}</View></View>;}
 
 const styles = StyleSheet.create({
-  content: { position: 'relative', maxWidth: 1180, gap: 30, paddingTop: 14, paddingBottom: 176 },
-  contentDesktop: { position: 'relative', maxWidth: 1180, gap: 30, paddingTop: 24, paddingBottom: 48 },
+  content: { position: 'relative', maxWidth: 1100, gap: 18, paddingTop: 14, paddingBottom: 120 },
+  contentDesktop: { position: 'relative', maxWidth: 1100, gap: 18, paddingTop: 24, paddingBottom: 48 },
   ambientGlow: { position: 'absolute', top: 80, left: '22%', width: '70%', height: 700, borderRadius: 500, backgroundColor: 'rgba(122,34,86,.045)', ...(Platform.OS === 'web' ? ({ backgroundImage: 'radial-gradient(circle, rgba(191,55,119,.09), transparent 68%)' } as never) : {}) },
-  topStage:{flexDirection:'row',alignItems:'stretch',gap:14},
-  topStageStack:{flexDirection:'column'},
-  companionHeroPane:{flex:1.7,minWidth:0},
-  worldDiscoveryPane:{flex:1,minWidth:300},
-  worldDiscoveryPaneStack:{minWidth:0},
-  companionHub:{gap:20,padding:22,borderRadius:28,borderWidth:1,borderColor:'rgba(255,255,255,.10)',backgroundColor:'rgba(22,15,27,.72)',shadowColor:'#000',shadowOpacity:.2,shadowRadius:24,shadowOffset:{width:0,height:12}},
-  companionHubHeader:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:16,paddingBottom:2},
-  companionHubHeaderStack:{flexDirection:'column',alignItems:'flex-start',gap:2},
-  companionHubHeading:{flex:1,minWidth:0,gap:3},
-  companionHubKicker:{color:'#E8A2BA',fontSize:9,fontWeight:'900',letterSpacing:1.4},
-  companionHubTitle:{color:colors.text,fontFamily:typography.display,fontSize:30,lineHeight:35,fontWeight:'600',letterSpacing:-.45},
-  companionHubAction:{minHeight:44,justifyContent:'center',paddingLeft:12},
-  companionHubActionStack:{paddingLeft:0},
-  companionHubActionText:{color:'#E8A2BA',fontSize:12,fontWeight:'800'},
-  companionHubLower:{flexDirection:'row',alignItems:'flex-start',gap:22,paddingTop:2},
-  companionHubLowerStack:{flexDirection:'column'},
-  companionHubWorld:{flex:1.55,minWidth:0,width:'100%'},
-  companionHubTimeline:{flex:1,minWidth:290,width:'100%'},
   emptyLife: { gap: spacing.md, paddingVertical: spacing.lg },
   emptyLifeTitle: { color: colors.text, fontFamily: typography.display, fontSize: 36, lineHeight: 42, fontWeight: '600' },
-  moments: { gap: 13 },
-  momentsTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { color: colors.text, fontFamily: typography.display, fontSize: 30, fontWeight: '600', letterSpacing: -.5 },
-  sectionAction: { color: '#E8A2BA', fontSize: 12, fontWeight: '800' },
-  sectionActionButton:{minWidth:70,minHeight:44,alignItems:'flex-end',justifyContent:'center',paddingLeft:10},
-  sectionActionPressed:{opacity:.68},
   loadingHeader: { height: 54, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   loadingBrand: { width: 132, height: 26, borderRadius: 8, backgroundColor: colors.surface },
   loadingChip: { width: 94, height: 44, borderRadius: 22, backgroundColor: colors.surface },

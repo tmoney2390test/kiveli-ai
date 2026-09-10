@@ -1,13 +1,13 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, radius } from '../../theme';
+import { colors, radius, typography } from '../../theme';
 import type { SubscriptionStatus } from '../../lib/subscription';
 import { KivelleLogo } from '../KivelleLogo';
 import { KivelleCreditIcon } from '../KivelleCreditIcon';
 
-export function HomeHeader({ status, personaName, onCredits, onProfile }: { status: SubscriptionStatus | null; personaName: string; onCredits: () => void; onProfile: () => void }) {
+export function HomeHeader({ title, status, personaName, onCredits, onProfile }: { title?: string; status: SubscriptionStatus | null; personaName: string; onCredits: () => void; onProfile: () => void }) {
   const total = status?.creditBalance.total;
   return <View style={styles.header}>
-    <KivelleLogo height={35} />
+    {title ? <Text accessibilityRole="header" style={styles.title}>{title}</Text> : <KivelleLogo height={35} />}
     <View style={styles.actions}>
       <Pressable accessibilityRole="button" accessibilityLabel={typeof total === 'number' ? `${total.toLocaleString()} Kivelle Credits` : 'Open Kivelle Credits'} onPress={onCredits} style={({ pressed }) => [styles.credits, pressed && styles.pressed]}><KivelleCreditIcon size={26}/><Text style={styles.creditText}>{typeof total === 'number' ? total.toLocaleString() : 'Credits'}</Text></Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Open your profile" onPress={onProfile} style={({ pressed }) => [styles.profile, pressed && styles.pressed]}><Text style={styles.initial}>{personaName.trim()[0]?.toUpperCase() || 'Y'}</Text></Pressable>
@@ -16,6 +16,7 @@ export function HomeHeader({ status, personaName, onCredits, onProfile }: { stat
 }
 
 const styles = StyleSheet.create({
+  title: { color: colors.text, fontFamily: typography.display, fontSize: 29, fontWeight: '600' },
   header: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   credits: { minWidth: 94, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 8, paddingRight: 12, borderRadius: radius.pill, backgroundColor: 'rgba(20,16,24,.82)', borderWidth: 1, borderColor: 'rgba(241,160,120,.16)' },
