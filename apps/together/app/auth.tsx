@@ -8,6 +8,7 @@ import { CircleCheck } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GradientButton } from '../src/components';
 import { GoogleMark } from '../src/components/GoogleMark';
+import { AppleMark } from '../src/components/AppleMark';
 import { colors, radius, typography } from '../src/theme';
 import { useAuth } from '../src/hooks/useAuth';
 import { useTogether } from '../src/store/useTogether';
@@ -219,7 +220,7 @@ export default function Auth() {
 
           {stage==='email'&&(socialAuth.google||showApple)?<><View style={styles.divider}><View style={styles.dividerLine}/><Text style={styles.dividerText}>OR CONTINUE WITH</Text><View style={styles.dividerLine}/></View><View style={styles.socialRow}>
             {socialAuth.google?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Google" disabled={socialDisabled} onPress={()=>void socialSignIn('google')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><GoogleMark/><Text style={styles.socialText}>{socialBusy==='google'?'Connecting…':'Google'}</Text></Pressable>:null}
-            {showApple&&Platform.OS==='ios'?<View accessibilityState={{disabled:socialDisabled}} pointerEvents={socialDisabled?'none':'auto'} style={[styles.nativeAppleSlot,socialDisabled&&styles.socialDisabled]}><AppleAuthentication.AppleAuthenticationButton buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE} buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE} cornerRadius={12} style={styles.nativeAppleButton} onPress={()=>void socialSignIn('apple')}/></View>:showApple?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Apple" disabled={socialDisabled} onPress={()=>void socialSignIn('apple')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><Text style={styles.providerMark}></Text><Text style={styles.socialText}>{socialBusy==='apple'?'Connecting…':'Apple'}</Text></Pressable>:null}
+            {showApple&&Platform.OS==='ios'?<View accessibilityState={{disabled:socialDisabled}} pointerEvents={socialDisabled?'none':'auto'} style={[styles.nativeAppleSlot,socialDisabled&&styles.socialDisabled]}><AppleAuthentication.AppleAuthenticationButton buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE} buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE} cornerRadius={12} style={styles.nativeAppleButton} onPress={()=>void socialSignIn('apple')}/></View>:showApple?<Pressable accessibilityRole="button" accessibilityLabel="Continue with Apple" disabled={socialDisabled} onPress={()=>void socialSignIn('apple')} style={({pressed})=>[styles.socialButton,pressed&&styles.socialPressed]}><AppleMark color={colors.text}/><Text style={styles.socialText}>{socialBusy==='apple'?'Connecting…':'Apple'}</Text></Pressable>:null}
           </View></>:null}
 
           {stage==='email'?<Pressable
@@ -319,7 +320,6 @@ const styles = StyleSheet.create({
   nativeAppleButton:{width:'100%',height:46},
   socialDisabled:{opacity:.52},
   socialPressed:{opacity:.78,transform:[{scale:.99}]},
-  providerMark:{color:colors.text,fontSize:18,fontWeight:'900'},
   socialText:{color:colors.text,fontSize:12,fontWeight:'800'},
   createAccountAction:{minHeight:44,alignItems:'center',justifyContent:'center',paddingHorizontal:12,borderRadius:radius.md,borderWidth:1,borderColor:'rgba(201,91,220,.38)',backgroundColor:'rgba(166,37,189,.035)'},
   createAccountActionPressed:{backgroundColor:'rgba(166,37,189,.10)',borderColor:'rgba(201,91,220,.62)'},
