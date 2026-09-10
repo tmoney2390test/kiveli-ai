@@ -20,6 +20,7 @@ import { drainJsonSseEvents } from './sse';
 import { scheduleForegroundTimeout } from './webPageLifecycle';
 import { ensureAiConsent, invalidateAiConsent, isAiFeatureRequest } from './aiConsent';
 import { installationIdentity } from './installationIdentity';
+import { runMediaRequest } from './mediaRequestTransport';
 
 export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false,readonly correlationId?:string) { super(message); if(code==='CONSENT_REQUIRED')invalidateAiConsent(); } }
 type Envelope<T> = { data: T; correlationId: string };
@@ -119,10 +120,9 @@ export const manageMedia = async<T>(input: Record<string, unknown>) => {
   // explicit dialogue refreshes it before creating an adult offer. Media
   // actions go directly to the authoritative endpoint so Accept/Decline never
   // wait on a redundant session-status round trip.
-  const controller=new AbortController(),cancelTimeout=scheduleForegroundTimeout(()=>controller.abort(),15_000);
-  try{return await invoke<T>('together-media',input,'POST',{signal:controller.signal});}
-  catch(caught){if(controller.signal.aborted)throw new ApiError('The media request took too long. Please try again.','REQUEST_TIMEOUT',true);throw caught;}
-  finally{cancelTimeout();}
+  return runMediaRequest(input,
+    (signal)=>invoke<T>('together-media',input,'POST',{signal}),
+    (message)=>new ApiError(message,'REQUEST_TIMEOUT',true));
 };
 export const loadMediaLibrary = (options:{characterInstanceId?:string;before?:string;limit?:number}={}) => manageMedia<{media:GeneratedMedia[];hasMore:boolean;nextBefore:string|null}>({action:'list_library',...options});
 export const loadConversationMediaGallery = (conversationId:string,limit=120) => manageMedia<{media:GeneratedMedia[];attachments:ConversationAttachment[];hasMore:boolean}>({action:'list_conversation_gallery',conversationId,limit});
