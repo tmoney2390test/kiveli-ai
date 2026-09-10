@@ -51,6 +51,8 @@ jobs:
       - run: node --test scripts/verify-native-release-config.test.mjs
       - name: Store-only billing policy regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/web-billing-policy.test.ts
+      - name: Private profile highlight regressions
+        run: deno test --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-profile-showcase.test.ts
       - run: pnpm guard:starter-content
       - run: pnpm edge:typecheck
       - name: Scheduled message regressions

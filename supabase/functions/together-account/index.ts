@@ -1,5 +1,6 @@
 import {captureAppleCredential,retryAppleRevocations} from '../_shared/kivelle-apple-auth.ts';
 import { z } from 'zod';
+import { saveProfileHighlights } from '../_shared/kivelle-profile-showcase.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { strToU8, zipSync } from 'npm:fflate@0.8.2';
 import { authenticated, enforceRateLimit } from '../_shared/context.ts';
@@ -21,6 +22,8 @@ import { isAtLeast18 } from '../../../packages/together-domain/src/adult-access.
 const goals = z.enum(['Dating', 'Friendship', 'Stories', 'Social worlds']);
 const schema = z.discriminatedUnion('action', [
   z.object({ action:z.literal('apple_credential'),kind:z.enum(['native','web']),authorizationCode:z.string().min(1).max(4096).optional(),refreshToken:z.string().min(1).max(8192).optional() }),
+  z.object({ action: z.literal('avatar'), avatarPath: z.string().max(500).nullable() }),
+  z.object({ action: z.literal('profile_highlights'), continuityId: z.string().uuid(), highlights: z.array(z.object({ kind: z.enum(['companion','image','video']), id: z.string().uuid() })).max(12) }),
   z.object({ action: z.literal('profile'), displayName: z.string().trim().min(1).max(50), aboutMe: z.string().trim().max(280), interests: z.array(z.string().trim().min(1).max(40)).max(10), goals: z.array(goals).max(4), avatarPath: z.string().max(500).nullable(), syncMainPersona: z.boolean().default(true) }),
   z.object({ action: z.literal('privacy'), settings: z.record(z.string(), z.boolean()) }),
   z.object({ action: z.literal('content'), romanceEnabled: z.boolean() }),
@@ -44,7 +47,7 @@ serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
   const adultAccess = await resolveAdultAccess(request, user, db);
   const input = await parseBody(request, schema);
-  const actionLimit = input.action === 'export_request' ? 4 : input.action === 'export_status' || input.action === 'privacy_choices_status' ? 120 : input.action === 'delete' ? 3 : input.action === 'birthdate_update' ? 5 : 20;
+  const actionLimit = input.action === 'export_request' ? 4 : input.action === 'export_status' || input.action === 'privacy_choices_status' || input.action === 'profile_highlights' ? 120 : input.action === 'delete' ? 3 : input.action === 'birthdate_update' ? 5 : 20;
   await enforceRateLimit(db, user.id, `together_account_${input.action}`, actionLimit, 3600);
 
   if(input.action==='apple_credential'){
@@ -77,16 +80,21 @@ serve(async (request, correlationId) => {
     return json({data:birthdateStatus(saved.data),correlationId},200,correlationId);
   }
 
-  if (input.action === 'profile') {
+  if (input.action === 'profile_highlights') {
+    const highlights = await saveProfileHighlights(db, user.id, input.continuityId, input.highlights);
+    return json({ data: { highlights }, correlationId }, 200, correlationId);
+  }
+
+  if (input.action === 'profile' || input.action === 'avatar') {
     if (!isOwnedAvatarPath(input.avatarPath, user.id)) throw new AppError('VALIDATION_FAILED', 'That account photo does not belong to this account.', 400);
     const { data: before, error: beforeError } = await db.from('together_profiles').select('avatar_path').eq('user_id', user.id).single();
     if (beforeError || !before) throw new AppError('INTERNAL_ERROR', 'Could not load your profile.', 500, true);
     if (input.avatarPath && input.avatarPath !== before.avatar_path) await validatePrivateAvatarJpeg(db, input.avatarPath);
     const now = new Date().toISOString();
-    const { data, error } = await db.from('together_profiles').update({ display_name: input.displayName, about_me: input.aboutMe, interests: input.interests, experience_goals: input.goals, avatar_path: input.avatarPath, updated_at: now }).eq('user_id', user.id).select('*').single();
+    const { data, error } = await db.from('together_profiles').update({ ...(input.action === 'profile' ? {display_name: input.displayName, about_me: input.aboutMe, interests: input.interests, experience_goals: input.goals} : {}), avatar_path: input.avatarPath, updated_at: now }).eq('user_id', user.id).select('*').single();
     if (error || !data) throw new AppError('INTERNAL_ERROR', 'Could not save your profile.', 500, true);
     let mainPersona = null;
-    if (input.syncMainPersona) {
+    if (input.action === 'profile' && input.syncMainPersona) {
       await ensureMainContinuity(db, user.id);
       const { data: personaBefore } = await db.from('together_user_personas').select('*').eq('user_id', user.id).eq('is_default', true).maybeSingle();
       if (personaBefore) {
@@ -100,7 +108,7 @@ serve(async (request, correlationId) => {
       }
     }
     if (before.avatar_path && before.avatar_path !== input.avatarPath) waitUntil(removeAvatarWhenUnreferenced(db, user.id, String(before.avatar_path)));
-    await track(db, user.id, 'account_profile_updated', { main_persona_synced: input.syncMainPersona, avatar_changed: before.avatar_path !== input.avatarPath });
+    await track(db, user.id, 'account_profile_updated', { main_persona_synced: input.action === 'profile' && input.syncMainPersona, avatar_changed: before.avatar_path !== input.avatarPath });
     return json({ data: { profile: publicProfile(data), mainPersona }, correlationId }, 200, correlationId);
   }
 
