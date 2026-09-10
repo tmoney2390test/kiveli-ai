@@ -15,7 +15,7 @@ export type CharacterDayScheduleEntry = {
 export type CharacterDaySchedule = {
   dateLabel: string;
   entries: CharacterDayScheduleEntry[];
-  source: 'authored' | 'generated' | 'recurring' | 'none';
+  source: 'authored' | 'generated' | 'recurring' | 'none' | 'scenario';
   currentStatus?: Pick<CharacterDayScheduleEntry, 'activity' | 'location' | 'locationId'>;
 };
 
@@ -33,6 +33,7 @@ export function buildCharacterDaySchedule(input: {
   // character's calendar block is current.
   const timezone = safeTimezone(snapshot.profile?.experience_timezone ?? input.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC');
   const dateLabel = new Intl.DateTimeFormat(undefined, { timeZone: timezone, weekday: 'long', month: 'long', day: 'numeric' }).format(now);
+  if(instance?.scenario_state)return {dateLabel,entries:[],source:'scenario',currentStatus:{activity:instance.scenario_state.title,locationId:instance.scenario_state.locationId,location:snapshot.locations.find(place=>place.id===instance.scenario_state?.locationId)?.name}};
   const weekday = localWeekday(now, timezone);
   const localMinute = localMinuteOfDay(now, timezone);
   const dateKey = localDateKey(now, timezone);

@@ -17,7 +17,8 @@ Deno.test('selected scenario survives compact prompt budgeting and respects agen
 Deno.test('active scenario lookup scopes by owner, conversation and companion, and fails closed on query errors',async()=>{
  const filters:unknown[]=[];
  const query={select:()=>query,eq:(...args:unknown[])=>{filters.push(args);return query;},maybeSingle:async()=>({data:{scenario_id:'jun-01',started_at:'2026-09-09'},error:null})};
- const db={from:(table:string)=>{assertEquals(table,'together_scenario_sessions');return query;}};
+ const place={select:()=>place,eq:()=>place,maybeSingle:async()=>({data:{name:'Skyline Rooftop'},error:null})};
+ const db={from:(table:string)=>{if(table==='together_locations')return place;assertEquals(table,'together_scenario_sessions');return query;}};
  const result=await activeScenarioContext(db as never,'owner','conversation','companion');assertEquals(result?.id,'jun-01');
  assertEquals(filters,[['user_id','owner'],['conversation_id','conversation'],['character_instance_id','companion'],['status','active']]);
  query.maybeSingle=async()=>({data:null,error:{message:'unavailable'}} as never);

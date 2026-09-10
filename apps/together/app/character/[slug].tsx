@@ -18,6 +18,7 @@ import {
 import { DetailPreservingArtwork } from '../../src/components/DetailPreservingArtwork';
 import { characterProfilePhotos } from '../../src/character-profile-assets';
 import { loadCharacterProfileDetails, manageConversation, meetCompanion, openConversation } from '../../src/lib/api';
+import { ScenarioScheduleNotice } from '../../src/components/ScenarioScheduleNotice';
 import { buildCharacterDaySchedule, type CharacterDayScheduleEntry } from '../../src/lib/characterDaySchedule';
 import { characterRelationshipPresentation, characterTrustPresentation, characterUpcomingCommitments, compactCharacterSchedule, type CharacterUpcomingCommitment } from '../../src/lib/characterProfilePresentation';
 import { relationshipDaysKnown } from '../../src/lib/companionLife';
@@ -158,7 +159,7 @@ export default function CharacterProfile() {
   const daySchedule = buildCharacterDaySchedule({ snapshot: profileSnapshot, instance, characterVersionId: version.id, timezone: snapshot.profile?.experience_timezone });
   const authoredScheduleOwnsPresence = Boolean(instance
     && daySchedule.source === 'authored'
-    && !['scene', 'active_date', 'active_plan', 'active_event', 'plan', 'life_event'].includes(String(instance.current_presence_source)));
+    && !['scenario', 'scene', 'active_date', 'active_plan', 'active_event', 'plan', 'life_event'].includes(String(instance.current_presence_source)));
   const currentActivity = naturalizeCharacterActivity(authoredScheduleOwnsPresence
     ? daySchedule.currentStatus?.activity ?? 'Having some unstructured time at home'
     : instance?.current_activity,{occupation:template.occupation});
@@ -556,6 +557,7 @@ function CharacterScheduleCard({snapshot,instance,characterVersionId,characterNa
   const hasSchedule=snapshot.schedules.some((item)=>item.character_version_id===characterVersionId);
   const[expanded,setExpanded]=useState(false);
   useEffect(()=>setExpanded(false),[characterVersionId]);
+  if(instance?.scenario_state)return <ScenarioScheduleNotice character={instance} locationName={snapshot.locations.find(place=>place.id===instance.scenario_state?.locationId)?.name}/>;
   const daySchedule=buildCharacterDaySchedule({snapshot,instance,characterVersionId,timezone:snapshot.profile?.experience_timezone});
   const compact=compactCharacterSchedule(daySchedule.entries);
   const visibleEntries=expanded?daySchedule.entries:compact.entries;

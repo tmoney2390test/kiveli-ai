@@ -67,6 +67,7 @@ export async function beginPlanExperience(input: {
     p_source: input.source ?? 'app',
   });
   if (error) {
+    if(error.message?.includes('SCENARIO_PAUSE_REQUIRED'))throw new AppError('SCENARIO_PAUSE_REQUIRED','Join this event and pause the active scenario? Your story will stay saved.',409);
     console.error('Plan experience start failed', { code: error.code, details: error.details, hint: error.hint, planId: input.planId, characterInstanceId: input.characterInstanceId });
     throw mapBeginError(error);
   }
@@ -220,6 +221,8 @@ export async function wrapPlanExperience(input: {
 
 export async function finalizeExpiredPlanExperience(input: { db: SupabaseClient; userId: string; continuityId: string; characterInstanceId: string; planId: string; now?: Date }): Promise<PlanExperience> {
   const now = input.now ?? new Date();
+  const {error:deferError}=await input.db.rpc('together_defer_scenario_plans',{p_user:input.userId,p_character:input.characterInstanceId,p_now:now.toISOString()});
+  if(deferError)throw new AppError('INTERNAL_ERROR','Plan timing could not be reconciled.',500,true);
   const experience = await loadPlanExperience(input);
   const ending = resolveElapsedCommitmentEnd({ status: String(experience.plan.status), source: String(experience.plan.source ?? ''), endsAt: experience.plan.ends_at }, now);
   if (!ending.shouldFinalize || !ending.completedAt) return experience;

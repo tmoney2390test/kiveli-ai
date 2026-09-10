@@ -22,7 +22,7 @@ const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('reschedule'),planId:z.string().uuid(),startsAt:z.string().datetime().optional(),windowStartsAt:z.string().datetime().optional(),windowEndsAt:z.string().datetime().optional(),timePrecision:precision.optional(),originalTimeExpression:z.string().trim().max(160).optional(),conversationId:z.string().uuid().optional()}),
   z.object({action:z.literal('cancel'),planId:z.string().uuid(),conversationId:z.string().uuid().optional()}),
   z.object({action:z.literal('update'),planId:z.string().uuid(),note:z.string().trim().max(1000).optional(),locationId:z.string().uuid().optional(),activityKey:z.string().trim().max(120).optional(),conversationId:z.string().uuid().optional()}),
-  z.object({action:z.literal('join'),planId:z.string().uuid(),characterInstanceId:z.string().uuid(),requestId:z.string().min(8).max(120).optional()}),
+  z.object({action:z.literal('join'),planId:z.string().uuid(),characterInstanceId:z.string().uuid(),pauseScenario:z.boolean().optional(),requestId:z.string().min(8).max(120).optional()}),
   z.object({action:z.literal('leave'),planId:z.string().uuid(),requestId:z.string().min(8).max(120).optional()}),
   z.object({action:z.literal('experience'),planId:z.string().uuid(),characterInstanceId:z.string().uuid()}),
   z.object({action:z.literal('end'),planId:z.string().uuid(),characterInstanceId:z.string().uuid(),requestId:z.string().min(8).max(120),sceneId:z.string().uuid().optional()}),
@@ -53,7 +53,7 @@ serve(async(request,correlationId)=>{
     const history=String(plan.status)==='completed'?await loadPlanHistory({db,userId:user.id,continuityId:continuity.id,plan}):undefined;
     return json({data:{...plan,...(history?{history}:{})},correlationId},200,correlationId);
   }
-  if(input.action==='join')return json({data:await joinCommitment(db,{userId:user.id,continuityId:continuity.id,characterInstanceId:input.characterInstanceId,planId:input.planId,requestId:input.requestId}),correlationId},200,correlationId);
+  if(input.action==='join')return json({data:await joinCommitment(db,{userId:user.id,continuityId:continuity.id,characterInstanceId:input.characterInstanceId,planId:input.planId,requestId:input.requestId,source:input.pauseScenario?'scenario_confirmed':'app'}),correlationId},200,correlationId);
   if(input.action==='leave')return json({data:await leaveCommitment(db,{userId:user.id,continuityId:continuity.id,planId:input.planId,requestId:input.requestId}),correlationId},200,correlationId);
   if(input.action==='experience'){
     const experience=await loadPlanExperience({db,userId:user.id,continuityId:continuity.id,characterInstanceId:input.characterInstanceId,planId:input.planId});
@@ -115,7 +115,8 @@ serve(async(request,correlationId)=>{
         const end=String(result.commitment.ends_at);
         const{error:updateError}=await db.from('together_shared_plans').update({time_precision:input.timePrecision??'exact',window_starts_at:input.windowStartsAt??resolvedStartsAt,window_ends_at:input.windowEndsAt??end,original_time_expression:input.originalTimeExpression??input.timingChoice??null,participation_mode:input.participationMode??'live',user_timezone:userTimezone,grace_ends_at:new Date(new Date(resolvedStartsAt).getTime()+30*60000).toISOString(),updated_at:new Date().toISOString()}).eq('id',result.commitment.id).eq('user_id',user.id).eq('continuity_id',continuity.id);
         if(updateError)throw new AppError('INTERNAL_ERROR','The plan was saved, but its timing could not be finalized. Try again.',500,true);
-        if(input.timingChoice==='now'){
+        const {data:scenarioHold}=await db.from('together_scenario_sessions').select('id').eq('user_id',user.id).in('character_instance_id',[input.characterInstanceId,...(Array.isArray(result.commitment.participant_instance_ids)?result.commitment.participant_instance_ids:[])]).eq('status','active').limit(1).maybeSingle();
+        if(input.timingChoice==='now'&&!scenarioHold){
           const experience=await joinCommitment(db,{userId:user.id,continuityId:continuity.id,characterInstanceId:input.characterInstanceId,planId:String(result.commitment.id),requestId:`${input.requestId}:start`});
           return json({data:{...result,experience},correlationId},result.created?201:200,correlationId);
         }
@@ -193,7 +194,9 @@ serve(async(request,correlationId)=>{
     else if(windowStartsAt&&windowEndsAt&&candidatePrecision&&candidatePrecision!=='exact')result={kind:'shared_plan',commitment:await createWindowedCommitment(db,{userId:user.id,continuityId:continuity.id,characterInstanceId:candidate.character_instance_id,activityKey,locationId,windowStartsAt,windowEndsAt,timePrecision:candidatePrecision,originalTimeExpression:input.originalTimeExpression??(typeof payload.originalTimeExpression==='string'?payload.originalTimeExpression:undefined),source:'chat',sourceConversationId:candidate.conversation_id,sourceMessageId:candidate.assistant_message_id??undefined,requestId:`candidate:${candidate.id}`,title:typeof payload.title==='string'?payload.title:undefined,userTimezone}),created:true};
     else throw new AppError('VALIDATION_FAILED','Choose an exact time or keep the proposed time window.',400);
   }
-  if(input.timingChoice==='now'&&(result as Record<string,unknown>)?.kind==='shared_plan'){
+  const proposalPlan=(result as {commitment?:{participant_instance_ids?:string[]}})?.commitment;
+  const {data:proposalScenarioHold}=await db.from('together_scenario_sessions').select('id').eq('user_id',user.id).in('character_instance_id',[String(candidate.character_instance_id),...(proposalPlan?.participant_instance_ids??[])]).eq('status','active').limit(1).maybeSingle();
+  if(input.timingChoice==='now'&&!proposalScenarioHold&&(result as Record<string,unknown>)?.kind==='shared_plan'){
     const planResult=result as{kind:'shared_plan';commitment:{id:string};created?:boolean};
     const experience=await joinCommitment(db,{userId:user.id,continuityId:continuity.id,characterInstanceId:String(candidate.character_instance_id),planId:String(planResult.commitment.id),requestId:`candidate:${candidate.id}:start`});
     result={...planResult,experience};

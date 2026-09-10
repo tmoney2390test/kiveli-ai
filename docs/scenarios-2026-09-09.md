@@ -4,7 +4,7 @@
 
 ## Behaviour
 - Browse by world and lead gender, search titles/people/places/themes, preview and start.
-- One active scenario per conversation; starting a different one pauses the prior scenario.
+- One active scenario per companion in each Life, including across conversations; starting a different one pauses the prior scenario.
 - Starts are atomic and idempotent. Resume preserves the original conversation and never repeats its opening.
 - Progress belongs to the signed-in user and their active Life. Pause and complete controls are available in the chat banner.
 - Existing character identity, relationship history, account content settings and world access restrictions remain authoritative. Cole Hensley's scenario requires crowcut.access_granted.
@@ -44,3 +44,13 @@ Published Cloudflare version af68ea39-743d-4e25-af22-04d36a39189f. Live browser 
 - Chat controls show pending save feedback, reject duplicate taps, recover from failed saves and ignore delayed responses after conversation/scope changes.
 
 Validation: application TypeScript and targeted lint; all 729 app tests; production export and asset budget; browser checks at 360/390/768px for fixed actions and overflow, equal desktop card widths, progress filters, completed reopening, failed load/start/pause recovery, and mocked onboarding start. Browser mutations are mocked for the polish pass.
+
+## Scenario locations and routine pause
+
+All 80 starts use canonical world/location mappings stored in a service-only database catalogue. An active scenario owns the companion's presence across chat, profile and media context. Explicit scene movement updates its saved location; resume preserves that location. Routine simulation and ambient messages are held, including database guards against older in-flight workers. Pause, completion, conversation archival and deletion release the hold without replaying routine events.
+
+Character profiles show a lock, scenario title, location, Continue scenario and Plan an event. Creating, editing, cancelling and scheduling plans never pause a scenario. Planning for now saves the plan without automatically joining it. Reminders remain available; expired unjoined plans overlapping a scenario become proposals needing rescheduling, without invented attendance or missed-event penalties. Explicit event/date joining requires confirmation and atomically pauses the scenario; a failed join rolls back the transition.
+
+Validation: 732 app tests; all application/Edge Function TypeScript and lint checks; three database suites covering all 80 placements, routine write protection, saved movement, lifecycle cleanup, event/date confirmation, join rollback, deferred plans and permissions; two Deno scenario tests and 26 scheduled-message regressions. Production browser verification at 390px confirmed the lock card and canonical location, opened the original conversation's planner, created and cancelled a real immediate plan without interrupting the scenario, and checked pause/resume. The test plan was cancelled afterward. Production catalogue has 80 matching locations and zero inconsistent active scenario instances; new RPCs remain inaccessible to authenticated clients. Production export and web asset budget pass.
+
+Migration: 20260910001505_scenario_presence_pause.sql. The migration ledger and repository version are aligned.

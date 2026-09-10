@@ -93,3 +93,11 @@ describe('character day schedule', () => {
     expect(result.currentStatus).toEqual({ activity: 'Having some downtime at home', location: 'Home' });
   });
 });
+
+it('keeps an active scenario location instead of advancing the daily routine',()=>{
+ const scenario={sessionId:'session',scenarioId:'jun-01',title:'The Plus-One Agreement',conversationId:'chat',locationId:'studio',worldId:'world',startedAt:'2026-08-18T14:00:00Z'};
+ for(const now of [new Date('2026-08-18T14:00:00Z'),new Date('2026-08-19T03:00:00Z')]){
+ const result=buildCharacterDaySchedule({snapshot,instance:{...instance,scenario_state:scenario},characterVersionId:'maya-v1',now});
+ expect(result.source).toBe('scenario');expect(result.entries).toEqual([]);expect(result.currentStatus).toEqual({activity:scenario.title,locationId:'studio',location:'Photography Studio'});
+ }
+});

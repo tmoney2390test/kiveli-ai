@@ -317,6 +317,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
   // The persisted character row stays schedule-owned; snapshot consumers see
   // the shared scene without mutating the character just to render a screen.
   const visibleInstances:Array<Record<string,any>>=(instances.data??[]).map((instance:Record<string,any>):Record<string,any>=>{
+    if(instance.scenario_state)return instance;
     const scene=sceneByInstance.get(String(instance.id));
     if(scene)return {...instance,current_location_id:scene.location_id,current_activity:sceneSnapshotActivity(scene),current_interruptibility:'open',current_presence_source:'scene'};
     if(hasActiveSnapshotCommitment(String(instance.id),nowDate,publishedDates,publishedSharedPlans))return instance;
@@ -384,7 +385,7 @@ export async function buildCharacterPresenceSnapshot(
   const publishedWorlds=worlds.data??[],worldIds=new Set(publishedWorlds.map((world)=>String(world.id))),publishedLocations=await filterAccessibleLocations(db,userId,(locations.data??[]).filter((location)=>worldIds.has(String(location.world_id)))),locationIds=new Set(publishedLocations.map((location)=>String(location.id)));
   scheduleEvents.data=await refreshCalderSnapshotSchedules(db,userId,[instance],await resolveUserExperienceTimezone(db,userId),nowDate,scheduleEvents.data??[]);
   const activeScene=(scenes.data??[]).find((scene)=>{const expected=scene.expected_end_at?new Date(String(scene.expected_end_at)).getTime():new Date(String(scene.started_at)).getTime()+3*60*60*1000;return Number.isFinite(expected)&&expected>now&&worldIds.has(String(scene.world_id));});
-  const visible=activeScene
+  const visible=instance.scenario_state?instance:activeScene
     ? {...instance,current_location_id:activeScene.location_id,current_activity:sceneSnapshotActivity(activeScene),current_interruptibility:'open',current_presence_source:'scene'}
     : hasActiveSnapshotCommitment(characterInstanceId,nowDate,dates.data??[],(plans.data??[]).map(decorateSnapshotSharedPlan))
     ? instance

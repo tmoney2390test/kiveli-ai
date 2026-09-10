@@ -16,6 +16,8 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
   proactive: Row; conversation: Row; messageId: string;
 } | null> {
   const { db, userId, proactive, now } = input;
+  const reminder=proactive.context?.messageKind==='plan_reminder';
+  if(!reminder){const {data:hold,error}=await db.from('together_scenario_sessions').select('id').eq('user_id',userId).eq('character_instance_id',proactive.character_instance_id).eq('status','active').maybeSingle();if(error)throw error;if(hold)return null;}
   if (!proactive.conversation_id || (proactive.context?.generationLeaseUntil &&
     Date.parse(proactive.context.generationLeaseUntil) > now.getTime())) return null;
   const started = Date.now(), leaseToken = crypto.randomUUID();
@@ -82,14 +84,14 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
         loadInitiativeSource(db, userId, proactive, commitTime, input.timezone),
         latestUserMessage(db, userId, conversation.id),
         db.from('together_conversations').select('archived_at,metadata').eq('id', conversation.id).eq('user_id', userId).maybeSingle(),
-        db.from('together_character_instances').select('current_activity,current_location_id').eq('id', instance.id).eq('user_id', userId).maybeSingle(),
+        db.from('together_character_instances').select('current_activity,current_location_id,scenario_state').eq('id', instance.id).eq('user_id', userId).maybeSingle(),
         db.from('together_proactive_messages').select('id').eq('id', proactive.id).eq('user_id', userId)
           .eq('status', 'queued').eq('context->>generationLeaseToken', leaseToken).maybeSingle(),
         continuityById(db,userId,String(conversation.continuity_id)),
       ]);
       if (currentConversation.error || currentInstance.error || currentClaim.error) throw new Error('INITIATIVE_REVALIDATION_FAILED');
       if (!currentClaim.data) return null;
-      if (!currentSource || JSON.stringify(currentSource) !== JSON.stringify(source) || userResumedAfterQueue(proactive, currentUser) ||
+      if ((!reminder&&currentInstance.data?.scenario_state) || !currentSource || JSON.stringify(currentSource) !== JSON.stringify(source) || userResumedAfterQueue(proactive, currentUser) ||
         !currentConversation.data || currentConversation.data.archived_at || !currentContinuity ||
         JSON.stringify(currentContinuity.together_user_personas) !== JSON.stringify(continuity.together_user_personas) ||
         JSON.stringify(currentConversation.data.metadata?.chatPreferences) !== JSON.stringify(conversation.metadata?.chatPreferences) ||

@@ -1037,7 +1037,7 @@ function ChatSession() {
   };
 
   const openCreatedPlan=async(result:PlanMutationResult|undefined,timing:PlanTimingSelection)=>{
-    if(timing.choice!=='now'||!result?.commitment.id)return;
+    if(character.scenario_state||activeScenario||timing.choice!=='now'||!result?.commitment.id)return;
     if(result.kind==='date'){navigateChatSurface(`/date/${result.commitment.id}`);return;}
     try{const experience=result.experience??await joinCommitment(result.commitment.id,character.id);applyStartedPlan(experience,result.commitment.id);}
     catch(caught){setError(`The plan was saved, but it could not start yet: ${caught instanceof Error?caught.message:'try again from its plan card.'}`);}

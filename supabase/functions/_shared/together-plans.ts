@@ -120,7 +120,7 @@ export async function rescheduleSharedPlan(db:any,input:{userId:string;planId:st
   const availability=await validateAvailability(db,{userId:input.userId,characterInstanceId:plan.character_instance_id,characterVersionId:plan.together_character_instances.character_version_id,location:plan.together_locations,activityKey:plan.activity_key,start,end,excludePlanId:plan.id});
   const participantTravel=await validateAdditionalPlanParticipants(db,{userId:input.userId,continuityId:continuity.id,plan,location:plan.together_locations,activityKey:plan.activity_key,start,end,excludePlanId:plan.id});
   const previousStartsAt=plan.starts_at;
-  const{data:updated,error}=await db.from('together_shared_plans').update({starts_at:start.toISOString(),ends_at:end.toISOString(),world_timezone:availability.worldTimezone,user_timezone:availability.userTimezone,status:'scheduled',updated_at:new Date().toISOString(),metadata:{...planTravelMetadata(plan.metadata??{},plan.character_instance_id,{...participantTravel,[plan.character_instance_id]:availability.travelReservation}),rescheduledAt:new Date().toISOString()}}).eq('id',plan.id).eq('user_id',input.userId).select('*').single();
+  const{data:updated,error}=await db.from('together_shared_plans').update({starts_at:start.toISOString(),ends_at:end.toISOString(),world_timezone:availability.worldTimezone,user_timezone:availability.userTimezone,status:'scheduled',updated_at:new Date().toISOString(),metadata:{...planTravelMetadata(plan.metadata??{},plan.character_instance_id,{...participantTravel,[plan.character_instance_id]:availability.travelReservation}),scenarioNeedsReschedule:false,rescheduledAt:new Date().toISOString()}}).eq('id',plan.id).eq('user_id',input.userId).select('*').single();
   if(error?.code==='23P01')throw new AppError('PLAN_CONFLICT','Another commitment or its travel now occupies that time.',409,true);
   if(error||!updated)throw new AppError('INTERNAL_ERROR','The plan could not be rescheduled.',500,true);
   const conversationId=input.conversationId??plan.source_conversation_id;
@@ -184,7 +184,7 @@ export async function writeConversationEvent(db:any,input:{userId:string;charact
   return data??null;
 }
 
-export async function focusConversationOnPlan(db:any,userId:string,conversationId:string,planId:string){const{data}=await db.from('together_conversations').select('metadata').eq('id',conversationId).eq('user_id',userId).maybeSingle();if(data)await db.from('together_conversations').update({metadata:{...(data.metadata??{}),focus:{type:'plan',planId,updatedAt:new Date().toISOString()}}}).eq('id',conversationId).eq('user_id',userId);}
+export async function focusConversationOnPlan(db:any,userId:string,conversationId:string,planId:string){const{data:hold}=await db.from('together_scenario_sessions').select('id').eq('user_id',userId).eq('conversation_id',conversationId).eq('status','active').maybeSingle();if(hold)return;const{data}=await db.from('together_conversations').select('metadata').eq('id',conversationId).eq('user_id',userId).maybeSingle();if(data)await db.from('together_conversations').update({metadata:{...(data.metadata??{}),focus:{type:'plan',planId,updatedAt:new Date().toISOString()}}}).eq('id',conversationId).eq('user_id',userId);}
 
 async function resolvePlanOption(db:any,locationId:string,activityValue:string,titleValue?:string,durationValue?:number){
   const{data:location}=await db.from('together_locations').select('*').eq('id',locationId).maybeSingle();

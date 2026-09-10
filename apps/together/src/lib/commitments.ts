@@ -1,4 +1,4 @@
-import{invoke}from'./api';
+import{invoke,ApiError}from'./api';
 import type { PlanCompletionReason, PlanExperience, PlanParticipantResponse } from '../types';
 import { createClientRequestId } from './requestId';
 
@@ -12,7 +12,16 @@ export type PlanHistory={captured_at:string|null;transcript:PlanTranscriptMessag
 export type Commitment={id:string;character_instance_id:string;participant_instance_ids?:string[];participant_responses?:PlanParticipantResponse[];source_conversation_id?:string|null;title:string;activity_key:string;world_id?:string|null;location_id?:string|null;starts_at?:string|null;ends_at?:string|null;window_starts_at?:string|null;window_ends_at?:string|null;time_precision?:CommitmentTimePrecision;world_timezone?:string|null;user_timezone?:string|null;original_time_expression?:string|null;participation_mode?:'live'|'flexible'|'ambient';grace_minutes?:number;grace_ends_at?:string|null;status:'proposed'|'scheduled'|'active'|'completed'|'missed'|'cancelled';missed_at?:string|null;miss_reason?:string|null;companion_state?:'expected'|'late'|'absent'|'cancelled';companion_eta_at?:string|null;companion_reason?:string|null;participation_level?:'arrived'|'brief'|'participated'|'meaningful'|null;finalized_at?:string|null;completed_at?:string|null;completion_reason?:PlanCompletionReason|null;scene_episode_id?:string|null;source?:string;note?:string|null;metadata?:Record<string,unknown>;history?:PlanHistory;temporalState?:CommitmentTemporalState;attendance?:{user:CommitmentAttendance|null;character:CommitmentAttendance|null};missResolution?:MissResolution|null;together_locations?:{id?:string;name?:string;slug?:string}|null;together_worlds?:{name?:string;slug?:string;timezone?:string}|null};
 
 export const getCommitment=(planId:string)=>invoke<Commitment>('together-plan',{action:'get',planId});
-export const joinCommitment=(planId:string,characterInstanceId:string,requestId=createClientRequestId())=>invoke<PlanExperience>('together-plan',{action:'join',planId,characterInstanceId,requestId});
+export async function joinCommitment(planId:string,characterInstanceId:string,requestId=createClientRequestId()):Promise<PlanExperience>{
+ const input={action:'join',planId,characterInstanceId,requestId};
+ try{return await invoke<PlanExperience>('together-plan',input);}catch(error){
+  if(!(error instanceof ApiError)||error.code!=='SCENARIO_PAUSE_REQUIRED')throw error;
+  const {confirmAction}=await import('./dialogs');
+  const approved=await new Promise<boolean>(resolve=>confirmAction({title:'Join event & pause scenario?',message:'Your scenario and its current location will be saved. Joining this event moves the companion into the event. You can resume the scenario later.',confirmLabel:'Join event & pause scenario',onConfirm:()=>resolve(true),onCancel:()=>resolve(false)}));
+  if(!approved)throw new ApiError('Your scenario is still active. The event was not joined.','ACTION_CANCELLED');
+  return invoke<PlanExperience>('together-plan',{...input,pauseScenario:true});
+ }
+}
 export const getPlanExperience=(planId:string,characterInstanceId:string)=>invoke<PlanExperience>('together-plan',{action:'experience',planId,characterInstanceId});
 export const endPlanExperience=(planId:string,characterInstanceId:string,sceneId?:string,requestId=createClientRequestId())=>invoke<PlanExperience>('together-plan',{action:'end',planId,characterInstanceId,sceneId,requestId});
 export const switchPlanExperience=<T=PlanExperience>(input:{currentPlanId:string;characterInstanceId:string;activityKey:string;locationId:string;sourceConversationId:string;sceneId?:string;requestId?:string})=>invoke<T>('together-plan',{action:'switch',...input,requestId:input.requestId??createClientRequestId()});
@@ -36,7 +45,7 @@ export function commitmentTimeLabel(plan:Commitment,viewerTimezone?:string){
  if(!plan.starts_at){if(plan.original_time_expression)return plan.original_time_expression;if(plan.window_starts_at&&plan.window_ends_at)return`${formatAt(plan.window_starts_at,timezone)} – ${formatAt(plan.window_ends_at,timezone)}`;return'Time not settled';}
  return formatAt(plan.starts_at,timezone);
 }
-export function commitmentStatusLabel(plan:Commitment){const state=plan.temporalState??commitmentTemporalState(plan);if(plan.status==='missed')return'MISSED';if(plan.status==='completed')return'SHARED';if(plan.status==='cancelled')return'CANCELLED';if(plan.status==='proposed')return'TIME TO SET';return state==='grace'?'WAITING FOR YOU':state==='en_route'?'STARTING SOON':state==='imminent'?'COMING UP':state==='today'?'TODAY':state==='active'?'HAPPENING NOW':'UPCOMING';}
+export function commitmentStatusLabel(plan:Commitment){if(plan.metadata?.scenarioNeedsReschedule)return'RESCHEDULE';const state=plan.temporalState??commitmentTemporalState(plan);if(plan.status==='missed')return'MISSED';if(plan.status==='completed')return'SHARED';if(plan.status==='cancelled')return'CANCELLED';if(plan.status==='proposed')return'TIME TO SET';return state==='grace'?'WAITING FOR YOU':state==='en_route'?'STARTING SOON':state==='imminent'?'COMING UP':state==='today'?'TODAY':state==='active'?'HAPPENING NOW':'UPCOMING';}
 export function planCompletionLabel(plan:Pick<Commitment,'completion_reason'|'completed_at'|'ends_at'>){if(plan.completion_reason==='user_ended')return'You ended the plan early';if(plan.completion_reason==='elapsed')return'Ended at the scheduled time';if(plan.completion_reason==='date_completed')return'Date completed';if(plan.completion_reason==='trip_completed')return'Trip completed';return plan.completed_at?'Saved to your shared history':'Shared';}
 function parse(value?:string|null){if(!value)return null;const date=new Date(value);return Number.isFinite(date.getTime())?date:null;}
 function formatAt(value?:string|null,timezone?:string|null){if(!value)return'';try{return new Intl.DateTimeFormat(undefined,{timeZone:timezone||'UTC',weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(value));}catch{return new Date(value).toLocaleString();}}

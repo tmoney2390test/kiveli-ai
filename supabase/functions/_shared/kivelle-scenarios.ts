@@ -3,11 +3,15 @@ import scenarioCatalog from '../../../content/scenarios/runtime-catalog.json' wi
 import {AppError} from './types.ts';
 
 export async function activeScenarioContext(db:SupabaseClient,userId:string,conversationId:string,characterInstanceId:string){
-  const {data,error}=await db.from('together_scenario_sessions').select('scenario_id,started_at').eq('user_id',userId).eq('conversation_id',conversationId).eq('character_instance_id',characterInstanceId).eq('status','active').maybeSingle();
+  const {data,error}=await db.from('together_scenario_sessions').select('scenario_id,started_at,current_location_id').eq('user_id',userId).eq('conversation_id',conversationId).eq('character_instance_id',characterInstanceId).eq('status','active').maybeSingle();
   if(error)throw new AppError('INTERNAL_ERROR','Your scenario could not be loaded. Please try again.',500,true);
   if(!data)return null;
   const scenario=scenarioCatalog.find(item=>item.id===data.scenario_id);
-  return scenario?{...scenario,startedAt:data.started_at}:null;
+  if(!scenario)return null;
+  const currentLocationId=data.current_location_id??scenario.locationId;
+  const {data:location,error:placeError}=await db.from('together_locations').select('name').eq('id',currentLocationId).maybeSingle();
+  if(placeError)throw new AppError('INTERNAL_ERROR','Scenario location could not be loaded.',500,true);
+  return {...scenario,locationId:currentLocationId,locationName:location?.name??scenario.locationName,startedAt:data.started_at};
 }
 
 export function scenarioPrompt(scenario:ReturnType<typeof scenarioCatalog.find>|null|undefined):string{

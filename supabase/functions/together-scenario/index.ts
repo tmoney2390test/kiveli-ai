@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {resolveCharacterPresence} from '../_shared/together-schedule.ts';
 import {authenticated,enforceRateLimit} from '../_shared/context.ts';
 import {parseBody} from '../_shared/body.ts';
 import {json,serve} from '../_shared/http.ts';
@@ -26,6 +27,8 @@ serve(async(request,correlationId)=>{
   const {data,error}=await db.from('together_scenario_sessions').update({status:input.action==='pause'?'paused':'completed',updated_at:new Date().toISOString()}).eq('id',input.sessionId).eq('user_id',user.id).eq('continuity_id',continuity.id).select('*').maybeSingle();
   if(error)throw new AppError('INTERNAL_ERROR','Your scenario could not be saved.',500,true);
   if(!data)throw new AppError('NOT_FOUND','That scenario is unavailable.',404);
+  const presence=await resolveCharacterPresence({db,userId:user.id,characterInstanceId:String(data.character_instance_id),ensure:false});
+  if(presence&&presence.source!=='scenario')await db.from('together_character_instances').update({current_location_id:presence.locationId,current_activity:presence.activity,current_presence_source:presence.source,current_interruptibility:presence.interruptibility}).eq('id',data.character_instance_id).eq('user_id',user.id);
   return json({data,correlationId},200,correlationId);
  }
  await requireAiDataConsent(db,user.id);

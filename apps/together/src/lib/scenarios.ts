@@ -15,6 +15,7 @@ export async function startScenario(scenario:Scenario,onboarding=false,existing?
  if(existing){
   await manageScenario<ScenarioSession>({action:'start',scenarioId:scenario.id,conversationId:existing.conversation_id,characterInstanceId:existing.character_instance_id});
   clearConversationMessageWarmup();
+  await state.refresh({force:true});
   return `/chat?character=${existing.character_instance_id}&conversationId=${existing.conversation_id}`;
  }
  const next=onboarding?await bootstrap(quickStartProfile(scenario.characterTemplateId,scenario.worldId,{ageConfirmed:true})):await meetCompanion(scenario.characterTemplateId);
@@ -25,5 +26,6 @@ export async function startScenario(scenario:Scenario,onboarding=false,existing?
  clearConversationMessageWarmup();
  if(scope&&useTogether.getState().snapshot?.activeContinuity?.id!==scope)throw new Error('Your Life changed. Reopen Scenarios in your current Life.');
  state.setSnapshot(next);state.setBrowsedWorldId(scenario.worldId);
+ await state.refresh({force:true});
  return `/chat?character=${character.id}&conversationId=${conversation.id}`;
 }

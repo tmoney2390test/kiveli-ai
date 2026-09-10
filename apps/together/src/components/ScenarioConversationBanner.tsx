@@ -8,8 +8,10 @@ import { scenarios, type Scenario } from '../lib/scenarioCatalog';
 import { CreatorModal } from './CreatorPicker';
 import { ScenarioArtwork } from './ScenarioArtwork';
 import { colors } from '../theme';
+import {useTogether} from '../store/useTogether';
 
 export function ScenarioConversationBanner({ conversationId, scope, onScenarioChange }: { conversationId: string; scope: string; onScenarioChange: (scenario: Scenario | null) => void }) {
+  const scenarioRevision=useTogether(s=>s.snapshot?.characters.find(c=>c.id===s.snapshot?.conversations.find(v=>v.id===conversationId)?.character_instance_id)?.scenario_state?.sessionId);
   const [session, setSession] = useState<ScenarioSession | null>(null), [open, setOpen] = useState(false);
   const [pending, setPending] = useState<'pause' | 'complete' | null>(null), [error, setError] = useState('');
   const [loadError, setLoadError] = useState(false), [reload, setReload] = useState(0);
@@ -21,7 +23,7 @@ export function ScenarioConversationBanner({ conversationId, scope, onScenarioCh
       if (generation.current === current) setSession(r.sessions.find(s => s.conversation_id === conversationId && s.status === 'active') ?? null);
     }).catch(() => { if (generation.current === current) setLoadError(true); });
     return () => { generation.current++; };
-  }, [conversationId, scope, reload]));
+  }, [conversationId, scope, reload, scenarioRevision]));
   const scenario = scenarios.find(s => s.id === session?.scenario_id);
   useEffect(() => { onScenarioChange(scenario ?? null); }, [scenario, onScenarioChange]);
   if (loadError) return <Pressable accessibilityRole="button" accessibilityLabel="Retry loading scenario controls" onPress={() => setReload(v => v + 1)} style={styles.banner}><BookOpen size={16} color={colors.rose} /><Text style={styles.label}>Scenario controls couldn’t load</Text><Text style={styles.manage}>Retry</Text></Pressable>;
@@ -31,7 +33,7 @@ export function ScenarioConversationBanner({ conversationId, scope, onScenarioCh
     const current = generation.current; saving.current = true; setPending(action); setError('');
     try {
       await manageScenario({ action, sessionId: session.id });
-      if (generation.current === current) { setSession(null); setOpen(false); }
+      if (generation.current === current) { setSession(null); setOpen(false); void useTogether.getState().refresh({force:true}); }
     } catch (e) {
       if (generation.current === current) setError(e instanceof Error ? e.message : 'Your scenario could not be saved. Please try again.');
     } finally { if (generation.current === current) { saving.current = false; setPending(null); } }
