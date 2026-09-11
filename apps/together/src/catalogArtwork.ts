@@ -1,5 +1,5 @@
 import type { ImageSource } from 'expo-image';
-import manifest from './catalog-artwork.json';
+import manifest from './catalog-artwork.runtime.json';
 import { KIVELLI_IMAGE_PLACEHOLDER } from './lib/imageWarmup';
 
 // Public, built-in presentation artwork only. Never put uploads, generated

@@ -19,7 +19,7 @@ function primaryPortraitSlugs() {
     .filter((entry) => entry.isDirectory())
     .flatMap((world) =>
       readdirSync(join(portraitsRoot, world.name), { withFileTypes: true })
-        .filter((entry) => entry.isFile() && /\.(?:jpe?g|png)$/i.test(entry.name))
+        .filter((entry) => entry.isFile() && /\.(?:jpe?g|png|webp)$/i.test(entry.name))
         .map((entry) => basename(entry.name, extname(entry.name)))
         .filter((slug) => !slug.includes('--secondary-')),
     );

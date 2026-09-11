@@ -6,6 +6,7 @@ import sharp from 'sharp';
 
 export const root = fileURLToPath(new URL('../', import.meta.url));
 export const manifestPath = resolve(root, 'apps/together/src/catalog-artwork.json');
+export const runtimePath = resolve(root, 'apps/together/src/catalog-artwork.runtime.json');
 export const outputPath = resolve(root, '.codex-temp/catalog-artwork');
 export const bucket = 'kivelli-catalog';
 export const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -51,7 +52,13 @@ async function generate() {
     if (++done % 100 === 0) console.log(`Optimized ${done} catalog images`);
   }
   await writeFile(manifestPath, JSON.stringify(manifest,null,2)+'\n');
+  await writeFile(runtimePath, JSON.stringify(runtimeManifest(manifest))+'\n');
   console.log(JSON.stringify({images:done,originalBytes,displayBytes,thumbnailBytes}));
+}
+function runtimeManifest(manifest) {
+  return Object.fromEntries(Object.entries(manifest).map(([path,entry])=>[path,Object.fromEntries(['display','thumbnail'].map(variant=>{
+    const {file,width,height}=entry[variant];return [variant,{file,width,height}];
+  }))]));
 }
 async function generateStartup() {
   const target=resolve(root,'apps/together/assets/startup');
@@ -60,6 +67,7 @@ async function generateStartup() {
 }
 export async function verifyManifest() {
   const manifest = JSON.parse(await readFile(manifestPath,'utf8'));
+  if(JSON.stringify(JSON.parse(await readFile(runtimePath,'utf8')))!==JSON.stringify(runtimeManifest(manifest)))throw new Error('Runtime catalog manifest is stale');
   const paths = await referencedPaths();
   if(JSON.stringify(paths)!==JSON.stringify(Object.keys(manifest).sort())) throw new Error('Catalog manifest/reference drift; run pnpm artwork:generate');
   for(const path of paths) {
@@ -73,5 +81,7 @@ export async function verifyManifest() {
   return manifest;
 }
 if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
-  if(process.argv.includes('--verify')) await verifyManifest(); else if(process.argv.includes('--startup-only')) await generateStartup(); else await generate();
+  if(process.argv.includes('--verify')) await verifyManifest();
+  else if(process.argv.includes('--runtime-only')) await writeFile(runtimePath,JSON.stringify(runtimeManifest(JSON.parse(await readFile(manifestPath,'utf8'))))+'\n');
+  else if(process.argv.includes('--startup-only')) await generateStartup(); else await generate();
 }

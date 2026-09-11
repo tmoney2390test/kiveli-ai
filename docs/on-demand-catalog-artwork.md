@@ -41,7 +41,8 @@ still reference them. Authenticated/anonymous app clients cannot modify objects.
 1. Add/review source artwork and its existing registry entry using
    `catalogArtwork('characters/world/slug.jpg')` (or the other allowed categories).
 2. Run `pnpm artwork:generate`. This writes the checked-in manifest, local startup
-   derivative, and ignored `.codex-temp/catalog-artwork/` display copies.
+   derivative, compact runtime manifest, and ignored `.codex-temp/catalog-artwork/`
+   display copies. Source checksums and upload byte counts stay out of client bundles.
 3. Run `pnpm artwork:verify`, lint, typecheck and tests. CI verifies every source
    hash and registry mapping and rejects missing/stale entries.
 4. With `SUPABASE_URL` and `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` supplied
