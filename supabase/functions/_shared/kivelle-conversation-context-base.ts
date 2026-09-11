@@ -84,6 +84,7 @@ export function detectContextQueryIntent(message: string): ContextQueryIntent {
 
 export async function buildKivelleConversationContext(input: {
   db: SupabaseClient; userId:string; instance:Row; conversation:Row; userMessage:string;
+  beforeConversationSequence?:number;
   lifeRun:Row; semanticRows?:Row[]; semanticQueryEmbedding?:number[]|null; attachments?:Row[]; now?:Date; visibleHistoryFromSequence?:number; visibleSceneSessionId?:string; visibleSceneFromSequence?:number; forceRemoteInteraction?:boolean;conversationSceneResolution?:Row;authorizedWebAdult?:boolean;authorizedPrivateAdultText?:boolean;memoryCandidateLimit?:number;readOnly?:boolean;
 }): Promise<KivelleConversationContext> {
   const { db, userId, instance, conversation, userMessage } = input;
@@ -96,6 +97,7 @@ export async function buildKivelleConversationContext(input: {
   const emptyRows=()=>Promise.resolve({data:[] as Row[],error:null});
   const conversationEpisodesPromise:Promise<RelevantConversationEpisode[]>=input.authorizedPrivateAdultText?resolveRelevantConversationEpisodes({db,userId,continuityId:String(instance.continuity_id),conversationId:String(conversation.id),userMessage,queryEmbedding:input.semanticQueryEmbedding,minimumSequence:Number(input.visibleHistoryFromSequence??1),limit:8}):Promise.resolve([]);
   let recentMessageQuery=textPolicyQuery(db.from('together_messages').select('id,role,content,created_at,provider_metadata,speaker_character_instance_id,character_instance_id,conversation_sequence').eq('conversation_id',conversation.id),input.authorizedWebAdult,input.authorizedPrivateAdultText);
+  if(input.beforeConversationSequence!==undefined)recentMessageQuery=recentMessageQuery.lt('conversation_sequence',input.beforeConversationSequence);
   if(input.visibleSceneSessionId)recentMessageQuery=recentMessageQuery.eq('scene_session_id',input.visibleSceneSessionId).gte('scene_sequence',Number(input.visibleSceneFromSequence??1));
   else if(conversation.kind==='group'&&Number(input.visibleHistoryFromSequence??1)>1)recentMessageQuery=recentMessageQuery.gte('conversation_sequence',Number(input.visibleHistoryFromSequence));
   const [core, memories, threads, messages, schedules, events, plans, dates, stories, edges, worlds, locations, media, moments, episodes,relationshipPlaceRows,placeProfileRows,conversationEpisodes] = await Promise.all([

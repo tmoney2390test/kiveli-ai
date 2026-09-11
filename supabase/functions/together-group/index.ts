@@ -973,7 +973,7 @@ async function groupChanges(db: any, userId: string, continuityId: string, conve
   const syncedAt = new Date().toISOString();
   const adultTextAuthorized=security?await privateTextProjectionAuthorizedForConversation({db,userId,continuityId,conversation,access:security.access}):false;
   const [messageResult, reactionResult, mediaResult, offerResult, planResult, actionResult, eventResult, conversationResult] = await Promise.all([
-    db.from("together_messages").select("*,together_conversation_attachments(*)").eq("user_id", userId).eq("conversation_id", conversation.id).gt("created_at", since).order("created_at").limit(80),
+    db.from("together_messages").select("*,together_conversation_attachments(*)").eq("user_id", userId).eq("conversation_id", conversation.id).or(`created_at.gt.${since},revised_at.gt.${since}`).order("created_at").limit(80),
     db.from("together_message_reactions").select("*").eq("conversation_id", conversation.id).gt("created_at", since).order("created_at").limit(100),
     db.from("together_generated_media").select("*").eq("user_id", userId).eq("conversation_id", conversation.id).in("content_level", security?.access.authorized_web_adult?["standard","romance","suggestive","mature","explicit"]:["standard", "romance"]).gt("updated_at", since).order("updated_at").limit(40),
     db.from("together_media_offers").select("*").eq("user_id", userId).eq("conversation_id", conversation.id).in("content_level", security?.access.authorized_web_adult?["standard","romance","suggestive","mature","explicit"]:["standard", "romance"]).gt("updated_at", since).order("updated_at").limit(40),

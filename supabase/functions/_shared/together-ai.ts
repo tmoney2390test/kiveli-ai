@@ -138,6 +138,8 @@ export type DialogueStreamEvent = { type: "token"; token: string } | {
   metadata: DialogueRunMetadata;
 };
 export type DialogueRunOptions = {
+  /** A manual revision must fail rather than silently switch provider routes. */
+  strictRoute?: boolean;
   signal?: AbortSignal;
   contextPayment?:ContextPayment;
   route: DialogueRoutingDecision;
@@ -318,7 +320,7 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
       let text = ''; let metadata: DialogueRunMetadata | undefined;
       for await (const event of streamVeniceDialogue(context, options)) { if (event.type === 'token') text += event.token; else metadata = event.metadata; }
       if (!metadata) throw new AppError('PROVIDER_UNAVAILABLE', 'Venice did not complete the reply.', 503, true);
-      if(options.route.explicit&&context.intimacyStance?.shouldReciprocate===true&&isContradictoryAcceptedIntimacyRefusal(text)){
+      if(!options.strictRoute&&options.route.explicit&&context.intimacyStance?.shouldReciprocate===true&&isContradictoryAcceptedIntimacyRefusal(text)){
         const repairContext={...context,dialogueRouting:{...(context.dialogueRouting??{}),responseRepair:'accepted_intimacy_contradiction'}};
         let repairedText='';let repairedMetadata:DialogueRunMetadata|undefined;
         for await(const event of streamVeniceDialogue(repairContext,{...options,operation:`${operationName(options,'venice')}_repair`})){if(event.type==='token')repairedText+=event.token;else repairedMetadata=event.metadata;}
@@ -333,7 +335,7 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
       try {
         const generated = await generateResponses(context, options);
         if (
-          options.route.provider === "xai" && options.route.explicit &&
+          !options.strictRoute && options.route.provider === "xai" && options.route.explicit &&
           context.intimacyStance?.shouldReciprocate === true &&
           isContradictoryAcceptedIntimacyRefusal(generated.text)
         ) {
@@ -368,6 +370,7 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
         }
         return generated;
       } catch (error) {
+        if(options.strictRoute)throw error;
       if(error instanceof ContextPricingError||options.signal?.aborted)throw error;
         if (options.route.provider === "xai") {
           return generateAdultProviderDowngrade(context, options);

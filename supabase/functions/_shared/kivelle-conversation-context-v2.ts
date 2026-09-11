@@ -94,6 +94,7 @@ export async function buildTieredKivelleConversationContext(
     conversationSceneResolution?: Row;
     contextInputCeiling?: number;
     readOnly?: boolean;
+    beforeConversationSequence?: number;
     authorizedWebAdult?: boolean;
     authorizedPrivateAdultText?: boolean;
   },
@@ -112,6 +113,7 @@ export async function buildTieredKivelleConversationContext(
     let query = input.db.from("together_messages").select(
       "role,content,created_at,provider_metadata,speaker_character_instance_id,character_instance_id,conversation_sequence,scene_session_id,scene_sequence,content_rating,visibility_scope",
     ).eq("conversation_id", input.conversation.id);
+    if(input.beforeConversationSequence!==undefined)query=query.lt('conversation_sequence',input.beforeConversationSequence);
     if(!input.authorizedPrivateAdultText)query=query.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
     if (input.visibleSceneSessionId) {
       query = query.eq("scene_session_id", input.visibleSceneSessionId).gte(

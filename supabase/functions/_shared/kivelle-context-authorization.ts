@@ -12,12 +12,12 @@ export async function contextDigest(value:unknown):Promise<string>{
   return Array.from(new Uint8Array(bytes),(b)=>b.toString(16).padStart(2,'0')).join('');
 }
 export function contextDraftFingerprint(input:Row):Promise<string>{
-  return contextDigest({conversationId:input.conversationId,characterInstanceId:input.characterInstanceId??null,message:String(input.message??'').trim(),focusPlanId:input.focusPlanId??null,sceneActionId:input.sceneActionId??null,entryContext:input.entryContext??null,attachmentIds:input.attachmentIds??[],mentionedCharacterInstanceIds:input.mentionedCharacterInstanceIds??[],replyToMessageId:input.replyToMessageId??null,manualSpeakerInstanceId:input.manualSpeakerInstanceId??null,broadGroupRequest:input.broadGroupRequest===true,letThemTalk:input.letThemTalk===true,messageAction:input.messageAction??null,anchorMessageId:input.anchorMessageId??null});
+  return contextDigest({conversationId:input.conversationId,characterInstanceId:input.characterInstanceId??null,message:String(input.message??'').trim(),focusPlanId:input.focusPlanId??null,sceneActionId:input.sceneActionId??null,entryContext:input.entryContext??null,attachmentIds:input.attachmentIds??[],mentionedCharacterInstanceIds:input.mentionedCharacterInstanceIds??[],replyToMessageId:input.replyToMessageId??null,manualSpeakerInstanceId:input.manualSpeakerInstanceId??null,broadGroupRequest:input.broadGroupRequest===true,letThemTalk:input.letThemTalk===true,messageAction:input.messageAction??null,anchorMessageId:input.anchorMessageId??null,...(input.messageAction==='spice'?{expectedRevision:input.expectedRevision}: {})});
 }
 export async function contextState(db:SupabaseClient,userId:string,conversationId:string):Promise<{conversation:Row;fingerprint:string}>{
   const [conversationResult,last,participants,entitlement,profile]=await Promise.all([
     db.from('together_conversations').select('*').eq('id',conversationId).eq('user_id',userId).single(),
-    db.from('together_messages').select('id,conversation_sequence').eq('conversation_id',conversationId).order('conversation_sequence',{ascending:false}).limit(1),
+    db.from('together_messages').select('id,conversation_sequence,provider_metadata->rewriteVersion').eq('conversation_id',conversationId).order('conversation_sequence',{ascending:false}).limit(1),
     db.from('together_conversation_participants').select('*').eq('conversation_id',conversationId).order('character_instance_id'),
     db.from('together_entitlements').select('*').eq('user_id',userId).maybeSingle(),
     db.from('together_profiles').select('active_continuity_id,age_verified_at,content_preferences').eq('user_id',userId).maybeSingle(),

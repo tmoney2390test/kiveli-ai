@@ -18,6 +18,7 @@ export type SpeakerContextInput = {
   correlationId?: string;
   now?: Date;
   readOnly?:boolean;
+  beforeConversationSequence?:number;
   contextInputCeiling?:number;
   attachments?: Row[];
   sceneSessionId?: string;
@@ -210,6 +211,7 @@ export async function buildIsolatedSpeakerContext(
     db: input.db,
     userId: input.userId,
     readOnly:input.readOnly,
+    beforeConversationSequence:input.beforeConversationSequence,
     contextInputCeiling:input.contextInputCeiling,
     instance,
     conversation,

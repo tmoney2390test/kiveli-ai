@@ -12,6 +12,7 @@ export type DialogueRouteReason =
   | 'adult_intimacy'
   | 'adult_explicit'
   | 'adult_context_carryover'
+  | 'manual_spice'
   | 'adult_expression_downgrade'
   | 'relationship_boundary'
   | 'provider_unavailable'

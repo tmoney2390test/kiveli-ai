@@ -77,6 +77,10 @@ export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POS
   }
 }
 export async function quoteDialogueContext(input:Record<string,unknown>,signal?:AbortSignal):Promise<DialogueContextQuote>{await ensureWebAdultSession(await token()).catch(()=>undefined);return invoke<DialogueContextQuote>('together-dialogue-quote',input,'POST',{signal});}
+export async function rewriteDialogueMessage(group:boolean,input:{conversationId:string;characterInstanceId?:string;anchorMessageId:string;expectedRevision:number;messageAction:'spice'|'restore';clientRequestId:string;contextQuoteId?:string;contextPreference?:'included'}):Promise<{message:Message}>{
+  await ensureWebAdultSession(await token()).catch(()=>undefined);
+  return withIdempotentRetry(()=>invoke<{message:Message}>(group?'together-group-dialogue':'together-dialogue',input),{attempts:2,delayMs:600});
+}
 export const loadSnapshot = () => invoke<Snapshot>('together-bootstrap', undefined, 'GET');
 export const loadExploreCatalog = () => invoke<ExploreCatalogSnapshot>('together-bootstrap?scope=explore',undefined,'GET');
 export const confirmAdultAge = (input:{dateOfBirth:string;displayName:string;gender:AccountGender}) => invoke<Snapshot>('together-bootstrap', {action:'confirm_age',ageConfirmed:true,...input});
