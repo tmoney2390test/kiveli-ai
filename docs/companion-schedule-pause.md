@@ -98,4 +98,3 @@ holds or reset their stories. Preserve prior deployments for source recovery.
 
 Production application/version and smoke results are recorded in the release
 handoff after deployment, not assumed from this pre-release document.
-
