@@ -1,15 +1,17 @@
 import type { ChatDialogueExperiment } from './chat-model-test.ts';
+import type { AdultRoutingEvidence } from './dialogue-routing-continuity.ts';
 import { analyzeAdultLanguage, hasExplicitAdultLanguage } from './adult-language.ts';
 
 export type DialogueProviderName = 'openai' | 'xai' | 'gemini' | 'venice' | 'wavespeed' | 'deterministic';
 export type DialogueContentMode = 'standard' | 'romance' | 'mature' | 'explicit';
-export type DialogueContentClass = 'standard' | 'romantic' | 'mature' | 'adult_intimacy' | 'explicit_adult' | 'hard_block';
+export type DialogueContentClass = 'standard' | 'romantic' | 'mature' | 'adult_suggestive' | 'adult_intimacy' | 'explicit_adult' | 'hard_block';
 
 export type DialogueRouteReason =
   | 'standard_default'
   | 'romance_default'
   | 'adult_intimacy'
   | 'adult_explicit'
+  | 'adult_context_carryover'
   | 'adult_expression_downgrade'
   | 'relationship_boundary'
   | 'provider_unavailable'
@@ -24,6 +26,8 @@ export type NormalizedModerationResult = {
 };
 
 export type DialogueRoutingDecision = {
+  adultRouting?: AdultRoutingEvidence;
+  carryoverTurnsRemaining?: number;
   experiment?: ChatDialogueExperiment;
   provider: DialogueProviderName;
   requestedMode: DialogueContentMode;
@@ -69,6 +73,9 @@ export function hasExplicitSexualOutputLanguage(text:string):boolean{
 }
 const romanticPattern = /\b(?:kiss(?:ing|ed)?|date|romantic|flirt(?:ing)?|crush|love you|hold (?:me|you)|cuddle|chemistry)\b/i;
 const maturePattern = /\b(?:desire|intimate|sensual|turned on|make out|bedroom)\b/i;
+// Routing only: these signals do not establish consent or change a character's
+// boundaries. Keep ordinary affection and ambiguous everyday words separate.
+const suggestiveDialoguePattern = /\b(?:sensual|seductive|seductively|aroused|(?:i['’]m|i am|you['’]re|you are|(?:got|get|gets|getting) me) (?:so |really )?turned on|turn(?:s|ing)? me on|(?:we|let['’]s|want to|start|started|are|were) (?:make|making) out|teas(?:e|ing) (?:me|you) (?:like that|with your body)|(?:i |you )?(?:want|desire|crave) (?:you|your body)(?=[.!?]|$)|kiss(?:ing)? (?:my|your) neck|(?:your|my) hands? (?:under|beneath) (?:my|your) (?:shirt|clothes)|talk dirty|dirty talk)\b/i;
 const continuationPattern = /^(?:(?:yes(?: please)?|yeah|okay|more|keep going|continue|don'?t stop|go on|please(?: continue)?|pretty please|do it|again)|(?:sí|si|claro|más|continúa|no pares|oui|encore|continue|ne t['’]arrête pas|sì|si|ancora|continua|non fermarti|ja|mehr|weiter|hör nicht auf|sim|mais|continua|não para)|(?:はい|もっと|続けて|やめないで|응|네|더|계속해|멈추지 마|是|好|继续|再来|别停))[.!?。！？\s]*$/iu;
 const explicitContextContinuationPattern = /(?:\b(?:how (?:does|did|would|will) (?:that|it|this) feel|what does (?:that|it|this) feel like|describe (?:that|it|the sensation)|tell me (?:how|what) (?:that|it|this)|do you like (?:that|it|this)|harder|faster|slower|deeper|inside (?:me|you)|keep (?:doing|touching)|don'?t (?:slow|stop)|make me (?:finish|come)|i'?m close|más fuerte|más rápido|más despacio|más profundo|plus fort|plus vite|plus lentement|plus profond|più forte|più veloce|più piano|più profondo|härter|schneller|langsamer|tiefer|mais forte|mais rápido|mais devagar|mais fundo)\b|もっと強く|もっと速く|ゆっくり|もっと深く|더 세게|더 빨리|천천히|더 깊게|用力一点|快一点|慢一点|深一点)/iu;
 const minorPattern = /\b(?:minor|child(?:ren)?|underage|preteen|teen(?:ager)?|barely legal|youthful|young girl|young boy|schoolgirl|schoolboy|(?:[0-9]|1[0-7])[- ]?year[- ]?old)\b/i;
@@ -117,7 +124,7 @@ export function moderationHardBlock(result?: NormalizedModerationResult): boolea
 }
 
 export function isDialogueHardBlocked(input:{message:string;moderation?:NormalizedModerationResult}):boolean{
-  const sexual=hasSexualDialogueLanguage(input.message)||Boolean(input.moderation?.categories.some((category)=>category==='sexual'||category==='sexual/adult'||category==='sexual/minors'));
+  const sexual=hasSexualDialogueLanguage(input.message)||suggestiveDialoguePattern.test(input.message)||Boolean(input.moderation?.categories.some((category)=>category==='sexual'||category==='sexual/adult'||category==='sexual/minors'));
   const consensualFantasy=isConsensualNonConsentFantasy(input.message);
   return moderationHardBlock(input.moderation)||incestPattern.test(input.message)||exploitationPattern.test(input.message)||compensatedSexPattern.test(input.message)||sexualDeepfakePattern.test(input.message)||exploitativeSexSlaveryPattern.test(input.message)||(sexual&&incapableConsentPattern.test(input.message))||thirdPartySexualTargetPattern.test(input.message)||(sexual&&minorPattern.test(input.message))||(!consensualFantasy&&(directSexualCoercionPattern.test(input.message)||(sexual&&coercionPattern.test(input.message))));
 }
@@ -136,6 +143,7 @@ export function classifyDialogueContent(input: {
   if (isDialogueHardBlocked({message,...(input.moderation?{moderation:input.moderation}:{})})) return 'hard_block';
   if (adultIntimacyIntent) return 'adult_intimacy';
   if (sexual || contextualExplicit) return 'explicit_adult';
+  if (suggestiveDialoguePattern.test(message)) return 'adult_suggestive';
   if (maturePattern.test(message)) return 'mature';
   if (romanticPattern.test(message)) return 'romantic';
   return 'standard';
@@ -173,6 +181,7 @@ export function routeKivelleDialogue(input: {
   photoRequest?: boolean;
   photoAdultRequest?: boolean;
   photoSafetyBlocked?: boolean;
+  adultContextCarryover?: boolean;
   providers: DialogueProviderAvailability;
 }): DialogueRoutingDecision {
   const requestedMode = input.requestedMode ?? 'standard';
@@ -196,10 +205,10 @@ export function routeKivelleDialogue(input: {
 
   if (input.classification === 'hard_block') return { provider: 'deterministic', requestedMode, resolvedMode: 'standard', reason: 'safety_block', explicit: false, adultEligible, hardBlocked: true, classification: input.classification };
 
-  if (input.classification === 'adult_intimacy' || input.classification === 'explicit_adult') {
+  if (input.classification === 'adult_intimacy' || input.classification === 'explicit_adult' || input.classification === 'adult_suggestive' && requestedMode === 'explicit' || input.adultContextCarryover) {
     if (!adultEligible) return { provider: 'deterministic', requestedMode, resolvedMode: 'romance', reason: 'safety_block', explicit: false, adultEligible, hardBlocked: true, classification: input.classification };
     const relationshipBoundary=input.relationshipAllowsExplicit===false;
-    if (!relationshipBoundary&&requestedMode === 'explicit'&&input.providers.xaiEnabled&&input.providers.xaiExplicitEnabled&&input.providers.xai) return { provider: 'xai', requestedMode, resolvedMode: 'explicit', reason: 'adult_explicit', explicit: true, adultEligible, hardBlocked: false, classification: input.classification };
+    if (!relationshipBoundary&&requestedMode === 'explicit'&&input.providers.xaiEnabled&&input.providers.xaiExplicitEnabled&&input.providers.xai) return { provider: 'xai', requestedMode, resolvedMode: 'explicit', reason: input.adultContextCarryover?'adult_context_carryover':'adult_explicit', explicit: true, adultEligible, hardBlocked: false, classification: input.classification };
     const resolvedMode:DialogueContentMode=relationshipBoundary?(requestedMode==='standard'?'standard':'romance'):(requestedMode==='explicit'?'mature':requestedMode);
     const reason:DialogueRouteReason=relationshipBoundary?'relationship_boundary':requestedMode==='explicit'?'adult_expression_downgrade':'adult_intimacy';
     if(input.providers.openai)return{provider:'openai',requestedMode,resolvedMode,reason,explicit:false,adultEligible,hardBlocked:false,classification:input.classification};

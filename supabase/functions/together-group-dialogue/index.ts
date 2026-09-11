@@ -55,6 +55,7 @@ import {
 } from "../_shared/together-ai.ts";
 import { applyChatTestRoute, resolveChatTestExperiment } from '../_shared/kivelle-chat-model-test.ts';
 import { resolveDialogueRouting } from "../_shared/kivelle-ai-routing.ts";
+import { loadAdultRoutingHistory } from '../_shared/kivelle-routing-history.ts';
 import {
   conversationAdultMediaAuthorized,
   requestedConversationDialogueContentMode,
@@ -298,6 +299,8 @@ Deno.serve(async (request) => {
     const groupAdultAuthorized=groupDialoguePolicy.rollout.generationAllowed;
     if(storedRequestedMode==='explicit')await track(db,user.id,'private_adult_text_policy_decision',privateAdultTextTelemetry({policy:groupDialoguePolicy,access:adultAccess,conversationMode:'group'}));
     const adultAttachment=attachments.some((attachment)=>attachment.content_rating==='explicit'||attachment.visibility_scope==='web_adult');
+    const routingHistory=await loadAdultRoutingHistory(db,user.id,conversation.id,existingUserMessage?Number(existingUserMessage.conversation_sequence):undefined);
+    const groupRoutingEvidence=resolveDialogueRouting({message:messageText,requestedMode:groupDialoguePolicy.effectiveMode,ageVerified:adultAccess.adult_eligible,adultAuthorized:groupAdultAuthorized,characterAge:groupDialoguePolicy.allParticipantsAdults?18:null,adultAttachment,moderation:inputSafety,photoRequest:classifyPhotoRequest(messageText).requested}).adultRouting;
     const restrictedUserMessage=groupAdultAuthorized&&(
       adultAttachment||
       hasSexualDialogueLanguage(messageText)||inputSafety.categories.some((category)=>/(?:sexual|adult|explicit)/i.test(category))
@@ -343,6 +346,7 @@ Deno.serve(async (request) => {
           replyToMessageId: input.replyToMessageId ?? null,
           requestFingerprint,
           requestAttachmentIds: [...input.attachmentIds].sort(),
+          adultRouting: groupRoutingEvidence,
           ...(restrictedUserMessage?adultMessagePolicy():safeMessagePolicy('safe')),
           ...privateDialoguePolicyMetadata({policy:groupDialoguePolicy,access:adultAccess,conversationMode:'group'}),
         },
@@ -525,6 +529,7 @@ Deno.serve(async (request) => {
     const veniceExperiment = await resolveChatTestExperiment(db, user.id, conversation);
     return groupStream({
       veniceExperiment,
+      routingHistory,
       timings,
       db,
       userId: user.id,
@@ -814,6 +819,7 @@ function groupStream(input: any): Response {
           const inputSafety=input.inputSafety;
           const routeInput = {
             message: canonicalUserText,
+            routingHistory: input.routingHistory,
             recentTurns: (context.recent ?? []).slice(-8).map((row: any) => ({
               role: row.role,
               content: row.content,
