@@ -71,8 +71,10 @@ Baseline production AAB: version code 6 / EAS build
 `7b68a4a8-ce1f-4aac-9648-4e0691405089`, 533,097,239 bytes (508.4 MiB).
 Its ZIP directory contained 445,959,625 compressed resource bytes, including
 367 portraits, 387 secondary photos and 396 location backgrounds.
-Initial new Android/iOS export: 46 unique asset files / 4,454,132 bytes (4.25 MiB),
-no catalog art. This is an **asset measurement**, not a claimed final AAB or
+New Android/iOS export: 46 unique asset files / 2,311,597 bytes (2.20 MiB),
+no catalog art. The small UI icon avoids separately embedding the original
+2.2 MB OS-icon PNG; OS icon generation still uses that original. This is an
+**asset measurement**, not a claimed final AAB or
 per-device Play download size. Keep symbols and all supported CPU architectures;
 removing diagnostic/support data is not necessary to obtain the main saving.
 
