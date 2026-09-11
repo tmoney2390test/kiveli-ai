@@ -1,6 +1,6 @@
 import { assessScenePressure, type ScenePressure } from './scene-pressure.ts';
 import { chemistryBand, deriveFlirtExpressionStyle } from './relationship.ts';
-import { classifyDialogueContent, hasConsentWithdrawalSignal, isConsensualNonConsentFantasy, isDialogueContinuation, isDirectAdultAdvance, type DialogueContentMode } from './ai-routing.ts';
+import { classifyDialogueContent, hasConsentWithdrawalSignal, isCapabilityStyleExplicitRefusal, isConsensualNonConsentFantasy, isDialogueContinuation, isDirectAdultAdvance, type DialogueContentMode } from './ai-routing.ts';
 
 export type PromptInteractionQuality='trivial'|'normal'|'meaningful'|'shared_experience'|'major_relationship_event';
 export type DirectorPolicy='major_only'|'meaningful'|'normal_and_up';
@@ -59,6 +59,31 @@ export type ResponseBrief={
 
 type ReflectionLike={companionView?:string;relationshipSummary?:string;unresolvedTension?:string[];recurringDynamics?:string[];sharedReferences?:string[];emotionalExpectations?:string[]};
 type RelationshipLike={stage?:string;relationship_stage?:string;trust?:number;comfort?:number;attraction?:number;affinity?:number;familiarity?:number;respect?:number;conflict?:number;romantic_interest?:number;commitment?:number;chemistryHeat?:number;chemistry_heat?:number;spiceLevel?:number;spice_level?:number;romancePathStatus?:string;romance_path_status?:string;personality?:Record<string,unknown>;active_major_conflict?:boolean;romanceEnabled?:boolean;romance_enabled?:boolean};
+type IntimacyTurnLike={role:string;content:string;providerMetadata?:Record<string,unknown>;provider_metadata?:Record<string,unknown>};
+
+function intimacyTurnMetadata(turn:IntimacyTurnLike|undefined):Record<string,unknown>{
+  const value=turn?.providerMetadata??turn?.provider_metadata;
+  return value&&typeof value==='object'&&!Array.isArray(value)?value:{};
+}
+
+/**
+ * A provider fallback, capability refusal, or inherited refusal is not a new
+ * choice made by the character. Keeping it in the prompt makes a temporary
+ * platform/model failure renew itself as a permanent character boundary.
+ */
+export function isNonAuthoritativeIntimacyDecline(turn:IntimacyTurnLike|undefined):boolean{
+  if(!turn||turn.role!=='assistant')return false;
+  const metadata=intimacyTurnMetadata(turn),reasonCodes=Array.isArray(metadata['intimacyReasonCodes'])?metadata['intimacyReasonCodes'].map(String):[];
+  const routeReason=typeof metadata['routeReason']==='string'?metadata['routeReason']:'',provider=typeof metadata['provider']==='string'?metadata['provider']:'';
+  const outcome=normalizeIntimacyOutcome(metadata['intimacyOutcome']),declined=outcome==='declined'||outcome==='withdrawn';
+  return reasonCodes.includes('recent_character_decline')
+    ||reasonCodes.includes('respect_boundary')
+    ||declined&&(routeReason==='adult_expression_downgrade'
+      ||routeReason==='provider_timeout_fallback'
+      ||provider==='scripted-boundary'
+      ||metadata['safetyDisposition']==='redirected')
+    ||isCapabilityStyleExplicitRefusal(turn.content);
+}
 
 export function compileRelationshipStance(relationship:RelationshipLike,reflection:ReflectionLike={}):RelationshipStance{
   const stage=String(relationship.relationship_stage??relationship.stage??'stranger');
@@ -79,7 +104,7 @@ export function compileRelationshipStance(relationship:RelationshipLike,reflecti
   return{stage,summary:`${summary}${attractionNote}`.trim(),affectionBoundary,vulnerabilityPosture,conflictPosture,chemistryPosture,flirtInitiative,flirtExpression:`Express attraction in a ${style} way when appropriate; do not turn spice into a generic personality.`,autonomyRule:'Maintain an independent point of view. The character may disagree, decline, be busy, prefer something else, redirect, tease, or leave a question unanswered without becoming cold or punitive.'};
 }
 
-export function compileIntimacyStance(input:{message:string;recentTurns?:Array<{role:string;content:string;providerMetadata?:Record<string,unknown>;provider_metadata?:Record<string,unknown>}>;relationship:RelationshipLike;personality?:Record<string,unknown>;interactionMode?:string;availability?:string;requestedMode?:DialogueContentMode}):IntimacyStance{
+export function compileIntimacyStance(input:{message:string;recentTurns?:IntimacyTurnLike[];relationship:RelationshipLike;personality?:Record<string,unknown>;interactionMode?:string;availability?:string;requestedMode?:DialogueContentMode}):IntimacyStance{
   const recent=input.recentTurns??[],classification=classifyDialogueContent({message:input.message,recentTurns:recent,...(input.requestedMode?{requestedMode:input.requestedMode}:{})});
   const intimacySignal=(text:string)=>{const value=classifyDialogueContent({message:text,requestedMode:'explicit'});return value==='adult_intimacy'||value==='explicit_adult'||/\b(?:i want you|i want this|come here|let'?s do this|not ready|don'?t want|need to stop)\b/i.test(text);};
   const recentAdult=recent.slice(-6).some((turn)=>intimacySignal(turn.content)||normalizeIntimacyOutcome(turn.providerMetadata?.['intimacyOutcome']??turn.provider_metadata?.['intimacyOutcome'])!=='none');
@@ -93,7 +118,7 @@ export function compileIntimacyStance(input:{message:string;recentTurns?:Array<{
   const romanceEnabled=relationship.romance_enabled===undefined?relationship.romanceEnabled!==false:Boolean(relationship.romance_enabled),friendsOnly=String(relationship.romance_path_status??relationship.romancePathStatus??'open')==='friends_only';
   const trust=number(relationship.trust),comfort=number(relationship.comfort),attraction=number(relationship.attraction),respect=number(relationship.respect??50),conflict=number(relationship.conflict),romanticInterest=number(relationship.romantic_interest),commitment=number(relationship.commitment),heat=number(relationship.chemistry_heat??relationship.chemistryHeat);
   const spice=Math.max(1,Math.min(3,number(relationship.spice_level??relationship.spiceLevel)||2)),personality=input.personality??relationship.personality??{},directness=Math.max(number(personality['directness']),number(personality['initiative']));
-  const latestAssistantIndex=recent.reduce((found,turn,index)=>turn.role==='assistant'&&(normalizeIntimacyOutcome(turn.providerMetadata?.['intimacyOutcome']??turn.provider_metadata?.['intimacyOutcome'])!=='none'||intimacySignal(turn.content))?index:found,-1);
+  const latestAssistantIndex=recent.reduce((found,turn,index)=>turn.role==='assistant'&&!isNonAuthoritativeIntimacyDecline(turn)&&(normalizeIntimacyOutcome(turn.providerMetadata?.['intimacyOutcome']??turn.provider_metadata?.['intimacyOutcome'])!=='none'||intimacySignal(turn.content))?index:found,-1);
   const latestAssistant=latestAssistantIndex>=0?recent[latestAssistantIndex]:undefined;
   const previousOutcome=normalizeIntimacyOutcome(latestAssistant?.providerMetadata?.['intimacyOutcome']??latestAssistant?.provider_metadata?.['intimacyOutcome']);
   const turnsSinceIntimacyReply=latestAssistantIndex>=0?recent.length-1-latestAssistantIndex:Infinity;
@@ -117,7 +142,6 @@ export function compileIntimacyStance(input:{message:string;recentTurns?:Array<{
   else if(!romanceEnabled){disposition='firm_decline';reasonCodes.push('romance_disabled');}
   else if(friendsOnly){disposition='firm_decline';reasonCodes.push('friends_only');}
   else if(conflict>=75){disposition='firm_decline';reasonCodes.push('major_conflict');}
-  else if(stageRank>=2&&respect<15){disposition='firm_decline';reasonCodes.push('respect_boundary');}
   else if(unavailable){disposition='needs_context';reasonCodes.push('temporarily_unavailable');}
   else if(previousAcceptance&&continuation){disposition='open';reasonCodes.push('accepted_continuation');}
   else if(stage==='long_term'){disposition='open';reasonCodes.push('long_term_default_reciprocity');}

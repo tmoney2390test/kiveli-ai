@@ -310,6 +310,13 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
       let text = ''; let metadata: DialogueRunMetadata | undefined;
       for await (const event of streamVeniceDialogue(context, options)) { if (event.type === 'token') text += event.token; else metadata = event.metadata; }
       if (!metadata) throw new AppError('PROVIDER_UNAVAILABLE', 'Venice did not complete the reply.', 503, true);
+      if(options.route.explicit&&context.intimacyStance?.shouldReciprocate===true&&isContradictoryAcceptedIntimacyRefusal(text)){
+        const repairContext={...context,dialogueRouting:{...(context.dialogueRouting??{}),responseRepair:'accepted_intimacy_contradiction'}};
+        let repairedText='';let repairedMetadata:DialogueRunMetadata|undefined;
+        for await(const event of streamVeniceDialogue(repairContext,{...options,operation:`${operationName(options,'venice')}_repair`})){if(event.type==='token')repairedText+=event.token;else repairedMetadata=event.metadata;}
+        if(repairedMetadata&&!isContradictoryAcceptedIntimacyRefusal(repairedText))return{text:repairedText,metadata:{...repairedMetadata,fallback:true}};
+        return{text:explicitProviderFallback(context),metadata:{...metadata,fallback:true}};
+      }
       return { text, metadata };
     }
     if (

@@ -5,7 +5,7 @@ import { assessScenePressure, scenePressureGuidance } from '../../../packages/to
 import { selectCharacterPerformance } from '../../../packages/together-domain/src/character-performance.ts';
 import { conversationResponseLength, conversationResponseTokenBudget, conversationStyleGuidance, resolveConversationStyle, type ConversationInteractionQuality, type ConversationResponseLength, type ConversationStyle } from '../../../packages/together-domain/src/conversation-style.ts';
 import { chatLanguagePromptInstruction, normalizeChatLanguage } from '../../../packages/together-domain/src/chat-language.ts';
-import { budgetContextSections, contextInputTokenCeiling, formatRollingConversationState, intimateLifeEligible, isContradictoryAcceptedIntimacyRefusal, publicCharacterBible, rankContextRecords, type ContextBudgetResult, type ContextIntent, type ContextRecordCategory, type ContextSectionInput } from '../../../packages/together-domain/src/index.ts';
+import { budgetContextSections, contextInputTokenCeiling, formatRollingConversationState, intimateLifeEligible, isContradictoryAcceptedIntimacyRefusal, isNonAuthoritativeIntimacyDecline, publicCharacterBible, rankContextRecords, type ContextBudgetResult, type ContextIntent, type ContextRecordCategory, type ContextSectionInput } from '../../../packages/together-domain/src/index.ts';
 import { selectLocationLore, type LocationLoreIntent } from '../../../packages/together-domain/src/location-depth.ts';
 import { dialogueSafeContext, KIVELLE_CLOSED_WORLD_RULES } from './kivelle-closed-world.ts';
 import { renderPersonaPromptBlock } from './kivelle-persona.ts';
@@ -436,8 +436,8 @@ export function preparePromptContext(context:any,mode:'full'|'compact'|'minimal'
 
 function recentTurnsForPrompt(context:any):any[]{
   const recent=context.recent??[];
-  if(context.dialogueRouting?.responseRepair!=='accepted_intimacy_contradiction')return recent;
-  return recent.filter((turn:any)=>turn.role!=='assistant'||!isContradictoryAcceptedIntimacyRefusal(String(turn.content??'')));
+  const repairing=context.dialogueRouting?.responseRepair==='accepted_intimacy_contradiction';
+  return recent.filter((turn:any)=>turn.role!=='assistant'||(!isNonAuthoritativeIntimacyDecline(turn)&&(!repairing||!isContradictoryAcceptedIntimacyRefusal(String(turn.content??'')))));
 }
 
 function extractPromptSections(prompt:string):Array<{key:string;content:string}>{
