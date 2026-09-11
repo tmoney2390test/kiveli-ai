@@ -1,3 +1,4 @@
+import { CatalogImage as Image } from './CatalogImage';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
@@ -8,7 +9,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { Image, type ImageSource } from "expo-image";
+import type { ImageSource } from "expo-image";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   runOnJS,

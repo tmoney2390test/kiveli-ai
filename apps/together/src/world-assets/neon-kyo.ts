@@ -1,3 +1,4 @@
+import { catalogArtwork } from '../catalogArtwork';
 import type { ImageSource } from 'expo-image';
 
-export const neonKyoHero:ImageSource=require('../../assets/worlds/neon-kyo/neon-kyo-hero.jpg');
+export const neonKyoHero:ImageSource=catalogArtwork('worlds/neon-kyo/neon-kyo-hero.jpg');

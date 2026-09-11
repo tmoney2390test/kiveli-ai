@@ -1,7 +1,7 @@
+import { CatalogImage as Image } from '../src/components/CatalogImage';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { Image } from 'expo-image';
 import { X } from 'lucide-react-native';
 import { characterAssets } from '../src/assets';
 import { Body, DateChoice, GradientButton, Screen } from '../src/components';

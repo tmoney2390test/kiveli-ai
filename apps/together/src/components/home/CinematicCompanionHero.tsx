@@ -1,6 +1,7 @@
+import { CatalogImage as Image } from '../CatalogImage';
 import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, Animated, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { Image, type ImageContentPosition, type ImageSource } from 'expo-image';
+import { type ImageContentPosition, type ImageSource } from 'expo-image';
 import { ArrowRight, MapPin } from 'lucide-react-native';
 import { colors, typography } from '../../theme';
 import type { CharacterInstance, CharacterVersion } from '../../types';

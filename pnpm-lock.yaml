@@ -37,6 +37,9 @@ importers:
       globals:
         specifier: ^16.5.0
         version: 16.5.0
+      sharp:
+        specifier: 0.35.2
+        version: 0.35.2
       supabase:
         specifier: ^2.111.0
         version: 2.114.0

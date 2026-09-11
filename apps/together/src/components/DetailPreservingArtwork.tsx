@@ -1,5 +1,6 @@
+import { CatalogImage as Image } from './CatalogImage';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { Image, type ImageContentPosition, type ImageSource } from 'expo-image';
+import { type ImageContentPosition, type ImageSource } from 'expo-image';
 import { KIVELLI_IMAGE_PLACEHOLDER } from '../lib/imageWarmup';
 
 type Props = {

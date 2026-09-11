@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { CatalogImage as Image } from './CatalogImage';
 import { ArrowUpRight, Users, X } from 'lucide-react-native';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useEffect, useState } from 'react';

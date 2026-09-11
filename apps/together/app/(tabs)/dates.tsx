@@ -1,7 +1,7 @@
+import { CatalogImage as Image } from '../../src/components/CatalogImage';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Image } from 'expo-image';
 import { CalendarDays, Clock3, LockKeyhole, MapPin, Sparkles } from 'lucide-react-native';
 import { characterAssets, cityLifeAsset, locationHeroAsset } from '../../src/assets';
 import { CharacterAvatar, EmptyState, LoadingSkeleton, PageTitle, Screen, SectionHeader } from '../../src/components';

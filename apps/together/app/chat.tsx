@@ -1,9 +1,10 @@
+import { CatalogImage as Image } from '../src/components/CatalogImage';
 import { VeniceTestDiagnostics } from '../src/components/VeniceTestDiagnostics';
 import { useContextQuote } from '../src/hooks/useContextQuote';
 import { ContextPricePreview } from '../src/components/settings/ContextPricePreview';
 import { Children, isValidElement, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
 import { ActivityIndicator, Alert, Animated, AppState, FlatList, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type FlatListProps } from 'react-native';
-import { Image, type ImageSource } from 'expo-image';
+import { type ImageSource } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Brain, CalendarDays, Camera, Check, ChevronRight, Copy, FastForward, Flag, Heart, Images, LockKeyhole, MapPin, MessageCircle, Mic, MoreHorizontal, Pause, Phone, Play, Send, Sparkles, Square, Trash2, Undo2, Volume2, Wand2, X } from 'lucide-react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
