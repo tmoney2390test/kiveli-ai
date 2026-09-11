@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatVideoTime, webVideoControlButtonStyle, webVideoElementAttributes } from './WebVideoSurface';
+import { formatVideoTime, webVideoControlButtonStyle, webVideoElementAttributes, webVideoLoaderStyle } from './WebVideoSurface';
 
 describe('mobile web video surface',()=>{
   it('renders an inline HTML5 video with custom touch controls and explicit tap-to-play',()=>{
@@ -14,6 +14,14 @@ describe('mobile web video surface',()=>{
 
   it('does not autoplay an inactive background player',()=>{
     expect(webVideoElementAttributes({uri:'https://media.example.test/video.mp4',active:false,autoPlay:true}).autoPlay).toBe(false);
+  });
+
+  it('supports muted autoplay for an active video',()=>{
+    expect(webVideoElementAttributes({uri:'https://media.example.test/video.mp4',active:true,autoPlay:true})).toMatchObject({autoPlay:true,muted:true,defaultMuted:true,playsInline:true});
+  });
+
+  it('animates the branded loading ring',()=>{
+    expect(webVideoLoaderStyle).toMatchObject({borderTopColor:'#F06A9D',borderRightColor:'#A676FF',animation:'kivelli-route-spin .78s linear infinite'});
   });
 
   it('keeps the video surface full-size before the first play gesture',()=>{

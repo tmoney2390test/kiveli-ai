@@ -9,8 +9,8 @@ import{WebVideoSurface}from'./WebVideoSurface';
 
 export function VideoLightbox({visible,uri,posterUri,aspectRatio,audioBehavior='unknown',onClose}:{visible:boolean;uri:string;posterUri?:string|null;aspectRatio:number;audioBehavior?:'has_audio'|'silent'|'unknown'|null;onClose:()=>void}){
   const{width,height}=useWindowDimensions(),insets=useSafeAreaInsets(),[ready,setReady]=useState(false);
-  const player=useVideoPlayer(uri,(instance)=>{instance.loop=true;instance.muted=false;});
-  useEffect(()=>{setReady(false);if(!visible)player.pause();},[player,uri,visible]);
+  const player=useVideoPlayer(uri,(instance)=>{instance.loop=true;instance.muted=true;});
+  useEffect(()=>{setReady(false);if(!visible){player.pause();return;}player.muted=true;player.play();},[player,uri,visible]);
   const controlsSpace=Platform.OS==='web'?24:Math.max(16,insets.bottom),topSpace=Platform.OS==='web'?24:Math.max(16,insets.top);
   const frame=containedMediaFrame({width,height},aspectRatio,12);
   return <Modal visible={visible} transparent statusBarTranslucent supportedOrientations={['portrait','portrait-upside-down','landscape-left','landscape-right']} animationType="fade" onRequestClose={onClose}>
