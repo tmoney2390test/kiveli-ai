@@ -21,3 +21,17 @@ export function mediaRouteFailureState(error: unknown): "missing" | "retry" {
   if (typeof error !== "object" || error === null || !("code" in error)) return "retry";
   return (error as { code?: unknown }).code === "NOT_FOUND" ? "missing" : "retry";
 }
+
+export function mediaDuringRouteRecovery<T extends { id: string }>(input: {
+  routeId?: string;
+  snapshotMedia?: T;
+  retainedMedia?: T | null;
+  recovery: MediaRouteRecovery | null;
+}): T | undefined {
+  if (input.snapshotMedia?.id === input.routeId) return input.snapshotMedia;
+  const recovery = input.recovery;
+  if (recovery && recovery.id === input.routeId && recovery.state === "missing") return undefined;
+  const retainedMedia = input.retainedMedia;
+  if (retainedMedia && retainedMedia.id === input.routeId) return retainedMedia;
+  return undefined;
+}

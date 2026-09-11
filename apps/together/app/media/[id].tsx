@@ -17,7 +17,7 @@ import { containedMediaFrame, fixedMediaFrameStyle, mediaAspectRatio, resolveAss
 import { privateMediaPlaybackUrl } from '../../src/lib/privateMediaUrl';
 import { supabaseUrl } from '../../src/lib/supabase';
 import { conversationReturnHref, mediaViewerHref, navigateLocalRouteOnWeb } from '../../src/lib/conversationNavigation';
-import { mediaRouteFailureState, resolveMediaRoutePresentation, type MediaRouteRecovery } from '../../src/lib/mediaRouteRecovery';
+import { mediaDuringRouteRecovery, mediaRouteFailureState, resolveMediaRoutePresentation, type MediaRouteRecovery } from '../../src/lib/mediaRouteRecovery';
 import { mediaReconciliationComplete } from '../../src/lib/mediaReconciliation';
 
 const EDIT_SUGGESTIONS=['Fix the face','Fix the hands','Change the outfit','Change the pose','Adjust the lighting','Reframe the photo'];
@@ -26,8 +26,11 @@ export default function MediaViewer(){
   const {id:routeId,gallery,character:galleryCharacter,returnTo}=useLocalSearchParams<{id:string|string[];gallery?:MediaCarouselMode;character?:string;returnTo?:string}>(),id=Array.isArray(routeId)?routeId[0]:routeId;
   const{snapshot,refresh,removeMedia,upsertMedia}=useTogether();
   const[animating,setAnimating]=useState(false),[removing,setRemoving]=useState(false),[retrying,setRetrying]=useState(false),[photoRefreshing,setPhotoRefreshing]=useState(false),[photoPlaybackError,setPhotoPlaybackError]=useState<string|null>(null),[editOpen,setEditOpen]=useState(false),[lightboxOpen,setLightboxOpen]=useState(false),[videoFullscreenOpen,setVideoFullscreenOpen]=useState(false),[videoOpen,setVideoOpen]=useState(false),[videoRequestId,setVideoRequestId]=useState(''),[videoOptions,setVideoOptions]=useState<VideoGenerationOptions|null>(null),[videoError,setVideoError]=useState<string|null>(null),[videoProgress,setVideoProgress]=useState<string|null>(null),[diagnostics,setDiagnostics]=useState<VideoDiagnostics|null>(null),[editing,setEditing]=useState(false),[instruction,setInstruction]=useState(''),[videoReady,setVideoReady]=useState(false),[videoRefreshing,setVideoRefreshing]=useState(false),[videoPlaybackError,setVideoPlaybackError]=useState<string|null>(null),[videoPlaybackUrl,setVideoPlaybackUrl]=useState<string|null>(null),[videoPosterUrl,setVideoPosterUrl]=useState<string|null>(null),[stageSize,setStageSize]=useState({width:0,height:0}),[routeMediaRecovery,setRouteMediaRecovery]=useState<MediaRouteRecovery|null>(null);
-  const playbackRecorded=useRef(false),playbackRefreshRequest=useRef(0),routeMediaRequest=useRef(0),photoAutoRefresh=useRef(false);
-  const media=snapshot?.generatedMedia?.find((item)=>item.id===id),character=snapshot?.characters.find((item)=>item.id===media?.character_instance_id);
+  const playbackRecorded=useRef(false),playbackRefreshRequest=useRef(0),routeMediaRequest=useRef(0),photoAutoRefresh=useRef(false),retainedRouteMedia=useRef<GeneratedMedia|null>(null);
+  const snapshotMedia=snapshot?.generatedMedia?.find((item)=>item.id===id);
+  if(retainedRouteMedia.current?.id!==id)retainedRouteMedia.current=null;
+  if(snapshotMedia)retainedRouteMedia.current=snapshotMedia;
+  const media=mediaDuringRouteRecovery({routeId:id,snapshotMedia,retainedMedia:retainedRouteMedia.current,recovery:routeMediaRecovery}),character=snapshot?.characters.find((item)=>item.id===media?.character_instance_id),snapshotReady=Boolean(snapshot);
   const associatedVideo=media?.media_type==='image'?(snapshot?.generatedMedia??[]).filter((item)=>item.media_type==='video'&&item.parent_media_id===media.id).sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime())[0]:undefined;
   const player=useVideoPlayer(null,(instance)=>{instance.loop=true;instance.muted=true;});
   const recoverRouteMedia=useCallback(async(mediaId:string)=>{
@@ -44,9 +47,9 @@ export default function MediaViewer(){
     }
   },[upsertMedia]);
   useEffect(()=>{
-    if(!snapshot||!id||media)return;
+    if(!snapshotReady||!id||snapshotMedia)return;
     void recoverRouteMedia(id);
-  },[id,media?.id,recoverRouteMedia,snapshot]);
+  },[id,recoverRouteMedia,snapshotMedia?.id,snapshotReady]);
   const recordPlaybackStarted=useCallback(()=>{
     const mediaId=media?.id;
     if(!mediaId||media?.media_type!=='video'||media.status!=='ready'||playbackRecorded.current)return;
@@ -167,7 +170,7 @@ export default function MediaViewer(){
 
   useEffect(()=>{photoAutoRefresh.current=false;setPhotoPlaybackError(null);},[media?.id,media?.signed_url]);
   const routePresentation=resolveMediaRoutePresentation({routeId:id,snapshotReady:Boolean(snapshot),mediaId:media?.id,recovery:routeMediaRecovery});
-  if(routePresentation==='loading')return <LoadingSkeleton label="Opening the photo…"/>;
+  if(routePresentation==='loading')return <LoadingSkeleton label="Opening your moment…"/>;
   if(!media){
     const missing=routePresentation==='missing';
     return <ErrorState message={missing?'This photo is no longer part of your story.':'This photo could not be reopened securely.'} onRetry={missing||!id?undefined:()=>void recoverRouteMedia(id)}/>;
