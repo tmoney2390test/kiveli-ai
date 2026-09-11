@@ -7,6 +7,7 @@ const context = {
   directRecall: rows("direct", 5),
   callbacks: rows("callback", 1),
   silent: rows("silent", 20),
+  standingBehavior: [],
   callbackAllowance: 5,
   retrievedIds: [
     ...rows("direct", 5),
@@ -46,4 +47,16 @@ Deno.test("zero budget returns no recalled memory or callback allowance", () => 
   assertEquals(result.callbacks, []);
   assertEquals(result.silent, []);
   assertEquals(result.callbackAllowance, 0);
+});
+
+Deno.test("standing relationship memories stay in the core-rule set even at a zero recall budget", () => {
+  const result = applyMemoryRetrievalBudget({
+    ...context,
+    standingBehavior: [{ id: "married" }],
+    retrievedIds: ["married", ...context.retrievedIds],
+    debug: [{ id: "married" }, ...(context.debug ?? [])],
+  }, 0);
+  assertEquals(result.standingBehavior, [{ id: "married" }]);
+  assertEquals(result.retrievedIds, ["married"]);
+  assertEquals(result.silent, []);
 });

@@ -34,6 +34,7 @@ import {
   classifyConversationQuery,
   type ChemistrySignal,
   classifyGroupSocialEvent,
+  collectStandingMemoryTexts,
   compileIntimacyStance,
   containsSecretLikeValue,
   detectFlirtSignal,
@@ -2532,6 +2533,7 @@ function attachIntimacyStance(context: any) {
     requestedMode: normalizeContentMode(
       context.dialogueRouting?.requestedMode ?? context.contentMode,
     ),
+    standingMemories: collectStandingMemoryTexts(context),
   });
 }
 

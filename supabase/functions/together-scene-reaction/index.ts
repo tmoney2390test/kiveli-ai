@@ -11,7 +11,7 @@ import { ConfiguredDialogueProvider, ConfiguredModerationProvider } from '../_sh
 import { track } from '../_shared/together.ts';
 import { acknowledgeConversationScene } from '../_shared/together-conversation.ts';
 import { resolveDialogueRouting } from '../_shared/kivelle-ai-routing.ts';
-import { compileIntimacyStance, isDialogueHardBlocked, type DialogueContentMode } from '../../../packages/together-domain/src/index.ts';
+import { collectStandingMemoryTexts, compileIntimacyStance, isDialogueHardBlocked, type DialogueContentMode } from '../../../packages/together-domain/src/index.ts';
 import { requestedConversationDialogueContentMode } from '../_shared/conversation-content-mode.ts';
 import { attachAuthoredDepthContext } from '../_shared/kivelle-authored-depth-context.ts';
 import { resolveAdultAccess } from '../_shared/web-adult-access.ts';
@@ -54,7 +54,7 @@ Deno.serve(async(request)=>{
     const route=resolveDialogueRouting({message:label,requestedMode,ageVerified:adultAccess.adult_eligible,adultAuthorized:dialoguePolicy.rollout.generationAllowed,characterAge:Number(instance.together_character_templates?.age??instance.together_character_versions?.age??0)||null,relationshipAllowsExplicit:context.relationship?.romance_enabled!==false&&context.relationship?.romance_path_status!=='friends_only',moderation:inputSafety});
     context.contentMode=route.resolvedMode;
     (context as Record<string,unknown>).dialogueRouting={provider:route.provider,reason:route.reason,classification:route.classification,requestedMode:route.requestedMode,contentMode:route.resolvedMode,explicit:route.explicit};
-    const intimacyStance=compileIntimacyStance({message:label,recentTurns:context.recent,relationship:{...context.relationship,spiceLevel:context.character?.spice_level,personality:context.character?.personality_config},personality:context.character?.personality_config,interactionMode:context.currentScene?.interactionMode,availability:context.currentScene?.interruptibility??context.currentScene?.availability,requestedMode});
+    const intimacyStance=compileIntimacyStance({message:label,recentTurns:context.recent,relationship:{...context.relationship,spiceLevel:context.character?.spice_level,personality:context.character?.personality_config},personality:context.character?.personality_config,interactionMode:context.currentScene?.interactionMode,availability:context.currentScene?.interruptibility??context.currentScene?.availability,requestedMode,standingMemories:collectStandingMemoryTexts(context)});
     (context as Record<string,unknown>).intimacyStance=intimacyStance;
     await attachAuthoredDepthContext({db,userId:user.id,continuityId:continuity.id,conversationId:conversation.id,characterInstanceId:input.characterInstanceId,characterVersionId:String(instance.character_version_id??''),context,now});
     const usageScope={db,userId:user.id,continuityId:continuity.id,conversationId:conversation.id,characterInstanceId:input.characterInstanceId,subscriptionTier:context.subscription?.tier,routeReason:route.reason,contentMode:route.resolvedMode,correlationId};

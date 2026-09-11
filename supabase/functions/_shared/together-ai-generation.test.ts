@@ -87,7 +87,7 @@ Deno.test('Gemini fallback applies dynamism, group hierarchy, reasoning, and vis
     character:{name:'Mara',age:30,personality_config:{traits:['warm']},communication_style:{}},
     persona:{},relationship:{conflict:30},generationPreferences:{chatDynamism:100,reasoningPreference:'high'},
     subscription:{tier:'kivelle_max'},interactionQuality:'major_relationship_event',responseBrief:{mode:'repair'},director:{used:false},
-    memoryContext:{silent:[],callbacks:[],directRecall:[],callbackAllowance:0},memories:[],openThreads:[],sharedPlans:[],commitments:[],
+    memoryContext:{silent:[],callbacks:[],directRecall:[],standingBehavior:[],callbackAllowance:0},memories:[],openThreads:[],sharedPlans:[],commitments:[],
     dates:{active:null,upcoming:[],unlocked:[],recentCompleted:[]},planningCatalog:[],social:[],worldPulse:[],knownLifeEvents:[],recentEpisodes:[],
     currentScene:{location:'Home',activity:'Talking',mood:'calm',energy:'steady',availability:'open',interactionMode:'remote',sceneBehavior:{}},
     clock:{},experienceCapabilities:{},relationshipStance:{},characterGoals:{},characterUserView:{},characterVoice:{},antiRepetition:[],

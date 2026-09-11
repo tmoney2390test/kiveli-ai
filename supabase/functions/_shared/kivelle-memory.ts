@@ -1,10 +1,10 @@
-import { buildMemoryRecallPlan, decayEmotionalResidue, isDurableUserMemory, type MemoryActivationContext } from '../../../packages/together-domain/src/index.ts';
+import { buildMemoryRecallPlan, decayEmotionalResidue, isBehaviorAlteringMemory, isDurableUserMemory, type MemoryActivationContext } from '../../../packages/together-domain/src/index.ts';
 
 type Row = Record<string, any>;
 type MemoryRow = Row & { id: string };
 
 export type MemoryContextEntry = { id:string; text:string; type:string; pinned:boolean; importance:number; sourceType?:string; episodeId?:string; locationId?:string|null; worldId?:string|null; contextTags?:string[] };
-export type ActivatedMemoryContext = { silent:MemoryContextEntry[]; callbacks:MemoryContextEntry[]; directRecall:MemoryContextEntry[]; callbackAllowance:number; retrievedIds:string[]; debug?:Array<{id:string;activation:number;mode:string;reasonCodes:string[]}> };
+export type ActivatedMemoryContext = { silent:MemoryContextEntry[]; callbacks:MemoryContextEntry[]; directRecall:MemoryContextEntry[]; standingBehavior:MemoryContextEntry[]; callbackAllowance:number; retrievedIds:string[]; debug?:Array<{id:string;activation:number;mode:string;reasonCodes:string[]}> };
 
 const flagEnabled = () => Deno.env.get('KIVELLE_MEMORY_ACTIVATION_V2') !== 'false';
 
@@ -14,8 +14,11 @@ export async function retrieveActivatedMemories(input:{db:any;userId:string;char
   for(const item of input.semanticRows??[]){const id=String(item.id??'');if(!id||!durableRow(item))continue;candidates.set(id,{...(candidates.get(id)??{}),...item,id,metadata:{...(candidates.get(id)?.metadata??{}),...(item.metadata??{})}});}
   if(!flagEnabled()){
     const fallback=[...candidates.values()].slice(0,8).map((row)=>present(row));
+    const standing=fallback.filter((item)=>isBehaviorAlteringMemory(item.text));
+    const standingIds=new Set(standing.map((item)=>item.id));
+    const silent=fallback.filter((item)=>!standingIds.has(item.id));
     await markRetrieved(input.db,input.userId,fallback.map((item)=>item.id),input.now);
-    return{silent:fallback,callbacks:[],directRecall:[],callbackAllowance:0,retrievedIds:fallback.map((item)=>item.id)};
+    return{silent,callbacks:[],directRecall:[],standingBehavior:standing,callbackAllowance:0,retrievedIds:fallback.map((item)=>item.id)};
   }
   const scene=input.currentScene??{};
   const recentAssistantMemoryIds=(input.recentAssistantMessages??[]).flatMap((message)=>extractMemoryIds(String(message.content??''),candidates));
@@ -25,9 +28,10 @@ export async function retrieveActivatedMemories(input:{db:any;userId:string;char
   const silent=plan.silentContext.map((item)=>present(candidates.get(item.id)??{},item));
   const callbacks=plan.callbackCandidates.map((item)=>present(candidates.get(item.id)??{},item));
   const directRecall=plan.directRecall.map((item)=>present(candidates.get(item.id)??{},item));
-  const retrievedIds=[...new Set([...silent,...callbacks,...directRecall].map((item)=>item.id))];
+  const standingBehavior=plan.standingBehavior.map((item)=>present(candidates.get(item.id)??{},item));
+  const retrievedIds=[...new Set([...silent,...callbacks,...directRecall,...standingBehavior].map((item)=>item.id))];
   await markRetrieved(input.db,input.userId,retrievedIds,input.now);
-  return{silent,callbacks,directRecall,callbackAllowance:plan.explicitCallbackAllowance,retrievedIds,debug:plan.silentContext.concat(plan.callbackCandidates,plan.directRecall).map((item)=>({id:item.id,activation:item.activationScore,mode:item.recallMode,reasonCodes:item.reasonCodes}))};
+  return{silent,callbacks,directRecall,standingBehavior,callbackAllowance:plan.explicitCallbackAllowance,retrievedIds,debug:plan.silentContext.concat(plan.callbackCandidates,plan.directRecall,plan.standingBehavior).map((item)=>({id:item.id,activation:item.activationScore,mode:item.recallMode,reasonCodes:item.reasonCodes}))};
 }
 
 export async function markMentionedMemories(input:{db:any;userId:string;memoryIds:string[];now:Date;reinforcedIds?:string[]}):Promise<void>{

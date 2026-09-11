@@ -13,6 +13,7 @@ import {
   classifyChemistryResponseIntent,
   compileCharacterGoals,
   compileCharacterVoiceCard,
+  collectStandingMemoryTexts,
   compileRelationshipStance,
   compileResponseBrief,
   type KivelleCapabilities,
@@ -63,15 +64,16 @@ export type TieredConversationContext = BaseContext & {
   generationPreferences:ChatGenerationPreferences;
 };
 
-type BudgetedMemoryContext<T,D extends {id:string}>={silent:T[];callbacks:T[];directRecall:T[];callbackAllowance:number;retrievedIds:string[];debug?:D[]};
+type BudgetedMemoryContext<T,D extends {id:string}>={silent:T[];callbacks:T[];directRecall:T[];standingBehavior:T[];callbackAllowance:number;retrievedIds:string[];debug?:D[]};
 
 /** Apply the subscription budget to the combined recall set, not each bucket independently. */
 export function applyMemoryRetrievalBudget<T extends {id:string},D extends {id:string}>(context:BudgetedMemoryContext<T,D>,requestedBudget:number):BudgetedMemoryContext<T,D>{
+  const standingBehavior=context.standingBehavior??[];
   let remaining=Math.max(0,Math.floor(requestedBudget));
   const directRecall=context.directRecall.slice(0,Math.min(5,remaining));remaining-=directRecall.length;
   const callbacks=context.callbacks.slice(0,Math.min(1,remaining));remaining-=callbacks.length;
-  const silent=context.silent.slice(0,remaining),selectedIds=new Set([...directRecall,...callbacks,...silent].map((item)=>item.id));
-  return{...context,directRecall,callbacks,silent,callbackAllowance:Math.min(context.callbackAllowance,directRecall.length||callbacks.length),retrievedIds:context.retrievedIds.filter((id)=>selectedIds.has(id)),...(context.debug?{debug:context.debug.filter((item)=>selectedIds.has(item.id))}:{})};
+  const silent=context.silent.slice(0,remaining),selectedIds=new Set([...standingBehavior,...directRecall,...callbacks,...silent].map((item)=>item.id));
+  return{...context,standingBehavior,directRecall,callbacks,silent,callbackAllowance:Math.min(context.callbackAllowance,directRecall.length||callbacks.length),retrievedIds:[...new Set([...standingBehavior.map((item)=>item.id),...context.retrievedIds.filter((id)=>selectedIds.has(id))])],...(context.debug?{debug:context.debug.filter((item)=>selectedIds.has(item.id))}:{})};
 }
 
 export async function buildTieredKivelleConversationContext(
@@ -177,6 +179,7 @@ export async function buildTieredKivelleConversationContext(
   const memoryContext=applyMemoryRetrievalBudget(base.memoryContext,caps.memoryRetrievalBudget);
   const conversationEpisodes=base.conversationEpisodes.slice(0,caps.historyRetrievalBudget);
   const memories = [
+      ...(memoryContext.standingBehavior ?? []),
       ...memoryContext.silent,
       ...memoryContext.callbacks,
       ...memoryContext.directRecall,
@@ -266,7 +269,7 @@ export async function buildTieredKivelleConversationContext(
     ...base.relationship,
     spiceLevel,
     personality,
-  }, reflectionView);
+  }, reflectionView, collectStandingMemoryTexts(base));
   const characterGoals = compileCharacterGoals({
     occupation: String(base.character?.occupation ?? ""),
     currentActivity: base.currentScene.activity,

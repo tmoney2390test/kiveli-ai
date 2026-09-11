@@ -11,7 +11,7 @@ const baseContext={
     {role:'user',content:'Please check with billing about my massage.'},
     {role:'assistant',content:'I will ask when the floor settles.'},
   ],
-  memoryContext:{silent:[],callbacks:[],directRecall:[],callbackAllowance:0},
+  memoryContext:{silent:[],callbacks:[],directRecall:[],standingBehavior:[],callbackAllowance:0},
   subscription:{intelligenceProfile:'core'},
 };
 

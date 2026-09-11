@@ -186,8 +186,8 @@ export async function buildKivelleConversationContext(input: {
   const enabledSemanticMemories=filterMemoriesForPreferences(safeSemanticRows,memoryPreferences);
   const memoryContext:ActivatedMemoryContext=personalizationEnabled
     ?await retrieveActivatedMemories({db,userId,characterInstanceId:String(instance.id),userMessage,intent,storedRows:enabledStoredMemories,semanticRows:enabledSemanticMemories,currentScene:{...currentScene,worldId:place?.world.id},relationship:relationship.data??{},recentAssistantMessages:(messages.data??[]).filter((item:Row)=>item.role==='assistant'),now,candidateLimit:input.memoryCandidateLimit})
-    :{silent:[],callbacks:[],directRecall:[],callbackAllowance:0,retrievedIds:[]};
-  const memoryRows=[...memoryContext.silent,...memoryContext.callbacks,...memoryContext.directRecall];
+    :{silent:[],callbacks:[],directRecall:[],standingBehavior:[],callbackAllowance:0,retrievedIds:[]};
+  const memoryRows=[...memoryContext.standingBehavior,...memoryContext.silent,...memoryContext.callbacks,...memoryContext.directRecall];
   const plansView = (plans.data ?? []).map((plan:Row) => ({
     id:String(plan.id), title:String(plan.title), activityKey:String(plan.activity_key), status:String(plan.status), startsAt:String(plan.starts_at), endsAt:plan.ends_at ?? null,
     startsAtLabel:formatExperienceTime(String(plan.starts_at),timezone),endsAtLabel:formatExperienceTime(String(plan.ends_at),timezone),locationId:plan.location_id?String(plan.location_id):null,

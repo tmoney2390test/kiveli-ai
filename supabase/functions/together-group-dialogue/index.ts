@@ -9,6 +9,7 @@ import {
   classifyDeterministicTrustConsequence,
   classifyDeterministicTrustRepair,
   classifyGroupSocialEvent,
+  collectStandingMemoryTexts,
   compileIntimacyStance,
   containsSecretLikeValue,
   hasExplicitSexualOutputLanguage,
@@ -955,6 +956,7 @@ function groupStream(input: any): Response {
             interactionMode: String(context.currentScene?.interactionMode ?? "remote"),
             availability: String(context.currentScene?.interruptibility ?? context.currentScene?.availability ?? "open"),
             requestedMode,
+            standingMemories: collectStandingMemoryTexts(context),
           });
           await attachAuthoredDepthContext({
             db: input.db,

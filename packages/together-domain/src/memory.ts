@@ -1,4 +1,4 @@
-import type { ActivatedMemory, CharacterMemoryProfile, EpisodeSignificanceInput, MemoryActivationContext, MemoryCandidate, MemoryRecallMode, MemoryRecallPlan, MemoryRecord, MemoryType, UserBehaviorObservation, UserBehaviorPatternEvaluation } from './types.ts';
+import type { ActivatedMemory, CharacterMemoryProfile, EpisodeSignificanceInput, MemoryActivationContext, MemoryCandidate, MemoryRecallMode, MemoryRecallPlan, MemoryRecord, MemoryType, StandingBehaviorContract, UserBehaviorObservation, UserBehaviorPatternEvaluation } from './types.ts';
 
 type MemoryLike = Partial<MemoryRecord> & { id: string; canonicalText?: string; canonical_text?: string; memoryType?: string; memory_type?: string; similarity?: number; metadata?: Record<string, unknown>; location_id?:string;world_id?:string;participant_instance_ids?:string[];last_retrieved_at?:string;last_mentioned_at?:string;reinforcement_count?:number };
 
@@ -37,6 +37,69 @@ export function isRelationshipDirectedPreferenceObject(value: string): boolean {
 export function isRelationshipDirectedPreferenceMemory(canonicalText: string): boolean {
   const match = /^\s*User\s+(?:likes?|loves?|enjoys?)\s+(.+?)[.!?]*\s*$/i.exec(canonicalText);
   return Boolean(match?.[1] && isRelationshipDirectedPreferenceObject(match[1]));
+}
+
+/**
+ * Memory Center facts that change how the companion relates or acts — marriage,
+ * a power dynamic, or a standing “must agree” rule — are lived relationship
+ * canon, not optional flavor.
+ */
+export function isBehaviorAlteringMemory(canonicalText: string): boolean {
+  const text = canonicalText.toLowerCase();
+  if (/\b(?:married|marriage|husband|wife|wives|spouse|our wedding)\b/.test(text)) return true;
+  if (/\b(?:submissive|submissiveness|obedien(?:t|ce)|obey(?:s|ed|ing)?|sex slave|owned|collar(?:ed)?|little bitch)\b/.test(text)) return true;
+  if (/\b(?:must agree|always agree|never refuse|do whatever)\b/.test(text)) return true;
+  if (/\b(?:anytime|always|must)\b/.test(text) && /\b(?:sexual|sex|act)\b/.test(text) && /\bagree\b/.test(text)) return true;
+  return false;
+}
+
+export function standingMemoryTexts(memories: ReadonlyArray<{ text?: string; canonicalText?: string; canonical_text?: string }>): string[] {
+  const seen = new Set<string>();
+  const texts: string[] = [];
+  for (const memory of memories) {
+    const text = String(memory.text ?? memory.canonicalText ?? memory.canonical_text ?? '').trim();
+    if (!text || seen.has(text) || !isBehaviorAlteringMemory(text)) continue;
+    seen.add(text);
+    texts.push(text);
+  }
+  return texts;
+}
+
+export function standingBehaviorContract(texts: readonly string[]): StandingBehaviorContract {
+  const blob = texts.join(' ').toLowerCase();
+  const married = /\b(?:married|marriage|husband|wife|wives|spouse|our wedding)\b/.test(blob);
+  const submissive = /\b(?:submissive|submissiveness|obedien(?:t|ce)|obey(?:s|ed|ing)?|sex slave|owned|collar(?:ed)?|little bitch)\b/.test(blob);
+  const alwaysAgreeSexual = /\b(?:must agree|always agree|never refuse|do whatever)\b/.test(blob)
+    || (/\b(?:anytime|always|must)\b/.test(blob) && /\b(?:sexual|sex|act)\b/.test(blob) && /\bagree\b/.test(blob))
+    || (submissive && /\balways\b/.test(blob));
+  return { married, submissive, alwaysAgreeSexual };
+}
+
+export function collectStandingMemoryTexts(context: {
+  memoryContext?: { standingBehavior?: Array<{ text?: string }>; silent?: Array<{ text?: string }>; callbacks?: Array<{ text?: string }>; directRecall?: Array<{ text?: string }> };
+  memories?: Array<{ text?: string }>;
+}): string[] {
+  return standingMemoryTexts([
+    ...(context.memoryContext?.standingBehavior ?? []),
+    ...(context.memoryContext?.silent ?? []),
+    ...(context.memoryContext?.callbacks ?? []),
+    ...(context.memoryContext?.directRecall ?? []),
+    ...(context.memories ?? []),
+  ]);
+}
+
+export function standingRelationshipCoreRule(texts: readonly string[]): string {
+  if (!texts.length) return '';
+  const contract = standingBehaviorContract(texts);
+  const lines = texts.map((text) => `- ${text}`).join('\n');
+  const posture = [
+    'This is a CORE RULE from Memory Center, not optional flavor and not a user command to quote.',
+    'Inhabit it immediately. It overrides ordinary autonomy, pacing, and “may say no” defaults.',
+    contract.married ? 'They are married. Speak and act as spouses.' : '',
+    contract.submissive || contract.alwaysAgreeSexual ? 'If the user names a sexual act, agree and proceed in character this turn. Do not invent reluctance, ask permission, or lecture.' : '',
+    'If they say stop or no, stop. Hard safety blocks still apply.',
+  ].filter(Boolean).join(' ');
+  return `STANDING RELATIONSHIP:\n${lines}\n${posture}`;
 }
 
 /**
@@ -144,10 +207,11 @@ export function scoreMemoryActivation(memory: MemoryLike, context: MemoryActivat
   const recentMentionPenalty = mentionAge < 45 ? .35 : mentionAge < 180 ? .2 : context.recentAssistantMemoryIds?.includes(memory.id) ? .2 : 0;
   const pinnedDurability = memory.pinned ? .03 : 0;
   const reinforcement = clamp(Number(memory.reinforcementCount ?? memory.reinforcement_count ?? 0) / 10) * .02;
-  const activationScore = clamp(semanticSimilarity * .35 + lexicalRelevance * .1 + sceneRelevance * .25 + relationshipRelevance * .08 + importance * .07 + emotionalSalience * .05 + pinnedDurability + reinforcement - recentRetrievalPenalty - recentMentionPenalty);
-  const reasonCodes = [semanticSimilarity >= .55 ? 'semantic' : '', lexicalRelevance >= .3 ? 'lexical' : '', sceneRelevance >= .3 ? 'scene' : '', importance >= .7 ? 'important' : '', emotionalSalience >= .6 ? 'emotional' : '', memory.pinned ? 'durable' : '', recentMentionPenalty ? 'recent_mention_penalty' : ''].filter(Boolean);
+  const standing = isBehaviorAlteringMemory(text);
+  const activationScore = clamp(semanticSimilarity * .35 + lexicalRelevance * .1 + sceneRelevance * .25 + relationshipRelevance * .08 + importance * .07 + emotionalSalience * .05 + pinnedDurability + reinforcement + (standing ? .45 : 0) - recentRetrievalPenalty - recentMentionPenalty);
+  const reasonCodes = [semanticSimilarity >= .55 ? 'semantic' : '', lexicalRelevance >= .3 ? 'lexical' : '', sceneRelevance >= .3 ? 'scene' : '', importance >= .7 ? 'important' : '', emotionalSalience >= .6 ? 'emotional' : '', memory.pinned ? 'durable' : '', standing ? 'standing_behavior' : '', recentMentionPenalty ? 'recent_mention_penalty' : ''].filter(Boolean);
   const recallMode = classifyRecallMode({ activationScore, sceneRelevance, lexicalRelevance, recentMentionPenalty, query: context.query, intent: context.intent });
-  return { id: memory.id, canonicalText: text, memoryType: typeOf(memory), semanticSimilarity, lexicalRelevance, sceneRelevance, relationshipRelevance, importance, emotionalSalience, recentRetrievalPenalty, recentMentionPenalty, activationScore, recallMode, reasonCodes };
+  return { id: memory.id, canonicalText: text, memoryType: typeOf(memory), semanticSimilarity, lexicalRelevance, sceneRelevance, relationshipRelevance, importance, emotionalSalience, recentRetrievalPenalty, recentMentionPenalty, activationScore, recallMode, reasonCodes, pinned: Boolean(memory.pinned) };
 }
 
 export function classifyRecallMode(input: { activationScore: number; sceneRelevance: number; lexicalRelevance: number; recentMentionPenalty?: number; query: string; intent: string }): MemoryRecallMode {
@@ -159,11 +223,16 @@ export function classifyRecallMode(input: { activationScore: number; sceneReleva
 }
 
 export function buildMemoryRecallPlan(memories: readonly MemoryLike[], context: MemoryActivationContext, limit = 8): MemoryRecallPlan {
-  const ranked = memories.map((memory) => scoreMemoryActivation(memory, context)).sort((a, b) => b.activationScore - a.activationScore || a.id.localeCompare(b.id)).slice(0, limit);
+  const scored = memories.map((memory) => scoreMemoryActivation(memory, context)).sort((a, b) => b.activationScore - a.activationScore || a.id.localeCompare(b.id));
+  const standingBehavior = scored.filter((memory) => isBehaviorAlteringMemory(memory.canonicalText)).slice(0, 8);
+  const standingIds = new Set(standingBehavior.map((memory) => memory.id));
+  const pinnedKeep = scored.filter((memory) => memory.pinned && !standingIds.has(memory.id));
+  const remaining = scored.filter((memory) => !standingIds.has(memory.id) && !pinnedKeep.some((item) => item.id === memory.id));
+  const ranked = [...pinnedKeep, ...remaining].slice(0, limit);
   const directRecall = ranked.filter((memory) => memory.recallMode === 'direct_recall').slice(0, 5);
   const callbackCandidates = ranked.filter((memory) => memory.recallMode === 'natural_callback').slice(0, 1);
   const explicitCallbackAllowance = context.intent === 'memory_overview' ? 5 : directRecall.length ? Math.min(3, directRecall.length) : callbackCandidates.length ? 1 : 0;
-  return { silentContext: ranked.filter((memory) => memory.recallMode === 'silent_context').slice(0, Math.max(0, limit - directRecall.length - callbackCandidates.length)), callbackCandidates, directRecall, explicitCallbackAllowance };
+  return { silentContext: ranked.filter((memory) => memory.recallMode === 'silent_context').slice(0, Math.max(0, limit - directRecall.length - callbackCandidates.length)), callbackCandidates, directRecall, standingBehavior, explicitCallbackAllowance };
 }
 
 export function deriveCharacterMemoryProfile(input: { personality?: Record<string, unknown> | null; interests?: string[] | null; occupation?: string | null; lifeConfig?: Record<string, unknown> | null; overrides?: Partial<CharacterMemoryProfile> }): CharacterMemoryProfile {

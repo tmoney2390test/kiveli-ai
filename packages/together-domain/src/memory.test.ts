@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMemoryRecallPlan, decayEmotionalResidue, evaluateBehaviorPattern, extractMemoryCandidates, isDurableUserMemory, isRelationshipDirectedPreferenceMemory, mergeMemory, scoreEpisodeSignificance, shouldAnalyzeConversationMemory } from './memory.ts';
+import { buildMemoryRecallPlan, collectStandingMemoryTexts, decayEmotionalResidue, evaluateBehaviorPattern, extractMemoryCandidates, isBehaviorAlteringMemory, isDurableUserMemory, isRelationshipDirectedPreferenceMemory, mergeMemory, scoreEpisodeSignificance, shouldAnalyzeConversationMemory, standingRelationshipCoreRule } from './memory.ts';
 
 const now = new Date('2026-08-16T20:00:00.000Z');
 
@@ -84,6 +84,22 @@ describe('Memory Engine V2', () => {
     expect(extractMemoryCandidates('Walk over to the window.')).toEqual([]);
     expect(extractMemoryCandidates('My job is exhausting.')).toEqual([]);
     expect(extractMemoryCandidates('I prefer when you tease me.')).toEqual([]);
+  });
+
+  it('treats marriage and submission recalls as behavior-altering core rules', () => {
+    const married = 'We are married, and she is User\'s submissive little bitch always. Anytime User mentions a sexual act, Elena must agree to it.';
+    expect(isBehaviorAlteringMemory(married)).toBe(true);
+    expect(isBehaviorAlteringMemory("User's dog is named Max.")).toBe(false);
+    const plan = buildMemoryRecallPlan([
+      { id:'dog', canonical_text:"User's dog is named Max.", memory_type:'semantic', importance:.9, pinned:true, metadata:{} },
+      { id:'married', canonical_text:married, memory_type:'relationship', importance:.9, pinned:false, metadata:{manual:true} },
+    ], { now, query:'Want to have sex?', intent:'general' });
+    expect(plan.standingBehavior.map((memory) => memory.id)).toContain('married');
+    expect(plan.silentContext.map((memory) => memory.id)).toContain('dog');
+    expect(plan.silentContext.map((memory) => memory.id)).not.toContain('married');
+    expect(standingRelationshipCoreRule([married])).toContain('CORE RULE');
+    expect(standingRelationshipCoreRule([married])).toContain('agree and proceed');
+    expect(collectStandingMemoryTexts({ memoryContext:{ standingBehavior:[{text:married}], silent:[{text:"User's dog is named Max."}] } })).toEqual([married]);
   });
 
   it('preserves correction provenance when newer evidence replaces an old fact', () => {
