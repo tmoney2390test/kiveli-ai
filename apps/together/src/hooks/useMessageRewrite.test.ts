@@ -25,7 +25,7 @@ it('keeps the paid rewrite locked when web confirmation starts work synchronousl
   const onMessage=vi.fn(),onFinished=vi.fn();
   const hook=useMessageRewrite({
     userId:'owner',conversation:{id:'chat',kind:'direct'} as Conversation,
-    profile:{age_verified_at:'2026-09-11',content_preferences:{contentMode:'explicit'}} as Snapshot['profile'],
+    profile:{age_verified_at:'2026-09-11',content_preferences:{contentMode:'explicit'}} as unknown as Snapshot['profile'],
     messages:[target],pending:false,onMessage,onFinished,onError:vi.fn(),
   });
   await hook.spice(target);
