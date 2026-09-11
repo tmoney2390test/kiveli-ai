@@ -1,6 +1,6 @@
+import { CatalogImage as Image } from '../src/components/CatalogImage';
 import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { ArrowLeft, Brain, Check, MessageCircle, Plus } from 'lucide-react-native';
 import { EmptyState, LoadingSkeleton, PageTitle, Screen, resolveCharacterPortraitSource } from '../src/components';

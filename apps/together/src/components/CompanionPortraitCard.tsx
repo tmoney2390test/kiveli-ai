@@ -1,5 +1,5 @@
+import { CatalogImage as Image } from './CatalogImage';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { ChevronRight, Sparkles, Star } from 'lucide-react-native';
 import { colors, typography } from '../theme';

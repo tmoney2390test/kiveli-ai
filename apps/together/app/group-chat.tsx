@@ -1,3 +1,4 @@
+import { CatalogImage as Image } from '../src/components/CatalogImage';
 import { VeniceTestDiagnostics } from '../src/components/VeniceTestDiagnostics';
 import { emptyReplyDrafts, reduceReplyDrafts } from '../src/lib/replyStreaming';
 import { useContextQuote } from '../src/hooks/useContextQuote';
@@ -23,7 +24,6 @@ import { shouldKeepChatPinned } from "../src/lib/chatScroll";
 import { useMobileChatKeyboardPin } from "../src/hooks/useMobileChatKeyboardPin";
 import { uploadPreparedChatPhoto } from "../src/lib/chatPhotoStorageUpload";
 import { shouldConsumeComposerEnter, shouldSendComposerOnEnter } from "../src/lib/composerKeyboard";
-import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";

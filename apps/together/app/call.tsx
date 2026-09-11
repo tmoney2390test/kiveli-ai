@@ -1,5 +1,5 @@
+import { CatalogImage as Image } from '../src/components/CatalogImage';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Mic, MicOff, Phone, PhoneOff, Volume2, VolumeX, X } from 'lucide-react-native';
 import { CharacterAvatar, ErrorState, KivelleCreditIcon, LoadingSkeleton } from '../src/components';

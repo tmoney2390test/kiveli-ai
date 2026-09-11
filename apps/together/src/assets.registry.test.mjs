@@ -8,7 +8,7 @@ const portraitsRoot = fileURLToPath(new URL('../assets/characters', import.meta.
 
 function registeredCharacterKeys(source) {
   return new Set(
-    [...source.matchAll(/(?:'([^']+)'|([A-Za-z0-9_-]+))\s*:\s*require\(/g)]
+    [...source.matchAll(/(?:'([^']+)'|([A-Za-z0-9_-]+))\s*:\s*(?:require|catalogArtwork)\(/g)]
       .map((match) => match[1] ?? match[2])
       .filter(Boolean),
   );
@@ -25,7 +25,7 @@ function primaryPortraitSlugs() {
     );
 }
 
-describe('packaged character portraits', () => {
+describe('registered character portraits', () => {
   it('registers every primary character portrait file', () => {
     const keys = registeredCharacterKeys(readFileSync(registryPath, 'utf8'));
     const missing = [...new Set(primaryPortraitSlugs())]

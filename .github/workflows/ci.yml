@@ -28,6 +28,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm artwork:verify
       - run: pnpm context:test:db
       - run: pnpm chat-speed:test:db
       - name: Chat speed regressions
@@ -76,6 +77,13 @@ jobs:
           supabase/functions/_shared/kivelle-video-admission.test.ts
       - run: node scripts/test-video-prices-db.mjs
       - run: pnpm --filter @together/app web:build
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      - name: Native catalog asset budget
+        run: |
+          pnpm --filter @together/app exec expo export --platform android --platform ios --dump-assetmap --output-dir dist-native-size
+          pnpm native:asset-budget
         env:
           EXPO_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
           EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key

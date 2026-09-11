@@ -1,6 +1,6 @@
+import { CatalogImage as Image } from './CatalogImage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { Image } from 'expo-image';
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Edit3, MapPin, RefreshCw, X } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { DateTimeFields } from './DateTimeFields';

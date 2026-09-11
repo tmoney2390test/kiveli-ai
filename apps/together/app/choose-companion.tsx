@@ -1,6 +1,6 @@
+import { CatalogImage as Image } from '../src/components/CatalogImage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ScrollView } from 'react-native';
-import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Check, ChevronRight, LockKeyhole, Sparkles } from 'lucide-react-native';
 import { isSubscriberEarlyAccessWorld } from '@together/domain/src/world-access';

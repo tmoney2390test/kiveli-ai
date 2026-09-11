@@ -14,6 +14,12 @@ coverage/
 .env.local
 apps/together/android/
 apps/together/ios/
+# Public catalog display copies are hosted, not compiled into native apps.
+# Keep originals in Git for reference-media tooling; omit only from EAS uploads.
+apps/together/assets/characters/
+apps/together/assets/character-profile/
+apps/together/assets/locations/
+apps/together/assets/worlds/
 apps/together/.together-web-*.log
 apps/together/.web-preview*.log
 apps/together/deploy.tar.gz

@@ -1,5 +1,5 @@
+import { CatalogImage as Image } from './CatalogImage';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { Image } from 'expo-image';
 import { colors, radius } from '../theme';
 import { routeLoadingKind, type RouteLoadingKind } from '../lib/routeLoading';
 import { characterAssets } from '../assets';

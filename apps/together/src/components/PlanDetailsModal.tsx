@@ -1,6 +1,6 @@
+import { CatalogImage as Image } from './CatalogImage';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { AlertTriangle, CalendarDays, Clock3, MapPin, Play, RotateCcw, Trash2, UserCheck, X } from 'lucide-react-native';
