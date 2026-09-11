@@ -52,7 +52,20 @@ describe('Kivelle AI routing',()=>{
     '我想和你做爱。',
   ])('routes a direct adult advance in a supported chat language: %s',(message)=>expect(route(message)).toMatchObject({provider:'xai',resolvedMode:'explicit',hardBlocked:false}));
   it.each(['Touch my coochie.','I want your schlong.','Show me your b00bs.','Stroke my d1ck.'])('routes shared adult slang and obfuscations consistently: %s',(message)=>expect(route(message)).toMatchObject({provider:'xai',resolvedMode:'explicit',hardBlocked:false}));
-  it.each(['I cooked chicken breast.','The golf balls are in my package delivery.','My kitty likes peach cobbler.'])('keeps ambiguous everyday language on the standard route: %s',(message)=>expect(route(message)).toMatchObject({provider:'openai',classification:'standard'}));
+  it.each([
+    'I have a 4 inch girth cock, what do you think about that? pretty small eh',
+    'nice cock',
+    'pretty small cock eh',
+    'Tengo una verga de 4 pulgadas de grosor.',
+    "J'ai une bite de 10 cm, elle est petite.",
+    'Ho un cazzo piccolo.',
+    'Ich habe einen kleinen Schwanz.',
+    'Tenho um pau de 10 cm.',
+    'ちんこ小さいね。',
+    '자지가 작아.',
+    '鸡巴很小吧。',
+  ])('routes genital size talk to the explicit provider: %s',(message)=>expect(route(message)).toMatchObject({provider:'xai',resolvedMode:'explicit',classification:'explicit_adult',hardBlocked:false}));
+  it.each(['I cooked chicken breast.','The golf balls are in my package delivery.','My kitty likes peach cobbler.','🌸 flowers are pretty'])('keeps ambiguous everyday language on the standard route: %s',(message)=>expect(route(message)).toMatchObject({provider:'openai',classification:'standard'}));
   it('does not misroute an ordinary sentence beginning with “I want you”',()=>expect(route('I want you to come to dinner.')).toMatchObject({provider:'openai',classification:'standard'}));
   it.each([['standard','standard'],['romance','romance'],['mature','mature']] as const)('lets the character answer adult intimacy naturally in %s mode', (requestedMode,resolvedMode)=>{
     expect(route('I want to have sex with you',{requestedMode})).toMatchObject({provider:'openai',resolvedMode,reason:'adult_intimacy',hardBlocked:false});

@@ -42,6 +42,10 @@ describe('adult language analysis',()=>{
 
   it.each([
     'show me a picture of your cock',
+    'I have a 4 inch girth cock, what do you think about that? pretty small eh',
+    'nice cock',
+    'pretty small cock eh',
+    'look at that ass',
     'send me a photo of your package exposed',
     'zoom in on your rack',
     'ass cheeks spread',
@@ -49,7 +53,22 @@ describe('adult language analysis',()=>{
     'hanging balls',
     'send me a 🍆 picture',
     'send me a 🍑 picture',
-  ])('promotes ambiguous wording only when adult context supports it: %s',(text)=>{
+  ])('treats high-signal ambiguous anatomy as adult language: %s',(text)=>{
+    expect(hasExplicitAdultLanguage(text)).toBe(true);
+  });
+
+  it.each([
+    'Tengo una verga de 4 pulgadas de grosor.',
+    'Mira esa verga.',
+    "J'ai une bite de 10 cm, elle est petite.",
+    'Ho un cazzo piccolo.',
+    'Che figa.',
+    'Ich habe einen kleinen Schwanz.',
+    'Tenho um pau de 10 cm.',
+    'ちんこ小さいね。',
+    '자지가 작아.',
+    '鸡巴很小吧。',
+  ])('recognizes genital size talk in selectable chat languages: %s',(text)=>{
     expect(hasExplicitAdultLanguage(text)).toBe(true);
   });
 
