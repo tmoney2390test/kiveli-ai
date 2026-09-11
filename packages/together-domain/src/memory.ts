@@ -78,7 +78,7 @@ export function memoryJournalKind(memory: { memoryType?: string; memory_type?: s
 
 export function memoryAllowedForPersona(memory: { memoryType?: string; memory_type?: string; text?: string; canonicalText?: string; canonical_text?: string; metadata?: Record<string, unknown> }, activePersonaId?: string): boolean {
   const metadata = memoryMetadata(memory);
-  const personaId = String(metadata.personaId ?? metadata.persona_id ?? '');
+  const personaId = stringValue(metadata.personaId ?? metadata.persona_id);
   if (!personaId || !activePersonaId) return true;
   if (memoryJournalKind(memory) === 'about' || String(memory.memoryType ?? memory.memory_type ?? '') === 'semantic') return personaId === activePersonaId;
   return true;
