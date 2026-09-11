@@ -66,7 +66,7 @@ const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('status'),mediaId:z.string().uuid()}),
   z.object({action:z.literal('batch_status'),mediaIds:z.array(z.string().uuid()).min(1).max(20).refine((ids)=>new Set(ids).size===ids.length,'Media IDs must be unique.')}),
   z.object({action:z.literal('list_recent'),characterInstanceId:z.string().uuid(),conversationId:z.string().uuid(),createdAfter:z.string().datetime(),limit:z.number().int().min(1).max(20).default(10)}),
-  z.object({action:z.literal('list_library'),characterInstanceId:z.string().uuid().optional(),before:z.string().datetime().optional(),limit:z.number().int().min(1).max(200).default(120)}),
+  z.object({action:z.literal('list_library'),ids:z.array(z.string().uuid()).min(1).max(12).optional(),characterInstanceId:z.string().uuid().optional(),before:z.string().datetime().optional(),limit:z.number().int().min(1).max(200).default(120)}),
   z.object({action:z.literal('list_conversation_gallery'),conversationId:z.string().uuid(),limit:z.number().int().min(1).max(200).default(120)}),
   z.object({action:z.literal('feedback'),mediaId:z.string().uuid(),feedback:z.enum(['positive','negative'])}),
   z.object({action:z.literal('edit'),mediaId:z.string().uuid(),requestId:z.string().trim().min(8).max(120),instruction:z.string().trim().min(2).max(400)}),
@@ -228,6 +228,7 @@ serve(async(request,correlationId)=>{
     const continuity=await activeContinuity(db,user.id);
     if(input.characterInstanceId)await requireInstanceInActiveContinuity(db,user.id,input.characterInstanceId);
     let mediaQuery=db.from('together_generated_media').select('*').eq('user_id',user.id).eq('continuity_id',continuity.id).in('media_type',['image','video']).in('status',['queued','generating','ready']);
+    if(input.ids)mediaQuery=mediaQuery.in('id',input.ids);
     if(input.characterInstanceId)mediaQuery=mediaQuery.eq('character_instance_id',input.characterInstanceId);
     if(input.before)mediaQuery=mediaQuery.lt('created_at',input.before);
     if(!adultAccess.authorized_web_adult)mediaQuery=mediaQuery.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
