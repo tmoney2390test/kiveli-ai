@@ -43,6 +43,7 @@ import { presentMemoryText } from '../src/lib/memoryPresentation';
 import { mediaWithoutActivePhotoOffer, photoMediaForOffer, photoOfferForMessage, photoOffersAtTimelineTail, shouldShowPhotoGenerationPending, visibleChatPhotoMedia } from '../src/lib/photoRequestPresentation';
 import { latestMediaOfferPreviewUri } from '../src/lib/mediaOfferPresentation';
 import { proposalHeading, sceneActionDividerLabel, sceneActionTimelineEntryFromAction, sceneActionTimelineEntryFromMessage, type SceneActionTimelineEntry } from '../src/lib/interactionPresentation';
+import { createProposalDecisionGuard, reactToSavedProposal } from '../src/lib/proposalDecision';
 import { DIALOGUE_RECOVERY_DELAYS_MS, dialogueFailureMayHavePersisted, dialogueRecoveryShouldContinue, latestUnansweredDialogueRequest, persistedDialogueResponseForRequest, staleDialogueReplayDelay } from '../src/lib/dialogueRecovery';
 import { subscribeToWebPageResume, waitForWebPageVisible } from '../src/lib/webPageLifecycle';
 import { reconcileMessages } from '../src/lib/messageReconciliation';
@@ -165,6 +166,9 @@ function ChatSession() {
   const [interactionLoading, setInteractionLoading] = useState(false);
   const [pendingSceneAction,setPendingSceneAction]=useState<SceneActionTimelineEntry|null>(null);
   const [characterProposal,setCharacterProposal]=useState<CharacterInteractionProposal|null>(null);
+  const proposalDecisions=useRef(createProposalDecisionGuard()).current;
+  const proposalScopeActive=useRef(true);
+  useEffect(()=>{proposalScopeActive.current=true;return()=>{proposalScopeActive.current=false;};},[]);
   const [showConversationMenu, setShowConversationMenu] = useState(false);
   const [showFreshChat, setShowFreshChat] = useState(false);
   const [showChatSettings, setShowChatSettings] = useState(false);
@@ -209,6 +213,8 @@ function ChatSession() {
   const clearStoredDraft=usePersistentMessageDraft({userId:session?.user.id,conversationId:conversation?.id,kind:'direct',value:input,setValue:setInput,routeDraft:params.draft});
   const pendingDialogue=conversation?pendingDialogues[conversation.id]:undefined;
   const replyPending=sending||Boolean(pendingDialogue);
+  const replyPendingRef=useRef(replyPending);
+  replyPendingRef.current=replyPending;
   const contextPricing=useContextQuote({preference:(conversation?.metadata?.chatPreferences as {contextPreference?:string}|undefined)?.contextPreference,draft:{conversationId:conversation?.id,characterInstanceId:character?.id,message:input,focusPlanId:focusPlanId??undefined},revision:JSON.stringify([conversation?.metadata?.chatPreferences,messages.at(-1)?.id]),paused:replyPending,hasPendingPhoto:Boolean(pendingImage)});
   const conversationReady=!loading&&hasCoherentConversationTimeline({activeConversationId:conversation?.id,loadedConversationId});
   useEffect(()=>{if(connectionPhase==='online')setShowSendConnectionNotice(false);},[connectionPhase]);
@@ -916,7 +922,7 @@ function ChatSession() {
     if(connectionPhase!=='online')setShowSendConnectionNotice(true);
     if(!online){setError('You’re offline. Your draft is saved and ready when you reconnect.');return;}
     const contextAuthorization=await contextPricing.authorize({conversationId:conversation.id,characterInstanceId:character.id,message:text,focusPlanId:focusPlanId??undefined,...(messageAction?{messageAction:messageAction.messageAction,anchorMessageId:messageAction.anchorMessageId}:{})});
-    if(!contextAuthorization)return;
+    if(!contextAuthorization||isSceneReplyPending())return;
     sendInFlightRef.current=true;
     const sentAutoDialogue=!retryText&&!messageAction?autoDialogue:null;
     const retrySource=retryMessageId?messages.find((message)=>message.id===retryMessageId):undefined;
@@ -1053,49 +1059,69 @@ function ChatSession() {
   const executeInteraction = async (candidate:InteractionCandidate,reactionMode:'generate'|'defer_to_current_message'='generate') => {
     if(interactionLoading||(reactionMode==='generate'&&replyPending))return;
     const previousCandidates=interactionCandidates,previousProposal=characterProposal;
+    let action:SceneAction|undefined;
     setInteractionLoading(true);setError('');setShowInteractions(false);setCharacterProposal(null);
     setInteractionCandidates((current)=>current.filter((item)=>item.interactionKey!==candidate.interactionKey));
     if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try{
       const result=await manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[];action?:SceneAction;characterProposal?:CharacterInteractionProposal}>({action:'execute',characterInstanceId:character.id,conversationId:conversation.id,sceneId:interactionScene?.id,interactionKey:candidate.interactionKey,requestId:createClientRequestId()});
       markInteractionSceneHydrated(result.scene);setInteractionScene(result.scene?.id?result.scene:null);applySceneDelta(result.scene);setInteractionCandidates(result.interactions??[]);setMovementCandidates(result.destinations??[]);setCharacterProposal(result.characterProposal??null);
-      if(reactionMode==='generate'&&result.action?.id){setPendingSceneAction(sceneActionTimelineEntryFromAction(result.action,candidate.label));await generateSceneReaction(result.action.id);}
-      return result.action;
+      action=result.action;
+      if(reactionMode==='generate'&&action?.id)setPendingSceneAction(sceneActionTimelineEntryFromAction(action,candidate.label));
     }catch(caught){
       setInteractionCandidates(previousCandidates);setCharacterProposal(previousProposal);setPendingSceneAction(null);setShowInteractions(true);
       setError(caught instanceof Error?caught.message:'That option is no longer available.');return undefined;
     }finally{setInteractionLoading(false);}
+    if(reactionMode==='generate'&&action?.id)await generateSceneReaction(action.id);
+    return action;
   };
-  const generateSceneReaction=async(actionId:string)=>{if(replyPending)return;const clientRequestId=createClientRequestId();beginPendingDialogue({conversationId:conversation.id,characterInstanceId:character.id,clientRequestId,startedAt:new Date().toISOString(),showTyping:true});setSending(true);setStream('');setError('');try{const reaction=await sendSceneReaction({conversationId:conversation.id,characterInstanceId:character.id,sceneActionId:actionId,clientRequestId},(token)=>setStream((current)=>current+token),()=>setStream(''));setStream('');setMessages((current)=>current.some((message)=>message.id===reaction.message.id)?current:[...current,reaction.message]);setPendingSceneAction((current)=>current?.id===actionId?null:current);}catch(caught){setStream('');setError(`${caught instanceof Error?caught.message:'The activity was saved, but the reply was interrupted.'} Tap to retry.`);}finally{finishPendingDialogue(conversation.id,clientRequestId);setSending(false);}};
+  const isSceneReplyPending=()=>!proposalScopeActive.current||replyPendingRef.current||sendInFlightRef.current||Boolean(useTogether.getState().pendingDialogues[conversation.id]);
+  const generateSceneReaction=async(actionId:string)=>{if(isSceneReplyPending())return;const clientRequestId=createClientRequestId();beginPendingDialogue({conversationId:conversation.id,characterInstanceId:character.id,clientRequestId,startedAt:new Date().toISOString(),showTyping:true});setSending(true);setStream('');setError('');try{const reaction=await sendSceneReaction({conversationId:conversation.id,characterInstanceId:character.id,sceneActionId:actionId,clientRequestId},(token)=>setStream((current)=>current+token),()=>setStream(''));setStream('');setMessages((current)=>current.some((message)=>message.id===reaction.message.id)?current:[...current,reaction.message]);setPendingSceneAction((current)=>current?.id===actionId?null:current);}catch(caught){setStream('');setError(`${caught instanceof Error?caught.message:'The activity was saved, but the reply was interrupted.'} Tap to retry.`);}finally{finishPendingDialogue(conversation.id,clientRequestId);setSending(false);}};
   const acceptCharacterProposal=async()=>{
     const proposal=characterProposal;
-    if(!proposal||interactionLoading||replyPending)return;
+    if(!proposal||interactionLoading||!proposalDecisions.begin(proposal.actionId))return;
     // The choice should feel local and immediate. Server confirmation and the
     // optional companion reaction continue after the card leaves the timeline.
     setCharacterProposal(null);setInteractionLoading(true);setError('');
+    let saved=false;
+    let reactionActionId:string|undefined;
     if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try{
       const result=await manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[];action?:SceneAction;characterProposal?:CharacterInteractionProposal}>({action:'accept_proposal',characterInstanceId:character.id,conversationId:conversation.id,sceneId:interactionScene?.id,proposalActionId:proposal.actionId,requestId:createClientRequestId()});
+      saved=true;
+      if(!proposalScopeActive.current)return;
+      markInteractionSceneHydrated(result.scene);
       setInteractionScene(result.scene?.id?result.scene:null);applySceneDelta(result.scene);setInteractionCandidates(result.interactions??[]);setMovementCandidates(result.destinations??[]);
       setCharacterProposal(result.characterProposal?.actionId===proposal.actionId?null:result.characterProposal??null);
-      if(result.action?.id){setPendingSceneAction(sceneActionTimelineEntryFromAction(result.action,proposal.label));await generateSceneReaction(result.action.id);}
+      if(result.action?.id){
+        reactionActionId=result.action.id;
+        setPendingSceneAction(sceneActionTimelineEntryFromAction(result.action,proposal.label));
+      }
     }catch(caught){
+      if(!proposalScopeActive.current)return;
       setError(caught instanceof Error?caught.message:'That suggestion is no longer available.');
-      setCharacterProposal((current)=>current??proposal);
-    }finally{setInteractionLoading(false);}
+      if(!saved)setCharacterProposal((current)=>current??proposal);
+    }finally{proposalDecisions.finish(proposal.actionId,saved);if(proposalScopeActive.current)setInteractionLoading(false);}
+    // Reply generation must not keep the proposal controls busy. Never replace
+    // an existing stream, including one that started while the choice was saved.
+    if(reactionActionId){const actionId=reactionActionId;await reactToSavedProposal(isSceneReplyPending,()=>generateSceneReaction(actionId));}
   };
   const dismissCharacterProposal=async()=>{
     const proposal=characterProposal;
-    if(!proposal||interactionLoading)return;
+    if(!proposal||interactionLoading||!proposalDecisions.begin(proposal.actionId))return;
     // Dismiss optimistically; a slow network should never hold a declined card
     // on screen. A later scene refresh will reconcile server state if needed.
     setCharacterProposal(null);setInteractionLoading(true);setError('');
+    let saved=false;
     if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try{
       const result=await manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[]}>({action:'dismiss_proposal',characterInstanceId:character.id,conversationId:conversation.id,sceneId:interactionScene?.id,proposalActionId:proposal.actionId});
+      saved=true;
+      if(!proposalScopeActive.current)return;
+      markInteractionSceneHydrated(result.scene);
       setInteractionScene(result.scene?.id?result.scene:null);setInteractionCandidates(result.interactions??[]);setMovementCandidates(result.destinations??[]);
-    }catch(caught){setError(caught instanceof Error?caught.message:'That suggestion could not be dismissed.');}
-    finally{setInteractionLoading(false);}
+    }catch(caught){if(proposalScopeActive.current){setError(caught instanceof Error?caught.message:'That suggestion could not be dismissed.');setCharacterProposal((current)=>current??proposal);}}
+    finally{proposalDecisions.finish(proposal.actionId,saved);if(proposalScopeActive.current)setInteractionLoading(false);}
   };
   const moveScene = async (candidate:InteractionCandidate) => {
     const destinationId=typeof candidate.effects.destinationLocationId==='string'?candidate.effects.destinationLocationId:null;if(!destinationId)return;
@@ -1290,7 +1316,7 @@ function ChatSession() {
           {conversationReady&&stream ? <StreamingBubble desktop={desktopChat} character={character} content={stream} textStyle={messageTypography} bubbleColor={bubbleColors.companion} reserveVoiceControl={snapshot.profile?.multimodal_preferences?.companionVoiceNotes!==false} /> : null}
           {conversationReady&&replyPending && !stream && !awaitingPhotoOffer && pendingDialogue?.showTyping!==false ? <ChatTypingIndicator name={character.together_character_templates.name} /> : null}
           {conversationReady&&milestone ? <RelationshipMomentCard milestone={milestone} busy={resolvingMilestone} onChoose={(action)=>void resolveMilestone(action)} /> : null}
-          {conversationReady&&characterProposal?<CharacterProposalCard name={character.together_character_templates.name} proposal={characterProposal} busy={interactionLoading||replyPending} onAccept={()=>void acceptCharacterProposal()} onDismiss={()=>void dismissCharacterProposal()}/>:null}
+          {conversationReady&&characterProposal&&!proposalDecisions.isHidden(characterProposal.actionId)?<CharacterProposalCard name={character.together_character_templates.name} proposal={characterProposal} busy={interactionLoading} onAccept={()=>void acceptCharacterProposal()} onDismiss={()=>void dismissCharacterProposal()}/>:null}
           {conversationReady&&feedback ? <StoryFeedback feedback={feedback} onView={() => navigateChatSurface(feedback.kind === 'memory' ? '/memories' : feedback.kind==='plan'? '/dates':'/moments')} onUndo={feedback.kind === 'memory' ? () => void undoMemory() : undefined} onDismiss={() => setFeedback(null)} /> : null}
           {error&&!historyLoadFailed ? <Pressable accessibilityRole="button" accessibilityLabel={`${chatErrorPresentation(error).title}. ${chatErrorPresentation(error).message}`} onPress={() => {if(pendingSceneAction){void generateSceneReaction(pendingSceneAction.id);return;}const failed = [...visibleMessages].reverse().find((item) => item.delivery_status === 'failed'); if (failed) void send(failed.content,failed.client_request_id??undefined,failed.id); }} style={styles.retry}><Text style={styles.retryText}>{chatErrorPresentation(error).message}{!pendingSceneAction&&visibleMessages.some((item) => item.delivery_status === 'failed') ? ' Tap to retry.' : ''}</Text></Pressable> : null}
         </VirtualizedConversationList>}
@@ -1601,7 +1627,7 @@ function DictationButton({phase,elapsedMs,disabled,onPress}:{phase:ChatDictation
 
 function ContextualInteractionTray({interactions,loading,onOpen,onInteraction,onDismiss}:{interactions:InteractionCandidate[];loading:boolean;onOpen:()=>void;onInteraction:(candidate:InteractionCandidate)=>void;onDismiss?:()=>void}) { return <View style={styles.contextualTray}><View style={styles.contextualTrayHeader}><Text style={styles.actionKicker}>THINGS TO DO</Text><View style={styles.contextualTrayHeaderActions}><Pressable accessibilityRole="button" accessibilityLabel="See all things to do" hitSlop={8} onPress={onOpen}><Text style={styles.contextualMore}>More</Text></Pressable>{onDismiss?<Pressable accessibilityRole="button" accessibilityLabel="Hide things to do for this plan" hitSlop={6} onPress={onDismiss} style={styles.contextualDismiss}><X size={17} color={colors.muted}/></Pressable>:null}</View></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.contextualTrayActions}>{interactions.map((candidate)=><Pressable key={candidate.id} disabled={loading} accessibilityLabel={candidate.label} onPress={()=>onInteraction(candidate)} style={[styles.contextualAction,loading&&styles.sendDisabled]}><Wand2 size={13} color={colors.rose}/><Text style={styles.contextualActionText}>{candidate.label}</Text></Pressable>)}</ScrollView></View>; }
 function InteractionTray({name,location,interactions,destinations,loading,onInteraction,onMove,onClose}:{name:string;location:string;interactions:InteractionCandidate[];destinations:InteractionCandidate[];loading:boolean;onInteraction:(candidate:InteractionCandidate)=>void;onMove:(candidate:InteractionCandidate)=>void;onClose:()=>void}) { return <View style={styles.interactionTray}><View style={styles.planHeader}><View style={{flex:1,minWidth:0}}><Text style={styles.planTitle}>TOGETHER AT {location.toUpperCase()}</Text><Text style={styles.contextMuted}>Choose something that fits what you and {name} are doing right now.</Text></View><Pressable accessibilityLabel="Close actions" onPress={onClose}><Text style={styles.closeText}>Close</Text></Pressable></View><Text style={styles.interactionSectionTitle}>TOGETHER</Text><View style={styles.interactionOptions}>{interactions.map((candidate)=><Pressable key={candidate.id} disabled={loading} accessibilityLabel={candidate.label} onPress={()=>onInteraction(candidate)} style={[styles.interactionOption,loading&&styles.sendDisabled]}><Wand2 size={15} color={colors.rose}/><View style={{flex:1,minWidth:0}}><Text style={styles.interactionOptionTitle}>{candidate.label}</Text>{candidate.durationMinutes?<Text style={styles.interactionOptionMeta}>About {candidate.durationMinutes} min</Text>:null}</View><ChevronRight size={16} color={colors.muted}/></Pressable>)}</View>{destinations.length?<><Text style={styles.interactionSectionTitle}>AROUND HERE</Text><View style={styles.interactionOptions}>{destinations.map((candidate)=><Pressable key={candidate.id} disabled={loading} accessibilityLabel={candidate.label} onPress={()=>onMove(candidate)} style={[styles.interactionOption,loading&&styles.sendDisabled]}><MapPin size={15} color={colors.warm}/><View style={{flex:1,minWidth:0}}><Text style={styles.interactionOptionTitle}>{candidate.label}</Text><Text style={styles.interactionOptionMeta}>Walk there together</Text></View><ChevronRight size={16} color={colors.muted}/></Pressable>)}</View></>:null}</View>; }
-function CharacterProposalCard({name,proposal,busy,onAccept,onDismiss}:{name:string;proposal:CharacterInteractionProposal;busy:boolean;onAccept:()=>void;onDismiss:()=>void}){return <View accessibilityLabel={`${name} suggests ${proposal.label}`} style={styles.characterProposal}><View style={styles.characterProposalIcon}><Sparkles size={17} color={colors.rose}/></View><View style={{flex:1,minWidth:0}}><Text style={styles.characterProposalKicker}>{proposalHeading(proposal,name)}</Text><Text style={styles.characterProposalTitle}>{proposal.label}</Text></View><Pressable disabled={busy} onPress={onDismiss} style={styles.proposalSecondary}><Text style={styles.proposalSecondaryText}>Not now</Text></Pressable><Pressable disabled={busy} onPress={onAccept} style={styles.proposalPrimary}><Text style={styles.proposalPrimaryText}>Do it</Text></Pressable></View>}
+function CharacterProposalCard({name,proposal,busy,onAccept,onDismiss}:{name:string;proposal:CharacterInteractionProposal;busy:boolean;onAccept:()=>void;onDismiss:()=>void}){return <View accessibilityLabel={`${name} suggests ${proposal.label}`} style={styles.characterProposal}><View style={styles.characterProposalIcon}><Sparkles size={17} color={colors.rose}/></View><View style={{flex:1,minWidth:0}}><Text style={styles.characterProposalKicker}>{proposalHeading(proposal,name)}</Text><Text style={styles.characterProposalTitle}>{proposal.label}</Text></View><Pressable accessibilityRole="button" accessibilityState={{disabled:busy}} disabled={busy} onPress={onDismiss} style={styles.proposalSecondary}><Text style={styles.proposalSecondaryText}>Not now</Text></Pressable><Pressable accessibilityRole="button" accessibilityState={{disabled:busy}} disabled={busy} onPress={onAccept} style={styles.proposalPrimary}><Text style={styles.proposalPrimaryText}>Do it</Text></Pressable></View>}
 
 /* Legacy planner retained in source history during the migration; the live surface is PlanSelection.
 function PlanTray({snapshot,character,scopedLocationId,repeatPlanId,proposal,interests,busy,onPlan,onClose}:{snapshot:Snapshot;character:CharacterInstance;scopedLocationId?:string|null;repeatPlanId?:string;proposal?:ConversationAction;interests:string[];busy:boolean;onPlan:(option:PlanOption,scheduledFor:string)=>void;onClose:()=>void}){
