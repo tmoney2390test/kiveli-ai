@@ -63,7 +63,7 @@ function memoryMetadata(memory: { metadata?: Record<string, unknown> | null }): 
 export function isCoreRuleMemory(memory: { memoryType?: string; memory_type?: string; text?: string; canonicalText?: string; canonical_text?: string; metadata?: Record<string, unknown> }): boolean {
   const type = String(memory.memoryType ?? memory.memory_type ?? '').toLowerCase();
   const metadata = memoryMetadata(memory);
-  if (type === 'core_rule' || metadata.coreRule === true || metadata.kind === 'core_rule') return true;
+  if (type === 'core_rule' || metadata['coreRule'] === true || metadata['kind'] === 'core_rule') return true;
   return isBehaviorAlteringMemory(String(memory.text ?? memory.canonicalText ?? memory.canonical_text ?? ''));
 }
 
@@ -72,13 +72,13 @@ export function memoryJournalKind(memory: { memoryType?: string; memory_type?: s
   if (type === 'open_thread') return 'upcoming';
   if (isCoreRuleMemory(memory)) return 'core_rule';
   const metadata = memoryMetadata(memory);
-  if (metadata.kind === 'about' || type === 'semantic') return 'about';
+  if (metadata['kind'] === 'about' || type === 'semantic') return 'about';
   return 'additional';
 }
 
 export function memoryAllowedForPersona(memory: { memoryType?: string; memory_type?: string; text?: string; canonicalText?: string; canonical_text?: string; metadata?: Record<string, unknown> }, activePersonaId?: string): boolean {
   const metadata = memoryMetadata(memory);
-  const personaId = stringValue(metadata.personaId ?? metadata.persona_id);
+  const personaId = stringValue(metadata['personaId'] ?? metadata['persona_id']);
   if (!personaId || !activePersonaId) return true;
   if (memoryJournalKind(memory) === 'about' || String(memory.memoryType ?? memory.memory_type ?? '') === 'semantic') return personaId === activePersonaId;
   return true;
@@ -145,10 +145,10 @@ export function collectStandingMemoryTexts(context: {
     ...(context.memoryContext?.directRecall ?? []),
     ...(context.memories ?? []),
   ];
-  return standingMemoryTexts(rows.map((memory) => ({
-    ...memory,
-    memoryType: memory.memoryType ?? memory.type,
-  })));
+  return standingMemoryTexts(rows.map((memory) => {
+    const memoryType = memory.memoryType ?? memory.type;
+    return memoryType ? { ...memory, memoryType } : { ...memory };
+  }));
 }
 
 export function standingRelationshipCoreRule(texts: readonly string[]): string {
