@@ -142,3 +142,14 @@ Deno.test("disabled memory categories cannot enter companion recall", () => {
     ["about", "shared"],
   );
 });
+
+Deno.test("authored core rules stay in recall even if relationship memory is disabled", () => {
+  const rows = [
+    { id: "flavor", memory_type: "relationship", canonical_text: "User and Elena like late walks." },
+    { id: "rule", memory_type: "relationship", canonical_text: "Always answer in Spanish.", metadata: { kind: "core_rule", coreRule: true } },
+  ];
+  assertEquals(
+    filterMemoriesForPreferences(rows, { relationship: false }).map((row) => row.id),
+    ["rule"],
+  );
+});

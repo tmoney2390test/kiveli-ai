@@ -53,12 +53,71 @@ export function isBehaviorAlteringMemory(canonicalText: string): boolean {
   return false;
 }
 
-export function standingMemoryTexts(memories: ReadonlyArray<{ text?: string; canonicalText?: string; canonical_text?: string }>): string[] {
+export type MemoryCenterAuthorKind = 'core_rule' | 'about' | 'additional';
+export type MemoryJournalKind = MemoryCenterAuthorKind | 'upcoming';
+
+function memoryMetadata(memory: { metadata?: Record<string, unknown> | null }): Record<string, unknown> {
+  return memory.metadata && typeof memory.metadata === 'object' && !Array.isArray(memory.metadata) ? memory.metadata : {};
+}
+
+export function isCoreRuleMemory(memory: { memoryType?: string; memory_type?: string; text?: string; canonicalText?: string; canonical_text?: string; metadata?: Record<string, unknown> }): boolean {
+  const type = String(memory.memoryType ?? memory.memory_type ?? '').toLowerCase();
+  const metadata = memoryMetadata(memory);
+  if (type === 'core_rule' || metadata.coreRule === true || metadata.kind === 'core_rule') return true;
+  return isBehaviorAlteringMemory(String(memory.text ?? memory.canonicalText ?? memory.canonical_text ?? ''));
+}
+
+export function memoryJournalKind(memory: { memoryType?: string; memory_type?: string; text?: string; canonicalText?: string; canonical_text?: string; metadata?: Record<string, unknown> }): MemoryJournalKind {
+  const type = String(memory.memoryType ?? memory.memory_type ?? '').toLowerCase();
+  if (type === 'open_thread') return 'upcoming';
+  if (isCoreRuleMemory(memory)) return 'core_rule';
+  const metadata = memoryMetadata(memory);
+  if (metadata.kind === 'about' || type === 'semantic') return 'about';
+  return 'additional';
+}
+
+export function memoryAllowedForPersona(memory: { memoryType?: string; memory_type?: string; text?: string; canonicalText?: string; canonical_text?: string; metadata?: Record<string, unknown> }, activePersonaId?: string): boolean {
+  const metadata = memoryMetadata(memory);
+  const personaId = String(metadata.personaId ?? metadata.persona_id ?? '');
+  if (!personaId || !activePersonaId) return true;
+  if (memoryJournalKind(memory) === 'about' || String(memory.memoryType ?? memory.memory_type ?? '') === 'semantic') return personaId === activePersonaId;
+  return true;
+}
+
+export function resolveMemoryCenterCreate(input: { kind?: string | null; memoryType?: string | null; pinned?: boolean | null }): {
+  memoryType: 'semantic' | 'preference' | 'episodic' | 'relationship' | 'emotional';
+  kind: MemoryCenterAuthorKind;
+  coreRule: boolean;
+  pinned: boolean;
+  importance: number;
+} {
+  const requestedKind = String(input.kind ?? '').toLowerCase();
+  if (requestedKind === 'core_rule') {
+    return { memoryType: 'relationship', kind: 'core_rule', coreRule: true, pinned: input.pinned ?? true, importance: .98 };
+  }
+  if (requestedKind === 'about') {
+    return { memoryType: 'semantic', kind: 'about', coreRule: false, pinned: Boolean(input.pinned), importance: .9 };
+  }
+  if (requestedKind === 'additional') {
+    return { memoryType: 'relationship', kind: 'additional', coreRule: false, pinned: Boolean(input.pinned), importance: .86 };
+  }
+  const allowed = ['semantic', 'preference', 'episodic', 'relationship', 'emotional'] as const;
+  const memoryType = allowed.find((item) => item === input.memoryType) ?? 'semantic';
+  return {
+    memoryType,
+    kind: memoryType === 'semantic' ? 'about' : 'additional',
+    coreRule: false,
+    pinned: Boolean(input.pinned),
+    importance: .9,
+  };
+}
+
+export function standingMemoryTexts(memories: ReadonlyArray<{ text?: string; canonicalText?: string; canonical_text?: string; memoryType?: string; memory_type?: string; metadata?: Record<string, unknown> }>): string[] {
   const seen = new Set<string>();
   const texts: string[] = [];
   for (const memory of memories) {
     const text = String(memory.text ?? memory.canonicalText ?? memory.canonical_text ?? '').trim();
-    if (!text || seen.has(text) || !isBehaviorAlteringMemory(text)) continue;
+    if (!text || seen.has(text) || !isCoreRuleMemory({ ...memory, text })) continue;
     seen.add(text);
     texts.push(text);
   }
@@ -76,16 +135,20 @@ export function standingBehaviorContract(texts: readonly string[]): StandingBeha
 }
 
 export function collectStandingMemoryTexts(context: {
-  memoryContext?: { standingBehavior?: Array<{ text?: string }>; silent?: Array<{ text?: string }>; callbacks?: Array<{ text?: string }>; directRecall?: Array<{ text?: string }> };
-  memories?: Array<{ text?: string }>;
+  memoryContext?: { standingBehavior?: Array<{ text?: string; type?: string; metadata?: Record<string, unknown> }>; silent?: Array<{ text?: string; type?: string; metadata?: Record<string, unknown> }>; callbacks?: Array<{ text?: string; type?: string; metadata?: Record<string, unknown> }>; directRecall?: Array<{ text?: string; type?: string; metadata?: Record<string, unknown> }> };
+  memories?: Array<{ text?: string; type?: string; memoryType?: string; metadata?: Record<string, unknown> }>;
 }): string[] {
-  return standingMemoryTexts([
+  const rows: Array<{ text?: string; type?: string; memoryType?: string; metadata?: Record<string, unknown> }> = [
     ...(context.memoryContext?.standingBehavior ?? []),
     ...(context.memoryContext?.silent ?? []),
     ...(context.memoryContext?.callbacks ?? []),
     ...(context.memoryContext?.directRecall ?? []),
     ...(context.memories ?? []),
-  ]);
+  ];
+  return standingMemoryTexts(rows.map((memory) => ({
+    ...memory,
+    memoryType: memory.memoryType ?? memory.type,
+  })));
 }
 
 export function standingRelationshipCoreRule(texts: readonly string[]): string {
@@ -207,7 +270,7 @@ export function scoreMemoryActivation(memory: MemoryLike, context: MemoryActivat
   const recentMentionPenalty = mentionAge < 45 ? .35 : mentionAge < 180 ? .2 : context.recentAssistantMemoryIds?.includes(memory.id) ? .2 : 0;
   const pinnedDurability = memory.pinned ? .03 : 0;
   const reinforcement = clamp(Number(memory.reinforcementCount ?? memory.reinforcement_count ?? 0) / 10) * .02;
-  const standing = isBehaviorAlteringMemory(text);
+  const standing = isCoreRuleMemory({ ...memory, canonicalText: text });
   const activationScore = clamp(semanticSimilarity * .35 + lexicalRelevance * .1 + sceneRelevance * .25 + relationshipRelevance * .08 + importance * .07 + emotionalSalience * .05 + pinnedDurability + reinforcement + (standing ? .45 : 0) - recentRetrievalPenalty - recentMentionPenalty);
   const reasonCodes = [semanticSimilarity >= .55 ? 'semantic' : '', lexicalRelevance >= .3 ? 'lexical' : '', sceneRelevance >= .3 ? 'scene' : '', importance >= .7 ? 'important' : '', emotionalSalience >= .6 ? 'emotional' : '', memory.pinned ? 'durable' : '', standing ? 'standing_behavior' : '', recentMentionPenalty ? 'recent_mention_penalty' : ''].filter(Boolean);
   const recallMode = classifyRecallMode({ activationScore, sceneRelevance, lexicalRelevance, recentMentionPenalty, query: context.query, intent: context.intent });
@@ -224,7 +287,8 @@ export function classifyRecallMode(input: { activationScore: number; sceneReleva
 
 export function buildMemoryRecallPlan(memories: readonly MemoryLike[], context: MemoryActivationContext, limit = 8): MemoryRecallPlan {
   const scored = memories.map((memory) => scoreMemoryActivation(memory, context)).sort((a, b) => b.activationScore - a.activationScore || a.id.localeCompare(b.id));
-  const standingBehavior = scored.filter((memory) => isBehaviorAlteringMemory(memory.canonicalText)).slice(0, 8);
+  const standingIdsFromSource = new Set(memories.filter((memory) => isCoreRuleMemory({ ...memory, canonicalText: textOf(memory) })).map((memory) => memory.id));
+  const standingBehavior = scored.filter((memory) => standingIdsFromSource.has(memory.id) || isCoreRuleMemory(memory)).slice(0, 8);
   const standingIds = new Set(standingBehavior.map((memory) => memory.id));
   const pinnedKeep = scored.filter((memory) => memory.pinned && !standingIds.has(memory.id));
   const remaining = scored.filter((memory) => !standingIds.has(memory.id) && !pinnedKeep.some((item) => item.id === memory.id));

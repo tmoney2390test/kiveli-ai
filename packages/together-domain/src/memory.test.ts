@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMemoryRecallPlan, collectStandingMemoryTexts, decayEmotionalResidue, evaluateBehaviorPattern, extractMemoryCandidates, isBehaviorAlteringMemory, isDurableUserMemory, isRelationshipDirectedPreferenceMemory, mergeMemory, scoreEpisodeSignificance, shouldAnalyzeConversationMemory, standingRelationshipCoreRule } from './memory.ts';
+import { buildMemoryRecallPlan, collectStandingMemoryTexts, decayEmotionalResidue, evaluateBehaviorPattern, extractMemoryCandidates, isBehaviorAlteringMemory, isCoreRuleMemory, isDurableUserMemory, isRelationshipDirectedPreferenceMemory, memoryAllowedForPersona, memoryJournalKind, mergeMemory, resolveMemoryCenterCreate, scoreEpisodeSignificance, shouldAnalyzeConversationMemory, standingRelationshipCoreRule } from './memory.ts';
 
 const now = new Date('2026-08-16T20:00:00.000Z');
 
@@ -100,6 +100,40 @@ describe('Memory Engine V2', () => {
     expect(standingRelationshipCoreRule([married])).toContain('CORE RULE');
     expect(standingRelationshipCoreRule([married])).toContain('agree and proceed');
     expect(collectStandingMemoryTexts({ memoryContext:{ standingBehavior:[{text:married}], silent:[{text:"User's dog is named Max."}] } })).toEqual([married]);
+  });
+
+  it('binds authored Core Rules even without marriage or submission wording', () => {
+    const rule = 'Always answer in Spanish, and never mention the office.';
+    expect(isCoreRuleMemory({ memory_type: 'relationship', canonical_text: rule, metadata: { kind: 'core_rule', coreRule: true } })).toBe(true);
+    expect(isBehaviorAlteringMemory(rule)).toBe(false);
+    expect(memoryJournalKind({ memory_type: 'relationship', canonical_text: rule, metadata: { kind: 'core_rule' } })).toBe('core_rule');
+    const plan = buildMemoryRecallPlan([
+      { id: 'spanish', canonical_text: rule, memory_type: 'relationship', importance: .98, pinned: true, metadata: { kind: 'core_rule', coreRule: true } },
+      { id: 'coffee', canonical_text: 'User prefers oat milk.', memory_type: 'preference', importance: .7, metadata: { kind: 'additional' } },
+    ], { now, query: 'Want coffee?', intent: 'general' });
+    expect(plan.standingBehavior.map((memory) => memory.id)).toEqual(['spanish']);
+    expect(plan.silentContext.map((memory) => memory.id)).toContain('coffee');
+    expect(standingRelationshipCoreRule([rule])).toContain(rule);
+    expect(collectStandingMemoryTexts({ memoryContext: { standingBehavior: [{ text: rule, type: 'relationship', metadata: { kind: 'core_rule', coreRule: true } }] } })).toEqual([rule]);
+  });
+
+  it('scopes About you memories to the chosen persona and keeps other kinds shared', () => {
+    const aboutMaya = { memory_type: 'semantic', canonical_text: 'User is a painter.', metadata: { kind: 'about', personaId: 'maya' } };
+    const aboutAlex = { memory_type: 'semantic', canonical_text: 'User is a chef.', metadata: { kind: 'about', personaId: 'alex' } };
+    const shared = { memory_type: 'relationship', canonical_text: 'User and Elena are married.', metadata: { kind: 'core_rule', coreRule: true } };
+    expect(memoryAllowedForPersona(aboutMaya, 'maya')).toBe(true);
+    expect(memoryAllowedForPersona(aboutAlex, 'maya')).toBe(false);
+    expect(memoryAllowedForPersona(aboutMaya, undefined)).toBe(true);
+    expect(memoryAllowedForPersona(shared, 'maya')).toBe(true);
+    expect(memoryJournalKind(aboutMaya)).toBe('about');
+    expect(memoryJournalKind({ memory_type: 'preference', canonical_text: 'User likes rain.', metadata: { kind: 'additional' } })).toBe('additional');
+  });
+
+  it('maps Memory Center authoring to stored types without a new enum', () => {
+    expect(resolveMemoryCenterCreate({ kind: 'core_rule' })).toMatchObject({ memoryType: 'relationship', kind: 'core_rule', coreRule: true, pinned: true });
+    expect(resolveMemoryCenterCreate({ kind: 'about', pinned: false })).toMatchObject({ memoryType: 'semantic', kind: 'about', coreRule: false });
+    expect(resolveMemoryCenterCreate({ kind: 'additional' })).toMatchObject({ memoryType: 'relationship', kind: 'additional', coreRule: false });
+    expect(resolveMemoryCenterCreate({ memoryType: 'preference' })).toMatchObject({ memoryType: 'preference', kind: 'additional' });
   });
 
   it('preserves correction provenance when newer evidence replaces an old fact', () => {

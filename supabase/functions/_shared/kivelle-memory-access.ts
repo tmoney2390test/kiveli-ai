@@ -1,4 +1,4 @@
-import type { SubscriptionTier } from "../../../packages/together-domain/src/index.ts";
+import { isCoreRuleMemory, type SubscriptionTier } from "../../../packages/together-domain/src/index.ts";
 
 type Row = Record<string, unknown>;
 
@@ -28,14 +28,24 @@ export function projectSnapshotMemories<
 }
 
 export function filterMemoriesForPreferences<
-  T extends { memory_type?: unknown },
+  T extends { memory_type?: unknown; canonical_text?: unknown; metadata?: unknown },
 >(
   rows: readonly T[],
   preferences: Record<string, unknown> | null | undefined,
 ): T[] {
-  return rows.filter((row) =>
-    preferences?.[String(row.memory_type ?? "semantic")] !== false
-  );
+  return rows.filter((row) => {
+    if (
+      isCoreRuleMemory({
+        memoryType: String(row.memory_type ?? "semantic"),
+        canonicalText: String(row.canonical_text ?? ""),
+        metadata: row.metadata && typeof row.metadata === "object" &&
+            !Array.isArray(row.metadata)
+          ? row.metadata as Record<string, unknown>
+          : undefined,
+      })
+    ) return true;
+    return preferences?.[String(row.memory_type ?? "semantic")] !== false;
+  });
 }
 
 export function resolveMemoryProductAccess(

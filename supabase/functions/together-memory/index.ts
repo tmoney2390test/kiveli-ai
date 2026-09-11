@@ -12,6 +12,10 @@ import {
   memorySourceContext,
   resolveMemoryProductAccess,
 } from "../_shared/kivelle-memory-access.ts";
+import {
+  memoryJournalKind,
+  resolveMemoryCenterCreate,
+} from "../../../packages/together-domain/src/index.ts";
 
 type Row = Record<string, any>;
 type MemoryCursor = {
@@ -30,12 +34,15 @@ const editableMemoryType = z.enum([
 ]);
 const memoryCategory = z.enum([
   "all",
+  "core_rules",
   "about",
+  "additional",
+  "upcoming",
   "preference",
   "shared",
   "relationship",
-  "upcoming",
 ]);
+const memoryAuthorKind = z.enum(["core_rule", "about", "additional"]);
 const memorySort = z.enum(["pinned", "newest", "oldest", "recalled"]);
 const categoryPreferences = z.object({
   semantic: z.boolean().optional(),
@@ -61,9 +68,11 @@ const schema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("create"),
     characterInstanceId: z.string().uuid(),
-    memoryType: editableMemoryType,
+    memoryType: editableMemoryType.optional(),
+    kind: memoryAuthorKind.optional(),
+    personaId: z.string().uuid().optional(),
     text: z.string().trim().min(1).max(2000),
-    pinned: z.boolean().default(false),
+    pinned: z.boolean().optional(),
   }),
   z.object({
     action: z.literal("edit"),
@@ -158,7 +167,9 @@ serve(async (request, correlationId) => {
         p_cursor_retrieval_count: cursor?.retrievalCount ?? null,
         p_cursor_updated_at: cursor?.updatedAt ?? null,
         p_cursor_id: cursor?.id ?? null,
-        p_limit: input.limit + 1,
+        p_limit: input.category === "core_rules" || input.category === "additional"
+          ? Math.min(101, Math.max(input.limit * 3, 61))
+          : input.limit + 1,
       }),
       !input.cursor && input.includeSummary && access.maxInsights &&
           !input.privacyMode
@@ -178,8 +189,12 @@ serve(async (request, correlationId) => {
     const safePolicyResult=safeIds.length?await db.from('together_memories').select('id').eq('user_id',user.id).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).in('id',safeIds):{data:[],error:null};
     if(safePolicyResult.error)throw new AppError('INTERNAL_ERROR','Memories could not be loaded.',500,true);
     const visibleIds=new Set((safePolicyResult.data??[]).map((row)=>String(row.id)));
-    const pageRows = rawPageRows.filter((row)=>visibleIds.has(String(row.id))),
-      hasMore = pageRows.length > input.limit,
+    const visibleRows = rawPageRows.filter((row)=>visibleIds.has(String(row.id)));
+    const pageRows = visibleRows.filter((row)=>matchesOverviewCategory(row, input.category)),
+      needsKindFilter = input.category === "core_rules" || input.category === "additional",
+      hasMore = needsKindFilter
+        ? rawPageRows.length > input.limit || pageRows.length > input.limit
+        : pageRows.length > input.limit,
       rows = pageRows.slice(0, input.limit),
       last = rows.at(-1);
     return json(
@@ -289,26 +304,45 @@ serve(async (request, correlationId) => {
         continuity.id,
         input.characterInstanceId,
       ),
+      authored = resolveMemoryCenterCreate({
+        kind: input.kind,
+        memoryType: input.memoryType,
+        pinned: input.pinned,
+      }),
       canonicalText = canonicalMemoryTextFromUserInput(input.text),
       now = new Date().toISOString(),
       key = crypto.randomUUID();
+    const persona = authored.kind === "about" && input.personaId
+      ? await loadOwnedPersona(db, user.id, input.personaId)
+      : null;
     const { data, error } = await db.from("together_memories").insert({
       user_id: user.id,
       continuity_id: continuity.id,
       character_instance_id: companion.id,
-      memory_type: input.memoryType,
+      memory_type: authored.memoryType,
       canonical_text: canonicalText,
       dedupe_key: `manual-ui:${key}`,
       subject_key: `manual-ui:${key}`,
-      importance: .9,
+      importance: authored.importance,
       confidence: 1,
-      pinned: input.pinned,
+      pinned: authored.pinned,
       status: "active",
       source_type: "manual",
       learned_via: "direct_user",
       shareability: "private",
       valid_from: now,
-      metadata: { manual: true, createdInMemoryCenter: true },
+      metadata: {
+        manual: true,
+        createdInMemoryCenter: true,
+        kind: authored.kind,
+        ...(authored.coreRule ? { coreRule: true } : {}),
+        ...(persona
+          ? {
+            personaId: persona.id,
+            personaName: persona.name,
+          }
+          : {}),
+      },
       content_rating:'safe',
       visibility_scope:'all',
       moderation_version:'manual-memory-v1',
@@ -326,6 +360,7 @@ serve(async (request, correlationId) => {
     await track(db, user.id, "memory_created", {
       memoryId: data.id,
       type: data.memory_type,
+      kind: authored.kind,
       source: "memory_center",
     });
     return json(
@@ -639,7 +674,7 @@ async function loadCounts(
   continuityId: string,
   characterInstanceId: string,
 ) {
-  const { data, error } = await db.from('together_memories').select('memory_type').eq('user_id',userId).eq('continuity_id',continuityId).eq('character_instance_id',characterInstanceId).eq('status','active').eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
+  const { data, error } = await db.from('together_memories').select('memory_type,canonical_text,metadata').eq('user_id',userId).eq('continuity_id',continuityId).eq('character_instance_id',characterInstanceId).eq('status','active').eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
   if (error) {
     throw new AppError(
       "INTERNAL_ERROR",
@@ -648,9 +683,24 @@ async function loadCounts(
       true,
     );
   }
+  const rows = data ?? [];
+  const typeCount = (kind: string) =>
+    rows.filter((row: Row) => row.memory_type === kind).length;
+  const journalCount = (kind: string) =>
+    rows.filter((row: Row) => journalKind(row) === kind).length;
   return {
-    count: data?.length??0,
-    categories: Object.fromEntries(['semantic','emotional','preference','episodic','relationship','open_thread'].map((kind)=>[kind,(data??[]).filter((row:Record<string,unknown>)=>row.memory_type===kind).length])),
+    count: rows.length,
+    categories: {
+      semantic: typeCount("semantic"),
+      emotional: typeCount("emotional"),
+      preference: typeCount("preference"),
+      episodic: typeCount("episodic"),
+      relationship: typeCount("relationship"),
+      open_thread: typeCount("open_thread"),
+      core_rule: journalCount("core_rule"),
+      about: journalCount("about"),
+      additional: journalCount("additional"),
+    },
   };
 }
 async function loadCompanion(
@@ -674,6 +724,22 @@ async function loadCompanion(
   return {
     id: String(data.id),
     name: String(template?.name ?? "Your companion"),
+  };
+}
+async function loadOwnedPersona(
+  db: any,
+  userId: string,
+  personaId: string,
+): Promise<{ id: string; name: string }> {
+  const { data, error } = await db.from("together_user_personas").select(
+    "id,name,display_name",
+  ).eq("id", personaId).eq("user_id", userId).maybeSingle();
+  if (error || !data) {
+    throw new AppError("NOT_FOUND", "That persona is unavailable.", 404);
+  }
+  return {
+    id: String(data.id),
+    name: String(data.display_name || data.name || "You"),
   };
 }
 async function loadOwnedMemory(
@@ -738,6 +804,7 @@ async function replaceMemory(
 }
 
 function safeMemory(row: Row, privacyMode: boolean) {
+  const kind = journalKind(row);
   const base = {
     id: String(row.id),
     character_instance_id: String(row.character_instance_id),
@@ -747,6 +814,12 @@ function safeMemory(row: Row, privacyMode: boolean) {
     status: String(row.status ?? "active"),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
+    kind,
+    coreRule: kind === "core_rule",
+    personaId: String(row.metadata?.personaId ?? row.metadata?.persona_id ?? "") ||
+      null,
+    personaName: String(row.metadata?.personaName ?? row.metadata?.persona_name ?? "") ||
+      null,
   };
   if (privacyMode) return base;
   const locationName = String(row.location_name ?? "") || undefined,
@@ -827,12 +900,45 @@ function sourceHref(
 function typesForCategory(
   category: z.infer<typeof memoryCategory>,
 ): string[] | null {
-  if (category === "about") return ["semantic", "emotional"];
+  if (category === "core_rules") {
+    return ["semantic", "preference", "episodic", "relationship", "emotional"];
+  }
+  if (category === "about") return ["semantic"];
+  if (category === "additional") {
+    return ["preference", "episodic", "relationship", "emotional"];
+  }
   if (category === "preference") return ["preference"];
   if (category === "shared") return ["episodic"];
   if (category === "relationship") return ["relationship"];
   if (category === "upcoming") return ["open_thread"];
   return null;
+}
+function journalKind(row: Row) {
+  return memoryJournalKind({
+    memoryType: String(row.memory_type ?? ""),
+    canonicalText: String(row.canonical_text ?? ""),
+    metadata: row.metadata && typeof row.metadata === "object" &&
+        !Array.isArray(row.metadata)
+      ? row.metadata as Record<string, unknown>
+      : undefined,
+  });
+}
+function matchesOverviewCategory(
+  row: Row,
+  category: z.infer<typeof memoryCategory>,
+) {
+  if (category === "all") return true;
+  const kind = journalKind(row);
+  if (category === "core_rules") return kind === "core_rule";
+  if (category === "about") return kind === "about";
+  if (category === "additional") return kind === "additional";
+  if (category === "upcoming") return kind === "upcoming";
+  if (category === "preference") return String(row.memory_type) === "preference";
+  if (category === "shared") return String(row.memory_type) === "episodic";
+  if (category === "relationship") {
+    return String(row.memory_type) === "relationship";
+  }
+  return true;
 }
 function encodeCursor(row: Row) {
   const value: MemoryCursor = {

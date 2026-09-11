@@ -1,20 +1,20 @@
-import { buildMemoryRecallPlan, decayEmotionalResidue, isBehaviorAlteringMemory, isDurableUserMemory, type MemoryActivationContext } from '../../../packages/together-domain/src/index.ts';
+import { buildMemoryRecallPlan, decayEmotionalResidue, isCoreRuleMemory, isDurableUserMemory, memoryAllowedForPersona, type MemoryActivationContext } from '../../../packages/together-domain/src/index.ts';
 
 type Row = Record<string, any>;
 type MemoryRow = Row & { id: string };
 
-export type MemoryContextEntry = { id:string; text:string; type:string; pinned:boolean; importance:number; sourceType?:string; episodeId?:string; locationId?:string|null; worldId?:string|null; contextTags?:string[] };
+export type MemoryContextEntry = { id:string; text:string; type:string; pinned:boolean; importance:number; sourceType?:string; episodeId?:string; locationId?:string|null; worldId?:string|null; contextTags?:string[]; metadata?:Record<string,unknown> };
 export type ActivatedMemoryContext = { silent:MemoryContextEntry[]; callbacks:MemoryContextEntry[]; directRecall:MemoryContextEntry[]; standingBehavior:MemoryContextEntry[]; callbackAllowance:number; retrievedIds:string[]; debug?:Array<{id:string;activation:number;mode:string;reasonCodes:string[]}> };
 
 const flagEnabled = () => Deno.env.get('KIVELLE_MEMORY_ACTIVATION_V2') !== 'false';
 
-export async function retrieveActivatedMemories(input:{db:any;userId:string;characterInstanceId:string;userMessage:string;intent:string;storedRows:Row[];semanticRows?:Row[];currentScene?:Row|null;relationship?:Row|null;recentAssistantMessages?:Array<{content?:string}>;now:Date;candidateLimit?:number}):Promise<ActivatedMemoryContext>{
+export async function retrieveActivatedMemories(input:{db:any;userId:string;characterInstanceId:string;userMessage:string;intent:string;storedRows:Row[];semanticRows?:Row[];currentScene?:Row|null;relationship?:Row|null;recentAssistantMessages?:Array<{content?:string}>;now:Date;candidateLimit?:number;personaId?:string}):Promise<ActivatedMemoryContext>{
   const candidates=new Map<string,MemoryRow>();
-  for(const item of input.storedRows){const id=String(item.id??'');if(id&&durableRow(item))candidates.set(id,{...item,id});}
-  for(const item of input.semanticRows??[]){const id=String(item.id??'');if(!id||!durableRow(item))continue;candidates.set(id,{...(candidates.get(id)??{}),...item,id,metadata:{...(candidates.get(id)?.metadata??{}),...(item.metadata??{})}});}
+  for(const item of input.storedRows){const id=String(item.id??'');if(id&&durableRow(item)&&personaAllowed(item,input.personaId))candidates.set(id,{...item,id});}
+  for(const item of input.semanticRows??[]){const id=String(item.id??'');if(!id||!durableRow(item)||!personaAllowed(item,input.personaId))continue;candidates.set(id,{...(candidates.get(id)??{}),...item,id,metadata:{...(candidates.get(id)?.metadata??{}),...(item.metadata??{})}});}
   if(!flagEnabled()){
     const fallback=[...candidates.values()].slice(0,8).map((row)=>present(row));
-    const standing=fallback.filter((item)=>isBehaviorAlteringMemory(item.text));
+    const standing=fallback.filter((item)=>isCoreRuleMemory({memoryType:item.type,text:item.text,metadata:item.metadata}));
     const standingIds=new Set(standing.map((item)=>item.id));
     const silent=fallback.filter((item)=>!standingIds.has(item.id));
     await markRetrieved(input.db,input.userId,fallback.map((item)=>item.id),input.now);
@@ -47,7 +47,10 @@ export function activeEmotionalResidue(row:Row|null|undefined,now:Date){
   return intensity>=.08?{tone:String(row.tone),valence:Number(row.valence??0),intensity,expiresAt:String(row.expires_at)}:null;
 }
 
-function present(row:Row,override?:{id:string;canonicalText:string;memoryType:string;importance:number}):MemoryContextEntry{return{id:String(override?.id??row.id),text:String(override?.canonicalText??row.canonical_text??''),type:String(override?.memoryType??row.memory_type??'semantic'),pinned:Boolean(row.pinned),importance:Number(override?.importance??row.importance??.5),sourceType:row.source_type??undefined,episodeId:row.episode_id??undefined,locationId:row.location_id??null,worldId:row.world_id??null,contextTags:Array.isArray(row.context_tags)?row.context_tags.map(String):[]};}
+function present(row:Row,override?:{id:string;canonicalText:string;memoryType:string;importance:number}):MemoryContextEntry{return{id:String(override?.id??row.id),text:String(override?.canonicalText??row.canonical_text??''),type:String(override?.memoryType??row.memory_type??'semantic'),pinned:Boolean(row.pinned),importance:Number(override?.importance??row.importance??.5),sourceType:row.source_type??undefined,episodeId:row.episode_id??undefined,locationId:row.location_id??null,worldId:row.world_id??null,contextTags:Array.isArray(row.context_tags)?row.context_tags.map(String):[],metadata:row.metadata&&typeof row.metadata==='object'&&!Array.isArray(row.metadata)?row.metadata as Record<string,unknown>:undefined};}
 function durableRow(row:Row){return isDurableUserMemory({memoryType:String(row.memory_type??'semantic'),canonicalText:String(row.canonical_text??'')});}
+function personaAllowed(row:Row,activePersonaId?:string){
+  return memoryAllowedForPersona({memoryType:String(row.memory_type??'semantic'),canonicalText:String(row.canonical_text??''),metadata:row.metadata&&typeof row.metadata==='object'&&!Array.isArray(row.metadata)?row.metadata as Record<string,unknown>:undefined},activePersonaId);
+}
 async function markRetrieved(db:any,userId:string,ids:string[],now:Date){if(!ids.length)return;await db.rpc('kivelle_touch_memories',{p_user_id:userId,p_memory_ids:ids,p_kind:'retrieved',p_now:now.toISOString()});}
 function extractMemoryIds(content:string,rows:Map<string,Row>){const text=content.toLowerCase();return[...rows.entries()].filter(([,row])=>{const value=String(row.canonical_text??'').toLowerCase();const words=value.split(/[^a-z0-9]+/).filter((word:string)=>word.length>4);return words.length>1&&words.filter((word:string)=>text.includes(word)).length>=2;}).map(([id])=>id);}
