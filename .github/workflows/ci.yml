@@ -38,6 +38,8 @@ jobs:
         run: |
           deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-venice-test_test.ts supabase/functions/_shared/kivelle-venice-dialogue_test.ts supabase/functions/_shared/kivelle-wavespeed-dialogue_test.ts
           node scripts/test-venice-chat-db.mjs
+      - name: Dialogue routing continuity regressions
+        run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-ai-routing.test.ts supabase/functions/_shared/kivelle-routing-history.test.ts
       - name: Apple review recovery regressions
         run: >-
           deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json

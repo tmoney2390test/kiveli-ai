@@ -14,6 +14,8 @@ import { buildIsolatedSpeakerContext } from '../_shared/kivelle-speaker-context.
 import { compileCompanionPrompt } from '../_shared/kivelle-intelligence.ts';
 import { applyChatTestRoute } from '../_shared/kivelle-chat-model-test.ts';
 import { resolveDialogueRouting } from '../_shared/kivelle-ai-routing.ts';
+import { loadAdultRoutingHistory } from '../_shared/kivelle-routing-history.ts';
+import { requestedConversationDialogueContentMode } from '../_shared/conversation-content-mode.ts';
 import { openAIDialogueModel, xaiDialogueModel, openAIFastServiceTier } from '../_shared/together-ai.ts';
 import { resolveDialogueRunGenerationProfile, chatGenerationControlsMode } from '../_shared/kivelle-chat-generation.ts';
 import { contextDraftFingerprint, contextState } from '../_shared/kivelle-context-authorization.ts';
@@ -41,7 +43,10 @@ Deno.serve(async(request)=>{
     if(input.manualSpeakerInstanceId){if(!speakerIds.includes(input.manualSpeakerInstanceId))throw new AppError('CONFLICT','That companion is no longer in this group.',409);speakerIds=[input.manualSpeakerInstanceId];}
     if(!group&&input.characterInstanceId!==conversation.character_instance_id)throw new AppError('CONFLICT','This conversation has changed.',409);
     const {data:directInstance}=group?{data:null}:await db.from('together_character_instances').select('*,together_character_templates(*)').eq('id',conversation.character_instance_id).eq('user_id',user.id).single();
-    const policy=resolvePrivateDialoguePolicy({access:adultAccess,requestedMode:'explicit',conversationMode:group?'group':'direct',participants:group?participants??[]:directInstance?[directInstance]:[],safetyAllowed:true});
+    const {data:profile,error:profileError}=await db.from('together_profiles').select('content_preferences').eq('user_id',user.id).single();
+    if(profileError)throw new AppError('INTERNAL_ERROR','Chat preferences could not be priced.',503,true);
+    const policy=resolvePrivateDialoguePolicy({access:adultAccess,requestedMode:requestedConversationDialogueContentMode(profile,conversation),conversationMode:group?'group':'direct',participants:group?participants??[]:directInstance?[directInstance]:[],safetyAllowed:true});
+    const routingHistory=await loadAdultRoutingHistory(db,user.id,conversation.id);
     const ceiling=selectedContextCeiling(preference,subscription.capabilities.intelligenceProfile);
     const replies:ContextReplyQuote[]=[];
     let approximateInputTokens=0;
@@ -52,7 +57,7 @@ Deno.serve(async(request)=>{
       const speakerId=speakerIds[index]!;
       const {context,instance}=await buildIsolatedSpeakerContext({db,userId:user.id,continuityId:String(conversation.continuity_id),conversation,speakerCharacterInstanceId:speakerId,userMessage:input.message,attachments:attachments??[],...(index&&sceneSessionId?{sceneSessionId}:{}),readOnly:true,contextInputCeiling:ceiling,authorizedPrivateAdultText:policy.rollout.generationAllowed,authorizedWebAdult:adultAccess.authorized_web_adult});
       if(!group&&index===0){sceneSessionId=context.currentScene?.sceneSessionId;for(const participant of context.sceneParticipants??[])if(!speakerIds.includes(participant.characterInstanceId))speakerIds.push(participant.characterInstanceId);}
-      const route=await applyChatTestRoute(db,user.id,conversation,resolveDialogueRouting({message:input.message,recentTurns:context.recent.slice(-4),requestedMode:'explicit',ageVerified:adultAccess.authorized_web_adult,adultAuthorized:policy.rollout.generationAllowed,characterAge:Number(context.character.age)||null,relationshipAllowsExplicit:context.relationship.romance_enabled!==false}));
+      const route=await applyChatTestRoute(db,user.id,conversation,resolveDialogueRouting({message:input.message,routingHistory:group||index===0?routingHistory:[],recentTurns:context.recent.slice(-4),requestedMode:policy.effectiveMode,ageVerified:adultAccess.adult_eligible,adultAuthorized:(group||index===0)&&policy.rollout.generationAllowed,characterAge:Number(context.character.age)||null,relationshipAllowsExplicit:context.relationship.romance_enabled!==false&&context.relationship.romance_path_status!=='friends_only',adultAttachment:(attachments??[]).some((attachment:any)=>attachment.content_rating==='explicit'||attachment.visibility_scope==='web_adult')}));
       if(route.hardBlocked)throw new AppError('VALIDATION_FAILED','This message cannot use expanded context.',422);
       context.contentMode=route.resolvedMode;
       Object.assign(context,{dialogueRouting:{...route}});

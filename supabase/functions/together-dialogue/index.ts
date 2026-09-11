@@ -91,6 +91,7 @@ import { recordChatPlaceOpinions } from "../_shared/kivelle-place-perspective.ts
 import type { PlaceContext } from "../_shared/together-place.ts";
 import { applyChatTestRoute } from '../_shared/kivelle-chat-model-test.ts';
 import { resolveDialogueRouting } from "../_shared/kivelle-ai-routing.ts";
+import { loadAdultRoutingHistory } from '../_shared/kivelle-routing-history.ts';
 import { sharedSceneGenerationContext,type DialogueGenerationContext } from "../_shared/kivelle-chat-generation.ts";
 import type {
   DialogueContentMode,
@@ -456,13 +457,15 @@ Deno.serve(async (request) => {
           characterInstanceId: input.characterInstanceId,
           correlationId,
         };
-        let recentRoutingQuery=db.from("together_messages").select("role,content").eq("conversation_id",input.conversationId);
+        let recentRoutingQuery=db.from("together_messages").select("role,content").eq("user_id",user.id).eq("conversation_id",input.conversationId);
+        if(existingUserMessage)recentRoutingQuery=recentRoutingQuery.lt('conversation_sequence',Number(existingUserMessage.conversation_sequence));
         if(!authorizedPrivateAdultText)recentRoutingQuery=recentRoutingQuery.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
         const [
           { data: profile },
           { data: recentRoutingRows },
           { data: routingRelationship },
           inputSafety,
+          routingHistory,
         ] = await Promise.all([
           db.from("together_profiles").select(
             "age_verified_at,content_preferences",
@@ -478,6 +481,7 @@ Deno.serve(async (request) => {
             ...usageBase,
             metadata: { direction: "input" },
           }),
+          loadAdultRoutingHistory(db,user.id,input.conversationId,existingUserMessage?Number(existingUserMessage.conversation_sequence):undefined),
         ]);
         const storedRequestedMode=requestedConversationDialogueContentMode(profile,conversation);
         let dialoguePolicy=resolvePrivateDialoguePolicy({
@@ -498,6 +502,7 @@ Deno.serve(async (request) => {
         const adultAttachment=attachments.some((attachment)=>attachment.content_rating==='explicit'||attachment.visibility_scope==='web_adult');
         let route = resolveDialogueRouting({
           message: contextText,
+          routingHistory,
           recentTurns: [...(recentRoutingRows ?? [])].reverse(),
           requestedMode,
           ageVerified: adultAccess.adult_eligible,
@@ -624,6 +629,7 @@ Deno.serve(async (request) => {
               requestFingerprint,
               requestAttachmentIds: [...input.attachmentIds].sort(),
               ...userMessagePolicy(route,adultAttachment),
+              adultRouting: route.adultRouting,
               ...privateDialoguePolicyMetadata({policy:dialoguePolicy,access:adultAccess,conversationMode:'direct',providerRoute:route.provider}),
               ...(isContinuation?{messageAction:'continue',anchorMessageId:input.anchorMessageId,uiHidden:true}:{}),
               ...(hideOneTapSelfie?{uiHidden:true,messagePresentation:ONE_TAP_SELFIE_MESSAGE_PRESENTATION}:{}),
@@ -1092,6 +1098,7 @@ Deno.serve(async (request) => {
         requestedMode=dialoguePolicy.effectiveMode;
         const selectedRouteInput = {
           message: contextText,
+          routingHistory,
           recentTurns: [...(recentRoutingRows ?? [])].reverse(),
           requestedMode,
           ageVerified: adultAccess.adult_eligible,
@@ -1102,6 +1109,8 @@ Deno.serve(async (request) => {
             dialogueContext.relationship?.romance_path_status !==
               "friends_only",
           photoRequest: photoIntent.requested,
+          photoAdultRequest: ['suggestive','mature','explicit'].includes(String(photoIntent.requestedContentLevel??'')),
+          photoSafetyBlocked: photoSafety?.allowed===false,
           adultAttachment,
           moderation: inputSafety,
         };
