@@ -1,4 +1,4 @@
-import { normalizeVeniceTestSelection, type VeniceTestSelection } from '@together/domain/src/venice-chat';
+import { normalizeChatTestSelection, type ChatTestSelection } from '@together/domain/src/chat-model-test';
 import { normalizeContextPreference, type ContextPreference } from '@together/domain/src/chat-context';
 import type { ChatPreferences, ChatTextSize, Conversation, ConversationStyle, DialogueContentMode, Snapshot, SpiceLevel } from '../types';
 import { resolveClientConversationStyle } from './conversationStyle';
@@ -18,7 +18,7 @@ export function chatPreferencesFromConversation(conversation?: Pick<Conversation
   const value = conversation?.metadata?.chatPreferences;
   const candidate = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
   return {
-    ...(candidate.veniceTestModel !== undefined ? { veniceTestModel: normalizeVeniceTestSelection(candidate.veniceTestModel) } : {}),
+    ...(candidate.veniceTestModel !== undefined ? { veniceTestModel: normalizeChatTestSelection(candidate.veniceTestModel) } : {}),
     contextPreference: normalizeContextPreference(candidate.contextPreference),
     ...(candidate.responseStyle === 'paragraph' || candidate.responseStyle === 'texting' ? { responseStyle: candidate.responseStyle } : {}),
     ...(candidate.textSize === 'small' || candidate.textSize === 'medium' || candidate.textSize === 'large' ? { textSize: candidate.textSize } : {}),
@@ -89,11 +89,11 @@ export function isSubscribedTier(tier?: string | null): boolean {
   return ['kivelle_plus', 'kivelle_max', 'together_plus', 'unlimited'].includes(String(tier ?? '').toLowerCase());
 }
 
-export function withLocalChatSettings(conversation: Conversation, input: { veniceTestModel?:VeniceTestSelection; contextPreference?:ContextPreference; title: string | null; responseStyle: ConversationStyle; textSize: ChatTextSize; spiceLevel?: SpiceLevel; voicePreset?: CompanionVoicePreset | null; contentMode?: DialogueContentMode; chatLanguage?: ChatLanguagePreference; chatDynamism?:ChatDynamism; reasoningPreference?:ReasoningPreference; userBubbleColor?:ChatBubbleColor; companionBubbleColor?:ChatBubbleColor }): Conversation {
+export function withLocalChatSettings(conversation: Conversation, input: { veniceTestModel?:ChatTestSelection; contextPreference?:ContextPreference; title: string | null; responseStyle: ConversationStyle; textSize: ChatTextSize; spiceLevel?: SpiceLevel; voicePreset?: CompanionVoicePreset | null; contentMode?: DialogueContentMode; chatLanguage?: ChatLanguagePreference; chatDynamism?:ChatDynamism; reasoningPreference?:ReasoningPreference; userBubbleColor?:ChatBubbleColor; companionBubbleColor?:ChatBubbleColor }): Conversation {
   const current = chatPreferencesFromConversation(conversation);
   const stored=conversation.metadata?.chatPreferences;
   const rawCurrent=stored&&typeof stored==='object'&&!Array.isArray(stored)?stored as Record<string,unknown>:{};
-  const nextPreferences = { ...rawCurrent,...current,veniceTestModel:normalizeVeniceTestSelection(input.veniceTestModel??current.veniceTestModel),contextPreference:normalizeContextPreference(input.contextPreference??current.contextPreference), responseStyle: input.responseStyle, textSize: input.textSize, contentMode: input.contentMode??current.contentMode??'mature', chatDynamism:normalizeChatDynamism(input.chatDynamism??current.chatDynamism), reasoningPreference:normalizeReasoningPreference(input.reasoningPreference??current.reasoningPreference), ...(input.voicePreset ? { voicePreset: input.voicePreset } : {}), ...(input.chatLanguage ? { chatLanguage: input.chatLanguage } : {}), ...(input.userBubbleColor ? { userBubbleColor: normalizeChatBubbleColor(input.userBubbleColor) } : {}), ...(input.companionBubbleColor ? { companionBubbleColor: normalizeChatBubbleColor(input.companionBubbleColor) } : {}) };
+  const nextPreferences = { ...rawCurrent,...current,veniceTestModel:normalizeChatTestSelection(input.veniceTestModel??current.veniceTestModel),contextPreference:normalizeContextPreference(input.contextPreference??current.contextPreference), responseStyle: input.responseStyle, textSize: input.textSize, contentMode: input.contentMode??current.contentMode??'mature', chatDynamism:normalizeChatDynamism(input.chatDynamism??current.chatDynamism), reasoningPreference:normalizeReasoningPreference(input.reasoningPreference??current.reasoningPreference), ...(input.voicePreset ? { voicePreset: input.voicePreset } : {}), ...(input.chatLanguage ? { chatLanguage: input.chatLanguage } : {}), ...(input.userBubbleColor ? { userBubbleColor: normalizeChatBubbleColor(input.userBubbleColor) } : {}), ...(input.companionBubbleColor ? { companionBubbleColor: normalizeChatBubbleColor(input.companionBubbleColor) } : {}) };
   if (input.voicePreset === null) delete nextPreferences.voicePreset;
   return {
     ...conversation,

@@ -1,7 +1,7 @@
-import type { VeniceDialogueExperiment } from './venice-chat.ts';
+import type { ChatDialogueExperiment } from './chat-model-test.ts';
 import { analyzeAdultLanguage, hasExplicitAdultLanguage } from './adult-language.ts';
 
-export type DialogueProviderName = 'openai' | 'xai' | 'gemini' | 'venice' | 'deterministic';
+export type DialogueProviderName = 'openai' | 'xai' | 'gemini' | 'venice' | 'wavespeed' | 'deterministic';
 export type DialogueContentMode = 'standard' | 'romance' | 'mature' | 'explicit';
 export type DialogueContentClass = 'standard' | 'romantic' | 'mature' | 'adult_intimacy' | 'explicit_adult' | 'hard_block';
 
@@ -24,7 +24,7 @@ export type NormalizedModerationResult = {
 };
 
 export type DialogueRoutingDecision = {
-  experiment?: VeniceDialogueExperiment;
+  experiment?: ChatDialogueExperiment;
   provider: DialogueProviderName;
   requestedMode: DialogueContentMode;
   resolvedMode: DialogueContentMode;
@@ -45,6 +45,7 @@ export type DialogueProviderAvailability = {
 
 export const dialogueProviderCapabilities: Record<DialogueProviderName, { romance: boolean; matureThemes: boolean; explicitSexualText: boolean }> = {
   openai: { romance: true, matureThemes: true, explicitSexualText: false },
+  wavespeed: { romance: true, matureThemes: true, explicitSexualText: true },
   venice: { romance: true, matureThemes: true, explicitSexualText: true },
   xai: { romance: true, matureThemes: true, explicitSexualText: true },
   gemini: { romance: true, matureThemes: true, explicitSexualText: false },

@@ -16,7 +16,7 @@ export type AiUsageScope = {
 };
 
 export type AiUsageEvent = {
-  provider: 'openai' | 'xai' | 'gemini' | 'venice' | 'deterministic';
+  provider: 'openai' | 'xai' | 'gemini' | 'venice' | 'wavespeed' | 'deterministic';
   model: string;
   operation: string;
   usage?: NormalizedAiUsage | null;
@@ -36,7 +36,7 @@ export async function recordAiUsage(scope: AiUsageScope | undefined, event: AiUs
   const serviceTier=event.metadata?.serviceTierFallback===true
     ?undefined
     :event.metadata?.appliedServiceTier??event.metadata?.requestedServiceTier;
-  const estimated=event.estimatedCostUsd ?? (usage && (event.provider==='openai'||event.provider==='xai'||event.provider==='venice') ? estimateAiCost(event.provider,event.model,usage,serviceTier) : null);
+  const estimated=event.estimatedCostUsd ?? (usage && (event.provider==='openai'||event.provider==='xai'||event.provider==='venice'||event.provider==='wavespeed') ? estimateAiCost(event.provider,event.model,usage,serviceTier) : null);
   const row={
     user_id:scope.userId,
     continuity_id:scope.continuityId??null,

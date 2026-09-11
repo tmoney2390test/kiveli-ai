@@ -1,5 +1,5 @@
 import { streamVeniceDialogue, veniceDialogueBody } from './kivelle-venice-dialogue.ts';
-import { resolveVeniceTestExperiment } from './kivelle-venice-test.ts';
+import { resolveChatTestExperiment } from './kivelle-chat-model-test.ts';
 import type { DialogueContext, DialogueRunOptions } from './together-ai.ts';
 
 const assert = (condition: unknown, message = 'Assertion failed') => { if (!condition) throw new Error(message); };
@@ -26,7 +26,7 @@ async function fixture(run: (f: { options: DialogueRunOptions; context: Dialogue
     rpc: async (name: string) => { calls.push(name); return { data: name.includes('acquire') ? 'lease' : true, error: null }; },
   };
   try {
-    const experiment = (await resolveVeniceTestExperiment(db, owner, conversation))!;
+    const experiment = (await resolveChatTestExperiment(db, owner, conversation))!;
     const options: DialogueRunOptions = { route: { provider: 'venice', requestedMode: 'explicit', resolvedMode: 'explicit', reason: 'adult_explicit', classification: 'explicit_adult', adultEligible: true, explicit: true, hardBlocked: false, experiment }, usageScope: { db, userId: owner, conversationId: 'test-chat' } };
     const context = { character: { name: 'Test companion', age: 30 }, userMessage: 'Hello', recent: [], relationship: {}, memories: [] } as unknown as DialogueContext;
     await run({ options, context, rows, calls, state, conversation, db });

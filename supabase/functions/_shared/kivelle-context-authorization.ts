@@ -1,4 +1,4 @@
-import { veniceTestStateVersion } from './kivelle-venice-test.ts';
+import { chatTestStateVersion } from './kivelle-chat-model-test.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeContextPreference } from '../../../packages/together-domain/src/chat-context.ts';
 import { contextReservation, setContextReservation, type ContextReservation } from './kivelle-context-pricing-state.ts';
@@ -25,7 +25,7 @@ export async function contextState(db:SupabaseClient,userId:string,conversationI
   if(last.error||participants.error||entitlement.error||profile.error)throw new AppError('INTERNAL_ERROR','The message price could not be prepared.',500,true);
   const conversation=conversationResult.data;
   if(profile.data?.active_continuity_id!==conversation.continuity_id||conversation.archived_at||conversation.user_archived_at)throw new AppError('CONFLICT','This conversation is no longer active.',409);
-  const veniceTestVersion=await veniceTestStateVersion(db,userId,conversation);
+  const veniceTestVersion=await chatTestStateVersion(db,userId,conversation);
   return{conversation,fingerprint:await contextDigest({...(veniceTestVersion?{veniceTestVersion}:{}),conversation,last:last.data,participants:participants.data,entitlement:entitlement.data,profile:profile.data})};
 }
 const pending=new WeakMap<SupabaseClient,{userId:string;input:Row}>();

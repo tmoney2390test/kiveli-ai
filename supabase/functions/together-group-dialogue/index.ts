@@ -53,7 +53,7 @@ import {
   ConfiguredModerationProvider,
   type DialogueRunOptions,
 } from "../_shared/together-ai.ts";
-import { applyVeniceTestRoute, resolveVeniceTestExperiment } from '../_shared/kivelle-venice-test.ts';
+import { applyChatTestRoute, resolveChatTestExperiment } from '../_shared/kivelle-chat-model-test.ts';
 import { resolveDialogueRouting } from "../_shared/kivelle-ai-routing.ts";
 import {
   conversationAdultMediaAuthorized,
@@ -522,7 +522,7 @@ Deno.serve(async (request) => {
       });
     }
     timings.mark("preflightMs");
-    const veniceExperiment = await resolveVeniceTestExperiment(db, user.id, conversation);
+    const veniceExperiment = await resolveChatTestExperiment(db, user.id, conversation);
     return groupStream({
       veniceExperiment,
       timings,
@@ -829,7 +829,7 @@ function groupStream(input: any): Response {
             adultAttachment: input.adultAttachment === true,
             moderation: inputSafety,
           };
-          let route = await applyVeniceTestRoute(input.db,input.userId,input.conversation,resolveDialogueRouting(routeInput),input.veniceExperiment);
+          let route = await applyChatTestRoute(input.db,input.userId,input.conversation,resolveDialogueRouting(routeInput),input.veniceExperiment);
           restrictedTurn=restrictedTurn||route.explicit;
           if (route.hardBlocked) {
             const boundary = chatLanguageSafetyBoundary(speakerName,context.chatLanguage,canonicalUserText);
@@ -968,7 +968,7 @@ function groupStream(input: any): Response {
             metadata: { groupChat: true, turnId: input.turn.id },
           };
           const options: DialogueRunOptions = {
-            ...(progressive||route.provider==='venice'?{signal:turnAbort.signal}:{}),
+            ...(progressive||route.provider==='venice'||route.provider==='wavespeed'?{signal:turnAbort.signal}:{}),
             route,
             usageScope,
             generationContext:{mode:'group',speakerRole:replyCount===0?'primary':'secondary',activeSpeakerCount:Math.max(1,input.plan.actions.length)},

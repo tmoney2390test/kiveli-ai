@@ -1,4 +1,4 @@
-import { normalizeVeniceTestSelection, type VeniceTestSelection } from '@together/domain/src/venice-chat';
+import { normalizeChatTestSelection, type ChatTestSelection } from '@together/domain/src/chat-model-test';
 import { normalizeContextPreference, type ContextPreference } from '@together/domain/src/chat-context';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -40,7 +40,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
   const [userBubbleColor, setUserBubbleColor] = useState<ChatBubbleColor>('default');
   const [companionBubbleColor, setCompanionBubbleColor] = useState<ChatBubbleColor>('default');
   const [chatDynamism,setChatDynamism]=useState<ChatDynamism>(50);
-  const [veniceTestModel,setVeniceTestModel]=useState<VeniceTestSelection>('off');
+  const [veniceTestModel,setVeniceTestModel]=useState<ChatTestSelection>('off');
   const [contextPreference,setContextPreference]=useState<ContextPreference>('included');
   const [reasoningPreference,setReasoningPreference]=useState<ReasoningPreference>('auto');
   const [contentMode,setContentMode]=useState<DialogueContentMode>('mature');
@@ -63,7 +63,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
     setUserBubbleColor(bubbleColors.user);
     setCompanionBubbleColor(bubbleColors.companion);
     const generationPreferences=chatPreferencesFromConversation(conversation,snapshot?.entitlements?.tier);
-    setVeniceTestModel(normalizeVeniceTestSelection(generationPreferences.veniceTestModel));
+    setVeniceTestModel(normalizeChatTestSelection(generationPreferences.veniceTestModel));
     setChatDynamism(generationPreferences.chatDynamism);
     setReasoningPreference(generationPreferences.reasoningPreference);
     setContextPreference(normalizeContextPreference(generationPreferences.contextPreference));
