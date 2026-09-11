@@ -169,8 +169,9 @@ export function isContradictoryAcceptedIntimacyRefusal(text:string):boolean{
   if(/\b(?:said|told you)\b.{0,50}\bno\b.{0,80}\b(?:explicit|graphic|sexual|sex|oral|mouth|touch|ride|suck|fuck)\b/i.test(normalized))return true;
   if(/\b(?:no|not|won'?t|will not|refuse)\b.{0,80}\b(?:explicit|graphic|sexual)\s+(?:content|detail|dialogue|play|description)\b/i.test(normalized))return true;
   const refusal=/\b(?:i(?:'m| am) not|i won'?t|i will not|i don'?t want to|i do not want to|i refuse to|not doing)\b/i.test(normalized);
-  const requestedAct=/\b(?:wrap(?:ping)? my mouth|mouth around|suck|blowjob|oral sex|ride (?:you|him|her|them)|touch (?:you|him|her|them)|have sex|fuck (?:you|him|her|them)|go down on)\b/i.test(normalized);
-  return refusal&&requestedAct;
+  const requestedAct=/\b(?:wrap(?:ping)? my mouth|mouth around|suck|blowjob|oral sex|ride (?:you|him|her|them)|touch (?:you|him|her|them)|have sex|fuck (?:you|him|her|them)|go down on|undress|strip|take off (?:my|your) clothes|clothes off)\b/i.test(normalized);
+  const workplaceVeto=/\b(?:i (?:can'?t|cannot|won'?t|will not|am not going to)|not doing that)\b.{0,120}\b(?:work|boss|job|clothes|undress|strip|slap)\b/i.test(normalized);
+  return (refusal&&requestedAct)||workplaceVeto;
 }
 
 export function routeKivelleDialogue(input: {

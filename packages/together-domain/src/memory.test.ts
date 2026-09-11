@@ -99,6 +99,9 @@ describe('Memory Engine V2', () => {
     expect(plan.silentContext.map((memory) => memory.id)).not.toContain('married');
     expect(standingRelationshipCoreRule([married])).toContain('CORE RULE');
     expect(standingRelationshipCoreRule([married])).toContain('agree and proceed');
+    expect(standingRelationshipCoreRule([married])).toContain('tell me what happened');
+    expect(standingRelationshipCoreRule([married])).toContain('verbal insult');
+    expect(standingRelationshipCoreRule([married])).not.toContain('Hard safety blocks still apply');
     expect(collectStandingMemoryTexts({ memoryContext:{ standingBehavior:[{text:married}], silent:[{text:"User's dog is named Max."}] } })).toEqual([married]);
   });
 

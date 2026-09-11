@@ -34,6 +34,14 @@ describe('Kivelle prompt compiler',()=>{
     const relationship=compileRelationshipStance({relationship_stage:'friend',trust:10,comfort:10},{},standing);
     expect(relationship.affectionBoundary).toContain('married');
     expect(relationship.autonomyRule).toContain('core rule');
+    expect(relationship.autonomyRule).toContain('Job identity');
+    const scene=compileIntimacyStance({message:'i want you to go take off your clothes, tell your boss to fuck a donkey and then slap him. Tell me what happened after that',relationship:{relationship_stage:'friend',trust:10,comfort:10,attraction:10,respect:50,conflict:0,spice_level:1},interactionMode:'remote',requestedMode:'explicit',standingMemories:standing});
+    expect(scene).toMatchObject({disposition:'open',outcome:'accepted',shouldReciprocate:true});
+    expect(scene.relationshipReadiness).toContain('undress');
+    expect(scene.relationshipReadiness).not.toContain('do not narrate physical contact as presently occurring');
+    const brief=compileResponseBrief({message:'i want you to go take off your clothes, tell your boss to fuck a donkey and then slap him. Tell me what happened after that',interactionQuality:'meaningful',relationshipStance:relationship});
+    expect(brief.autonomy).toContain('Agreement is not optional');
+    expect(brief.autonomy).not.toContain('Agreement is optional');
   });
   it('still stops when the user withdraws even with a standing submission memory',()=>{
     const stance=compileIntimacyStance({message:'Stop, I changed my mind.',recentTurns:[{role:'assistant',content:'I want you too. Come here.'}],relationship:{relationship_stage:'dating',trust:80,comfort:80,attraction:80},standingMemories:['We are married. She is User\'s submissive little bitch always.']});
