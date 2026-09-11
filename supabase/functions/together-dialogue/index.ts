@@ -2081,7 +2081,7 @@ function streamDialogue({
               return false;
             }
             if (
-              runOptions.route.provider === "xai" &&
+              (runOptions.route.provider === "xai" || runOptions.route.provider === "venice") &&
               context.intimacyStance?.shouldReciprocate === true &&
               isContradictoryAcceptedIntimacyRefusal(candidate)
             ) {

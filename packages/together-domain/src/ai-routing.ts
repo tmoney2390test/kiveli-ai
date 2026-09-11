@@ -91,7 +91,7 @@ export function hasConsentWithdrawalSignal(message:string):boolean{
 }
 
 export function isDirectAdultAdvance(message:string):boolean{
-  return /(?:\b(?:can|could|may|would|will)\s+(?:i|you|we)\b|\b(?:i|we)\s+(?:want|need|would like|want to|need to)\b|\b(?:let me|make me|take me|touch me|kiss me|fuck me|ride me|use me|show me|tell me|care to|quiero|quiero que|déjame|hazme|tócame|bésame|fóllame|cógeme|je veux|laisse-moi|fais-moi|touche-moi|embrasse-moi|baise-moi|voglio|lasciami|fammi|toccami|baciami|scopami|ich will|lass mich|mach mich|berühr mich|küss mich|fick mich|eu quero|quero que|deixa eu|me faz|me toca|me beija|me fode)\b|してほしい|させて|触って|キスして|抱いて|하고 싶어|해 줘|만져 줘|키스해 줘|안아 줘|我想|让我|摸我|吻我|抱我)/iu.test(message);
+  return /(?:\b(?:can|could|may|would|will)\s+(?:i|you|we)\b|\b(?:i|we)\s+(?:(?:still|really|definitely)\s+)?(?:want|need|would like|want to|need to)\b|\b(?:let me|make me|take me|touch me|kiss me|fuck me|ride me|use me|show me|tell me|care to|quiero|quiero que|déjame|hazme|tócame|bésame|fóllame|cógeme|je veux|laisse-moi|fais-moi|touche-moi|embrasse-moi|baise-moi|voglio|lasciami|fammi|toccami|baciami|scopami|ich will|lass mich|mach mich|berühr mich|küss mich|fick mich|eu quero|quero que|deixa eu|me faz|me toca|me beija|me fode)\b|してほしい|させて|触って|キスして|抱いて|하고 싶어|해 줘|만져 줘|키스해 줘|안아 줘|我想|让我|摸我|吻我|抱我)/iu.test(message);
 }
 
 export function isConsensualNonConsentFantasy(message:string):boolean{
