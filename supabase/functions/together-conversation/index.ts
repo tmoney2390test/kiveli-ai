@@ -1,3 +1,4 @@
+import { contextCostActivation } from '../../../packages/together-domain/src/context-cost-confirmation.ts';
 import { contextPreferences, normalizeContextPreference } from '../../../packages/together-domain/src/chat-context.ts';
 import { validateChatTestSetting } from '../_shared/kivelle-chat-model-test.ts';
 import { chatTestSelections } from '../../../packages/together-domain/src/chat-model-test.ts';
@@ -432,6 +433,7 @@ serve(async (request, correlationId) => {
     const chatDynamism=normalizeChatDynamism(input.chatDynamism??currentPreferences.chatDynamism);
     const storedReasoning=reconcileReasoningPreferenceForTier(input.reasoningPreference??currentPreferences.reasoningPreference,subscription.tier);
     const chatPreferences:Record<string,unknown> = { ...currentPreferences, ...(veniceTestModel!==undefined?{veniceTestModel}:{}), responseStyle: input.responseStyle, textSize: input.textSize, contentMode, chatDynamism,reasoningPreference:storedReasoning,contextPreference:normalizeContextPreference(input.contextPreference??currentPreferences.contextPreference), userBubbleColor:normalizeChatBubbleColor(input.userBubbleColor??currentPreferences.userBubbleColor), companionBubbleColor:normalizeChatBubbleColor(input.companionBubbleColor??currentPreferences.companionBubbleColor), ...(voicePreset ? { voicePreset } : {}), ...(input.chatLanguage !== undefined ? { chatLanguage: input.chatLanguage } : {}) };
+    chatPreferences.contextCostActivationId=contextCostActivation(currentPreferences,chatPreferences.contextPreference,()=>crypto.randomUUID());
     if (input.voicePreset === null) delete chatPreferences.voicePreset;
     const { data, error } = await db.from('together_conversations').update({ title: input.title, metadata: { ...currentMetadata, chatPreferences }, updated_at: new Date().toISOString() }).eq('id', conversation.id).eq('user_id', user.id).select('*').single();
     if (error || !data) throw new AppError('INTERNAL_ERROR', 'Chat settings could not be saved.', 500, true);

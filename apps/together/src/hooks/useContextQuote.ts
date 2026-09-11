@@ -1,42 +1,77 @@
 import { useEffect, useRef, useState } from 'react';
-import { normalizeContextPreference, type DialogueContextQuote } from '@together/domain/src/chat-context';
+import { normalizeContextPreference } from '@together/domain/src/chat-context';
+import { contextCostNoticeToken } from '@together/domain/src/context-cost-confirmation';
 import { quoteDialogueContext } from '../lib/api';
+import { confirmContextCost, contextCostConfirmed } from '../lib/contextCostConfirmation';
 
-type Draft=Record<string,unknown>;
-function draftKey(value:Draft):string{return JSON.stringify({conversationId:value.conversationId,characterInstanceId:value.characterInstanceId,message:String(value.message??'').trim(),focusPlanId:value.focusPlanId,sceneActionId:value.sceneActionId,entryContext:value.entryContext,attachmentIds:value.attachmentIds??[],mentionedCharacterInstanceIds:value.mentionedCharacterInstanceIds??[],replyToMessageId:value.replyToMessageId,manualSpeakerInstanceId:value.manualSpeakerInstanceId,broadGroupRequest:value.broadGroupRequest===true,letThemTalk:value.letThemTalk===true,messageAction:value.messageAction,anchorMessageId:value.anchorMessageId});}
-export function useContextQuote({preference,draft,revision,paused=false,hasPendingPhoto=false}:{preference:unknown;draft:Draft;revision:string;paused?:boolean;hasPendingPhoto?:boolean}){
-  const selected=normalizeContextPreference(preference);
-  const [included,setIncluded]=useState(false),[quote,setQuote]=useState<DialogueContextQuote|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(false),[refresh,setRefresh]=useState(0);
-  const current=useRef<{key:string;quote:DialogueContextQuote}|null>(null),generation=useRef(0);
-  const key=draftKey(draft),enabled=selected!=='included'&&!included;
-  useEffect(()=>{if(paused)setIncluded(false);},[paused]);
-  useEffect(()=>{setIncluded(false);},[selected,draft.conversationId]);
-  useEffect(()=>{
-    const run=++generation.current;current.current=null;setQuote(null);setError('');setLoading(false);
-    if(!enabled||paused||!draft.conversationId||!String(draft.message??'').trim())return;
-    if(hasPendingPhoto){setError('Choose Included below for this photo message.');return;}
-    const controller=new AbortController();let expiry:ReturnType<typeof setTimeout>|undefined;
-    setLoading(true);
-    const timer=setTimeout(()=>{void quoteDialogueContext(JSON.parse(key),controller.signal).then((result)=>{
-      if(run!==generation.current)return;
-      current.current={key,quote:result};setQuote(result);setLoading(false);
-      expiry=setTimeout(()=>setRefresh((value)=>value+1),Math.max(500,Date.parse(result.expiresAt)-Date.now()-3000));
-    }).catch((caught)=>{if(run!==generation.current||controller.signal.aborted)return;setLoading(false);setError(caught instanceof Error?caught.message:'The message price is unavailable.');});},700);
-    return()=>{clearTimeout(timer);if(expiry)clearTimeout(expiry);controller.abort();};
-  // The canonical key includes all charge-affecting draft inputs.
-  },[key,revision,enabled,paused,hasPendingPhoto,refresh]);
-  async function authorize(payload:Draft):Promise<{contextQuoteId?:string;contextPreference?:'included'}|null>{
-    if(!enabled)return{contextPreference:'included'};
-    if(hasPendingPhoto){setError('Choose Included below for this photo message.');return null;}
-    const requested=draftKey(payload),active=current.current;
-    if(active?.key===requested&&Date.parse(active.quote.expiresAt)>Date.now()+1000)return{contextQuoteId:active.quote.quoteId};
-    if(loading)return null;
-    const run=generation.current;
-    setLoading(true);setError('');
-    try{const next=await quoteDialogueContext(JSON.parse(requested));if(run!==generation.current)return null;current.current={key:requested,quote:next};setQuote(next);setError('Price updated. Tap the action again to send at this maximum.');}
-    catch(caught){setError(caught instanceof Error?caught.message:'The message price is unavailable.');}
-    finally{setLoading(false);}
-    return null;
+type Draft = Record<string, unknown>;
+export type ContextCostPrompt = { kind: 'confirm' | 'photo' | 'error'; message?: string };
+export type ContextCostChoice = 'proceed' | 'included' | 'retry' | 'cancel';
+type Authorization = { contextQuoteId?: string; contextPreference?: 'included' };
+type Pending = { controller: AbortController; resolve?: (choice: ContextCostChoice) => void };
+
+export function useContextQuote({ userId, preference, activationId, draft, revision, paused = false, hasPendingPhoto = false }: {
+  userId?: string; preference: unknown; activationId?: unknown; draft: Draft; revision: string; paused?: boolean; hasPendingPhoto?: boolean;
+}) {
+  const selected = normalizeContextPreference(preference);
+  const token = contextCostNoticeToken(selected, activationId);
+  const conversationId = String(draft.conversationId ?? '');
+  const scope = JSON.stringify([userId, conversationId, token, draft, revision, paused, hasPendingPhoto]);
+  const liveScope = useRef(scope); liveScope.current = scope;
+  const pending = useRef<Pending | null>(null);
+  const mounted = useRef(true);
+  const [prompt, setPrompt] = useState<ContextCostPrompt | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const cancelPending = () => {
+    const request = pending.current; pending.current = null;
+    request?.controller.abort(); request?.resolve?.('cancel');
+  };
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; cancelPending(); }; }, []);
+  useEffect(() => { setPrompt(null); setBusy(false); return cancelPending; }, [scope]);
+
+  const respond = (choice: ContextCostChoice) => {
+    const request = pending.current, resolve = request?.resolve;
+    if (!request || !resolve) return;
+    request.resolve = undefined; setPrompt(null); resolve(choice);
+  };
+  async function authorize(payload: Draft): Promise<Authorization | null> {
+    if (paused || pending.current || !conversationId || payload.conversationId !== conversationId) return null;
+    if (selected === 'included') return { contextPreference: 'included' };
+    if (!userId) return null;
+    const request: Pending = { controller: new AbortController() }, startedScope = scope;
+    pending.current = request; setBusy(true);
+    const current = () => mounted.current && pending.current === request && liveScope.current === startedScope && !request.controller.signal.aborted;
+    const ask = (value: ContextCostPrompt) => new Promise<ContextCostChoice>(resolve => {
+      if (!current()) { resolve('cancel'); return; }
+      request.resolve = resolve; setPrompt(value);
+    });
+    try {
+      // The upload flow cannot quote a photo before its owned attachment exists.
+      if (hasPendingPhoto) return await ask({ kind: 'photo' }) === 'included' && current() ? { contextPreference: 'included' } : null;
+      if (token && !await contextCostConfirmed(userId, conversationId, token)) {
+        if (!current() || await ask({ kind: 'confirm' }) !== 'proceed' || !current()) return null;
+        await confirmContextCost(userId, conversationId, token);
+      }
+      while (current()) {
+        try {
+          const quote = await quoteDialogueContext(payload, request.controller.signal);
+          if (!current()) return null;
+          if (quote.contextPreference !== selected || !Number.isFinite(Date.parse(quote.expiresAt)) || Date.parse(quote.expiresAt) <= Date.now() + 1000) throw new Error('The memory setting or price changed. Please try again.');
+          return { contextQuoteId: quote.quoteId };
+        } catch (error) {
+          if (!current()) return null;
+          const choice = await ask({ kind: 'error', message: error instanceof Error ? error.message : 'The message price is unavailable.' });
+          if (!current()) return null;
+          if (choice === 'included') return { contextPreference: 'included' };
+          if (choice !== 'retry') return null;
+        }
+      }
+      return null;
+    } finally {
+      if (pending.current === request) { pending.current = null; if (mounted.current) { setBusy(false); setPrompt(null); } }
+    }
   }
-  return{selected,included,quote,error,loading,visible:selected!=='included',blocked:enabled&&(loading||!quote||hasPendingPhoto),useIncluded:()=>setIncluded(true),useSelected:()=>setIncluded(false),retry:()=>setRefresh((value)=>value+1),authorize};
+  // No per-keystroke pricing: Send continues automatically after authorization.
+  return { selected, prompt, respond, blocked: busy, authorize };
 }

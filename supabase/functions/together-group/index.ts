@@ -1,3 +1,4 @@
+import { contextCostActivation } from '../../../packages/together-domain/src/context-cost-confirmation.ts';
 import { contextPreferences, normalizeContextPreference } from '../../../packages/together-domain/src/chat-context.ts';
 import { validateChatTestSetting } from '../_shared/kivelle-chat-model-test.ts';
 import { chatTestSelections } from '../../../packages/together-domain/src/chat-model-test.ts';
@@ -528,6 +529,7 @@ serve(async (request, correlationId) => {
       userBubbleColor:normalizeChatBubbleColor(input.userBubbleColor??currentPreferences.userBubbleColor),
       companionBubbleColor:normalizeChatBubbleColor(input.companionBubbleColor??currentPreferences.companionBubbleColor),
     };
+    chatPreferences.contextCostActivationId=contextCostActivation(currentPreferences,chatPreferences.contextPreference,()=>crypto.randomUUID());
     const metadata = {
       ...currentMetadata,
       chatPreferences,

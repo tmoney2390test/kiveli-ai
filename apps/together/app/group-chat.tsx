@@ -3,7 +3,7 @@ import { VeniceTestDiagnostics } from '../src/components/VeniceTestDiagnostics';
 import { emptyReplyDrafts, reduceReplyDrafts } from '../src/lib/replyStreaming';
 import { useMessageRewrite } from '../src/hooks/useMessageRewrite';
 import { useContextQuote } from '../src/hooks/useContextQuote';
-import { ContextPricePreview } from '../src/components/settings/ContextPricePreview';
+import { ContextCostConfirmation } from '../src/components/settings/ContextCostConfirmation';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -680,7 +680,7 @@ export default function GroupChatScreen() {
     ),
     [detail?.participants],
   );
-  const contextPricing=useContextQuote({preference:(detail?.conversation.metadata?.chatPreferences as {contextPreference?:string}|undefined)?.contextPreference,draft:{conversationId:detail?.conversation.id,message:input,mentionedCharacterInstanceIds:mentionedParticipants(input,detail?.participants??[]),replyToMessageId:replyTo?.id,...groupRecipientRequest(recipientSelection,participantIds)},revision:JSON.stringify([detail?.conversation.metadata?.chatPreferences,detail?.messages.at(-1)?.id,participantIds]),paused:replyPending,hasPendingPhoto:Boolean(pendingImage)});
+  const contextPricing=useContextQuote({userId:session?.user.id,activationId:(detail?.conversation.metadata?.chatPreferences as {contextCostActivationId?:string}|undefined)?.contextCostActivationId,preference:(detail?.conversation.metadata?.chatPreferences as {contextPreference?:string}|undefined)?.contextPreference,draft:{conversationId:detail?.conversation.id,message:input,mentionedCharacterInstanceIds:mentionedParticipants(input,detail?.participants??[]),replyToMessageId:replyTo?.id,...groupRecipientRequest(recipientSelection,participantIds)},revision:JSON.stringify([detail?.conversation.metadata?.chatPreferences,detail?.messages.at(-1)?.id,participantIds]),paused:replyPending,hasPendingPhoto:Boolean(pendingImage)});
   const manualSpeaker = recipientSelection !== "automatic" &&
       recipientSelection !== "everyone"
     ? recipientSelection
@@ -2258,7 +2258,7 @@ export default function GroupChatScreen() {
         onDetails={() => navigateGroupSurface(`/plan/${joinableGroupPlan.id}`)}
       /> : null}
       {memorySavedNotice ? <MemorySavedToast key={memorySavedNotice.id} name={memorySavedNotice.name} onDismiss={() => setMemorySavedNotice(null)} /> : null}
-      <ContextPricePreview pricing={contextPricing} onCredits={()=>router.push(creditsSubscriptionHref)}/>
+      <ContextCostConfirmation pricing={contextPricing}/>
       <DailyMessageAllowanceNotice allowance={snapshot?.dailyMessageAllowance} onUpgrade={()=>navigateGroupSurface(subscriptionHref({intent:"plans",returnTo:subscriptionReturnTo}))}/>
       <GroupComposer
         conversationId={detail.conversation.id}
