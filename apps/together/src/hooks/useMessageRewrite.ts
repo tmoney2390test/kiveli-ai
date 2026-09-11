@@ -28,16 +28,18 @@ export function useMessageRewrite(options:Options){
       }catch(error){if(current())live.current.onError(error instanceof Error?error.message:'The reply could not be rewritten. Your original reply is unchanged.');}
       finally{inFlight.current=false;if(mounted.current)setBusy(false);}
     };
+    let confirmationShown=false;
     try{
       if(action==='restore'){await submit();return;}
       const quote=await quoteDialogueContext(payload);
       if(!current())return;
       if(quote.maximumCredits>0){
+        confirmationShown=true;
         inFlight.current=false;setBusy(false);
         confirmAction({title:'Spice this reply?',message:`Uses one message and up to ${quote.maximumCredits} Kivelli credits. Your original reply can be restored.`,confirmLabel:'Spice',onConfirm:async()=>{if(!inFlight.current)await submit(quote.quoteId);}});
       }else await submit(quote.quoteId);
     }catch(error){if(current())live.current.onError(error instanceof Error?error.message:'The reply could not be prepared.');}
-    finally{inFlight.current=false;if(mounted.current)setBusy(false);}
+    finally{if(!confirmationShown){inFlight.current=false;if(mounted.current)setBusy(false);}}
   }
   return {busy,available,spice:(message:Message)=>run(message,'spice'),restore:(message:Message)=>run(message,'restore')};
 }

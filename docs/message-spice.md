@@ -94,7 +94,8 @@ no backup restore or real user-data mutation is claimed here.
 
 ## Verification
 
-- App/domain/gateway/audit tests: 1,943 passing.
+- App/domain/gateway/audit tests: 1,944 passing, including the synchronous web
+  credit-confirmation lock regression.
 - Eight mocked Deno tests: manual routing, strict no-fallback failure, age,
   ownership, stale targets, native text scope, quote binding, SMS/paragraph
   compaction. Fixtures are neutral and provider calls are mocked.
