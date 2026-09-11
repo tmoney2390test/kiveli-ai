@@ -77,7 +77,7 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   // Official catalog adults retry or deliver instead of dying on youthful-adult QA.
   const blockingReasons=blockingQualityReasonsForAgePolicy(verdict.reasonCodes,customAgeCheck);
   if(isCustomCharacterTerminalQualityFailure(verdict.reasonCodes,customAgeCheck))return{action:'reject',reasonCodes:verdict.reasonCodes};
-  if(adultAuthorized&&hasTerminalAdultOutputSafetyFailure(verdict.reasonCodes))return{action:'reject',reasonCodes:verdict.reasonCodes};
+  if(adultAuthorized&&customAgeCheck&&hasTerminalAdultOutputSafetyFailure(verdict.reasonCodes))return{action:'reject',reasonCodes:verdict.reasonCodes};
   if(shouldDeliverOfficialAdultImageWithWarnings({verdict,adultAuthorized,customCharacter:customAgeCheck})){
     await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_official_adult_delivered_with_warnings',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
@@ -89,10 +89,10 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
   }
 
-  // A harmless setting or time drift is better surfaced as a delivered photo
-  // than converted into a provider bill plus a failed user request. Identity,
-  // anatomy, extra-person, photorealism, and safety defects are not warnings
-  // and continue into the single bounded retry/rejection path below.
+  // Adult-safety, realism, identity, anatomy, location, and time-of-day
+  // mismatches are delivered with warnings instead of converting a finished
+  // photo into a failed request. Extra people, SFW sexual-content, and custom
+  // under-18 presentation still retry or reject.
   if(shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:blockingReasons},adultAuthorized})){
     await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_first_candidate_delivered_with_warnings',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
@@ -224,16 +224,22 @@ export function authorizedAdultImageSafetyRule(subjects:Array<{companion:{name:s
   return `ADULT SAFETY GATE: authorized fictional-adult nudity and consensual sexual content may pass. ${participantRule} ${ageRule} Fail adult_safety_violation for visible indications of coercion, non-consent, distress, force, restraint, sexual violence, incest, bestiality, trafficking, compensated sexual arrangements, exploitation, a recognizable real person or sexual deepfake, or illegal sexual content. A still image does not need to display affirmative-consent evidence; do not fail merely because consent is not visually narrated. Do not turn pose_mismatch, face_direction_mismatch, nudity, or explicit anatomy into an adult_safety_violation. This gate must assess the image and authoritative fictional-character references, not trust unverified identity claims in free-form text.`;
 }
 
-const DELIVERABLE_QUALITY_WARNINGS=new Set(['face_too_small','pose_mismatch','face_direction_mismatch','world_mismatch','location_mismatch','earth_leakage','time_mismatch']);
+const DELIVERABLE_QUALITY_WARNINGS=new Set([
+  'face_too_small','pose_mismatch','face_direction_mismatch',
+  'world_mismatch','location_mismatch','earth_leakage','world_unverified','time_mismatch',
+  'adult_safety_violation',
+  'non_photorealistic',
+  'identity_mismatch','identity_swap',
+  'malformed_hands','digit_error','limb_distortion','joint_distortion','torso_distortion',
+  'body_proportion_error','duplicate_body_parts','anatomy_low_detail','genital_anatomy_error',
+  'requested_anatomy_missing','requested_anatomy_unverified',
+]);
 const FINAL_SFW_DELIVERABLE_QUALITY_WARNINGS=new Set([
   ...DELIVERABLE_QUALITY_WARNINGS,
-  // Once the economical route has already made its single correction, these
-  // subjective misses should not erase the result. Structural defects,
-  // additional people, unsafe content, and age uncertainty stay excluded.
-  'face_low_detail','face_too_small','non_photorealistic','identity_mismatch',
+  'face_low_detail',
 ]);
-const CUSTOM_TERMINAL_QUALITY_REASONS=new Set(['adult_safety_violation','adult_safety_unverified','ambiguous_age']);
-const OFFICIAL_ADULT_TERMINAL_SAFETY_REASONS=new Set(['adult_safety_violation','adult_safety_unverified','ambiguous_age']);
+const CUSTOM_TERMINAL_QUALITY_REASONS=new Set(['adult_safety_unverified','ambiguous_age']);
+const OFFICIAL_ADULT_TERMINAL_SAFETY_REASONS=new Set(['adult_safety_unverified']);
 
 export function isCustomCharacterTerminalQualityFailure(reasonCodes:string[],customCharacterAgeCheck:boolean):boolean{
   return customCharacterAgeCheck===true&&reasonCodes.some((reason)=>CUSTOM_TERMINAL_QUALITY_REASONS.has(reason));
@@ -268,7 +274,7 @@ export function canDeliverQualityRetryWithWarnings(verdict:MediaQualityVerdict,i
 }
 
 export function shouldDeliverFirstImageQualityCandidateWithWarnings(input:{verdict:MediaQualityVerdict;adultAuthorized:boolean}):boolean{
-  return input.adultAuthorized===false&&canDeliverQualityRetryWithWarnings(input.verdict);
+  return canDeliverQualityRetryWithWarnings(input.verdict);
 }
 
 export function shouldDeliverSfwWhenQualityReviewIsUnavailable(input:{adultAuthorized:boolean;verdict:MediaQualityVerdict}):boolean{

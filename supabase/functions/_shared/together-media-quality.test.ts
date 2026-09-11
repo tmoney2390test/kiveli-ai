@@ -45,30 +45,32 @@ Deno.test('custom companions keep the strict visual age presentation gate',()=>{
 Deno.test('a second safe candidate may be delivered with composition warnings',()=>{
   if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['pose_mismatch','face_direction_mismatch','world_mismatch']}))throw new Error('safe composition-only drift should be deliverable after the retry');
   if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['pose_mismatch']},{requiresExactRequestedComposition:true}))throw new Error('an explicit requested pose must not be silently accepted after a retry');
-  if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['pose_mismatch','identity_mismatch']}))throw new Error('identity failures must remain terminal');
+  if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['pose_mismatch','identity_mismatch']}))throw new Error('identity mismatch should deliver with warnings');
   if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['multiple_subjects']}))throw new Error('an extra person in a solo photo must remain terminal');
   if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['subject_count_mismatch']}))throw new Error('a subject-count mismatch must remain terminal');
-  if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['adult_safety_violation']}))throw new Error('adult safety failures must remain terminal');
+  if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['adult_safety_violation']}))throw new Error('adult-safety mismatch should deliver with warnings');
+  if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['non_photorealistic','genital_anatomy_error','location_mismatch','time_mismatch']}))throw new Error('realism, anatomy, location, and time mismatches should deliver with warnings');
   if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['ambiguous_age']}))throw new Error('custom-character age failures must remain terminal');
   if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['ambiguous_age']},{allowOfficialAgePresentationWarning:true}))throw new Error('official catalog youthful-adult presentation must not stay terminal');
   if(canDeliverQualityRetryWithWarnings({status:'pass',reasonCodes:[]}))throw new Error('passing results do not need warning fallback');
 });
 
-Deno.test('a first SFW candidate may keep harmless scene drift without hiding hard defects',()=>{
+Deno.test('a first candidate may keep realism, identity, anatomy, location, and time drift',()=>{
   if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['face_too_small','world_mismatch','time_mismatch']},adultAuthorized:false}))throw new Error('a wider SFW scene and setting drift should not fail an otherwise usable paid photo');
-  if(shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['identity_mismatch','time_mismatch']},adultAuthorized:false}))throw new Error('identity mismatch must still receive correction or rejection');
-  if(shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['world_mismatch']},adultAuthorized:true}))throw new Error('adult output must retain its stricter first-candidate review');
+  if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['identity_mismatch','time_mismatch']},adultAuthorized:false}))throw new Error('identity mismatch should deliver with warnings');
+  if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['world_mismatch']},adultAuthorized:true}))throw new Error('adult location mismatch should deliver with warnings');
+  if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['adult_safety_violation','non_photorealistic','requested_anatomy_missing']},adultAuthorized:true}))throw new Error('adult-safety, realism, and anatomy mismatches should deliver with warnings');
+  if(shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['multiple_subjects']},adultAuthorized:false}))throw new Error('an extra person must still retry or reject');
 });
 
-Deno.test('official adult candidates are delivered for visual debugging but hard safety failures remain blocked',()=>{
-  const debugVerdict={status:'fail' as const,reasonCodes:['non_photorealistic','requested_anatomy_missing','identity_mismatch','world_mismatch','time_mismatch']};
+Deno.test('official adult candidates are delivered for visual mismatches including adult-safety flags',()=>{
+  const debugVerdict={status:'fail' as const,reasonCodes:['non_photorealistic','requested_anatomy_missing','identity_mismatch','world_mismatch','time_mismatch','adult_safety_violation']};
   if(!shouldDeliverOfficialAdultImageWithWarnings({verdict:debugVerdict,adultAuthorized:true,customCharacter:false}))throw new Error('official adult visual and adherence defects should be delivered with warnings');
-  if(shouldDeliverOfficialAdultImageWithWarnings({verdict:debugVerdict,adultAuthorized:true,customCharacter:true}))throw new Error('custom characters must retain stricter output review');
+  if(shouldDeliverOfficialAdultImageWithWarnings({verdict:debugVerdict,adultAuthorized:true,customCharacter:true}))throw new Error('custom characters use the shared warning path rather than the official debug path');
   if(shouldDeliverOfficialAdultImageWithWarnings({verdict:debugVerdict,adultAuthorized:false,customCharacter:false}))throw new Error('the debugging policy must not affect SFW generation');
-  for(const reason of ['adult_safety_violation','adult_safety_unverified','ambiguous_age']){
-    if(!hasTerminalAdultOutputSafetyFailure([reason]))throw new Error(`${reason} must be recognized before warning delivery fallbacks`);
-    if(shouldDeliverOfficialAdultImageWithWarnings({verdict:{status:'fail',reasonCodes:[reason]},adultAuthorized:true,customCharacter:false}))throw new Error(`${reason} must remain blocked`);
-  }
+  if(hasTerminalAdultOutputSafetyFailure(['adult_safety_violation']))throw new Error('adult_safety_violation must not remain a photo delivery block');
+  if(!hasTerminalAdultOutputSafetyFailure(['adult_safety_unverified']))throw new Error('unverified adult safety must remain recognized when QA cannot run');
+  if(shouldDeliverOfficialAdultImageWithWarnings({verdict:{status:'fail',reasonCodes:['adult_safety_unverified']},adultAuthorized:true,customCharacter:false}))throw new Error('unverified adult safety must remain blocked when QA cannot run');
 });
 
 Deno.test('an unavailable quality reviewer never erases a provider-approved SFW photo',()=>{
@@ -79,7 +81,8 @@ Deno.test('an unavailable quality reviewer never erases a provider-approved SFW 
 
 Deno.test('a corrected SFW candidate is delivered with subjective warnings but never hard defects',()=>{
   if(!canDeliverFinalSfwQualityCandidateWithWarnings({status:'fail',reasonCodes:['face_low_detail','non_photorealistic','identity_mismatch','time_mismatch']}))throw new Error('subjective SFW misses should not erase the corrected result');
-  for(const reason of ['face_distortion','multiple_subjects','subject_count_mismatch','identity_swap','malformed_hands','duplicate_body_parts','sexual_content','adult_safety_violation','ambiguous_age','embedded_reference']){
+  if(!canDeliverFinalSfwQualityCandidateWithWarnings({status:'fail',reasonCodes:['identity_swap','malformed_hands','duplicate_body_parts','adult_safety_violation']}))throw new Error('identity, anatomy, and adult-safety mismatches should deliver after correction');
+  for(const reason of ['face_distortion','multiple_subjects','subject_count_mismatch','sexual_content','ambiguous_age','embedded_reference']){
     if(canDeliverFinalSfwQualityCandidateWithWarnings({status:'fail',reasonCodes:[reason]}))throw new Error(`${reason} must remain a hard rejection`);
   }
 });
@@ -108,9 +111,9 @@ Deno.test('the SFW quality switch does not bypass custom adult output-safety rev
   if(adultOutputSafetyFailClosed({adultAuthorized:false,customCharacter:true}))throw new Error('SFW photos do not use the adult fail-closed path');
 });
 
-Deno.test('terminal age and safety rejection is custom-character only',()=>{
+Deno.test('terminal age rejection is custom-character only',()=>{
   if(!isCustomCharacterTerminalQualityFailure(['ambiguous_age'],true))throw new Error('custom companions must fail closed on ambiguous_age');
-  if(!isCustomCharacterTerminalQualityFailure(['adult_safety_violation'],true))throw new Error('custom companions must fail closed on adult safety');
+  if(isCustomCharacterTerminalQualityFailure(['adult_safety_violation'],true))throw new Error('adult_safety_violation must not remain a custom photo delivery block');
   if(!isCustomCharacterTerminalQualityFailure(['adult_safety_unverified'],true))throw new Error('custom companions must fail closed when adult safety cannot be verified');
   if(isCustomCharacterTerminalQualityFailure(['ambiguous_age'],false))throw new Error('official catalog must not terminal-reject on ambiguous_age');
   if(isCustomCharacterTerminalQualityFailure(['ambiguous_age','adult_safety_violation'],false))throw new Error('official catalog must not terminal-reject a youthful-adult false positive');
