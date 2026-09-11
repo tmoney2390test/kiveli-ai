@@ -188,7 +188,7 @@ export function analyzeAdultLanguage(text:string):AdultLanguageAnalysis{
     if(highSignal.length){
       highSignal.forEach(({category,term})=>{categories.add(category);matched.add(term);});
       score=Math.max(score,90);
-      if(tier==='none'||tier==='ambiguous_euphemism')tier='sexual_slang';
+      if(tier==='none')tier='sexual_slang';
     }
     if(lowSignal.length){
       const allLow=!highSignal.length;

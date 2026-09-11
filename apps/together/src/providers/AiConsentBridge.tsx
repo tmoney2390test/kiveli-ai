@@ -2,7 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import {AppState,Modal,Pressable,ScrollView,StyleSheet,Text,View} from 'react-native';
 import {useAuth} from '../hooks/useAuth';
 import {manageAccount} from '../lib/api';
-import {installAiConsentHandler,invalidateAiConsent} from '../lib/aiConsent';
+import {AiConsentCheckError,installAiConsentHandler,invalidateAiConsent} from '../lib/aiConsent';
 import {colors} from '../theme';
 
 type Disclosure={version:string;providers:string[];dataCategories:string[]};
@@ -11,34 +11,38 @@ export function AiConsentBridge(){
   const {session}=useAuth();const userId=session?.user.id??null;
   const [disclosure,setDisclosure]=useState<Disclosure|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
   const previousAccepted=useRef(false);
-  const pending=useRef<{userId:string;resolve:(accepted:boolean)=>void;promise:Promise<boolean>}|null>(null);
+  const pending=useRef<{userId:string;resolve:(accepted:boolean)=>void;reject:(error:unknown)=>void;promise:Promise<boolean>}|null>(null);
   const owner=useRef(userId);owner.current=userId;
   useEffect(()=>{
-    const remove=installAiConsentHandler(async(requestedUser,review)=>{
-      if(!requestedUser||owner.current!==requestedUser)return false;
-      if(pending.current)return pending.current.userId===requestedUser?pending.current.promise:false;
+    const remove=installAiConsentHandler((requestedUser,review)=>{
+      if(!requestedUser||owner.current!==requestedUser)return Promise.reject(new AiConsentCheckError());
+      if(pending.current)return pending.current.userId===requestedUser?pending.current.promise:Promise.reject(new AiConsentCheckError());
       let resolve!:(accepted:boolean)=>void;
-      const promise=new Promise<boolean>(done=>{resolve=done;});
-      const request={userId:requestedUser,resolve,promise};pending.current=request;
-      try{
-        const choice=await manageAccount<Choice>({action:'privacy_choices_status'});
-        if(pending.current!==request||owner.current!==requestedUser){resolve(false);return false;}
-        if(choice.aiDataConsent.allowsProviderCalls&&!review){pending.current=null;resolve(true);return true;}
+      let reject!:(error:unknown)=>void;
+      const promise=new Promise<boolean>((done,fail)=>{resolve=done;reject=fail;});
+      const request={userId:requestedUser,resolve,reject,promise};pending.current=request;
+      // Return the shared promise immediately so cleanup and network errors
+      // reject every waiter, rather than masquerading as a privacy decision.
+      void manageAccount<Choice>({action:'privacy_choices_status'}).then(choice=>{
+        if(pending.current!==request||owner.current!==requestedUser){reject(new AiConsentCheckError());return;}
+        if(typeof choice?.aiDataConsent?.allowsProviderCalls!=='boolean')throw new AiConsentCheckError();
+        if(choice.aiDataConsent.allowsProviderCalls&&!review){pending.current=null;resolve(true);return;}
         previousAccepted.current=choice.aiDataConsent.allowsProviderCalls;
         setError('');setDisclosure(choice.disclosure);
-      }catch{if(pending.current===request)pending.current=null;resolve(false);}
+      }).catch(error=>{if(pending.current===request)pending.current=null;reject(error);});
       return promise;
     });
     const foreground=AppState.addEventListener('change',()=>invalidateAiConsent());
-    return()=>{remove();foreground.remove();pending.current?.resolve(false);pending.current=null;setDisclosure(null);setBusy(false);};
+    return()=>{remove();foreground.remove();pending.current?.reject(new AiConsentCheckError());pending.current=null;setDisclosure(null);setBusy(false);};
   },[userId]);
   const decide=async(decision:'accepted'|'declined'|'withdrawn')=>{
     const request=pending.current;if(!request||!disclosure||busy)return;
     setBusy(true);setError('');
     try{
-      await manageAccount({action:'ai_consent',decision,disclosureVersion:disclosure.version,source:'privacy'});
+      const result=await manageAccount<Pick<Choice,'aiDataConsent'>>({action:'ai_consent',decision,disclosureVersion:disclosure.version,source:'privacy'});
       if(pending.current!==request||owner.current!==request.userId)return;
-      pending.current=null;setDisclosure(null);request.resolve(decision==='accepted');
+      if(typeof result?.aiDataConsent?.allowsProviderCalls!=='boolean')throw new AiConsentCheckError();
+      pending.current=null;setDisclosure(null);request.resolve(result.aiDataConsent.allowsProviderCalls);
     }catch{if(pending.current===request)setError('Could not save your choice. Please try again.');}
     finally{if(owner.current===request.userId)setBusy(false);}
   };
