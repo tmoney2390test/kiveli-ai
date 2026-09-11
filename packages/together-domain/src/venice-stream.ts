@@ -23,7 +23,7 @@ export function parseVeniceChunk(raw: unknown): { token: string; model?: string;
 }
 
 /** SSE framing independent of provider payloads; preserves UTF-8 and CRLF across chunks. */
-export async function* veniceSseData(body: ReadableStream<Uint8Array>, signal?: AbortSignal, inactivityMs = 12_000): AsyncGenerator<string> {
+export async function* veniceSseData(body: ReadableStream<Uint8Array>, signal?: AbortSignal, inactivityMs = 12_000, errorPrefix = 'VENICE'): AsyncGenerator<string> {
   const reader = body.getReader(), decoder = new TextDecoder();
   let buffer = '';
   const abort = () => { void reader.cancel(signal?.reason).catch(() => undefined); };
@@ -34,7 +34,7 @@ export async function* veniceSseData(body: ReadableStream<Uint8Array>, signal?: 
       let timer: ReturnType<typeof setTimeout> | undefined;
       let result: ReadableStreamReadResult<Uint8Array>;
       try {
-        result = await Promise.race([reader.read(), new Promise<never>((_, reject) => { timer = setTimeout(() => { void reader.cancel().catch(() => undefined); reject(new Error('VENICE_STREAM_TIMEOUT')); }, inactivityMs); })]);
+        result = await Promise.race([reader.read(), new Promise<never>((_, reject) => { timer = setTimeout(() => { void reader.cancel().catch(() => undefined); reject(new Error(`${errorPrefix}_STREAM_TIMEOUT`)); }, inactivityMs); })]);
       } finally { if (timer) clearTimeout(timer); }
       signal?.throwIfAborted();
       buffer += decoder.decode(result.value, { stream: !result.done });
@@ -46,7 +46,7 @@ export async function* veniceSseData(body: ReadableStream<Uint8Array>, signal?: 
         if (data) yield data;
       }
       if (result.done) {
-        if (buffer.trim()) throw new Error('VENICE_INCOMPLETE_FRAME');
+        if (buffer.trim()) throw new Error(`${errorPrefix}_INCOMPLETE_FRAME`);
         return;
       }
     }

@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { chatMessageTypography, chatPreferencesFromConversation, isSubscribedTier, resolveChatBubbleColors, resolveChatContentMode, resolveChatDynamism, resolveChatLanguage, resolveChatResponseStyle, resolveChatSpiceLevel, resolveChatTextSize, resolveChatVoicePreset, resolveReasoningPreference, withLocalChatSettings } from './chatSettings';
 
 describe('chat settings', () => {
+  it.each(['uncensored_1_2', 'role_play', 'gemma_4', 'deepseek_v4_flash', 'deepseek_v4_pro', 'off'] as const)('persists private model selection %s across other settings changes', (selection) => {
+    const conversation = { id: 'chat-1', title: null, metadata: { chatPreferences: { veniceTestModel: selection } } } as never;
+    const updated = withLocalChatSettings(conversation, { title: null, responseStyle: 'texting', textSize: 'medium' });
+    expect(chatPreferencesFromConversation(updated).veniceTestModel).toBe(selection);
+    expect(chatPreferencesFromConversation({ metadata: { chatPreferences: { veniceTestModel: 'unlisted-model' } } }).veniceTestModel).toBe('off');
+  });
   it('reads valid per-chat preferences and ignores malformed metadata', () => {
     const conversation = { metadata: { chatPreferences: { responseStyle: 'paragraph', textSize: 'large', spiceLevel: 3, voicePreset: 'warm', contentMode: 'explicit', chatLanguage: 'fr', extra: true } } };
     expect(chatPreferencesFromConversation(conversation as never)).toEqual({ responseStyle: 'paragraph', textSize: 'large', spiceLevel: 3, voicePreset: 'warm', contentMode: 'explicit', chatLanguage: 'fr',chatDynamism:50,reasoningPreference:'auto',contextPreference:'included' });

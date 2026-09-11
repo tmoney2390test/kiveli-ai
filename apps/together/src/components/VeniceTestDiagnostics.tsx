@@ -7,12 +7,12 @@ import { colors } from '../theme';
 export function VeniceTestDiagnostics({ metadata }: { metadata?: Record<string, unknown> | null }) {
   const { snapshot } = useTogether();
   const [expanded, setExpanded] = useState(false);
-  if (!snapshot?.veniceTest?.available || !metadata || !['venice', 'openai', 'xai'].includes(String(metadata.provider))) return null;
+  if (!snapshot?.veniceTest?.available || !metadata || !['venice', 'wavespeed', 'openai', 'xai'].includes(String(metadata.provider))) return null;
   const model = String(metadata.model ?? metadata.provider);
   const input = metadata.usageMissing !== true && typeof metadata.inputTokens === 'number' ? metadata.inputTokens : null;
   const output = metadata.usageMissing !== true && typeof metadata.outputTokens === 'number' ? metadata.outputTokens : null;
   const reported = typeof metadata.providerCostUsd === 'number' ? metadata.providerCostUsd : null;
-  const estimated = typeof metadata.estimatedCostUsd === 'number' ? metadata.estimatedCostUsd : input !== null && output !== null ? estimateAiCost(metadata.provider as 'venice' | 'openai' | 'xai', model, { inputTokens: input, outputTokens: output, cachedInputTokens: Number(metadata.cachedInputTokens ?? 0), reasoningTokens: Number(metadata.reasoningTokens ?? 0), totalTokens: input + output }, metadata.appliedServiceTier) : null;
+  const estimated = typeof metadata.estimatedCostUsd === 'number' ? metadata.estimatedCostUsd : input !== null && output !== null ? estimateAiCost(metadata.provider as 'venice' | 'wavespeed' | 'openai' | 'xai', model, { inputTokens: input, outputTokens: output, cachedInputTokens: Number(metadata.cachedInputTokens ?? 0), reasoningTokens: Number(metadata.reasoningTokens ?? 0), totalTokens: input + output }, metadata.appliedServiceTier) : null;
   const cost = reported ?? estimated;
   return <View style={styles.root}>
     <Pressable accessibilityRole="button" accessibilityLabel={`Test details: ${model}`} accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)} style={styles.button}>

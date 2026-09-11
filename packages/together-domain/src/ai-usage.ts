@@ -1,3 +1,4 @@
+import { wavespeedChatRate } from './wavespeed-chat.ts';
 import { veniceChatRate } from './venice-chat.ts';
 
 export type NormalizedAiUsage = {
@@ -42,7 +43,8 @@ export function normalizeResponsesUsage(provider: 'openai' | 'xai', raw: unknown
   };
 }
 
-export function estimateAiCost(provider: 'openai' | 'xai' | 'venice', model: string, usage: NormalizedAiUsage, serviceTier?:unknown): number | null {
+export function estimateAiCost(provider: 'openai' | 'xai' | 'venice' | 'wavespeed', model: string, usage: NormalizedAiUsage, serviceTier?:unknown): number | null {
+  if (provider === 'wavespeed') { const price = wavespeedChatRate(model); const cached = Math.min(usage.inputTokens, Math.max(0, usage.cachedInputTokens)); return price ? ((usage.inputTokens - cached) * price.inputPerMillion + cached * price.cachedInputPerMillion + usage.outputTokens * price.outputPerMillion) / 1_000_000 : null; }
   if (provider === 'venice') { const price = veniceChatRate(model); return price ? (usage.inputTokens * price.inputPerMillion + usage.outputTokens * price.outputPerMillion) / 1_000_000 : null; }
   const registry = aiPricing[provider] as Record<string, { inputPerMillion: number; cachedInputPerMillion: number; outputPerMillion: number }>;
   const price = registry[model];
