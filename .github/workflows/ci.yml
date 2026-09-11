@@ -34,6 +34,10 @@ jobs:
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-chat-speed_test.ts
       - name: Context price regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-context-price_test.ts
+      - name: Venice private experiment regressions
+        run: |
+          deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-venice-test_test.ts supabase/functions/_shared/kivelle-venice-dialogue_test.ts
+          node scripts/test-venice-chat-db.mjs
       - name: Apple review recovery regressions
         run: >-
           deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json

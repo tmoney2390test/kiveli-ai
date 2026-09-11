@@ -1,3 +1,4 @@
+import { normalizeVeniceTestSelection, veniceChatModel, veniceChatModels, type VeniceTestSelection, type VeniceTestCapability } from '@together/domain/src/venice-chat';
 import { contextPreferenceLabel, type ContextPreference } from '@together/domain/src/chat-context';
 import { forwardRef, useEffect, useMemo, useRef, useState, type ElementRef } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -8,6 +9,9 @@ import { colors, radius } from '../../theme';
 import { ThemedSettingPicker } from './ThemedSettingPicker';
 
 type Props={
+  veniceTest?:VeniceTestCapability;
+  veniceTestModel?:VeniceTestSelection;
+  onVeniceTestModelChange?:(value:VeniceTestSelection)=>void;
   mode:'direct'|'group';
   contextPreference?:ContextPreference;
   onContextPreferenceChange?:(value:ContextPreference)=>void;
@@ -20,8 +24,11 @@ type Props={
   onUpgrade:()=>void;
 };
 
-export function ChatGenerationSettings({mode,contextPreference='included',onContextPreferenceChange,chatDynamism,reasoningPreference,tier,disabled=false,onChatDynamismChange,onReasoningPreferenceChange,onUpgrade}:Props){
-  const [picker,setPicker]=useState<'dynamism'|'reasoning'|'context'|null>(null);
+export function ChatGenerationSettings({veniceTest,veniceTestModel='off',onVeniceTestModelChange,mode,contextPreference='included',onContextPreferenceChange,chatDynamism,reasoningPreference,tier,disabled=false,onChatDynamismChange,onReasoningPreferenceChange,onUpgrade}:Props){
+  const [picker,setPicker]=useState<'dynamism'|'reasoning'|'context'|'venice'|null>(null);
+  const veniceRef=useRef<ElementRef<typeof Pressable>>(null);
+  const veniceHelp='Try a Venice model for eligible adult replies in this conversation. Other replies use normal routing. Available only on your test account.';
+  const veniceChoices=[{value:'off' as VeniceTestSelection,label:'Off',description:'Use normal routing.'},...Object.entries(veniceChatModels).map(([value,model])=>({value:value as VeniceTestSelection,label:model.label,description:'Use this model for eligible adult replies.'}))].filter(choice=>veniceTest?.selections.includes(choice.value));
   const contextRef=useRef<ElementRef<typeof Pressable>>(null);
   const contextHelp='Sets how much conversation fits in each reply. More context can be slower and use credits. Your maximum price appears before sending; unused context adds no charge.';
   const contextChoices=[{value:'included' as const,label:'Included',description:'Your plan’s context allowance. No extra credits.'},{value:'extended_32k' as const,label:'Extended · 32K',description:'Keep more recent conversation. Variable credits per message.',locked:tier!=='kivelle_plus'&&tier!=='kivelle_max'},{value:'maximum_64k' as const,label:'Maximum · 64K',description:'The most conversation history. Variable credits per message.',locked:tier!=='kivelle_plus'&&tier!=='kivelle_max'}];
@@ -32,6 +39,11 @@ export function ChatGenerationSettings({mode,contextPreference='included',onCont
   const dynamismHelp=mode==='group'?"Changes how the group expresses itself while preserving every character’s voice, memories, facts, safety, and reply length.":'Changes expression and spontaneity without changing memories, facts, safety, or reply length.';
   const reasoningHelp=mode==='group'?'Controls how deeply Kivelli plans each group response. Fast uses a quicker model and lighter reasoning.':'Controls how deeply each reply is worked through. Lower reasoning is quicker and can cost fewer credits; it does not reduce the context size.';
   return <View style={styles.wrapper}>
+    {veniceTest?.available&&onVeniceTestModelChange?<>
+      <SettingRow ref={veniceRef} testID="venice-test-setting" label="Venice test" value={veniceChatModel(veniceTestModel)?.label??'Off'} tooltip={veniceHelp} disabled={disabled} onPress={()=>setPicker('venice')}/>
+      <ThemedSettingPicker visible={picker==='venice'} title="Venice test" description={veniceHelp} choices={veniceChoices} selected={normalizeVeniceTestSelection(veniceTestModel)} disabled={disabled} onSelect={onVeniceTestModelChange} onClose={()=>setPicker(null)} returnFocusRef={veniceRef} testIDPrefix="venice-test-option"/>
+      {veniceTestModel!=='off'?<Text style={styles.testNotice}>Venice test is on for adult replies. These models use no extra reasoning; your reasoning choice still applies to normal replies.</Text>:null}
+    </>:null}
     {onContextPreferenceChange?<SettingRow ref={contextRef} testID="context-size-setting" label="Context Size" value={contextPreferenceLabel(contextPreference)} tooltip={contextHelp} disabled={disabled} onPress={()=>setPicker('context')}/>:null}
     <ThemedSettingPicker visible={picker==='context'} title="Context Size" description={contextHelp} choices={contextChoices} selected={contextPreference} disabled={disabled} onSelect={(value)=>onContextPreferenceChange?.(value)} onLockedSelect={locked} onClose={()=>setPicker(null)} returnFocusRef={contextRef} testIDPrefix="context-size-option"/>
     <SettingRow ref={dynamismRef} testID="chat-dynamism-setting" label="Chat Dynamism" value={chatDynamismLabel(chatDynamism)} tooltip={dynamismHelp} disabled={disabled} onPress={()=>setPicker('dynamism')}/>
@@ -75,6 +87,7 @@ function SettingInfoTooltip({visible,title,body,onClose,testID}:{visible:boolean
 
 const styles=StyleSheet.create({
   wrapper:{gap:10},
+  testNotice:{color:colors.muted,fontSize:12,lineHeight:18,paddingHorizontal:8},
   row:{minHeight:64,flexDirection:'row',alignItems:'stretch',paddingHorizontal:7,borderRadius:radius.md,backgroundColor:'rgba(255,255,255,.035)',borderWidth:1,borderColor:'rgba(199,120,255,.25)'},
   infoButton:{width:44,minHeight:62,alignItems:'center',justifyContent:'center'},
   selector:{flex:1,minWidth:0,minHeight:62,flexDirection:'row',alignItems:'center',gap:10,paddingLeft:3,paddingRight:5},

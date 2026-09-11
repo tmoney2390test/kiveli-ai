@@ -11,7 +11,7 @@ export type EffectiveReasoningEffort = (typeof REASONING_ORDER)[number];
 
 export type ChatGenerationControlsMode = 'off' | 'shadow' | 'on';
 export type DialogueSubscriptionTier = 'free' | 'plus' | 'max';
-export type DialogueGenerationProvider = 'openai' | 'xai' | 'gemini';
+export type DialogueGenerationProvider = 'openai' | 'xai' | 'gemini' | 'venice';
 export type ReasoningReasonCode =
   | 'explicit_user_preference'
   | 'lightweight_turn'
@@ -210,6 +210,7 @@ export function resolveAutoReasoning(signals: DialogueReasoningSignals): { effor
 
 export function resolveDialogueModelCapabilities(input: { provider: DialogueGenerationProvider; model: string }): DialogueModelCapabilities {
   const model = input.model.trim().toLowerCase();
+  if (input.provider === 'venice') return { supportedReasoningEfforts: ['none'], supportsTemperature: true, supportsTemperatureWithReasoning: false, maxOutputTokens: 8192 };
   if (input.provider === 'xai') {
     if (model.includes('grok-4.20-multi-agent')) return { supportedReasoningEfforts: ['low', 'medium', 'high'], supportsTemperature: true, supportsTemperatureWithReasoning: true, maxOutputTokens: 16_384 };
     if (model.includes('grok-4.6') || model.includes('grok-4.5')) return { supportedReasoningEfforts: ['low', 'medium', 'high'], supportsTemperature: true, supportsTemperatureWithReasoning: true, maxOutputTokens: 16_384 };

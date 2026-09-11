@@ -12,6 +12,7 @@ import { resolveAdultAccess } from '../_shared/web-adult-access.ts';
 import { resolvePrivateDialoguePolicy } from '../_shared/private-adult-text-policy.ts';
 import { buildIsolatedSpeakerContext } from '../_shared/kivelle-speaker-context.ts';
 import { compileCompanionPrompt } from '../_shared/kivelle-intelligence.ts';
+import { applyVeniceTestRoute } from '../_shared/kivelle-venice-test.ts';
 import { resolveDialogueRouting } from '../_shared/kivelle-ai-routing.ts';
 import { openAIDialogueModel, xaiDialogueModel, openAIFastServiceTier } from '../_shared/together-ai.ts';
 import { resolveDialogueRunGenerationProfile, chatGenerationControlsMode } from '../_shared/kivelle-chat-generation.ts';
@@ -51,7 +52,7 @@ Deno.serve(async(request)=>{
       const speakerId=speakerIds[index]!;
       const {context,instance}=await buildIsolatedSpeakerContext({db,userId:user.id,continuityId:String(conversation.continuity_id),conversation,speakerCharacterInstanceId:speakerId,userMessage:input.message,attachments:attachments??[],...(index&&sceneSessionId?{sceneSessionId}:{}),readOnly:true,contextInputCeiling:ceiling,authorizedPrivateAdultText:policy.rollout.generationAllowed,authorizedWebAdult:adultAccess.authorized_web_adult});
       if(!group&&index===0){sceneSessionId=context.currentScene?.sceneSessionId;for(const participant of context.sceneParticipants??[])if(!speakerIds.includes(participant.characterInstanceId))speakerIds.push(participant.characterInstanceId);}
-      const route=resolveDialogueRouting({message:input.message,recentTurns:context.recent.slice(-4),requestedMode:'explicit',ageVerified:adultAccess.authorized_web_adult,adultAuthorized:policy.rollout.generationAllowed,characterAge:Number(context.character.age)||null,relationshipAllowsExplicit:context.relationship.romance_enabled!==false});
+      const route=await applyVeniceTestRoute(db,user.id,conversation,resolveDialogueRouting({message:input.message,recentTurns:context.recent.slice(-4),requestedMode:'explicit',ageVerified:adultAccess.authorized_web_adult,adultAuthorized:policy.rollout.generationAllowed,characterAge:Number(context.character.age)||null,relationshipAllowsExplicit:context.relationship.romance_enabled!==false}));
       if(route.hardBlocked)throw new AppError('VALIDATION_FAILED','This message cannot use expanded context.',422);
       context.contentMode=route.resolvedMode;
       Object.assign(context,{dialogueRouting:{...route}});
@@ -61,9 +62,9 @@ Deno.serve(async(request)=>{
       if(expanded.estimatedTokens>ceiling)throw new AppError('CONFLICT','This conversation cannot fit the selected context. Choose a larger size.',409);
       const paidExpansion=preference!=='included'&&expanded.prompt!==included.prompt&&expanded.estimatedTokens>included.estimatedTokens;
       const provider=route.provider;
-      const model=provider==='xai'?xaiDialogueModel(context):openAIDialogueModel(context);
+      const model=provider==='venice'?route.experiment!.model:provider==='xai'?xaiDialogueModel(context):openAIDialogueModel(context);
       const quoteContext=context.generationPreferences.reasoningPreference==='auto'?{...context,generationPreferences:{...context.generationPreferences,reasoningPreference:subscription.capabilities.reasoningEffortMax}}:context;
-      const profile=resolveDialogueRunGenerationProfile({context:quoteContext,provider:provider==='xai'?'xai':'openai',model,generationContext:{mode:group?'group':'direct',speakerRole:'primary',activeSpeakerCount:speakerIds.length}});
+      const profile=resolveDialogueRunGenerationProfile({context:quoteContext,provider:provider==='venice'?'venice':provider==='xai'?'xai':'openai',model,generationContext:{mode:group?'group':'direct',speakerRole:'primary',activeSpeakerCount:speakerIds.length}});
       // Scene/director preparation can add material after acceptance. Bound that
       // work, and reject before any provider call if it no longer fits the quote.
       const inputTokens=paidExpansion?Math.min(ceiling,Math.ceil(expanded.estimatedTokens*1.25)+2000):contextInputTokenCeiling(subscription.capabilities.intelligenceProfile);

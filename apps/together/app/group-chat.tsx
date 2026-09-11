@@ -1,3 +1,4 @@
+import { VeniceTestDiagnostics } from '../src/components/VeniceTestDiagnostics';
 import { emptyReplyDrafts, reduceReplyDrafts } from '../src/lib/replyStreaming';
 import { useContextQuote } from '../src/hooks/useContextQuote';
 import { ContextPricePreview } from '../src/components/settings/ContextPricePreview';
@@ -3437,6 +3438,7 @@ function GroupBubble({
             </Pressable>
           )
           : null}
+        {!user?<VeniceTestDiagnostics metadata={message.provider_metadata}/>:null}
         {offer
           ? (
             <ChatPhotoRequestCard

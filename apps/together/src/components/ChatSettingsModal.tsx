@@ -1,3 +1,4 @@
+import { normalizeVeniceTestSelection, type VeniceTestSelection } from '@together/domain/src/venice-chat';
 import { resolveCompanionQuietHours } from '@together/domain/src/proactive-preferences';
 import { ProactiveSettings, initialProactiveDraft, proactivePatch } from './settings/ProactiveSettings';
 import { normalizeContextPreference, type ContextPreference } from '@together/domain/src/chat-context';
@@ -46,6 +47,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
   const [userBubbleColor, setUserBubbleColor] = useState<ChatBubbleColor>('default');
   const [companionBubbleColor, setCompanionBubbleColor] = useState<ChatBubbleColor>('default');
   const [chatDynamism,setChatDynamism]=useState<ChatDynamism>(50);
+  const [veniceTestModel,setVeniceTestModel]=useState<VeniceTestSelection>('off');
   const [contextPreference,setContextPreference]=useState<ContextPreference>('included');
   const [reasoningPreference,setReasoningPreference]=useState<ReasoningPreference>('auto');
   const [contentMode,setContentMode]=useState<DialogueContentMode>('mature');
@@ -90,6 +92,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     setUserBubbleColor(bubbleColors.user);
     setCompanionBubbleColor(bubbleColors.companion);
     const generationPreferences=chatPreferencesFromConversation(conversation,snapshot?.entitlements?.tier);
+    setVeniceTestModel(normalizeVeniceTestSelection(generationPreferences.veniceTestModel));
     setChatDynamism(generationPreferences.chatDynamism);
     setReasoningPreference(generationPreferences.reasoningPreference);
     setContextPreference(normalizeContextPreference(generationPreferences.contextPreference));
@@ -158,7 +161,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
         if(!demoMode){const result=await invoke<{preferences:Snapshot['notificationPreferences']}>('together-notifications',{action:'companion_preferences',characterInstanceId:character.id,continuityId:character.continuity_id,...proactivePatch(proactive)});if(result.preferences)setCoreState({notificationPreferences:result.preferences});}
         setProactive(current=>({...current,frequencyDirty:false,quietDirty:false,applyAll:false}));
       }
-      const input = { title: cleanTitle, responseStyle, textSize,contentMode, chatLanguage,chatDynamism,reasoningPreference,contextPreference,userBubbleColor,companionBubbleColor, ...(voiceEntitled ? { voicePreset } : {}) };
+      const input = { title: cleanTitle, responseStyle, textSize,contentMode, chatLanguage,chatDynamism,reasoningPreference,contextPreference,userBubbleColor,companionBubbleColor,...(snapshot?.veniceTest?.available?{veniceTestModel}:{}), ...(voiceEntitled ? { voicePreset } : {}) };
       const updated = demoMode
         ? withLocalChatSettings(conversation, input)
         : await manageConversation<Conversation>({ action: 'settings', conversationId: conversation.id, ...input });
@@ -274,7 +277,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
           </> : null}
 
           {activeTab === 'proactive' ? <ProactiveSettings accountFrequency={snapshot?.notificationPreferences?.initiative_level??(snapshot?.notificationPreferences?.character_initiated_messages===false?'off':'natural')} accountQuiet={resolveCompanionQuietHours(snapshot?.notificationPreferences,'','')} defaultQuiet={resolveCompanionQuietHours(snapshot?.notificationPreferences,'',character?.continuity_id??'')} value={proactive} onChange={setProactive} entitled={proactiveEntitled} disabled={saving} name={name} scenarioActive={Boolean(character?.scenario_state)} onUpgrade={()=>{onClose();const href=subscriptionHref({intent:'initiative'});if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never);}}/> : null}
-          {activeTab === 'ai' ? <ChatGenerationSettings mode="direct" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} contextPreference={contextPreference} onContextPreferenceChange={setContextPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>void save(openPlans)}/> : null}
+          {activeTab === 'ai' ? <ChatGenerationSettings veniceTest={snapshot?.veniceTest} veniceTestModel={veniceTestModel} onVeniceTestModelChange={setVeniceTestModel} mode="direct" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} contextPreference={contextPreference} onContextPreferenceChange={setContextPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>void save(openPlans)}/> : null}
         </ScrollView>
 
         <View style={styles.footer}>

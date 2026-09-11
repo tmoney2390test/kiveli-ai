@@ -1,4 +1,6 @@
 import { contextPreferences, normalizeContextPreference } from '../../../packages/together-domain/src/chat-context.ts';
+import { validateVeniceTestSetting } from '../_shared/kivelle-venice-test.ts';
+import { veniceTestSelections } from '../../../packages/together-domain/src/venice-chat.ts';
 import { z } from 'zod';
 import { authenticated, enforceRateLimit } from '../_shared/context.ts';
 import { parseBody } from '../_shared/body.ts';
@@ -33,7 +35,7 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('delete'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('restore'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('rename'), conversationId: z.string().uuid(), title: z.string().trim().min(1).max(80) }),
-  z.object({ action: z.literal('settings'), conversationId: z.string().uuid(), title: z.string().trim().max(80).nullable(), responseStyle: z.enum(['texting','paragraph']), textSize: z.enum(['small','medium','large']), contentMode: z.enum(['standard','romance','mature','explicit']).optional(), spiceLevel: z.union([z.literal(1),z.literal(2),z.literal(3)]).optional(), voicePreset: z.enum(['warm','bright','clear','strong','balanced']).nullable().optional(), chatLanguage: z.enum(chatLanguagePreferences).optional(), chatDynamism:z.union([z.literal(0),z.literal(25),z.literal(50),z.literal(75),z.literal(100)]).optional(), reasoningPreference:z.enum(['auto','none','low','medium','high']).optional(), contextPreference:z.enum(contextPreferences).optional(), userBubbleColor:z.enum(chatBubbleColorValues).optional(), companionBubbleColor:z.enum(chatBubbleColorValues).optional() }),
+  z.object({ action: z.literal('settings'), conversationId: z.string().uuid(), title: z.string().trim().max(80).nullable(), responseStyle: z.enum(['texting','paragraph']), textSize: z.enum(['small','medium','large']), contentMode: z.enum(['standard','romance','mature','explicit']).optional(), spiceLevel: z.union([z.literal(1),z.literal(2),z.literal(3)]).optional(), voicePreset: z.enum(['warm','bright','clear','strong','balanced']).nullable().optional(), chatLanguage: z.enum(chatLanguagePreferences).optional(), chatDynamism:z.union([z.literal(0),z.literal(25),z.literal(50),z.literal(75),z.literal(100)]).optional(), reasoningPreference:z.enum(['auto','none','low','medium','high']).optional(), contextPreference:z.enum(contextPreferences).optional(), veniceTestModel:z.enum(veniceTestSelections).optional(), userBubbleColor:z.enum(chatBubbleColorValues).optional(), companionBubbleColor:z.enum(chatBubbleColorValues).optional() }),
   z.object({ action: z.literal('history'), characterInstanceId: z.string().uuid() }),
   z.object({ action: z.literal('messages'), conversationId: z.string().uuid(), before: z.string().datetime().optional(), beforeSequence: z.number().int().positive().optional(), anchorMessageId: z.string().uuid().optional(), includeReplyStatus: z.boolean().optional(), limit: z.number().int().min(1).max(60).default(50) }),
   z.object({ action: z.literal('search'), characterInstanceId: z.string().uuid(), query: z.string().trim().min(2).max(100), conversationId: z.string().uuid().optional() }),
@@ -403,6 +405,7 @@ serve(async (request, correlationId) => {
   if (input.action === 'settings') {
     const subscription = await resolveSubscriptionAccess(db, user.id);
     const currentMetadata = (conversation.metadata ?? {}) as Record<string, unknown>;
+    const veniceTestModel = await validateVeniceTestSetting(db,user.id,conversation.user_id,input.veniceTestModel);
     const storedPreferences = currentMetadata.chatPreferences;
     if(input.contextPreference&&input.contextPreference!=='included'&&subscription.tier==='free')throw new AppError('PLAN_LIMIT_REACHED','Expanded context is available with Kivelle+ or Max.',403);
     const currentPreferences = storedPreferences && typeof storedPreferences === 'object' && !Array.isArray(storedPreferences) ? storedPreferences as Record<string, unknown> : {};
@@ -424,7 +427,7 @@ serve(async (request, correlationId) => {
     }
     const chatDynamism=normalizeChatDynamism(input.chatDynamism??currentPreferences.chatDynamism);
     const storedReasoning=reconcileReasoningPreferenceForTier(input.reasoningPreference??currentPreferences.reasoningPreference,subscription.tier);
-    const chatPreferences:Record<string,unknown> = { ...currentPreferences, responseStyle: input.responseStyle, textSize: input.textSize, contentMode, chatDynamism,reasoningPreference:storedReasoning,contextPreference:normalizeContextPreference(input.contextPreference??currentPreferences.contextPreference), userBubbleColor:normalizeChatBubbleColor(input.userBubbleColor??currentPreferences.userBubbleColor), companionBubbleColor:normalizeChatBubbleColor(input.companionBubbleColor??currentPreferences.companionBubbleColor), ...(voicePreset ? { voicePreset } : {}), ...(input.chatLanguage !== undefined ? { chatLanguage: input.chatLanguage } : {}) };
+    const chatPreferences:Record<string,unknown> = { ...currentPreferences, ...(veniceTestModel!==undefined?{veniceTestModel}:{}), responseStyle: input.responseStyle, textSize: input.textSize, contentMode, chatDynamism,reasoningPreference:storedReasoning,contextPreference:normalizeContextPreference(input.contextPreference??currentPreferences.contextPreference), userBubbleColor:normalizeChatBubbleColor(input.userBubbleColor??currentPreferences.userBubbleColor), companionBubbleColor:normalizeChatBubbleColor(input.companionBubbleColor??currentPreferences.companionBubbleColor), ...(voicePreset ? { voicePreset } : {}), ...(input.chatLanguage !== undefined ? { chatLanguage: input.chatLanguage } : {}) };
     if (input.voicePreset === null) delete chatPreferences.voicePreset;
     const { data, error } = await db.from('together_conversations').update({ title: input.title, metadata: { ...currentMetadata, chatPreferences }, updated_at: new Date().toISOString() }).eq('id', conversation.id).eq('user_id', user.id).select('*').single();
     if (error || !data) throw new AppError('INTERNAL_ERROR', 'Chat settings could not be saved.', 500, true);
