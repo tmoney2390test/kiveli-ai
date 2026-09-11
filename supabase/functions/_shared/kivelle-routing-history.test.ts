@@ -1,16 +1,17 @@
 import { assertEquals, assertRejects } from 'jsr:@std/assert@1';
 import { loadAdultRoutingHistory } from './kivelle-routing-history.ts';
 import { resolveDialogueRouting } from './kivelle-ai-routing.ts';
+import { applyChatTestRoute } from './kivelle-chat-model-test.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 const base={message:'I nod.',requestedMode:'explicit' as const,ageVerified:true,adultAuthorized:true,characterAge:30,relationshipAllowsExplicit:true};
 const classified={allowed:true,flagged:true,categories:['sexual/adult'],categoryScores:{'sexual/adult':0.95}};
 const fresh={version:1,eligible:true,freshAdult:true,reset:false};
 
-function configured(run:()=>void){
-  const env={OPENAI_API_KEY:'test-only',XAI_API_KEY:'test-only',KIVELLE_XAI_ENABLED:'true',KIVELLE_XAI_EXPLICIT_ENABLED:'true',KIVELLE_PRIVATE_ADULT_TEXT_MODE:'on'};
+async function configured(run:()=>void|Promise<void>){
+  const env={OPENAI_API_KEY:'test-only',XAI_API_KEY:'test-only',WAVESPEED_API_KEY:'test-only',KIVELLE_WAVESPEED_CHAT_TEST_ENABLED:'true',KIVELLE_VENICE_CHAT_TEST_ENABLED:'true',KIVELLE_XAI_ENABLED:'true',KIVELLE_XAI_EXPLICIT_ENABLED:'true',KIVELLE_PRIVATE_ADULT_TEXT_MODE:'on'};
   const previous=Object.keys(env).map(key=>Deno.env.get(key));
-  try{Object.entries(env).forEach(([key,value])=>Deno.env.set(key,value));run();}
+  try{Object.entries(env).forEach(([key,value])=>Deno.env.set(key,value));await run();}
   finally{Object.keys(env).forEach((key,index)=>{const value=previous[index];if(value===undefined)Deno.env.delete(key);else Deno.env.set(key,value);});}
 }
 
@@ -44,6 +45,31 @@ Deno.test('permission, preference, relationship and rollout changes override car
   }
   Deno.env.set('KIVELLE_PRIVATE_ADULT_TEXT_MODE','off');
   assertEquals(resolveDialogueRouting({...base,routingHistory:[fresh]}).explicit,false);
+}));
+
+Deno.test('a group turn freezes its history for every speaker and does not consume multiple user turns',()=>configured(()=>{
+  const history=[fresh];
+  for(let speaker=0;speaker<5;speaker++){
+    assertEquals(resolveDialogueRouting({...base,routingHistory:history}).carryoverTurnsRemaining,3);
+  }
+  assertEquals(history,[fresh]);
+  assertEquals(resolveDialogueRouting({...base,routingHistory:history,adultAuthorized:false}).explicit,false);
+}));
+
+Deno.test('suggestive and carried routes preserve the exact owner-selected model and quote routing',()=>configured(async()=>{
+  const owner='0aaaa97b-a210-4d06-893a-7780bed71927';
+  const query={select(){return query;},eq(){return query;},maybeSingle(){return Promise.resolve({data:{enabled:true,version:2},error:null});}};
+  const db={from:()=>query};
+  const conversation={user_id:owner,metadata:{chatPreferences:{veniceTestModel:'deepseek_v4_flash'}}};
+  const first=await applyChatTestRoute(db,owner,conversation,resolveDialogueRouting({...base,message:'You look seductive.'}));
+  const request={...base,routingHistory:[first.adultRouting]};
+  const quote=await applyChatTestRoute(db,owner,conversation,resolveDialogueRouting(request));
+  const generation=await applyChatTestRoute(db,owner,conversation,resolveDialogueRouting(request));
+  assertEquals(first.provider,'wavespeed');
+  assertEquals(generation.provider,first.provider);
+  assertEquals(generation.experiment?.model,first.experiment?.model);
+  assertEquals(generation,quote);
+  assertEquals((await applyChatTestRoute(db,'other-owner',{...conversation,user_id:'other-owner'},resolveDialogueRouting(request))).provider,'xai');
 }));
 
 Deno.test('history is user/conversation scoped, user-turn bounded, ordered and retry stable',async()=>{
