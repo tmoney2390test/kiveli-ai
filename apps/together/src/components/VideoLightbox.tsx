@@ -1,16 +1,16 @@
 import{useEffect,useState}from'react';
 import{ActivityIndicator,Modal,Platform,Pressable,StyleSheet,Text,useWindowDimensions,View}from'react-native';
-import{useVideoPlayer,VideoView}from'expo-video';
+import{useVideoPlayer,VideoView,type VideoPlayer}from'expo-video';
 import{Minimize2,Volume2}from'lucide-react-native';
 import{useSafeAreaInsets}from'react-native-safe-area-context';
 import{containedMediaFrame}from'../lib/mediaViewer';
 import{colors,radius}from'../theme';
 import{WebVideoSurface}from'./WebVideoSurface';
 
-export function VideoLightbox({visible,uri,posterUri,aspectRatio,audioBehavior='unknown',onClose}:{visible:boolean;uri:string;posterUri?:string|null;aspectRatio:number;audioBehavior?:'has_audio'|'silent'|'unknown'|null;onClose:()=>void}){
+export function VideoLightbox({visible,uri,posterUri,aspectRatio,audioBehavior='unknown',sharedPlayer,onClose}:{visible:boolean;uri:string;posterUri?:string|null;aspectRatio:number;audioBehavior?:'has_audio'|'silent'|'unknown'|null;sharedPlayer?:VideoPlayer;onClose:()=>void}){
   const{width,height}=useWindowDimensions(),insets=useSafeAreaInsets(),[ready,setReady]=useState(false);
-  const player=useVideoPlayer(uri,(instance)=>{instance.loop=true;instance.muted=true;});
-  useEffect(()=>{setReady(false);if(!visible){player.pause();return;}player.muted=true;player.play();},[player,uri,visible]);
+  const localPlayer=useVideoPlayer(sharedPlayer?null:uri,(instance)=>{instance.loop=true;instance.muted=true;}),player=sharedPlayer??localPlayer;
+  useEffect(()=>{setReady(false);if(sharedPlayer)return;if(!visible){localPlayer.pause();return;}localPlayer.muted=true;localPlayer.play();},[localPlayer,sharedPlayer,uri,visible]);
   const controlsSpace=Platform.OS==='web'?24:Math.max(16,insets.bottom),topSpace=Platform.OS==='web'?24:Math.max(16,insets.top);
   const frame=containedMediaFrame({width,height},aspectRatio,12);
   return <Modal visible={visible} transparent statusBarTranslucent supportedOrientations={['portrait','portrait-upside-down','landscape-left','landscape-right']} animationType="fade" onRequestClose={onClose}>
