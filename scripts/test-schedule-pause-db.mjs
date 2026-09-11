@@ -1,0 +1,67 @@
+import { PGlite } from '@electric-sql/pglite';
+import { readFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
+
+const db=new PGlite();
+const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+const [owner,stranger,life,otherLife,companion,otherCompanion,conversation,otherConversation,place]=[1,2,3,4,5,6,7,8,9].map(id);
+let checks=0;
+const check=(actual,expected)=>{assert.deepEqual(actual,expected);checks++;};
+const one=async(sql,args=[]) => (await db.query(sql,args)).rows[0];
+const snapshot={locationId:place,activity:'Reading at the cafe',activityKey:'reading',interruptibility:'open',state:'relaxing'};
+const change=async({paused=true,confirmation=paused?'pause_schedule':'resume_schedule',expected=null,user=owner,continuity=life,chat=conversation,state=snapshot}={}) =>
+  (await one('select kivelle_set_schedule_pause($1,$2,$3,$4,$5,$6,$7) as result',[user,continuity,chat,paused,confirmation,expected,state])).result;
+const rejects=async(input,pattern)=>{await assert.rejects(change(input),pattern);checks++;};
+try{
+  await db.exec(`
+    create role anon; create role authenticated; create role service_role;
+    create schema auth;
+    create function auth.uid() returns uuid language sql as $$select nullif(current_setting('test.user',true),'')::uuid$$;
+    create table together_character_instances(id uuid primary key,user_id uuid,continuity_id uuid,current_location_id uuid,current_activity text,life_state text,metadata jsonb,last_simulated_at timestamptz,last_event_simulated_at timestamptz,updated_at timestamptz);
+    create table together_conversations(id uuid primary key,user_id uuid,continuity_id uuid,character_instance_id uuid,kind text,archived_at timestamptz);
+    create table together_locations(id uuid primary key);
+    create table together_shared_plans(id uuid,status text);
+    create table together_memories(id uuid,canonical_text text);
+  `);
+  const migration=readFileSync(new URL('../supabase/migrations/20260911212011_companion_schedule_pause.sql',import.meta.url),'utf8');
+  await db.exec(migration);
+  await db.query("insert into together_character_instances(id,user_id,continuity_id,current_location_id,current_activity,life_state,metadata) values($1,$2,$3,$4,'Reading','dead','{\"trust\":30}')",[companion,owner,life,place]);
+  await db.query("insert into together_character_instances(id,user_id,continuity_id) values($1,$2,$3)",[otherCompanion,stranger,otherLife]);
+  await db.query("insert into together_conversations values($1,$2,$3,$4,'direct',null),($5,$6,$7,$8,'direct',null)",[conversation,owner,life,companion,otherConversation,stranger,otherLife,otherCompanion]);
+  await db.query('insert into together_locations values($1)',[place]);
+  await db.query("insert into together_shared_plans values($1,'scheduled');",[id(10)]);
+  await db.query("insert into together_memories values($1,'A saved neutral detail');",[id(11)]);
+  for(const confirmation of [null,'','yes','resume_schedule'])await rejects({confirmation},/CONFIRMATION_REQUIRED/);
+  await rejects({user:stranger},/NOT_FOUND/);
+  await rejects({continuity:otherLife},/NOT_FOUND/);
+  await rejects({chat:otherConversation},/NOT_FOUND/);
+  await db.query("select set_config('test.user',$1,false)",[stranger]);
+  await rejects({},/NOT_AUTHORIZED/);
+  await db.exec("select set_config('test.user','',false)");
+  await rejects({state:{}},/SNAPSHOT_INVALID/);
+  const paused=await change();
+  check(paused.characterInstanceId,companion);check(paused.schedulePause.activity,snapshot.activity);
+  check(paused.schedulePause.locationId,place);
+  await rejects({},/STATE_CHANGED/);
+  const replay=await change({expected:paused.schedulePause.pausedAt});
+  check(replay,paused);
+  await rejects({paused:false,confirmation:'pause_schedule',expected:paused.schedulePause.pausedAt},/CONFIRMATION_REQUIRED/);
+  await rejects({paused:false,expected:null},/STATE_CHANGED/);
+  const resumed=await change({paused:false,expected:paused.schedulePause.pausedAt});
+  check(resumed.schedulePause,null);
+  check((await one('select schedule_pause from together_character_instances where id=$1',[otherCompanion])).schedule_pause,null);
+  check(await one('select current_activity,life_state,metadata from together_character_instances where id=$1',[companion]),{current_activity:'Reading',life_state:'dead',metadata:{trust:30}});
+  check((await one('select status from together_shared_plans')).status,'scheduled');
+  check((await one('select count(*)::int as n from together_memories')).n,1);
+  check((await one('select last_event_simulated_at=updated_at as equal from together_character_instances where id=$1',[companion])).equal,true);
+  const signature='kivelle_set_schedule_pause(uuid,uuid,uuid,boolean,text,text,jsonb)';
+  for(const role of ['anon','authenticated'])check((await one("select has_function_privilege($1,$2,'EXECUTE') as allowed",[role,signature])).allowed,false);
+  check((await one("select has_function_privilege('service_role',$1,'EXECUTE') as allowed",[signature])).allowed,true);
+  await db.query("update together_conversations set kind='group' where id=$1",[conversation]);
+  await rejects({},/CONVERSATION_NOT_FOUND/);
+  await db.query("update together_conversations set kind='direct',archived_at=now() where id=$1",[conversation]);
+  await rejects({},/CONVERSATION_NOT_FOUND/);
+  await db.exec(migration);
+  check((await one('select count(*)::int as n from together_memories')).n,1);
+  console.log(`Schedule pause: ${checks} isolated PostgreSQL checks passed; no Supabase container or production data used.`);
+}finally{await db.close();}

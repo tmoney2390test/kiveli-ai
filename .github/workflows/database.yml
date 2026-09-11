@@ -32,6 +32,8 @@ jobs:
         run: node scripts/test-fresh-chat-db.mjs
       - name: Verify message-revision database contract
         run: node scripts/test-message-rewrite-db.mjs
+      - name: Verify companion schedule-pause database contract
+        run: node scripts/test-schedule-pause-db.mjs
 
       - name: Verify Apple review recovery database contract
         run: node scripts/test-apple-review-db.mjs

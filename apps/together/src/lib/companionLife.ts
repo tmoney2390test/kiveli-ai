@@ -1,4 +1,5 @@
 import type { CharacterInstance, CharacterScheduleEvent, Snapshot } from '../types';
+import { schedulePauseFrom, scheduleEventAllowedDuringPause } from '@together/domain/src/schedule-pause';
 import { worldForLocation } from './place';
 import { selectActiveCompanion, selectCompanionLife } from './selectors';
 import { getScheduleHint, nextVisibleScheduleEvents } from './lifePresentation';
@@ -37,7 +38,7 @@ export function buildCompanionLife(snapshot: Snapshot, now = new Date(), compani
     :snapshot.conversations.find((conversation)=>conversation.character_instance_id===companion.id&&!conversation.archived_at&&!conversation.user_archived_at&&['direct','first_meeting'].includes(conversation.kind));
   const location = snapshot.locations.find((item) => item.id === companion.current_location_id);
   const currentWorld=worldForLocation(snapshot,location?.id??companion.current_location_id);
-  const upcomingSchedule = nextVisibleScheduleEvents(snapshot.scheduleEvents,companion.id,now).slice(0,3).map((item)=>({ ...item, startsAt:new Date(item.starts_at), endsAt:new Date(item.ends_at), activity:getScheduleHint(item)??item.title, locationName:snapshot.locations.find((place)=>place.id===item.location_id)?.name??currentWorld?.name??'Current world' }));
+  const upcomingSchedule = nextVisibleScheduleEvents(snapshot.scheduleEvents,companion.id,now).filter(item=>!schedulePauseFrom(companion.schedule_pause)||scheduleEventAllowedDuringPause(item)).slice(0,3).map((item)=>({ ...item, startsAt:new Date(item.starts_at), endsAt:new Date(item.ends_at), activity:getScheduleHint(item)??item.title, locationName:snapshot.locations.find((place)=>place.id===item.location_id)?.name??currentWorld?.name??'Current world' }));
   return {
     companion,
     relationship: scoped.relationship,

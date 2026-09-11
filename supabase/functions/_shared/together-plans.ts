@@ -221,11 +221,13 @@ async function validateAvailability(db:any,input:{userId:string;characterInstanc
   const dateConflict=(dates??[]).find((date:any)=>{if(!date.scheduled_for)return false;const starts=new Date(date.scheduled_for).getTime();return starts<end.getTime()&&starts+3*3600000>input.start.getTime();});
   if(dateConflict)throw new AppError('PLAN_CONFLICT',`You already have ${dateConflict.together_date_templates?.name??'a date'} at that time.`,409,true);
   const endClock=experienceClock(timezone,end);
+  const {data:instance,error:instanceError}=await db.from('together_character_instances').select('schedule_pause').eq('id',input.characterInstanceId).eq('user_id',input.userId).maybeSingle();
+  if(instanceError||!instance)throw new AppError('INTERNAL_ERROR','Companion availability could not be checked.',503,true);
   // A user-confirmed immediate plan is an explicit schedule override. The
   // shared-plan trigger suppresses overlapping passive schedule blocks, so
   // rejecting the same overlap here makes Start Now impossible for exactly
   // the companions whose lives are currently active.
-  const busy=input.immediate?undefined:(schedules??[]).find((item:any)=>Number(item.day_of_week)===clock.weekday&&item.availability==='busy'&&clock.minuteOfDay<Number(item.end_minute)&&endClock.minuteOfDay>Number(item.start_minute));
+  const busy=input.immediate||schedulePauseFrom(instance.schedule_pause)?undefined:(schedules??[]).find((item:any)=>Number(item.day_of_week)===clock.weekday&&item.availability==='busy'&&clock.minuteOfDay<Number(item.end_minute)&&endClock.minuteOfDay>Number(item.start_minute));
   if(busy)throw new AppError('COMPANION_BUSY',`Your companion is busy with ${busy.activity} until ${minuteLabel(Number(busy.end_minute))}. Try ${minuteLabel(Number(busy.end_minute)+30)} or ${minuteLabel(Number(busy.end_minute)+60)}.`,409,true);
   return{worldTimezone:safeTimezone(place.world.timezone),userTimezone:timezone,end,shortenedForClosingTime,closesAt};
 }
@@ -277,3 +279,4 @@ function normalize(value:string){return value.toLowerCase().trim().replace(/[^a-
 function joinPlanNames(names:string[]){if(names.length<=1)return names[0]??'their companion';if(names.length===2)return`${names[0]} and ${names[1]}`;return`${names.slice(0,-1).join(', ')}, and ${names[names.length-1]}`;}
 function conversionSource(source:PlanSource){return source==='chat'?'chat_natural_language':source==='manual_planner'?'chat_manual':source;}
 async function trackPlanCreationSource(db:any,userId:string,source:PlanSource,metadata:Record<string,unknown>){if(source==='chat')await track(db,userId,'plan_created_from_chat',metadata);if(source==='location')await track(db,userId,'plan_created_from_location',metadata);}
+import { schedulePauseFrom } from '../../../packages/together-domain/src/schedule-pause.ts';

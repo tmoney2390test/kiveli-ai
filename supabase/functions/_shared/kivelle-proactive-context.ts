@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { schedulePauseFrom } from '../../../packages/together-domain/src/schedule-pause.ts';
 import { isPlanReminderProactive } from './kivelle-initiative.ts';
 
 type Row = Record<string, any>;
@@ -108,6 +109,9 @@ export async function loadInitiativeSource(
     return plan ? planInitiativeSource(plan, now, timezone, String(proactive.dedupe_key).startsWith('plan:post:')) : null;
   }
   if (proactive.context?.scheduleEventId) {
+    const {data:instance,error:instanceError}=await db.from('together_character_instances').select('schedule_pause').eq('id',proactive.character_instance_id).eq('user_id',userId).maybeSingle();
+    if(instanceError)throw new Error('INITIATIVE_SCHEDULE_PAUSE_READ_FAILED');
+    if(schedulePauseFrom(instance?.schedule_pause))return null;
     const { data: schedule, error } = await db.from('together_character_schedule_events').select('*')
       .eq('id', proactive.context.scheduleEventId).eq('user_id', userId)
       .eq('character_instance_id', proactive.character_instance_id).maybeSingle();
@@ -117,6 +121,9 @@ export async function loadInitiativeSource(
     return summary ? { draft: summary, summary: `Current scheduled activity: ${summary}. Do not invent an incident or outcome.`, occurredAt: schedule.starts_at, allowFallback: false } : null;
   }
   if (proactive.life_event_id) {
+    const {data:instance,error:instanceError}=await db.from('together_character_instances').select('schedule_pause').eq('id',proactive.character_instance_id).eq('user_id',userId).maybeSingle();
+    if(instanceError)throw new Error('INITIATIVE_SCHEDULE_PAUSE_READ_FAILED');
+    if(schedulePauseFrom(instance?.schedule_pause))return null;
     const { data: event, error } = await db.from('together_life_events').select('*')
       .eq('id', proactive.life_event_id).eq('user_id', userId)
       .eq('character_instance_id', proactive.character_instance_id).maybeSingle();

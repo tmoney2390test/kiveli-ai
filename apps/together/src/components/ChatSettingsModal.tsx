@@ -27,6 +27,7 @@ import { defaultDirectConversationTitle } from '../lib/conversation';
 import { type ChatBubbleColor } from '@together/domain/src/chat-appearance';
 import { ChatBubbleColorSettings } from './settings/ChatBubbleColorSettings';
 import { ChatSettingsTabs, type ChatSettingsTab } from './settings/ChatSettingsTabs';
+import { SchedulePauseControl } from './settings/SchedulePauseControl';
 
 type Props = {
   visible: boolean;
@@ -224,6 +225,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
           </SettingSection>
 
           <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible}/>
+          {character&&conversation?<SchedulePauseControl character={character} conversation={conversation} disabled={saving}/>:null}
 
           <SettingSection icon={<Volume2 size={16} color={colors.violet} />} label="Companion voice">
             {voiceEntitled ? <>
