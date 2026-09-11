@@ -1,4 +1,6 @@
 import { contextPreferences, normalizeContextPreference } from '../../../packages/together-domain/src/chat-context.ts';
+import { validateVeniceTestSetting } from '../_shared/kivelle-venice-test.ts';
+import { veniceTestSelections } from '../../../packages/together-domain/src/venice-chat.ts';
 import { z } from "zod";
 import {
   commonGroupWorldId,
@@ -78,7 +80,7 @@ const schema = z.discriminatedUnion("action", [
     contentMode:z.enum(["standard","romance","mature","explicit"]).optional(),
     chatLanguage: z.enum(chatLanguagePreferences).optional(),
     chatDynamism:z.union([z.literal(0),z.literal(25),z.literal(50),z.literal(75),z.literal(100)]).optional(),
-    reasoningPreference:z.enum(['auto','none','low','medium','high']).optional(), contextPreference:z.enum(contextPreferences).optional(),
+    reasoningPreference:z.enum(['auto','none','low','medium','high']).optional(), contextPreference:z.enum(contextPreferences).optional(), veniceTestModel:z.enum(veniceTestSelections).optional(),
     userBubbleColor:z.enum(chatBubbleColorValues).optional(),
     companionBubbleColor:z.enum(chatBubbleColorValues).optional(),
     responseMode: z.enum(["automatic", "choose_speaker"]),
@@ -484,6 +486,7 @@ serve(async (request, correlationId) => {
         !Array.isArray(conversation.metadata)
       ? conversation.metadata as Record<string, unknown>
       : {};
+    const veniceTestModel = await validateVeniceTestSetting(db,user.id,conversation.user_id,input.veniceTestModel);
     const storedPreferences = currentMetadata.chatPreferences;
     const currentPreferences = storedPreferences &&
         typeof storedPreferences === "object" &&
@@ -514,6 +517,7 @@ serve(async (request, correlationId) => {
     }
     const chatPreferences: Record<string, unknown> = {
       ...currentPreferences,
+      ...(veniceTestModel!==undefined?{veniceTestModel}:{}),
       responseStyle,
       textSize,
       contentMode,

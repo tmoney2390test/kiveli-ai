@@ -1,3 +1,4 @@
+import { veniceChatRate } from '../../../packages/together-domain/src/venice-chat.ts';
 import { AppError } from './types.ts';
 
 // Rates are microdollars per million tokens. Reviewed 2026-09-07.
@@ -14,7 +15,8 @@ const rates:Record<string,{input:number;cached:number;output:number}>={
 };
 export function assertContextPricingCurrent(now=Date.now()):void{if(now>Date.parse('2026-10-07T00:00:00Z'))throw new AppError('PROVIDER_UNAVAILABLE','Expanded context pricing is being updated. Choose Included for now.',503,true);}
 export function contextCredits(input:{provider:string;model:string;inputTokens:number;outputTokens:number;cachedInputTokens?:number;serviceTier?:string}):number{
-  const rate=rates[`${input.provider}:${input.model}`];
+  const veniceRate=input.provider==='venice'?veniceChatRate(input.model):undefined;
+  const rate=veniceRate?{input:Math.round(veniceRate.inputPerMillion*1_000_000),cached:Math.round(veniceRate.inputPerMillion*1_000_000),output:Math.round(veniceRate.outputPerMillion*1_000_000)}:rates[`${input.provider}:${input.model}`];
   if(!rate)throw new AppError('PROVIDER_UNAVAILABLE','Expanded context pricing is being updated. Choose Included for now.',503,true);
   const tokens=Math.max(0,Math.ceil(input.inputTokens)),cached=Math.min(tokens,Math.max(0,Math.floor(input.cachedInputTokens??0)));
   const multiplier=input.serviceTier==='priority'&&input.provider==='openai'?2:input.provider==='xai'&&tokens>200000?2:1;

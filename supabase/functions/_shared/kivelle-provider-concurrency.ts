@@ -5,7 +5,7 @@ export type ProviderSlotLease = { id: string; provider: string };
 
 export async function acquireProviderSlot(
   scope: AiUsageScope | undefined,
-  provider: "openai" | "xai",
+  provider: "openai" | "xai" | "venice",
   operation: string,
 ): Promise<ProviderSlotLease | null> {
   if (!scope?.db || !scope.userId) return null;
@@ -72,7 +72,8 @@ export async function releaseProviderSlot(
   }
 }
 
-export function providerConcurrencyLimit(provider: "openai" | "xai"): number {
+export function providerConcurrencyLimit(provider: "openai" | "xai" | "venice"): number {
+  if (provider === "venice") { const value = Number(Deno.env.get("KIVELLE_VENICE_MAX_CONCURRENCY") ?? 2); return Number.isFinite(value) ? Math.min(8, Math.max(1, Math.floor(value))) : 2; }
   const name = provider === "openai"
     ? "KIVELLE_OPENAI_MAX_CONCURRENCY"
     : "KIVELLE_XAI_MAX_CONCURRENCY";

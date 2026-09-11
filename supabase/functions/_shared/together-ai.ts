@@ -1,3 +1,5 @@
+import { streamVeniceDialogue } from './kivelle-venice-dialogue.ts';
+import type { VeniceDialogueExperiment } from '../../../packages/together-domain/src/venice-chat.ts';
 import {requireScopedAiConsent} from './kivelle-ai-consent.ts';
 import { pricedCompanionPrompt, contextChargeForUsage, ContextPricingError, type ContextPayment, type ContextCharge } from './kivelle-context-charge.ts';
 import { AppError } from "./types.ts";
@@ -82,6 +84,12 @@ export type DialogueContext = KivelleConversationContext & {
   dialogueRouting?: Record<string, unknown>;
 };
 export type DialogueRunMetadata = {
+  veniceTest?: VeniceDialogueExperiment;
+  returnedModel?: string;
+  estimatedCostUsd?: number;
+  providerCostUsd?: number;
+  costSource?: string;
+  usageMissing?: boolean;
   contextCharge?:ContextCharge;
   provider: DialogueProviderName;
   model: string;
@@ -298,6 +306,12 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
     options: DialogueRunOptions,
   ): Promise<DialogueGenerationResult> {
     await requireScopedAiConsent(options.usageScope);
+    if (options.route.provider === 'venice') {
+      let text = ''; let metadata: DialogueRunMetadata | undefined;
+      for await (const event of streamVeniceDialogue(context, options)) { if (event.type === 'token') text += event.token; else metadata = event.metadata; }
+      if (!metadata) throw new AppError('PROVIDER_UNAVAILABLE', 'Venice did not complete the reply.', 503, true);
+      return { text, metadata };
+    }
     if (
       options.route.provider === "openai" || options.route.provider === "xai"
     ) {
@@ -449,6 +463,7 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
     options: DialogueRunOptions,
   ): AsyncIterable<DialogueStreamEvent> {
     await requireScopedAiConsent(options.usageScope);
+    if (options.route.provider === 'venice') { yield* streamVeniceDialogue(context, options); return; }
     if (
       options.route.provider === "openai" || options.route.provider === "xai"
     ) {

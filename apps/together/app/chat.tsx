@@ -1,3 +1,4 @@
+import { VeniceTestDiagnostics } from '../src/components/VeniceTestDiagnostics';
 import { useContextQuote } from '../src/hooks/useContextQuote';
 import { ContextPricePreview } from '../src/components/settings/ContextPricePreview';
 import { Children, isValidElement, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
@@ -1486,6 +1487,7 @@ function MessageBubble({desktop,message,character,mentionCharacters,onCharacterM
         {assistant&&!photoOnly&&voiceVisible&&(voice||voiceBusy)?<Animated.View style={[styles.listenControlSlot,{opacity:completionControlsOpacity}]}>{voice?<VoiceNoteInline media={voice} active={activeVoiceNoteId===voice.id} onActivate={()=>onVoiceActivate(activeVoiceNoteId===voice.id?null:voice.id)} onRetry={()=>void onVoice()} onRefresh={()=>void refreshVoice()}/>:<View style={styles.voiceNote}><ActivityIndicator size="small" color={colors.rose}/><Text style={styles.voiceNoteText}>Generating voice…</Text></View>}</Animated.View>:null}
         <View style={styles.messageMeta}><Text style={[styles.timestamp,desktop&&styles.timestampDesktop,{color:bubbleTextColor,opacity:.58}]}>{new Date(message.created_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</Text></View>
       </Pressable>
+      {assistant?<VeniceTestDiagnostics metadata={message.provider_metadata}/>:null}
       {message.together_message_reactions?.length?<View style={styles.messageReactions}>{message.together_message_reactions.map((reaction:MessageReaction)=><View key={reaction.id} style={styles.messageReaction}><Text style={styles.messageReactionEmoji}>{reaction.reaction}</Text><Text style={styles.messageReactionName}>{reactionNames[reaction.reactor_character_instance_id]??String(reaction.metadata?.reactorName??'Companion').split(' ')[0]}</Text></View>)}</View>:null}
       {assistant&&photoOffer?<ChatPhotoRequestCard offer={photoOffer} media={photoMedia} previewSource={photoPreviewSource} busy={photoOfferBusy} onAccept={(paymentMethod)=>onPhotoOfferAccept(photoOffer,paymentMethod)} onDecline={()=>onPhotoOfferDecline(photoOffer)} onBuyCredits={()=>navigateChatSurface(subscriptionHref({intent:'credits'}))} onRetry={photoMedia||photoOffer.generated_media_id?()=>void onMediaRetry(photoMedia?.id??String(photoOffer.generated_media_id)):undefined}/>:null}
       {message.delivery_status==='failed'&&onFailedRetry&&onFailedEdit&&onFailedDiscard?<FailedMessageRecovery onRetry={onFailedRetry} onEdit={onFailedEdit} onDiscard={onFailedDiscard}/>:null}

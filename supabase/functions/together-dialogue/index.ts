@@ -89,6 +89,7 @@ import {
 } from "../_shared/kivelle-emotional-residue.ts";
 import { recordChatPlaceOpinions } from "../_shared/kivelle-place-perspective.ts";
 import type { PlaceContext } from "../_shared/together-place.ts";
+import { applyVeniceTestRoute } from '../_shared/kivelle-venice-test.ts';
 import { resolveDialogueRouting } from "../_shared/kivelle-ai-routing.ts";
 import { sharedSceneGenerationContext,type DialogueGenerationContext } from "../_shared/kivelle-chat-generation.ts";
 import type {
@@ -1104,7 +1105,7 @@ Deno.serve(async (request) => {
           adultAttachment,
           moderation: inputSafety,
         };
-        route = resolveDialogueRouting(selectedRouteInput);
+        route = await applyVeniceTestRoute(db,user.id,conversation,resolveDialogueRouting(selectedRouteInput));
         const selectedSpeakerName = String(
           dialogueContext.character?.name ?? "Companion",
         );
@@ -2031,6 +2032,7 @@ function streamDialogue({
   let connectionOpen = true;
   const progressive=input.streamProtocol===2&&chatSpeedEnabled("STREAM_V2");
   const turnAbort=new AbortController();
+  if(runOptions.route.provider==='venice')runOptions.signal=turnAbort.signal;
   let primaryMessage: Record<string,unknown>|undefined;
   let checkingTurn=false;
   let firstText=false;

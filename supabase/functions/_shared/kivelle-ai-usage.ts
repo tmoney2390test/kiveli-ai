@@ -16,7 +16,7 @@ export type AiUsageScope = {
 };
 
 export type AiUsageEvent = {
-  provider: 'openai' | 'xai' | 'gemini' | 'deterministic';
+  provider: 'openai' | 'xai' | 'gemini' | 'venice' | 'deterministic';
   model: string;
   operation: string;
   usage?: NormalizedAiUsage | null;
@@ -26,6 +26,7 @@ export type AiUsageEvent = {
   errorCode?: string | null;
   cacheHit?: boolean;
   estimatedCostUsd?: number | null;
+  providerCostUsd?: number | null;
   metadata?: Record<string, unknown>;
 };
 
@@ -35,7 +36,7 @@ export async function recordAiUsage(scope: AiUsageScope | undefined, event: AiUs
   const serviceTier=event.metadata?.serviceTierFallback===true
     ?undefined
     :event.metadata?.appliedServiceTier??event.metadata?.requestedServiceTier;
-  const estimated=event.estimatedCostUsd ?? (usage && (event.provider==='openai'||event.provider==='xai') ? estimateAiCost(event.provider,event.model,usage,serviceTier) : null);
+  const estimated=event.estimatedCostUsd ?? (usage && (event.provider==='openai'||event.provider==='xai'||event.provider==='venice') ? estimateAiCost(event.provider,event.model,usage,serviceTier) : null);
   const row={
     user_id:scope.userId,
     continuity_id:scope.continuityId??null,
@@ -54,7 +55,7 @@ export async function recordAiUsage(scope: AiUsageScope | undefined, event: AiUs
     reasoning_tokens:usage?.reasoningTokens??0,
     total_tokens:usage?.totalTokens??0,
     estimated_cost_usd:estimated,
-    provider_cost_usd:usage?.providerCostUsd??null,
+    provider_cost_usd:event.providerCostUsd??usage?.providerCostUsd??null,
     provider_cost_ticks:usage?.providerCostTicks??null,
     cache_hit:event.cacheHit??Boolean(usage?.cachedInputTokens),
     latency_ms:Math.max(0,Math.round(event.latencyMs)),

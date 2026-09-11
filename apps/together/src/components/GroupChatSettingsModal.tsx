@@ -1,3 +1,4 @@
+import { normalizeVeniceTestSelection, type VeniceTestSelection } from '@together/domain/src/venice-chat';
 import { normalizeContextPreference, type ContextPreference } from '@together/domain/src/chat-context';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -39,6 +40,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
   const [userBubbleColor, setUserBubbleColor] = useState<ChatBubbleColor>('default');
   const [companionBubbleColor, setCompanionBubbleColor] = useState<ChatBubbleColor>('default');
   const [chatDynamism,setChatDynamism]=useState<ChatDynamism>(50);
+  const [veniceTestModel,setVeniceTestModel]=useState<VeniceTestSelection>('off');
   const [contextPreference,setContextPreference]=useState<ContextPreference>('included');
   const [reasoningPreference,setReasoningPreference]=useState<ReasoningPreference>('auto');
   const [contentMode,setContentMode]=useState<DialogueContentMode>('mature');
@@ -61,6 +63,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
     setUserBubbleColor(bubbleColors.user);
     setCompanionBubbleColor(bubbleColors.companion);
     const generationPreferences=chatPreferencesFromConversation(conversation,snapshot?.entitlements?.tier);
+    setVeniceTestModel(normalizeVeniceTestSelection(generationPreferences.veniceTestModel));
     setChatDynamism(generationPreferences.chatDynamism);
     setReasoningPreference(generationPreferences.reasoningPreference);
     setContextPreference(normalizeContextPreference(generationPreferences.contextPreference));
@@ -86,7 +89,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
   const save = async (afterSave?:()=>void) => {
     if (!conversation || saving) return;
     setSaving(true);
-    const input = { title: title.trim() || null, responseStyle, textSize,contentMode, chatLanguage,chatDynamism,reasoningPreference,contextPreference,userBubbleColor,companionBubbleColor };
+    const input = { title: title.trim() || null, responseStyle, textSize,contentMode, chatLanguage,chatDynamism,reasoningPreference,contextPreference,userBubbleColor,companionBubbleColor,...(snapshot?.veniceTest?.available?{veniceTestModel}:{}) };
     try {
       if (demoMode) {
         const updated = withLocalChatSettings(conversation, input);
@@ -171,7 +174,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
               {(['quiet', 'balanced', 'lively'] as const).map((value) => <Choice key={value} label={value[0]!.toUpperCase() + value.slice(1)} selected={energy === value} disabled={saving} onPress={() => setEnergy(value)} />)}
             </View>
           </Section>
-          <ChatGenerationSettings mode="group" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} contextPreference={contextPreference} onContextPreferenceChange={setContextPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>void save(openPlans)}/>
+          <ChatGenerationSettings veniceTest={snapshot?.veniceTest} veniceTestModel={veniceTestModel} onVeniceTestModelChange={setVeniceTestModel} mode="group" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} contextPreference={contextPreference} onContextPreferenceChange={setContextPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>void save(openPlans)}/>
           </> : null}
         </ScrollView>
         <View style={styles.footer}>

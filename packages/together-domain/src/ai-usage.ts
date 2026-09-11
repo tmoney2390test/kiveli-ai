@@ -1,3 +1,5 @@
+import { veniceChatRate } from './venice-chat.ts';
+
 export type NormalizedAiUsage = {
   inputTokens: number;
   cachedInputTokens: number;
@@ -40,7 +42,8 @@ export function normalizeResponsesUsage(provider: 'openai' | 'xai', raw: unknown
   };
 }
 
-export function estimateAiCost(provider: 'openai' | 'xai', model: string, usage: NormalizedAiUsage, serviceTier?:unknown): number | null {
+export function estimateAiCost(provider: 'openai' | 'xai' | 'venice', model: string, usage: NormalizedAiUsage, serviceTier?:unknown): number | null {
+  if (provider === 'venice') { const price = veniceChatRate(model); return price ? (usage.inputTokens * price.inputPerMillion + usage.outputTokens * price.outputPerMillion) / 1_000_000 : null; }
   const registry = aiPricing[provider] as Record<string, { inputPerMillion: number; cachedInputPerMillion: number; outputPerMillion: number }>;
   const price = registry[model];
   if (!price) return null;
