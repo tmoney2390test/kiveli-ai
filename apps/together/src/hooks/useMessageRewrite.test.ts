@@ -1,4 +1,4 @@
-import { expect, it, vi } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import type { Conversation, Message, Snapshot } from '../types';
 import { useMessageRewrite } from './useMessageRewrite';
 
@@ -13,6 +13,20 @@ vi.mock('react',()=>({
 vi.mock('../lib/api',()=>({quoteDialogueContext:mocks.quote,rewriteDialogueMessage:mocks.rewrite}));
 vi.mock('../lib/dialogs',()=>({confirmAction:mocks.confirm}));
 vi.mock('../lib/requestId',()=>({createClientRequestId:()=> 'same-request'}));
+beforeEach(()=>{vi.resetAllMocks();});
+
+it('shows an unchanged-result error without replacing the visible reply',async()=>{
+  const detail='Spice returned the same reply. Your original is unchanged, and no Kivelli credits were charged.';
+  mocks.quote.mockResolvedValue({maximumCredits:0,quoteId:'quote'});
+  mocks.rewrite.mockRejectedValue(new Error(detail));
+  const onMessage=vi.fn(),onFinished=vi.fn(),onError=vi.fn();
+  const target:Message={id:'reply',conversation_id:'chat',role:'assistant',content:'Original',delivery_status:'complete',created_at:'2026-09-11'};
+  const hook=useMessageRewrite({userId:'owner',conversation:{id:'chat',kind:'direct'} as Conversation,messages:[target],pending:false,onMessage,onFinished,onError});
+  await hook.spice(target);
+  expect(onMessage).not.toHaveBeenCalled();expect(onFinished).not.toHaveBeenCalled();
+  expect(onError).toHaveBeenLastCalledWith(detail);
+  expect(mocks.busy).toHaveBeenLastCalledWith(false);
+});
 
 it('keeps the paid rewrite locked when web confirmation starts work synchronously',async()=>{
   let finish!:(value:unknown)=>void;

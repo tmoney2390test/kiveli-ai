@@ -1,5 +1,6 @@
-import { assertEquals, assertRejects } from 'jsr:@std/assert@1';
-import { messageRewriteSchema, messageRewriteRoute, loadMessageRewrite, type PreparedMessageRewrite } from './kivelle-message-rewrite.ts';
+import { assertEquals, assertRejects, assertThrows } from 'jsr:@std/assert@1';
+import { messageRewriteSchema, messageRewriteRoute, loadMessageRewrite, messageRewritePolicyMetadata, assertMessageRewriteChanged, type PreparedMessageRewrite } from './kivelle-message-rewrite.ts';
+import { isTrustedPrivateAdultText, projectConversationRows } from './content-projection.ts';
 import type { AdultAccessContext } from './web-adult-access.ts';
 import { ConfiguredDialogueProvider, type DialogueContext } from './together-ai.ts';
 import { compileCompanionPrompt } from './kivelle-intelligence.ts';
@@ -50,6 +51,25 @@ Deno.test('a changed revision invalidates the quote even though the message ID i
   const input={conversationId:user,anchorMessageId:user,messageAction:'spice',expectedRevision:0};
   assertEquals(await contextDraftFingerprint(input)===await contextDraftFingerprint({...input,expectedRevision:1}),false);
 });
+
+Deno.test('unchanged provider output is not committed as a successful rewrite',()=>{
+  for(const revised of ['The library opens at noon.','  The library\nopens at noon.  ']){
+    const error=assertThrows(()=>assertMessageRewriteChanged('The library opens at noon.',revised),Error);
+    assertEquals(error.message.includes('no Kivelli credits were charged'),true);
+  }
+  assertMessageRewriteChanged('The library opens at noon.','Noon, by the east doors.');
+});
+
+Deno.test('rewrite metadata is compatible with normal private-text history projection',()=>configured(async()=>{
+  const fixture=ownedFixture(),prepared=await loadMessageRewrite(fixture.fake,user,fixture.access,fixture.input);
+  const metadata=messageRewritePolicyMetadata(prepared,fixture.access,'xai');
+  assertEquals(metadata.contentRating,'explicit');assertEquals(metadata.visibilityScope,'all');
+  const message={...fixture.target,content:'Noon, by the east doors.',content_rating:metadata.contentRating,visibility_scope:metadata.visibilityScope,moderation_version:metadata.moderationVersion,provider_metadata:metadata};
+  assertEquals(isTrustedPrivateAdultText(message),true);
+  assertEquals(projectConversationRows([message],{authorizedWebAdult:false,authorizedPrivateAdultText:true})[0]?.id,fixture.target.id);
+  assertEquals(projectConversationRows([message],{authorizedWebAdult:true,authorizedPrivateAdultText:true})[0]?.id,fixture.target.id);
+  assertEquals(projectConversationRows([message],{authorizedWebAdult:false,authorizedPrivateAdultText:false})[0]?.role,'system');
+}));
 
 function ownedFixture(){
   const conversation={id:user,user_id:user,continuity_id:user,kind:'direct',character_instance_id:user,metadata:{}};
