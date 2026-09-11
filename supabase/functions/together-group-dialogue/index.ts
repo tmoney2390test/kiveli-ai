@@ -33,7 +33,8 @@ import {
 import { parseBody } from "../_shared/body.ts";
 import { authenticated, enforceGenerationGuardrails, enforceRateLimit } from "../_shared/context.ts";
 import { requireAiDataConsent } from "../_shared/kivelle-ai-consent.ts";
-import { corsHeaders, errorResponse } from "../_shared/http.ts";
+import { corsHeaders, errorResponse, json } from "../_shared/http.ts";
+import { messageRewriteSchema, runMessageRewrite } from '../_shared/kivelle-message-rewrite.ts';
 import { activeContinuity } from "../_shared/together-continuity.ts";
 import {
   activeGroupParticipants,
@@ -102,7 +103,7 @@ import {
   persistCharacterLifeTransition,
 } from "../_shared/kivelle-character-life-state.ts";
 
-const schema = z.object({
+const normalSchema = z.object({
   streamProtocol: z.literal(2).optional(),
   contextQuoteId:z.string().uuid().optional(),
   contextPreference:z.literal('included').optional(),
@@ -120,6 +121,7 @@ const schema = z.object({
   (value) => value.message.length > 0 || value.attachmentIds.length > 0,
   { message: "Write a message or attach a photo." },
 );
+const schema=z.union([messageRewriteSchema,normalSchema]);
 const dialogue = new ConfiguredDialogueProvider(),
   episodeEmbeddings = new ConfiguredEmbeddingProvider(),
   safeSummaryAnalysis = new ConfiguredConversationAnalysisProvider(),
@@ -136,10 +138,12 @@ Deno.serve(async (request) => {
   }
   try {
     const { user, db } = await authenticated(request);
-    await requireAiDataConsent(db,user.id);
     const adultAccess=await resolveAdultAccess(request,user,db);
     turnDb = db;
-    const input = await parseBody(request, schema);
+    const parsed = await parseBody(request, schema);
+    if('expectedRevision'in parsed)return json({data:{message:await runMessageRewrite(db,user.id,adultAccess,parsed,correlationId,async()=>{const fresh=await authenticated(request);return resolveAdultAccess(request,fresh.user,db);})}});
+    const input=normalSchema.parse(parsed);
+    await requireAiDataConsent(db,user.id);
     stageContextAuthorization(db,user.id,input);
     let requestId = assertChatRequestId(input.clientRequestId);
     const normalizedMessage = normalizeChatMessage(input.message);

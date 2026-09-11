@@ -11,6 +11,19 @@ const message = (input: Partial<Message> & Pick<Message, "id" | "role">): Messag
 });
 
 describe("message reconciliation", () => {
+  it('preserves joined data when a revision returns a base message row',()=>{
+    const original=message({id:'reply',role:'assistant',together_message_reactions:[],provider_metadata:{oldField:true}});
+    const revised=message({id:'reply',role:'assistant',content:'Revised',provider_metadata:{rewriteVersion:1}});
+    expect(reconcileMessages([original],[revised])[0]).toEqual({...revised,together_message_reactions:[]});
+  });
+  it('does not regress a rewrite or restoration when old caches arrive',()=>{
+    const original=message({id:'reply',role:'assistant',content:'Original long reply'});
+    const revised={...original,content:'Revised',provider_metadata:{rewriteVersion:1}};
+    const restored={...original,provider_metadata:{rewriteVersion:2}};
+    expect(reconcileMessages([revised],[original])).toEqual([revised]);
+    expect(reconcileMessages([revised],[restored])).toEqual([restored]);
+    expect(reconcileMessages([restored],[revised])).toEqual([restored]);
+  });
   it("replaces an optimistic row with its canonical request row", () => {
     const optimistic = message({ id: "local-1", role: "user", client_request_id: "request-1", delivery_status: "pending" });
     const canonical = message({ id: "server-1", role: "user", client_request_id: "request-1" });

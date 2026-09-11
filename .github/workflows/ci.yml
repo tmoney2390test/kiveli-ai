@@ -31,6 +31,8 @@ jobs:
       - run: pnpm artwork:verify
       - run: pnpm context:test:db
       - run: pnpm chat-speed:test:db
+      - run: node scripts/test-message-rewrite-db.mjs
+      - run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-message-rewrite.test.ts
       - name: Explicit fresh-chat regressions
         run: |
           node scripts/test-fresh-chat-db.mjs

@@ -39,6 +39,7 @@ export async function ensureAiConsent(userId: string, review=false): Promise<boo
   throw new AiConsentCheckError();
 }
 export function isAiFeatureRequest(name:string,body:unknown):boolean {
+  if(['together-dialogue','together-group-dialogue'].includes(name)&&body&&typeof body==='object'&&'messageAction'in body&&body.messageAction==='restore')return false;
   const action=body&&typeof body==='object'&&'action'in body?String(body.action):'';
   if(name==='together-dialogue-quote')return true;
   if(['status','options','quote','overview','list','history','abandon','cancel'].includes(action))return false;

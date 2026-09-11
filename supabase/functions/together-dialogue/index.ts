@@ -4,7 +4,8 @@ import { z } from "zod";
 import { authenticated, enforceGenerationGuardrails, enforceRateLimit } from "../_shared/context.ts";
 import { requireAiDataConsent } from "../_shared/kivelle-ai-consent.ts";
 import { parseBody } from "../_shared/body.ts";
-import { corsHeaders, errorResponse } from "../_shared/http.ts";
+import { corsHeaders, errorResponse, json } from "../_shared/http.ts";
+import { messageRewriteSchema, runMessageRewrite } from '../_shared/kivelle-message-rewrite.ts';
 import { AppError } from "../_shared/types.ts";
 import {
   ConfiguredConversationAnalysisProvider,
@@ -151,7 +152,7 @@ import {
   persistCharacterLifeTransition,
 } from "../_shared/kivelle-character-life-state.ts";
 
-const schema = z.object({
+const normalSchema = z.object({
   streamProtocol: z.literal(2).optional(),
   contextQuoteId:z.string().uuid().optional(),
   contextPreference:z.literal('included').optional(),
@@ -212,6 +213,7 @@ const schema = z.object({
   if(value.messagePresentation&&!isOneTapSelfiePhotoRequest(value.message))ctx.addIssue({code:z.ZodIssueCode.custom,path:['messagePresentation'],message:'That message presentation is invalid.'});
   if(value.messagePresentation&&value.messageAction)ctx.addIssue({code:z.ZodIssueCode.custom,path:['messagePresentation'],message:'That message presentation cannot be combined with another action.'});
 });
+const schema=z.union([messageRewriteSchema,normalSchema]);
 const dialogue = new ConfiguredDialogueProvider();
 const moderation = new ConfiguredModerationProvider();
 const embeddings = new ConfiguredEmbeddingProvider();
@@ -227,8 +229,11 @@ Deno.serve(async (request) => {
   const timings = new ChatTimings(correlationId);
   try {
     const { user, db } = await authenticated(request);
-    const [, adultAccess] = await Promise.all([requireAiDataConsent(db,user.id),resolveAdultAccess(request,user,db)]);
-    const input = await parseBody(request, schema);
+    const parsed = await parseBody(request, schema);
+    const adultAccess=await resolveAdultAccess(request,user,db);
+    if('expectedRevision'in parsed)return json({data:{message:await runMessageRewrite(db,user.id,adultAccess,parsed,correlationId,async()=>{const fresh=await authenticated(request);return resolveAdultAccess(request,fresh.user,db);})}});
+    const input=normalSchema.parse(parsed);
+    await requireAiDataConsent(db,user.id);
     stageContextAuthorization(db,user.id,input);
     return streamPreparedDialogue(correlationId, async () => {
       let turnLease: ConversationTurnLease | null = null;
@@ -1765,7 +1770,7 @@ function deferPhotoRequestHousekeeping(
   input: {
     db: any;
     userId: string;
-    input: z.infer<typeof schema>;
+    input: z.infer<typeof normalSchema>;
     conversation: Record<string, any>;
     instance: Record<string, any>;
     context: PhotoOfferContext;
@@ -1920,7 +1925,7 @@ function localizedSafetyBoundary(characterName:string,language:unknown,sourceTex
 async function photoOnlyResponse(input: {
   db: any;
   userId: string;
-  input: z.infer<typeof schema>;
+  input: z.infer<typeof normalSchema>;
   conversation: Record<string, any>;
   userMessage: Record<string, any>;
   context: PhotoOfferContext;
@@ -2022,7 +2027,7 @@ function streamDialogue({
   timings: ChatTimings;
   db: any;
   user: { id: string };
-  input: z.infer<typeof schema>;
+  input: z.infer<typeof normalSchema>;
   conversation: Record<string, unknown>;
   instance: Record<string, unknown>;
   relationship: Record<string, unknown>;
@@ -3184,7 +3189,7 @@ type PhotoRequestError = { code: string; message: string; retryable: boolean };
 async function safelyCreateConversationPhotoOffer(
   db: any,
   userId: string,
-  input: z.infer<typeof schema>,
+  input: z.infer<typeof normalSchema>,
   userMessage: Record<string, unknown>,
   messageId: string,
   correlationId: string,

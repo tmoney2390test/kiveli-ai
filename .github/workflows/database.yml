@@ -30,6 +30,8 @@ jobs:
         run: pnpm chat-speed:test:db
       - name: Verify explicit fresh-chat database contract
         run: node scripts/test-fresh-chat-db.mjs
+      - name: Verify message-revision database contract
+        run: node scripts/test-message-rewrite-db.mjs
 
       - name: Verify Apple review recovery database contract
         run: node scripts/test-apple-review-db.mjs

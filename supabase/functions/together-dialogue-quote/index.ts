@@ -1,3 +1,4 @@
+import { loadMessageRewrite, buildMessageRewriteContext, messageRewriteRoute } from '../_shared/kivelle-message-rewrite.ts';
 import { attachAuthoredDepthContext } from '../_shared/kivelle-authored-depth-context.ts';
 import { z } from 'zod';
 import { authenticated, enforceRateLimit } from '../_shared/context.ts';
@@ -22,7 +23,7 @@ import { contextDraftFingerprint, contextState } from '../_shared/kivelle-contex
 import { CONTEXT_PRICE_VERSION, CONTEXT_COMPILER_VERSION, contextCredits, assertContextPricingCurrent } from '../_shared/kivelle-context-price.ts';
 import type { ContextReplyQuote } from '../_shared/kivelle-context-pricing-state.ts';
 
-const schema=z.object({conversationId:z.string().uuid(),characterInstanceId:z.string().uuid().optional(),focusPlanId:z.string().uuid().optional(),sceneActionId:z.string().uuid().optional(),entryContext:z.object({entryReason:z.literal('user_drop_in'),locationId:z.string().uuid(),scheduleEventId:z.string().uuid().optional()}).optional(),message:z.string().trim().max(4000).default(''),attachmentIds:z.array(z.string().uuid()).max(1).default([]),mentionedCharacterInstanceIds:z.array(z.string().uuid()).max(5).default([]),replyToMessageId:z.string().uuid().optional(),manualSpeakerInstanceId:z.string().uuid().optional(),broadGroupRequest:z.boolean().default(false),letThemTalk:z.boolean().default(false),messageAction:z.literal('continue').optional(),anchorMessageId:z.string().uuid().optional()});
+const schema=z.object({conversationId:z.string().uuid(),characterInstanceId:z.string().uuid().optional(),focusPlanId:z.string().uuid().optional(),sceneActionId:z.string().uuid().optional(),entryContext:z.object({entryReason:z.literal('user_drop_in'),locationId:z.string().uuid(),scheduleEventId:z.string().uuid().optional()}).optional(),message:z.string().trim().max(4000).default(''),attachmentIds:z.array(z.string().uuid()).max(1).default([]),mentionedCharacterInstanceIds:z.array(z.string().uuid()).max(5).default([]),replyToMessageId:z.string().uuid().optional(),manualSpeakerInstanceId:z.string().uuid().optional(),broadGroupRequest:z.boolean().default(false),letThemTalk:z.boolean().default(false),messageAction:z.enum(['continue','spice']).optional(),anchorMessageId:z.string().uuid().optional(),expectedRevision:z.number().int().min(0).optional()});
 Deno.serve(async(request)=>{
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers:corsHeaders});
   const correlationId=crypto.randomUUID();
@@ -31,19 +32,22 @@ Deno.serve(async(request)=>{
     await requireAiDataConsent(db,user.id);
     const input=await parseBody(request,schema);
     assertContextPricingCurrent();
-    if(!input.message&&!input.attachmentIds.length)throw new AppError('VALIDATION_FAILED','Write a message to see its price.',422);
+    if(input.messageAction!=='spice'&&!input.message&&!input.attachmentIds.length)throw new AppError('VALIDATION_FAILED','Write a message to see its price.',422);
     await enforceRateLimit(db,user.id,'context_quote',120,60);
     const [{conversation,fingerprint:stateFingerprint},subscription,adultAccess]=await Promise.all([contextState(db,user.id,input.conversationId),resolveSubscriptionAccess(db,user.id,undefined,true),resolveAdultAccess(request,user,db)]);
     const preference=normalizeContextPreference(conversation.metadata?.chatPreferences?.contextPreference);
     if(preference!=='included'&&subscription.tier==='free')throw new AppError('PLAN_LIMIT_REACHED','Expanded context is available with Kivelle+ or Max.',403);
     const group=conversation.kind==='group';
+    if(input.messageAction==='spice'&&(!input.anchorMessageId||input.expectedRevision===undefined))throw new AppError('VALIDATION_FAILED','Choose the reply to rewrite.',422);
+    const rewrite=input.messageAction==='spice'?await loadMessageRewrite(db,user.id,adultAccess,{conversationId:input.conversationId,anchorMessageId:input.anchorMessageId!,expectedRevision:input.expectedRevision!}):null;
     const {data:participants,error:rosterError}=group?await db.from('together_conversation_participants').select('*,together_character_instances(*,together_character_templates(*))').eq('conversation_id',conversation.id).is('left_at',null):{data:[],error:null};
     if(rosterError)throw new AppError('INTERNAL_ERROR','The group could not be priced.',500,true);
     let speakerIds=group?(participants??[]).map((row:any)=>String(row.character_instance_id)):[String(conversation.character_instance_id)];
+    if(rewrite)speakerIds=[rewrite.speakerId];
     if(input.manualSpeakerInstanceId){if(!speakerIds.includes(input.manualSpeakerInstanceId))throw new AppError('CONFLICT','That companion is no longer in this group.',409);speakerIds=[input.manualSpeakerInstanceId];}
     if(!group&&input.characterInstanceId!==conversation.character_instance_id)throw new AppError('CONFLICT','This conversation has changed.',409);
     const {data:directInstance}=group?{data:null}:await db.from('together_character_instances').select('*,together_character_templates(*)').eq('id',conversation.character_instance_id).eq('user_id',user.id).single();
-    const {data:profile,error:profileError}=await db.from('together_profiles').select('content_preferences').eq('user_id',user.id).single();
+    const {data:profile,error:profileError}=await db.from('together_profiles').select('content_preferences,age_verified_at').eq('user_id',user.id).single();
     if(profileError)throw new AppError('INTERNAL_ERROR','Chat preferences could not be priced.',503,true);
     const policy=resolvePrivateDialoguePolicy({access:adultAccess,requestedMode:requestedConversationDialogueContentMode(profile,conversation),conversationMode:group?'group':'direct',participants:group?participants??[]:directInstance?[directInstance]:[],safetyAllowed:true});
     const routingHistory=await loadAdultRoutingHistory(db,user.id,conversation.id);
@@ -55,9 +59,9 @@ Deno.serve(async(request)=>{
     let sceneSessionId:string|undefined;
     for(let index=0;index<speakerIds.length&&index<6;index++){
       const speakerId=speakerIds[index]!;
-      const {context,instance}=await buildIsolatedSpeakerContext({db,userId:user.id,continuityId:String(conversation.continuity_id),conversation,speakerCharacterInstanceId:speakerId,userMessage:input.message,attachments:attachments??[],...(index&&sceneSessionId?{sceneSessionId}:{}),readOnly:true,contextInputCeiling:ceiling,authorizedPrivateAdultText:policy.rollout.generationAllowed,authorizedWebAdult:adultAccess.authorized_web_adult});
-      if(!group&&index===0){sceneSessionId=context.currentScene?.sceneSessionId;for(const participant of context.sceneParticipants??[])if(!speakerIds.includes(participant.characterInstanceId))speakerIds.push(participant.characterInstanceId);}
-      const route=await applyChatTestRoute(db,user.id,conversation,resolveDialogueRouting({message:input.message,routingHistory:group||index===0?routingHistory:[],recentTurns:context.recent.slice(-4),requestedMode:policy.effectiveMode,ageVerified:adultAccess.adult_eligible,adultAuthorized:(group||index===0)&&policy.rollout.generationAllowed,characterAge:Number(context.character.age)||null,relationshipAllowsExplicit:context.relationship.romance_enabled!==false&&context.relationship.romance_path_status!=='friends_only',adultAttachment:(attachments??[]).some((attachment:any)=>attachment.content_rating==='explicit'||attachment.visibility_scope==='web_adult')}));
+      const {context,instance}=rewrite?await buildMessageRewriteContext(db,user.id,adultAccess,rewrite,ceiling):await buildIsolatedSpeakerContext({db,userId:user.id,continuityId:String(conversation.continuity_id),conversation,speakerCharacterInstanceId:speakerId,userMessage:input.message,attachments:attachments??[],...(index&&sceneSessionId?{sceneSessionId}:{}),readOnly:true,contextInputCeiling:ceiling,authorizedPrivateAdultText:policy.rollout.generationAllowed,authorizedWebAdult:adultAccess.authorized_web_adult});
+      if(!rewrite&&!group&&index===0){sceneSessionId=context.currentScene?.sceneSessionId;for(const participant of context.sceneParticipants??[])if(!speakerIds.includes(participant.characterInstanceId))speakerIds.push(participant.characterInstanceId);}
+      const route=rewrite?await messageRewriteRoute(db,user.id,rewrite,context):await applyChatTestRoute(db,user.id,conversation,resolveDialogueRouting({message:input.message,routingHistory:group||index===0?routingHistory:[],recentTurns:context.recent.slice(-4),requestedMode:policy.effectiveMode,ageVerified:adultAccess.adult_eligible,adultAuthorized:(group||index===0)&&policy.rollout.generationAllowed,characterAge:Number(context.character.age)||null,relationshipAllowsExplicit:context.relationship.romance_enabled!==false&&context.relationship.romance_path_status!=='friends_only',adultAttachment:(attachments??[]).some((attachment:any)=>attachment.content_rating==='explicit'||attachment.visibility_scope==='web_adult')}));
       if(route.hardBlocked)throw new AppError('VALIDATION_FAILED','This message cannot use expanded context.',422);
       context.contentMode=route.resolvedMode;
       Object.assign(context,{dialogueRouting:{...route}});
@@ -78,7 +82,7 @@ Deno.serve(async(request)=>{
       replies.push({speakerId,provider,model,inputTokens,maxOutputTokens,maximumCredits,paidExpansion});
       approximateInputTokens=Math.max(approximateInputTokens,paidExpansion?expanded.estimatedTokens:included.estimatedTokens);
     }
-    const maximumReplies=group?(input.manualSpeakerInstanceId?1:input.letThemTalk?Math.min(6,Math.max(3,replies.length+1)):Math.min(3,replies.length)):Math.min(3,replies.length);
+    const maximumReplies=rewrite?1:group?(input.manualSpeakerInstanceId?1:input.letThemTalk?Math.min(6,Math.max(3,replies.length+1)):Math.min(3,replies.length)):Math.min(3,replies.length);
     const maximumCredits=group?maximumReplies*Math.max(0,...replies.map(row=>row.maximumCredits)):[...replies].sort((a,b)=>b.maximumCredits-a.maximumCredits).slice(0,maximumReplies).reduce((sum,row)=>sum+row.maximumCredits,0);
     const expiresAt=new Date(Date.now()+60000).toISOString();
     const {data:quote,error}=await db.from('together_context_quotes').insert({user_id:user.id,conversation_id:conversation.id,fingerprint:await contextDraftFingerprint(input),state_fingerprint:stateFingerprint,pricing_version:CONTEXT_PRICE_VERSION,manifest:{conversationId:conversation.id,preference,ceiling,maximumReplies,replies,compilerVersion:CONTEXT_COMPILER_VERSION},maximum_credits:maximumCredits,expires_at:expiresAt}).select('id').single();

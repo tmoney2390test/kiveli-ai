@@ -1,6 +1,7 @@
 import { CatalogImage as Image } from '../src/components/CatalogImage';
 import { VeniceTestDiagnostics } from '../src/components/VeniceTestDiagnostics';
 import { emptyReplyDrafts, reduceReplyDrafts } from '../src/lib/replyStreaming';
+import { useMessageRewrite } from '../src/hooks/useMessageRewrite';
 import { useContextQuote } from '../src/hooks/useContextQuote';
 import { ContextPricePreview } from '../src/components/settings/ContextPricePreview';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -308,7 +309,8 @@ export default function GroupChatScreen() {
     ? detailState
     : cachedRouteDetail?.detail ?? null;
   const pendingDialogue=params.id?pendingDialogues[params.id]:undefined;
-  const replyPending=sending||Boolean(pendingDialogue);
+  const messageRewrite=useMessageRewrite({profile:snapshot?.profile,userId:session?.user.id,conversation:detail?.conversation,messages:detail?.messages??[],pending:sending||Boolean(pendingDialogue),onMessage:(message)=>setDetail(current=>current?{...current,messages:reconcileMessages(current.messages,[message])}:current),onError:setError,onFinished:()=>{void refresh();}});
+  const replyPending=sending||Boolean(pendingDialogue)||messageRewrite.busy;
   const photoSharingEntitled=snapshot?.entitlements?.entitlement_keys?.includes("photo_sharing")===true;
   const dailyMessageExhausted=isDailyMessageAllowanceExhausted(snapshot?.dailyMessageAllowance);
   const subscriptionReturnTo=params.id?`/group-chat?id=${encodeURIComponent(params.id)}`:"/messages";
@@ -2070,6 +2072,9 @@ export default function GroupChatScreen() {
                     ),
                 )}
                 favorite={isMessageFavorite(message)}
+                canSpice={messageRewrite.available(message)}
+                onSpice={()=>messageRewrite.spice(message)}
+                onRestore={()=>messageRewrite.restore(message)}
                 canContinue={canContinueMessage(message,detail.messages.filter(isVisibleChatMessage))&&!replyPending}
                 onFavorite={()=>toggleGroupMessageSaved(message)}
                 onContinue={()=>send("Keep talking among yourselves for a moment.",true)}
@@ -3193,6 +3198,7 @@ function GroupBubble({
   voiceEnabled,
   memoryManualControl,
   favorite,
+  canSpice,onSpice,onRestore,
   canContinue,
   onFavorite,
   onContinue,
@@ -3227,6 +3233,9 @@ function GroupBubble({
   voiceEnabled: boolean;
   memoryManualControl: boolean;
   favorite: boolean;
+  canSpice: boolean;
+  onSpice:()=>void|Promise<void>;
+  onRestore:()=>void|Promise<void>;
   canContinue: boolean;
   onFavorite: () => void | Promise<void>;
   onContinue: () => void | Promise<void>;
@@ -3298,12 +3307,13 @@ function GroupBubble({
   const customBubbleColor = chatBubbleColorHex(bubbleColor);
   const bubbleTextColor = chatBubbleTextColor(bubbleColor);
   const actionItems:MessageActionDefinition[]=[
+    ...(canSpice?[{key:'spice',label:'Spice',icon:<Text style={{fontSize:23}}>🌶</Text>,onPress:onSpice},...(message.provider_metadata?.canRestoreOriginal?[{key:'restore',label:'Restore original',icon:<RefreshCw size={23} color={colors.textSecondary}/>,onPress:onRestore}]:[])]:[]),
     {key:'reply',label:'Reply',icon:<MessageCircle size={23} color={colors.textSecondary}/>,onPress:onReply},
     ...(!user&&canContinue?[{key:'continue',label:'Let them talk',icon:<FastForward size={23} color={colors.textSecondary}/>,onPress:onContinue}]:[]),
     ...(memoryManualControl&&onRemember&&!message.id.startsWith('local-')?[{key:'memory',label:'Memory',icon:<Brain size={23} color={colors.textSecondary}/>,onPress:onRemember}]:[]),
     {key:'copy',label:'Copy',icon:<Copy size={23} color={colors.textSecondary}/>,onPress:()=>Clipboard.setStringAsync(message.content)},
     ...(!message.id.startsWith('local-')?[{key:'favorite',label:favorite?'Favorited':'Favorite',icon:<Heart size={23} color={favorite?colors.rose:colors.textSecondary} fill={favorite?colors.rose:'transparent'}/>,selected:favorite,onPress:onFavorite}]:[]),
-    ...(!user&&voiceVisible?[{key:'voice',label:'Voice',icon:<Volume2 size={23} color={voiceEnabled?colors.textSecondary:colors.muted}/>,onPress:()=>setVoiceRequestToken((value)=>value+1)}]:[]),
+    ...(!user&&voiceVisible&&message.provider_metadata?.rewriteAction!=='spice'?[{key:'voice',label:'Voice',icon:<Volume2 size={23} color={voiceEnabled?colors.textSecondary:colors.muted}/>,onPress:()=>setVoiceRequestToken((value)=>value+1)}]:[]),
     ...(!user?[{key:'plan',label:'Plan with group',icon:<CalendarDays size={23} color={colors.textSecondary}/>,onPress:onPlan},{key:'photo',label:'Group photo',icon:<Camera size={23} color={colors.textSecondary}/>,onPress:onPhoto}]:[]),
     ...(user&&attachments.length&&!message.id.startsWith('local-')?[{key:'delete-photo',label:'Delete photo',icon:<X size={23} color={colors.danger}/>,destructive:true,onPress:()=>onDeletePhoto(attachments[0]!)}]:[]),
     ...(!user&&!message.id.startsWith('local-')?[{key:'report',label:'Report',icon:<Flag size={23} color={colors.muted}/>,onPress:()=>setReportOpen(true)}]:[]),
@@ -3414,7 +3424,7 @@ function GroupBubble({
                   contentFit="contain"
                 />
               ))}
-              {!user && !mediaOnly && voiceVisible
+              {!user && !mediaOnly && voiceVisible && message.provider_metadata?.rewriteAction!=='spice'
                 ? (
                   <GroupVoiceNote
                     message={message}

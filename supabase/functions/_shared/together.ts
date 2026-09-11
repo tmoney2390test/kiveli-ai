@@ -1,3 +1,4 @@
+import { dailyDialogueUsage } from './kivelle-daily-dialogue-usage.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
 import { experienceClock } from './kivelle-time.ts';
@@ -284,7 +285,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
     catalog.then((value)=>value.photoOpportunities),
     db.from('together_generated_media').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).order('created_at', { ascending: false }).limit(60),
     db.from('together_conversation_actions').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).eq('status','pending').or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`).order('created_at',{ascending:false}).limit(20),
-    db.from('together_messages').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('role','user').gte('created_at',dailyMessageWindowStart.toISOString()),
+    dailyDialogueUsage(db,userId,dailyMessageWindowStart.toISOString()),
   ]);
   const snapshotResults = [profile,personas,continuities, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, favorites, schedules, scheduleEvents, relationships,relationshipPlaces, milestones, dates, moments, memories, threads, conversations, sceneSessions,sceneParticipants, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions,dailyMessages];
   const failedIndex=snapshotResults.findIndex((result)=>Boolean(result.error));

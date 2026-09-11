@@ -1,3 +1,4 @@
+import { dailyDialogueUsage } from './kivelle-daily-dialogue-usage.ts';
 import { requestClient } from './request-context.ts';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { AppError } from './types.ts';
@@ -118,7 +119,7 @@ export function serverSecretLooksUsable(value:string):boolean{
 
 async function enforceDailyMessageLimit(db:SupabaseClient,userId:string):Promise<void>{
   const access=await resolveSubscriptionAccess(db,userId),limit=access.capabilities.dailyMessageLimit;if(limit===null)return;
-  const start=new Date();start.setUTCHours(0,0,0,0);const{count,error:countError}=await db.from('together_messages').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('role','user').gte('created_at',start.toISOString());if(countError)throw new AppError('INTERNAL_ERROR','Daily chat allowance could not be checked.',500,true);
+  const start=new Date();start.setUTCHours(0,0,0,0);const{count,error:countError}=await dailyDialogueUsage(db,userId,start.toISOString());if(countError)throw new AppError('INTERNAL_ERROR','Daily chat allowance could not be checked.',500,true);
   if(Number(count??0)>=limit)throw new AppError('PLAN_LIMIT_REACHED',`${access.capabilities.displayName} includes ${limit} messages per day. Your daily message allowance resets at midnight UTC.`,429);
 }
 

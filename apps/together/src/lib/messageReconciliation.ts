@@ -1,4 +1,5 @@
 import type { Message } from "../types";
+import { messageRewriteVersion } from '@together/domain/src/message-rewrite';
 
 /**
  * Reconciles optimistic, realtime, replayed, and canonical message copies.
@@ -16,13 +17,18 @@ export function reconcileMessages(
     const index = result.findIndex((candidate) => sameLogicalMessage(candidate, message));
     if (index >= 0) {
       const existing = result[index]!;
+      // Cached pages may arrive after a rewrite/restore. Never restore an older
+      // revision, even when the newly revised reply is shorter.
+      if(existing.id===message.id&&messageRewriteVersion(existing)>messageRewriteVersion(message))continue;
       // A late component update or restored optimistic cache must never
       // downgrade an already-persisted row back to pending/failed. This race is
       // common when switching chats while the stream's canonical user row is
       // arriving. Server identity and state always win.
       result[index] = message.id.startsWith("local-") && !existing.id.startsWith("local-")
         ? existing
-        : message;
+        : existing.id === message.id
+          ? { ...existing, ...message }
+          : message;
     }
     else result.push(message);
   }
