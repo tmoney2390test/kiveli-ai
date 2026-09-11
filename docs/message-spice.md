@@ -39,6 +39,10 @@ beside revised wording; restoring the original restores its voice presentation.
   ledger reservations, and turn leases are reused. At most two provider attempts
   are permitted with a 100-second operation signal. Failures keep the old reply
   and release unused reservations. Moderation and secret-like-output checks stay.
+- Identical provider output (ignoring whitespace and Unicode normalization) is
+  an unsuccessful attempt, not a replacement. The original remains visible,
+  unused credit reservations are released, no daily rewrite is counted, and a
+  clear server error is shown. It does not trigger an automatic paid regeneration.
 - Quotes bind the anchor revision as well as the context state. A successful
   Spice counts as one daily message on capped plans; failed and restored revisions
   do not. Extended-context credits use the existing authoritative quote and
@@ -94,17 +98,33 @@ no backup restore or real user-data mutation is claimed here.
 
 ## Verification
 
-- App/domain/gateway/audit tests: 1,944 passing, including the synchronous web
+- App/domain/gateway/audit tests: 1,945 passing, including the synchronous web
   credit-confirmation lock regression.
-- Eight mocked Deno tests: manual routing, strict no-fallback failure, age,
+- Ten mocked Deno tests: manual routing, strict no-fallback failure, age,
   ownership, stale targets, native text scope, quote binding, SMS/paragraph
   compaction. Fixtures are neutral and provider calls are mocked.
-- 38 isolated PGlite checks apply the actual migration and context receipt
+- 43 isolated PGlite checks apply the actual migration and context receipt
   functions: ownership/leases/CAS, duplicate attempts, save/restore, original
   recovery, credits and refunds, failed attempts, daily caps, expiry, RLS/ACLs,
-  and cascade cleanup. These are not a full Supabase integration test.
+  and cascade cleanup. They also install the actual private-text policy trigger,
+  verifying that revision metadata retains the proper visibility through save
+  and restore. These are not a full Supabase integration test.
 - Typecheck, lint, all configured Edge Function checks, production web build, and
   relevant GitHub database/native-config gates are required before release.
 
 No paid generations or private user conversation mutations are used for release
 verification. Mocked routing correctness does not establish live reply quality.
+
+### Display follow-up
+
+The first reported unchanged reply completed through the selected provider but
+was byte-for-byte identical to the original. It had no context-credit charge.
+The new path also omitted contentRating and visibilityScope metadata, causing
+the existing BEFORE trigger to override the RPC's visibility column. Corrected
+metadata now follows the normal private-text contract; access restrictions are
+unchanged. The draft instruction asks for new wording while retaining existing
+boundaries, and unchanged output is rejected before commit.
+
+This correction is backend-only (dialogue, group-dialogue, dialogue-quote).
+No database migration, historical ledger repair, user-history rewrite, provider
+switch, new frontend deployment, or policy relaxation is required.

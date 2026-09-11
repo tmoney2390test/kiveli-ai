@@ -15,7 +15,7 @@ try {
     create schema auth;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql as $$select null::uuid$$;
     create table together_conversations(id uuid primary key,user_id uuid,archived_at timestamptz,user_archived_at timestamptz);
     create table together_dialogue_turns(id uuid primary key,user_id uuid,conversation_id uuid,request_id text,state text,lease_token uuid,lease_expires_at timestamptz);
-    create table together_messages(id uuid primary key,user_id uuid,conversation_id uuid,speaker_character_instance_id uuid,character_instance_id uuid,role text,content text,delivery_status text,provider_metadata jsonb default '{}',conversation_sequence bigint,created_at timestamptz default now(),content_rating text default 'safe',visibility_scope text default 'all',moderation_version text default 'safe-v1');
+    create table together_messages(id uuid primary key,user_id uuid,conversation_id uuid,speaker_character_instance_id uuid,character_instance_id uuid,role text,content text,delivery_status text,provider_metadata jsonb default '{}',conversation_sequence bigint,created_at timestamptz default now(),content_rating text default 'safe',visibility_scope text default 'all',moderation_version text default 'safe-v1',moderation_status text default 'approved',safe_bridge text);
     create table together_credit_accounts(user_id uuid primary key,permanent_balance integer not null default 0,subscription_balance integer not null default 0,subscription_expires_at timestamptz,subscription_grant_cycle text,updated_at timestamptz default now());
     create table together_credit_ledger(id uuid primary key default gen_random_uuid(),user_id uuid,event_type text,permanent_delta integer default 0,subscription_delta integer default 0,idempotency_key text,reference_type text,reference_id text,metadata jsonb,unique(user_id,idempotency_key));
     create table together_entitlements(user_id uuid,tier text);
@@ -23,6 +23,10 @@ try {
   const migration=name=>readFileSync(new URL(`../supabase/migrations/${name}`,import.meta.url),'utf8');
   await db.exec(migration('20260907220440_context_pricing.sql').replace(/^select cron.schedule.*$/m,''));
   await db.exec(migration('20260911170800_message_spice_revisions.sql'));
+  // Exercise the actual production BEFORE trigger: it derives visibility from
+  // metadata and can override columns assigned by the revision RPC.
+  await db.exec(migration('202609020005_kivelle_private_adult_text_projection.sql').split('create or replace function public.kivelle_apply_open_thread_policy')[0]);
+  await db.exec('create trigger together_messages_apply_policy before insert or update of content,moderation_status,provider_metadata on together_messages for each row execute function kivelle_apply_message_policy()');
   await db.query('insert into auth.users values($1),($2)',[user,other]);
   await db.query('insert into together_conversations(id,user_id) values($1,$2)',[conversation,user]);
   await db.query('insert into together_credit_accounts(user_id,permanent_balance) values($1,100)',[user]);
@@ -30,7 +34,7 @@ try {
   const turn=async()=>{const t={id:id(),token:id(),request:id()};await db.query("insert into together_dialogue_turns values($1,$2,$3,$4,'generating',$5,now()+interval '3 minutes')",[t.id,user,conversation,t.request,t.token]);return t;};
   const claim=(t,version=0,action='spice',who=user,limit=null)=>one('select kivelle_claim_message_rewrite($1,$2,$3,$4,$5,$6,$7,$8) as status',[who,message,t.request,t.id,t.token,version,action,limit]);
   const commit=(t,text='Noon, by the east doors.',metadata={rewriteAction:'spice'},who=user)=>one('select kivelle_commit_message_rewrite($1,$2,$3,$4,$5) as id',[who,t.request,t.token,text,metadata]);
-  const state=()=>one('select content,provider_metadata from together_messages where id=$1',[message]);
+  const state=()=>one('select content,provider_metadata,content_rating,visibility_scope,moderation_version from together_messages where id=$1',[message]);
   const usage=()=>one("select kivelle_daily_rewrite_usage($1,date_trunc('day',now()))::int as n",[user]);
   const first=await turn();
   await rejected(()=>claim(first,0,'spice',other),/REWRITE_CONFLICT/);
@@ -44,17 +48,22 @@ try {
   await db.query("insert into together_context_quotes(id,user_id,conversation_id,fingerprint,state_fingerprint,pricing_version,manifest,maximum_credits) values($1,$2,$3,'draft','state','test',$4,5)",[q,user,conversation,{maximumReplies:1,replies:[{speakerId:speaker,maximumCredits:5}]}]);
   await db.query("select kivelle_reserve_context($1,$2,$3,$4,'draft','state')",[user,q,first.request,first.id]);
   eq((await one('select permanent_balance from together_credit_accounts where user_id=$1',[user])).permanent_balance,95);
-  const paidMetadata={rewriteAction:'spice',contextCharge:{quoteId:q,replyKey,credits:3}};
+  const privatePolicy={contentRating:'explicit',visibilityScope:'all',moderationVersion:'private-adult-text-v1',contentPolicyVersion:'private-adult-text-v1',privacyScope:'private',adultEligibilityApplied:true,allParticipantsAdults:true,safetyDisposition:'allowed'};
+  const paidMetadata={...privatePolicy,rewriteAction:'spice',contextCharge:{quoteId:q,replyKey,credits:3}};
   eq((await commit(first,'Noon, by the east doors.',paidMetadata)).id,message);
   eq((await commit(first,'DO NOT APPLY AGAIN',paidMetadata)).id,message);
   eq((await state()).content,'Noon, by the east doors.');
   eq((await state()).provider_metadata.rewriteVersion,1);
+  eq((await state()).content_rating,'explicit');
+  eq((await state()).visibility_scope,'all');
+  eq((await state()).moderation_version,'private-adult-text-v1');
   eq((await one('select count(*)::int as n from together_context_receipts')).n,1);
   await db.query('select kivelle_close_context($1)',[q]);
   eq((await one('select permanent_balance from together_credit_accounts where user_id=$1',[user])).permanent_balance,97);
   const stale=await turn();await rejected(()=>claim(stale,0),/REWRITE_CONFLICT/);
   const restore=await turn();eq((await claim(restore,1,'restore')).status,'claimed');
   await commit(restore);eq((await state()).content,'The library opens at noon.');eq((await state()).provider_metadata.rewriteVersion,2);
+  eq((await state()).content_rating,'safe');eq((await state()).visibility_scope,'all');
   eq((await one('select count(*)::int as n from together_context_receipts')).n,1);eq((await usage()).n,1);
   const failure=await turn();await claim(failure,2);
   await db.query("update together_message_rewrites set status='failed' where id=$1",[failure.request]);

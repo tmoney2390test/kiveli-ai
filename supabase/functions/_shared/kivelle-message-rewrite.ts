@@ -64,6 +64,19 @@ export async function loadMessageRewrite(db: SupabaseClient, userId: string, acc
 }
 export type PreparedMessageRewrite = Awaited<ReturnType<typeof loadMessageRewrite>>;
 
+/** The database policy trigger reads these metadata fields, not the row columns. */
+export function messageRewritePolicyMetadata(prepared:PreparedMessageRewrite,access:AdultAccessContext,provider:string) {
+  return {
+    ...privateDialoguePolicyMetadata({policy:prepared.policy,access,conversationMode:prepared.mode,providerRoute:provider}),
+    contentRating:'explicit',visibilityScope:'all',moderationVersion:'private-adult-text-v1',
+  };
+}
+
+export function assertMessageRewriteChanged(previous:string,revised:string):void {
+  const normalized=(text:string)=>text.normalize('NFC').replace(/\s+/gu,' ').trim();
+  if(normalized(previous)===normalized(revised))throw new AppError('CONFLICT','Spice returned the same reply. Your original is unchanged, and no Kivelli credits were charged.',409,false);
+}
+
 export async function buildMessageRewriteContext(db:SupabaseClient,userId:string,access:AdultAccessContext,prepared:PreparedMessageRewrite,ceiling?:number) {
   const {conversation,target,source,speakerId}=prepared;
   const built=await buildIsolatedSpeakerContext({db,userId,continuityId:String(conversation.continuity_id),conversation,speakerCharacterInstanceId:speakerId,
@@ -131,8 +144,9 @@ export async function runMessageRewrite(db:SupabaseClient,userId:string,access:A
       if(result.metadata.provider!==route.provider||result.metadata.fallback)throw new AppError('PROVIDER_UNAVAILABLE','The selected reply route did not complete. Your original reply is unchanged.',503,true);
       const safety=await moderation.check(result.text,{...scope,metadata:{direction:'output'}});
       if(!safety.allowed||containsSecretLikeValue(result.text))throw new AppError('FORBIDDEN','This rewrite could not be delivered. Your original reply is unchanged.',403);
+      assertMessageRewriteChanged(String(prepared.target.content),result.text);
       content=result.text;
-      metadata={...result.metadata,...privateDialoguePolicyMetadata({policy:prepared.policy,access,conversationMode:prepared.mode,providerRoute:route.provider}),rewriteAction:'spice',routeReason:'manual_spice',classification:route.classification,moderationVersion:'private-adult-text-v1'};
+      metadata={...result.metadata,...messageRewritePolicyMetadata(prepared,access,route.provider),rewriteAction:'spice',routeReason:'manual_spice',classification:route.classification};
     }
     // Consent and surface/content eligibility are checked again after generation.
     if(input.messageAction==='spice')await requireAiDataConsent(db,userId);
