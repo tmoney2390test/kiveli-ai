@@ -23,6 +23,7 @@ import { waitUntil } from '../_shared/background.ts';
 import { normalizeChatDynamism,normalizeReasoningPreference,reasoningPreferenceAllowedForTier,reconcileReasoningPreferenceForTier } from '../../../packages/together-domain/src/chat-generation.ts';
 import { characterAdultStatusFromInstance, privateTextProjectionAuthorizedForConversation } from '../_shared/private-adult-text-policy.ts';
 import { chatBubbleColorValues, normalizeChatBubbleColor } from '../../../packages/together-domain/src/chat-appearance.ts';
+import { startConfirmedFreshChat } from '../_shared/fresh-chat.ts';
 
 const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('inbox') }),
@@ -30,7 +31,7 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('archived') }),
   z.object({ action: z.literal('open'), characterInstanceId: z.string().uuid(), limit: z.number().int().min(1).max(60).default(50) }),
   z.object({ action: z.literal('ensure'), characterInstanceId: z.string().uuid() }),
-  z.object({ action: z.literal('new'), characterInstanceId: z.string().uuid() }),
+  z.object({ action: z.literal('new'), characterInstanceId: z.string().uuid(), expectedConversationId: z.string().uuid().optional(), requestId: z.string().uuid().optional(), confirmation: z.literal('start_fresh_chat').optional() }),
   z.object({ action: z.literal('archive'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('delete'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('restore'), conversationId: z.string().uuid() }),
@@ -306,14 +307,9 @@ serve(async (request, correlationId) => {
   }
 
   if (input.action === 'new') {
-    const access=await resolveSubscriptionAccess(db,user.id);
-    const { data, error } = await db.rpc('kivelle_start_conversation', { p_user_id: user.id, p_character_instance_id: input.characterInstanceId });
-    if (error || !data) {
-      if(isActiveConversationLimitDatabaseError(error))throw activeConversationLimitError(access.capabilities);
-      throw new AppError('INTERNAL_ERROR', 'A new conversation could not be started.', 500, true);
-    }
-    await track(db, user.id, 'conversation_started', { characterInstanceId: input.characterInstanceId });
-    return json({ data: projectConversation(data,false), correlationId }, 200, correlationId);
+    const result = await startConfirmedFreshChat(db,user.id,input);
+    if (!result.replayed) await track(db,user.id,'conversation_started',{characterInstanceId:input.characterInstanceId,conversationId:result.conversation.id,previousConversationId:input.expectedConversationId,requestId:input.requestId,source:'confirmed_fresh_chat'});
+    return json({ data: projectConversation(result.conversation,false), correlationId }, 200, correlationId);
   }
 
   if (input.action === 'history') {

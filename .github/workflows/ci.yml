@@ -31,6 +31,10 @@ jobs:
       - run: pnpm artwork:verify
       - run: pnpm context:test:db
       - run: pnpm chat-speed:test:db
+      - name: Explicit fresh-chat regressions
+        run: |
+          node scripts/test-fresh-chat-db.mjs
+          deno test --no-lock --allow-env --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/fresh-chat.test.ts
       - name: Chat speed regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-chat-speed_test.ts
       - name: Context price regressions
