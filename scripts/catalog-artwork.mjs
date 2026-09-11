@@ -64,6 +64,9 @@ async function generateStartup() {
   const target=resolve(root,'apps/together/assets/startup');
   await mkdir(target,{recursive:true});
   await sharp(resolve(root,'apps/together/assets/characters/vespormoor/evelyn-harrow.jpg')).rotate().resize({width:1440,height:1440,fit:'inside',withoutEnlargement:true}).webp({quality:86,effort:4}).toFile(resolve(target,'welcome.webp'));
+  // App config still uses the original PNG for OS icon generation. The UI does
+  // not need to embed that multi-megabyte source as another full-size resource.
+  await sharp(resolve(root,'apps/together/assets/icon.png')).resize({width:512,height:512,fit:'inside',withoutEnlargement:true}).webp({quality:90,effort:4}).toFile(resolve(target,'app-icon.webp'));
 }
 export async function verifyManifest() {
   const manifest = JSON.parse(await readFile(manifestPath,'utf8'));

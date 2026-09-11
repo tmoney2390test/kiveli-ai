@@ -377,7 +377,7 @@ export const characterAssets:Record<string,ImageSource>={
   'sabine-roche':catalogArtwork('characters/calders-run/sabine-roche.jpg'),
 };
 export const cityLifeAsset=catalogArtwork('locations/juniper-city/juniper-city.jpg');
-export const appIconAsset=require('../assets/icon.png');
+export const appIconAsset=require('../assets/startup/app-icon.webp');
 export {worldHeroAssets};
 export function worldHeroAsset(slug?:string|null):ImageSource{if(!slug||slug==='juniper-city')return cityLifeAsset;return worldHeroAssets[slug]??cityLifeAsset;}
 
