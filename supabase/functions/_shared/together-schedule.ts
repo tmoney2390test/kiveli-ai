@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { schedulePauseFrom, scheduleEventAllowedDuringPause } from '../../../packages/together-domain/src/schedule-pause.ts';
 import { generateScheduleWindow, lifeEventEstablishesPresentReality, localToUtc, naturalizeCharacterActivity, naturalizeCharacterEventSummary, resolvePresence, type ActivityTemplate, type CharacterLifeProfile, type LifeLocation, type ScheduleBlock } from '../../../packages/together-domain/src/index.ts';
 import { resolveUserExperienceTimezone } from './kivelle-time.ts';
 import { resolveCharacterBaseLocation, resolveCharacterPlaceContext, resolvePlaceContext, type PlaceContext } from './together-place.ts';
@@ -37,7 +38,7 @@ export type CompanionPresence = {
 export async function ensureCharacterSchedule(input:{db:SupabaseClient;userId:string;characterInstanceId:string;now?:Date;days?:number}){
   const{db,userId,characterInstanceId}=input,now=input.now??new Date(),days=input.days??7;
   const{data:instance,error}=await db.from('together_character_instances').select('*,together_character_versions(life_config,interests,personality_config),together_character_templates(name,slug,occupation)').eq('id',characterInstanceId).eq('user_id',userId).maybeSingle();
-  if(error||!instance)return[];
+  if(error||!instance||schedulePauseFrom(instance.schedule_pause))return[];
   const currentPlace=instance.current_location_id?await resolvePlaceContext({db,locationId:String(instance.current_location_id),now,userId,characterInstanceId}).catch(()=>null):null;
   let worldId=currentPlace?.world.id??null;
   if(!worldId){const{data:presence}=await db.from('together_character_world_presence').select('world_id').eq('character_version_id',instance.character_version_id).neq('presence_type','unavailable').order('presence_type').limit(1).maybeSingle();worldId=presence?.world_id??null;}
@@ -95,10 +96,11 @@ export async function ensureCharacterSchedule(input:{db:SupabaseClient;userId:st
   return(window??[]).map(toBlock);
 }
 
-export async function resolveCharacterPresence(input:{db:SupabaseClient;userId:string;characterInstanceId:string;now?:Date;ensure?:boolean}):Promise<ResolvedCharacterPresence|null>{
+export async function resolveCharacterPresence(input:{db:SupabaseClient;userId:string;characterInstanceId:string;now?:Date;ensure?:boolean;routineOnly?:boolean}):Promise<ResolvedCharacterPresence|null>{
   const{db,userId,characterInstanceId}=input,now=input.now??new Date();
   if(input.ensure!==false)await ensureCharacterSchedule({db,userId,characterInstanceId,now});
-  const{data:instance}=await db.from('together_character_instances').select('character_version_id,current_location_id,current_activity,current_presence_source').eq('id',characterInstanceId).eq('user_id',userId).maybeSingle();if(!instance)return null;
+  const{data:instance}=await db.from('together_character_instances').select('character_version_id,current_location_id,current_activity,current_presence_source,schedule_pause').eq('id',characterInstanceId).eq('user_id',userId).maybeSingle();if(!instance)return null;
+  const paused=schedulePauseFrom(instance.schedule_pause);
   const currentPlace=instance.current_location_id?await resolvePlaceContext({db,locationId:String(instance.current_location_id),now,userId,characterInstanceId}).catch(()=>null):null;
   let worldId=currentPlace?.world.id??null;
   if(!worldId){
@@ -118,17 +120,19 @@ export async function resolveCharacterPresence(input:{db:SupabaseClient;userId:s
     db.from('together_character_schedule_events').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).gt('starts_at',now.toISOString()).order('starts_at').limit(12),
     db.from('together_life_events').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).not('event_type','in','(shared_plan,legacy_shared_plan)').lte('starts_at',now.toISOString()).gt('ends_at',now.toISOString()).order('significance',{ascending:false}).limit(10),
   ]);
-  const rows=(eventResult.data??[]).filter((row:Row)=>!row.metadata?.suppressedByPlanId).map(toBlock),nextRow=(nextResult.data??[]).find((row:Row)=>!row.metadata?.suppressedByPlanId),next=nextRow?toBlock(nextRow):undefined;
-  const plan=planResult.data as Row|null;
+  const allowed=(row:Row)=>!row.metadata?.suppressedByPlanId&&(!paused||scheduleEventAllowedDuringPause(row))&&(!input.routineOnly||['recurring','generated'].includes(String(row.source)));
+  const rows=(eventResult.data??[]).filter(allowed).map(toBlock),nextRow=(nextResult.data??[]).find(allowed),next=nextRow?toBlock(nextRow):undefined;
+  const plan=input.routineOnly?null:planResult.data as Row|null;
   if(plan)rows.push({id:String(plan.id),activityKey:String(plan.activity_key),title:String(plan.title),locationId:plan.location_id?String(plan.location_id):null,startsAt:String(plan.starts_at),endsAt:String(plan.ends_at),priority:'user_commitment',visibility:'shared',source:'user_plan',interruptibility:'open',generationKey:`plan:${plan.id}`,metadata:{planId:plan.id,activityLabel:plan.title}});
   let presence=resolvePresence(next?[...rows,next]:rows,now,{characterInstanceId,locationId:fallbackLocationId,activity:fallbackActivity});
-  const lifeEvent=!plan?(lifeEventResult.data??[]).find((candidate:Row)=>lifeEventEstablishesPresentReality(
+  if(paused&&!plan&&presence.source==='fallback')presence={characterInstanceId,locationId:paused.locationId,activity:paused.activity,activityKey:paused.activityKey,activityStartedAt:paused.pausedAt,interruptibility:paused.interruptibility,state:paused.state,source:'fallback'};
+  const lifeEvent=!plan&&!paused&&!input.routineOnly?(lifeEventResult.data??[]).find((candidate:Row)=>lifeEventEstablishesPresentReality(
     {locationId:candidate.location_id?String(candidate.location_id):null,eventType:String(candidate.event_type??''),metadata:candidate.metadata??{}},
     {locationId:presence.locationId},
   ))??null:null;
   const lifeEventOwnsPresence=Boolean(lifeEvent);
   if(lifeEventOwnsPresence)presence={...presence,locationId:lifeEvent.location_id?String(lifeEvent.location_id):presence.locationId,activityKey:String(lifeEvent.event_type??'life_event'),activity:naturalizeCharacterEventSummary(lifeEvent.narrative_summary??lifeEvent.title).replace(/[.!?]$/,''),activityStartedAt:String(lifeEvent.starts_at),expectedEndAt:String(lifeEvent.ends_at),state:Number(lifeEvent.significance??0)>=.75?'busy':'active',interruptibility:String(lifeEvent.metadata?.interruptibility??(Number(lifeEvent.significance??0)>=.75?'busy':'limited')) as ResolvedCharacterPresence['interruptibility'],source:'life_event'};
-  if(baseLocation&&activityRequiresHome(presence.activityKey,presence.activity)&&String(presence.locationId)!==String(baseLocation.id))presence={...presence,locationId:String(baseLocation.id)};
+  if(!paused&&baseLocation&&activityRequiresHome(presence.activityKey,presence.activity)&&String(presence.locationId)!==String(baseLocation.id))presence={...presence,locationId:String(baseLocation.id)};
   const place=await resolveCharacterPlaceContext({db,characterVersionId:String(instance.character_version_id),locationId:presence.locationId,activity:presence.activity,activityKey:presence.activityKey,now,userId,characterInstanceId});
   return{...presence,placeContext:place};
 }

@@ -24,8 +24,10 @@ import { normalizeChatDynamism,normalizeReasoningPreference,reasoningPreferenceA
 import { characterAdultStatusFromInstance, privateTextProjectionAuthorizedForConversation } from '../_shared/private-adult-text-policy.ts';
 import { chatBubbleColorValues, normalizeChatBubbleColor } from '../../../packages/together-domain/src/chat-appearance.ts';
 import { startConfirmedFreshChat } from '../_shared/fresh-chat.ts';
+import { setCompanionSchedulePause } from '../_shared/companion-schedule-pause.ts';
 
 const schema = z.discriminatedUnion('action', [
+  z.object({action:z.literal('schedule_pause'),conversationId:z.string().uuid(),paused:z.boolean(),confirmation:z.enum(['pause_schedule','resume_schedule']),expectedPausedAt:z.string().datetime({offset:true}).nullable()}),
   z.object({ action: z.literal('inbox') }),
   z.object({ action: z.literal('inbox_v2'), limit: z.number().int().min(10).max(100).default(40), offset: z.number().int().min(0).max(5000).default(0) }),
   z.object({ action: z.literal('archived') }),
@@ -398,6 +400,12 @@ serve(async (request, correlationId) => {
   }
 
   const conversation = await ownedConversation(db, user.id,continuity.id,input.conversationId);
+  if(input.action==='schedule_pause'){
+    if(!['direct','first_meeting'].includes(String(conversation.kind))||conversation.archived_at)throw new AppError('CONFLICT','Open the companion’s current direct chat to change their schedule.',409);
+    const data=await setCompanionSchedulePause(db,{userId:user.id,continuityId:continuity.id,conversationId:conversation.id,characterInstanceId:String(conversation.character_instance_id),paused:input.paused,confirmation:input.confirmation,expectedPausedAt:input.expectedPausedAt});
+    await track(db,user.id,'companion_schedule_pause_changed',{characterInstanceId:conversation.character_instance_id,paused:input.paused});
+    return json({data,correlationId},200,correlationId);
+  }
   if (input.action === 'settings') {
     const subscription = await resolveSubscriptionAccess(db, user.id);
     const currentMetadata = (conversation.metadata ?? {}) as Record<string, unknown>;

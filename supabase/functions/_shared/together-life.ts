@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { schedulePauseFrom } from '../../../packages/together-domain/src/schedule-pause.ts';
 import { AppError } from './types.ts';
 import { resolveLifeState, track } from './together.ts';
 import { progressStoryArcs, rankEventTemplates } from './together-content.ts';
@@ -25,11 +26,11 @@ type EventRow = Record<string, any>;
 export async function runLifeSimulation({ db, userId, characterInstanceId, now = new Date(), evaluateProactive = true, persistCharacterState=true, trigger }: LifeRunInput): Promise<Record<string, unknown>> {
   // Routine state resolution is cheap; meaningful events are materialized only
   // by a continued conversation or the protected background dispatcher.
-  const simulateEvents = trigger === 'conversation_continued' || trigger === 'scheduled_dispatch';
+  let simulateEvents = trigger === 'conversation_continued' || trigger === 'scheduled_dispatch';
   const fallbackContinuity=characterInstanceId?null:await activeContinuity(db,userId);const resolvedInstanceId=characterInstanceId??fallbackContinuity?.active_companion_instance_id;
   if(!resolvedInstanceId)throw new AppError('CONFLICT','Choose a companion before simulating this Kivelle Life.',409);
   const { data: instance } = await db.from('together_character_instances').select('*,together_character_templates(name,slug,occupation),together_character_versions(character_bible,communication_style,personality_config,relationship_config)').eq('user_id', userId).eq('id', resolvedInstanceId).maybeSingle();
-  if (!instance) throw new AppError('NOT_FOUND', 'That character is unavailable.', 404);
+  if (!instance) throw new AppError('NOT_FOUND', 'That character is unavailable.', 404); const schedulePaused=Boolean(schedulePauseFrom(instance.schedule_pause)); simulateEvents=simulateEvents&&!schedulePaused;
   const currentPlace=instance.current_location_id?await resolvePlaceContext({db,locationId:String(instance.current_location_id),now,userId,characterInstanceId:String(instance.id)}).catch(()=>null):null;
   let currentWorldId=currentPlace?.world.id;
   if(!currentWorldId){const{data:presence}=await db.from('together_character_world_presence').select('world_id').eq('character_version_id',instance.character_version_id).neq('presence_type','unavailable').order('presence_type',{ascending:true}).limit(1).maybeSingle();currentWorldId=presence?.world_id?String(presence.world_id):undefined;}
@@ -71,6 +72,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   // Passive Life Engine state owns the materialized character row. A shared
   // scene is an interaction overlay and must never rewrite that passive state.
   const passivePresence=await resolveCharacterPresence({db,userId,characterInstanceId:String(instance.id),now,ensure:false}).catch(()=>null);
+  if(schedulePaused&&!passivePresence)throw new AppError('INTERNAL_ERROR','The paused routine could not be loaded.',503,true);
   const presence=await resolveCompanionPresence({db,userId,characterInstanceId:String(instance.id),now,ensure:false}).catch(()=>null);
   const scheduleState=passivePresence?{locationId:passivePresence.locationId,location:passivePresence.placeContext?.location.name??baseLocation?.name??'Current place',activity:passivePresence.activity,activityKey:passivePresence.activityKey,availability:passivePresence.interruptibility==='open'?'available':passivePresence.interruptibility==='limited'?'limited':'busy',mood:String(instance.current_mood??'content'),energy:String(instance.current_energy??'medium'),interruptibility:passivePresence.interruptibility,scheduleEventId:passivePresence.scheduleEventId,state:passivePresence.state,expectedEndAt:passivePresence.expectedEndAt,nextEvent:passivePresence.nextEvent}:resolveLifeState(worldSchedules as Array<Record<string, unknown>>, now, timezone,baseLocation?{locationId:String(baseLocation.id),location:String(baseLocation.name)}:currentPlace?{locationId:currentPlace.location.id,location:currentPlace.location.name}:undefined);
   // Background simulation has no verified browser session and is always SFW.
@@ -118,7 +120,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
 
   const activePlanRow = canonicalPlans.filter((plan)=>plan.status==='active'&&new Date(plan.starts_at)<=now&&new Date(plan.ends_at)>now).sort((a,b)=>Number(b.metadata?.significance??0)-Number(a.metadata?.significance??0))[0];
   const activePlan=activePlanRow?{id:activePlanRow.id,event_type:'shared_plan_active',title:activePlanRow.title,narrative_summary:`spending time with you at ${activePlanRow.title}`,location_id:activePlanRow.location_id,significance:Number(activePlanRow.metadata?.significance??.5),starts_at:activePlanRow.starts_at,ends_at:activePlanRow.ends_at,resulting_state_changes:{sharedActivity:activePlanRow.activity_key},metadata:{canonicalPlanId:activePlanRow.id}}:null;
-  const activeLifeEvents=[...created,...(recentEvents.data??[])].filter((event):event is EventRow=>Boolean(event)&&eventIsActive(event,now));
+  const activeLifeEvents=[...created,...(schedulePaused?[]:recentEvents.data??[])].filter((event):event is EventRow=>Boolean(event)&&eventIsActive(event,now));
   const influential=[activePlan,...activeLifeEvents].filter((event):event is EventRow=>Boolean(event)).sort((a,b)=>Number(b.significance)-Number(a.significance))[0];
   const eventPresenceInfluence=activeLifeEvents.filter((event)=>lifeEventEstablishesPresentReality(
     {locationId:event.location_id?String(event.location_id):null,eventType:String(event.event_type??''),metadata:event.metadata??{}},
@@ -127,7 +129,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const presenceInfluence=activePlan??eventPresenceInfluence;
   const life=applyEventInfluence(scheduleState,presenceInfluence);
   const presenceSource=activePlan?'plan':eventPresenceInfluence?'life_event':passivePresence?.source==='schedule'?'schedule':passivePresence?.source==='plan'?'plan':passivePresence?.source==='life_event'?'life_event':'fallback';
-  if(persistCharacterState)await db.from('together_character_instances').update({ ...(life.locationId?{current_location_id:life.locationId}:{}), current_activity:naturalizeCharacterActivity(life.activity,{activityKey:life.activityKey,occupation:instance.together_character_templates?.occupation}), current_mood: life.mood, current_energy: life.energy, current_schedule_event_id:presenceSource==='schedule'?passivePresence?.scheduleEventId??null:null,current_interruptibility:passivePresence?.interruptibility??'open',current_presence_source:presenceSource,life_engine_version:'life_engine_v4_natural_language', last_simulated_at: now.toISOString(), ...(simulateEvents ? { last_event_simulated_at: now.toISOString() } : {}), updated_at: now.toISOString() }).eq('id', instance.id).eq('user_id', userId);
+  if(persistCharacterState&&!schedulePaused)await db.from('together_character_instances').update({ ...(life.locationId?{current_location_id:life.locationId}:{}), current_activity:naturalizeCharacterActivity(life.activity,{activityKey:life.activityKey,occupation:instance.together_character_templates?.occupation}), current_mood: life.mood, current_energy: life.energy, current_schedule_event_id:presenceSource==='schedule'?passivePresence?.scheduleEventId??null:null,current_interruptibility:passivePresence?.interruptibility??'open',current_presence_source:presenceSource,life_engine_version:'life_engine_v4_natural_language', last_simulated_at: now.toISOString(), ...(simulateEvents ? { last_event_simulated_at: now.toISOString() } : {}), updated_at: now.toISOString() }).eq('id', instance.id).eq('user_id', userId).is('schedule_pause',null);
 
   const memoryPreferences=(profile.data?.memory_categories??{}) as Record<string,unknown>;
   const { data: dueThreads } = memoryPreferences.open_thread===false
@@ -149,7 +151,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
     proactive = await deliverDueMessage(db, userId, instance, latestConversation.data, prefs, now,remindersOnly);
     if (!proactive) {
       const scheduleMessageEvent=trigger==='scheduled_dispatch'&&passivePresence?.scheduleEventId&&passivePresence.interruptibility==='open'&&!['sleep','work','travel'].includes(String(passivePresence.activityKey))?{id:passivePresence.scheduleEventId,event_type:'schedule_presence',title:passivePresence.activity,narrative_summary:String(passivePresence.activity),location_id:passivePresence.locationId,significance:.56,starts_at:passivePresence.activityStartedAt,ends_at:passivePresence.expectedEndAt,user_should_know:true,proactive_message_appropriate:true,metadata:{source:'character_schedule',scheduleEventId:passivePresence.scheduleEventId}}:null;
-      proactive = await createProactiveCandidate({ db, userId, instance:{...instance,current_activity:life.activity,current_location_id:life.locationId??instance.current_location_id}, relationship: relationship.data, conversation: latestConversation.data, prefs, now, dueThreads: dueThreads ?? [], events: [...(scheduleMessageEvent?[scheduleMessageEvent]:[]),...created, ...(recentEvents.data ?? [])], plans:canonicalPlans, recentProactive: recentProactive.data ?? [], remindersOnly,initiativeLevel,subscriptionTier });
+      proactive = await createProactiveCandidate({ db, userId, instance:{...instance,current_activity:life.activity,current_location_id:life.locationId??instance.current_location_id}, relationship: relationship.data, conversation: latestConversation.data, prefs, now, dueThreads: dueThreads ?? [], events: [...(scheduleMessageEvent?[scheduleMessageEvent]:[]),...created, ...(schedulePaused?[]:recentEvents.data ?? [])], plans:canonicalPlans, recentProactive: recentProactive.data ?? [], remindersOnly,initiativeLevel,subscriptionTier });
     }
   }
 
