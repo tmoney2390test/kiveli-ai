@@ -94,5 +94,6 @@ describe('proposal decisions during dialogue', () => {
     expect(source).toContain('!proposalDecisions.isHidden(characterProposal.actionId)');
     expect(source).toContain('replyPendingRef.current||sendInFlightRef.current||Boolean(useTogether.getState().pendingDialogues[conversation.id])');
     expect(source).toContain('generateSceneReaction=async(actionId:string)=>{if(isSceneReplyPending())return');
+    expect(source).toContain('if(!contextAuthorization||isSceneReplyPending())return;');
   });
 });

@@ -922,7 +922,7 @@ function ChatSession() {
     if(connectionPhase!=='online')setShowSendConnectionNotice(true);
     if(!online){setError('You’re offline. Your draft is saved and ready when you reconnect.');return;}
     const contextAuthorization=await contextPricing.authorize({conversationId:conversation.id,characterInstanceId:character.id,message:text,focusPlanId:focusPlanId??undefined,...(messageAction?{messageAction:messageAction.messageAction,anchorMessageId:messageAction.anchorMessageId}:{})});
-    if(!contextAuthorization)return;
+    if(!contextAuthorization||isSceneReplyPending())return;
     sendInFlightRef.current=true;
     const sentAutoDialogue=!retryText&&!messageAction?autoDialogue:null;
     const retrySource=retryMessageId?messages.find((message)=>message.id===retryMessageId):undefined;
