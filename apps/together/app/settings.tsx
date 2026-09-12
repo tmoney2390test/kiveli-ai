@@ -1,3 +1,4 @@
+import { styles } from '../src/styles/settingsStyles';
 import { cloneElement, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import {AccountProfilePanel} from '../src/components/AccountProfilePanel';
 import {
@@ -40,7 +41,7 @@ import {
   X,
 } from 'lucide-react-native';
 import { cleanupNormalizedImage, normalizeUserImage, userImagePickerOptions, type NormalizedUserImage } from '../src/lib/imageUploads';
-import { colors, radius, spacing, typography } from '../src/theme';
+import { colors } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
 import { useAuth } from '../src/hooks/useAuth';
 import { useProfileAvatarUrl } from '../src/hooks/useProfileAvatarUrl';
@@ -50,7 +51,6 @@ import { manageAccount } from '../src/lib/api';
 import { supabase } from '../src/lib/supabase';
 import { confirmAction } from '../src/lib/dialogs';
 import { shouldRenderSettingsRoute, shouldUseDesktopSettingsLayout } from '../src/lib/settingsRoute';
-import { DESKTOP_SIDEBAR_EXPANDED_WIDTH } from '../src/lib/desktopNavigation';
 import { startSignOutTransition } from '../src/lib/signOutTransition';
 import { createClientRequestId } from '../src/lib/requestId';
 import {
@@ -366,44 +366,3 @@ function Metric({ value, label }: { value: number; label: string }) { return <Vi
 function InfoCard({ title, children }: { title: string; children: ReactNode }) { return <View style={styles.infoCard}><Text style={styles.infoTitle}>{title}</Text><Text style={styles.infoBody}>{children}</Text></View>; }
 
 function subscriptionLabel(tier?: string | null) { if (tier === 'kivelle_max' || tier === 'unlimited') return 'Kivelle Max'; if (tier === 'kivelle_plus' || tier === 'together_plus') return 'Kivelle+'; return 'Kivelle Free'; }
-
-const styles = StyleSheet.create({
-  backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: 'rgba(5,4,8,.18)' },
-  // Reserve the rail's full hover width so it can never cover Settings' own
-  // section navigation or steal its pointer events while expanded.
-  backdropDesktop: { ...(Platform.OS === 'web' ? ({ position: 'fixed', top: 0, right: 0, bottom: 0, left: DESKTOP_SIDEBAR_EXPANDED_WIDTH, zIndex: 1200, padding: 18, backgroundColor: 'rgba(4,3,7,.12)' } as never) : {}) },
-  ambientOne: { position: 'absolute', width: 600, height: 600, borderRadius: 300, backgroundColor: 'rgba(126,83,151,.055)', top: -250, right: -120, ...(Platform.OS === 'web' ? ({ filter: 'blur(100px)' } as never) : {}) },
-  ambientTwo: { position: 'absolute', width: 520, height: 520, borderRadius: 260, backgroundColor: 'rgba(167,85,121,.038)', bottom: -240, left: -140, ...(Platform.OS === 'web' ? ({ filter: 'blur(105px)' } as never) : {}) },
-  modal: { width: '100%', backgroundColor: 'rgba(20,17,25,.54)', overflow: 'hidden', borderColor: 'rgba(255,255,255,.115)' },
-  modalDesktop: { width: '96%', maxWidth: 1480, borderRadius: 24, borderWidth: 1, shadowColor: '#000', shadowOpacity: .48, shadowRadius: 44, shadowOffset: { width: 0, height: 22 } },
-  modalMobile: { borderRadius: 0, backgroundColor: 'rgba(17,15,22,.96)' },
-  header: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,.085)', backgroundColor: 'rgba(18,16,22,.24)' },
-  brandMark: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(151,116,171,.085)', borderWidth: 1, borderColor: 'rgba(204,176,221,.18)' },
-  brandInitial: { color: '#CFB6DD', fontFamily: typography.display, fontSize: 18 },
-  headerCopy: { flex: 1, minWidth: 0 }, title: { color: colors.text, fontFamily: typography.display, fontWeight: '600', fontSize: 25 },
-  headerMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 3 },
-  close: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.018)', borderWidth: 1, borderColor: 'rgba(255,255,255,.08)' },
-  pressed: { opacity: .72, transform: [{ scale: .98 }] },
-  body: { flex: 1, flexDirection: 'row', minHeight: 0 }, contentColumn: { flex: 1, minWidth: 0 },
-  sidebar: { width: 280, paddingTop: 18, paddingBottom: spacing.lg, borderRightWidth: 1, borderRightColor: 'rgba(255,255,255,.075)', backgroundColor: 'rgba(11,10,14,.23)' },
-  sidebarEyebrow: { color: colors.textSecondary, fontSize: 10.5, fontWeight: '900', letterSpacing: 1.5, marginBottom: 10, paddingHorizontal: 24 },
-  sidebarLinks: { gap: 2 }, sidebarLink: { minHeight: 56, paddingHorizontal: 24, borderLeftWidth: 3, borderLeftColor: 'transparent', flexDirection: 'row', alignItems: 'center', gap: 13 },
-  sidebarLinkActive: { backgroundColor: 'rgba(139,100,158,.13)', borderLeftColor: 'rgba(206,168,224,.72)' },
-  sidebarLinkText: { color: colors.textSecondary, fontSize: 15, fontWeight: '700' }, sidebarLinkTextActive: { color: '#F1E7F3' },
-  logoutButton: { minHeight: 48, marginTop: 'auto', marginHorizontal: 18, paddingHorizontal: 14, borderRadius: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, backgroundColor: 'rgba(255,113,129,.055)', borderWidth: 1, borderColor: 'rgba(255,113,129,.2)' },
-  logoutButtonMobile: { width: '100%', maxWidth: 780, alignSelf: 'center', marginTop: 2, marginHorizontal: 0 }, logoutButtonDisabled: { opacity: .55 }, logoutButtonText: { color: colors.danger, fontSize: 13, fontWeight: '900' },
-  mobileSectionHeader: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: 'rgba(12,10,16,.36)' },
-  mobileBack: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14 }, mobileSectionTitle: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '900' },
-  main: { flex: 1 }, mainContent: { flexGrow: 1, padding: spacing.xl, paddingBottom: 70 }, mainContentDesktop: { paddingTop: 38, paddingHorizontal: 34, paddingBottom: 76 },
-  panel: { width: '100%', maxWidth: 1060, alignSelf: 'flex-start', gap: 24 },
-  panelHeading: { gap: 8, marginBottom: 4 }, panelTitle: { color: colors.text, fontFamily: typography.display, fontSize: 37, fontWeight: '600' }, panelBody: { color: colors.textSecondary, fontSize: 14, lineHeight: 21, maxWidth: 760 },
-  searchBox: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 15, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(255,255,255,.11)', backgroundColor: 'rgba(8,7,11,.35)' }, searchInput: { flex: 1, minHeight: 50, color: colors.text, fontSize: 15, outlineStyle: 'none' } as never,
-  emptySearch: { minHeight: 210, alignItems: 'center', justifyContent: 'center', padding: 28, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: 'rgba(255,255,255,.018)' }, emptySearchTitle: { color: colors.text, fontSize: 17, fontWeight: '900', marginTop: 12 }, emptySearchBody: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 6 },
-  summaryCard: { minHeight: 110, flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: radius.lg, backgroundColor: 'rgba(104,82,116,.075)', borderWidth: 1, borderColor: 'rgba(217,192,228,.11)' }, summaryIcon: { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(155,126,172,.075)' }, summaryKicker: { color: '#CCB5D7', fontSize: 10.5, fontWeight: '900', letterSpacing: 1.1 }, summaryTitle: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 3 }, verified: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 }, verifiedText: { fontSize: 11, fontWeight: '800' },
-  groupLabel: { color: colors.textSecondary, fontSize: 10, fontWeight: '900', letterSpacing: 1.3, marginBottom: -14, paddingLeft: 4 },
-  group: { overflow: 'hidden', borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,.085)', backgroundColor: 'rgba(255,255,255,.014)' },
-  settingRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 18, paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,.065)' }, disabledRow: { opacity: .55 }, rowPressed: { backgroundColor: 'rgba(155,126,172,.055)' }, rowIcon: { width: 26, height: 36, alignItems: 'center', justifyContent: 'center' }, rowCopy: { flex: 1, minWidth: 0 }, rowTitle: { color: colors.text, fontSize: 14.5, fontWeight: '800' }, rowTitleDanger: { color: colors.danger }, rowBody: { color: colors.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 4 }, rowValue: { maxWidth: 132, color: '#CCB5D7', fontSize: 11.5, fontWeight: '800', textAlign: 'right' }, rowValueDanger: { color: colors.danger },
-  lifeHero: { minHeight: 120, flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: radius.lg, backgroundColor: 'rgba(108,84,116,.075)', borderWidth: 1, borderColor: 'rgba(219,190,220,.11)' }, lifeAvatar: { width: 66, height: 66, borderRadius: 33, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(18,16,22,.56)', borderWidth: 1, borderColor: 'rgba(211,174,214,.23)' }, lifeInitial: { color: '#C9ADCC', fontFamily: typography.display, fontSize: 30 }, lifeName: { color: colors.text, fontFamily: typography.display, fontSize: 26, marginTop: 2 }, lifeMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 3 }, activePill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: 'rgba(125,92,145,.72)' }, activePillText: { color: '#fff', fontSize: 9.5, fontWeight: '900' },
-  infoCard: { padding: 17, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.025)', borderWidth: 1, borderColor: colors.border }, infoTitle: { color: colors.text, fontSize: 13, fontWeight: '800' }, infoBody: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 6 },
-  metricRow: { flexDirection: 'row', gap: 10 }, metric: { flex: 1, minHeight: 88, justifyContent: 'center', padding: 14, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.028)', borderWidth: 1, borderColor: colors.border }, metricValue: { color: colors.text, fontFamily: typography.display, fontSize: 29 }, metricLabel: { color: colors.textSecondary, fontSize: 11, fontWeight: '800', marginTop: 3 }, version: { color: colors.textSecondary, fontSize: 11, textAlign: 'center', marginTop: 6 },
-});
