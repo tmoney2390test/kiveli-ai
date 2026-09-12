@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, BackHandler, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { BackHandler, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { ArrowRight } from 'lucide-react-native';
 import { CreatorWizardShell, GradientButton, LoadingSkeleton, Screen } from '../../src/components';
@@ -10,7 +10,7 @@ import { useTogether } from '../../src/store/useTogether';
 import { canAccessWorld } from '../../src/lib/place';
 import { CreatorPicker, creatorGenders, creatorPronouns } from '../../src/components/CreatorPicker';
 import { worldHeroAsset } from '../../src/assets';
-import { confirmAction } from '../../src/lib/dialogs';
+import { confirmAction, showActionAlert } from '../../src/lib/dialogs';
 import { colors, radius, spacing } from '../../src/theme';
 
 export default function CreateCompanionEntry() {
@@ -24,6 +24,8 @@ export default function CreateCompanionEntry() {
   const [description, setDescription] = useState('');
   const [worldId, setWorldId] = useState('');
   const allowLeave = useRef(false);
+  const createRequestId = useRef<string | null>(null);
+  const creating = useRef(false);
   const dirty = Boolean(name || gender || pronouns || description || worldId || ageText !== '28');
   const [busy, setBusy] = useState(false);
   const [recovering, setRecovering] = useState(Boolean(params.template));
@@ -74,17 +76,20 @@ export default function CreateCompanionEntry() {
     if (!pronouns || ['she/her', 'he/him', 'they/them'].includes(pronouns)) setPronouns(({ woman: 'she/her', man: 'he/him', nonbinary: 'they/them' } as Record<string, string>)[value] || pronouns);
   };
   const create = async () => {
-    if (issues.length) { Alert.alert('Finish the required details', issues.join('\n')); return; }
+    if (creating.current) return;
+    if (issues.length) { showActionAlert('Finish the required details', issues.join('\n')); return; }
+    creating.current = true;
     setBusy(true);
     try {
       const world = worlds.find((item) => item.id === selectedWorldId)?.name ?? 'their world';
       const concept = `${name.trim()} is an original fictional ${age}-year-old ${gender} adult who uses ${pronouns.trim()} pronouns and is a citizen of ${world}. ${description.trim() || 'Build a distinctive adult personality, career, interests, and independent life that fit this world.'}`;
-      const { draft } = await createCreatorDraft({ concept, worldId: selectedWorldId, relationshipGoal: 'either', requestId: createClientRequestId(), identitySeed: { name: name.trim(), age, gender, pronouns: pronouns.trim(), description: description.trim() || undefined } });
+      createRequestId.current ??= createClientRequestId();
+      const { draft } = await createCreatorDraft({ concept, worldId: selectedWorldId, relationshipGoal: 'either', requestId: createRequestId.current, identitySeed: { name: name.trim(), age, gender, pronouns: pronouns.trim(), description: description.trim() || undefined } });
       allowLeave.current = true;
       router.replace(`/create/companion/${draft.id}` as never);
     } catch (error) {
-      Alert.alert('Could not start this companion', error instanceof Error ? error.message : 'Your details are safe. Please try again.');
-    } finally { setBusy(false); }
+      showActionAlert('Could not start this companion', error instanceof Error ? error.message : 'Your details are safe. Please try again.');
+    } finally { creating.current = false; setBusy(false); }
   };
 
   return <Screen contentStyle={styles.screen}>

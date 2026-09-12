@@ -252,7 +252,7 @@ export const authorizeCreatorAppearanceUpload = (input:{draftId:string;requestId
 export const completeCreatorAppearanceUpload = (input:{draftId:string;assetId:string;requestId:string}) => manageCreator<{draft:CreatorDraft;readiness?:{ready:boolean;missing:string[]}}>({action:'complete_draft_appearance_upload',...input});
 export const cancelCreatorAppearanceUpload = (input:{draftId:string;assetId:string;requestId:string}) => manageCreator<{cancelled:boolean}>({action:'cancel_draft_appearance_upload',...input});
 export const selectCreatorFirstMeeting = (draftId:string,meetingId:string) => manageCreator<{draft:CreatorDraft;readiness?:{ready:boolean;missing:string[]}}>({action:'select_first_meeting',draftId,meetingId});
-export const finalizeCreatorDraft = (draftId:string,requestId:string) => manageCreator<{draft:CreatorDraft;result:{draftId:string;characterTemplateId:string;characterVersionId:string;publicHandle:string;idempotent:boolean}}>({action:'finalize_draft',draftId,requestId});
+export const finalizeCreatorDraft = (draftId:string,requestId:string) => manageCreator<{draft:CreatorDraft;result?:{draftId:string;characterTemplateId:string;characterVersionId?:string;publicHandle?:string;idempotent:boolean};finalized?:boolean}>({action:'finalize_draft',draftId,requestId});
 export const archiveCreatorDraft = (draftId:string) => manageCreator<{archived:boolean;draftId:string}>({action:'archive_draft',draftId});
 export const manageSubscription = <T>(input?:Record<string,unknown>) => input?invoke<T>('together-subscription',input):invoke<T>('together-subscription',undefined,'GET');
 export async function createTogetherAccount(email: string, password: string,dateOfBirth:string): Promise<void> {
