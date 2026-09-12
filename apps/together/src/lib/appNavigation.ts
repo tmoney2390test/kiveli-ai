@@ -1,3 +1,5 @@
+import { isSettingsPath } from './settingsRoute';
+
 export type AppRouteParam = string | number | boolean | null | undefined;
 export type AppRouteParams = Record<string, AppRouteParam | AppRouteParam[]>;
 export type AppRouteHref = string | { pathname: string; params?: AppRouteParams };
@@ -402,5 +404,13 @@ export function installWebNavigationCompatibility(router: object): void {
   if (dismissTo) {
     imperativeRouter.dismissTo = ((href: AppRouteHref, options?: unknown) => transition(dismissTo, href, "replace", options)) as NonNullable<ImperativeRouter["dismissTo"]>;
   }
-  imperativeRouter.setParams = ((params: AppRouteParams) => updateLocalRouteParamsOnWeb(params) || setParams(params as never)) as ImperativeRouter["setParams"];
+  imperativeRouter.setParams = ((params: AppRouteParams) => {
+    // Section selectors belong to the mounted Settings screen. Let Expo update
+    // its route state and URL together: a synthetic popstate reconstructs the
+    // whole shell, while a URL-only write is reverted by the next router render.
+    if (isSettingsPath(window.location.pathname) && Object.keys(params).every((key) => key === 'section')) {
+      return setParams(params as never);
+    }
+    return updateLocalRouteParamsOnWeb(params) || setParams(params as never);
+  }) as ImperativeRouter["setParams"];
 }
