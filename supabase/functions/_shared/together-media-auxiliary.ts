@@ -77,6 +77,55 @@ export async function dispatchCreatorAppearanceJobs(db: SupabaseClient, limit: n
   return result;
 }
 
+/** Reconcile creator portraits that were claimed but never entered the normal poll loop. */
+export async function recoverStaleCreatorAppearanceJobs(db: SupabaseClient, limit: number): Promise<{ checked: number; recovered: number }> {
+  const result = { checked: 0, recovered: 0 };
+  const now = Date.now();
+  const [queued, generating] = await Promise.all([
+    db.from('together_creator_assets').select('*').eq('asset_type', 'appearance_candidate').eq('status', 'queued').lt('created_at', new Date(now - 45 * 60_000).toISOString()).limit(limit),
+    db.from('together_creator_assets').select('*').eq('asset_type', 'appearance_candidate').eq('status', 'generating').lt('updated_at', new Date(now - 8 * 60_000).toISOString()).limit(limit),
+  ]);
+  if (queued.error || generating.error) throw new AppError('INTERNAL_ERROR', 'Creator media recovery could not inspect pending portraits.', 500, true);
+  for (const asset of [...(generating.data ?? []), ...(queued.data ?? [])].slice(0, limit)) {
+    // Upload authorizations have their own completion/cancellation flow.
+    if (asset.provider === 'user_upload' || !asset.metadata?.creditTransactionId) continue;
+    result.checked += 1;
+    const { data: job, error } = await db.from('together_media_provider_jobs').select('*').eq('creator_asset_id', asset.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (error) continue;
+    const action = creatorAppearanceRecoveryAction(job);
+    if (action === 'wait') continue;
+    if (action === 'restore') {
+      const restored = await db.from('together_creator_assets').update({ status: 'ready', storage_path: job.output_storage_path, updated_at: new Date().toISOString() }).eq('id', asset.id).in('status', ['queued', 'generating']).select('id').maybeSingle();
+      if (restored.data) result.recovered += 1;
+      continue;
+    }
+    if (action === 'resume' && job) {
+      // A provider ID is authoritative: poll it instead of risking another submission.
+      await db.from('together_media_provider_jobs').update({ status: 'processing', next_poll_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', job.id).in('status', ['submitting', 'created', 'submission_unknown']);
+      result.recovered += 1;
+      continue;
+    }
+    if (action === 'fail_job' && job) {
+      await failProviderMedia(db, { jobId: String(job.id), failureCode: 'creator_submission_unknown', failureReasonSafe: 'The portrait request could not be confirmed. Your credits were returned if no portraits completed.' });
+      result.recovered += 1;
+      continue;
+    }
+    if (action === 'fail_asset') {
+      await failUntrackedCreatorAsset(db, asset, job?.failure_code ? String(job.failure_code) : 'creator_dispatch_timeout');
+      result.recovered += 1;
+    }
+  }
+  return result;
+}
+
+export function creatorAppearanceRecoveryAction(job: Record<string, any> | null): 'wait' | 'restore' | 'resume' | 'fail_job' | 'fail_asset' {
+  if (!job) return 'fail_asset';
+  if (job.status === 'processing' && job.provider_request_id) return 'wait';
+  if (job.status === 'completed') return job.output_storage_path ? 'restore' : 'fail_asset';
+  if (['submitting', 'created', 'submission_unknown', 'processing'].includes(String(job.status))) return job.provider_request_id ? 'resume' : 'fail_job';
+  return 'fail_asset';
+}
+
 export async function dispatchLoraTrainingJobs(db: SupabaseClient, limit: number): Promise<{ claimed: number; submitted: number; ready: number; failed: number }> {
   const result = { claimed: 0, submitted: 0, ready: 0, failed: 0 };
   const client = configuredWaveSpeedClient();
@@ -146,7 +195,8 @@ function stringArray(value: unknown): string[] { return Array.isArray(value) ? v
 function boundedNumber(value: unknown, fallback: number, min: number, max: number): number { const parsed = Number(value); return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback; }
 
 async function failUntrackedCreatorAsset(db: SupabaseClient, asset: Record<string, unknown>, failureCode: string) {
-  await db.from('together_creator_assets').update({ status: 'failed', metadata: { ...((asset.metadata ?? {}) as Record<string, unknown>), failureCode }, updated_at: new Date().toISOString() }).eq('id', String(asset.id)).eq('status', 'generating');
+  const failed = await db.from('together_creator_assets').update({ status: 'failed', metadata: { ...((asset.metadata ?? {}) as Record<string, unknown>), failureCode }, updated_at: new Date().toISOString() }).eq('id', String(asset.id)).eq('status', String(asset.status)).eq('updated_at', String(asset.updated_at)).select('id').maybeSingle();
+  if (!failed.data) return;
   const group = await db.from('together_creator_assets').select('status,metadata').eq('draft_id', String(asset.draft_id)).eq('group_request_id', String(asset.group_request_id));
   const rows = group.data ?? [];
   if (!rows.length || !rows.every((item) => ['ready', 'failed', 'archived'].includes(String(item.status))) || rows.some((item) => item.status === 'ready')) return;

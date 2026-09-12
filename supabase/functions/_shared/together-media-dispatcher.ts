@@ -6,7 +6,7 @@ import{failMediaBeforeProvider,failProviderMedia,finalizeProviderMedia}from'./to
 import{configuredWaveSpeedClient}from'./wavespeed.ts';
 import{resolveSubscriptionState}from'./kivelle-subscription.ts';
 import{track}from'./together.ts';
-import{dispatchCreatorAppearanceJobs,dispatchLoraTrainingJobs,finalizeAuxiliaryProviderJob}from'./together-media-auxiliary.ts';
+import{dispatchCreatorAppearanceJobs,dispatchLoraTrainingJobs,finalizeAuxiliaryProviderJob,recoverStaleCreatorAppearanceJobs}from'./together-media-auxiliary.ts';
 import{completeMediaUsageAttempt,recordMediaUsageAttempt}from'./together-media-usage.ts';
 import{currentAdultMediaJobAuthorized}from'./web-adult-access.ts';
 import{configuredVideoRouteCatalog,type VideoResolution}from'./kivelle-video-routes.ts';
@@ -15,10 +15,10 @@ import{requireAiDataConsent}from'./kivelle-ai-consent.ts';
 
 export async function dispatchMediaJobs(db:SupabaseClient,limit:number,correlationId:string){
   const before=await mediaQueueSnapshot(db);
-  const recovered=await reconcileWaveSpeedJobs(db,limit),recoveredSynchronous=await recoverStaleSynchronousJobs(db,limit);await db.rpc('kivelle_recover_stale_media_jobs',{p_stale_minutes:12});
+  const recovered=await reconcileWaveSpeedJobs(db,limit),recoveredSynchronous=await recoverStaleSynchronousJobs(db,limit),recoveredCreator=await recoverStaleCreatorAppearanceJobs(db,limit);await db.rpc('kivelle_recover_stale_media_jobs',{p_stale_minutes:12});
   const[creator,training]=await Promise.all([dispatchCreatorAppearanceJobs(db,limit),dispatchLoraTrainingJobs(db,limit)]);
   const{data:jobs,error}=await db.rpc('kivelle_claim_media_jobs_v4',{p_limit:limit,p_max_image_inflight:imageMaxInflight(),p_max_video_inflight:videoMaxInflight(),p_max_video_frame_inflight:videoFrameMaxInflight()});if(error)throw new AppError('INTERNAL_ERROR','Media jobs could not be claimed.',500,true);
-  const results={recovered,recoveredSynchronous,creator,training,claimed:(jobs??[]).length,ready:0,submitted:0,deferred:0,failed:0};
+  const results={recovered,recoveredSynchronous,recoveredCreator,creator,training,claimed:(jobs??[]).length,ready:0,submitted:0,deferred:0,failed:0};
   for(const job of jobs??[])try{
     await requireAiDataConsent(db,String(job.user_id));
     await requireCurrentAdultMediaAccess(db,job);

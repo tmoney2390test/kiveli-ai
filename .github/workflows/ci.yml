@@ -73,6 +73,8 @@ jobs:
           supabase/functions/_shared/kivelle-initiative.test.ts
       - name: Companion schedule pause regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/companion-schedule-pause.test.ts
+      - name: Creator portrait recovery regressions
+        run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/together-creator-recovery.test.ts
       - name: Video quality and finalization regressions
         run: >-
           deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json

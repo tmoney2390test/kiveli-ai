@@ -6,7 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowRight, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, MapPin, Plus, RefreshCw, Sparkles, Trash2, UserRound, X } from 'lucide-react-native';
 import { CreatorWizardShell, ErrorState, GradientButton, GlassCard, KivelleCreditIcon, LoadingSkeleton, Screen } from '../../../src/components';
-import { archiveCreatorDraft, authorizeCreatorAppearanceUpload, cancelCreatorAppearanceUpload, completeCreatorAppearanceUpload, finalizeCreatorDraft, generateCreatorAppearance, getCreatorDraft, meetCompanion, regenerateCreatorDraftSection, selectCreatorAppearance, selectCreatorFirstMeeting, updateCreatorDraftSection } from '../../../src/lib/api';
+import { archiveCreatorDraft, authorizeCreatorAppearanceUpload, cancelCreatorAppearanceUpload, completeCreatorAppearanceUpload, finalizeCreatorDraft, generateCreatorAppearance, getCreatorDraft, meetCompanion, regenerateCreatorDraftSection, selectCreatorAppearance, selectCreatorFirstMeeting, updateCreatorDraftSections } from '../../../src/lib/api';
 import { CreatorModal, CreatorPicker, creatorGenders, creatorPronouns } from '../../../src/components/CreatorPicker';
 import { creditCost } from '@together/domain/src/entitlements';
 import { creatorSampleMessages } from '../../../src/lib/creator';
@@ -83,28 +83,25 @@ export default function CreatorStudioRoute() {
 
   const saveSection = async (targetStep?: CreatorStep): Promise<CreatorDraft> => {
     if (!draft || !identity || !personality || !communication || !connection || !life) throw new Error('Creator Studio is still loading.');
-    let current = draft;
-    const update = async (section: 'identity' | 'appearance' | 'personality' | 'communication' | 'connection' | 'life' | 'routine', config: Record<string, unknown>, relationshipGoal?: CreatorDraft['relationship_goal']) => {
-      const result = await updateCreatorDraftSection({ draftId: current.id, section, config, expectedRevision: current.revision, currentStep: targetStep, relationshipGoal });
-      current = result.draft;
-    };
     const active = steps[stepIndex]?.key;
+    let sections: Partial<Record<'identity' | 'appearance' | 'personality' | 'communication' | 'connection' | 'life' | 'routine', Record<string, unknown>>> = {};
+    if (active === 'appearance') sections = { appearance: { description: appearanceDescription } };
+    if (active === 'personality') sections = { identity, personality, communication };
+    if (active === 'life') sections = { life, routine: { blocks: routine, source: 'creator_studio_user' } };
+    if (active === 'connection') sections = { connection };
+    if (!Object.keys(sections).length) return draft;
     try {
-      if (active === 'appearance') await update('appearance', { description: appearanceDescription });
-      if (active === 'personality') { await update('identity', identity); await update('personality', personality); await update('communication', communication); }
-      if (active === 'life') { await update('life', life); await update('routine', { blocks: routine, source: 'creator_studio_user' }); }
-      if (active === 'connection') await update('connection', connection, relationshipGoal);
+      const result = await updateCreatorDraftSections({ draftId: draft.id, sections, expectedRevision: draft.revision, currentStep: targetStep, relationshipGoal: active === 'connection' ? relationshipGoal : undefined });
+      applyDraft(result.draft);
+      return result.draft;
     } catch (caught) {
-      // A section may involve several writes. Keep the editor values, but
-      // refresh the revision so a later retry does not conflict forever.
+      // Preserve the editor values while refreshing the revision for a retry.
       try {
-        const { draft: latest } = await getCreatorDraft(current.id);
+        const { draft: latest } = await getCreatorDraft(draft.id);
         setDraft((previous) => previous?.id === latest.id ? { ...previous, revision: latest.revision, assets: latest.assets, portraitUrl: latest.portraitUrl, appearance_config: latest.appearance_config } : previous);
       } catch { /* The original save error is more useful to show. */ }
       throw caught;
     }
-    applyDraft(current);
-    return current;
   };
 
   const sectionDirty = () => {

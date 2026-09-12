@@ -18,6 +18,7 @@ const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('get_draft'),draftId:z.string().uuid()}),
   z.object({action:z.literal('list_drafts')}),
   z.object({action:z.literal('update_draft_section'),draftId:z.string().uuid(),section:z.enum(['identity','appearance','personality','communication','connection','life','routine']),config:z.record(z.string(),z.unknown()),relationshipGoal:z.enum(['friendship','romance','either']).optional(),currentStep:z.enum(['identity','appearance','personality','life','connection','meeting','review']).optional(),expectedRevision:z.number().int().positive()}),
+  z.object({action:z.literal('update_draft_sections'),draftId:z.string().uuid(),sections:z.object({identity:z.record(z.string(),z.unknown()).optional(),appearance:z.record(z.string(),z.unknown()).optional(),personality:z.record(z.string(),z.unknown()).optional(),communication:z.record(z.string(),z.unknown()).optional(),connection:z.record(z.string(),z.unknown()).optional(),life:z.record(z.string(),z.unknown()).optional(),routine:z.record(z.string(),z.unknown()).optional()}).strict().refine((sections)=>Object.keys(sections).length>0),relationshipGoal:z.enum(['friendship','romance','either']).optional(),currentStep:z.enum(['identity','appearance','personality','life','connection','meeting','review']).optional(),expectedRevision:z.number().int().positive()}),
   z.object({action:z.literal('regenerate_draft_section'),draftId:z.string().uuid(),section:z.enum(['routine','first_meetings'])}),
   z.object({action:z.literal('generate_draft_appearance'),draftId:z.string().uuid(),requestId:z.string().uuid()}),
   z.object({action:z.literal('select_draft_appearance'),draftId:z.string().uuid(),assetId:z.string().uuid()}),
@@ -38,7 +39,7 @@ const schema=z.discriminatedUnion('action',[
 const provider=new ConfiguredCharacterCreationProvider(),moderation=new ConfiguredModerationProvider();
 
 serve(async(request,correlationId)=>{
-  const{user,db}=await authenticated(request);const input=await parseBody(request,schema);if(['create_draft','regenerate_draft_section','generate_draft_appearance','quick_create','generate_appearance','update_draft_section','complete_draft_appearance_upload','finalize_draft','update'].includes(input.action))await requireAiDataConsent(db,user.id);await enforceRateLimit(db,user.id,`together_creator_${input.action}`,['generate_appearance','generate_draft_appearance'].includes(input.action)?8:30,3600);const now=new Date().toISOString();
+  const{user,db}=await authenticated(request);const input=await parseBody(request,schema);if(['create_draft','regenerate_draft_section','generate_draft_appearance','quick_create','generate_appearance','update_draft_section','update_draft_sections','complete_draft_appearance_upload','finalize_draft','update'].includes(input.action))await requireAiDataConsent(db,user.id);await enforceRateLimit(db,user.id,`together_creator_${input.action}`,['generate_appearance','generate_draft_appearance'].includes(input.action)?8:30,3600);const now=new Date().toISOString();
   if(isCreatorStudioAction(input.action)){
     const data=await handleCreatorStudioAction({db,userId:user.id,action:input,now});
     return json({data,correlationId},input.action==='create_draft'?201:200,correlationId);
