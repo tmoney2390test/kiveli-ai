@@ -7,17 +7,18 @@ import { joinPathFor } from '../../lib/sessionRouting';
 import { PUBLIC_LANDING_COPY } from '../../lib/publicLanding';
 import { KivelleLogo } from '../KivelleLogo';
 import { publicLandingPrimaryHeroAsset } from './publicLandingAssets';
-import { useWebHydrated } from '../../hooks/useWebHydrated';
 
 const DESKTOP_BREAKPOINT = 900;
 
 export function PublicLandingPage() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const hydrated = useWebHydrated();
-  const desktop = hydrated && width >= DESKTOP_BREAKPOINT;
-  const compact = width < 380;
-  const shortViewport = !desktop && height < 700;
+  // On web, CSS owns the breakpoints from the first painted frame. Switching
+  // React Native styles after hydration moved the entire desktop layout.
+  const web = Platform.OS === 'web';
+  const desktop = !web && width >= DESKTOP_BREAKPOINT;
+  const compact = !web && width < 380;
+  const shortViewport = !web && !desktop && height < 700;
   const safeAreaReserve = Math.max(0, insets.bottom - 6);
   const mobileContentReserve = (shortViewport ? 312 : 362) + safeAreaReserve;
   const imageHeight = Math.max(120, Math.min(height * 0.54, height - mobileContentReserve));
@@ -25,9 +26,9 @@ export function PublicLandingPage() {
   const getStarted = () => router.push(joinPathFor() as never);
   const signIn = () => router.push('/auth?mode=signin');
 
-  return <View style={[styles.page, { height }]}>
-    <View style={[styles.layout, desktop ? styles.layoutDesktop : styles.layoutMobile]}>
-      <View style={[styles.visual, desktop ? styles.visualDesktop : { height: imageHeight }]}>
+  return <View id="kivelli-landing-page" style={[styles.page, !web && { height }]}>
+    <View id="kivelli-landing-layout" style={[styles.layout, desktop ? styles.layoutDesktop : styles.layoutMobile]}>
+      <View id="kivelli-landing-visual" style={[styles.visual, desktop ? styles.visualDesktop : !web && { height: imageHeight }]}>
         <Image
           accessible
           accessibilityLabel="Evelyn Harrow in her Vespormoor study"
@@ -40,18 +41,18 @@ export function PublicLandingPage() {
           transition={0}
         />
         <View pointerEvents="none" style={styles.visualShade} />
-        {Platform.OS === 'web'
-          ? <View pointerEvents="none" style={[styles.fade, desktop ? styles.fadeDesktopWeb : styles.fadeMobileWeb]} />
+        {web
+          ? <View id="kivelli-landing-fade" pointerEvents="none" style={[styles.fade, styles.fadeMobileWeb]} />
           : <View pointerEvents="none" style={[styles.fade, desktop ? styles.fadeDesktopNative : styles.fadeMobileNative]} />}
       </View>
 
-      <View style={[
+      <View id="kivelli-landing-content" style={[
         styles.content,
         desktop ? styles.contentDesktop : [styles.contentMobile, shortViewport && styles.contentMobileShort],
-        !desktop && { paddingBottom: Math.max(insets.bottom + (shortViewport ? 10 : 18), shortViewport ? 16 : 24) },
+        !web && !desktop && { paddingBottom: Math.max(insets.bottom + (shortViewport ? 10 : 18), shortViewport ? 16 : 24) },
       ]}>
         <View style={styles.copy}>
-          <Text accessibilityRole="header" style={[
+          <Text id="kivelli-landing-title" accessibilityRole="header" style={[
             styles.title,
             desktop ? styles.titleDesktop : compact ? styles.titleCompact : styles.titleMobile,
             shortViewport && styles.titleShort,
@@ -60,13 +61,14 @@ export function PublicLandingPage() {
           </Text>
         </View>
 
-        <View style={[styles.actions, shortViewport && styles.actionsShort]}>
+        <View id="kivelli-landing-actions" style={[styles.actions, shortViewport && styles.actionsShort]}>
           <LandingAction label="Get started" onPress={getStarted} primary />
           <LandingAction label="Sign in" onPress={signIn} />
         </View>
 
         <KivelleLogo
-          height={shortViewport ? 28 : desktop ? 40 : 34}
+          id="kivelli-landing-logo"
+          height={web ? 34 : shortViewport ? 28 : desktop ? 40 : 34}
           style={[styles.logo, desktop ? styles.logoDesktop : styles.logoMobile]}
         />
       </View>
@@ -94,14 +96,6 @@ const styles = StyleSheet.create({
   visualDesktop: { width: '58%', height: '100%' },
   visualShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(6,3,7,0.08)' },
   fade: { position: 'absolute' },
-  fadeDesktopWeb: {
-    top: 0,
-    right: 0,
-    bottom: 0,
-    width: 90,
-    backgroundColor: 'transparent',
-    backgroundImage: 'linear-gradient(90deg, rgba(5,4,10,0) 0%, #05040A 100%)',
-  } as never,
   fadeMobileWeb: {
     left: 0,
     right: 0,
