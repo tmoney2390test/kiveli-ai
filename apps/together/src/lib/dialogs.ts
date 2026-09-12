@@ -1,5 +1,13 @@
 import { Alert, Platform } from 'react-native';
 
+export function showActionAlert(title: string, message: string): void {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.alert(`${title}\n\n${message}`);
+    return;
+  }
+  Alert.alert(title, message);
+}
+
 export function confirmAction(options: { title: string; message: string; confirmLabel: string; destructive?: boolean; onConfirm: () => void | Promise<void> }): void {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     if (window.confirm(`${options.title}\n\n${options.message}`)) void options.onConfirm();

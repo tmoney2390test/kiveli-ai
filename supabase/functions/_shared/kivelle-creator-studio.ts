@@ -57,7 +57,7 @@ const routineSchema = z.object({ blocks: z.array(routineBlockSchema).min(1).max(
 
 type Db = any;
 type StudioAction = Record<string, any> & { action: string };
-const studioActions = new Set(['create_draft', 'get_draft', 'list_drafts', 'update_draft_section', 'regenerate_draft_section', 'generate_draft_appearance', 'select_draft_appearance', 'authorize_draft_appearance_upload', 'complete_draft_appearance_upload', 'cancel_draft_appearance_upload', 'select_first_meeting', 'finalize_draft', 'archive_draft']);
+const studioActions = new Set(['create_draft', 'get_draft', 'list_drafts', 'update_draft_section', 'update_draft_sections', 'regenerate_draft_section', 'generate_draft_appearance', 'select_draft_appearance', 'authorize_draft_appearance_upload', 'complete_draft_appearance_upload', 'cancel_draft_appearance_upload', 'select_first_meeting', 'finalize_draft', 'archive_draft']);
 const provider = new ConfiguredCharacterCreationProvider();
 const moderation = new ConfiguredModerationProvider();
 
@@ -84,6 +84,7 @@ export async function handleCreatorStudioAction(input: {
   }
   if (draft.status === 'finalized') return { draft: await serializeDraft(db, draft, true), finalized: true };
   if (action.action === 'update_draft_section') return updateDraftSection(db, userId, draft, action, now);
+  if (action.action === 'update_draft_sections') return updateDraftSections(db, userId, draft, action, now);
   if (action.action === 'regenerate_draft_section') return regenerateSection(db, userId, draft, action, now);
   if (action.action === 'generate_draft_appearance') return generateAppearance(db, userId, draft, action, now);
   if (action.action === 'select_draft_appearance') return selectAppearance(db, userId, draft, action, now);
@@ -157,41 +158,49 @@ async function createDraft(db: Db, userId: string, input: StudioAction, now: str
 }
 
 async function updateDraftSection(db: Db, userId: string, draft: Record<string, any>, input: StudioAction, now: string): Promise<Record<string, unknown>> {
+  return updateDraftSections(db, userId, draft, { ...input, sections: { [String(input.section ?? '')]: input.config } }, now);
+}
+
+async function updateDraftSections(db: Db, userId: string, draft: Record<string, any>, input: StudioAction, now: string): Promise<Record<string, unknown>> {
   const expected = Number(input.expectedRevision ?? draft.revision);
-  const section = String(input.section ?? '');
+  const sections = input.sections as Record<string, Record<string, unknown>>;
+  const names = Object.keys(sections ?? {});
+  if (!names.length) throw new AppError('VALIDATION_ERROR', 'Choose a creator section to save.', 400);
+  const patch: Record<string, unknown> = { updated_at: now, revision: expected + 1, status: 'editing' };
+  for (const section of names) {
   let column: string;
   let config: Record<string, unknown>;
+  const submitted = sections[section];
   if (section === 'identity') {
-    config = identitySchema.parse(input.config); column = 'identity_config';
+    config = identitySchema.parse(submitted); column = 'identity_config';
     if (Number(draft.metadata?.contextVersion ?? 0) >= 3 && !String(config.gender ?? '').trim()) throw new AppError('VALIDATION_ERROR', 'Gender is required for consistent chat and media generation.', 400);
   }
   else if (section === 'appearance') {
-    const appearance = appearanceSchema.parse(input.config);
+    const appearance = appearanceSchema.parse(submitted);
     if (Number(draft.metadata?.contextVersion ?? 0) >= 3 && appearance.description.length > 800) throw new AppError('VALIDATION_ERROR', 'Keep the appearance description to 800 characters.', 400);
     config = { ...draft.appearance_config, ...appearance }; column = 'appearance_config';
   }
-  else if (section === 'personality') { config = personalitySchema.parse(input.config); column = 'personality_config'; }
-  else if (section === 'communication') { config = communicationSchema.parse(input.config); column = 'communication_config'; }
-  else if (section === 'connection') { config = connectionSchema.parse(input.config); column = 'connection_config'; }
+  else if (section === 'personality') { config = personalitySchema.parse(submitted); column = 'personality_config'; }
+  else if (section === 'communication') { config = communicationSchema.parse(submitted); column = 'communication_config'; }
+  else if (section === 'connection') { config = connectionSchema.parse(submitted); column = 'connection_config'; }
   else if (section === 'life') {
-    config = lifeSchema.parse(input.config); column = 'life_config';
+    config = lifeSchema.parse(submitted); column = 'life_config';
     if (String(config.homeWorldId) !== String(draft.world_id)) throw new AppError('VALIDATION_ERROR', 'The home area must remain in the selected world.', 400);
     await validateLocationIds(db, draft.world_id, [String(config.homeLocationId), ...(config.workLocationId ? [String(config.workLocationId)] : [])]);
     const home = await db.from('together_locations').select('location_type').eq('id', config.homeLocationId).maybeSingle();
     if (!home.data || !['region', 'district', 'neighborhood'].includes(String(home.data.location_type))) throw new AppError('VALIDATION_ERROR', 'Choose a district or neighborhood as the home area.', 400);
   } else if (section === 'routine') {
-    config = routineSchema.parse(input.config); column = 'routine_config';
+    config = routineSchema.parse(submitted); column = 'routine_config';
     if (routineConflicts(config.blocks as CreatorRoutineBlock[]).length) throw new AppError('VALIDATION_ERROR', 'Routine blocks cannot overlap.', 400);
     await validateLocationIds(db, draft.world_id, (config.blocks as CreatorRoutineBlock[]).map((block) => block.locationId));
   } else throw new AppError('VALIDATION_ERROR', 'Choose a valid creator section.', 400);
   await moderateText(JSON.stringify(config));
-  const patch: Record<string, unknown> = { [column]: config, updated_at: now, revision: expected + 1, status: 'editing' };
-  if (['identity','personality','communication'].includes(section)) {
-    const identity=section==='identity'?config:draft.identity_config;
-    patch.metadata={...draft.metadata,characterPerformance:normalizeCharacterPerformance({...identity,personality:section==='personality'?config:draft.personality_config,communicationStyle:section==='communication'?config:draft.communication_config})};
+  patch[column] = config;
   }
+  if (names.some((section) => ['identity','personality','communication'].includes(section)))
+    patch.metadata={...draft.metadata,characterPerformance:normalizeCharacterPerformance({...((patch.identity_config ?? draft.identity_config) as Record<string,unknown>),personality:patch.personality_config ?? draft.personality_config,communicationStyle:patch.communication_config ?? draft.communication_config})};
   if (input.currentStep) patch.current_step = input.currentStep;
-  if (section === 'connection' && ['friendship', 'romance', 'either'].includes(String(input.relationshipGoal))) patch.relationship_goal = input.relationshipGoal;
+  if (names.includes('connection') && ['friendship', 'romance', 'either'].includes(String(input.relationshipGoal))) patch.relationship_goal = input.relationshipGoal;
   const updated = await db.from('together_creator_drafts').update(patch).eq('id', draft.id).eq('user_id', userId).eq('revision', expected).select('*').maybeSingle();
   if (updated.error || !updated.data) throw new AppError('CONFLICT', 'This draft changed somewhere else. Reload it and try again.', 409, true);
   const ready = await readiness(db, updated.data);
