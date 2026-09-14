@@ -1,3 +1,4 @@
+import { useTimelineReveal } from '../src/hooks/useTimelineReveal';
 import { useChatInboxNavigation } from '../src/hooks/useChatInboxNavigation';
 import { styles } from '../src/styles/groupChatStyles';
 import { CatalogImage as Image } from '../src/components/CatalogImage';
@@ -351,6 +352,7 @@ export default function GroupChatScreen() {
     loadedConversationId:loadedGroupRef.current,
     hasCompleteCachedTimeline:cachedRouteDetail?.complete===true,
   });
+  const timelineReveal=useTimelineReveal(params.id??'group',groupTimelineReady);
   const groupLoadAbortRef=useRef<AbortController|null>(null);
   const resumedSharePhoto=useRef<string|null>(null);
   const unreadWindow=useRef<{conversationId:string|null;lastReadAt:string|null;openedAt:string}>({conversationId:null,lastReadAt:null,openedAt:new Date().toISOString()});
@@ -472,10 +474,10 @@ export default function GroupChatScreen() {
   },[params.id,width]);
   const onMobileComposerFocus=useMobileChatKeyboardPin(width<720,pinLatestForMobileKeyboard);
   const refreshGroupDelta=useCallback(async function refreshGroupDeltaTask(){
-    const current=detailRef.current;if(!params.id||!current?.syncedAt)return;
+    const current=detailRef.current;if(!params.id||current?.conversation.id!==params.id||!current?.syncedAt)return;
     if(deltaRefreshRunning.current){deltaRefreshQueued.current=true;return;}
     deltaRefreshRunning.current=true;
-    try{const delta=await manageGroup<GroupDetailDelta>({action:"changes",conversationId:params.id,since:current.syncedAt});setDetail((value)=>value?applyGroupDetailDelta(value,delta):value);}
+    try{const delta=await manageGroup<GroupDetailDelta>({action:"changes",conversationId:params.id,since:current.syncedAt});setDetail((value)=>value&&value.conversation.id===params.id?applyGroupDetailDelta(value,delta):value);}
     catch{/* The next realtime event, poll, or focus load safely retries. */}
     finally{deltaRefreshRunning.current=false;if(deltaRefreshQueued.current){deltaRefreshQueued.current=false;void refreshGroupDeltaTask();}}
   },[params.id]);
@@ -552,7 +554,6 @@ export default function GroupChatScreen() {
   },[authLoading,groupCacheScope,groupLoadAttempt,params.id,prepareConversationScroll,session?.user.id]);
   useFocusEffect(useCallback(() => {
     if (!params.id || loadedGroupRef.current!==params.id) return;
-    prepareConversationScroll(params.id);
     void refreshGroupDelta();
     return () => {
       if (mediaRefreshTimer.current) clearTimeout(mediaRefreshTimer.current);
@@ -661,7 +662,7 @@ export default function GroupChatScreen() {
       (initialBottomPinConversation.current!==params.id&&!keepPinnedToBottom.current&&forcePinnedUntil.current<=Date.now())) return;
     const timer = setTimeout(() => {
       if (initialBottomPinConversation.current===params.id||keepPinnedToBottom.current||forcePinnedUntil.current>Date.now()) {
-        scrollRef.current?.scrollToEnd({ animated: true });
+        scrollRef.current?.scrollToEnd({ animated: initialBottomPinConversation.current!==params.id });
       }
     }, 30);
     return () => clearTimeout(timer);
@@ -1900,11 +1901,14 @@ export default function GroupChatScreen() {
           </ScrollView>
         </View>
       </Modal>
-      <FlatList
+      <View style={{flex:1}}><FlatList
+        key={groupTimelineReady?params.id:"loading"}
         ref={scrollRef}
         data={groupTimelineReady?groupTimeline:[]}
         keyExtractor={(item) => `${item.kind}:${item.value.id}`}
-        style={styles.timeline}
+        style={[styles.timeline,timelineReveal.hidden&&{opacity:0}]}
+        accessibilityElementsHidden={timelineReveal.hidden}
+        importantForAccessibility={timelineReveal.hidden?"no-hide-descendants":"auto"}
         contentContainerStyle={styles.timelineContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -1930,6 +1934,7 @@ export default function GroupChatScreen() {
           }
         }}
         onContentSizeChange={(_, height) => {
+          timelineReveal.settled();
           if (!params.id) return;
           const previousHeight = prependHeightRef.current;
           contentHeightRef.current = height;
@@ -2129,12 +2134,13 @@ export default function GroupChatScreen() {
         {typing.filter(person=>!replyDrafts.drafts.some(draft=>draft.characterInstanceId===person.id)).map((person) => <ChatTypingIndicator key={person.id} name={person.name}/>) }
         {replyPending&&!typing.length?<ChatTypingIndicator name={detail.conversation.title??"Group"}/>:null}
         </>:null}
-        initialNumToRender={18}
+        initialNumToRender={Math.min(groupTimeline.length,60)}
         maxToRenderPerBatch={12}
         updateCellsBatchingPeriod={24}
         windowSize={9}
         removeClippedSubviews={Platform.OS !== "web"}
       />
+      {timelineReveal.hidden?<View pointerEvents="none" style={[StyleSheet.absoluteFill,{alignItems:"center",justifyContent:"center"}]}><ActivityIndicator accessibilityLabel="Opening conversation" color={colors.rose}/></View>:null}</View>
       <JumpToLatestButton visible={showJumpToLatest} bottom={width<720?104:92} onPress={()=>{if(params.id)clearChatScrollPosition(params.id);settleGroupAtBottom(true);}}/>
       {error&&groupTimelineReady ? <View accessibilityLiveRegion="polite" style={styles.errorBanner}>
         <Text style={styles.error}>{chatErrorPresentation(error).message}</Text>

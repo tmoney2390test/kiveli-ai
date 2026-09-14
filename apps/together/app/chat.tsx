@@ -1,3 +1,5 @@
+import { useTimelineReveal } from '../src/hooks/useTimelineReveal';
+import { coalescedRefresh } from '../src/lib/coalescedRefresh';
 import { photoRequestRestriction, PHOTO_CONTENT_BLOCKED, PHOTO_REQUEST_BLOCKED_MESSAGE } from '@together/domain/src/photo-request-policy';
 import { useChatInboxNavigation } from '../src/hooks/useChatInboxNavigation';
 import { styles } from '../src/styles/chatStyles';
@@ -134,6 +136,7 @@ function ChatSession() {
   const photoSharingSubscriptionHref=subscriptionHref({intent:'photo_sharing',returnTo:`${subscriptionReturnTo}${subscriptionReturnTo.includes('?')?'&':'?'}sharePhoto=1`});
   const dailyMessageExhausted=isDailyMessageAllowanceExhausted(snapshot?.dailyMessageAllowance);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [verifiedHistoryId,setVerifiedHistoryId]=useState<string|null>(null);
   const [activeVoiceNoteId,setActiveVoiceNoteId]=useState<string|null>(null);
   const [voiceNotePrompt,setVoiceNotePrompt]=useState<VoiceNotePrompt|null>(null);
   const [voiceNotePromptBusy,setVoiceNotePromptBusy]=useState(false);
@@ -482,24 +485,25 @@ function ChatSession() {
     if(!conversation){setLoading(false);setLoadedConversationId(null);return;}
     const conversationId=conversation.id,userId=session?.user.id,cached=userId?readConversationMessagePage(userId,conversationId):null;
     let cancelled=false;
+    setVerifiedHistoryId(null);
     prepareConversationScroll(conversationId);
     setBlockedPhoto(null);setError('');setHistoryLoadFailed(false);setStream('');setSending(false);setFeedback(null);setMemorySavedNotice(null);setAwaitingPhotoOffer(false);setOptimisticPhotoRequest(null);optimisticPhotoRequestRef.current=null;queuedPhotoOfferDecisionRef.current=null;optimisticPhotoDecisionInFlight.current.clear();optimisticPhotoDecisionDispatched.current.clear();setPendingImage(null);setMediaOffers([]);setPendingSceneAction(null);setCharacterProposal(null);setPendingActionId(null);setFocusDismissed(false);setFocusPlanId(params.planId??null);setShowPlans(params.plan==='1');setShowPhotoRequests(false);setShowInteractions(false);setShowConversationMenu(false);setShowChatSettings(false);setPlanModal(null);setPlanActionBusyId(null);setPlanEndTarget(null);setSwitchPlanId(params.switchPlanId??null);setInput('');
     if(cached){setMessages(cached.messages);setHasMore(cached.hasMore);setLoadedConversationId(conversationId);setLoading(false);}
     else{setMessages([]);setHasMore(true);setLoadedConversationId(null);setLoading(true);}
     if(__DEV__&&process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE==='true'){setMessages([]);setHasMore(false);setLoadedConversationId(conversationId);setLoading(false);return;}
     void (async()=>{
-      let result:{messages:Message[];hasMore:boolean};try{result=userId?await loadConversationMessagePage(userId,conversationId,()=>manageConversation({action:'messages',conversationId,limit:PAGE_SIZE})):await manageConversation({action:'messages',conversationId,limit:PAGE_SIZE});}catch{if(cancelled)return;if(!cached){setError('Conversation history could not be loaded.');setHistoryLoadFailed(true);setLoadedConversationId(null);}setLoading(false);return;}
+      let result:{messages:Message[];hasMore:boolean};try{result=userId?await loadConversationMessagePage(userId,conversationId,()=>manageConversation({action:'messages',conversationId,limit:PAGE_SIZE}),{maxAgeMs:1_500}):await manageConversation({action:'messages',conversationId,limit:PAGE_SIZE});}catch{if(cancelled)return;if(!cached){setError('Conversation history could not be loaded.');setHistoryLoadFailed(true);setLoadedConversationId(null);}setLoading(false);return;}
       if(cancelled)return;
       const page=userId?result.messages:[...result.messages].reverse();
       if(cancelled)return;
       const hasOlder=result.hasMore;
       if(userId)writeConversationMessagePage(userId,conversationId,{messages:page,hasMore:hasOlder});
-      setMessages(page);setHasMore(hasOlder);setLoadedConversationId(conversationId);setLoading(false);
+      setVerifiedHistoryId(conversationId);setMessages((current)=>reconcileMessages(current,page));setHasMore(hasOlder);setLoadedConversationId(conversationId);setLoading(false);
       void markConversationRead(conversationId).catch(()=>undefined);
     })();
     return()=>{cancelled=true;};
   },[conversation?.id,historyLoadAttempt,markConversationRead,prepareConversationScroll,session?.user.id]);
-  useEffect(()=>{if(loadedConversationId&&session?.user.id)writeConversationMessagePage(session.user.id,loadedConversationId,{messages,hasMore});},[hasMore,loadedConversationId,messages,session?.user.id]);
+  useEffect(()=>{if(loadedConversationId&&session?.user.id)writeConversationMessagePage(session.user.id,loadedConversationId,{messages,hasMore},readConversationMessagePage(session.user.id,loadedConversationId)?.loadedAt??0);},[hasMore,loadedConversationId,messages,session?.user.id]);
   useEffect(()=>{
     if(!conversation||loadedConversationId!==conversation.id)return;
     const latest=[...messages].reverse().find((message)=>message.delivery_status!=='failed'&&Boolean(message.content.trim()));
@@ -526,7 +530,7 @@ function ChatSession() {
       // Merge its canonical page instead of replacing the live timeline, or a
       // fast reply can be erased by the older response and only reappear after
       // a manual refresh.
-      prepareConversationScroll(conversationId);setMessages((current)=>reconcileMessages(current,page));setHasMore(hasOlder);setLoadedConversationId(conversationId);setLoading(false);
+      setMessages((current)=>reconcileMessages(current,page));setHasMore(hasOlder);setLoadedConversationId(conversationId);setLoading(false);
       await markConversationRead(conversationId).catch(()=>undefined);
     })();
     return()=>{active=false;};
@@ -534,26 +538,22 @@ function ChatSession() {
   useFocusEffect(useCallback(()=>{
     const conversationId=conversation?.id;
     if(!conversationId||(__DEV__&&process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE==='true'))return;
-    let cancelled=false,timer:ReturnType<typeof setTimeout>|undefined;
-    const reconcilePersistedMessages=()=>{
-      if(timer)clearTimeout(timer);
-      timer=setTimeout(()=>void (async()=>{
-        try{
-          const result=await manageConversation<{messages:Message[];hasMore:boolean}>({action:'messages',conversationId,limit:PAGE_SIZE});
-          if(cancelled)return;
-          const page=[...result.messages].reverse();
-          setMessages((current)=>reconcileMessages(current,page));
-          if(session?.user.id)writeConversationMessagePage(session.user.id,conversationId,{messages:page,hasMore:result.hasMore});
-          await markConversationRead(conversationId).catch(()=>undefined);
-        }catch{/* The normal send response and focus refresh remain available. */}
-      })(),120);
-    };
+    let cancelled=false;
+    const refreshMessages=coalescedRefresh(async()=>{
+      const userId=session?.user.id;
+      const result=userId?await loadConversationMessagePage(userId,conversationId,()=>manageConversation({action:'messages',conversationId,limit:PAGE_SIZE}),{maxAgeMs:-1}):await manageConversation<{messages:Message[];hasMore:boolean}>({action:'messages',conversationId,limit:PAGE_SIZE});
+      if(cancelled)return;
+      const page=userId?result.messages:[...result.messages].reverse();
+      setMessages((current)=>reconcileMessages(current,page));
+      await markConversationRead(conversationId).catch(()=>undefined);
+    });
+    const reconcilePersistedMessages=refreshMessages.schedule;
     // Fetch through the conversation API rather than trusting the realtime
     // payload so web/native content projection and ownership checks still apply.
     const channel=supabase.channel(`kivelle-messages-${conversationId}-${realtimeScopeRef.current}`)
       .on('postgres_changes',{event:'*',schema:'public',table:'together_messages',filter:`conversation_id=eq.${conversationId}`},reconcilePersistedMessages)
       .subscribe();
-    return()=>{cancelled=true;if(timer)clearTimeout(timer);void supabase.removeChannel(channel);};
+    return()=>{cancelled=true;refreshMessages.dispose();void supabase.removeChannel(channel);};
   },[conversation?.id,markConversationRead,session?.user.id]));
   useEffect(()=>{
     const conversationId=conversation?.id;
@@ -601,7 +601,7 @@ function ChatSession() {
   useEffect(()=>{autoDialogueRequest.current?.abort();autoDialogueRequest.current=null;setAutoDialogue(null);setAutoDialogueBusy(false);setShowAutoDialogueOptions(false);},[conversation?.id]);
   useEffect(()=>()=>autoDialogueRequest.current?.abort(),[]);
   useEffect(()=>{
-    if(!conversation?.id||loadedConversationId!==conversation.id||replyPending||!online||connectionPhase!=='online')return;
+    if(!conversation?.id||loadedConversationId!==conversation.id||verifiedHistoryId!==conversation.id||replyPending||!online||connectionPhase!=='online')return;
     const unanswered=latestUnansweredDialogueRequest(messages),requestId=unanswered?.client_request_id;
     if(!unanswered||!requestId||staleDialogueReplayAttempts.current.has(requestId))return;
     const delay=staleDialogueReplayDelay(unanswered);
@@ -612,7 +612,7 @@ function ChatSession() {
       replayPersistedDialogueRef.current(unanswered);
     },delay+100);
     return()=>clearTimeout(timer);
-  },[connectionPhase,conversation?.id,loadedConversationId,messages,online,replyPending]);
+  },[connectionPhase,conversation?.id,loadedConversationId,verifiedHistoryId,messages,online,replyPending]);
   useEffect(()=>{
     let timer:ReturnType<typeof setTimeout>|undefined;
     const scheduleTick=()=>{timer=setTimeout(()=>{setPresenceNow(Date.now());scheduleTick();},nextChatPresenceTickDelay(Date.now()));};
@@ -1273,6 +1273,8 @@ function ChatSession() {
         {showPlans ? <ScrollView style={styles.planScroll} contentContainerStyle={styles.planScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <PlanSelection snapshot={snapshot} character={character} scopedLocationId={resolveScopedLocation(snapshot,params.location,params.world,pendingActions.find((item)=>item.id===pendingActionId),params.repeatPlanId)} currentLocationId={chatContext.scene.locationId} initialActivityKey={params.activity} repeatPlanId={params.repeatPlanId} proposal={pendingActions.find((item)=>item.id===pendingActionId)} initialTimingChoice={switchPlanId?'now':initialPlanTimingChoice??undefined} mode={switchPlanId?'switch':'create'} currentPlan={switchPlanId?(snapshot.sharedPlans??[]).find((item)=>item.id===switchPlanId)??null:null} interests={[...(snapshot.profile?.interests??[]),...snapshot.memories.filter((item)=>item.character_instance_id===character.id&&item.memory_type==='preference').map((item)=>item.canonical_text)]} busy={planning} error={error} onPlan={(option,timing) => void plan(option,timing)} onClose={() => {setShowPlans(false);setPendingActionId(null);setSwitchPlanId(null);setInitialPlanTimingChoice(null);router.setParams({plan:undefined,location:undefined,world:undefined,activity:undefined,switchPlanId:undefined});}} />
         </ScrollView> : <VirtualizedConversationList
+          timelineKey={conversation.id}
+          ready={conversationReady}
           listRef={scroll}
           latestScrollerRef={latestConversationScroller}
           style={styles.messageScroll}
@@ -1347,27 +1349,36 @@ function ChatSession() {
 
 type VirtualizedConversationListProps=Omit<FlatListProps<ReactElement>,'data'|'renderItem'|'keyExtractor'>&{
   children:ReactNode;
+  timelineKey:string;
+  ready:boolean;
   listRef:RefObject<FlatList<ReactElement>|null>;
   latestScrollerRef:RefObject<((animated:boolean)=>void)|null>;
 };
 
-function VirtualizedConversationList({children,listRef,latestScrollerRef,...props}:VirtualizedConversationListProps){
+function VirtualizedConversationList({children,listRef,latestScrollerRef,timelineKey,ready,...props}:VirtualizedConversationListProps){
   const rows=Children.toArray(children).filter(isValidElement);
+  const reveal=useTimelineReveal(timelineKey,ready);
   latestScrollerRef.current=(animated:boolean)=>{
     listRef.current?.scrollToEnd({animated});
   };
-  return <FlatList
+  return <View style={{flex:1}}><FlatList
     {...props}
+    key={ready?timelineKey:'loading'}
     ref={listRef}
+    style={[props.style,reveal.hidden&&{opacity:0}]}
+    accessibilityElementsHidden={reveal.hidden}
+    importantForAccessibility={reveal.hidden?'no-hide-descendants':'auto'}
+    onContentSizeChange={(width,height)=>{props.onContentSizeChange?.(width,height);reveal.settled();}}
+    onLayout={(event)=>{props.onLayout?.(event);reveal.settled();}}
     data={rows}
     keyExtractor={(item,index)=>String(item.key??`timeline-${index}`)}
     renderItem={({item})=>item}
-    initialNumToRender={18}
+    initialNumToRender={Math.min(rows.length,60)}
     maxToRenderPerBatch={12}
     updateCellsBatchingPeriod={24}
     windowSize={9}
     removeClippedSubviews={Platform.OS!=='web'}
-  />;
+  />{reveal.hidden?<View pointerEvents="none" style={[StyleSheet.absoluteFill,{alignItems:"center",justifyContent:"center"}]}><ActivityIndicator accessibilityLabel="Opening conversation" color={colors.rose}/></View>:null}</View>;
 }
 
 function ChatAmbientGlow({compact}:{compact:boolean}) {

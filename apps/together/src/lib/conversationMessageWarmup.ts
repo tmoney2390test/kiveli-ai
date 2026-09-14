@@ -1,3 +1,4 @@
+import { reconcileMessages } from './messageReconciliation';
 import type { Message } from '../types';
 
 export type ConversationMessagePage = { messages: Message[]; hasMore: boolean };
@@ -66,7 +67,7 @@ export function loadConversationMessagePage(
   if (existing) return existing;
   const request = loader()
     .then((result) => writeConversationMessagePage(userId, conversationId, {
-      messages: [...result.messages].reverse(),
+      messages: reconcileMessages(readConversationMessagePage(userId,conversationId)?.messages ?? [], [...result.messages].reverse()),
       hasMore: result.hasMore,
     }))
     .finally(() => inFlightByScope.delete(scope));

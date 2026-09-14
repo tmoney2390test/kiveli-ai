@@ -70,3 +70,14 @@ describe("message reconciliation", () => {
       .toEqual(["server-1", "assistant-fast"]);
   });
 });
+
+
+it('preserves row and timeline identity for an unchanged history refresh', () => {
+  const original=message({id:'stable',role:'assistant',provider_metadata:{source:'chat'}});
+  const current=[original];
+  const incoming=JSON.parse(JSON.stringify(current));
+  expect(reconcileMessages(current,incoming)).toBe(current);
+  const edited={...incoming[0],content:'Updated reply'};
+  expect(reconcileMessages(current,[edited])).not.toBe(current);
+  expect(reconcileMessages(current,[edited])[0]?.content).toBe('Updated reply');
+});
