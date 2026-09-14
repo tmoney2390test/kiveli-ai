@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { OnboardingProgress } from '../src/components/OnboardingProgress';
+import { useRef, useState } from 'react';
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { ChevronLeft, Check, LogOut } from 'lucide-react-native';
 import { router } from 'expo-router';
 import type { AccountGender } from '@together/domain/src/account-onboarding';
@@ -29,6 +30,7 @@ export default function AgeConfirmation() {
   const [displayName,setDisplayName]=useState('');
   const [dateOfBirth,setDateOfBirth]=useState('');
   const [gender,setGender]=useState<AccountGender|null>(null);
+  const submitting=useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const normalizedName=normalizePersonaDisplayName(displayName);
@@ -42,13 +44,15 @@ export default function AgeConfirmation() {
   const advance=()=>{
     if(!normalizedName){setError('Enter the name you want Kivellians to use.');return;}
     setError('');
-    setStep(2);
+    Keyboard.dismiss();setStep(2);
   };
 
   const continueToWorlds = async () => {
+    if(submitting.current)return;
+    if(!normalizedName){setError("Enter your Persona name.");setStep(1);return;}
     if (!validBirthdateEntry(dateOfBirth)) {setError('Choose your birthdate.');return;}
     if (!gender) {setError('Choose your gender.');return;}
-    setBusy(true);
+    submitting.current=true;setBusy(true);
     setError('');
     try {
       const snapshot = await confirmAdultAge({dateOfBirth,displayName:normalizedName,gender});
@@ -57,19 +61,17 @@ export default function AgeConfirmation() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Kivelle could not finish your setup.');
     } finally {
-      setBusy(false);
+      submitting.current=false;setBusy(false);
     }
   };
 
-  return <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS==='ios'?'padding':undefined}>
-    <Screen scroll={false} contentStyle={[styles.screen,compact&&styles.screenCompact]}>
+  return <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS==='ios'?'padding':Platform.OS==='android'?'height':undefined}>
+    <Screen contentStyle={[styles.screen,compact&&styles.screenCompact]}>
       <View style={styles.header}>
         <Pressable accessibilityRole="button" accessibilityLabel={step===1?'Sign out':'Go back'} disabled={busy} onPress={()=>step===1?void leave():(setError(''),setStep(1))} style={({pressed})=>[styles.back,pressed&&styles.pressed]}>
           {step===1?<LogOut size={21} color={colors.text}/>:<ChevronLeft size={24} color={colors.text}/>}
         </Pressable>
-        <View accessibilityLabel={`Step ${step} of 2`} style={styles.progress}>
-          <View style={styles.progressActive}/><View style={[styles.progressPart,step===2&&styles.progressActive]}/>
-        </View>
+        <OnboardingProgress step={step}/>
       </View>
 
       {step===1?<View style={styles.content}>
@@ -126,9 +128,6 @@ const styles = StyleSheet.create({
   screenCompact:{paddingTop:16,paddingBottom:18,gap:18},
   header:{minHeight:52,flexDirection:'row',alignItems:'center',gap:18},
   back:{width:48,height:48,borderRadius:24,alignItems:'center',justifyContent:'center',backgroundColor:colors.elevated,borderWidth:1,borderColor:colors.border},
-  progress:{flex:1,flexDirection:'row',gap:9},
-  progressPart:{flex:1,height:5,borderRadius:3,backgroundColor:colors.borderBright},
-  progressActive:{flex:1,height:5,borderRadius:3,backgroundColor:colors.rose},
   content:{flex:1,gap:28,paddingTop:22},
   copy:{gap:8},section:{gap:12},
   title:{maxWidth:520,color:colors.text,fontSize:42,lineHeight:48,fontWeight:'800',letterSpacing:-1.2},

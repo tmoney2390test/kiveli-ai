@@ -1,9 +1,12 @@
+import { onboardingMembershipReturnTo } from '../src/lib/onboardingNavigation';
+import { resolveKivelleAccountStage } from '../src/lib/authRouting';
+import { useTogether } from '../src/store/useTogether';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, AppState, Linking, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, AppState, BackHandler, Linking, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { ScrollView as ScrollViewType } from 'react-native';
 import { subscriptionManagementDestination } from '../src/lib/subscriptionManagement';
 import { Image } from 'expo-image';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Brain, Camera, Check, ChevronDown, ChevronRight, CircleAlert, ExternalLink, Gift, Globe2, Heart, History, LockKeyhole, RefreshCw, ShieldCheck, Sparkles, UserRound, Zap } from 'lucide-react-native';
 import { GradientButton, KivelleCreditIcon, LoadingSkeleton, Screen } from '../src/components';
@@ -41,7 +44,14 @@ export default function Subscription() {
   const [compareY, setCompareY] = useState(0);
   const intent = normalizeSubscriptionIntent(params.intent, params.source);
   const intro = subscriptionIntentPresentation(intent);
-  const returnTo = safeSubscriptionReturnTo(params.returnTo);
+  const profile=useTogether((store)=>store.snapshot?.profile);
+  const onboarding=Boolean(profile&&resolveKivelleAccountStage(profile)==='onboarding');
+  const returnTo = onboarding ? onboardingMembershipReturnTo(params.returnTo) : safeSubscriptionReturnTo(params.returnTo);
+  useFocusEffect(useCallback(()=>{
+    if(!onboarding||Platform.OS!=='android')return;
+    const listener=BackHandler.addEventListener('hardwareBackPress',()=>{router.replace(returnTo as never);return true;});
+    return()=>listener.remove();
+  },[onboarding,returnTo]));
   const [billingInterval, setBillingInterval] = useState<BillingInterval>('annual');
   const [compareOpen, setCompareOpen] = useState(false);
   const [busy, setBusy] = useState('');

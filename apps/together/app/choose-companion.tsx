@@ -1,8 +1,10 @@
+import { OnboardingProgress } from '../src/components/OnboardingProgress';
+import { companionOnboardingHref } from '../src/lib/onboardingNavigation';
 import { isComingSoonWorld } from '../src/lib/comingSoonWorlds';
 import { CatalogImage as Image } from '../src/components/CatalogImage';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ScrollView } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Redirect, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Check, ChevronRight, LockKeyhole, Sparkles } from 'lucide-react-native';
 import { isSubscriberEarlyAccessWorld } from '@together/domain/src/world-access';
 import { SpiceBadge } from '../src/components/SpiceBadge';
@@ -29,22 +31,22 @@ const nav = {
 };
 
 export default function ChooseCompanion() {
-  const params = useLocalSearchParams<{ world?: string }>();
+  const params = useLocalSearchParams<{ world?: string; step?: string; companion?: string }>();
   const { width } = useWindowDimensions();
   const desktop = width >= 760;
   const screenRef = useRef<ScrollView | null>(null);
   const { snapshot, setSnapshot, setBrowsedWorldId, refresh, loading } = useTogether();
-  const [step, setStep] = useState<OnboardingStep>('world');
+  const catalogError=useTogether((state)=>state.error);
+  const [step, setStep] = useState<OnboardingStep>(params.step==='character'?'character':'world');
   const [selectedWorldId, setSelectedWorldId] = useState('');
-  const [selectedCompanionId, setSelectedCompanionId] = useState('');
+  const [selectedCompanionId, setSelectedCompanionId] = useState(params.companion??'');
   const [visibleCount, setVisibleCount] = useState(12);
   const [gender, setGender] = useState<FeaturedGenderFilter>('any');
+  const starting=useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (!snapshot && !loading) void refresh();
-  }, [loading, refresh, snapshot]);
+  useFocusEffect(useCallback(()=>{void refresh({force:true});},[refresh]));
 
   const worlds = useMemo(() => snapshot ? onboardingWorlds(snapshot) : [], [snapshot]);
   const recommendedWorld = useMemo(() => snapshot ? onboardingRecommendedWorld(snapshot, worlds) : null, [snapshot, worlds]);
@@ -71,14 +73,18 @@ export default function ChooseCompanion() {
 
   useEffect(() => {
     setVisibleCount(12);
-    setSelectedCompanionId('');
   }, [gender, selectedWorldId]);
 
-  if (!snapshot) return <LoadingSkeleton label="Opening Kivelle…" />;
+  useEffect(() => {
+    if (params.companion && worldCompanions.some((person) => person.id === params.companion)) {
+      setSelectedCompanionId(params.companion);
+    }
+  }, [params.companion, worldCompanions]);
+
+  if (!snapshot) return catalogError?<View style={styles.root}><Screen><Text accessibilityRole="alert" style={styles.error}>Your setup could not be loaded.</Text><OutlinedAction label="Try again" disabled={loading} onPress={()=>void refresh({force:true})}/></Screen></View>:<LoadingSkeleton label="Opening Kivelle…" />;
 
   if (resolveKivelleAccountStage(snapshot.profile) === 'age_confirmation') {
-    router.replace('/age-confirmation' as never);
-    return <LoadingSkeleton label="Opening age confirmation…" />;
+    return <Redirect href={'/age-confirmation' as never} />;
   }
 
   const chooseWorld = (world: World) => {
@@ -86,16 +92,17 @@ export default function ChooseCompanion() {
     setSelectedWorldId(world.id);
     setSelectedCompanionId('');
     setError('');
-    nav.setParams({ world: world.slug });
+    nav.setParams({ world: world.slug, step:'world', companion:'' });
   };
 
   const continueToCharacters = () => {
-    if (!selectedWorld) return;
+    if (!selectedWorld || busy || loading || isComingSoonWorld(selectedWorld)) return;
     if (!selectedWorldAccessible) {
-      router.push(subscriptionHref({ intent: 'worlds', returnTo: `/choose-companion?world=${encodeURIComponent(selectedWorld.slug)}` }) as never);
+      router.push(subscriptionHref({ intent: 'worlds', returnTo: companionOnboardingHref(selectedWorld.slug,step,selectedCompanionId) }) as never);
       return;
     }
     setStep('character');
+    nav.setParams({world:selectedWorld.slug,step:'character',companion:''});
     setGender('any');
     setSelectedCompanionId('');
     setError('');
@@ -105,21 +112,23 @@ export default function ChooseCompanion() {
   const returnToWorlds = () => {
     if (busy) return;
     setStep('world');
+    nav.setParams({step:'world',companion:''});
     setSelectedCompanionId('');
     setError('');
     requestAnimationFrame(() => screenRef.current?.scrollTo({ y: 0, animated: false }));
   };
 
   const startMeeting = async () => {
-    if (!selectedWorld || !selectedCompanion || busy) {
+    if (starting.current)return;
+    if (!selectedWorld || !selectedCompanion || busy || loading) {
       if (!selectedCompanion) setError('Choose someone to begin your first conversation.');
       return;
     }
     if (!selectedWorldAccessible) {
-      router.push(subscriptionHref({ intent: 'worlds', returnTo: `/choose-companion?world=${encodeURIComponent(selectedWorld.slug)}` }) as never);
+      router.push(subscriptionHref({ intent: 'worlds', returnTo: companionOnboardingHref(selectedWorld.slug, step, selectedCompanionId) }) as never);
       return;
     }
-    setBusy(true);
+    starting.current=true;setBusy(true);
     setError('');
     try {
       const next = await bootstrap(quickStartProfile(selectedCompanion.id, selectedWorld.id, { ageConfirmed: true }));
@@ -129,13 +138,14 @@ export default function ChooseCompanion() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Your first conversation could not be prepared.');
     } finally {
-      setBusy(false);
+      starting.current=false;setBusy(false);
     }
   };
 
   return <View style={styles.root}>
     <Screen scrollRef={screenRef} contentStyle={[styles.screen, desktop && styles.screenDesktop] as never}>
-      <OnboardingHeader step={step} onBack={returnToWorlds} />
+      <OnboardingHeader step={step} onBack={returnToWorlds} busy={busy} />
+      {catalogError ? <View><Text accessibilityRole="alert" style={styles.error}>Your account could not be refreshed. Check your connection and try again.</Text><OutlinedAction label="Retry account refresh" disabled={loading} onPress={() => void refresh({ force: true })} /></View> : null}
 
       {step === 'world' ? <>
         <View style={styles.heroCopy}>
@@ -151,8 +161,8 @@ export default function ChooseCompanion() {
         </View> : <FrostedSurface intensity={70} style={styles.emptyState}><Sparkles size={20} color={colors.violet} /><Text style={styles.emptyTitle}>Worlds are being prepared</Text></FrostedSurface>}
 
         <OutlinedAction
-          label={selectedWorld ? selectedWorldAccessible ? `Continue to ${selectedWorld.name}` : `Unlock early access to ${selectedWorld.name}` : 'Choose a world'}
-          disabled={!selectedWorld || busy}
+          label={loading ? 'Checking access…' : selectedWorld ? selectedWorldAccessible ? `Continue to ${selectedWorld.name}` : `Unlock early access to ${selectedWorld.name}` : 'Choose a world'}
+          disabled={!selectedWorld || busy || loading}
           onPress={continueToCharacters}
         />
         <Text style={styles.reassurance}>You can explore other worlds anytime.</Text>
@@ -173,14 +183,14 @@ export default function ChooseCompanion() {
         </View>
 
         {visibleCompanions.length ? <View style={styles.peopleGrid} accessibilityRole="radiogroup" accessibilityLabel={`Characters in ${selectedWorld?.name ?? 'this world'}`}>
-          {visibleCompanions.map((person) => <CompanionCard key={person.id} person={person} desktop={desktop} selected={person.id === selectedCompanionId} busy={busy && person.id === selectedCompanionId} onPress={() => { if (!busy) { setSelectedCompanionId(person.id); setError(''); } }} />)}
+          {visibleCompanions.map((person) => <CompanionCard key={person.id} person={person} desktop={desktop} selected={person.id === selectedCompanionId} busy={busy && person.id === selectedCompanionId} onPress={() => { if (!busy) { setSelectedCompanionId(person.id); nav.setParams({step:'character',companion:person.id}); setError(''); } }} />)}
         </View> : <FrostedSurface intensity={70} style={styles.emptyState}><Sparkles size={20} color={colors.violet} /><Text style={styles.emptyTitle}>No characters match this filter</Text><Text style={styles.emptyBody}>Choose All or try another gender.</Text></FrostedSurface>}
 
         {visibleCount < filteredCompanions.length ? <Pressable accessibilityRole="button" onPress={() => setVisibleCount((count) => count + 12)} style={styles.showMore}><Text style={styles.showMoreText}>Show more</Text><ChevronRight size={15} color={colors.rose} /></Pressable> : null}
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         <OutlinedAction
-          label={busy && selectedCompanion ? `Opening chat with ${selectedCompanion.name}…` : selectedCompanion ? `Start a conversation with ${firstName(selectedCompanion.name)}` : 'Choose a character'}
-          disabled={!selectedCompanion || busy}
+          label={loading ? 'Checking access…' : busy && selectedCompanion ? `Opening chat with ${selectedCompanion.name}…` : selectedCompanion ? `Start a conversation with ${firstName(selectedCompanion.name)}` : 'Choose a character'}
+          disabled={!selectedCompanion || busy || loading}
           onPress={() => void startMeeting()}
         />
       </>}
@@ -188,13 +198,10 @@ export default function ChooseCompanion() {
   </View>;
 }
 
-function OnboardingHeader({ step, onBack }: { step: OnboardingStep; onBack: () => void }) {
+function OnboardingHeader({ step, onBack, busy }: { step: OnboardingStep; onBack: () => void; busy:boolean }) {
   return <View style={styles.header}>
-    <View style={styles.headerSide}>{step === 'character' ? <Pressable accessibilityRole="button" accessibilityLabel="Back to world selection" hitSlop={10} onPress={onBack} style={styles.back}><ArrowLeft size={21} color={colors.text} /></Pressable> : <KivelleLogo height={34} />}</View>
-    <View accessibilityLabel={`Step ${step === 'world' ? '1' : '2'} of 2`} style={styles.progress}>
-      <View style={styles.progressActive} />
-      <View style={step === 'character' ? styles.progressActive : styles.progressInactive} />
-    </View>
+    <View style={styles.headerSide}>{step === 'character' ? <Pressable accessibilityRole="button" accessibilityLabel="Back to world selection" disabled={busy} hitSlop={10} onPress={onBack} style={styles.back}><ArrowLeft size={21} color={colors.text} /></Pressable> : <KivelleLogo height={34} />}</View>
+    <OnboardingProgress step={step==='world'?3:4} />
   </View>;
 }
 
@@ -260,9 +267,6 @@ const styles = StyleSheet.create({
   header: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerSide: { width: 78, alignItems: 'flex-start' },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: 'rgba(255,255,255,.045)', borderWidth: 1, borderColor: 'rgba(255,255,255,.08)' },
-  progress: { width: 78, flexDirection: 'row', justifyContent: 'flex-end', gap: 7 },
-  progressActive: { width: 22, height: 5, borderRadius: 3, backgroundColor: '#B65CDB' },
-  progressInactive: { width: 22, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,.10)' },
   heroCopy: { alignItems: 'center', gap: 5, paddingHorizontal: 4 },
   title: { color: '#FFF9F5', fontFamily: typography.display, fontSize: 40, lineHeight: 44, fontWeight: '500', letterSpacing: -1.1, textAlign: 'center' },
   titleDesktop: { fontSize: 50, lineHeight: 54 },
