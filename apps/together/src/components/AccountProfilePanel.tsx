@@ -9,6 +9,7 @@ import {useTogether} from '../store/useTogether';
 import type {GeneratedMedia, Snapshot} from '../types';
 import {colors} from '../theme';
 import {resolveCharacterPortraitSource} from './ui';
+import {mergeProfileGalleryMedia} from '../lib/profileGallery';
 
 type Tab = 'companion' | 'image' | 'video';
 type Tile = ProfileHighlight & {title: string; subtitle: string; source?: ImageSource | number; route: string; media?: GeneratedMedia};
@@ -28,22 +29,34 @@ export function AccountProfilePanel({snapshot, avatar, avatarPath, name, busy, n
   const [media, setMedia] = useState<GeneratedMedia[]>([]);
   const [loading, setLoading] = useState(true), loadingRef = useRef(false);
   const [libraryError, setLibraryError] = useState('');
+  const [moreError, setMoreError] = useState('');
   const [hasMore, setHasMore] = useState(false), [before, setBefore] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [avatarFailed, setAvatarFailed] = useState(false);
   const mounted = useRef(true);
   const avatarSource = privateStoredImageSource(avatar, avatarPath);
   const small = panelWidth < 520;
 
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => { setAvatarFailed(false); }, [avatar, avatarPath]);
+  useEffect(() => {
+    if (!savingRef.current) setPins(profileHighlights(snapshot.activeContinuity?.metadata.profileHighlights));
+  }, [lifeId, snapshot.activeContinuity?.metadata.profileHighlights]);
   useEffect(() => {
     let current = true;
-    setLoading(true); setLibraryError('');
+    setLoading(true); setLibraryError(''); setMoreError('');
     const ids = pins.filter(pin => pin.kind !== 'companion').map(pin => pin.id);
-    Promise.all([loadMediaLibrary({limit:60}), ids.length ? loadMediaLibrary({ids}) : Promise.resolve(null)])
+    Promise.allSettled([loadMediaLibrary({limit:60}), ids.length ? loadMediaLibrary({ids}) : Promise.resolve(null)])
       .then(([library, highlighted]) => {
         if (!current) return;
-        setMedia(mergeMedia(library.media, highlighted?.media ?? []));
-        setHasMore(library.hasMore); setBefore(library.nextBefore);
+        if (library.status === 'rejected') {
+          setLibraryError('Your media could not be loaded. Try again.');
+          return;
+        }
+        const pinnedMedia = highlighted.status === 'fulfilled' ? highlighted.value?.media ?? [] : [];
+        setMedia(mergeProfileGalleryMedia(library.value.media, pinnedMedia));
+        setHasMore(library.value.hasMore); setBefore(library.value.nextBefore);
+        if (highlighted.status === 'rejected') setLibraryError('Some older highlights could not be loaded. Try again.');
       }).catch(() => { if (current) setLibraryError('Your media could not be loaded. Try again.'); })
       .finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
@@ -53,12 +66,12 @@ export function AccountProfilePanel({snapshot, avatar, avatarPath, name, busy, n
 
   const loadMore = async () => {
     if (loadingRef.current || loading || !before) return;
-    loadingRef.current = true; setLoading(true); setLibraryError('');
+    loadingRef.current = true; setLoading(true); setMoreError('');
     try {
       const result = await loadMediaLibrary({before, limit:60});
       if (!mounted.current) return;
-      setMedia(current => mergeMedia(current, result.media)); setHasMore(result.hasMore); setBefore(result.nextBefore);
-    } catch { if (mounted.current) setLibraryError('More media could not be loaded. Try again.'); }
+      setMedia(current => mergeProfileGalleryMedia(current, result.media)); setHasMore(result.hasMore); setBefore(result.nextBefore);
+    } catch { if (mounted.current) setMoreError('More media could not be loaded. Try again.'); }
     finally { loadingRef.current = false; if (mounted.current) setLoading(false); }
   };
 
@@ -90,21 +103,27 @@ export function AccountProfilePanel({snapshot, avatar, avatarPath, name, busy, n
   const all = [...companions, ...mediaTiles], tiles = all.filter(item => item.kind === tab);
   const open = (item:Tile) => {
     if (item.media) {
-      // The full-screen viewer can open an older paginated item immediately.
+      // Give the full-screen viewer the loaded gallery in one state update so
+      // an older paginated item opens immediately and carousel arrows work.
       const store = useTogether.getState();
-      if (store.snapshot?.activeContinuity?.id !== lifeId) return;
-      store.upsertMedia(item.media);
+      const currentSnapshot = store.snapshot;
+      if (!currentSnapshot || currentSnapshot.activeContinuity?.id !== lifeId) return;
+      store.setCoreState({generatedMedia:mergeProfileGalleryMedia(currentSnapshot.generatedMedia ?? [], media)});
     }
     onRoute(item.route);
   };
   const isPinned = (item:ProfileHighlight) => pins.some(pin => pin.kind === item.kind && pin.id === item.id);
   const columns = panelWidth >= 900 ? 4 : panelWidth >= 570 ? 3 : 2;
   const tileWidth = Math.max(100, Math.floor((panelWidth - (columns - 1) * 12) / columns));
+  const mediaLabel = tab === 'image' ? 'images' : 'videos';
+  const emptyTitle = tab === 'companion' ? 'Your next connection starts here' : hasMore ? `No ${mediaLabel} in recent media` : `No ${mediaLabel} yet`;
+  const emptyBody = tab === 'companion' ? 'Meet someone and they’ll appear in your profile.' : hasMore ? 'Older items may be available. Load more media below.' : tab === 'image' ? 'Photos you create in chat will appear here.' : 'Videos you create with your companions will appear here.';
+  const emptyAction = tab === 'companion' ? {label:'Explore companions', route:'/explore'} : hasMore ? null : {label:'Open conversations', route:'/chat-tab'};
   return <View style={s.panel} onLayout={event => setPanelWidth(event.nativeEvent.layout.width)}>
     <View style={[s.hero, small && s.heroSmall]}>
       <View pointerEvents="none" style={[StyleSheet.absoluteFill,s.heroGlow]}/>
       <Pressable accessibilityRole="button" accessibilityLabel="Change account photo" disabled={busy} onPress={onAvatar} style={[s.avatar,small && s.avatarSmall]}>
-        {avatarSource ? <Image source={avatarSource} style={StyleSheet.absoluteFill} contentFit="cover" recyclingKey={avatarPath ?? 'account'}/> : <Text style={[s.initial,small && {fontSize:42}]}>{(name || 'Y')[0]?.toUpperCase()}</Text>}
+        {avatarSource && !avatarFailed ? <Image source={avatarSource} style={StyleSheet.absoluteFill} contentFit="cover" recyclingKey={avatarPath ?? 'account'} onError={() => setAvatarFailed(true)}/> : <Text style={[s.initial,small && {fontSize:42}]}>{(name || 'Y')[0]?.toUpperCase()}</Text>}
         <View style={s.camera}>{busy ? <ActivityIndicator size="small" color="#fff"/> : <Camera size={16} color="#fff"/>}</View>
       </Pressable>
       <View style={s.heroCopy}>
@@ -129,17 +148,19 @@ export function AccountProfilePanel({snapshot, avatar, avatarPath, name, busy, n
     </ScrollView> : <View style={s.emptyHighlights}><Sparkles size={27} color="#A37EBC"/><Text style={s.emptyTitle}>Keep your favorites close</Text><Text style={s.emptyBody}>Pin up to 12 companions, images, or videos using the pin on any card below.</Text></View>}
     <View role={'tablist' as never} aria-label="Profile content" style={s.tabs}>{tabs.map(({id,label,Icon}) => <Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:tab===id}} aria-selected={tab===id} onPress={() => setTab(id)} style={[s.tab,tab===id && s.activeTab]}><Icon size={17} color={tab===id ? '#F9F4FC' : colors.muted}/><Text style={[s.tabText,tab===id && s.activeTabText]}>{label}</Text></Pressable>)}</View>
     {libraryError ? <View style={s.libraryNotice}><Text accessibilityRole="alert" style={s.error}>{libraryError}</Text><Action label="Retry media" onPress={() => setReload(value => value + 1)}/></View> : null}
-    {tiles.length ? <View style={s.grid}>{tiles.map(item => <ContentTile key={`${item.kind}:${item.id}`} item={item} width={tileWidth} pinned={isPinned(item)} busy={saving} onPin={() => void togglePin(item)} onOpen={() => open(item)}/>)}</View> : loading && tab !== 'companion' ? <View style={s.empty}><ActivityIndicator color="#CBA6EF"/><Text style={s.muted}>Loading your media…</Text></View> : <View style={s.empty}><ImageIcon size={36} color={colors.muted}/><Text style={s.emptyTitle}>{tab==='companion' ? 'Your next connection starts here' : `No ${tab==='image' ? 'images' : 'videos'} yet`}</Text><Text style={s.emptyBody}>{tab==='companion' ? 'Meet someone and they’ll appear in your profile.' : tab==='image' ? 'Photos you create in chat will appear here.' : 'Videos you create with your companions will appear here.'}</Text><Action label={tab==='companion' ? 'Explore companions' : 'Open conversations'} onPress={() => onRoute(tab==='companion' ? '/explore' : '/chat-tab')}/></View>}
-    {tab !== 'companion' && hasMore ? <Action label={loading ? 'Loading…' : 'Load more media'} disabled={loading} onPress={() => void loadMore()}/> : null}
+    {tiles.length ? <View style={s.grid}>{tiles.map(item => <ContentTile key={`${item.kind}:${item.id}`} item={item} width={tileWidth} pinned={isPinned(item)} busy={saving} onPin={() => void togglePin(item)} onOpen={() => open(item)}/>)}</View> : loading && tab !== 'companion' ? <View style={s.empty}><ActivityIndicator color="#CBA6EF"/><Text style={s.muted}>Loading your media…</Text></View> : libraryError && tab !== 'companion' && !media.length ? <View style={s.empty}><ImageIcon size={36} color={colors.muted}/><Text style={s.emptyTitle}>Media temporarily unavailable</Text><Text style={s.emptyBody}>Try loading your gallery again.</Text></View> : <View style={s.empty}><ImageIcon size={36} color={colors.muted}/><Text style={s.emptyTitle}>{emptyTitle}</Text><Text style={s.emptyBody}>{emptyBody}</Text>{emptyAction ? <Action label={emptyAction.label} onPress={() => onRoute(emptyAction.route)}/> : null}</View>}
+    {tab !== 'companion' && moreError ? <View style={s.libraryNotice}><Text accessibilityRole="alert" style={s.error}>{moreError}</Text><Action label="Retry loading more" disabled={loading} onPress={() => void loadMore()}/></View> : null}
+    {tab !== 'companion' && hasMore && !moreError ? <Action label={loading ? 'Loading…' : 'Load more media'} disabled={loading} onPress={() => void loadMore()}/> : null}
   </View>;
 }
 
-function mergeMedia(first:GeneratedMedia[], second:GeneratedMedia[]) { return [...new Map([...first,...second].map(item => [item.id,item])).values()]; }
 function Action({label,onPress,disabled=false}:{label:string;onPress:()=>void;disabled?:boolean}) { return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={({pressed}) => [s.action,(pressed || disabled) && {opacity:.5}]}><Text style={s.actionText}>{label}</Text></Pressable>; }
 function ContentTile({item,width,pinned,busy,onPin,onOpen}:{item:Tile;width:number;pinned:boolean;busy:boolean;onPin:()=>void;onOpen:()=>void}) {
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => { setImageFailed(false); }, [item.id, item.media?.signed_url]);
   return <View style={{width}}><View style={[s.tile,{height:width * 1.25}]}>
     <Pressable accessibilityRole="button" accessibilityLabel={`Open ${item.kind}: ${item.title}`} onPress={onOpen} style={StyleSheet.absoluteFill}>
-      {item.source ? <Image source={item.source} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" loading="lazy" recyclingKey={`${item.kind}:${item.id}`}/> : <View style={s.tileFallback}>{item.kind==='video' ? <Video size={34} color="#BA95D8"/> : <UsersRound size={34} color="#BA95D8"/>}</View>}
+      {item.source && !imageFailed ? <Image source={item.source} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" loading="lazy" recyclingKey={`${item.kind}:${item.id}`} onError={() => setImageFailed(true)}/> : <View style={s.tileFallback}>{item.kind==='video' ? <Video size={34} color="#BA95D8"/> : item.kind==='image' ? <ImageIcon size={34} color="#BA95D8"/> : <UsersRound size={34} color="#BA95D8"/>}</View>}
       <View pointerEvents="none" style={s.tileShade}/>
       {item.kind==='video' ? <View style={s.play}><Play size={23} color="#fff" fill="#fff"/></View> : null}
       <Text numberOfLines={2} style={s.tileTitle}>{item.title}</Text>

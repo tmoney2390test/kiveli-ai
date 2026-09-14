@@ -49,7 +49,7 @@ import { authProviderState } from '../src/lib/authProviders';
 import { activeCompanion } from '../src/lib/companionLife';
 import { manageAccount } from '../src/lib/api';
 import { supabase } from '../src/lib/supabase';
-import { confirmAction } from '../src/lib/dialogs';
+import { confirmAction, showActionAlert } from '../src/lib/dialogs';
 import { shouldRenderSettingsRoute, shouldUseDesktopSettingsLayout } from '../src/lib/settingsRoute';
 import { startSignOutTransition } from '../src/lib/signOutTransition';
 import { createClientRequestId } from '../src/lib/requestId';
@@ -61,6 +61,7 @@ import {
 } from '../src/lib/settingsExperience';
 import { FrostedBackdrop, FrostedSurface, LoadingSkeleton } from '../src/components';
 import { ContactSupportModal } from '../src/components/ContactSupportModal';
+import { ErrorState } from '../src/components/RouteState';
 
 type SaveNotice = { kind: 'success' | 'error'; message: string } | null;
 type Snapshot = NonNullable<ReturnType<typeof useTogether.getState>['snapshot']>;
@@ -94,7 +95,7 @@ export default function Settings() {
   const [section, setSection] = useState<SettingsSection | null>(requestedSection);
   const activeSection = section ?? (desktop ? requestedSection ?? 'profile' : null);
   const scroll = useRef<ScrollView | null>(null);
-  const { snapshot, refresh, clear } = useTogether();
+  const { snapshot, refresh, clear, setCoreState, error: loadError } = useTogether();
   const { session, signOut, resendPendingEmailChange, signOutOthers } = useAuth();
   const providerState = authProviderState(session?.user);
   const profile = snapshot?.profile;
@@ -104,6 +105,7 @@ export default function Settings() {
   const [saveNotice, setSaveNotice] = useState<SaveNotice>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [signingOut, setSigningOut] = useState(false);
+  const [accountBusy, setAccountBusy] = useState<'resend' | 'sessions' | null>(null);
   const [supportVisible, setSupportVisible] = useState(false);
   const avatar = useProfileAvatarUrl(avatarPath);
   useEffect(() => { setWebHydrated(true); }, []);
@@ -149,33 +151,39 @@ export default function Settings() {
   };
 
   const pickAvatar = async (source: 'camera' | 'library') => {
-    const permission = Platform.OS === 'web' ? { granted: true } : source === 'camera' ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert(source === 'camera' ? 'Camera permission needed' : 'Photo permission needed', source === 'camera' ? 'Allow camera access to take an account photo.' : 'Allow photo access to choose your account photo.');
-      return;
-    }
-    const options = { ...userImagePickerOptions(source), allowsEditing: true, aspect: [1, 1] as [number, number] };
-    const result = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
-    if (result.canceled || !result.assets[0] || !session) return;
+    let normalized: NormalizedUserImage | null = null;
+    let accountWriteAttempted = false;
     setBusy(true);
     setSaveNotice(null);
-    let normalized: NormalizedUserImage | null = null;
-    let uploadedPath: string | null = null;
     try {
+      const permission = Platform.OS === 'web' ? { granted: true } : source === 'camera' ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        showActionAlert(source === 'camera' ? 'Camera permission needed' : 'Photo permission needed', source === 'camera' ? 'Allow camera access to take an account photo.' : 'Allow photo access to choose your account photo.');
+        return;
+      }
+      const options = { ...userImagePickerOptions(source), allowsEditing: true, aspect: [1, 1] as [number, number] };
+      const result = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
+      if (result.canceled || !result.assets[0] || !session) return;
       const asset = result.assets[0];
       normalized = await normalizeUserImage({ uri: asset.uri, width: asset.width, height: asset.height, fileSize: asset.fileSize, fileName: asset.fileName }, .84, 512);
       const path = `${session.user.id}/avatar-${createClientRequestId()}.jpg`;
       const blob = await (await fetch(normalized.uri)).blob();
       const { error } = await supabase.storage.from('together-user-media').upload(path, blob, { contentType: normalized.mimeType, upsert: false, cacheControl: '31536000' });
       if (error) throw error;
-      uploadedPath = path;
+      accountWriteAttempted = true;
       await manageAccount({ action: 'avatar', avatarPath: path });
       setAvatarPath(path);
+      const currentProfile = useTogether.getState().snapshot?.profile;
+      if (currentProfile) setCoreState({ profile: { ...currentProfile, avatar_path: path } });
       setSaveNotice({ kind: 'success', message: 'Account photo updated.' });
-      await refresh();
+      void refresh({ force: true });
     } catch (error) {
-      if (uploadedPath) await supabase.storage.from('together-user-media').remove([uploadedPath]);
-      setSaveNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Your avatar could not be uploaded. Please try again.' });
+      // An interrupted response can arrive after the server saved the path.
+      // Preserve the file and refresh rather than breaking a committed photo.
+      if (accountWriteAttempted) void refresh({ force: true });
+      setSaveNotice({ kind: 'error', message: accountWriteAttempted
+        ? 'We could not confirm the photo change. Reopen your profile before trying again.'
+        : error instanceof Error ? error.message : 'Your account photo could not be uploaded. Please try again.' });
     } finally { cleanupNormalizedImage(normalized?.uri); setBusy(false); }
   };
 
@@ -185,9 +193,11 @@ export default function Settings() {
     try {
       await manageAccount({ action: 'avatar', avatarPath: null });
       setAvatarPath(null);
+      const currentProfile = useTogether.getState().snapshot?.profile;
+      if (currentProfile) setCoreState({ profile: { ...currentProfile, avatar_path: null } });
       setSaveNotice({ kind: 'success', message: 'Account photo removed.' });
-      await refresh();
-    } catch (error) { setSaveNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Your avatar could not be removed. Please try again.' }); }
+      void refresh({ force: true });
+    } catch (error) { void refresh({ force: true }); setSaveNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Your avatar could not be removed. Please try again.' }); }
     finally { setBusy(false); }
   };
 
@@ -201,7 +211,7 @@ export default function Settings() {
         openSignIn: () => router.replace('/auth?mode=signin'),
       });
     } catch (error) {
-      Alert.alert('Could not sign out', error instanceof Error ? error.message : 'Please try again.');
+      showActionAlert('Could not sign out', error instanceof Error ? error.message : 'Please try again.');
     } finally { setSigningOut(false); }
   };
   const logout = () => confirmAction({
@@ -211,6 +221,34 @@ export default function Settings() {
     destructive: true,
     onConfirm: performLogout,
   });
+  const resendEmailChange = async () => {
+    if (accountBusy) return;
+    setAccountBusy('resend');
+    try {
+      await resendPendingEmailChange();
+      showActionAlert('Confirmation sent', 'Check your new email address.');
+    } catch (error) {
+      showActionAlert('Could not send email', error instanceof Error ? error.message : 'Please try again.');
+    } finally { setAccountBusy(null); }
+  };
+  const confirmOtherSessions = () => {
+    if (accountBusy) return;
+    confirmAction({
+      title: 'Sign out everywhere else?',
+      message: 'This device will remain signed in. Other browsers and devices will need to sign in again.',
+      confirmLabel: 'Sign out other sessions',
+      destructive: true,
+      onConfirm: async () => {
+        setAccountBusy('sessions');
+        try {
+          await signOutOthers();
+          showActionAlert('Other sessions signed out', 'This device is still signed in.');
+        } catch (error) {
+          showActionAlert('Could not update sessions', error instanceof Error ? error.message : 'Please try again.');
+        } finally { setAccountBusy(null); }
+      },
+    });
+  };
 
   const modalHeight = desktop ? Math.max(520, height - 36) : height;
   const browserPath = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.pathname : null;
@@ -251,13 +289,13 @@ export default function Settings() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {!snapshot ? <LoadingSkeleton label="Loading your settings…" /> : activeSection ? <>
+            {!snapshot ? loadError ? <ErrorState message={loadError} onRetry={() => void refresh({ force: true })} /> : <LoadingSkeleton label="Loading your settings…" /> : activeSection ? <>
               {activeSection === 'profile' ? <AccountProfilePanel key={snapshot.activeContinuity?.id ?? 'main'} snapshot={snapshot} avatar={avatar} avatarPath={avatarPath} name={name} busy={busy} notice={saveNotice} email={session?.user.email} onAvatar={chooseAvatarSource} onRemoveAvatar={() => void removeAvatar()} onRoute={openRoute} /> : null}
-              {activeSection === 'account' ? <AccountPanel email={session?.user.email} providerLabel={providerState.label} verified={providerState.verifiedEmail} pendingEmail={providerState.pendingEmail} tier={subscriptionLabel(snapshot.entitlements?.tier)} onRoute={openRoute} onResend={() => void resendPendingEmailChange().then(() => Alert.alert('Confirmation sent', 'Check the new email address.')).catch((error) => Alert.alert('Could not send email', error.message))} onSignOutOthers={() => Alert.alert('Sign out everywhere else?', 'This device will remain signed in.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out others', style: 'destructive', onPress: () => void signOutOthers().then(() => Alert.alert('Other sessions signed out.')).catch((error) => Alert.alert('Could not update sessions', error.message)) }])} /> : null}
+              {activeSection === 'account' ? <AccountPanel email={session?.user.email} providerLabel={providerState.label} verified={providerState.verifiedEmail} pendingEmail={providerState.pendingEmail} tier={subscriptionLabel(snapshot.entitlements?.tier)} busy={accountBusy} onRoute={openRoute} onResend={() => void resendEmailChange()} onSignOutOthers={confirmOtherSessions} /> : null}
               {activeSection === 'identity' ? <IdentityPanel snapshot={snapshot} onRoute={openRoute} /> : null}
               {activeSection === 'experience' ? <ExperiencePanel snapshot={snapshot} onRoute={openRoute} /> : null}
               {activeSection === 'relationships' ? <RelationshipsPanel snapshot={snapshot} onRoute={openRoute} /> : null}
-              {activeSection === 'privacy' ? <PrivacyPanel onRoute={openRoute} onDisclosure={() => Alert.alert('About Kivelle characters', 'Kivelle companions are fictional AI characters. They can remember shared context and simulate a life, but they are not real people and do not have human consciousness.')} /> : null}
+              {activeSection === 'privacy' ? <PrivacyPanel onRoute={openRoute} onDisclosure={() => showActionAlert('About Kivelle characters', 'Kivelle companions are fictional AI characters. They can remember shared context and simulate a life, but they are not real people and do not have human consciousness.')} /> : null}
               {activeSection === 'support' ? <SupportPanel onRoute={openRoute} onContact={() => setSupportVisible(true)} /> : null}
             </> : <SettingsOverview snapshot={snapshot} name={name} verified={providerState.verifiedEmail} tier={subscriptionLabel(snapshot.entitlements?.tier)} query={searchQuery} onQuery={setSearchQuery} onSelect={selectSection} signingOut={signingOut} onLogout={logout} />}
           </ScrollView>
@@ -300,14 +338,14 @@ function SettingsOverview({ snapshot, name, verified, tier, query, onQuery, onSe
   </View>;
 }
 
-function AccountPanel({ email, providerLabel, verified, pendingEmail, tier, onRoute, onResend, onSignOutOthers }: { email?: string; providerLabel: string; verified: boolean; pendingEmail: string | null; tier: string; onRoute: (route: string) => void; onResend: () => void; onSignOutOthers: () => void }) {
+function AccountPanel({ email, providerLabel, verified, pendingEmail, tier, busy, onRoute, onResend, onSignOutOthers }: { email?: string; providerLabel: string; verified: boolean; pendingEmail: string | null; tier: string; busy: 'resend' | 'sessions' | null; onRoute: (route: string) => void; onResend: () => void; onSignOutOthers: () => void }) {
   return <View style={styles.panel}><PanelHeading title="Account & billing" body="Manage sign-in, subscription, credits, and account security." />
     <View style={styles.summaryCard}><View style={styles.summaryIcon}><KeyRound color={colors.violet} /></View><View style={{ flex: 1 }}><Text style={styles.summaryKicker}>{providerLabel.toUpperCase()}</Text><Text style={styles.summaryTitle}>{email ?? 'Your Kivelle account'}</Text><View style={styles.verified}><Check size={12} color={verified ? colors.success : colors.warm} /><Text style={[styles.verifiedText, { color: verified ? colors.success : colors.warm }]}>{verified ? 'Verified email' : 'Email verification pending'}</Text></View>{pendingEmail ? <Text style={styles.verifiedText}>Pending change: {pendingEmail}</Text> : null}</View></View>
     <SettingsGroup>
       <SettingsRow icon={<UserRound />} title="Account & security" body="Change your email or manage active sessions." onPress={() => onRoute('/account')} />
-      {pendingEmail ? <SettingsRow icon={<Check />} title="Resend email confirmation" body="Send another confirmation link to your new address." value="Pending" onPress={onResend} /> : null}
+      {pendingEmail ? <SettingsRow icon={<Check />} title="Resend email confirmation" body="Send another confirmation link to your new address." value={busy === 'resend' ? 'Sending…' : 'Pending'} disabled={busy !== null} onPress={onResend} /> : null}
       <SettingsRow icon={<CreditCard />} title="Subscription & credits" body="Manage your plan, allowances, and credit balance." value={tier} onPress={() => onRoute('/subscription')} />
-      <SettingsRow icon={<Shield />} title="Other sessions" body="Sign out other browser and mobile sessions." value="Sign out" onPress={onSignOutOthers} />
+      <SettingsRow icon={<Shield />} title="Other sessions" body="Sign out other browser and mobile sessions." value={busy === 'sessions' ? 'Signing out…' : 'Sign out'} disabled={busy !== null} onPress={onSignOutOthers} />
     </SettingsGroup>
   </View>;
 }

@@ -7,7 +7,8 @@ import { ArrowLeft, Camera, Trash2 } from 'lucide-react-native';
 import { EmptyState, GradientButton, LoadingSkeleton, PageTitle, Screen } from '../src/components';
 import { useAuth } from '../src/hooks/useAuth';
 import { useProfileAvatarUrl } from '../src/hooks/useProfileAvatarUrl';
-import { confirmAction } from '../src/lib/dialogs';
+import { confirmAction, showActionAlert } from '../src/lib/dialogs';
+import { ErrorState } from '../src/components/RouteState';
 import { cleanupNormalizedImage, normalizeUserImage, userImagePickerOptions, type NormalizedUserImage } from '../src/lib/imageUploads';
 import { personaAgeError, personaAvatarStoragePath, personaDraftChanged, type PersonaEditorDraft } from '../src/lib/personaEditor';
 import { createClientRequestId } from '../src/lib/requestId';
@@ -23,13 +24,14 @@ type Tone='gentle'|'natural'|'direct';
 
 export default function PersonaEditor(){
   const params=useLocalSearchParams<{persona?:string}>();
-  const{snapshot,setCoreState}=useTogether();
+  const{snapshot,setCoreState,refresh,loading,error:loadError}=useTogether();
   const{session}=useAuth();
   const existing=snapshot?.personas?.find((item)=>item.id===params.persona);
   const editorKey=params.persona??'new';
   const draftScope=useRef(`draft-${createClientRequestId()}`).current;
   const hydratedKey=useRef<string|null>(null);
   const pendingUpload=useRef<string|null>(null);
+  const attemptedLoad=useRef(false);
   const[name,setName]=useState('');
   const[pronouns,setPronouns]=useState('');
   const[age,setAge]=useState('');
@@ -50,6 +52,12 @@ export default function PersonaEditor(){
   const dirty=personaDraftChanged(savedDraft,currentDraft);
   const ageError=personaAgeError(age);
   const busy=saving||uploading;
+
+  useEffect(()=>{
+    if(snapshot||loading||loadError||attemptedLoad.current)return;
+    attemptedLoad.current=true;
+    void refresh();
+  },[loadError,loading,refresh,snapshot]);
 
   useEffect(()=>{
     if(!snapshot||hydratedKey.current===editorKey)return;
@@ -78,7 +86,9 @@ export default function PersonaEditor(){
     return undefined;
   },[dirty]);
 
-  if(!snapshot)return <LoadingSkeleton label="Loading your Personas…"/>;
+  if(!snapshot)return loading||(!loadError&&!attemptedLoad.current)
+    ?<LoadingSkeleton label="Loading your Personas…"/>
+    :<ErrorState message={loadError??'Your Personas could not be loaded.'} onRetry={()=>void refresh({force:true})}/>;
   if(params.persona&&!existing)return <Screen><View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back to Personas" onPress={()=>router.replace('/personas')} style={styles.iconButton}><ArrowLeft color={colors.text}/></Pressable><PageTitle>Persona unavailable</PageTitle></View><EmptyState title="This Persona could not be found" body="It may have been deleted in another session." action="Back to your Lives" onAction={()=>router.replace('/personas')}/></Screen>;
 
   function leave(){
@@ -100,7 +110,7 @@ export default function PersonaEditor(){
   async function pickAvatar(source:'camera'|'library'){
     try{
       const permission=Platform.OS==='web'?{granted:true}:source==='camera'?await ImagePicker.requestCameraPermissionsAsync():await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if(!permission.granted){Alert.alert(source==='camera'?'Camera permission needed':'Photo permission needed',source==='camera'?'Allow camera access to take a Persona photo.':'Allow photo access to choose a Persona photo.');return;}
+      if(!permission.granted){showActionAlert(source==='camera'?'Camera permission needed':'Photo permission needed',source==='camera'?'Allow camera access to take a Persona photo.':'Allow photo access to choose a Persona photo.');return;}
       const options={...userImagePickerOptions(source),allowsEditing:true,aspect:[1,1] as [number,number]};
       const result=source==='camera'?await ImagePicker.launchCameraAsync(options):await ImagePicker.launchImageLibraryAsync(options);
       if(result.canceled||!result.assets[0]||!session)return;
@@ -116,7 +126,7 @@ export default function PersonaEditor(){
         const previous=pendingUpload.current;pendingUpload.current=path;setAvatarPath(path);setPhotoNotice('Photo ready — save your Persona to keep it.');
         if(previous&&previous!==path)void discardAvatar(previous);
       }finally{cleanupNormalizedImage(normalized?.uri);setUploading(false);}
-    }catch(error){setPhotoNotice('');Alert.alert('Photo upload failed',error instanceof Error?error.message:'Please try again.');}
+    }catch(error){setPhotoNotice('');showActionAlert('Photo upload failed',error instanceof Error?error.message:'Please try again.');}
   }
 
   function removePhoto(){
@@ -125,7 +135,8 @@ export default function PersonaEditor(){
   }
 
   async function save(){
-    if(ageError){Alert.alert('Check the age',ageError);return;}
+    if(busy||!dirty||!name.trim())return;
+    if(ageError){showActionAlert('Check the age',ageError);return;}
     const currentSnapshot=snapshot;if(!currentSnapshot)return;
     setSaving(true);
     try{
@@ -135,11 +146,31 @@ export default function PersonaEditor(){
       const personas=existing?(currentSnapshot.personas??[]).map((item)=>item.id===saved.id?saved:item):[...(currentSnapshot.personas??[]),saved];
       setCoreState({personas,activePersona:currentSnapshot.activePersona?.id===saved.id?saved:currentSnapshot.activePersona,continuities:(currentSnapshot.continuities??[]).map((life)=>life.persona_id===saved.id?{...life,together_user_personas:saved}:life)});
       router.replace('/personas');
-    }catch(error){Alert.alert(`Could not ${existing?'update':'create'} Persona`,error instanceof Error?error.message:'Please try again. Your edits are still here.');}
+    }catch(error){showActionAlert(`Could not ${existing?'update':'create'} Persona`,error instanceof Error?error.message:'Please try again. Your edits are still here.');}
     finally{setSaving(false);}
   }
 
-  const remove=()=>existing&&!existing.is_default?Alert.alert(`Delete ${existing.display_name}?`,'This is only available when the Persona has no Kivelle Life or relationship history.',[{text:'Keep Persona',style:'cancel'},{text:'Delete Persona',style:'destructive',onPress:async()=>{setSaving(true);try{await managePersona({action:'delete_persona',personaId:existing.id,confirmation:'DELETE PERSONA'});const pending=pendingUpload.current;pendingUpload.current=null;if(pending)void discardAvatar(pending);setCoreState({personas:(snapshot.personas??[]).filter((item)=>item.id!==existing.id)});router.replace('/personas');}catch(error){Alert.alert('Persona could not be deleted',error instanceof Error?error.message:'Delete its Alternate Lives first.');}finally{setSaving(false);}}}]):undefined;
+  const personaHasLife=Boolean(existing&&snapshot.continuities?.some((life)=>life.persona_id===existing.id));
+  const remove=()=>{
+    if(!existing||existing.is_default||personaHasLife||busy)return;
+    confirmAction({
+      title:`Delete ${existing.display_name}?`,
+      message:'This permanently deletes this unused Persona. Lives and relationship history cannot be deleted here.',
+      confirmLabel:'Delete Persona',
+      destructive:true,
+      onConfirm:async()=>{
+        setSaving(true);
+        try{
+          await managePersona({action:'delete_persona',personaId:existing.id,confirmation:'DELETE PERSONA'});
+          const pending=pendingUpload.current;pendingUpload.current=null;
+          if(pending)void discardAvatar(pending);
+          setCoreState({personas:(snapshot.personas??[]).filter((item)=>item.id!==existing.id)});
+          router.replace('/personas');
+        }catch(error){showActionAlert('Persona could not be deleted',error instanceof Error?error.message:'Please try again.');}
+        finally{setSaving(false);}
+      },
+    });
+  };
 
   return <Screen>
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back to Personas" onPress={leave} style={styles.iconButton}><ArrowLeft color={colors.text}/></Pressable><View><PageTitle>{existing?'Edit Persona':'Create Persona'}</PageTitle><Text style={styles.subtitle}>Who are you in this Life?</Text></View></View>
@@ -153,7 +184,7 @@ export default function PersonaEditor(){
     </View>
     <Label text="What should companions call you?"/><TextInput accessibilityLabel="Persona name" value={name} onChangeText={setName} maxLength={50} style={styles.input} placeholder="Jordan" placeholderTextColor={colors.muted} returnKeyType="next"/>
     <View style={styles.row}><View style={{flex:1}}><Label text="Pronouns"/><TextInput accessibilityLabel="Persona pronouns" value={pronouns} onChangeText={setPronouns} maxLength={40} style={styles.input} placeholder="they/them" placeholderTextColor={colors.muted} returnKeyType="next"/></View><View style={{width:104}}><Label text="Age"/><TextInput accessibilityLabel="Persona age" value={age} onChangeText={setAge} maxLength={3} style={[styles.input,ageError&&styles.inputError]} keyboardType="number-pad" placeholder="31" placeholderTextColor={colors.muted}/></View></View>
-    {ageError?<Text accessibilityLiveRegion="polite" style={styles.errorText}>{ageError}</Text>:null}
+    {ageError?<Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.errorText}>{ageError}</Text>:null}
     <Label text="Occupation"/><TextInput accessibilityLabel="Persona occupation" value={occupation} onChangeText={setOccupation} maxLength={100} style={styles.input} placeholder="Musician" placeholderTextColor={colors.muted} returnKeyType="next"/>
     <Label text="About you"/><TextInput accessibilityLabel="About this Persona" value={about} onChangeText={setAbout} maxLength={1000} style={[styles.input,styles.multiline]} multiline placeholder="How you see yourself in Kivelle" placeholderTextColor={colors.muted}/><Text style={styles.counter}>{about.length}/1000</Text>
     <Label text="Interests"/><TextInput accessibilityLabel="Persona interests" value={interests} onChangeText={setInterests} style={styles.input} placeholder="Jazz, travel, food" placeholderTextColor={colors.muted}/><Text style={styles.helper}>Separate up to 12 interests with commas.</Text>
@@ -164,12 +195,12 @@ export default function PersonaEditor(){
     <Text style={styles.note}>{existing?'Updates apply to every Life using this Persona. Contradictory inferred identity details are retired, while relationship history stays separate and intact.':'This Persona can start a separate Alternate Life. It will never replace who you are in an existing relationship.'}</Text>
     <GradientButton label={uploading?'Preparing photo…':saving?'Saving…':existing?'Save Persona':'Create Persona'} disabled={busy||!dirty||!name.trim()||Boolean(ageError)} onPress={()=>void save()}/>
     {!dirty?<Text style={styles.savedState}>All changes saved</Text>:null}
-    {existing&&!existing.is_default?<Pressable accessibilityRole="button" accessibilityLabel={`Delete ${existing.display_name}`} onPress={remove} disabled={busy} style={styles.delete}><Trash2 size={16} color={colors.danger}/><Text style={styles.deleteText}>Delete unused Persona</Text></Pressable>:null}
+    {existing&&!existing.is_default&&!personaHasLife?<Pressable accessibilityRole="button" accessibilityLabel={`Delete ${existing.display_name}`} onPress={remove} disabled={busy} style={styles.delete}><Trash2 size={16} color={colors.danger}/><Text style={styles.deleteText}>Delete unused Persona</Text></Pressable>:null}
   </Screen>;
 }
 
 async function discardAvatar(path:string){try{await managePersona({action:'discard_avatar',avatarPath:path});}catch{await supabase.storage.from('together-user-media').remove([path]);}}
-function ChoiceRow({value,options,onChange,disabled}:{value:string;options:Array<[string,string]>;onChange:(value:string)=>void;disabled:boolean}){return <View style={styles.choices}>{options.map(([key,label])=><Pressable key={key} accessibilityRole="radio" accessibilityState={{selected:value===key,disabled}} disabled={disabled} onPress={()=>onChange(key)} style={[styles.choice,value===key&&styles.choiceActive]}><Text style={[styles.choiceText,value===key&&styles.choiceTextActive]}>{label}</Text></Pressable>)}</View>;}
+function ChoiceRow({value,options,onChange,disabled}:{value:string;options:Array<[string,string]>;onChange:(value:string)=>void;disabled:boolean}){return <View accessibilityRole="radiogroup" style={styles.choices}>{options.map(([key,label])=><Pressable key={key} accessibilityRole="radio" accessibilityState={{checked:value===key,disabled}} disabled={disabled} onPress={()=>onChange(key)} style={[styles.choice,value===key&&styles.choiceActive]}><Text style={[styles.choiceText,value===key&&styles.choiceTextActive]}>{label}</Text></Pressable>)}</View>;}
 const Label=({text}:{text:string})=><Text style={styles.label}>{text}</Text>;
 function oneOf<T extends string>(value:unknown,allowed:readonly T[],fallback:T):T{return typeof value==='string'&&allowed.includes(value as T)?value as T:fallback;}
 
