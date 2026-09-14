@@ -28,6 +28,19 @@ describe('Eos Meridian playable world', () => {
     expect(EOS_MERIDIAN_CANONICAL_LORE.missingHours).toContain('Seventeen hours');
     expect(EOS_MERIDIAN_CANONICAL_LORE.signal).toContain('night-side ice');
     expect(EOS_MERIDIAN_CANONICAL_LORE.presentSeason).toContain('independence vote');
+    expect(EOS_MERIDIAN_CANONICAL_LORE.editorialChronology.lyraEmergencyYear).toBe(20);
+    expect(EOS_MERIDIAN_CANONICAL_LORE.editorialChronology.presentYear).toBe(38);
+  });
+
+  it('makes editorial place details available in existing lore retrieval fields', () => {
+    const garden=eosMeridianLocations.find(place=>place.slug==='static-garden')!;
+    expect(garden.canonical_lore?.publicHistory?.join(' ')).toContain('obsolete power room');
+    expect(garden.canonical_lore?.conversationHooks?.join(' ')).toContain('acoustic seal');
+    expect(garden.canonical_lore?.localEtiquette?.join(' ')).toContain('Credit');
+    const memorial=eosMeridianLocations.find(place=>place.slug==='pioneer-memorial')!;
+    expect(memorial.canonical_lore?.recurringPeople?.some(person=>person.label==='Ansel Keene')).toBe(true);
+    expect(eosMeridianWorld.metadata.recurringEventCount).toBe(9);
+    expect(eosMeridianWorld.metadata.worldFactCount).toBe(37);
   });
 
   it('packages six districts with eight distinct venues each', () => {
