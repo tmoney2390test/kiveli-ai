@@ -26,12 +26,12 @@ export default function AuthCallback() {
       try {
         if (params.error_description || params.error) throw new Error(params.error_description ?? params.error);
         let authenticated = Boolean(session);
-        if (!authenticated) {
-          if (!params.code) throw new Error('The confirmation link is incomplete or has expired.');
+        if (params.code) {
           const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(params.code);
           if (exchangeError) throw exchangeError;
           authenticated = Boolean(data.session);
         }
+        if (!params.code && !authenticated) throw new Error('The confirmation link is incomplete or has expired.');
         if (!authenticated) throw new Error('The confirmation did not create a Kivelle session.');
 
         await refresh({ force: true });

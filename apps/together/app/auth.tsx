@@ -19,6 +19,7 @@ import type { SocialAuthProvider } from '../src/lib/socialAuth';
 import { useWebHydrated } from '../src/hooks/useWebHydrated';
 import { publicLandingPrimaryHeroAsset, publicLandingPrimaryHeroUri } from '../src/components/landing/publicLandingAssets';
 import { EMAIL_CODE_RESEND_SECONDS, emailCodeReady, emailCodeResendSeconds, normalizeEmailAddress, normalizeEmailCode } from '../src/lib/emailCodeAuth';
+import { validAccountEmail } from '../src/lib/accountSecurity';
 
 type EmailAuthStage = 'email' | 'code';
 
@@ -76,10 +77,14 @@ export default function Auth() {
   };
 
   const submit = async () => {
-    if (busy || signingOut) return;
+    if (busy || signingOut || socialBusy) return;
     const normalizedEmail = normalizeEmailAddress(stage === 'code' ? submittedEmail : email);
     if (!normalizedEmail) {
       setError('Enter your email address so we can send your code.');
+      return;
+    }
+    if (!validAccountEmail(normalizedEmail)) {
+      setError('Enter a valid email address, like name@example.com.');
       return;
     }
     if (stage === 'code' && !emailCodeReady(code)) {
@@ -111,7 +116,7 @@ export default function Auth() {
 
   const resendCode = async () => {
     const remaining = emailCodeResendSeconds(resendAvailableAt, Date.now());
-    if (busy || signingOut || remaining > 0 || !submittedEmail) return;
+    if (busy || signingOut || socialBusy || remaining > 0 || !submittedEmail) return;
     setBusy(true);
     setError('');
     setNotice('');
@@ -121,7 +126,8 @@ export default function Auth() {
       setClock(Date.now());
       setNotice('A new six-digit code is on its way.');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'A new code could not be sent.');
+      const message = caught instanceof Error ? caught.message : 'A new code could not be sent.';
+      setError(message === 'Failed to fetch' ? 'Kivelle could not reach the server. Check your connection and try again.' : message);
     } finally {
       setBusy(false);
     }
@@ -137,18 +143,19 @@ export default function Auth() {
   };
 
   const socialSignIn=async(provider:SocialAuthProvider)=>{
+    if (busy || signingOut || socialBusy) return;
     setSocialBusy(provider);setError('');setNotice('');
     try{
       const requestedNext=safeAppReturnPath(params.next);
       await signInWithSocial(provider,requestedNext);
       if(Platform.OS==='web')return;
-      await refresh();const state=useTogether.getState();if(!state.snapshot)throw new Error(state.error??'Kivelle could not open your world.');
+      await refresh({ force: true });const state=useTogether.getState();if(!state.snapshot)throw new Error(state.error??'Kivelle could not open your world.');
       router.replace(resolvePostAuthDestination({authenticated:true,snapshot:state.snapshot,requestedNext}) as never);
     }catch(caught){setError(caught instanceof Error?caught.message:`${provider==='google'?'Google':'Apple'} sign-in failed.`);}finally{setSocialBusy(null);}
   };
 
-  const authBusy = busy || signingOut;
-  const socialDisabled=authBusy||Boolean(socialBusy);
+  const authBusy = busy || signingOut || Boolean(socialBusy);
+  const socialDisabled=authBusy;
   const showApple=socialAuth.apple&&nativeAppleAvailable;
   const shortViewport=!wide&&height<720;
   const safeAreaReserve=Math.max(0,insets.bottom-6);

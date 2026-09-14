@@ -36,7 +36,10 @@ export default function AgeConfirmation() {
   const leave=async()=>{
     if(busy)return;
     setBusy(true);
-    try{await signOut();router.replace('/auth?mode=signin' as never);}finally{setBusy(false);}
+    setError('');
+    try{await signOut();router.replace('/auth?mode=signin' as never);}
+    catch(caught){setError(caught instanceof Error?caught.message:'Could not sign out. Please try again.');}
+    finally{setBusy(false);}
   };
 
   const advance=()=>{
