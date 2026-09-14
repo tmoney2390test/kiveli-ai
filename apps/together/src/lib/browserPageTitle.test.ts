@@ -17,7 +17,7 @@ describe('browser page titles', () => {
   it.each([
     ['/home', 'Home | Kivelli'], ['/(tabs)/home/', 'Home | Kivelli'],
     ['/explore', 'Explore | Kivelli'], ['/subscription', 'Membership | Kivelli'],
-    ['/privacy-policy', 'Privacy Policy | Kivelli'], ['/create/companion/draft-id', 'Create a Companion | Kivelli'],
+    ['/privacy-policy', 'Privacy Policy | Kivelli'], ['/delete-account', 'Delete Account | Kivelli'], ['/create/companion/draft-id', 'Create a Companion | Kivelli'],
     ['/location/hidden-cove', 'Location | Kivelli'], ['/unknown-route', 'Kivelli'],
   ])('labels %s', (path, title) => expect(browserPageTitle(path)).toBe(title));
 

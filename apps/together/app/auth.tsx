@@ -33,6 +33,8 @@ export default function Auth() {
   const [stage, setStage] = useState<EmailAuthStage>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordMode, setPasswordMode] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState('');
   const [resendAvailableAt, setResendAvailableAt] = useState(0);
   const [clock, setClock] = useState(() => Date.now());
@@ -43,7 +45,7 @@ export default function Auth() {
   const [openingError, setOpeningError] = useState('');
   const [notice, setNotice] = useState('');
   const [nativeAppleAvailable,setNativeAppleAvailable]=useState(Platform.OS!=='ios');
-  const { requestEmailCode, verifyEmailCode, signInWithSocial, signingOut, socialAuth } = useAuth();
+  const { requestEmailCode, verifyEmailCode, signIn, signInWithSocial, signingOut, socialAuth } = useAuth();
   const refresh = useTogether((state) => state.refresh);
 
   useEffect(()=>{
@@ -78,8 +80,13 @@ export default function Auth() {
   const submit = async () => {
     if (busy || signingOut) return;
     const normalizedEmail = normalizeEmailAddress(stage === 'code' ? submittedEmail : email);
+    const usingPassword = !creating && passwordMode && stage === 'email';
     if (!normalizedEmail) {
-      setError('Enter your email address so we can send your code.');
+      setError(usingPassword ? 'Enter your email address.' : 'Enter your email address so we can send your code.');
+      return;
+    }
+    if (usingPassword && !password) {
+      setError('Enter your password.');
       return;
     }
     if (stage === 'code' && !emailCodeReady(code)) {
@@ -90,7 +97,11 @@ export default function Auth() {
     setError('');
     setNotice('');
     try {
-      if (stage === 'email') {
+      if (usingPassword) {
+        await signIn(normalizedEmail, password);
+        setSignedIn(true);
+        await openSignedInWorld();
+      } else if (stage === 'email') {
         await requestEmailCode(normalizedEmail);
         setSubmittedEmail(normalizedEmail);
         setStage('code');
@@ -102,7 +113,7 @@ export default function Auth() {
         await openSignedInWorld();
       }
     } catch (caught) {
-      const message = caught instanceof Error ? caught.message : stage === 'email' ? 'The code could not be sent.' : 'The code could not be verified.';
+      const message = caught instanceof Error ? caught.message : usingPassword ? 'Sign-in failed.' : stage === 'email' ? 'The code could not be sent.' : 'The code could not be verified.';
       setError(message === 'Failed to fetch' ? 'Kivelle could not reach the server. Check your connection and try again.' : message);
     } finally {
       setBusy(false);
@@ -148,12 +159,13 @@ export default function Auth() {
   };
 
   const authBusy = busy || signingOut;
+  const usingPassword = !creating && passwordMode && stage === 'email';
   const socialDisabled=authBusy||Boolean(socialBusy);
   const showApple=socialAuth.apple&&nativeAppleAvailable;
   const shortViewport=!wide&&height<720;
   const safeAreaReserve=Math.max(0,insets.bottom-6);
   const brandFooterReserve=shortViewport?44:58;
-  const mobileFormReserve=(stage==='code'?(shortViewport?354:382):(shortViewport?388:420))+safeAreaReserve+brandFooterReserve;
+  const mobileFormReserve=(stage==='code'?(shortViewport?354:382):(shortViewport?388:420))+(usingPassword?54:0)+safeAreaReserve+brandFooterReserve;
   const mobileHeroHeight=Math.max(80,Math.min(height*.43,height-mobileFormReserve));
   const resendSeconds=emailCodeResendSeconds(resendAvailableAt,clock);
 
@@ -198,22 +210,26 @@ export default function Auth() {
           </View>
 
           {stage==='email'
-            ? <TextInput accessibilityLabel="Email address" editable={!authBusy} value={email} onChangeText={(value)=>{setEmail(value);setError('');}} onSubmitEditing={()=>void submit()} returnKeyType="go" autoCapitalize="none" autoCorrect={false} autoComplete="email" keyboardType="email-address" placeholder="Email address" placeholderTextColor={colors.dimmed} style={[styles.input,error&&styles.inputError]} />
+            ? <TextInput accessibilityLabel="Email address" editable={!authBusy} value={email} onChangeText={(value)=>{setEmail(value);setError('');}} onSubmitEditing={()=>{if(!usingPassword)void submit();}} returnKeyType={usingPassword?'next':'go'} autoCapitalize="none" autoCorrect={false} autoComplete="email" keyboardType="email-address" placeholder="Email address" placeholderTextColor={colors.dimmed} style={[styles.input,error&&styles.inputError]} />
             : <TextInput accessibilityLabel="Six-digit sign-in code" editable={!authBusy} value={code} onChangeText={(value)=>{setCode(normalizeEmailCode(value));setError('');}} onSubmitEditing={()=>{if(emailCodeReady(code))void submit();}} returnKeyType="go" autoCapitalize="none" autoCorrect={false} autoComplete="one-time-code" keyboardType="number-pad" maxLength={6} placeholder="000000" placeholderTextColor={colors.dimmed} selectTextOnFocus style={[styles.input,styles.codeInput,error&&styles.inputError]} />}
 
-          {error ? <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.errorBox}><Text style={styles.errorTitle}>{stage==='email'?'We couldn’t send the code':'That code didn’t work'}</Text><Text style={styles.error}>{error}</Text></View> : null}
+          {usingPassword?<TextInput accessibilityLabel="Password" editable={!authBusy} value={password} onChangeText={(value)=>{setPassword(value);setError('');}} onSubmitEditing={()=>void submit()} returnKeyType="go" autoCapitalize="none" autoCorrect={false} autoComplete="current-password" secureTextEntry placeholder="Password" placeholderTextColor={colors.dimmed} style={[styles.input,error&&styles.inputError]}/>:null}
+
+          {error ? <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.errorBox}><Text style={styles.errorTitle}>{usingPassword?'Sign-in failed':stage==='email'?'We couldn’t send the code':'That code didn’t work'}</Text><Text style={styles.error}>{error}</Text></View> : null}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={stage==='email'?'Email me a code':'Continue'}
+            accessibilityLabel={usingPassword?'Sign in with password':stage==='email'?'Email me a code':'Continue'}
             accessibilityState={{disabled:authBusy}}
             disabled={authBusy}
             onPress={() => void submit()}
             style={({pressed})=>[styles.emailAction,authBusy&&styles.emailActionDisabled,pressed&&!authBusy&&styles.emailActionPressed]}
           >
-            <Text style={styles.emailActionText}>{signingOut ? 'Finishing sign out…' : busy ? stage==='email'?'Sending code…':'Checking code…' : stage==='email'?'Email me a code':'Continue'}</Text>
+            <Text style={styles.emailActionText}>{signingOut ? 'Finishing sign out…' : busy ? usingPassword?'Signing in…':stage==='email'?'Sending code…':'Checking code…' : usingPassword?'Sign in':stage==='email'?'Email me a code':'Continue'}</Text>
           </Pressable>
+
+          {stage==='email'&&!creating?<Pressable accessibilityRole="button" accessibilityLabel={usingPassword?'Use an email code instead':'Use a password instead'} disabled={authBusy} onPress={()=>{setPasswordMode(!passwordMode);setPassword('');setError('');setNotice('');}} hitSlop={10}><Text style={styles.secondary}>{usingPassword?'Use an email code instead':'Use a password instead'}</Text></Pressable>:null}
 
           {stage==='code'?<View style={styles.codeActions}>
             <Pressable accessibilityRole="button" disabled={authBusy} onPress={changeEmail} hitSlop={10}><Text style={styles.secondary}>Use a different email</Text></Pressable>
@@ -229,7 +245,7 @@ export default function Auth() {
             accessibilityRole="button"
             accessibilityLabel={creating?'Already have an account? Sign in':"Don't have an account? Create one"}
             disabled={authBusy||Boolean(socialBusy)}
-            onPress={()=>router.replace((creating?signInPathFor(params.next??''):joinPathFor(params.next)) as never)}
+            onPress={()=>{setPasswordMode(false);setPassword('');router.replace((creating?signInPathFor(params.next??''):joinPathFor(params.next)) as never);}}
             style={({pressed})=>[styles.createAccountAction,(authBusy||Boolean(socialBusy))&&styles.emailActionDisabled,pressed&&styles.createAccountActionPressed]}
           >
             <Text style={styles.createAccountText}>{creating?'Already have an account? ':"Don’t have an account? "}<Text style={styles.createAccountLink}>{creating?'Sign in':'Create one'}</Text></Text>

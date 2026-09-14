@@ -24,6 +24,7 @@ const shellFreePaths = new Set([
   '/meet-maya',
   '/terms',
   '/privacy-policy',
+  '/delete-account',
   '/community-guidelines',
   '/help',
 ]);
