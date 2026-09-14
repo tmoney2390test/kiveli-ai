@@ -186,7 +186,7 @@ export function MobileChatMediaHeader({
       <Animated.View pointerEvents="none" style={[styles.purpleWash, { opacity: headerOpacity }]} />
 
       <Animated.View style={[styles.headerContents, { opacity: headerOpacity }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back to Messages" hitSlop={10} onPress={onBack} style={[styles.action, styles.back, { top: actionTop }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={Platform.OS === 'web' ? 'Back to Messages' : 'Back'} hitSlop={10} onPress={onBack} style={[styles.action, styles.back, { top: actionTop }]}>
           <ArrowLeft size={22} color={colors.text} />
         </Pressable>
 

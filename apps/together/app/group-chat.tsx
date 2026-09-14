@@ -131,7 +131,7 @@ import { reconcileMessages } from "../src/lib/messageReconciliation";
 import { chatErrorPresentation } from "../src/lib/chatErrorPresentation";
 import { DIALOGUE_RECOVERY_DELAYS_MS, dialogueFailureMayHavePersisted, persistedDialogueResponseForRequest } from "../src/lib/dialogueRecovery";
 import { subscribeToWebPageResume, waitForWebPageVisible } from "../src/lib/webPageLifecycle";
-import { isConversationPinned, returnToMessagesInbox } from "../src/lib/messageInbox";
+import { isConversationPinned, MESSAGES_INBOX_ROUTE } from "../src/lib/messageInbox";
 import { clearChatScrollPosition, readChatScrollPosition, restoredChatOffset, saveChatScrollPosition, shouldRestoreChatScrollPosition, type ChatScrollPosition } from "../src/lib/chatNavigationState";
 import { firstUnreadMessageId } from "../src/lib/chatUnreadWindow";
 import { chatMessageTypography, resolveChatBubbleColors } from "../src/lib/chatSettings";
@@ -1697,7 +1697,8 @@ export default function GroupChatScreen() {
           setShowGroupMenu(false);
           await refresh();
           if(Platform.OS==="web")navigateGroupSurface("/chat-tab?messages=1","replace");
-          else returnToMessagesInbox({reset:(href)=>router.replace(href as never),navigate:(href)=>router.push(href as never)});
+          else if(router.canGoBack())router.back();
+          else router.replace(MESSAGES_INBOX_ROUTE as never);
         } catch (caught) {
           setError(
             caught instanceof Error
@@ -1718,10 +1719,8 @@ export default function GroupChatScreen() {
   };
   const openMessagesInbox=()=>{
     if(Platform.OS==="web"){navigateGroupSurface("/chat-tab?messages=1","replace");return;}
-    returnToMessagesInbox({
-      reset:(href)=>router.replace(href as never),
-      navigate:(href)=>router.push(href as never),
-    });
+    if(router.canGoBack()){router.back();return;}
+    router.replace(MESSAGES_INBOX_ROUTE as never);
   };
   const retryOpeningGroup=()=>{
     loadedGroupRef.current=null;
@@ -2419,7 +2418,8 @@ export default function GroupChatScreen() {
         onArchived={async () => {
           await refresh();
           if(Platform.OS==="web")navigateGroupSurface("/chat-tab?messages=1","replace");
-          else returnToMessagesInbox({reset:(href)=>router.replace(href as never),navigate:(href)=>router.push(href as never)});
+          else if(router.canGoBack())router.back();
+          else router.replace(MESSAGES_INBOX_ROUTE as never);
         }}
       />
       <GroupChatSettingsModal
@@ -2796,7 +2796,7 @@ function GroupHeader(
     <View style={styles.header}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Back to Messages"
+        accessibilityLabel={Platform.OS === 'web' ? 'Back to Messages' : 'Back'}
         onPress={onBack}
         style={styles.headerButton}
       >
