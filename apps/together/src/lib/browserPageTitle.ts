@@ -22,7 +22,7 @@ const pageLabels: Record<string, string> = {
   '/age-confirmation': 'Age Confirmation', '/privacy-choice': 'Privacy Choices',
   '/create/companion': 'Create a Companion', '/world/places': 'Places',
   '/call': 'Call', '/plan-live': 'Live Plan', '/support': 'Support', '/help': 'Help',
-  '/terms': 'Terms of Use', '/privacy-policy': 'Privacy Policy', '/refund-policy': 'Refund Policy',
+  '/terms': 'Terms of Use', '/privacy-policy': 'Privacy Policy', '/delete-account': 'Delete Account', '/refund-policy': 'Refund Policy',
   '/community-guidelines': 'Community Guidelines', '/+not-found': 'Page Not Found',
 };
 

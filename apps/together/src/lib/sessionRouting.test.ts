@@ -22,6 +22,7 @@ describe('session routing', () => {
     expect(isPublicAppPath('/auth/callback')).toBe(true);
     expect(isPublicAppPath('/terms')).toBe(true);
     expect(isPublicAppPath('/privacy-policy')).toBe(true);
+    expect(isPublicAppPath('/delete-account')).toBe(true);
     expect(isPublicAppPath('/community-guidelines')).toBe(true);
     expect(isPublicAppPath('/help')).toBe(true);
     expect(isPublicAppPath('/onboarding')).toBe(true);

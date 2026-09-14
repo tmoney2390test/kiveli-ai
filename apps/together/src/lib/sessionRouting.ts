@@ -1,4 +1,4 @@
-const PUBLIC_PATHS = new Set(['/', '/auth', '/auth/callback', '/onboarding', '/reset-password', '/terms', '/privacy-policy', '/community-guidelines', '/help']);
+const PUBLIC_PATHS = new Set(['/', '/auth', '/auth/callback', '/onboarding', '/reset-password', '/terms', '/privacy-policy', '/delete-account', '/community-guidelines', '/help']);
 const ONBOARDING_PATHS = new Set(['/age-confirmation', '/privacy-choice', '/choose-companion', '/quick-start']);
 
 export function isPublicAppPath(pathname: string) {
