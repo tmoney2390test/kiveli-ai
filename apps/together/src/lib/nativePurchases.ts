@@ -1,5 +1,8 @@
 import type { NativeProductPrice } from './nativeProductPrice';
 import type{BillingInterval,SubscriptionTier}from'./subscription';
+import type {CreditPack} from './subscription';
+export function loadNativeCreditPrices(userId:string):Promise<Record<string,string>>{void userId;return Promise.resolve({});}
+export function purchaseNativeCredits(userId:string,pack:CreditPack['key']):Promise<{cancelled:boolean;pending:boolean}>{void userId;void pack;return Promise.reject(new Error('Credit purchases are available in the iOS and Android apps.'));}
 
 export function nativePurchasesConfigured():boolean{return false;}
 export function syncNativePurchaseIdentity(userId:string|null):Promise<void>{void userId;return Promise.resolve();}

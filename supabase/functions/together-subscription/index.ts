@@ -21,6 +21,7 @@ import {readRevenueCatAdapterConfig,type RevenueCatWebhookEvent} from '../_share
 const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('status')}),
   z.object({action:z.literal('reconcile')}),
+  z.object({action:z.literal('credit_confirmation'),transactionId:z.string().min(1).max(512).optional(),startedAt:z.number().int().positive(),productId:z.string().min(1).max(240)}),
   z.object({action:z.literal('checkout'),tier:z.enum(['kivelle_plus','kivelle_max']),billingInterval:z.enum(['monthly','annual']).default('monthly'),requestId:z.string().uuid().optional()}),
   z.object({action:z.literal('credits_checkout'),productKey:z.enum(['credits_100','credits_300','credits_800','credits_2000']),requestId:z.string().uuid().optional()}),
   z.object({action:z.literal('portal'),requestId:z.string().uuid().optional()}),
@@ -33,12 +34,24 @@ type BillingConfiguration=ReturnType<typeof billingConfiguration>;
 serve(async(request,correlationId)=>{
   const{user,db}=await authenticated(request);
   const input=request.method==='GET'?{action:'status' as const}:await parseBody(request,schema);
-  await enforceRateLimit(db,user.id,`together_subscription_${input.action}`,input.action==='status'||input.action==='checkout_confirmation'?120:input.action==='reconcile'?60:12,3600);
+  await enforceRateLimit(db,user.id,`together_subscription_${input.action}`,input.action==='credit_confirmation'?360:input.action==='status'||input.action==='checkout_confirmation'?120:input.action==='reconcile'?60:12,3600);
 
   let state=await resolveSubscriptionState(db,user.id);
   const clientSurface=await verifyWebSurfaceAssertion(request,user.id)?'web':'native_or_unknown';
   const billingPolicy=resolveBillingSurfacePolicy(clientSurface);
   const configuration=billingConfiguration(billingPolicy);
+
+  if(input.action==='credit_confirmation'){
+    let lookup=db.from('together_store_credit_purchases').select('status,credits')
+      .eq('user_id',user.id).eq('product_id',input.productId);
+    lookup=input.transactionId?lookup.eq('transaction_id',input.transactionId):lookup.gte('created_at',new Date(input.startedAt).toISOString());
+    const {data:purchase,error}=await lookup.limit(2);
+    if(error)throw new AppError('INTERNAL_ERROR','Store credit confirmation could not be loaded.',500,true);
+    // Ambiguous IDs across environments must not confirm a different purchase.
+    const record=purchase?.length===1?purchase[0]:null;
+    return json({data:{outcome:record?.status==='granted'?'succeeded':record?.status==='refunded'?'refunded':'pending',
+      state:await publicSubscriptionStatus(db,user.id,state,configuration)},correlationId},200,correlationId);
+  }
 
   if(input.action==='reconcile'){
     const config=readRevenueCatAdapterConfig();
@@ -92,7 +105,8 @@ async function publicSubscriptionStatus(db:Db,userId:string,state:KivelleSubscri
     db.from('together_credit_ledger').select('created_at').eq('user_id',userId).eq('event_type','subscription_grant').order('created_at',{ascending:false}).limit(1).maybeSingle(),
   ]);
   if(activityError||grantError)throw new AppError('INTERNAL_ERROR','Credit activity could not be loaded.',500,true);
-  const publicCreditPacks=creditPacks.map((pack)=>({...pack,checkoutConfigured:false}));
+  const storeConfig=readRevenueCatAdapterConfig();
+  const publicCreditPacks=creditPacks.map((pack)=>({...pack,checkoutConfigured:configuration.billingPolicy.clientSurface!=='web'&&storeConfig.enabled&&Object.values(storeConfig.creditProducts??{}).includes(pack.key)}));
   return{
     ...state,
     billing:publicBillingSummary(state.billing),

@@ -5,6 +5,8 @@ import {AppError} from '../_shared/types.ts';
 import {beginBillingEvent,finishBillingEvent} from '../_shared/kivelle-billing-events.ts';
 import {parseRevenueCatWebhook,readRevenueCatAdapterConfig,revenueCatEventUserIds,validateRevenueCatEvent,verifyRevenueCatWebhook} from '../_shared/revenuecat.ts';
 import {syncRevenueCatUser} from '../_shared/kivelle-revenuecat-sync.ts';
+import {applyStoreCreditEvent,storeCreditEvent} from '../_shared/revenuecat-credits.ts';
+import {revenueCatConfigForUser} from '../_shared/revenuecat-sandbox.ts';
 
 serve(async(request,correlationId)=>{
   if(request.method!=='POST')throw new AppError('NOT_FOUND','That endpoint is unavailable.',404);
@@ -12,7 +14,10 @@ serve(async(request,correlationId)=>{
   if(!config.enabled)throw new AppError('BILLING_NOT_CONFIGURED','RevenueCat subscription synchronization is disabled.',503,true);
   const rawBody=await readRequestText(request);
   await verifyRevenueCatWebhook({rawBody,authorization:request.headers.get('authorization'),signature:request.headers.get('x-revenuecat-webhook-signature'),expectedAuthorization:serverEnv('KIVELLE_REVENUECAT_WEBHOOK_AUTHORIZATION'),signingSecret:serverEnv('KIVELLE_REVENUECAT_WEBHOOK_SIGNING_SECRET')});
-  const event=parseRevenueCatWebhook(rawBody),decision=validateRevenueCatEvent(event,config),db=adminClient();
+  const event=parseRevenueCatWebhook(rawBody),db=adminClient();
+  const eventOwner=revenueCatEventUserIds(event).find(id=>id===event.app_user_id);
+  const eventConfig=event.environment==='SANDBOX'&&eventOwner?await revenueCatConfigForUser(db,eventOwner,config):config;
+  const decision=validateRevenueCatEvent(event,eventConfig);
   const claim=await beginBillingEvent(db,'revenuecat',event.id,event.type);
   if(claim.idempotent)return json({data:{applied:false,idempotent:true},correlationId},200,correlationId);
   const summary={eventType:event.type,environment:event.environment??null,store:event.store??null};
@@ -26,6 +31,16 @@ serve(async(request,correlationId)=>{
     throw new AppError('VALIDATION_ERROR','RevenueCat subscription is not linked to a Kivelle account.',400);
   }
   try{
+    if(storeCreditEvent(event,config)){
+      // Aliases may refer to other signed-in accounts. A consumable belongs to
+      // the purchasing UUID and must never be granted once per alias.
+      const owner=event.app_user_id;
+      if(!owner||!userIds.includes(owner))throw new AppError('VALIDATION_ERROR','Store purchase has no linked account.',400);
+      const applied=await applyStoreCreditEvent(db,owner,event,config);
+      await finishBillingEvent(db,'revenuecat',event.id,'processed',owner,{...summary,productId:event.product_id,transactionId:event.transaction_id});
+      return json({data:{applied},correlationId},200,correlationId);
+    }
+    if(event.type==='NON_RENEWING_PURCHASE')throw new AppError('VALIDATION_ERROR','Store credit product is not configured.',400);
     const secretApiKey=serverEnv('KIVELLE_REVENUECAT_SECRET_API_KEY');
     const results=[];
     for(const userId of userIds)results.push(await syncRevenueCatUser(db,userId,event,config,secretApiKey));

@@ -1,6 +1,6 @@
 import type{SubscriptionStatus}from'./subscription';
 
-export type RestoreSyncResult={state:'active'|'verified_none'|'syncing';data?:SubscriptionStatus};
+export type RestoreSyncResult={state:'active'|'verified_none'|'syncing';data?:SubscriptionStatus;purchaseKind?:'credits'};
 
 export async function waitForAuthoritativeRestore(
   refetch:()=>Promise<{data?:SubscriptionStatus;verification?:'active'|'verified_none'|'syncing'}>,

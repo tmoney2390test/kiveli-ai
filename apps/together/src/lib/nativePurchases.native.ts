@@ -1,7 +1,9 @@
 import {currentPurchaseAccount,readPendingPurchase,savePendingPurchase} from './nativePurchaseRecovery';
 import{Platform}from'react-native';
 import { nativeProductPrice, type NativeProductPrice } from './nativeProductPrice';
-import Purchases,{LOG_LEVEL,type PurchasesPackage}from'react-native-purchases';
+import Purchases,{LOG_LEVEL,PRODUCT_CATEGORY,type PurchasesPackage}from'react-native-purchases';
+import {nativeCreditProductIds} from './nativeCreditProducts';
+import type {CreditPack} from './subscription';
 import type{BillingInterval,SubscriptionTier}from'./subscription';
 import{revenueCatPurchaseError,selectRevenueCatPackage}from'./revenueCatPurchases';
 
@@ -9,6 +11,40 @@ let identityQueue:Promise<void>=Promise.resolve();
 let storeBusy=false;
 let configured=false;
 let identifiedUser:string|null=null;
+
+export async function loadNativeCreditPrices(userId:string):Promise<Record<string,string>>{
+  await requireConfigured(userId);
+  const products=await Purchases.getProducts(Object.values(nativeCreditProductIds),PRODUCT_CATEGORY.NON_SUBSCRIPTION);
+  return Object.fromEntries(products.map(product=>[product.identifier,product.priceString]));
+}
+
+export async function purchaseNativeCredits(userId:string,pack:CreditPack['key']):Promise<{cancelled:boolean;pending:boolean}>{
+  if(storeBusy)throw new Error('Another store operation is running.');
+  storeBusy=true;
+  try{
+    await requireConfigured(userId);
+    return await withStoreIdentity(userId,async()=>{
+      if(await readPendingPurchase(userId))throw new Error('Your previous purchase is still syncing. Refresh its status before buying again.');
+      const productId=nativeCreditProductIds[pack];
+      const products=await Purchases.getProducts([productId],PRODUCT_CATEGORY.NON_SUBSCRIPTION);
+      const product=products.find(item=>item.identifier===productId);
+      if(!product)throw new Error('This credit pack is not available from your store yet.');
+      const pending={kind:'credits' as const,productId,startedAt:Date.now()};
+      await savePendingPurchase(userId,pending);
+      try{
+        const result=await Purchases.purchaseStoreProduct(product);
+        await savePendingPurchase(userId,{...pending,transactionId:result.transaction.transactionIdentifier});
+        return {cancelled:false,pending:false};
+      }catch(error){
+        const normalized=revenueCatPurchaseError(error);
+        if(normalized.cancelled||normalized.safeToRetry)await savePendingPurchase(userId,null);
+        if(normalized.pending)await savePendingPurchase(userId,{...pending,storePending:true});
+        if(normalized.cancelled||normalized.pending)return {cancelled:normalized.cancelled,pending:normalized.pending};
+        throw new Error(normalized.message);
+      }
+    });
+  }finally{storeBusy=false;}
+}
 
 export function nativePurchasesConfigured():boolean{
   return enabled()&&Boolean(platformApiKey());
@@ -47,7 +83,7 @@ export async function purchaseNativeSubscription(userId:string,tier:Exclude<Subs
       try{await Purchases.purchasePackage(selected);return{cancelled:false,pending:false};}
       catch(error){
         const normalized=revenueCatPurchaseError(error);
-        if(normalized.cancelled)await savePendingPurchase(userId,null);
+        if(normalized.cancelled||normalized.safeToRetry)await savePendingPurchase(userId,null);
         if(normalized.pending)await savePendingPurchase(userId,{kind:'purchase',targetTier:tier,startedAt:Date.now(),storePending:true});
         if(normalized.cancelled||normalized.pending)return{cancelled:normalized.cancelled,pending:normalized.pending};
         throw new Error(normalized.message);

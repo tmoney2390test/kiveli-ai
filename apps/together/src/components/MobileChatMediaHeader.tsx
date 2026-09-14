@@ -131,7 +131,7 @@ export function MobileChatMediaHeader({
 
   const height = progress.interpolate({
     inputRange: [-1, 0, 1],
-    outputRange: [0, compactHeight, expandedHeight],
+    outputRange: [Platform.OS==='web'?0:topInset, compactHeight, expandedHeight],
   });
   const headerOpacity = progress.interpolate({
     inputRange: [-1, -.72, 0],
@@ -169,7 +169,7 @@ export function MobileChatMediaHeader({
   const placeActionTop=topInset+(onCall?186:132);
 
   if (mode === 'hidden') {
-    return <View pointerEvents="box-none" style={styles.hiddenShell}>
+    return <View pointerEvents="box-none" style={[styles.hiddenShell,Platform.OS!=='web'&&{position:'relative',height:topInset,backgroundColor:colors.background}]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Show conversation header"

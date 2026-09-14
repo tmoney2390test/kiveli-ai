@@ -4,6 +4,7 @@ import {fetchRevenueCatSubscriber,normalizeRevenueCatSubscriber,readRevenueCatAd
 import {grantSubscriptionCreditsForPeriod,resolveSubscriptionAccess,resolveSubscriptionState} from './kivelle-subscription.ts';
 import {track} from './together.ts';
 import {accountDeletionStarted} from './kivelle-deleted-account.ts';
+import {revenueCatConfigForUser} from './revenuecat-sandbox.ts';
 type Db=ReturnType<typeof adminClient>;
 type StoredSubscription={provider_customer_id:string|null;provider_subscription_id:string;provider_product_id:string|null;provider_price_id:string|null;plan_key:'kivelle_plus'|'kivelle_max';status:string;billing_interval:'monthly'|'annual';current_period_start:string|null;current_period_end:string|null;trial_end:string|null;cancel_at_period_end:boolean;canceled_at:string|null;access_ends_at:string|null;metadata:Record<string,unknown>|null};
 
@@ -16,6 +17,7 @@ export async function syncRevenueCatUser(db:Db,userId:string,event:RevenueCatWeb
 }
 async function reconcileRevenueCatUser(db:Db,userId:string,event:RevenueCatWebhookEvent,config:ReturnType<typeof readRevenueCatAdapterConfig>,secretApiKey:string):Promise<{applied:boolean;verifiedNoPurchase:boolean}>{
   if(await accountDeletionStarted(db,userId))return {applied:false,verifiedNoPurchase:false};
+  config=await revenueCatConfigForUser(db,userId,config);
   // The FK-backed entitlement bootstrap proves the custom RevenueCat App User
   // ID belongs to a real Kivelle account before provider state is accepted.
   await resolveSubscriptionAccess(db,userId);
