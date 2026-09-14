@@ -19,7 +19,6 @@ import {
   operationsDashboard,
   supportUserLookup,
 } from "../_shared/kivelle-ops-dashboard.ts";
-import { sendSupportTicketEmail } from "../_shared/kivelle-support-email.ts";
 import { worldCatalogStatus, worldCatalogStatusPatch } from "../../../packages/together-domain/src/world-access.ts";
 
 const ticketStatus = z.enum([
@@ -316,27 +315,9 @@ serve(async (request, correlationId) => {
       event_type: "created",
       next_state: { status: data.status, ticketNumber: data.ticket_number },
     });
-    const emailDelivery = await sendSupportTicketEmail({
-      ticketId: data.id,
-      ticketNumber: Number(data.ticket_number),
-      category: input.category,
-      subject: input.subject,
-      message: input.message,
-      userId: user.id,
-      userEmail: user.email,
-      correlationId: ticketCorrelationId,
-      createdAt: data.created_at,
-    });
-    const deliveryMetadata = {
-      support_email_status: emailDelivery.status,
-      ...(emailDelivery.providerId
-        ? { support_email_provider_id: emailDelivery.providerId }
-        : {}),
-      ...(emailDelivery.errorCode
-        ? { support_email_error_code: emailDelivery.errorCode }
-        : {}),
-      support_email_attempted_at: new Date().toISOString(),
-    };
+    // The insert trigger atomically queues inbox and customer notifications.
+    const emailDelivery = { status: 'queued' };
+    const deliveryMetadata = { support_email_status: 'queued', support_email_attempted_at: null };
     const { error: deliveryUpdateError } = await db.from("together_support_tickets")
       .update({ metadata: deliveryMetadata }).eq("id", data.id).eq("user_id", user.id);
     if (deliveryUpdateError) {

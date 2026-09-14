@@ -239,7 +239,7 @@ export const createSupportTicket = (
 ) =>
   invoke<{
     ticket: { id: string; ticket_number: number; status: string; created_at: string };
-    emailDelivery: "sent" | "not_configured" | "failed";
+    emailDelivery: "queued" | "sent" | "not_configured" | "failed";
   }>(
     "together-ops",
     { action: "create_support_ticket", ...input },
