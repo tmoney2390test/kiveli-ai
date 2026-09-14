@@ -17,6 +17,9 @@ export default function DeleteAccount() {
     <Pressable accessibilityRole="link" accessibilityLabel="Email Kivelli support to request account deletion" onPress={() => void Linking.openURL('mailto:support@kivelli.app?subject=Account%20deletion%20request')} style={styles.secondaryAction}>
       <Text style={styles.secondaryText}>Email a deletion request</Text>
     </Pressable>
+    <LegalSection title="Delete selected data and keep your account">
+      In Settings → Privacy & safety → Manage remembered information, you can review and forget individual memories. To request deletion of other specific data, email support@kivelli.app from your account email with the subject “Data deletion request” and describe what you want removed. We may verify account ownership before deleting it. You do not need to delete your account to make this request.
+    </LegalSection>
     <LegalSection title="What deletion covers">
       Deletion removes the active account, profile, personas, conversations, memories, relationships, exports, and stored private media. Store subscriptions may need to be canceled separately through Google Play or Apple. Limited billing, security, and legal records may be retained where required; encrypted backups expire on their normal rotation. See the Privacy Policy or contact support for details about retained records.
     </LegalSection>
