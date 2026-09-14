@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { personaAgeError, personaAvatarStoragePath, personaDraftChanged, type PersonaEditorDraft } from './personaEditor';
+import { personaAgeError, personaAvatarStoragePath, personaDraftChanged, personaInterestsError, personaSnapshotPatch, personaChatDestination, type PersonaEditorDraft } from './personaEditor';
+import type { Snapshot, UserPersona } from '../types';
 
 const draft: PersonaEditorDraft = {
   name: 'Jordan', pronouns: 'they/them', age: '31', occupation: 'Musician', about: 'Loves a good story.', interests: 'Jazz, travel', avatarPath: null,
@@ -7,6 +8,27 @@ const draft: PersonaEditorDraft = {
 };
 
 describe('Persona editor safeguards', () => {
+  it('resumes only the selected Life companion and otherwise opens their profile', () => {
+    const snapshot={characters:[{id:'alternate-character',together_character_templates:{slug:'freya'}}],conversations:[{id:'alternate-chat',character_instance_id:'alternate-character',kind:'direct'}]} as unknown as Snapshot;
+    expect(personaChatDestination(snapshot,'freya')).toBe('/chat?character=freya&conversationId=alternate-chat');
+    expect(personaChatDestination(snapshot,'gin')).toBe('/character/gin');
+  });
+  it('validates interests without silently throwing away edits', () => {
+    expect(personaInterestsError('Jazz, travel')).toBeNull();
+    expect(personaInterestsError('x'.repeat(41))).toMatch(/40/);
+    expect(personaInterestsError(Array(13).fill('Jazz').join(','))).toMatch(/12/);
+    expect(personaDraftChanged({...draft,interests:Array(12).fill('Jazz').join(',')}, {...draft,interests:[...Array(12).fill('Jazz'),'Travel'].join(',')})).toBe(true);
+  });
+
+  it('updates the active identity and Life card together without changing histories', () => {
+    const saved={id:'persona',display_name:'New name'} as UserPersona;
+    const snapshot={personas:[{id:'persona'}],activePersona:{id:'persona'},activeContinuity:{id:'life',persona_id:'persona'},continuities:[{id:'life',persona_id:'persona'}]} as Snapshot;
+    const patch=personaSnapshotPatch(snapshot,saved);
+    expect(patch.activePersona).toBe(saved);
+    expect(patch.activeContinuity?.together_user_personas).toBe(saved);
+    expect(patch.continuities?.[0]?.together_user_personas).toBe(saved);
+    expect(patch).not.toHaveProperty('conversations');
+  });
   it('enforces the same adult age range as the API', () => {
     expect(personaAgeError('')).toBeNull();
     expect(personaAgeError('18')).toBeNull();

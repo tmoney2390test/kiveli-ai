@@ -22,6 +22,10 @@ const snapshot = {
 } as unknown as Snapshot;
 
 describe('chat route resolution', () => {
+  it('never substitutes another companion for a link from a different Life', () => {
+    expect(resolveChatRoute(snapshot,{conversationId:'other-life-conversation'}).character).toBeUndefined();
+    expect(resolveChatRoute(snapshot,{character:'other-life-instance'}).character).toBeUndefined();
+  });
   it('honors the explicit conversation created by a character profile handoff', () => {
     const route = resolveChatRoute(snapshot, {
       character: 'elena',

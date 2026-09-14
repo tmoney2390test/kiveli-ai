@@ -1,3 +1,30 @@
+import type { Snapshot, UserPersona } from '../types';
+import { activeConversationFor } from './conversation';
+
+export function personaChatDestination(snapshot: Snapshot, slug: string): string {
+  const character=snapshot.characters.find((item)=>item.together_character_templates.slug===slug);
+  if(!character)return `/character/${encodeURIComponent(slug)}`;
+  const conversation=activeConversationFor(snapshot.conversations,character.id);
+  return `/chat?character=${encodeURIComponent(slug)}${conversation?`&conversationId=${encodeURIComponent(conversation.id)}`:''}`;
+}
+
+export function personaSnapshotPatch(snapshot: Snapshot, saved: UserPersona): Partial<Snapshot> {
+  const exists = snapshot.personas?.some((persona) => persona.id === saved.id);
+  return {
+    personas: exists ? snapshot.personas!.map((persona) => persona.id === saved.id ? saved : persona) : [...(snapshot.personas ?? []), saved],
+    activePersona: snapshot.activePersona?.id === saved.id ? saved : snapshot.activePersona,
+    activeContinuity: snapshot.activeContinuity?.persona_id === saved.id ? {...snapshot.activeContinuity, together_user_personas: saved} : snapshot.activeContinuity,
+    continuities: snapshot.continuities?.map((life) => life.persona_id === saved.id ? {...life, together_user_personas: saved} : life),
+  };
+}
+
+export function personaInterestsError(value: string): string | null {
+  const interests = value.split(',').map((item) => item.trim()).filter(Boolean);
+  if (interests.length > 12) return 'Choose up to 12 interests.';
+  if (interests.some((item) => item.length > 40)) return 'Keep each interest to 40 characters or fewer.';
+  return null;
+}
+
 export type PersonaEditorDraft = {
   name: string;
   pronouns: string;
@@ -38,6 +65,6 @@ function normalizePersonaDraft(value: PersonaEditorDraft): PersonaEditorDraft {
     age: value.age.trim(),
     occupation: value.occupation.trim(),
     about: value.about.trim(),
-    interests: value.interests.split(',').map((item) => item.trim()).filter(Boolean).slice(0, 12).join(', '),
+    interests: value.interests.split(',').map((item) => item.trim()).filter(Boolean).join(', '),
   };
 }

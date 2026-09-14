@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
+import { personaChatDestination } from '../src/lib/personaEditor';
 import { Image } from 'expo-image';
 import { ArrowLeft, Check, ChevronRight, Pencil, Plus, Trash2, UserRound } from 'lucide-react-native';
 import { EmptyState, GlassCard, LoadingSkeleton, PageTitle, Screen, SectionHeader } from '../src/components';
@@ -13,6 +14,10 @@ import { confirmAction, showActionAlert } from '../src/lib/dialogs';
 import { ErrorState } from '../src/components/RouteState';
 
 export default function Personas() {
+  const {character: returnCharacter}=useLocalSearchParams<{character?:string}>();
+  const actionInFlight=useRef(false);
+  const editorHref=(persona?:string)=>`/persona-editor?${persona?'persona='+encodeURIComponent(persona)+'&':''}${returnCharacter?'character='+encodeURIComponent(returnCharacter):''}`;
+  const returnToCharacter=(next:Snapshot)=>{if(returnCharacter)router.replace(personaChatDestination(next,returnCharacter) as never);};
   const { snapshot, setSnapshot, refresh, loading, error } = useTogether();
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState('');
@@ -32,22 +37,24 @@ export default function Personas() {
   const locked = Boolean(busy);
 
   const switchLife = async (item: KivelleContinuity) => {
-    if (busy || item.id === active?.id) return;
+    if (busy || actionInFlight.current || item.id === active?.id) return;
+    actionInFlight.current=true;
     setBusy(item.id);
     setNotice('');
-    try { setSnapshot(await managePersona<Snapshot>({ action: 'switch_life', continuityId: item.id })); setNotice(`You are now in ${item.title}.`); }
+    try { const next=await managePersona<Snapshot>({ action: 'switch_life', continuityId: item.id });setSnapshot(next);setNotice(`You are now in ${item.title}.`);returnToCharacter(next); }
     catch (error) { showActionAlert('Could not switch Life', error instanceof Error ? error.message : 'Please try again.'); }
-    finally { setBusy(''); }
+    finally { actionInFlight.current=false;setBusy(''); }
   };
   const start = (persona: UserPersona) => confirmAction({
     title: `Start ${persona.display_name}'s Life?`,
     message: `${persona.display_name} will begin with separate relationships, memories, plans, and history. Your current Life will stay exactly as it is.`,
     confirmLabel: 'Start alternate life',
     onConfirm: async () => {
+      if(actionInFlight.current)return;actionInFlight.current=true;
       setBusy(persona.id);
-      try { setSnapshot(await managePersona<Snapshot>({ action: 'start_life', personaId: persona.id })); router.push('/(tabs)/singles'); }
+      try { const next=await managePersona<Snapshot>({ action: 'start_life', personaId: persona.id });setSnapshot(next);if(returnCharacter)returnToCharacter(next);else router.push('/(tabs)/singles'); }
       catch (error) { showActionAlert('Could not start Life', error instanceof Error ? error.message : 'Please try again.'); }
-      finally { setBusy(''); }
+      finally { actionInFlight.current=false;setBusy(''); }
     },
   });
   const removeLife = (life: KivelleContinuity) => confirmAction({
@@ -56,24 +63,26 @@ export default function Personas() {
     confirmLabel: 'Delete Life',
     destructive: true,
     onConfirm: async () => {
+      if(actionInFlight.current)return;actionInFlight.current=true;
       setBusy(life.id);
       try { setSnapshot(await managePersona<Snapshot>({ action: 'delete_life', continuityId: life.id, confirmation: 'DELETE LIFE' })); }
       catch (error) { showActionAlert('Could not delete Life', error instanceof Error ? error.message : 'Please try again.'); }
-      finally { setBusy(''); }
+      finally { actionInFlight.current=false;setBusy(''); }
     },
   });
 
   return <Screen>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back to settings" onPress={() => router.canGoBack() ? router.back() : router.replace('/settings')} style={styles.iconButton}><ArrowLeft color={colors.text} /></Pressable><View style={{flex:1}}><PageTitle>You in Kivelle</PageTitle><Text style={styles.subtitle}>A Life keeps one identity, relationships, memories, plans, and history together.</Text></View></View>
+    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel={returnCharacter?"Back to chat":"Back to settings"} disabled={locked} onPress={() => router.canGoBack() ? router.back() : router.replace('/settings')} style={styles.iconButton}><ArrowLeft color={colors.text} /></Pressable><View style={{flex:1}}><PageTitle>You in Kivelle</PageTitle><Text style={styles.subtitle}>A Life keeps one identity, relationships, memories, plans, and history together.</Text></View></View>
+    {returnCharacter?<Text style={styles.subtitle}>Switching opens this companion in the selected Life. Each Life keeps its own conversations and relationships. If you have not met there, their profile opens first.</Text>:null}
     {notice ? <Text accessibilityRole="alert" style={styles.notice}>{notice}</Text> : null}
     {active ? <GlassCard style={styles.activeSummary}><PersonaAvatar persona={active.together_user_personas}/><View style={{flex:1}}><Text style={styles.activeKicker}>YOU'RE CURRENTLY HERE</Text><Text style={styles.activeName}>{active.together_user_personas?.display_name ?? active.title}</Text><Text style={styles.activeMeta}>{active.kind === 'main' ? 'Main Life' : active.title}{active.together_user_personas?.occupation ? ` · ${active.together_user_personas.occupation}` : ''}</Text></View></GlassCard> : null}
 
     <SectionHeader title="Your Lives" />
-    {lives.length ? lives.map((life) => <LifeCard key={life.id} life={life} active={life.id === active?.id} busy={busy === life.id} disabled={locked} onSwitch={() => void switchLife(life)} onEdit={() => router.push(`/persona-editor?persona=${life.persona_id}` as never)} onDelete={life.kind==='alternate'?() => removeLife(life):undefined} />) : <EmptyState title="Your Main Life is being prepared" body="Refresh Kivelle to finish account setup." action="Try again" onAction={() => void refresh({ force: true })} />}
+    {lives.length ? lives.map((life) => <LifeCard key={life.id} life={life} active={life.id === active?.id} busy={busy === life.id} disabled={locked} onSwitch={() => void switchLife(life)} onEdit={() => router.push(editorHref(life.persona_id) as never)} onDelete={life.kind==='alternate'?() => removeLife(life):undefined} />) : <EmptyState title="Your Main Life is being prepared" body="Refresh Kivelle to finish account setup." action="Try again" onAction={() => void refresh({ force: true })} />}
 
-    {unusedPersonas.length ? <><SectionHeader title="Ready for a new Life" />{unusedPersonas.map((persona) => <View key={persona.id} style={[styles.persona,locked&&styles.disabled]}><PersonaAvatar persona={persona}/><Pressable accessibilityRole="button" accessibilityLabel={`Edit ${persona.display_name}`} disabled={locked} onPress={() => router.push(`/persona-editor?persona=${persona.id}` as never)} style={{ flex: 1 }}><Text style={styles.name}>{persona.display_name}</Text><Text style={styles.meta}>{[persona.occupation, persona.age].filter(Boolean).join(' · ') || 'Identity ready'}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Start ${persona.display_name}'s Life`} disabled={locked} onPress={() => start(persona)} style={styles.start}><Text style={styles.startText}>{busy===persona.id?'Starting…':'Start Life'}</Text><ChevronRight size={15} color={colors.rose} /></Pressable></View>)}</> : null}
+    {unusedPersonas.length ? <><SectionHeader title="Ready for a new Life" />{unusedPersonas.map((persona) => <View key={persona.id} style={[styles.persona,locked&&styles.disabled]}><PersonaAvatar persona={persona}/><Pressable accessibilityRole="button" accessibilityLabel={`Edit ${persona.display_name}`} disabled={locked} onPress={() => router.push(editorHref(persona.id) as never)} style={{ flex: 1 }}><Text style={styles.name}>{persona.display_name}</Text><Text style={styles.meta}>{[persona.occupation, persona.age].filter(Boolean).join(' · ') || 'Identity ready'}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Start ${persona.display_name}'s Life`} disabled={locked} onPress={() => start(persona)} style={styles.start}><Text style={styles.startText}>{busy===persona.id?'Starting…':'Start Life'}</Text><ChevronRight size={15} color={colors.rose} /></Pressable></View>)}</> : null}
 
-    <Pressable accessibilityRole="button" accessibilityLabel="Create another identity" disabled={locked} onPress={() => router.push('/persona-editor')} style={[styles.add,locked&&styles.disabled]}><Plus size={18} color={colors.rose} /><Text style={styles.addText}>Create another identity</Text></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Create another identity" disabled={locked} onPress={() => router.push(editorHref() as never)} style={[styles.add,locked&&styles.disabled]}><Plus size={18} color={colors.rose} /><Text style={styles.addText}>Create another identity</Text></Pressable>
     <GlassCard><Text style={styles.empty}>Alternate Lives never merge relationship history. Switching Life changes who you are in Kivelle without rewriting another Life.</Text></GlassCard>
   </Screen>;
 }

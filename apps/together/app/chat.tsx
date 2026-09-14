@@ -112,7 +112,7 @@ export default function Chat() {
   if(params.group==='1'&&params.id)return <Suspense fallback={<View style={{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:colors.background}}><ActivityIndicator color={colors.violet}/></View>}><GroupChatScreen/></Suspense>;
   const route=resolveChatRoute(snapshot,params);
   const pendingKey=[params.conversationId,params.character,params.planId,params.world,params.location].filter(Boolean).join(':')||'recent';
-  return <ChatSession key={chatSessionRouteKey(route.conversation?.id,params,pendingKey)}/>;
+  return <ChatSession key={`${snapshot?.activeContinuity?.id??'loading'}:${chatSessionRouteKey(route.conversation?.id,params,pendingKey)}`}/>;
 }
 
 function ChatSession() {
