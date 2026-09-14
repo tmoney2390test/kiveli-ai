@@ -773,13 +773,16 @@ function Support({
         tags: string[];
         note: string;
       }>,
-    ) =>
-      mutate(
+    ) => {
+      let saved=false;
+      return mutate(
         `ticket:${id}`,
-        () => updateSupportTicket({ ticketId: id, ...patch }),
+        async () => {const result=await updateSupportTicket({ticketId:id,...patch});saved=true;return result;},
       ).then(async () => {
-        await openTicket(id);
+        if(saved)await openTicket(id);
+        return saved;
       });
+    };
     return (
       <>
         <SectionHeader
@@ -833,7 +836,7 @@ function Support({
             label="Save note"
             busy={busyKey === `ticket:${id}`}
             disabled={note.trim().length < 2}
-            onPress={() => void update({ note }).then(() => setNote(""))}
+            onPress={() => void update({ note }).then(saved => {if(saved)setNote("");})}
           />
         </Panel>
         <SupportReplies key={id} ticketId={id} replies={detail.replies??[]} onSent={()=>openTicket(id)}/>
