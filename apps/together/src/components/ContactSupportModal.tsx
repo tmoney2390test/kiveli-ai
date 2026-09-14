@@ -1,3 +1,5 @@
+import {useSupportRequest} from '../lib/useSupportRequest';
+import {router} from 'expo-router';
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -48,19 +50,23 @@ export function ContactSupportModal({
     }
   }, [visible]);
 
+  const sendRequest=useSupportRequest();
+  const [error,setError]=useState('');
   const ready = canSubmitSupportRequest(subject, message);
   const close = () => { if (!busy) onClose(); };
   const submit = async () => {
     if (!ready || busy) return;
     setBusy(true);
+    setError('');
     try {
-      const result = await createSupportTicket({
-        category: "other",
+      const result = await sendRequest({
+        category: "other" as const,
         subject: subject.trim(),
         message: message.trim(),
-      });
+      },createSupportTicket);
       const reference = formatSupportTicketReference(result.ticket.ticket_number);
       onClose();
+      router.push({pathname:'/support',params:{ticket:result.ticket.id}});
       Alert.alert(
         "Request received",
         result.emailDelivery === "sent"
@@ -68,6 +74,7 @@ export function ContactSupportModal({
           : `${reference} was created and is available to the support team.`,
       );
     } catch (error) {
+      setError(error instanceof Error?error.message:'Please try again.');
       Alert.alert(
         "Could not contact support",
         error instanceof Error ? error.message : "Please try again.",
@@ -178,6 +185,8 @@ export function ContactSupportModal({
           </ScrollView>
 
           <View style={styles.footer}>
+            {error?<Text accessibilityRole="alert" style={styles.intro}>{error}</Text>:null}
+            <Pressable onPress={()=>{if(!busy){onClose();router.push('/support');}}}><Text style={styles.intro}>View your support requests</Text></Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Contact support"
