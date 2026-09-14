@@ -15,7 +15,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       origin: 'https://kivelli.app',
       asyncRoutes: { web: true, default: 'development' },
     },
-  ],'expo-secure-store','expo-system-ui','expo-notifications','expo-audio','expo-image','expo-video','@edkimmel/expo-audio-stream','expo-apple-authentication',['expo-image-picker',{photosPermission:'Choose a photo to share privately in Kivelle Chat.',cameraPermission:'Take a photo to share privately in Kivelle Chat.'}],['expo-splash-screen',{image:'./assets/icon.png',imageWidth:180,resizeMode:'contain',backgroundColor:'#080B13'}]],
+  ],'expo-secure-store','expo-system-ui','expo-notifications',['expo-audio',{enableBackgroundPlayback:false}],'expo-image','expo-video','@edkimmel/expo-audio-stream','expo-apple-authentication',['expo-image-picker',{photosPermission:'Choose a photo to share privately in Kivelle Chat.',cameraPermission:'Take a photo to share privately in Kivelle Chat.'}],['expo-splash-screen',{image:'./assets/icon.png',imageWidth:180,resizeMode:'contain',backgroundColor:'#080B13'}]],
   experiments: { typedRoutes: true },
   extra: {
     eas: {

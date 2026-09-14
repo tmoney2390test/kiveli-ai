@@ -107,14 +107,10 @@ export function useChatDictation(options: ChatDictationOptions) {
   useEffect(() => () => {
     mountedRef.current = false;
     clearTimer();
-    const status = recorder.getStatus();
-    const stopping = status.isRecording ? recorder.stop().catch(() => undefined) : Promise.resolve();
-    void stopping.then(() => {
-      const uri = recorder.uri ?? recorder.getStatus().url;
-      if (uri) removeLocalRecording(uri);
-      return restorePlaybackMode();
-    });
-  }, [clearTimer, recorder]);
+    // useAudioRecorder releases the native recorder during unmount. Calling it
+    // from a later cleanup can race that release and crash the conversation.
+    if (phaseRef.current !== 'idle') void restorePlaybackMode();
+  }, [clearTimer]);
 
   return { phase, elapsedMs: recorderState.durationMillis, toggle };
 }

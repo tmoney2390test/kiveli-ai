@@ -111,7 +111,6 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     voicePlayer.pause();
   }, [visible, conversation?.id, character?.id, snapshot?.profile, snapshot?.entitlements?.tier]);
 
-  useEffect(() => () => voicePlayer.pause(), [voicePlayer]);
   useEffect(() => { if (!visible) { voicePlayer.pause(); setVoicePreview(null); } }, [visible, voicePlayer]);
 
   const selectVoice = (next: CompanionVoicePreset | null) => {

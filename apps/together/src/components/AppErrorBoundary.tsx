@@ -1,5 +1,5 @@
 import React,{useEffect,useRef} from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, usePathname } from 'expo-router';
 import { AlertTriangle, RotateCcw } from 'lucide-react-native';
 import { colors, radius } from '../theme';
@@ -22,7 +22,7 @@ type ErrorUtilsShape={getGlobalHandler?:()=>NativeErrorHandler;setGlobalHandler?
 export function GlobalErrorReporter(){const route=usePathname(),routeRef=useRef(route);routeRef.current=route;useEffect(()=>{
   let reporting=false;
   const report=(value:unknown,surface:string)=>{if(reporting)return;reporting=true;void reportClientError(value,{route:routeRef.current,surface}).catch(()=>undefined).finally(()=>{reporting=false;});};
-  if(typeof window!=='undefined'){
+  if(Platform.OS==='web'){
     const onError=(event:ErrorEvent)=>{if(recoverStaleWebAssetEvent(event)||recoverStaleWebRelease(event.error??event.message)){event.preventDefault();return;}report(event.error??event.message,'unhandled_error');};
     const onRejection=(event:PromiseRejectionEvent)=>{if(recoverStaleWebRelease(event.reason)){event.preventDefault();return;}report(event.reason,'unhandled_rejection');};
     window.addEventListener('error',onError);window.addEventListener('unhandledrejection',onRejection);

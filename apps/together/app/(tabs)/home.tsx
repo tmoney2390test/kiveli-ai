@@ -117,13 +117,13 @@ export default function Home() {
 
   const openCompanion = async (proactiveMessageId?: string) => {
     if (proactiveMessageId) await markProactiveOpened(proactiveMessageId).catch(() => undefined);
-    router.push(`/(tabs)/chat-tab?character=${encodeURIComponent(handle)}`);
+    router.push(`${Platform.OS === 'web' ? '/(tabs)/chat-tab' : '/chat'}?character=${encodeURIComponent(handle)}`);
   };
   const runAction = async (action: HomeTargetAction) => {
     if (action.kind === 'chat') return openCompanion(action.proactiveMessageId);
     if (action.kind === 'plan') return router.push(`/plan/${action.id}`);
     if (action.kind === 'date') return router.push(`/date/${action.id}`);
-    router.push(`/(tabs)/chat-tab?character=${encodeURIComponent(handle)}&plan=1`);
+    router.push(`${Platform.OS === 'web' ? '/(tabs)/chat-tab' : '/chat'}?character=${encodeURIComponent(handle)}&plan=1`);
   };
   return <Screen contentStyle={desktop ? styles.contentDesktop : styles.content}>
     <View pointerEvents="none" style={styles.ambientGlow} />
