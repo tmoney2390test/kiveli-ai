@@ -40,3 +40,6 @@ jobs:
 
       - name: Verify support portal database contract
         run: node scripts/test-support-portal-db.mjs
+
+      - name: Verify transactional email queue and quota contract
+        run: node --test scripts/transactional-email.test.mjs
