@@ -1,3 +1,5 @@
+import { enrichCharacter, chronology, districtLife, venueLife, supportingResidents, arcEnrichment, eventVariations, localCulture } from './eos-meridian-enrichment.mjs';
+import { buildEnrichedSchedules } from './eos-meridian-schedules.mjs';
 export const WORLD_ID='10000000-0000-4000-8000-000000000012';
 export const LOCATION_PREFIX='2c000000-0000-4000-8000-';
 
@@ -372,21 +374,37 @@ export const dateScenes=[
   ['common-room-last-table','The Last Table','common-room','A late meal after the crowd thins turns an ordinary public room into a repeatable shared place.','grounded'],
 ].map(([slug,title,locationSlug,setup,tone])=>({slug:`eos-${slug}`,title,locationSlug,setup,tone,season:'permanent twilight'}));
 
-export function buildSchedules(){
-  const rows=[];
-  for(const character of characters){
-    const nightWorker=['vesper-quinn','camille-arden','rafael-costa'].includes(character.slug);
-    for(let day=0;day<7;day++){
-      const friday=day===5,saturday=day===6,sunday=day===0;
-      const blocks=nightWorker
-        ?[[0,180,friday||saturday?character.socialSlug:character.workSlug,friday||saturday?'Hosting the late colony crowd':`Working as ${character.occupation.toLowerCase()}`,'busy'],[180,600,null,'Sleeping at home','limited'],[600,900,null,'Having some quiet time at home','limited'],[900,1080,sunday?character.secondarySlug:character.workSlug,sunday?'Catching up on a personal interest':'Getting ready for work','limited'],[1080,1260,character.workSlug,`Working as ${character.occupation.toLowerCase()}`,'busy'],[1260,1440,friday||saturday?character.socialSlug:character.workSlug,friday||saturday?'Spending the late shift around friends':'Finishing the work shift','busy']]
-        : sunday
-          ?[[0,480,null,'Sleeping at home','limited'],[480,660,null,'Having a slow morning at home','limited'],[660,900,character.secondarySlug,`Spending a rest day around ${character.interests[0]}`,'available'],[900,1080,character.socialSlug,'Sharing a meal or catching up with friends','available'],[1080,1260,character.secondarySlug,`Making time for ${character.interests[1]}`,'available'],[1260,1440,null,'Settling in at home','limited']]
-          : saturday
-            ?[[0,480,null,'Sleeping at home','limited'],[480,660,character.secondarySlug,`Starting the day with ${character.interests[0]}`,'available'],[660,900,character.workSlug,`Handling a lighter ${character.occupation.toLowerCase()} shift`,'limited'],[900,1140,character.socialSlug,'Spending time with friends or regulars','available'],[1140,1320,character.socialSlug,'Staying out for the colony evening','available'],[1320,1440,null,'Heading home to rest','limited']]
-            :[[0,420,null,'Sleeping at home','limited'],[420,540,character.secondarySlug,`Starting the day with ${character.interests[0]}`,'available'],[540,780,character.workSlug,`Working as ${character.occupation.toLowerCase()}`,'busy'],[780,1020,friday?character.secondarySlug:character.workSlug,friday?'Handling a shorter final shift':`Continuing ${character.occupation.toLowerCase()} work`,'busy'],[1020,1260,friday?character.socialSlug:character.secondarySlug,friday?'Meeting friends after the shift':`Making time for ${character.interests[1]}`,'available'],[1260,1440,friday?character.socialSlug:null,friday?'Staying out later with friends':'Relaxing at home','limited']];
-      for(const [startMinute,endMinute,locationSlug,activity,availability] of blocks)rows.push({characterVersionId:character.versionId,dayOfWeek:day,startMinute,endMinute,locationSlug,activity,availability,energyDelta:activity==='Sleeping at home'?1:availability==='busy'?-1:0,moodInfluence:availability==='busy'?'focused':availability==='available'?'social':'calm',variationWeight:1,metadata:{scheduleMode:'authored',worldSlug:'eos-meridian',dayType:sunday?'rest_day':friday?'friday':saturday?'saturday':'weekday',userLocalClock:true}});
-    }
-  }
-  return rows;
+// Apply the editorial pass after the original seeds so protected material remains verbatim.
+for (const character of characters) {
+  const life = enrichCharacter(character);
+  character.characterBible = {...character.characterBible, editorialLife:life,
+    currentGoals:[life.weeklyGoal], ambitions:[life.ambition], concerns:[life.relationshipTension]};
+  character.firstMeeting = {locationSlug:character.workSlug, opener:life.firstMeeting.action+' '+life.firstMeeting.line};
 }
+world.canonicalLore.editorialChronology = chronology;
+world.canonicalLore.districtLife = districtLife;
+for (const place of locations) {
+  const detail=venueLife[place.slug];
+  const district=districtLife[place.slug];
+  if(detail){
+    const [pastIncident,regular,unwrittenRule,disputedUse,changingCondition]=detail;
+    place.backstory=pastIncident;
+    place.socialTexture=[regular,unwrittenRule,disputedUse,changingCondition].join(' ');
+    place.editorialLife={pastIncident,regular,unwrittenRule,disputedUse,changingCondition};
+  }
+  if(district){place.socialTexture=district.join(' ');place.editorialLife={pride:district[0],disagreement:district[1],habit:district[2]};}
+  const residents=supportingResidents.filter(person=>person.locationSlug===place.slug);
+  if(residents.length)place.supportingResidents=residents;
+}
+for(const arc of storyArcs){
+  arc.chapters=arcEnrichment[arc.slug].chapters;
+  arc.editorialEvidence=arcEnrichment[arc.slug];
+  if(arc.slug==='eos-ghost-passenger')arc.minStage='friend';
+}
+for(const event of recurringEvents){
+  event.variation=eventVariations[event.name];
+  event.summary+=' '+event.variation+' Choose a variation relevant to this session; do not assert every example occurred or repeat a resolved event.';
+}
+recurringEvents.push({name:'The Rain Is Cancelled',eventType:'solace_service_interruption',locationSlug:'rain-room',participantSlugs:['imani-laurent','elian-park','hana-petrov','zoe-mercer','naomi-varga','sora-bell','vesper-quinn','mae-lin'],category:'community',tone:'grounded',probability:.08,durationMinutes:90,recurrence:{random:true,dayparts:['afternoon']},summary:'One validated water-quality irregularity temporarily cancels a scheduled Rain Room cycle in this player’s story. This is not a permanent closure or a finding that all water is unsafe. Imani needs a preserved sample; Elian a service plan; Hana a checked measurement; Zoe accurate public wording; Naomi must avoid overconfidence. Sora can choose an alternative farewell gathering with Vesper and Mae at Static Garden during its opening hours. Offer scientific, civic, social or friendship participation without compulsory romance. Restore the cycle only after a verified correction established in this session; retain only the decisions and disclosures actually witnessed. Do not claim anyone attended a relocated gathering until they do.'});
+worldFacts.push(...localCulture.map(([slug,title,fact,triggerTerms])=>({slug:'eos-'+slug,title,category:'culture',fact,triggerTerms,truthMode:'canonical',knowledgeScope:'public',contentLevel:'standard'})));
+export function buildSchedules(){return buildEnrichedSchedules(characters,locations);}

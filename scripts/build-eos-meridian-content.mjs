@@ -1,5 +1,6 @@
 import{writeFile}from'node:fs/promises';
 import{WORLD_ID,LOCATION_PREFIX,world,locations,characters,socialEdges,recurringEvents,storyArcs,worldFacts,dialogueOpportunities,interactionBeats,dateScenes,buildSchedules}from'./eos-meridian-content.mjs';
+import { editorialLocationLore } from './eos-meridian-enrichment.mjs';
 
 const schedules=buildSchedules();
 const sqlJson=(value,tag)=>`$${tag}$${JSON.stringify(value)}$${tag}$::jsonb`;
@@ -20,7 +21,7 @@ insert into public.together_worlds(
 ) values(
   '${WORLD_ID}',${quote(world.name)},${quote(world.slug)},${quote(world.description)},'eos-meridian-hero',
   '{"accent":["copper","aurora teal","warm amber"]}'::jsonb,
-  ${sqlJson({releaseWave:11,early_access:true,releaseStatus:'playable',contentStatus:'complete_world_v1',locationCatalogStatus:'ready',residentRosterStatus:'ready',photoStatus:'hero_ready',locationPhotoStatus:'ready',mappedLocationPhotoCount:locations.length,locationCount:locations.length,districtCount:6,publicPlaceCount:locations.length-6,residentCompanionCount:characters.length,residentRosterVersion:1,residentScheduleStatus:'authored_weekly_v1',socialGraphStatus:'authored_v1',residentPortraitStatus:'primary_portraits_ready',mappedResidentPortraitCount:characters.length,recurringEventCount:recurringEvents.length,storyArcCount:storyArcs.length,worldFactCount:worldFacts.length,dialogueOpportunityCount:dialogueOpportunities.length,interactionBeatCount:interactionBeats.length,nativeDateCount:dateScenes.length,genreTags:['grounded space colony','frontier romance','political independence','science mystery','found family','workplace'],tagline:world.tagline,relationshipFantasy:world.relationshipFantasy,centralQuestion:world.centralQuestion,approximatePopulation:24000,colonyAgeYears:38,gravityRatio:.83,scheduleClock:'user_local',canonicalLore:world.canonicalLore,nativeDateSeeds:dateScenes.slice(0,8).map(item=>item.title),storySeeds:storyArcs.map(item=>item.title),populationArchetypes:characters.map(item=>item.occupation)},'eos_world_meta')},
+  ${sqlJson({releaseWave:11,early_access:true,releaseStatus:'playable',contentStatus:'complete_world_v1',locationCatalogStatus:'ready',residentRosterStatus:'ready',photoStatus:'hero_ready',locationPhotoStatus:'ready',mappedLocationPhotoCount:locations.length,locationCount:locations.length,districtCount:6,publicPlaceCount:locations.length-6,residentCompanionCount:characters.length,residentRosterVersion:1,residentScheduleStatus:'authored_weekly_v3',editorialVersion:3,socialGraphStatus:'authored_v1',residentPortraitStatus:'primary_portraits_ready',mappedResidentPortraitCount:characters.length,recurringEventCount:recurringEvents.length,storyArcCount:storyArcs.length,worldFactCount:worldFacts.length,dialogueOpportunityCount:dialogueOpportunities.length,interactionBeatCount:interactionBeats.length,nativeDateCount:dateScenes.length,genreTags:['grounded space colony','frontier romance','political independence','science mystery','found family','workplace'],tagline:world.tagline,relationshipFantasy:world.relationshipFantasy,centralQuestion:world.centralQuestion,approximatePopulation:24000,colonyAgeYears:38,gravityRatio:.83,scheduleClock:'user_local',canonicalLore:world.canonicalLore,nativeDateSeeds:dateScenes.slice(0,8).map(item=>item.title),storySeeds:storyArcs.map(item=>item.title),populationArchetypes:characters.map(item=>item.occupation)},'eos_world_meta')},
   true,'subscription','worlds.standard','UTC',110,true,${sqlJson(world.visualContext,'eos_visual')},'home','balanced',
   array['morning','evening','late_night']::text[],
   array['trust as practical care','staying versus leaving','privacy inside a dense colony','work and personal identity','independence and belonging','ordinary life beneath extraordinary skies']::text[],
@@ -539,7 +540,7 @@ where id='${WORLD_ID}'::uuid;
 commit;
 `;
 
-const locationSeeds=placePayload.map(item=>`  location(${JSON.stringify({index:item.index,parent:item.parentIndex??undefined,district:item.parentIndex?locations.find(candidate=>candidate.index===item.parentIndex)?.name:undefined,name:item.name,slug:item.slug,description:item.description,category:item.category,type:item.locationType,activities:item.activities,hours:item.hours,backstory:item.backstory,socialTexture:item.socialTexture,visualAnchors:item.visualAnchors})}),`).join('\n');
+const locationSeeds=placePayload.map(item=>`  location(${JSON.stringify({index:item.index,parent:item.parentIndex??undefined,district:item.parentIndex?locations.find(candidate=>candidate.index===item.parentIndex)?.name:undefined,name:item.name,slug:item.slug,description:item.description,category:item.category,type:item.locationType,activities:item.activities,hours:item.hours,backstory:item.backstory,socialTexture:item.socialTexture,visualAnchors:item.visualAnchors,lore:editorialLocationLore(item)})}),`).join('\n');
 const appWorldFile=`import type{Location,LocationType,World}from'../types';
 import{locationSeedLore}from'./location-bible';
 
@@ -553,16 +554,22 @@ export const eosMeridianWorld:World={
   id:EOS_MERIDIAN_WORLD_ID,slug:'eos-meridian',name:'Eos Meridian',description:${JSON.stringify(world.description)},
   hero_asset_key:'eos-meridian-hero',access_type:'subscription',entitlement_key:'worlds.standard',timezone:'UTC',sort_order:110,featured:true,published:true,
   visual_context:${JSON.stringify(world.visualContext)},
-  metadata:${JSON.stringify({releaseWave:11,early_access:true,releaseStatus:'playable',contentStatus:'complete_world_v1',locationCatalogStatus:'ready',residentRosterStatus:'ready',photoStatus:'hero_ready',locationPhotoStatus:'ready',mappedLocationPhotoCount:locations.length,locationCount:locations.length,districtCount:6,publicPlaceCount:locations.length-6,residentCompanionCount:characters.length,residentScheduleStatus:'authored_weekly_v1',socialGraphStatus:'authored_v1',residentPortraitStatus:'primary_portraits_ready',mappedResidentPortraitCount:characters.length,recurringEventCount:recurringEvents.length,storyArcCount:storyArcs.length,worldFactCount:worldFacts.length,dialogueOpportunityCount:dialogueOpportunities.length,interactionBeatCount:interactionBeats.length,nativeDateCount:dateScenes.length,genreTags:['grounded space colony','frontier romance','science mystery','political independence'],tagline:world.tagline,relationshipFantasy:world.relationshipFantasy,centralQuestion:world.centralQuestion,approximatePopulation:24000,colonyAgeYears:38,gravityRatio:.83,scheduleClock:'user_local',canonicalLore:world.canonicalLore})},
+  metadata:${JSON.stringify({releaseWave:11,early_access:true,releaseStatus:'playable',contentStatus:'complete_world_v1',locationCatalogStatus:'ready',residentRosterStatus:'ready',photoStatus:'hero_ready',locationPhotoStatus:'ready',mappedLocationPhotoCount:locations.length,locationCount:locations.length,districtCount:6,publicPlaceCount:locations.length-6,residentCompanionCount:characters.length,residentScheduleStatus:'authored_weekly_v3',editorialVersion:3,socialGraphStatus:'authored_v1',residentPortraitStatus:'primary_portraits_ready',mappedResidentPortraitCount:characters.length,recurringEventCount:recurringEvents.length,storyArcCount:storyArcs.length,worldFactCount:worldFacts.length,dialogueOpportunityCount:dialogueOpportunities.length,interactionBeatCount:interactionBeats.length,nativeDateCount:dateScenes.length,genreTags:['grounded space colony','frontier romance','science mystery','political independence'],tagline:world.tagline,relationshipFantasy:world.relationshipFantasy,centralQuestion:world.centralQuestion,approximatePopulation:24000,colonyAgeYears:38,gravityRatio:.83,scheduleClock:'user_local',canonicalLore:world.canonicalLore})},
   default_arrival_location_id:EOS_MERIDIAN_ARRIVAL_ID,world_role:'home',social_rhythm:'balanced',dominant_dayparts:['morning','evening','late_night'],
   relationship_themes:['trust as practical care','staying versus leaving','privacy inside a dense colony','work and identity','independence and belonging'],
   activity_families:['colony dining','artificial rain','port arrivals','low-gravity recreation','engineering and repair','aurora watching','research and discovery','nightlife and music'],
   mobility_style:'transit',weather_profile:{climate:'tidally locked frontier',states:['calm_twilight','red_dust_storm','aurora_peak','night_ice_cold','interior_rain_cycle'],outdoorBias:.34},
 };
 
-type EosLocationSeed={index:number;parent?:number;district?:string;name:string;slug:string;description:string;category:string;type:LocationType;activities:string[];hours?:Record<string,string>|null;backstory:string;socialTexture:string;visualAnchors:string[]};
+type EosLocationSeed={index:number;parent?:number;district?:string;name:string;slug:string;description:string;category:string;type:LocationType;activities:string[];hours?:Record<string,string>|null;backstory:string;socialTexture:string;visualAnchors:string[];lore:NonNullable<Location['canonical_lore']>};
 const eosLocationId=(index:number)=>\`${LOCATION_PREFIX}\${String(index).padStart(12,'0')}\`;
 const visualAvoid=${JSON.stringify(world.visualContext.avoid)};
+function mergeEditorialLore(base:NonNullable<Location['canonical_lore']>,extra:NonNullable<Location['canonical_lore']>):NonNullable<Location['canonical_lore']>{
+  return {...base,publicHistory:[...(base.publicHistory??[]),...(extra.publicHistory??[])],
+    conversationHooks:[...(base.conversationHooks??[]),...(extra.conversationHooks??[])],
+    localEtiquette:[...(base.localEtiquette??[]),...(extra.localEtiquette??[])],
+    storySeeds:[...(base.storySeeds??[]),...(extra.storySeeds??[])],recurringPeople:[...(base.recurringPeople??[]),...(extra.recurringPeople??[])]};
+}
 function location(input:EosLocationSeed):Location{
   const district=input.district??input.name,districtNode=input.type==='district';
   return{id:eosLocationId(input.index),world_id:EOS_MERIDIAN_WORLD_ID,parent_location_id:input.parent?eosLocationId(input.parent):null,
@@ -570,9 +577,9 @@ function location(input:EosLocationSeed):Location{
     possible_activities:input.activities,hours:input.hours??undefined,visual_asset_key:\`eos-meridian-location-\${input.slug}\`,sort_order:input.index*10,
     canonical_visual_context:{canonicalPrompt:\`\${input.name}, \${district}, Eos Meridian. \${input.description} Photorealistic grounded human space-colony environment, believable pressure architecture, worn engineering, warm amber habitation against copper twilight or aurora-lit night, practical current clothing, no aliens, no sterile white spaceship sameness.\`,
       indoorOutdoor:['outdoor','landmark','district','transit'].includes(input.type)?'outdoor':'mixed',visualAnchors:[input.name,district,'Eos Meridian',...input.visualAnchors],avoid:visualAvoid},
-    canonical_lore:locationSeedLore({world:'Eos Meridian',district,name:input.name,description:input.description,category:input.category,type:input.type,
+    canonical_lore:mergeEditorialLore(locationSeedLore({world:'Eos Meridian',district,name:input.name,description:input.description,category:input.category,type:input.type,
       activities:input.activities,atmosphere:['grounded frontier science fiction','lived-in','shift-shaped'],sensory:['pressure ventilation, worn surfaces, and warm task lighting','fixed copper twilight or aurora reflections'],
-      weather:['Red storms can close exterior routes.','Nightglass cold and aurora conditions change outdoor access.']}),
+      weather:['Red storms can close exterior routes.','Nightglass cold and aurora conditions change outdoor access.']}),input.lore),
     metadata:{tags:input.activities,district:districtNode?true:district,photoStatus:'ready',imageSlotKey:\`eos-meridian-location-\${input.slug}\`,source:'eos_meridian_content_v1',backstory:input.backstory,socialTexture:input.socialTexture,userLocalClock:true}};
 }
 
@@ -581,12 +588,15 @@ ${locationSeeds}
 ];
 `;
 
+// Historical migrations are immutable by default. New deployments use the additive editorial migration.
 await Promise.all([
+  ...(process.argv.includes('--rewrite-legacy-migrations') ? [
   writeFile('supabase/migrations/202608270001_kivelle_eos_meridian_world_v1.sql',worldMigration),
   writeFile('supabase/migrations/202608270002_kivelle_eos_meridian_character_roster.sql',rosterMigration),
   writeFile('supabase/migrations/202608270003_kivelle_eos_meridian_simulation_v1.sql',simulationMigration),
   writeFile('supabase/migrations/202608270004_kivelle_eos_meridian_integration_hardening.sql',integrationMigration),
   writeFile('supabase/migrations/202608270005_kivelle_eos_meridian_cast_expansion_v2.sql',expansionMigration),
+  ] : []),
   writeFile('apps/together/src/worlds/eos-meridian.ts',appWorldFile),
 ]);
 
