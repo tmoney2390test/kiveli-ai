@@ -88,7 +88,7 @@ test('six arcs have distinct bounded paths and no required romance',()=>{
 });
 
 test('committed additive migration is reproducible and does not mutate player state',()=>{
-  const sql=renderEnrichmentMigration();assert.equal(readFileSync(migrationPath,'utf8'),sql);
+  const sql=renderEnrichmentMigration();assert.equal(readFileSync(migrationPath,'utf8').replace(/\r\n/g,'\n'),sql);
   for(const table of ['together_memories','together_shared_plans','together_character_instances','together_story_arc_instances','together_character_schedule_events'])assert.ok(!new RegExp(`(?:update|delete from|insert into) public\\.${table}\\b`,'i').test(sql),table);
   assert.match(sql,/protected character material/);
 });

@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { XAI_BUILT_IN_VOICES, resolveXaiVoiceId } from '../packages/together-domain/src/voice-provider-mapping.ts';
 import type { CompanionVoiceProfile } from '../packages/together-domain/src/multimodal.ts';
-import { characters } from './eos-meridian-content.mjs';
+import { characters, buildSchedules } from './eos-meridian-content.mjs';
 
 const url=process.env.SUPABASE_URL?.trim(),key=(process.env.SUPABASE_SECRET_KEY??process.env.SUPABASE_SERVICE_ROLE_KEY)?.trim();
 if(!url||!key)throw new Error('SUPABASE_URL and SUPABASE_SECRET_KEY are required.');
@@ -48,7 +48,8 @@ requireCondition(resolvedVoices.every((item)=>(XAI_BUILT_IN_VOICES as readonly s
 requireCondition(new Set(resolvedVoices.map((item)=>item.voiceId)).size===5,'Eos voice assignments unexpectedly collapsed to too few voices.');
 
 const schedulesByVersion=Map.groupBy(schedules,(item)=>String(item.character_version_id));
-requireCondition(versionIds.every((id)=>{const rows=schedulesByVersion.get(id)??[];return rows.length===42&&new Set(rows.map((row)=>row.day_of_week)).size===7&&rows.every((row)=>!row.location_id||locationIds.has(String(row.location_id)));}),'An Eos schedule is incomplete or references another world.');
+const expectedSchedules=Map.groupBy(buildSchedules(),(item)=>String(item.characterVersionId));
+requireCondition(versionIds.every((id)=>{const rows=schedulesByVersion.get(id)??[],expected=expectedSchedules.get(id)??[];return rows.length===expected.length&&new Set(rows.map((row)=>row.day_of_week)).size===7&&expected.every((block)=>rows.some((row)=>row.day_of_week===block.dayOfWeek&&row.start_minute===block.startMinute&&row.end_minute===block.endMinute&&(row.location_id?locations.find((place)=>place.id===row.location_id)?.slug:null)===block.locationSlug));}),'An Eos schedule is incomplete or differs from the authored roster.');
 requireCondition(new Set(edges.map((item)=>String(item.source_template_id)).filter((id)=>templateIdSet.has(id))).size===47,'An Eos companion is absent from the group-dialogue social graph.');
 
 const identityByVersion=Map.groupBy(identityReferences,(item)=>String(item.character_version_id)),locationReferenceIds=new Set(locationReferences.map((item)=>String(item.location_id)));
