@@ -1,3 +1,4 @@
+import { assertPhotoRequestAllowed } from './photo-request-policy.ts';
 import type { MediaSource, MediaContentLevel, ShotType, PhotoRequestIntent, CompanionVisualIdentity, MediaReferenceImage, CanonicalMediaSubject, CanonicalImageGenerationRequest, ImageProviderCapabilities, ImageGenerationResult, ImageGenerationProvider, MediaEconomicAuthorization, QueueMediaInput } from './together-media-types.ts';
 export type { MediaSource, MediaContentLevel, ShotType, PhotoRequestIntent, CompanionVisualIdentity, MediaReferenceImage, CanonicalMediaSubject, CanonicalImageGenerationRequest, ImageProviderCapabilities, ImageGenerationResult, ImageGenerationProvider, MediaEconomicAuthorization, QueueMediaInput } from './together-media-types.ts';
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -913,6 +914,7 @@ export async function queueMediaRequest(
     );
   }
   const intent = classifyPhotoRequest(input.requestText ?? "");
+  assertPhotoRequestAllowed({requestText:input.requestText,requestedContentLevel:intent.requestedContentLevel,adultPipelineAuthorized:input.adultPipelineAuthorized},{stage:"queue_photo",userId:input.userId,characterInstanceId:input.characterInstanceId,requestId:input.idempotencyKey});
   const productionRequest = resolveProductionSafePhotoRequest({
     requestText: input.requestText,
     requestedContentLevel: intent.requestedContentLevel,
@@ -1961,6 +1963,7 @@ export async function canonicalRequestForMedia(
   const adultLevel=['suggestive','mature','explicit'].includes(storedLevel);
   const adultPipelineAuthorized=adultLevel&&meta.adultAuthorized===true&&media.visibility_scope==='web_adult'&&envEnabled('WEB_ADULT_MODE_ENABLED')&&envEnabled('KIVELLE_ADULT_MEDIA_ENABLED');
   if(adultLevel&&!adultPipelineAuthorized)throw new AppError('FORBIDDEN','Adult photo generation is currently unavailable.',403);
+  assertPhotoRequestAllowed({requestText:typeof storedGenerationIntent?.requestText==="string"?storedGenerationIntent.requestText:undefined,requestedContentLevel:storedLevel,adultPipelineAuthorized},{stage:"provider_photo",userId:String(media.user_id),requestId:String(media.id)});
   const productionRequest = resolveProductionSafePhotoRequest({
     requestText: typeof storedGenerationIntent?.requestText === "string"
       ? storedGenerationIntent.requestText

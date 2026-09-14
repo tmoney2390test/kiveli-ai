@@ -1,6 +1,15 @@
 import { capabilitiesForTier, creditCosts } from '@together/domain/src/entitlements';
 import type { GeneratedMedia, MediaOffer } from '../types';
 
+export async function withPhotoRequestTimeout<T>(operation: Promise<T>, timeoutMs = 15_000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([operation, new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Photo request status could not be confirmed. Check the existing request before trying again.')), timeoutMs);
+    })]);
+  } finally { if (timer) clearTimeout(timer); }
+}
+
 export type OptimisticPhotoRequest = {
   requestId: string;
   startedAt: string;
@@ -89,7 +98,7 @@ export function createOptimisticPhotoRequest(input: {
 
 export function matchingServerPhotoOffer(
   offers: MediaOffer[],
-  request: Pick<OptimisticPhotoRequest, 'requestId' | 'startedAt' | 'offer'>,
+  request: { requestId: string; startedAt: string; offer: Pick<MediaOffer, 'character_instance_id' | 'conversation_id'> },
 ): MediaOffer | undefined {
   const earliest = new Date(request.startedAt).getTime() - 2_000;
   return [...offers]
@@ -118,7 +127,7 @@ export async function waitForMatchingServerPhotoOffer(input: {
   for (const delay of delays) {
     if (delay > 0) await wait(delay);
     try {
-      offers = await input.loadOffers();
+      offers = await withPhotoRequestTimeout(input.loadOffers(), 5_000);
       loaded = true;
       const offer = matchingServerPhotoOffer(offers, input.request);
       if (offer) return { offer, offers };
@@ -154,7 +163,7 @@ export async function waitForPhotoOfferStatus(input:{
   for(const delay of delays){
     if(delay>0)await wait(delay);
     try{
-      latest=await input.loadStatus();
+      latest=await withPhotoRequestTimeout(input.loadStatus(), 5_000);
       if(photoOfferStatusSettled(latest))return latest;
     }catch{/* A later authenticated read may succeed after the connection settles. */}
   }

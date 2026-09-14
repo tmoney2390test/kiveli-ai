@@ -1,3 +1,4 @@
+import { useChatInboxNavigation } from '../src/hooks/useChatInboxNavigation';
 import { styles } from '../src/styles/groupChatStyles';
 import { CatalogImage as Image } from '../src/components/CatalogImage';
 import { VeniceTestDiagnostics } from '../src/components/VeniceTestDiagnostics';
@@ -221,6 +222,7 @@ function navigateGroupSurface(href:string,mode:"push"|"replace"="push"){
 }
 
 export default function GroupChatScreen() {
+  const openMessagesInbox = useChatInboxNavigation();
   const params = useLocalSearchParams<{
       id?: string;
       details?: string;
@@ -1717,10 +1719,7 @@ export default function GroupChatScreen() {
         .split(" ")[0];
     setInput((value) => value.replace(/@[^\s@]*$/, `@${first} `));
   };
-  const openMessagesInbox=()=>{
-    if(Platform.OS==="web"){navigateGroupSurface("/chat-tab?messages=1","replace");return;}
-    router.replace(MESSAGES_INBOX_ROUTE as never);
-  };
+
   const retryOpeningGroup=()=>{
     loadedGroupRef.current=null;
     setError("");

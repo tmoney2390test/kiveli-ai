@@ -1,3 +1,4 @@
+import { assertPhotoRequestAllowed } from '../_shared/photo-request-policy.ts';
 import { chatSpeedEnabled, ChatTimings } from '../_shared/kivelle-chat-latency.ts';
 import { stageContextAuthorization } from '../_shared/kivelle-context-authorization.ts';
 import { z } from "zod";
@@ -276,6 +277,14 @@ Deno.serve(async (request) => {
         const contextText = (isContinuation?String(continuationAnchor?.content??''):userText) ||
           "The user shared an image without a caption.";
         const photoIntent = classifyPhotoRequest(isContinuation?'':contextText);
+        if (photoIntent.requested && !isContinuation) {
+          try {
+            assertPhotoRequestAllowed({requestText:contextText,requestedContentLevel:photoIntent.requestedContentLevel,adultPipelineAuthorized:adultAccess.authorized_web_adult}, {stage:'dialogue_input',userId:user.id,characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,requestId,clientSurface:adultAccess.client_surface});
+          } catch (error) {
+            await track(db,user.id,'photo_request_blocked',{reason:'adult_photo_not_authorized',requestedContentLevel:photoIntent.requestedContentLevel,clientSurface:adultAccess.client_surface,characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,requestId,correlationId}).catch(()=>undefined);
+            throw error;
+          }
+        }
         const activeConversation = await getActiveConversation(
           db,
           user.id,
@@ -3204,6 +3213,7 @@ async function safelyCreateConversationPhotoOffer(
   try {
     const currentScene = context.currentScene;
     const intent = classifyPhotoRequest(input.message);
+    assertPhotoRequestAllowed({requestText:input.message,requestedContentLevel:intent.requestedContentLevel,adultPipelineAuthorized},{stage:'dialogue_offer',userId,conversationId:input.conversationId,requestId:input.clientRequestId});
     const productionRequest=resolveProductionSafePhotoRequest({requestText:input.message,requestedContentLevel:intent.requestedContentLevel,adultPipelineAuthorized});
     const characterName = String(context.character.name ?? "Your companion")
       .trim();

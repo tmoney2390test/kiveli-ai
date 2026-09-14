@@ -1,3 +1,4 @@
+import { assertPhotoRequestAllowed } from '../_shared/photo-request-policy.ts';
 import { newVideoSettings, publishedVideoRoutes, publishedVideoCreditCost } from '../_shared/kivelle-video-prices.ts';
 import { z } from 'zod';
 import { authenticated, enforceGenerationGuardrails, enforceRateLimit } from '../_shared/context.ts';
@@ -393,6 +394,10 @@ async function signMediaRows(request:Request,db:any,userId:string,access:AdultAc
 function sanitizeMediaRow(row:Record<string,any>,signedUrl:string|null,authorizedWebAdult:boolean):Record<string,any>{const safe:Record<string,any>={...row,signed_url:signedUrl};delete safe.storage_path;const restricted=row.visibility_scope!=='all'||!['safe','suggestive'].includes(String(row.content_rating??''));if(restricted&&!authorizedWebAdult){delete safe.metadata;delete safe.canonical_text;}else if(!authorizedWebAdult&&safe.metadata&&typeof safe.metadata==='object'){const metadata={...safe.metadata};for(const key of['generationIntent','editInstruction','requestHint','referenceAssets','providerPrompt','prompt'])delete metadata[key];safe.metadata=metadata;}return safe;}
 
 async function requireModeratedAdultMediaInput(text:string|undefined,access:AdultAccessContext,scope:{db:any;userId:string;characterInstanceId?:string;conversationId?:string;correlationId:string},mediaKind:'photo'|'video'='photo',options:{trustedModerationApproval?:boolean}={}){
+  if(mediaKind==='photo') {
+    try { assertPhotoRequestAllowed({requestText:text,adultPipelineAuthorized:access.authorized_web_adult},{stage:'media_input',userId:scope.userId,characterInstanceId:scope.characterInstanceId,conversationId:scope.conversationId,requestId:scope.correlationId,clientSurface:access.client_surface}); }
+    catch(error) { await track(scope.db,scope.userId,'photo_request_blocked',{reason:'adult_photo_not_authorized',requestedContentLevel:classifyPhotoIntent(text??'').requestedContentLevel,clientSurface:access.client_surface,conversationId:scope.conversationId,correlationId:scope.correlationId}).catch(()=>undefined); throw error; }
+  }
   // Every user-authored image direction in an authorized adult website session is
   // independently moderated. Do not rely on the request classifier to decide
   // whether moderation is necessary: euphemistic or obfuscated prohibited

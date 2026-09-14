@@ -37,6 +37,8 @@ jobs:
         run: |
           node scripts/test-fresh-chat-db.mjs
           deno test --no-lock --allow-env --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/fresh-chat.test.ts
+      - name: Photo authorization and charging regressions
+        run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/photo-request-policy.test.ts
       - name: Chat speed regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-chat-speed_test.ts
       - name: Context price regressions

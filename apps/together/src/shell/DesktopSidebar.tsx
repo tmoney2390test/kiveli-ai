@@ -20,7 +20,7 @@ import { KivelleCreditIcon } from '../components/KivelleCreditIcon';
 import { useSubscriptionStatus } from '../hooks/useSubscriptionStatus';
 import { useProfileAvatarUrl } from '../hooks/useProfileAvatarUrl';
 import { desktopNavigationKey, type DesktopNavigationKey } from '../lib/desktopNavigation';
-import { isActiveInboxConversation, MESSAGES_INBOX_HREF, mostRecentChatHref, shouldOpenMostRecentChat, WEB_MESSAGES_INBOX_HREF } from '../lib/messageInbox';
+import { isActiveInboxConversation, MESSAGES_INBOX_HREF, mostRecentChatHref, WEB_MESSAGES_INBOX_HREF } from '../lib/messageInbox';
 import { useTogether } from '../store/useTogether';
 import { colors, typography } from '../theme';
 import { markRouteIntent, warmRoute } from '../lib/routeWarmup';
@@ -53,7 +53,7 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
   const unreadCount = conversations.filter((conversation) => conversation.unread).length;
   const latestChatHref=snapshot?mostRecentChatHref(snapshot.conversations,snapshot.characters):null;
   const inboxHref=Platform.OS==='web'?WEB_MESSAGES_INBOX_HREF:MESSAGES_INBOX_HREF;
-  const messagesHref=shouldOpenMostRecentChat(pathname)?latestChatHref??inboxHref:inboxHref;
+  const messagesHref=latestChatHref??inboxHref;
   const currentWorld = snapshot?.worlds.find((world) => world.id === browsedWorldId)
     ?? (snapshot?.currentPlaceContext ? snapshot.worlds.find((world) => world.id === snapshot.currentPlaceContext?.world.id) : undefined)
     ?? snapshot?.worlds.find(isWorldCatalogVisible);

@@ -1,3 +1,5 @@
+import { photoRequestRestriction, PHOTO_CONTENT_BLOCKED, PHOTO_REQUEST_BLOCKED_MESSAGE } from '@together/domain/src/photo-request-policy';
+import { useChatInboxNavigation } from '../src/hooks/useChatInboxNavigation';
 import { styles } from '../src/styles/chatStyles';
 import { CatalogImage as Image } from '../src/components/CatalogImage';
 import { VeniceTestDiagnostics } from '../src/components/VeniceTestDiagnostics';
@@ -52,9 +54,9 @@ import { reconcileMessages } from '../src/lib/messageReconciliation';
 import { endPlanExperience, getPlanExperience, joinCommitment, switchPlanExperience } from '../src/lib/commitments';
 import { activePlanForChat, attendedPlansForLifecycleReconciliation, collapsePlanTimelineEvents, isPlanLifecycleDividerEvent, joinablePlanForChat, planActionAvailability, planLifecycleDividerLabel, shouldShowPlanConversationAction, shouldShowPlanTimelineEvent } from '../src/lib/planActions';
 import { hideVoiceNoteConfirmation, isVoiceNoteConfirmationHidden } from '../src/lib/voiceNoteConfirmation';
-import { chatSessionRouteKey, conversationWithLastMessage, isConversationPinned, MESSAGES_INBOX_ROUTE } from '../src/lib/messageInbox';
+import { chatSessionRouteKey, conversationWithLastMessage, isConversationPinned } from '../src/lib/messageInbox';
 import { clearChatScrollPosition, readChatScrollPosition, restoredChatOffset, saveChatScrollPosition, shouldRestoreChatScrollPosition, type ChatScrollPosition } from '../src/lib/chatNavigationState';
-import { createOptimisticPhotoRequest, matchingServerPhotoOffer, queueOptimisticPhotoOfferAcceptance, queueServerPhotoOfferAcceptance, waitForMatchingServerPhotoOffer, waitForPhotoOfferStatus, type OptimisticPhotoRequest } from '../src/lib/photoOfferOptimism';
+import { withPhotoRequestTimeout, createOptimisticPhotoRequest, matchingServerPhotoOffer, queueOptimisticPhotoOfferAcceptance, queueServerPhotoOfferAcceptance, waitForMatchingServerPhotoOffer, waitForPhotoOfferStatus, type OptimisticPhotoRequest } from '../src/lib/photoOfferOptimism';
 import { mergeDictationTranscript } from '../src/lib/dictation';
 import { useChatDictation, type ChatDictationPhase } from '../src/hooks/useChatDictation';
 import { cleanupNormalizedImage, normalizeUserImage, userImagePickerOptions } from '../src/lib/imageUploads';
@@ -116,6 +118,7 @@ export default function Chat() {
 }
 
 function ChatSession() {
+  const openMessagesInbox = useChatInboxNavigation();
   const params = useLocalSearchParams<ChatParams>();
   const { width } = useWindowDimensions();
   const showLeft = width >= 1080;
@@ -141,6 +144,7 @@ function ChatSession() {
   const [sending, setSending] = useState(false);
   const [stream, setStream] = useState('');
   const [error, setError] = useState('');
+  const [blockedPhoto, setBlockedPhoto] = useState<{text:string;message:string}|null>(null);
   const [feedback, setFeedback] = useState<Feedback|null>(null);
   const [memorySavedNotice,setMemorySavedNotice]=useState<MemorySavedNotice|null>(null);
   const [showPlans, setShowPlans] = useState(params.plan === '1');
@@ -309,6 +313,7 @@ function ChatSession() {
     if(!awaitingPhotoOffer||!character?.id||!conversation?.id)return;
     let cancelled=false,timer:ReturnType<typeof setTimeout>|undefined;
     const startedAt=Date.now();
+    const deadline=setTimeout(()=>{cancelled=true;if(timer)clearTimeout(timer);optimisticPhotoRequestRef.current=null;queuedPhotoOfferDecisionRef.current=null;setAwaitingPhotoOffer(false);setOptimisticPhotoRequest(null);setError('The photo confirmation could not be confirmed. Check your conversation before requesting another photo.');},24_000);
     const recover=async()=>{
       try{
         const offers=await fetchPendingMediaOffers(character.id,conversation.id);
@@ -329,7 +334,7 @@ function ChatSession() {
       timer=setTimeout(()=>void recover(),2_500);
     };
     timer=setTimeout(()=>void recover(),1_500);
-    return()=>{cancelled=true;if(timer)clearTimeout(timer);};
+    return()=>{cancelled=true;if(timer)clearTimeout(timer);clearTimeout(deadline);};
   },[awaitingPhotoOffer,character?.id,conversation?.id,fetchPendingMediaOffers]);
   useEffect(()=>resolveOptimisticPhotoOfferRef.current(mediaOffers),[mediaOffers]);
   const markConversationRead=useCallback(async(conversationId:string)=>{
@@ -478,7 +483,7 @@ function ChatSession() {
     const conversationId=conversation.id,userId=session?.user.id,cached=userId?readConversationMessagePage(userId,conversationId):null;
     let cancelled=false;
     prepareConversationScroll(conversationId);
-    setError('');setHistoryLoadFailed(false);setStream('');setSending(false);setFeedback(null);setMemorySavedNotice(null);setAwaitingPhotoOffer(false);setOptimisticPhotoRequest(null);optimisticPhotoRequestRef.current=null;queuedPhotoOfferDecisionRef.current=null;optimisticPhotoDecisionInFlight.current.clear();optimisticPhotoDecisionDispatched.current.clear();setPendingImage(null);setMediaOffers([]);setPendingSceneAction(null);setCharacterProposal(null);setPendingActionId(null);setFocusDismissed(false);setFocusPlanId(params.planId??null);setShowPlans(params.plan==='1');setShowPhotoRequests(false);setShowInteractions(false);setShowConversationMenu(false);setShowChatSettings(false);setPlanModal(null);setPlanActionBusyId(null);setPlanEndTarget(null);setSwitchPlanId(params.switchPlanId??null);setInput('');
+    setBlockedPhoto(null);setError('');setHistoryLoadFailed(false);setStream('');setSending(false);setFeedback(null);setMemorySavedNotice(null);setAwaitingPhotoOffer(false);setOptimisticPhotoRequest(null);optimisticPhotoRequestRef.current=null;queuedPhotoOfferDecisionRef.current=null;optimisticPhotoDecisionInFlight.current.clear();optimisticPhotoDecisionDispatched.current.clear();setPendingImage(null);setMediaOffers([]);setPendingSceneAction(null);setCharacterProposal(null);setPendingActionId(null);setFocusDismissed(false);setFocusPlanId(params.planId??null);setShowPlans(params.plan==='1');setShowPhotoRequests(false);setShowInteractions(false);setShowConversationMenu(false);setShowChatSettings(false);setPlanModal(null);setPlanActionBusyId(null);setPlanEndTarget(null);setSwitchPlanId(params.switchPlanId??null);setInput('');
     if(cached){setMessages(cached.messages);setHasMore(cached.hasMore);setLoadedConversationId(conversationId);setLoading(false);}
     else{setMessages([]);setHasMore(true);setLoadedConversationId(null);setLoading(true);}
     if(__DEV__&&process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE==='true'){setMessages([]);setHasMore(false);setLoadedConversationId(conversationId);setLoading(false);return;}
@@ -782,6 +787,10 @@ function ChatSession() {
     }finally{if(autoDialogueRequest.current===controller){autoDialogueRequest.current=null;setAutoDialogueBusy(false);}}
   };
   const acceptOffer=async(offer:MediaOffer,paymentMethod:'credits'|'daily_included'='credits')=>{
+    const offerText=typeof offer.preview_metadata?.requestText==='string'?offer.preview_metadata.requestText:'';
+    if(Platform.OS!=='web'&&photoRequestRestriction({requestText:offerText,requestedContentLevel:offer.content_level as "standard"|"romance"|"suggestive"|"mature"|"explicit",adultPipelineAuthorized:false})) {
+      setBlockedPhoto({text:offerText,message:PHOTO_REQUEST_BLOCKED_MESSAGE});setError('');return;
+    }
     setMediaOfferBusy(offer.id);
     // A tap is immediately visible, but `accepted` is reserved for the
     // authoritative server response that also owns the media job. Treating a
@@ -790,7 +799,7 @@ function ChatSession() {
     setMediaOffers((current)=>current.map((item)=>item.id===offer.id?queueServerPhotoOfferAcceptance(item):item));
     const acceptanceRequestId=createClientRequestId();
     try{
-      const result=await manageMedia<{state:'accepted'|'needs_credits'|'daily_unavailable'|'expired';offer:MediaOffer;media?:GeneratedMedia;creditBalance:number;required?:number;dailyPhotoAllowanceRemaining?:number}>({action:'accept_offer',offerId:offer.id,requestId:acceptanceRequestId,paymentMethod});
+      const result=await withPhotoRequestTimeout(manageMedia<{state:'accepted'|'needs_credits'|'daily_unavailable'|'expired';offer:MediaOffer;media?:GeneratedMedia;creditBalance:number;required?:number;dailyPhotoAllowanceRemaining?:number}>({action:'accept_offer',offerId:offer.id,requestId:acceptanceRequestId,paymentMethod}));
       if(result.state==='daily_unavailable'){
         setMediaOffers((current)=>current.map((item)=>item.id===offer.id?{...result.offer,status:'pending',preview_metadata:{...result.offer.preview_metadata,dailyPhotoAllowanceRemaining:0}}:item.source==='user_request'&&item.status==='pending'?{...item,preview_metadata:{...item.preview_metadata,dailyPhotoAllowanceRemaining:0}}:item));
         Alert.alert('Included photos used','You have used today’s included photos. You can still create this one with Credits.');return;
@@ -804,6 +813,7 @@ function ChatSession() {
       setMediaOffers((current)=>current.map((item)=>item.id===offer.id?{...result.offer,preview_metadata:{...result.offer.preview_metadata,dailyPhotoAllowanceRemaining:dailyRemaining}}:paymentMethod==='daily_included'&&item.source==='user_request'&&item.status==='pending'?{...item,preview_metadata:{...item.preview_metadata,dailyPhotoAllowanceRemaining:dailyRemaining}}:item));
       if(result.media){upsertMedia(result.media);setReconcilingMediaId(result.media.id);}
     }catch(caught){
+      if(caught instanceof ApiError&&caught.code===PHOTO_CONTENT_BLOCKED){setMediaOffers((current)=>current.filter((item)=>item.id!==offer.id));setBlockedPhoto({text:offerText,message:caught.message});setError('');return;}
       // An interrupted response may still have accepted, charged, and queued
       // the request. Reconcile the server-owned offer/media link before making
       // the card actionable again so a successful request cannot remain on
@@ -827,7 +837,7 @@ function ChatSession() {
     finally{setMediaOfferBusy(null);}
   };
   const dispatchOptimisticPhotoDecision=(requestId:string,offer:MediaOffer,decision:QueuedPhotoOfferDecision)=>{
-    if(decision.requestId!==requestId||optimisticPhotoDecisionDispatched.current.has(requestId))return false;
+    if(decision.requestId!==requestId||queuedPhotoOfferDecisionRef.current?.requestId!==requestId||optimisticPhotoRequestRef.current?.requestId!==requestId||optimisticPhotoDecisionDispatched.current.has(requestId))return false;
     optimisticPhotoDecisionDispatched.current.add(requestId);
     if(optimisticPhotoRequestRef.current?.requestId===requestId){
       optimisticPhotoRequestRef.current=null;
@@ -882,7 +892,7 @@ function ChatSession() {
         setOptimisticPhotoRequest((current)=>current?.requestId===request.requestId
           ? {...current,offer:{...current.offer,preview_metadata:{...current.offer.preview_metadata,acceptQueued:false}}}
           : current);
-        setError(action==='decline'?'The photo request could not be dismissed. Tap the close button again.':'The photo confirmation is ready, but the start did not connect. Tap again to retry.');
+        setError(action==='decline'?'The photo request could not be dismissed. Tap the close button again.':'The photo confirmation has not been confirmed. Check the existing request before trying again.');
       }
     }).catch((caught)=>{
       if(queuedPhotoOfferDecisionRef.current?.requestId!==request.requestId)return;
@@ -920,6 +930,10 @@ function ChatSession() {
     const draft = retryMessageId&&retryText==='[Photo]'&&pendingImage ? '' : retryText ?? input;
     if (draft.length > MESSAGE_CHARACTER_LIMIT) { setError(messageCharacterLimitError()); return; }
     const text = draft.trim(); if ((!text&&!pendingImage) || replyPending || sendInFlightRef.current) return;
+    if(!messageAction&&Platform.OS!=='web'&&shouldShowPhotoGenerationPending(text)&&photoRequestRestriction({requestText:text,adultPipelineAuthorized:false})) {
+      setBlockedPhoto({text,message:PHOTO_REQUEST_BLOCKED_MESSAGE});setError('');return;
+    }
+    setBlockedPhoto(null);
     if(!retryMessageId&&dailyMessageExhausted){setError('You’ve used today’s free messages.');return;}
     if(connectionPhase!=='online')setShowSendConnectionNotice(true);
     if(!online){setError('You’re offline. Your draft is saved and ready when you reconnect.');return;}
@@ -998,9 +1012,9 @@ function ChatSession() {
         // realtime event, either of which can be lost during a fast rerender.
         resolveOptimisticPhotoOfferRef.current([result.mediaOffer]);
       }
-      if(result.photoRequestError){optimisticPhotoRequestRef.current=null;queuedPhotoOfferDecisionRef.current=null;setAwaitingPhotoOffer(false);setOptimisticPhotoRequest(null);setError(result.photoRequestError.message);}
+      if(result.photoRequestError){optimisticPhotoRequestRef.current=null;queuedPhotoOfferDecisionRef.current=null;setAwaitingPhotoOffer(false);setOptimisticPhotoRequest(null);setError(result.photoRequestError.message);if(result.photoRequestError.code===PHOTO_CONTENT_BLOCKED){setBlockedPhoto({text:draft,message:result.photoRequestError.message});setError('');}}
       if(expectsPhotoOffer&&!result.photoRequestError){
-        try{const offers=await fetchPendingMediaOffers(character.id,conversation.id);setMediaOffers(offers);resolveOptimisticPhotoOfferRef.current(offers);if(!offers.length&&!result.mediaOffer)setError('The photo confirmation did not appear. Please try the request again.');}
+        try{const offers=await fetchPendingMediaOffers(character.id,conversation.id);setMediaOffers(offers);resolveOptimisticPhotoOfferRef.current(offers);if(!matchingServerPhotoOffer(offers,{requestId:clientRequestId,startedAt:optimistic.created_at,offer:{character_instance_id:character.id,conversation_id:conversation.id}})&&!result.mediaOffer){optimisticPhotoRequestRef.current=null;queuedPhotoOfferDecisionRef.current=null;setAwaitingPhotoOffer(false);setOptimisticPhotoRequest(null);setError('The photo confirmation did not appear. Please try the request again.');}}
         catch(caught){if(!result.mediaOffer&&!isTransientMediaFetchFailure(caught))setError('The photo confirmation could not be loaded. Please try again.');}
       }
       if(result.delta)applyServerDelta(result.delta);
@@ -1009,6 +1023,8 @@ function ChatSession() {
       showNewStoryFeedback(before, useTogether.getState().snapshot, character.id, character.together_character_templates.name, setFeedback);
     } catch (caught) {
       if(activeSendRequest.current!==clientRequestId||primaryComplete)return;
+      if(expectsPhotoOffer){optimisticPhotoRequestRef.current=null;queuedPhotoOfferDecisionRef.current=null;setAwaitingPhotoOffer(false);setOptimisticPhotoRequest(null);}
+      if(caught instanceof ApiError&&caught.code===PHOTO_CONTENT_BLOCKED){setBlockedPhoto({text:draft,message:caught.message});setError('');setStream('');setInput(draft);currentInput.current=draft;setMessages((current)=>current.filter((item)=>item.id!==optimistic.id));return;}
       const recovered=dialogueFailureMayHavePersisted(caught)?await recoverInterruptedDialogue(conversation.id,character.id,optimistic,clientRequestId,expectsPhotoOffer):false;
       if(recovered){if(!retryMessageId)consumeDailyMessageAllowance();cleanupNormalizedImage(selectedImage?.uri);setPendingImage(null);setPhotoUploadPhase('idle');setStream('');setError('');await clearStoredDraft();return;}
       if(preparedAttachmentId)void removePendingAttachment(preparedAttachmentId).catch(()=>undefined);
@@ -1146,11 +1162,8 @@ function ChatSession() {
     try{const updated=await setMessageFavorite(conversation.id,message.id,favorite);setMessages((current)=>current.map((item)=>item.id===message.id?{...item,...updated}:item));}
     catch(caught){setMessages((current)=>current.map((item)=>item.id===message.id?{...item,user_metadata:previous}:item));setError(caught instanceof Error?caught.message:'That message could not be saved.');}
   };
-  const deleteConversation=()=>confirmAction({title:'Delete this conversation?',message:`It will disappear from Messages and conversation history, but you can restore the text from Settings → Archived Chats for 30 days.\n\nUploaded photos are removed immediately and cannot be restored. ${character.together_character_templates.name} will still remember separately saved memories, and your relationship and Moments remain.`,confirmLabel:'Delete conversation',destructive:true,onConfirm:async()=>{try{const archived=await manageConversation<Snapshot['conversations'][number]>({action:'delete',conversationId:conversation.id});setMessages([]);setShowConversationMenu(false);await refresh();const latest=useTogether.getState().snapshot;if(latest)useTogether.getState().setCoreState({conversations:latest.conversations.map((item)=>item.id===archived.id?archived:item)});navigateChatSurface('/chat-tab?messages=1','replace');}catch(caught){setError(caught instanceof Error?caught.message:'The conversation could not be archived.');}}});
-  const openMessagesInbox=()=>{
-    if(Platform.OS==='web'){navigateChatSurface('/chat-tab?messages=1','replace');return;}
-    router.replace(MESSAGES_INBOX_ROUTE as never);
-  };
+  const deleteConversation=()=>confirmAction({title:'Delete this conversation?',message:`It will disappear from Messages and conversation history, but you can restore the text from Settings → Archived Chats for 30 days.\n\nUploaded photos are removed immediately and cannot be restored. ${character.together_character_templates.name} will still remember separately saved memories, and your relationship and Moments remain.`,confirmLabel:'Delete conversation',destructive:true,onConfirm:async()=>{try{const archived=await manageConversation<Snapshot['conversations'][number]>({action:'delete',conversationId:conversation.id});setMessages([]);setShowConversationMenu(false);await refresh();const latest=useTogether.getState().snapshot;if(latest)useTogether.getState().setCoreState({conversations:latest.conversations.map((item)=>item.id===archived.id?archived:item)});openMessagesInbox();}catch(caught){setError(caught instanceof Error?caught.message:'The conversation could not be archived.');}}});
+
   const toggleFavorite=async()=>{if(favoriteBusy)return;const previous=snapshot.favoriteCharacterTemplateIds??[],next=isFavorite?previous.filter((id)=>id!==character.character_template_id):[...new Set([...previous,character.character_template_id])];setFavoriteBusy(true);setCoreState({favoriteCharacterTemplateIds:next});try{const result=await setCharacterFavorite(character.character_template_id,!isFavorite,'chat_menu');setCoreState({favoriteCharacterTemplateIds:result.favoriteCharacterTemplateIds});}catch(caught){setCoreState({favoriteCharacterTemplateIds:previous});setError(caught instanceof Error?caught.message:'That favorite could not be saved.');}finally{setFavoriteBusy(false);}};
   const togglePinned=async()=>{if(pinBusy)return;setPinBusy(true);try{upsertConversation(await setConversationPinned(conversation.id,!isConversationPinned(conversation)));}catch(caught){setError(caught instanceof Error?caught.message:'That chat could not be pinned.');}finally{setPinBusy(false);}};
   const desktopChat=width>=920,messageTypography=chatMessageTypography(conversation,{desktop:desktopChat}),bubbleColors=resolveChatBubbleColors(conversation);
@@ -1317,7 +1330,8 @@ function ChatSession() {
           {conversationReady&&milestone ? <RelationshipMomentCard milestone={milestone} busy={resolvingMilestone} onChoose={(action)=>void resolveMilestone(action)} /> : null}
           {conversationReady&&characterProposal&&!proposalDecisions.isHidden(characterProposal.actionId)?<CharacterProposalCard name={character.together_character_templates.name} proposal={characterProposal} busy={interactionLoading} onAccept={()=>void acceptCharacterProposal()} onDismiss={()=>void dismissCharacterProposal()}/>:null}
           {conversationReady&&feedback ? <StoryFeedback feedback={feedback} onView={() => navigateChatSurface(feedback.kind === 'memory' ? '/memories' : feedback.kind==='plan'? '/dates':'/moments')} onUndo={feedback.kind === 'memory' ? () => void undoMemory() : undefined} onDismiss={() => setFeedback(null)} /> : null}
-          {error&&!historyLoadFailed ? <Pressable accessibilityRole="button" accessibilityLabel={`${chatErrorPresentation(error).title}. ${chatErrorPresentation(error).message}`} onPress={() => {if(pendingSceneAction){void generateSceneReaction(pendingSceneAction.id);return;}const failed = [...visibleMessages].reverse().find((item) => item.delivery_status === 'failed'); if (failed) void send(failed.content,failed.client_request_id??undefined,failed.id); }} style={styles.retry}><Text style={styles.retryText}>{chatErrorPresentation(error).message}{!pendingSceneAction&&visibleMessages.some((item) => item.delivery_status === 'failed') ? ' Tap to retry.' : ''}</Text></Pressable> : null}
+          {blockedPhoto ? <View accessibilityRole="alert" style={styles.retry}><Text style={styles.retryText}>{blockedPhoto.message}</Text><View style={{flexDirection:'row',gap:24,paddingTop:12}}><Pressable accessibilityRole="button" onPress={()=>{setInput(blockedPhoto.text);currentInput.current=blockedPhoto.text;setBlockedPhoto(null);composerInput.current?.focus();}}><Text style={styles.retryText}>Edit request</Text></Pressable><Pressable accessibilityRole="button" onPress={()=>setBlockedPhoto(null)}><Text style={styles.retryText}>Dismiss</Text></Pressable></View></View> : null}
+          {error&&!blockedPhoto&&!historyLoadFailed ? <Pressable accessibilityRole="button" accessibilityLabel={`${chatErrorPresentation(error).title}. ${chatErrorPresentation(error).message}`} onPress={() => {if(pendingSceneAction){void generateSceneReaction(pendingSceneAction.id);return;}const failed = [...visibleMessages].reverse().find((item) => item.delivery_status === 'failed'); if (failed) void send(failed.content,failed.client_request_id??undefined,failed.id); }} style={styles.retry}><Text style={styles.retryText}>{chatErrorPresentation(error).message}{!pendingSceneAction&&visibleMessages.some((item) => item.delivery_status === 'failed') ? ' Tap to retry.' : ''}</Text></Pressable> : null}
         </VirtualizedConversationList>}
         <JumpToLatestButton visible={!showPlans&&showJumpToLatest} bottom={width<720?104:92} onPress={jumpToLatest}/>
         {showInteractions?<InteractionTray name={character.together_character_templates.name} location={location} loading={interactionLoading||replyPending} interactions={interactionCandidates} destinations={movementCandidates} onInteraction={(candidate)=>void executeInteraction(candidate)} onMove={(candidate)=>void moveScene(candidate)} onClose={()=>setShowInteractions(false)} />:isCoPresent&&interactionCandidates.length&&shouldShowPlanInteractionTray({activePlanId:activeSharedPlan?.id,dismissedPlanId:dismissedInteractionPlanId,preferenceReady:interactionTrayPreferenceReady})?<ContextualInteractionTray loading={interactionLoading||replyPending} interactions={interactionCandidates.slice(0,3)} onOpen={()=>setShowInteractions(true)} onInteraction={(candidate)=>void executeInteraction(candidate)} onDismiss={activeSharedPlan?dismissPlanInteractionTray:undefined} />:null}
@@ -1364,7 +1378,7 @@ function ChatAmbientGlow({compact}:{compact:boolean}) {
   </View>;
 }
 
-function ChatHeader({character,location,mediaCount,onBack,onMedia,onCall,onMenu}:{character:CharacterInstance;location:string;mediaCount:number;onBack:()=>void;onMedia:()=>void;onCall:()=>void;onMenu:()=>void}) { const slug=character.together_character_templates.slug,locationStatus=location.trim().toLowerCase()==='home'?'At home':`At ${location}`;return <View style={[styles.header, Platform.OS === 'web' && styles.webHeader]}><Pressable accessibilityRole="button" accessibilityLabel={Platform.OS==='web'?'Back to Messages':'Back'} onPress={onBack} style={styles.icon}><ArrowLeft color={colors.text}/></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`View ${character.together_character_templates.name}'s profile`} onPress={()=>navigateChatSurface(`/character/${slug}`)}><CharacterAvatar slug={slug} name={character.together_character_templates.name} size={42}/></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`View ${character.together_character_templates.name}'s profile`} onPress={()=>navigateChatSurface(`/character/${slug}`)} style={styles.headerIdentity}><Text numberOfLines={1} style={[styles.name,styles.desktopHeaderName]}>{character.together_character_templates.name}</Text><Text numberOfLines={1} style={[styles.status,styles.desktopHeaderStatus]}>{locationStatus}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Open ${character.together_character_templates.name} conversation media${mediaCount?`, ${mediaCount} items`:''}`} onPress={onMedia} style={styles.icon}><Images size={19} color={colors.text}/>{mediaCount?<View style={styles.headerMediaCount}><Text style={styles.headerMediaCountText}>{mediaCount>99?'99+':mediaCount}</Text></View>:null}</Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Call ${character.together_character_templates.name}`} onPress={onCall} style={styles.icon}><Phone size={18} color={colors.text}/></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Conversation menu" onPress={onMenu} style={styles.icon}><MoreHorizontal color={colors.text}/></Pressable></View>; }
+function ChatHeader({character,location,mediaCount,onBack,onMedia,onCall,onMenu}:{character:CharacterInstance;location:string;mediaCount:number;onBack:()=>void;onMedia:()=>void;onCall:()=>void;onMenu:()=>void}) { const slug=character.together_character_templates.slug,locationStatus=location.trim().toLowerCase()==='home'?'At home':`At ${location}`;return <View style={[styles.header, Platform.OS === 'web' && styles.webHeader]}><Pressable accessibilityRole="button" accessibilityLabel="Back to Messages" onPress={onBack} style={styles.icon}><ArrowLeft color={colors.text}/></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`View ${character.together_character_templates.name}'s profile`} onPress={()=>navigateChatSurface(`/character/${slug}`)}><CharacterAvatar slug={slug} name={character.together_character_templates.name} size={42}/></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`View ${character.together_character_templates.name}'s profile`} onPress={()=>navigateChatSurface(`/character/${slug}`)} style={styles.headerIdentity}><Text numberOfLines={1} style={[styles.name,styles.desktopHeaderName]}>{character.together_character_templates.name}</Text><Text numberOfLines={1} style={[styles.status,styles.desktopHeaderStatus]}>{locationStatus}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Open ${character.together_character_templates.name} conversation media${mediaCount?`, ${mediaCount} items`:''}`} onPress={onMedia} style={styles.icon}><Images size={19} color={colors.text}/>{mediaCount?<View style={styles.headerMediaCount}><Text style={styles.headerMediaCountText}>{mediaCount>99?'99+':mediaCount}</Text></View>:null}</Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Call ${character.together_character_templates.name}`} onPress={onCall} style={styles.icon}><Phone size={18} color={colors.text}/></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Conversation menu" onPress={onMenu} style={styles.icon}><MoreHorizontal color={colors.text}/></Pressable></View>; }
 
 
 function ConversationHistoryFailure({onRetry}:{onRetry:()=>void}){return <View accessibilityLiveRegion="polite" style={styles.conversationLoadFailure}><Text style={styles.conversationLoadFailureTitle}>Messages didn’t load</Text><Text style={styles.conversationLoadFailureBody}>Your conversation is safe. Try loading its history again.</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry loading conversation messages" onPress={onRetry} style={styles.conversationLoadRetry}><Text style={styles.conversationLoadRetryText}>Try again</Text></Pressable></View>;}
