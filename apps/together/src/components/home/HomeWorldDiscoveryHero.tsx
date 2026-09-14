@@ -1,3 +1,4 @@
+import { isComingSoonWorld } from '../../lib/comingSoonWorlds';
 import{useEffect,useState}from'react';
 import{AccessibilityInfo,AppState,Platform,Pressable,StyleSheet,Text,View,useWindowDimensions}from'react-native';
 import{Image}from'expo-image';
@@ -54,12 +55,12 @@ export function HomeWorldDiscoveryHero({worlds,onExplore,fill=false}:{worlds:Wor
     <CatalogImage accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" alt="" source={worldHeroAsset(world.slug)} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" cachePolicy="memory-disk" loading="lazy" priority="low" transition={180}/>
     <View pointerEvents="none" style={[styles.scrim,Platform.OS==='web'?styles.webScrim:styles.nativeScrim]}/>
     <View style={styles.content}>
-      <View style={styles.topRow}><View style={styles.kickerRow}><Globe2 size={13} strokeWidth={2.2} color="#FFE1AE"/><Text style={styles.kicker}>NEW WORLDS AVAILABLE</Text></View><Text style={styles.count}>{index+1} / {worlds.length}</Text></View>
+      <View style={styles.topRow}><View style={styles.kickerRow}><Globe2 size={13} strokeWidth={2.2} color="#FFE1AE"/><Text style={styles.kicker}>{isComingSoonWorld(world)?"COMING SOON":"NEW WORLDS AVAILABLE"}</Text></View><Text style={styles.count}>{index+1} / {worlds.length}</Text></View>
       <View style={styles.bottom}>
         <Text numberOfLines={1} adjustsFontSizeToFit style={styles.title}>{world.name}</Text>
         <Text numberOfLines={3} style={styles.copy}>{copy}</Text>
         <View style={styles.actions}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Explore ${world.name}`} onPress={()=>onExplore(world)} style={({pressed})=>[styles.cta,pressed&&styles.pressed]}><Text numberOfLines={1} style={styles.ctaText}>Explore {world.name}</Text><ArrowRight size={15} color="#F5DDE6"/></Pressable>
+          <Pressable accessibilityRole="button" disabled={isComingSoonWorld(world)} accessibilityState={{disabled:isComingSoonWorld(world)}} accessibilityLabel={isComingSoonWorld(world)?`${world.name}, coming soon`:`Explore ${world.name}`} onPress={()=>onExplore(world)} style={({pressed})=>[styles.cta,pressed&&styles.pressed]}><Text numberOfLines={1} style={styles.ctaText}>{isComingSoonWorld(world)?"Coming soon":`Explore ${world.name}`}</Text><ArrowRight size={15} color="#F5DDE6"/></Pressable>
         </View>
       </View>
     </View>

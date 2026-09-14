@@ -1,3 +1,5 @@
+import { withComingSoonWorlds, isComingSoonWorld } from '../../src/lib/comingSoonWorlds';
+import { compareWorldSelectorOrder } from '../../src/lib/worldSelectorOrder';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
@@ -29,7 +31,7 @@ export default function CreateCompanionEntry() {
   const dirty = Boolean(name || gender || pronouns || description || worldId || ageText !== '28');
   const [busy, setBusy] = useState(false);
   const [recovering, setRecovering] = useState(Boolean(params.template));
-  const worlds = useMemo(() => snapshot?.worlds.filter((world) => world.published && canAccessWorld(snapshot,world)) ?? [], [snapshot]);
+  const worlds = useMemo(() => snapshot?.worlds.filter((world) => world.published && canAccessWorld(snapshot,world)).sort(compareWorldSelectorOrder) ?? [], [snapshot]);
   const selectedWorldId = worldId || worlds[0]?.id || '';
   const age = Number(ageText);
   const issues = companionBasicsIssues({ name, age, gender, pronouns, worldId: selectedWorldId, description });
@@ -97,7 +99,7 @@ export default function CreateCompanionEntry() {
       <View style={styles.form}>
         <View style={styles.row}><Field label="Name *" value={name} onChange={setName} placeholder="Their name" maxLength={50} /><Field label="Age *" value={ageText} onChange={(value) => setAgeText(value.replace(/\D/g, '').slice(0, 2))} placeholder="28" keyboard="number-pad" maxLength={2} /></View>
         <View style={styles.row}><CreatorPicker label="Gender *" value={gender} options={creatorGenders} onChange={chooseGender} custom /><CreatorPicker label="Pronouns *" value={pronouns} options={creatorPronouns} onChange={setPronouns} custom /></View>
-        <CreatorPicker label="World citizenship *" title="Choose their world" value={selectedWorldId} options={worlds.map((world) => ({ value: world.id, label: world.name, image: worldHeroAsset(world.slug) }))} onChange={setWorldId} />
+        <CreatorPicker label="World citizenship *" title="Choose their world" value={selectedWorldId} options={withComingSoonWorlds(worlds).map((world) => ({ value: world.id, label: world.name, image: worldHeroAsset(world.slug), disabled: isComingSoonWorld(world) }))} onChange={setWorldId} />
         <View style={styles.field}><View style={styles.labelRow}><Text style={styles.fieldLabel}>Starting description</Text><Text style={styles.counter}>{description.length}/800</Text></View><Text style={styles.fieldHelp}>Optional for now. Describe the person you imagine; you will refine appearance and personality next.</Text><TextInput accessibilityLabel="Starting description" value={description} onChangeText={setDescription} maxLength={800} multiline textAlignVertical="top" style={[styles.input, styles.multiline]} placeholder="A perceptive architect with dry humor, strong opinions, and a softer side that takes time to show…" placeholderTextColor={colors.muted} /></View>
       </View>
 

@@ -1,3 +1,5 @@
+import { withComingSoonWorlds, isComingSoonWorld } from '../lib/comingSoonWorlds';
+import { compareWorldSelectorOrder } from '../lib/worldSelectorOrder';
 import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Check, ChevronDown, Globe2 } from 'lucide-react-native';
@@ -12,7 +14,7 @@ export function CompanionWorldToggle({ worlds, value, onChange }: {
   onChange: (worldId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const options = worlds.filter(isWorldCatalogVisible).sort((left, right) => left.sort_order - right.sort_order);
+  const options = withComingSoonWorlds(worlds.filter(isWorldCatalogVisible)).sort(compareWorldSelectorOrder);
   const selected = options.find((world) => world.id === value) ?? options[0];
 
   if (!selected || options.length < 2) return null;
@@ -37,13 +39,14 @@ export function CompanionWorldToggle({ worlds, value, onChange }: {
         return <Pressable
           key={world.id}
           accessibilityRole="button"
-          accessibilityState={{ selected: active }}
+          disabled={isComingSoonWorld(world)}
+          accessibilityState={{ selected: active, disabled: isComingSoonWorld(world) }}
           accessibilityLabel={`Show companions in ${world.name}`}
           onPress={() => { onChange(world.id); setOpen(false); }}
           style={({ pressed }) => [styles.option, active && styles.optionActive, pressed && styles.optionPressed]}
         >
           <Globe2 size={14} strokeWidth={2.1} color={active ? '#FFF7FC' : '#BCAEB9'} />
-          <Text numberOfLines={1} style={[styles.optionText, active && styles.optionTextActive]}>{world.name}</Text>
+          <Text numberOfLines={2} style={[styles.optionText, active && styles.optionTextActive]}>{world.name}{isComingSoonWorld(world) ? " · Coming soon" : ""}</Text>
           {active ? <Check size={14} strokeWidth={2.5} color="#FFD7EE" /> : null}
         </Pressable>;
       })}

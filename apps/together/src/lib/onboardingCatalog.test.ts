@@ -29,7 +29,7 @@ const snapshot = {
 
 describe('first-login catalog', () => {
   it('shows published worlds in authored order', () => {
-    expect(onboardingWorlds(snapshot).map((item) => item.id)).toEqual(['first', 'later']);
+    expect(onboardingWorlds(snapshot).map((item) => item.id)).toEqual(['first', 'later', 'preview-gilded-age']);
   });
 
   it('omits an ops-hidden world even when its row stays published for established conversations', () => {

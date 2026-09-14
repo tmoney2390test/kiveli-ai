@@ -1,3 +1,4 @@
+import { isComingSoonWorld } from '../src/lib/comingSoonWorlds';
 import { CatalogImage as Image } from '../src/components/CatalogImage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ScrollView } from 'react-native';
@@ -49,8 +50,9 @@ export default function ChooseCompanion() {
   const recommendedWorld = useMemo(() => snapshot ? onboardingRecommendedWorld(snapshot, worlds) : null, [snapshot, worlds]);
   useEffect(() => {
     if (selectedWorldId || !worlds.length) return;
-    const requested = params.world ? worlds.find((world) => world.slug === params.world) : null;
-    setSelectedWorldId((requested ?? recommendedWorld!).id);
+    const requested = params.world ? worlds.find((world) => world.slug === params.world && !isComingSoonWorld(world)) : null;
+    const initial = requested ?? recommendedWorld;
+    if (initial) setSelectedWorldId(initial.id);
   }, [params.world, recommendedWorld, selectedWorldId, worlds]);
 
   const selectedWorld = worlds.find((world) => world.id === selectedWorldId) ?? null;
@@ -80,7 +82,7 @@ export default function ChooseCompanion() {
   }
 
   const chooseWorld = (world: World) => {
-    if (busy) return;
+    if (busy || isComingSoonWorld(world)) return;
     setSelectedWorldId(world.id);
     setSelectedCompanionId('');
     setError('');
@@ -201,15 +203,15 @@ function WorldCard({ world, selected, accessible, featured = false, compact = fa
   const earlyAccess = isSubscriberEarlyAccessWorld(world.metadata);
   return <Pressable
     accessibilityRole="radio"
-    accessibilityState={{ checked: selected }}
+    disabled={isComingSoonWorld(world)} accessibilityState={{ checked: selected, disabled: isComingSoonWorld(world) }}
     aria-checked={selected}
-    accessibilityLabel={`${world.name}. ${earlyAccess ? accessible ? 'Subscriber early access included. ' : 'Subscriber early access. ' : ''}${copy.genre}. ${copy.description}`}
+    accessibilityLabel={`${world.name}. ${isComingSoonWorld(world) ? "Coming soon. " : ""}${earlyAccess ? accessible ? 'Subscriber early access included. ' : 'Subscriber early access. ' : ''}${copy.genre}. ${copy.description}`}
     onPress={onPress}
     style={({ pressed }) => [styles.worldCard, featured && styles.worldCardFeatured, compact && styles.worldCardCompact, compact && desktop && styles.worldCardCompactDesktop, selected && styles.worldCardSelected, pressed && styles.cardPressed]}
   >
     <Image source={worldHeroAsset(world.slug)} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" cachePolicy="memory-disk" priority={selected ? 'high' : 'normal'} />
     <View style={styles.worldShade} />
-    {earlyAccess ? <View style={styles.earlyAccessBadge}><LockKeyhole size={11} color="#FFF4FD" /><Text style={styles.earlyAccessText}>EARLY ACCESS</Text></View> : null}
+    {earlyAccess || isComingSoonWorld(world) ? <View style={styles.earlyAccessBadge}><LockKeyhole size={11} color="#FFF4FD" /><Text style={styles.earlyAccessText}>{isComingSoonWorld(world) ? "COMING SOON" : "EARLY ACCESS"}</Text></View> : null}
     {selected ? <View style={styles.selectionCheck}><Check size={19} strokeWidth={3} color="#fff" /></View> : null}
     <View style={[styles.worldCopy, compact && styles.worldCopyCompact]}>
       {featured ? <Text style={styles.recommended}>Recommended</Text> : null}

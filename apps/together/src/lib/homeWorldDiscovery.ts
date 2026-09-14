@@ -1,10 +1,12 @@
+import { withComingSoonWorlds } from './comingSoonWorlds';
+import { worldReleaseRank } from './worldSelectorOrder';
 import type { World } from '../types';
 import { isWorldCatalogVisible } from '@together/domain/src/world-access';
 
 export function homeWorldDiscoveryOptions(worlds:World[],currentWorldId?:string|null):World[]{
-  return worlds
-    .filter((world)=>isWorldCatalogVisible(world)&&world.id!==currentWorldId)
-    .sort((left,right)=>releaseOrder(right)-releaseOrder(left)||Number(right.featured)-Number(left.featured)||right.sort_order-left.sort_order||left.name.localeCompare(right.name));
+  return withComingSoonWorlds(worlds
+    .filter((world)=>isWorldCatalogVisible(world)&&world.id!==currentWorldId))
+    .sort((left,right)=>worldReleaseRank(left)-worldReleaseRank(right)||releaseOrder(right)-releaseOrder(left)||Number(right.featured)-Number(left.featured)||right.sort_order-left.sort_order||left.name.localeCompare(right.name));
 }
 
 export function advanceHomeWorldIndex(current:number,count:number,delta=1){

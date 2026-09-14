@@ -1,18 +1,19 @@
+import { withComingSoonWorlds, isComingSoonWorld } from './comingSoonWorlds';
+import { compareWorldSelectorOrder } from './worldSelectorOrder';
 import type { Snapshot, World } from '../types';
 import { featuredCompanionsForWorld, type FeaturedCompanion } from './featuredCompanions';
 import { isWorldCatalogVisible } from '@together/domain/src/world-access';
 
 export function onboardingWorlds(snapshot: Snapshot): World[] {
-  return snapshot.worlds
-    .filter(isWorldCatalogVisible)
-    .sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name));
+  return withComingSoonWorlds(snapshot.worlds.filter(isWorldCatalogVisible))
+    .sort((left, right) => compareWorldSelectorOrder(left, right) || left.name.localeCompare(right.name));
 }
 
 export function onboardingRecommendedWorld(snapshot: Snapshot, worlds = onboardingWorlds(snapshot)): World | null {
   const persona = snapshot.personas?.find((item) => item.is_default) ?? snapshot.activePersona;
   const gender = persona?.metadata?.gender;
   const slug = gender === 'woman' ? 'port-vervelle' : gender === 'man' ? 'vharadren' : null;
-  return worlds.find((world) => world.slug === slug) ?? worlds[0] ?? null;
+  return worlds.find((world) => world.slug === slug) ?? worlds.find((world) => !isComingSoonWorld(world)) ?? null;
 }
 
 /** Only show companions whose authored first meeting can be created in this world. */
@@ -30,6 +31,7 @@ export function onboardingWorldFantasy(world: World): string {
 }
 
 const compactWorldCopy: Record<string, { genre: string; description: string }> = {
+  'gilded-age': { genre: 'Pirate adventure', description: 'Fortunes beyond the horizon' },
   'juniper-city': { genre: 'City life', description: 'Everyday sparks, new stories' },
   'port-vervelle': { genre: 'Slow romance', description: 'Slow love by the sea' },
   'neon-kyo': { genre: 'Cyberpunk', description: 'Real love in a synthetic city' },
