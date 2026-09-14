@@ -63,6 +63,8 @@ jobs:
       - name: Private profile highlight regressions
         run: deno test --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-profile-showcase.test.ts
       - run: pnpm guard:starter-content
+      - name: Persona identity and retry regressions
+        run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/persona-create.test.ts
       - name: Support portal privacy regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/support-portal.test.ts supabase/functions/_shared/kivelle-support-email.test.ts
       - run: pnpm edge:typecheck

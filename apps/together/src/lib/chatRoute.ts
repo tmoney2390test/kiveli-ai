@@ -45,7 +45,7 @@ export function resolveChatRoute(snapshot: Snapshot | null, params: ChatRoutePar
   const character = snapshot
     ? focusedPlan
       ? snapshot.characters.find((item) => item.id === focusedPlan.character_instance_id) ?? requestedConversationCharacter ?? requestedCharacter
-      : requestedConversationCharacter ?? requestedCharacter ?? recentCharacter ?? activeCompanion(snapshot)
+      : requestedConversationCharacter ?? requestedCharacter ?? (params.character || params.conversationId ? undefined : recentCharacter ?? activeCompanion(snapshot))
     : undefined;
   const conversation = snapshot && character
     ? requestedConversation?.character_instance_id === character.id

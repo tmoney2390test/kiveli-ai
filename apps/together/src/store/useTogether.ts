@@ -43,11 +43,15 @@ const presenceRequests=new Map<string,Promise<void>>();
 export const useTogether=create<State>((set)=>{
   const patchSnapshot=(update:(snapshot:Snapshot)=>Snapshot)=>set((state)=>state.snapshot?{snapshot:update(state.snapshot),error:null}:state);
   return {snapshot:null,browsedWorldId:null,loading:false,error:null,pendingDialogues:{},
-    setSnapshot:(snapshot)=>set({snapshot,loading:false,error:null}),
+    setSnapshot:(snapshot)=>{
+      // A completed mutation outranks reads that began before it.
+      refreshGeneration+=1;refreshSequence+=1;refreshRequest=null;presenceRequests.clear();
+      set({snapshot,loading:false,error:null});
+    },
     setCoreState:(delta)=>patchSnapshot((snapshot)=>({...snapshot,...delta})),
     updateCompanion:(companion)=>patchSnapshot((snapshot)=>({...snapshot,characters:upsert(snapshot.characters,companion)})),
     updateRelationship:(relationship)=>patchSnapshot((snapshot)=>({...snapshot,relationships:upsert(snapshot.relationships,relationship,'character_instance_id')})),
-    upsertConversation:(conversation)=>patchSnapshot((snapshot)=>({...snapshot,conversations:upsert(snapshot.conversations,conversation)})),
+    upsertConversation:(conversation)=>patchSnapshot((snapshot)=>snapshot.characters.some((character)=>character.id===conversation.character_instance_id)?({...snapshot,conversations:upsert(snapshot.conversations,conversation)}):snapshot),
     upsertMemory:(memory)=>patchSnapshot((snapshot)=>({...snapshot,memories:upsert(snapshot.memories,memory)})),
     removeMemory:(memoryId)=>patchSnapshot((snapshot)=>({...snapshot,memories:snapshot.memories.filter((item)=>item.id!==memoryId)})),
     upsertMoment:(moment)=>patchSnapshot((snapshot)=>({...snapshot,moments:upsert(snapshot.moments,moment)})),
@@ -71,6 +75,7 @@ export const useTogether=create<State>((set)=>{
       return{...snapshot,dailyMessageAllowance:{...allowance,used:allowance.limit,remaining:0}};
     }),
     applyServerDelta:(delta)=>patchSnapshot((snapshot)=>{
+      if(!snapshot.characters.some((character)=>character.id===delta.characterInstanceId))return snapshot;
       const scope=<T extends{character_instance_id:string}>(current:T[]|undefined,next:T[]|undefined)=>next?[...(current??[]).filter((item)=>item.character_instance_id!==delta.characterInstanceId),...next]:current;
       return {...snapshot,
         characters:delta.character?upsert(snapshot.characters,delta.character):snapshot.characters,
@@ -100,10 +105,11 @@ export const useTogether=create<State>((set)=>{
         return request;
       }
       if(options?.scope==='presence'&&options.characterInstanceId){
+        const generation=refreshGeneration;
         const characterInstanceId=options.characterInstanceId;
         const existing=presenceRequests.get(characterInstanceId);
         if(existing&&!options.force)return existing;
-        const request=loadCharacterPresence(characterInstanceId).then((delta)=>set((state)=>state.snapshot?{snapshot:{...state.snapshot,characters:upsert(state.snapshot.characters,delta.character),scheduleEvents:[...(state.snapshot.scheduleEvents??[]).filter((event)=>event.character_instance_id!==characterInstanceId),...delta.scheduleEvents],sceneSessions:delta.sceneSessions?[...(state.snapshot.sceneSessions??[]).filter((scene)=>scene.character_instance_id!==characterInstanceId),...delta.sceneSessions]:state.snapshot.sceneSessions},error:null}:state)).catch((error)=>set({error:error instanceof Error?error.message:'Companion presence could not be refreshed.'})).finally(()=>{if(presenceRequests.get(characterInstanceId)===request)presenceRequests.delete(characterInstanceId);});
+        const request=loadCharacterPresence(characterInstanceId).then((delta)=>set((state)=>generation===refreshGeneration&&state.snapshot&&state.snapshot.characters.some((character)=>character.id===characterInstanceId)?{snapshot:{...state.snapshot,characters:upsert(state.snapshot.characters,delta.character),scheduleEvents:[...(state.snapshot.scheduleEvents??[]).filter((event)=>event.character_instance_id!==characterInstanceId),...delta.scheduleEvents],sceneSessions:delta.sceneSessions?[...(state.snapshot.sceneSessions??[]).filter((scene)=>scene.character_instance_id!==characterInstanceId),...delta.sceneSessions]:state.snapshot.sceneSessions},error:null}:state)).catch((error)=>{if(generation===refreshGeneration)set({error:error instanceof Error?error.message:'Companion presence could not be refreshed.'});}).finally(()=>{if(presenceRequests.get(characterInstanceId)===request)presenceRequests.delete(characterInstanceId);});
         presenceRequests.set(characterInstanceId,request);
         return request;
       }
@@ -111,7 +117,7 @@ export const useTogether=create<State>((set)=>{
       const generation=refreshGeneration;
       const sequence=++refreshSequence;
       set({loading:true,error:null});
-      const request=(async()=>{try{const snapshot=await loadSnapshot();if(generation===refreshGeneration&&sequence===refreshSequence)set((state)=>({snapshot:{...snapshot,conversations:mergeInboxConversations(snapshot.conversations,state.snapshot?.conversations??[])},loading:false,error:null}));}catch(error){if(generation===refreshGeneration&&sequence===refreshSequence)set({loading:false,error:error instanceof Error?error.message:'Could not load Kivelle.'});}finally{if(generation===refreshGeneration&&sequence===refreshSequence)refreshRequest=null;}})();
+      const request=(async()=>{try{const snapshot=await loadSnapshot();if(generation===refreshGeneration&&sequence===refreshSequence)set((state)=>({snapshot:{...snapshot,conversations:mergeInboxConversations(snapshot.conversations,state.snapshot?.activeContinuity?.id===snapshot.activeContinuity?.id?state.snapshot?.conversations??[]:[])},loading:false,error:null}));}catch(error){if(generation===refreshGeneration&&sequence===refreshSequence)set({loading:false,error:error instanceof Error?error.message:'Could not load Kivelle.'});}finally{if(generation===refreshGeneration&&sequence===refreshSequence)refreshRequest=null;}})();
       refreshRequest=request;
       return request;
     },

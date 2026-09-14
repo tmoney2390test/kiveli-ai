@@ -189,6 +189,12 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {activeTab === 'chat' ? <>
+          <SettingSection icon={<MessageCircle size={16} color={colors.violet} />} label="Your persona">
+            <Pressable accessibilityRole="button" accessibilityLabel="Switch persona or edit your identity" disabled={saving} onPress={()=>void save(()=>{const slug=character?.together_character_templates.slug;router.push((slug?'/personas?character='+encodeURIComponent(slug):'/personas') as never);})} style={styles.input}>
+              <Text style={{color:colors.text}}>{snapshot?.activePersona?.display_name ?? 'Your persona'} · Change</Text>
+              <Text style={{color:colors.muted,fontSize:12,marginTop:4}}>Each Life keeps its own chat history.</Text>
+            </Pressable>
+          </SettingSection>
           <SettingSection icon={<MessageCircle size={16} color={colors.violet} />} label="Chat name" optional>
             <TextInput
               accessibilityLabel="Chat name"
