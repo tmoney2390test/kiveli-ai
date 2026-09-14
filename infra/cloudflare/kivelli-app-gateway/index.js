@@ -4,6 +4,12 @@ const SUPABASE_PROXY_PREFIX = "/supabase";
 const APP_RELEASE_FALLBACK = "kivelli-web";
 const FINGERPRINTED_ASSET = /(?:\.|-)[a-f0-9]{16,}\.(?:avif|css|gif|ico|jpe?g|js|mjs|png|svg|ttf|otf|webp|woff2?)$/i;
 const EXPO_ENTRY_ASSET = /\bentry-([a-f0-9]{16,})\.js\b/i;
+const PUBLIC_STATIC_PAGE_PATHS = new Set([
+  "/delete-account",
+  "/privacy-policy",
+  "/terms",
+  "/community-guidelines",
+]);
 
 export default {
   async fetch(request, env) {
@@ -51,6 +57,13 @@ async function serveAppAsset(request, env) {
   try {
     const pathname = new URL(request.url).pathname;
     let assetRequest = request;
+    const staticPagePath = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+    if ((request.method === "GET" || request.method === "HEAD") && PUBLIC_STATIC_PAGE_PATHS.has(staticPagePath)) {
+      // Serve crawler-readable legal and deletion instructions at their public URLs.
+      const assetUrl = new URL(request.url);
+      assetUrl.pathname = `${staticPagePath}.html`;
+      assetRequest = new Request(assetUrl, request);
+    }
     if ((request.method === "GET" || request.method === "HEAD") && /^\/create\/companion\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/?$/i.test(pathname)) {
       // Expo exports one loading document for this dynamic route. The root
       // SPA fallback has different markup and causes hydration recovery.

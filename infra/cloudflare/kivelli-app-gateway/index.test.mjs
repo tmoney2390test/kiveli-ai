@@ -42,6 +42,19 @@ test('serves the media loading document for direct photo and video links', async
   }
 });
 
+test('serves crawler-readable public legal pages at clean URLs', async () => {
+  for (const pathname of ['/delete-account', '/delete-account/', '/privacy-policy', '/terms', '/community-guidelines']) {
+    let requested;
+    const response = await worker.fetch(new Request(`https://kivelli.app${pathname}?source=play`), {
+      ASSETS: { fetch: async (request) => { requested = new URL(request.url); return new Response(currentHtml, { headers: { 'content-type': 'text/html' } }); } },
+    });
+    assert.equal(requested.pathname, `${pathname.replace(/\/$/, '')}.html`);
+    assert.equal(requested.search, '?source=play');
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+  }
+});
+
 test('leaves creator and media entry and static asset paths unchanged', async () => {
   for (const pathname of ['/create/companion', '/create/companion/avatar.png', '/media', '/media/preview.png']) {
     let requested;
