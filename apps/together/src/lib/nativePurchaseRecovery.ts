@@ -3,7 +3,7 @@ import {invoke} from './api';
 import {supabase} from './supabase';
 import {waitForAuthoritativeRestore,type RestoreSyncResult} from './nativePurchaseSync';
 import type {SubscriptionStatus} from './subscription';
-export type PendingPurchase={kind:'purchase'|'restore';targetTier?:string;startedAt:number;storePending?:boolean;storeReportsActive?:boolean};
+export type PendingPurchase={kind:'purchase'|'restore'|'credits';productId?:string;transactionId?:string;targetTier?:string;startedAt:number;storePending?:boolean;storeReportsActive?:boolean};
 const prefix='kivelle:pending-store-v1:';
 let recovery: {userId:string;promise:Promise<RestoreSyncResult>}|null=null;
 export async function currentPurchaseAccount(userId:string) {
@@ -13,7 +13,7 @@ export async function currentPurchaseAccount(userId:string) {
 export async function readPendingPurchase(userId:string):Promise<PendingPurchase|null>{
   const raw=await AsyncStorage.getItem(prefix+userId);
   if(!raw)return null;
-  try {const p=JSON.parse(raw);return ['purchase','restore'].includes(p.kind)&&Number.isFinite(p.startedAt)?p:null;}catch{return null;}
+  try {const p=JSON.parse(raw);return ['purchase','restore','credits'].includes(p.kind)&&Number.isFinite(p.startedAt)?p:null;}catch{return null;}
 }
 export async function savePendingPurchase(userId:string,value:PendingPurchase|null){
   if(value)await AsyncStorage.setItem(prefix+userId,JSON.stringify(value));
@@ -24,6 +24,22 @@ export function resumeNativePurchase(userId:string):Promise<RestoreSyncResult>{
   const promise=(async()=>{
     const pending=await readPendingPurchase(userId);
     if(!pending)return {state:'syncing'} as RestoreSyncResult;
+    if(pending.kind==='credits'){
+      if(!pending.productId)return {state:'syncing'} as RestoreSyncResult;
+      for(const delay of [0,2000,5000]){
+        if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
+        await currentPurchaseAccount(userId);
+        const result=await invoke<{outcome:'succeeded'|'refunded'|'pending';state:SubscriptionStatus}>('together-subscription',{
+          action:'credit_confirmation',transactionId:pending.transactionId,productId:pending.productId,startedAt:pending.startedAt,
+        });
+        await currentPurchaseAccount(userId);
+        if(result.outcome!=='pending'){
+          await savePendingPurchase(userId,null);
+          return {state:result.outcome==='succeeded'?'active':'verified_none',data:result.state,purchaseKind:'credits'} as RestoreSyncResult;
+        }
+      }
+      return {state:'syncing'} as RestoreSyncResult;
+    }
     const result=await waitForAuthoritativeRestore(async()=>{
       await currentPurchaseAccount(userId);
       const value=await invoke<{state:SubscriptionStatus;verification:'active'|'verified_none'|'syncing'}>('together-subscription',{action:'reconcile'});

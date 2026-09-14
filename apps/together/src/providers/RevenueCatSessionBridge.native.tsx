@@ -25,8 +25,13 @@ export function RevenueCatSessionBridge(){
     };
     refresh();
     const removeCustomerListener=onNativeCustomerInfoUpdated(refresh);
+    // Consumable confirmations can arrive after the SDK customer-info event.
+    const timer=setInterval(()=>{
+      if(AppState.currentState!=='active'||cancelled)return;
+      void readPendingPurchase(userId).then(p=>{if(p?.kind==='credits'&&!cancelled)refresh();}).catch(()=>undefined);
+    },60000);
     const appState=AppState.addEventListener('change',(state)=>{if(state==='active'){void syncNativePurchaseIdentity(userId).then(refresh).catch(()=>undefined);}});
-    return()=>{cancelled=true;removeCustomerListener();appState.remove();};
+    return()=>{cancelled=true;clearInterval(timer);removeCustomerListener();appState.remove();};
   },[queryClient,userId]);
   return null;
 }

@@ -1719,7 +1719,6 @@ export default function GroupChatScreen() {
   };
   const openMessagesInbox=()=>{
     if(Platform.OS==="web"){navigateGroupSurface("/chat-tab?messages=1","replace");return;}
-    if(router.canGoBack()){router.back();return;}
     router.replace(MESSAGES_INBOX_ROUTE as never);
   };
   const retryOpeningGroup=()=>{

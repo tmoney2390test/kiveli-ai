@@ -4,7 +4,9 @@ import{normalizeRevenueCatSubscriber,parseRevenueCatWebhook,readRevenueCatAdapte
 const config:RevenueCatAdapterConfig={enabled:true,acceptSandbox:false,allowedAppIds:['app_ios','app_android'],entitlements:{kivelle_plus:'plus',kivelle_max:'max'},products:{plus_monthly:{tier:'kivelle_plus',billingInterval:'monthly'},max_annual:{tier:'kivelle_max',billingInterval:'annual'}}};
 
 Deno.test('RevenueCat configuration and identities are server-authoritative',()=>{
-  assertEquals(readRevenueCatAdapterConfig(()=>JSON.stringify(config)),config);
+  const parsed=readRevenueCatAdapterConfig(()=>JSON.stringify(config));
+  assertEquals({...parsed,creditProducts:undefined},{...config,creditProducts:undefined});
+  assertEquals(parsed.creditProducts?.['app.kivelli.credits.100'],'credits_100');
   const event=parseRevenueCatWebhook(JSON.stringify({api_version:'1.0',event:{id:'evt_rc',type:'RENEWAL',event_timestamp_ms:1_800_000_000_000,app_id:'app_ios',app_user_id:'$RCAnonymous',original_app_user_id:'4ca0a3a7-c751-4480-8cb9-d1d8e689b6ca',aliases:['not-a-user'],environment:'PRODUCTION'}}));
   assertEquals(revenueCatEventUserIds(event),['4ca0a3a7-c751-4480-8cb9-d1d8e689b6ca']);
   assertEquals(validateRevenueCatEvent(event,config),'process');

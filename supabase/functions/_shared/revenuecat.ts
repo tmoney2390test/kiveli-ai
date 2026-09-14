@@ -11,6 +11,7 @@ const adapterConfigSchema=z.object({
   allowedAppIds:z.array(z.string().trim().min(1)).min(1),
   entitlements:z.object({kivelle_plus:z.string().trim().min(1),kivelle_max:z.string().trim().min(1)}),
   products:z.record(z.string(),z.object({tier:paidTierSchema,billingInterval:intervalSchema})),
+  creditProducts:z.record(z.string(),z.enum(['credits_100','credits_300','credits_800','credits_2000'])).optional(),
 });
 
 const webhookEventSchema=z.object({
@@ -70,7 +71,7 @@ export type NormalizedRevenueCatSubscription={
   sandbox:boolean;
 };
 
-const supportedLifecycleEvents=new Set(['INITIAL_PURCHASE','RENEWAL','PRODUCT_CHANGE','CANCELLATION','UNCANCELLATION','BILLING_ISSUE','SUBSCRIPTION_PAUSED','EXPIRATION','TRANSFER','TEMPORARY_ENTITLEMENT_GRANT']);
+const supportedLifecycleEvents=new Set(['INITIAL_PURCHASE','RENEWAL','PRODUCT_CHANGE','CANCELLATION','UNCANCELLATION','BILLING_ISSUE','SUBSCRIPTION_PAUSED','EXPIRATION','TRANSFER','TEMPORARY_ENTITLEMENT_GRANT','NON_RENEWING_PURCHASE']);
 
 export function readRevenueCatAdapterConfig(readEnv:(name:string)=>string|undefined=(name)=>Deno.env.get(name)):RevenueCatAdapterConfig{
   const raw=readEnv('KIVELLE_REVENUECAT_CONFIG_JSON');
@@ -79,7 +80,10 @@ export function readRevenueCatAdapterConfig(readEnv:(name:string)=>string|undefi
   try{parsed=JSON.parse(raw);}catch{throw new AppError('INTERNAL_ERROR','RevenueCat adapter configuration is invalid.',500);}
   const result=adapterConfigSchema.safeParse(parsed);
   if(!result.success)throw new AppError('INTERNAL_ERROR','RevenueCat adapter configuration is incomplete.',500);
-  return result.data;
+  return {...result.data,creditProducts:result.data.creditProducts??{
+    'app.kivelli.credits.100':'credits_100','app.kivelli.credits.300':'credits_300',
+    'app.kivelli.credits.800':'credits_800','app.kivelli.credits.2000':'credits_2000',
+  }};
 }
 
 export function parseRevenueCatWebhook(raw:string):RevenueCatWebhookEvent{

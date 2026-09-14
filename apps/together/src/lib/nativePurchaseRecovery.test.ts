@@ -13,6 +13,19 @@ vi.mock('./nativePurchaseSync',()=>({waitForAuthoritativeRestore:async(fn:()=>Pr
 import {readPendingPurchase,resumeNativePurchase,savePendingPurchase} from './nativePurchaseRecovery';
 beforeEach(()=>{mocks.user='a';mocks.values.clear();mocks.invoke.mockReset();});
 describe('durable store recovery',()=>{
+  it('confirms a credit transaction from the server and clears pending state',async()=>{
+    await savePendingPurchase('a',{kind:'credits',productId:'app.kivelli.credits.100',transactionId:'receipt',startedAt:1});
+    mocks.invoke.mockResolvedValue({outcome:'succeeded',state:{tier:'kivelle_plus'}});
+    expect((await resumeNativePurchase('a')).state).toBe('active');
+    expect(await readPendingPurchase('a')).toBeNull();
+    expect(mocks.invoke).toHaveBeenCalledWith('together-subscription',{action:'credit_confirmation',productId:'app.kivelli.credits.100',transactionId:'receipt',startedAt:1});
+  });
+  it('does not report refunded credits as delivered',async()=>{
+    await savePendingPurchase('a',{kind:'credits',productId:'app.kivelli.credits.100',startedAt:1});
+    mocks.invoke.mockResolvedValue({outcome:'refunded',state:{tier:'kivelle_plus'}});
+    expect((await resumeNativePurchase('a')).state).toBe('verified_none');
+    expect(await readPendingPurchase('a')).toBeNull();
+  });
   it('coalesces duplicate reconciliation and clears only verified active state',async()=>{
     await savePendingPurchase('a',{kind:'purchase',targetTier:'kivelle_max',startedAt:1});
     mocks.invoke.mockResolvedValue({state:{tier:'kivelle_max'},verification:'active'});

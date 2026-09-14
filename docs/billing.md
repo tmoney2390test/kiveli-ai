@@ -1,8 +1,18 @@
 # Kivelle billing
 
-Kivelle's database is the authoritative source for plans, entitlements, limits, and Credits. RevenueCat is the Apple/Google lifecycle adapter—not the entitlement authority. New memberships can be purchased only through StoreKit or Google Play Billing; there is no Stripe or hosted-checkout fallback. Stripe checkout and hosted billing-portal access are disabled for every client. Stripe remains connected only for historical payment reconciliation, refunds, disputes, and existing subscription lifecycle events. Native credit-pack purchasing is not implemented yet; the app accurately marks packs unavailable instead of falling back to Stripe. `resolveSubscriptionState()` chooses one effective internal entitlement across all provider rows and grants each monthly benefit only up to the highest applicable tier.
+Kivelle's database is the authoritative source for plans, entitlements, limits, and Credits. RevenueCat is the Apple/Google lifecycle adapter—not the entitlement authority. New memberships can be purchased only through StoreKit or Google Play Billing; there is no Stripe or hosted-checkout fallback. Stripe checkout and hosted billing-portal access are disabled for every client. Stripe remains connected only for historical payment reconciliation, refunds, disputes, and existing subscription lifecycle events. Native credit packs use store consumable products and signed RevenueCat delivery; unavailable store products remain disabled. `resolveSubscriptionState()` chooses one effective internal entitlement across all provider rows and grants each monthly benefit only up to the highest applicable tier.
 
 No card number, Stripe secret, webhook secret, or Supabase service-role key belongs in Expo or browser code.
+
+## Native credit packs
+
+Both stores use consumable IDs `app.kivelli.credits.100`, `.300`, `.800`, and `.2000`, with US base prices $4.99, $11.99, $27.99, and $59.99. Register each in RevenueCat without attaching a subscription entitlement. The app fetches localized prices directly from the store and only enables packs allowlisted by the backend. The optional `creditProducts` adapter map can override the built-in mappings; an empty map disables all packs.
+
+Signed `NON_RENEWING_PURCHASE` events grant the canonical pack quantity through `kivelle_apply_store_credit_purchase`. `CANCELLATION` for those products records a refund. Store, environment, and transaction ID form a unique receipt key. The SQL transaction locks that receipt, assigns one owner, and prevents duplicate grants, alias replay, and regranting refunded purchases. Refunds recover available permanent Credits and retain any spent amount in `unrecovered_credits` for operations review. Configure Apple server notifications and the In-App Purchase key, and Google real-time developer notifications, so refunds reach RevenueCat.
+
+The client persists pending purchases before opening the store. A signed receipt confirmation, never a balance delta, clears the pending state; foreground recovery and periodic checks recover delayed delivery. If the SDK receipt response was lost, the server can match a single owned product receipt recorded after the pending operation began. Ambiguous matches stay pending for support review. Consumable balances live in the Kivelli account, so reinstalling or restoring store purchases cannot regrant them.
+
+Sandbox access can be enabled per account through the service-only `together_billing_sandbox_testers` table while the global `acceptSandbox` flag remains false. Sandbox grants are recorded explicitly and should be tested only with the designated test account. An actual sandbox purchase on each device remains necessary to prove the store payment sheet, webhook, and balance delivery together.
 
 ## Native Apple/Google subscriptions through RevenueCat
 
@@ -38,7 +48,7 @@ Deploy `together-revenuecat-webhook` and register:
 https://<SUPABASE_PROJECT_REF>.supabase.co/functions/v1/together-revenuecat-webhook
 ```
 
-Configure an unpredictable `Authorization` header and enable RevenueCat HMAC signing. Store the exact header, one-time signing secret, and a server-only RevenueCat secret API key in `KIVELLE_REVENUECAT_WEBHOOK_AUTHORIZATION`, `KIVELLE_REVENUECAT_WEBHOOK_SIGNING_SECRET`, and `KIVELLE_REVENUECAT_SECRET_API_KEY`. `KIVELLE_REVENUECAT_CONFIG_JSON` is the kill switch and server-authoritative map of allowed RevenueCat app IDs, entitlement IDs, product IDs, tiers, and intervals. Production should keep `acceptSandbox=false`; use a separate non-production webhook/configuration for sandbox events.
+Configure an unpredictable `Authorization` header and enable RevenueCat HMAC signing. Store the exact header, one-time signing secret, and a server-only RevenueCat secret API key in `KIVELLE_REVENUECAT_WEBHOOK_AUTHORIZATION`, `KIVELLE_REVENUECAT_WEBHOOK_SIGNING_SECRET`, and `KIVELLE_REVENUECAT_SECRET_API_KEY`. `KIVELLE_REVENUECAT_CONFIG_JSON` is the kill switch and server-authoritative map of allowed RevenueCat app IDs, entitlement IDs, product IDs, tiers, and intervals. Production should keep `acceptSandbox=false`; enable designated testing UUIDs in `together_billing_sandbox_testers`.
 
 The webhook verifies the exact authorization value and raw-body HMAC, rejects stale signatures, accepts only allowlisted apps and mapped products, deduplicates by RevenueCat event ID, fetches the current subscriber snapshot from RevenueCat, and applies it through the same stale-event-guarded subscription RPC as Stripe. Unknown products fail closed. Payloads, receipts, API keys, and full subscriber data are not written to logs or the billing-event ledger.
 
