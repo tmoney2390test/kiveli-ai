@@ -48,8 +48,8 @@ function database(ticket: unknown) {
 Deno.test("customer detail scopes ownership and never selects internal notes or metadata", async () => {
   const mock = database({ id: "ticket" }),
     detail = await customerSupportDetail(mock.db, "customer", "ticket");
-  assertEquals(mock.queries[0].filters, { id: "ticket", user_id: "customer" });
-  assertEquals(mock.queries[0].fields.includes("metadata"), false);
+  assertEquals(mock.queries[0]?.filters, { id: "ticket", user_id: "customer" });
+  assertEquals(mock.queries[0]?.fields.includes("metadata"), false);
   assertEquals(mock.queries.map((q) => q.table), [
     "together_support_tickets",
     "together_support_replies",
@@ -74,3 +74,4 @@ Deno.test("unowned tickets reject both reads and replies before accessing messag
     true,
   );
 });
+
