@@ -1,5 +1,5 @@
 diff --git a/android/src/main/java/expo/modules/audiostream/AudioRecorderManager.kt b/android/src/main/java/expo/modules/audiostream/AudioRecorderManager.kt
-index eebf2fdc8d1405e42f9db6455f55922ed3ff1a59..03061e1cc2295fbb47cc88af37234ed1f22467de 100644
+index eebf2fdc8d1405e42f9db6455f55922ed3ff1a59..278b2ba80003574431bc90e5e1736b1ab9860934 100644
 --- a/android/src/main/java/expo/modules/audiostream/AudioRecorderManager.kt
 +++ b/android/src/main/java/expo/modules/audiostream/AudioRecorderManager.kt
 @@ -610,7 +610,7 @@ class AudioRecorderManager(
@@ -11,3 +11,13 @@ index eebf2fdc8d1405e42f9db6455f55922ed3ff1a59..03061e1cc2295fbb47cc88af37234ed1
                          Log.e(Constants.TAG, "Error stopping recording during release: $message", cause)
                      }
                  }
+diff --git a/android/src/main/java/expo/modules/audiostream/ExpoPlayAudioStreamModule.kt b/android/src/main/java/expo/modules/audiostream/ExpoPlayAudioStreamModule.kt
+index faee727d047ee8e33aa0ed35182beb034cdff48d..fa63e8edabc13ee46de7aced8955a17a176e4945 100644
+--- a/android/src/main/java/expo/modules/audiostream/ExpoPlayAudioStreamModule.kt
++++ b/android/src/main/java/expo/modules/audiostream/ExpoPlayAudioStreamModule.kt
+@@ -189,4 +189,4 @@ class ExpoPlayAudioStreamModule : Module(), EventSender {
+         Function("pushPipelineAudioSync") { options: Map<String, Any?> ->
+-            val result: Boolean = pipelineIntegration.pushAudioSync(options)
++            val result: Any = pipelineIntegration.pushAudioSync(options)
+             return@Function result
+         }

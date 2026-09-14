@@ -245,7 +245,7 @@ export function navigateLocalRouteOnWeb(
   href: AppRouteHref,
   mode: "push" | "replace" = "push",
 ): boolean {
-  if (typeof window === "undefined") return false;
+  if (typeof window === "undefined" || typeof document === "undefined") return false;
   const destination = appRouteHref(href);
   if (!destination) return false;
   const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -259,7 +259,7 @@ export function navigateLocalRouteOnWeb(
 }
 
 export function updateLocalRouteParamsOnWeb(params: AppRouteParams): boolean {
-  if (typeof window === "undefined") return false;
+  if (typeof window === "undefined" || typeof document === "undefined") return false;
   const current = new URL(window.location.href);
   for (const [name, value] of Object.entries(params)) {
     current.searchParams.delete(name);
@@ -300,7 +300,7 @@ function installInternalLinkGuard(): void {
  * the authenticated shell, flashes the root route, and repeats bootstrap work.
  */
 export function installWebNavigationCompatibility(router: object): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || typeof document === "undefined") return;
   installInternalLinkGuard();
   if (patchedRouters.has(router)) return;
   patchedRouters.add(router);

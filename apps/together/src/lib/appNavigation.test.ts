@@ -18,6 +18,25 @@ afterEach(() => {
   Object.defineProperty(globalThis, "document", { configurable: true, value: originalDocument });
 });
 
+it("leaves native navigation untouched even when React Native defines window", () => {
+  browserAt("https://kivelli.app/");
+  Object.defineProperty(globalThis, "document", { configurable: true, value: undefined });
+  const router = {
+    push: vi.fn(),
+    navigate: vi.fn(),
+    replace: vi.fn(),
+    dismissTo: vi.fn(),
+    setParams: vi.fn(),
+  };
+
+  installWebNavigationCompatibility(router);
+  router.push("/sign-in" as never);
+
+  expect(router.push).toHaveBeenCalledWith("/sign-in");
+  expect(navigateLocalRouteOnWeb("/sign-in")).toBe(false);
+  expect(updateLocalRouteParamsOnWeb({ source: "welcome" })).toBe(false);
+});
+
 function browserAt(initialHref: string) {
   const entries = [{ href: new URL(initialHref), state: null as unknown }];
   let entryIndex = 0;
