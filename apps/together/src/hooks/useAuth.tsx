@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { authErrorMessage } from '../lib/authErrors';
 import { createTogetherAccount, manageAccount } from '../lib/api';
 import { getValidatedPersistedSession } from '../lib/authSession';
+import { createAuthStartupGate } from '../lib/authStartup';
 import { appleUserMetadata, parseOAuthCallbackUrl, resolveSocialAuthCapabilities, socialAuthErrorMessage, type SocialAuthCapabilities, type SocialAuthProvider } from '../lib/socialAuth';
 
 type SignUpResult = { needsEmailConfirmation: boolean };
@@ -67,8 +68,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     let mounted = true;
-    let bootstrapped = false;
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => {
+    const startup = createAuthStartupGate<Session>();
+    const { data } = supabase.auth.onAuthStateChange((event, next) => {
       if(next?.provider_refresh_token&&next.user.app_metadata?.provider==='apple'){
         // Never await Auth or API calls within the auth event lock.
         const token=next.provider_refresh_token,owner=next.user.id;
@@ -76,20 +77,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
           if(data.session?.user.id===owner)return manageAccount({action:'apple_credential',kind:'web',refreshToken:token});
         }).catch(()=>undefined);},0);
       }
-      if (mounted && bootstrapped) {
-        setSession(next);
+      const change = startup.onChange(event, next);
+      if (mounted && change.ready) {
+        setSession(change.session);
         setLoading(false);
       }
     });
     void getValidatedPersistedSession(supabase.auth)
       .then((next) => {
-        if (mounted) {
-          setSession(next);
-        }
+        const resolved = startup.complete(next);
+        if (mounted) setSession(resolved);
       })
-      .catch(() => { if (mounted) setSession(null); })
+      .catch(() => {
+        const resolved = startup.complete(null);
+        if (mounted) setSession(resolved);
+      })
       .finally(() => {
-        bootstrapped = true;
         if (mounted) setLoading(false);
       });
     return () => {

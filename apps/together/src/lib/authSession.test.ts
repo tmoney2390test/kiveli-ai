@@ -42,6 +42,16 @@ describe('persisted auth session recovery', () => {
     expect(auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
   });
 
+  it('does not sign out a newer login when the old session fails validation', async () => {
+    const auth = authClient({ user: null, userError: { code: 'session_not_found', status: 403 } });
+    const newer = { access_token: 'new-token', user: { id: 'user-2' } };
+    auth.getSession.mockResolvedValueOnce({ data: { session: { access_token: 'old-token', user: { id: 'user-1' } } }, error: null });
+    auth.getSession.mockResolvedValueOnce({ data: { session: newer }, error: null });
+
+    await expect(getValidatedPersistedSession(auth)).resolves.toBe(newer);
+    expect(auth.signOut).not.toHaveBeenCalled();
+  });
+
   it('keeps the session during a transient validation failure', async () => {
     const auth = authClient({ user: null, userError: { message: 'Failed to fetch' } });
     await expect(getValidatedPersistedSession(auth)).resolves.toMatchObject({ access_token: 'valid-token' });

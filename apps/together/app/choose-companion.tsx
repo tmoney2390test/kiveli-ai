@@ -7,6 +7,7 @@ import { isSubscriberEarlyAccessWorld } from '@together/domain/src/world-access'
 import { SpiceBadge } from '../src/components/SpiceBadge';
 import { CompanionGenderToggle } from '../src/components/CompanionGenderToggle';
 import { FrostedSurface, KivelleLogo, LoadingSkeleton, Screen, resolveCharacterPortraitSource } from '../src/components';
+import { ErrorState } from '../src/components/RouteState';
 import { worldHeroAsset } from '../src/assets';
 import { bootstrap } from '../src/lib/api';
 import { featuredCompanionsMatchingGender, type FeaturedCompanion, type FeaturedGenderFilter } from '../src/lib/featuredCompanions';
@@ -32,7 +33,8 @@ export default function ChooseCompanion() {
   const { width } = useWindowDimensions();
   const desktop = width >= 760;
   const screenRef = useRef<ScrollView | null>(null);
-  const { snapshot, setSnapshot, setBrowsedWorldId, refresh, loading } = useTogether();
+  const { snapshot, setSnapshot, setBrowsedWorldId, refresh, loading, error: loadError } = useTogether();
+  const attemptedInitialLoad = useRef(false);
   const [step, setStep] = useState<OnboardingStep>('world');
   const [selectedWorldId, setSelectedWorldId] = useState('');
   const [selectedCompanionId, setSelectedCompanionId] = useState('');
@@ -42,19 +44,22 @@ export default function ChooseCompanion() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!snapshot && !loading) void refresh();
-  }, [loading, refresh, snapshot]);
+    if (snapshot || loading || loadError || attemptedInitialLoad.current) return;
+    attemptedInitialLoad.current = true;
+    void refresh();
+  }, [loadError, loading, refresh, snapshot]);
 
   const worlds = useMemo(() => snapshot ? onboardingWorlds(snapshot) : [], [snapshot]);
   const recommendedWorld = useMemo(() => snapshot ? onboardingRecommendedWorld(snapshot, worlds) : null, [snapshot, worlds]);
   useEffect(() => {
     if (selectedWorldId || !worlds.length) return;
     const requested = params.world ? worlds.find((world) => world.slug === params.world) : null;
-    setSelectedWorldId((requested ?? recommendedWorld!).id);
+    const initialWorld = requested ?? recommendedWorld ?? worlds[0];
+    if (initialWorld) setSelectedWorldId(initialWorld.id);
   }, [params.world, recommendedWorld, selectedWorldId, worlds]);
 
   const selectedWorld = worlds.find((world) => world.id === selectedWorldId) ?? null;
-  const selectedWorldAccessible = Boolean(selectedWorld && canAccessWorld(snapshot!, selectedWorld));
+  const selectedWorldAccessible = Boolean(snapshot && selectedWorld && canAccessWorld(snapshot, selectedWorld));
   const worldCompanions = useMemo(
     () => snapshot && selectedWorldId ? onboardingCompanionsForWorld(snapshot, selectedWorldId) : [],
     [selectedWorldId, snapshot],
@@ -72,7 +77,9 @@ export default function ChooseCompanion() {
     setSelectedCompanionId('');
   }, [gender, selectedWorldId]);
 
-  if (!snapshot) return <LoadingSkeleton label="Opening Kivelle…" />;
+  if (!snapshot) return loading || (!loadError && !attemptedInitialLoad.current)
+    ? <LoadingSkeleton label="Opening Kivelle…" />
+    : <ErrorState message={loadError ?? 'Your worlds could not be loaded.'} onRetry={() => void refresh({ force: true })} />;
 
   if (resolveKivelleAccountStage(snapshot.profile) === 'age_confirmation') {
     router.replace('/age-confirmation' as never);
@@ -146,7 +153,7 @@ export default function ChooseCompanion() {
           {otherWorlds.length ? <View style={styles.worldGrid}>
             {otherWorlds.map((world) => <WorldCard key={world.id} world={world} selected={world.id === selectedWorldId} accessible={canAccessWorld(snapshot,world)} compact desktop={desktop} onPress={() => chooseWorld(world)} />)}
           </View> : null}
-        </View> : <FrostedSurface intensity={70} style={styles.emptyState}><Sparkles size={20} color={colors.violet} /><Text style={styles.emptyTitle}>Worlds are being prepared</Text></FrostedSurface>}
+        </View> : <FrostedSurface intensity={70} style={styles.emptyState}><Sparkles size={20} color={colors.violet} /><Text style={styles.emptyTitle}>Worlds are being prepared</Text><Pressable accessibilityRole="button" onPress={() => void refresh({ force: true })} style={styles.showMore}><Text style={styles.showMoreText}>Try loading again</Text></Pressable></FrostedSurface>}
 
         <OutlinedAction
           label={selectedWorld ? selectedWorldAccessible ? `Continue to ${selectedWorld.name}` : `Unlock early access to ${selectedWorld.name}` : 'Choose a world'}
@@ -161,8 +168,8 @@ export default function ChooseCompanion() {
         </View>
 
         <View accessibilityRole="tablist" style={styles.tabs}>
-          <Pressable accessibilityRole="tab" accessibilityState={{ selected: true }} style={[styles.tab, styles.tabActive]}><Text style={[styles.tabText, styles.tabTextActive]}>Characters</Text></Pressable>
-          <Pressable accessibilityRole="tab" accessibilityLabel="Scenarios. Not available yet." accessibilityState={{ disabled: true, selected: false }} disabled style={[styles.tab, styles.tabDisabled]}><Text style={styles.tabText}>Scenarios</Text></Pressable>
+          <View accessibilityRole="tab" accessibilityState={{ selected: true }} style={[styles.tab, styles.tabActive]}><Text style={[styles.tabText, styles.tabTextActive]}>Characters</Text></View>
+          <View accessibilityRole="tab" accessibilityLabel="Scenarios. Not available yet." accessibilityState={{ disabled: true, selected: false }} style={[styles.tab, styles.tabDisabled]}><Text style={styles.tabText}>Scenarios</Text></View>
         </View>
 
         <View style={styles.peopleHeading}>
@@ -172,7 +179,7 @@ export default function ChooseCompanion() {
 
         {visibleCompanions.length ? <View style={styles.peopleGrid} accessibilityRole="radiogroup" accessibilityLabel={`Characters in ${selectedWorld?.name ?? 'this world'}`}>
           {visibleCompanions.map((person) => <CompanionCard key={person.id} person={person} desktop={desktop} selected={person.id === selectedCompanionId} busy={busy && person.id === selectedCompanionId} onPress={() => { if (!busy) { setSelectedCompanionId(person.id); setError(''); } }} />)}
-        </View> : <FrostedSurface intensity={70} style={styles.emptyState}><Sparkles size={20} color={colors.violet} /><Text style={styles.emptyTitle}>No characters match this filter</Text><Text style={styles.emptyBody}>Choose All or try another gender.</Text></FrostedSurface>}
+        </View> : <FrostedSurface intensity={70} style={styles.emptyState}><Sparkles size={20} color={colors.violet} /><Text style={styles.emptyTitle}>{worldCompanions.length ? 'No characters match this filter' : 'No characters available here yet'}</Text><Text style={styles.emptyBody}>{worldCompanions.length ? 'Choose All or try another gender.' : 'Choose another world to meet someone.'}</Text>{!worldCompanions.length ? <Pressable accessibilityRole="button" onPress={returnToWorlds} style={styles.showMore}><Text style={styles.showMoreText}>Choose another world</Text></Pressable> : null}</FrostedSurface>}
 
         {visibleCount < filteredCompanions.length ? <Pressable accessibilityRole="button" onPress={() => setVisibleCount((count) => count + 12)} style={styles.showMore}><Text style={styles.showMoreText}>Show more</Text><ChevronRight size={15} color={colors.rose} /></Pressable> : null}
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}

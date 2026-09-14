@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Check, KeyRound, Mail, ShieldCheck } from 'lucide-react-native';
 import { GradientButton, PageTitle } from '../src/components';
@@ -11,6 +11,7 @@ import { manageAccount } from '../src/lib/api';
 import { validBirthdateEntry } from '../src/lib/pendingBirthdate';
 import { BirthdateField } from '../src/components/BirthdateField';
 import { useTogether } from '../src/store/useTogether';
+import { confirmAction, showActionAlert } from '../src/lib/dialogs';
 
 type Notice = { kind: 'success' | 'error'; message: string } | null;
 type BirthdateStatus = { dateOfBirth: string | null; canCorrect: boolean; correctedAt: string | null };
@@ -32,10 +33,14 @@ export default function Account() {
   const [privacyPreference, setPrivacyPreference] = useState<TextPreference>('explicit');
   const [privacyNotice, setPrivacyNotice] = useState<Notice>(null);
   const [privacyLoading, setPrivacyLoading] = useState(true);
-  const emailReady = validAccountEmail(newEmail);
+  const normalizedNewEmail = newEmail.trim().toLowerCase();
+  const emailMatchesCurrent = normalizedNewEmail === session?.user.email?.trim().toLowerCase();
+  const emailMatchesPending = normalizedNewEmail === provider.pendingEmail?.trim().toLowerCase();
+  const emailReady = validAccountEmail(normalizedNewEmail)
+    && !emailMatchesCurrent && !emailMatchesPending;
 
   const loadPrivacyChoices = useCallback(async () => {
-    setPrivacyLoading(true); setPrivacyNotice(null);
+    setPrivacyLoading(true); setPrivacyChoices(null); setPrivacyNotice(null);
     try {
       const status = await manageAccount<PrivacyChoices>({ action: 'privacy_choices_status' });
       setPrivacyChoices(status);
@@ -55,13 +60,15 @@ export default function Account() {
   useEffect(()=>{void loadBirthdate();void loadPrivacyChoices();},[loadBirthdate,loadPrivacyChoices]);
 
   const savePrivacyChoices = async () => {
-    if (busy || privacyLoading) return;
+    if (busy || privacyLoading || !privacyChoices) return;
     setBusy('privacy'); setPrivacyNotice(null);
     try {
       await manageAccount({ action: 'conversation_preference', privateTextPreference: privacyPreference });
       setPrivacyChoices((current) => current ? { ...current, privateTextPreference: privacyPreference } : current);
       await refresh({ force: true });
-      setPrivacyNotice({ kind: 'success', message: 'Your conversation setting was saved.' });
+      setPrivacyNotice({ kind: 'success', message: useTogether.getState().error
+        ? 'Your conversation setting was saved. Reopen your conversation to apply it.'
+        : 'Your conversation setting was saved.' });
     } catch (error) {
       setPrivacyNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Your AI choices could not be saved.' });
     } finally { setBusy(null); }
@@ -82,7 +89,7 @@ export default function Account() {
     if (!emailReady || busy) return;
     setBusy('email'); setEmailNotice(null);
     try {
-      await updateEmail(newEmail.trim().toLowerCase());
+      await updateEmail(normalizedNewEmail);
       setNewEmail('');
       setEmailNotice({ kind: 'success', message: 'Confirmation links were sent. Follow the email instructions to finish the change.' });
     } catch (error) {
@@ -98,10 +105,21 @@ export default function Account() {
     finally { setBusy(null); }
   };
 
-  const otherSessions = () => Alert.alert('Sign out other sessions?', 'This device will stay signed in. Every other browser and mobile session will need to sign in again.', [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Sign out other sessions', style: 'destructive', onPress: () => { setBusy('sessions'); void signOutOthers().then(() => Alert.alert('Other sessions signed out', 'This device is still signed in.')).catch((error) => Alert.alert('Could not sign out other sessions', error instanceof Error ? error.message : 'Please try again.')).finally(() => setBusy(null)); } },
-  ]);
+  const otherSessions = () => confirmAction({
+    title: 'Sign out other sessions?',
+    message: 'This device will stay signed in. Every other browser and mobile session will need to sign in again.',
+    confirmLabel: 'Sign out other sessions',
+    destructive: true,
+    onConfirm: async () => {
+      setBusy('sessions');
+      try {
+        await signOutOthers();
+        showActionAlert('Other sessions signed out', 'This device is still signed in.');
+      } catch (error) {
+        showActionAlert('Could not sign out other sessions', error instanceof Error ? error.message : 'Please try again.');
+      } finally { setBusy(null); }
+    },
+  });
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back to settings" hitSlop={10} onPress={() => router.canGoBack() ? router.back() : router.replace('/settings?section=account')} style={styles.back}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Account & security</PageTitle></View>
@@ -113,12 +131,15 @@ export default function Account() {
 
     <Section title="Conversation Spiciness" body="Choose the upper boundary for your private text chats." />
     <View style={styles.card}>
-      {privacyLoading ? <Text style={styles.loadingText}>Loading conversation settings…</Text> : <>
+      {privacyLoading ? <Text style={styles.loadingText}>Loading conversation settings…</Text> : privacyChoices ? <>
         <View accessibilityRole="radiogroup" accessibilityLabel="Conversation Spiciness" style={styles.choiceRow}>
           {(['standard', 'mature', 'explicit'] as const).map((choice) => <Pressable key={choice} accessibilityRole="radio" accessibilityState={{ checked: privacyPreference === choice, disabled: busy !== null }} disabled={busy !== null} onPress={() => { setPrivacyPreference(choice); setPrivacyNotice(null); }} style={[styles.choiceButton, privacyPreference === choice && styles.choiceButtonSelected]}><Text style={[styles.choiceText, privacyPreference === choice && styles.choiceTextSelected]}>{choice.charAt(0).toUpperCase() + choice.slice(1)}</Text></Pressable>)}
         </View>
         {privacyNotice ? <NoticeView notice={privacyNotice} /> : null}
         <GradientButton label={busy === 'privacy' ? 'Saving…' : 'Save conversation setting'} disabled={busy !== null || privacyChoices?.privateTextPreference === privacyPreference} onPress={() => void savePrivacyChoices()} />
+      </> : <>
+        {privacyNotice ? <NoticeView notice={privacyNotice} /> : null}
+        <Pressable accessibilityRole="button" onPress={() => void loadPrivacyChoices()} style={styles.textButton}><Text style={styles.textButtonText}>Try again</Text></Pressable>
       </>}
     </View>
 
@@ -138,6 +159,8 @@ export default function Account() {
     <Section title="Email address" body="Kivelle sends a private code to this address when you sign in." />
     <View style={styles.card}>
       <Field label="New email address"><TextInput accessibilityLabel="New email address" value={newEmail} onChangeText={(value) => { setNewEmail(value); setEmailNotice(null); }} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" textContentType="emailAddress" style={styles.input} placeholder="name@example.com" placeholderTextColor={colors.muted} /></Field>
+      {emailMatchesCurrent ? <Text style={styles.fieldHint}>This is already your account email.</Text> : null}
+      {emailMatchesPending ? <Text style={styles.fieldHint}>A confirmation is already pending for this address.</Text> : null}
       {emailNotice ? <NoticeView notice={emailNotice} /> : null}
       <GradientButton label={busy === 'email' ? 'Updating…' : 'Change email'} disabled={!emailReady || busy !== null} onPress={() => void changeEmail()} />
       {provider.pendingEmail ? <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy !== null }} disabled={busy !== null} onPress={() => void resend()} style={styles.textButton}><Mail size={17} color={colors.rose} /><Text style={styles.textButtonText}>{busy === 'resend' ? 'Sending…' : 'Resend email-change confirmation'}</Text></Pressable> : null}

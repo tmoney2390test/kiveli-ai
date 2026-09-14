@@ -96,6 +96,12 @@ export async function getValidatedPersistedSession<TSession extends PersistedSes
   if (!validation.error && validation.data.user) return stored.data.session;
   if (!isInvalidAuthSessionError(validation.error)) return stored.data.session;
 
+  // A new sign-in can finish while the old token is being verified. Never
+  // clear that newer session in response to a stale validation result.
+  const current = await auth.getSession().catch(() => null);
+  if (current?.data.session && current.data.session.access_token !== stored.data.session.access_token) {
+    return current.data.session;
+  }
   await clearInvalidLocalSession(auth);
   return null;
 }

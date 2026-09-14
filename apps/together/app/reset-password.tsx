@@ -10,9 +10,9 @@ import { authCallbackErrorMessage } from '../src/lib/authErrors';
 
 export default function ResetPassword() {
   const params = useLocalSearchParams<{ code?: string; error?: string; error_description?: string }>();
-  const { session, updatePassword } = useAuth();
+  const { loading, updatePassword } = useAuth();
   const processed = useRef(false);
-  const [ready, setReady] = useState(Boolean(session));
+  const [ready, setReady] = useState(false);
   const [password, setPassword] = useState('');
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -22,15 +22,10 @@ export default function ResetPassword() {
   });
 
   useEffect(() => {
-    if (processed.current) return;
+    if (loading || processed.current) return;
     if (params.error_description || params.error) {
       processed.current = true;
       setError(authCallbackErrorMessage({ message: params.error_description ?? params.error ?? 'This password reset link could not be used.' }));
-      return;
-    }
-    if (session) {
-      processed.current = true;
-      setReady(true);
       return;
     }
     if (!params.code) {
@@ -43,10 +38,11 @@ export default function ResetPassword() {
       if (exchangeError) setError(authCallbackErrorMessage(exchangeError));
       else if (!data.session) setError('This password reset link did not create a recovery session.');
       else setReady(true);
-    });
-  }, [params.code, params.error, params.error_description, session]);
+    }).catch((caught) => setError(authCallbackErrorMessage(caught)));
+  }, [loading, params.code, params.error, params.error_description]);
 
   const submit = async () => {
+    if (!ready || busy || password.length < 8) return;
     setBusy(true);
     setError('');
     try {
@@ -69,7 +65,7 @@ export default function ResetPassword() {
     </View>
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     <GradientButton label={busy ? 'Updating…' : 'Update password'} disabled={!ready || busy || password.length < 8} onPress={() => void submit()} />
-    <Pressable onPress={() => router.replace('/auth')}><Text style={styles.back}>Back to sign in</Text></Pressable>
+    <Pressable accessibilityRole="button" onPress={() => router.replace('/auth?mode=signin')}><Text style={styles.back}>Back to sign in</Text></Pressable>
   </View></Screen>;
 }
 
