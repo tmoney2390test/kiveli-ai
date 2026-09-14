@@ -229,6 +229,7 @@ export async function reportClientHeartbeat() {
 
 export const createSupportTicket = (
   input: {
+    requestId?: string;
     category: SupportCategory;
     subject: string;
     message: string;
@@ -270,7 +271,7 @@ export const updateOperationsWorldStatus = (worldId: string, status: OperationsW
   });
 export const loadSupportTicket = (ticketId: string) =>
   invoke<
-    { ticket: Record<string, unknown>; events: Array<Record<string, unknown>> }
+    { ticket: Record<string, unknown>; events: Array<Record<string, unknown>>; replies:SupportReply[] }
   >("together-ops", { action: "ticket_detail", ticketId });
 export const loadSafetyReports = (status?: SafetyReport["status"]) =>
   invoke<{ reports: SafetyReport[] }>("together-ops", {
@@ -394,3 +395,8 @@ export const recordOperationsRelease = (
     action: "record_release",
     ...input,
   });
+
+export type SupportReply={id:string;sender:'customer'|'support';message:string;created_at:string};
+export type CustomerSupportDetail={ticket:{id:string;ticket_number:number;category:SupportCategory;subject:string;message:string;status:string;created_at:string;updated_at:string};replies:SupportReply[]};
+export const loadMySupportTicket=(ticketId:string)=>invoke<CustomerSupportDetail>('together-ops',{action:'my_ticket_detail',ticketId});
+export const replyToSupportTicket=(input:{ticketId:string;message:string;requestId:string},asSupport=false)=>invoke<{replyId:string}>('together-ops',{action:asSupport?'reply_to_customer':'reply_support_ticket',...input});

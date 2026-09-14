@@ -37,3 +37,6 @@ jobs:
 
       - name: Verify Apple review recovery database contract
         run: node scripts/test-apple-review-db.mjs
+
+      - name: Verify support portal database contract
+        run: node scripts/test-support-portal-db.mjs

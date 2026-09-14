@@ -1,3 +1,4 @@
+import {customerSupportDetail,replySupport,supportReplies} from '../_shared/support-portal.ts';
 import { monitorVideoPrices, videoCostsDashboard } from '../_shared/kivelle-video-prices.ts';
 import { waitUntil } from '../_shared/background.ts';
 import { z } from "zod";
@@ -71,6 +72,7 @@ const schema = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("create_support_ticket"),
+    requestId: z.string().uuid().optional(),
     category: z.enum([
       "bug",
       "billing",
@@ -85,6 +87,9 @@ const schema = z.discriminatedUnion("action", [
     conversationId: z.string().uuid().optional(),
   }),
   z.object({ action: z.literal("my_tickets") }),
+  z.object({action:z.literal('my_ticket_detail'),ticketId:z.string().uuid()}),
+  z.object({action:z.literal('reply_support_ticket'),ticketId:z.string().uuid(),message:z.string().trim().min(2).max(5000),requestId:z.string().uuid()}),
+  z.object({action:z.literal('reply_to_customer'),ticketId:z.string().uuid(),message:z.string().trim().min(2).max(5000),requestId:z.string().uuid()}),
   z.object({ action: z.literal("dashboard") }),
   z.object({action:z.literal("video_costs")}),
   z.object({action:z.literal("refresh_video_prices")}),
@@ -278,9 +283,19 @@ serve(async (request, correlationId) => {
         );
       }
     }
+    if(input.requestId){
+      const existing=await db.from('together_support_tickets').select('id,ticket_number,status,created_at,subject,message,category,metadata').eq('user_id',user.id).eq('request_id',input.requestId).maybeSingle();
+      if(existing.error)throw new AppError('INTERNAL_ERROR','Your support request could not be checked.',500,true);
+      if(existing.data){
+        if(existing.data.subject!==input.subject||existing.data.message!==input.message||existing.data.category!==input.category)throw new AppError('VALIDATION_ERROR','This request was already submitted with different details.',409);
+        const {subject,message,category,metadata,...ticket}=existing.data;
+        return json({data:{ticket,emailDelivery:metadata.support_email_status??'failed'},correlationId},200,correlationId);
+      }
+    }
     const ticketCorrelationId = input.correlationId ?? correlationId;
     const { data, error } = await db.from("together_support_tickets").insert({
       user_id: user.id,
+      request_id: input.requestId??null,
       category: input.category,
       subject: input.subject,
       message: input.message,
@@ -359,6 +374,13 @@ serve(async (request, correlationId) => {
     );
   }
 
+  if(input.action==='my_ticket_detail')return json({data:await customerSupportDetail(db,user.id,input.ticketId),correlationId},200,correlationId);
+  if(input.action==='reply_support_ticket'||input.action==='reply_to_customer'){
+    const isSupport=input.action==='reply_to_customer';
+    if(isSupport)requireOperationsRole(user,'support');
+    await enforceRateLimit(db,user.id,'support_reply',60,3600);
+    return json({data:await replySupport(db,user.id,input,isSupport),correlationId},200,correlationId);
+  }
   const role = requireOperationsRole(user, "viewer");
   if(input.action==='video_costs')return json({data:await videoCostsDashboard(db),correlationId},200,correlationId);
   if(input.action==='refresh_video_prices'){
@@ -436,7 +458,7 @@ serve(async (request, correlationId) => {
     requireMinimumRole(role, "support");
     const [ticket, events] = await Promise.all([
       db.from("together_support_tickets").select(
-        "id,user_id,category,subject,message,status,priority,correlation_id,conversation_id,assigned_to,tags,first_response_at,resolved_at,incident_id,created_at,updated_at",
+        "id,ticket_number,user_id,category,subject,message,status,priority,correlation_id,conversation_id,assigned_to,tags,first_response_at,resolved_at,incident_id,created_at,updated_at,metadata",
       ).eq("id", input.ticketId).maybeSingle(),
       db.from("together_ops_ticket_events").select("*").eq(
         "ticket_id",
@@ -468,7 +490,7 @@ serve(async (request, correlationId) => {
     });
     return json(
       {
-        data: { ticket: ticket.data, events: events.data ?? [] },
+        data: { ticket: ticket.data, events: events.data ?? [], replies:await supportReplies(db,input.ticketId) },
         correlationId,
       },
       200,
@@ -508,7 +530,7 @@ serve(async (request, correlationId) => {
     if (input.tags) {
       patch.tags = [...new Set(input.tags.map((tag) => tag.toLowerCase()))];
     }
-    if (input.note && !before.first_response_at) patch.first_response_at = now;
+    // Internal notes are not a customer response. Public replies set this atomically.
     const { data, error } = await db.from("together_support_tickets").update(
       patch,
     ).eq("id", input.ticketId).select("*").single();

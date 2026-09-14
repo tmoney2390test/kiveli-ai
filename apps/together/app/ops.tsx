@@ -1,3 +1,5 @@
+import {SupportReplies} from '../src/components/ops/SupportReplies';
+import type {SupportReply} from '../src/lib/operations';
 import { IncidentLine, Panel, SectionHeader, RecordLine, StatusPill, Stat, StatCard, SmallAction, Loading, date, duration } from '../src/components/ops/OperationsPrimitives';
 import { styles } from '../src/styles/opsStyles';
 import { VideoCostsPanel } from '../src/components/VideoCostsPanel';
@@ -162,6 +164,7 @@ export default function Operations() {
       {
         ticket: Record<string, unknown>;
         events: Array<Record<string, unknown>>;
+    replies?:SupportReply[];
       } | null
     >(null),
     [note, setNote] = useState(""),
@@ -750,6 +753,7 @@ function Support({
   detail: {
     ticket: Record<string, unknown>;
     events: Array<Record<string, unknown>>;
+    replies?:SupportReply[];
   } | null;
   note: string;
   setNote: (value: string) => void;
@@ -769,13 +773,16 @@ function Support({
         tags: string[];
         note: string;
       }>,
-    ) =>
-      mutate(
+    ) => {
+      let saved=false;
+      return mutate(
         `ticket:${id}`,
-        () => updateSupportTicket({ ticketId: id, ...patch }),
+        async () => {const result=await updateSupportTicket({ticketId:id,...patch});saved=true;return result;},
       ).then(async () => {
-        await openTicket(id);
+        if(saved)await openTicket(id);
+        return saved;
       });
+    };
     return (
       <>
         <SectionHeader
@@ -793,6 +800,7 @@ function Support({
           }`}
         >
           <Text style={styles.ticketMessage}>{String(ticket.message)}</Text>
+          <Text style={styles.note}>Email notification: {String((ticket.metadata as Record<string,unknown>|undefined)?.support_email_status??'Not recorded').replace(/_/g,' ')}. Replies below are delivered through the support portal.</Text>
           <View style={styles.actionRow}>
             <SmallAction
               label="Assign to me"
@@ -828,9 +836,10 @@ function Support({
             label="Save note"
             busy={busyKey === `ticket:${id}`}
             disabled={note.trim().length < 2}
-            onPress={() => void update({ note }).then(() => setNote(""))}
+            onPress={() => void update({ note }).then(saved => {if(saved)setNote("");})}
           />
         </Panel>
+        <SupportReplies key={id} ticketId={id} replies={detail.replies??[]} onSent={()=>openTicket(id)}/>
         <Panel
           title="Ticket history"
           hint="Status, assignment, and note audit trail."
@@ -1097,6 +1106,7 @@ function Alerts({
 }: {
   rules: OperationsAlertRule[];
   events: Array<Record<string, unknown>>;
+    replies?:SupportReply[];
   configuration: { webhook: boolean; email: boolean };
   admin: boolean;
   busyKey: string;
