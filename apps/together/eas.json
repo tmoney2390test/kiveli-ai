@@ -8,6 +8,10 @@
     "sandbox": { "environment": "preview", "distribution": "store", "channel": "sandbox", "autoIncrement": true }
   },
   "submit": {
+    "closedTesting": {
+      "ios": { "ascAppId": "6807826072" },
+      "android": { "track": "alpha" }
+    },
     "releaseCandidate": {
       "ios": { "ascAppId": "6807826072" },
       "android": { "track": "internal" }
