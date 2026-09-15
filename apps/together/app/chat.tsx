@@ -1,3 +1,4 @@
+import { createRealtimeChannel } from '../src/lib/realtimeChannel';
 import { SchedulePauseControl } from '../src/components/settings/SchedulePauseControl';
 import {ScenarioConversationBanner} from '../src/components/ScenarioConversationBanner';
 import { useTimelineReveal } from '../src/hooks/useTimelineReveal';
@@ -374,7 +375,7 @@ function ChatSession() {
     let cancelled=false;
     const loadRoster=()=>manageSharedScene<SharedSceneRoster>({action:'available',conversationId:conversation.id}).then((result)=>{if(!cancelled)setSharedSceneRoster(result);}).catch(()=>{if(!cancelled)setSharedSceneRoster(null);});
     void loadRoster();
-    const channel=supabase.channel(`kivelle-shared-scene-${conversation.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'*',schema:'public',table:'together_scene_participants'},()=>void loadRoster()).on('postgres_changes',{event:'UPDATE',schema:'public',table:'together_scene_sessions'},()=>void loadRoster()).subscribe();
+    const channel=createRealtimeChannel(supabase, `kivelle-shared-scene-${conversation.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'*',schema:'public',table:'together_scene_participants'},()=>void loadRoster()).on('postgres_changes',{event:'UPDATE',schema:'public',table:'together_scene_sessions'},()=>void loadRoster()).subscribe();
     return()=>{cancelled=true;void supabase.removeChannel(channel);};
   },[conversation?.id,isCoPresent,activeSceneMetadata?.sceneSessionId]));
 
@@ -552,7 +553,7 @@ function ChatSession() {
     const reconcilePersistedMessages=refreshMessages.schedule;
     // Fetch through the conversation API rather than trusting the realtime
     // payload so web/native content projection and ownership checks still apply.
-    const channel=supabase.channel(`kivelle-messages-${conversationId}-${realtimeScopeRef.current}`)
+    const channel=createRealtimeChannel(supabase, `kivelle-messages-${conversationId}-${realtimeScopeRef.current}`)
       .on('postgres_changes',{event:'*',schema:'public',table:'together_messages',filter:`conversation_id=eq.${conversationId}`},reconcilePersistedMessages)
       .subscribe();
     return()=>{cancelled=true;refreshMessages.dispose();void supabase.removeChannel(channel);};
@@ -624,7 +625,7 @@ function ChatSession() {
   },[conversation?.id]);
   const simulationStale=Boolean(character&&(presenceNow-new Date(character.last_simulated_at).getTime()>2*60000||!(snapshot?.scheduleEvents??[]).some((item)=>item.character_instance_id===character.id&&new Date(item.ends_at).getTime()>presenceNow)));
   useEffect(()=>{if(!character?.id||!simulationStale)return;let cancelled=false;void simulate(character.id).then(()=>cancelled?undefined:refresh({scope:'presence',characterInstanceId:character.id})).catch(()=>undefined);return()=>{cancelled=true;};},[character?.id,refresh,simulationStale]);
-  useFocusEffect(useCallback(()=>{if(!character)return;const channel=supabase.channel(`kivelle-media-${character.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'*',schema:'public',table:'together_generated_media',filter:`character_instance_id=eq.${character.id}`},(payload)=>{const id=String((payload.new as Record<string,unknown>|null)?.id??'');if(id)void manageMedia<{media:GeneratedMedia}>({action:'status',mediaId:id}).then((result)=>{upsertMedia(result.media);if(!mediaReconciliationComplete(result.media))setReconcilingMediaId(id);}).catch((caught)=>{if(caught instanceof ApiError&&caught.code==='NOT_FOUND'){removeMedia(id);return;}setReconcilingMediaId(id);});}).subscribe();return()=>{void supabase.removeChannel(channel);};},[character?.id,removeMedia,upsertMedia]));
+  useFocusEffect(useCallback(()=>{if(!character)return;const channel=createRealtimeChannel(supabase, `kivelle-media-${character.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'*',schema:'public',table:'together_generated_media',filter:`character_instance_id=eq.${character.id}`},(payload)=>{const id=String((payload.new as Record<string,unknown>|null)?.id??'');if(id)void manageMedia<{media:GeneratedMedia}>({action:'status',mediaId:id}).then((result)=>{upsertMedia(result.media);if(!mediaReconciliationComplete(result.media))setReconcilingMediaId(id);}).catch((caught)=>{if(caught instanceof ApiError&&caught.code==='NOT_FOUND'){removeMedia(id);return;}setReconcilingMediaId(id);});}).subscribe();return()=>{void supabase.removeChannel(channel);};},[character?.id,removeMedia,upsertMedia]));
   useFocusEffect(useCallback(()=>{
     if(!character?.id||!conversation?.id||(__DEV__&&process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE==='true'))return;
     let cancelled=false;
@@ -638,8 +639,8 @@ function ChatSession() {
     }).catch(()=>undefined);
     return()=>{cancelled=true;};
   },[character?.id,conversation?.id,upsertMedia]));
-  useFocusEffect(useCallback(()=>{if(!conversation?.id)return;const channel=supabase.channel(`kivelle-conversation-actions-${conversation.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'*',schema:'public',table:'together_conversation_actions',filter:`conversation_id=eq.${conversation.id}`},(payload)=>{const next=payload.new as ConversationAction|undefined,previous=payload.old as Partial<ConversationAction>|undefined,id=String(next?.id??previous?.id??'');if(next?.id&&next.status==='pending')upsertConversationAction(next);else if(id)removeConversationAction(id);}).subscribe();return()=>{void supabase.removeChannel(channel);};},[conversation?.id,removeConversationAction,upsertConversationAction]));
-  useFocusEffect(useCallback(()=>{if(!conversation?.id)return;const channel=supabase.channel(`kivelle-conversation-events-${conversation.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'together_conversation_events',filter:`conversation_id=eq.${conversation.id}`},(payload)=>{const event=payload.new as ConversationEvent|undefined;if(!event?.id)return;const current=useTogether.getState().snapshot;if(current&&!current.conversationEvents.some((item)=>item.id===event.id))setCoreState({conversationEvents:[...current.conversationEvents,event]});}).subscribe();return()=>{void supabase.removeChannel(channel);};},[conversation?.id,setCoreState]));
+  useFocusEffect(useCallback(()=>{if(!conversation?.id)return;const channel=createRealtimeChannel(supabase, `kivelle-conversation-actions-${conversation.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'*',schema:'public',table:'together_conversation_actions',filter:`conversation_id=eq.${conversation.id}`},(payload)=>{const next=payload.new as ConversationAction|undefined,previous=payload.old as Partial<ConversationAction>|undefined,id=String(next?.id??previous?.id??'');if(next?.id&&next.status==='pending')upsertConversationAction(next);else if(id)removeConversationAction(id);}).subscribe();return()=>{void supabase.removeChannel(channel);};},[conversation?.id,removeConversationAction,upsertConversationAction]));
+  useFocusEffect(useCallback(()=>{if(!conversation?.id)return;const channel=createRealtimeChannel(supabase, `kivelle-conversation-events-${conversation.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'together_conversation_events',filter:`conversation_id=eq.${conversation.id}`},(payload)=>{const event=payload.new as ConversationEvent|undefined;if(!event?.id)return;const current=useTogether.getState().snapshot;if(current&&!current.conversationEvents.some((item)=>item.id===event.id))setCoreState({conversationEvents:[...current.conversationEvents,event]});}).subscribe();return()=>{void supabase.removeChannel(channel);};},[conversation?.id,setCoreState]));
   useFocusEffect(useCallback(()=>{
     if(!character?.id||!conversation?.id){setMediaOffers([]);return;}
     let cancelled=false,retryTimer:ReturnType<typeof setTimeout>|undefined;
@@ -653,7 +654,7 @@ function ChatSession() {
         for(const id of missingMediaIds(mediaIds,result.media??[]))removeMedia(id);
       }
     }catch{if(!cancelled&&attempt<3)retryTimer=setTimeout(()=>void loadOffers(attempt+1),Math.min(8_000,1_500*2**attempt));}};
-    void loadOffers();const channel=supabase.channel(`kivelle-media-offers-${character.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'*',schema:'public',table:'together_media_offers',filter:`character_instance_id=eq.${character.id}`},()=>void loadOffers()).subscribe();return()=>{cancelled=true;if(retryTimer)clearTimeout(retryTimer);void supabase.removeChannel(channel);};
+    void loadOffers();const channel=createRealtimeChannel(supabase, `kivelle-media-offers-${character.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'*',schema:'public',table:'together_media_offers',filter:`character_instance_id=eq.${character.id}`},()=>void loadOffers()).subscribe();return()=>{cancelled=true;if(retryTimer)clearTimeout(retryTimer);void supabase.removeChannel(channel);};
   },[character?.id,conversation?.id,fetchPendingMediaOffers,removeMedia,upsertMedia]));
   useEffect(()=>{
     if(!reconcilingMediaId||!character?.id||!conversation?.id)return;
@@ -700,7 +701,7 @@ function ChatSession() {
     const refreshPresence=()=>{setPresenceNow(Date.now());void refresh({scope:'presence',characterInstanceId:character.id});};
     refreshPresence();
     const fallbackTimer=setInterval(refreshPresence,CHAT_PRESENCE_FALLBACK_REFRESH_MS);
-    const channel=supabase.channel(`kivelle-presence-${character.id}-${realtimeScopeRef.current}`)
+    const channel=createRealtimeChannel(supabase, `kivelle-presence-${character.id}-${realtimeScopeRef.current}`)
       .on('postgres_changes',{event:'*',schema:'public',table:'together_character_schedule_events',filter:`character_instance_id=eq.${character.id}`},refreshPresence)
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'together_character_instances',filter:`id=eq.${character.id}`},refreshPresence)
       .on('postgres_changes',{event:'*',schema:'public',table:'together_scene_sessions',filter:`character_instance_id=eq.${character.id}`},refreshPresence)

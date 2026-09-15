@@ -208,9 +208,10 @@ export async function reportClientError(
     stackHash,
     platform: Platform.OS,
     appVersion: Constants.expoConfig?.version ?? "unknown",
-    buildId: Constants.expoConfig?.runtimeVersion
-      ? String(Constants.expoConfig.runtimeVersion)
-      : undefined,
+    buildId: Platform.OS === 'web' && typeof document !== 'undefined'
+      ? Array.from(document.scripts).map(script => script.src.split('/').pop()).find(name => name?.startsWith('__common-') || name?.startsWith('entry-'))
+      : Platform.OS === 'ios' ? Constants.expoConfig?.ios?.buildNumber
+      : Constants.expoConfig?.android?.versionCode?.toString(),
     correlationId: input.correlationId,
     metadata: input.metadata ?? {},
   });

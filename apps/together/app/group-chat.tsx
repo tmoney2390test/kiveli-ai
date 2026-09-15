@@ -1,3 +1,4 @@
+import { createRealtimeChannel } from '../src/lib/realtimeChannel';
 import { useTimelineReveal } from '../src/hooks/useTimelineReveal';
 import { useChatInboxNavigation } from '../src/hooks/useChatInboxNavigation';
 import { styles } from '../src/styles/groupChatStyles';
@@ -570,7 +571,7 @@ export default function GroupChatScreen() {
         void refreshGroupDelta();
       }, 140);
     };
-    const channel = supabase.channel(`group-media:${params.id}`)
+    const channel = createRealtimeChannel(supabase, `group-media:${params.id}`)
       .on("postgres_changes", {
         event: "*",
         schema: "public",

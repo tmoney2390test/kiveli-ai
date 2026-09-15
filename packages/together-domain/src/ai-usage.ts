@@ -13,6 +13,7 @@ export type NormalizedAiUsage = {
 
 export const aiPricing = {
   openai: {
+    'gpt-4.1-mini': { inputPerMillion: 0.4, cachedInputPerMillion: 0.1, outputPerMillion: 1.6 },
     'gpt-5.6-luna': { inputPerMillion: 0.2, cachedInputPerMillion: 0.02, outputPerMillion: 1.2 },
     'gpt-4.1-nano': { inputPerMillion: 0.1, cachedInputPerMillion: 0.025, outputPerMillion: 0.4 },
     'text-embedding-3-small': { inputPerMillion: 0.02, cachedInputPerMillion: 0, outputPerMillion: 0 },

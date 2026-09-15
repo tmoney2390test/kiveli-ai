@@ -2,7 +2,7 @@ import { normalizeChatTestSelection, type ChatTestSelection } from '@together/do
 import { resolveCompanionQuietHours } from '@together/domain/src/proactive-preferences';
 import { ProactiveSettings, initialProactiveDraft, proactivePatch } from './settings/ProactiveSettings';
 import { normalizeContextPreference, type ContextPreference } from '@together/domain/src/chat-context';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef} from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AlignLeft, Check, ChevronDown, ChevronRight, Languages, MessageCircle, Palette, Pause, Play, Type, Volume2, X } from 'lucide-react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
@@ -59,6 +59,8 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
   const [voiceMenuOpen, setVoiceMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<ChatSettingsTab>('chat');
+  const previewEpoch = useRef(0);
+  useEffect(() => { previewEpoch.current++; setVoicePreviewBusy(false); return () => { previewEpoch.current++; }; }, [visible, conversation?.id, voicePreset, chatLanguage]);
   const voicePlayer = useAudioPlayer(null, { updateInterval: 200 });
   const voicePlayerStatus = useAudioPlayerStatus(voicePlayer);
   const voiceEntitled = snapshot?.experienceCapabilities?.voiceNotes === true || snapshot?.entitlements?.entitlement_keys?.includes('voice_notes') === true;
@@ -132,17 +134,19 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
       return;
     }
     setVoicePreviewBusy(true);
+    const epoch = previewEpoch.current;
     try {
       const result = await previewCompanionVoice({ conversationId: conversation.id, voicePreset, chatLanguage, requestId: createClientRequestId() });
+      if (epoch !== previewEpoch.current) return;
       const preview = { ...result.preview, selection: voicePreset, language: chatLanguage };
       rememberVoicePreview(conversation.id, preview);
       setVoicePreview(preview);
       voicePlayer.replace(result.preview.signedUrl);
       voicePlayer.play();
     } catch (error) {
-      Alert.alert('Voice preview unavailable', error instanceof Error ? error.message : 'Please try again.');
+      if (epoch === previewEpoch.current) Alert.alert('Voice preview unavailable', error instanceof Error ? error.message : 'Please try again.');
     } finally {
-      setVoicePreviewBusy(false);
+      if (epoch === previewEpoch.current) setVoicePreviewBusy(false);
     }
   };
 

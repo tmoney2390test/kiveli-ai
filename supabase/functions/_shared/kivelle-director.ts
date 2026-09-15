@@ -35,13 +35,15 @@ export async function runKivelleDirector(input:{context:DirectorContext;baseBrie
   const storyIsResponseRelevant=input.baseBrief.actionCandidate==='story'||Boolean(input.baseBrief.callbackCandidate&&input.context.activeStory&&input.baseBrief.callbackCandidate===String(input.context.activeStory.title??''));
   if(!shouldUseDirector(input.policy,input.interactionQuality,{pendingMilestone:input.pendingMilestone,activeConflict:input.activeConflict,activeStory:storyIsResponseRelevant}))return fallback;
   await requireScopedAiConsent(input.usageScope);
-  const deadline=Date.now()+3000;
+  const deadline=Date.now()+2000;
   for(const provider of ['openai','gemini'] as const){
     const key=provider==='openai'?openAIKey():geminiKey();
     const remaining=deadline-Date.now();
+    // Reserve a real fallback window instead of letting the first provider consume it.
+    const providerBudget=provider==='openai'&&geminiKey()?Math.min(1200,remaining):remaining;
     if(!key||remaining<100||(failures.get(provider)?.retryAt??0)>Date.now())continue;
     try{
-      const brief=await (provider==='openai'?directOpenAI:directGemini)(input.context,input.baseBrief,key,input.usageScope,remaining);
+      const brief=await (provider==='openai'?directOpenAI:directGemini)(input.context,input.baseBrief,key,input.usageScope,providerBudget);
       failures.delete(provider);
       return{brief,directorUsed:true,provider};
     }catch{
@@ -53,11 +55,11 @@ export async function runKivelleDirector(input:{context:DirectorContext;baseBrie
 }
 
 async function directOpenAI(context:DirectorContext,base:ResponseBrief,key:string,scope:AiUsageScope|undefined,timeoutMs:number):Promise<ResponseBrief>{
-  const started=Date.now(),modelName=model('KIVELLE_DIRECTOR_MODEL','gpt-5-mini');
+  const started=Date.now(),modelName=model('KIVELLE_DIRECTOR_MODEL','gpt-4.1-mini');
   try{
     const {response,data}=await directorRequest('https://api.openai.com/v1/responses',{
       method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},
-      body:JSON.stringify({model:modelName,input:directorPrompt(context,base),max_output_tokens:450,...(Deno.env.get('KIVELLE_DIRECTOR_REASONING_EFFORT')?{reasoning:{effort:Deno.env.get('KIVELLE_DIRECTOR_REASONING_EFFORT')}}:{})}),
+      body:JSON.stringify({model:modelName,input:directorPrompt(context,base),max_output_tokens:450,text:{format:{type:'json_object'}},...(/^gpt-5(?:-|$)/.test(modelName)?{reasoning:{effort:Deno.env.get('KIVELLE_DIRECTOR_REASONING_EFFORT')||'minimal'}}:{})}),
     },timeoutMs);
     if(!response.ok)throw new Error(`HTTP_${response.status}`);
     const raw=extractResponsesText(data);
@@ -74,7 +76,7 @@ async function directGemini(context:DirectorContext,base:ResponseBrief,key:strin
   const modelName=model('KIVELLE_DIRECTOR_GEMINI_MODEL','gemini-2.5-flash'),started=Date.now();
   try{
     const {response,data}=await directorRequest(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(key)}`,{
-      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{role:'user',parts:[{text:directorPrompt(context,base)}]}],generationConfig:{temperature:.15,maxOutputTokens:450,responseMimeType:'application/json'}}),
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{role:'user',parts:[{text:directorPrompt(context,base)}]}],generationConfig:{temperature:.15,maxOutputTokens:450,responseMimeType:'application/json',...(modelName.startsWith('gemini-2.5-flash')?{thinkingConfig:{thinkingBudget:0}}:{})}}),
     },timeoutMs);
     if(!response.ok)throw new Error(`HTTP_${response.status}`);
     const usageMetadata=data.usageMetadata??{},usage={inputTokens:Number(usageMetadata.promptTokenCount??0),cachedInputTokens:Number(usageMetadata.cachedContentTokenCount??0),outputTokens:Number(usageMetadata.candidatesTokenCount??0),reasoningTokens:Number(usageMetadata.thoughtsTokenCount??0),totalTokens:Number(usageMetadata.totalTokenCount??0)};

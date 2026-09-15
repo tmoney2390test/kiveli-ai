@@ -100,3 +100,24 @@ Deno.test('takeover during moderation stops even an otherwise approved delta',as
   async function* events():AsyncGenerator<DialogueStreamEvent>{yield{type:'token',token:sentence};yield{type:'complete',metadata};}
   await assert.rejects(collectApprovedReply({events:events(),signal:controller.signal,approve:async()=>{controller.abort();return true;},onDelta:()=>assert.fail('stale text emitted')}));
 });
+
+Deno.test('Director reserves time for fallback after a stalled primary and uses nonreasoning defaults',async()=>{
+ const oldFetch=globalThis.fetch,oldNow=Date.now;
+ const names=['OPENAI_API_KEY','GEMINI_API_KEY','KIVELLE_DIRECTOR_MODEL'];
+ const values=names.map(n=>Deno.env.get(n));
+ Deno.env.set(names[0],'test');Deno.env.set(names[1],'test');Deno.env.delete(names[2]);
+ const started=oldNow();Date.now=()=>oldNow()+180000;
+ let primaryAborted=false,model='',reasoning:unknown;
+ globalThis.fetch=(async(url,init)=>{
+   const body=JSON.parse(String(init?.body));
+   if(String(url).includes('openai')){model=body.model;reasoning=body.reasoning;return await new Promise<Response>((_,reject)=>init?.signal?.addEventListener('abort',()=>{primaryAborted=true;reject(Error('aborted'));},{once:true}));}
+   assert.equal(body.generationConfig.thinkingConfig.thinkingBudget,0);
+   return Response.json({candidates:[{content:{parts:[{text:JSON.stringify(brief)}]}}]});
+ }) as typeof fetch;
+ try{
+   const result=await runKivelleDirector({...directorInput,reasoningPreference:'low'});
+   assert.equal(result.provider,'gemini');assert.equal(primaryAborted,true);
+   assert.equal(model,'gpt-4.1-mini');assert.equal(reasoning,undefined);
+   assert.ok(oldNow()-started<1950,'fallback should complete within the total budget');
+ }finally{globalThis.fetch=oldFetch;Date.now=oldNow;names.forEach((n,i)=>values[i]===undefined?Deno.env.delete(n):Deno.env.set(n,values[i]!));}
+});

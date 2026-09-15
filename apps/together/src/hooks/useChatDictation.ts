@@ -23,7 +23,9 @@ export function useChatDictation(options: ChatDictationOptions) {
   const phaseRef = useRef<ChatDictationPhase>('idle');
   const timerRef = useRef<ReturnType<typeof setTimeout>|null>(null);
   const finalizingRef = useRef(false);
+  const startingRef = useRef(false);
   const mountedRef = useRef(true);
+  const lifecycleRef = useRef(0);
   const callbacksRef = useRef(options);
   const finishRef = useRef<() => Promise<void>>(() => Promise.resolve());
   callbacksRef.current = options;
@@ -39,27 +41,30 @@ export function useChatDictation(options: ChatDictationOptions) {
   }, []);
 
   const finish = useCallback(async () => {
-    if (phaseRef.current !== 'recording' || finalizingRef.current) return;
+    if (!mountedRef.current || phaseRef.current !== 'recording' || finalizingRef.current) return;
     finalizingRef.current = true;
     clearTimer();
     setPhase('transcribing');
+    const scope = { ...callbacksRef.current };
+    const lifecycle = lifecycleRef.current;
     let uri: string|null = null;
     try {
       const beforeStop = recorder.getStatus();
       if (beforeStop.isRecording) await recorder.stop();
+      if (!mountedRef.current || lifecycle !== lifecycleRef.current) return;
       const finished = recorder.getStatus();
       uri = recorder.uri ?? finished.url;
       const durationMs = Math.max(beforeStop.durationMillis, finished.durationMillis);
       if (!uri || durationMs < 450) throw new Error('Speak for a moment before stopping.');
       const metadata = dictationAudioMetadata(uri, Platform.OS === 'web');
       const result = await transcribeChatAudio({
-        conversationId: callbacksRef.current.conversationId,
-        characterInstanceId: callbacksRef.current.characterInstanceId,
+        conversationId: scope.conversationId,
+        characterInstanceId: scope.characterInstanceId,
         uri,
         durationMs,
         ...metadata,
       });
-      if (mountedRef.current) callbacksRef.current.onTranscript(result.text);
+      if (mountedRef.current && lifecycle === lifecycleRef.current && callbacksRef.current.conversationId === scope.conversationId) callbacksRef.current.onTranscript(result.text);
     } catch (caught) {
       if (mountedRef.current) callbacksRef.current.onError(caught instanceof Error ? caught.message : 'That recording could not be transcribed.');
     } finally {
@@ -76,9 +81,14 @@ export function useChatDictation(options: ChatDictationOptions) {
       await finishRef.current();
       return;
     }
-    if (phaseRef.current !== 'idle' || callbacksRef.current.disabled) return;
+    if (!mountedRef.current || startingRef.current || phaseRef.current !== 'idle' || callbacksRef.current.disabled) return;
+    startingRef.current = true;
+    const scope = callbacksRef.current.conversationId;
+    const lifecycle = lifecycleRef.current;
+    const current = () => mountedRef.current && lifecycle === lifecycleRef.current && callbacksRef.current.conversationId === scope && !callbacksRef.current.disabled;
     try {
       const permission = await requestRecordingPermissionsAsync();
+      if (!current()) return;
       if (!permission.granted) {
         callbacksRef.current.onError('Microphone access is needed for voice-to-text.');
         return;
@@ -93,23 +103,29 @@ export function useChatDictation(options: ChatDictationOptions) {
         interruptionMode: 'doNotMix',
         shouldRouteThroughEarpiece: false,
       });
+      if (!current()) { await restorePlaybackMode(); return; }
       await recorder.prepareToRecordAsync();
+      if (!current()) { await restorePlaybackMode(); return; }
       recorder.record();
       setPhase('recording');
       timerRef.current = setTimeout(() => void finishRef.current(), MAX_CHAT_DICTATION_MS);
     } catch (caught) {
       await restorePlaybackMode();
       setPhase('idle');
-      callbacksRef.current.onError(caught instanceof Error ? caught.message : 'The microphone could not start.');
-    }
+      if (current()) callbacksRef.current.onError(caught instanceof Error ? caught.message : 'The microphone could not start.');
+    } finally { startingRef.current = false; }
   }, [recorder, setPhase]);
 
-  useEffect(() => () => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
     mountedRef.current = false;
+    lifecycleRef.current++;
     clearTimer();
     // useAudioRecorder releases the native recorder during unmount. Calling it
     // from a later cleanup can race that release and crash the conversation.
     if (phaseRef.current !== 'idle') void restorePlaybackMode();
+    };
   }, [clearTimer]);
 
   return { phase, elapsedMs: recorderState.durationMillis, toggle };
