@@ -7,3 +7,7 @@ The provider receives the original concept, biography, job, interests, chosen ho
 AI requests have a 20-second deadline and usage telemetry in Ops. Provider errors or invalid output return a labeled basic fallback with concrete activity labels, job shifts, sleeping/home time and every requested activity. Existing hand-edited schedules and other weeks are preserved until the user applies the preview. No new credit charge is introduced.
 
 Validated: 1,144 domain tests, 898 app tests, eight targeted Deno checks/tests, TypeScript and production web export. No real provider generation was performed during automated validation. Deploy the creator Edge function before the new web client. This pass is committed but not deployed.
+
+
+## Deployment — September 15
+Web Worker f9180d57-4ce5-4de9-a022-a74514c614f9 and together-creator v161 are live. Source d8ce5f2 pushed. 423 routes / 63 assets passed; authenticated listing returned 200, insufficient activities returned the expected 400, and anonymous access returned 401. No new mobile build. See launch-readiness-2026-09-15.md for remaining review findings.
