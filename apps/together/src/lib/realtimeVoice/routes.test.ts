@@ -18,9 +18,9 @@ describe('voice route preference',()=>{
 
 describe('voice route shell',()=>{
   it('always exposes the two permanent choices without a server round trip',()=>{
-    expect(voiceRouteShellOptions.map((option)=>[option.route,option.displayName])).toEqual([
-      ['standard','Essential'],
-      ['express','Immersive'],
+    expect(voiceRouteShellOptions.map((option)=>[option.route,option.displayName,option.creditsPerMinute])).toEqual([
+      ['standard','Essential',5],
+      ['express','Immersive',20],
     ]);
   });
 });

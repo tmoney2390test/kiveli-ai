@@ -7,8 +7,8 @@ type RouteAvailability={route:VoiceCallRoute;available:boolean};
  * while the server hydrates account availability and the current balance.
  */
 export const voiceRouteShellOptions=[
-  {route:'standard' as const,displayName:'Essential',creditsPerMinute:3},
-  {route:'express' as const,displayName:'Immersive',creditsPerMinute:8},
+  {route:'standard' as const,displayName:'Essential',creditsPerMinute:5},
+  {route:'express' as const,displayName:'Immersive',creditsPerMinute:20},
 ] as const;
 
 export function resolvePreferredVoiceRoute(

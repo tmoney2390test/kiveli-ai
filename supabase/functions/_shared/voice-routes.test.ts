@@ -41,7 +41,7 @@ Deno.test("standard route fails closed unless relay URL, signing key, and flag a
     KIVELLE_VOICE_RELAY_SIGNING_SECRET: "relay-secret",
   }, () => {
     const policy = voiceRoutePolicy("standard", "kivelle_plus");
-    assert(policy.available && policy.displayName === "Essential" && policy.creditsPerMinute === 3 && policy.includedMinutes === 0);
+    assert(policy.available && policy.displayName === "Essential" && policy.creditsPerMinute === 5 && policy.includedMinutes === 0);
   });
 });
 
