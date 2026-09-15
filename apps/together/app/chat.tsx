@@ -1,3 +1,4 @@
+import { SchedulePauseControl } from '../src/components/settings/SchedulePauseControl';
 import {ScenarioConversationBanner} from '../src/components/ScenarioConversationBanner';
 import { useTimelineReveal } from '../src/hooks/useTimelineReveal';
 import { coalescedRefresh } from '../src/lib/coalescedRefresh';
@@ -1228,6 +1229,7 @@ function ChatSession() {
         {!showRight&&width>=720?<MobileChatContextCard identityKey={conversation.id} name={character.together_character_templates.name} location={chatContext.scene.location} activity={chatContext.scene.activity} next={chatContext.nextCommitment?{title:chatContext.nextCommitment.title,detail:new Date(chatContext.nextCommitment.startsAt).toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'}),onPress:chatContext.nextCommitment.kind==='plan'?()=>navigateChatSurface(`/plan/${chatContext.nextCommitment!.id}`):undefined}:null} memoryCount={snapshot.memoryCounts?.[character.id]??snapshot.memories.filter((item)=>item.character_instance_id===character.id).length} memoryLocked={snapshot.entitlements?.entitlement_keys?.includes('memory_inspector')!==true} onMemory={()=>navigateChatSurface(`/memories?character=${slug}`)} onPlan={activeSharedPlan?undefined:openPlanPicker}/>:null}
         {showFreshChat && session?.user.id ? <FreshChatConfirmation key={`${session.user.id}:${conversation.id}`} userId={session.user.id} characterInstanceId={character.id} conversationId={conversation.id} name={character.together_character_templates.name} onClose={()=>setShowFreshChat(false)} onComplete={()=>{setShowFreshChat(false);void refresh();}} /> : null}
         {showConversationMenu ? <ConversationOverflowMenu
+          scheduleControl={<SchedulePauseControl character={character} conversation={conversation} compact/>}
           title={character.together_character_templates.name}
           kind="direct"
           hasActivePlan={Boolean(activeSharedPlan)}

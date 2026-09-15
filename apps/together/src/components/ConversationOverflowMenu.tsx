@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   Brain,
   CalendarDays,
@@ -45,6 +45,7 @@ type Props = {
   onChangePlan: () => void;
   onEndPlan: () => void;
   onSettings: () => void;
+  scheduleControl?: React.ReactNode;
   onFresh: () => void;
   onAdvanced?: () => void;
   onDelete: () => void;
@@ -70,6 +71,7 @@ export function ConversationOverflowMenu({
   onChangePlan,
   onEndPlan,
   onSettings,
+  scheduleControl,
   onFresh,
   onAdvanced,
   onDelete,
@@ -141,6 +143,7 @@ export function ConversationOverflowMenu({
             <X size={17} color={colors.muted} />
           </Pressable>
         </View>
+        <ScrollView style={{flexShrink:1}} keyboardShouldPersistTaps="handled">
         <MenuSection label={kind === 'group' ? 'GROUP' : 'COMPANION'} actions={identity} />
         <MenuSection label="PLAN" actions={conversationPlanMenuItems(hasActivePlan).map((item) => ({
           label: item.label,
@@ -148,8 +151,10 @@ export function ConversationOverflowMenu({
           onPress: planActions[item.key],
           danger: item.danger,
         }))} />
+        {scheduleControl}
         <MenuSection label="CONVERSATION" actions={conversation} />
         <MenuSection label="MANAGE" actions={manage} />
+        </ScrollView>
       </FrostedSurface>
     </View>
   </View>;
@@ -190,6 +195,7 @@ const styles = StyleSheet.create({
     maxHeight: '82%',
   },
   menu: {
+    maxHeight: '100%',
     width: '100%',
     padding: 10,
     borderRadius: radius.lg,
