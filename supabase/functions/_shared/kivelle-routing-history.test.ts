@@ -22,7 +22,7 @@ Deno.test('current moderation is evaluated on every turn, and only fresh evidenc
   for(const remaining of [3,2,1,0]){
     const route=resolveDialogueRouting({...base,routingHistory:history});
     assertEquals(route.carryoverTurnsRemaining,remaining);
-    assertEquals(route.provider,remaining?'xai':'openai');
+    assertEquals(route.provider,remaining?'wavespeed':'openai');
     assertEquals(route.classification,'standard');
     assertEquals(route.adultRouting?.freshAdult,false);
     history.push(route.adultRouting);
@@ -69,7 +69,7 @@ Deno.test('suggestive and carried routes preserve the exact owner-selected model
   assertEquals(generation.provider,first.provider);
   assertEquals(generation.experiment?.model,first.experiment?.model);
   assertEquals(generation,quote);
-  assertEquals((await applyChatTestRoute(db,'other-owner',{...conversation,user_id:'other-owner'},resolveDialogueRouting(request))).provider,'xai');
+  assertEquals((await applyChatTestRoute(db,'other-owner',{...conversation,user_id:'other-owner'},resolveDialogueRouting(request))).provider,'wavespeed');
 }));
 
 Deno.test('history is user/conversation scoped, user-turn bounded, ordered and retry stable',async()=>{

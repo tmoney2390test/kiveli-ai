@@ -71,7 +71,7 @@ Deno.serve(async(request)=>{
       if(expanded.estimatedTokens>ceiling)throw new AppError('CONFLICT','This conversation cannot fit the selected context. Choose a larger size.',409);
       const paidExpansion=preference!=='included'&&expanded.prompt!==included.prompt&&expanded.estimatedTokens>included.estimatedTokens;
       const provider=route.provider;
-      const model=(provider==='venice'||provider==='wavespeed')?route.experiment!.model:provider==='xai'?xaiDialogueModel(context):openAIDialogueModel(context);
+      const model=(provider==='venice'||provider==='wavespeed')?(route.adultModel??route.experiment!.model):provider==='xai'?xaiDialogueModel(context):openAIDialogueModel(context);
       const quoteContext=context.generationPreferences.reasoningPreference==='auto'?{...context,generationPreferences:{...context.generationPreferences,reasoningPreference:subscription.capabilities.reasoningEffortMax}}:context;
       const profile=resolveDialogueRunGenerationProfile({context:quoteContext,provider:provider==='venice'||provider==='wavespeed'?provider:provider==='xai'?'xai':'openai',model,generationContext:{mode:group?'group':'direct',speakerRole:'primary',activeSpeakerCount:speakerIds.length}});
       // Scene/director preparation can add material after acceptance. Bound that

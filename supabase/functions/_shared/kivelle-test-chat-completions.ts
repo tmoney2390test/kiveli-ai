@@ -1,4 +1,5 @@
 import type { DialogueContext, DialogueRunOptions, DialogueStreamEvent, DialogueRunMetadata } from './together-ai.ts';
+import { configuredDialogueProviders } from './kivelle-ai-routing.ts';
 import { assertChatTestRequest } from './kivelle-chat-model-test.ts';
 import { acquireProviderSlot, releaseProviderSlot } from './kivelle-provider-concurrency.ts';
 import { pricedCompanionPrompt, contextChargeForUsage } from './kivelle-context-charge.ts';
@@ -25,11 +26,13 @@ export type ChatCompletionAdapter = {
 
 export async function* streamTestChatCompletion(context: DialogueContext, options: DialogueRunOptions, adapter: ChatCompletionAdapter): AsyncGenerator<DialogueStreamEvent> {
   const experiment = options.route.experiment;
-  if (options.route.provider !== adapter.provider || experiment?.provider !== adapter.provider) throw new AppError('FORBIDDEN', 'The selected test provider does not match this request.', 403);
+  const production = adapter.provider === 'wavespeed' && options.route.adultModel === 'deepseek/deepseek-v4-pro' && !experiment && options.route.explicit && options.route.adultEligible && !options.route.hardBlocked;
+  if (options.route.provider !== adapter.provider || !production && experiment?.provider !== adapter.provider) throw new AppError('FORBIDDEN', 'The selected test provider does not match this request.', 403);
   const provider = adapter.provider, prefix = adapter.errorPrefix;
-  await assertChatTestRequest(options.usageScope?.db, options.usageScope?.userId, options.usageScope?.conversationId, experiment);
-  const model = experiment!.model, key = Deno.env.get(adapter.apiKeyEnv);
-  if (!key) throw new AppError('PROVIDER_UNAVAILABLE', `${adapter.label} is not configured. Turn the test off to use normal routing.`, 503, true);
+  if (production) { const availability=configuredDialogueProviders(); if(!availability.xai||!availability.xaiEnabled||!availability.xaiExplicitEnabled) throw new AppError('PROVIDER_UNAVAILABLE','Chat generation is temporarily unavailable.',503,true); }
+  if (!production) await assertChatTestRequest(options.usageScope?.db, options.usageScope?.userId, options.usageScope?.conversationId, experiment);
+  const model = production ? options.route.adultModel! : experiment!.model, key = Deno.env.get(adapter.apiKeyEnv);
+  if (!key) throw new AppError('PROVIDER_UNAVAILABLE', production ? 'Chat generation is temporarily unavailable.' : `${adapter.label} is not configured. Turn the test off to use normal routing.`, 503, true);
   const profile = options.generationProfile = resolveDialogueRunGenerationProfile({ context, provider, model, generationContext: options.generationContext });
   const mode = options.chatGenerationControlsMode = chatGenerationControlsMode();
   const controls = providerGenerationControls(profile, mode);
@@ -82,7 +85,7 @@ export async function* streamTestChatCompletion(context: DialogueContext, option
   } catch (error) {
     errorCode ??= options.signal?.aborted ? 'CANCELLED' : error instanceof Error && error.message.startsWith(`${prefix}_`) ? error.message : controller.signal.aborted ? `${prefix}_REQUEST_TIMEOUT` : `${prefix}_STREAM_INTERRUPTED`;
     if (options.signal?.aborted) throw error;
-    throw new AppError(response?.status === 429 ? 'RATE_LIMITED' : 'PROVIDER_UNAVAILABLE', `${adapter.label} could not finish this reply. Retry, or turn Chat model test off in Chat Settings → AI.`, response?.status === 429 ? 429 : 503, true);
+    throw new AppError(response?.status === 429 ? 'RATE_LIMITED' : 'PROVIDER_UNAVAILABLE', production ? 'The reply could not finish. Please retry.' : `${adapter.label} could not finish this reply. Retry, or turn Chat model test off in Chat Settings → AI.`, response?.status === 429 ? 429 : 503, true);
   } finally {
     clearTimeout(deadline);
     if (timer) clearTimeout(timer);

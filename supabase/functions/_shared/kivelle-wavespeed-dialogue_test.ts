@@ -8,6 +8,24 @@ const model = 'deepseek/deepseek-v4-flash';
 const encode = (items: unknown[]) => items.map(item => `data: ${typeof item === 'string' ? item : JSON.stringify(item)}\n\n`).join('');
 const reply = { model, choices: [{ delta: { content: 'Hello there.', reasoning_content: 'Never visible' }, finish_reason: 'stop' }] };
 
+Deno.test('production adult Pro route streams for a non-test account and preserves rollout revocation',()=>fixture(async({options,context})=>{
+  const names=['XAI_API_KEY','KIVELLE_XAI_ENABLED','KIVELLE_XAI_EXPLICIT_ENABLED','KIVELLE_PRIVATE_ADULT_TEXT_MODE'];
+  const saved=names.map(n=>Deno.env.get(n));
+  try{
+    names.forEach(n=>Deno.env.set(n,n.endsWith('_KEY')?'test-only':n.endsWith('_MODE')?'on':'true'));
+    options.route={...options.route,experiment:undefined,adultModel:'deepseek/deepseek-v4-pro'};
+    options.usageScope!.userId='ordinary-account';
+    let calls=0;
+    globalThis.fetch=(_url,init)=>{calls++;assert(JSON.parse(String(init?.body)).model==='deepseek/deepseek-v4-pro');return Promise.resolve(new Response(encode([{...reply,model:'deepseek-v4-pro'},'[DONE]'])));};
+    const events=[];for await(const event of streamWavespeedDialogue(context,options))events.push(event);
+    const complete=events.at(-1);assert(complete?.type==='complete'&&complete.metadata.model==='deepseek/deepseek-v4-pro'&&!complete.metadata.chatModelTest);
+    assert(calls===1);
+    Deno.env.set('KIVELLE_PRIVATE_ADULT_TEXT_MODE','off');
+    let rejected=false;try{for await(const _event of streamWavespeedDialogue(context,options)){void _event;}}catch{rejected=true;}
+    assert(rejected&&calls===1);
+  }finally{names.forEach((n,i)=>saved[i]===undefined?Deno.env.delete(n):Deno.env.set(n,saved[i]!));}
+}));
+
 async function fixture(run: (f: { options: DialogueRunOptions; context: DialogueContext; rows: any[]; calls: string[]; state: { enabled: boolean; version: number }; conversation: any; db: any }) => Promise<void>) {
   const originalFetch = globalThis.fetch;
   const envNames = ['WAVESPEED_API_KEY', 'KIVELLE_WAVESPEED_CHAT_TEST_ENABLED', 'KIVELLE_VENICE_CHAT_TEST_ENABLED', 'KIVELLE_AI_COST_TELEMETRY_ENABLED'];

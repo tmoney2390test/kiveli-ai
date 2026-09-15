@@ -1,6 +1,12 @@
 import { classifyDialogueContent, routeKivelleDialogue, type DialogueContentMode, type DialogueRoutingDecision, type NormalizedModerationResult } from '../../../packages/together-domain/src/index.ts';
 import { adultRoutingCarryover, adultRoutingEvidence } from '../../../packages/together-domain/src/dialogue-routing-continuity.ts';
 
+/** Replace only a route already authorized by the existing adult-text policy. */
+export function useDeepSeekAdultModel(route:DialogueRoutingDecision):DialogueRoutingDecision{
+  return route.provider==='xai'&&route.explicit&&route.adultEligible&&!route.hardBlocked
+    ? {...route,provider:'wavespeed',adultModel:'deepseek/deepseek-v4-pro'} : route;
+}
+
 export function configuredDialogueProviders(){return{
   openai:Boolean(Deno.env.get('OPENAI_API_KEY')),
   xai:Boolean(Deno.env.get('XAI_API_KEY')),
@@ -26,7 +32,7 @@ export function resolveDialogueRouting(input:{message:string;recentTurns?:Array<
     : adultRequest
     ? Boolean(input.adultAuthorized&&input.ageVerified)
     : input.ageVerified;
-  return {...routeKivelleDialogue({classification,requestedMode,ageVerified:routeAgeVerified,characterAge:input.characterAge,relationshipAllowsExplicit:input.relationshipAllowsExplicit,photoRequest:input.photoRequest,photoAdultRequest:input.photoAdultRequest,photoSafetyBlocked:input.photoSafetyBlocked,adultContextCarryover:carryoverTurnsRemaining>0,providers:configuredDialogueProviders()}),adultRouting,carryoverTurnsRemaining};
+  return useDeepSeekAdultModel({...routeKivelleDialogue({classification,requestedMode,ageVerified:routeAgeVerified,characterAge:input.characterAge,relationshipAllowsExplicit:input.relationshipAllowsExplicit,photoRequest:input.photoRequest,photoAdultRequest:input.photoAdultRequest,photoSafetyBlocked:input.photoSafetyBlocked,adultContextCarryover:carryoverTurnsRemaining>0,providers:configuredDialogueProviders()}),adultRouting,carryoverTurnsRemaining});
 }
 
 function enabled(name:string):boolean{return Deno.env.get(name)?.trim().toLowerCase()==='true';}

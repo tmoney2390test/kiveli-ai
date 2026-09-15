@@ -30,6 +30,7 @@ export type DialogueRoutingDecision = {
   adultRouting?: AdultRoutingEvidence;
   carryoverTurnsRemaining?: number;
   experiment?: ChatDialogueExperiment;
+  adultModel?: 'deepseek/deepseek-v4-pro';
   provider: DialogueProviderName;
   requestedMode: DialogueContentMode;
   resolvedMode: DialogueContentMode;

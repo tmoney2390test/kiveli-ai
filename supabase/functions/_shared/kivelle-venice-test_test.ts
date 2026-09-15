@@ -23,15 +23,15 @@ Deno.test('only the verified owner can select Venice; forged preference and owne
   await rejects(() => validateChatTestSetting(db, other, other, 'uncensored_1_2'));
   await rejects(() => validateChatTestSetting(db, owner, other, 'uncensored_1_2'));
   await rejects(() => validateChatTestSetting(db, owner, owner, 'unlisted-model'));
-  assert((await applyChatTestRoute(db, other, conversation(other), base)).provider === 'xai');
-  assert((await applyChatTestRoute(db, owner, conversation(other), base)).provider === 'xai');
+  assert((await applyChatTestRoute(db, other, conversation(other), base)).provider === 'wavespeed');
+  assert((await applyChatTestRoute(db, owner, conversation(other), base)).provider === 'wavespeed');
   assert((await applyChatTestRoute(db, owner, conversation(), base)).provider === 'venice');
 }));
 Deno.test('Off, disabled switch, lookup failure, ordinary replies and policy blocks preserve base routing', () => configured(async () => {
   const state = { enabled: true, version: 1, error: false }, db = database(state);
   for (const route of [{ ...base, provider: 'openai' as const, explicit: false }, { ...base, hardBlocked: true }, { ...base, explicit: false }]) assert((await applyChatTestRoute(db, owner, conversation(), route)).provider === route.provider);
-  assert((await applyChatTestRoute(db, owner, conversation(owner, 'off'), base)).provider === 'xai');
-  state.enabled = false; assert((await applyChatTestRoute(db, owner, conversation(), base)).provider === 'xai');
+  assert((await applyChatTestRoute(db, owner, conversation(owner, 'off'), base)).provider === 'wavespeed');
+  state.enabled = false; assert((await applyChatTestRoute(db, owner, conversation(), base)).provider === 'wavespeed');
   state.enabled = true; state.error = true; assert(!(await chatTestCapability(db, owner)).available);
   state.error = false; Deno.env.set('KIVELLE_VENICE_CHAT_TEST_ENABLED', 'false'); assert(!(await chatTestCapability(db, owner)).available);
 }));
@@ -71,7 +71,7 @@ Deno.test('WaveSpeed choices require their own key and remain bound to the owner
   await assertChatTestRequest(db, owner, 'chat', route.experiment);
   await rejects(() => assertChatTestRequest(db, owner, 'chat', { ...route.experiment!, provider: 'venice' }));
   await rejects(() => validateChatTestSetting(db, other, other, 'deepseek_v4_flash'));
-  assert((await applyChatTestRoute(db, other, conversation(other, 'deepseek_v4_flash'), base)).provider === 'xai');
+  assert((await applyChatTestRoute(db, other, conversation(other, 'deepseek_v4_flash'), base)).provider === 'wavespeed');
   assert((await applyChatTestRoute(db, owner, state.conversation, { ...base, provider: 'openai', explicit: false })).provider === 'openai');
   const version = await chatTestStateVersion(db, owner, state.conversation);
   Deno.env.delete('VENICE_API_KEY');
