@@ -4,12 +4,12 @@ import{canonicalCreditPurchaseAmount,creditPacks,estimatedMediaProviderCost,isMe
 describe('media economics',()=>{
   it('keeps the authoritative credit pack catalog',()=>{
     expect(creditPacks.map(({key,credits,priceUsd})=>({key,credits,priceUsd}))).toEqual([
-      {key:'credits_100',credits:100,priceUsd:4.99},{key:'credits_300',credits:300,priceUsd:11.99},
-      {key:'credits_800',credits:800,priceUsd:27.99},{key:'credits_2000',credits:2000,priceUsd:59.99},
+      {key:'credits_100',credits:250,priceUsd:4.99},{key:'credits_300',credits:700,priceUsd:11.99},
+      {key:'credits_800',credits:1750,priceUsd:27.99},{key:'credits_2000',credits:4500,priceUsd:59.99},
     ]);
-    expect(canonicalCreditPurchaseAmount('credits_100')).toBe(100);
+    expect(canonicalCreditPurchaseAmount('credits_100')).toBe(250);
     expect(canonicalCreditPurchaseAmount('unknown')).toBeNull();
-    expect(resolveCreditPurchaseGrant({productKey:'credits_100',reportedCreditAmount:100000,source:'configured'})).toBe(100);
+    expect(resolveCreditPurchaseGrant({productKey:'credits_100',reportedCreditAmount:100000,source:'configured'})).toBe(250);
     expect(resolveCreditPurchaseGrant({productKey:'unknown',reportedCreditAmount:100000,source:'configured'})).toBeNull();
     expect(resolveCreditPurchaseGrant({productKey:'unknown',reportedCreditAmount:250,source:'internal_manual'})).toBe(250);
   });
