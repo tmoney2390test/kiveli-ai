@@ -4,7 +4,23 @@ import {AppError} from './types.ts';
 const issuer='https://appleid.apple.com';
 const appleKeys=createRemoteJWKSet(new URL(issuer+'/auth/keys'),{timeoutDuration:8000});
 type ReadEnv=(name:string)=>string|undefined;
-const env:ReadEnv=name=>Deno.env.get(name);
+// A grouped setting avoids consuming six Edge Function secret slots. Existing
+// individual settings remain authoritative for installations that already use them.
+export function readAppleSetting(name:string,read:ReadEnv=name=>Deno.env.get(name)):string|undefined{
+  const individual=read(name);
+  if(individual?.trim())return individual;
+  if(!name.startsWith('KIVELLE_APPLE_')||name==='KIVELLE_APPLE_CONFIG_JSON')return undefined;
+  const packed=read('KIVELLE_APPLE_CONFIG_JSON');
+  if(!packed)return undefined;
+  try{
+    const config=JSON.parse(packed);
+    const value=config&&typeof config==='object'&&!Array.isArray(config)?config[name]:undefined;
+    return typeof value==='string'?value:undefined;
+  }catch{
+    throw new AppError('PROVIDER_UNAVAILABLE','Apple account recovery is not configured. Your account can still be deleted.',503,true);
+  }
+}
+const env:ReadEnv=name=>readAppleSetting(name);
 function required(name:string,read=env){const value=read(name)?.trim();if(!value)throw new AppError('PROVIDER_UNAVAILABLE','Apple account recovery is not configured. Your account can still be deleted.',503,true);return value;}
 export function appleClientId(kind:'native'|'web',read=env):string{
   return required(kind==='native'?'KIVELLE_APPLE_CLIENT_ID':'KIVELLE_APPLE_WEB_CLIENT_ID',read);

@@ -25,6 +25,14 @@
 
 The first iOS candidate (14) failed bundling because Gilded Age artwork was referenced locally but excluded by `.easignore`. It now uses a public website asset included in the web export. No content rules changed. Corrected candidates: iOS 15 (`6a263081-18fc-4d4a-b897-1a54c983a8d4`) and Android 14 (`423509a1-5873-479c-a0b3-4f03b92e01f5`), source `4e78605`.
 
+iOS 15 built successfully. Submission `a96ff3c1-6628-48d5-a7d0-1939c283cd21` is queued in Expo's free tier; Apple has not yet processed it. Android 14 remains queued. A local, bounded release process waits for Apple build 15 to become valid, then verifies assignment to the existing Kivelli Internal Testing group; separately it submits Android 14 to Alpha when its build finishes. Status: `.codex-temp/native-release-status.json`. It stops on repeated errors or after two hours. Keep this computer running; queued does not mean installed or approved. No paid queue upgrade or public release was requested.
+
+## Apple account recovery configuration
+
+The six Apple recovery settings were absent. The project's Edge Function secret limit prevented adding them individually. All 135 deployed function source bundles were checked: none referenced retired `KIVELLE_MAX_INCLUDED_VOICE_MINUTES`. That unused setting was replaced with one `KIVELLE_APPLE_CONFIG_JSON` secret containing the existing Apple signing configuration and a new 32-byte encryption key. Current call allowances and pricing overrides were retained. No existing encrypted Apple credentials were present before configuration.
+
+The shared reader accepts this grouped setting and preserves individual-setting precedence. Only that reader was patched into downloaded live account and life-dispatch sources (account v157; life-dispatch v175). Three tests pass. The uploaded secret digest matches the prepared configuration; a live missing-authorization smoke check confirmed parsing and signing work before validation rejects the absent code. No real Apple refresh token exchange/revocation is claimed. Temporary plaintext configuration was removed. Full Apple sign-in, deletion and revocation still require a device test.
+
 ## Remaining review evidence
 
 - Apple subscription/consumable products still show Missing Metadata; actual purchase-screen review screenshots are absent. Promotional mockups are not substituted for purchase evidence.
