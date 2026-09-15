@@ -1,3 +1,4 @@
+import { CreatorPlacePicker } from "./CreatorPlacePicker";
 import { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { ChevronRight, MapPin } from "lucide-react-native";
@@ -252,20 +253,17 @@ export function CreatorDailyLifeEditor(
   return (
     <View style={s.form}>
       <View style={s.row}>
-        <CreatorPicker
+        <CreatorPlacePicker
           label="Home area"
           value={life.homeLocationId}
-          options={homes.map((l) => ({ value: l.id, label: l.name }))}
+          locations={homes} allLocations={locations} worldSlug={draft.world?.slug}
           onChange={(homeLocationId) => setLife({ homeLocationId })}
         />
         <View style={s.workplaceField}>
-        <CreatorPicker
+        <CreatorPlacePicker
           label="Workplace"
           value={life.workLocationId ?? ""}
-          options={[
-            { value: "", label: "Private / flexible" },
-            ...workplaces.map((l) => ({ value: l.id, label: l.name })),
-          ]}
+          locations={workplaces} allLocations={locations} worldSlug={draft.world?.slug} allowFlexible
           onChange={(workLocationId) =>
             setLife({ workLocationId: workLocationId || null })}
         />
@@ -504,13 +502,13 @@ export function CreatorDailyLifeEditor(
                     })}
                 />
               </View>
-              <CreatorPicker
+              <CreatorPlacePicker
                 label="Place"
                 value={editor.value.locationId}
-                options={locations.filter((l) =>
+                locations={locations.filter((l) =>
                   l.location_type !== "residence" ||
                   l.id === life.homeLocationId
-                ).map((l) => ({ value: l.id, label: l.name }))}
+                )} allLocations={locations} worldSlug={draft.world?.slug}
                 onChange={(locationId) =>
                   setEditor({
                     ...editor,
