@@ -93,3 +93,9 @@ describe('character day schedule', () => {
     expect(result.currentStatus).toEqual({ activity: 'Having some downtime at home', location: 'Home' });
   });
 });
+
+it('only displays the active week of a rotating authored routine',()=>{
+ const schedules=[0,1,2].map(weekIndex=>({id:'week-'+weekIndex,character_version_id:'maya-v1',day_of_week:1,start_minute:540,end_minute:660,location_id:'studio',activity:'Week '+(weekIndex+1)+' activity',availability:'busy' as const,energy_delta:0,metadata:{scheduleMode:'authored',cycleWeeks:3,weekIndex,cycleAnchorDate:'2026-09-14'}}));
+ const result=buildCharacterDaySchedule({snapshot:{...snapshot,scheduleEvents:[],schedules},characterVersionId:'maya-v1',timezone:'America/New_York',now:new Date('2026-09-21T14:00:00Z')});
+ expect(result.entries).toHaveLength(1);expect(result.entries[0]?.id).toBe('routine:week-1');
+});

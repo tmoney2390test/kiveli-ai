@@ -1,3 +1,4 @@
+import { scheduleRunsOnDate } from '../../../packages/together-domain/src/schedule-rotation.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { schedulePauseFrom } from '../../../packages/together-domain/src/schedule-pause.ts';
 import { AppError } from './types.ts';
@@ -368,7 +369,7 @@ function selectEventCandidates(last: Date, now: Date, templates: EventRow[], see
 
 function scheduledOccurrence(day: Date, template: EventRow, schedules: EventRow[], seed: string,timezone='UTC'): Date {
   const clock=experienceClock(timezone,day);
-  const matching = schedules.filter((entry) => Number(entry.day_of_week) === clock.weekday && String(entry.location_id) === String(template.default_location_id) && Number(entry.end_minute) - Number(entry.start_minute) >= 20);
+  const matching = schedules.filter((entry) => scheduleRunsOnDate(entry.metadata,clock.localDate) && Number(entry.day_of_week) === clock.weekday && String(entry.location_id) === String(template.default_location_id) && Number(entry.end_minute) - Number(entry.start_minute) >= 20);
   const entry = matching[stableHash(`${seed}:${day.toISOString().slice(0, 10)}:${template.id}:schedule`) % matching.length];
   let minute=12*60+(stableHash(`${seed}:hour:${template.id}:${day.toISOString().slice(0,10)}`)%7)*60;
   if (entry) {

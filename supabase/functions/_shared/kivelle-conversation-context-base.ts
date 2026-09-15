@@ -1,3 +1,4 @@
+import { scheduleRunsOnDate } from '../../../packages/together-domain/src/schedule-rotation.ts';
 import { requestRead } from './request-context.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { eventIsActive, experienceClock, formatExperienceTime, type ExperienceClock } from './kivelle-time.ts';
@@ -308,7 +309,7 @@ function normalizedPersonalityValue(value:unknown,fallback:number){const number=
 
 function nextScheduleRows(rows:Row[],clock:ExperienceClock,now:Date,timezone:string,locations:Map<string,Row>){
   const candidates: Array<{ startsAt:string;label:string;location:string;availability:string;rank:number }> = [];
-  for(let dayOffset=0;dayOffset<7;dayOffset++)for(const row of rows){const day=(clock.weekday+dayOffset)%7;if(Number(row.day_of_week)!==day)continue;const rank=dayOffset*1440+Number(row.start_minute)-clock.minuteOfDay;if(rank<=0)continue;candidates.push({startsAt:`${dayOffset===0?'Today':dayOffset===1?'Tomorrow':`In ${dayOffset} days`} · ${minutesLabel(Number(row.start_minute))}`,label:String(row.activity),location:String(row.together_locations?.name??locations.get(String(row.location_id))?.name??'City Life'),availability:String(row.availability),rank});}
+  for(let dayOffset=0;dayOffset<7;dayOffset++)for(const row of rows){const day=(clock.weekday+dayOffset)%7;const targetDate=new Date(clock.localDate+'T12:00:00Z');targetDate.setUTCDate(targetDate.getUTCDate()+dayOffset);if(!scheduleRunsOnDate(row.metadata,targetDate.toISOString().slice(0,10))||Number(row.day_of_week)!==day)continue;const rank=dayOffset*1440+Number(row.start_minute)-clock.minuteOfDay;if(rank<=0)continue;candidates.push({startsAt:`${dayOffset===0?'Today':dayOffset===1?'Tomorrow':`In ${dayOffset} days`} · ${minutesLabel(Number(row.start_minute))}`,label:String(row.activity),location:String(row.together_locations?.name??locations.get(String(row.location_id))?.name??'City Life'),availability:String(row.availability),rank});}
   void now;void timezone;return candidates.sort((a,b)=>a.rank-b.rank).map(({rank,...item})=>item);
 }
 function minutesLabel(value:number){const hour=Math.floor(value/60),minute=value%60;return `${hour%12||12}:${String(minute).padStart(2,'0')} ${hour>=12?'PM':'AM'}`;}

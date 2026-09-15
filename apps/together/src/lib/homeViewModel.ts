@@ -1,3 +1,4 @@
+import { scheduleRunsOnDate } from '@together/domain/src/schedule-rotation';
 import type { CharacterInstance, Location, Memory, Moment, Snapshot, World } from '../types';
 import { buildCompanionLife } from './companionLife';
 import { mostRecentlyUsedConversation } from './conversation';
@@ -319,7 +320,7 @@ function buildTimeline({ snapshot, companion, recentEvents, currentLocation, cur
   }
   if(!persistedSchedule.length){
     for(const item of snapshot.schedules){
-      if(item.character_version_id!==companion.character_version_id||item.day_of_week!==clock.weekday||item.start_minute<=clock.minuteOfDay)continue;
+      if(!scheduleRunsOnDate(item.metadata,now,clock.timezone)||item.character_version_id!==companion.character_version_id||item.day_of_week!==clock.weekday||item.start_minute<=clock.minuteOfDay)continue;
       if(currentWorld&&worldForLocation(snapshot,item.location_id)?.id!==currentWorld.id)continue;
       future.push({id:`legacy-schedule:${item.id}:${item.start_minute}`,kind:'schedule',title:humanizeActivity(item.activity),detail:snapshot.locations.find((location)=>location.id===item.location_id)?.name??currentWorld?.name??'Current place',time:formatScheduleMinute(item.start_minute),locationId:item.location_id,sortMinute:item.start_minute});
     }

@@ -4,6 +4,8 @@ import { Image, type ImageSource } from 'expo-image';
 import { ArrowLeft, Check, ChevronDown, X } from 'lucide-react-native';
 import { colors } from '../theme';
 
+const modalStack: symbol[] = [];
+
 export const creatorGenders = [{ value: 'woman', label: 'Woman' }, { value: 'man', label: 'Man' }, { value: 'nonbinary', label: 'Nonbinary' }];
 export const creatorPronouns = ['she/her', 'he/him', 'they/them', 'she/they', 'he/they'].map((value) => ({ value, label: value }));
 
@@ -13,9 +15,10 @@ export function CreatorModal({ visible, title, onClose, children, footer, large 
   useEffect(() => {
     if (!visible || Platform.OS !== 'web') return;
     const previous = document.activeElement as HTMLElement | null;
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); close.current(); } };
+    const token = Symbol(); modalStack.push(token);
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && modalStack[modalStack.length - 1] === token) { event.preventDefault(); close.current(); } };
     document.addEventListener('keydown', escape);
-    return () => { document.removeEventListener('keydown', escape); previous?.focus?.(); };
+    return () => { document.removeEventListener('keydown', escape); modalStack.splice(modalStack.indexOf(token), 1); previous?.focus?.(); };
   }, [visible]);
   if (!visible) return null;
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>

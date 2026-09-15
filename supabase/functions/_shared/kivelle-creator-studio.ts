@@ -1,3 +1,4 @@
+import { buildCreatorWeek, routinePreset } from '../../../packages/together-domain/src/creator-routine.ts';
 import { z } from 'zod';
 import { creatorReadiness, normalizeCharacterPerformance, imageDimensions, routineConflicts, type CreatorRoutineBlock } from '../../../packages/together-domain/src/index.ts';
 import { AppError } from './types.ts';
@@ -49,11 +50,11 @@ const lifeSchema = z.object({
   scheduleStyle: z.string().trim().min(3).max(200),
 });
 const routineBlockSchema = z.object({
-  id: z.string().uuid(), dayOfWeek: z.number().int().min(0).max(6), startMinute: z.number().int().min(0).max(1439),
+  id: z.string().uuid(), weekIndex: z.number().int().min(0).max(2).default(0), dayOfWeek: z.number().int().min(0).max(6), startMinute: z.number().int().min(0).max(1439),
   endMinute: z.number().int().min(1).max(1440), locationId: z.string().uuid(), activity: z.string().trim().min(2).max(160),
   availability: z.enum(['available', 'limited', 'busy']), energyDelta: z.number().int().min(-3).max(3), moodInfluence: z.string().trim().max(80).optional(),
 }).refine((value) => value.endMinute > value.startMinute, 'Routine end time must be after its start time.');
-const routineSchema = z.object({ blocks: z.array(routineBlockSchema).min(1).max(28), source: z.string().optional(), generatedAt: z.string().optional() });
+const routineSchema = z.object({ blocks: z.array(routineBlockSchema).min(1).max(84), source: z.string().optional(), generatedAt: z.string().optional() });
 
 type Db = any;
 type StudioAction = Record<string, any> & { action: string };
@@ -191,7 +192,9 @@ async function updateDraftSections(db: Db, userId: string, draft: Record<string,
     if (!home.data || !['region', 'district', 'neighborhood'].includes(String(home.data.location_type))) throw new AppError('VALIDATION_ERROR', 'Choose a district or neighborhood as the home area.', 400);
   } else if (section === 'routine') {
     config = routineSchema.parse(submitted); column = 'routine_config';
-    if (routineConflicts(config.blocks as CreatorRoutineBlock[]).length) throw new AppError('VALIDATION_ERROR', 'Routine blocks cannot overlap.', 400);
+    const blocks = config.blocks as CreatorRoutineBlock[];
+    for (let week = 0; week <= Math.max(...blocks.map((block) => block.weekIndex ?? 0)); week++) { const count = blocks.filter((block) => (block.weekIndex ?? 0) === week).length; if (count < 1 || count > 28) throw new AppError('VALIDATION_ERROR', 'Each rotating week needs 1–28 schedule blocks.', 400); }
+    if (routineConflicts(blocks).length) throw new AppError('VALIDATION_ERROR', 'Routine blocks cannot overlap.', 400);
     await validateLocationIds(db, draft.world_id, (config.blocks as CreatorRoutineBlock[]).map((block) => block.locationId));
   } else throw new AppError('VALIDATION_ERROR', 'Choose a valid creator section.', 400);
   await moderateText(JSON.stringify(config));
@@ -212,7 +215,11 @@ async function regenerateSection(db: Db, userId: string, draft: Record<string, a
   const target = String(input.section ?? '');
   const locations = await worldLocations(db, draft.world_id);
   let patch: Record<string, unknown>;
-  if (target === 'routine') patch = { routine_config: buildRoutine(identitySchema.parse(draft.identity_config), personalitySchema.parse(draft.personality_config), lifeSchema.parse(draft.life_config), locations, now) };
+  if (target === 'routine') {
+    const generated = buildRoutine(identitySchema.parse(draft.identity_config), personalitySchema.parse(draft.personality_config), lifeSchema.parse(draft.life_config), locations, now);
+    const weeks = Math.min(3, Math.max(1, ...(draft.routine_config?.blocks ?? []).map((block: CreatorRoutineBlock) => (block.weekIndex ?? 0) + 1)));
+    patch = { routine_config: { ...generated, blocks: Array.from({length: weeks}, (_,weekIndex) => buildRoutine(identitySchema.parse(draft.identity_config), personalitySchema.parse(draft.personality_config), lifeSchema.parse(draft.life_config), locations, now, weekIndex).blocks).flat() } };
+  }
   else if (target === 'first_meetings') patch = { first_meeting_config: buildFirstMeetings(identitySchema.parse(draft.identity_config), personalitySchema.parse(draft.personality_config), locations, draft.world_id) };
   else throw new AppError('VALIDATION_ERROR', 'Only the routine or first meeting can be regenerated here.', 400);
   const updated = await db.from('together_creator_drafts').update({ ...patch, status: 'editing', revision: draft.revision + 1, updated_at: now }).eq('id', draft.id).eq('user_id', userId).eq('revision', draft.revision).select('*').maybeSingle();
@@ -509,16 +516,9 @@ function chooseSocialLocation(locations: Array<Record<string, any>>, interests: 
   }).sort((left, right) => right.score - left.score || Number(left.location.sort_order ?? 0) - Number(right.location.sort_order ?? 0))[0]?.location ?? candidates[0] ?? locations[0]!;
 }
 
-function buildRoutine(identity: z.infer<typeof identitySchema>, personality: z.infer<typeof personalitySchema>, life: z.infer<typeof lifeSchema>, locations: Array<Record<string, any>>, now: string) {
-  const workLocation = locations.find((location) => location.id === life.workLocationId) ?? locations.find((location) => location.id === life.homeLocationId)!;
-  const socialLocation = chooseSocialLocation(locations, identity.interests, personality.socialEnergy, [life.homeLocationId, workLocation.id]);
-  const start = /late|night/i.test(life.scheduleStyle) ? 660 : personality.spontaneity > .7 ? 600 : 570;
-  const end = Math.min(start + 480, 1080);
-  const blocks: CreatorRoutineBlock[] = [];
-  for (let day = 1; day <= 5; day += 1) blocks.push({ id: crypto.randomUUID(), dayOfWeek: day, startMinute: start, endMinute: end, locationId: workLocation.id, activity: `Working as ${article(identity.occupation)} ${identity.occupation.toLowerCase()}`, availability: 'busy', energyDelta: -1, moodInfluence: 'focused' });
-  for (const day of personality.socialEnergy >= .6 ? [2, 4] : [3]) blocks.push({ id: crypto.randomUUID(), dayOfWeek: day, startMinute: 1110, endMinute: 1260, locationId: socialLocation.id, activity: `Making time for ${identity.interests[0]?.toLowerCase() ?? 'something personal'}`, availability: 'available', energyDelta: 0, moodInfluence: personality.humor >= .65 ? 'playful' : 'relaxed' });
-  blocks.push({ id: crypto.randomUUID(), dayOfWeek: 6, startMinute: personality.spontaneity >= .65 ? 720 : 660, endMinute: 930, locationId: socialLocation.id, activity: 'Keeping Saturday flexible', availability: 'available', energyDelta: 1, moodInfluence: 'open' });
-  blocks.push({ id: crypto.randomUUID(), dayOfWeek: 0, startMinute: 600, endMinute: 900, locationId: life.homeLocationId, activity: 'Having a slow morning at home', availability: 'limited', energyDelta: 1, moodInfluence: 'rested' });
+function buildRoutine(identity: z.infer<typeof identitySchema>, personality: z.infer<typeof personalitySchema>, life: z.infer<typeof lifeSchema>, locations: Array<Record<string, any>>, now: string, weekIndex = 0) {
+  const socialLocation = chooseSocialLocation(locations, life.preferredActivities, personality.socialEnergy, [life.homeLocationId, life.workLocationId ?? life.homeLocationId]);
+  const blocks = buildCreatorWeek({weekIndex, preset: routinePreset(life.scheduleStyle), description: life.lifestyle, occupation: identity.occupation, activities: life.preferredActivities, homeLocationId: life.homeLocationId, workLocationId: life.workLocationId, socialLocationId: socialLocation.id, id: () => crypto.randomUUID()});
   return { blocks, source: 'creator_studio', generatedAt: now };
 }
 

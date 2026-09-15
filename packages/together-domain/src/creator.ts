@@ -3,6 +3,7 @@ export type CreatorStep = typeof creatorSteps[number];
 
 export type CreatorRoutineBlock = {
   id: string;
+  weekIndex?: number;
   dayOfWeek: number;
   startMinute: number;
   endMinute: number;
@@ -51,15 +52,15 @@ export function creatorReadiness(input: CreatorReadinessInput): CreatorReadiness
 
 export function routineConflicts(blocks: CreatorRoutineBlock[]): Array<{ firstId: string; secondId: string }> {
   const conflicts: Array<{ firstId: string; secondId: string }> = [];
-  const ordered = [...blocks].sort((left, right) => left.dayOfWeek - right.dayOfWeek || left.startMinute - right.startMinute);
+  const ordered = [...blocks].sort((left, right) => (left.weekIndex ?? 0) - (right.weekIndex ?? 0) || left.dayOfWeek - right.dayOfWeek || left.startMinute - right.startMinute);
   for (let index = 0; index < ordered.length; index += 1) {
     const current = ordered[index]!;
-    if (current.dayOfWeek < 0 || current.dayOfWeek > 6 || current.startMinute < 0 || current.endMinute > 1440 || current.endMinute <= current.startMinute) {
+    if (!Number.isInteger(current.weekIndex ?? 0) || (current.weekIndex ?? 0) < 0 || (current.weekIndex ?? 0) > 2 || ![current.dayOfWeek, current.startMinute, current.endMinute].every(Number.isInteger) || current.dayOfWeek < 0 || current.dayOfWeek > 6 || current.startMinute < 0 || current.endMinute > 1440 || current.endMinute <= current.startMinute) {
       conflicts.push({ firstId: current.id, secondId: current.id });
       continue;
     }
     const next = ordered[index + 1];
-    if (next && current.dayOfWeek === next.dayOfWeek && current.endMinute > next.startMinute) conflicts.push({ firstId: current.id, secondId: next.id });
+    if (next && (current.weekIndex ?? 0) === (next.weekIndex ?? 0) && current.dayOfWeek === next.dayOfWeek && current.endMinute > next.startMinute) conflicts.push({ firstId: current.id, secondId: next.id });
   }
   return conflicts;
 }

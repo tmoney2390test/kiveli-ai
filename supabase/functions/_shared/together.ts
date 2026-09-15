@@ -1,3 +1,4 @@
+import { scheduleRunsOnDate } from '../../../packages/together-domain/src/schedule-rotation.ts';
 import {publicArcView,isConvertedArcEvent} from './scenario-catalog.ts';
 import { dailyDialogueUsage } from './kivelle-daily-dialogue-usage.ts';
 import { pausedCharacterState, schedulePauseFrom, scheduleEventAllowedDuringPause } from '../../../packages/together-domain/src/schedule-pause.ts';
@@ -88,7 +89,7 @@ export function nextDatePhase(current: string, phases: Array<{ id: string }> = p
 export function resolveLifeState(rows: Array<Record<string, unknown>>, now = new Date(), timezone = 'UTC', fallback?:{locationId:string;location:string}): { locationId: string; location: string; activity: string; availability: string; mood: string; energy: string } {
   const clock = experienceClock(timezone, now);
   const minute = clock.minuteOfDay;
-  const row = rows.find((entry) => Number(entry.day_of_week) === clock.weekday && minute >= Number(entry.start_minute) && minute < Number(entry.end_minute));
+  const row = rows.find((entry) => scheduleRunsOnDate(entry.metadata as Record<string,unknown>, clock.localDate) && Number(entry.day_of_week) === clock.weekday && minute >= Number(entry.start_minute) && minute < Number(entry.end_minute));
   if (!row) return { locationId: fallback?.locationId ?? '', location: fallback?.location ?? 'Current world', activity: minute < 480 ? 'sleeping' : 'having some unstructured time', availability: minute < 480 ? 'busy' : 'available', mood: 'content', energy: minute > 1260 ? 'low' : 'medium' };
   const location = (row.together_locations as Record<string, unknown> | null)?.name ?? fallback?.location ?? 'Current place';
   return { locationId: String(row.location_id ?? fallback?.locationId ?? ''), location: String(location), activity: String(row.activity), availability: String(row.availability), mood: String(row.mood_influence ?? 'content'), energy: Number(row.energy_delta) > 0 ? 'high' : Number(row.energy_delta) < 0 ? 'low' : 'medium' };
@@ -457,7 +458,7 @@ function compactSnapshotLocation(location:Record<string,any>){
   return{...location,canonical_lore:compactLocationLoreForDirectory(location.canonical_lore),canonical_visual_context:{indoorOutdoor:visual.indoorOutdoor,visualAnchors:Array.isArray(visual.visualAnchors)?visual.visualAnchors.slice(0,3):[]}};
 }
 
-const SNAPSHOT_SCHEDULE_METADATA_KEYS=['scheduleMode','profileVisibility','activityVariants','displayLocation','activityKey'] as const;
+const SNAPSHOT_SCHEDULE_METADATA_KEYS=['cycleWeeks','weekIndex','cycleAnchorDate','scheduleMode','profileVisibility','activityVariants','displayLocation','activityKey'] as const;
 const SNAPSHOT_SCHEDULE_EVENT_METADATA_KEYS=['activityLabel','upcomingHint','displayLocation','activityKey'] as const;
 const SNAPSHOT_MEDIA_METADATA_KEYS=['source','title','context','activity','locked','visibility','editDepth','rootMediaId','providerJobId','providerRequestId','requestedModel','resolvedModel','videoModelDisplayName','soundRequested','audioStreamDetected','audioStripped','finalSoundPresent','quotedCredits','creditCost','resolution','duration','durationSeconds'] as const;
 
@@ -498,7 +499,7 @@ function resolveAuthoredSnapshotPresence(instance:Record<string,unknown>,now:Dat
   const locationById=new Map(locations.map((location)=>[String(location.id),location]));
   const authoredLocation=authored.map((row)=>locationById.get(String(row.location_id??''))).find(Boolean);
   const worldId=String(worldPresence?.world_id??authoredLocation?.world_id??''),world=worlds.find((item)=>String(item.id)===worldId);
-  const clock=experienceClock(world?.timezone??'UTC',now),row=authored.find((item)=>Number(item.day_of_week)===clock.weekday&&clock.minuteOfDay>=Number(item.start_minute)&&clock.minuteOfDay<Number(item.end_minute));
+  const clock=experienceClock(world?.timezone??'UTC',now),row=authored.find((item)=>scheduleRunsOnDate(item.metadata,clock.localDate)&&Number(item.day_of_week)===clock.weekday&&clock.minuteOfDay>=Number(item.start_minute)&&clock.minuteOfDay<Number(item.end_minute));
   const homeId=worldPresence?.home_location_id?String(worldPresence.home_location_id):null;
   if(!row)return{locationId:homeId??(instance.current_location_id?String(instance.current_location_id):null),activity:'Having some unstructured time at home',energy:'medium',interruptibility:'open'};
   const variants=Array.isArray(row.metadata?.activityVariants)?row.metadata.activityVariants.filter((value:unknown)=>typeof value==='string'&&Boolean(value.trim())):[];

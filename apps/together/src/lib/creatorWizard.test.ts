@@ -48,3 +48,10 @@ describe('companion creator validation', () => {
     expect(issues).toContain('Use up to 8 traits, each 40 characters or fewer.');
   });
 });
+
+it('validates each rotating week independently and rejects missing weeks', () => {
+ const block={id:'one',dayOfWeek:1,startMinute:540,endMinute:600,locationId:'home',activity:'Painting',availability:'available' as const,energyDelta:0};
+ const issues=(routine: typeof block[])=>creatorSectionIssues({step:'life',identity,appearanceDescription:'Portrait',hasAppearance:true,life,routine,selectedMeeting:true});
+ expect(issues([block,{...block,id:'two',weekIndex:1} as typeof block,{...block,id:'three',weekIndex:2} as typeof block])).toEqual([]);
+ expect(issues([block,{...block,id:'three',weekIndex:2} as typeof block])).toContain('Each rotating week needs 1–28 schedule blocks.');
+});

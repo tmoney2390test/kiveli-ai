@@ -254,7 +254,7 @@ select (item->>'character_version_id')::uuid,(item->>'day_of_week')::int,(item->
   item->>'mood_influence',coalesce((item->>'variation_weight')::numeric,1),item->'metadata'
 from northvale_schedule_payload cross join lateral jsonb_array_elements(data) item
 left join public.together_locations location on location.world_id='${worldId}'::uuid and location.slug=item->>'location_slug'
-on conflict(character_version_id,day_of_week,start_minute) do update set end_minute=excluded.end_minute,
+on conflict(character_version_id,day_of_week,start_minute,week_index) do update set end_minute=excluded.end_minute,
   location_id=excluded.location_id,activity=excluded.activity,availability=excluded.availability,
   energy_delta=excluded.energy_delta,mood_influence=excluded.mood_influence,
   variation_weight=excluded.variation_weight,metadata=excluded.metadata;

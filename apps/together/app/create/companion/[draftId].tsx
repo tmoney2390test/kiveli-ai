@@ -1,3 +1,4 @@
+import { CreatorDailyLifeEditor } from '../../../src/components/CreatorDailyLifeEditor';
 import { useQueryClient } from '@tanstack/react-query';
 import { subscriptionStatusQueryKey } from '../../../src/hooks/useSubscriptionStatus';
 import type { SubscriptionStatus } from '../../../src/lib/subscription';
@@ -13,7 +14,7 @@ import { archiveCreatorDraft, authorizeCreatorAppearanceUpload, cancelCreatorApp
 import { CreatorModal, CreatorPicker, creatorGenders, creatorPronouns } from '../../../src/components/CreatorPicker';
 import { creditCost } from '@together/domain/src/entitlements';
 import { creatorSampleMessages } from '../../../src/lib/creator';
-import { creatorSectionIssues, nextCreatorRoutineSlot } from '../../../src/lib/creatorWizard';
+import { creatorSectionIssues } from '../../../src/lib/creatorWizard';
 import { confirmAction, showActionAlert } from '../../../src/lib/dialogs';
 import { cleanupNormalizedImage, normalizeUserImage, userImagePickerOptions } from '../../../src/lib/imageUploads';
 import { normalizeSpiceLevel } from '../../../src/lib/spice';
@@ -27,12 +28,11 @@ import type { CreatorCommunicationConfig, CreatorConnectionConfig, CreatorDraft,
 const steps: Array<{ key: CreatorStep; label: string; short: string }> = [
   { key: 'appearance', label: 'Portrait', short: 'Their canonical look' },
   { key: 'personality', label: 'Personality', short: 'Work, history and voice' },
-  { key: 'life', label: 'Schedule', short: 'Where and how they live' },
+  { key: 'life', label: 'Daily life', short: 'Where and how they live' },
   { key: 'connection', label: 'Connection', short: 'How closeness develops' },
   { key: 'meeting', label: 'First meeting', short: 'How your story begins' },
   { key: 'review', label: 'Review', short: 'Meet them in Kivelle' },
 ];
-const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export default function CreatorStudioRoute() {
   const { draftId } = useLocalSearchParams<{ draftId: string }>();
@@ -185,15 +185,6 @@ export default function CreatorStudioRoute() {
     finally { setBusy(''); }
   };
 
-  const regenerateRoutine = async () => {
-    if (!draft) return;
-    setBusy('routine');
-    try {
-      const saved = await saveSection('life');
-      const result = await regenerateCreatorDraftSection(saved.id, 'routine'); applyDraft(result.draft);
-    } catch (caught) { showActionAlert('Could not rebuild the routine', caught instanceof Error ? caught.message : 'Please try again.'); }
-    finally { setBusy(''); }
-  };
 
   const regenerateMeetings = async () => {
     if (!draft) return;
@@ -279,7 +270,7 @@ export default function CreatorStudioRoute() {
       <View style={styles.editor}>
         {activeStep.key === 'appearance' ? <AppearanceEditor draft={draft} description={appearanceDescription} onDescription={setAppearanceDescription} busy={busy} onBusy={setBusy} onDraft={applyDraft} onGenerate={() => void generateLooks()} onChoose={(id) => void chooseLook(id)} /> : null}
         {activeStep.key === 'personality' ? <PersonalityEditor identity={identity} onIdentity={setIdentity} personality={personality} communication={communication} onPersonality={setPersonality} onCommunication={setCommunication} name={identity.name} /> : null}
-        {activeStep.key === 'life' ? <LifeEditor draft={draft} identity={identity} life={life} routine={routine} onLife={setLife} onRoutine={setRoutine} busy={busy === 'routine'} onRegenerate={() => void regenerateRoutine()} /> : null}
+        {activeStep.key === 'life' ? <CreatorDailyLifeEditor draft={draft} identity={identity} life={life} routine={routine} onLife={setLife} onRoutine={setRoutine} /> : null}
         {activeStep.key === 'connection' ? <ConnectionEditor goal={relationshipGoal} value={connection} onChange={setConnection} onGoal={setRelationshipGoal} /> : null}
         {activeStep.key === 'meeting' ? <MeetingEditor draft={draft} busy={busy} onChoose={(id) => void chooseMeeting(id)} onRegenerate={() => void regenerateMeetings()} /> : null}
         {activeStep.key === 'review' ? <Review draft={draft} identity={identity} home={home?.name} selectedMeeting={selectedMeeting} ready={reviewReady} issues={reviewIssues} onFinalize={() => void finalize()} busy={busy === 'finalize'} /> : null}
@@ -290,7 +281,7 @@ export default function CreatorStudioRoute() {
         </View>
       </View>
 
-      <CreatorPreview draft={{ ...draft, relationship_goal: relationshipGoal }} identity={identity} personality={personality} connection={connection} homeName={home?.name} meetingTitle={selectedMeeting?.title} />
+      <CreatorPreview compact={activeStep.key === 'life'} draft={{ ...draft, relationship_goal: relationshipGoal }} identity={identity} personality={personality} connection={connection} homeName={home?.name} meetingTitle={selectedMeeting?.title} />
       </View>
     </CreatorWizardShell>
   </Screen>;
@@ -390,48 +381,6 @@ function PersonalityEditor({ identity, onIdentity, personality, communication, o
   </View>;
 }
 
-function LifeEditor({ draft, identity, life, routine, onLife, onRoutine, busy, onRegenerate }: { draft: CreatorDraft; identity: CreatorIdentityConfig; life: CreatorLifeConfig; routine: CreatorRoutineBlock[]; onLife: (value: CreatorLifeConfig) => void; onRoutine: (value: CreatorRoutineBlock[]) => void; busy: boolean; onRegenerate: () => void }) {
-  const locations = draft.locations ?? [];
-  const homeAreas = locations.filter((location) => ['region', 'district', 'neighborhood'].includes(location.location_type));
-  const workPlaces = locations.filter((location) => !['residence', 'region', 'district', 'neighborhood', 'transit'].includes(location.location_type));
-  const grouped = [...routine].sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startMinute - b.startMinute);
-  const updateBlock = (id: string, patch: Partial<CreatorRoutineBlock>) => onRoutine(routine.map((block) => block.id === id ? { ...block, ...patch } : block));
-  const addBlock = () => {
-    const slot = nextCreatorRoutineSlot(routine);
-    if (!slot) { showActionAlert('No open time found', 'Adjust an existing block to make room for another activity.'); return; }
-    onRoutine([...routine, { id: createClientRequestId(), ...slot, locationId: life.workLocationId || life.homeLocationId, activity: identity.interests[0] ? `Making time for ${identity.interests[0].toLowerCase()}` : 'Personal time', availability: 'available', energyDelta: 0, moodInfluence: 'open' }]);
-  };
-  return <View style={styles.form}>
-    <View style={styles.contextBanner}><MapPin size={18} color={colors.rose} /><View style={{ flex: 1 }}><Text style={styles.contextTitle}>{draft.world?.name}</Text><Text style={styles.contextCopy}>Home is a canonical area—not another companion’s private residence.</Text></View></View>
-    <CreatorPicker label="Home area" value={life.homeLocationId} options={homeAreas.map((location) => ({ value: location.id, label: location.name }))} onChange={(homeLocationId) => onLife({ ...life, homeLocationId })} />
-    <CreatorPicker label="Work or regular daytime place" value={life.workLocationId ?? ''} options={[{ value: '', label: 'Private / flexible' }, ...workPlaces.map((location) => ({ value: location.id, label: location.name }))]} onChange={(workLocationId) => onLife({ ...life, workLocationId: workLocationId || null })} />
-    <Field label="Typical lifestyle" value={life.lifestyle} multiline maxLength={300} onChange={(lifestyle) => onLife({ ...life, lifestyle })} />
-    <Field label="Schedule style" value={life.scheduleStyle} maxLength={200} onChange={(scheduleStyle) => onLife({ ...life, scheduleStyle })} placeholder="Structured weekdays, flexible evenings" />
-    <TagField label="Preferred activities" values={life.preferredActivities} maxItems={10} maxItemLength={80} onChange={(preferredActivities) => onLife({ ...life, preferredActivities })} placeholder={identity.interests.join(', ')} />
-    <View style={styles.routineHeader}><View style={{ flex: 1 }}><Text style={styles.fieldLabel}>Weekly rhythm *</Text><Text style={styles.fieldHelp}>Choose what they do, when they do it, and the exact world location. Kivelle uses this to make presence and suggestions believable.</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Build schedule from job and world" disabled={busy} onPress={onRegenerate} style={styles.smallAction}><RefreshCw size={15} color={colors.violet} /><Text style={styles.smallActionText}>{busy ? 'Building…' : 'Auto-build from job'}</Text></Pressable></View>
-    <View style={styles.routineList}>{grouped.map((block) => <RoutineBlockEditor key={block.id} block={block} locations={locations} onChange={(patch) => updateBlock(block.id, patch)} onRemove={() => onRoutine(routine.filter((item) => item.id !== block.id))} />)}</View>
-    <Pressable accessibilityRole="button" accessibilityLabel="Add schedule block" accessibilityState={{ disabled: routine.length >= 28 }} disabled={routine.length >= 28} onPress={addBlock} style={[styles.addRoutine, routine.length >= 28 && styles.disabled]}><Plus size={16} color={colors.rose} /><Text style={styles.addRoutineText}>{routine.length >= 28 ? '28 schedule blocks reached' : 'Add another time and place'}</Text></Pressable>
-  </View>;
-}
-
-function RoutineBlockEditor({ block, locations, onChange, onRemove }: { block: CreatorRoutineBlock; locations: NonNullable<CreatorDraft['locations']>; onChange: (patch: Partial<CreatorRoutineBlock>) => void; onRemove: () => void }) {
-  const [dayOpen, setDayOpen] = useState(false);
-  const [placeOpen, setPlaceOpen] = useState(false);
-  const location = locations.find((item) => item.id === block.locationId);
-  const changeTime = (edge: 'start' | 'end', delta: number) => {
-    const next = Math.max(edge === 'start' ? 0 : block.startMinute + 30, Math.min(edge === 'start' ? block.endMinute - 30 : 1440, block[edge === 'start' ? 'startMinute' : 'endMinute'] + delta));
-    onChange({ [edge === 'start' ? 'startMinute' : 'endMinute']: next });
-  };
-  return <View style={styles.routineCard}>
-    <View style={styles.routineTop}><Pressable accessibilityRole="button" accessibilityLabel={`Change day, currently ${dayNames[block.dayOfWeek]}`} onPress={() => setDayOpen(true)} style={styles.dayButton}><Text style={styles.routineDay}>{dayNames[block.dayOfWeek]}</Text><ChevronDown size={13} color={colors.rose} /></Pressable><Text style={styles.routineTime}>{time(block.startMinute)}–{time(block.endMinute)}</Text><Pressable accessibilityRole="button" accessibilityLabel="Remove schedule block" onPress={onRemove} style={styles.removeRoutine}><Trash2 size={14} color={colors.muted} /></Pressable></View>
-    <TextInput accessibilityLabel={`${dayNames[block.dayOfWeek]} activity`} value={block.activity} maxLength={160} onChangeText={(activity) => onChange({ activity })} placeholder="What are they doing?" placeholderTextColor={colors.muted} style={styles.routineInput} />
-    <Pressable accessibilityRole="button" accessibilityLabel={`Choose place, currently ${location?.name ?? 'none'}`} onPress={() => setPlaceOpen(true)} style={styles.placeButton}><MapPin size={15} color={colors.rose} /><View style={{ flex: 1 }}><Text style={styles.placeButtonLabel}>PLACE</Text><Text style={styles.placeButtonText}>{location?.name ?? 'Choose a location'}</Text></View><ChevronRight size={16} color={colors.muted} /></Pressable>
-    <View style={styles.scheduleControls}><View style={styles.availabilityChoices}>{(['available', 'limited', 'busy'] as const).map((value) => <Pressable key={value} accessibilityRole="radio" aria-checked={block.availability === value} accessibilityState={{ checked: block.availability === value }} onPress={() => onChange({ availability: value })} style={[styles.availabilityChoice, block.availability === value && styles.availabilitySelected]}><Text style={[styles.availabilityText, block.availability === value && styles.availabilityTextSelected]}>{title(value)}</Text></Pressable>)}</View><View style={styles.timeControls}><Pressable accessibilityLabel="Start 30 minutes earlier" onPress={() => changeTime('start', -30)} style={styles.timeButton}><Text style={styles.timeButtonText}>Start −30</Text></Pressable><Pressable accessibilityLabel="Start 30 minutes later" onPress={() => changeTime('start', 30)} style={styles.timeButton}><Text style={styles.timeButtonText}>Start +30</Text></Pressable><Pressable accessibilityLabel="End 30 minutes earlier" onPress={() => changeTime('end', -30)} style={styles.timeButton}><Text style={styles.timeButtonText}>End −30</Text></Pressable><Pressable accessibilityLabel="End 30 minutes later" onPress={() => changeTime('end', 30)} style={styles.timeButton}><Text style={styles.timeButtonText}>End +30</Text></Pressable></View></View>
-    <Modal visible={dayOpen} transparent animationType="fade" onRequestClose={() => setDayOpen(false)}><View style={styles.pickerScrim}><View style={[styles.pickerModal, { maxWidth: 420 }]}><View style={styles.pickerHeader}><View style={{ flex: 1 }}><Text style={styles.cardKicker}>WEEKLY SCHEDULE</Text><Text style={styles.pickerTitle}>Choose a day</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close day picker" onPress={() => setDayOpen(false)} style={styles.iconButton}><X size={18} color={colors.text} /></Pressable></View><View style={styles.pickerList}>{dayNames.map((day, index) => <Pressable key={day} accessibilityRole="radio" aria-checked={block.dayOfWeek === index} accessibilityState={{ checked: block.dayOfWeek === index }} onPress={() => { onChange({ dayOfWeek: index }); setDayOpen(false); }} style={[styles.pickerOption, block.dayOfWeek === index && styles.pickerOptionSelected]}><Text style={styles.pickerOptionTitle}>{day}</Text>{block.dayOfWeek === index ? <Check size={16} color={colors.rose} /> : null}</Pressable>)}</View></View></View></Modal>
-    <Modal visible={placeOpen} transparent animationType="fade" onRequestClose={() => setPlaceOpen(false)}><View style={styles.pickerScrim}><View style={styles.pickerModal}><View style={styles.pickerHeader}><View style={{ flex: 1 }}><Text style={styles.cardKicker}>WORLD LOCATION</Text><Text style={styles.pickerTitle}>Where are they?</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close location picker" onPress={() => setPlaceOpen(false)} style={styles.iconButton}><X size={18} color={colors.text} /></Pressable></View><ScrollView contentContainerStyle={styles.pickerList}>{locations.map((item) => <Pressable key={item.id} accessibilityRole="radio" aria-checked={block.locationId === item.id} accessibilityState={{ checked: block.locationId === item.id }} onPress={() => { onChange({ locationId: item.id }); setPlaceOpen(false); }} style={[styles.pickerOption, block.locationId === item.id && styles.pickerOptionSelected]}><View style={{ flex: 1 }}><Text style={styles.pickerOptionTitle}>{item.name}</Text><Text style={styles.pickerOptionCopy} numberOfLines={2}>{item.category} · {item.description}</Text></View>{block.locationId === item.id ? <Check size={16} color={colors.rose} /> : null}</Pressable>)}</ScrollView></View></View></Modal>
-  </View>;
-}
-
 function ConnectionEditor({ goal, value, onChange, onGoal }: { goal: CreatorDraft['relationship_goal']; value: CreatorConnectionConfig; onChange: (value: CreatorConnectionConfig) => void; onGoal: (value: CreatorDraft['relationship_goal']) => void }) {
   return <View style={styles.form}>
     <ChoiceField label="Relationship direction" value={goal} options={['friendship', 'romance', 'either']} onChange={(next) => onGoal(next as CreatorDraft['relationship_goal'])} />
@@ -469,7 +418,7 @@ function Review({ draft, identity, home, selectedMeeting, ready, issues, onFinal
     <GlassCard style={styles.reviewHero}>{draft.portraitUrl ? <Image source={{ uri: draft.portraitUrl }} style={styles.reviewPortrait} contentFit="cover" contentPosition="top" /> : <View style={[styles.reviewPortrait, styles.fallback]}><UserRound size={54} color={colors.rose} /></View>}<View style={{ flex: 1 }}><Text style={styles.cardKicker}>READY TO LIVE IN KIVELLE</Text><Text style={styles.reviewName}>{identity.name}, {identity.age}</Text><Text style={styles.reviewMeta}>{identity.occupation} · {home ?? draft.world?.name}</Text><Text style={styles.reviewTraits}>{identity.traits.slice(0, 4).join(' · ')}</Text></View></GlassCard>
     <ReviewRow label="Identity" value={`${identity.gender || 'Gender missing'} · ${identity.pronouns || 'Pronouns missing'} · ${identity.interests.slice(0, 3).join(', ')}`} complete={!issues.identity.length} />
     <ReviewRow label="Appearance" value={draft.portraitUrl ? 'Canonical identity selected' : 'No canonical portrait selected'} complete={!issues.appearance.length} />
-    <ReviewRow label="Life" value={`${draft.routine_config.blocks.length} weekly rhythm blocks · ${home ?? 'Home area missing'}`} complete={!issues.life.length} />
+    <ReviewRow label="Life" value={`${Math.max(1, ...draft.routine_config.blocks.map(block => (block.weekIndex ?? 0) + 1))} rotating week(s) · ${draft.routine_config.blocks.length} activities · ${home ?? 'Home area missing'}`} complete={!issues.life.length} />
     <ReviewRow label="Connection" value={`${title(draft.relationship_goal)} · ${title(String(draft.connection_config.conflictStyle).replace('_', ' '))}`} complete={!issues.connection.length} />
     <ReviewRow label="First meeting" value={selectedMeeting?.title ?? 'Choose an introduction'} complete={!issues.meeting.length} />
     {missing.length ? <View style={styles.missing}><Text style={styles.missingTitle}>Before you meet</Text>{missing.map((item) => <Text key={item} style={styles.missingItem}>• {item}</Text>)}</View> : null}
@@ -478,8 +427,8 @@ function Review({ draft, identity, home, selectedMeeting, ready, issues, onFinal
   </View>;
 }
 
-function CreatorPreview({ draft, identity, personality, connection, homeName, meetingTitle }: { draft: CreatorDraft; identity: CreatorIdentityConfig; personality: CreatorPersonalityConfig; connection: CreatorConnectionConfig; homeName?: string; meetingTitle?: string }) {
-  return <View style={styles.preview}><View style={styles.previewPortraitWrap}>{draft.portraitUrl ? <Image source={{ uri: draft.portraitUrl }} style={styles.previewPortrait} contentFit="cover" contentPosition="top" /> : <View style={[styles.previewPortrait, styles.fallback]}><Text style={styles.previewInitial}>{identity.name[0]?.toUpperCase()}</Text></View>}<View style={styles.privateBadge}><Text style={styles.privateBadgeText}>PRIVATE</Text></View></View><View style={styles.previewContent}><Text style={styles.previewName}>{identity.name}</Text><Text style={styles.previewMeta}>{identity.occupation} · {identity.age}</Text><Text style={styles.previewTraits}>{identity.traits.slice(0, 4).join(' · ')}</Text><Text style={styles.previewBio} numberOfLines={5}>{identity.biography}</Text><PreviewFact label="LIFE" value={`${homeName ?? draft.world?.name ?? 'Kivelle'} · ${identity.interests.slice(0, 2).join(' & ')}`} /><PreviewFact label="PERSONALITY" value={`${personality.warmth >= .65 ? 'Warm' : 'Reserved'} · ${personality.humor >= .65 ? 'Playful' : 'Grounded'} · ${personality.independence >= .65 ? 'Independent' : 'Connected'}`} /><PreviewFact label="CONNECTION" value={`${connection.pace < .45 ? 'Slow burn' : 'Natural pace'} · ${title(draft.relationship_goal)}`} />{meetingTitle ? <PreviewFact label="FIRST MEETING" value={meetingTitle} /> : null}</View></View>;
+function CreatorPreview({ draft, identity, personality, connection, homeName, meetingTitle, compact = false }: { compact?: boolean; draft: CreatorDraft; identity: CreatorIdentityConfig; personality: CreatorPersonalityConfig; connection: CreatorConnectionConfig; homeName?: string; meetingTitle?: string }) {
+  return <View style={[styles.preview, compact && {alignSelf:'flex-start',padding:16}]}><View style={[styles.previewPortraitWrap, compact && {width:88,height:100,borderRadius:16,alignSelf:'center'}]}>{draft.portraitUrl ? <Image source={{ uri: draft.portraitUrl }} style={styles.previewPortrait} contentFit="cover" contentPosition="top" /> : <View style={[styles.previewPortrait, styles.fallback]}><Text style={styles.previewInitial}>{identity.name[0]?.toUpperCase()}</Text></View>}<View style={styles.privateBadge}><Text style={styles.privateBadgeText}>PRIVATE</Text></View></View><View style={styles.previewContent}><Text style={styles.previewName}>{identity.name}</Text><Text style={styles.previewMeta}>{identity.occupation} · {identity.age}</Text><Text style={styles.previewTraits}>{identity.traits.slice(0, 4).join(' · ')}</Text><Text style={styles.previewBio} numberOfLines={5}>{identity.biography}</Text><PreviewFact label="LIFE" value={`${homeName ?? draft.world?.name ?? 'Kivelle'} · ${identity.interests.slice(0, 2).join(' & ')}`} /><PreviewFact label="PERSONALITY" value={`${personality.warmth >= .65 ? 'Warm' : 'Reserved'} · ${personality.humor >= .65 ? 'Playful' : 'Grounded'} · ${personality.independence >= .65 ? 'Independent' : 'Connected'}`} /><PreviewFact label="CONNECTION" value={`${connection.pace < .45 ? 'Slow burn' : 'Natural pace'} · ${title(draft.relationship_goal)}`} />{meetingTitle ? <PreviewFact label="FIRST MEETING" value={meetingTitle} /> : null}</View></View>;
 }
 
 function Field({ label, value, onChange, placeholder, multiline = false, keyboard, help, maxLength }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; multiline?: boolean; keyboard?: 'number-pad'; help?: string; maxLength?: number }) { return <View style={styles.field}><View style={styles.labelRow}><Text style={styles.fieldLabel}>{label}</Text>{maxLength ? <Text style={styles.counter}>{value.length}/{maxLength}</Text> : null}</View>{help ? <Text style={styles.fieldHelp}>{help}</Text> : null}<TextInput accessibilityLabel={label} value={value} onChangeText={onChange} maxLength={maxLength} placeholder={placeholder} placeholderTextColor={colors.muted} multiline={multiline} keyboardType={keyboard} textAlignVertical={multiline ? 'top' : 'center'} style={[styles.input, multiline && styles.multiline]} /></View>; }
