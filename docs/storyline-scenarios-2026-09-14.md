@@ -37,7 +37,9 @@ Each new opening is validated against a published, selectable resident and a loc
 
 `pnpm scenarios:test` covers coverage, residency, locations, public/private separation, original-content fingerprints, deterministic generation, and database checkpoint behavior. Database tests include ownership, active-chat leases, stale revisions, duplicate retries, reset behavior, and protection against older timer workers.
 
-The public catalogue loads on demand to keep the initial web bundle within budget. Original scenario artwork is restored; new entries reuse relevant existing place/character artwork rather than requiring new image generation.
+The public catalogue loads on demand to keep the initial web bundle within budget. All 62 new scenarios now have dedicated covers generated with built-in image generation. Each uses its canonical character portrait; 58 also use the canonical location image, and two include a supporting character reference. Four locations without an existing image use the character reference and authored setting description. The 80 original covers remain unchanged.
+
+The optimized 1536 × 1024 JPEGs total 12.4 MiB and are registered in `scenario-assets.ts`, so Explore and onboarding use the same artwork. `content/scenarios/storyline-art-prompts.json` records prompts and reference hashes; `storyline-art-manifest.json` records output hashes and dimensions. The art test checks complete coverage, unique files, reference integrity, original-cover preservation, dimensions, and a 400 KiB per-image budget.
 
 ## Release order
 

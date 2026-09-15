@@ -39,7 +39,7 @@
     "media:normalize-video-faststart": "node --experimental-strip-types scripts/normalize-kivelli-video-faststart.ts",
     "stories:validate": "node --experimental-strip-types scripts/validate-kivelli-stories.mjs",
     "scenarios:build": "node scripts/build-storyline-scenarios.mjs",
-    "scenarios:test": "node --test scripts/storyline-scenarios.test.mjs scripts/storyline-scenarios-db.test.mjs",
+    "scenarios:test": "node --test scripts/storyline-scenarios.test.mjs scripts/storyline-scenarios-db.test.mjs scripts/storyline-art.test.mjs",
     "context:test:db": "node scripts/test-context-pricing-db.mjs",
     "chat-speed:test:db": "node scripts/test-chat-speed-db.mjs"
   },
