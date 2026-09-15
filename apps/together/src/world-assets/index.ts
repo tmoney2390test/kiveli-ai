@@ -8,7 +8,7 @@ import { eosMeridianHero } from './eos-meridian';
 import { vharadrenHero } from './vharadren';
 
 export const worldHeroAssets: Record<string, ImageSource> = {
-  'gilded-age': require('../../assets/worlds/gilded-age-hero.jpg'),
+  'gilded-age': {uri:'https://kivelli.app/worlds/gilded-age-hero.jpg'},
   'calders-run':catalogArtwork('worlds/calders-run/calders-run-hero.jpg'),
   'port-vervelle': port_vervelleHero,
   'neon-kyo':neonKyoHero,
@@ -17,3 +17,4 @@ export const worldHeroAssets: Record<string, ImageSource> = {
   'eos-meridian':eosMeridianHero,
   vharadren:vharadrenHero,
 };
+
