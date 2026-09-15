@@ -22,6 +22,8 @@ export type LocationLoreV2={
   nearbyLocationSlugs?:string[];
   publicHistory?:string[];
   recurringPeople?:LocationRecurringPerson[];
+  /** Public activity descriptions; activityNotes remain internal rules. */
+  activityDescriptions?:Record<string,string>;
   activityNotes?:Record<string,string>;
   accessNotes?:string[];
   weatherNotes?:string[];
@@ -87,6 +89,7 @@ export function normalizeLocationLore(value:unknown):LocationLoreV2{
       if(!label||!role)return[];
       return[{label,role,...(stringOrUndefined(item['rhythm'])?{rhythm:String(item['rhythm'])}:{}),...(stringOrUndefined(item['canonicalCharacterSlug'])?{canonicalCharacterSlug:String(item['canonicalCharacterSlug'])}:{})}];
     }):[],
+    activityDescriptions:stringRecord(row['activityDescriptions']),
     activityNotes:stringRecord(row['activityNotes']),
     accessNotes:stringArray(row['accessNotes']),
     weatherNotes:stringArray(row['weatherNotes']),

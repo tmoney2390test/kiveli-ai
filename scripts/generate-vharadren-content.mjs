@@ -1,3 +1,4 @@
+import { activityDisplayDescriptions } from '../packages/together-domain/src/location-activity-display.ts';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { auditVharadrenEvents, enrichVharadrenSchedules } from './lib/vharadren-event-language.mjs';
@@ -103,6 +104,7 @@ const publicLocation = (location) => {
       nearbyLocationSlugs: lore.nearbyLocationSlugs,
       publicHistory: lore.publicHistory,
       recurringPeople: lore.recurringPeople,
+      activityDescriptions: activityDisplayDescriptions(location.activities ?? [], lore.activityDescriptions),
       activityNotes: lore.activityNotes,
       accessNotes: lore.accessNotes,
       weatherNotes: lore.weatherNotes,
