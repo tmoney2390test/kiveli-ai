@@ -84,7 +84,7 @@ export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POS
   }
 }
 export async function quoteDialogueContext(input:Record<string,unknown>,signal?:AbortSignal):Promise<DialogueContextQuote>{await ensureWebAdultSession(await token()).catch(()=>undefined);return invoke<DialogueContextQuote>('together-dialogue-quote',input,'POST',{signal});}
-export async function rewriteDialogueMessage(group:boolean,input:{conversationId:string;characterInstanceId?:string;anchorMessageId:string;expectedRevision:number;messageAction:'spice'|'restore';clientRequestId:string;contextQuoteId?:string;contextPreference?:'included'}):Promise<{message:Message}>{
+export async function rewriteDialogueMessage(group:boolean,input:{conversationId:string;characterInstanceId?:string;anchorMessageId:string;expectedRevision:number;messageAction:'spice'|'restore';clientRequestId:string;contextQuoteId?:string;contextCostAuthorization?:string;contextPreference?:'included'}):Promise<{message:Message}>{
   await ensureWebAdultSession(await token()).catch(()=>undefined);
   return withIdempotentRetry(()=>invoke<{message:Message}>(group?'together-group-dialogue':'together-dialogue',input),{attempts:2,delayMs:600});
 }
@@ -221,7 +221,7 @@ export type GroupDialogueEvent=
   |{type:'turn_yielded';turnId:string;replyCount?:number;reactionCount?:number;replayed?:boolean}
   |{type:'turn_cancelled';turnId:string}
   |{type:'heartbeat'};
-export async function sendGroupDialogue(input:{contextQuoteId?:string;contextPreference?:'included';conversationId:string;message:string;attachmentIds?:string[];clientRequestId:string;mentionedCharacterInstanceIds?:string[];photoSubjectCharacterInstanceIds?:string[];replyToMessageId?:string;manualSpeakerInstanceId?:string;broadGroupRequest?:boolean;letThemTalk?:boolean},onEvent:(event:GroupDialogueEvent)=>void,signal?:AbortSignal):Promise<void>{
+export async function sendGroupDialogue(input:{contextQuoteId?:string;contextCostAuthorization?:string;contextPreference?:'included';conversationId:string;message:string;attachmentIds?:string[];clientRequestId:string;mentionedCharacterInstanceIds?:string[];photoSubjectCharacterInstanceIds?:string[];replyToMessageId?:string;manualSpeakerInstanceId?:string;broadGroupRequest?:boolean;letThemTalk?:boolean},onEvent:(event:GroupDialogueEvent)=>void,signal?:AbortSignal):Promise<void>{
   await requireFeatureConsent();
   if(input.message.length>MESSAGE_CHARACTER_LIMIT)throw new ApiError(messageCharacterLimitError(),'VALIDATION_FAILED');
   const started=Date.now();let firstTextRecorded=false,firstActivityRecorded=false,statusCode:number|undefined;
@@ -269,7 +269,7 @@ export async function createTogetherAccount(email: string, password: string,date
   if (!response.ok) throw new ApiError(payload.error?.message ?? 'Your Kivelle account could not be created.', payload.error?.code, payload.error?.retryable);
 }
 
-export async function sendDialogue(input: {contextQuoteId?:string;contextPreference?:'included';conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;sceneActionId?:string;messageAction?:'continue';anchorMessageId?:string;messagePresentation?:OneTapSelfieMessagePresentation;autoDialogueSuggestionId?:string;autoDialogueSuggestionSource?:AutoDialogueSuggestion['source'];autoDialogueSuggestionEdited?:boolean;autoDialogueSuggestionIntent?:AutoDialogueSuggestion['intent'];autoDialogueSuggestionPreference?:AutoDialoguePreference;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void, callbacks?: {onPrimary?:(message:Message,hasAdditional:boolean)=>void;onMessage?:(message:Message)=>void}): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta}> {
+export async function sendDialogue(input: {contextQuoteId?:string;contextCostAuthorization?:string;contextPreference?:'included';conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;sceneActionId?:string;messageAction?:'continue';anchorMessageId?:string;messagePresentation?:OneTapSelfieMessagePresentation;autoDialogueSuggestionId?:string;autoDialogueSuggestionSource?:AutoDialogueSuggestion['source'];autoDialogueSuggestionEdited?:boolean;autoDialogueSuggestionIntent?:AutoDialogueSuggestion['intent'];autoDialogueSuggestionPreference?:AutoDialoguePreference;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void, callbacks?: {onPrimary?:(message:Message,hasAdditional:boolean)=>void;onMessage?:(message:Message)=>void}): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta}> {
   await requireFeatureConsent();
   if (input.message.length > MESSAGE_CHARACTER_LIMIT) throw new ApiError(messageCharacterLimitError(), 'VALIDATION_FAILED');
   const tokens=batchReplyText(onToken);

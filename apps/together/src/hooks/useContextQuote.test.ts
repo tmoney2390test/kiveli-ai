@@ -17,7 +17,7 @@ vi.mock('react', () => ({
 vi.mock('../lib/api', () => ({ quoteDialogueContext: mocks.quote }));
 vi.mock('../lib/contextCostConfirmation', () => ({ contextCostConfirmed: mocks.confirmed, confirmContextCost: mocks.confirm }));
 const draft = { conversationId: 'chat', message: 'Hello' };
-const defaults = { userId: 'owner', preference: 'extended_32k', activationId: 'first', draft, revision: '1' };
+const defaults = { userId: 'owner', preference: 'extended_32k', activationId: 'first', draft, revision: '1', automatic: false };
 function render(options: Partial<Parameters<typeof useContextQuote>[0]> = {}) {
   react.cursor = 0;
   const hook = useContextQuote({ ...defaults, ...options });
@@ -25,6 +25,19 @@ function render(options: Partial<Parameters<typeof useContextQuote>[0]> = {}) {
   return hook;
 }
 const tick = async () => { await Promise.resolve(); await Promise.resolve(); };
+it('sends expanded memory immediately after consent without requesting a price', async () => {
+  mocks.confirmed.mockResolvedValue(true);
+  const hook = render({ automatic: true });
+  expect(await hook.authorize(draft)).toEqual({ contextCostAuthorization: 'extended_32k:first' });
+  expect(mocks.quote).not.toHaveBeenCalled();
+});
+it('retains the first-use cost notice on the fast send path', async () => {
+  let hook = render({ automatic: true }); const sending = hook.authorize(draft); await tick();
+  hook = render({ automatic: true }); expect(hook.prompt?.kind).toBe('confirm');
+  hook.respond('proceed');
+  expect(await sending).toEqual({ contextCostAuthorization: 'extended_32k:first' });
+  expect(mocks.confirm).toHaveBeenCalled(); expect(mocks.quote).not.toHaveBeenCalled();
+});
 beforeEach(() => {
   react.cleanups.forEach(cleanup => cleanup()); react.slots = []; react.cleanups = []; react.effects = [];
   vi.resetAllMocks(); mocks.confirmed.mockResolvedValue(false); mocks.confirm.mockResolvedValue(undefined);

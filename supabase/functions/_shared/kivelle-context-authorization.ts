@@ -1,9 +1,11 @@
 import { chatTestStateVersion } from './kivelle-chat-model-test.ts';
 import { DIALOGUE_ROUTING_VERSION } from '../../../packages/together-domain/src/dialogue-routing-continuity.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { normalizeContextPreference } from '../../../packages/together-domain/src/chat-context.ts';
+import { normalizeContextPreference, selectedContextCeiling } from '../../../packages/together-domain/src/chat-context.ts';
+import { contextCostNoticeToken } from '../../../packages/together-domain/src/context-cost-confirmation.ts';
+import { resolveSubscriptionAccess } from './kivelle-subscription.ts';
 import { contextReservation, setContextReservation, type ContextReservation } from './kivelle-context-pricing-state.ts';
-import { CONTEXT_PRICE_VERSION } from './kivelle-context-price.ts';
+import { CONTEXT_PRICE_VERSION, assertContextPricingCurrent } from './kivelle-context-price.ts';
 import { AppError } from './types.ts';
 
 type Row=Record<string,any>;
@@ -41,6 +43,23 @@ export async function reserveStagedContext(db:SupabaseClient,turnId:string,reque
   const state=await contextState(db,userId,String(input.conversationId));
   const preference=normalizeContextPreference(state.conversation.metadata?.chatPreferences?.contextPreference);
   if(preference==='included'||input.contextPreference==='included')return;
+  if(!input.contextQuoteId&&input.contextCostAuthorization){
+    assertContextPricingCurrent();
+    const settings=state.conversation.metadata?.chatPreferences;
+    if(input.contextCostAuthorization!==contextCostNoticeToken(preference,settings?.contextCostActivationId))throw new AppError('CONFLICT','Your memory setting changed. Please send again.',409,true);
+    const subscription=await resolveSubscriptionAccess(db,userId,undefined,true);
+    if(subscription.tier==='free')throw new AppError('PLAN_LIMIT_REACHED','Expanded context requires Kivelle+ or Max.',403);
+    const manifest={conversationId:input.conversationId,preference,ceiling:selectedContextCeiling(preference,subscription.capabilities.intelligenceProfile),maximumReplies:input.manualSpeakerInstanceId?1:input.letThemTalk?6:3,replies:[],automatic:true};
+    const fingerprint=await contextDraftFingerprint(input);
+    const created=await db.from('together_context_quotes').insert({user_id:userId,conversation_id:input.conversationId,fingerprint,state_fingerprint:state.fingerprint,pricing_version:CONTEXT_PRICE_VERSION,manifest,maximum_credits:0,expires_at:new Date(Date.now()+60000).toISOString()}).select('id').single();
+    if(created.error||!created.data)throw new AppError('INTERNAL_ERROR','Memory billing could not be prepared.',503,true);
+    const reserved=await db.rpc('kivelle_reserve_context',{p_user_id:userId,p_quote_id:created.data.id,p_request_id:requestId,p_turn_id:turnId,p_fingerprint:fingerprint,p_state_fingerprint:state.fingerprint});
+    if(reserved.error)throw new AppError('CONFLICT','This conversation changed. Please send again.',409,true);
+    // Build the actual context once. The wallet hold is established from that
+    // compiled prompt, immediately before a paid provider request can start.
+    setContextReservation(db,{...manifest,quoteId:created.data.id,userId,requestId,usedReplies:new Set()});
+    return;
+  }
   if(!input.contextQuoteId)throw new AppError('CONFLICT','Your message needs a current context price. Wait for the price, then send again.',409,true);
   const {data:quote,error:quoteError}=await db.from('together_context_quotes').select('*').eq('id',input.contextQuoteId).eq('user_id',userId).single();
   if(quoteError||!quote||quote.pricing_version!==CONTEXT_PRICE_VERSION)throw new AppError('CONFLICT','The context price has expired. Please send again with the refreshed price.',409,true);

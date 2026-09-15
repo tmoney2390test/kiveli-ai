@@ -979,7 +979,7 @@ function ChatSession() {
       // scene candidates, then executed before the dialogue context is built.
       // This gives the normal companion response the real scene change to
       // react to, while questions and vague ideas remain ordinary chat.
-      if(isCoPresent&&!messageAction&&!contextAuthorization.contextQuoteId){
+      if(isCoPresent&&!messageAction&&!contextAuthorization.contextQuoteId&&!contextAuthorization.contextCostAuthorization){
         try{
           const sceneResult=await manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[];intentMatch?:InteractionCandidate;characterProposal?:CharacterInteractionProposal}>({action:'resolve',characterInstanceId:character.id,conversationId:conversation.id,intentText:text});
           markInteractionSceneHydrated(sceneResult.scene);setInteractionScene(sceneResult.scene?.id?sceneResult.scene:null);

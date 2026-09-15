@@ -103,7 +103,7 @@ export async function buildTieredKivelleConversationContext(
 ): Promise<TieredConversationContext> {
   const reservation=contextReservation(input.db);
   const quote=reservation?.replies.find((reply)=>reply.speakerId===String(input.instance.id));
-  if(quote?.paidExpansion)input={...input,contextInputCeiling:reservation!.ceiling};
+  if(reservation?.automatic||quote?.paidExpansion)input={...input,contextInputCeiling:reservation!.ceiling};
   const [subscription, base] = await Promise.all([
     requestRead(input.db, ['dialogue-subscription', input.userId, Boolean(input.readOnly)], () => input.readOnly ? resolveSubscriptionAccess(input.db,input.userId,input.now,true) : resolveSubscriptionState(input.db, input.userId, input.now)),
     buildBaseContext({...input,memoryCandidateLimit:20}),

@@ -36,7 +36,7 @@ export async function* streamTestChatCompletion(context: DialogueContext, option
   const profile = options.generationProfile = resolveDialogueRunGenerationProfile({ context, provider, model, generationContext: options.generationContext });
   const mode = options.chatGenerationControlsMode = chatGenerationControlsMode();
   const controls = providerGenerationControls(profile, mode);
-  const prepared = pricedCompanionPrompt({ context: { ...context, chatGenerationControlsApplied: controls.promptDynamismApplied, chatGenerationMode: options.generationContext?.mode ?? 'direct' }, db: options.usageScope?.db, speakerId: options.usageScope?.characterInstanceId ?? undefined, provider, model, maxOutputTokens: controls.maxOutputTokens, payment: options.contextPayment });
+  const prepared = await pricedCompanionPrompt({ context: { ...context, chatGenerationControlsApplied: controls.promptDynamismApplied, chatGenerationMode: options.generationContext?.mode ?? 'direct' }, db: options.usageScope?.db, speakerId: options.usageScope?.characterInstanceId ?? undefined, provider, model, maxOutputTokens: controls.maxOutputTokens, payment: options.contextPayment });
   options.contextPayment = prepared.payment;
   const upperUsage: NormalizedAiUsage = { inputTokens: Math.ceil(estimateContextTokens(prepared.prompt) * 1.25) + 128, outputTokens: controls.maxOutputTokens, cachedInputTokens: 0, reasoningTokens: 0, totalTokens: 0 };
   const lease = await acquireProviderSlot(options.usageScope, provider, options.operation ?? `dialogue_${provider}`);

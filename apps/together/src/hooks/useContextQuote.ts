@@ -7,16 +7,16 @@ import { confirmContextCost, contextCostConfirmed } from '../lib/contextCostConf
 type Draft = Record<string, unknown>;
 export type ContextCostPrompt = { kind: 'confirm' | 'photo' | 'error'; message?: string };
 export type ContextCostChoice = 'proceed' | 'included' | 'retry' | 'cancel';
-type Authorization = { contextQuoteId?: string; contextPreference?: 'included' };
+type Authorization = { contextQuoteId?: string; contextCostAuthorization?: string; contextPreference?: 'included' };
 type Pending = { controller: AbortController; resolve?: (choice: ContextCostChoice) => void };
 
-export function useContextQuote({ userId, preference, activationId, draft, revision, paused = false, hasPendingPhoto = false }: {
-  userId?: string; preference: unknown; activationId?: unknown; draft: Draft; revision: string; paused?: boolean; hasPendingPhoto?: boolean;
+export function useContextQuote({ userId, preference, activationId, draft, revision, paused = false, hasPendingPhoto = false, automatic = true }: {
+  userId?: string; preference: unknown; activationId?: unknown; draft: Draft; revision: string; paused?: boolean; hasPendingPhoto?: boolean; automatic?: boolean;
 }) {
   const selected = normalizeContextPreference(preference);
   const token = contextCostNoticeToken(selected, activationId);
   const conversationId = String(draft.conversationId ?? '');
-  const scope = JSON.stringify([userId, conversationId, token, draft, revision, paused, hasPendingPhoto]);
+  const scope = JSON.stringify([userId, conversationId, token, draft, revision, paused, hasPendingPhoto, automatic]);
   const liveScope = useRef(scope); liveScope.current = scope;
   const pending = useRef<Pending | null>(null);
   const mounted = useRef(true);
@@ -53,6 +53,7 @@ export function useContextQuote({ userId, preference, activationId, draft, revis
         if (!current() || await ask({ kind: 'confirm' }) !== 'proceed' || !current()) return null;
         await confirmContextCost(userId, conversationId, token);
       }
+      if (automatic) return current() && token ? { contextCostAuthorization: token } : null;
       while (current()) {
         try {
           const quote = await quoteDialogueContext(payload, request.controller.signal);
