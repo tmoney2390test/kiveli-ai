@@ -118,14 +118,14 @@ async function createDraft(db: Db, userId: string, input: StudioAction, now: str
   // The guided first step already supplies canonical identity facts. Build the
   // editable foundation locally so opening Portrait is not blocked on a model
   // round trip; concept-only and legacy creation still receive AI enrichment.
-  const proposal = await initialCharacterDraftProposal(concept, Boolean(seed), provider);
+  const proposal = await initialCharacterDraftProposal(concept, Boolean(seed), provider, seed ? { name: String(seed.name ?? ''), age: Number(seed.age), pronouns: String(seed.pronouns ?? '') } : undefined);
   const locations = await worldLocations(db, worldId);
   const home = chooseHomeArea(locations, world.default_arrival_location_id);
   if (!home) throw new AppError('CONFLICT', 'That world needs an authored district or neighborhood before someone can live there.', 409);
   const work = chooseWorkLocation(locations, proposal.occupation, proposal.interests, home.id);
   const identity = identitySchema.parse({
     name: seed?.name ?? proposal.displayName, age: seed?.age ?? proposal.age, gender: seed?.gender ?? '', pronouns: seed?.pronouns ?? proposal.pronouns ?? '', occupation: proposal.occupation,
-    biography: proposal.biography, interests: proposal.interests, traits: proposal.traits,
+    biography: seed && String(seed.description ?? '').trim().length >= 20 ? String(seed.description).trim() : proposal.biography, interests: proposal.interests, traits: proposal.traits,
     ambitions: [`Build a meaningful life as ${article(proposal.occupation)} ${proposal.occupation.toLowerCase()}.`],
   });
   const personality = personalitySchema.parse({ ...proposal.personality, note: '' });
@@ -145,7 +145,7 @@ async function createDraft(db: Db, userId: string, input: StudioAction, now: str
     user_id: userId, target_continuity_id: continuity.id, world_id: worldId, status: 'editing', current_step: seed ? 'appearance' : 'identity',
     create_request_id: requestId, source_concept: concept, relationship_goal: relationshipGoal,
     identity_config: identity, personality_config: personality, communication_config: communication, connection_config: connection,
-    appearance_config: { description: String(seed?.description ?? '').trim().length >= 20 ? String(seed?.description).trim() : proposal.appearanceDescription }, life_config: life, routine_config: routine,
+    appearance_config: { description: proposal.appearanceDescription }, life_config: life, routine_config: routine,
     first_meeting_config: firstMeeting, metadata: { providerMode: 'configured', contextVersion: seed ? 3 : 2, characterPerformance: proposal.performanceProfile }, created_at: now, updated_at: now,
   }).select('*').single();
   if (inserted.error || !inserted.data) {
