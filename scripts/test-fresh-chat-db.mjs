@@ -20,7 +20,7 @@ try {
     create role anon; create role authenticated; create role service_role;
     create schema auth; create schema extensions;
     create function auth.uid() returns uuid language sql as $$select nullif(current_setting('test.user',true),'')::uuid$$;
-    create table public.together_character_instances(id uuid primary key,user_id uuid,relationship_stage text,life_state text);
+    create table public.together_character_instances(id uuid primary key,user_id uuid,relationship_stage text,life_state text,life_state_summary text,life_state_changed_at timestamptz,life_state_source_message_id uuid,life_state_metadata jsonb,updated_at timestamptz);
     create table public.together_conversations(id uuid primary key default gen_random_uuid(),user_id uuid,character_instance_id uuid,kind text,title text,
       created_at timestamptz default now(),updated_at timestamptz default now(),archived_at timestamptz,user_archived_at timestamptz,last_read_at timestamptz,metadata jsonb default '{}');
     create table public.together_proactive_messages(id uuid primary key default gen_random_uuid(),user_id uuid,character_instance_id uuid,conversation_id uuid,status text,updated_at timestamptz);
@@ -31,7 +31,8 @@ try {
   `);
   const sql = readFileSync(new URL('../supabase/migrations/20260911161232_explicit_fresh_chat.sql', import.meta.url), 'utf8');
   await db.exec(sql);
-  await db.query('insert into together_character_instances values($1,$2,\'friend\',\'dead\')', [companion, owner]);
+  await db.exec(readFileSync(new URL('../supabase/migrations/20260915151941_fresh_chat_life_reset.sql',import.meta.url),'utf8')); 
+  await db.query('insert into together_character_instances(id,user_id,relationship_stage,life_state) values($1,$2,\'friend\',\'dead\')', [companion, owner]);
   const original = await open();
   await db.query("update together_conversations set metadata='{\"chatPreferences\":{\"responseStyle\":\"paragraph\"}}' where id=$1", [original.id]);
   await db.query("insert into together_messages(conversation_id,content) values($1,'A neutral story detail')", [original.id]);
@@ -54,7 +55,9 @@ try {
   await assert.rejects(fresh(original.id),/FRESH_CHAT_BUSY/);checks++;
   check((await open()).id,original.id);
   await db.exec("update together_dialogue_turns set state='completed'");
+  check((await one('select life_state from together_character_instances')).life_state,'dead');
   const result = await fresh(original.id);
+  check(await one('select life_state_summary,life_state_changed_at,life_state_source_message_id,life_state_metadata from together_character_instances'),{life_state_summary:null,life_state_changed_at:null,life_state_source_message_id:null,life_state_metadata:{}});
   check(result.replayed,false);
   assert.notEqual(result.conversation.id, original.id);checks++;
   check(result.conversation.metadata.previousConversationId, original.id);
@@ -69,13 +72,17 @@ try {
   check((await one('select count(*)::int as n from together_messages where conversation_id=$1',[original.id])).n,1);
   check((await one('select count(*)::int as n from together_memories')).n,1);
   check((await one('select count(*)::int as n from together_generated_media')).n,1);
-  check(await one('select relationship_stage,life_state from together_character_instances'),{relationship_stage:'friend',life_state:'dead'});
+  check(await one('select relationship_stage,life_state from together_character_instances'),{relationship_stage:'friend',life_state:'alive'});
   for (const role of ['anon','authenticated']) for (const signature of ['kivelle_start_conversation(uuid,uuid)','kivelle_start_fresh_conversation(uuid,uuid,uuid,uuid,text)']) {
     check((await one('select has_function_privilege($1,$2,\'EXECUTE\') as allowed',[role,signature])).allowed,false);
   }
   check((await one("select has_function_privilege('service_role','kivelle_start_fresh_conversation(uuid,uuid,uuid,uuid,text)','EXECUTE') as allowed")).allowed,true);
+  await db.exec("update together_character_instances set life_state='dead'");
+  await fresh(original.id);
+  check((await one('select life_state from together_character_instances')).life_state,'dead');
   // Reapplying the additive migration must not touch existing conversation data.
   await db.exec(sql);
   check((await open()).id,result.conversation.id);
   console.log(`Fresh-chat database contract: ${checks} checks passed (isolated PGlite; not a full Supabase integration test).`);
 } finally { await db.close(); }
+
