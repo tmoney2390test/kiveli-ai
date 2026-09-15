@@ -39,7 +39,7 @@ insert into together_locations values('${place}','${world}');
 `);
   await db.exec(
     readFileSync(
-      "supabase/migrations/20260915190000_creator_rotating_weeks.sql",
+      "supabase/migrations/20260915175825_creator_rotating_weeks.sql",
       "utf8",
     ),
   );
