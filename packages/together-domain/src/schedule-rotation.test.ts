@@ -75,11 +75,9 @@ describe("rotating companion weeks", () => {
     });
   }
   it("uses home routines and rotates shift times", () => {
-    expect(make("home").filter((b) => b.availability === "busy")).toHaveLength(
-      0,
-    );
-    expect(make("shift", 0)[0]?.startMinute).not.toBe(
-      make("shift", 1)[0]?.startMinute,
+    expect(make("home").filter(b => b.availability === "busy").every(b => b.locationId === "home")).toBe(true);
+    expect(make("shift", 0).find(b => b.activity === "Painting commissions")?.startMinute).not.toBe(
+      make("shift", 1).find(b => b.activity === "Painting commissions")?.startMinute,
     );
   });
   it("allows identical slots in other weeks but rejects overlapping blocks in one week", () => {

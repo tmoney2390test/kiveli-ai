@@ -1,4 +1,4 @@
-import { buildCreatorWeek, routinePreset } from '../../../packages/together-domain/src/creator-routine.ts';
+import { buildCreatorWeek, routinePreset, scheduleBuildIssues } from '../../../packages/together-domain/src/creator-routine.ts';
 import { z } from 'zod';
 import { creatorReadiness, normalizeCharacterPerformance, imageDimensions, routineConflicts, type CreatorRoutineBlock } from '../../../packages/together-domain/src/index.ts';
 import { AppError } from './types.ts';
@@ -12,7 +12,7 @@ import { envBoolean } from './wavespeed.ts';
 import { enforceCustomCompanionLimit, refundCredits, resolveSubscriptionState, spendCredits } from './kivelle-subscription.ts';
 import { track } from './together.ts';
 
-const identitySchema = z.object({
+export const identitySchema = z.object({
   name: z.string().trim().min(1).max(50),
   age: z.number().int().min(18).max(99),
   gender: z.string().trim().max(40).optional().default(''),
@@ -44,7 +44,7 @@ const connectionSchema = z.object({
   boundaries: z.array(z.string().trim().min(2).max(120)).max(8).default([]),
 });
 const appearanceSchema = z.object({ description: z.string().trim().min(20).max(1000) });
-const lifeSchema = z.object({
+export const lifeSchema = z.object({
   homeWorldId: z.string().uuid(), homeLocationId: z.string().uuid(), workLocationId: z.string().uuid().nullable().optional(),
   lifestyle: z.string().trim().min(3).max(300), preferredActivities: z.array(z.string().trim().min(1).max(80)).max(10),
   scheduleStyle: z.string().trim().min(3).max(200),
@@ -138,7 +138,9 @@ async function createDraft(db: Db, userId: string, input: StudioAction, now: str
     preferredActivities: proposal.lifestyleHints.preferredActivities ?? proposal.interests.slice(0, 6),
     scheduleStyle: String(proposal.lifestyleHints.scheduleStyle ?? 'Weekday responsibilities with flexible evenings.'),
   });
-  const routine = buildRoutine(identity, personality, life, locations, now);
+  // A typical week is user-authored; do not prefill a generic work pattern.
+  life.lifestyle = '';
+  const routine = { blocks: [] as CreatorRoutineBlock[], source: 'awaiting_user_schedule', generatedAt: now };
   const firstMeeting = buildFirstMeetings(identity, personality, locations, worldId);
   const continuity = await activeContinuity(db, userId);
   const relationshipGoal = ['friendship', 'romance', 'either'].includes(String(input.relationshipGoal)) ? String(input.relationshipGoal) : 'either';
@@ -216,6 +218,7 @@ async function regenerateSection(db: Db, userId: string, draft: Record<string, a
   const locations = await worldLocations(db, draft.world_id);
   let patch: Record<string, unknown>;
   if (target === 'routine') {
+    const issues=scheduleBuildIssues(String(draft.life_config?.lifestyle??''),draft.life_config?.preferredActivities??[]);if(issues.length)throw new AppError('VALIDATION_ERROR',issues.join(' '),400);
     const generated = buildRoutine(identitySchema.parse(draft.identity_config), personalitySchema.parse(draft.personality_config), lifeSchema.parse(draft.life_config), locations, now);
     const weeks = Math.min(3, Math.max(1, ...(draft.routine_config?.blocks ?? []).map((block: CreatorRoutineBlock) => (block.weekIndex ?? 0) + 1)));
     patch = { routine_config: { ...generated, blocks: Array.from({length: weeks}, (_,weekIndex) => buildRoutine(identitySchema.parse(draft.identity_config), personalitySchema.parse(draft.personality_config), lifeSchema.parse(draft.life_config), locations, now, weekIndex).blocks).flat() } };

@@ -1,3 +1,4 @@
+import { previewCreatorRoutine } from '../lib/api';
 import { CreatorPlacePicker } from "./CreatorPlacePicker";
 import { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -6,7 +7,7 @@ import { CatalogImage } from "./CatalogImage";
 import { mappedLocationAsset } from "../location-assets";
 import { CreatorModal, CreatorPicker } from "./CreatorPicker";
 import {
-  buildCreatorWeek,
+  scheduleBuildIssues,
   routineInputKey,
   routinePreset,
   routinePresets,
@@ -74,6 +75,11 @@ type Props = {
 export function CreatorDailyLifeEditor(
   { draft, identity, life, routine, onLife, onRoutine }: Props,
 ) {
+  const [building,setBuilding] = useState(false);
+  const [buildError,setBuildError] = useState('');
+  const [previewNotice,setPreviewNotice] = useState('');
+  const buildingRef=useRef(false);
+  const latestBuildContext=useRef('');
   const [workplaceOpen, setWorkplaceOpen] = useState(false);
   const [week, setWeek] = useState(0),
     [activity, setActivity] = useState(""),
@@ -132,28 +138,21 @@ export function CreatorDailyLifeEditor(
     typeof a === "string" && a.length <= 40 &&
     !life.preferredActivities.includes(a)
   ).slice(0, 6);
-  const build = () => {
-    const interest = life.preferredActivities[0]?.toLowerCase() || "";
-    const place = workplaces.find((l) =>
-      interest &&
-      [l.name, l.category, l.description].join(" ").toLowerCase().includes(
-        interest,
-      )
-    );
-    setPreview(buildCreatorWeek({
-      weekIndex: week,
-      preset,
-      description: life.lifestyle,
-      occupation: identity.occupation,
-      activities: life.preferredActivities,
-      homeLocationId: life.homeLocationId,
-      workLocationId: life.workLocationId,
-      socialLocationId: place?.id || life.homeLocationId,
-      id: createClientRequestId,
-    }));
+  const buildIssues=scheduleBuildIssues(life.lifestyle,life.preferredActivities);
+  latestBuildContext.current=JSON.stringify([week,life,identity]);
+  const build = async () => {
+    if(buildingRef.current || buildIssues.length)return;
+    const requestContext=latestBuildContext.current;
+    buildingRef.current=true;setBuilding(true);setBuildError('');setPreviewNotice('');
+    try {
+      const result=await previewCreatorRoutine({draftId:draft.id,weekIndex:week,identity,life});
+      if(latestBuildContext.current!==requestContext){setBuildError('Your details changed while building. Build again to use the latest details.');return;}
+      setPreview(result.blocks);setPreviewNotice(result.notice??'');
+    }catch(error){setBuildError(error instanceof Error?error.message:'The schedule could not be built. Try again.');}
+    finally{buildingRef.current=false;setBuilding(false);}
   };
   const addWeek = () => {
-    if (weeks >= 3) return;
+    if (weeks >= 3 || !current.length) return;
     onRoutine([
       ...routine,
       ...current.map((b) => ({
@@ -300,7 +299,7 @@ export function CreatorDailyLifeEditor(
         : null}
       <Text style={s.label}>Favorite activities</Text>
       <Text style={s.help}>
-        Choose a few interests to make room for in their week.
+        Add at least 4 different activities. Be specific: listening to music, cooking dinner, or playing video games.
       </Text>
       <View style={s.row}>
         {life.preferredActivities.map((a) => (
@@ -353,8 +352,10 @@ export function CreatorDailyLifeEditor(
       </View>
       <View style={s.row}>
         <Text accessibilityRole="header" style={s.heading}>Weekly routine</Text>
-        <Action label="Build my schedule" onPress={build} />
+        <Action label={building?"Building your week…":"Build my schedule"} disabled={building||buildIssues.length>0} onPress={()=>void build()} />
       </View>
+      {buildIssues.map(issue=><Text key={issue} style={s.help}>{issue}</Text>)}
+      {buildError?<Text accessibilityRole="alert" style={s.warning}>{buildError}</Text>:null}
       <Text style={s.help}>
         {weeks === 1
           ? "This week repeats. Add up to two more for variety."
@@ -380,7 +381,7 @@ export function CreatorDailyLifeEditor(
             </Pressable>
           ),
         )}
-        {weeks < 3 ? <Action label="+ Add week" onPress={addWeek} /> : null}
+        {weeks < 3 ? <Action label="+ Add week" disabled={!current.length||building} onPress={addWeek} /> : null}
         {weeks > 1 ? <Action label="Remove week" onPress={removeWeek} /> : null}
       </View>
       {mismatch
@@ -390,7 +391,7 @@ export function CreatorDailyLifeEditor(
               Your routine details and schedule may differ. Preview an updated
               Week {week + 1}, or keep your edits.
             </Text>
-            <Action label="Update schedule to match" onPress={build} />
+            <Action label="Update schedule to match" disabled={building||buildIssues.length>0} onPress={()=>void build()} />
           </View>
         )
         : null}
@@ -586,6 +587,7 @@ export function CreatorDailyLifeEditor(
         <Text style={s.help}>
           Review these suggestions. Other weeks stay as they are.
         </Text>
+        {previewNotice?<Text style={s.help}>{previewNotice}</Text>:null}
         {groups(preview ?? []).map((blocks) => (
           <View key={blocks[0]!.id} style={s.scheduleRow}>
             <View>

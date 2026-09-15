@@ -340,3 +340,5 @@ export async function sendSceneReaction(input:{conversationId:string;characterIn
     if(!final)throw new ApiError('The reaction was interrupted. Try again.','STREAM_INTERRUPTED',true);return{message:final};
   },{attempts:2,delayMs:220,onRetry:()=>onRetry?.()});
 }
+
+export const previewCreatorRoutine = (input:{draftId:string;weekIndex:number;identity:import('../types').CreatorIdentityConfig;life:import('../types').CreatorLifeConfig}) => manageCreator<{blocks:import('../types').CreatorRoutineBlock[];source:string;notice?:string}>({action:'preview_routine',...input});
