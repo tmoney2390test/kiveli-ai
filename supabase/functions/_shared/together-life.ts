@@ -135,7 +135,7 @@ export async function runLifeSimulation({ db, userId, characterInstanceId, now =
   const { data: dueThreads } = memoryPreferences.open_thread===false
     ? {data:[] as EventRow[]}
     : await db.from('together_open_threads').update({ follow_up_eligible: true, updated_at: now.toISOString() }).eq('user_id', userId).eq('character_instance_id', instance.id).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).is('resolved_at', null).is('last_followed_up_at', null).eq('followup_count', 0).lte('expected_at', now.toISOString()).select('*');
-  const prefs = preferences.data ?? { character_initiated_messages: true, push_enabled: false, quiet_hours_start: '23:00', quiet_hours_end: '08:00', timezone: 'UTC' };
+  const prefs = preferences.data ?? { character_initiated_messages: false, initiative_level: 'off', push_enabled: false, quiet_hours_start: '23:00', quiet_hours_end: '08:00', timezone: 'UTC' };
   let proactive: EventRow | null = null;
   const overrides=prefs.companion_initiative_levels&&typeof prefs.companion_initiative_levels==='object'&&!Array.isArray(prefs.companion_initiative_levels)?prefs.companion_initiative_levels as Record<string,unknown>:{};
   const entitlementExpired=Boolean(entitlement.data?.expires_at&&new Date(String(entitlement.data.expires_at)).getTime()<=now.getTime()),subscriptionTier=entitlementExpired?'free':normalizeSubscriptionTier(entitlement.data?.tier),capabilities=capabilitiesForAccount(subscriptionTier,entitlement.data?.metadata);

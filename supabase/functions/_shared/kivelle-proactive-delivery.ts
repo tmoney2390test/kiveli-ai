@@ -1,3 +1,4 @@
+import { initiativePacingAllows } from './kivelle-proactive-pacing.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeChatLanguage } from '../../../packages/together-domain/src/chat-language.ts';
 import { normalizeSubscriptionTier } from '../../../packages/together-domain/src/entitlements.ts';
@@ -50,6 +51,7 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
     let message = existing;
     let content = existing?.content ?? '';
     if (!message) {
+      if (!await initiativePacingAllows(db, userId, proactive, now)) return await cancel('unanswered_backoff_or_disabled');
       const [source, instanceResult, relationshipResult, entitlementResult, latestUser, continuity] = await Promise.all([
         loadInitiativeSource(db, userId, proactive, now, input.timezone),
         db.from('together_character_instances')
@@ -89,6 +91,7 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
       ]);
       if (currentConversation.error || currentInstance.error || currentClaim.error) throw new Error('INITIATIVE_REVALIDATION_FAILED');
       if (!currentClaim.data) return null;
+      if (!await initiativePacingAllows(db, userId, proactive, commitTime)) return await cancel('unanswered_backoff_or_disabled');
       if (!currentSource || JSON.stringify(currentSource) !== JSON.stringify(source) || userResumedAfterQueue(proactive, currentUser) ||
         !currentConversation.data || currentConversation.data.archived_at || !currentContinuity ||
         JSON.stringify(currentContinuity.together_user_personas) !== JSON.stringify(continuity.together_user_personas) ||
@@ -100,7 +103,7 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
         conversation_id: conversation.id, user_id: userId, character_instance_id: instance.id,
         speaker_character_instance_id: conversation.kind === 'group' ? instance.id : null,
         role: 'assistant', content, delivery_status: 'complete', response_key: responseKey,
-        provider_metadata: { provider: 'life-engine', proactive: true, proactive_message_id: proactive.id,
+        provider_metadata: { provider: 'life-engine', proactive: true, messageKind: proactive.context?.messageKind, proactive_message_id: proactive.id,
           group_plan_id: proactive.context?.groupPlanId, chatLanguage: normalizeChatLanguage(conversation.metadata?.chatPreferences?.chatLanguage),
           initiativeGenerationVersion: 2, ...(proactive.open_thread_id ? { conversationalHandoff: {
             mode: 'earned_followup', source: 'open_thread', openThreadId: proactive.open_thread_id,

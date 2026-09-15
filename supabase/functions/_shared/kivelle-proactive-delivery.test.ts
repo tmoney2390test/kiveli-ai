@@ -15,6 +15,7 @@ function fixture() {
     context: { lastMessageAt: yesterday, messageKind: 'initiative' } };
   const tables: Record<string, Row[]> = {
     together_ai_data_consents:[{user_id:'user',purpose:'core_ai_processing_v1',decision:'accepted',disclosure_version:'2026-09-06',decided_at:yesterday}],
+    together_notification_preferences: [{user_id:'user',initiative_level:'natural'}],
     together_proactive_messages: [structuredClone(proactive)],
     together_messages: [{ id: 'original', user_id: 'user', character_instance_id: 'character', conversation_id: 'conversation',
       role: 'user', content: 'My museum interview is tomorrow. I am nervous about meeting the director.', created_at: yesterday,
@@ -250,4 +251,20 @@ Deno.test('disabling open-thread memory suppresses an already queued follow-up',
 Deno.test('withdrawn AI sharing prevents queued context from reaching the provider',async()=>{
   const f=fixture();f.tables.together_ai_data_consents![0]!.decision='withdrawn';
   await withModel(async calls=>{assertEquals(await f.run(),null);assertEquals(calls.count,0);});
+});
+
+Deno.test('unanswered check-ins back off and stop after three, including queued catch-up', async () => {
+  for (const [hours, count, expected] of [[20,1,false],[40,1,true],[40,2,false],[80,2,true],[200,3,false]] as const) {
+    const f=fixture();
+    f.tables.together_messages![0]!.created_at=new Date(now.getTime()-300*3600000).toISOString();
+    for(let i=0;i<count;i++) f.tables.together_messages!.push({id:'sent-'+i,user_id:'user',conversation_id:'conversation',character_instance_id:'character',role:'assistant',created_at:new Date(now.getTime()-(hours+i)*3600000).toISOString(),provider_metadata:{proactive:'true'}});
+    await withModel(async calls=>{const result=await f.run();assertEquals(Boolean(result),expected);assertEquals(calls.count,expected?1:0);});
+  }
+});
+Deno.test('missing preferences default off and a new user reply resets the unanswered cap',async()=>{
+  const off=fixture();off.tables.together_notification_preferences=[];
+  await withModel(async calls=>{assertEquals(await off.run(),null);assertEquals(calls.count,0);});
+  const f=fixture();
+  for(let i=0;i<4;i++) f.tables.together_messages!.push({id:'old-'+i,user_id:'user',conversation_id:'conversation',role:'assistant',created_at:new Date(now.getTime()-(100+i)*3600000).toISOString(),provider_metadata:{proactive:'true'}});
+  await withModel(async()=>assert(await f.run()));
 });
