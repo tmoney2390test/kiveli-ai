@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
-import { useCompanionGenderPreference } from '../CompanionGenderToggle';
 import { CompanionPortraitCard } from '../CompanionPortraitCard';
 import { colors, radius, typography } from '../../theme';
-import { featuredCompanionRail, type FeaturedCompanion } from '../../lib/featuredCompanions';
+import type { FeaturedCompanion } from '../../lib/featuredCompanions';
 import type { World } from '../../types';
 
 const HOME_FEATURED_LIMIT = 6;
@@ -20,16 +19,15 @@ export function FeaturedCompanionsSection({ companions, world, favoriteIds, onOp
   const { width } = useWindowDimensions();
   const rail = useRef<ScrollView | null>(null);
   const [index, setIndex] = useState(0);
-  const [gender, chooseGender] = useCompanionGenderPreference();
   const [savingFavoriteId, setSavingFavoriteId] = useState<string | null>(null);
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
-  const featured = featuredCompanionRail(companions, gender, 0).slice(0, HOME_FEATURED_LIMIT);
+  const featured = companions.slice(0, HOME_FEATURED_LIMIT);
   const visibleIndex = featured.length ? Math.min(index, featured.length - 1) : 0;
   const cardWidth = width >= 1000 ? 300 : width >= 700 ? 286 : Math.min(306, width - 58);
   const cardHeight = width >= 700 ? 342 : 330;
   const step = cardWidth + 12;
 
-  useEffect(() => { setIndex(0); rail.current?.scrollTo({ x: 0, animated: false }); }, [gender, world.id]);
+  useEffect(() => { setIndex(0); rail.current?.scrollTo({ x: 0, animated: false }); }, [world.id, companions[0]?.id]);
   useEffect(() => { rail.current?.scrollTo({ x: visibleIndex * step, animated: true }); }, [step, visibleIndex]);
 
   const cycle = (direction: -1 | 1) => {
@@ -64,7 +62,7 @@ export function FeaturedCompanionsSection({ companions, world, favoriteIds, onOp
         <View style={styles.progressCenter}><Text style={styles.progressText}>{visibleIndex + 1} / {featured.length}</Text><View style={styles.dots}>{featured.map((item, position) => <View key={item.id} style={[styles.dot, position === visibleIndex && styles.dotActive]} />)}</View></View>
         <Pressable accessibilityRole="button" accessibilityLabel="Next featured companion" accessibilityHint="Shows the next portrait" onPress={() => cycle(1)} style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}><ChevronRight size={23} strokeWidth={2.3} color="#F5DFE8" /></Pressable>
       </View> : null}
-    </> : <View style={styles.emptyFilter}><Text style={styles.emptyFilterTitle}>No {gender} companions here yet</Text><Text style={styles.emptyFilterCopy}>Show everyone or open Explore to adjust who you would like to meet.</Text><Pressable accessibilityRole="button" onPress={() => chooseGender('any')} style={styles.emptyFilterButton}><Text style={styles.emptyFilterButtonText}>Show everyone</Text></Pressable></View>}
+    </> : <View style={styles.emptyFilter}><Text style={styles.emptyFilterTitle}>No companions here yet</Text><Text style={styles.emptyFilterCopy}>Open Explore to discover other worlds and companions.</Text><Pressable accessibilityRole="button" onPress={onViewAll} style={styles.emptyFilterButton}><Text style={styles.emptyFilterButtonText}>Open Explore</Text></Pressable></View>}
     {favoriteError ? <Text accessibilityRole="alert" style={styles.favoriteError}>{favoriteError}</Text> : null}
     <Pressable accessibilityRole="button" accessibilityLabel={`View all characters in ${world.name}`} onPress={onViewAll} style={({ pressed }) => [styles.viewAll, pressed && styles.viewAllPressed]}><Text style={styles.viewAllText}>Explore everyone in {world.name}</Text><ChevronRight size={18} color="#F0BED1" /></Pressable>
   </View>;
